@@ -1,0 +1,16 @@
+# AI-hint: Oneshot that seeds the non-thin Hermes WORKER config (/var/lib/mios/hermes-worker/config.yaml) from the vendor template before hermes-worker.service starts. Distinct from mios-hermes-firstboot (which owns and re-thins the primary :8642 config); this one NEVER touches the primary path.
+# AI-related: /usr/libexec/mios/hermes-worker-firstboot, /usr/share/mios/hermes/config-worker.yaml, /var/lib/mios/hermes-worker/config.yaml, hermes-worker.service
+[Unit]
+Description='MiOS' Hermes-Worker first-boot config seed (:8643 non-thin worker)
+Documentation=https://github.com/MiOS-DEV/MiOS
+After=local-fs.target systemd-tmpfiles-setup.service
+Before=hermes-worker.service multi-user.target
+ConditionPathExists=/usr/libexec/mios/hermes-worker-firstboot
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/libexec/mios/hermes-worker-firstboot
+
+[Install]
+WantedBy=multi-user.target

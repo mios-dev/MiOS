@@ -1,0 +1,95 @@
+# AI-hint: Systemd unit for the SECOND (non-thin) Hermes WORKER gateway on :8643 -- a real agent that runs its OWN native browser/CDP/terminal/skills tool loop with its OWN inference on the heavy lane (:11441 mios-heavy). Coexists with the thin :8642 Discord gateway (hermes-agent.service) via a SEPARATE HERMES_HOME and no Discord token.
+# AI-related: /usr/lib/mios/agents/.venv/bin/hermes, /var/lib/mios/hermes-worker, /var/lib/mios/hermes-worker/config.yaml, /etc/mios/hermes/api.env, hermes-agent.service, mios-hermes-browser-worker.service, mios-llm-heavy.service, mios-llm-light.service
+[Unit]
+# /usr/lib/systemd/system/hermes-worker.service
+#
+# The MiOS Hermes WORKER (P1, operator 2026-06-19). A SECOND `hermes gateway
+# run` instance, fully ISOLATED from the live :8642 Discord gateway:
+#   * SEPARATE HERMES_HOME=/var/lib/mios/hermes-worker => its own gateway.pid /
+#     gateway.lock / gateway_state.json / state.db / kanban.db / config.yaml.
+#     No shared-DB WAL contention with the :8642 instance.
+#   * API_SERVER_PORT=8643 (the LOAD-BEARING bind var -- `PORT` is inert; Hermes
+#     reads API_SERVER_PORT and otherwise binds DEFAULT_PORT=8642).
+#   * NO discord.env / NO DISCORD_BOT_TOKEN => the Discord adapter never calls
+#     _acquire_platform_lock('discord-bot-token', ...), so the host-global
+#     gateway-locks/discord-bot-token-*.lock held by the :8642 gateway is never
+#     contended (no SIGTERM flap). Discord stays the EXCLUSIVE job of :8642.
+#   * NO --replace: the worker's HERMES_HOME-scoped pidfile is its own; the
+#     :8642 gateway's eviction scan is profile/HERMES_HOME-scoped (only --all
+#     crosses profiles, which is not used) so neither instance touches the other.
+#
+# This worker is the WORKER-DISPATCH target of [agents.hermes].endpoint in
+# mios.toml (repointed :11441 -> :8643 in P1). It does its OWN heavy-lane
+# inference (:11441 mios-heavy) so it never relays to :8640 -- no recursion.
+Description='MiOS' Hermes-Worker (non-thin agent, native tool loop, :8643)
+Documentation=https://github.com/NousResearch/hermes-agent
+After=network-online.target mios-llm-heavy.service mios-llm-light.service hermes-worker-firstboot.service
+Wants=network-online.target mios-llm-heavy.service mios-llm-light.service hermes-worker-firstboot.service
+# Skip cleanly if the direct install didn't land.
+ConditionPathExists=/usr/lib/mios/agents/.venv/bin/hermes
+
+[Service]
+Type=simple
+User=mios-ai
+Group=mios-ai
+# SEPARATE HERMES_HOME + HOME => fully isolated pid/lock/state/DBs/config AND a
+# distinct $HOME/XDG so the discord scope-lock dir (derived from $HOME) can
+# never collide with the :8642 gateway's. Discord is off here regardless.
+Environment=HOME=/var/lib/mios/hermes-worker
+Environment=HERMES_HOME=/var/lib/mios/hermes-worker
+# Retrieval endpoints (same as the primary -- retrieval, not inference, Law 5).
+Environment=SEARXNG_URL=http://localhost:8888
+Environment=MIOS_CRAWL_SERVICE_URL=http://127.0.0.1:11235
+Environment=FIRECRAWL_API_URL=http://127.0.0.1:3002
+# BIND: API_SERVER_PORT is the load-bearing var. PORT is set for parity/docs but
+# is INERT in this Hermes build (no PORT->API_SERVER_PORT bridge exists).
+Environment=PORT=8643
+Environment=API_SERVER_PORT=8643
+# Backend hint (the seeded config.yaml base_url :11441 wins at runtime; kept in
+# sync). The worker does its OWN inference on the heavy lane.
+Environment=HERMES_BACKEND_BASE_URL=http://localhost:11441
+# COMPLETION CAP (operator 2026-06-19 P1 fix): mios-heavy max_model_len=65536; with
+# NO cap hermes lets the completion default to the full 65536, so input+completion
+# overflows -> HTTP 400 "token count exceeds maximum context". Cap the per-call
+# output so input has room (8192 leaves ~57k for input; enough for the reasoning
+# model's reasoning_content + answer). HERMES_MAX_TOKENS wins over model.max_tokens.
+Environment=HERMES_MAX_TOKENS=8192
+# Dedicated CDP browser for the worker (own port + own profile) so it never
+# stomps the primary :9222 browser. Matches browser.cdp_url in the worker config.
+Environment=BROWSER_CDP_URL=http://localhost:9223
+# api.env carries API_SERVER_ENABLED=true, API_SERVER_HOST=0.0.0.0,
+# API_SERVER_KEY, GATEWAY_ALLOW_ALL_USERS=true. SHARED with the :8642 gateway
+# (same key => callers can reach both with one key). install.env is the
+# non-secret bridge. Both optional (- prefix). DISCORD env is DELIBERATELY NOT
+# loaded -- the worker must not contend for the discord-bot-token scope lock.
+EnvironmentFile=-/etc/mios/install.env
+EnvironmentFile=-/etc/mios/hermes/api.env
+# Guarantee the worker HERMES_HOME exists, owned by the run user, mode 0700
+# (mirror the primary unit's ExecStartPre pattern; the gateway tightens to 0700
+# itself on startup, so owner mios-ai is the decisive bit). `+` runs as root.
+ExecStartPre=+/usr/bin/install -d -o mios-ai -g mios-ai -m 0700 /var/lib/mios/hermes-worker
+# Idempotently apply the same Discord-reactions patch + dashboard-auth stub the
+# primary unit applies (harmless; keeps the venv consistent if the primary unit
+# hasn't run yet). Leading - so a failure can't block worker startup.
+ExecStartPre=-/usr/bin/python3 /usr/libexec/mios/mios-hermes-discord-reactions-patch /usr/lib/mios/agents/.venv/lib/python3.14/site-packages/gateway/platforms/discord.py
+ExecStartPre=-+/usr/libexec/mios/mios-hermes-dashboard-auth-stub
+# NO --replace (isolation; the worker recovers ONLY its own stale pidfile, which
+# `gateway run` does via its HERMES_HOME-scoped PID/lock check anyway).
+ExecStart=/usr/lib/mios/agents/.venv/bin/hermes gateway run
+Restart=on-failure
+RestartSec=10s
+TimeoutStartSec=300s
+TimeoutStopSec=240s
+LimitNOFILE=1048576
+ProtectSystem=strict
+ReadWritePaths=/etc/mios /var/lib/mios /run/mios-launcher
+ProtectHome=false
+# NoNewPrivileges=false to honour the operator's sudo grant (same rationale as
+# the primary unit). Revoke via the sudoers drop-in if undesired.
+NoNewPrivileges=false
+# PrivateTmp=yes: the worker's terminal/code_execution tools need a writable
+# /tmp (ProtectSystem=strict makes /tmp read-only otherwise).
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target
