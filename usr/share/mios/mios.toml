@@ -1045,6 +1045,12 @@ fanout_max = 3
 # cross-agent collector (most-recent N turns). agent-pipe reads these via _dispatch_num.
 max_sources          = 8
 sources_registry_cap = 64
+# When a swarm/DAG turn grounds NOTHING (research+nodes both empty) and the answer
+# is empty/punt OR it was a web/news turn, RE-ANSWER via the always-up light-lane
+# native loop (real grounding + real citations) instead of shipping blank or
+# fabricated text -- the failure mode when leaf agents are down (operator 2026-06-19).
+# false = prior behaviour (ship the empty/fabricated synthesis). Degrade-open.
+dag_empty_native_fallback = true
 # ── SWARM-NODE COMPUTE BUDGET + DEEPEN (operator 2026-05-26 "every node computes
 # ... loop until satisfied"; SSOT'd 2026-05-31 after "HARDCODES!!!"). agent-pipe
 # reads these from here via _dispatch_toml(); runtime override via the matching

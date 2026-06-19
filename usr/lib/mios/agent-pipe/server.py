@@ -1100,6 +1100,17 @@ COUNCIL_DEFAULT = str(os.environ.get(
 # its own node. Bound the swarm to at most this many DISTINCT (endpoint,model)
 # targets. 0 = uncapped. SSOT [dispatch].swarm_max_width.
 SWARM_MAX_WIDTH = _dispatch_num("MIOS_SWARM_MAX_WIDTH", "swarm_max_width", 6)
+# Empty-DAG native-loop fallback (operator 2026-06-19 "swarm returns empty/
+# fabricated when leaf agents are down"): when a swarm/DAG turn grounds NOTHING
+# (research_chars==0 AND merged_chars==0) and the answer is empty/punt OR it was a
+# web/news turn that should have had real sources, RE-ANSWER via the always-up
+# light-lane native loop (which does its own grounding + cites real URLs) instead
+# of shipping blank or fabricated text. SSOT [dispatch].dag_empty_native_fallback;
+# degrade-open + flag-off restores the prior behaviour exactly.
+DAG_EMPTY_NATIVE_FALLBACK = str(os.environ.get(
+    "MIOS_DAG_EMPTY_NATIVE_FALLBACK",
+    str((_toml_section("dispatch") or {}).get("dag_empty_native_fallback", "true")))
+).strip().lower() not in ("0", "false", "no")
 # Slow-lane (CPU/iGPU) fan-out CEILING (operator 2026-06-01j runaway): GPU/fast
 # nodes fan out unbounded (each on its own fast hardware), but the CPU/iGPU lanes
 # are where stacked ~100s gens pile up. Cap how many slow-lane nodes a single DAG
@@ -14913,7 +14924,45 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
                 log.warning("synth: polish punted but a grounded node answered "
                             "-> using the grounded sibling (%d chars)", len(_cand))
                 main = _cand
-        return envelope, main
+        # Empty-DAG signal for the native-loop fallback (operator anti-fabrication):
+        # the swarm grounded NOTHING (no fetched research AND no node output) and the
+        # answer is empty/punt OR this was a web/news turn that should have carried
+        # real sources -> the caller should re-answer via the native loop. Computed
+        # HERE because _is_punt + _research + merged are all in scope.
+        _grounded_nothing = (len(_research) == 0 and len(merged) == 0)
+        _web_turn = bool(refined and (refined.get("web") or refined.get("news")
+                                      or refined.get("deep")
+                                      or refined.get("deep_research")))
+        _empty_or_punt = (not main.strip()) or _is_punt(main)
+        _needs_fallback = bool(_grounded_nothing and (_empty_or_punt or _web_turn))
+        return envelope, main, _needs_fallback
+
+    async def _native_fallback(_main: str) -> tuple:
+        """Empty-DAG safety net (operator 2026-06-19): the swarm grounded nothing,
+        so re-answer via the ALWAYS-UP light-lane native loop (it does its own web
+        grounding + cites REAL urls). Returns (text, sources) on success, else
+        (None, []) -> the caller keeps the original DAG `main`. Degrade-open: never
+        raises, never recurses (the native loop never re-enters the DAG)."""
+        try:
+            _fb = await _respond_native_loop_direct(
+                refined, streaming=False, chat_id=chat_id, model=model,
+                session_id=session_id, last_user_text=last_user_text,
+                persona_system=persona_system,
+                messages=[{"role": "user", "content": last_user_text}],
+                request=request)
+            if _fb is None:
+                return None, []
+            _b = _loads_lenient(bytes(_fb.body).decode("utf-8", "replace"))
+            _txt = (((_b.get("choices") or [{}])[0].get("message") or {})
+                    .get("content") or "").strip()
+            _src = _b.get("mios_sources") or []
+            if _txt:
+                log.warning("dag grounded nothing -> native-loop fallback "
+                            "(%d chars, %d sources)", len(_txt), len(_src))
+                return _txt, _src
+        except Exception as _fbe:  # noqa: BLE001 -- degrade-open, keep the DAG main
+            log.warning("dag empty-fallback skipped: %s", _fbe)
+        return None, []
 
     # PER-FACET research, run LIVE inside the stream (operator 2026-05-22: stream
     # EVERY step throughout the pipeline -- do NOT block then dump at the end).
@@ -15193,7 +15242,28 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
             # CONTINUOUS throughout -- no buffering/blocking (operator 2026-05-30).
             yield _sse_status(chat_id=chat_id, model=model, emoji="🧬",
                               label="synthesising the answer", detail=None)
-            envelope, main = await _synthesise(dag_result)
+            envelope, main, _needs_fb = await _synthesise(dag_result)
+            if _needs_fb and DAG_EMPTY_NATIVE_FALLBACK:
+                # The swarm grounded nothing -> re-answer via the live light lane
+                # (a real cited answer, not blank/fabricated). Status emits first so
+                # the stream isn't silent during the fallback inference.
+                yield _sse_status(chat_id=chat_id, model=model, emoji="🩺",
+                                  label="swarm found nothing — focused answer",
+                                  detail=None)
+                _fbtxt, _fbsrc = await _native_fallback(main)
+                if _fbtxt:
+                    main = _fbtxt
+            # Attach REAL sources (turn collector + the answer's own inline URLs),
+            # like the native-loop/council finalizers, so the DAG path cites its
+            # grounding too -- the swarm grounding + any fallback recorded into the
+            # SAME turn bucket. Append the block to the STREAMED text.
+            try:
+                _src_record_from_text(main)
+            except Exception:  # noqa: BLE001
+                pass
+            _dag_refs = _src_collected()
+            if _dag_refs and "**Sources:**" not in main:
+                main = main.rstrip() + _sources_markdown(_dag_refs)
             yield _sse_reasoning(envelope + "\n", chat_id=chat_id, model=model)
             yield _sse_chunk("", chat_id=chat_id, model=model, role="assistant")
             async for _ab in _stream_answer(main, chat_id=chat_id, model=model):
@@ -15214,13 +15284,28 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
     dag_result = await _execute_dag_bounded(dag, session_id=session_id,
                                             deepen_barrier=SWARM_DEEPEN_ENABLED,
                                             request=request)
-    _envelope, main = await _synthesise(dag_result)
+    _envelope, main, _needs_fb = await _synthesise(dag_result)
+    if _needs_fb and DAG_EMPTY_NATIVE_FALLBACK:
+        _fbtxt, _fbsrc = await _native_fallback(main)
+        if _fbtxt:
+            main = _fbtxt
+    # Attach REAL sources (turn collector + the answer's own inline URLs) like the
+    # native-loop/council finalizers, so the DAG path cites its grounding too. The
+    # swarm grounding + any native-loop fallback recorded into the SAME turn bucket.
+    try:
+        _src_record_from_text(main)
+    except Exception:  # noqa: BLE001
+        pass
+    _dag_refs = _src_collected()
+    if _dag_refs and "**Sources:**" not in main:
+        main = main.rstrip() + _sources_markdown(_dag_refs)
     return JSONResponse(content={
         "id": chat_id, "object": "chat.completion",
         "created": int(time.time()), "model": model,
         "choices": [{"index": 0,
                      "message": {"role": "assistant", "content": main},
                      "finish_reason": "stop"}],
+        "mios_sources": _sources_metadata(_dag_refs) if _dag_refs else [],
     })
 
 
