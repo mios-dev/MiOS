@@ -1051,6 +1051,12 @@ sources_registry_cap = 64
 # fabricated text -- the failure mode when leaf agents are down (operator 2026-06-19).
 # false = prior behaviour (ship the empty/fabricated synthesis). Degrade-open.
 dag_empty_native_fallback = true
+# Trust the planner's atomic verdict (operator 2026-06-19 "research native patterns"):
+# when _plan_swarm self-gates to [] (focused/atomic ask) AND no breadth signal fires
+# (refine deep/deep_research/multi_task/_multi_step or an operator toggle), do NOT
+# force-seed a synthetic swarm -> answer via the single-agent path (faster, on-topic).
+# Genuinely broad asks still fan out to ALL live nodes. false = prior always-seed.
+swarm_trust_atomic = true
 # ── SWARM-NODE COMPUTE BUDGET + DEEPEN (operator 2026-05-26 "every node computes
 # ... loop until satisfied"; SSOT'd 2026-05-31 after "HARDCODES!!!"). agent-pipe
 # reads these from here via _dispatch_toml(); runtime override via the matching

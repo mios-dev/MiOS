@@ -1111,6 +1111,18 @@ DAG_EMPTY_NATIVE_FALLBACK = str(os.environ.get(
     "MIOS_DAG_EMPTY_NATIVE_FALLBACK",
     str((_toml_section("dispatch") or {}).get("dag_empty_native_fallback", "true")))
 ).strip().lower() not in ("0", "false", "no")
+# TRUST THE PLANNER'S ATOMIC VERDICT (operator 2026-06-19 "research native patterns"):
+# every production framework (Anthropic, AutoGen, CrewAI) + the decomposition research
+# (ADaPT, Adaptive-RAG, ReWOO/LLMCompiler) converge on "default single, fan out ONLY on
+# evidence of breadth; the planner's emitted facet COUNT IS the decision". So when
+# _plan_swarm self-gates to [] (atomic) AND no independent breadth signal fires, DON'T
+# force-seed a synthetic swarm (the documented anti-pattern that balloons a focused ask
+# into off-topic facets) -- fall through to the single-agent path. SSOT
+# [dispatch].swarm_trust_atomic; false = prior always-seed behaviour verbatim.
+SWARM_TRUST_ATOMIC = str(os.environ.get(
+    "MIOS_SWARM_TRUST_ATOMIC",
+    str((_toml_section("dispatch") or {}).get("swarm_trust_atomic", "true")))
+).strip().lower() not in ("0", "false", "no")
 # Slow-lane (CPU/iGPU) fan-out CEILING (operator 2026-06-01j runaway): GPU/fast
 # nodes fan out unbounded (each on its own fast hardware), but the CPU/iGPU lanes
 # are where stacked ~100s gens pile up. Cap how many slow-lane nodes a single DAG
@@ -24096,6 +24108,17 @@ async def chat_completions(request: Request) -> Any:
                 last_user_text=last_user_text, persona_system=_persona_system)
         log.info("action-domain: planner gave %s -> Hermes tool-loop (native, NOT research)",
                  "no DAG" if not _act_nodes else "agent-only DAG (no verb node)")
+    # BREADTH signal (operator 2026-06-19 "research native patterns"): the MODEL's
+    # own judgment that the ask warrants a multi-node fan-out -- refine's deep/
+    # deep_research/multi_task/_multi_step flags or an explicit operator toggle. NO
+    # hardcoded keywords. Gates both the synthetic swarm seed and the council safety-
+    # net so a focused atomic ask (planner returns [] + no breadth) is NOT force-
+    # swarmed, while a genuinely broad ask STILL fires on ALL live nodes.
+    _breadth = bool(
+        _force_delegate or _force_council
+        or (refined and (refined.get("_multi_step") or refined.get("deep")
+                         or refined.get("deep_research")
+                         or refined.get("intent") == "multi_task")))
     if PLANNER_ENABLED and not _action_route and (_force_delegate
                             or (refined and refined.get("_multi_step"))
                             or _decompose_default
@@ -24124,9 +24147,18 @@ async def chat_completions(request: Request) -> Any:
         # task = the refined query so _agent_dag_from_tasks BACKFILLS it across EVERY
         # live node -> the whole swarm fires concurrently (each node answers on its
         # OWN hardware) instead of collapsing to a narrow council on one lane.
-        if not _swarm_tasks:
+        # TRUST THE PLANNER'S [] VERDICT (operator 2026-06-19): only seed the synthetic
+        # backfill task when a breadth signal justifies fanning out an under-split plan
+        # (or the kill-switch is off). When the planner self-gated [] AND no breadth ->
+        # leave _swarm_tasks empty so the DAG-build below is skipped and the turn falls
+        # through to the single-agent path (no synthetic seed -> no off-topic facet
+        # balloon). ADaPT/Adaptive-RAG: decompose only on evidence of need.
+        if not _swarm_tasks and (_breadth or not SWARM_TRUST_ATOMIC):
             _swarm_tasks = [{"title": (_planq or "")[:72],
                              "refined_text": _planq}]
+        elif not _swarm_tasks:
+            log.info("swarm: planner self-gated [] + no breadth -> trust atomic verdict, "
+                     "single-agent path (no synthetic seed)")
         # DIVERSIFY the backfill (operator 2026-06-02 "diversify the backfill facets
         # per node"): the planner routinely under-splits (e.g. 2 facets for a
         # 7-node roster), so the backfill round-robins DUPLICATE facets -> N nodes
@@ -24275,7 +24307,12 @@ async def chat_completions(request: Request) -> Any:
     # planner emitted 0 facets / failed to parse) must STILL engage every live
     # node, not collapse to the hermes-only unify path. Force the full council
     # so the first pass is the whole swarm.
-    if _decompose_default and not _force_council:
+    # GATED on _breadth (operator 2026-06-19 "trust the planner verdict"): only
+    # force the full council when the ask is genuinely BROAD -- a focused atomic ask
+    # (planner []+no breadth) degrades to the single-agent path instead of being
+    # re-force-swarmed here (which would defeat the seed gate above). Kill-switch
+    # SWARM_TRUST_ATOMIC=false restores the unconditional force_council.
+    if _decompose_default and not _force_council and (_breadth or not SWARM_TRUST_ATOMIC):
         log.info("swarm: no DAG built for substantive agent query "
                  "-> force_council (fan out across ALL live nodes)")
         _force_council = True
