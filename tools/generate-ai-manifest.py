@@ -4,7 +4,6 @@ import os
 import json
 import re
 import gzip
-from datetime import datetime
 
 def parse_markdown_metadata(content):
     """Simple parser to extract title and metadata from Markdown."""
@@ -33,7 +32,6 @@ def generate_json_manifest(target_dir, output_file, recursive=True, ignore_dirs=
         ignore_dirs = {".git", ".venv", "output", "__pycache__", "agents/research"}
     
     manifest = {
-        "generated_at": datetime.now().isoformat(),
         "source_directory": target_dir,
         "entries": []
     }
@@ -45,10 +43,13 @@ def generate_json_manifest(target_dir, output_file, recursive=True, ignore_dirs=
         if not recursive and root != target_dir:
             continue
             
-        # Filter out ignored directories
-        dirs[:] = [d for d in dirs if d not in ignore_dirs]
-        
-        for file in files:
+        # Filter out ignored directories. SORT dirs (controls os.walk recursion
+        # order) + files (entry order) so the manifest is byte-reproducible across
+        # environments -- os.walk does NOT guarantee order, which would otherwise
+        # make the WS-10 regenerate-and-diff gate flap (operator 2026-06-19).
+        dirs[:] = sorted(d for d in dirs if d not in ignore_dirs)
+
+        for file in sorted(files):
             if file == os.path.basename(output_file):
                 continue
                 
@@ -57,8 +58,7 @@ def generate_json_manifest(target_dir, output_file, recursive=True, ignore_dirs=
             
             try:
                 entry = {
-                    "path": rel_path,
-                    "last_modified": datetime.fromtimestamp(os.path.getmtime(file_path)).isoformat()
+                    "path": rel_path
                 }
 
                 # Handle different file types
@@ -114,7 +114,6 @@ def generate_gzipped_manifest(target_dir, output_file, recursive=True, ignore_di
         ignore_dirs = {".git", ".venv", "output", "__pycache__", "agents/research"}
     
     manifest = {
-        "generated_at": datetime.now().isoformat(),
         "source_directory": target_dir,
         "entries": []
     }
@@ -126,9 +125,9 @@ def generate_gzipped_manifest(target_dir, output_file, recursive=True, ignore_di
         if not recursive and root != target_dir:
             continue
             
-        dirs[:] = [d for d in dirs if d not in ignore_dirs]
-        
-        for file in files:
+        dirs[:] = sorted(d for d in dirs if d not in ignore_dirs)
+
+        for file in sorted(files):
             if file == os.path.basename(output_file):
                 continue
                 
@@ -137,8 +136,7 @@ def generate_gzipped_manifest(target_dir, output_file, recursive=True, ignore_di
             
             try:
                 entry = {
-                    "path": rel_path,
-                    "last_modified": datetime.fromtimestamp(os.path.getmtime(file_path)).isoformat()
+                    "path": rel_path
                 }
 
                 if file.endswith(".json.gz"):
