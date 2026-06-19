@@ -96,14 +96,15 @@ _svc_active() {
 SVC_HERMES=$(_svc_active hermes-agent.service)
 SVC_PREFILTER=$(_svc_active mios-delegation-prefilter.service)
 SVC_OWUI=$(_svc_active mios-open-webui.service)
-SVC_OLLAMA=$(_svc_active ollama.service)
+SVC_LLM_LIGHT=$(_svc_active mios-llm-light.service)
+SVC_PGVECTOR=$(_svc_active mios-pgvector.service)
 SVC_SEARXNG=$(_svc_active mios-searxng.service)
 SVC_BROWSER=$(_svc_active mios-hermes-browser.service)
 SVC_CROND=$(_svc_active crond.service)
 SVC_ATD=$(_svc_active atd.service)
 
 # Models loaded in Ollama
-OLLAMA_MODELS="$(curl -sS --max-time 2 http://127.0.0.1:11434/api/tags 2>/dev/null \
+OLLAMA_MODELS="$(curl -sS --max-time 2 http://127.0.0.1:11450/api/tags 2>/dev/null \
     | python3 -c 'import sys, json
 try:
   d = json.load(sys.stdin)
@@ -141,8 +142,8 @@ brief)
 - Linux HW: $CPU_CORES cores / ${RAM_GB} GB RAM / GPU: $GPU_LINE${WIN_LINE:+
 - Windows host (via WSL interop): $WIN_LINE}
 - Operator (mios.toml [identity]): $OPERATOR_FULL ($OPERATOR_NAME) on $HOSTNAME_TOML
-- Stack services: hermes=$SVC_HERMES prefilter=$SVC_PREFILTER owui=$SVC_OWUI ollama=$SVC_OLLAMA searxng=$SVC_SEARXNG browser=$SVC_BROWSER crond=$SVC_CROND atd=$SVC_ATD
-- Models loaded (ollama): $OLLAMA_MODELS
+- Stack services: hermes=$SVC_HERMES prefilter=$SVC_PREFILTER owui=$SVC_OWUI llm_light=$SVC_LLM_LIGHT pgvector=$SVC_PGVECTOR searxng=$SVC_SEARXNG browser=$SVC_BROWSER crond=$SVC_CROND atd=$SVC_ATD
+- Models loaded (llm-light): $OLLAMA_MODELS
 - Launchable: $N_FLATPAK flatpaks, $N_HOST_GUI host GUIs, $N_WIN_GUI windows shortcuts, $N_WIN_APP **all-windows apps** (Get-StartApps), $N_SHIM MiOS shims, $N_CLI CLIs, $N_URL service URLs
 - Discovery + launch: \`mios-apps\` (inventory) and \`mios-launch <name>\` (universal launcher)
 EOF
@@ -176,17 +177,18 @@ $(if [ -n "$WIN_BLOCK" ]; then printf '\n## Windows host (the machine WSL lives 
 | hermes-agent.service                 | $SVC_HERMES |
 | mios-delegation-prefilter.service    | $SVC_PREFILTER |
 | mios-open-webui.service              | $SVC_OWUI |
-| ollama.service                       | $SVC_OLLAMA |
+| mios-llm-light.service               | $SVC_LLM_LIGHT |
+| mios-pgvector.service                | $SVC_PGVECTOR |
 | mios-searxng.service                 | $SVC_SEARXNG |
 | mios-hermes-browser.service          | $SVC_BROWSER |
 | crond.service                        | $SVC_CROND |
 | atd.service                          | $SVC_ATD |
 
 ## AI inference
-- Ollama models loaded: \`$OLLAMA_MODELS\`
+- Models loaded (llm-light): \`$OLLAMA_MODELS\`
 - Hermes gateway: http://localhost:8642/v1
 - Prefilter (force delegate_task on fan-out): http://localhost:8641/v1
-- Backend Ollama: http://localhost:11434
+- Backend llm-light: http://localhost:11450
 
 ## Launchable inventory
 - $N_FLATPAK flatpaks
@@ -220,7 +222,8 @@ json)
         EP_CPU="$CPU_MODEL" EP_CPU_CORES="$CPU_CORES" EP_RAM="$RAM_GB" \
         EP_GPU="$GPU_LINE" \
         EP_SVC_HERMES="$SVC_HERMES" EP_SVC_PREFILTER="$SVC_PREFILTER" \
-        EP_SVC_OWUI="$SVC_OWUI" EP_SVC_OLLAMA="$SVC_OLLAMA" \
+        EP_SVC_OWUI="$SVC_OWUI" EP_SVC_LLM_LIGHT="$SVC_LLM_LIGHT" \
+        EP_SVC_PGVECTOR="$SVC_PGVECTOR" \
         EP_SVC_SEARXNG="$SVC_SEARXNG" EP_SVC_BROWSER="$SVC_BROWSER" \
         EP_SVC_CROND="$SVC_CROND" EP_SVC_ATD="$SVC_ATD" \
         EP_OLLAMA_MODELS="$OLLAMA_MODELS" \
@@ -255,7 +258,8 @@ print(json.dumps({
         "hermes_agent":         os.environ.get("EP_SVC_HERMES", ""),
         "delegation_prefilter": os.environ.get("EP_SVC_PREFILTER", ""),
         "open_webui":           os.environ.get("EP_SVC_OWUI", ""),
-        "ollama":               os.environ.get("EP_SVC_OLLAMA", ""),
+        "llm_light":            os.environ.get("EP_SVC_LLM_LIGHT", ""),
+        "pgvector":             os.environ.get("EP_SVC_PGVECTOR", ""),
         "searxng":              os.environ.get("EP_SVC_SEARXNG", ""),
         "hermes_browser":       os.environ.get("EP_SVC_BROWSER", ""),
         "crond":                os.environ.get("EP_SVC_CROND", ""),

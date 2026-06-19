@@ -1,5 +1,5 @@
 #!/bin/bash
-# AI-hint: Executes targeted Day-0 cleanup of SurrealDB tables, daemon states, skills catalogs, agent passports, and audit logs to purge persistent state when standard cache clearing is insufficient.
+# AI-hint: Executes targeted Day-0 cleanup of PostgreSQL/pgvector tables, daemon states, skills catalogs, agent passports, and audit logs to purge persistent state when standard cache clearing is insufficient.
 # AI-related: mios-cache-clear, mios-daemon, mios-skills-miner, mios-passport-provision, mios-skills-miner.timer, mios-passport-provision.service
 # AI-functions: surreal, daemon, skills, passports, agentpipe, audit, ttyd, pycache
 # Day-0 readiness: surfaces NOT covered by mios-cache-clear.
@@ -9,15 +9,14 @@ set -euo pipefail
 SECTION="${1:-all}"
 
 surreal() {
-    echo "── SurrealDB row-level wipe (schema preserved) ──"
-    local TABLES="session tool_call event kanban_shadow scratch agent_metric skill skill_invocation agent_keypair emitted includes message memory_event verdict"
+    echo "── PostgreSQL/pgvector row-level wipe (schema preserved) ──"
+    local TABLES="knowledge agent_memory event tool_call session skill skill_invocation sys_env pending_action run_template scratch kanban app_install alias resolves_to directory_entry log_digest person agent_keypair mios_rag"
     for t in $TABLES; do
-        local resp
-        resp=$(curl -s -o /dev/null -w "%{http_code}" \
-            -u root:root -H "ns: mios" -H "db: agent" \
-            -H "Accept: application/json" -H "Content-Type: text/plain" \
-            --data "DELETE $t;" http://127.0.0.1:8000/sql)
-        printf '  %s  DELETE %s\n' "$resp" "$t"
+        if /usr/libexec/mios/mios-db --pg "TRUNCATE TABLE $t RESTART IDENTITY CASCADE;" >/dev/null 2>&1; then
+            printf '  200  TRUNCATE %s\n' "$t"
+        else
+            printf '  500  TRUNCATE %s FAILED\n' "$t"
+        fi
     done
 }
 
