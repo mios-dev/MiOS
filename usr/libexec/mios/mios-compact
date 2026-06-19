@@ -61,8 +61,8 @@ LAUNCH_FAILURES = Path(os.environ.get(
 COMPACTED_DIR = Path(os.environ.get(
     "MIOS_COMPACTED_DIR", "/var/lib/mios/compacted"))
 REPO_ROOT = Path(os.environ.get("MIOS_REPO_ROOT", "/mnt/c/MiOS"))
-OLLAMA_URL = os.environ.get("MIOS_OLLAMA_URL", "http://127.0.0.1:11434")
-SUMMARY_MODEL = os.environ.get("MIOS_COMPACT_MODEL", "qwen2.5-coder:7b")
+OLLAMA_URL = os.environ.get("MIOS_OLLAMA_URL", "http://127.0.0.1:11450")
+SUMMARY_MODEL = os.environ.get("MIOS_COMPACT_MODEL", "granite4.1:8b")
 
 
 def _ts() -> str:

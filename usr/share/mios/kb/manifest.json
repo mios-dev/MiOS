@@ -29,8 +29,8 @@
       ],
       "strict_mode": "ignored-but-accepted"
     },
-    "ollama": {
-      "endpoint": "http://localhost:11434/v1",
+    "llm_light": {
+      "endpoint": "http://localhost:11450/v1",
       "supports": [
         "chat/completions",
         "embeddings",

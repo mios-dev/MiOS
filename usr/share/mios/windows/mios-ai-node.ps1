@@ -1,5 +1,5 @@
-# AI-hint: Configures a local Podman machine as a MiOS AI node by installing NVIDIA container toolkits, deploying Ollama Quadlets on ports 11434/11435, opening Tailscale firewall rules, and generating the registration snippet for Hermes.
-# AI-related: /etc/mios/mios.toml, mios-ai-node, mios-ollama, mios-ollama-cpu, mios-win-tailscale-ip, mios-win, mios-ollama.service, mios-ollama-cpu.service, mios-ollama.container, mios-ollama-cpu.container
+# AI-hint: Configures a local Podman machine as a MiOS AI node by installing NVIDIA container toolkits, deploying mios-llm-light Quadlets on port 11450, opening Tailscale firewall rules, and generating the registration snippet for Hermes.
+# AI-related: /etc/mios/mios.toml, mios-ai-node, mios-llm-light, mios-win-tailscale-ip, mios-win, mios-llm-light.service, mios-llm-light.container
 # AI-functions: Info, Ok, Warn, Fail, Get-TailscaleIP, Invoke-Machine, Write-MachineFile, Test-MachineCmd
 <#
   mios-ai-node.ps1 -- MiOS Windows AI Node setup
@@ -15,11 +15,10 @@
   2.  Installs nvidia-container-toolkit inside the Fedora machine so the RTX
       GPU is accessible to containers via CDI (same mechanism as MiOS-DEV).
   3.  Generates the CDI spec (nvidia.com/gpu=all device class).
-  4.  Creates the mios.network bridge and /var/lib/ollama* volume directories.
-  5.  Deploys mios-ollama (GPU :11434) and mios-ollama-cpu (CPU :11435) as
-      systemd Quadlets inside the machine.
-  6.  Pulls the initial model set.
-  7.  Opens Tailscale-scoped Windows Firewall rules for ports 11434/11435.
+  4.  Creates the mios.network bridge and /var/lib/mios/llamacpp* volume directories.
+  5.  Deploys mios-llm-light (port :11450) as a systemd Quadlet inside the machine.
+  6.  Pulls the GGUF weights directly from Hugging Face via curl.
+  7.  Opens Tailscale-scoped Windows Firewall rules for port 11450.
   8.  Prints the /etc/mios/mios.toml snippet to paste on MiOS-DEV so Hermes
       registers this node as a swarm agent.
 
@@ -29,22 +28,21 @@
     pwsh -File mios-ai-node.ps1 -SkipResize                     # skip RAM resize
     pwsh -File mios-ai-node.ps1 -SkipGpu                        # skip NVIDIA CTK
     pwsh -File mios-ai-node.ps1 -SkipModels                     # skip model pulls
-    pwsh -File mios-ai-node.ps1 -Models "qwen3.5:4b,nomic-embed-text"
+    pwsh -File mios-ai-node.ps1 -Models "granite4.1:8b,nomic-embed-text"
     pwsh -File mios-ai-node.ps1 -Uninstall                      # remove Quadlets + fw rules
 
-  First run needs internet for: nvidia-container-toolkit RPM, Ollama image,
-  and model weights.  Re-runs are fully offline (idempotent).
+  First run needs internet for: nvidia-container-toolkit RPM, llama-swap image,
+  and model weights. Re-runs are fully offline (idempotent).
 #>
 [CmdletBinding()]
 param(
     [string] $MachineName  = 'podman-machine-default',
     [int]    $MemoryMB     = 8192,
-    # Default model set sized for 8 GB VRAM (RTX 3060 Ti).
-    # qwen3.5:4b      = primary chat/code (~4 GB VRAM)
-    # qwen3:1.7b      = CPU light-lane router/classifier
-    # qwen3:0.6b      = always-on micro-LLM
-    # nomic-embed-text = embeddings for RAG
-    [string] $Models       = 'qwen3.5:4b,qwen3:1.7b,qwen3:0.6b,nomic-embed-text',
+    # Default model set:
+    # granite4.1:8b    = primary brain (~5.5 GB)
+    # lfm2:700m        = micro CPU/GPU brain (~0.7 GB)
+    # nomic-embed-text = embeddings (~0.5 GB)
+    [string] $Models       = 'granite4.1:8b,lfm2:700m,nomic-embed-text',
     [switch] $SkipResize,
     [switch] $SkipGpu,
     [switch] $SkipModels,
@@ -58,6 +56,27 @@ function Info($m) { Write-Host "  [*] $m" -ForegroundColor Cyan    }
 function Ok($m)   { Write-Host "  [+] $m" -ForegroundColor Green   }
 function Warn($m) { Write-Host "  [!] $m" -ForegroundColor Yellow  }
 function Fail($m) { Write-Host "  [X] $m" -ForegroundColor Red; throw $m }
+
+# Model HuggingFace Registry and Aliases
+$ModelRegistry = @{
+    'granite4.1:8b'    = @{ File = 'granite-4.1-8b.gguf';                  Repo = 'unsloth/granite-4.1-8b-GGUF';                  SrcFile = 'granite-4.1-8b-Q4_K_M.gguf' }
+    'lfm2:700m'        = @{ File = 'lfm2-700m.gguf';                      Repo = 'LiquidAI/LFM2-700M-GGUF';                      SrcFile = 'LFM2-700M-Q4_K_M.gguf' }
+    'nomic-embed-text' = @{ File = 'embeddinggemma-300m-qat-q8_0.gguf';    Repo = 'ggml-org/embeddinggemma-300m-qat-q8_0-GGUF';    SrcFile = 'embeddinggemma-300m-qat-Q8_0.gguf' }
+}
+
+function Resolve-ModelTag($tag) {
+    $t = $tag.Trim().ToLower()
+    if ($t -eq 'granite4.1:3b' -or $t -eq 'granite4.1:8b' -or $t -eq 'mios-agent' -or $t -eq 'hermes-agent' -or $t -eq 'gemma4:12b') {
+        return 'granite4.1:8b'
+    }
+    if ($t -eq 'lfm2:700m' -or $t -eq 'qwen3:1.7b') {
+        return 'lfm2:700m'
+    }
+    if ($t -eq 'nomic-embed-text') {
+        return 'nomic-embed-text'
+    }
+    return $tag
+}
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -78,16 +97,9 @@ function Get-TailscaleIP {
 }
 
 # Run a bash script on the machine.
-# Passes the script as a bash -c argument (not stdin) to avoid PowerShell's
-# pipeline adding \r to every line.  The script is base64-encoded so bash
-# metacharacters inside it ($, >, |, etc.) are never seen by PowerShell.
 function Invoke-Machine([string]$script) {
     $lf  = $script -replace "`r`n", "`n"
     $enc = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($lf))
-    # Pass as a single double-quoted string so PowerShell sends it as one arg and
-    # the remote shell sees | and > as operators (not as separate CLI tokens).
-    # Do NOT use -- bash -c "..." : podman machine ssh joins the separate args with
-    # spaces before sending, which strips the inner quoting around the -c argument.
     podman machine ssh $MachineName "echo $enc | base64 -d | bash"
     if ($LASTEXITCODE -ne 0) { Fail "Remote script failed (see output above)" }
 }
@@ -112,20 +124,25 @@ function Test-MachineCmd([string]$cmd) {
 if ($Uninstall) {
     Info 'Stopping and removing MiOS AI Node Quadlets...'
     Invoke-Machine @'
+set +e
+systemctl stop   mios-llm-light.service  2>/dev/null || true
+systemctl disable mios-llm-light.service 2>/dev/null || true
 systemctl stop   mios-ollama.service     2>/dev/null || true
 systemctl disable mios-ollama.service    2>/dev/null || true
 systemctl stop   mios-ollama-cpu.service 2>/dev/null || true
 systemctl disable mios-ollama-cpu.service 2>/dev/null || true
+rm -f /etc/containers/systemd/mios-llm-light.container
 rm -f /etc/containers/systemd/mios-ollama.container
 rm -f /etc/containers/systemd/mios-ollama-cpu.container
 rm -f /etc/containers/systemd/mios.network
 systemctl daemon-reload
 echo "[OK] Quadlets removed"
 '@
-    foreach ($port in @(11434, 11435)) {
-        $name = "MiOS AI Node - ollama ($port/tcp)"
-        Remove-NetFirewallRule -DisplayName $name -ErrorAction SilentlyContinue
-        Ok "removed firewall rule: $name"
+    foreach ($port in @(11434, 11435, 11450)) {
+        $name = if ($port -eq 11450) { 'MiOS AI Node - mios-llm-light (11450/tcp)' } else { "MiOS AI Node - mios-ollama ($port/tcp)" }
+        Remove-NetFirewallRule -DisplayName $name -ErrorAction SilentlyContinue | Out-Null
+        netsh interface portproxy delete v4tov6 listenaddress=0.0.0.0 listenport=$port 2>$null | Out-Null
+        Ok "removed firewall rule and portproxy: $name"
     }
     Ok 'Uninstall complete.'
     return
@@ -160,7 +177,6 @@ if (-not $SkipResize) {
     if ($curMem -lt $MemoryMB) {
         Warn "Machine RAM is ${curMem} MB. Requesting resize to ${MemoryMB} MB..."
         Warn '(WSL2 machines do not support podman machine set --memory; editing .wslconfig instead)'
-        # For WSL2 machines, set memory via .wslconfig which WSL reads on restart.
         $wslCfg = "$env:USERPROFILE\.wslconfig"
         $existing = if (Test-Path $wslCfg) { Get-Content $wslCfg -Raw } else { '' }
         $memGb = [math]::Ceiling($MemoryMB / 1024)
@@ -174,7 +190,6 @@ if (-not $SkipResize) {
             $existing += "`n[wsl2]`nmemory=${memGb}GB`n"
         }
         Set-Content $wslCfg $existing
-        # Restart the machine to apply.
         podman machine stop $MachineName
         podman machine start $MachineName
         Ok ".wslconfig: memory=${memGb}GB -- machine restarted."
@@ -191,18 +206,20 @@ if ($state -ne 'running') {
     podman machine start $MachineName
 }
 
-# ── remove unnamed Ollama container ───────────────────────────────────────────
+# ── remove retired containers ──────────────────────────────────────────────────
 
-Info 'Removing any existing unnamed Ollama container...'
+Info 'Removing retired Ollama/LLM Light containers if any...'
 Invoke-Machine @'
-set -euo pipefail
-for cname in $(podman ps -a --filter 'ancestor=docker.io/ollama/ollama:latest' --format '{{.Names}}' 2>/dev/null); do
-    case "$cname" in mios-ollama|mios-ollama-cpu) continue ;; esac
+set +e
+for cname in mios-ollama mios-ollama-cpu; do
     podman stop "$cname" 2>/dev/null || true
     podman rm   "$cname" 2>/dev/null || true
-    echo "  removed: $cname"
 done
-echo "[OK] cleanup done"
+for cname in $(podman ps -a --filter 'ancestor=docker.io/ollama/ollama:latest' --format '{{.Names}}' 2>/dev/null); do
+    podman stop "$cname" 2>/dev/null || true
+    podman rm   "$cname" 2>/dev/null || true
+done
+echo "[OK] old container cleanup done"
 '@
 
 # ── NVIDIA Container Toolkit ──────────────────────────────────────────────────
@@ -227,7 +244,6 @@ echo "[OK] nvidia-container-toolkit installed"
     Invoke-Machine @'
 set -euo pipefail
 mkdir -p /etc/cdi
-# nvidia-ctk detects WSL2 and generates a spec covering /dev/dxg + /usr/lib/wsl.
 nvidia-ctk cdi generate \
     --output=/etc/cdi/nvidia.yaml \
     --device-name-strategy=index 2>&1 \
@@ -255,10 +271,6 @@ devices:
         - hostPath: /usr/lib/wsl
           containerPath: /usr/lib/wsl
           options: [ro, bind]
-containerEdits:
-  env:
-    - name: NVIDIA_VISIBLE_DEVICES
-      value: void
 CDIYAML
 }
 nvidia-ctk cdi list 2>/dev/null || true
@@ -275,17 +287,17 @@ Info 'Creating mios network and volume directories...'
 Invoke-Machine @'
 set -euo pipefail
 podman network exists mios 2>/dev/null || podman network create mios
-mkdir -p /var/lib/ollama/models /var/lib/ollama-cpu
-chmod 0755 /var/lib/ollama /var/lib/ollama/models /var/lib/ollama-cpu
+mkdir -p /var/lib/mios/llamacpp/models /var/lib/mios/llamacpp/slots
+chmod -R 0777 /var/lib/mios/llamacpp
 echo "[OK] network + volumes ready"
 '@
 
-# ── deploy Quadlet files ──────────────────────────────────────────────────────
+# ── deploy Quadlet files & config ─────────────────────────────────────────────
 
 Info 'Deploying Quadlet files...'
 Invoke-Machine 'mkdir -p /etc/containers/systemd'
 
-foreach ($f in @('mios.network', 'mios-ollama.container', 'mios-ollama-cpu.container')) {
+foreach ($f in @('mios.network', 'mios-llm-light.container')) {
     $src = Join-Path $QuadletSrc $f
     if (-not (Test-Path $src)) { Fail "Quadlet source not found: $src" }
     $content = Get-Content $src -Raw
@@ -293,54 +305,77 @@ foreach ($f in @('mios.network', 'mios-ollama.container', 'mios-ollama-cpu.conta
     Ok "deployed: $f"
 }
 
-# ── enable units ──────────────────────────────────────────────────────────────
-
-Info 'Reloading systemd and starting Quadlet units...'
+# Clean up old Quadlets
 Invoke-Machine @'
-set -euo pipefail
+rm -f /etc/containers/systemd/mios-ollama.container
+rm -f /etc/containers/systemd/mios-ollama-cpu.container
 systemctl daemon-reload
-# Quadlet-generated units live in /run/systemd/generator/ and cannot be
-# "enabled" via symlinks; use "start" instead.  WantedBy=multi-user.target
-# in the container file is wired in by the generator on daemon-reload.
-systemctl start mios-ollama.service     2>&1 | tail -3 || true
-systemctl start mios-ollama-cpu.service 2>&1 | tail -3 || true
-sleep 6
-for svc in mios-ollama mios-ollama-cpu; do
-    if systemctl is-active --quiet "$svc.service"; then
-        echo "[OK] $svc running"
-    else
-        echo "[WARN] $svc not yet active (may still be pulling image)"
-        systemctl status "$svc.service" --no-pager -l 2>&1 | tail -12 || true
-    fi
-done
 '@
+
+# Deploy the model map config
+Info 'Deploying mios-llm-light.yaml config...'
+$yamlSrc = Resolve-Path (Join-Path $PSScriptRoot '../../llamacpp/mios-llm-light.yaml')
+if (-not (Test-Path $yamlSrc)) { Fail "Model map YAML not found: $yamlSrc" }
+$yamlContent = Get-Content $yamlSrc -Raw
+Write-MachineFile '/var/lib/mios/llamacpp/mios-llm-light.yaml' $yamlContent
+Ok 'deployed mios-llm-light.yaml'
 
 # ── pull models ───────────────────────────────────────────────────────────────
 
 if (-not $SkipModels) {
     $modelList = $Models -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ }
     Info "Pulling $($modelList.Count) model(s): $($modelList -join ', ')"
-    Info 'Waiting for mios-ollama container to be running (up to 60 s)...'
-    Invoke-Machine @'
-for i in $(seq 1 12); do
-    podman container inspect mios-ollama --format '{{.State.Status}}' 2>/dev/null \
-        | grep -q running && break
-    sleep 5
-done
-podman container inspect mios-ollama --format '{{.State.Status}}' 2>/dev/null \
-    | grep -q running \
-    || { echo "[WARN] mios-ollama not running -- run pull manually later"; exit 0; }
-echo "[OK] mios-ollama container is running"
-'@
+
     foreach ($model in $modelList) {
-        Info "Pulling $model ..."
-        Invoke-Machine "podman exec mios-ollama ollama pull $model"
-        Ok "pulled: $model"
+        $resolved = Resolve-ModelTag $model
+        if ($ModelRegistry.ContainsKey($resolved)) {
+            $spec = $ModelRegistry[$resolved]
+            $file = $spec.File
+            $repo = $spec.Repo
+            $srcfile = $spec.SrcFile
+
+            Info "Downloading $model ($file) from Hugging Face..."
+            Invoke-Machine @"
+set -euo pipefail
+_url=\"https://huggingface.co/${repo}/resolve/main/${srcfile}\"
+if [ ! -s \"/var/lib/mios/llamacpp/models/${file}\" ]; then
+    echo \"Downloading ${file}...\"
+    curl -fL -C - --retry 3 --max-time 1800 -o \"/var/lib/mios/llamacpp/models/${file}.part\" \"\$_url\"
+    mv -f \"/var/lib/mios/llamacpp/models/${file}.part\" \"/var/lib/mios/llamacpp/models/${file}\"
+    echo \"[OK] Complete\"
+else
+    echo \"${file} already present\"
+fi
+"@
+            Ok "pulled: $model"
+        } else {
+            Warn "Unknown model tag '$model', no HF mapping in registry. Skipping."
+        }
     }
+    
+    # Write sentinel file
+    Invoke-Machine "touch /var/lib/mios/llamacpp/models/.ready"
+    Ok "Sentinels updated."
 } else {
-    Info 'Skipping model pulls (-SkipModels).'
-    Info "  Pull later: podman machine ssh $MachineName -- podman exec mios-ollama ollama pull qwen3.5:4b"
+    Info 'Skipping model downloads (-SkipModels).'
+    Info 'Make sure to place weights in /var/lib/mios/llamacpp/models/ and touch .ready inside the VM.'
 }
+
+# ── start Quadlet units ───────────────────────────────────────────────────────
+
+Info 'Reloading systemd and starting Quadlet units...'
+Invoke-Machine @'
+set -euo pipefail
+systemctl daemon-reload
+systemctl start mios-llm-light.service 2>&1 | tail -3 || true
+sleep 3
+if systemctl is-active --quiet mios-llm-light.service; then
+    echo "[OK] mios-llm-light running"
+else
+    echo "[WARN] mios-llm-light not yet active"
+    systemctl status mios-llm-light.service --no-pager -l 2>&1 | tail -12 || true
+fi
+'@
 
 # ── firewall + portproxy ───────────────────────────────────────────────────────
 
@@ -348,36 +383,42 @@ $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIden
 
 Info 'Configuring Windows Firewall (Tailscale CGNAT 100.64.0.0/10)...'
 if ($isAdmin) {
-    foreach ($entry in @(
-        [pscustomobject]@{ Port = 11434; Name = 'MiOS AI Node - mios-ollama (11434/tcp)' },
-        [pscustomobject]@{ Port = 11435; Name = 'MiOS AI Node - mios-ollama-cpu (11435/tcp)' }
-    )) {
-        $existing = Get-NetFirewallRule -DisplayName $entry.Name -ErrorAction SilentlyContinue
-        if ($existing) {
-            Set-NetFirewallRule -DisplayName $entry.Name -Enabled True -Action Allow -ErrorAction SilentlyContinue
-            Ok "firewall: refreshed '$($entry.Name)'"
-        } else {
-            New-NetFirewallRule -DisplayName $entry.Name `
-                -Direction Inbound -Action Allow -Protocol TCP `
-                -LocalPort $entry.Port -RemoteAddress '100.64.0.0/10' `
-                -Profile Any -ErrorAction SilentlyContinue | Out-Null
-            Ok "firewall: created '$($entry.Name)'"
-        }
+    # Delete old firewall rules
+    foreach ($port in @(11434, 11435)) {
+        Remove-NetFirewallRule -DisplayName "MiOS AI Node - mios-ollama ($port/tcp)" -ErrorAction SilentlyContinue | Out-Null
+        Remove-NetFirewallRule -DisplayName "MiOS AI Node - mios-ollama-cpu ($port/tcp)" -ErrorAction SilentlyContinue | Out-Null
+    }
+    
+    # Create or update port 11450 firewall rule
+    $entry = [pscustomobject]@{ Port = 11450; Name = 'MiOS AI Node - mios-llm-light (11450/tcp)' }
+    $existing = Get-NetFirewallRule -DisplayName $entry.Name -ErrorAction SilentlyContinue
+    if ($existing) {
+        Set-NetFirewallRule -DisplayName $entry.Name -Enabled True -Action Allow -ErrorAction SilentlyContinue
+        Ok "firewall: refreshed '$($entry.Name)'"
+    } else {
+        New-NetFirewallRule -DisplayName $entry.Name `
+            -Direction Inbound -Action Allow -Protocol TCP `
+            -LocalPort $entry.Port -RemoteAddress '100.64.0.0/10' `
+            -Profile Any -ErrorAction SilentlyContinue | Out-Null
+        Ok "firewall: created '$($entry.Name)'"
     }
 
     # portproxy so Tailscale (Windows-side) can reach into the Podman machine.
-    # wslrelay binds the forwarded ports on [::1] (IPv6 loopback), so use
-    # v4tov6 to bridge IPv4 Tailscale traffic to IPv6 loopback.
     $svc = Get-Service iphlpsvc -ErrorAction SilentlyContinue
     if ($svc -and $svc.Status -ne 'Running') {
         Set-Service iphlpsvc -StartupType Automatic; Start-Service iphlpsvc
     }
+    
+    # Delete old proxies
     foreach ($port in @(11434, 11435)) {
         netsh interface portproxy delete v4tov6 listenaddress=0.0.0.0 listenport=$port 2>$null | Out-Null
-        netsh interface portproxy add    v4tov6 listenaddress=0.0.0.0 listenport=$port `
-              connectaddress=::1 connectport=$port | Out-Null
-        Ok "portproxy 0.0.0.0:${port} -> [::1]:${port}"
     }
+    
+    # Configure 11450 proxy
+    $port = 11450
+    netsh interface portproxy delete v4tov6 listenaddress=0.0.0.0 listenport=$port 2>$null | Out-Null
+    netsh interface portproxy add    v4tov6 listenaddress=0.0.0.0 listenport=$port connectaddress=::1 connectport=$port | Out-Null
+    Ok "portproxy 0.0.0.0:${port} -> [::1]:${port}"
 } else {
     Warn 'Not elevated -- firewall/portproxy skipped. Re-run as admin or run Setup-MiOSLanPortProxy.ps1.'
 }
@@ -390,14 +431,13 @@ Write-Host '  MiOS AI Node setup complete' -ForegroundColor Green
 Write-Host '═══════════════════════════════════════════════════════════════' -ForegroundColor Green
 Write-Host ''
 Write-Host '  Services:' -ForegroundColor Cyan
-Write-Host "    mios-ollama     GPU  :11434   http://${tsIp}:11434/v1"
-Write-Host "    mios-ollama-cpu CPU  :11435   http://${tsIp}:11435/v1"
+Write-Host "    mios-llm-light  GPU  :11450   http://${tsIp}:11450/v1"
 Write-Host ''
 Write-Host '  Add to /etc/mios/mios.toml on MiOS-DEV:' -ForegroundColor Cyan
 Write-Host ''
 Write-Host "[agents.mios-win]"
-Write-Host "endpoint    = `"http://${tsIp}:11434/v1`""
-Write-Host 'model       = "qwen3.5:4b"'
+Write-Host "endpoint    = `"http://${tsIp}:11450/v1`""
+Write-Host 'model       = "granite4.1:8b"'
 Write-Host 'role        = "gpu"'
 Write-Host 'job         = "RTX 3060 Ti GPU overflow node on MiOS-WIN."'
 Write-Host 'default     = false'
@@ -407,7 +447,7 @@ Write-Host 'fanout      = true'
 Write-Host 'strengths   = ["gpu_inference", "code", "chat", "overflow_compute"]'
 Write-Host ''
 Write-Host '  Useful commands:' -ForegroundColor Cyan
-Write-Host "  Status:  podman machine ssh $MachineName -- systemctl status mios-ollama"
-Write-Host "  Logs:    podman machine ssh $MachineName -- journalctl -u mios-ollama -f"
-Write-Host "  Models:  podman machine ssh $MachineName -- podman exec mios-ollama ollama list"
+Write-Host "  Status:  podman machine ssh $MachineName -- systemctl status mios-llm-light"
+Write-Host "  Logs:    podman machine ssh $MachineName -- journalctl -u mios-llm-light -f"
+Write-Host "  Models:  podman machine ssh $MachineName -- curl -s http://localhost:11450/v1/models"
 Write-Host ''

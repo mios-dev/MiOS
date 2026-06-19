@@ -58,19 +58,14 @@ if [ "$nnp" = "no" ]; then ok "NoNewPrivileges=no (sudo escalation possible)"
 else warn "NoNewPrivileges=$nnp (sudo from agent will fail)"; fi
 
 echo
-echo "── ── ──  ollama + main models"
-if curl -sf --max-time 3 http://localhost:11434/api/tags >/dev/null 2>&1; then
-    ok "ollama (dGPU/main) API reachable on :11434"
-    models=$(curl -s --max-time 3 http://localhost:11434/api/tags 2>/dev/null | \
+echo "── ── ──  llm-light + main models"
+if curl -sf --max-time 3 http://localhost:11450/api/tags >/dev/null 2>&1; then
+    ok "llm-light (dGPU/main) API reachable on :11450"
+    models=$(curl -s --max-time 3 http://localhost:11450/api/tags 2>/dev/null | \
         python3 -c 'import sys,json; print(",".join(m["name"] for m in json.load(sys.stdin).get("models",[])))' 2>/dev/null)
     info "models: ${models:-(none)}"
 else
-    fail "ollama (dGPU/main) not reachable on :11434"
-fi
-if curl -sf --max-time 3 http://localhost:11435/api/tags >/dev/null 2>&1; then
-    ok "ollama-CPU (micro-LLM light-lane) API reachable on :11435"
-else
-    warn "ollama-CPU (micro-LLM light-lane) not reachable on :11435"
+    fail "llm-light (dGPU/main) not reachable on :11450"
 fi
 
 echo
@@ -154,18 +149,12 @@ echo "── ── ──  observability layer (micro-LLM daemon)"
 micro_model=$(grep -hE '^\s*micro_model\s*=' \
     /etc/mios/mios.toml /usr/share/mios/mios.toml 2>/dev/null | \
     head -1 | sed -E 's/.*=\s*"([^"]+)".*/\1/')
-[ -z "$micro_model" ] && micro_model="qwen3:0.6b"
-if curl -sf --max-time 3 "http://localhost:11434/api/tags" 2>/dev/null | \
+[ -z "$micro_model" ] && micro_model="granite4.1:8b"
+if curl -sf --max-time 3 "http://localhost:11450/api/tags" 2>/dev/null | \
    grep -qF "\"$micro_model\""; then
-    # Is it resident (loaded)? /api/ps shows currently-loaded models.
-    if curl -sf --max-time 3 http://localhost:11435/api/ps 2>/dev/null | \
-       grep -qF "\"$micro_model\""; then
-        ok "micro-LLM ($micro_model) loaded (always-on; observability+gating ready)"
-    else
-        warn "micro-LLM ($micro_model) pulled but not resident -- mios-micro-llm warm will load it"
-    fi
+    ok "micro-LLM ($micro_model) available in llm-light (observability+gating ready)"
 else
-    warn "micro-LLM ($micro_model) NOT pulled -- mios-daemon will idle until present"
+    warn "micro-LLM ($micro_model) NOT available in llm-light -- mios-daemon will idle until present"
 fi
 
 for svc in mios-daemon; do

@@ -54,8 +54,8 @@ OWUI_DB = os.environ.get("MIOS_OWUI_DB", "/var/lib/mios/open-webui/webui.db")
 # non-thinking + instruction-capable + warm on the dGPU lane; this is a
 # periodic BACKGROUND task so its latency doesn't touch chat turns.
 REFINE_ENDPOINT = os.environ.get(
-    "MIOS_SUGGESTION_ENDPOINT", "http://localhost:11434")
-REFINE_MODEL = os.environ.get("MIOS_SUGGESTION_MODEL", "qwen2.5-coder:7b")
+    "MIOS_SUGGESTION_ENDPOINT", "http://localhost:11450")
+REFINE_MODEL = os.environ.get("MIOS_SUGGESTION_MODEL", "granite4.1:8b")
 REFINE_TIMEOUT_S = int(os.environ.get(
     "MIOS_SUGGESTION_TIMEOUT_S", "60"))
 # Vast out-of-the-box set (operator 2026-05-20: "a vast set of defaults

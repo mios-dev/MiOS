@@ -30,7 +30,7 @@ if (-not $isAdmin) {
     return
 }
 
-$ports = 8642,9090,3000,8080,3030,8888,11434,9119
+$ports = 8642,9090,3000,8080,3030,8888,11434,11450,9119
 
 Write-Host '--- current portproxy table ---' -ForegroundColor Cyan
 & netsh interface portproxy show all

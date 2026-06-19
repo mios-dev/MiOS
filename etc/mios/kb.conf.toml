@@ -1,5 +1,5 @@
 # AI-hint: Configures the MiOS Knowledge Base (KB) by defining LLM endpoints, model identifiers, embedding dimensions, chunking strategies, and vector store connection parameters for the local RAG pipeline.
-# AI-related: mios-kb, mios-dev, localhost:8642, localhost:11434, localhost:8000, localhost:1234, localhost:4000, localhost:6333
+# AI-related: mios-kb, mios-dev, localhost:8642, localhost:11450, localhost:8000, localhost:1234, localhost:4000, localhost:6333
 # MiOS KB local config — overrides for downstream consumers
 # Day-0 defaults target the MiOS LocalAI endpoint at http://localhost:8642/v1
 # (LAW 5: UNIFIED-AI-REDIRECTS). Override per environment.
@@ -9,7 +9,7 @@
 base_url    = "${MIOS_AI_ENDPOINT:-http://localhost:8642/v1}"
 api_key_env = "MIOS_AI_KEY"   # empty key accepted by LocalAI
 # Examples for other local OpenAI-API-compatible runtimes:
-#   Ollama:          base_url = "http://localhost:11434/v1"
+#   LLM-Light:       base_url = "http://localhost:11450/v1"
 #   vLLM:            base_url = "http://localhost:8000/v1"
 #   LM Studio:       base_url = "http://localhost:1234/v1"
 #   llama.cpp:       base_url = "http://localhost:8642/v1"

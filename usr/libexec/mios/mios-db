@@ -46,7 +46,7 @@
 #   MIOS_DB_NS           mios             [surrealdb].namespace
 #   MIOS_DB_DB           mios             [surrealdb].database
 #   MIOS_OWUI_DB         /var/lib/mios/open-webui/webui.db
-#   MIOS_OLLAMA_URL      http://localhost:${MIOS_PORT_OLLAMA:-11434}
+#   MIOS_OLLAMA_URL      http://localhost:${MIOS_PORT_OLLAMA:-11450}
 #   MIOS_EMBED_MODEL     nomic-embed-text [surrealdb].embed_model
 #
 # Exits 0 on success, 1 on backend unreachable, 2 on missing binary.

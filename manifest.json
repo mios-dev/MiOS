@@ -27,10 +27,10 @@
         "models",
         "tools"
       ],
-      "note": "Hermes-Agent is the LIVE MiOS agent at root (/). Fronts Ollama for inference; adds the tool / agent / messaging-platform protocol layer."
+      "note": "Hermes-Agent is the LIVE MiOS agent at root (/). Fronts LLM Light for inference; adds the tool / agent / messaging-platform protocol layer."
     },
-    "ollama": {
-      "endpoint": "http://localhost:11434/v1",
+    "llm_light": {
+      "endpoint": "http://localhost:11450/v1",
       "supports": [
         "chat/completions",
         "embeddings",

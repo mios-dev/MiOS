@@ -1,0 +1,14 @@
+# AI-hint: Desktop entry for the LLM Light service providing the local LLM and embedding backend, used by agents to identify and launch the local inference server at port 11450.
+# AI-related: localhost:11450
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=MiOS LLM Light
+GenericName=Local LLM + Embedding Backend (llama-swap)
+Comment=Open the LLM Light API surface (local model server)
+Exec=xdg-open http://localhost:11450/
+Icon=applications-engineering-symbolic
+Categories=Development;Network;
+Keywords=mios;llm-light;llama-swap;llm;embedding;ai;
+Terminal=false
+StartupNotify=true
