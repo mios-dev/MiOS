@@ -8262,6 +8262,34 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
         _txt = "\n".join(out)
         return re.sub(r"\n{3,}", "\n\n", _txt).strip()
 
+    # DIRECT URL EXTRACT (operator 2026-06-19 "Read <url> ..." test gap): when the
+    # request explicitly NAMES a url, FETCH THAT PAGE + cite it -- never web_search the
+    # leftover verb ("read"/"open"), which anchored on the dictionary (merriam-webster
+    # "read") and shipped junk sources. The named url IS the authoritative grounding;
+    # skip the search entirely when it yields real content (no junk-anchor), else fall
+    # through to the normal search.
+    _named_urls = [u.rstrip('.,);]}>"\'') for u in _SRC_URL_RE.findall(
+        f"{query or ''} {(refined or {}).get('refined_text') or ''}")]
+    for _nu in _named_urls[:3]:
+        if not _nu.startswith("http") or _nu in seen:
+            continue
+        seen.add(_nu)
+        try:
+            _ntxt = await _extract(_nu)
+        except Exception:  # noqa: BLE001
+            _ntxt = ""
+        if _ntxt and len(_ntxt) >= WEB_RESEARCH_MIN_CHARS:
+            content[_nu] = _strip_nav_chrome(_ntxt)
+            touched.append({"url": _nu, "title": "named source", "content": ""})
+            _src_record([{"url": _nu, "title": "named source"}])
+            log.info("web-research: direct-extracted named url %s (%dB) -> skip search",
+                     _nu, len(_ntxt))
+        elif _ntxt:
+            snippets[_nu] = _ntxt
+            _src_record([{"url": _nu, "title": "named source"}])
+    if content:   # a named url grounded the turn -> skip web_search (no junk-anchor)
+        _max_att = 0
+
     for attempt in range(1, _max_att + 1):
         _rec({"emoji": "🔎", "label": "searching the web",
               "detail": (("news · " if _use_news else
