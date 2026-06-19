@@ -1052,6 +1052,53 @@ def _depth_exhausted() -> bool:
     caller must degrade CLOSED to single-agent (no _plan_swarm / no fanout)."""
     return MAX_DISPATCH_DEPTH > 0 and _dispatch_depth() >= MAX_DISPATCH_DEPTH
 
+
+# ── P0 CROSS-HOP recursion bound (operator 2026-06-19 meta-pipeline refactor, RFC
+# 9110 Max-Forwards + Via): the depth contextvar above is PROCESS-LOCAL and does NOT
+# survive an HTTP hop, so a worker that re-enters :8640 (a thin-gateway-as-worker, an
+# A2A peer) reset to depth 0 -> UNBOUNDED recursion (the dGPU runaway). Carry the
+# depth + an agent-id chain as HTTP HEADERS on every sub-dispatch so the bound CROSSES
+# the hop; deterministically kill a loop the moment our own id reappears in the chain.
+# Degrade-OPEN: absent headers == exactly today's single-process behaviour.
+_HOP_HEADER = "X-MiOS-Hop"      # dispatch depth seen so far (Max-Forwards-style budget)
+_VIA_HEADER = "X-MiOS-Via"      # comma-separated agent-id chain (Via-style loop detect)
+_via_chain_var: "contextvars.ContextVar" = contextvars.ContextVar(
+    "mios_via_chain", default="")
+
+
+def _hop_via_headers() -> dict:
+    """Headers to stamp on a worker sub-dispatch so the recursion bound survives the
+    HTTP hop: the receiving worker's depth (this hop + 1) and our self-id appended to
+    the Via chain. (A2A_SELF_ID resolved at call time -- defined later in the module.)"""
+    try:
+        _via = (_via_chain_var.get() or "").strip()
+        _chain = (_via + "," + A2A_SELF_ID) if _via else A2A_SELF_ID
+        return {_HOP_HEADER: str(_dispatch_depth() + 1), _VIA_HEADER: _chain}
+    except Exception:  # noqa: BLE001 -- never break a dispatch on the loop-guard
+        return {}
+
+
+def _seed_hop_from_headers(hop_hdr, via_hdr) -> None:
+    """At chat_completions entry: seed the dispatch depth FROM the incoming X-MiOS-Hop
+    (so the bound crosses the HTTP hop) and record the Via chain. If our OWN id is
+    already in the chain, force degrade-closed (no further fan-out) -> a re-entrant
+    loop answers single-agent instead of recursing. Degrade-open on any error."""
+    try:
+        if hop_hdr is not None and str(hop_hdr).strip():
+            _dispatch_depth_var.set(max(0, int(hop_hdr)))
+    except Exception:  # noqa: BLE001
+        pass
+    _via = str(via_hdr or "").strip()
+    try:
+        _via_chain_var.set(_via)
+        _chain = [v.strip().lower() for v in _via.split(",") if v.strip()]
+        if A2A_SELF_ID and A2A_SELF_ID in _chain:
+            _dispatch_depth_var.set(max(MAX_DISPATCH_DEPTH, _dispatch_depth()))
+            log.warning("loop guard: self-id %s already in Via %r -> degrade-closed "
+                        "(single-agent, no fan-out)", A2A_SELF_ID, _via)
+    except Exception:  # noqa: BLE001
+        pass
+
 # ── DISPATCH PRIORITY for autonomous (background) turns (operator W0-T3). An
 # UNATTENDED autonomous turn must YIELD the next freed GPU slot to any operator
 # FOREGROUND turn -- background research should never preempt a human waiting at
@@ -3888,6 +3935,7 @@ async def _call_agent_complete_inner(name: str, cfg: dict, body: dict,
             _tk = _src_turn_key()
             if _tk:   # propagate the turn-id so a re-entrant sub-request's sources
                 _oll_hdrs[_SRC_TURN_HEADER] = _tk   # land in the parent turn bucket
+            _oll_hdrs.update(_hop_via_headers())   # P0 cross-hop recursion bound
             r = await client.post(
                 f"{base}/v1/chat/completions",
                 content=json.dumps(payload).encode("utf-8"),
@@ -3944,6 +3992,7 @@ async def _call_agent_complete_inner(name: str, cfg: dict, body: dict,
         _tk = _src_turn_key()
         if _tk:
             _hdrs[_SRC_TURN_HEADER] = _tk
+        _hdrs.update(_hop_via_headers())   # P0 cross-hop recursion bound
         # KV-paging bracket (operator 2026-06-01): on a llama.cpp endpoint, page
         # THIS conversation's KV into the slot (saving whoever held it) before the
         # tool-loop + final completion, holding the slot across the bracket so a
@@ -4993,6 +5042,7 @@ async def _call_agent_stream_inner(name: str, cfg: dict, body: dict,
         _tk = _src_turn_key()
         if _tk:
             _hdrs[_SRC_TURN_HEADER] = _tk
+        _hdrs.update(_hop_via_headers())   # P0 cross-hop recursion bound
         async with client.stream(
                 "POST", f"{ep}/chat/completions",
                 content=json.dumps(nb).encode("utf-8"), headers=_hdrs,
@@ -23390,6 +23440,12 @@ async def chat_completions(request: Request) -> Any:
     # a real **Sources:** list + structured mios_sources metadata, so sources are
     # grounded metadata, never model-invented prose.
     _sources_var.set([])
+    # P0 cross-hop recursion bound: seed the dispatch depth + Via chain from the
+    # incoming headers so the runaway-loop guard survives the HTTP hop (a worker that
+    # re-enters :8640 inherits the upstream depth + is degrade-closed if it sees its
+    # own id in the chain). Degrade-open when absent (== single-process behaviour).
+    _seed_hop_from_headers(request.headers.get(_HOP_HEADER),
+                           request.headers.get(_VIA_HEADER))
     _incoming_turn = request.headers.get(_SRC_TURN_HEADER)
     if _incoming_turn:
         # SUB-request dispatched by a council/DAG node: inherit the parent turn so
@@ -23864,6 +23920,32 @@ async def chat_completions(request: Request) -> Any:
             return _ls_resp
         log.info("local-state fast-path: no grounding -> normal path")
 
+    # P0 LOOP-GUARD ENFORCEMENT (operator 2026-06-19): a depth-exhausted turn -- the
+    # cross-hop X-MiOS-Hop/Via bound tripped (a re-entrant loop) OR we are already
+    # MAX_DISPATCH_DEPTH deep -- MUST NOT fan out. Clearing the force flags + routing
+    # straight to the SINGLE-AGENT native loop makes a re-entrant loop answer ONCE and
+    # stop, instead of building a council/DAG anyway via the breadth-seed/force_council/
+    # safety-net paths (which don't individually check depth). The swarm block below
+    # also carries `and not _depth_exhausted()` as a backstop for the refine-None case.
+    if _depth_exhausted():
+        if _force_council or _force_delegate:
+            log.warning("loop guard: dispatch depth %d >= %d -> SINGLE-AGENT "
+                        "(no fan-out)", _dispatch_depth(), MAX_DISPATCH_DEPTH)
+        _force_council = False
+        _force_delegate = False
+        if NATIVE_LOOP_ENABLE and refined and \
+                refined.get("intent") in ("agent", "multi_task", "chat"):
+            try:
+                _nl = await _respond_native_loop_direct(
+                    refined, streaming=streaming, chat_id=chat_id, model=model,
+                    session_id=session_id, last_user_text=last_user_text,
+                    persona_system=_persona_system, messages=messages,
+                    request=request, tool_choice=body.get("tool_choice"))
+                if _nl is not None:
+                    return _nl
+            except Exception as _lge:  # noqa: BLE001 -- degrade-open, fall through
+                log.warning("loop-guard native loop failed: %s", _lge)
+
     # NATIVE TOOL-LOOP short-circuit (operator 2026-06-11 "simplify the pipeline
     # to work natively"): the cheap fast-paths above (trivial chat / OS-control
     # dispatch / local-state) keep their direct handling; a SUBSTANTIVE agent or
@@ -24128,7 +24210,7 @@ async def chat_completions(request: Request) -> Any:
         or (refined and (refined.get("_multi_step") or refined.get("deep")
                          or refined.get("deep_research")
                          or refined.get("intent") == "multi_task")))
-    if PLANNER_ENABLED and not _action_route and (_force_delegate
+    if PLANNER_ENABLED and not _action_route and not _depth_exhausted() and (_force_delegate
                             or (refined and refined.get("_multi_step"))
                             or _decompose_default
                             or _browser_action):
