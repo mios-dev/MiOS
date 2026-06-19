@@ -15404,6 +15404,7 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
         "choices": [{"index": 0,
                      "message": {"role": "assistant", "content": main},
                      "finish_reason": "stop"}],
+        "usage": _usage_estimate(last_user_text, main),  # P4 /v1 conformance
         "mios_sources": _sources_metadata(_dag_refs) if _dag_refs else [],
     })
 
