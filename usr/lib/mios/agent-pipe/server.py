@@ -12576,23 +12576,123 @@ async def _needs_external_knowledge(user_text: str) -> bool:
         return False
 
 
+async def _needs_compute(user_text: str) -> bool:
+    """Generative compute-need judge (operator 2026-06-19 "MATH(AND OTHER PYTHON
+    CAPABILITIES) ... natural language!!! not verbs/keywords"). Decide, BY MEANING not
+    keywords, whether fully + CORRECTLY answering needs a calculation a language model
+    cannot do reliably in its head -- multi-digit/exact arithmetic, statistics, unit/
+    currency conversion, counting, or a date/time difference. A small model both
+    mis-computes in-head AND won't reliably call the (now ambient) sandbox tool, so the
+    PIPE runs the math itself (mirrors the web prefetch). True only on a confident yes;
+    degrade-CLOSED (error/None -> False = no compute prefetch, unchanged behaviour)."""
+    if not (user_text or "").strip():
+        return False
+    sys = (
+        "Decide, by MEANING not keywords: to fully and CORRECTLY answer the user, is a "
+        "non-trivial CALCULATION required that a language model cannot do reliably in its "
+        "head -- e.g. multi-digit or exact arithmetic, statistics, unit/currency "
+        "conversion, counting, or a date/time difference? Examples: 'what is "
+        "19387*4472', 'split an $80 bill three ways', 'how many days until Nov 3', 'how "
+        "old is someone born in 1991' -> true. 'what is the capital of France', "
+        "'summarize this article', 'what is 2+2' (trivial) -> false.")
+    payload = {
+        "model": ROUTER_MODEL,
+        "messages": [{"role": "system", "content": sys},
+                     {"role": "user", "content": user_text[:2000]}],
+        "response_format": {"type": "json_schema", "json_schema": {
+            "name": "compute", "strict": True, "schema": {
+                "type": "object",
+                "properties": {"needs_compute": {"type": "boolean"}},
+                "required": ["needs_compute"], "additionalProperties": False}}},
+        "chat_template_kwargs": {"enable_thinking": False},
+        "temperature": 0.0, "max_tokens": 30, "stream": False,
+    }
+    try:
+        async with httpx.AsyncClient(timeout=PLANNER_TIMEOUT_S) as s:
+            r = await s.post(f"{PLANNER_ENDPOINT}/v1/chat/completions", json=payload,
+                             headers={"Content-Type": "application/json"})
+        if r.status_code != 200:
+            return False
+        content = ((r.json().get("choices") or [{}])[0].get("message", {})
+                   .get("content") or "")
+        return (_loads_lenient(content) or {}).get("needs_compute") is True
+    except Exception as e:  # noqa: BLE001 -- degrade-CLOSED (-> no compute prefetch)
+        log.debug("compute-need judge failed (-> no compute): %s", e)
+        return False
+
+
+async def _formulate_compute_snippet(user_text: str) -> str:
+    """Have the micro-LLM EXTRACT the calculation the user is asking for as a short,
+    self-contained Python 3 snippet that PRINTS the result (mirrors _formulate_web_query).
+    The snippet runs PIPE-SIDE in the coderun sandbox so the answer is COMPUTED, not
+    guessed. Code-only output; '' on empty/error -> degrade-open (no compute prefetch)."""
+    if not (user_text or "").strip():
+        return ""
+    sys = ("Write a short, self-contained Python 3 snippet that computes the answer to "
+           "the user's request and PRINTS it (use print(...) and the math/datetime "
+           "modules as needed; NO input(), NO network, NO file I/O). Output the CODE "
+           "ONLY -- no markdown fences, no prose. If no calculation is needed, output "
+           "nothing.")
+    payload = {
+        "model": ROUTER_MODEL,
+        "messages": [{"role": "system", "content": sys},
+                     {"role": "user", "content": user_text[:1000]}],
+        "chat_template_kwargs": {"enable_thinking": False},
+        "temperature": 0.0, "max_tokens": 300, "stream": False,
+    }
+    try:
+        async with httpx.AsyncClient(timeout=PLANNER_TIMEOUT_S) as s:
+            r = await s.post(f"{PLANNER_ENDPOINT}/v1/chat/completions", json=payload,
+                             headers={"Content-Type": "application/json"})
+        if r.status_code != 200:
+            return ""
+        code = ((r.json().get("choices") or [{}])[0].get("message", {})
+                .get("content") or "").strip()
+        # Strip an accidental ```/```python fence pair so only runnable code remains.
+        code = re.sub(r"^```[A-Za-z0-9_]*\n?", "", code)
+        code = re.sub(r"\n?```\s*$", "", code).strip()
+        return code[:2000]
+    except Exception as e:  # noqa: BLE001 -- degrade-open (-> no compute prefetch)
+        log.debug("compute-snippet formulation failed (-> none): %s", e)
+        return ""
+
+
 async def _formulate_web_query(user_text: str, local_grounding: str) -> str:
     """For a HYBRID local+web turn, rewrite a vague SELF-referential question ("the
     theoretical specs of MY GPU") into a CONCRETE web query naming the components the
     local tools just IDENTIFIED -- so web_search finds the actual GPU/CPU spec pages,
     not dictionary definitions of "theoretical". Model-formulated (no templates);
     degrade-open to the raw user text on any error/empty (search still runs)."""
-    if not (user_text or "").strip() or not (local_grounding or "").strip():
+    if not (user_text or "").strip():
         return user_text
-    sys = ("Write ONE concise web-search query (the query text ONLY -- no quotes, no "
-           "preamble) that finds the EXTERNAL facts needed to answer the user's "
-           "question about THIS machine. The machine's REAL components are in the "
-           "context. Name the SPECIFIC make/model (the exact GPU and/or CPU) plus the "
-           "property asked about. Never write 'this system' or 'my' -- use the "
-           "concrete component names from the context.")
-    msg = ("User question: " + user_text[:500]
-           + "\n\nThis machine's components (from local tools):\n"
-           + local_grounding[:1500])
+    _has_local = bool((local_grounding or "").strip())
+    # PURE-WEB/NEWS turn (no local hardware to name): reformulate the verbose imperative
+    # request into a clean entity+recency query so "Give me a briefing on X this week"
+    # -> "X latest developments <YYYY-MM>" instead of the leading word "give" anchoring a
+    # dictionary hit. The MODEL decides what framing to drop (generative; NO stopword
+    # list in code). Gated by NATIVE_LOOP_QUERY_REFORMULATE; degrade-open to raw text.
+    if not _has_local and not NATIVE_LOOP_QUERY_REFORMULATE:
+        return user_text
+    _date = _current_date_str()
+    if _has_local:
+        sys = ("Write ONE concise web-search query (the query text ONLY -- no quotes, no "
+               "preamble) that finds the EXTERNAL facts needed to answer the user's "
+               "question about THIS machine. The machine's REAL components are in the "
+               "context. Name the SPECIFIC make/model (the exact GPU and/or CPU) plus the "
+               "property asked about. Never write 'this system' or 'my' -- use the "
+               "concrete component names from the context.")
+        msg = ("User question: " + user_text[:500]
+               + "\n\nThis machine's components (from local tools):\n"
+               + local_grounding[:1500])
+    else:
+        sys = ("Rewrite the user's request into ONE concise web-search query (the query "
+               "text ONLY -- no quotes, no preamble) containing just the SALIENT ENTITIES "
+               "and TOPIC. Drop conversational and imperative framing and bare quantity "
+               "words. If the request asks for current / recent / latest / this-week "
+               "information, append the recency anchor '" + _date + "' (the current date) "
+               "so results are present-dated, not training-era. Never invent specifics; "
+               "just produce the clean query.")
+        msg = (user_text or "")[:500]
     payload = {
         "model": ROUTER_MODEL,
         "messages": [{"role": "system", "content": sys},
@@ -15891,6 +15991,21 @@ async def dispatch_mios_verb(
     if tool == "web_search" and isinstance(args, dict):
         _rc = _recency_ctx_var.get()
         if _rc:
+            # DATE ANCHOR: when the turn is model-classified time-sensitive (recency ctx
+            # set), fold the resolved current date (YYYY-MM) into the query so
+            # "recent/this week/latest" resolves to the PRESENT, not a training-era year.
+            # This is the single choke-point BOTH the prefetch AND the model's own in-loop
+            # web_search calls pass through. Touches ONLY the query string (no keyword
+            # branch); idempotent (skip if already present); SSOT-gated; degrade-open.
+            if NATIVE_LOOP_DATE_IN_QUERY:
+                try:
+                    _q = str(args.get("query") or "").strip()
+                    _ds = _current_date_str()
+                    _ym = _ds[:7]
+                    if _q and _ds not in _q and _ym not in _q:
+                        args["query"] = _q + " " + _ym
+                except Exception:  # noqa: BLE001 -- degrade-open
+                    pass
             if not str(args.get("time_range") or "").strip() and _rc.get("time_range"):
                 args["time_range"] = _rc["time_range"]
             try:
@@ -22486,6 +22601,18 @@ NATIVE_LOOP_RECENCY_FANOUT = int(
     os.environ.get("MIOS_NATIVE_LOOP_RECENCY_FANOUT", "4") or 4)
 NATIVE_LOOP_RECENCY_RANGE = (os.environ.get("MIOS_NATIVE_LOOP_RECENCY_RANGE")
                              or "day").strip()
+# Native-loop grounding/hygiene knobs (operator 2026-06-19: "OWUI LITERALLY CARRIES
+# ENVIRONMENT DETAILS EVERY TURN" + fix the "list N recent X" wrong-year fabrication
+# and the verbose-imperative dictionary-anchor in web_search). All default-ON,
+# SSOT-bridged (mios.toml [dispatch] -> install.env -> ${MIOS_*}); each degrades open.
+NATIVE_LOOP_QUERY_REFORMULATE = str(os.environ.get("MIOS_NATIVE_LOOP_QUERY_REFORMULATE")
+    or _DISPATCH_TOML.get("native_loop_query_reformulate", "true")).strip().lower() not in {"false", "0", "no"}
+NATIVE_LOOP_DATE_IN_QUERY = str(os.environ.get("MIOS_NATIVE_LOOP_DATE_IN_QUERY")
+    or _DISPATCH_TOML.get("native_loop_date_in_query", "true")).strip().lower() not in {"false", "0", "no"}
+NATIVE_LOOP_DATE_ANCHOR = str(os.environ.get("MIOS_NATIVE_LOOP_DATE_ANCHOR")
+    or _DISPATCH_TOML.get("native_loop_date_anchor", "true")).strip().lower() not in {"false", "0", "no"}
+NATIVE_LOOP_MATH_HINT = str(os.environ.get("MIOS_NATIVE_LOOP_MATH_HINT")
+    or _DISPATCH_TOML.get("native_loop_math_hint", "true")).strip().lower() not in {"false", "0", "no"}
 _NATIVE_LOOP_REFLECTION_PROSE = (
     "RESULT SUFFICIENCY: after every web_search or fetch, judge in your reasoning whether "
     "the results actually answer the facet (goal met: yes/no). If they are thin, off-topic, "
@@ -22626,6 +22753,22 @@ async def _respond_native_loop_direct(
                  "results, say so plainly; do not pad, and do not invent items to look "
                  "fuller. Do not ask the user to narrow what you can research "
                  "yourself.")
+    # COMPUTATION steer (operator 2026-06-19 "MATH(AND OTHER PYTHON CAPABILITIES)"):
+    # route any non-trivial calculation to the sandboxed Python executor rather than
+    # letting the 8B compute in-head (unreliable). Unconditional capability guidance --
+    # the MODEL decides when a step is non-trivial -- gated only by the SSOT flag + the
+    # structural presence of the verb in _VERB_CATALOG; NO "if math in q" branch.
+    if NATIVE_LOOP_MATH_HINT and ("coderun" in _VERB_CATALOG
+                                  or "code_mode" in _VERB_CATALOG):
+        # Frame the model's OWN limitation + the CAPABILITY (research-backed: naming the
+        # weakness raises correct tool use), NOT a hardcoded verb name -- the model maps
+        # this to its always-present sandbox code/Python tool from natural-language
+        # understanding (operator 2026-06-19 "natural language!!! not verbs/keywords").
+        _sys += ("\n\nCOMPUTATION: you cannot reliably do arithmetic, numeric, "
+                 "statistical, date/time, unit-conversion, or symbolic math in your head "
+                 "-- it is error-prone. For ANY such calculation, run it with your "
+                 "sandboxed code / Python execution tool and report the tool's result "
+                 "instead of computing it yourself.")
     # Tool-selection hint (operator 2026-06-11): refine identifies the relevant
     # verb(s) for clear patterns ("remember X" -> remember; "what apps" -> mios_apps);
     # an 8B over the full surface sometimes mis-picks a semantic neighbour (pkg for
@@ -22709,13 +22852,26 @@ async def _respond_native_loop_direct(
     _plan_block = ("PLAN for this turn -- work to THIS refined intent, treat it as fully "
                    "answerable, and do not anchor on the user's literal wording:\n"
                    + "\n".join(_plan_bits) + "\n\n") if _plan_bits else ""
+    # CURRENT-DATE anchor, placed beside the PLAN block in the model's attention window
+    # (the soft _env_grounding prose up in _sys is demonstrably overridden by an 8B on
+    # strong-prior topics -> training-era 2024 dates). Grounds the orchestrator's OWN
+    # context from the forwarded OWUI client env (server-clock fallback), NOT the user
+    # message -- same sanctioned pattern as the PLAN/recall blocks. Gated; degrade-open.
+    _date_block = ""
+    if NATIVE_LOOP_DATE_ANCHOR:
+        _date_block = ("CURRENT_DATE: " + _current_date_str() + ". This is the "
+                       "authoritative date for resolving any relative time reference "
+                       "('today', 'this week', 'recent', 'latest', 'current'). NEVER "
+                       "resolve such references from training data or from dates found in "
+                       "retrieved text; use THIS date, and do not state a year absent from "
+                       "CURRENT_DATE or from the live search results.\n\n")
     # Position recalled context + the tool-preference hint IMMEDIATELY BEFORE the user's
     # question (not buried in the long system prompt) so the model reliably attends to them
     # instead of tool-hunting (operator 2026-06-11: recall was 2/3 with the memory in
     # _sys -- the model ignored it). Keeps the system+tools prefix byte-stable.
-    if (_recall_text or _pref or _plan_block) and _user_msgs:
+    if (_recall_text or _pref or _plan_block or _date_block) and _user_msgs:
         _last = _user_msgs[-1]
-        _ctx = _plan_block
+        _ctx = _date_block + _plan_block
         if _recall_text:
             _ctx += ("You ARE an assistant WITH persistent cross-session memory -- the "
                      "SAVED CONTEXT below IS your memory of this user. It is FALSE to say "
@@ -22949,7 +23105,14 @@ async def _respond_native_loop_direct(
         if (refined and (refined.get("web") or refined.get("news"))):
             try:
                 _wq = last_user_text
-                if _lse and _lse.strip():
+                if NATIVE_LOOP_QUERY_REFORMULATE:
+                    # Reformulate on EVERY web/news turn, not just hybrid: hybrid passes
+                    # the identified hardware as grounding; pure-web/news passes '' and
+                    # _formulate_web_query takes its generative pure-web path (entity
+                    # extraction + date anchor). Kills the verbose-imperative "give"
+                    # dictionary anchor. Degrade-open (returns raw text on any error).
+                    _wq = await _formulate_web_query(last_user_text, _lse or "")
+                elif _lse and _lse.strip():
                     _wq = await _formulate_web_query(last_user_text, _lse)
                 _wsr = await dispatch_mios_verb(
                     "web_search", {"query": _wq}, session_id=session_id)
@@ -22985,6 +23148,55 @@ async def _respond_native_loop_direct(
                         pass
             except Exception as _e:  # noqa: BLE001 -- degrade-open, never block the turn
                 log.debug("native-loop web prefetch skipped: %s", _e)
+        # COMPUTE prefetch (operator 2026-06-19 "MATH(AND OTHER PYTHON CAPABILITIES) ...
+        # natural language!!! not verbs/keywords"): an 8B mis-computes arithmetic/numeric/
+        # date/symbolic math in its head AND -- like the web case above -- won't reliably
+        # call the (now ambient/core) sandbox code tool. So the PIPE does the math, exactly
+        # like the web prefetch: a GENERATIVE judge (_needs_compute, by MEANING not
+        # keywords) decides if a calculation is needed; if so the micro-LLM EXTRACTS it as
+        # a Python snippet, we run it in the coderun sandbox, and inject the VERIFIED
+        # result as authoritative grounding. No keyword gate, no required verb from the
+        # user. Gated by NATIVE_LOOP_MATH_HINT; degrade-open (any failure just skips).
+        if NATIVE_LOOP_MATH_HINT and "coderun" in _VERB_CATALOG:
+            try:
+                # Reuse the promotion's verdict if it already judged (chat->agent),
+                # else judge now (a turn that was already intent=agent). No double call.
+                _nc = (refined or {}).get("_needs_compute")
+                if _nc is None:
+                    _nc = await _needs_compute(last_user_text)
+                if _nc:
+                    _code = await _formulate_compute_snippet(last_user_text)
+                    if _code and _code.strip():
+                        _cres = await dispatch_mios_verb(
+                            "coderun", {"code": _code, "lang": "python"},
+                            session_id=session_id)
+                        # coderun returns {output: '{"ok":true,"stdout":"..."}'} -- PARSE
+                        # out the bare stdout so the model gets the clean RESULT, not the
+                        # wrapper JSON (which it mis-reads, then recomputes in-head wrong).
+                        _out = ((_cres.get("output") or _cres.get("result")
+                                 or _cres.get("stdout") or "")
+                                if isinstance(_cres, dict) else "")
+                        try:
+                            _oj = _loads_lenient(_out) if isinstance(_out, str) else _out
+                            _ctext = (str((_oj or {}).get("stdout")
+                                          or (_oj or {}).get("output") or "").strip()
+                                      if isinstance(_oj, dict) else str(_out).strip())
+                        except Exception:  # noqa: BLE001
+                            _ctext = str(_out).strip()
+                        if _ctext:
+                            _push(" 🧮")
+                            log.info("native-loop: compute prefetch -> %s",
+                                     _ctext[:80].replace("\n", " "))
+                            _msgs.append({"role": "system", "content":
+                             "VERIFIED COMPUTATION (AUTHORITATIVE -- this OVERRIDES your "
+                             "mental math). The user's calculation was executed in a Python "
+                             "sandbox; the exact, correct result is:\n\n    " + _ctext[:600]
+                             + "\n\nState THIS as the answer. Do NOT recompute it, do NOT "
+                             "show step-by-step in-head arithmetic, and do NOT contradict "
+                             "this value -- your mental arithmetic is unreliable and this "
+                             "sandbox result is correct."})
+            except Exception as _e:  # noqa: BLE001 -- degrade-open, never block the turn
+                log.debug("native-loop compute prefetch skipped: %s", _e)
         # LOCAL FILE-SEARCH prefetch (symmetric to the web prefetch). SAME failure
         # mode, local edition: a small non-tool_choice model answers "find my file"
         # from MEMORY -> a fabricated path (live miss: "find mios.toml" -> 0 tool-calls
@@ -23944,6 +24156,24 @@ async def chat_completions(request: Request) -> Any:
                 log.info("hybrid: local_state turn needs external knowledge "
                          "-> web=true (additive grounding)")
         except Exception:  # noqa: BLE001 -- degrade-closed
+            pass
+    # COMPUTE PROMOTION (operator 2026-06-19 "MATH(AND OTHER PYTHON CAPABILITIES) ...
+    # natural language!!! not verbs/keywords"): a calculation request often refines to
+    # intent=chat ("what is 19387*4472") and takes the trivial chat path, which has NO
+    # compute step -> the 8B answers in-head, wrong. A GENERATIVE judge (by MEANING, no
+    # keywords) promotes a compute-needing chat turn to the agent/native-loop path, where
+    # the compute prefetch runs the math in the sandbox. Verdict stashed on refined so the
+    # native-loop prefetch reuses it (no double judge). Degrade-open (judge false/error
+    # -> unchanged chat path). This is what makes compute AMBIENT across answer paths.
+    if (NATIVE_LOOP_MATH_HINT and NATIVE_LOOP_ENABLE and refined
+            and refined.get("intent") == "chat" and "coderun" in _VERB_CATALOG
+            and not _force_council and not _force_delegate):
+        try:
+            if await _needs_compute(last_user_text):
+                refined["intent"] = "agent"
+                refined["_needs_compute"] = True
+                log.info("compute promotion: chat -> agent (calculation needed)")
+        except Exception:  # noqa: BLE001 -- degrade-open
             pass
     # LOCAL-STATE FAST-PATH (operator 2026-05-27): a "what's installed / what's
     # my state" question is local INVENTORY, not research. Answer it

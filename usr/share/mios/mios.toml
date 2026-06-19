@@ -1097,6 +1097,25 @@ dag_empty_native_fallback = true
 # force-seed a synthetic swarm -> answer via the single-agent path (faster, on-topic).
 # Genuinely broad asks still fan out to ALL live nodes. false = prior always-seed.
 swarm_trust_atomic = true
+# ── NATIVE-LOOP GROUNDING / HYGIENE (operator 2026-06-19 "OWUI LITERALLY CARRIES
+# ENVIRONMENT DETAILS EVERY TURN" + fix the "list N recent X" wrong-year fabrication).
+# agent-pipe reads these from here via _DISPATCH_TOML (runtime override via the matching
+# MIOS_NATIVE_LOOP_* env). All default-on; each behaviour degrades open on any error.
+#   query_reformulate: ALWAYS reformulate the web_search query via the generative micro-
+#     LLM (_formulate_web_query) -- not just hybrid turns -- so a verbose imperative
+#     ("Give me a briefing on X this week") becomes a clean entity+date query instead of
+#     the leading word "give" anchoring a dictionary result. (no hardcoded stopword list)
+#   date_in_query: fold the resolved current date (YYYY-MM) into time-sensitive web_search
+#     queries at the dispatch choke-point (covers the model's own in-loop calls too).
+#   date_anchor: emit a HARD CURRENT_DATE line in the native-loop model context right
+#     before the user question, so "today/this week/recent/latest" resolve to the present
+#     (the soft env-grounding prose is overridden by an 8B on strong-prior topics).
+#   math_hint: instruct the native loop to route non-trivial computation to the sandboxed
+#     Python executor (run_sandboxed_code / run_python_tool_script), not in-head math.
+native_loop_query_reformulate = true
+native_loop_date_in_query     = true
+native_loop_date_anchor       = true
+native_loop_math_hint         = true
 # ── SWARM-NODE COMPUTE BUDGET + DEEPEN (operator 2026-05-26 "every node computes
 # ... loop until satisfied"; SSOT'd 2026-05-31 after "HARDCODES!!!"). agent-pipe
 # reads these from here via _dispatch_toml(); runtime override via the matching
@@ -3291,8 +3310,14 @@ section    = "OS shell verbs"
 sig        = "code, lang=bash?, net?, timeout=60?"
 desc       = "Run a SHORT one-off code snippet / command in an isolated sandbox (bubblewrap: read-only system, writable scratch only, NO network by default, resource caps + timeout). lang: bash (default) | python. Pass net=true only if it must reach the network. Use to compute/test something safely WITHOUT touching the host -- not to orchestrate MiOS verbs (run_python_tool_script) or to run Windows PowerShell (powershell_run)."
 model_name = "run_sandboxed_code"
-examples   = ["run this bash one-liner safely", "test this python snippet in a sandbox", "compute a quick calculation without touching the host", "execute this shell command in isolation"]
-tier       = "common"
+examples   = ["run this bash one-liner safely", "test this python snippet in a sandbox", "compute a quick calculation without touching the host", "calculate the exact value of a math expression", "do this arithmetic / numeric / date computation precisely", "execute this shell command in isolation"]
+# CORE tier (operator 2026-06-19 "natural language!!! not verbs/keywords"): the sandbox
+# code/Python executor must be AMBIENT -- always on the model's tool surface every turn,
+# NOT gated behind the per-turn cosine/BM25 relevance tail (a pure-math query shares no
+# tokens with "run code in a sandbox" so it was dropped -> the 8B did wrong in-head math).
+# Ambient capability + the COMPUTATION limitation-steer let the model self-select it from
+# natural-language understanding, exactly like OWUI's always-present code interpreter.
+tier       = "core"
 permission = "interactive"
 cmd        = "mios-coderun --code {code!} {lang?--lang} --timeout {timeout=60}"
   [verbs.coderun.params.code]
