@@ -14944,9 +14944,18 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
         _grounded_nothing = (len(_research) == 0 and len(merged) == 0)
         _web_turn = bool(refined and (refined.get("web") or refined.get("news")
                                       or refined.get("deep")
-                                      or refined.get("deep_research")))
+                                      or refined.get("deep_research"))) \
+            or (_routed_domain_var.get(None) == "web")
+        # A web/news turn that captured NO real sources ANYWHERE this turn (the parent
+        # facet grounding AND the workers' own tool-loops both came back empty) is
+        # UNGROUNDED -> the heavy-model workers generated "news" from training memory =
+        # fabrication (operator's original complaint, resurfacing on the swarm path).
+        # Fall back to the native loop (which web-grounds + cites) even when merged>0,
+        # so an ungrounded news answer is never shipped (operator 2026-06-19).
+        _ungrounded_web = bool(_web_turn and not _src_collected())
         _empty_or_punt = (not main.strip()) or _is_punt(main)
-        _needs_fallback = bool(_grounded_nothing and (_empty_or_punt or _web_turn))
+        _needs_fallback = bool((_grounded_nothing and (_empty_or_punt or _web_turn))
+                               or _ungrounded_web)
         return envelope, main, _needs_fallback
 
     async def _native_fallback(_main: str) -> tuple:
