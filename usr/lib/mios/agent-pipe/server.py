@@ -22730,7 +22730,8 @@ async def _respond_native_loop_direct(
     if streaming:
         async def _stream_native() -> AsyncGenerator[bytes, None]:
             yield _sse_chunk("", chat_id=chat_id, model=model, role="assistant")
-            yield _sse_chunk(_ans, chat_id=chat_id, model=model)
+            async for _b in _stream_answer(_ans, chat_id=chat_id, model=model):
+                yield _b
             yield _sse_chunk("", chat_id=chat_id, model=model,
                              finish_reason="stop")
             yield _sse_done()
@@ -23380,7 +23381,12 @@ async def chat_completions(request: Request) -> Any:
                                         phase="refine")
                 yield _sse_chunk("", chat_id=chat_id, model=model,
                                  role="assistant")
-                yield _sse_chunk(reply, chat_id=chat_id, model=model)
+                # Type the answer out as deltas instead of one burst (operator
+                # 2026-06-18 "streaming the thinking pipeline doesn't work" -- the
+                # fast chat path bursted; native-loop already streams). _stream_answer
+                # char-chunks byte-exact + paced.
+                async for _b in _stream_answer(reply, chat_id=chat_id, model=model):
+                    yield _b
                 yield _sse_status_phase(chat_id=chat_id, model=model,
                                         phase="chat_done", done=True)
                 yield _sse_chunk("", chat_id=chat_id, model=model,
@@ -24093,7 +24099,8 @@ async def chat_completions(request: Request) -> Any:
                                                 phase="tool")
                         yield _sse_chunk("", chat_id=chat_id, model=model,
                                          role="assistant")
-                        yield _sse_chunk(rendered, chat_id=chat_id, model=model)
+                        async for _b in _stream_answer(rendered, chat_id=chat_id, model=model):
+                            yield _b
                         yield _sse_status_phase(
                             chat_id=chat_id, model=model,
                             phase="tool_done" if ok else "tool_done_warn",
@@ -24128,7 +24135,8 @@ async def chat_completions(request: Request) -> Any:
                                                 phase="route")
                         yield _sse_chunk("", chat_id=chat_id, model=model,
                                          role="assistant")
-                        yield _sse_chunk(reply, chat_id=chat_id, model=model)
+                        async for _b in _stream_answer(reply, chat_id=chat_id, model=model):
+                            yield _b
                         yield _sse_status_phase(chat_id=chat_id, model=model,
                                                 phase="chat_done", done=True)
                         yield _sse_chunk("", chat_id=chat_id, model=model,
@@ -24200,7 +24208,8 @@ async def chat_completions(request: Request) -> Any:
                             f"```json\n{json.dumps(env, indent=2, default=str)}\n```\n"
                             f"</details>"
                         )
-                        yield _sse_chunk(rendered, chat_id=chat_id, model=model)
+                        async for _b in _stream_answer(rendered, chat_id=chat_id, model=model):
+                            yield _b
                         yield _sse_status_phase(
                             chat_id=chat_id, model=model,
                             phase="dag_done" if all_ok else "dag_done_warn",
@@ -24293,7 +24302,8 @@ async def chat_completions(request: Request) -> Any:
                         f"```json\n{json.dumps(env, indent=2, default=str)}\n```\n"
                         f"</details>"
                     )
-                    yield _sse_chunk(rendered, chat_id=chat_id, model=model)
+                    async for _b in _stream_answer(rendered, chat_id=chat_id, model=model):
+                        yield _b
                     yield _sse_status_phase(
                         chat_id=chat_id, model=model,
                         phase="dag_done" if all_ok else "dag_done_warn",
