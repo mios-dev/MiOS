@@ -358,6 +358,51 @@ else
     _row "  WARNING: 99-postcheck.sh not found -- skipping"
 fi
 
+# ── SSOT-render conformance lint (38-ssot-lint.sh) ──────────────────────────
+# WS-0A drift-gate: every ${MIOS_*} placeholder in a Quadlet must be wired on
+# BOTH ends (typed slot in userenv.sh + render allowlist). The lint exited 1 on
+# orphans but was never invoked by the build, so dead keys accumulated silently.
+# Wire it in as a hard gate (set -euo pipefail aborts the build on exit 1).
+echo ""
+_row " POST-BUILD: SSOT-render conformance lint (38-ssot-lint.sh)"
+_hline '-' '+' '+'
+if [[ -f "${SCRIPT_DIR}/38-ssot-lint.sh" ]]; then
+    bash "${SCRIPT_DIR}/38-ssot-lint.sh"
+else
+    _row "  WARNING: 38-ssot-lint.sh not found -- skipping"
+fi
+
+# ── Agent-pipe deterministic unit tests ─────────────────────────────────────
+# WS-0A drift-gate: the standalone test_mios_*.py scripts (pure stdlib + the
+# sibling mios_*.py module under test -- no server.py / DB) cover the extracted
+# orchestration leaves. They ran nowhere in the build, so regressions in the
+# decision logic shipped unnoticed. Run each as `python3 <script>` (they are
+# assert-scripts with a main() exit code, NOT pytest-collectable) and fail the
+# build if any returns non-zero.
+echo ""
+_row " POST-BUILD: Agent-pipe unit tests (test_mios_*.py)"
+_hline '-' '+' '+'
+_agent_pipe_dir="$(cd "${SCRIPT_DIR}/.." && pwd)/usr/lib/mios/agent-pipe"
+if [[ -d "$_agent_pipe_dir" ]] && command -v python3 >/dev/null 2>&1; then
+    _test_fails=0
+    shopt -s nullglob
+    for _t in "$_agent_pipe_dir"/test_mios_*.py; do
+        if ( cd "$_agent_pipe_dir" && python3 "$(basename "$_t")" >/dev/null 2>&1 ); then
+            _row "  [ OK ] $(basename "$_t")"
+        else
+            _row "  [FAIL] $(basename "$_t")"
+            _test_fails=$((_test_fails + 1))
+        fi
+    done
+    shopt -u nullglob
+    if [[ "$_test_fails" -gt 0 ]]; then
+        die "agent-pipe unit tests: ${_test_fails} test script(s) failed"
+    fi
+    _row "  all agent-pipe unit tests passed"
+else
+    _row "  WARNING: agent-pipe dir or python3 missing -- skipping unit tests"
+fi
+
 # ── Quadlet image digest capture (build-day :latest snapshot) ───────────────
 # Quadlets are pulled by bootc at deploy time, not at OCI-build time, so
 # their :latest will re-resolve on every deploy. Record the digest skopeo

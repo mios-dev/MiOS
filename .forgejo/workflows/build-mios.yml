@@ -35,6 +35,25 @@ jobs:
           # pushed state into the runner's job workspace. The
           # /Containerfile in that workspace is what podman build consumes.
 
+      # WS-0A drift gate: source-tree fitness-functions, run before the bake so
+      # un-wired SSOT keys / broken orchestration leaves fail fast. Mirrors the
+      # post-build sub-phases in automation/build.sh and `just drift-gate`.
+      - name: Drift gate (SSOT-render lint + agent-pipe unit tests)
+        run: |
+          bash ./automation/38-ssot-lint.sh
+          cd ./usr/lib/mios/agent-pipe
+          fails=0
+          for t in test_mios_*.py; do
+            if python3 "$t" >/dev/null 2>&1; then
+              echo "  [ OK ] $t"
+            else
+              echo "  [FAIL] $t"; python3 "$t" || true; fails=$((fails + 1))
+            fi
+          done
+          if [ "$fails" -gt 0 ]; then
+            echo "${fails} agent-pipe test script(s) failed" >&2; exit 1
+          fi
+
       - name: Resolve image tag from VERSION + commit
         id: tag
         run: |

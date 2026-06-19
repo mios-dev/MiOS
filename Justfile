@@ -60,6 +60,23 @@ live-init:
 lint:
     podman run --rm --entrypoint /usr/bin/bootc {{LOCAL}} container lint
 
+# WS-0A drift gate: source-tree fitness-functions that need NO built image, so
+# CI can run them on every PR. (1) SSOT-render conformance lint -- every
+# ${MIOS_*} Quadlet placeholder wired on both ends; (2) the agent-pipe
+# deterministic unit tests (assert-scripts, run via python3). Exits non-zero on
+# any drift -- the same checks `just build` runs as post-build sub-phases.
+drift-gate:
+    @echo "[drift-gate] 38-ssot-lint.sh (SSOT-render conformance)"
+    bash ./automation/38-ssot-lint.sh
+    @echo "[drift-gate] agent-pipe unit tests (test_mios_*.py)"
+    @cd ./usr/lib/mios/agent-pipe && fails=0; \
+        for t in test_mios_*.py; do \
+            if python3 "$t" >/dev/null 2>&1; then echo "  [ OK ] $t"; \
+            else echo "  [FAIL] $t"; fails=$((fails + 1)); fi; \
+        done; \
+        if [ "$fails" -gt 0 ]; then echo "[drift-gate] $fails test script(s) failed" >&2; exit 1; fi; \
+        echo "[drift-gate] all agent-pipe unit tests passed"
+
 # Build OCI image locally
 build: preflight flight-status
     podman build --no-cache --network=host \

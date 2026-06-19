@@ -4866,6 +4866,7 @@ bake_model         = ""             # empty = no bake (the 8B is provisioned sep
 served_name        = "mios-heavy"   # OpenAI served-model-name (= [nodes.local-sglang].model); shared heavy-lane name with vLLM
 mem_fraction       = 0.45           # --mem-fraction-static: bounded GPU slice; leaves room for ollama + Windows co-tenancy
 tool_parser        = "qwen25"       # --tool-call-parser: parse Qwen <tool_call> blocks into OpenAI tool_calls[] (qwen25 fits Qwen3-8B; a Magistral heavy model would use "mistral" + a reasoning_parser)
+reasoning_parser   = "qwen3"         # --reasoning-parser: split <think> reasoning from the answer (qwen3 fits Qwen3-8B; a Magistral heavy model would use "mistral"). SSOT for MIOS_SGLANG_REASONING_PARSER consumed by mios-llm-heavy.container.
 max_model_len      = 65536          # Wave 0: live-validated ceiling for the 8B + --disable-cuda-graph lane on the shared 4090 (131072 OOMs without KV-cache spill). 131072 requires HiCache CPU KV-offload + --kv-cache-dtype fp8 (Wave 1) -- re-raise once that lands and is verified live.
 hierarchical_cache = true           # --enable-hierarchical-cache (HiCache): spill inactive KV to CPU RAM
 
@@ -6050,6 +6051,16 @@ mem_max      = "16G"
 user = "mios-crawl4ai"
 uid  = 824
 gid  = 824
+# Runtime tunables for the crawl4ai + firecrawl members of the mios-webtools pod.
+# SSOT for the ${MIOS_CRAWL_*}/${MIOS_FIRECRAWL_*} placeholders consumed by
+# mios-webtools-crawl4ai.container + mios-webtools-firecrawl-{api,worker}.container;
+# mapped to env in tools/lib/userenv.sh and rendered via automation/15-render-quadlets.sh.
+cdp_url            = "http://127.0.0.1:9222"  # crawl4ai -> existing local Chrome over CDP (PRIMARY engine)
+camoufox           = true                     # enable the Camoufox stealth-Firefox fail-retry fallback
+min_chars          = 200                      # crawl4ai: minimum extracted chars before a page is considered non-empty
+firecrawl_workers  = 2                        # NUM_WORKERS_PER_QUEUE for firecrawl-api + firecrawl-worker
+firecrawl_bull_key = "mios"                   # BULL_AUTH_KEY shared between the firecrawl api + worker (loopback-only pod)
+firecrawl_log_level = "INFO"                  # LOGGING_LEVEL for the firecrawl stack
 
 # AdGuard Home DNS resolver / ad-blocker. SYSTEM tier (mios-sys), like CrowdSec
 # -- network infrastructure, not an AI agent. uid owns /etc/mios/adguard (config)

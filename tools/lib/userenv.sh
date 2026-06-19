@@ -274,6 +274,7 @@ slots = [
     ("ai.sglang.mem_fraction",         "MIOS_SGLANG_MEM_FRACTION"),
     ("ai.sglang.max_model_len",        "MIOS_SGLANG_MAX_MODEL_LEN"),
     ("ai.sglang.tool_parser",          "MIOS_SGLANG_TOOL_PARSER"),
+    ("ai.sglang.reasoning_parser",     "MIOS_SGLANG_REASONING_PARSER"),
     ("ai.sglang.bake_model",           "MIOS_SGLANG_BAKE_MODEL"),
     # legacy aliases for ports
     ("ports.forge_http",               "MIOS_FORGE_HTTP_PORT"),
@@ -417,6 +418,14 @@ slots = [
     ("services.webtools.user",         "MIOS_CRAWL4AI_USER"),
     ("services.webtools.uid",          "MIOS_CRAWL4AI_UID"),
     ("services.webtools.gid",          "MIOS_CRAWL4AI_GID"),
+    # crawl4ai + firecrawl runtime tunables (consumed by the mios-webtools
+    # Quadlets; render allowlist already carries these in 15-render-quadlets.sh).
+    ("services.webtools.cdp_url",          "MIOS_CRAWL_CDP_URL"),
+    ("services.webtools.camoufox",         "MIOS_CRAWL_CAMOUFOX"),
+    ("services.webtools.min_chars",        "MIOS_CRAWL_MIN_CHARS"),
+    ("services.webtools.firecrawl_workers", "MIOS_FIRECRAWL_WORKERS"),
+    ("services.webtools.firecrawl_bull_key", "MIOS_FIRECRAWL_BULL_KEY"),
+    ("services.webtools.firecrawl_log_level", "MIOS_FIRECRAWL_LOG_LEVEL"),
     ("services.adguard.user",          "MIOS_ADGUARD_USER"),
     ("services.adguard.uid",           "MIOS_ADGUARD_UID"),
     ("services.adguard.gid",           "MIOS_ADGUARD_GID"),
