@@ -12199,7 +12199,7 @@ _HIGH_PRIVILEGE_VERBS = {
 _DEFAULT_ALLOWLIST_HOSTS = {
     "localhost", "127.0.0.1", "::1",
     "host.containers.internal",
-    "mios-ollama", "mios-open-webui", "mios-hermes", "mios-surrealdb",
+    "mios-llm-light", "mios-open-webui", "mios-hermes", "mios-pgvector",
     "mios-forge", "mios-searxng", "mios-code-server",
 }
 _env_allowlist = os.environ.get("MIOS_SECURITY_ALLOWLIST_HOSTS", "").strip()

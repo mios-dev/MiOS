@@ -187,7 +187,7 @@ fi
 # describes the OPERATOR'S login surface, not the running process.
 MIOS_LINUX_USER="${MIOS_USER:-${MIOS_LINUX_USER:-mios}}"
 [[ -z "${MIOS_VERSION:-}" ]] && MIOS_VERSION="$(cat /usr/share/mios/VERSION 2>/dev/null || cat /etc/mios/VERSION 2>/dev/null || echo "0.2.4")"
-MIOS_AI_MODEL="${MIOS_AI_MODEL:-qwen3.5:2b}"
+MIOS_AI_MODEL="${MIOS_AI_MODEL:-granite4.1:8b}"
 
 # ── Frame helpers ────────────────────────────────────────────────────────────
 # Repeat a single char N times.
@@ -560,7 +560,7 @@ print_quadlets() {
     # passport-provision -- so the stack count actually reflects the
     # full deployed surface.
     for svc in mios-forge mios-forgejo-runner mios-cockpit-link \
-               mios-ceph mios-k3s ollama mios-ollama-cpu mios-searxng \
+               mios-ceph mios-k3s mios-llm-light mios-searxng \
                mios-hermes mios-hermes-dashboard mios-open-webui mios-code-server crowdsec-dashboard \
                mios-adguard \
                mios-guacamole guacd guacamole-postgres \

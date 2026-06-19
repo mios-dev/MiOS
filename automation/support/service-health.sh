@@ -13,8 +13,8 @@ echo
 echo "═══════════════════════════════════════════════════════"
 echo " 2. All mios-* + agent services (state)"
 echo "═══════════════════════════════════════════════════════"
-for u in mios-agent-pipe mios-daemon mios-surrealdb hermes-agent \
-         mios-open-webui ollama mios-ollama-cpu mios-searxng \
+for u in mios-agent-pipe mios-daemon mios-pgvector hermes-agent \
+         mios-open-webui mios-llm-light mios-searxng \
          mios-forge mios-skills-miner mios-passport-provision \
          mios-hermes-firstboot mios-ttyd-bash mios-ttyd-powershell \
          mios-delegation-prefilter hermes-dashboard mios-code-server; do
@@ -41,7 +41,7 @@ echo
 echo "═══════════════════════════════════════════════════════"
 echo " 5. Listening ports (canonical agent stack)"
 echo "═══════════════════════════════════════════════════════"
-for p in 8640 8642 8000 11434 11435 3030 8888 7681 7682 9119; do
+for p in 8640 8642 5432 11450 3030 8888 7681 7682 9119; do
     if ss -ltn 2>/dev/null | grep -qE "[:.]${p}\\b"; then
         printf '  :%-5s  LISTEN\n' "$p"
     else

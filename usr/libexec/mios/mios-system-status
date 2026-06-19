@@ -205,7 +205,9 @@ def _probe_services() -> dict:
         "mios-open-webui.service",
         "mios-delegation-prefilter.service",
         "mios-hermes-tail.service",
-        "ollama.service",
+        "mios-llm-light.service",
+        "mios-pgvector.service",
+        "mios-agent-pipe.service",
     ]
     rc, stdout, _ = _run(["systemctl", "is-active", *mios_units])
     states = stdout.splitlines() if stdout else []
@@ -216,21 +218,34 @@ def _probe_services() -> dict:
 
 def _probe_ollama() -> list[dict]:
     out: list[dict] = []
-    rc, stdout, _ = _run(["ollama", "list"], timeout=10.0)
-    if rc != 0:
-        return out
-    # First line is header; "NAME ID SIZE MODIFIED"
-    for line in stdout.splitlines()[1:]:
-        parts = line.split(None, 4)
-        if len(parts) < 4:
-            continue
-        # The last column ("MODIFIED") may contain a space ("3 hours ago")
-        out.append({
-            "model": parts[0],
-            "id": parts[1],
-            "size": parts[2] + " " + parts[3],
-            "modified": parts[4] if len(parts) > 4 else "",
-        })
+    try:
+        import urllib.request
+        req = urllib.request.Request("http://localhost:11450/api/tags")
+        with urllib.request.urlopen(req, timeout=5.0) as response:
+            data = json.loads(response.read().decode('utf-8'))
+            models = data.get("models", [])
+            for m in models:
+                size_bytes = m.get("size", 0)
+                if size_bytes > 1024**3:
+                    size_str = f"{size_bytes / 1024**3:.1f} GB"
+                elif size_bytes > 1024**2:
+                    size_str = f"{size_bytes / 1024**2:.1f} MB"
+                else:
+                    size_str = f"{size_bytes} B"
+                
+                digest = m.get("digest", "")
+                if ":" in digest:
+                    digest = digest.split(":", 1)[1]
+                short_id = digest[:12] if digest else ""
+                
+                out.append({
+                    "model": m.get("name", ""),
+                    "id": short_id,
+                    "size": size_str,
+                    "modified": m.get("modified_at", ""),
+                })
+    except Exception:
+        pass
     return out
 
 

@@ -111,7 +111,7 @@ unset _ue
 # the Hermes-managed API_SERVER_KEY in /etc/mios/hermes/api.env when unset.
 export MIOS_AI_ENDPOINT="${MIOS_AI_ENDPOINT:-http://localhost:8640/v1}"
 export MIOS_AI_GATEWAY_MODEL="${MIOS_AI_GATEWAY_MODEL:-MiOS-Agent}"
-export MIOS_AI_MODEL="${MIOS_AI_MODEL:-qwen3.5:2b}"
+export MIOS_AI_MODEL="${MIOS_AI_MODEL:-granite4.1:8b}"
 export MIOS_AI_EMBED_MODEL="${MIOS_AI_EMBED_MODEL:-nomic-embed-text}"
 if [ -z "${MIOS_AI_KEY:-}" ] && [ -r /etc/mios/hermes/api.env ]; then
     MIOS_AI_KEY="$(awk -F= '/^API_SERVER_KEY=/ { gsub(/"/, "", $2); print $2; exit }' /etc/mios/hermes/api.env 2>/dev/null)"
@@ -129,7 +129,7 @@ export MIOS_AI_KEY="${MIOS_AI_KEY:-}"
 # the LIVE MiOS agent at root, fronting Ollama for chat + embeddings).
 # Ollama's raw OpenAI-compatible endpoint at localhost:11434/v1 is reached
 # via the mios-ollama wrapper or by overriding MIOS_AI_ENDPOINT.
-export OLLAMA_HOST="${OLLAMA_HOST:-http://localhost:11434}"
+export OLLAMA_HOST="${OLLAMA_HOST:-http://localhost:11450}"
 
 # Identity surface (consumed by 'mios' CLI, ai-bootstrap, postcheck).
 export MIOS_USER="${MIOS_USER:-${MIOS_DEFAULT_USER:-mios}}"
