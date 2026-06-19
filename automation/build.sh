@@ -372,6 +372,19 @@ else
     _row "  WARNING: 38-ssot-lint.sh not found -- skipping"
 fi
 
+# ── AI-plane source drift fitness-functions (38-drift-checks.sh) ────────────
+# WS-0A drift-gate: source-tree checks that 99-postcheck cannot run on a bare
+# checkout (retired :11434 lane, retired model-id in a consumer, dangling
+# [nodes.*] lane, broken ai/v1 manifest). Hard gate (exit 1 aborts the build).
+echo ""
+_row " POST-BUILD: AI-plane source drift checks (38-drift-checks.sh)"
+_hline '-' '+' '+'
+if [[ -f "${SCRIPT_DIR}/38-drift-checks.sh" ]]; then
+    bash "${SCRIPT_DIR}/38-drift-checks.sh"
+else
+    _row "  WARNING: 38-drift-checks.sh not found -- skipping"
+fi
+
 # ── Agent-pipe deterministic unit tests ─────────────────────────────────────
 # WS-0A drift-gate: the standalone test_mios_*.py scripts (pure stdlib + the
 # sibling mios_*.py module under test -- no server.py / DB) cover the extracted
@@ -401,6 +414,20 @@ if [[ -d "$_agent_pipe_dir" ]] && command -v python3 >/dev/null 2>&1; then
     _row "  all agent-pipe unit tests passed"
 else
     _row "  WARNING: agent-pipe dir or python3 missing -- skipping unit tests"
+fi
+
+# ── Doc-generator unit test (lives in usr/libexec/mios, outside the glob) ────
+# WS-0A(2b): test_mios_docgen.py covers mios-docgen and is NOT under the
+# agent-pipe glob above, so it ran nowhere. Run it explicitly; fail on red.
+_docgen_test="$(cd "${SCRIPT_DIR}/.." && pwd)/usr/libexec/mios/test_mios_docgen.py"
+if [[ -f "$_docgen_test" ]] && command -v python3 >/dev/null 2>&1; then
+    if ( cd "$(dirname "$_docgen_test")" && python3 "$(basename "$_docgen_test")" >/dev/null 2>&1 ); then
+        _row "  [ OK ] test_mios_docgen.py"
+    else
+        die "agent-pipe unit tests: test_mios_docgen.py failed"
+    fi
+else
+    _row "  WARNING: test_mios_docgen.py or python3 missing -- skipping"
 fi
 
 # ── Quadlet image digest capture (build-day :latest snapshot) ───────────────

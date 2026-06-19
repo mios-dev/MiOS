@@ -76,6 +76,10 @@ drift-gate:
         done; \
         if [ "$fails" -gt 0 ]; then echo "[drift-gate] $fails test script(s) failed" >&2; exit 1; fi; \
         echo "[drift-gate] all agent-pipe unit tests passed"
+    @echo "[drift-gate] test_mios_docgen.py (doc-generator, outside the agent-pipe glob)"
+    @cd ./usr/libexec/mios && if python3 test_mios_docgen.py >/dev/null 2>&1; then echo "  [ OK ] test_mios_docgen.py"; else echo "  [FAIL] test_mios_docgen.py" >&2; exit 1; fi
+    @echo "[drift-gate] 38-drift-checks.sh (AI-plane source drift fitness-functions)"
+    bash ./automation/38-drift-checks.sh
 
 # Build OCI image locally
 build: preflight flight-status

@@ -426,7 +426,11 @@ endpoint = "http://localhost:8642/v1"
 backend  = "http://localhost:11450"   # mios-llm-light (ALL llama.cpp; ollama retired G5)
 # Back-compat default only; the SSOT default is [ai].model. Repointed to the
 # 4-model-set reasoning base 2026-06-01 (was granite4.1:3b, dropped from fleet).
-model    = "qwen3:1.7b"
+# 2026-06-19: realigned to the live [ai].model head (was "qwen3:1.7b", which was
+# retired from the fleet AND dropped from bake_models -- a stale ref that named an
+# un-served model). Mirrors [ai].model; vestigial back-compat key (no runtime
+# consumer reads it -- agents resolve MIOS_AI_MODEL), kept so older callers parse.
+model    = "granite4.1:8b"
 enable   = true
 
 # [hermes_workspace] -- REMOVED 2026-05-13. The hermes-agent's own

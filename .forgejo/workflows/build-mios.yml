@@ -54,6 +54,19 @@ jobs:
             echo "${fails} agent-pipe test script(s) failed" >&2; exit 1
           fi
 
+      - name: Doc-generator unit test (test_mios_docgen.py)
+        run: |
+          cd ./usr/libexec/mios
+          if python3 test_mios_docgen.py >/dev/null 2>&1; then
+            echo "  [ OK ] test_mios_docgen.py"
+          else
+            python3 test_mios_docgen.py || true
+            echo "test_mios_docgen.py failed" >&2; exit 1
+          fi
+
+      - name: AI-plane source drift checks (38-drift-checks.sh)
+        run: bash ./automation/38-drift-checks.sh
+
       - name: Resolve image tag from VERSION + commit
         id: tag
         run: |
