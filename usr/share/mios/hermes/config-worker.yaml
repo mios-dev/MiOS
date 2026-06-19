@@ -1,0 +1,240 @@
+# /usr/share/mios/hermes/config-worker.yaml -- MiOS-seeded NON-THIN Hermes WORKER
+# (Hermes-Agent 0.13.x schema). Copied to /var/lib/mios/hermes-worker/config.yaml
+# (the worker's HERMES_HOME) by hermes-worker-firstboot; that path is NEVER touched
+# by mios-hermes-firstboot (which only re-thins /var/lib/mios/hermes/config.yaml),
+# so this worker config is durable across boots.
+#
+# This is the P1 worker (operator 2026-06-19): a REAL agent that runs its OWN
+# native browser_*/CDP + terminal + file + skills tool loop, doing its OWN
+# inference on the heavy lane (:11441 mios-heavy, SGLang, --tool-call-parser
+# qwen25 = native OpenAI tool_calls). It serves the OpenAI /v1 surface on :8643
+# and is the WORKER-DISPATCH target of [agents.hermes].endpoint in mios.toml.
+#
+# The :8642 gateway (hermes-agent.service) is UNAFFECTED -- it stays the thin
+# Discord/CLI gateway. This worker enables ONLY the api_server platform (NO
+# Discord token => no contention for the host-global discord-bot-token scope
+# lock held by the :8642 gateway).
+#
+# LOOP-SAFETY: this worker hits the REAL :11441 model lane for inference, so it
+# never relays back to :8640. mcp_servers.mios stays DISABLED here (the relay's
+# MIOS_AGENT_PIPE_URL=:8640 would let a worker re-enter the orchestrator ->
+# :8640 -> council -> worker cycle). The worker's native toolsets already give
+# it terminal/file/web/browser/skills without the MCP relay. The P0 hop-budget/
+# Via guard (_HOP_HEADER/_VIA_HEADER, server.py) is the backstop either way.
+_config_version: 1
+
+# Primary model = the SGLang heavy lane on :11441 (served-name "mios-heavy").
+# MUST be a mapping (not a bare string) so resolve_requested_provider() sees
+# provider=. provider "custom:mios-heavy" resolves against the custom_providers
+# entry below. base_url :11441/v1 = the model lane DIRECTLY (NOT :8640, NOT :8642).
+model:
+  provider: custom:mios-heavy
+  default: mios-heavy
+  base_url: http://localhost:11441/v1
+  api_key: ""
+  # mios-heavy max_model_len is 65536; Hermes v0.15+ refuses tool use under 64k.
+  ollama_num_ctx: 65536
+  context_length: 65536
+  # Degrade to the light lane (granite4.1:8b on :11450) if the heavy lane OOMs
+  # (SGLang OOMs at gaming-time per memory). Walks DOWN the tier, never up.
+  fallback_model:
+    - provider: custom:local-ollama
+      model: granite4.1:8b
+
+# Heavy lane (main) + light lane (aux/delegation/fallback) providers.
+custom_providers:
+  - name: mios-heavy
+    base_url: http://localhost:11441/v1
+    api_key: ""
+  - name: local-ollama
+    base_url: http://localhost:11450/v1
+    api_key: ""
+
+# Auxiliary lanes stay on the LIGHT lane (granite4.1:8b @ :11450): they don't
+# shape the final answer and granite is cheaper -- keeps the single heavy lane
+# free for the worker's main tool loop. >= 64k ctx required or Hermes refuses.
+auxiliary:
+  compression:
+    provider: custom:local-ollama
+    base_url: http://localhost:11450/v1
+    model: granite4.1:8b
+    ollama_num_ctx: 65536
+    context_length: 65536
+  session_search:
+    provider: custom:local-ollama
+    base_url: http://localhost:11450/v1
+    model: granite4.1:8b
+    ollama_num_ctx: 65536
+    context_length: 65536
+  title_generation:
+    provider: custom:local-ollama
+    base_url: http://localhost:11450/v1
+    model: granite4.1:8b
+    ollama_num_ctx: 65536
+    context_length: 65536
+  triage_specifier:
+    provider: custom:local-ollama
+    base_url: http://localhost:11450/v1
+    model: granite4.1:8b
+    ollama_num_ctx: 65536
+    context_length: 65536
+  curator:
+    provider: custom:local-ollama
+    base_url: http://localhost:11450/v1
+    model: granite4.1:8b
+    ollama_num_ctx: 65536
+    context_length: 65536
+  mcp:
+    provider: custom:local-ollama
+    base_url: http://localhost:11450/v1
+    model: granite4.1:8b
+    ollama_num_ctx: 65536
+    context_length: 65536
+  web_extract:
+    provider: custom:local-ollama
+    base_url: http://localhost:11450/v1
+    model: granite4.1:8b
+    ollama_num_ctx: 65536
+    context_length: 65536
+  approval:
+    provider: custom:local-ollama
+    base_url: http://localhost:11450/v1
+    model: granite4.1:8b
+    ollama_num_ctx: 65536
+    context_length: 65536
+  skills_hub:
+    provider: custom:local-ollama
+    base_url: http://localhost:11450/v1
+    model: granite4.1:8b
+    ollama_num_ctx: 65536
+    context_length: 65536
+  vision_grounding:
+    provider: custom:local-ollama
+    base_url: http://localhost:11450/v1
+    model: qwen3-vl:4b
+
+# Web SEARCH -> on-box SearXNG; web EXTRACT -> miosfetch (offline direct-fetch).
+web:
+  search_backend: searxng
+  extract_backend: miosfetch
+
+# REAL tool-loop: BOTH lists required (gate + per-platform surface in lockstep).
+# Without the top-level toolsets entry, a tool registers but its check_fn hides
+# it from the agent even if platform_toolsets.api_server lists it.
+platform_toolsets:
+  api_server:
+    - terminal
+    - file
+    - web
+    - browser
+    - messaging
+    - discord
+    - cronjob
+    - clarify
+    - delegation
+    - skills
+    - memory
+    - todo
+    - session_search
+    - code_execution
+    - kanban
+
+toolsets:
+  - terminal
+  - file
+  - web
+  - browser
+  - messaging
+  - discord
+  - cronjob
+  - clarify
+  - delegation
+  - skills
+  - memory
+  - todo
+  - session_search
+  - code_execution
+  - kanban
+
+# Surface real tool output (counter-fabrication).
+display:
+  tool_progress: verbose
+  tool_progress_command: true
+  tool_preview_length: 8000
+  persistent_output: true
+  persistent_output_max_lines: 2000
+  interim_assistant_messages: true
+  final_response_markdown: keep
+  inline_diffs: true
+  show_reasoning: false
+  show_cost: false
+
+# The worker attaches to its OWN dedicated CDP browser on :9223
+# (mios-hermes-browser-worker.service, profile-w2) so it never stomps the
+# primary :9222 browser's first-page target / cookies (browser_supervisor.py
+# attaches to next(type=='page')).
+browser:
+  cdp_url: http://localhost:9223
+
+# Multi-agent delegation: children + aux stay on the LIGHT lane so they don't
+# serialize against the worker's own heavy-lane tool loop.
+delegation:
+  provider: custom:local-ollama
+  base_url: http://localhost:11450/v1
+  model: granite4.1:8b
+  ollama_num_ctx: 65536
+  context_length: 65536
+  max_concurrent_children: 6
+  max_spawn_depth: 2
+  child_timeout_seconds: 600
+  inherit_mcp_toolsets: true
+  orchestrator_enabled: true
+  subagent_auto_approve: true
+
+approvals:
+  mode: auto
+  timeout: 60
+  cron_mode: deny
+  mcp_reload_confirm: true
+  destructive_slash_confirm: true
+
+tool_loop_guardrails:
+  warnings_enabled: true
+  hard_stop_enabled: true
+  warn_after:
+    exact_failure: 1
+    same_tool_failure: 2
+    idempotent_no_progress: 1
+  hard_stop_after:
+    exact_failure: 3
+    same_tool_failure: 4
+    idempotent_no_progress: 3
+
+sessions:
+  auto_prune: true
+  retention_days: 30
+  vacuum_after_prune: true
+  min_interval_hours: 24
+
+goals:
+  max_turns: 100
+
+agent:
+  restart_drain_timeout: 20
+  max_turns: 100
+
+# MCP CLIENT: DISABLED on the worker (loop-safety). The relay's
+# MIOS_AGENT_PIPE_URL=:8640 would let this worker re-enter the orchestrator ->
+# council -> worker cycle. The worker's native toolsets already give it the
+# terminal/file/web/browser/skills surface; it does its OWN inference on :11441
+# and never needs to relay to :8640. Re-enable ONLY with a non-:8640 relay.
+mcp_servers:
+  mios:
+    enabled: false
+    command: /usr/libexec/mios/mios-mcp-server
+    args: []
+    env:
+      MIOS_AGENT_PIPE_URL: http://localhost:8640
+    timeout: 120
+    connect_timeout: 30
+    supports_parallel_tool_calls: true

@@ -130,9 +130,17 @@ _BACKEND_HOSTPORT = BACKEND.split("://")[-1].split("/")[0]
 # BACKEND above and mios.toml [agents.hermes].endpoint; env-overridable.
 _HERMES_ENDPOINT = os.environ.get(
     "MIOS_HERMES_ENDPOINT", "http://localhost:8642/v1").rstrip("/")
+# P1 (operator 2026-06-19): the hermes WORKER on :8643 (hermes-worker.service) is the
+# [agents.hermes].endpoint dispatch target now, and it REQUIRES API_SERVER_KEY auth
+# (it rejected the pipe's probes with "invalid API key" until added here). Scope the
+# backend key to it too so swarm/council/DAG hermes dispatch authenticates. SSOT env-
+# overridable; same :8643 default as the worker unit's API_SERVER_PORT.
+_HERMES_WORKER_ENDPOINT = os.environ.get(
+    "MIOS_HERMES_WORKER_ENDPOINT", "http://localhost:8643/v1").rstrip("/")
 _AUTH_HOSTPORTS = {
     _BACKEND_HOSTPORT,
     _HERMES_ENDPOINT.split("://")[-1].split("/")[0],
+    _HERMES_WORKER_ENDPOINT.split("://")[-1].split("/")[0],
 }
 
 # ── Client-side tool-calling passthrough (operator 2026-06-15, Zen smart-window) ──

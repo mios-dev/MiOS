@@ -679,12 +679,19 @@ font_size          = 14
 # reroute WORKER facet to :8642 made it RELAY BACK to :8640 -> swarm -> :8642 -> ...
 # UNBOUNDED RECURSION (the outage-reroute bypassed fanout=false; hermes spawned 30+
 # conversation loops pegging the dGPU). A worker MUST hit a REAL model lane, never a
-# thin gateway that loops to the orchestrator. So hermes's worker dispatch now points
-# at the REAL heavy-model lane (:11441, mios-heavy = the same brain its cpu_endpoint
-# used). hermes stays a first-class dispatched agent (its job/strengths/tools surface
-# via the agent-pipe tool-loop); the :8642 gateway service stays thin for INCOMING
-# Discord/CLI -> :8640 (unification preserved, no re-entry since :8640 never calls :8642).
-endpoint = "http://localhost:11441/v1"
+# thin gateway that loops to the orchestrator. The :11441-bare stopgap fixed the loop
+# but LOST hermes's native tools (bare model = no browser_*/CDP/terminal/skills loop).
+# P1 (operator 2026-06-19) restores hermes as a REAL WORKER: a SECOND non-thin Hermes
+# gateway on :8643 (hermes-worker.service, HERMES_HOME=/var/lib/mios/hermes-worker)
+# that runs its OWN native browser/CDP/terminal/skills tool loop AND does its OWN
+# inference on the SAME heavy lane (:11441 mios-heavy) -- so worker dispatch now hits
+# :8643 (real tools) instead of :11441 (bare model). LOOP-SAFE: the worker does its
+# OWN :11441 inference and has the MCP relay (MIOS_AGENT_PIPE_URL=:8640) DISABLED, so
+# it never relays back to :8640; the P0 hop-budget/Via guard (_HOP_HEADER/_VIA_HEADER)
+# is the backstop. The :8642 gateway service stays thin for INCOMING Discord/CLI ->
+# :8640 (unification preserved; :8643 worker is a distinct instance, Discord OFF).
+# hermes stays a first-class dispatched agent (job/strengths surface via the pipe loop).
+endpoint = "http://localhost:8643/v1"
 model    = "mios-heavy"
 role     = "general"
 # job (operator 2026-05-24 "no fixed roles -- MiOS-Agents are modelfiles for

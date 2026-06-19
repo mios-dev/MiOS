@@ -1,0 +1,47 @@
+# AI-hint: Systemd unit for a SECOND headless ChromeDev flatpak providing a dedicated CDP endpoint at 127.0.0.1:9223 (own profile dir profile-w2) for the Hermes WORKER (:8643), so the worker's browser_* tool loop never stomps the primary :9222 browser's first-page target / cookies.
+# AI-related: /usr/libexec/mios/mios-hermes-browser, hermes-worker.service, mios-hermes-browser.service, mios-ai, com.google.ChromeDev
+[Unit]
+# /usr/lib/systemd/system/mios-hermes-browser-worker.service
+#
+# A SECOND headless ChromeDev (com.google.ChromeDev flatpak) with CDP on
+# 127.0.0.1:9223 -- the dedicated browser for the Hermes WORKER (:8643).
+# Distinct from the primary :9222 browser (mios-hermes-browser.service): the CDP
+# supervisor attaches to the FIRST page target (Target.getTargets ->
+# next(type=='page')) over a shared browser-level socket, so two workers sharing
+# one browser would stomp each other's navigation/DOM/cookies. The launcher's
+# HERMES_BROWSER_CDP_PORT + HERMES_BROWSER_PROFILE_DIR overrides + profile-scoped
+# kill_existing make a second instance cleanly isolatable.
+Description='MiOS' Hermes-Browser-Worker (ChromeDev CDP :9223 for the worker)
+Documentation=https://chromedevtools.github.io/devtools-protocol/
+After=hermes-worker.service
+Wants=hermes-worker.service
+ConditionPathExists=|/var/lib/flatpak/app/com.google.ChromeDev
+ConditionPathExists=|%h/.local/share/flatpak/app/com.google.ChromeDev
+
+[Service]
+Type=simple
+User=mios-ai
+Group=mios-ai
+Environment=HOME=/var/lib/mios/hermes-worker
+RuntimeDirectory=mios-hermes-browser-worker
+RuntimeDirectoryMode=0700
+Environment=XDG_RUNTIME_DIR=/run/mios-hermes-browser-worker
+Environment=HERMES_BROWSER_HEADLESS=1
+# Dedicated CDP port + dedicated profile dir (isolated cookies/session from the
+# primary :9222 profile). kill_existing in the launcher is scoped to this
+# profile dir so it won't touch the primary browser.
+Environment=HERMES_BROWSER_CDP_PORT=9223
+Environment=HERMES_BROWSER_PROFILE_DIR=/var/lib/mios/hermes-browser/profile-w2
+Environment=HERMES_BROWSER_LOG=/var/lib/mios/hermes-browser/launch-w2.log
+StateDirectory=mios/hermes-browser/profile-w2
+StateDirectoryMode=0700
+ExecStart=/usr/libexec/mios/mios-hermes-browser start
+Environment=NO_AT_BRIDGE=1
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=30s
+NoNewPrivileges=true
+PrivateTmp=false
+
+[Install]
+WantedBy=multi-user.target

@@ -99,6 +99,15 @@ enable hermes-agent.service
 # on the ChromeDev flatpak being present, so it no-ops cleanly on
 # hosts that haven't installed it.
 enable mios-hermes-browser.service
+# P1 (operator 2026-06-19): SECOND non-thin Hermes WORKER on :8643 -- a real
+# agent that runs its OWN native browser/CDP/terminal/skills tool loop with its
+# OWN inference on the heavy lane (:11441 mios-heavy). Fully isolated from the
+# thin :8642 Discord gateway (separate HERMES_HOME, NO Discord token). This is
+# the WORKER-DISPATCH target of [agents.hermes].endpoint (:8643). Its dedicated
+# CDP browser (:9223, profile-w2) so it never stomps the primary :9222 browser.
+enable hermes-worker-firstboot.service
+enable hermes-worker.service
+enable mios-hermes-browser-worker.service
 # System-wide flatpak override policy: every installed flatpak
 # inherits read+write access to the operator's XDG user dirs
 # (~/Documents, ~/Pictures, ~/Videos, ~/Downloads, ...). Operator

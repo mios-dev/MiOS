@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# AI-hint: First-boot seeder for the non-thin Hermes WORKER (:8643). Ensures /var/lib/mios/hermes-worker/config.yaml exists from the vendor worker template /usr/share/mios/hermes/config-worker.yaml, owned by the mios-ai service user. Copy-if-absent + heal-on-vendor-update; NEVER touches the primary :8642 /var/lib/mios/hermes/config.yaml (which mios-hermes-firstboot owns and re-thins every boot).
+# AI-related: /usr/share/mios/hermes/config-worker.yaml, /var/lib/mios/hermes-worker/config.yaml, hermes-worker.service, mios-hermes-firstboot, mios-ai
+# AI-functions: _log
+# /usr/libexec/mios/hermes-worker-firstboot
+#
+# The Hermes WORKER (P1) uses a SEPARATE HERMES_HOME=/var/lib/mios/hermes-worker
+# with its OWN non-thin config.yaml. mios-hermes-firstboot re-thins ONLY the
+# primary :8642 config (/var/lib/mios/hermes/config.yaml) on every boot, so the
+# worker config at a DISTINCT path is durable. This seeder just guarantees the
+# worker config is in place (the tmpfiles `C` line is the copy-if-absent
+# primary; this also re-seeds if the vendor template is NEWER, for schema heals).
+set -euo pipefail
+
+VENDOR_CFG="/usr/share/mios/hermes/config-worker.yaml"
+WORKER_HOME="/var/lib/mios/hermes-worker"
+WORKER_CFG="${WORKER_HOME}/config.yaml"
+
+_log() { logger -t hermes-worker-firstboot "$*" 2>/dev/null || true; echo "[hermes-worker-firstboot] $*" >&2; }
+
+# HERMES_HOME (tmpfiles also declares it; install -d is idempotent + ordered
+# before this unit, but re-assert so a manual run works too).
+install -d -o mios-ai -g mios-ai -m 0700 "$WORKER_HOME" 2>/dev/null || mkdir -p "$WORKER_HOME"
+
+if [[ ! -r "$VENDOR_CFG" ]]; then
+    _log "WARN: vendor worker template $VENDOR_CFG missing -- worker will generate its own config"
+    exit 0
+fi
+
+# Seed when absent OR when the vendor template is newer (schema heal). An
+# operator hand-edit (mtime >= vendor) is preserved.
+if [[ ! -f "$WORKER_CFG" ]]; then
+    cp -f "$VENDOR_CFG" "$WORKER_CFG"
+    _log "seeded $WORKER_CFG from $VENDOR_CFG (non-thin worker, model=mios-heavy @ :11441)"
+elif [[ "$VENDOR_CFG" -nt "$WORKER_CFG" ]]; then
+    cp -f "$VENDOR_CFG" "$WORKER_CFG"
+    _log "re-seeded $WORKER_CFG -- vendor template is newer (schema heal)"
+else
+    _log "$WORKER_CFG already current -- not overwriting"
+fi
+
+chown mios-ai:mios-ai "$WORKER_CFG" 2>/dev/null || true
+chmod 0640 "$WORKER_CFG" 2>/dev/null || true
