@@ -17968,10 +17968,27 @@ A2A_SELF_ID = str(os.environ.get(
     "MIOS_A2A_SELF_ID", _A2A_CFG.get("self_id", "local-mios"))).strip().lower()
 
 
+def _a2a_self_peer_url(url: str) -> bool:
+    """True if a peer URL is THIS orchestrator (loopback :8640). Delegating or
+    fanning out to it re-enters the pipe and recurses UNBOUNDED -- the per-request
+    recursion bound is process-local and does NOT cross the a2a HTTP hop (operator
+    2026-06-18 dGPU runaway: ~35 native-loop turns/sec pegged the GPU). The
+    A2A_SELF_ID guard missed it because mios-a2a-discover registers the self as
+    "mios-local" while A2A_SELF_ID defaults to "local-mios" -- an id mismatch. So
+    exclude by URL (id-agnostic). Only LOOPBACK :8640 is self; a remote node on
+    :8640 (real host/tailnet IP) is a legitimate peer and is NOT excluded."""
+    _self_port = str(os.environ.get("MIOS_PORT_AGENT_PIPE", "8640")).strip()
+    u = (url or "").lower()
+    return (f":{_self_port}" in u) and (
+        "127.0.0.1" in u or "localhost" in u or "://[::1]" in u or "0.0.0.0" in u)
+
+
 def _a2a_load_peers() -> list:
     """Layered peer registry read: vendor < /etc < user. Later overlays
     REPLACE earlier entries with the same id (matches MCP client semantics)
-    so an operator can disable a vendor peer by re-declaring it disabled."""
+    so an operator can disable a vendor peer by re-declaring it disabled.
+    The LOCAL self-peer (loopback :8640) is EXCLUDED -- it is a self-loop vector
+    (see _a2a_self_peer_url); delegation to oneself is a no-op on a single node."""
     by_id: dict = {}
     for p in _A2A_PEER_REGISTRY_PATHS:
         try:
@@ -17983,8 +18000,13 @@ def _a2a_load_peers() -> list:
             if not isinstance(s, dict):
                 continue
             pid = str(s.get("id") or s.get("peer_id") or "").strip()
-            if pid:
-                by_id[pid] = s
+            if not pid:
+                continue
+            if _a2a_self_peer_url(str(s.get("url") or "")):
+                log.info("a2a: excluding self-peer %r (%s) -- local orchestrator, "
+                         "would self-loop", pid, s.get("url"))
+                continue
+            by_id[pid] = s
     return list(by_id.values())
 
 
