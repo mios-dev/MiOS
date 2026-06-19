@@ -449,6 +449,70 @@ if [[ -n "$_dead_lane_hits" ]]; then
 fi
 log "  no retired local :11434 lane in active config"
 
+# 12c. UNIFIED-AI-REDIRECTS (Law 5) -- agent dispatch-target recursion guard.
+# WS-4 structural invariant (the BUILD-TIME half; the runtime half is the
+# X-MiOS-Hop / X-MiOS-Via hop-budget guard in agent-pipe). A dispatch TARGET in
+# [agents.*] must point at a real worker ingress / model lane, NEVER back at the
+# ORCHESTRATOR ([ai].endpoint, the :8640 meta-pipeline) or a THIN GATEWAY
+# ([ports].hermes Discord/CLI ingress, :8642). A target that loops to the
+# orchestrator/gateway re-creates the dGPU-pegging recursion (the 2026-06-19
+# runaway class). Ports are DERIVED from the SSOT ([ai].endpoint + [ports].hermes)
+# -- no hardcoded port literal. python3-guarded (TOML parse); skipped only when
+# python3 is absent (the bash Law checks above still run).
+log "Validating UNIFIED-AI-REDIRECTS (Law 5): no [agents.*] dispatch target loops to the orchestrator/gateway..."
+if command -v python3 >/dev/null 2>&1; then
+    if _recursion_out=$(python3 - <<'PYEOF'
+import os, re, sys
+try:
+    import tomllib
+except ImportError:
+    try:
+        import tomli as tomllib
+    except ImportError:
+        print("SKIP: no tomllib"); sys.exit(0)
+toml = "/usr/share/mios/mios.toml"
+if not os.path.exists(toml):
+    print("SKIP: %s not found" % toml); sys.exit(0)
+with open(toml, "rb") as f:
+    d = tomllib.load(f)
+def _port(u):
+    m = re.search(r":(\d+)", str(u or ""))
+    return m.group(1) if m else ""
+ai = d.get("ai") or {}
+ports = d.get("ports") or {}
+orch = _port(ai.get("endpoint"))
+gw = str(ports.get("hermes") or "").strip()
+label = {}
+if orch:
+    label[orch] = "orchestrator"
+if gw:
+    label[gw] = "thin-gateway"
+bad = []
+for name, cfg in (d.get("agents") or {}).items():
+    if not isinstance(cfg, dict):
+        continue
+    ep = str(cfg.get("endpoint") or "").strip()
+    if not ep:
+        continue
+    p = _port(ep)
+    if p and p in label:
+        bad.append("  [agents.%s] endpoint %s loops to the %s (:%s)" % (name, ep, label[p], p))
+if bad:
+    sys.stderr.write("\n".join(bad) + "\n")
+    sys.stderr.write("  a dispatch target must be a real worker ingress / model lane, "
+                     "never :%s (orchestrator) / :%s (gateway)\n" % (orch, gw))
+    sys.exit(1)
+print("orchestrator=:%s gateway=:%s agents=%d clean" % (orch, gw, len(d.get("agents") or {})))
+PYEOF
+    ); then
+        log "  $_recursion_out"
+    else
+        die "UNIFIED-AI-REDIRECTS: an [agents.*] dispatch target loops back to the orchestrator/gateway (recursion risk -- see above)"
+    fi
+else
+    log "  [!] python3 unavailable -- skipping agent-recursion guard"
+fi
+
 # 13. UNPRIVILEGED-QUADLETS (Architectural Law 6).
 # Every Quadlet *.container under /etc/containers/systemd or
 # /usr/share/containers/systemd MUST declare User= (with the documented

@@ -31,6 +31,11 @@
 Description='MiOS' vLLM heavy lane (OpenAI /v1, PagedAttention + APC; gated)
 After=network-online.target mios-cdi-detect.service
 Wants=network-online.target
+# Mutual exclusion (WS-4): symmetric with mios-llm-heavy -- both advertise served-name
+# "mios-heavy" on the shared 4090, so only ONE heavy lane may run. Starting this vLLM
+# lane stops the SGLang lane (and vice versa). The WS-1 [ai].heavy_engine selector
+# chooses the preferred engine.
+Conflicts=mios-llm-heavy.service
 # Guard: only start when the baked weights exist (the bake is opt-in; a build
 # without MIOS_VLLM_BAKE_MODEL leaves this empty). No weights -> no crash-loop.
 ConditionPathExists=/usr/share/mios/vllm/model/config.json

@@ -26,6 +26,12 @@
 Description='MiOS' SGLang heavy lane (OpenAI /v1, Qwen3-8B-AWQ; gated)
 After=network-online.target mios-cdi-detect.service
 Wants=network-online.target
+# Mutual exclusion (WS-4): the SGLang (:11441) + vLLM (:11440) heavy lanes BOTH
+# advertise served-name "mios-heavy" and each claims the shared 4090 -- never run
+# both (VRAM OOM + served-name ambiguity). Conflicts= makes it STRUCTURAL: starting
+# this lane stops the alt (and vice versa), so even if both units are enabled only
+# one is ever active. The WS-1 [ai].heavy_engine selector chooses which is preferred.
+Conflicts=mios-llm-heavy-alt.service
 # Guard: only start when the baked weights exist (the bake is opt-in).
 ConditionPathExists=/usr/share/mios/sglang/model/config.json
 
