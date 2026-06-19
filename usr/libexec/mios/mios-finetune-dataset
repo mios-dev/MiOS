@@ -132,7 +132,11 @@ def ollama_chat(endpoint: str, model: str, system: str, user: str,
 # --------------------------------------------------------------------------- #
 def fetch_catalog(pipe_url: str, timeout: float = 10.0) -> list[dict]:
     """[{name, description}] from the live OpenAI-tools verb catalog."""
-    data = _get(pipe_url.rstrip("/") + "/v1/verbs/openai-tools", timeout)
+    try:
+        data = _get(pipe_url.rstrip("/") + "/v1/verbs/openai-tools", timeout)
+    except Exception as e:
+        print(f"[finetune-dataset] WARN fetch_catalog: {e}", file=sys.stderr)
+        return []
     tools = data if isinstance(data, list) else (
         data.get("tools") or data.get("data") or [])
     out = []

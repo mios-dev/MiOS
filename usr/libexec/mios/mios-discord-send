@@ -6,7 +6,7 @@
 Posts a message to a Discord CHANNEL (--channel <id>) OR direct-messages a USER
 (--user <@name|id>, or a NON-NUMERIC --channel value treated as a username): it
 resolves the username via guild member-search, opens a DM channel, and posts.
-So "send @gaboo a message on discord" is an ACTION the MiOS orchestrator performs
+So "send @someone a message on discord" is an ACTION the MiOS orchestrator performs
 directly -- NOT something the executor narrates and lies about (operator
 2026-05-22), and NOT a fabricated channel URL (operator 2026-06-10). Honest JSON
 result so the caller reports the REAL outcome (sent / why-not), never a fake.
@@ -24,6 +24,13 @@ import argparse, json, os, sys, urllib.request, urllib.error, urllib.parse
 DISCORD_ENV = os.environ.get("MIOS_DISCORD_ENV", "/etc/mios/hermes/discord.env")
 API = "https://discord.com/api/v10"
 
+# ── Named constants (no magic numbers) ──
+DISCORD_MAX_CONTENT_LEN = 2000  # Discord hard message-length limit
+DEFAULT_TIMEOUT = 12.0          # 2× typical Discord API latency
+MEMBER_SEARCH_LIMIT = 5         # max members returned per guild search
+MIN_SUBSTRING_LEN = 3           # min query length for substring user matching
+MAX_ERROR_BODY_LEN = 200        # truncate Discord error response bodies
+
 
 def _load_env(path: str) -> None:
     try:
@@ -32,12 +39,16 @@ def _load_env(path: str) -> None:
                 line = line.strip()
                 if line and not line.startswith("#") and "=" in line:
                     k, v = line.split("=", 1)
-                    os.environ.setdefault(k.strip(), v.strip())
+                    v = v.strip()
+                    # Strip surrounding quotes so TOKEN="abc" works as TOKEN=abc
+                    if len(v) >= 2 and v[0] == v[-1] and v[0] in ('"', "'"):
+                        v = v[1:-1]
+                    os.environ.setdefault(k.strip(), v)
     except OSError:
         pass
 
 
-def _req(tok: str, path: str, data=None, method: str = "GET", timeout: float = 12.0):
+def _req(tok: str, path: str, data=None, method: str = "GET", timeout: float = DEFAULT_TIMEOUT):
     body = json.dumps(data).encode("utf-8") if data is not None else None
     r = urllib.request.Request(
         API + path, data=body,
@@ -54,6 +65,27 @@ def _resolve_user(tok: str, name: str, timeout: float):
     uname = name.lstrip("@").strip()
     if uname.isdigit():            # already a user id
         return uname, uname
+    # Try local channel_directory.json cache first (bypasses GUILD_MEMBERS intent restriction)
+    try:
+        home_dir = os.environ.get("HERMES_HOME") or os.environ.get("MIOS_HERMES_HOME") or "/var/lib/mios/hermes"
+        dir_path = os.environ.get("MIOS_HERMES_CHANNEL_DIR") or os.path.join(home_dir, "channel_directory.json")
+        if os.path.exists(dir_path):
+            with open(dir_path) as f:
+                data = json.load(f)
+                disc_channels = data.get("platforms", {}).get("discord", [])
+                for c in disc_channels:
+                    cname = c.get("name", "").strip().strip("@._").lower()
+                    target_clean = uname.strip("@._").lower()
+                    if not target_clean:
+                        continue
+                    if c.get("type") == "dm" and (
+                        cname == target_clean  # exact match
+                        or (len(target_clean) >= MIN_SUBSTRING_LEN  # substring only for 3+ char targets
+                            and (target_clean in cname or cname in target_clean))
+                    ):
+                        return c.get("id"), c.get("name")
+    except Exception:
+        pass
     try:
         guilds = _req(tok, "/users/@me/guilds", timeout=timeout) or []
     except Exception:
@@ -61,16 +93,17 @@ def _resolve_user(tok: str, name: str, timeout: float):
     for g in guilds:
         gid = g.get("id")
         try:
-            ms = _req(tok, "/guilds/%s/members/search?query=%s&limit=5"
-                      % (gid, urllib.parse.quote(uname)), timeout=timeout) or []
+            ms = _req(tok, "/guilds/%s/members/search?query=%s&limit=%d"
+                      % (gid, urllib.parse.quote(uname), MEMBER_SEARCH_LIMIT), timeout=timeout) or []
         except Exception:
             ms = []
         for m in ms:
             u = m.get("user") or {}
             un = u.get("username") or ""
-            if un.lower() == uname.lower() or uname.lower() in un.lower():
+            if un.lower() == uname.lower() or (len(uname) >= MIN_SUBSTRING_LEN and uname.lower() in un.lower()):
                 return u.get("id"), un
     return None, None
+
 
 
 def main() -> int:
@@ -78,14 +111,14 @@ def main() -> int:
     p.add_argument("content", nargs="+", help="message text")
     p.add_argument("--channel", default="", help="channel id (else default); a non-numeric value is treated as a @user DM")
     p.add_argument("--user", default="", help="DM a user by @name or id (resolves + opens a DM channel)")
-    p.add_argument("--timeout", type=float, default=12.0)
+    p.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT)
     a = p.parse_args()
 
     _load_env(DISCORD_ENV)
     tok = (os.environ.get("DISCORD_BOT_TOKEN") or "").strip()
     ch = (a.channel or "").strip()
     user = (a.user or "").strip()
-    content = " ".join(a.content).strip()[:2000]  # Discord hard limit
+    content = " ".join(a.content).strip()[:DISCORD_MAX_CONTENT_LEN]
 
     if not tok:
         print(json.dumps({"success": False, "error": "no DISCORD_BOT_TOKEN configured"})); return 1
@@ -120,7 +153,7 @@ def main() -> int:
         return 0
     except urllib.error.HTTPError as e:
         body = ""
-        try: body = e.read().decode("utf-8", "replace")[:200]
+        try: body = e.read().decode("utf-8", "replace")[:MAX_ERROR_BODY_LEN]
         except Exception: pass
         print(json.dumps({"success": False, "error": f"Discord API HTTP {e.code}", "detail": body}))
         return 1

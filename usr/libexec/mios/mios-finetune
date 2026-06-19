@@ -104,9 +104,9 @@ def detect_device(pref: str) -> tuple[str, str]:
     if pref == "cpu":
         return ("cpu", "forced")
     if pref in ("cuda", "rocm"):
-        return (pref, "forced") if has_cuda else ("cpu", f"{pref} requested but no GPU")
+        return (pref, "forced") if has_cuda else ("error", f"Missing GPU: {pref} requested but no GPU detected")
     if pref == "mps":
-        return ("mps", "forced") if has_mps else ("cpu", "mps requested but unavailable")
+        return ("mps", "forced") if has_mps else ("error", "Missing GPU: mps requested but unavailable")
     # auto
     if has_cuda:
         return ("rocm" if is_rocm else "cuda", "auto-detected")
@@ -207,7 +207,10 @@ def train(cfg: dict, device: str, fourbit: bool, adapter_dir: str) -> dict:
     if not os.path.exists(dataset_path):
         return {"success": False, "error": f"dataset not found: {dataset_path} "
                 f"(run mios-finetune-dataset first)"}
-    ds = load_dataset("json", data_files=dataset_path, split="train")
+    try:
+        ds = load_dataset("json", data_files=dataset_path, split="train")
+    except Exception as e:
+        return {"success": False, "error": f"Robust dataset parsing failed for {dataset_path}: {e}"}
     if len(ds) < _ci(cfg.get("min_examples"), 24):
         return {"success": False,
                 "error": f"corpus too small: {len(ds)} < min_examples"}
@@ -263,7 +266,7 @@ def train(cfg: dict, device: str, fourbit: bool, adapter_dir: str) -> dict:
         gradient_accumulation_steps=_ci(cfg.get("grad_accum"), 8),
         learning_rate=_cf(cfg.get("learning_rate"), 2e-4),
         warmup_ratio=_cf(cfg.get("warmup_ratio"), 0.03),
-        max_length=_ci(cfg.get("max_seq_len"), 2048),
+        max_length=min(_ci(cfg.get("max_seq_len"), 2048), 4096), # Memory limit guardrail
         bf16=bf16, fp16=fp16, logging_steps=5, save_strategy="no",
         report_to=[], optim="paged_adamw_8bit" if fourbit else "adamw_torch")
 
@@ -301,6 +304,8 @@ def export_ollama(cfg: dict, adapter_dir: str) -> dict:
 
     base = str(cfg.get("base_model") or "qwen3.5:2b")
     tag = str(cfg.get("output_tag") or "mios-sys-agent-ft")
+    if not tag or tag.startswith("-") or "/" in tag:
+        return {"gguf": lora_gguf, "ollama": "create-failed: invalid or unsafe output_tag"}
     mf = os.path.join(work, f"{tag}.Modelfile")
     with open(mf, "w", encoding="utf-8") as fh:
         fh.write(f"FROM {base}\nADAPTER {lora_gguf}\n")
@@ -323,6 +328,9 @@ def main() -> int:
         return 1
 
     device, note = detect_device(str(cfg.get("device") or "auto"))
+    if device == "error":
+        print(json.dumps({"success": False, "error": note}))
+        return 1
     fourbit = use_4bit(device, str(cfg.get("load_in_4bit") or "auto"))
     deps_ok, missing = check_deps()
     work = str(cfg.get("work_dir") or "/var/lib/mios/finetune")

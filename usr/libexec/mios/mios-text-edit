@@ -130,9 +130,16 @@ def _validate_write_path(path: str) -> Optional[str]:
         resolved = os.path.realpath(path)
     except OSError as e:
         return f"realpath_failed:{e}"
+    resolved_lower = resolved.lower()
     for prefix in WRITE_DENIED_PREFIXES:
-        if resolved.startswith(prefix):
+        # Check standard and case-insensitive
+        if resolved.startswith(prefix) or resolved_lower.startswith(prefix.lower()):
             return f"write_denied_prefix:{prefix}"
+        # If on Windows, translate WSL /mnt/c/ prefixes in the blocklist to Windows C:\ paths
+        if os.name == "nt" and prefix.lower().startswith("/mnt/c/"):
+            win_prefix = "c:\\" + prefix[7:].replace("/", "\\")
+            if resolved_lower.startswith(win_prefix.lower()):
+                return f"write_denied_prefix:{prefix}"
     return None
 
 
@@ -162,7 +169,7 @@ def _suggest_candidates(path: str) -> list[str]:
     import shutil
     import subprocess
     base = os.path.basename(path.rstrip("/"))
-    if not base or len(base) < 3:
+    if not base or len(base) < 3 or base.startswith("-"):
         return []
     binary = shutil.which("mios-everything")
     if not binary:

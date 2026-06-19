@@ -116,8 +116,10 @@ _require_session() {
 _is_btrfs() {
     local path="$1"
     [ -d "$path" ] || return 1
+    # btrfs is Linux-only; early-exit on other platforms
+    [ "$(uname -s)" = "Linux" ] || return 1
     local fstype
-    fstype=$(stat -f -c %T "$path" 2>/dev/null)
+    fstype=$(stat -f -c %T "$path" 2>/dev/null || df -T "$path" 2>/dev/null | awk 'NR==2 {print $2}')
     [ "$fstype" = "btrfs" ]
 }
 

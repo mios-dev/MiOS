@@ -47,19 +47,34 @@ TABLE = "mios_rag"
 
 
 def _embed(text: str) -> list[float]:
-    # OpenAI /v1/embeddings (mios-llm-light serves nomic-embed-text; the ollama
-    # /api/embeddings lane :11434 was retired). Falls back to the ollama shape.
+    import time
+    # OpenAI /v1/embeddings (mios-llm-light serves nomic-embed-text)
+    # Falls back to the ollama shape if needed.
     base = EMBED_ENDPOINT if EMBED_ENDPOINT.endswith("/v1") else EMBED_ENDPOINT + "/v1"
-    req = urllib.request.Request(
-        f"{base}/embeddings",
-        data=json.dumps({"model": EMBED_MODEL, "input": text[:4000]}).encode(),
-        headers={"Content-Type": "application/json"},
-    )
-    r = json.loads(urllib.request.urlopen(req, timeout=30).read())
-    data = r.get("data") or []
-    if data:
-        return data[0].get("embedding") or []
-    return r.get("embedding") or []   # ollama-shape fallback
+    endpoints = [
+        (base, EMBED_MODEL),
+        ("http://localhost:11434/api", "nomic-embed-text")
+    ]
+    for attempt in range(3):
+        for ep, model in endpoints:
+            try:
+                is_ollama = ep.endswith("/api")
+                payload = {"model": model, "prompt" if is_ollama else "input": text[:4000]}
+                req = urllib.request.Request(
+                    f"{ep}/embeddings",
+                    data=json.dumps(payload).encode(),
+                    headers={"Content-Type": "application/json"},
+                )
+                r = json.loads(urllib.request.urlopen(req, timeout=15).read())
+                data = r.get("data") or []
+                if data:
+                    return data[0].get("embedding") or []
+                if r.get("embedding"):
+                    return r.get("embedding")
+            except Exception:
+                continue
+        time.sleep(1)
+    return []
 
 
 def _pg(sql: str) -> list:
@@ -99,7 +114,8 @@ def _sql(query: str) -> list:
 
 
 def _chunks(text: str, src: str):
-    # Paragraph-aware chunking capped at CHUNK_CHARS.
+    # Paragraph-aware chunking with overlap capped at CHUNK_CHARS.
+    OVERLAP_CHARS = 150
     buf = ""
     for para in text.split("\n\n"):
         para = para.strip()
@@ -107,7 +123,10 @@ def _chunks(text: str, src: str):
             continue
         if len(buf) + len(para) + 2 > CHUNK_CHARS and buf:
             yield buf.strip(), src
-            buf = ""
+            overlap = buf[-OVERLAP_CHARS:] if len(buf) > OVERLAP_CHARS else buf
+            if " " in overlap:
+                overlap = overlap.split(" ", 1)[-1]
+            buf = overlap + "\n\n"
         buf += para + "\n\n"
     if buf.strip():
         yield buf.strip(), src
@@ -145,8 +164,8 @@ def cmd_ingest(dirs: list[str]) -> int:
                 emb = _embed(chunk)
                 if not emb:
                     continue
-                c = chunk.replace("'", "''")
-                s = src.replace("'", "''")
+                c = chunk.replace("'", "''").replace("\x00", "")
+                s = src.replace("'", "''").replace("\x00", "")
                 _pg(f"INSERT INTO mios_rag (source, content, emb) "
                     f"VALUES ('{s}', '{c}', '{_vec(emb)}'::vector);")
                 n += 1

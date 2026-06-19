@@ -93,7 +93,7 @@ echo "── ── ──  baked-image store (additionalimagestores)"
 if [ -d /usr/lib/containers/storage ]; then
     ok "/usr/lib/containers/storage exists"
     if [ -d /usr/lib/containers/storage/overlay-images ]; then
-        perm=$(stat -c '%a' /usr/lib/containers/storage/overlay-images 2>/dev/null)
+        perm=$(stat -c '%a' /usr/lib/containers/storage/overlay-images 2>/dev/null || stat -f '%A' /usr/lib/containers/storage/overlay-images 2>/dev/null || stat -f '%Lp' /usr/lib/containers/storage/overlay-images 2>/dev/null || echo 000)
         if [ "${perm:0:1}" = "7" ] && [ "${perm:1:1}" -ge 5 ]; then
             ok "overlay-images mode $perm (world-readable, flatpak/podman-as-user works)"
         else
@@ -179,7 +179,8 @@ done
 
 # Daemon state freshness: state.json should be <600s old when active.
 if [ -f /var/lib/mios/daemon/state.json ]; then
-    age=$(( $(date +%s) - $(stat -c %Y /var/lib/mios/daemon/state.json) ))
+    _mtime=$(python3 -c "import os, sys; print(int(os.path.getmtime(sys.argv[1])))" /var/lib/mios/daemon/state.json 2>/dev/null || stat -c %Y /var/lib/mios/daemon/state.json 2>/dev/null || stat -f %m /var/lib/mios/daemon/state.json 2>/dev/null || echo 0)
+    age=$(( $(date +%s) - _mtime ))
     if [ "$age" -lt 600 ]; then
         ok "daemon state.json fresh (${age}s old)"
     else
@@ -207,7 +208,7 @@ fi
 # Broker socket: agent-side cross-context dispatch (window-list,
 # windows launch, mios-open-url) all route through this.
 if [ -S /run/mios-launcher/launcher.sock ]; then
-    sock_perm=$(stat -c '%a' /run/mios-launcher/launcher.sock 2>/dev/null)
+    sock_perm=$(stat -c '%a' /run/mios-launcher/launcher.sock 2>/dev/null || stat -f '%A' /run/mios-launcher/launcher.sock 2>/dev/null || stat -f '%Lp' /run/mios-launcher/launcher.sock 2>/dev/null || echo 000)
     if [ "$sock_perm" = "666" ] || [ "$sock_perm" = "777" ]; then
         ok "mios-launcher broker socket present + world-writable ($sock_perm)"
     else
@@ -266,12 +267,12 @@ echo "── ── ──  SOUL.md sync (vendor vs HERMES_HOMEs)"
 # narrative-scaffolding guardrails. Fix: `mios-restart hermes`.
 SOUL_SRC=/usr/share/mios/ai/hermes-soul.md
 if [ -f "$SOUL_SRC" ]; then
-    src_size=$(stat -c %s "$SOUL_SRC")
+    src_size=$(wc -c < "$SOUL_SRC" | tr -d ' ' 2>/dev/null || echo 0)
     for dst in /var/lib/mios/hermes/SOUL.md \
                /var/home/mios/.hermes/SOUL.md \
                /home/mios/.hermes/SOUL.md; do
         [ -f "$dst" ] || continue
-        dst_size=$(stat -c %s "$dst")
+        dst_size=$(wc -c < "$dst" | tr -d ' ' 2>/dev/null || echo 0)
         if [ "$src_size" = "$dst_size" ]; then
             ok "SOUL.md matches vendor: $dst"
         else

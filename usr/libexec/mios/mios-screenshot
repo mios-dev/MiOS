@@ -137,7 +137,7 @@ if [[ ! -f "$OUT" ]]; then
     fi
 fi
 
-SIZE="$(stat -c %s "$OUT" 2>/dev/null || echo ?)"
+SIZE="$(wc -c < "$OUT" | tr -d ' ' 2>/dev/null || echo ?)"
 echo "[mios-screenshot] saved $OUT ($SIZE bytes)" >&2
 
 # Optional: copy to clipboard via Set-Clipboard -Path (Windows)

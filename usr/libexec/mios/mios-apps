@@ -198,7 +198,8 @@ if [ "$(_is_wsl)" = "1" ] && command -v mios-windows >/dev/null 2>&1; then
         mkdir -p "$CACHE_DIR" 2>/dev/null || true
         chmod 0777 "$CACHE_DIR" 2>/dev/null || true
     fi
-    if [ -f "$CACHE" ] && [ "$(( $(date +%s) - $(stat -c %Y "$CACHE" 2>/dev/null || echo 0) ))" -lt 300 ]; then
+    _mtime=$(python3 -c "import os, sys; print(int(os.path.getmtime(sys.argv[1])))" "$CACHE" 2>/dev/null || stat -c %Y "$CACHE" 2>/dev/null || stat -f %m "$CACHE" 2>/dev/null || echo 0)
+    if [ -f "$CACHE" ] && [ "$(( $(date +%s) - _mtime ))" -lt 300 ]; then
         :  # fresh cache; use as-is
     else
         # Get-StartApps -> CSV-style "Name|AppID" lines, one per app.
@@ -298,7 +299,8 @@ header windows-game
 if [ "$(_is_wsl)" = "1" ] && command -v mios-windows >/dev/null 2>&1; then
     GAME_CACHE=/var/lib/mios/agent-env/windows-games.cache
     mkdir -p /var/lib/mios/agent-env 2>/dev/null
-    if [ -f "$GAME_CACHE" ] && [ "$(( $(date +%s) - $(stat -c %Y "$GAME_CACHE" 2>/dev/null || echo 0) ))" -lt 600 ]; then
+    _mtime=$(python3 -c "import os, sys; print(int(os.path.getmtime(sys.argv[1])))" "$GAME_CACHE" 2>/dev/null || stat -c %Y "$GAME_CACHE" 2>/dev/null || stat -f %m "$GAME_CACHE" 2>/dev/null || echo 0)
+    if [ -f "$GAME_CACHE" ] && [ "$(( $(date +%s) - _mtime ))" -lt 600 ]; then
         :  # fresh enough; reuse
     else
         # Single PowerShell pass over Steam + Epic + GOG library locations.

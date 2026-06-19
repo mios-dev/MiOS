@@ -189,10 +189,17 @@ _mios_launch_via_executor() {  # <app-name-or-windows-path>
     # Horizon 6") so the executor matches the WINDOW by title, not by a steam://
     # URI / shell:appsFolder string that never appears in a window title
     # (operator 2026-05-30). Falls back to `app` when no hint is set.
-    _payload="$(python3 -c 'import json,sys,os; print(json.dumps({"app": sys.argv[1], "center": True, "verify": os.environ.get("MIOS_LAUNCH_TITLE_HINT","")}))' "$1" 2>/dev/null)"
-    [ -z "$_payload" ] && return 1
-    _resp="$(curl -s --max-time 45 -X POST -H 'Content-Type: application/json' \
-             --data "$_payload" "$_xe/launch" 2>/dev/null)"
+    _resp="$(python3 - "$1" "$_xe" <<'PYEOF'
+import sys, os, json, urllib.request
+try:
+    payload = json.dumps({"app": sys.argv[1], "center": True, "verify": os.environ.get("MIOS_LAUNCH_TITLE_HINT","")}).encode()
+    req = urllib.request.Request(sys.argv[2] + "/launch", data=payload, headers={'Content-Type': 'application/json'}, method="POST")
+    with urllib.request.urlopen(req, timeout=45) as r:
+        print(r.read().decode())
+except Exception:
+    pass
+PYEOF
+    )"
     [ -z "$_resp" ] && return 1
     # launched:true (window confirmed present) OR fired:true (process started --
     # the executor's in-session Start-Process succeeded; honest about windowless
@@ -219,13 +226,16 @@ _mios_arm_autocenter() {
     command -v python3 >/dev/null 2>&1 || return 0
     _ace="$(_mios_executor_endpoint)"
     [ -z "$_ace" ] && return 0
-    _before="$(curl -s --max-time 5 "$_ace/windows" 2>/dev/null | python3 -c '
-import sys, json
+    _before="$(python3 - "$_ace" <<'PYEOF'
+import sys, json, urllib.request
 try:
-    d = json.load(sys.stdin)
+    with urllib.request.urlopen(sys.argv[1] + "/windows", timeout=5) as r:
+        d = json.loads(r.read().decode())
+    print(",".join(str(w.get("hwnd")) for w in d.get("windows", [])))
 except Exception:
-    print(""); raise SystemExit
-print(",".join(str(w.get("hwnd")) for w in d.get("windows", [])))' 2>/dev/null)"
+    pass
+PYEOF
+    )"
     setsid /usr/libexec/mios/mios-autocenter "$_ace" "$_before" >/dev/null 2>&1 &
 }
 
@@ -310,13 +320,14 @@ if it needs admin. Original command:
 EOF
     fi
 
+    _enc_cmd="$(echo -n "$cmd" | iconv -f utf-8 -t utf-16le | base64 -w0)"
     exec ssh \
         -o StrictHostKeyChecking=accept-new \
         -o ConnectTimeout=10 \
         -o ServerAliveInterval=15 \
         -l "$win_user" \
         "$win_host" \
-        -- "powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"$cmd\""
+        -- "powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand $_enc_cmd"
 }
 
 if [ "$#" -lt 1 ]; then
@@ -876,8 +887,22 @@ if pwsh:
         move_block = (
             "$r = New-Object MX.W32D+RECT; "
             "[MX.W32D]::GetWindowRect($h, [ref]$r) | Out-Null; "
-            + place_block +
+            f"{place_block}"
             "[MX.W32D]::MoveWindow($h, $x, $y, $w, $wh, $true) | Out-Null; "
+        )
+    do_focus = position not in ("none", "as-is")
+    focus_block = ""
+    if do_focus:
+        focus_block = (
+            "[MX.W32D]::ShowWindow($h, 9) | Out-Null; "
+            "try { [System.Windows.Forms.SendKeys]::SendWait('%') } catch {}; "
+            "$tpid = 0; $tt = [MX.W32D]::GetWindowThreadProcessId($h, [ref]$tpid); "
+            "$ct = [MX.W32D]::GetCurrentThreadId(); "
+            "[MX.W32D]::AttachThreadInput($ct, $tt, $true) | Out-Null; "
+            "[MX.W32D]::BringWindowToTop($h) | Out-Null; "
+            "[MX.W32D]::SetForegroundWindow($h) | Out-Null; "
+            "[MX.W32D]::SwitchToThisWindow($h, $true) | Out-Null; "
+            "[MX.W32D]::AttachThreadInput($ct, $tt, $false) | Out-Null; "
         )
     place_ps = (
         f"$pn = '{proc_name}'; "
@@ -905,27 +930,9 @@ if pwsh:
         "'@ -ErrorAction SilentlyContinue; "
         "$h = $p.MainWindowHandle; "
         # ── optional move (only when position changed) ──
-        + move_block +
-        # ── ALWAYS focus (regardless of position) ──
-        # SW_RESTORE = 9; brings a minimized/hidden window back.
-        "[MX.W32D]::ShowWindow($h, 9) | Out-Null; "
-        # Alt-key SendKeys grants AllowSetForegroundWindow permission
-        # to this PowerShell process so SetForegroundWindow isn't
-        # silently demoted to flash-only. (`%` = Alt in SendKeys.)
-        "try { [System.Windows.Forms.SendKeys]::SendWait('%') } catch {}; "
-        # AttachThreadInput: attach our input queue to the target's
-        # foreground thread; SetForegroundWindow succeeds for both
-        # threads in that input group.
-        "$tpid = 0; $tt = [MX.W32D]::GetWindowThreadProcessId($h, [ref]$tpid); "
-        "$ct = [MX.W32D]::GetCurrentThreadId(); "
-        "[MX.W32D]::AttachThreadInput($ct, $tt, $true) | Out-Null; "
-        "[MX.W32D]::BringWindowToTop($h) | Out-Null; "
-        "[MX.W32D]::SetForegroundWindow($h) | Out-Null; "
-        # SwitchToThisWindow is undocumented but works through XFSE
-        # / Game Bar / fullscreen overlays where SetForegroundWindow
-        # alone gets demoted. fAltTab=true mimics Alt+Tab semantics.
-        "[MX.W32D]::SwitchToThisWindow($h, $true) | Out-Null; "
-        "[MX.W32D]::AttachThreadInput($ct, $tt, $false) | Out-Null "
+        f"{move_block}"
+        # ── optional focus (skipped for background / as-is) ──
+        f"{focus_block}"
         "}"
     )
     subprocess.Popen(

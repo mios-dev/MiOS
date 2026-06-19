@@ -156,14 +156,59 @@ fi
 _OSC_EP="${_OSC_EP%/}"
 
 _exec_post() {  # <path> <json-body>
-    curl -s --max-time 12 -X POST -H 'Content-Type: application/json' \
+    curl -s --connect-timeout 2 --max-time 12 -X POST -H 'Content-Type: application/json' \
         --data "$2" "${_OSC_EP}$1"
 }
-_exec_get() { curl -s --max-time 12 "${_OSC_EP}$1"; }
+_exec_get() { curl -s --connect-timeout 2 --max-time 12 "${_OSC_EP}$1"; }
 _json_str() { printf '%s' "$1" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))'; }
 
 if [ -n "$_OSC_EP" ]; then
-    _t="$(_json_str "${1:-}")"
+    _title=""
+    _monitor="-1"
+    _x=""
+    _y=""
+    _w=""
+    _h=""
+
+    if [[ "$sub" =~ ^(center|left|right|top|bottom|top-left|top-right|bottom-left|bottom-right|maximize-pos|focus|close|quit|x|minimize|min|maximize|max|restore)$ ]]; then
+        # Parse title and optional monitor
+        while [ "$#" -gt 0 ]; do
+            if [ "$1" = "--monitor" ] && [ "$#" -gt 1 ]; then
+                _monitor="$2"
+                shift 2
+            else
+                if [ -z "$_title" ]; then
+                    _title="$1"
+                else
+                    _title="$_title $1"
+                fi
+                shift
+            fi
+        done
+        _t="$(_json_str "$_title")"
+    elif [ "$sub" = "move" ]; then
+        if [ "$#" -ge 3 ]; then
+            _x="${@: -2: 1}"
+            _y="${@: -1: 1}"
+            _title="${@:1:$#-2}"
+        else
+            _title="${1:-}"
+            _x="${2:-}"
+            _y="${3:-}"
+        fi
+        _t="$(_json_str "$_title")"
+    elif [ "$sub" = "resize" ]; then
+        if [ "$#" -ge 3 ]; then
+            _w="${@: -2: 1}"
+            _h="${@: -1: 1}"
+            _title="${@:1:$#-2}"
+        else
+            _title="${1:-}"
+            _w="${2:-}"
+            _h="${3:-}"
+        fi
+        _t="$(_json_str "$_title")"
+    fi
 
     # flatpak instances are PER-USER. The agent dispatches window ops through
     # the launcher broker, which runs as ROOT -- so a bare `flatpak ps` here
@@ -206,7 +251,7 @@ if [ -n "$_OSC_EP" ]; then
             # either direction vs the app-id last segment OR full id). Fall
             # through to the executor WM_CLOSE for NATIVE Windows apps
             # (notepad, taskmgr, ...) which DO honour it.
-            _needle_lc="$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')"
+            _needle_lc="$(printf '%s' "${_title}" | tr '[:upper:]' '[:lower:]')"
             _fp_id=""
             if command -v flatpak >/dev/null 2>&1 && [ -n "$_needle_lc" ]; then
                 _fp_id="$(_fp ps --columns=application 2>/dev/null | awk -v n="$_needle_lc" '
@@ -219,28 +264,23 @@ if [ -n "$_OSC_EP" ]; then
                 exit 0
             fi
             _exec_post /window/close "{\"title\": $_t}"; exit $? ;;
-        center)    _exec_post /window/center "{\"title\": $_t}"; exit $? ;;
+        center)    _exec_post /window/position "{\"title\": $_t, \"state\": \"center\", \"monitor\": $_monitor}"; exit $? ;;
         minimize|min)  _exec_post /window/state "{\"title\": $_t, \"state\": \"minimize\"}"; exit $? ;;
         maximize|max)  _exec_post /window/state "{\"title\": $_t, \"state\": \"maximize\"}"; exit $? ;;
         restore)   _exec_post /window/state "{\"title\": $_t, \"state\": \"restore\"}"; exit $? ;;
-        move)      # numeric x y -> /window/move; semantic (left/right/...) -> center fallback
-            _x="${2:-}"; _y="${3:-}"
+        move)      # numeric x y -> /window/move; semantic (left/right/...) -> position endpoint
             if [[ "$_x" =~ ^-?[0-9]+$ && "$_y" =~ ^-?[0-9]+$ ]]; then
                 _exec_post /window/move "{\"title\": $_t, \"x\": $_x, \"y\": $_y}"; exit $?
             else
-                # semantic position came in as $_x (e.g. 'left'); the executor
-                # has no per-edge endpoint yet -> center is the safe placement.
-                _exec_post /window/center "{\"title\": $_t}"; exit $?
+                _exec_post /window/position "{\"title\": $_t, \"state\": \"$_x\", \"monitor\": $_monitor}"; exit $?
             fi ;;
-        resize)    _exec_post /window/resize "{\"title\": $_t, \"width\": ${2:-0}, \"height\": ${3:-0}}"; exit $? ;;
+        resize)    _exec_post /window/resize "{\"title\": $_t, \"width\": $_w, \"height\": $_h}"; exit $? ;;
         left|right|top|bottom|top-left|top-right|bottom-left|bottom-right|maximize-pos)
-            # The move_window verb renders the SEMANTIC POSITION as the
-            # subcommand (cmd template `mios-window {position} {title}`). The
-            # executor has no per-edge endpoint yet -> place via /window/center
-            # (visible + non-erroring). Precise edge placement via the executor's
-            # /screen-layout + /window/move is a follow-up. NOTE: $1 here is the
-            # TITLE (the position is $sub), so resolve the title from $1.
-            _exec_post /window/center "{\"title\": $_t}"; exit $? ;;
+            _pos="$sub"
+            [ "$_pos" = "maximize-pos" ] && _pos="maximize"
+            _exec_post /window/position "{\"title\": $_t, \"state\": \"$_pos\", \"monitor\": $_monitor}"
+            exit $?
+            ;;
     esac
 fi
 

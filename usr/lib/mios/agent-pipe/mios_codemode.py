@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from mios_jsonsalvage import loads_lenient as _loads_lenient
 import re
 import shlex
 from typing import Optional
@@ -194,7 +195,7 @@ def _try_json_tail(text: str):
         if (s.startswith("{") and s.endswith("}")) or (
                 s.startswith("[") and s.endswith("]")):
             try:
-                return json.loads(s)
+                return _loads_lenient(s)
             except (ValueError, TypeError):
                 return None
         break  # only consider the final non-empty line

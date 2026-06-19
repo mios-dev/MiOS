@@ -1,374 +1,243 @@
-#!/bin/bash
+#!/usr/bin/env python3
 # AI-hint: Provides a Windows-host computer-use interface for MiOS-Agent via PowerShell scripts to perform screen capture, mouse/keyboard input, and window management on WSL2-hosted systems.
 # AI-related: /usr/libexec/mios/mios-pc-control, /usr/share/mios/windows, /etc/mios/mios.toml, /usr/share/mios/mios.toml, mios-windows, mios-oscontrol-server, mios-launch
-# AI-functions: usage, _oscontrol_executor, _json_body
-set -euo pipefail
-# /usr/libexec/mios/mios-pc-control <subcommand> [args...]
-#
-# Windows-host computer-use surface for MiOS-Agent. Hermes ships a
-# `computer_use` toolset but it's macOS-only (cua-driver). This
-# helper provides the equivalent for MiOS-on-WSL2 by driving Win32
-# SendInput / GDI screen capture / Win32 window enumeration via
-# PowerShell scripts that run on the Windows side (through
-# mios-windows ps which goes through the broker for the agent's
-# context).
-#
-# Operator directive 2026-05-15: "Hermes-Agent supports PC control,
-# NO?!" -- yes, but only on macOS. This shim is the MiOS-Windows
-# equivalent so agents can screenshot, click, type, move windows,
-# focus, list desktops on the Windows host.
-#
-# SUBCOMMANDS
-#
-#   screenshot <out-path>        Capture the primary monitor; saves
-#                                PNG to <out-path> (Windows-side
-#                                path or /mnt/c/... -- converted
-#                                via wslpath).
-#   click <x> <y> [button]       Move cursor to (x,y) + click. button
-#                                = left (default) | right | middle.
-#   double-click <x> <y>         Double-click at (x,y).
-#   mouse-move <x> <y>           Move cursor only (no click).
-#   type "<text>"                Type the literal text (no special
-#                                key sequence handling).
-#   key <name>                   Press a single key: Enter | Tab |
-#                                Escape | Backspace | Delete | Up |
-#                                Down | Left | Right | F1..F12 |
-#                                <letter> | <digit>.
-#   key-combo "Ctrl+C" | ...     Modifier-key combo (Ctrl/Alt/Shift
-#                                /Win + key).
-#   window-list                  List visible top-level windows
-#                                (title, PID, hwnd, x, y, w, h).
-#   window-focus <hwnd-or-pid>   Bring window to foreground.
-#   window-move <hwnd> <x> <y>   Move window to (x,y).
-#   window-resize <hwnd> <w> <h> Resize window to <w>x<h>.
-#   help                         This message.
-set -eu
-
-PS1_DIR=/usr/share/mios/windows
-PS1_HELPER="$PS1_DIR/mios-pc-control.ps1"
-
-usage() {
-    sed -n '2,/^set -eu$/p' "$0" | sed 's/^# \?//'
-}
-
-if [ "$#" -lt 1 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ] || [ "$1" = "help" ]; then
-    usage
-    exit 0
-fi
-
-if ! command -v mios-windows >/dev/null 2>&1; then
-    echo "mios-pc-control: mios-windows not on PATH (need WSL2 interop)" >&2
-    exit 1
-fi
-if [ ! -f "$PS1_HELPER" ]; then
-    echo "mios-pc-control: $PS1_HELPER not present" >&2
-    exit 1
-fi
-
-sub="$1"
-shift
-
-# --json flag (task #148): emit machine-mode JSON for the
-# subcommands whose PS1 backing supports it (currently
-# window-list; others fall through to plain prose).
-JSON_FLAG=""
-case "${1:-}" in
-    --json) JSON_FLAG="-Json"; shift ;;
-esac
-
-# ── OS-control executor routing (operator 2026-05-26) ───────────────────────
-# When an interactive-desktop executor is configured
-# ([os_control].executor_endpoint in mios.toml -- real tailnet URL in the /etc
-# overlay, empty in vendor), route window enumeration + ops THERE. The executor
-# (mios-oscontrol-server.ps1) runs on WinSta0\Default so EnumWindows actually
-# sees the desktop; the WSL-interop PS path below is BLIND (count:0) from a
-# service window station. No endpoint -> fall through to interop unchanged.
-# Endpoint set but unreachable -> HONEST error (never a silent fall-back to the
-# blind path -- that reintroduces the false count:0 reports we just fixed).
-_oscontrol_executor() {
-    # 1) Explicit operator / federation endpoint ([os_control].executor_endpoint
-    #    in the layered mios.toml) wins -- a tailnet URL, or another node's desktop.
-    local _ep
-    _ep="$(python3 - <<'PYEOF' 2>/dev/null || true
+import sys
 import os
-try:
-    import tomllib
-except Exception:
+import json
+import urllib.request
+import urllib.error
+import subprocess
+import base64
+
+def usage():
+    print("""usage: mios-pc-control <subcommand> [args...]
+
+  screenshot <out-path>
+  click <x> <y> [button]
+  double-click <x> <y>
+  mouse-move <x> <y>
+  type "<text>"
+  key <name>
+  key-combo "Ctrl+C" | ...
+  window-list
+  window-focus <hwnd-or-pid>
+  window-move <hwnd> <x> <y>
+  window-resize <hwnd> <w> <h>
+  help""")
+    sys.exit(0)
+
+def _read_toml_endpoint():
     try:
-        import tomli as tomllib
+        import tomllib
+    except ImportError:
+        try:
+            import tomli as tomllib
+        except ImportError:
+            return ""
+    for p in (os.environ.get("MIOS_TOML", ""), "/etc/mios/mios.toml", "/usr/share/mios/mios.toml"):
+        if not p: continue
+        try:
+            with open(p, "rb") as f:
+                d = tomllib.load(f)
+            ep = d.get("os_control", {}).get("executor_endpoint", "")
+            if ep: return str(ep).strip().rstrip("/")
+        except Exception:
+            pass
+    return ""
+
+def _get_executor_endpoint():
+    ep = os.environ.get("MIOS_OSCONTROL_EXECUTOR", "")
+    if ep: return ep.rstrip("/")
+    ep = _read_toml_endpoint()
+    if ep: return ep
+    # WSL auto-discovery
+    try:
+        with open("/proc/sys/kernel/osrelease", "r") as f:
+            content = f.read().lower()
+            if "microsoft" in content or "wsl" in content:
+                ip_route = subprocess.check_output(["ip", "route", "show", "default"], text=True)
+                parts = ip_route.split()
+                if "default" in parts:
+                    idx = parts.index("default")
+                    gw = parts[idx + 2]
+                    port = os.environ.get("MIOS_OSCONTROL_PORT", "11437")
+                    return f"http://{gw}:{port}"
     except Exception:
-        raise SystemExit(0)
-def _read(path):
+        pass
+    return ""
+
+def _http_request(url, method="GET", data=None, timeout=15):
+    req_data = None
+    if data is not None:
+        req_data = json.dumps(data).encode("utf-8")
+    req = urllib.request.Request(url, data=req_data, method=method)
+    if data is not None:
+        req.add_header("Content-Type", "application/json")
     try:
-        with open(path, "rb") as f:
-            d = tomllib.load(f)
-        return str(((d.get("os_control") or {}).get("executor_endpoint") or "")).strip()
+        with urllib.request.urlopen(req, timeout=timeout) as f:
+            return f.read().decode("utf-8")
+    except urllib.error.HTTPError as e:
+        return e.read().decode("utf-8")
+    except Exception as e:
+        sys.stderr.write(f"mios-pc-control: OS-control executor unreachable ({method} {url}): {e}\n")
+        sys.exit(1)
+
+def main():
+    if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help", "help"):
+        usage()
+        
+    sub = sys.argv[1]
+    args = sys.argv[2:]
+    
+    json_flag = ""
+    if args and args[0] == "--json":
+        json_flag = "-Json"
+        args = args[1:]
+        
+    valid_subs = {"launch", "window-list", "window-close", "window-focus", "window-move", 
+                  "window-resize", "window-center", "screen-layout", "screenshot", "click", 
+                  "double-click", "mouse-move", "type", "key", "key-combo", "ui-find", "ui-click", "ui-list"}
+                  
+    exec_ep = _get_executor_endpoint()
+    
+    if exec_ep:
+        try:
+            urllib.request.urlopen(f"{exec_ep}/health", timeout=3)
+        except Exception:
+            exec_ep = ""
+            
+    if sub in ("launch", "ui-find", "ui-click", "ui-list") and not exec_ep:
+        sys.stderr.write(f"mios-pc-control: no OS-control executor reachable for {sub}\n")
+        sys.exit(2)
+        
+    if exec_ep and sub in valid_subs:
+        if sub == "launch":
+            if not args:
+                sys.stderr.write("mios-pc-control: launch needs <app-name>\n")
+                sys.exit(64)
+            app = " ".join(args)
+            print(_http_request(f"{exec_ep}/launch", "POST", {"app": app}, 30))
+            sys.exit(0)
+            
+        elif sub == "window-list":
+            resp = _http_request(f"{exec_ep}/windows", "GET", None, 15)
+            if json_flag:
+                print(resp)
+            else:
+                try:
+                    d = json.loads(resp)
+                    print("hwnd pid x y w h title")
+                    for w in d.get("windows", []):
+                        print(f"{w.get('hwnd',0)} {w.get('pid',0)} {w.get('x',0)} {w.get('y',0)} {w.get('w',0)} {w.get('h',0)} {w.get('title','')}")
+                except Exception:
+                    print(resp)
+            sys.exit(0)
+            
+        elif sub in ("window-close", "window-focus", "window-center"):
+            if not args:
+                sys.stderr.write(f"mios-pc-control: {sub} needs an hwnd\n")
+                sys.exit(64)
+            op = sub.replace("window-", "")
+            print(_http_request(f"{exec_ep}/window/{op}", "POST", {"hwnd": int(args[0])}, 15))
+            sys.exit(0)
+            
+        elif sub == "window-move":
+            if len(args) < 3:
+                sys.stderr.write("mios-pc-control: window-move needs <hwnd> <x> <y>\n")
+                sys.exit(64)
+            print(_http_request(f"{exec_ep}/window/move", "POST", {"hwnd": int(args[0]), "x": int(args[1]), "y": int(args[2])}, 15))
+            sys.exit(0)
+            
+        elif sub == "window-resize":
+            if len(args) < 3:
+                sys.stderr.write("mios-pc-control: window-resize needs <hwnd> <w> <h>\n")
+                sys.exit(64)
+            print(_http_request(f"{exec_ep}/window/resize", "POST", {"hwnd": int(args[0]), "width": int(args[1]), "height": int(args[2])}, 15))
+            sys.exit(0)
+            
+        elif sub == "ui-list":
+            print(_http_request(f"{exec_ep}/ui/list", "GET", None, 25))
+            sys.exit(0)
+            
+        elif sub in ("ui-find", "ui-click"):
+            if not args:
+                sys.stderr.write(f"mios-pc-control: {sub} needs <name>\n")
+                sys.exit(64)
+            op = sub.replace("ui-", "")
+            print(_http_request(f"{exec_ep}/ui/{op}", "POST", {"name": " ".join(args)}, 25))
+            sys.exit(0)
+            
+        elif sub == "screen-layout":
+            print(_http_request(f"{exec_ep}/screen-layout", "GET", None, 15))
+            sys.exit(0)
+            
+        elif sub == "screenshot":
+            if not args:
+                sys.stderr.write("mios-pc-control: screenshot needs <out-path>\n")
+                sys.exit(64)
+            out_path = args[0]
+            resp = _http_request(f"{exec_ep}/screenshot", "GET", None, 30)
+            try:
+                d = json.loads(resp)
+                b64 = d.get("image_b64")
+                if not b64:
+                    sys.stderr.write("mios-pc-control: executor returned no image\n")
+                    sys.exit(1)
+                with open(out_path, "wb") as f:
+                    f.write(base64.b64decode(b64))
+                print(f"[mios-pc-control] screenshot saved to {out_path} ({d.get('width')}x{d.get('height')})")
+            except Exception as e:
+                sys.stderr.write(f"mios-pc-control: failed to parse screenshot: {e}\n")
+                sys.exit(1)
+            sys.exit(0)
+            
+        elif sub == "mouse-move":
+            x = int(args[0]) if len(args) > 0 else 0
+            y = int(args[1]) if len(args) > 1 else 0
+            print(_http_request(f"{exec_ep}/input/mouse-move", "POST", {"x": x, "y": y}, 15))
+            sys.exit(0)
+            
+        elif sub == "click":
+            x = int(args[0]) if len(args) > 0 else 0
+            y = int(args[1]) if len(args) > 1 else 0
+            button = args[2] if len(args) > 2 else "left"
+            print(_http_request(f"{exec_ep}/input/click", "POST", {"x": x, "y": y, "button": button}, 15))
+            sys.exit(0)
+            
+        elif sub == "double-click":
+            x = int(args[0]) if len(args) > 0 else 0
+            y = int(args[1]) if len(args) > 1 else 0
+            print(_http_request(f"{exec_ep}/input/double-click", "POST", {"x": x, "y": y}, 15))
+            sys.exit(0)
+            
+        elif sub == "type":
+            print(_http_request(f"{exec_ep}/input/type", "POST", {"text": " ".join(args)}, 15))
+            sys.exit(0)
+            
+        elif sub == "key":
+            name = args[0] if args else ""
+            print(_http_request(f"{exec_ep}/input/key", "POST", {"name": name}, 15))
+            sys.exit(0)
+            
+        elif sub == "key-combo":
+            print(_http_request(f"{exec_ep}/input/key-combo", "POST", {"combo": " ".join(args)}, 15))
+            sys.exit(0)
+
+    # Fallback to mios-windows ps
+    ps1_helper = "/usr/share/mios/windows/mios-pc-control.ps1"
+    try:
+        win_ps1 = subprocess.check_output(["wslpath", "-w", ps1_helper], text=True, stderr=subprocess.DEVNULL).strip()
     except Exception:
-        return ""
-for p in (os.environ.get("MIOS_TOML", ""), "/etc/mios/mios.toml", "/usr/share/mios/mios.toml"):
-    if not p:
-        continue
-    ep = _read(p)
-    if ep:
-        print(ep.rstrip("/"))
-        break
-PYEOF
-)"
-    if [ -n "$_ep" ]; then
-        printf '%s\n' "$_ep"
-        return 0
-    fi
-    # 2) WSL2 local auto-discovery (operator 2026-06-07): no tailnet endpoint is
-    #    configured, but the Windows-host executor (mios-oscontrol-server.ps1)
-    #    listens on :11437. Reach it over the WSL NAT default-route gateway (the
-    #    Windows host) so OS control works WITHOUT Tailscale. The caller
-    #    health-probes this before use, so a firewall-blocked gateway just falls
-    #    through to the blind WSL-interop path -- no regression -- and it starts
-    #    working the moment the host firewall admits the WSL subnet.
-    if grep -qiE 'microsoft|wsl' /proc/sys/kernel/osrelease 2>/dev/null; then
-        local _gw _port
-        _gw="$(ip route show default 2>/dev/null | awk '/default/{print $3; exit}' || true)"
-        _port="${MIOS_OSCONTROL_PORT:-11437}"
-        if [ -n "$_gw" ]; then
-            printf 'http://%s:%s\n' "$_gw" "$_port"
-        fi
-    fi
-}
+        sys.stderr.write(f"mios-pc-control: wslpath failed for {ps1_helper}\n")
+        sys.exit(1)
+        
+    def ps_quote(s):
+        return "'" + s.replace("'", "''") + "'"
+        
+    args_str = " ".join(ps_quote(a) for a in args)
+    cmd_str = f"& '{win_ps1}' -Action '{sub}' {json_flag} {args_str}"
+    cmd = ["mios-windows", "ps", cmd_str.strip()]
+    os.execvp("mios-windows", cmd)
 
-# Build a JSON object body from key value pairs, safely (python json.dumps).
-# All-digit values are coerced to numbers (x/y/width/height); the executor
-# stringifies text/name/combo/button anyway, so blanket coercion is safe.
-_json_body() {
-    python3 - "$@" <<'PYEOF'
-import sys, json
-a = sys.argv[1:]
-d = {}
-for i in range(0, len(a) - 1, 2):
-    k, v = a[i], a[i + 1]
-    try:
-        d[k] = int(v)
-    except ValueError:
-        d[k] = v
-print(json.dumps(d))
-PYEOF
-}
-
-# POST to a raw-INPUT executor endpoint and print its body on success (exit 0).
-# On failure emit an HONEST diagnostic + return 1, distinguishing a true connection
-# failure (curl transport error -> genuinely unreachable) from a REACHABLE executor
-# whose handler returned an HTTP error -- in which case surface the executor's REAL
-# status + error body (e.g. its "Access is denied" when a UIPI-elevated window holds
-# the foreground), never the misleading "unreachable" that hid the real cause and
-# read as a network problem (operator 2026-06-16). curl WITHOUT -f so a 4xx/5xx is
-# not collapsed into a generic transport failure; the body carries the diagnosis.
-_input_post() {
-    _ip_path="$1"; _ip_data="$2"; _ip_to="${3:-15}"
-    _ip_body="$(mktemp)"; _ip_err="$(mktemp)"
-    _ip_code="$(curl -sS -m "$_ip_to" -o "$_ip_body" -w '%{http_code}' \
-        -X POST "$EXEC_EP$_ip_path" -H 'Content-Type: application/json' \
-        -d "$_ip_data" 2>"$_ip_err")"
-    _ip_rc=$?
-    if [ "$_ip_rc" -ne 0 ] || [ -z "$_ip_code" ] || [ "$_ip_code" = "000" ]; then
-        echo "mios-pc-control: OS-control executor $EXEC_EP unreachable (POST $_ip_path): $(tr -d '\r\n' < "$_ip_err")" >&2
-        rm -f "$_ip_body" "$_ip_err"; return 1
-    fi
-    case "$_ip_code" in
-        2??) cat "$_ip_body"; rm -f "$_ip_body" "$_ip_err"; return 0 ;;
-    esac
-    echo "mios-pc-control: OS-control executor reachable but the input handler FAILED -- HTTP $_ip_code (POST $_ip_path): $(tr -d '\r\n' < "$_ip_body")" >&2
-    rm -f "$_ip_body" "$_ip_err"; return 1
-}
-
-case "$sub" in
-    launch|window-list|window-close|window-focus|window-move|window-resize|window-center|screen-layout|screenshot|click|double-click|mouse-move|type|key|key-combo|ui-find|ui-click|ui-list)
-        EXEC_EP="$(_oscontrol_executor)"
-        # GRACEFUL FALLBACK (operator 2026-05-26): only route to the executor if
-        # it's actually UP (quick /health probe). When it's configured but not
-        # running yet, fall back to the WSL-interop path instead of hard-failing
-        # every window op -- the executor takes over automatically once it's
-        # installed + listening. (Per-op unreachable below is then a rare race.)
-        if [ -n "$EXEC_EP" ] && ! curl -fsS -m 3 "$EXEC_EP/health" >/dev/null 2>&1; then
-            EXEC_EP=""
-        fi
-        # `launch` renders VISIBLY only via the interactive-desktop executor: a
-        # WSL-interop launch lands in a Session-0 window station, so the process
-        # starts but no window appears on the operator's desktop (operator
-        # 2026-06-07: `mios-launch notepad` returned rc=0 but opened nothing). With
-        # no reachable executor, signal the caller to use its own path -- exit 2,
-        # never a blind no-op that falsely claims success.
-        case "$sub" in
-            launch|ui-find|ui-click|ui-list)
-                # These need the interactive-desktop executor (WinSta0): launch must
-                # surface a window; ui-find/ui-click/ui-list walk the UIA tree. No blind
-                # interop fallback -- signal the caller honestly instead of a no-op.
-                if [ -z "$EXEC_EP" ]; then
-                    echo "mios-pc-control: no OS-control executor reachable for $sub" >&2
-                    exit 2
-                fi ;;
-        esac
-        if [ -n "$EXEC_EP" ]; then
-            case "$sub" in
-                launch)
-                    app="$*"
-                    [ -z "$app" ] && { echo "mios-pc-control: launch needs <app-name>" >&2; exit 64; }
-                    body="$(_json_body app "$app")"
-                    if ! out="$(curl -fsS -m 30 -X POST "$EXEC_EP/launch" -H 'Content-Type: application/json' -d "$body" 2>/dev/null)"; then
-                        echo "mios-pc-control: OS-control executor $EXEC_EP unreachable (POST /launch)" >&2
-                        exit 1
-                    fi
-                    printf '%s\n' "$out"
-                    exit 0
-                    ;;
-                window-list)
-                    if ! body="$(curl -fsS -m 15 "$EXEC_EP/windows" 2>/dev/null)"; then
-                        echo "mios-pc-control: OS-control executor $EXEC_EP unreachable (GET /windows)" >&2
-                        exit 1
-                    fi
-                    if [ -n "$JSON_FLAG" ]; then
-                        printf '%s\n' "$body"
-                    else
-                        printf '%s' "$body" | python3 -c 'import sys,json
-d=json.load(sys.stdin); print("hwnd pid x y w h title")
-for w in (d.get("windows") or []):
-    print("%s %s %s %s %s %s %s" % (w.get("hwnd",0),w.get("pid",0),w.get("x",0),w.get("y",0),w.get("w",0),w.get("h",0),w.get("title","")))'
-                    fi
-                    exit 0
-                    ;;
-                window-close|window-focus)
-                    op="${sub#window-}"; hwnd="${1:-}"
-                    [ -z "$hwnd" ] && { echo "mios-pc-control: $sub needs an hwnd" >&2; exit 64; }
-                    if ! out="$(curl -fsS -m 15 -X POST "$EXEC_EP/window/$op" -H 'Content-Type: application/json' -d "{\"hwnd\": $hwnd}" 2>/dev/null)"; then
-                        echo "mios-pc-control: OS-control executor $EXEC_EP unreachable (POST /window/$op)" >&2
-                        exit 1
-                    fi
-                    printf '%s\n' "$out"
-                    exit 0
-                    ;;
-                window-move)
-                    hwnd="${1:-}"; x="${2:-0}"; y="${3:-0}"
-                    [ -z "$hwnd" ] && { echo "mios-pc-control: window-move needs <hwnd> <x> <y>" >&2; exit 64; }
-                    if ! out="$(curl -fsS -m 15 -X POST "$EXEC_EP/window/move" -H 'Content-Type: application/json' -d "{\"hwnd\": $hwnd, \"x\": $x, \"y\": $y}" 2>/dev/null)"; then
-                        echo "mios-pc-control: OS-control executor $EXEC_EP unreachable (POST /window/move)" >&2
-                        exit 1
-                    fi
-                    printf '%s\n' "$out"
-                    exit 0
-                    ;;
-                window-resize)
-                    hwnd="${1:-}"; w="${2:-0}"; h="${3:-0}"
-                    [ -z "$hwnd" ] && { echo "mios-pc-control: window-resize needs <hwnd> <w> <h>" >&2; exit 64; }
-                    if ! out="$(curl -fsS -m 15 -X POST "$EXEC_EP/window/resize" -H 'Content-Type: application/json' -d "{\"hwnd\": $hwnd, \"width\": $w, \"height\": $h}" 2>/dev/null)"; then
-                        echo "mios-pc-control: OS-control executor $EXEC_EP unreachable (POST /window/resize)" >&2
-                        exit 1
-                    fi
-                    printf '%s\n' "$out"
-                    exit 0
-                    ;;
-                window-center)
-                    hwnd="${1:-}"
-                    [ -z "$hwnd" ] && { echo "mios-pc-control: window-center needs an hwnd" >&2; exit 64; }
-                    if ! out="$(curl -fsS -m 15 -X POST "$EXEC_EP/window/center" -H 'Content-Type: application/json' -d "{\"hwnd\": $hwnd}" 2>/dev/null)"; then
-                        echo "mios-pc-control: OS-control executor $EXEC_EP unreachable (POST /window/center)" >&2
-                        exit 1
-                    fi
-                    printf '%s\n' "$out"
-                    exit 0
-                    ;;
-                ui-list)
-                    # SoM-first grounding: list ALL named controls in the foreground
-                    # window (UIA tree as the set-of-marks) for the agent to survey + pick.
-                    if ! out="$(curl -fsS -m 25 "$EXEC_EP/ui/list" 2>/dev/null)"; then
-                        echo "mios-pc-control: OS-control executor $EXEC_EP unreachable (GET /ui/list)" >&2
-                        exit 1
-                    fi
-                    printf '%s\n' "$out"
-                    exit 0
-                    ;;
-                ui-find|ui-click)
-                    # UIA semantic targeting: find a control BY NAME in the foreground
-                    # window (ui-find -> list; ui-click -> click the first match's center).
-                    name="$*"
-                    [ -z "$name" ] && { echo "mios-pc-control: $sub needs <name>" >&2; exit 64; }
-                    _uiop="${sub#ui-}"   # find | click
-                    body="$(_json_body name "$name")"
-                    if ! out="$(curl -fsS -m 25 -X POST "$EXEC_EP/ui/$_uiop" -H 'Content-Type: application/json' -d "$body" 2>/dev/null)"; then
-                        echo "mios-pc-control: OS-control executor $EXEC_EP unreachable (POST /ui/$_uiop)" >&2
-                        exit 1
-                    fi
-                    printf '%s\n' "$out"
-                    exit 0
-                    ;;
-                screen-layout)
-                    if ! out="$(curl -fsS -m 15 "$EXEC_EP/screen-layout" 2>/dev/null)"; then
-                        echo "mios-pc-control: OS-control executor $EXEC_EP unreachable (GET /screen-layout)" >&2
-                        exit 1
-                    fi
-                    printf '%s\n' "$out"
-                    exit 0
-                    ;;
-                screenshot)
-                    out_path="${1:-}"
-                    [ -z "$out_path" ] && { echo "mios-pc-control: screenshot needs <out-path>" >&2; exit 64; }
-                    if ! resp="$(curl -fsS -m 30 "$EXEC_EP/screenshot" 2>/dev/null)"; then
-                        echo "mios-pc-control: OS-control executor $EXEC_EP unreachable (GET /screenshot)" >&2
-                        exit 1
-                    fi
-                    printf '%s' "$resp" | python3 -c 'import sys,json,base64
-d=json.load(sys.stdin); b=d.get("image_b64")
-if not b: sys.exit("mios-pc-control: executor returned no image")
-open(sys.argv[1],"wb").write(base64.b64decode(b))
-print("[mios-pc-control] screenshot saved to %s (%sx%s)" % (sys.argv[1], d.get("width"), d.get("height")))' "$out_path"
-                    exit 0
-                    ;;
-                mouse-move)
-                    body="$(_json_body x "${1:-0}" y "${2:-0}")"
-                    out="$(_input_post /input/mouse-move "$body")" || exit 1
-                    printf '%s\n' "$out"
-                    exit 0
-                    ;;
-                click)
-                    body="$(_json_body x "${1:-0}" y "${2:-0}" button "${3:-left}")"
-                    out="$(_input_post /input/click "$body")" || exit 1
-                    printf '%s\n' "$out"
-                    exit 0
-                    ;;
-                double-click)
-                    body="$(_json_body x "${1:-0}" y "${2:-0}")"
-                    out="$(_input_post /input/double-click "$body")" || exit 1
-                    printf '%s\n' "$out"
-                    exit 0
-                    ;;
-                type)
-                    body="$(_json_body text "$*")"
-                    out="$(_input_post /input/type "$body")" || exit 1
-                    printf '%s\n' "$out"
-                    exit 0
-                    ;;
-                key)
-                    body="$(_json_body name "${1:-}")"
-                    out="$(_input_post /input/key "$body")" || exit 1
-                    printf '%s\n' "$out"
-                    exit 0
-                    ;;
-                key-combo)
-                    body="$(_json_body combo "$*")"
-                    out="$(_input_post /input/key-combo "$body")" || exit 1
-                    printf '%s\n' "$out"
-                    exit 0
-                    ;;
-            esac
-        fi
-        ;;
-esac
-
-# Translate the helper's Linux path to a UNC path Windows can read,
-# then invoke via mios-windows ps -File. wslpath -w converts.
-WIN_PS1="$(wslpath -w "$PS1_HELPER" 2>/dev/null)"
-if [ -z "$WIN_PS1" ]; then
-    echo "mios-pc-control: wslpath failed for $PS1_HELPER" >&2
-    exit 1
-fi
-
-# Forward to PowerShell helper with subcommand as -Action <name>
-# and remaining args as -Args <arg1> <arg2> ...
-mios-windows ps "& '$WIN_PS1' -Action '$sub' $JSON_FLAG $*"
+if __name__ == "__main__":
+    main()

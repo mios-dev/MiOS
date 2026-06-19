@@ -256,7 +256,7 @@ if [ -z "${MIOS_LAUNCH_NO_PREFLIGHT:-}" ] && [ -e /mnt/c/Windows/System32/cmd.ex
     done
     _wxe="${_wxe%/}"
     if [ -n "$_wxe" ]; then
-        _pf_wins="$(curl -s --max-time 5 "$_wxe/windows" 2>/dev/null)"
+        _pf_wins="$(curl -s --connect-timeout 1 --max-time 3 "$_wxe/windows" 2>/dev/null)"
         _pf_title="$(MIOS_PF_WINS="$_pf_wins" python3 - "$_ORIG_NAME" "$NAME" <<'PYEOF' 2>/dev/null
 import sys, json, re, os
 def norm(s):
@@ -398,35 +398,21 @@ if [ -n "$_override_cmd" ]; then
 fi
 
 # ─── 3a2. WINDOWS executor FIRST ─────────────────────────────────────
-# operator 2026-05-29: "make the Windows executor the first launch attempt for
-# any app that resolves on the Windows side." On WSL+Windows, try the in-session
-# executor BEFORE any Linux resolution (Everything / games / .desktop / flatpak
-# desc-chain). `mios-windows launch` POSTs to the OS-control executor running
-# INSIDE the operator's interactive desktop session, which resolves via Start
-# Menu / App Paths / PATH + Start-Process:
-#   * RESOLVES on Windows (fired:true) -> the window appears on the REAL desktop,
-#     verified + centered, and we exit. This is the ONLY reliable GUI launch on
-#     WSL2+Windows -- the broker/interop route leaves multi-process Electron apps
-#     (Discord/Slack/Teams) WINDOWLESS in a non-interactive window station
-#     (proven live: Discord/Notepad open via the executor, not via the chain).
-#   * does NOT resolve on Windows (fired:false -- a Linux-only flatpak like
-#     epiphany/nautilus/ptyxis whose name has no Windows .exe/.lnk) ->
-#     `mios-windows launch` returns non-zero FAST (the executor early-returns on
-#     a resolve miss) and we fall through to the Linux resolution below.
-# Placed AFTER the launcher-override (so CDP/ChromeDev keep their wrapper) but
-# BEFORE Everything/games/desc-chain so "notepad"/"calc"/"discord"/"chrome" open
-# as the real WINDOWS app (centered, verified) instead of a WSLg look-alike.
-# URLs / mios-* shims / explicit paths / "windows X" qualifiers were already
-# handled (exec'd) above. No hardcoded app list -- Windows resolution decides.
-# (REMOVED 2026-05-30) The Windows-executor-FIRST attempt lived here. Per the
-# operator's binding rule -- "MiOS uses Linux Flatpaks as the DEFAULT for
-# everything; resort to Windows ONLY after exhausting ALL Linux options" --
-# Windows resolution now happens ONLY in the last-resort fallback (section 7b),
-# AFTER the Linux flatpak/RPM/CLI/desc-chain resolution below. "Open X" defaults
-# to Linux; Windows is reached only when Linux is exhausted, OR when the request
-# explicitly hints Windows (the "windows X" qualifier in section 3) or names a
-# Windows-only target (a Steam/Store game).
-:
+# Operator binding 2026-06-17: "We want windows native apps to ALWAYS have precedence."
+# Try Windows resolution BEFORE Linux flatpak/RPM/CLI. `mios-windows launch` posts
+# to the OS-control executor which checks Start Menu/App Paths. If it resolves, it
+# launches the real Windows app and exits 0. If not, it returns non-zero fast and
+# we fall through to the Linux resolution below.
+if [ -e /mnt/c/Windows/System32/cmd.exe ] && command -v mios-windows >/dev/null 2>&1; then
+    for _wt in "$_ORIG_NAME" "$NAME"; do
+        [ -z "$_wt" ] && continue
+        echo "mios-launch: Windows precedence -> mios-windows launch '$_wt'" >&2
+        if mios-windows launch "$_wt" "$@"; then
+            exit 0
+        fi
+        [ "$NAME" = "$_ORIG_NAME" ] && break
+    done
+fi
 
 # ─── 3aa. Exact .exe lookup via Everything CLI ───────────────────────
 # For launcher / client names that don't live in the Windows-GUI
@@ -503,8 +489,7 @@ if [ -r "$_GAMES_CACHE" ]; then
         #   * full `mios-windows launch ...` command line -- already shaped
         case "$_hit_cmd" in
             mios-windows*)
-                # shellcheck disable=SC2086
-                eval exec "$_hit_cmd"
+                eval exec "$_hit_cmd" '"$@"'
                 ;;
             *)
                 exec mios-windows launch "$_hit_cmd"
@@ -528,24 +513,7 @@ case "$NAME" in
         ;;
 esac
 
-# ─── 5. Linux GUI (delegate the shim/flatpak/host-RPM resolution to mios-gui) ─
-# mios-gui already does all three steps with .desktop-presence as the
-# host-RPM gating signal. Only call it if we have something it might
-# actually handle.
-if [ -x /usr/local/bin/"$NAME" ] || [ -x /usr/bin/"$NAME" ] \
-   || flatpak list --system --columns=application 2>/dev/null \
-        | awk -v n="$(echo "$NAME" | tr '[:upper:]' '[:lower:]')" \
-            '{ s=$1; sub(/.*\./,"",s); if (tolower(s)==n) found=1 } END {exit !found}'; then
-    if [ -f "/usr/share/applications/${NAME}.desktop" ] \
-       || flatpak list --system --columns=application 2>/dev/null \
-            | awk -v n="$(echo "$NAME" | tr '[:upper:]' '[:lower:]')" \
-                '{ s=$1; sub(/.*\./,"",s); if (tolower(s)==n) found=1 } END {exit !found}' \
-       || [ -x /usr/local/bin/"$NAME" ]; then
-        exec mios-gui "$NAME" "$@"
-    fi
-fi
-
-# ─── 5b. WSL Windows-host: in-session executor with the CLEAN name FIRST ──────
+# ─── 5. WSL Windows-host: in-session executor with the CLEAN name FIRST ──────
 # operator 2026-06-07: "open notepad" must open WINDOWS Notepad, not the wine
 # wrapper. MUST run BEFORE the Plain-CLI section below: a same-named Linux/wine
 # shim on PATH (there IS a `notepad` wine wrapper) would otherwise `exec` first and
@@ -556,7 +524,7 @@ fi
 # DIRECTLY (not full `mios-windows launch`) to skip its slow Start-Menu/Everything
 # fallbacks, and pass the CLEAN original name (NOT the inventory's flaky windows-app
 # AppX-GUID whose interop Start-Process can hang). Reachable over the WSL gateway
-# with Tailscale OFF. Real Linux GUI flatpaks are already caught at section 5 above.
+# with Tailscale OFF. Real Linux GUI flatpaks are already caught at section 4 above.
 if grep -qiE 'microsoft|wsl' /proc/sys/kernel/osrelease 2>/dev/null \
    && command -v curl >/dev/null 2>&1 && command -v python3 >/dev/null 2>&1; then
     _xep=""
@@ -570,16 +538,34 @@ if grep -qiE 'microsoft|wsl' /proc/sys/kernel/osrelease 2>/dev/null \
         [ -n "$_xgw" ] && _xep="http://${_xgw}:${MIOS_OSCONTROL_PORT:-11437}"
     fi
     _xep="${_xep%/}"
-    if [ -n "$_xep" ] && curl -fsS -m 2 "$_xep/health" >/dev/null 2>&1; then
-        _xbody="$(python3 -c 'import json,sys,os; print(json.dumps({"app": sys.argv[1], "center": True, "verify": os.environ.get("MIOS_LAUNCH_TITLE_HINT","")}))' "$_ORIG_NAME" 2>/dev/null || true)"
+    if [ -n "$_xep" ] && curl -fsS --connect-timeout 1 --max-time 2 "$_xep/health" >/dev/null 2>&1; then
+        _xbody="$(python3 -c 'import json,sys,os; print(json.dumps({"app": sys.argv[1], "position": os.environ.get("MIOS_LAUNCH_POSITION", "default"), "verify": os.environ.get("MIOS_LAUNCH_TITLE_HINT","")}))' "$_ORIG_NAME" 2>/dev/null || true)"
         if [ -n "$_xbody" ]; then
-            _xresp="$(curl -s -m 30 -X POST "$_xep/launch" -H 'Content-Type: application/json' -d "$_xbody" 2>/dev/null || true)"
+            _xresp="$(curl -s --connect-timeout 5 --max-time 30 -X POST "$_xep/launch" -H 'Content-Type: application/json' -d "$_xbody" 2>/dev/null || true)"
             case "$_xresp" in
                 *'"launched": true'*|*'"launched":true'*|*'"fired": true'*|*'"fired":true'*)
                     echo "mios-launch: launched '$_ORIG_NAME' via in-session executor (Windows-native)" >&2
                     exit 0 ;;
             esac
         fi
+    fi
+fi
+
+# ─── 5b. Linux GUI (delegate the shim/flatpak/host-RPM resolution to mios-gui) ─
+# mios-gui already does all three steps with .desktop-presence as the
+# host-RPM gating signal. Only call it if we have something it might
+# actually handle.
+if [ -f "/usr/share/applications/${NAME}.desktop" ] \
+   || [ -x /usr/local/bin/"$NAME" ] || [ -x /usr/bin/"$NAME" ] \
+   || flatpak list --system --columns=application 2>/dev/null \
+        | awk -v n="$(echo "$NAME" | tr '[:upper:]' '[:lower:]')" \
+            '{ s=$1; sub(/.*\./,"",s); if (tolower(s)==n) found=1 } END {exit !found}'; then
+    if [ -f "/usr/share/applications/${NAME}.desktop" ] \
+       || flatpak list --system --columns=application 2>/dev/null \
+            | awk -v n="$(echo "$NAME" | tr '[:upper:]' '[:lower:]')" \
+                '{ s=$1; sub(/.*\./,"",s); if (tolower(s)==n) found=1 } END {exit !found}' \
+       || [ -x /usr/local/bin/"$NAME" ] || [ -x /usr/bin/"$NAME" ]; then
+        exec mios-gui "$NAME" "$@"
     fi
 fi
 
@@ -731,8 +717,8 @@ if [ -n "$_DESC_CHAIN" ]; then
         # bare `eval` tripped set -e). Now a miss just advances to the next
         # candidate, and after all Linux candidates fail we reach the Windows
         # generative fallback below.
-        # shellcheck disable=SC2086
-        if eval $_LAUNCH "$@"; then
+        # Evaluate the launch command with proper quoting to preserve arguments
+        if eval "$_LAUNCH" '"$@"'; then
             exit 0
         fi
         echo "mios-launch: try $_i failed; next" >&2
@@ -743,30 +729,9 @@ EOF
     # fall through to the Windows generative fallback below (don't exit yet)
 fi
 
-# ─── 7b. Windows generative fallback (App Paths / Start Menu / Everything) ───
-# operator 2026-05-29 ("MULTIPLE FAILURES"): Linux-first resolution + the
-# desc-chain can't always launch a Windows-only app -- e.g. "Notepad" matched
-# only the Linux `wine-notepad` (not installed) and gave up. Before declaring
-# no-resolution, hand the bare name to the Windows side, which resolves it
-# GENERATIVELY via the App Paths registry (HKLM+HKCU), the System32/Windows
-# dirs, the Start Menu .lnk catalog, and the Everything index -- no hardcoded
-# app list. This is what makes "notepad", "taskmgr", "regedit", and any
-# operator-installed Windows app launch. Inert off-WSL (no cmd.exe).
-if [ -e /mnt/c/Windows/System32/cmd.exe ] && command -v mios-windows >/dev/null 2>&1; then
-    # Try the user's ORIGINAL term first: a Linux freedesktop alias (step 0,
-    # e.g. calculator->gnome-calculator) must NOT poison generative Windows
-    # resolution -- the Windows side knows "Calculator", not the absent Linux
-    # app id. mios-windows returns non-zero on a resolve miss, so a miss falls
-    # through to the (possibly aliased) NAME. No hardcoded app list.
-    for _wt in "$_ORIG_NAME" "$NAME"; do
-        [ -z "$_wt" ] && continue
-        echo "mios-launch: Windows fallback -> mios-windows launch '$_wt'" >&2
-        if mios-windows launch "$_wt" "$@"; then
-            exit 0
-        fi
-        [ "$NAME" = "$_ORIG_NAME" ] && break
-    done
-fi
+# ─── 7b. Windows generative fallback ─────────────────────────────────────
+# Handled at step 3a2.
+
 
 # ─── No resolution -- show candidates ────────────────────────────────
 echo "mios-launch: no resolution for '$NAME'" >&2

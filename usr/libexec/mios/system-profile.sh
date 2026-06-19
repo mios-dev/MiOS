@@ -311,7 +311,7 @@ compare_profiles() {
         
         echo -e "${BOLD}Available Profiles:${NC}\n"
         for i in "${!profiles[@]}"; do
-            local date=$(stat -c %y "${profiles[$i]}" 2>/dev/null | cut -d' ' -f1)
+            local date=$(python3 -c "import os, sys, datetime; print(datetime.date.fromtimestamp(os.path.getmtime(sys.argv[1])))" "${profiles[$i]}" 2>/dev/null || stat -c %y "${profiles[$i]}" 2>/dev/null | cut -d' ' -f1 || stat -f "%Sm" -t "%Y-%m-%d" "${profiles[$i]}" 2>/dev/null || echo "unknown")
             echo "  $((i+1))) $(basename "${profiles[$i]}") ($date)"
         done
         

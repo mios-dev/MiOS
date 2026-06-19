@@ -52,7 +52,7 @@ _MIOS_DB = "/usr/libexec/mios/mios-db"
 
 
 def _pgesc(s) -> str:
-    return str(s).replace("'", "''")
+    return str(s).replace("'", "''").replace("\x00", "")
 
 
 def _pgq(s) -> str:
@@ -225,7 +225,7 @@ def cmd_alias_add(args: argparse.Namespace) -> int:
 
 
 def cmd_alias_rm(args: argparse.Namespace) -> int:
-    phrase = args.phrase.strip().lower().replace("'", "''")
+    phrase = args.phrase.strip().lower().replace("'", "''").replace("\x00", "")
     _pg_exec(f"DELETE FROM resolves_to WHERE phrase = '{phrase}'; "
              f"DELETE FROM alias WHERE phrase = '{phrase}';")
     print(f"alias: removed {phrase!r}")
@@ -257,7 +257,7 @@ def cmd_alias_list(args: argparse.Namespace) -> int:
 
 # ─── lookup ────────────────────────────────────────────────────────
 def cmd_lookup(args: argparse.Namespace) -> int:
-    phrase = args.phrase.strip().lower().replace("'", "''")
+    phrase = args.phrase.strip().lower().replace("'", "''").replace("\x00", "")
     # Exact first; fall back to contains. SurrealDB doesn't accept
     # boolean expressions in ORDER BY, so we run the queries in
     # priority order and pick the first non-empty. pg JOINs replace the
@@ -313,7 +313,7 @@ def cmd_lookup(args: argparse.Namespace) -> int:
 
 # ─── apps ──────────────────────────────────────────────────────────
 def cmd_apps(args: argparse.Namespace) -> int:
-    filt = (args.filter or "").strip().lower().replace("'", "''")
+    filt = (args.filter or "").strip().lower().replace("'", "''").replace("\x00", "")
     pgwhere = (f"WHERE short_name ILIKE '%{filt}%' " if filt else "")
     rows = _pg_rows(f"SELECT short_name, source, label FROM app_install "
                     f"{pgwhere}ORDER BY short_name LIMIT 50")

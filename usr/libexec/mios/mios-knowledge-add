@@ -228,7 +228,10 @@ def main() -> int:
             print(f"  - {f}  ({f.stat().st_size} bytes)")
         return 0
 
-    c = sqlite3.connect(str(db))
+    c = sqlite3.connect(str(db), timeout=60.0)
+    c.execute("PRAGMA journal_mode=WAL")
+    c.execute("PRAGMA synchronous=NORMAL")
+    c.execute("PRAGMA busy_timeout=60000")
     user_id = _admin_user_id(c)
     if not user_id:
         sys.stderr.write("mios-knowledge-add: no admin user found "

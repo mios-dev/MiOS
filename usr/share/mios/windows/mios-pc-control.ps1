@@ -283,14 +283,19 @@ public class MiosWin {
 
     'window-focus' {
         $arg = $Args[0]
-        $hwnd = $null
+        $hwnd = [IntPtr]::Zero
         if ($arg -match '^\d+$') {
-            # Try as PID first; fall back to interpreting as hwnd
-            $proc = Get-Process -Id ([int]$arg) -ErrorAction SilentlyContinue
-            if ($proc -and $proc.MainWindowHandle -ne 0) {
-                $hwnd = $proc.MainWindowHandle
-            } else {
-                $hwnd = [IntPtr]([int64]$arg)
+            $val = [int64]$arg
+            if ($val -lt 1000000) {
+                try {
+                    $proc = Get-Process -Id ([int]$val) -ErrorAction Stop
+                    if ($proc -and $proc.MainWindowHandle -ne 0) {
+                        $hwnd = $proc.MainWindowHandle
+                    }
+                } catch {}
+            }
+            if ($hwnd -eq [IntPtr]::Zero) {
+                $hwnd = [IntPtr]$val
             }
         } else {
             throw "window-focus: <hwnd-or-pid> must be numeric"
@@ -333,14 +338,19 @@ public class MiosWin {
         # Try treating $arg as hwnd first; if it's a small int (PID),
         # resolve to the process's main window handle.
         $hwnd = [IntPtr]::Zero
-        if ($arg -match '^\d+$' -and [int64]$arg -lt 1000000) {
-            try {
-                $proc = Get-Process -Id ([int]$arg) -ErrorAction Stop
-                $hwnd = $proc.MainWindowHandle
-            } catch {}
-        }
-        if ($hwnd -eq [IntPtr]::Zero) {
-            $hwnd = [IntPtr]([int64]$arg)
+        if ($arg -match '^\d+$') {
+            $val = [int64]$arg
+            if ($val -lt 1000000) {
+                try {
+                    $proc = Get-Process -Id ([int]$val) -ErrorAction Stop
+                    if ($proc -and $proc.MainWindowHandle -ne 0) {
+                        $hwnd = $proc.MainWindowHandle
+                    }
+                } catch {}
+            }
+            if ($hwnd -eq [IntPtr]::Zero) {
+                $hwnd = [IntPtr]$val
+            }
         }
         if ($hwnd -eq [IntPtr]::Zero) {
             throw "window-center: could not resolve '$arg' to a window handle"
@@ -376,13 +386,19 @@ public class MiosWin {
         # "close the agent crew" -- self-terminated. WM_CLOSE on the
         # right window is the correct verb every time.
         $arg = $Args[0]
-        $hwnd = $null
+        $hwnd = [IntPtr]::Zero
         if ($arg -match '^\d+$') {
-            $proc = Get-Process -Id ([int]$arg) -ErrorAction SilentlyContinue
-            if ($proc -and $proc.MainWindowHandle -ne 0) {
-                $hwnd = $proc.MainWindowHandle
-            } else {
-                $hwnd = [IntPtr]([int64]$arg)
+            $val = [int64]$arg
+            if ($val -lt 1000000) {
+                try {
+                    $proc = Get-Process -Id ([int]$val) -ErrorAction Stop
+                    if ($proc -and $proc.MainWindowHandle -ne 0) {
+                        $hwnd = $proc.MainWindowHandle
+                    }
+                } catch {}
+            }
+            if ($hwnd -eq [IntPtr]::Zero) {
+                $hwnd = [IntPtr]$val
             }
         } else {
             throw "window-close: <hwnd-or-pid> must be numeric"

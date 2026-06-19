@@ -33,7 +33,7 @@ resolves. Pure stdlib (socket + json) so it has no in-sandbox deps.
 
 from __future__ import annotations
 
-import json
+import json as _json
 import os
 import socket
 from typing import Any
@@ -52,7 +52,7 @@ class ToolError(RuntimeError):
 def _rpc(verb: str, args: dict) -> Any:
     """One newline-delimited JSON request -> one JSON response over the mounted
     unix socket. Raises ToolError on any transport/host failure."""
-    req = json.dumps({"verb": verb, "args": args or {}},
+    req = _json.dumps({"verb": verb, "args": args or {}},
                      ensure_ascii=False) + "\n"
     try:
         s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -83,7 +83,7 @@ def _rpc(verb: str, args: dict) -> Any:
     # The host writes one JSON line; take the last non-empty one defensively.
     line = [ln for ln in raw.splitlines() if ln.strip()][-1]
     try:
-        resp = json.loads(line)
+        resp = _json.loads(line)
     except ValueError as e:
         raise ToolError(f"bad response for {verb}: {raw[:200]}") from e
     if isinstance(resp, dict) and resp.get("error"):
@@ -127,5 +127,4 @@ def json(obj: Any) -> str:
     """Serialise the snippet's FINAL filtered result. The Code Mode convention is
     to print this as the last stdout line so the host surfaces it under
     `result`. Equivalent to json.dumps(obj, ensure_ascii=False)."""
-    import json as _j
-    return _j.dumps(obj, ensure_ascii=False)
+    return _json.dumps(obj, ensure_ascii=False)

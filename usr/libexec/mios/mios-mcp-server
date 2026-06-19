@@ -73,8 +73,15 @@ def _http_get(path: str, timeout: int | None = None) -> dict:
         f"{AGENT_PIPE_URL}{path}",
         headers={"Accept": "application/json"},
     )
-    with urllib.request.urlopen(req, timeout=timeout or TIMEOUT_S) as r:
-        return json.loads(r.read().decode("utf-8", errors="replace"))
+    try:
+        with urllib.request.urlopen(req, timeout=timeout or TIMEOUT_S) as r:
+            return json.loads(r.read().decode("utf-8", errors="replace"))
+    except urllib.error.HTTPError as e:
+        raw = e.read().decode("utf-8", errors="replace")
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            return {"success": False, "error": f"HTTP {e.code}: {raw}"}
 
 
 def _http_post(path: str, body: dict) -> dict:
@@ -87,8 +94,15 @@ def _http_post(path: str, body: dict) -> dict:
         },
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=TIMEOUT_S) as r:
-        return json.loads(r.read().decode("utf-8", errors="replace"))
+    try:
+        with urllib.request.urlopen(req, timeout=TIMEOUT_S) as r:
+            return json.loads(r.read().decode("utf-8", errors="replace"))
+    except urllib.error.HTTPError as e:
+        raw = e.read().decode("utf-8", errors="replace")
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            return {"success": False, "error": f"HTTP {e.code}: {raw}"}
 
 
 def _ok(mid, result: dict) -> dict:
@@ -327,7 +341,10 @@ def _is_poisoned(live: list, cached) -> bool:
 
 def _fetch_live_tools(timeout: int | None = None) -> list:
     """Fetch + convert the live agent-pipe catalog. Raises on transport failure."""
-    return _build_mcp_tools(_http_get("/v1/tools", timeout=timeout))
+    data = _http_get("/v1/tools", timeout=timeout)
+    if isinstance(data, dict) and data.get("error"):
+        raise Exception(f"agent-pipe error: {data['error']}")
+    return _build_mcp_tools(data)
 
 
 def _refresh_once() -> bool:
@@ -471,6 +488,8 @@ def _handle_resources_list(mid, _params: dict) -> dict:
         return _err(mid, -32000, f"agent-pipe unreachable: {e.reason}")
     except Exception as e:
         return _err(mid, -32000, f"resources fetch failed: {e}")
+    if isinstance(data, dict) and data.get("error"):
+        return _err(mid, -32000, str(data.get("error")))
     return _ok(mid, {"resources": data.get("resources") or []})
 
 
@@ -677,6 +696,10 @@ def main() -> int:
         _run_http(port)
         return 0
     # Line-delimited JSON-RPC over stdio.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+    if hasattr(sys.stdin, "reconfigure"):
+        sys.stdin.reconfigure(encoding="utf-8")
     for raw in sys.stdin:
         line = raw.strip()
         if not line:

@@ -189,6 +189,8 @@ async def _passthrough(path: str, req: Request):
     body = await req.body()
     try:
         payload = json.loads(body) if body else {}
+        if not isinstance(payload, dict):
+            payload = {}
     except Exception:
         payload = {}
     requested = payload.get("model") or "mios-orchestrator"

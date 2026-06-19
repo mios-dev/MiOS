@@ -68,7 +68,7 @@ _mios_osc_endpoint() {
     # unreachable/stale endpoint degrades to "" (-> unconfirmed) instead of
     # making every confirm poll time out.
     if [ -n "$_ep" ] && command -v curl >/dev/null 2>&1 \
-       && curl -fsS -m 3 "$_ep/health" >/dev/null 2>&1; then
+       && curl -fsS --connect-timeout 1 --max-time 3 "$_ep/health" >/dev/null 2>&1; then
         printf '%s\n' "$_ep"
     fi
 }
@@ -80,7 +80,7 @@ _mios_window_hwnds() {  # <endpoint>
     [ -n "${1:-}" ] || { printf ''; return 0; }
     command -v curl    >/dev/null 2>&1 || { printf ''; return 0; }
     command -v python3 >/dev/null 2>&1 || { printf ''; return 0; }
-    curl -s --max-time 5 "$1/windows" 2>/dev/null | python3 -c '
+    curl -s --connect-timeout 1 --max-time 3 "$1/windows" 2>/dev/null | python3 -c '
 import sys, json
 try:
     d = json.load(sys.stdin)
@@ -188,7 +188,21 @@ else
     # operator-session escape flatpak-launch uses.
     HOST_BIN=""
     if [ -z "$APP_ID" ]; then
-        if cand="$(command -v "$APP" 2>/dev/null)" && [ -x "$cand" ]; then
+        # If a .desktop file exists directly matching the requested app name,
+        # extract the executable binary name from it.
+        if [ -f "/usr/share/applications/${APP}.desktop" ]; then
+            exec_line="$(grep -E '^Exec=' "/usr/share/applications/${APP}.desktop" | head -1 | sed 's/^Exec=//')"
+            exec_bin="$(echo "$exec_line" | awk '{print $1}')"
+            exec_bin_base="$(basename "$exec_bin")"
+            if cand="$(command -v "$exec_bin_base" 2>/dev/null)" && [ -x "$cand" ]; then
+                HOST_BIN="$cand"
+            elif [ -x "$exec_bin" ]; then
+                HOST_BIN="$exec_bin"
+            fi
+        fi
+
+        # Fallback: check if the app name itself is a binary on PATH and has a matching desktop file.
+        if [ -z "$HOST_BIN" ] && cand="$(command -v "$APP" 2>/dev/null)" && [ -x "$cand" ]; then
             # find any matching .desktop (case-insensitive on the Exec= line
             # OR a bare $APP.desktop)
             if [ -f "/usr/share/applications/${APP}.desktop" ] \

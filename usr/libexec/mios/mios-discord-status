@@ -104,14 +104,15 @@ rm -f "$TMP"
 hdr "channel_directory.json"
 if [ -r "$DIRECTORY" ]; then
     echo "  $(ls -la "$DIRECTORY")"
-    AGE_S=$(( $(date +%s) - $(stat -c %Y "$DIRECTORY") ))
+    MTIME=$(python3 -c "import os, sys; print(int(os.path.getmtime(sys.argv[1])))" "$DIRECTORY" 2>/dev/null || stat -c %Y "$DIRECTORY" 2>/dev/null || stat -f %m "$DIRECTORY" 2>/dev/null || echo 0)
+    AGE_S=$(( $(date +%s) - MTIME ))
     AGE_MIN=$(( AGE_S / 60 ))
     if [ "$AGE_MIN" -gt 1440 ]; then
         yellow "  age: ${AGE_MIN}min -- stale (>24h). Restart hermes-agent.service to refresh."
     else
         echo "  age: ${AGE_MIN}min"
     fi
-    DCOUNT=$(python3 -c "import json; print(len(json.load(open('$DIRECTORY')).get('platforms',{}).get('discord',[])))" 2>/dev/null || echo "?")
+    DCOUNT=$(python3 -c "import json, sys; print(len(json.load(open(sys.argv[1])).get('platforms',{}).get('discord',[])))" "$DIRECTORY" 2>/dev/null || echo "?")
     echo "  discord entries cached: $DCOUNT"
 else
     yellow "  $DIRECTORY not present yet (hermes hasn't fetched the directory yet)"

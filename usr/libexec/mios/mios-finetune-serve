@@ -103,9 +103,12 @@ def _load():
     dt = torch.bfloat16 if _DEV in ("cuda", "rocm") else torch.float32
     print(f"[finetune-serve] loading {base} + adapter on {_DEV} ...", flush=True)
     _TOK = AutoTokenizer.from_pretrained(base, trust_remote_code=True)
+    max_mem = os.environ.get("MIOS_MAX_MEMORY")
+    max_mem_dict = {0: max_mem} if max_mem and _DEV in ("cuda", "rocm") else None
     m = AutoModelForCausalLM.from_pretrained(
         base, trust_remote_code=True, torch_dtype=dt,
-        device_map=("auto" if _DEV in ("cuda", "rocm") else None))
+        device_map=("auto" if _DEV in ("cuda", "rocm") else None),
+        max_memory=max_mem_dict)
     if _DEV == "mps":
         m = m.to("mps")
     _MODEL = PeftModel.from_pretrained(m, adapter)
@@ -156,10 +159,20 @@ class H(BaseHTTPRequestHandler):
             return self._send(400, {"error": f"bad request: {e}"})
         msgs = req.get("messages") or []
         opts = req.get("options") or {}
-        max_t = req.get("max_tokens") or opts.get("num_predict") or 512
-        temp = req.get("temperature")
-        if temp is None:
-            temp = opts.get("temperature", 0)
+        try:
+            max_t = int(req.get("max_tokens") or opts.get("num_predict") or 512)
+            max_t = max(1, min(max_t, 4096))  # Memory limit guardrail
+        except (ValueError, TypeError):
+            max_t = 512
+        
+        try:
+            temp = req.get("temperature")
+            if temp is None:
+                temp = opts.get("temperature", 0)
+            temp = float(temp)
+            temp = max(0.0, min(temp, 2.0))
+        except (ValueError, TypeError):
+            temp = 0.0
         try:
             t0 = time.time()
             content = _generate(msgs, max_t, temp)

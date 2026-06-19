@@ -49,14 +49,14 @@ TIMEOUT = float(os.environ.get("MIOS_SUMMARIZE_TIMEOUT", "120"))
 _L0_PROMPT = (
     "Summarise the following document in ONE sentence (max ~100 tokens). "
     "Capture the single most important fact/purpose for fast navigation. "
-    "Output ONLY the sentence, no preamble.\n\n---\n{body}\n---")
+    "Output ONLY the sentence, no preamble.")
 _L1_PROMPT = (
     "Produce a structured OVERVIEW of the following document (max ~2000 "
     "tokens): list its sections/topics, the key points, and how it would "
-    "be used. Use terse markdown bullets. No preamble.\n\n---\n{body}\n---")
+    "be used. Use terse markdown bullets. No preamble.")
 
 
-def _chat(prompt: str) -> str:
+def _chat(sys_prompt: str, doc_body: str) -> str:
     """One completion on the light lane via OpenAI /v1 (the ollama /api/chat lane
     :11435 was retired in the llama.cpp cutover). Returns text or ''."""
     base = ENDPOINT.rstrip("/")
@@ -64,7 +64,10 @@ def _chat(prompt: str) -> str:
         base += "/v1"
     body = {
         "model": MODEL,
-        "messages": [{"role": "user", "content": prompt}],
+        "messages": [
+            {"role": "system", "content": sys_prompt},
+            {"role": "user", "content": doc_body}
+        ],
         "stream": False,
         # qwen3 thinking off so the summary isn't polluted (llama.cpp honors this;
         # the </think> strip below is the robust fallback if it isn't applied).
@@ -75,15 +78,19 @@ def _chat(prompt: str) -> str:
         data=json.dumps(body).encode("utf-8"),
         headers={"Content-Type": "application/json"},
         method="POST")
-    try:
-        with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
-            d = json.loads(r.read().decode("utf-8", errors="replace"))
-        txt = str(((d.get("choices") or [{}])[0].get("message") or {}).get("content") or "")
-        if "</think>" in txt:          # drop any qwen3 thinking prefix
-            txt = txt.split("</think>", 1)[-1]
-        return txt.strip()
-    except Exception as e:  # noqa: BLE001
-        raise RuntimeError(f"{type(e).__name__}: {e}")
+    import time
+    for attempt in range(3):
+        try:
+            with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
+                d = json.loads(r.read().decode("utf-8", errors="replace"))
+            txt = str(((d.get("choices") or [{}])[0].get("message") or {}).get("content") or "")
+            if "</think>" in txt:          # drop any qwen3 thinking prefix
+                txt = txt.split("</think>", 1)[-1]
+            return txt.strip()
+        except Exception as e:  # noqa: BLE001
+            if attempt == 2:
+                raise RuntimeError(f"{type(e).__name__}: {e}")
+            time.sleep(1.0 * (attempt + 1))
 
 
 def main() -> int:
@@ -125,9 +132,9 @@ def main() -> int:
     }
     try:
         if "l0" in tiers:
-            out["l0"] = _chat(_L0_PROMPT.format(body=model_body))
+            out["l0"] = _chat(_L0_PROMPT, model_body)
         if "l1" in tiers:
-            out["l1"] = _chat(_L1_PROMPT.format(body=model_body))
+            out["l1"] = _chat(_L1_PROMPT, model_body)
     except RuntimeError as e:
         print(json.dumps({"ok": False, "error": str(e),
                           "endpoint": ENDPOINT, "model": MODEL}))

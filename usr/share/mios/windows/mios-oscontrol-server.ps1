@@ -187,6 +187,8 @@ public class OSCW32 {
     [DllImport("user32.dll", SetLastError=true)] public static extern bool SystemParametersInfo(uint uiAction, uint uiParam, IntPtr pvParam, uint fWinIni);
     [DllImport("user32.dll")] public static extern bool AllowSetForegroundWindow(int dwProcessId);
     [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
+    [DllImport("user32.dll")] public static extern bool IsZoomed(IntPtr h);
+    [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr h);
     public delegate bool EnumWindowsProc(IntPtr h, IntPtr l);
     [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }
     public const uint MOUSEEVENTF_LEFTDOWN  = 0x0002;
@@ -290,7 +292,7 @@ function Resolve-TargetWindows($hwnd, $title) {
 # Perform a window op on the matching window(s). op = close|focus|move|resize|
 # state. close is a GRACEFUL WM_CLOSE (operator binding: never force-kill /
 # Stop-Process a window). Returns {ok, op, count, matched:[...]}.
-function Invoke-WindowOp($op, $hwnd, $title, $x, $y, $w, $h, $state) {
+function Invoke-WindowOp($op, $hwnd, $title, $x, $y, $w, $h, $state, $monitor = -1) {
     $WM_CLOSE = 0x0010
     $targets = Resolve-TargetWindows $hwnd $title
     if (-not $targets -or $targets.Count -eq 0) {
@@ -300,26 +302,23 @@ function Invoke-WindowOp($op, $hwnd, $title, $x, $y, $w, $h, $state) {
     $done = New-Object System.Collections.ArrayList
     foreach ($wnd in $targets) {
         $p = [IntPtr]([int64]$wnd.hwnd)
+        if ($op -in @('move', 'resize', 'center', 'position')) {
+            if ([OSCW32]::IsZoomed($p) -or [OSCW32]::IsIconic($p)) {
+                [void][OSCW32]::ShowWindow($p, 9) # SW_RESTORE
+                Start-Sleep -Milliseconds 100      # brief settle
+            }
+        }
         switch ($op) {
             'close'  { [void][OSCW32]::PostMessage($p, $WM_CLOSE, [IntPtr]::Zero, [IntPtr]::Zero) }
             'focus'  {
-                # FORCEFUL foreground (operator 2026-05-26 "Xbox-mode focus didn't
-                # work"): Windows blocks SetForegroundWindow from a background
-                # process (only flashes the taskbar). Bypass the foreground lock by
-                # AttachThreadInput to the current foreground window's thread, then
-                # SetForegroundWindow, and toggle TOPMOST to force the z-order. Works
-                # for normal + borderless-fullscreen windows (true EXCLUSIVE-fullscreen
-                # games can still resist -- a Windows limit).
-                # NO Alt-tap here (operator 2026-06-16): tapping Alt to satisfy the
-                # foreground lock ACTIVATED the target app's MENUBAR (Notepad), so the
-                # FIRST subsequent keystroke went to the menu, not the document, and the
-                # type failed/garbled. Instead, disable the foreground-lock TIMEOUT
-                # (SPI_SETFOREGROUNDLOCKTIMEOUT=0) + AllowSetForegroundWindow(ANY) so
-                # SetForegroundWindow actually wins from this background process
-                # (reclaiming foreground from another app, e.g. VSCodium) WITHOUT any
-                # menu-triggering keystroke. AttachThreadInput + topmost-toggle below
-                # complete the z-order force.
-                [void][OSCW32]::SystemParametersInfo(0x2001, 0, [IntPtr]::Zero, 2)  # SPI_SETFOREGROUNDLOCKTIMEOUT = 0
+                $ptr = [System.Runtime.InteropServices.Marshal]::AllocHGlobal(4)
+                $oldTimeout = 0
+                if ([OSCW32]::SystemParametersInfo(0x2000, 0, $ptr, 0)) {
+                    $oldTimeout = [System.Runtime.InteropServices.Marshal]::ReadInt32($ptr)
+                }
+                [System.Runtime.InteropServices.Marshal]::FreeHGlobal($ptr)
+                
+                [void][OSCW32]::SystemParametersInfo(0x2001, 0, [IntPtr]::Zero, 0)  # SPI_SETFOREGROUNDLOCKTIMEOUT = 0, no persist
                 [void][OSCW32]::AllowSetForegroundWindow(-1)                        # ASFW_ANY
                 $fg = [OSCW32]::GetForegroundWindow()
                 $fgT = 0; [void][OSCW32]::GetWindowThreadProcessId($fg, [ref]$fgT)
@@ -332,6 +331,8 @@ function Invoke-WindowOp($op, $hwnd, $title, $x, $y, $w, $h, $state) {
                 [void][OSCW32]::SetWindowPos($p, [IntPtr](-1), 0, 0, 0, 0, 0x0003)  # HWND_TOPMOST, NOMOVE|NOSIZE
                 [void][OSCW32]::SetWindowPos($p, [IntPtr](-2), 0, 0, 0, 0, 0x0003)  # HWND_NOTOPMOST
                 if ($att) { [void][OSCW32]::AttachThreadInput($myT, $fgT, $false) }
+                
+                [void][OSCW32]::SystemParametersInfo(0x2001, 0, [IntPtr]$oldTimeout, 0) # Restore
             }
             # move/resize/center use SetWindowPos with SWP_ASYNCWINDOWPOS instead
             # of MoveWindow (operator 2026-05-29: the executor stalled DURING a
@@ -355,6 +356,113 @@ function Invoke-WindowOp($op, $hwnd, $title, $x, $y, $w, $h, $state) {
                 # no NOACTIVATE so a centered window stays usable, no synchronous
                 # ShowWindow/SetForegroundWindow (both can also block a busy app).
                 [void][OSCW32]::SetWindowPos($p, [IntPtr]::Zero, $cx, $cy, $cw, $ch, 0x4044)
+            }
+            'position' {
+                Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
+                $screens = [System.Windows.Forms.Screen]::AllScreens
+                $screen = $null
+                if ($monitor -ge 0 -and $monitor -lt $screens.Count) {
+                    $screen = $screens[$monitor]
+                } else {
+                    $screen = [System.Windows.Forms.Screen]::FromHandle($p)
+                }
+                $sc = $screen.WorkingArea
+                $sw = $sc.Width
+                $sh = $sc.Height
+                $sx = $sc.X
+                $sy = $sc.Y
+
+                $pos = $state.ToLower()
+
+                $rect = New-Object OSCW32+RECT
+                [void][OSCW32]::GetWindowRect($p, [ref]$rect)
+                $cw = [int]($rect.Right - $rect.Left)
+                $ch = [int]($rect.Bottom - $rect.Top)
+
+                $nx = $sx; $ny = $sy; $nw = $cw; $nh = $ch
+
+                switch ($pos) {
+                    'default' {
+                        $phi = 1.6180339887
+                        $nw = [int][Math]::Round($sw / $phi)
+                        $nh = [int][Math]::Round($nw * 10.0 / 16.0)
+                        if ($nw -gt $sw)  { $nw = $sw }
+                        if ($nh -gt $sh) { $nh = $sh }
+                        $nx = $sx + [int](($sw - $nw) / 2)
+                        $ny = $sy + [int](($sh - $nh) / 2)
+                    }
+                    'center' {
+                        $nx = $sx + [int](($sw - $cw) / 2)
+                        $ny = $sy + [int](($sh - $ch) / 2)
+                        $nw = $cw
+                        $nh = $ch
+                    }
+                    'left' {
+                        $nx = $sx
+                        $ny = $sy
+                        $nw = [int]($sw / 2)
+                        $nh = $sh
+                    }
+                    'right' {
+                        $nx = $sx + [int]($sw / 2)
+                        $ny = $sy
+                        $nw = [int]($sw / 2)
+                        $nh = $sh
+                    }
+                    'top' {
+                        $nx = $sx
+                        $ny = $sy
+                        $nw = $sw
+                        $nh = [int]($sh / 2)
+                    }
+                    'bottom' {
+                        $nx = $sx
+                        $ny = $sy + [int]($sh / 2)
+                        $nw = $sw
+                        $nh = [int]($sh / 2)
+                    }
+                    'top-left' {
+                        $nx = $sx
+                        $ny = $sy
+                        $nw = [int]($sw / 2)
+                        $nh = [int]($sh / 2)
+                    }
+                    'top-right' {
+                        $nx = $sx + [int]($sw / 2)
+                        $ny = $sy
+                        $nw = [int]($sw / 2)
+                        $nh = [int]($sh / 2)
+                    }
+                    'bottom-left' {
+                        $nx = $sx
+                        $ny = $sy + [int]($sh / 2)
+                        $nw = [int]($sw / 2)
+                        $nh = [int]($sh / 2)
+                    }
+                    'bottom-right' {
+                        $nx = $sx + [int]($sw / 2)
+                        $ny = $sy + [int]($sh / 2)
+                        $nw = [int]($sw / 2)
+                        $nh = [int]($sh / 2)
+                    }
+                    'maximize' {
+                        [void][OSCW32]::ShowWindow($p, 3) # SW_MAXIMIZE
+                        $nx = $sx; $ny = $sy; $nw = $sw; $nh = $sh
+                    }
+                    default {
+                        # fallback to default golden ratio centered geometry
+                        $phi = 1.6180339887
+                        $nw = [int][Math]::Round($sw / $phi)
+                        $nh = [int][Math]::Round($nw * 10.0 / 16.0)
+                        if ($nw -gt $sw)  { $nw = $sw }
+                        if ($nh -gt $sh) { $nh = $sh }
+                        $nx = $sx + [int](($sw - $nw) / 2)
+                        $ny = $sy + [int](($sh - $nh) / 2)
+                    }
+                }
+                if ($pos -ne 'maximize') {
+                    [void][OSCW32]::SetWindowPos($p, [IntPtr]::Zero, $nx, $ny, $nw, $nh, 0x4044) # async|nozorder|showwindow
+                }
             }
             'state'  {
                 $n = 1
@@ -419,7 +527,7 @@ function Find-UIElements($name, $maxN) {
     $fg = [OSCW32]::GetForegroundWindow()
     $root = $null
     try { if ($fg -ne [IntPtr]::Zero) { $root = [System.Windows.Automation.AutomationElement]::FromHandle($fg) } } catch {}
-    if (-not $root) { $root = [System.Windows.Automation.AutomationElement]::RootElement }
+    if (-not $root) { return @() } # DO NOT fall back to RootElement with Descendants!
     $out = @()
     try {
         $all = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants,
@@ -672,7 +780,7 @@ function Resolve-LaunchTarget($name) {
 }
 
 # FIRE a launch on this node's desktop, then poll for the window.
-function Invoke-LaunchAndVerify($app, $center = $false, $verifyName = '') {
+function Invoke-LaunchAndVerify($app, $args = '', $position = 'default', $verifyName = '') {
     # Window-match needle: prefer the human title hint -- a steam:// URI or a
     # shell:appsFolder string never appears in a window title, so verifying a
     # game by $app would always miss (operator 2026-05-30). Falls back to $app.
@@ -689,7 +797,11 @@ function Invoke-LaunchAndVerify($app, $center = $false, $verifyName = '') {
             } else {
                 # exe paths, names, AND protocol URIs (steam:// epic:// uplay://
                 # ...) -- Start-Process invokes the registered protocol handler.
-                Start-Process -FilePath $target -ErrorAction Stop
+                if ($args) {
+                    Start-Process -FilePath $target -ArgumentList $args -ErrorAction Stop
+                } else {
+                    Start-Process -FilePath $target -ErrorAction Stop
+                }
             }
             $fired = $true
         } catch { $fireErr = $_.Exception.Message }
@@ -704,7 +816,7 @@ function Invoke-LaunchAndVerify($app, $center = $false, $verifyName = '') {
     if (-not $fired) {
         return @{ app = $app; node = $env:COMPUTERNAME; host = $env:COMPUTERNAME;
                   target = "$target"; fired = $false; fire_error = $fireErr;
-                  launched = $false; centered = $false;
+                  launched = $false; centered = $false; positioned = $false;
                   verdict = @{ launched = $false; summary = 'not-fired' };
                   ts = [int][double]::Parse((Get-Date -UFormat %s)) }
     }
@@ -715,19 +827,20 @@ function Invoke-LaunchAndVerify($app, $center = $false, $verifyName = '') {
         if ($verdict.launched) { break }
         if ($i -lt ($VerifyAttempts - 1)) { Start-Sleep -Seconds $VerifyIntervalSeconds }
     }
-    # CENTER the launched window (operator 2026-05-29: "launches are ALWAYS
-    # centered -- the default MiOS opening pattern"). Center, briefly settle,
-    # center AGAIN: Electron apps (Discord) restore their saved WINDOW_BOUNDS a
-    # beat after the window maps, which undoes a single early center (proven
-    # live: Discord snapped back to 229,125). The second center -- after the
-    # restore -- wins. Async SetWindowPos, so neither call blocks the listener.
-    $centered = $false
-    if ($center -and $verdict.launched) {
+    # POSITION and FOCUS the launched window (operator 2026-06-17: launches default
+    # to focused and centered unless specified as-is / none / background).
+    # Settle, position + focus, briefly sleep 900ms, and repeat to counter Electron
+    # apps (Discord/Teams) that restore their saved window bounds/states a beat
+    # after mapping.
+    $positioned = $false
+    if ($position -and $position -ne 'as-is' -and $position -ne 'none' -and $verdict.launched) {
         try {
-            [void](Invoke-WindowOp 'center' $null $wname 0 0 0 0 '')
+            [void](Invoke-WindowOp 'position' $null $wname 0 0 0 0 $position)
+            [void](Invoke-WindowOp 'focus' $null $wname 0 0 0 0 '')
             Start-Sleep -Milliseconds 900
-            [void](Invoke-WindowOp 'center' $null $wname 0 0 0 0 '')
-            $centered = $true
+            [void](Invoke-WindowOp 'position' $null $wname 0 0 0 0 $position)
+            [void](Invoke-WindowOp 'focus' $null $wname 0 0 0 0 '')
+            $positioned = $true
         } catch {}
     }
     return @{
@@ -738,7 +851,8 @@ function Invoke-LaunchAndVerify($app, $center = $false, $verifyName = '') {
         fired    = $fired
         fire_error = $fireErr
         launched = [bool]$verdict.launched
-        centered = $centered
+        centered = $positioned
+        positioned = $positioned
         verdict  = $verdict
         ts       = [int][double]::Parse((Get-Date -UFormat %s))
     }
@@ -815,26 +929,29 @@ while ($listener.IsListening) {
             $body = ''
             $reader = New-Object System.IO.StreamReader($ctx.Request.InputStream, $ctx.Request.ContentEncoding)
             try { $body = $reader.ReadToEnd() } finally { $reader.Close() }
-            $app = ''; $center = $false; $verify = ''
+            $app = ''; $args = ''; $position = 'default'; $verify = ''
             if ($body) {
                 try {
                     $j = $body | ConvertFrom-Json
                     $app = ([string]$j.app).Trim()
-                    # Default-ON: launches center by default (operator binding
-                    # "launches are ALWAYS centered"); only an explicit false opts out.
-                    if ($j.PSObject.Properties.Name -contains 'center') {
-                        $center = [bool]$j.center
-                    } else { $center = $true }
-                    # Optional human title hint for the window-match (games: a
-                    # steam:// URI never matches a window title).
+                    if ($j.PSObject.Properties.Name -contains 'args') {
+                        $args = ([string]$j.args)
+                    }
+                    if ($j.PSObject.Properties.Name -contains 'position') {
+                        $position = ([string]$j.position).Trim().ToLower()
+                    } elseif ($j.PSObject.Properties.Name -contains 'center') {
+                        if (-not [bool]$j.center) {
+                            $position = 'as-is'
+                        }
+                    }
                     if ($j.PSObject.Properties.Name -contains 'verify') {
                         $verify = ([string]$j.verify).Trim()
                     }
-                } catch { $app = ''; $center = $true }
+                } catch { $app = ''; $args = ''; $position = 'default' }
             }
             if (-not $app) { Write-JsonResponse $ctx 400 @{ error = "missing 'app' in JSON body" } }
             else {
-                $r = Invoke-LaunchAndVerify $app $center $verify
+                $r = Invoke-LaunchAndVerify $app $args $position $verify
                 ("{0}  launch app={1} fired={2} launched={3}" -f (Get-Date -Format s), $app, $r.fired, $r.launched) |
                     Out-File -FilePath $logFile -Append -Encoding utf8
                 Write-JsonResponse $ctx 200 $r
@@ -850,7 +967,7 @@ while ($listener.IsListening) {
         elseif ($method -eq 'POST' -and $path -like '/window/*') {
             $op = $path.Substring('/window/'.Length)
             $b  = Read-JsonBody $ctx
-            $hwnd  = $null; $title = ''; $x = 0; $y = 0; $ww = 0; $hh = 0; $state = 'restore'
+            $hwnd  = $null; $title = ''; $x = 0; $y = 0; $ww = 0; $hh = 0; $state = 'restore'; $monitor = -1
             if ($b) {
                 if ($b.PSObject.Properties.Name -contains 'hwnd'  -and $b.hwnd)  { $hwnd = [int64]$b.hwnd }
                 if ($b.PSObject.Properties.Name -contains 'title') { $title = "$($b.title)" }
@@ -859,19 +976,19 @@ while ($listener.IsListening) {
                 if ($b.PSObject.Properties.Name -contains 'width')  { $ww = [int]$b.width }
                 if ($b.PSObject.Properties.Name -contains 'height') { $hh = [int]$b.height }
                 if ($b.PSObject.Properties.Name -contains 'state')  { $state = "$($b.state)" }
+                if ($b.PSObject.Properties.Name -contains 'monitor') { $monitor = [int]$b.monitor }
             }
-            if ($op -notin @('close','focus','move','resize','state','center')) {
+            if ($op -notin @('close','focus','move','resize','state','center','position')) {
                 Write-JsonResponse $ctx 404 @{ error = "unknown window op '$op'" }
             }
             elseif (-not $hwnd -and -not $title.Trim()) {
                 Write-JsonResponse $ctx 400 @{ error = "need 'hwnd' or 'title'" }
             }
             else {
-                $r = Invoke-WindowOp $op $hwnd $title $x $y $ww $hh $state
+                $r = Invoke-WindowOp $op $hwnd $title $x $y $ww $hh $state $monitor
                 ("{0}  window {1} title='{2}' hwnd={3} count={4}" -f (Get-Date -Format s), $op, $title, $hwnd, $r.count) |
                     Out-File -FilePath $logFile -Append -Encoding utf8
                 $code = 200
-                if (-not $r.ok) { $code = 404 }
                 Write-JsonResponse $ctx $code $r
             }
         }
@@ -904,7 +1021,6 @@ while ($listener.IsListening) {
                 default        { $r = @{ ok = $false; error = "unknown input op '$op'" } }
             }
             $code = 200
-            if (-not $r.ok) { $code = 400 }
             ("{0}  input {1}" -f (Get-Date -Format s), $op) | Out-File -FilePath $logFile -Append -Encoding utf8
             Write-JsonResponse $ctx $code $r
         }

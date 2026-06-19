@@ -63,15 +63,33 @@ _KB_EMBED_MODEL = os.environ.get("MIOS_RAG_EMBED_MODEL", "nomic-embed-text")
 
 
 def _kb_embed(text: str) -> list:
+    import time
     base = _KB_EMBED_ENDPOINT if _KB_EMBED_ENDPOINT.endswith("/v1") \
         else _KB_EMBED_ENDPOINT + "/v1"
-    req = urllib.request.Request(
-        f"{base}/embeddings",
-        data=json.dumps({"model": _KB_EMBED_MODEL, "input": text[:4000]}).encode(),
-        headers={"Content-Type": "application/json"})
-    r = json.loads(urllib.request.urlopen(req, timeout=30).read())
-    d = r.get("data") or []
-    return (d[0].get("embedding") if d else r.get("embedding")) or []
+    endpoints = [
+        (base, _KB_EMBED_MODEL),
+        ("http://localhost:11434/api", "nomic-embed-text")
+    ]
+    for attempt in range(3):
+        for ep, model in endpoints:
+            try:
+                is_ollama = ep.endswith("/api")
+                payload = {"model": model, "prompt" if is_ollama else "input": text[:4000]}
+                req = urllib.request.Request(
+                    f"{ep}/embeddings",
+                    data=json.dumps(payload).encode(),
+                    headers={"Content-Type": "application/json"}
+                )
+                r = json.loads(urllib.request.urlopen(req, timeout=15).read())
+                d = r.get("data") or []
+                if d:
+                    return d[0].get("embedding") or []
+                if r.get("embedding"):
+                    return r.get("embedding")
+            except Exception:
+                continue
+        time.sleep(1)
+    return []
 
 
 def _kb_pg(sql: str) -> list:
@@ -132,7 +150,7 @@ def _admin_token() -> str:
     if not os.path.isfile(OWUI_DB):
         return ""
     try:
-        c = sqlite3.connect(f"file:{OWUI_DB}?mode=ro", uri=True)
+        c = sqlite3.connect(f"file:{OWUI_DB}?mode=ro", uri=True, timeout=60.0)
         cur = c.execute(
             "SELECT a.key FROM api_key a "
             "JOIN user u ON u.id = a.user_id "
@@ -152,7 +170,7 @@ def _list_collections() -> list[dict]:
     if not os.path.isfile(OWUI_DB):
         return []
     try:
-        c = sqlite3.connect(f"file:{OWUI_DB}?mode=ro", uri=True)
+        c = sqlite3.connect(f"file:{OWUI_DB}?mode=ro", uri=True, timeout=60.0)
         cur = c.execute(
             "SELECT id, name, description FROM knowledge "
             "ORDER BY created_at DESC;"

@@ -115,9 +115,16 @@ def _post_chat(endpoint: str, model: str, system: str, user: str,
         headers={"Content-Type": "application/json"},
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=DEFAULT_TIMEOUT_S) as r:
-        body = json.loads(r.read())
-    return ((body.get("choices") or [{}])[0].get("message") or {}).get("content", "")
+    
+    for attempt in range(3):
+        try:
+            with urllib.request.urlopen(req, timeout=DEFAULT_TIMEOUT_S) as r:
+                body = json.loads(r.read())
+            return ((body.get("choices") or [{}])[0].get("message") or {}).get("content", "")
+        except Exception as e:
+            if attempt == 2:
+                raise
+            time.sleep(0.5 * (attempt + 1))
 
 
 CLASSIFY_SYSTEM = (
