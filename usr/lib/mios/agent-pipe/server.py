@@ -11357,9 +11357,9 @@ def _mcp_tool_to_openai_tool(key: str, info: dict) -> dict:
 
 DCI_ENABLED = os.environ.get("MIOS_AGENT_PIPE_DCI_ENABLED",
                               "true").lower() not in {"false", "0", "no"}
-DCI_MODEL = os.environ.get("MIOS_AGENT_PIPE_DCI_MODEL", _STACK_MODEL)  # gemma4:12b entire-stack
+DCI_MODEL = os.environ.get("MIOS_AGENT_PIPE_DCI_MODEL", _STACK_MODEL)  # = _STACK_MODEL (granite4.1:8b on :11450; gemma4:12b retired -> 404)
 DCI_ENDPOINT = os.environ.get(
-    "MIOS_AGENT_PIPE_DCI_ENDPOINT", "http://localhost:11434",
+    "MIOS_AGENT_PIPE_DCI_ENDPOINT", "http://localhost:11450",  # mios-llm-light (local ollama :11434 retired G5)
 ).rstrip("/")
 DCI_TIMEOUT_S = int(os.environ.get("MIOS_AGENT_PIPE_DCI_TIMEOUT_S", "20"))
 DCI_MAX_TOKENS = int(os.environ.get("MIOS_AGENT_PIPE_DCI_MAX_TOKENS", "400"))

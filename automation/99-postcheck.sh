@@ -420,6 +420,35 @@ if [[ -n "$_law5_hits" ]]; then
 fi
 log "  no vendor URLs in active config"
 
+# 12b. UNIFIED-AI-REDIRECTS (Law 5) -- retired LOCAL inference lanes.
+# WS-0B drift-gate: the local ollama lane on :11434 was retired (G5/G17 ->
+# everything moved to mios-llm-light :11450). Active config in the AI plane
+# must NOT dial the dead local port; a stale ref silently 404s a refine /
+# sys-agent / DCI call. Scope: the SAME dirs as the vendor-URL check, and ONLY
+# the LOCAL forms (localhost / 127.0.0.1 / host.containers.internal) -- REMOTE
+# `<...tailnet>:11434` lane templates (iPhone AI.Local, remote GPU hosts that
+# legitimately run ollama) are deliberately NOT matched.
+log "Validating UNIFIED-AI-REDIRECTS (Law 5): no retired local :11434 lane in active config..."
+_dead_lane_pattern='(localhost|127\.0\.0\.1|host\.containers\.internal):11434'
+_dead_lane_hits=""
+for d in "${_law5_dirs[@]}"; do
+    [[ -d "$d" ]] || continue
+    while IFS= read -r f; do
+        [[ -f "$f" ]] || continue
+        active=$(sed -E '/^[[:space:]]*(#|\/\/)/d' "$f")
+        if printf '%s\n' "$active" | grep -qE "$_dead_lane_pattern"; then
+            _dead_lane_hits+="$f"$'\n'
+        fi
+    done < <(find "$d" -type f \( -name '*.container' -o -name '*.service' \
+        -o -name '*.conf' -o -name '*.json' -o -name '*.toml' -o -name '*.yaml' \
+        -o -name '*.yml' \) 2>/dev/null)
+done
+if [[ -n "$_dead_lane_hits" ]]; then
+    printf '%s' "$_dead_lane_hits" >&2
+    die "UNIFIED-AI-REDIRECTS: retired local :11434 lane in active config (use the live lane, e.g. mios-llm-light :11450)"
+fi
+log "  no retired local :11434 lane in active config"
+
 # 13. UNPRIVILEGED-QUADLETS (Architectural Law 6).
 # Every Quadlet *.container under /etc/containers/systemd or
 # /usr/share/containers/systemd MUST declare User= (with the documented
