@@ -69,6 +69,24 @@ else
 fi
 
 echo
+echo "── ── ──  vision grounding (computer-use perceive->act->verify; WS-8)"
+# WS-8: the UIA(Windows)/AT-SPI(Linux) + VLM hybrid -- cu_ground / pc_ground / cu_act
+# fall back to a grounding VLM when the accessibility tree has no match. The lane
+# (the qwen3-vl:4b slot -> Holo1.5 GGUF + mmproj in mios-llm-light.yaml; SSOT
+# [ai].vision_grounding_*) is provisioned-but-INERT until the operator places both
+# GGUFs under /models. Report readiness + the one activation step.
+_vis_model=$(grep -E '^vision_grounding_model' /usr/share/mios/mios.toml 2>/dev/null \
+    | head -1 | sed -E 's/.*=[[:space:]]*"?([^"#]*)"?.*/\1/' | tr -d '[:space:]')
+_vis_probe="${_vis_model:-qwen3-vl:4b}"
+if printf '%s' "${models:-}" | grep -qiE "${_vis_probe%%:*}|qwen3-vl|holo"; then
+    ok "vision-grounding VLM ($_vis_probe) served on :11450 -- cu_ground/pc_ground/cu_act hybrid ACTIVE"
+else
+    warn "vision-grounding VLM not served on :11450 -- the accessibility-tree->vision fallback is INERT"
+    info "activate WS-8 hybrid: place the Holo1.5 GGUF + mmproj under /models (the qwen3-vl:4b"
+    info "  slot in usr/share/mios/llamacpp/mios-llm-light.yaml), then restart mios-llm-light"
+fi
+
+echo
 
 echo
 echo "── ── ──  open webui"

@@ -2027,7 +2027,7 @@ verbs = ["knowledge_search", "remember", "recall", "ingest", "summarize"]
 
 [routing.domains.computer_use]
 desc  = "GUI pixel/element control of the screen via mouse and keyboard"
-verbs = ["cu_screenshot", "cu_ground", "cu_atspi_query", "cu_window_list", "cu_click", "cu_type", "cu_key", "cu_key_combo", "pc_type", "pc_key", "pc_click"]
+verbs = ["cu_screenshot", "cu_ground", "cu_atspi_query", "cu_window_list", "cu_click", "cu_type", "cu_key", "cu_key_combo", "pc_screenshot", "pc_type", "pc_key", "pc_click", "pc_find_element", "pc_click_element", "pc_list_elements"]
 
 [routing.domains.code_shell]
 desc  = "run code, shell, or PowerShell commands (incl. explaining what a script/code does)"
@@ -2683,6 +2683,19 @@ cmd        = "mios-pc-control ui-list"
 # (cu_ground / cu_atspi_query) avoids pixels; cu_screenshot + cu_ground feed the
 # click loop. Auto-projects to MCP (/v1/verbs) + A2A skills via _VERB_CATALOG.
 # Read-class (screenshot/window-list/atspi/ground) vs write-class (click/type/key).
+[verbs.pc_screenshot]
+section    = "Computer-use"
+sig        = "path"
+desc       = "Capture the WINDOWS host desktop (the operator's real screen) to a PNG file via the in-session UIA executor. This is the Windows screen, NOT the Linux in-VM desktop (use cu_screenshot for that). Read-class. Pair with windows_desktop_* (UIA) or a vision grounder to act on what you see."
+model_name = "windows_desktop_screenshot"
+examples   = ["take a screenshot of the windows desktop", "capture the host screen to a png", "grab an image of the operator's windows display", "screenshot what's on the windows screen"]
+tier       = "rare"
+permission = "read"
+cmd        = "mios-pc-control screenshot {path}"
+  [verbs.pc_screenshot.params.path]
+  type = "string"
+  aliases = ["out", "file"]
+
 [verbs.cu_screenshot]
 section    = "Computer-use"
 sig        = "path"
