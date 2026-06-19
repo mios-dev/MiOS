@@ -2665,10 +2665,21 @@ _CPU_LANE_MICRO_MODEL = (os.environ.get("MIOS_CPU_LANE_MICRO_MODEL")
 
 
 def _cap_cpu_lane_model(ep: str, model: str) -> str:
-    """Force the micro model on a light-lane (CPU/iGPU) endpoint -- a big model
-    can never cold-load multi-GB weights on a CPU-only daemon (runaway fix
-    2026-06-01). No-op for non-light endpoints (dGPU/remote keep their model)."""
-    if _CPU_LANE_MICRO_MODEL and any(h and h in (ep or "") for h in _CPU_LANE_HINTS):
+    """Force the micro model on a LOCAL light-lane (CPU/iGPU) endpoint -- a big
+    model can never cold-load multi-GB weights on a CPU-only daemon MiOS itself
+    controls (runaway fix 2026-06-01). No-op for non-light endpoints AND for
+    REMOTE nodes: a remote node serves its OWN model catalog (a tailnet Ollama
+    whose port happens to be 11435/11436 need not serve the LOCAL micro tag), so
+    it KEEPS its declared model -- exactly this function's long-standing intent
+    ('remote keep their model'), which the bare port-substring match wrongly
+    violated for any remote node on a CPU-hint port (the remote-cpu node, the
+    iGPU/potato examples). LOCAL == localhost/127.0.0.1 (mirrors _load_node_pool's
+    _is_local). The slow-lane num_predict cap (_is_slow_lane_ep) stays port-based
+    and DOES still apply to a remote CPU -- a remote CPU is genuinely slow, so its
+    output is still capped; only the wrong-model substitution is local-scoped."""
+    _local = ("localhost" in (ep or "")) or ("127.0.0.1" in (ep or ""))
+    if (_local and _CPU_LANE_MICRO_MODEL
+            and any(h and h in (ep or "") for h in _CPU_LANE_HINTS)):
         return _CPU_LANE_MICRO_MODEL
     return model
 

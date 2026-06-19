@@ -1015,6 +1015,29 @@ health_gate = true             # inert until mios-llm-heavy is up + reachable
 #   model       = "mios-agent-cpu"      # or the phone's own small local model tag
 #   lane        = "mobile"
 #   health_gate = true
+#
+# A PLAIN remote box that serves a stock Ollama (not the MiOS Modelfiles) joins
+# the SAME way -- declare api="ollama" and the model's REAL served tag (qwen3.5:4b
+# etc.); the pipe then runs its own grounding tool-loop (web_search ...) + strips
+# qwen3 <think> tags + posts to the box's /v1/chat/completions. A remote CPU node
+# whose port happens to be 11435/11436 KEEPS its declared tag (the cpu-lane model
+# cap is LOCAL-only -- a remote box serves its own catalog, not the local micro
+# tag). Example (operator's second machine, CPU+GPU; put the real tailnet IP in
+# /etc/mios/mios.toml, NOT the public vendor file):
+#   [nodes.remote-gpu]
+#   endpoint     = "http://<host-tailnet>:11434/v1"
+#   model        = "qwen3.5:4b"          # the remote's best tool-capable served tag
+#   lane         = "gpu"
+#   api          = "ollama"
+#   health_gate  = true
+#   tool_capable = true
+#   [nodes.remote-cpu]
+#   endpoint     = "http://<host-tailnet>:11435/v1"
+#   model        = "qwen3:1.7b"          # lighter tag for the slower CPU lane
+#   lane         = "cpu"
+#   api          = "ollama"
+#   health_gate  = true
+#   tool_capable = true
 
 # ----------------------------------------------------------------------------
 # [dispatch] -- multi-agent CONCURRENT fan-out (operator 2026-05-21: "the
