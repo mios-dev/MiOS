@@ -674,8 +674,18 @@ font_size          = 14
 # terminal + tool loop -- bare gemma4@:11450 had no browser tools, so CDP browse
 # (operator's "cdp web browse in hermes") needs the real Hermes. Verified: Hermes
 # answers on the dGPU at 100% util (prompt ~25k tokens -> gemma4 ctx bumped to 32k).
-endpoint = "http://localhost:8642/v1"
-model    = "hermes-agent"
+# WORKER-DISPATCH endpoint (operator 2026-06-19 RUNAWAY FIX): the :8642 gateway is
+# a THIN :8640 client now (see the unify note below), so dispatching a swarm/DAG/
+# reroute WORKER facet to :8642 made it RELAY BACK to :8640 -> swarm -> :8642 -> ...
+# UNBOUNDED RECURSION (the outage-reroute bypassed fanout=false; hermes spawned 30+
+# conversation loops pegging the dGPU). A worker MUST hit a REAL model lane, never a
+# thin gateway that loops to the orchestrator. So hermes's worker dispatch now points
+# at the REAL heavy-model lane (:11441, mios-heavy = the same brain its cpu_endpoint
+# used). hermes stays a first-class dispatched agent (its job/strengths/tools surface
+# via the agent-pipe tool-loop); the :8642 gateway service stays thin for INCOMING
+# Discord/CLI -> :8640 (unification preserved, no re-entry since :8640 never calls :8642).
+endpoint = "http://localhost:11441/v1"
+model    = "mios-heavy"
 role     = "general"
 # job (operator 2026-05-24 "no fixed roles -- MiOS-Agents are modelfiles for
 # jobs and tools/skills/recipes"): the one-line CAPABILITY the swarm planner
