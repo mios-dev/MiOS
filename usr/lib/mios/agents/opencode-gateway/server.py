@@ -136,6 +136,17 @@ def _run_opencode(prompt: str, model: str):
     """Invoke `opencode run` with the unified config + model selector.
 
     Returns the assistant text. Raises on failure.
+
+    #57 fix: use `--format json`. opencode's DEFAULT format renders an
+    interactive TUI (spinner/replay frames interleaved with the answer) which
+    (a) pollutes the returned text with control noise and (b) wedges when stdout
+    is a partial / early-closed consumer -- the long-standing "opencode run
+    hangs / returns zero" symptom that made this peer inert (operator 2026-06-01,
+    opencode default=false/fanout=false). `--format json` emits ONE JSON event
+    per line (step_start / text / step_finish) with no TUI, so the process exits
+    promptly at step_finish and we extract exactly the assistant text. Verified
+    on opencode 1.17.7: a default-format run wedged behind a truncating pipe;
+    --format json completed cleanly (step_finish reason=stop) every time.
     """
     env = dict(os.environ)
     # Point opencode at the unified config explicitly (no /root/.config dep).
@@ -146,13 +157,49 @@ def _run_opencode(prompt: str, model: str):
     if cfg_dir:
         env.setdefault("XDG_CONFIG_HOME", cfg_dir)
 
-    cmd = [OPENCODE_BIN, "run", "-m", _selector(model), prompt]
+    cmd = [OPENCODE_BIN, "run", "--format", "json",
+           "-m", _selector(model), prompt]
     proc = subprocess.run(
         cmd, capture_output=True, text=True, timeout=TIMEOUT, env=env
     )
-    out = (proc.stdout or "").strip()
-    if not out:
-        out = (proc.stderr or "").strip()
+    raw = proc.stdout or ""
+    # Assistant text = concatenation, in order, of every part.type=="text"
+    # chunk in the event stream (up to step_finish). Robust to interleaved
+    # tool/step events and to non-JSON lines. `parsed_any` records whether the
+    # output WAS the expected JSON event stream, so we only ever fall back to
+    # the raw bytes when it was NOT (format change) -- never dumping JSON noise.
+    texts = []
+    parsed_any = False
+    for ln in raw.splitlines():
+        ln = ln.strip()
+        if not ln or ln[0] != "{":
+            continue
+        try:
+            ev = json.loads(ln)
+        except Exception:
+            continue
+        parsed_any = True
+        part = ev.get("part") or {}
+        if part.get("type") == "text" and part.get("text"):
+            texts.append(part["text"])
+        else:
+            # Agentic runs can carry the result inside a tool part's state
+            # (output/text/result) rather than a text part -- best-effort
+            # surface it so a code task still returns the work, not silence.
+            st = part.get("state")
+            if isinstance(st, dict):
+                for k in ("output", "text", "result", "stdout"):
+                    v = st.get(k)
+                    if isinstance(v, str) and v.strip():
+                        texts.append(v)
+                        break
+    out = "".join(texts).strip()
+    # Fallback ONLY when the output was NOT the JSON event stream (older opencode
+    # / format change): use raw stdout then stderr. When it WAS valid JSON but
+    # carried no text (e.g. an agentic tool step that produced no answer), return
+    # the empty string rather than echoing raw event JSON to the caller.
+    if not out and not parsed_any:
+        out = raw.strip() or (proc.stderr or "").strip()
     if proc.returncode != 0 and not out:
         raise RuntimeError(
             f"opencode exited {proc.returncode} with no output"

@@ -519,9 +519,23 @@ log "[38-hermes-agent] opencode phase: version=${OPENCODE_VERSION} root=${OPENCO
 if [[ -f "${OPENCODE_VENDOR_CONFIG}" ]]; then
     if install -d -m 0750 "${OPENCODE_CONFIG_DIR}" 2>/dev/null; then
         if [[ ! -f "${OPENCODE_CONFIG}" ]]; then
-            install -m 0640 "${OPENCODE_VENDOR_CONFIG}" "${OPENCODE_CONFIG}" \
-                && log "[38-hermes-agent] landed opencode.json -> ${OPENCODE_CONFIG}" \
-                || warn "[38-hermes-agent] failed to land opencode.json into ${OPENCODE_CONFIG}"
+            if install -m 0640 "${OPENCODE_VENDOR_CONFIG}" "${OPENCODE_CONFIG}"; then
+                # #57: the gateway runs as mios-ai but the file lands root:root,
+                # which mios-ai cannot read -> opencode "PermissionDenied:
+                # FileSystem.readFile (opencode.json)" -> inert peer. Make it
+                # group-readable by mios-ai per the MiOS cross-agent-read
+                # convention (chgrp mios-ai + 0640; 50-mios-services.conf). The
+                # dir is mios-ai-owned at boot (tmpfiles); systemd-tmpfiles can't
+                # do this chgrp itself (root-file-under-mios-ai-dir = "unsafe path
+                # transition"), so it must happen here at land time.
+                if getent group mios-ai >/dev/null 2>&1; then
+                    chgrp mios-ai "${OPENCODE_CONFIG}" 2>/dev/null \
+                        && chmod 0640 "${OPENCODE_CONFIG}" 2>/dev/null || true
+                fi
+                log "[38-hermes-agent] landed opencode.json -> ${OPENCODE_CONFIG} (group mios-ai)"
+            else
+                warn "[38-hermes-agent] failed to land opencode.json into ${OPENCODE_CONFIG}"
+            fi
         else
             log "[38-hermes-agent] ${OPENCODE_CONFIG} already present (admin override) -- not overwriting"
         fi
