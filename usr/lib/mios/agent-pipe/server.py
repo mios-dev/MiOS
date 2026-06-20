@@ -1,5 +1,5 @@
 # AI-hint: FastAPI gateway service on port 8640 that routes, dispatches, and proxies chat/embedding requests from external interfaces (Discord, Slack) to the hermes-agent backend and SurrealDB.
-# AI-related: mios_jsonsalvage, mios_owui, mios_sched, mios_evict, mios_hitl, mios_aci, mios_kvfork, mios_codemode, mios_pg, mios_lanes, mios_a2a_principal, mios_reputation, mios_goap, /usr/share/mios/mios.toml
+# AI-related: mios_jsonsalvage, mios_owui, mios_sched, mios_evict, mios_hitl, mios_aci, mios_kvfork, mios_codemode, mios_pg, mios_lanes, mios_a2a_principal, mios_reputation, mios_goap, mios_selfimprove, /usr/share/mios/mios.toml
 # AI-functions: _toml_section, _cfg_num, _is_remote_endpoint, _should_health_probe, _trip_breaker, _parse_lane_caps, _lane_tool_cap, _dispatch_toml, _dispatch_num, _priority_gate, _parse_lane_priority, _lane_sem
 """'MiOS' Agent Pipe -- standalone FastAPI service.
 
@@ -107,6 +107,7 @@ import mios_a2a_principal as _a2a_pp   # noqa: E402  -- WS-6 signed delegation p
 import mios_reputation   # noqa: E402  -- #54 zero-trust peer reputation
 _A2A_REPUTATION = mios_reputation.PeerReputation()   # outbound-peer reliability
 import mios_goap   # noqa: E402  -- #53 deterministic GOAP planner lane
+import mios_selfimprove   # noqa: E402  -- #64 self-improvement analyzer (read-only)
 
 # ── Config (SSOT-sourced via env) ──────────────────────────────────
 PORT = int(os.environ.get("MIOS_PORT_AGENT_PIPE", "8640"))
@@ -19618,6 +19619,38 @@ async def a2a_peers_list() -> JSONResponse:
             })
     return JSONResponse({"object": "mios.a2a.peers", "peers": peers,
                          "reputation": _A2A_REPUTATION.snapshot()})  # #54
+
+
+# #64 self-improvement signals (read-only). Surfaces WHAT to improve from local
+# outcome data; it does NOT act -- closing the loop (auto-tuning) is a separate,
+# gated step (agent self-modification needs guardrails).
+async def _selfimprove_report() -> dict:
+    """Improvement findings from recent tool_call outcomes + peer reputation.
+    Read-only; degrade-open -> {findings:[], error} if pgvector is unreachable."""
+    try:
+        sect = _toml_section("selfimprove")
+        rows = await _mios_pg.execute(
+            "SELECT tool, success, exit_code, latency_ms, tainted "
+            "FROM tool_call ORDER BY ts DESC LIMIT %(k)s",
+            {"k": int(sect.get("sample_size", 500))}, fetch=True) or []
+        return mios_selfimprove.analyze(
+            rows, reputation=_A2A_REPUTATION.snapshot(),
+            min_samples=int(sect.get("min_samples", 5)),
+            fail_threshold=float(sect.get("fail_threshold", 0.3)),
+            slow_ms=float(sect.get("slow_ms", 10000)))
+    except Exception as e:  # noqa: BLE001 -- degrade-open
+        log.warning("self-improve report unavailable: %s", e)
+        return {"findings": [], "tools_analyzed": 0, "samples": 0,
+                "error": "unavailable"}
+
+
+@app.get("/v1/self-improve/report")
+async def selfimprove_report_ep() -> JSONResponse:
+    """Read-only self-improvement signals (failing/slow tools, unreliable peers)
+    from local outcome data -- the OBSERVE half of #64. Acting on them (closing
+    the loop) is a separate, gated step."""
+    return JSONResponse({"object": "mios.self_improve.report",
+                         **(await _selfimprove_report())})
 
 
 @app.get("/v1/a2a/skills")

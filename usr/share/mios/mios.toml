@@ -142,6 +142,19 @@ eff  = { verified = true }
 cost = 1
 
 # ----------------------------------------------------------------------------
+# [selfimprove] -- #64 self-improvement ANALYSIS (the safe observe half). The
+# read-only GET /v1/self-improve/report surfaces what to improve from local
+# outcome data (failing/slow tools, unreliable peers) via mios_selfimprove. It
+# does NOT act -- closing the loop (auto-tuning) is a separate gated step (agent
+# self-modification needs guardrails). These are the analysis thresholds.
+# ----------------------------------------------------------------------------
+[selfimprove]
+sample_size    = 500     # most-recent tool_call rows to analyze
+min_samples    = 5       # don't judge a tool with fewer calls (no over-reaction)
+fail_threshold = 0.3     # tools failing >= this fraction are flagged
+slow_ms        = 10000   # tools averaging >= this many ms are flagged slow
+
+# ----------------------------------------------------------------------------
 # [portal] -- MiOS Portal web app (served by mios-agent-pipe at GET / on
 # MIOS_PORT_AGENT_PIPE). Login gates the portal UI + its /portal/* data
 # endpoints; the /v1 OpenAI API, /a2a and /health stay open programmatic
