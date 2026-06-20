@@ -298,14 +298,45 @@ def chat_streaming(client: OpenAI, msgs: list[dict[str, Any]],
             }
         # SDK 1.30+ stream context manager auto-accumulates tool-call
         # argument fragments and exposes a typed event union.
+        _rsn_open = False
         with client.chat.completions.stream(**kwargs) as s:
             for ev in s:
                 if ev.type == "content.delta":
+                    if _rsn_open:
+                        # close the dim reasoning block before the real answer
+                        sys.stderr.write("\x1b[0m\n")
+                        sys.stderr.flush()
+                        _rsn_open = False
                     sys.stdout.write(ev.delta)
                     sys.stdout.flush()
                     if answer_box is not None:
                         answer_box.append(ev.delta)
+                elif ev.type == "chunk":
+                    # Stream the gateway's THINKING on the non-standard
+                    # delta.reasoning_content channel (parity with OWUI's
+                    # reasoning dropdown -- operator 2026-06-20 "thought streaming
+                    # ... in hermes CLI"). Dimmed + to STDERR so it's visibly the
+                    # thinking, never mixed into the answer or the saved transcript
+                    # (a piped `mios ...` still captures only the answer). No
+                    # reasoning emitted -> this branch is a clean no-op.
+                    try:
+                        _d = ev.chunk.choices[0].delta
+                        _r = (getattr(_d, "reasoning_content", None)
+                              or getattr(_d, "reasoning", None)
+                              or (getattr(_d, "model_extra", None) or {}).get("reasoning_content")
+                              or (getattr(_d, "model_extra", None) or {}).get("reasoning"))
+                    except Exception:
+                        _r = None
+                    if _r:
+                        if not _rsn_open:
+                            sys.stderr.write("\x1b[2m\U0001f4ad ")  # dim + 💭
+                            _rsn_open = True
+                        sys.stderr.write(str(_r))
+                        sys.stderr.flush()
             final = s.get_final_completion()
+        if _rsn_open:
+            sys.stderr.write("\x1b[0m\n")
+            sys.stderr.flush()
 
         msg = final.choices[0].message
         # Append the assistant turn verbatim so the next iteration sees
