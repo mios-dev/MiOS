@@ -1539,6 +1539,16 @@ kv_paging_timeout = 12.0     # seconds for one save/restore POST (best-effort; n
 # overrides MIOS_KV_FORK / MIOS_KV_FORK_MAX_BRANCHES.
 kv_fork_enable       = false  # master switch (only ACTS when kv_paging is on AND the endpoint speaks llama.cpp /slots)
 kv_fork_max_branches = 4      # runaway guard: max child KV files one fork request may spawn
+# ── Per-request trace/span observability (WS-A8). A chat_completions request
+# mints (or adopts via the X-MiOS-Trace header) a trace_id; each pipeline stage
+# (route/plan/refine/dispatch) opens a child span, and finished spans land in a
+# BOUNDED in-memory ring buffer that backs GET /v1/trace/{trace_id} with no DB
+# hit + mirrors onto event rows (trace_id/span_id/parent_span_id). Cheap +
+# degrade-open. Read by the agent-pipe; env overrides MIOS_TRACE_ENABLE /
+# MIOS_TRACE_MAX_TRACES / MIOS_TRACE_MAX_SPANS_PER_TRACE.
+trace_enable          = true   # 0/false disables span recording (near-zero cost when off)
+trace_max_traces      = 256    # LRU cap on retained traces in the buffer
+trace_max_spans_per_trace = 128  # cap on stored spans per trace (further spans counted, not stored)
 # ── Concurrency / timeouts / per-lane trimming (agent-pipe env knobs; code
 # defaults shown, same ${MIOS_*:-default} pattern). Operator 2026-05-24: "iGPU
 # fires WITH CPU ... any engine/node" + "add per-lane context trimming".

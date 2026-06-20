@@ -53,6 +53,7 @@ import asyncio
 import base64
 import collections
 import contextlib
+import functools
 import contextvars
 import datetime
 import glob
@@ -109,6 +110,7 @@ _A2A_REPUTATION = mios_reputation.PeerReputation()   # outbound-peer reliability
 import mios_goap   # noqa: E402  -- #53 deterministic GOAP planner lane
 import mios_selfimprove   # noqa: E402  -- #64 self-improvement analyzer (read-only)
 import mios_toolconflict   # noqa: E402  -- WS-A7 per-verb dispatch conflict/parallel-limit gate
+import mios_trace   # noqa: E402  -- WS-A8 per-request trace/span observability
 
 # ── Config (SSOT-sourced via env) ──────────────────────────────────
 PORT = int(os.environ.get("MIOS_PORT_AGENT_PIPE", "8640"))
@@ -368,6 +370,66 @@ _KN_TOML = _toml_section("knowledge")
 WEB_CONCURRENCY = int(os.environ.get("MIOS_WEB_CONCURRENCY", "3"))
 WEB_DISPATCH_JITTER_S = float(os.environ.get("MIOS_WEB_DISPATCH_JITTER_S", "0.15"))
 _web_sem = asyncio.Semaphore(max(1, WEB_CONCURRENCY))
+
+# ── WS-A8 per-request trace/span observability ──────────────────────────────
+# A chat_completions request mints (or adopts, via the X-MiOS-Trace header) a
+# trace_id; each pipeline stage opens a child span under the current parent
+# (contextvars), and finished spans land in a bounded in-memory buffer
+# (mios_trace.Tracer) that backs GET /v1/trace/{trace_id} with NO DB hit.
+# Degrade-open + cheap: turn off with MIOS_TRACE_ENABLE=0. The trace id is also
+# propagated outbound (X-MiOS-Trace) to the Hermes hop and stamped onto `event`
+# rows (trace_id/span_id/parent_span_id cols) for durable correlation.
+TRACE_ENABLE = os.environ.get("MIOS_TRACE_ENABLE", "1").strip().lower() \
+    not in ("0", "false", "no", "off", "")
+TRACE_MAX_TRACES = int(os.environ.get("MIOS_TRACE_MAX_TRACES", "256") or 256)
+TRACE_MAX_SPANS = int(os.environ.get("MIOS_TRACE_MAX_SPANS_PER_TRACE", "128") or 128)
+_TRACER = mios_trace.Tracer(enabled=TRACE_ENABLE, max_traces=TRACE_MAX_TRACES,
+                            max_spans_per_trace=TRACE_MAX_SPANS)
+_trace_id_var: "contextvars.ContextVar" = contextvars.ContextVar("mios_trace_id", default="")
+_span_id_var: "contextvars.ContextVar" = contextvars.ContextVar("mios_span_id", default="")
+
+
+def _current_trace_id() -> str:
+    """The active request's trace id ('' when untraced)."""
+    try:
+        return _trace_id_var.get() or ""
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+@contextlib.asynccontextmanager
+async def _trace_span(name: str, **attrs):
+    """Open a span under the current trace/parent (contextvars), record it on
+    exit with duration + ok/error status. Near-no-op when tracing is disabled or
+    no trace is active (degrade-open)."""
+    tid = _current_trace_id()
+    if not (_TRACER.enabled and tid):
+        yield None
+        return
+    span = _TRACER.start_span(name, trace_id=tid,
+                              parent_id=(_span_id_var.get() or ""), attrs=attrs)
+    token = _span_id_var.set(span.span_id)
+    try:
+        yield span
+    except BaseException as e:  # noqa: BLE001 -- record the failure then re-raise
+        span.finish("error", type(e).__name__)
+        raise
+    finally:
+        _span_id_var.reset(token)
+        if not span.ended:
+            span.finish("ok")
+        _TRACER.record(span)
+
+
+def _traced_stage(name: str):
+    """Decorator: emit a span around each call of an async pipeline-stage fn."""
+    def deco(fn):
+        @functools.wraps(fn)
+        async def wrapper(*a, **kw):
+            async with _trace_span(name):
+                return await fn(*a, **kw)
+        return wrapper
+    return deco
 
 # Pipeline-side WEB-RESEARCH loop (operator 2026-05-24: "the MiOS pipeline
 # ITSELF loops for web use and web tools" + "multi loops for all web tools" +
@@ -2012,6 +2074,18 @@ def _db_create(table: str, fields: dict, *,
     Pass passport_sign=False to opt out for non-attribution writes
     where the envelope overhead isn't justified (currently: none
     -- every audit-relevant write benefits from attribution)."""
+    # WS-A8: stamp the active request trace onto `event` rows (the event table
+    # carries trace_id/span_id) so the observability stream stitches to GET
+    # /v1/trace. Only fills keys the caller didn't set; degrade-open (no active
+    # trace -> unchanged); other tables are untouched.
+    if table == "event":
+        _tid = _current_trace_id()
+        if _tid:
+            fields = dict(fields)
+            fields.setdefault("trace_id", _tid)
+            _sid = _span_id_var.get() or ""
+            if _sid:
+                fields.setdefault("span_id", _sid)
     if passport_sign:
         # Snapshot the fields the verifier will see (the time::now()
         # values get the literal sentinel because that's what the
@@ -4120,6 +4194,11 @@ async def _call_agent_complete_inner(name: str, cfg: dict, body: dict,
         if _tk:
             _hdrs[_SRC_TURN_HEADER] = _tk
         _hdrs.update(_hop_via_headers())   # P0 cross-hop recursion bound
+        # WS-A8: propagate the request trace id to the Hermes hop so a downstream
+        # re-entry continues THIS request's trace (it adopts X-MiOS-Trace at the top).
+        _tid = _current_trace_id()
+        if _tid:
+            _hdrs["X-MiOS-Trace"] = _tid
         # KV-paging bracket (operator 2026-06-01): on a llama.cpp endpoint, page
         # THIS conversation's KV into the slot (saving whoever held it) before the
         # tool-loop + final completion, holding the slot across the bracket so a
@@ -5182,6 +5261,11 @@ async def _call_agent_stream_inner(name: str, cfg: dict, body: dict,
         if _tk:
             _hdrs[_SRC_TURN_HEADER] = _tk
         _hdrs.update(_hop_via_headers())   # P0 cross-hop recursion bound
+        # WS-A8: propagate the request trace id to the Hermes hop so a downstream
+        # re-entry continues THIS request's trace (it adopts X-MiOS-Trace at the top).
+        _tid = _current_trace_id()
+        if _tid:
+            _hdrs["X-MiOS-Trace"] = _tid
         async with client.stream(
                 "POST", f"{ep}/chat/completions",
                 content=json.dumps(nb).encode("utf-8"), headers=_hdrs,
@@ -9382,6 +9466,7 @@ async def _read_tool_enrich(refined: Optional[dict],
             "PIDs, names, or counts:\n\n" + "\n\n".join(blocks))
 
 
+@_traced_stage("refine")  # WS-A8: emit a span around the refine/intent stage
 async def refine_intent(user_text: str,
                         history: list = None) -> Optional[dict]:
     """Quick-refine pass. Returns the parsed plan dict or None on
@@ -13256,6 +13341,7 @@ def _planner_system_for(domain: Optional[str]) -> str:
     return _PLANNER_SYSTEM
 
 
+@_traced_stage("route")  # WS-A8: emit a span around domain routing
 async def _route_domain(user_text: str) -> Optional[str]:
     """Stage-1 of the domain router: classify the query into ONE [routing.domains]
     label via a constrained enum (response_format json_schema), THINKING-OFF
@@ -15466,6 +15552,7 @@ _SWARM_SYSTEM_HEAD = (
 _SWARM_SYSTEM = _SWARM_SYSTEM_HEAD + _AGENT_CATALOG_RENDERED
 
 
+@_traced_stage("plan")  # WS-A8: emit a span around swarm planning
 async def _plan_swarm(user_text: str, history: list = None) -> list:
     """Dedicated SWARM decomposer (operator 2026-05-22 'AI SWARM', Layer B):
     a narrowly-scoped planner call that splits a request into independent
@@ -16744,7 +16831,8 @@ async def _dispatch_bounded(
     _t = re.sub(r"\(.*?\)\s*$", "", str(tool or "").strip()).strip().strip("`'\"")
     # WS-A7 conflict/parallel-limit serialization (outermost so it composes with
     # the web_search SearXNG bulkhead below). Degrade-open: unconstrained -> no-op.
-    async with _TOOL_CONFLICT.guard(_t):
+    # WS-A8: a "dispatch" span times the verb under the current request trace.
+    async with _trace_span("dispatch", verb=_t), _TOOL_CONFLICT.guard(_t):
         if _t == "web_search":
             if WEB_DISPATCH_JITTER_S > 0:
                 await asyncio.sleep(random.uniform(0, WEB_DISPATCH_JITTER_S))
@@ -18336,7 +18424,34 @@ async def scheduler_state() -> JSONResponse:
         # WS-A7 Tool-Manager conflict/parallel-limit gate: which verbs are
         # serialized (by per-verb limit or conflict-group) + live in-flight/queued.
         "tool_conflict": _TOOL_CONFLICT.stats(),
+        # WS-A8 per-request trace/span observability: buffer posture + recent traces.
+        "trace": {**_TRACER.stats(), "recent": _TRACER.recent(10)},
         "ts": int(time.time()),
+    })
+
+
+@app.get("/v1/trace/{trace_id}")
+async def trace_read(trace_id: str) -> JSONResponse:
+    """WS-A8: return the recorded spans for one trace (zero DB hit -- served
+    from the in-memory ring buffer). 404-shaped empty object when unknown or
+    already evicted past the buffer cap."""
+    spans = _TRACER.get_trace(str(trace_id))
+    return JSONResponse({
+        "object": "mios.trace",
+        "trace_id": str(trace_id),
+        "enabled": _TRACER.enabled,
+        "span_count": len(spans),
+        "spans": spans,
+    })
+
+
+@app.get("/v1/trace")
+async def trace_recent() -> JSONResponse:
+    """WS-A8: list the most-recent traces still in the buffer (newest first)."""
+    return JSONResponse({
+        "object": "mios.trace.list",
+        **_TRACER.stats(),
+        "recent": _TRACER.recent(50),
     })
 
 
@@ -24973,6 +25088,12 @@ async def chat_completions(request: Request) -> Any:
     # a real **Sources:** list + structured mios_sources metadata, so sources are
     # grounded metadata, never model-invented prose.
     _sources_var.set([])
+    # WS-A8: adopt an inbound X-MiOS-Trace header (continue an upstream caller's
+    # trace) or mint a fresh trace id for this request. Pipeline stages open
+    # child spans under it; the id is propagated outbound to the Hermes hop.
+    _inbound_trace = (request.headers.get("x-mios-trace") or "").strip()
+    _trace_id_var.set(_inbound_trace or mios_trace.new_trace_id())
+    _span_id_var.set("")
     # P0 cross-hop recursion bound: seed the dispatch depth + Via chain from the
     # incoming headers so the runaway-loop guard survives the HTTP hop (a worker that
     # re-enters :8640 inherits the upstream depth + is degrade-closed if it sees its

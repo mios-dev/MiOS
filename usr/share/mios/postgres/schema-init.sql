@@ -78,11 +78,23 @@ CREATE TABLE IF NOT EXISTS event (
     payload     jsonb,
     session_id  text,
     passport    jsonb,
+    -- WS-A8: per-request trace correlation. An event emitted during a traced
+    -- chat_completions request carries the request trace_id + the active
+    -- span_id/parent so the observability stream stitches to GET /v1/trace.
+    trace_id        text,
+    span_id         text,
+    parent_span_id  text,
     ts          timestamptz DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS event_kind    ON event (kind);
 CREATE INDEX IF NOT EXISTS event_session ON event (session_id);
 CREATE INDEX IF NOT EXISTS event_ts      ON event (ts DESC);
+-- WS-A8: forward-compat for an EXISTING event table (the CREATE above is a
+-- no-op once the table exists, so add the trace columns idempotently).
+ALTER TABLE event ADD COLUMN IF NOT EXISTS trace_id       text;
+ALTER TABLE event ADD COLUMN IF NOT EXISTS span_id        text;
+ALTER TABLE event ADD COLUMN IF NOT EXISTS parent_span_id text;
+CREATE INDEX IF NOT EXISTS event_trace   ON event (trace_id);
 
 -- ── tool_call: every dispatched verb + result + taint ────────────────────────
 CREATE TABLE IF NOT EXISTS tool_call (
