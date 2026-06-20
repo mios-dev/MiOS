@@ -86,22 +86,38 @@ def _exit_on_verdict(resp):
     """Exit reflecting the executor's READ-BACK verdict, not just transport success.
     The Windows OS-control executor returns {ok,verified,reason} (Invoke-TypeText et
     al.): a type/click/window op that did NOT land returns verified:false / ok:false
-    in the BODY. This wrapper used to `sys.exit(0)` regardless, DISCARDING that
-    verdict, so the broker's success=(exit==0) lied (operator 2026-06-19: "type
-    reported SUCCESS but nothing was typed"). Now propagate verified/ok/launched into
-    the exit code so success is a VERIFIED post-condition. Unparseable/empty body ->
-    exit 0 (don't false-fail a transport quirk; the no-executor PS1 fallback already
-    self-exits 1 on a real miss)."""
+    in the BODY.
+
+    FAIL CLOSED (operator 2026-06-19/20: "type reported SUCCESS but nothing was
+    typed" -- twice). The prior version exited 0 on an unparseable/empty/non-dict/
+    keyless body to "not false-fail a transport quirk" -- but THAT is the lie: when
+    the verdict cannot be determined the op's success is UNKNOWN, and an unknown is
+    NOT a success. A false FAILURE is recoverable (the caller retries / sees real
+    state); a false SUCCESS is the fabrication the operator keeps catching. So we
+    exit 0 ONLY on an EXPLICIT truthy verdict key; every undeterminable case exits 1
+    with a diagnostic. (Launch is ALSO independently re-verified by the window-diff
+    in server.py, so failing this closed never silently drops a real launch.)"""
     try:
         d = json.loads(resp) if resp else {}
     except Exception:
-        sys.exit(0)
+        sys.stderr.write("mios-pc-control: executor returned an unparseable body; "
+                         "verdict UNKNOWN -> failing closed (exit 1)\n")
+        sys.exit(1)
     if not isinstance(d, dict):
-        sys.exit(0)
+        sys.stderr.write("mios-pc-control: executor body is not a JSON object; "
+                         "verdict UNKNOWN -> failing closed (exit 1)\n")
+        sys.exit(1)
     for k in ("verified", "ok", "launched"):
         if k in d:
-            sys.exit(0 if d.get(k) else 1)
-    sys.exit(0)
+            if d.get(k):
+                sys.exit(0)
+            sys.stderr.write(f"mios-pc-control: executor verdict {k}=false"
+                             f"{(' (' + str(d.get('reason')) + ')') if d.get('reason') else ''}\n")
+            sys.exit(1)
+    sys.stderr.write("mios-pc-control: executor body carries no verified/ok/launched "
+                     "verdict; cannot confirm the action landed -> failing closed "
+                     "(exit 1)\n")
+    sys.exit(1)
 
 
 def main():
