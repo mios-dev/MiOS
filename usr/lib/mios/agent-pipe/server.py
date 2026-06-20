@@ -6490,17 +6490,61 @@ def _arch_grounding() -> str:
     )
 
 
+def _env_block() -> str:
+    """A fixed-shape, parseable <env> block of the LIVE per-turn environment
+    (research 2026-06-20: a small ~8B model reads structured key:value far more
+    reliably than the prose helpers, which it routinely overrides). This is the
+    CANONICAL 'every prompt env-grounded natively' mechanism -- a SYSTEM-role block
+    refreshed each turn, NOT a pre_llm_call user-message inject (that is the banned
+    hack). Values are LIVE this turn from the forwarded invocation env + host facts;
+    an undetermined key is OMITTED (never fabricated). cwd/surface/location come
+    ONLY from this turn's context, never recall. Reuses the SAME getters +
+    location-chain as _client_grounding so the structured + prose views agree."""
+    env = _client_env_var.get() if isinstance(_client_env_var.get(), dict) else {}
+    rows: list = []
+    _tz = _host_timezone()
+    if _tz:
+        rows.append(("timezone", _tz))
+    for _ek, _ok in (("surface", "surface"), ("host", "host"), ("os", "os"),
+                     ("cwd", "cwd"), ("user_name", "user"), ("language", "language")):
+        _v = str(env.get(_ek) or "").strip()
+        if _v:
+            rows.append((_ok, _v))
+    # location chain (client -> configured [identity].location -> host-tz region),
+    # with provenance, MIRRORING _client_grounding so the two views never disagree.
+    _loc = str(env.get("location") or "").strip()
+    _src = "client"
+    if not _loc:
+        _cfg = str((_toml_section("identity") or {}).get("location") or "").strip()
+        if _cfg:
+            _loc, _src = _cfg, "configured"
+    if not _loc and _tz and "/" in _tz:
+        _loc, _src = _tz.rsplit("/", 1)[1].replace("_", " "), "host-timezone-region"
+    if _loc:
+        rows.append(("location", _loc))
+        rows.append(("location_source", _src))
+    if not rows:
+        return ""
+    body = "\n".join(f"  {k}: {v}" for k, v in rows)
+    return ("<env>  # LIVE environment for THIS turn -- report cwd / surface / "
+            "location ONLY from here, never from memory or a prior turn\n"
+            + body + "\n</env>")
+
+
 def _env_grounding() -> str:
     """Identity guard + self-architecture + temporal + client-environment grounding
     for the orchestrator's OWN system prompts (refine / synthesis / polish / swarm /
     council / native-loop). Single helper so every grounded prompt site threads the
     identity + arch + forwarded OWUI environment (time, timezone, location, locale,
-    name) in one place."""
+    name) in one place. Leads with a STRUCTURED <env> block (research 2026-06-20:
+    parseable key:value for small models) followed by the detailed prose guidance +
+    anti-fabrication rules -- the prose is kept so nothing regresses."""
+    e = _env_block()
     g = _identity_guard()
     a = _arch_grounding()
     t = _temporal_grounding()
     c = _client_grounding()
-    return g + "\n" + a + "\n" + t + ("\n" + c if c else "")
+    return (e + "\n" if e else "") + g + "\n" + a + "\n" + t + ("\n" + c if c else "")
 
 
 # ─── Universal agent contract (.md at the overlay root) ────────────────

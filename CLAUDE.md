@@ -279,8 +279,12 @@ Exceptions:
 Forbidden:
 * Anything whose effect is the operator seeing a NEW window, sound, notification, or app on their machine. The operator has stated this in caps multiple times ("I DON'T WANT YOU TO EVER LAUNCH THE APPS FOR ME!!!"). For verifying launch-chain changes, inspect the broker socket / journal / script source WITHOUT triggering the launch. Tell the operator "shipped; try X in OWUI" and let them verify visibly themselves.
 
-### NO context injection — env discovery via tool calls only
+### Per-turn env grounding: native system-role `<env>` block — NOT user-message injection
 
-The agent (MiOS-Hermes) learns its environment by **calling tools** (`mios-env-probe`, `mios-apps`, `skill_view name=mios-environment`, the native `mios_verbs.*` surface) — NEVER via a `pre_llm_call` hook that auto-prepends env text to the user message.
+Two distinct things — one **required**, one **banned** (they are not in conflict; this reconciles the operator's "every chat grounded in env every prompt, natively" mandate with the long-standing no-injection rule):
 
-When working on Hermes config / hooks / plugins: do not add `pre_llm_call` shapes that return `{"context": "..."}`. If env awareness needs reinforcing, do it in SOUL.md prose telling the agent WHEN to invoke env-discovery tools — not by pre-injecting their output.
+**REQUIRED / canonical (native per-turn grounding).** The agent-pipe orchestrator assembles a **system-role** env block on **every** grounded prompt — `_env_grounding()` in `usr/lib/mios/agent-pipe/server.py`, threaded into all ~12 hops (refine / synthesis / polish / swarm / council / native-loop). It leads with a structured `<env>` key:value block (`_env_block()`: timezone, surface, host, os, cwd, user, language, location + location_source) followed by identity / arch / temporal prose + the anti-fabrication rules. This is the canonical "every prompt env-grounded natively" pattern (the Claude-Code `<env>` shape): a SYSTEM-role block with LIVE values refreshed each turn. cwd / surface / location are reported ONLY from this turn's block, never recall; undetermined keys are omitted, never fabricated.
+
+**BANNED.** A Hermes `pre_llm_call` hook that auto-prepends env text to the **USER message** (rewriting what the user said). Do not add `pre_llm_call` shapes returning `{"context": "..."}`. Heavy / volatile live state (open windows, processes, app inventory) stays **on-demand** via tools (`mios-apps`, `sys_env_snapshot`, `skill_view name=mios-environment`, the native `mios_verbs.*` surface) — it does NOT belong in the always-on block (token bloat / staleness).
+
+The distinction is the message ROLE: env in a **system-role** block (allowed, native, every turn) vs. env prepended to the **user's** message (banned). The always-on block carries cheap ambient facts; tools cover volatile state on demand.
