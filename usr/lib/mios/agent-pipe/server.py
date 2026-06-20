@@ -3320,6 +3320,12 @@ def _load_agent_registry() -> dict[str, dict]:
                 # _agent_rbac_filter at dispatch.
                 "denied_verbs":  list(cfg.get("denied_verbs") or []),
                 "allowed_verbs": list(cfg.get("allowed_verbs") or []),
+                # #55 per-tool capability/risk gate: optional ceiling on the
+                # permission tier (read|write|interactive) this agent may call.
+                # Empty = no ceiling (default => zero behaviour change). Also
+                # consumed by _agent_rbac_filter; verbs whose permission tier
+                # exceeds this rank are dropped from the agent's surface.
+                "max_permission": str(cfg.get("max_permission", "")).strip().lower(),
                 # fan-out opt-out (default True = eligible as a secondary).
                 "fanout":   bool(cfg.get("fanout", True)),
                 # CPU-compute twin (operator 2026-05-22: every agent has a
@@ -6695,20 +6701,49 @@ async def _worker_tools_surface_async(cap: int = 0, intent: str = "") -> list:
     return surface
 
 
+# #55 risk lattice for the per-agent capability gate. The tiers ARE the SSOT
+# permission vocabulary documented in mios.toml ("permission -- read | write |
+# interactive"), ordered lowest->highest risk. Declarative + SSOT-tunable via
+# [ai].permission_tiers -- never a hardcoded keyword test against user content.
+_PERMISSION_TIERS = [
+    str(t).strip().lower()
+    for t in ((_toml_section("ai") or {}).get("permission_tiers")
+              or ["read", "write", "interactive"])
+    if str(t).strip()
+] or ["read", "write", "interactive"]
+
+
+def _perm_rank(perm: str) -> int:
+    """Risk rank of a permission tier (lower index = safer). A tier not in the
+    lattice ranks ABOVE the top (most restrictive) so an unclassified verb is
+    gated rather than silently granted -- fail-closed on the risk axis."""
+    p = str(perm or "").strip().lower()
+    try:
+        return _PERMISSION_TIERS.index(p)
+    except ValueError:
+        return len(_PERMISSION_TIERS)
+
+
 def _agent_rbac_filter(aname: str, tools: list) -> list:
-    """WS-2 per-agent RBAC: restrict a dispatched agent's tool surface to what its
-    role is permitted. SSOT: [agents.<name>].denied_verbs / .allowed_verbs in
-    mios.toml (layered vendor<etc<user, surfaced via _AGENT_REGISTRY). No-op when
-    neither is set -> ZERO behaviour change. Only gates BARE VERBS (names in
-    _VERB_CATALOG): names in denied_verbs are dropped; if allowed_verbs is set, any
-    verb NOT in it is dropped. Non-verb tools (recipes/skills/MCP/client tools)
-    pass through untouched unless explicitly named in denied_verbs."""
+    """WS-2 per-agent RBAC + #55 capability/risk gate: restrict a dispatched
+    agent's tool surface to what its role is permitted. SSOT:
+    [agents.<name>].denied_verbs / .allowed_verbs / .max_permission in mios.toml
+    (layered vendor<etc<user, surfaced via _AGENT_REGISTRY). No-op when none is
+    set -> ZERO behaviour change. Only gates BARE VERBS (names in _VERB_CATALOG):
+    names in denied_verbs are dropped; if allowed_verbs is set, any verb NOT in it
+    is dropped; if max_permission is set, any verb whose permission tier outranks
+    it is dropped. Non-verb tools (recipes/skills/MCP/client tools) pass through
+    untouched unless explicitly named in denied_verbs."""
     if not aname or not tools:
         return tools
     cfg = _AGENT_REGISTRY.get(aname) or {}
     denied = {str(v) for v in (cfg.get("denied_verbs") or [])}
     allowed = {str(v) for v in (cfg.get("allowed_verbs") or [])}
-    if not denied and not allowed:
+    # max_permission gates only when it names a KNOWN tier; a typo/unknown value
+    # fails OPEN (no ceiling) so a config slip never silently blanks the surface.
+    max_perm = str(cfg.get("max_permission") or "").strip().lower()
+    max_rank = _perm_rank(max_perm) if max_perm in _PERMISSION_TIERS else None
+    if not denied and not allowed and max_rank is None:
         return tools
     out = []
     for t in tools:
@@ -6717,10 +6752,18 @@ def _agent_rbac_filter(aname: str, tools: list) -> list:
             continue
         if allowed and nm in _VERB_CATALOG and nm not in allowed:
             continue
+        if max_rank is not None and nm in _VERB_CATALOG:
+            # Verb permission defaults to "read" (the catalog-wide default) so an
+            # unannotated verb is treated as safest, consistent with the rest of
+            # the pipe; only an explicit higher tier trips the ceiling.
+            vperm = str((_VERB_CATALOG.get(nm) or {}).get("permission", "read")).lower()
+            if _perm_rank(vperm) > max_rank:
+                continue
         out.append(t)
     if len(out) != len(tools):
-        log.info("agent RBAC: %s surface %d -> %d (denied=%d allowed=%d)",
-                 aname, len(tools), len(out), len(denied), len(allowed))
+        log.info("agent RBAC: %s surface %d -> %d (denied=%d allowed=%d max_perm=%s)",
+                 aname, len(tools), len(out), len(denied), len(allowed),
+                 max_perm or "-")
     return out
 
 

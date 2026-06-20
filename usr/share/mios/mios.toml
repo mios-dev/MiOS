@@ -705,6 +705,13 @@ role     = "general"
 # Examples (left unset for the general orchestrator, which needs the full surface):
 #   denied_verbs  = ["pkg", "shutdown", "reboot"]
 #   allowed_verbs = ["web_search", "fetch_url_markdown", "recall", "summarize"]
+# #55 per-tool capability/risk gate: max_permission caps the RISK TIER this agent
+# may call, using the same permission vocabulary verbs declare (read < write <
+# interactive; lattice tunable via [ai].permission_tiers). Verbs whose tier
+# outranks the ceiling drop from the surface. Unset = no ceiling. A coarse,
+# one-key complement to allow/deny lists -- e.g. a read-only research worker:
+#   max_permission = "read"     # only read-tier verbs (web/search/inspect); no writes
+#   max_permission = "write"    # read + write verbs; blocks interactive-tier
 # job (operator 2026-05-24 "no fixed roles -- MiOS-Agents are modelfiles for
 # jobs and tools/skills/recipes"): the one-line CAPABILITY the swarm planner
 # routes a sub-task by. Tools/recipes/skills are GLOBAL to every agent, so this
