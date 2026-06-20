@@ -118,6 +118,15 @@ Environment=MIOS_POLISH_ENDPOINT=http://localhost:11450
 Environment=MIOS_REFINE_TIMEOUT_S=45
 Environment=MIOS_POLISH_TIMEOUT_S=45
 Environment=MIOS_REFINE_MAX_TOKENS=1200
+# Agent self-memory recall (operator 2026-06-20): inject the agent's OWN durable
+# self-edited facts (remember/memory_update -> agent_memory, embed-on-write) into
+# context so a "what did I tell you" / "what is my X" turn RETRIEVES the stored fact
+# instead of replying "I don't have that" (the WRITE half worked; the READ half was
+# default-OFF only to keep the hot path byte-identical until flipped). Safe: the
+# agent's OWN facts, same injection class as knowledge recall, NOT env-detection (the
+# no-context-injection rule is scoped to env discovery). RLS fail-closed still applies
+# under rls_mode=enforce; default rls_mode=off -> unchanged.
+Environment=MIOS_AGENT_MEMORY_RECALL=1
 
 # Reuse hermes-agent's venv interpreter for fastapi/uvicorn/httpx/
 # starlette -- they're already installed there. Cleaner option for a

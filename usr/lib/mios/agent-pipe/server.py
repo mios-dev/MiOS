@@ -25107,7 +25107,14 @@ async def chat_completions(request: Request) -> Any:
     # falls through to the multi-node swarm (it's intent=chat + >= MIN_WORDS).
     if (refined and refined.get("intent") == "chat"
             and len((last_user_text or "").split()) < SWARM_DECOMPOSE_MIN_WORDS
-            and not _force_council and not _force_delegate):
+            and not _force_council and not _force_delegate
+            # A memory-RECALL query the router tagged `memory` ("what is my favorite
+            # color?") must NOT short-circuit to refine's reply: refine ran BEFORE
+            # recall, so its canned answer is "I don't have that information". Fall
+            # through to the recall-injected path (agent_memory + knowledge recall) so
+            # the STORED fact actually answers it (operator 2026-06-20; pairs with the
+            # MIOS_AGENT_MEMORY_RECALL=1 flip -- store worked, retrieve was bypassed here).
+            and _routed_domain_var.get(None) != "memory"):
         _chat_reply = str(refined.get("reply") or "").strip()
         if not _chat_reply:
             # The JSON classifier reliably tags chat but often omits the
