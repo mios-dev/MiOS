@@ -1,5 +1,5 @@
 # AI-hint: FastAPI gateway service on port 8640 that routes, dispatches, and proxies chat/embedding requests from external interfaces (Discord, Slack) to the hermes-agent backend and SurrealDB.
-# AI-related: mios_jsonsalvage, mios_owui, mios_sched, mios_evict, mios_hitl, mios_aci, mios_kvfork, mios_codemode, mios_pg, mios_lanes, mios_a2a_principal, /usr/share/mios/mios.toml
+# AI-related: mios_jsonsalvage, mios_owui, mios_sched, mios_evict, mios_hitl, mios_aci, mios_kvfork, mios_codemode, mios_pg, mios_lanes, mios_a2a_principal, mios_reputation, /usr/share/mios/mios.toml
 # AI-functions: _toml_section, _cfg_num, _is_remote_endpoint, _should_health_probe, _trip_breaker, _parse_lane_caps, _lane_tool_cap, _dispatch_toml, _dispatch_num, _priority_gate, _parse_lane_priority, _lane_sem
 """'MiOS' Agent Pipe -- standalone FastAPI service.
 
@@ -104,6 +104,8 @@ import mios_codemode as _codemode   # noqa: E402  -- WS-2 Code Mode pure helpers
 import mios_pg as _mios_pg   # noqa: E402  -- WS-9 Postgres+pgvector client
 import mios_lanes   # noqa: E402  -- WS-1 unified inference-lane resolver
 import mios_a2a_principal as _a2a_pp   # noqa: E402  -- WS-6 signed delegation principal
+import mios_reputation   # noqa: E402  -- #54 zero-trust peer reputation
+_A2A_REPUTATION = mios_reputation.PeerReputation()   # outbound-peer reliability
 
 # ── Config (SSOT-sourced via env) ──────────────────────────────────
 PORT = int(os.environ.get("MIOS_PORT_AGENT_PIPE", "8640"))
@@ -19475,24 +19477,34 @@ async def _a2a_send_message_to_peer(peer_id: str, text: str,
         "method": "message/send",
         "params": {"message": msg},
     }
+    # Single exit so the delegation outcome is recorded once for peer reputation
+    # (#54): result carries "error" on any failure, else the peer's Task envelope.
+    result: dict
     try:
         client = await _get_client()
         r = await client.post(url, json=body, headers=headers,
                               timeout=timeout_s)
     except httpx.HTTPError as e:
-        return {"error": f"http error: {e}", "peer_id": peer_id}
-    if r.status_code != 200:
-        return {"error": f"status {r.status_code}: {(r.text or '')[:200]}",
-                "peer_id": peer_id}
-    try:
-        resp = r.json()
-    except (json.JSONDecodeError, ValueError):
-        return {"error": "non-JSON response", "peer_id": peer_id}
-    if resp.get("error"):
-        err = resp["error"]
-        return {"error": err.get("message") or "rpc error",
-                "code": err.get("code"), "peer_id": peer_id}
-    return resp.get("result") or {}
+        result = {"error": f"http error: {e}", "peer_id": peer_id}
+    else:
+        if r.status_code != 200:
+            result = {"error": f"status {r.status_code}: {(r.text or '')[:200]}",
+                      "peer_id": peer_id}
+        else:
+            try:
+                resp = r.json()
+            except (json.JSONDecodeError, ValueError):
+                result = {"error": "non-JSON response", "peer_id": peer_id}
+            else:
+                if resp.get("error"):
+                    err = resp["error"]
+                    result = {"error": err.get("message") or "rpc error",
+                              "code": err.get("code"), "peer_id": peer_id}
+                else:
+                    result = resp.get("result") or {}
+    _A2A_REPUTATION.record(
+        peer_id, not (isinstance(result, dict) and result.get("error")))
+    return result
 
 
 # ── #60 WS-6: signed delegation principal (A2A) ──────────────────────────────
@@ -19567,7 +19579,8 @@ async def a2a_peers_list() -> JSONResponse:
                 "skills_count": len(v.get("skills") or []),
                 "error": v.get("error"),
             })
-    return JSONResponse({"object": "mios.a2a.peers", "peers": peers})
+    return JSONResponse({"object": "mios.a2a.peers", "peers": peers,
+                         "reputation": _A2A_REPUTATION.snapshot()})  # #54
 
 
 @app.get("/v1/a2a/skills")
@@ -19618,11 +19631,15 @@ async def a2a_dispatch(request: Request) -> JSONResponse:
     if not peer_id and skill:
         async with _A2A_PEERS_LOCK:
             candidates = list(_A2A_PEER_SKILLS.get(skill) or [])
-            for pid in candidates:
-                p = _A2A_PEERS.get(pid) or {}
-                if p.get("status") == "ready":
-                    peer_id = pid
-                    break
+            ready = [pid for pid in candidates
+                     if (_A2A_PEERS.get(pid) or {}).get("status") == "ready"]
+        # #54: among ready peers advertising the skill, prefer the most reliable.
+        # rank() is a STABLE sort -> all-neutral (untried) peers keep candidate
+        # order, so this is identical to the prior first-ready pick until peers
+        # build a track record.
+        ranked = _A2A_REPUTATION.rank(ready)
+        if ranked:
+            peer_id = ranked[0]
     if not peer_id:
         return JSONResponse(
             {"error": "no peer matched (provide peer_id or skill)"},
