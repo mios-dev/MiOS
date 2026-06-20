@@ -21480,10 +21480,16 @@ async def _client_tools_loop(body: dict, client_names: set, chat_id: str,
     for _k in ("temperature", "top_p", "max_tokens", "tool_choice", "parallel_tool_calls"):
         if _k in body:
             base_req[_k] = body[_k]
-    # Let the backend THINK so its reasoning can stream to clients that render it
-    # (Hermes desktop app). Safe here: the passthrough uses tools, not a json_schema
-    # grammar, so the llama.cpp #20345 thinking-drops-grammar issue doesn't apply.
-    base_req["chat_template_kwargs"] = {"enable_thinking": True}
+    # Thinking OFF (operator 2026-06-19, the Hermes REPL "empty response" bug):
+    # with thinking ON a reasoning model (Qwen3-8B on the heavy lane) spends the
+    # CALLER's whole max_tokens budget inside the <think> block and hits the length
+    # limit BEFORE emitting any content OR tool_call -> the client gets "empty
+    # response after retries / No reply". Proven live on the heavy lane: tools-less
+    # max_tokens=250 think-ON -> content_len=0 reasoning_len=1133 finish=length, vs
+    # think-OFF -> content_len=1114. The Hermes client sets a tight budget, so
+    # thinking MUST be off here. Tool-calling works fine without thinking; the
+    # final-synthesis fallback below is also thinking-off.
+    base_req["chat_template_kwargs"] = {"enable_thinking": False}
     last: dict = {}
     _seen: set = set()
     for _ in range(max(1, max_iters)):
@@ -21556,8 +21562,34 @@ async def _client_tools_loop(body: dict, client_names: set, chat_id: str,
             _fmsg = ((_fresp.get("choices") or [{}])[0] or {}).get("message") or {}
             if str(_fmsg.get("content") or "").strip():
                 return _fmsg
-        except Exception as _e:  # noqa: BLE001 -- degrade-open, return `last`
+            # Last resort: synthesize over a MINIMAL prompt -- drop the heavy SOUL +
+            # accumulated tool-result context that may have choked the model -- so a
+            # content answer is essentially guaranteed.
+            _orig_user = ""
+            for _m in reversed(messages):
+                if isinstance(_m, dict) and _m.get("role") == "user":
+                    _orig_user = str(_m.get("content") or "")
+                    break
+            _mr = dict(base_req)
+            _mr.pop("tools", None)
+            _mr.pop("tool_choice", None)
+            _mr["chat_template_kwargs"] = {"enable_thinking": False}
+            _mr["messages"] = [
+                {"role": "system", "content":
+                 "You are the MiOS local agent -- a LOCAL open-weight model on this "
+                 "machine (not Claude/GPT/Gemini). Answer the user directly."},
+                {"role": "user", "content": _orig_user or "Introduce yourself briefly."}]
+            _mresp = await _client_tools_backend(_mr)
+            _mmsg = ((_mresp.get("choices") or [{}])[0] or {}).get("message") or {}
+            if str(_mmsg.get("content") or "").strip():
+                return _mmsg
+        except Exception as _e:  # noqa: BLE001 -- degrade-open
             log.debug("client-tools final synthesis failed: %s", _e)
+    # NEVER hand the client an empty reply (Hermes shows "No reply" + retries 3x).
+    if not str((last or {}).get("content") or "").strip() and not (last or {}).get("tool_calls"):
+        return {"role": "assistant", "content":
+                "I'm the MiOS local agent. I couldn't form a full reply just now -- "
+                "please rephrase or ask again."}
     return last
 
 
