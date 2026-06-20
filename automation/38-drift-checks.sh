@@ -271,12 +271,60 @@ check_module_boundary() {
     fi
 }
 
+# (7, WS-A9) Every [agents.<name>] / [users.<name>] .max_permission MUST name a
+# tier in [ai].permission_tiers. An unknown tier is a config defect: the dispatch
+# PDP (mios_pdp.resolve_ceiling) now FAILS CLOSED on it (restricts the caller to
+# the safest tier) instead of the old fail-OPEN (silently granting everything),
+# so a typo silently shrinks a surface. Catch it at the gate, not in production.
+check_rbac_tiers() {
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "[38-drift-checks]   WARNING: python3 missing -- skipping RBAC tier check" >&2
+        return 0
+    fi
+    if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
+import os, sys
+root = os.environ["MIOS_DRIFT_ROOT"]
+try:
+    import tomllib as _toml
+except ImportError:
+    try:
+        import tomli as _toml  # type: ignore
+    except ImportError:
+        sys.exit(0)  # no toml parser -> skip (not a violation)
+p = os.path.join(root, "usr/share/mios/mios.toml")
+if not os.path.isfile(p):
+    sys.exit(0)
+with open(p, "rb") as fh:
+    d = _toml.load(fh)
+tiers = [str(x).strip().lower()
+         for x in ((d.get("ai") or {}).get("permission_tiers")
+                   or ["read", "write", "interactive"]) if str(x).strip()]
+bad = []
+for sect in ("agents", "users"):
+    for name, cfg in (d.get(sect) or {}).items():
+        if not isinstance(cfg, dict):
+            continue
+        mp = str(cfg.get("max_permission") or "").strip().lower()
+        if mp and mp not in tiers:
+            bad.append(f"    [{sect}.{name}].max_permission={mp!r} not in {tiers}")
+for b in bad:
+    sys.stderr.write(b + "\n")
+sys.exit(1 if bad else 0)
+PY
+    then
+        echo "[38-drift-checks]   (7) RBAC max_permission tiers all valid (PDP fail-closed gate)"
+    else
+        _violation "an [agents.*]/[users.*].max_permission names an UNKNOWN permission tier -- the dispatch PDP fails CLOSED on it (restricts the caller to the safest tier); fix the typo or add the tier to [ai].permission_tiers (WS-A9)"
+    fi
+}
+
 main() {
     check_dead_lane
     check_retired_models
     check_structured
     check_hint_coverage
     check_module_boundary
+    check_rbac_tiers
 
     echo "[38-drift-checks] ---------------------------------------------------------"
     if [[ "$VIOLATIONS" -eq 0 ]]; then

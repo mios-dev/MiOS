@@ -111,6 +111,7 @@ import mios_goap   # noqa: E402  -- #53 deterministic GOAP planner lane
 import mios_selfimprove   # noqa: E402  -- #64 self-improvement analyzer (read-only)
 import mios_toolconflict   # noqa: E402  -- WS-A7 per-verb dispatch conflict/parallel-limit gate
 import mios_trace   # noqa: E402  -- WS-A8 per-request trace/span observability
+import mios_pdp as _pdp   # noqa: E402  -- WS-A9 policy decision point (capability gate)
 
 # ── Config (SSOT-sourced via env) ──────────────────────────────────
 PORT = int(os.environ.get("MIOS_PORT_AGENT_PIPE", "8640"))
@@ -4055,6 +4056,7 @@ async def _call_agent_complete_inner(name: str, cfg: dict, body: dict,
     names. A semantically-empty answer (model returned content="") DOES NOT
     trigger failover -- the agent succeeded; the council merge handles
     quality. Only TRANSPORT failure flips us into failover."""
+    _dispatch_agent_var.set(name)  # WS-A9: scope the dispatching agent for the PDP gate
     # prefer_cpu (fan-out secondaries): offload to the agent's CPU twin so
     # it runs concurrent with the GPU primary. prefer_cpu=False (planner
     # agent-task nodes): use the agent's PRIMARY endpoint/model -- a coding
@@ -5128,6 +5130,7 @@ async def _call_agent_stream(name, cfg, body, headers, client, q,
 async def _call_agent_stream_inner(name: str, cfg: dict, body: dict,
                                    headers: dict, client, q,
                                    *, prefer_cpu: bool = True) -> tuple:
+    _dispatch_agent_var.set(name)  # WS-A9: scope the dispatching agent for the PDP gate
     # Resolve (endpoint, model) for THIS dispatch via the agent's engine/node
     # binding map. prefer_cpu (fan-out secondaries) offloads to a LIGHT engine
     # the agent declares (cpu/igpu/accelerator) so it runs concurrent with the
@@ -7183,32 +7186,53 @@ def _agent_rbac_filter(aname: str, tools: list) -> list:
     cfg = _AGENT_REGISTRY.get(aname) or {}
     denied = {str(v) for v in (cfg.get("denied_verbs") or [])}
     allowed = {str(v) for v in (cfg.get("allowed_verbs") or [])}
-    # max_permission gates only when it names a KNOWN tier; a typo/unknown value
-    # fails OPEN (no ceiling) so a config slip never silently blanks the surface.
+    # WS-A9: route the ceiling + per-tool decision through the shared PDP core
+    # (mios_pdp) so the surface filter and the dispatch-time gate can NEVER
+    # diverge. resolve_ceiling FAILS CLOSED on an unknown max_permission (a typo
+    # used to fall OPEN -> full surface). Verb permission defaults to "read".
     max_perm = str(cfg.get("max_permission") or "").strip().lower()
-    max_rank = _perm_rank(max_perm) if max_perm in _PERMISSION_TIERS else None
-    if not denied and not allowed and max_rank is None:
+    ceiling = _pdp.resolve_ceiling(max_perm, _PERMISSION_TIERS)
+    if not denied and not allowed and ceiling is None:
         return tools
     out = []
     for t in tools:
         nm = ((t.get("function") or {}).get("name") if isinstance(t, dict) else "") or ""
-        if nm in denied:
-            continue
-        if allowed and nm in _VERB_CATALOG and nm not in allowed:
-            continue
-        if max_rank is not None and nm in _VERB_CATALOG:
-            # Verb permission defaults to "read" (the catalog-wide default) so an
-            # unannotated verb is treated as safest, consistent with the rest of
-            # the pipe; only an explicit higher tier trips the ceiling.
-            vperm = str((_VERB_CATALOG.get(nm) or {}).get("permission", "read")).lower()
-            if _perm_rank(vperm) > max_rank:
-                continue
-        out.append(t)
+        vperm = str((_VERB_CATALOG.get(nm) or {}).get("permission", "read")).lower()
+        if _pdp.decide(nm, in_catalog=nm in _VERB_CATALOG, verb_perm=vperm,
+                       denied=denied, allowed=allowed, ceiling_rank=ceiling,
+                       tiers=_PERMISSION_TIERS).allow:
+            out.append(t)
     if len(out) != len(tools):
         log.info("agent RBAC: %s surface %d -> %d (denied=%d allowed=%d max_perm=%s)",
                  aname, len(tools), len(out), len(denied), len(allowed),
                  max_perm or "-")
     return out
+
+
+def _match_user_cfg() -> tuple:
+    """WS-6/WS-A9: resolve the [users.<name>] policy for the CURRENT request's
+    principal (the surface-claimed user_name/user_email in _client_env_var).
+    Returns (label, cfg) or ("", None) when no entry matches. Shared by the
+    user-axis surface filter AND the dispatch-time PDP so both enforce ONE policy
+    (surface and dispatch can never diverge)."""
+    env = _client_env_var.get() if isinstance(_client_env_var.get(), dict) else {}
+    uname = str((env or {}).get("user_name") or "").strip().lower()
+    uemail = str((env or {}).get("user_email") or "").strip().lower()
+    if not uname and not uemail:
+        return "", None
+    users = _toml_section("users") or {}
+    if not isinstance(users, dict) or not users:
+        return "", None
+    for k, v in users.items():
+        if not isinstance(v, dict):
+            continue
+        kk = str(k).strip().lower()
+        _vemail = str(v.get("email", "")).strip().lower()
+        # Guard the email arm with `uemail and ...`: an empty-email entry must not
+        # spuriously match an empty-email user; the key must be non-empty too.
+        if (kk and kk in (uname, uemail)) or (uemail and _vemail == uemail):
+            return (uname or uemail), v
+    return "", None
 
 
 def _user_rbac_filter(tools: list) -> list:
@@ -7226,51 +7250,74 @@ def _user_rbac_filter(tools: list) -> list:
     boundary against a forged caller."""
     if not tools:
         return tools
-    env = _client_env_var.get() if isinstance(_client_env_var.get(), dict) else {}
-    uname = str(env.get("user_name") or "").strip().lower()
-    uemail = str(env.get("user_email") or "").strip().lower()
-    if not uname and not uemail:
-        return tools
-    users = _toml_section("users") or {}
-    if not isinstance(users, dict) or not users:
-        return tools
-    cfg = None
-    for k, v in users.items():
-        if not isinstance(v, dict):
-            continue
-        kk = str(k).strip().lower()
-        _vemail = str(v.get("email", "")).strip().lower()
-        # Guard the email arm with `uemail and ...`: otherwise an entry with no
-        # email ("") spuriously matches a user with no email ("" == "") -> every
-        # unlisted user would inherit the first policy. Key must be non-empty too.
-        if (kk and kk in (uname, uemail)) or (uemail and _vemail == uemail):
-            cfg = v
-            break
+    label, cfg = _match_user_cfg()
     if not cfg:
         return tools
     denied = {str(v) for v in (cfg.get("denied_verbs") or [])}
     allowed = {str(v) for v in (cfg.get("allowed_verbs") or [])}
     max_perm = str(cfg.get("max_permission") or "").strip().lower()
-    max_rank = _perm_rank(max_perm) if max_perm in _PERMISSION_TIERS else None
-    if not denied and not allowed and max_rank is None:
+    ceiling = _pdp.resolve_ceiling(max_perm, _PERMISSION_TIERS)  # WS-A9: fail-closed
+    if not denied and not allowed and ceiling is None:
         return tools
     out = []
     for t in tools:
         nm = ((t.get("function") or {}).get("name") if isinstance(t, dict) else "") or ""
-        if nm in denied:
-            continue
-        if allowed and nm in _VERB_CATALOG and nm not in allowed:
-            continue
-        if max_rank is not None and nm in _VERB_CATALOG:
-            vperm = str((_VERB_CATALOG.get(nm) or {}).get("permission", "read")).lower()
-            if _perm_rank(vperm) > max_rank:
-                continue
-        out.append(t)
+        vperm = str((_VERB_CATALOG.get(nm) or {}).get("permission", "read")).lower()
+        if _pdp.decide(nm, in_catalog=nm in _VERB_CATALOG, verb_perm=vperm,
+                       denied=denied, allowed=allowed, ceiling_rank=ceiling,
+                       tiers=_PERMISSION_TIERS).allow:
+            out.append(t)
     if len(out) != len(tools):
         log.info("user RBAC: %s surface %d -> %d (denied=%d allowed=%d max_perm=%s)",
-                 (uname or uemail), len(tools), len(out), len(denied), len(allowed),
-                 max_perm or "-")
+                 label, len(tools), len(out), len(denied), len(allowed), max_perm or "-")
     return out
+
+
+# WS-A9: emit a PDP audit event on ALLOW too when [ai].pdp_audit_allow=true
+# (default off -> deny-only auditing, ~zero overhead on the hot allow path).
+_PDP_AUDIT_ALLOW = str((_toml_section("ai") or {}).get("pdp_audit_allow")
+                       or "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def _dispatch_pdp_reason(verb: str) -> "Optional[str]":
+    """WS-A9 dispatch-time Policy Decision Point. Re-checks the per-AGENT
+    (_dispatch_agent_var) and per-USER (_match_user_cfg) capability policy for
+    `verb` at the SINGLE dispatch chokepoint, through the SAME mios_pdp core the
+    surface filters use -- so a verb pruned from the model surface (or named by a
+    stale/MCP/A2A/fabricated call) can NOT still dispatch (the RBAC bypass WS-A9
+    closes). Returns a refusal reason on DENY, else None. Degrade-open: an
+    unexpected error proceeds (a PDP bug must never block real work); an EXPLICIT
+    policy deny always blocks."""
+    try:
+        in_cat = verb in _VERB_CATALOG
+        vperm = str((_VERB_CATALOG.get(verb) or {}).get("permission", "read")).lower()
+        checks = []
+        aname = (_dispatch_agent_var.get() or "").strip()
+        if aname:
+            checks.append((f"agent '{aname}'", _AGENT_REGISTRY.get(aname) or {}))
+        ulabel, ucfg = _match_user_cfg()
+        if ucfg:
+            checks.append((f"user '{ulabel}'", ucfg))
+        for who, cfg in checks:
+            d = _pdp.decide(
+                verb, in_catalog=in_cat, verb_perm=vperm,
+                denied={str(v) for v in (cfg.get("denied_verbs") or [])},
+                allowed={str(v) for v in (cfg.get("allowed_verbs") or [])},
+                ceiling_rank=_pdp.resolve_ceiling(
+                    str(cfg.get("max_permission") or ""), _PERMISSION_TIERS),
+                tiers=_PERMISSION_TIERS)
+            if not d.allow:
+                return (f"'{verb}' is not permitted for {who} ({d.rule}): "
+                        f"{d.reason}. It was NOT executed.")
+            if _PDP_AUDIT_ALLOW:
+                _db_fire(_db_post(_db_create("event", {
+                    "source": "agent-pipe", "kind": "pdp_allow", "severity": "info",
+                    "summary": f"PDP allow {verb} for {who}",
+                    "payload": {"verb": verb, "who": who, "rule": d.rule},
+                }, now_fields=("ts",))))
+        return None
+    except Exception:  # noqa: BLE001 -- degrade-open: a PDP bug never blocks work
+        return None
 
 
 def _stable_name(t: dict) -> str:
@@ -7601,6 +7648,15 @@ _conv_key_var: "contextvars.ContextVar" = contextvars.ContextVar(
 # session context is exactly what the operator asked for).
 _client_env_var: "contextvars.ContextVar" = contextvars.ContextVar(
     "mios_client_env", default=None)
+
+# WS-A9: the NAME of the agent on whose behalf the current dispatch runs (set at
+# the top of _call_agent_complete_inner / _call_agent_stream_inner -- each agent
+# call is its own task, so this scopes per-call with no leak). Read by the
+# dispatch-time PDP (_dispatch_pdp_reason) so the per-AGENT capability policy is
+# enforced at dispatch, not only at surface-build. "" -> no agent context (the
+# primary/native path) -> agent-axis PDP is a no-op there (user-axis still applies).
+_dispatch_agent_var: "contextvars.ContextVar" = contextvars.ContextVar(
+    "mios_dispatch_agent", default="")
 
 # Stage-1 domain-router result for THIS request (operator 2026-06-07): set once at
 # the chat entry, inherited by all child council/DAG tasks; read by the planner
@@ -16965,6 +17021,26 @@ async def _dispatch_mios_verb_inner(
     # surrounding whitespace/quotes so the catalog lookup is robust to
     # however a model phrased the name.
     tool = re.sub(r"\(.*?\)\s*$", "", str(tool or "").strip()).strip().strip("`'\"")
+    # ── WS-A9 dispatch-time PDP capability gate (before the firewall/HITL/enum
+    # checks): re-evaluate the caller's per-agent + per-user policy at the single
+    # chokepoint so a verb absent from the filtered surface can't still run. DENY
+    # -> refuse deterministically + emit a pdp_block audit event. Degrade-open. ──
+    _pdp_deny = _dispatch_pdp_reason(tool)
+    if _pdp_deny is not None:
+        _db_fire(_db_post(_db_create("event", {
+            "source": "agent-pipe",
+            "kind": "pdp_block",
+            "severity": "high",
+            "summary": _pdp_deny[:200],
+            "payload": {"tool": tool, "args": args,
+                        "agent": _dispatch_agent_var.get() or ""},
+        }, now_fields=("ts",))))
+        return {
+            "success": False, "tool": tool, "args": args, "output": "",
+            "stderr": f"pdp_block: {_pdp_deny}",
+            "exit_code": 126, "latency_ms": 0,
+            "pdp_blocked": True,
+        }
     # ── Firewall pre-check for high-privilege verbs ──
     if tool in _HIGH_PRIVILEGE_VERBS and session_id:
         is_tainted, chain = await _session_is_tainted(session_id)

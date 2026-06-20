@@ -4379,6 +4379,17 @@ hitl_threshold      = "interactive"
 # or closed (fail-safe-deny).
 hitl_arbiter_url    = ""
 hitl_arbiter_fail   = "open"
+# WS-A9 dispatch-time PDP (Policy Decision Point) capability gate. The per-agent
+# [agents.<name>] and per-user [users.<name>] denied_verbs / allowed_verbs /
+# max_permission policies are now enforced at the SINGLE dispatch chokepoint
+# (mios_pdp, shared with the surface filters), so a verb pruned from a caller's
+# tool surface can never still dispatch (closes the RBAC bypass). An UNKNOWN
+# max_permission tier FAILS CLOSED (restricts to the safest tier) -- it used to
+# fail OPEN (silently grant the full surface). The gate is always on but a no-op
+# for callers with no policy (single-user MiOS unaffected). This flag only sets
+# audit verbosity: false (default) emits a pdp_block event on DENY only; true
+# also emits a pdp_allow event per permitted dispatch.
+pdp_audit_allow     = false
 # WS-1 unified lane resolver (operator 2026-06-19): which heavy engine the agent-pipe
 # PREFERS when both heavy lanes ([ai.sglang] :11441 + [ai.vllm] :11440 -- BOTH advertise
 # served_name "mios-heavy") are provisioned. mios_lanes.LaneResolver tries the preferred
