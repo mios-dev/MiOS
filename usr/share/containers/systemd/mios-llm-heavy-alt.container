@@ -56,6 +56,10 @@ AddDevice=nvidia.com/gpu=all
 # immutable RO weights mount below (no writable volume to own).
 User=${MIOS_VLLM_UID:-815}
 Group=${MIOS_VLLM_GID:-815}
+# Architectural Law 6 (UNPRIVILEGED-QUADLETS): unprivileged lanes declare
+# Delegate=yes so systemd hands the unit its own cgroup subtree (parity with
+# mios-llm-light / mios-cpu-node; mios-llm-heavy is the documented root exception).
+Delegate=yes
 # Serve the baked reasoner, OpenAI-compatible, on the SSOT vllm port. APC is
 # always on (the whole point of this lane). --gpu-memory-utilization is a BOUNDED
 # slice so it co-resides with ollama's dGPU models + leaves margin for the
