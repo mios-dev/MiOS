@@ -44,6 +44,12 @@ CREATE INDEX IF NOT EXISTS knowledge_fts_gin   ON knowledge USING gin (fts);
 CREATE INDEX IF NOT EXISTS knowledge_ts        ON knowledge (ts DESC);
 CREATE INDEX IF NOT EXISTS knowledge_tier      ON knowledge (tier);
 CREATE INDEX IF NOT EXISTS knowledge_last_acc  ON knowledge (last_access);
+-- #59 WS-5: owner_user -- the principal that produced/owns the row, so per-owner
+-- RLS can scope recall in a multi-user deployment. Additive + nullable (NULL =
+-- unowned/single-user); the drift-tolerant pg insert populates it when the chat
+-- surface forwards a principal. Idempotent (matches the established pattern).
+ALTER TABLE knowledge    ADD COLUMN IF NOT EXISTS owner_user text;
+CREATE INDEX IF NOT EXISTS knowledge_owner ON knowledge (owner_user);
 
 -- ── agent_memory: tool-driven self-editing facts (mios-remember) ─────────────
 CREATE TABLE IF NOT EXISTS agent_memory (

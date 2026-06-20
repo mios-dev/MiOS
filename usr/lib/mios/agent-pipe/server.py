@@ -10491,6 +10491,16 @@ async def _store_knowledge_task(q: str, a: str,
             return
         row = {"q": q, "answer": a, "sources": sources,
                "access_count": 0, "recall_hits": 0, "tier": "warm"}
+        # #59 WS-5: tag the memory row with its OWNER (the principal the chat
+        # surface forwarded), so future per-owner RLS can scope recall by owner.
+        # The drift-tolerant pg insert DROPS this key if the owner_user column is
+        # absent (pre-migration) and writes it once present -> safe either way;
+        # empty when no principal was forwarded (single-user). Enforcement is gated
+        # by [pgvector].rls_mode (default off -> tag-only, no recall filtering yet).
+        _ou_env = _client_env_var.get() if isinstance(_client_env_var.get(), dict) else {}
+        _ou = str(_ou_env.get("user_name") or _ou_env.get("user_email") or "").strip()
+        if _ou:
+            row["owner_user"] = _ou
         if satisfied is not None:
             row["satisfied"] = satisfied
         if KNOWLEDGE_RECALL_ENABLED:
