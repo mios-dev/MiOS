@@ -4233,6 +4233,13 @@ agent_model         = "MiOS AI"
 # agent-passport humanInLoop thresholds. Ships off (inert) -- opt in deliberately.
 hitl_mode           = "off"
 hitl_threshold      = "interactive"
+# #62 out-of-process policy arbiter: when set, a high-risk action (tier >=
+# hitl_threshold) is POSTed to this URL ({verb,tier,args}) for an {allow,reason}
+# verdict, on top of the in-process gate above. Empty (default) -> no arbiter, no
+# overhead. hitl_arbiter_fail = open (default; a down/erroring arbiter proceeds)
+# or closed (fail-safe-deny).
+hitl_arbiter_url    = ""
+hitl_arbiter_fail   = "open"
 # WS-1 unified lane resolver (operator 2026-06-19): which heavy engine the agent-pipe
 # PREFERS when both heavy lanes ([ai.sglang] :11441 + [ai.vllm] :11440 -- BOTH advertise
 # served_name "mios-heavy") are provisioned. mios_lanes.LaneResolver tries the preferred

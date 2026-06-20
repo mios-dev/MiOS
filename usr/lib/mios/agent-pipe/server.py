@@ -6832,6 +6832,50 @@ def _hitl_block_reason(tool: str) -> "Optional[str]":
         return None
 
 
+# #62 (remaining half) -- OUT-OF-PROCESS policy arbiter. When [ai].hitl_arbiter_url
+# is set, a high-risk action is POSTed to that external arbiter for an allow/deny
+# verdict on top of the in-process gate. Default unset -> the helper returns None
+# instantly (no HTTP, no overhead, no behaviour change). Degrade-open per
+# [ai].hitl_arbiter_fail (default 'open': a down/erroring arbiter PROCEEDS; set
+# 'closed' to fail-safe-deny). Short timeout so a slow arbiter never hangs dispatch.
+_HITL_ARBITER_URL = str((_toml_section("ai") or {}).get("hitl_arbiter_url") or "").strip()
+_HITL_ARBITER_FAIL = str((_toml_section("ai") or {}).get("hitl_arbiter_fail")
+                         or "open").strip().lower()
+
+
+async def _hitl_arbiter_verdict(tool: str, args: dict) -> "Optional[str]":
+    """Consult the external policy arbiter for a high-risk action; return a refusal
+    reason on DENY, else None (allow/not-applicable). No-op when no arbiter URL is
+    configured. Degrade-open per _HITL_ARBITER_FAIL."""
+    if not _HITL_ARBITER_URL:
+        return None
+    try:
+        vperm = str((_VERB_CATALOG.get(tool) or {}).get("permission", "read")).lower()
+        if _perm_rank(vperm) < _perm_rank(_HITL_THRESHOLD):
+            return None  # below the threshold -> arbiter not consulted
+        client = await _get_client()
+        r = await client.post(
+            _HITL_ARBITER_URL,
+            json={"verb": tool, "tier": vperm, "args": args},
+            timeout=5.0)
+        if r.status_code == 200:
+            v = r.json() if r.content else {}
+            if isinstance(v, dict) and not v.get("allow", True):
+                log.info("HITL arbiter: DENY %s (tier=%s): %s",
+                         tool, vperm, v.get("reason"))
+                return str(v.get("reason") or f"'{tool}' denied by the policy arbiter.")
+            return None  # explicit allow (or no verdict field) -> proceed
+        if _HITL_ARBITER_FAIL == "closed":
+            return (f"'{tool}' blocked: policy arbiter returned HTTP {r.status_code} "
+                    f"(fail-closed).")
+        return None
+    except Exception as e:  # noqa: BLE001 -- degrade-open
+        log.warning("HITL arbiter unreachable for %s: %s", tool, e)
+        if _HITL_ARBITER_FAIL == "closed":
+            return f"'{tool}' blocked: policy arbiter unreachable (fail-closed)."
+        return None
+
+
 def _agent_rbac_filter(aname: str, tools: list) -> list:
     """WS-2 per-agent RBAC + #55 capability/risk gate: restrict a dispatched
     agent's tool surface to what its role is permitted. SSOT:
@@ -16428,6 +16472,8 @@ async def dispatch_mios_verb(
     # In block mode a high-risk verb is REFUSED here (never executed) pending human
     # approval; audit mode logs + proceeds. Keys off the resolved verb above.
     _hitl_reason = _hitl_block_reason(tool)
+    if _hitl_reason is None and _HITL_ARBITER_URL:
+        _hitl_reason = await _hitl_arbiter_verdict(tool, args)  # #62 out-of-process arbiter
     if _hitl_reason is not None:
         return {"success": False, "output": "", "stderr": _hitl_reason,
                 "exit_code": 126, "hitl_blocked": True}
