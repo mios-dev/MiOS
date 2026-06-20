@@ -10671,10 +10671,15 @@ async def _recall_agent_memory(query: str) -> str:
             lines.append(f"  - [{_sc}] {str(r.get('fact', ''))[:300]}{_tag}")
         log.info("agent-memory recall: %d hits (top=%.2f)",
                  len(hits), float(hits[0].get("score") or 0))
-        return ("Durable facts YOU previously saved (your own memory). If one of "
-                "these ANSWERS the question, answer FROM IT directly -- do NOT call a "
-                "tool to re-derive a fact you already saved. Only fetch with a tool if "
-                "the question needs LIVE / current data these saved facts don't cover:\n"
+        return ("Durable facts YOU previously saved ABOUT THE USER (your own "
+                "memory). They are stored first-person as the user said them -- a "
+                "saved fact 'my X is Y' means the USER's X is Y, so ANSWER in the "
+                "second person ('your X is Y'). If one of these ANSWERS the question, "
+                "state it DIRECTLY and confidently FROM IT -- do NOT call a tool to "
+                "re-derive a fact you already saved, and NEVER ask the user to tell "
+                "you something these facts already record (you already know it; asking "
+                "back is a FAILED answer). Only fetch with a tool if the question "
+                "needs LIVE / current data these saved facts don't cover:\n"
                 + "\n".join(lines))
     except Exception:  # noqa: BLE001 -- degrade-open
         return ""
@@ -24410,7 +24415,13 @@ async def _respond_native_loop_direct(
             # which previously left the user with a BLANK turn even though their own
             # saved facts were right here. Never return blank when recall is present
             # (Claude 2026-06-15; same relay-ladder spirit -- real data, no canned phrase).
-            if not _ans and _recall_text and _recall_text.strip():
+            # 2026-06-20: ALSO override a non-blank PUNT/DENIAL. granite-8b frequently
+            # emits "I don't have any information about your X / could you tell me?"
+            # DESPITE the saved fact being injected right here (it violates even the
+            # "It is FALSE to say you don't have it" directive). A confident recall hit
+            # (>=MIN_SCORE, self-gated on relevance) that the model DENIED is exactly the
+            # case to surface the fact deterministically instead of shipping the denial.
+            if (not _ans or _is_punt(_ans)) and _recall_text and _recall_text.strip():
                 # Surface the saved FACTS cleanly: drop the model-facing framing
                 # headers/instructions, the [score] markers, and the "this fact:"
                 # filler so the user sees facts, not scaffolding (degrade to raw if
@@ -25100,21 +25111,59 @@ async def chat_completions(request: Request) -> Any:
     # verdict directly saves the 30-90s Hermes roundtrip on every
     # conversational message.
     _chat_reply = ""
+    # DETERMINISTIC memory-RECALL short-circuit (operator 2026-06-20): a `memory`-domain
+    # QUESTION ("what is my favorite color?") that refine misreads as plain chat must be
+    # answered from the user's OWN saved facts -- NOT refine's pre-recall reply, and NOT a
+    # model hop (granite-8b denies the fact ~consistently even when it is injected right
+    # beside the question, ignoring even the "It is FALSE to say you don't have it"
+    # directive). Recall the durable facts directly; a confident hit (self-gated at
+    # MIN_SCORE) is surfaced verbatim. STORE turns ("remember X") are intent=agent, so they
+    # never enter this chat branch -- they fast-path `remember` below. No hit -> fall
+    # through (honest "I don't have that").
+    if (refined and refined.get("intent") == "chat"
+            and not _force_council and not _force_delegate):
+        _mem_block = await _recall_agent_memory(last_user_text)
+        # Fire when the router tagged this turn `memory`, OR -- router-misclassify
+        # fallback -- when a stored fact CONFIDENTLY matches the question. The router is a
+        # small model: "what is my favorite color?" -> memory, but "what is my dog
+        # called?" -> files. The recall SCORE is the reliable signal the question maps to a
+        # saved fact. The 0.45 self-gate already dropped weak hits; require a clearer match
+        # (>=0.6) for non-memory-tagged turns so a greeting that faintly matches a fact
+        # never surfaces it instead of a real answer.
+        _mem_scores = [float(_s) for _s in re.findall(r"\[(\d(?:\.\d+)?)\]", _mem_block or "")]
+        _mem_top = max(_mem_scores) if _mem_scores else 0.0
+        if (_mem_block and _mem_block.strip()
+                and (_routed_domain_var.get(None) == "memory" or _mem_top >= 0.6)):
+            _facts = re.sub(
+                r"(?im)^\s*(Durable facts|Relevant knowledge|Recent web|Context from|Saved).*$",
+                "", _mem_block)
+            _facts = re.sub(
+                r"(?im)^.*(do NOT call a tool|answer FROM IT|fetch with a tool|these saved "
+                r"facts|NEVER ask|second person|first-person|asking back|re-derive).*$",
+                "", _facts)
+            _facts = re.sub(r"\[\d(?:\.\d+)?\]\s*", "", _facts)
+            # Dedup identical facts (the same fact re-saved across turns returns as N
+            # near-duplicate hits) -- order-preserved, case-insensitive on the fact text.
+            _seen_f: set = set()
+            _flines: list = []
+            for _l in _facts.splitlines():
+                _l = _l.rstrip()
+                _key = _l.strip().lower().lstrip("- ")
+                if _l.strip() and _key not in _seen_f:
+                    _seen_f.add(_key)
+                    _flines.append(_l)
+            _facts = "\n".join(_flines)
+            if _facts.strip():
+                _chat_reply = "From what you've told me before:\n" + _facts
+                log.info("memory-recall short-circuit: surfaced saved facts deterministically")
     # Short-circuit ONLY TRIVIAL chat (greetings/banter < MIN_WORDS) to a direct
     # reply (operator 2026-06-01 "concurrent true swarm / unfired nodes"): a
     # SUBSTANTIVE chat/knowledge question (e.g. "pros and cons of REST vs GraphQL")
     # was being answered on ONE node here, bypassing the swarm entirely. Now it
     # falls through to the multi-node swarm (it's intent=chat + >= MIN_WORDS).
-    if (refined and refined.get("intent") == "chat"
+    if (not _chat_reply and refined and refined.get("intent") == "chat"
             and len((last_user_text or "").split()) < SWARM_DECOMPOSE_MIN_WORDS
-            and not _force_council and not _force_delegate
-            # A memory-RECALL query the router tagged `memory` ("what is my favorite
-            # color?") must NOT short-circuit to refine's reply: refine ran BEFORE
-            # recall, so its canned answer is "I don't have that information". Fall
-            # through to the recall-injected path (agent_memory + knowledge recall) so
-            # the STORED fact actually answers it (operator 2026-06-20; pairs with the
-            # MIOS_AGENT_MEMORY_RECALL=1 flip -- store worked, retrieve was bypassed here).
-            and _routed_domain_var.get(None) != "memory"):
+            and not _force_council and not _force_delegate):
         _chat_reply = str(refined.get("reply") or "").strip()
         if not _chat_reply:
             # The JSON classifier reliably tags chat but often omits the
