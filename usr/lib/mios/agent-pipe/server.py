@@ -22804,8 +22804,14 @@ async def _respond_os_control(
     # (mios_apps), and the single-launch path silently dropped the 2nd action.
     _typed = None
     if _is_launch and _eff_ok:
+        # Capture the type-text up to the first NEWLINE or end -- NOT (.+)$, which
+        # (without MULTILINE) anchors to end-of-string and silently FAILS to match
+        # when OWUI appends a feature scaffold ("\n#### Code Interpreter ...") to the
+        # message, so "open notepad and type hello\n####..." typed nothing (operator
+        # 2026-06-20: notepad opened, "hello" never typed). Non-greedy + [\r\n]|$
+        # grabs just the first-line type text and ignores any trailing scaffold.
         _m = (re.search(
-            r"\b(?:" + _COMPOUND_CONJ_ALT + r")\b\s+(?:" + _COMPOUND_ACTION_ALT + r")\s+(.+)$",
+            r"\b(?:" + _COMPOUND_CONJ_ALT + r")\b\s+(?:" + _COMPOUND_ACTION_ALT + r")\s+(.+?)(?:[\r\n]|$)",
             (last_user_text or "").strip(), re.IGNORECASE)
             if (_COMPOUND_CONJ_ALT and _COMPOUND_ACTION_ALT) else None)
         if _m:
