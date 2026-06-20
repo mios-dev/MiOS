@@ -21158,12 +21158,16 @@ async def dci_schema() -> JSONResponse:
 # ── /v1/models (passthrough) ───────────────────────────────────────
 @app.get("/v1/models")
 async def list_models(request: Request) -> JSONResponse:
-    # Always advertise the MiOS AI chain model so ANY OpenAI-compatible client
-    # (Firefox Smart Window "bring your own model", OWUI, etc.) can list + select it
-    # WITHOUT a backend key -- /v1/chat/completions runs the chain locally and needs
-    # no auth. The id is the SSOT [ai].agent_model ("MiOS AI"), NOT a hardcode
-    # (operator "NO HARDCODES" + "MiOS is known as MiOS AI on every surface"). If the
-    # caller passed an Authorization header, augment with the backend's model list.
+    # Advertise EXACTLY ONE model on the pipeline's public surface: "MiOS AI".
+    # ANY OpenAI-compatible client (OWUI, Firefox Smart Window, the desktop, the
+    # CLI) lists + selects it WITHOUT a backend key -- /v1/chat/completions runs
+    # the chain locally and needs no auth. The id is the SSOT [ai].agent_model
+    # ("MiOS AI"), NOT a hardcode. Operator directive: "JUST MiOS AI for
+    # everything advertised in the pipeline" -- so we DO NOT augment with the raw
+    # backend lane list even when the caller sends Authorization; the internal
+    # lane/model ids (granite4.1:8b, mios-heavy, mios-opencode, ...) are plumbing,
+    # never advertised. A client that genuinely needs a raw lane addresses that
+    # lane's own endpoint directly.
     created = int(time.time())
     _agent_id = str((_toml_section("ai") or {}).get("agent_model") or "MiOS AI")
     # Advertise a large context so strict clients (e.g. the Hermes desktop, which
@@ -21176,18 +21180,6 @@ async def list_models(request: Request) -> JSONResponse:
         "max_model_len": _ctx, "context_length": _ctx,
         "max_context_length": _ctx, "context_window": _ctx,
     }]
-    auth = request.headers.get("authorization")
-    if auth:
-        try:
-            client = await _get_client()
-            r = await client.get(f"{BACKEND}/models", headers={"authorization": auth})
-            if r.status_code == 200:
-                have = {m.get("id") for m in models}
-                for m in ((r.json() or {}).get("data") or []):
-                    if isinstance(m, dict) and m.get("id") not in have:
-                        models.append(m)
-        except httpx.HTTPError as e:
-            log.warning("models proxy (augment) failed: %s", e)
     return JSONResponse(content={"object": "list", "data": models})
 
 

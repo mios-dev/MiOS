@@ -54,7 +54,16 @@ OPENCODE_BIN = os.environ.get(
     "MIOS_OPENCODE_BIN", "/usr/lib/mios/agents/opencode/bin/opencode"
 )
 # ONE canonical model id, shared with [agents.opencode].model + opencode.json.
+# This is the INTERNAL opencode subprocess selector (the real lane model); it is
+# NOT what we show on the wire.
 OPENCODE_MODEL = os.environ.get("MIOS_OPENCODE_MODEL", "mios-opencode:latest")
+# What this gateway ADVERTISES as its model on its OpenAI /v1 surface (GET
+# /v1/models, the chat.completion `model` echo, /health). MiOS is "MiOS AI" on
+# EVERY surface (operator: "EVERYTHING IS MiOS AI / no matter the surface"), so a
+# client hitting :8633 sees "MiOS AI", never the internal lane id. Advertise vs.
+# execute are decoupled: the real opencode subprocess still runs OPENCODE_MODEL.
+# Shares MIOS_AI_GATEWAY_MODEL with the front door (usr/bin/mios) -- one SSOT knob.
+ADVERTISED_MODEL = os.environ.get("MIOS_AI_GATEWAY_MODEL", "MiOS AI")
 # opencode provider name as declared in opencode.json (e.g. "ollama").
 OPENCODE_PROVIDER = os.environ.get("MIOS_OPENCODE_PROVIDER", "local")
 # Explicit config location (no hardcoded /root/.config/opencode). Exported to
@@ -236,11 +245,11 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, {
                 "object": "list",
                 "data": [
-                    {"id": OPENCODE_MODEL, "object": "model", "owned_by": "mios"}
+                    {"id": ADVERTISED_MODEL, "object": "model", "owned_by": "mios"}
                 ],
             })
         elif self.path.rstrip("/") in ("/health", "/healthz"):
-            self._send(200, {"status": "ok", "model": OPENCODE_MODEL})
+            self._send(200, {"status": "ok", "model": ADVERTISED_MODEL})
         else:
             self._send(404, {"error": {"message": "not found"}})
 
@@ -265,7 +274,12 @@ class Handler(BaseHTTPRequestHandler):
         # the caller asked for; only honour a caller id that is already a real,
         # provider-qualified opencode model (contains '/').
         _req_model = str(req.get("model") or "")
-        model = _req_model if "/" in _req_model else OPENCODE_MODEL
+        # run_model = the INTERNAL opencode subprocess selector (our own lane
+        # model unless the caller passed a real provider-qualified id). model =
+        # the SURFACE id we echo back = ADVERTISED_MODEL ("MiOS AI"): MiOS is
+        # MiOS AI on every surface, this gateway included.
+        run_model = _req_model if "/" in _req_model else OPENCODE_MODEL
+        model = ADVERTISED_MODEL
         stream = bool(req.get("stream", False))
 
         # Pass the FULL conversation (system + history) to opencode, not just
@@ -276,11 +290,11 @@ class Handler(BaseHTTPRequestHandler):
         created = int(time.time())
 
         if stream:
-            self._stream(cmpl_id, created, model, prompt)
+            self._stream(cmpl_id, created, model, prompt, run_model)
             return
 
         try:
-            out = _run_opencode(prompt, model)
+            out = _run_opencode(prompt, run_model)
         except Exception as e:
             self._send(500, {"error": {"message": f"opencode failed: {e}"}})
             return
@@ -302,16 +316,18 @@ class Handler(BaseHTTPRequestHandler):
             },
         })
 
-    def _stream(self, cmpl_id, created, model, prompt):
+    def _stream(self, cmpl_id, created, model, prompt, run_model=None):
         """Emit a well-formed OpenAI SSE delta stream.
 
         opencode's `run` is not token-incremental over a stable public API, so
         we run it to completion then chunk the result into SSE deltas. This
         keeps stream=true callers (agent-pipe council) happy with a valid
-        chat.completion.chunk stream terminated by [DONE].
+        chat.completion.chunk stream terminated by [DONE]. `model` is the SURFACE
+        id echoed in every chunk ("MiOS AI"); `run_model` is the internal opencode
+        subprocess selector (defaults to `model` for back-compat callers).
         """
         try:
-            out = _run_opencode(prompt, model)
+            out = _run_opencode(prompt, run_model or model)
             err = None
         except Exception as e:
             out, err = "", str(e)

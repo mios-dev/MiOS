@@ -47,7 +47,7 @@ set -euo pipefail
 
 # shellcheck source=lib/common.sh
 source "$(dirname "$0")/lib/common.sh" 2>/dev/null || {
-    printf '[38-hermes-agent] WARN: lib/common.sh unavailable -- skipping\n' >&2
+    printf '[MiOS AI] WARN: lib/common.sh unavailable -- skipping\n' >&2
     exit 0
 }
 
@@ -62,7 +62,7 @@ VENV_ROOT="${MIOS_HERMES_DIR:-${AGENTS_ROOT}/hermes-agent}"   # Hermes vendor co
 VENV_DIR="${MIOS_HERMES_VENV:-${AGENTS_ROOT}/.venv}"          # shared interpreter (sibling)
 BIN_DIR="${VENV_ROOT}/bin"
 
-log "[38-hermes-agent] direct install: repo=${HERMES_REPO} ref=${HERMES_REF}"
+log "[MiOS AI] direct install: repo=${HERMES_REPO} ref=${HERMES_REF}"
 
 # Tooling preflight -- python3 + pip + git must all be present. They're
 # pulled by [packages.base] (git) + policycoreutils-python-utils
@@ -72,11 +72,11 @@ for tool in python3 git; do
     command -v "$tool" >/dev/null 2>&1 || _missing="${_missing} ${tool}"
 done
 if [[ -n "$_missing" ]]; then
-    warn "[38-hermes-agent] missing build tools:${_missing} -- skipping direct install (hermes-agent.service will no-op via ConditionPathExists)"
+    warn "[MiOS AI] missing build tools:${_missing} -- skipping direct install (hermes-agent.service will no-op via ConditionPathExists)"
     exit 0
 fi
 
-install -d -m 0755 "${AGENTS_ROOT}" "${VENV_ROOT}" "${BIN_DIR}" || { warn "[38-hermes-agent] mkdir ${VENV_ROOT} failed -- skipping"; exit 0; }
+install -d -m 0755 "${AGENTS_ROOT}" "${VENV_ROOT}" "${BIN_DIR}" || { warn "[MiOS AI] mkdir ${VENV_ROOT} failed -- skipping"; exit 0; }
 
 # Build the venv. pip install directly from the git ref -- no editable
 # checkout, no leftover src tree in the image.
@@ -89,9 +89,9 @@ VENV_PY=python3
 for _py in python3.13 python3.12 python3.11; do
     command -v "${_py}" >/dev/null 2>&1 && { VENV_PY="${_py}"; break; }
 done
-log "[38-hermes-agent] venv interpreter: ${VENV_PY} ($(${VENV_PY} --version 2>&1))"
+log "[MiOS AI] venv interpreter: ${VENV_PY} ($(${VENV_PY} --version 2>&1))"
 if ! "${VENV_PY}" -m venv "${VENV_DIR}" 2>/dev/null; then
-    warn "[38-hermes-agent] ${VENV_PY} -m venv failed -- skipping direct install"
+    warn "[MiOS AI] ${VENV_PY} -m venv failed -- skipping direct install"
     exit 0
 fi
 
@@ -100,14 +100,14 @@ fi
 PIP_OFFLINE_ARGS=""
 LOCAL_SOURCE=""
 if [ -d "/usr/share/mios/vendored/hermes-agent" ]; then
-    log "[38-hermes-agent] Found offline vendored hermes-agent directory"
+    log "[MiOS AI] Found offline vendored hermes-agent directory"
     LOCAL_SOURCE="/usr/share/mios/vendored/hermes-agent"
 elif [ -f "/usr/share/mios/vendored/hermes-agent.zip" ]; then
-    log "[38-hermes-agent] Found offline vendored hermes-agent.zip, extracting..."
+    log "[MiOS AI] Found offline vendored hermes-agent.zip, extracting..."
     unzip -o -q /usr/share/mios/vendored/hermes-agent.zip -d /tmp/hermes-agent-src 2>/dev/null || true
     LOCAL_SOURCE="/tmp/hermes-agent-src"
 elif [ -f "/usr/share/mios/vendored/hermes_agent.whl" ]; then
-    log "[38-hermes-agent] Found offline vendored hermes_agent.whl"
+    log "[MiOS AI] Found offline vendored hermes_agent.whl"
     LOCAL_SOURCE="/usr/share/mios/vendored/hermes_agent.whl"
 fi
 
@@ -154,7 +154,7 @@ if "${VENV_DIR}/bin/pip" install --no-input --disable-pip-version-check ${PIP_OF
         "${INSTALL_TARGET}" aiohttp websockets "discord.py>=2.4,<3" "psycopg[binary]" "firecrawl-py" 2>&1 | tail -5; then
     :
 else
-    warn "[38-hermes-agent] pip install of ${INSTALL_TARGET} + soft-deps failed -- removing partial venv, skipping"
+    warn "[MiOS AI] pip install of ${INSTALL_TARGET} + soft-deps failed -- removing partial venv, skipping"
     rm -rf "${VENV_DIR}"
     exit 0
 fi
@@ -164,10 +164,10 @@ fi
 # /usr/bin/hermes wrapper + hermes-agent.service both reference.
 if [[ -x "${VENV_DIR}/bin/hermes" ]]; then
     ln -sf "${VENV_DIR}/bin/hermes" "${BIN_DIR}/hermes"
-    log "[38-hermes-agent] installed: ${VENV_DIR}/bin/hermes -> ${BIN_DIR}/hermes"
+    log "[MiOS AI] installed: ${VENV_DIR}/bin/hermes -> ${BIN_DIR}/hermes"
     record_version "hermes-agent" "${HERMES_REF}" "$(${VENV_DIR}/bin/hermes --version 2>&1 | head -1)" 2>/dev/null || true
 else
-    warn "[38-hermes-agent] pip succeeded but no 'hermes' entry-point in venv -- skipping symlink"
+    warn "[MiOS AI] pip succeeded but no 'hermes' entry-point in venv -- skipping symlink"
     exit 0
 fi
 
@@ -197,7 +197,7 @@ version: 1.0.0
 description: SearXNG web-search provider (local self-hosted instance at mios-searxng:8888).
 register: plugins.web.searxng:register
 YAML
-        log "[38-hermes-agent] seeded ${searxng_dir#${VENV_DIR}/}/plugin.yaml"
+        log "[MiOS AI] seeded ${searxng_dir#${VENV_DIR}/}/plugin.yaml"
     fi
     # Firecrawl web provider: the wheel ships plugins/web/firecrawl/provider.py
     # but no plugin.yaml, so the loader skips it. Seed the manifest so it
@@ -215,7 +215,7 @@ version: 1.0.0
 description: Firecrawl web provider (self-hosted at FIRECRAWL_API_URL; DORMANT -- SDK v2 vs container v1 mismatch, web.extract_backend defaults to miosfetch).
 register: plugins.web.firecrawl:register
 YAML
-        log "[38-hermes-agent] seeded ${firecrawl_dir#${VENV_DIR}/}/plugin.yaml"
+        log "[MiOS AI] seeded ${firecrawl_dir#${VENV_DIR}/}/plugin.yaml"
     fi
     # miosfetch: MiOS's OWN offline direct-fetch web-EXTRACT provider (stdlib
     # urllib + readability HTML->text; no firecrawl SDK / no container / no cloud)
@@ -229,7 +229,7 @@ YAML
     if [[ -d "$_mf_src" ]]; then
         install -d "$_mf_dst"
         cp -f "$_mf_src"/provider.py "$_mf_src"/__init__.py "$_mf_src"/plugin.yaml "$_mf_dst"/ 2>/dev/null \
-            && log "[38-hermes-agent] deployed miosfetch plugin -> ${_mf_dst#${VENV_DIR}/}"
+            && log "[MiOS AI] deployed miosfetch plugin -> ${_mf_dst#${VENV_DIR}/}"
     fi
     # Teach the LEGACY web_tools backend-availability check about miosfetch:
     # tools/web_tools.py::_is_backend_available hardcodes the built-in backend
@@ -239,7 +239,7 @@ YAML
     _wt="${site_packages}/tools/web_tools.py"
     if [[ -f "$_wt" ]] && ! grep -q 'backend == "miosfetch"' "$_wt"; then
         sed -i 's/^    if backend == "exa":/    if backend == "miosfetch":  # MiOS offline direct-fetch provider (stdlib; always usable)\n        return True\n    if backend == "exa":/' "$_wt" \
-            && log "[38-hermes-agent] patched web_tools._is_backend_available for miosfetch"
+            && log "[MiOS AI] patched web_tools._is_backend_available for miosfetch"
     fi
 done
 shopt -u nullglob
@@ -285,9 +285,9 @@ if command -v git >/dev/null 2>&1; then
         done
         shopt -u nullglob
         rm -rf "$DASH_TMP"
-        log "[38-hermes-agent] seeded plugins/{kanban,example-dashboard,hermes-achievements}/dashboard/{manifest.json,dist}"
+        log "[MiOS AI] seeded plugins/{kanban,example-dashboard,hermes-achievements}/dashboard/{manifest.json,dist}"
     else
-        warn "[38-hermes-agent] could not fetch upstream dashboard manifests (git archive + sparse-clone both failed); kanban tab will not appear"
+        warn "[MiOS AI] could not fetch upstream dashboard manifests (git archive + sparse-clone both failed); kanban tab will not appear"
         rm -rf "$DASH_TMP"
     fi
 fi
@@ -304,9 +304,9 @@ fi
 if ! "${VENV_DIR}/bin/python3" -c "import fastapi, uvicorn, ptyprocess" 2>/dev/null; then
     if "${VENV_DIR}/bin/pip" install --no-input --disable-pip-version-check \
             "fastapi>=0.110" "uvicorn[standard]>=0.30" "python-multipart" "ptyprocess>=0.7" 2>&1 | tail -3; then
-        log "[38-hermes-agent] installed fastapi + uvicorn + ptyprocess into venv (dashboard runtime + /chat PTY)"
+        log "[MiOS AI] installed fastapi + uvicorn + ptyprocess into venv (dashboard runtime + /chat PTY)"
     else
-        warn "[38-hermes-agent] dashboard runtime deps install failed -- hermes-dashboard.service will refuse to start"
+        warn "[MiOS AI] dashboard runtime deps install failed -- hermes-dashboard.service will refuse to start"
     fi
 fi
 
@@ -318,9 +318,9 @@ fi
 # (verbs + recipes + skills) over stdio, routed through the launcher broker.
 if ! "${VENV_DIR}/bin/python3" -c "import mcp" 2>/dev/null; then
     if "${VENV_DIR}/bin/pip" install --no-input --disable-pip-version-check "mcp>=1.0" 2>&1 | tail -3; then
-        log "[38-hermes-agent] installed mcp SDK into venv (Hermes MCP client -> global mios-mcp-server)"
+        log "[MiOS AI] installed mcp SDK into venv (Hermes MCP client -> global mios-mcp-server)"
     else
-        warn "[38-hermes-agent] mcp SDK install failed -- Hermes MCP client disabled (mcp_servers config inert)"
+        warn "[MiOS AI] mcp SDK install failed -- Hermes MCP client disabled (mcp_servers config inert)"
     fi
 fi
 
@@ -353,30 +353,30 @@ fi
 # system-files-overlay (curl recipes + SPA-install instructions). The
 # operator can always re-run this script to retry.
 _BUILD_SPA() {
-    command -v node >/dev/null 2>&1 || { warn "[38-hermes-agent] node not installed -- skipping SPA build (dashboard will use stub)"; return 1; }
-    command -v npm  >/dev/null 2>&1 || { warn "[38-hermes-agent] npm not installed -- skipping SPA build"; return 1; }
-    command -v git  >/dev/null 2>&1 || { warn "[38-hermes-agent] git not installed -- skipping SPA build"; return 1; }
+    command -v node >/dev/null 2>&1 || { warn "[MiOS AI] node not installed -- skipping SPA build (dashboard will use stub)"; return 1; }
+    command -v npm  >/dev/null 2>&1 || { warn "[MiOS AI] npm not installed -- skipping SPA build"; return 1; }
+    command -v git  >/dev/null 2>&1 || { warn "[MiOS AI] git not installed -- skipping SPA build"; return 1; }
 
     local spa_tmp
     spa_tmp=$(mktemp -d)
     if ! git clone --depth 1 --branch "${HERMES_REF}" "${HERMES_REPO}" "$spa_tmp/repo" 2>&1 | tail -3 ; then
-        warn "[38-hermes-agent] SPA: clone failed"
+        warn "[MiOS AI] SPA: clone failed"
         rm -rf "$spa_tmp"; return 1
     fi
 
     if ! (cd "$spa_tmp/repo/web" && npm install --ignore-scripts --no-audit --no-fund 2>&1 | tail -3); then
-        warn "[38-hermes-agent] SPA: npm install failed"
+        warn "[MiOS AI] SPA: npm install failed"
         rm -rf "$spa_tmp"; return 1
     fi
 
     if ! (cd "$spa_tmp/repo/web" && npm run build 2>&1 | tail -8); then
-        warn "[38-hermes-agent] SPA: npm run build failed"
+        warn "[MiOS AI] SPA: npm run build failed"
         rm -rf "$spa_tmp"; return 1
     fi
 
     local built="$spa_tmp/repo/hermes_cli/web_dist"
     if [[ ! -f "$built/index.html" ]]; then
-        warn "[38-hermes-agent] SPA: build produced no index.html at $built"
+        warn "[MiOS AI] SPA: build produced no index.html at $built"
         rm -rf "$spa_tmp"; return 1
     fi
 
@@ -385,11 +385,11 @@ _BUILD_SPA() {
     local strip_helper="${BASH_SOURCE[0]%/*}/support/hermes-dashboard-strip-externals.py"
     if [[ -x "$strip_helper" || -f "$strip_helper" ]]; then
         if ! python3 "$strip_helper" "$built" ; then
-            warn "[38-hermes-agent] SPA: strip-externals reported leftover external refs"
+            warn "[MiOS AI] SPA: strip-externals reported leftover external refs"
             rm -rf "$spa_tmp"; return 1
         fi
     else
-        warn "[38-hermes-agent] SPA: strip-externals helper missing at $strip_helper -- aborting build (would leak fonts.googleapis.com requests)"
+        warn "[MiOS AI] SPA: strip-externals helper missing at $strip_helper -- aborting build (would leak fonts.googleapis.com requests)"
         rm -rf "$spa_tmp"; return 1
     fi
 
@@ -399,7 +399,7 @@ _BUILD_SPA() {
         rm -rf "$dst"
         mkdir -p "$(dirname "$dst")"
         cp -r "$built" "$dst"
-        log "[38-hermes-agent] SPA: installed $(du -sh "$dst" | cut -f1) to ${dst#${VENV_DIR}/}"
+        log "[MiOS AI] SPA: installed $(du -sh "$dst" | cut -f1) to ${dst#${VENV_DIR}/}"
     done
     shopt -u nullglob
 
@@ -410,7 +410,7 @@ _BUILD_SPA() {
 # Build is idempotent + best-effort; absent a working SPA the
 # dashboard service still serves the stub /usr/share/mios/hermes-agent/
 # web_dist_stub explainer page + the kanban API.
-_BUILD_SPA || warn "[38-hermes-agent] dashboard SPA not built; hermes-dashboard.service will fall back to the web_dist_stub"
+_BUILD_SPA || warn "[MiOS AI] dashboard SPA not built; hermes-dashboard.service will fall back to the web_dist_stub"
 
 # ─── OpenUI generative-UI bundle (vendor offline) ────────────────────
 # OWUI's OpenUI Tool (operator-supplied 2026-05-17) renders interactive
@@ -421,9 +421,9 @@ _BUILD_SPA || warn "[38-hermes-agent] dashboard SPA not built; hermes-dashboard.
 # This step downloads the bundle ONCE at image-build time.
 _VENDOR_OPENUI="${BASH_SOURCE[0]%/*}/support/mios-vendor-openui.sh"
 if [[ -x "$_VENDOR_OPENUI" || -f "$_VENDOR_OPENUI" ]]; then
-    bash "$_VENDOR_OPENUI" || warn "[38-hermes-agent] OpenUI bundle download failed; render panel will report 'bundle missing' until re-run"
+    bash "$_VENDOR_OPENUI" || warn "[MiOS AI] OpenUI bundle download failed; render panel will report 'bundle missing' until re-run"
 else
-    warn "[38-hermes-agent] mios-vendor-openui.sh missing at $_VENDOR_OPENUI"
+    warn "[MiOS AI] mios-vendor-openui.sh missing at $_VENDOR_OPENUI"
 fi
 
 # ─── /api/pty HERMES_PTY_SHELL patch (bash in the dashboard /chat tab) ───
@@ -441,7 +441,7 @@ for site_packages in "${VENV_DIR}/lib/"python*/site-packages; do
         if python3 "$_PTY_PATCH" "$_ws" 2>&1 | tail -2; then
             : # ok; idempotent — re-runs are no-ops once marker present
         else
-            warn "[38-hermes-agent] HERMES_PTY_SHELL patch failed on $_ws (dashboard /chat tab will spawn hermes --tui instead of bash)"
+            warn "[MiOS AI] HERMES_PTY_SHELL patch failed on $_ws (dashboard /chat tab will spawn hermes --tui instead of bash)"
         fi
     fi
 done
@@ -463,7 +463,7 @@ for site_packages in "${VENV_DIR}/lib/"python*/site-packages; do
         if python3 "$_BGREVIEW_PATCH" "$_br" 2>&1 | tail -2; then
             : # ok; idempotent -- re-runs are no-ops once marker present
         else
-            warn "[38-hermes-agent] background-review tool patch failed on $_br"
+            warn "[MiOS AI] background-review tool patch failed on $_br"
         fi
     fi
 done
@@ -509,7 +509,7 @@ OPENCODE_CONFIG="${MIOS_OPENCODE_CONFIG:-/etc/mios/opencode/opencode.json}"
 OPENCODE_CONFIG_DIR="$(dirname "${OPENCODE_CONFIG}")"
 OPENCODE_VENDOR_CONFIG=/usr/share/mios/opencode/opencode.json
 
-log "[38-hermes-agent] opencode phase: version=${OPENCODE_VERSION} root=${OPENCODE_ROOT}"
+log "[MiOS AI] opencode phase: version=${OPENCODE_VERSION} root=${OPENCODE_ROOT}"
 
 # Land the vendored opencode.json into the admin-override config dir. The
 # dir + ownership are also guaranteed by usr/lib/tmpfiles.d/mios-opencode-
@@ -532,18 +532,18 @@ if [[ -f "${OPENCODE_VENDOR_CONFIG}" ]]; then
                     chgrp mios-ai "${OPENCODE_CONFIG}" 2>/dev/null \
                         && chmod 0640 "${OPENCODE_CONFIG}" 2>/dev/null || true
                 fi
-                log "[38-hermes-agent] landed opencode.json -> ${OPENCODE_CONFIG} (group mios-ai)"
+                log "[MiOS AI] landed opencode.json -> ${OPENCODE_CONFIG} (group mios-ai)"
             else
-                warn "[38-hermes-agent] failed to land opencode.json into ${OPENCODE_CONFIG}"
+                warn "[MiOS AI] failed to land opencode.json into ${OPENCODE_CONFIG}"
             fi
         else
-            log "[38-hermes-agent] ${OPENCODE_CONFIG} already present (admin override) -- not overwriting"
+            log "[MiOS AI] ${OPENCODE_CONFIG} already present (admin override) -- not overwriting"
         fi
     else
-        warn "[38-hermes-agent] could not create ${OPENCODE_CONFIG_DIR} -- gateway config not landed"
+        warn "[MiOS AI] could not create ${OPENCODE_CONFIG_DIR} -- gateway config not landed"
     fi
 else
-    warn "[38-hermes-agent] vendored ${OPENCODE_VENDOR_CONFIG} missing -- skipping config land (overlay drift?)"
+    warn "[MiOS AI] vendored ${OPENCODE_VENDOR_CONFIG} missing -- skipping config land (overlay drift?)"
 fi
 
 # Fetch the opencode binary. curl + bash must be present.
@@ -552,19 +552,19 @@ for tool in curl bash; do
     command -v "$tool" >/dev/null 2>&1 || _oc_missing="${_oc_missing} ${tool}"
 done
 if [[ -n "$_oc_missing" ]]; then
-    warn "[38-hermes-agent] opencode phase: missing tools:${_oc_missing} -- skipping binary fetch (gateway no-ops via ConditionPathExists)"
+    warn "[MiOS AI] opencode phase: missing tools:${_oc_missing} -- skipping binary fetch (gateway no-ops via ConditionPathExists)"
 elif [[ -x "${OPENCODE_BIN}" ]]; then
-    log "[38-hermes-agent] opencode binary already present at ${OPENCODE_BIN} -- skipping fetch"
+    log "[MiOS AI] opencode binary already present at ${OPENCODE_BIN} -- skipping fetch"
 elif ! install -d -m 0755 "${OPENCODE_ROOT}" "${OPENCODE_BIN_DIR}" 2>/dev/null; then
-    warn "[38-hermes-agent] mkdir ${OPENCODE_ROOT} failed -- skipping opencode fetch"
+    warn "[MiOS AI] mkdir ${OPENCODE_ROOT} failed -- skipping opencode fetch"
 elif ! curl -fsSL --max-time 60 "${OPENCODE_INSTALL_URL}" -o /tmp/opencode-install.sh; then
-    warn "[38-hermes-agent] could not fetch opencode installer from ${OPENCODE_INSTALL_URL} -- skipping; mios update will retry"
+    warn "[MiOS AI] could not fetch opencode installer from ${OPENCODE_INSTALL_URL} -- skipping; mios update will retry"
 else
     # The opencode installer respects OPENCODE_INSTALL_DIR (vendor env).
     OPENCODE_INSTALL_DIR="${OPENCODE_BIN_DIR}" \
     OPENCODE_VERSION="${OPENCODE_VERSION}" \
         bash /tmp/opencode-install.sh 2>&1 | tail -10 || \
-        warn "[38-hermes-agent] opencode installer exited non-zero -- continuing; mios update will retry"
+        warn "[MiOS AI] opencode installer exited non-zero -- continuing; mios update will retry"
     rm -f /tmp/opencode-install.sh 2>/dev/null || true
 
     # Locate the binary. Some installer versions ignore OPENCODE_INSTALL_DIR
@@ -578,7 +578,7 @@ else
                 if [[ "$cand" != "${OPENCODE_BIN}" ]]; then
                     install -d -m 0755 "${OPENCODE_BIN_DIR}"
                     install -m 0755 "$cand" "${OPENCODE_BIN}" \
-                        && log "[38-hermes-agent] copied opencode ${cand} -> ${OPENCODE_BIN}"
+                        && log "[MiOS AI] copied opencode ${cand} -> ${OPENCODE_BIN}"
                 fi
                 break
             fi
@@ -589,11 +589,11 @@ else
         # Symlink onto PATH so the operator can run `opencode` directly.
         ln -sf "${OPENCODE_BIN}" /usr/local/bin/opencode 2>/dev/null || true
         record_version "opencode" "${OPENCODE_VERSION}" "$("${OPENCODE_BIN}" --version 2>&1 | head -1 || echo unknown)" 2>/dev/null || true
-        log "[38-hermes-agent] installed opencode: ${OPENCODE_BIN} (gateway -> mios-opencode-gateway.service :${MIOS_PORT_OPENCODE_GATEWAY:-8633})"
+        log "[MiOS AI] installed opencode: ${OPENCODE_BIN} (gateway -> mios-opencode-gateway.service :${MIOS_PORT_OPENCODE_GATEWAY:-8633})"
     else
-        warn "[38-hermes-agent] opencode binary not found at ${OPENCODE_BIN} or fallbacks -- gateway will no-op via ConditionPathExists; mios update will retry"
+        warn "[MiOS AI] opencode binary not found at ${OPENCODE_BIN} or fallbacks -- gateway will no-op via ConditionPathExists; mios update will retry"
     fi
 fi
 
-log "[38-hermes-agent] done -- runtime: hermes-agent.service (:${MIOS_PORT_HERMES:-8642}/v1) + mios-opencode-gateway.service (:${MIOS_PORT_OPENCODE_GATEWAY:-8633}/v1); shared venv = ${VENV_DIR}; backend = mios.toml [ai].hermes_backend_url"
+log "[MiOS AI] done -- runtime: hermes-agent.service (:${MIOS_PORT_HERMES:-8642}/v1) + mios-opencode-gateway.service (:${MIOS_PORT_OPENCODE_GATEWAY:-8633}/v1); shared venv = ${VENV_DIR}; backend = mios.toml [ai].hermes_backend_url"
 exit 0
