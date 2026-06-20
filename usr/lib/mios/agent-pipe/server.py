@@ -25455,8 +25455,26 @@ async def chat_completions(request: Request) -> Any:
     if (refined and refined.get("needs_location")
             and not str((_client_env(body) or {}).get("location") or "").strip()
             and not _force_council and not _force_delegate):
-        _loc_reply = await _ask_for_location(last_user_text)
-        log.info("needs_location + no client location -> ask for city (no swarm)")
+        # Prefer the host-system-timezone REGION as a coarse locale BEFORE asking
+        # (operator 2026-06-20: "where am I / what would local weather refer to" must
+        # GROUND to the real system region, not punt "tell me your city" and never
+        # fabricate 5 random cities). _host_timezone() is a real, always-available env
+        # detail; granite ignores the soft _client_grounding prose AND this guard
+        # returns before the model runs, so resolve it DETERMINISTICALLY here. Only ASK
+        # when even the host timezone is unavailable.
+        _tzr = _host_timezone()
+        _region = (_tzr.rsplit("/", 1)[1].replace("_", " ")
+                   if _tzr and "/" in _tzr else "")
+        if _region:
+            _loc_reply = (
+                f"Going by your system timezone ({_tzr}), you're in the {_region} "
+                f"region -- I'll treat the {_region} area as your location for "
+                "'local' / 'near me' / weather questions. That is a system-region "
+                "approximation; tell me a specific city and I'll use that instead.")
+            log.info("needs_location + no client loc -> grounded to host-tz region %r (no swarm)", _region)
+        else:
+            _loc_reply = await _ask_for_location(last_user_text)
+            log.info("needs_location + no client location + no host tz -> ask for city (no swarm)")
         _store_knowledge(query=last_user_text, answer=_loc_reply,
                          session_id=session_id, tool_history=[])
         if streaming:
