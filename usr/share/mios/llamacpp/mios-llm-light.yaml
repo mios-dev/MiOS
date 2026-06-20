@@ -58,8 +58,14 @@ models:
   # 8B (ibm-granite/granite-4.1-8b; GGUF unsloth/granite-4.1-8b-GGUF Q4_K_M ~5.5GB).
   # Dense GraniteForCausalLM ('granite') arch loads on MAINLINE llama.cpp (bartowski
   # quant @ b8970; Unsloth uses stock llama-server) -> sidesteps the qwen35 trap that
-  # BLOCKS qwen3.5:4b and forced the gemma4:12b fallback. Native 131K ctx = meets the
-  # 128k mandate with no rope-scaling. Apache-2.0; first non-Qwen brain (family mix).
+  # BLOCKS qwen3.5:4b and forced the gemma4:12b fallback. Granite is natively 131K-capable,
+  # but the SERVED --ctx-size is 32768 (operator 2026-06-20 model-placement decision): the
+  # always-on SGLang heavy lane ([ai.sglang], mem_fraction 0.45 ~= 11GB RESERVED up front) +
+  # granite weights (~5GB) + a full 128k q8_0 KV (~8GB) CANNOT co-fit the shared 24GB 4090 ->
+  # granite's load spilled to CPU = 67-100s refine (the chat-slowness root cause). A 32k q8_0
+  # KV (~2-3GB) co-fits SGLang on the GPU (refine drops to ~2-5s) and is ample for chat/refine.
+  # Raise back toward 131072 ONLY if the SGLang heavy lane is disabled or moved off this card
+  # (then granite has the whole 4090). Apache-2.0; first non-Qwen brain (family mix).
   # DO NOT pull the '-h'/granitehybrid GGUF (newer arch = qwen35-style trap). Build
   # note: avoid CUDA 13.2 (gibberish-output bug). --jinja MANDATORY for tool_calls.
   # 128k FIT: symmetric q8_0 K+V quantized KV cache + flash-attn on (GPU-offloadable;
@@ -95,7 +101,7 @@ models:
     cmd: >
       /app/llama-server --model /models/granite-4.1-8b.gguf
       --port ${PORT} --host 127.0.0.1
-      --ctx-size 131072 --parallel 1
+      --ctx-size 32768 --parallel 1
       --n-gpu-layers 999 --flash-attn on
       --cache-type-k q8_0 --cache-type-v q8_0
       --slot-save-path /var/lib/mios/llamacpp/slots --jinja

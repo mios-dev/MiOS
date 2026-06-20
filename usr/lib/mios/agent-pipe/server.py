@@ -6384,14 +6384,16 @@ def _client_grounding() -> str:
         if _tz and "/" in _tz:
             _region = _tz.rsplit("/", 1)[1].replace("_", " ")
             lines.append(
-                f"  - No precise user location was forwarded or configured, but the "
-                f"host system timezone is {_tz} (region around {_region}). For a "
-                "'local' / 'near me' / weather / news ask, ground to THAT region "
-                "(search its principal metro), and STATE plainly that you used the "
-                "system-timezone region rather than a precise location -- invite the "
-                "user to name their city (or set [identity].location) for accurate "
-                "results. Do NOT fabricate a list of unrelated cities and do NOT "
-                "present generic national data as if it were 'local'.")
+                f"  - Working user location (from the host system timezone {_tz}): the "
+                f"{_region} region. This is the env value in the <env> block above "
+                "(location_source: host-timezone-region). USE it as the location for "
+                "'where am I' / 'local' / 'near me' / weather / news asks -- ANSWER "
+                "with it (search its principal metro); do NOT refuse and do NOT ask "
+                "the user to name their city first. State ONCE, briefly, that it is "
+                "the system-region approximation and they can correct it or set "
+                "[identity].location for precision -- then give the grounded answer. "
+                "Do NOT fabricate unrelated cities and do NOT pass generic national "
+                "data off as 'local'.")
         elif env:
             # No client geo, no config, no usable host tz. Honest punt (operator
             # 2026-05-27): never silently generalise a 'near me' ask to a country.
