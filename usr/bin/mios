@@ -53,7 +53,7 @@ ENDPOINT = os.environ.get("MIOS_AI_ENDPOINT", "http://localhost:8640/v1")
 # fabricating "I typed it". Hermes :8642 becomes a leaf engine the pipe calls, not a
 # public entrypoint. The pipe serves the virtual model "MiOS-Agent". MIOS_AI_MODEL
 # stays the raw-tag SSOT for the image build; the request model is MIOS_AI_GATEWAY_MODEL.
-MODEL    = os.environ.get("MIOS_AI_GATEWAY_MODEL", "MiOS-Agent")
+MODEL    = os.environ.get("MIOS_AI_GATEWAY_MODEL", "MiOS AI")
 SHARE    = pathlib.Path(os.environ.get("MIOS_SHARE_DIR", "/usr/share/mios"))
 LIB      = pathlib.Path("/usr/lib/mios")
 LIBEXEC  = pathlib.Path("/usr/libexec/mios/tools")

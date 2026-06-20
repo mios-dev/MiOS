@@ -4169,7 +4169,7 @@ endpoint            = "http://localhost:8640/v1"
 # every THIN client requests (the @/mios CLI via MIOS_AI_GATEWAY_MODEL, the Hermes
 # desktop app, and the `hermes` CLI REPL). SSOT for the agent-surface model name so
 # no front-end hardcodes it (operator "NO HARDCODES"; 2026-06-18 unify of the REPL).
-agent_model         = "MiOS-Agent"
+agent_model         = "MiOS AI"
 # WS-1 unified lane resolver (operator 2026-06-19): which heavy engine the agent-pipe
 # PREFERS when both heavy lanes ([ai.sglang] :11441 + [ai.vllm] :11440 -- BOTH advertise
 # served_name "mios-heavy") are provisioned. mios_lanes.LaneResolver tries the preferred
