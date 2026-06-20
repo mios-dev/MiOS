@@ -69,7 +69,14 @@ DESCRIPTION = "MiOS AI -- the local agentic AI of this MiOS workstation (front-d
 # default for MiOS-Agent. The Quadlet ENABLE_WEB_SEARCH /
 # ENABLE_IMAGE_GENERATION / ENABLE_CODE_INTERPRETER env vars open the
 # global gates that have to be on for these toggles to actually fire.
-DEFAULT_FEATURE_IDS = ["web_search", "image_generation", "code_interpreter"]
+# OWUI native features enabled by default for the MiOS model. code_interpreter is
+# DELIBERATELY EXCLUDED (operator 2026-06-20): MiOS orchestrates code via its own
+# run_sandboxed_code verb, and OWUI's code_interpreter injects a "#### Code
+# Interpreter / You have access to run_sandboxed_code" scaffold into EVERY user
+# message -- which made a bare "Hello!" run matplotlib and broke the launch+type
+# chain. Leaving it off keeps tool orchestration in the MiOS pipeline where it
+# belongs. web_search/image_generation stay (low-noise; MiOS may surface them).
+DEFAULT_FEATURE_IDS = ["web_search", "image_generation"]
 
 
 def main():
