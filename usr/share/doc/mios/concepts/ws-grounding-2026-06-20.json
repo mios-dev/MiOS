@@ -1,0 +1,215 @@
+{
+ "pinned_head": "8658df1",
+ "generated": "2026-06-20",
+ "grounded": 11,
+ "verdicts": [
+  {
+   "task_id": 2,
+   "ws_id": "WS-A1",
+   "status": "missing",
+   "confidence": "high",
+   "evidence": [
+    "_load_verb_catalog (C:/MiOS/usr/lib/mios/agent-pipe/server.py:5225) swallows ALL exceptions: except Exception as e: log.warning('verb catalog load failed: %s', e); return cat (5293-5295) -> empty catalog, no strict/warn mode.",
+    "_load_recipe_catalog (server.py:5910) silently `continue`s on (OSError, tomllib.TOMLDecodeError) at 5930-5931 and returns partial/empty `out` -- no fail-loud path.",
+    "_load_agent_registry (server.py:3315) similarly swallows and returns a fallback hermes entry (docstring 3321-3323). None of the three loaders abort startup.",
+    "catalog_fail_mode exists ONLY in a planning doc (usr/share/doc/mios/concepts/ws-0-preflight-findings-2026-06-20.md:82) -- grep for catalog_fail_mode in mios.toml and server.py returns no matches.",
+    "No generator: glob C:/MiOS/usr/libexec/mios/mios-ai-* yields only mios-ai-reset/clear/firstboot/tag/hint-coverage; no mios-ai-manifest-gen. find for *.generated.json returns nothing.",
+    "No anti-drift gate: automation has 47-hardening.sh then 49-finalize.sh with no 48-ai-manifest-drift.sh; 99-postcheck.sh has no manifest/ai/v1/catalog_fail/tools.generated assertion (grep hits only unrelated WSL/quadlet/ollama drift checks).",
+    "tools.json (usr/share/mios/ai/v1/tools.json:1-11) has object 'mios.tools.registry' and served_by mios-hermes.container but NO registry_kind key demarcating Hermes-build-registry vs live verb catalog.",
+    "No test suite: test_mios_ai_manifest.py does not exist in usr/lib/mios/agent-pipe/.",
+    "Sub-item 'fix stale SurrealDB refs in agents.json/surface.json' appears already clean/N-A: grep -i surreal over both files = 0 hits; spec's agents.json:28 currently is opencode strengths, not a SurrealDB ref; surface.json:27 references pgvector table 'kanban_shadow' (not SurrealDB)."
+   ],
+   "gap": "Entire WS unimplemented. Needed: (1) strict/warn fail-loud path in _load_verb_catalog (server.py:5225) + _load_recipe_catalog (5910) gated by new [ai].catalog_fail_mode; (2) /usr/libexec/mios/mios-ai-manifest-gen generator projecting ai/v1/{tools,agents,surface}.generated.json from _VERB_CATALOG/_AGENT_REGISTRY/_RECIPE_CATALOG with --check diff mode; (3) registry_kind demarcation key in tools.json; (4) automation/48-ai-manifest-drift.sh fitness gate; (5) 99-postcheck.sh assertion; (6) [ai].catalog_fail_mode in mios.toml; (7) test_mios_ai_manifest.py. The SurrealDB-ref cleanup sub-item already appears satisfied (no surreal refs remain in agents.json/surface.json).",
+   "needs_vm_to_verify": false,
+   "suggested_action": "implement-delta"
+  },
+  {
+   "task_id": 6,
+   "ws_id": "WS-A2",
+   "status": "missing",
+   "confidence": "high",
+   "evidence": [
+    "Embedding-version hygiene ABSENT: grep for emb_model|emb_version|embed_version across C:/MiOS/usr/lib/mios/agent-pipe returns ZERO matches; schema-init.sql knowledge table (lines 20-52) and agent_memory (55-69) have NO emb_model/emb_version columns.",
+    "knowledge write path _store_knowledge_task (server.py:10555-10623) builds row={q,answer,sources,access_count,recall_hits,tier} + optional emb/owner_user/satisfied -- never stamps emb_model/emb_version.",
+    "agent_memory write path (mios-remember _embed_vec line 83, INSERT at line 177) embeds the fact but never writes an emb model/version column.",
+    "Working-memory durability NOT implemented: _SCRATCHPADS (server.py:7377) is an in-memory collections.OrderedDict; _scratchpad_note (7744) appends only to the in-process deque and _scratchpad_render (7756) reads only from it -- no INSERT into the pg scratch table, no rehydration on restart. Post-restart _scratchpad_render returns '' (the 'before this change' state).",
+    "The scratch table (schema-init.sql:195-212) exists but its comment says it is INTENDED to fold _SCRATCHPADS; only the mios-daemon nudger writes source/topic/body rows -- the pipe scratchpad shape (chat_id/agent/lane/phase/note) writer was never wired. grep 'scratch' in server.py shows zero pg-write of pipe scratchpad checkpoints.",
+    "Backfill/re-embed job module mios_embed_backfill.py DOES NOT EXIST (Glob: no files found); its test test_mios_embed_backfill.py DOES NOT EXIST (Glob lists 18 test_mios_*.py, none for embed_backfill or scratch).",
+    "SSOT flags ABSENT: grep backfill|reembed|scratch_persist|emb_model|emb_version in mios.toml finds only unrelated 'backfilled into a DAG' / 'pipe backfills env' comments -- no [pgvector]/[ai] embedding-version or scratch-durability keys.",
+    "Embedding identity is NOT centralized: _VERB_EMBED_MODEL (server.py:19859) and _EMBED_MODEL (mios-remember:80) are separate per-file constants with no version field."
+   ],
+   "gap": "All WS-A2 deltas are unimplemented: (1) no emb_model/emb_version columns on knowledge/agent_memory; (2) no centralized versioned embedding-identity constant; (3) knowledge and agent_memory writes do not stamp emb_model/emb_version; (4) no scratch-persistence helpers writing pipe scratchpad checkpoints (chat_id/agent/lane/phase/note) to the pg scratch table; (5) no scratchpad rehydration-on-first-access-after-restart in _scratchpad_for/render; (6) mios_embed_backfill.py module absent; (7) no periodic off-hot-path backfill wiring; (8) no mios.toml SSOT flags; (9) test_mios_embed_backfill.py absent. The only pre-existing scaffolding is the bare scratch table DDL (built earlier for the daemon nudger) and generic mios_pg.insert -- none of the WS-specific behavior.",
+   "needs_vm_to_verify": false,
+   "suggested_action": "implement-delta"
+  },
+  {
+   "task_id": 7,
+   "ws_id": "WS-A5",
+   "status": "missing",
+   "confidence": "high",
+   "evidence": [
+    "None of the three named sibling modules exist: Glob for C:/MiOS/usr/lib/mios/agent-pipe/{mios_tokenize,mios_ctxpack,mios_compact}.py returns 'No files found'. The 15 existing mios_*.py siblings are aci/evict/hitl/kvfork/owui/sched/stress/codemode/lanes/pg/a2a_principal/reputation/jsonsalvage/goap/selfimprove -- no tokenize/ctxpack/compact.",
+    "None of the three named test suites exist: Glob for {test_mios_tokenize,test_mios_ctxpack,test_mios_compact}.py returns 'No files found' (18 test_mios_*.py suites present, none for this WS).",
+    "Acceptance item 'the // 4 estimate in _fit_context (7334) is gone' is FALSE: server.py:7336-7337 still computes est = (sum(len(str(content)) ...) + len(json.dumps(tools))) // 4 inside _fit_context (def at 7325). No mios_tokenize call.",
+    "Acceptance item 'usage block (24612-24613) // 4 gone' is FALSE: _usage_estimate (server.py:24647) still does pt = len(prompt)//4 / ct = len(completion)//4 at 24653-24654; its docstring even says '~4-chars/token estimate ... A future ... can replace it'.",
+    "Acceptance item 'the two str(...)[:200] history slices (8221, 9302) route through truncate_to_tokens' is FALSE: server.py:8221 and 9302 are both still `\"content\": str(h.get(\"content\", \"\"))[:200]` raw char slices.",
+    "Acceptance item 'SLOW_LANE_BLOCK_CHARS slice (3677) routes through truncate_to_tokens' is FALSE: server.py:3677-3678 still does `if len(c) > SLOW_LANE_BLOCK_CHARS: c = c[:SLOW_LANE_BLOCK_CHARS].rstrip()` (same raw pattern repeated at 15936-15937 and 16017-16018).",
+    "No truncate_to_tokens / count_text / backend_name / ctxpack references anywhere in server.py (Grep for 'tokenize|truncate_to_tokens|ctxpack|mios_compact|count_text|backend_name' -> only one unrelated comment hit at 10461).",
+    "No offline tokenizer asset: Glob C:/MiOS/usr/share/mios/ai/tokenizers/** -> 'No files found'; no tiktoken|transformers|AutoTokenizer|sentencepiece imports in agent-pipe (Grep -> 'No matches found').",
+    "No SSOT keys: Grep mios.toml for tokenize|ctxpack|compact|truncate_to_tokens|context_budget|tokenizer -> only 3 unrelated prose/comment hits (3053 'compact' adjective, 4598 'tokenizer' tier comment, 7242 'compact'); kb.conf.toml has no matches."
+   ],
+   "gap": "Entire WS-A5 is unbuilt. Need to create mios_tokenize.py (tokenizer seam returning backend_name()/count_text()/truncate_to_tokens()), mios_ctxpack.py (priority token-budget packer), mios_compact.py (rolling-summary compaction), and their three test suites; replace the // 4 heuristics in _fit_context (server.py:7336-7337) and _usage_estimate (24653-24654) with mios_tokenize calls; route the [:200] history slices (8221, 9302) and the SLOW_LANE_BLOCK_CHARS slice (3677-3678, also 15936, 16017) through truncate_to_tokens; add config/env wiring near server.py:945-965; add the SSOT [context]/[ai] keys to mios.toml and document in /etc/mios/kb.conf.toml; optionally vendor an offline tokenizer asset under /usr/share/mios/ai/tokenizers/.",
+   "needs_vm_to_verify": false,
+   "suggested_action": "implement-delta"
+  },
+  {
+   "task_id": 8,
+   "ws_id": "WS-A7",
+   "status": "missing",
+   "confidence": "high",
+   "evidence": [
+    "Named module C:/MiOS/usr/lib/mios/agent-pipe/mios_toolconflict.py does NOT exist (Glob: 16 mios_*.py siblings present, none is toolconflict).",
+    "Test suite C:/MiOS/usr/lib/mios/agent-pipe/test_mios_toolconflict.py does NOT exist (Glob: 18 test_mios_*.py suites present, none for toolconflict).",
+    "Grep for 'conflict_group|parallel_limit|toolconflict|conflict_map|conflict-group' across all of C:/MiOS returns ZERO matches (no source, config, or test references anywhere).",
+    "_load_verb_catalog (server.py:5225-5295) parses section/sig/desc/tier/permission/params/cmd/max_result_chars/model_name/examples/hidden/hidden_aliases at lines 5251-5292 -- it does NOT parse parallel_limit or conflict_group (subtask 1 not done).",
+    "mios.toml has no parallel_limit/conflict_group keys: Grep returns no matches; sampled [verbs.open_app] (2215), [verbs.focus_window] (2256), [verbs.pc_type] (2774) -- the named stateful single-instance verbs -- carry no such field (subtask 5 not done).",
+    "Dispatch chokepoint _dispatch_bounded (server.py:16581-16597) only serializes web_search via the single hardcoded _web_sem semaphore (defined server.py:369, used 16594); there is no generic per-verb conflict-group/parallel-limit acquire/release map (subtask 4 not done).",
+    "No conflict-map primitive, no limit/group maps built at load, no module-global instance (subtasks 2,3 not done); no doc of new catalog fields, no unit test (subtasks 6,7 not done)."
+   ],
+   "gap": "Entire workstream is unimplemented. Required deltas, none present: (1) create mios_toolconflict.py (conflict-map primitive: limit/group maps + asyncio acquire/release, sibling-module style); (2) parse parallel_limit + conflict_group fields in _load_verb_catalog (server.py:5251-5292); (3) build limit/group maps once at load + a module-global instance; (4) wire acquire/release into the dispatch chokepoint (_dispatch_bounded server.py:16581, alongside the existing _web_sem path); (5) declare parallel_limit/conflict_group on stateful single-instance verbs in mios.toml [verbs.*]; (6) document the new catalog fields in the loader/render contract; (7) add test_mios_toolconflict.py standalone unit test.",
+   "needs_vm_to_verify": false,
+   "suggested_action": "implement-delta"
+  },
+  {
+   "task_id": 13,
+   "ws_id": "WS-A8",
+   "status": "missing",
+   "confidence": "high",
+   "evidence": [
+    "No mios_trace.py module: Glob of C:/MiOS/usr/lib/mios/agent-pipe/mios_*.py returns 16 modules (aci, evict, hitl, kvfork, owui, sched, stress, codemode, lanes, pg, a2a_principal, reputation, jsonsalvage, goap, selfimprove) but NO mios_trace.py",
+    "No test_mios_trace.py: Glob of test_mios_*.py returns 18 suites (aci, codemode, evict, hitl, kvfork, launch, pg, sched, stress, lanes, a2a_passport, reputation, goap, selfimprove, mtls, egress, k3s, compound) with no trace suite -- the strong-evidence dedicated-test pattern is absent",
+    "No trace/span symbols in agent-pipe tree: Grep for _emit_span|_trace_var|_span_var|trace_id|TRACE_ENABLE|trace_enable|new_trace|start_span across C:/MiOS/usr/lib/mios/agent-pipe returns no matches; Grep trace_id|span_id|emit_span|/v1/trace in server.py returns no matches",
+    "event table has no trace columns: schema-init.sql:72-82 CREATE TABLE event(id, source, kind, severity, summary, payload, session_id, passport, ts) -- no trace_id/span_id/parent_span columns (subtask 1 unmet)",
+    "No /v1/trace/{trace_id} read endpoint in server.py (Grep '/v1/trace' no matches) (subtask 10 unmet)",
+    "scheduler_state endpoint (server.py:18117-18176) exposes lanes/admission/priority_gate/kv_fork/knowledge_eviction blocks but NO trace block (subtask 11 unmet)",
+    "No trace config in mios.toml: all 'trace' hits (lines 2060,4783,4789,4797,5856,7390-7391) are operator-debug comments or the 'strace' package name, no [trace]/[observability] keys (subtask 12 unmet)",
+    "No trace propagation header: Grep X-MiOS-Trace|traceparent in server.py returns no matches (subtask 5 unmet)",
+    "No trace/span wiring in automation/build.sh (Grep no matches) -- spec ref automation/build.sh:389-417 has no trace artifact step",
+    "All 'trace'/'span' server.py hits are comments (operator-flagged debug traces) or HTML/CSS <span> elements, not observability instrumentation"
+   ],
+   "gap": "Entire WS-A8 is unbuilt. Need to: (1) add trace_id/span_id/parent_span_id columns to the event table in schema-init.sql; (2) create mios_trace.py (pure-stdlib span emitter) + test_mios_trace.py; (3) add trace/span contextvars + helper in server.py; (4) mint a trace id at the top of chat_completions and propagate it across the HTTP hop (header); (5) stamp route/plan/dispatch/synthesize stage spans; (6) add GET /v1/trace/{trace_id}; (7) surface trace config in scheduler_state; (8) add trace config keys to mios.toml.",
+   "needs_vm_to_verify": false,
+   "suggested_action": "implement-delta"
+  },
+  {
+   "task_id": 15,
+   "ws_id": "WS-A11",
+   "status": "missing",
+   "confidence": "high",
+   "evidence": [
+    "mios_router.py ABSENT: Glob C:/MiOS/usr/lib/mios/agent-pipe/mios_router.py -> No files found (acceptance requires this module with a pure Router class + RouteDecision dataclass)",
+    "mios_kernel.py ABSENT: Glob C:/MiOS/usr/lib/mios/agent-pipe/mios_kernel.py -> No files found (acceptance requires the Kernel facade holding SchedulerManager/MemoryManager/ContextManager/ToolManager/AccessManager)",
+    "test_mios_router.py and test_mios_kernel.py ABSENT: neither appears in the test_mios_*.py glob (18 test suites present: aci/codemode/evict/hitl/kvfork/launch/pg/sched/stress/lanes/a2a_passport/reputation/goap/selfimprove/mtls/egress/k3s/compound) - the dedicated-test-suite signal the spec calls strong evidence is missing",
+    "run_tests.sh and conftest.py ABSENT (both named in acceptance/refs): Glob of agent-pipe/run_tests.sh and conftest.py -> No files found",
+    "No KERNEL wiring in server.py: Grep 'KERNEL|mios_router|mios_kernel|RouteDecision|class Kernel|class Router|class Dispatcher' over server.py -> No matches found (acceptance requires KERNEL instantiated near _VERB_CATALOG init and chat_completions delegating to KERNEL.router.route/KERNEL.dispatcher.run)",
+    "No manager classes in server.py: Grep for SchedulerManager/MemoryManager/ContextManager/ToolManager/AccessManager/'def route('/'def run(self,...decision' -> only a single PROSE comment at server.py:18061 ('The MemoryManager half of AIOS'), no actual class def",
+    "chat_completions still carries the full inline intent mode-cascade the WS says to remove: def chat_completions at server.py:24747; body contains refined.get('intent')=='dispatch' fast-path at 25255, hybrid/compute promotions 25290-25396, council/DAG branches 25357/25377/25396/25596/25650/25880/25890 - read of 25250-25309 confirms the cascade lives inline in the function, no Router/Dispatcher delegation",
+    "Acceptance check 'grep chat_completions then confirm body delegates to KERNEL.router.route(...) and KERNEL.dispatcher.run(...) and contains no refined.get(\"intent\") mode cascade' FAILS on all three sub-conditions"
+   ],
+   "gap": "Entire WS-A11 deliverable set is unimplemented. Need to create usr/lib/mios/agent-pipe/mios_router.py (pure Router class + typed RouteDecision dataclass, AI-hint header, no server.py import) and mios_kernel.py (Kernel facade composing SchedulerManager/MemoryManager/ContextManager/ToolManager/AccessManager thin facades + Dispatcher.run); instantiate KERNEL once at module load in server.py; refactor chat_completions (server.py:24747) so its inline refined.get('intent') mode cascade delegates to KERNEL.router.route(...) and KERNEL.dispatcher.run(...) with behavior parity for chat/dispatch/multi_task/DAG/vision/council/_autonomous turns; add test_mios_router.py + test_mios_kernel.py and a run_tests.sh/conftest.py harness; thread WS-A8 trace ids through the new Router/Dispatcher/manager boundaries.",
+   "needs_vm_to_verify": false,
+   "suggested_action": "implement-delta"
+  },
+  {
+   "task_id": 16,
+   "ws_id": "WS-A12",
+   "status": "missing",
+   "confidence": "high",
+   "evidence": [
+    "mios_preempt.py ABSENT: Glob C:/MiOS/usr/lib/mios/agent-pipe/mios_preempt.py returns no files; this is the central deliverable module of every subtask.",
+    "test_mios_preempt.py ABSENT: not in the test_mios_*.py glob (18 suites exist: aci, codemode, evict, hitl, kvfork, launch, pg, sched, stress, lanes, a2a_passport, reputation, goap, selfimprove, mtls, egress, k3s, compound) -- no preempt suite.",
+    "mios_sched.py PriorityGate (line 51) is at base state: methods are only __init__, cap, available, in_flight, queued, head_priority, stats, _pick, acquire, _release, release (file ends line 158). NO quantum primitive, NO suspend-bookkeeping counter API, NO in-gate suspendee accounting -- subtasks 1 and 2 not done.",
+    "mios.toml [dispatch] table has priority_starvation_ms (line 1496), kv_paging_* (1529-1532), kv_fork_* (1540-1541) but NO rr_quantum / rr_max_suspended / rr_enable keys -- subtask 10 (SSOT TOML keys 'beside the kv_*/priority_starvation_ms block') not done.",
+    "server.py has no mios_preempt import, no RR_MAX_SUSPENDED constant, no rr_quantum/rr_max_suspend wiring; grep for preempt|quantum|requeue|RR_MAX_SUSPENDED hits only the existing priority-score model (836 _GLOBAL_PRIORITY_GATE, 840 _priority_gate ctxmgr, 939/1172/25053/25056 'foreground preempts' = priority outranking, NOT RR time-slice) -- subtasks 5,6,7,8,11 not done.",
+    "server.py:18058-18059 explicitly documents the gap: 'A full preemptive FIFO/RR/SJF policy engine is deliberately NOT built: it is over-engineering for a single-operator box' -- the feature was intentionally omitted and never added since.",
+    "_priority_gate contextmanager (server.py:840-865) acquires/releases a single permit with no quantum/time-slice; _GLOBAL_PRIORITY_GATE.stats() (used at server.py:18158) returns only cap/available/in_flight/queued/head_priority -- subtask 11 (observability extension) not done."
+   ],
+   "gap": "Entire workstream unimplemented. None of: mios_preempt.py snapshot-contract module; test_mios_preempt.py; PriorityGate quantum primitive + suspend-counter API in mios_sched.py; interruptible decode loop in _call_agent_stream_inner; quantum wiring into _priority_gate; suspend->requeue->resume Dispatcher cycle; RR_MAX_SUSPENDED admission cap; snapshot-slot free-list in a Context manager (which itself does not exist -- depends on unbuilt WS-A11 kernel seam); [dispatch] rr_quantum/rr_max_suspended/rr_enable TOML keys; stats() RR observability. Note dependency: subtasks 4,7,9 target a WS-A11 Context/Dispatcher seam that is also not yet built.",
+   "needs_vm_to_verify": false,
+   "suggested_action": "implement-delta"
+  },
+  {
+   "task_id": 17,
+   "ws_id": "WS-A15",
+   "status": "missing",
+   "confidence": "high",
+   "evidence": [
+    "No mios_memory.py anywhere in repo: `find /c/MiOS -name mios_memory.py` returns nothing; agent-pipe dir listing (mios_a2a_principal/aci/codemode/evict/goap/hitl/jsonsalvage/kvfork/lanes/owui/pg/reputation/sched/selfimprove/stress) has no mios_memory.py.",
+    "No test_mios_memory.py: `find /c/MiOS -name test_mios_memory.py` returns nothing (acceptance requires `python3 usr/lib/mios/agent-pipe/test_mios_memory.py` to pass).",
+    "Zero occurrences of get_memory_provider / class MemoryProvider / PgVectorMemoryProvider / MIOS_MEMORY_PROVIDER / `import mios_memory` across the whole tree (repo-wide grep empty).",
+    "No `[pgvector].memory_provider` key in usr/share/mios/mios.toml (grep for memory_provider = no matches); acceptance requires `[pgvector].memory_provider = \"pgvector\"`.",
+    "The three target functions still call the pg client directly with no delegation seam: server.py:10555 `_store_knowledge_task`, server.py:10641 `_recall_agent_memory` (calls `_mios_pg.recall(...)` at 10658), server.py:10706 `_recall_knowledge_pg` (calls `_mios_pg.recall(...)` at 10715). No `_memory.retrieve`/`_memory.add` exists.",
+    "Substrate the WS would wrap is present and ready: server.py:104 `import mios_pg as _mios_pg`, mios_pg.py exists with recall(), and test_mios_pg.py is the referenced standalone-test pattern to mirror."
+   ],
+   "gap": "Entire WS-A15 unimplemented. Need: (1) new usr/lib/mios/agent-pipe/mios_memory.py defining MemoryProvider ABC + PgVectorMemoryProvider (wrapping mios_pg recall/store) + get_memory_provider(name) factory that raises ValueError on unknown (fail-closed) + MIOS_MEMORY_PROVIDER resolution + emb-version stamping helper; (2) rewire _store_knowledge_task (10555), _recall_agent_memory (10641), _recall_knowledge_pg (10706) to delegate to a module-level `_memory` resolved next to the mios_pg import at server.py:104; (3) add `[pgvector].memory_provider = \\\"pgvector\\\"` to mios.toml; (4) add standalone test_mios_memory.py (no live DB, _check harness + FakeRecall golden-parity test recording (table,k,owner)). None of these exist.",
+   "needs_vm_to_verify": false,
+   "suggested_action": "implement-delta"
+  },
+  {
+   "task_id": 19,
+   "ws_id": "WS-A6",
+   "status": "missing",
+   "confidence": "high",
+   "evidence": [
+    "No module: Glob C:/MiOS/usr/lib/mios/agent-pipe/mios_batch.py -> No files found. No test: Glob test_mios_batch.py -> No files found.",
+    "No wiring: Grep '_BATCH_COALESCER|_batch_key|batch_enable|batches_emitted|open_windows' over server.py -> No matches found. Wider grep 'batch_enable|batch_interval|BatchCoalescer|_batch_key|batches_emitted|dispatch.*batch' over the whole agent-pipe dir -> No files found.",
+    "Scheduler endpoint has NO .batch block: server.py:18117 @app.get('/v1/scheduler') / scheduler_state() returns object with keys lanes, global_cap, priority_dimensions, memory_manager_tiers, admission, priority_gate (18155), kv_fork (18164), knowledge_eviction (18171), ts -- no 'batch' key (read 18117-18180).",
+    "Chokepoint exists and matches the spec ref exactly: server.py:3917 'async def _call_agent_complete(name, cfg, body, headers, client,' -- but it has no coalescer; it wraps dispatch in `async with _priority_gate(_prio)` at 3940 only.",
+    "Config block at server.py:831-837 (the WS-1 priority-gate block the spec says to add batch keys 'directly under') defines PRIORITY_QUEUE_ENABLE / PRIORITY_STARVATION_S / _GLOBAL_PRIORITY_GATE only -- no batch_enable / batch_interval.",
+    "mios.toml: priority_starvation_ms at line 1496 (spec says append batch keys after it) -- nothing follows but the [dispatch] continuation. grep -i 'batch' over mios.toml hits only unrelated items: continuous-batching comments (1113/1121/1174), knowledge evict_batch (1631/1637), an unrelated batch_size=2 at 7451 (far from the [dispatch] table at 1232). No batch_enable / batch_interval dispatch keys.",
+    "Template siblings the spec models the work on DO exist: mios_sched.py and test_mios_sched.py are present -- so the delta is cleanly scoped, just unimplemented."
+   ],
+   "gap": "Entire workstream unimplemented. Need to create mios_batch.py (pure-stdlib coalescer in the mios_sched.py style), add _batch_key(ep, model) + SSOT/module flags under server.py:831-837, wire _BATCH_COALESCER into the single chokepoint _call_agent_complete (server.py:3917) with native-batch bypass for SGLang/vLLM lanes and turn-deadline window bounding, add a .batch block to scheduler_state() (/v1/scheduler, server.py:18124) exposing enabled/open_windows/batches_emitted, append [dispatch] batch_enable/batch_interval keys after mios.toml:1496, and create test_mios_batch.py.",
+   "needs_vm_to_verify": false,
+   "suggested_action": "implement-delta"
+  },
+  {
+   "task_id": 20,
+   "ws_id": "WS-A16",
+   "status": "missing",
+   "confidence": "high",
+   "evidence": [
+    "mios_smartroute.py does NOT exist (Glob C:\\MiOS\\usr\\lib\\mios\\agent-pipe\\mios_smartroute.py = no files); test_mios_smartroute.py does NOT exist (Glob = no files). Both are named deliverables in acceptance + subtasks.",
+    "Lane model is unextended: mios_lanes.py:26-41 class Lane has __slots__ = (\"id\", \"url\", \"model\") only -- no kind/cost_in/quality_tier fields and no cost_estimate() method (acceptance requires grep of kind|cost_in|quality_tier in mios_lanes.py to hit).",
+    "The four remote-core adapters are defined-only with ZERO call sites: server.py:3200 _oai_msgs_to_anthropic, :3235 _anthropic_resp_to_oai, :3258 _oai_msgs_to_gemini, :3291 _gemini_resp_to_oai; grep count across server.py = 4 (exactly the 4 def lines). Acceptance requires call sites inside _call_agent_complete_inner/_call_agent_stream_inner ('today: defined-only, zero callers') -- still uncalled.",
+    "No SmartRouting/remote-core config in SSOT: grep of remote_cores|smartroute|quality_tier|cost_in|cost_ledger in mios.toml = no relevant hits; the only anthropic/gemini matches (mios.toml:5953-5954) are the unrelated @anthropic-ai/claude-code and @google/gemini-cli npm CLI packages.",
+    "_lane_resolver() (server.py:212-251) builds only light/sglang/vllm lanes from _TOOL_BACKEND/_TOOL_BACKEND_HEAVY/_vllm_url; no remote (anthropic/gemini) lane, no secret-store key resolution, no cost ledger, no smartroute mode.",
+    "Whole-tree grep over C:\\MiOS for smartroute|SmartRout|remote_cores|quality_tier|cost_ledger|cost_in|escalation_threshold|local-first escalation = No files found.",
+    "Only the WS-1 prerequisite is present: mios_lanes.py + test_mios_lanes.py implement the plain LaneResolver (health/cooldown failover over light/sglang/vllm); WS-A16 layers cost/quality SmartRouting + remote cores on top of it, and that layer is absent."
+   ],
+   "gap": "Entire WS-A16 SmartRouting/remote-core layer is unbuilt. Missing: (1) Lane cost/quality metadata (kind/cost_in/cost_out/quality_tier) + cost_estimate() in mios_lanes.py; (2) new mios_smartroute.py policy module; (3) [ai.remote_cores.*] + smartroute_mode SSOT block in mios.toml (defaults disabled/off); (4) remote cores wired into _lane_resolver(); (5) secret-store key resolution (not TOML); (6) wiring the dead _oai_msgs_to_anthropic/_anthropic_resp_to_oai/_oai_msgs_to_gemini/_gemini_resp_to_oai adapters into _call_agent_complete_inner/_call_agent_stream_inner (the keystone task); (7) escalation decision in the extracted Router (WS-A11, itself unbuilt); (8) per-day cost ledger; (9) remote cores + spend in /v1/cluster/health|scheduler diagnostics; (10) test_mios_smartroute.py + test_mios_lanes.py extension. The WS-1 base resolver exists; nothing WS-A16-specific does.",
+   "needs_vm_to_verify": false,
+   "suggested_action": "implement-delta"
+  },
+  {
+   "task_id": 21,
+   "ws_id": "WS-A9",
+   "status": "missing",
+   "confidence": "high",
+   "evidence": [
+    "mios_pdp.py does NOT exist: Glob of C:/MiOS/usr/lib/mios/agent-pipe/mios_*.py returns 16 siblings (aci, evict, hitl, kvfork, owui, sched, stress, codemode, lanes, pg, a2a_principal, reputation, jsonsalvage, goap, selfimprove) - no mios_pdp.py.",
+    "test_mios_pdp.py does NOT exist: Glob of test_mios_*.py returns 18 suites, none for pdp.",
+    "No PDP symbols anywhere in agent-pipe: grep for _policy_decide|_dispatch_agent_var|pdp_audit_allow|mios_pdp|_policy_pdp -> No matches found.",
+    "RBAC bypass confirmed open: _agent_rbac_filter (server.py:6966) and _user_rbac_filter (server.py:7009) are invoked ONLY at surface-build time (server.py:14280-14281). The dispatch chokepoint _dispatch_mios_verb_inner (server.py:16701) runs taint-firewall (16724), HITL gate (16750) and enum validation (16757) but performs NO per-agent/per-user capability check after the `tool = re.sub(...)` normalize at 16722 - so a verb absent from the filtered surface still dispatches.",
+    "Fail-OPEN max_permission defect present exactly as spec describes: server.py:6981-6984 comment 'max_permission gates only when it names a KNOWN tier; a typo/unknown value fails OPEN (no ceiling)' with max_rank=None when max_perm not in _PERMISSION_TIERS.",
+    "No _dispatch_agent_var contextvar: only _client_env_var exists at server.py:7397 (the spec's anchor point); no agent-name contextvar sits beside it.",
+    "No RBAC/PDP build-time lint: grep of /automation/99-postcheck.sh for rbac|pdp|max_permission|policy_decide|capability -> No matches found.",
+    "No PDP config in SSOT: grep of /usr/share/mios/mios.toml for pdp|policy_decide -> No matches found.",
+    "Anchor points are accurate (so the WS is implementable as written): _client_env_var@7397, _dispatch_mios_verb_inner@16701, fail-open block @6981-6984, test_mios_hitl.py exists as the mirror-pattern reference."
+   ],
+   "gap": "All 10 subtasks are unimplemented. Required: (1) create mios_pdp.py pure-stdlib decision core; (2) add _dispatch_agent_var contextvar near server.py:7397; (3) fix the fail-OPEN max_permission defect at server.py:6981-6984 (unknown tier must fail-closed, not no-ceiling); (4) build _policy_decide(...); (5) wire the PDP into _dispatch_mios_verb_inner at server.py:16701 after the tool=re.sub normalize (the actual bypass-closing step - dispatch currently has zero capability check); (6) refactor _agent_rbac_filter / _user_rbac_filter surface pruning to share the PDP core so surface and dispatch cannot diverge; (7) emit a unified PDP audit event on deny (+ optional allow when [ai].pdp_audit_allow=true); (8) add [ai]/[agents.*]/[users.*] PDP config keys to mios.toml; (9) add an RBAC config lint block to /automation/99-postcheck.sh; (10) create test_mios_pdp.py (stdlib only).",
+   "needs_vm_to_verify": false,
+   "suggested_action": "implement-delta"
+  }
+ ]
+}

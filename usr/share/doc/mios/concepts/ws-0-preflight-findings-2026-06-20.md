@@ -1,3 +1,6 @@
+<!-- AI-hint: WS-0-PREFLIGHT read-first correction pass for the MiOS master plan — re-derives every "verified" baseline number against a pinned HEAD (8658df1) and strikes claims stale against the current tree (server.py line count, patch*.py no-op, the already-built drift-freeze gate, the mios-heavy collision). Re-scopes WS-0A build->verify and WS-3 to 27,311 lines.
+     AI-related: usr/share/doc/mios/concepts/ws-grounding-2026-06-20.md, automation/38-ssot-lint.sh, automation/38-drift-checks.sh, automation/build.sh, automation/99-postcheck.sh -->
+
 # WS-0-PREFLIGHT — baseline reconciliation against the working tree
 
 > Read-first correction pass for the MiOS master plan. Re-derives every
