@@ -39,6 +39,13 @@ username  = "mios"
 fullname  = "'MiOS' User"
 hostname  = "mios"
 shell     = "/bin/bash"
+# Home location for "local" / "near me" / weather / news asks. When the chat
+# surface forwards no geo (e.g. OWUI on a phone with location-sharing off), the
+# agent resolves place-dependent queries against THIS instead of the host
+# timezone's coarse region (operator 2026-06-20). Free-form: a city, "City, ST",
+# or "lat,long". Empty -> fall back to the host system timezone region, then to
+# an honest "couldn't determine your location" punt (never fabricated cities).
+location  = ""
 groups    = ["wheel", "libvirt", "kvm", "video", "render", "input", "dialout", "docker"]
 # Global MiOS default password. Every service (Hermes Workspace, Forge
 # admin, Cockpit, Ceph dashboard, etc.) defaults to this credential

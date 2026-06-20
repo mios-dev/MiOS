@@ -6242,6 +6242,32 @@ def _temporal_grounding() -> str:
     )
 
 
+_HOST_TZ: "Optional[str]" = None
+
+
+def _host_timezone() -> str:
+    """The host's IANA timezone (e.g. 'America/New_York') -- a REAL, always-
+    available env detail (read once from /etc/localtime). Used as the coarse
+    locale-of-last-resort for 'local' / 'near me' asks when no precise user
+    location was forwarded or configured, so the agent grounds to the right
+    REGION instead of fabricating unrelated cities (operator 2026-06-20: OWUI on
+    phone answered 'local weather' for five random US cities, observing no env)."""
+    global _HOST_TZ
+    if _HOST_TZ is not None:
+        return _HOST_TZ
+    tz = ""
+    try:
+        p = os.readlink("/etc/localtime")
+        if "zoneinfo/" in p:
+            tz = p.split("zoneinfo/", 1)[1].strip()
+    except Exception:  # noqa: BLE001
+        pass
+    if not tz:
+        tz = (os.environ.get("TZ") or "").strip()
+    _HOST_TZ = tz
+    return tz
+
+
 def _client_grounding() -> str:
     """Client/session grounding -- the user's REAL location + locale forwarded
     by the OWUI pipe (metadata.variables: USER_LOCATION / USER_LANGUAGE /
@@ -6290,9 +6316,21 @@ def _client_grounding() -> str:
             "If asked where you are / what folder this is, say you cannot determine "
             "it for THIS turn -- do NOT recall, guess, or report a cwd/surface from "
             "memory or a prior session.")
+    # Location resolution CHAIN (operator 2026-06-20: OWUI on a phone answered
+    # "local weather" with five random US cities -- it observed NO location). In
+    # order: (1) the client-forwarded geo; else (2) the configured MiOS home
+    # location [identity].location; else (3) the host system timezone's REGION (a
+    # real, always-available env detail) as a coarse locale. Only when NONE exists
+    # do we punt -- and NEVER by fabricating a list of unrelated cities.
+    loc_src = "Open WebUI client"
+    if not loc:
+        _cfg_loc = str((_toml_section("identity") or {}).get("location") or "").strip()
+        if _cfg_loc:
+            loc = _cfg_loc
+            loc_src = "the configured MiOS home location ([identity].location)"
     if loc:
         lines.append(
-            f"  - User location (Open WebUI client): {loc}. Resolve 'near me', "
+            f"  - User location ({loc_src}): {loc}. Resolve 'near me', "
             "'nearby', 'near here', 'local', 'around here', 'my area', 'closest', "
             "and any implicit-location ask against THIS. Use it for distance / "
             "locale-sensitive answers (flights, weather, events, stores, prices, "
@@ -6300,20 +6338,30 @@ def _client_grounding() -> str:
             "placeholder and NEVER invent a different city -- substitute this "
             "real value into the query / answer. When it is coordinates "
             "(lat, long), treat them as the user's position.")
-    elif env:
-        # OWUI forwarded a session but NO location (sharing off). Symmetric
-        # honesty path (operator 2026-05-27): a 'near me' ask was silently
-        # generalised to 'United States' with no acknowledgement -- a mild
-        # cousin of fabrication. Tell the orchestrator to answer generically
-        # AND say it couldn't localise, instead of pretending.
-        lines.append(
-            "  - No user location was forwarded this turn (client did not share "
-            "it). If the request uses 'near me' / 'nearby' / 'local' / 'closest' "
-            "or otherwise needs the user's location, do NOT invent or silently "
-            "assume a specific city/country and do NOT emit a '[location]' "
-            "placeholder: answer with general (non-localized) info and briefly "
-            "note you couldn't determine their location, inviting them to name "
-            "their city for local results.")
+    else:
+        _tz = _host_timezone()
+        if _tz and "/" in _tz:
+            _region = _tz.rsplit("/", 1)[1].replace("_", " ")
+            lines.append(
+                f"  - No precise user location was forwarded or configured, but the "
+                f"host system timezone is {_tz} (region around {_region}). For a "
+                "'local' / 'near me' / weather / news ask, ground to THAT region "
+                "(search its principal metro), and STATE plainly that you used the "
+                "system-timezone region rather than a precise location -- invite the "
+                "user to name their city (or set [identity].location) for accurate "
+                "results. Do NOT fabricate a list of unrelated cities and do NOT "
+                "present generic national data as if it were 'local'.")
+        elif env:
+            # No client geo, no config, no usable host tz. Honest punt (operator
+            # 2026-05-27): never silently generalise a 'near me' ask to a country.
+            lines.append(
+                "  - No user location was forwarded this turn and none is "
+                "configured. If the request uses 'near me' / 'nearby' / 'local' / "
+                "'closest' or otherwise needs the user's location, do NOT invent or "
+                "silently assume a specific city/country and do NOT emit a "
+                "'[location]' placeholder: answer with general (non-localized) info "
+                "and briefly note you couldn't determine their location, inviting "
+                "them to name their city for local results.")
     if lang:
         lines.append(
             f"  - User language / locale: {lang}. Use its date / number / "
