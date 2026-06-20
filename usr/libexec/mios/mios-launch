@@ -108,36 +108,40 @@ for path in ("/etc/mios/mios.toml", "/usr/share/mios/mios.toml"):
             if isinstance(v, str) and v:
                 print(v)
                 sys.exit(0)
-    # ── Role-aware fallback: consult [[desktop.apps]] for the
-    # default=true app of a role matching the candidate. Lets
-    # "browser" / "web" / "terminal" resolve to operator's actual
-    # default WITHOUT a per-role line in [mios-find.aliases].
-    # Operator binding 2026-05-19: SSOT = mios.toml; NO hardcoded
-    # English mappings between role names and concrete apps.
+    # ── Role-aware fallback: consult [[desktop.apps]] for the default app of a
+    # role. SPECIFIC-APP-BEFORE-ROLE (operator 2026-06-19 "open edge browser
+    # opened zen randomly"): when the input is "<specific> <role>" (e.g. "edge
+    # browser"), the LAST word is a role but the HEAD names a SPECIFIC app --
+    # resolve the head downstream (-> Microsoft Edge) instead of the role default
+    # (-> the operator's default browser, Zen). The role default fires ONLY for a
+    # BARE role ("browser", "my browser") whose head is empty or itself a role.
+    # SSOT = mios.toml; NO hardcoded English app-name mappings.
     apps = d.get("desktop", {}).get("apps", [])
     if isinstance(apps, list):
-        for c in candidates:
-            c_norm = c.rstrip("s")
-            best_id = None
-            best_default = False
-            for app_cfg in apps:
-                if not isinstance(app_cfg, dict):
-                    continue
-                role = str(app_cfg.get("role", "")).lower().rstrip("s")
-                if role != c_norm:
-                    continue
-                aid = str(app_cfg.get("id", ""))
-                if not aid:
-                    continue
-                if app_cfg.get("default") is True:
-                    best_id = aid
-                    best_default = True
-                    break
-                if best_id is None:
-                    best_id = aid
-            if best_id:
-                short = best_id.split(".")[-1].lower()
-                print(short)
+        roles = set()
+        role_app = {}
+        for app_cfg in apps:
+            if not isinstance(app_cfg, dict):
+                continue
+            role = str(app_cfg.get("role", "")).lower().rstrip("s")
+            aid = str(app_cfg.get("id", ""))
+            if not role or not aid:
+                continue
+            roles.add(role)
+            if app_cfg.get("default") is True or role not in role_app:
+                role_app[role] = aid.split(".")[-1].lower()
+        last_word = norm.split("-")[-1] if norm else ""
+        head = "-".join(norm.split("-")[:-1])
+        head = re.sub(r"^(my|the|a|an)-", "", head)
+        # "<specific> <role>" -> resolve the SPECIFIC head downstream, not the role.
+        if last_word.rstrip("s") in roles and head and head.rstrip("s") not in roles:
+            print(head)
+            sys.exit(0)
+        # Bare role -> the operator's default app for that role.
+        for c in (norm, norm_stripped, last_word):
+            cn = c.rstrip("s")
+            if cn in role_app:
+                print(role_app[cn])
                 sys.exit(0)
 PYEOF
 }

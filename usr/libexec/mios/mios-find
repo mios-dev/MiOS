@@ -159,6 +159,47 @@ if [ -n "$ALIAS_TARGET" ]; then
     QUERY="$ALIAS_TARGET"
 fi
 
+# ─── Specific-before-role reduction ──────────────────────────────────
+# Operator 2026-06-19 "open edge browser opened zen randomly": "<app> <role>"
+# (e.g. "edge browser") -> the scorer can't substring-match the FULL query to
+# "Microsoft Edge" (no "browser" in the name), so Edge fell to the Levenshtein
+# tier where Zen (windows-browser, the default) tied + won. When the LAST word is
+# a [desktop.apps] ROLE and the HEAD is a SPECIFIC (non-role) app, reduce the
+# query to the head so the scorer resolves the NAMED app. A BARE role ("browser")
+# is left alone -> the windows-browser default (Zen) still wins. SSOT = mios.toml
+# roles; no hardcoded English app names.
+_REDUCED="$(python3 - "$QUERY" <<'PYEOF' 2>/dev/null
+import sys, re, tomllib
+q = re.sub(r"\s+", "-", sys.argv[1].strip().lower())
+if "-" not in q:
+    sys.exit(0)
+roles = set()
+for p in ("/etc/mios/mios.toml", "/usr/share/mios/mios.toml"):
+    try:
+        with open(p, "rb") as f:
+            d = tomllib.load(f)
+    except Exception:
+        continue
+    for a in (d.get("desktop", {}).get("apps", []) or []):
+        if isinstance(a, dict) and a.get("role"):
+            roles.add(str(a["role"]).lower().rstrip("s"))
+    if roles:
+        break
+last = q.split("-")[-1].rstrip("s")
+head = re.sub(r"^(my|the|a|an)-", "", "-".join(q.split("-")[:-1]))
+# Require a SUBSTANTIVE head (>=4 chars) so generic browser synonyms ("web") stay
+# a bare-role ask (-> default browser), while a real app name ("edge"/"chrome"/
+# "firefox") reduces to the specific app.
+if (last in roles and head and len(head.replace("-", "")) >= 4
+        and head.rstrip("s") not in roles):
+    print(head.replace("-", " "))
+PYEOF
+)"
+if [ -n "$_REDUCED" ]; then
+    echo "(specific-before-role: '$QUERY' -> '$_REDUCED')" >&2
+    QUERY="$_REDUCED"
+fi
+
 # ─── Fast path A: delegate to mios-everything ─────────────────────────
 # Operator directive 2026-05-16: "WE HAVE EVERYTHING CLI STILL DOING
 # NOTHING AS A TOOL FOR THE ENTIRE MIOS AGENTIC STACKS" -- promoted
