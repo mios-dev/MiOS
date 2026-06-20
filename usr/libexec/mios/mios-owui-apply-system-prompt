@@ -34,7 +34,13 @@ SRC_CANDIDATES = [
     Path("/usr/share/mios/open-webui/system-prompts/mios-agent.md"),
     Path(f"{os.environ.get('MIOS_REPO', '')}/usr/share/mios/open-webui/system-prompts/mios-agent.md"),
 ]
-MODEL_ID = os.environ.get("MIOS_OWUI_MODEL_ID", "hermes-agent")
+# The OWUI model id MUST match what the front-door connection (:8640 /v1/models)
+# serves, so this registration OVERLAYS that connection model -- applying the
+# system prompt (incl. the {{USER_LOCATION}} env tokens) onto the model the user
+# actually selects. The pipe/connection now serve "MiOS AI" (operator: MiOS is
+# MiOS AI on every surface), so the id is "MiOS AI", NOT the legacy "hermes-agent"
+# (which nothing serves anymore -> the overlay would miss + routing would break).
+MODEL_ID = os.environ.get("MIOS_OWUI_MODEL_ID", "MiOS AI")
 MARKER = "MiOS-managed"
 
 
@@ -49,10 +55,10 @@ def _resolve_source():
     return None
 
 
-# Friendly name shown in OWUI's model picker (operator directive
-# 2026-05-15: rename "hermes-agent" -> "MiOS-Agent" globally).
-DISPLAY_NAME = os.environ.get("MIOS_OWUI_DISPLAY_NAME", "MiOS-Agent")
-DESCRIPTION = "MiOS Agent -- the local agent stack (Hermes-Agent gateway over Ollama)."
+# Friendly name shown in OWUI's model picker. Operator: MiOS is "MiOS AI" on
+# EVERY surface (supersedes the earlier 2026-05-15 "MiOS-Agent" name).
+DISPLAY_NAME = os.environ.get("MIOS_OWUI_DISPLAY_NAME", "MiOS AI")
+DESCRIPTION = "MiOS AI -- the local agentic AI of this MiOS workstation (front-door agent-pipe over local inference lanes + live web)."
 
 # Toggles in the chat input bar (web search / image gen / code interpreter)
 # default to OFF in upstream OWUI -- the user has to click each one per
@@ -114,7 +120,7 @@ def main():
                  json.dumps(meta), json.dumps(params), now, now, 1)
             )
             conn.commit()
-            _log(f"created MiOS-Agent model row (id={MODEL_ID!r}, name={DISPLAY_NAME!r}) "
+            _log(f"created MiOS AI model row (id={MODEL_ID!r}, name={DISPLAY_NAME!r}) "
                  f"with system prompt + capabilities + favicon")
             return 0
 
