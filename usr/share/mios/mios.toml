@@ -2221,6 +2221,7 @@ hidden_aliases = ["launch_app", "launch_verified", "launch_and_verify_app"]  # c
 examples   = ["open Firefox on my second monitor", "launch Spotify on the left half of the screen", "start Notepad with this file and put it top-left", "run Discord maximized on monitor 1"]
 tier       = "core"
 permission = "write"
+conflict_group = "desktop_ui"  # WS-A7: one foreground window + keyboard -- serialize vs focus_window/pc_type so a fan-out can't race them
 cmd        = "MIOS_LAUNCH_POSITION={position=default} mios-launch {name!}"
 cmd_args   = "MIOS_LAUNCH_POSITION={position=default} mios-windows launch {name!}{args*}"
   [verbs.open_app.params.name]
@@ -2260,6 +2261,7 @@ desc       = "Raise an already-OPEN Windows window to the FRONT (by title) and o
 examples   = ["bring Firefox to the front", "switch to the Spotify window", "focus the Discord window and move it to the left", "activate the Notepad window"]
 tier       = "common"
 permission = "write"
+conflict_group = "desktop_ui"  # WS-A7: serialize vs open_app/pc_type (shared foreground-window focus)
 cmd            = "mios-window focus {title}"
 cmd_positioned = "mios-window focus {title} && MIOS_LAUNCH_POSITION={position} mios-window {position} {title}"
   [verbs.focus_window.params.title]
@@ -2779,6 +2781,7 @@ model_name = "windows_desktop_type_text"
 examples   = ["type 'hello' into the focused windows app", "enter this text on the host windows desktop", "type into the foreground windows window", "send these keystrokes to windows"]
 tier       = "rare"
 permission = "write"
+conflict_group = "desktop_ui"  # WS-A7: keystrokes land in the focused window -- serialize vs open_app/focus_window
 cmd        = "mios-pc-control type {text}"
   [verbs.pc_type.params.text]
   type = "string"

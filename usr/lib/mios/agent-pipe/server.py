@@ -108,6 +108,7 @@ import mios_reputation   # noqa: E402  -- #54 zero-trust peer reputation
 _A2A_REPUTATION = mios_reputation.PeerReputation()   # outbound-peer reliability
 import mios_goap   # noqa: E402  -- #53 deterministic GOAP planner lane
 import mios_selfimprove   # noqa: E402  -- #64 self-improvement analyzer (read-only)
+import mios_toolconflict   # noqa: E402  -- WS-A7 per-verb dispatch conflict/parallel-limit gate
 
 # ── Config (SSOT-sourced via env) ──────────────────────────────────
 PORT = int(os.environ.get("MIOS_PORT_AGENT_PIPE", "8640"))
@@ -4721,6 +4722,11 @@ async def _ollama_secondary_tool_loop(client, base: str, model: str,
             if _rescued:
                 push(" 🛟")
                 tcs = _rescued
+                _c = msg.get("content") or ""
+                _c = re.sub(r"<tool_call>.*?</tool_call>", "", _c, flags=re.DOTALL | re.IGNORECASE)
+                _c = re.sub(r"```(?:json)?\s*\{.*?\}\s*```", "", _c, flags=re.DOTALL | re.IGNORECASE)
+                _c = re.sub(r"<function=.*?</function>", "", _c, flags=re.DOTALL | re.IGNORECASE)
+                msg["content"] = _c.strip()
         if not tcs:
             # No tool call AND it disclaimed/punted -> nudge ONCE to actually
             # call the tool, then re-loop (ollama has no tool_choice=required).
@@ -4782,6 +4788,7 @@ async def _ollama_secondary_tool_loop(client, base: str, model: str,
         log.warning("secondary tool-loop hit MAX_ITERS=%d -> returning PARTIAL "
                     "(model kept requesting tools without a final answer)",
                     max(1, SECONDARY_TOOL_MAX_ITERS))
+        msgs.append({"role": "user", "content": "SYSTEM ALERT: You have exhausted the maximum number of tool calls for this turn. Do NOT make any more tool calls. Summarize the information you have gathered and provide a final answer to the user now."})
     return msgs
 
 
@@ -4935,6 +4942,11 @@ async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
             if _rescued:
                 push(" 🛟")
                 tcs = _rescued
+                _c = msg.get("content") or ""
+                _c = re.sub(r"<tool_call>.*?</tool_call>", "", _c, flags=re.DOTALL | re.IGNORECASE)
+                _c = re.sub(r"```(?:json)?\s*\{.*?\}\s*```", "", _c, flags=re.DOTALL | re.IGNORECASE)
+                _c = re.sub(r"<function=.*?</function>", "", _c, flags=re.DOTALL | re.IGNORECASE)
+                msg["content"] = _c.strip()
         if not tcs:
             # disclaimer with no tool call -> nudge ONCE then re-loop
             if not _nudged and _looks_like_disclaimer(msg.get("content") or ""):
@@ -4995,6 +5007,7 @@ async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
         log.warning("secondary tool-loop hit MAX_ITERS=%d -> returning PARTIAL "
                     "(model kept requesting tools without a final answer)",
                     max(1, SECONDARY_TOOL_MAX_ITERS))
+        msgs.append({"role": "user", "content": "SYSTEM ALERT: You have exhausted the maximum number of tool calls for this turn. Do NOT make any more tool calls. Summarize the information you have gathered and provide a final answer to the user now."})
     return msgs
 
 
@@ -5289,6 +5302,17 @@ def _load_verb_catalog() -> dict:
                     "hidden_aliases": [str(x).strip()
                                        for x in (vcfg.get("hidden_aliases") or [])
                                        if str(x).strip()],
+                    # WS-A7 Tool-Manager serialization (SSOT, both optional):
+                    #   parallel_limit -- max concurrent dispatches of THIS verb
+                    #     (>=1; e.g. 1 = strictly single-flight). 0/absent = unbounded.
+                    #   conflict_group -- named mutual-exclusion set: all verbs
+                    #     sharing the group run one-at-a-time (e.g. open_app /
+                    #     focus_window / pc_type all contend for the one foreground
+                    #     window + keyboard, so a fan-out must not interleave them).
+                    # Consumed by mios_toolconflict.ConflictGate at the dispatch
+                    # chokepoint (_dispatch_bounded). Neither declared -> no-op.
+                    "parallel_limit": int(vcfg.get("parallel_limit", 0) or 0),
+                    "conflict_group": str(vcfg.get("conflict_group", "") or "").strip(),
                 }
     except Exception as e:
         log.warning("verb catalog load failed: %s", e)
@@ -5425,6 +5449,11 @@ def _load_verb_arg_synonyms() -> dict:
 
 
 _VERB_CATALOG = _load_verb_catalog()
+# WS-A7: build the Tool-Manager conflict/parallel-limit gate from the SSOT
+# [verbs.*].parallel_limit / .conflict_group fields. Degrade-open: an empty gate
+# (no verb declares either) serializes nothing, so the dispatch chokepoint stays
+# a straight pass-through for the vast majority of verbs.
+_TOOL_CONFLICT = mios_toolconflict.ConflictGate.from_catalog(_VERB_CATALOG)
 
 
 def _build_model_name_map(cat: dict) -> dict:
@@ -6283,6 +6312,89 @@ def _temporal_grounding() -> str:
     )
 
 
+_CACHED_OS_INFO: "Optional[str]" = None
+
+
+def _get_os_info() -> str:
+    """Detailed host OS information, parsed and cached once to prevent latency."""
+    global _CACHED_OS_INFO
+    if _CACHED_OS_INFO is not None:
+        return _CACHED_OS_INFO
+
+    distro = ""
+    try:
+        if os.path.exists("/etc/os-release"):
+            with open("/etc/os-release", "r", encoding="utf-8") as f:
+                for line in f:
+                    if line.startswith("PRETTY_NAME="):
+                        distro = line.split("=", 1)[1].strip().strip('"')
+                        break
+    except Exception:
+        pass
+
+    kernel = ""
+    arch = ""
+    try:
+        import subprocess
+        res = subprocess.run(["uname", "-rm"], capture_output=True, text=True, timeout=2.0)
+        if res.returncode == 0 and res.stdout:
+            parts = res.stdout.split()
+            if parts:
+                kernel = parts[0]
+            if len(parts) > 1:
+                arch = parts[1]
+    except Exception:
+        pass
+
+    is_wsl = False
+    try:
+        if os.path.exists("/proc/version"):
+            with open("/proc/version", "r", encoding="utf-8") as f:
+                ver = f.read().lower()
+            if "microsoft" in ver or "wsl" in ver:
+                is_wsl = True
+    except Exception:
+        pass
+
+    windows_host = ""
+    if is_wsl:
+        mw = None
+        for path in ("/usr/libexec/mios/mios-windows", "/usr/local/bin/mios-windows"):
+            if os.path.exists(path):
+                mw = path
+                break
+        if mw:
+            try:
+                import subprocess
+                res = subprocess.run([
+                    mw, "ps",
+                    "try { $o=Get-CimInstance Win32_OperatingSystem; "
+                    "\"$($o.Caption) $($o.Version)\" } catch { '' }",
+                ], capture_output=True, text=True, timeout=5.0)
+                if res.returncode == 0 and res.stdout:
+                    cap = res.stdout.replace("\r", "")
+                    cap = next((ln.strip() for ln in reversed(cap.splitlines()) if ln.strip()), "")
+                    if cap and "windows" in cap.lower():
+                        windows_host = cap
+            except Exception:
+                pass
+
+    parts = []
+    if distro:
+        parts.append(distro)
+    if kernel:
+        parts.append(f"kernel {kernel}")
+    if arch:
+        parts.append(arch)
+    if is_wsl:
+        parts.append("WSL2")
+    if windows_host:
+        parts.append(f"host: {windows_host}")
+
+    _CACHED_OS_INFO = ", ".join(parts) if parts else "Linux"
+    return _CACHED_OS_INFO
+
+
 _HOST_TZ: "Optional[str]" = None
 
 
@@ -6507,11 +6619,20 @@ def _env_block() -> str:
     _tz = _host_timezone()
     if _tz:
         rows.append(("timezone", _tz))
-    for _ek, _ok in (("surface", "surface"), ("host", "host"), ("os", "os"),
+    for _ek, _ok in (("surface", "surface"), ("host", "host"),
                      ("cwd", "cwd"), ("user_name", "user"), ("language", "language")):
         _v = str(env.get(_ek) or "").strip()
         if _v:
             rows.append((_ok, _v))
+    # os details: prefer server-probed OS (cached/detailed) and merge client platform if separate
+    _client_os = str(env.get("os") or "").strip()
+    _server_os = _get_os_info()
+    if _client_os and _client_os.lower() not in _server_os.lower():
+        _os_v = f"{_server_os} (client: {_client_os})"
+    else:
+        _os_v = _server_os or _client_os
+    if _os_v:
+        rows.append(("os", _os_v))
     # location chain (client -> configured [identity].location -> host-tz region),
     # with provenance, MIRRORING _client_grounding so the two views never disagree.
     _loc = str(env.get("location") or "").strip()
@@ -8213,7 +8334,7 @@ async def _quick_chat_reply(user_text: str, history: list = None) -> str:
                          "another language ONLY if the user's own message "
                          "is clearly written in it. Never drift to a "
                          "language the user did not use. Plain text only -- "
-                         "no tools, no JSON.")}]
+                         "no tools, no JSON.\n\n" + _env_grounding())}]
     if history:
         for h in history[-2:]:
             if isinstance(h, dict) and h.get("role") in ("user", "assistant"):
@@ -8249,6 +8370,32 @@ async def _quick_chat_reply(user_text: str, history: list = None) -> str:
     # gemma4 (reasoning model) sometimes emits to reasoning_content with empty
     # content -> fall back so refine doesn't silently return "" (operator 2026-06-09).
     return (msg.get("content") or msg.get("reasoning_content") or "").strip()
+
+
+async def _is_memory_question(user_text: str, facts: str) -> bool:
+    """FOCUSED yes/no judge (using REFINE_MODEL) to verify if the user's question
+    is ACTUALLY asking for the retrieved facts, to prevent false-positive
+    deterministic short-circuits. Robust to synonyms and weak structural overlaps."""
+    if not facts or not facts.strip():
+        return False
+    try:
+        msgs = [{"role": "system",
+                 "content": ("You are a strict YES/NO judge. The user is asking a question. "
+                             "Does the following saved fact directly answer the user's question? "
+                             "Reply with ONLY 'YES' or 'NO'.\n\nFacts:\n" + facts)},
+                {"role": "user", "content": (user_text or "")[:500]}]
+        payload = {"model": REFINE_MODEL, "messages": msgs,
+                   "stream": False, "temperature": 0.1, "max_tokens": 10}
+        async with httpx.AsyncClient(timeout=3.0) as s:
+            r = await s.post(f"{REFINE_ENDPOINT}/v1/chat/completions", json=payload,
+                             headers={"Content-Type": "application/json"})
+            if r.status_code == 200:
+                _lm = (((r.json().get("choices") or [{}])[0]).get("message") or {})
+                ans = str(_lm.get("content") or "").strip().upper()
+                return "YES" in ans
+    except Exception:  # noqa: BLE001
+        pass
+    return False
 
 
 async def _ask_for_location(user_text: str) -> str:
@@ -16586,15 +16733,25 @@ async def _dispatch_bounded(
     semaphore so a council/DAG fan-out -- each call itself expanding into
     MIOS_WEB_FANOUT concurrent sub-queries -- can't stampede the local
     SearXNG; excess calls QUEUE here, with a small pre-acquire jitter to
-    stagger simultaneous starts. All other verbs pass straight through."""
+    stagger simultaneous starts. All other verbs pass straight through.
+
+    WS-A7: additionally, every dispatch is wrapped in the Tool-Manager conflict
+    gate, which serializes verbs that declare a parallel_limit (per-verb
+    concurrency cap) or a conflict_group (named mutual-exclusion set, e.g. the
+    single-foreground-window UI verbs). The gate is a no-op for verbs that
+    declare neither (the overwhelming majority), so this adds ~zero overhead to
+    the common path while making stateful verbs fan-out-safe."""
     _t = re.sub(r"\(.*?\)\s*$", "", str(tool or "").strip()).strip().strip("`'\"")
-    if _t == "web_search":
-        if WEB_DISPATCH_JITTER_S > 0:
-            await asyncio.sleep(random.uniform(0, WEB_DISPATCH_JITTER_S))
-        async with _web_sem:
-            return await _dispatch_mios_verb_inner(
-                tool, args, session_id=session_id)
-    return await _dispatch_mios_verb_inner(tool, args, session_id=session_id)
+    # WS-A7 conflict/parallel-limit serialization (outermost so it composes with
+    # the web_search SearXNG bulkhead below). Degrade-open: unconstrained -> no-op.
+    async with _TOOL_CONFLICT.guard(_t):
+        if _t == "web_search":
+            if WEB_DISPATCH_JITTER_S > 0:
+                await asyncio.sleep(random.uniform(0, WEB_DISPATCH_JITTER_S))
+            async with _web_sem:
+                return await _dispatch_mios_verb_inner(
+                    tool, args, session_id=session_id)
+        return await _dispatch_mios_verb_inner(tool, args, session_id=session_id)
 
 
 async def dispatch_mios_verb(
@@ -18176,6 +18333,9 @@ async def scheduler_state() -> JSONResponse:
             "max_rows": KNOWLEDGE_EVICT_MAX_ROWS,
             "batch": KNOWLEDGE_EVICT_BATCH,
         },
+        # WS-A7 Tool-Manager conflict/parallel-limit gate: which verbs are
+        # serialized (by per-verb limit or conflict-group) + live in-flight/queued.
+        "tool_conflict": _TOOL_CONFLICT.stats(),
         "ts": int(time.time()),
     })
 
@@ -24765,6 +24925,23 @@ async def chat_completions(request: Request) -> Any:
                                "type": "invalid_request_error",
                                "param": "messages", "code": None}},
             status_code=400)
+
+    # Strip duplicate canonical/default system prompts sent by the client
+    # to prevent prompt duplication on the orchestrator.
+    if isinstance(messages, list):
+        filtered_messages = []
+        for m in messages:
+            if isinstance(m, dict) and m.get("role") == "system":
+                content = str(m.get("content") or "")
+                if ("# MiOS Grounding / Knowledge Base" in content
+                        or "Operate under `/MiOS.md`." in content
+                        or "You are the MiOS local agent." in content):
+                    log.info("Stripped duplicate/canonical client system prompt from request messages")
+                    continue
+            filtered_messages.append(m)
+        messages = filtered_messages
+        body["messages"] = messages
+
     last_user_text = _extract_last_user_text(messages)
     # UN-TEMPLATE (operator 2026-06-01): if OWUI wrapped the question in its RAG
     # task template ("### Task: Respond to the user query using the provided
@@ -25179,8 +25356,11 @@ async def chat_completions(request: Request) -> Any:
                     _flines.append(_l)
             _facts = "\n".join(_flines)
             if _facts.strip():
-                _chat_reply = "From what you've told me before:\n" + _facts
-                log.info("memory-recall short-circuit: surfaced saved facts deterministically")
+                if await _is_memory_question(last_user_text, _facts):
+                    _chat_reply = "From what you've told me before:\n" + _facts
+                    log.info("memory-recall short-circuit: surfaced saved facts deterministically")
+                else:
+                    log.info("memory-recall short-circuit: fact matched but rejected by judge")
     # Short-circuit ONLY TRIVIAL chat (greetings/banter < MIN_WORDS) to a direct
     # reply (operator 2026-06-01 "concurrent true swarm / unfired nodes"): a
     # SUBSTANTIVE chat/knowledge question (e.g. "pros and cons of REST vs GraphQL")
