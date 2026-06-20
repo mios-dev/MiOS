@@ -48,6 +48,34 @@ groups    = ["wheel", "libvirt", "kvm", "video", "render", "input", "dialout", "
 default_password = "mios"
 
 # ----------------------------------------------------------------------------
+# [agent_passport] -- Open Agent Passport (v0.1.0; the 2026 native standard for
+# verifiable, issuer-signed AI-agent identity + authority). agent-pipe serves the
+# signed JSON at GET /.well-known/agent-passport.json from these values, beside
+# the A2A AgentCard (/.well-known/agent-card.json). EVERY field is optional -- the
+# builder fills MiOS defaults (issuer from [identity], agent = the "MiOS AI" served
+# model). To make the passport VERIFIABLE: set signing_key_path to an Ed25519
+# private key and publish a DNS TXT at signing_key_dns:
+#     v=ap1; kid=<key_id>; alg=ed25519; pk=<base64url-public-key>
+# Until then the doc is schema-valid but served UNSIGNED (flagged x-mios-unsigned).
+# ----------------------------------------------------------------------------
+[agent_passport]
+# domain          = "mios.example.ts.net"   # public host; defaults to localhost
+# legal_name      = "MiOS"
+# display_name    = "MiOS AI"
+# contact_email   = "admin@mios.example.ts.net"
+# scope           = ["assist.local", "tools.invoke", "web.search"]
+# spend_ceiling_amount = 0        # 0 = no autonomous spend authority
+# hitl_above_amount    = 0        # human-in-the-loop trigger threshold
+# sla_hours       = 24
+# data_classification  = "local-only"
+# regions         = ["US"]
+# validity_days   = 90
+# key_id          = "mios-ap-1"
+# signing_key_path = "/etc/mios/agent-passport/ed25519.key"   # PEM or 32-byte raw
+# signing_key_dns  = "_agent-passport.mios.example.ts.net"
+# revocation_list_url = "https://mios.example.ts.net/.well-known/revoked.json"
+
+# ----------------------------------------------------------------------------
 # [portal] -- MiOS Portal web app (served by mios-agent-pipe at GET / on
 # MIOS_PORT_AGENT_PIPE). Login gates the portal UI + its /portal/* data
 # endpoints; the /v1 OpenAI API, /a2a and /health stay open programmatic

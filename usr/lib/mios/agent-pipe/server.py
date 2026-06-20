@@ -17151,9 +17151,19 @@ def _build_agent_card() -> dict:
         "name": os.environ.get("MIOS_A2A_AGENT_NAME", "MiOS AI"),
         "description": app.description,
         "version": app.version,
-        # Primary service URL: the OpenAI-compatible chat surface.
-        "url": f"{base}/v1",
-        "preferredTransport": "OpenAI",
+        # Primary service URL = the NATIVE A2A JSON-RPC 2.0 endpoint (POST /a2a:
+        # message/send, tasks/get, ...), so a strict A2A peer drives MiOS over a
+        # STANDARD A2A transport ("JSONRPC"), not a bespoke one. The OpenAI Chat
+        # Completions surface is advertised alongside via additionalInterfaces, so
+        # MiOS is discoverable as BOTH native-A2A AND OpenAI-compatible (operator:
+        # "A2A ... OpenAI and native"). "OpenAI" is a non-standard transport label
+        # a conformant client simply ignores; the JSONRPC interface is canonical.
+        "url": f"{base}/a2a",
+        "preferredTransport": "JSONRPC",
+        "additionalInterfaces": [
+            {"url": f"{base}/a2a", "transport": "JSONRPC"},
+            {"url": f"{base}/v1", "transport": "OpenAI"},
+        ],
         "provider": {
             "organization": "MiOS",
             "url": os.environ.get(
@@ -17211,6 +17221,131 @@ async def a2a_agent_card_alias() -> JSONResponse:
     """Convenience alias under /v1 for clients that don't probe
     the well-known path."""
     return JSONResponse(_build_agent_card())
+
+
+# ── Agent Passport (/.well-known/agent-passport.json) ────────────────────────
+# The Open Agent Passport (v0.1.0; cubitrek.com/blog/agent-passport, 2026) is the
+# emerging NATIVE standard for verifiable, issuer-signed AI-agent IDENTITY +
+# AUTHORITY: one signed JSON at /.well-known/agent-passport.json, Ed25519 over a
+# DNS-published public key. It answers who issued the agent, its allowed scope +
+# spend ceiling, the human-in-the-loop escalation, the audit-log + terms URLs,
+# and the signing key -- complementing the A2A AgentCard (which carries
+# CAPABILITIES) with IDENTITY. SSOT-derived from mios.toml [identity] +
+# [agent_passport]; Ed25519-signed iff a private key is provisioned, else served
+# unsigned (schema-valid, flagged) so the operator can sign + publish DNS later.
+# Operator: "agent passports ... OpenAI and native".
+AGENT_PASSPORT_VERSION = os.environ.get("MIOS_AGENT_PASSPORT_VERSION", "0.1.0")
+
+
+def _canonical_json(obj) -> bytes:
+    """Canonical JSON for signing: sorted keys at every depth, no whitespace,
+    UTF-8 -- deterministic bytes for cross-implementation Ed25519 verification."""
+    return json.dumps(obj, sort_keys=True, separators=(",", ":"),
+                      ensure_ascii=False).encode("utf-8")
+
+
+def _build_agent_passport() -> dict:
+    """Render the Open Agent Passport (v0.1.0) from MiOS SSOT, Ed25519-signed when
+    a private key is configured ([agent_passport].signing_key_path or
+    MIOS_AGENT_PASSPORT_KEY); otherwise unsigned + flagged. No hardcoded identity
+    -- every value flows from [agent_passport]/[identity] with MiOS defaults."""
+    ap = _toml_section("agent_passport") or {}
+    ident = _toml_section("identity") or {}
+    base = f"http://localhost:{PORT}"
+    domain = str(ap.get("domain") or os.environ.get("MIOS_PUBLIC_DOMAIN") or "localhost")
+    agent_id = str((_toml_section("ai") or {}).get("agent_model") or "MiOS AI")
+    cur = str(ap.get("spend_currency") or "USD")
+    now = int(time.time())
+    ttl_days = int(ap.get("validity_days", 90))
+    doc = {
+        "version": AGENT_PASSPORT_VERSION,
+        "issuer": {
+            "domain": domain,
+            "legalName": str(ap.get("legal_name") or ident.get("org") or "MiOS"),
+            "displayName": str(ap.get("display_name") or "MiOS AI"),
+            "logo": str(ap.get("logo") or f"https://{domain}/favicon.svg"),
+            "signingKeyDns": str(ap.get("signing_key_dns") or f"_agent-passport.{domain}"),
+            "contact": {
+                "email": str(ap.get("contact_email") or ident.get("email") or f"admin@{domain}"),
+                "url": str(ap.get("contact_url") or f"https://{domain}"),
+            },
+        },
+        "agent": {
+            "id": f"{domain}:{agent_id}",
+            "displayName": agent_id,
+            "purpose": str(ap.get("purpose")
+                           or "Local agentic operating-system assistant (MiOS)."),
+            "model": agent_id,
+            "endpoints": {"rest": f"{base}/v1", "a2a": f"{base}/a2a"},
+        },
+        "authority": {
+            "scope": list(ap.get("scope") or ["assist.local", "tools.invoke", "web.search"]),
+            "spendCeiling": {
+                "amount": float(ap.get("spend_ceiling_amount", 0)),
+                "currency": cur,
+                "perEngagement": bool(ap.get("spend_per_engagement", True)),
+            },
+            "humanInLoop": {
+                "above": {"amount": float(ap.get("hitl_above_amount", 0)), "currency": cur},
+                "escalation": str(ap.get("escalation") or ident.get("email")
+                                  or f"admin@{domain}"),
+                "slaHours": int(ap.get("sla_hours", 24)),
+            },
+            "decisionAudit": str(ap.get("decision_audit") or f"{base}/a2a/contexts/{{id}}"),
+            "termsUrl": str(ap.get("terms_url") or f"https://{domain}/terms"),
+        },
+        "counterparties": {"openTo": str(ap.get("open_to") or "allowlist")},
+        "compliance": {
+            "dataClassification": str(ap.get("data_classification") or "local-only"),
+            "regions": list(ap.get("regions") or ["US"]),
+            "subprocessors": list(ap.get("subprocessors") or []),
+            "humanReviewLog": bool(ap.get("human_review_log", True)),
+        },
+        "issuedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now)),
+        "expiresAt": time.strftime("%Y-%m-%dT%H:%M:%SZ",
+                                   time.gmtime(now + ttl_days * 86400)),
+        "signature": {"alg": "ed25519",
+                      "keyId": str(ap.get("key_id") or "mios-ap-1"), "value": ""},
+    }
+    revurl = ap.get("revocation_list_url")
+    if revurl:
+        doc["revocationListUrl"] = str(revurl)
+    # Sign: Ed25519 over canonical JSON with signature.value == "" (the spec's
+    # rule), then fill signature.value. Degrade-open: unsigned + flagged if no key.
+    keypath = (os.environ.get("MIOS_AGENT_PASSPORT_KEY")
+               or str(ap.get("signing_key_path") or ""))
+    signed = False
+    if keypath and os.path.isfile(keypath):
+        try:
+            import base64
+            from cryptography.hazmat.primitives.asymmetric.ed25519 import (
+                Ed25519PrivateKey)
+            from cryptography.hazmat.primitives import serialization
+            raw = open(keypath, "rb").read()
+            try:
+                key = serialization.load_pem_private_key(raw, password=None)
+            except Exception:
+                key = Ed25519PrivateKey.from_private_bytes(raw[-32:])
+            sig = key.sign(_canonical_json(doc))
+            doc["signature"]["value"] = base64.urlsafe_b64encode(sig).decode().rstrip("=")
+            signed = True
+        except Exception as e:
+            log.warning("agent-passport signing failed: %s", e)
+    if not signed:
+        doc["x-mios-unsigned"] = (
+            "UNSIGNED: provision an Ed25519 key via [agent_passport].signing_key_path "
+            "(or MIOS_AGENT_PASSPORT_KEY) and publish the DNS TXT at signingKeyDns "
+            "(v=ap1; kid=<keyId>; alg=ed25519; pk=<base64url-public-key>) to make this "
+            "passport verifiable. The document is schema-valid as-is.")
+    return doc
+
+
+@app.get("/.well-known/agent-passport.json")
+async def agent_passport() -> JSONResponse:
+    """Open Agent Passport (v0.1.0): verifiable issuer-signed agent IDENTITY +
+    AUTHORITY at the spec well-known path. Native standard; complements the A2A
+    AgentCard (capabilities) at /.well-known/agent-card.json."""
+    return JSONResponse(_build_agent_passport())
 
 
 # ── AGNTCY OASF manifest (P3.1) ──────────────────────────────────────────
