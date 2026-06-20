@@ -688,6 +688,24 @@ mode  = "off"
 allow = []
 
 # ----------------------------------------------------------------------------
+# [security.mtls] -- #54 zero-trust TRANSPORT (mutual TLS) PKI. Provision with
+# tools/provision-agent-mtls.py -> a self-signed local CA + an agent cert/key
+# (clientAuth + serverAuth) so A2A peers can mutually authenticate. The actual
+# mTLS is terminated at the reverse proxy that fronts the A2A endpoint (MiOS's
+# TLS-at-the-proxy pattern); `enable` is advisory for that deployment. Override
+# the *_file paths to use an existing org CA instead of the self-signed default.
+# Certs are SECRETS (per-host, time-stamped) -> written under `dir`, NOT committed.
+# ----------------------------------------------------------------------------
+[security.mtls]
+enable        = false
+dir           = "/etc/mios/mtls"
+common_name   = ""          # empty -> hostname
+validity_days = 825
+# ca_file   = "/etc/mios/mtls/ca.crt"     # set these to use an org PKI instead
+# cert_file = "/etc/mios/mtls/agent.crt"
+# key_file  = "/etc/mios/mtls/agent.key"
+
+# ----------------------------------------------------------------------------
 # [uki] -- WS-7 verity-rooted Unified Kernel Image build (DEFAULT-OFF).
 # When verity_uki_build = true the gated build step runs `ukify build`
 # measuring the composefs fs-verity digest into a UKI ARTIFACT at

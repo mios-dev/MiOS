@@ -48,3 +48,40 @@ Recommended rollout: `audit` first (watch `journalctl -k | grep mios-egress-audi
 for a few days to confirm nothing legitimate is caught), widen
 `[security.egress].allow` as needed, then switch to `enforce`. Validated with
 `nft -c -f egress.nft` for all modes.
+
+# Agent mTLS PKI (#54)
+
+The ed25519 message principal (#60) authenticates a *delegation*; **mutual TLS**
+authenticates the *transport* between A2A peers. The PKI is minted by
+[`tools/provision-agent-mtls.py`](../../../../tools/provision-agent-mtls.py):
+
+```bash
+# operator step (writes secrets; run where the certs should live)
+tools/provision-agent-mtls.py        # -> /etc/mios/mtls/{ca,agent}.{crt,key}
+```
+
+- A **self-signed local CA** (the standard self-hosted default) signs an **agent
+  leaf** cert valid for both `clientAuth` and `serverAuth`. To use an existing
+  **org PKI** instead, point `[security.mtls].ca_file/cert_file/key_file` at it.
+- Re-running **reuses the CA** (so peer trust you've already exchanged stays
+  valid) and re-issues the leaf. Keys are written `0600`. Certs are **secrets**
+  (per-host, time-stamped) and are **not committed**.
+
+**Establishing peer trust:** exchange `ca.crt` files between MiOS nodes (each
+node trusts the others' CA), so `agent.crt` presented by a peer validates.
+
+**Enforcing it (deployment, not app code):** MiOS terminates TLS at the reverse
+proxy (the same pattern as the pretty-URL `tailscale serve --tls-terminated-tcp`
+fronting). Configure the proxy in front of the A2A endpoint to **require + verify
+client certs** against the peer CAs, e.g.:
+
+```
+# nginx sketch in front of the /a2a endpoint
+ssl_client_certificate /etc/mios/mtls/peer-cas.crt;   # concatenated peer CA certs
+ssl_verify_client on;
+proxy_pass http://127.0.0.1:8640;
+```
+
+`[security.mtls].enable` is the advisory flag for that deployment. With no certs
+provisioned, A2A stays plain (current single-node behaviour) — nothing here is
+auto-applied.
