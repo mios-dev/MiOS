@@ -64,11 +64,16 @@ a cloud:
 - Heavy work, when enabled, falls to the GPU lanes **`mios-llm-heavy`** (SGLang,
   `:11441`) and **`mios-llm-heavy-alt`** (vLLM), both gated/off-by-default on
   VRAM.
-- Requests flow through the MiOS agent pipeline (agent-pipe / MiOS-Hermes
-  gateway), which **injects the `/MiOS.md` identity per request** (it is not
-  baked into any GGUF), runs the tool-calling loop over the unified **MCP**
-  tool/skill/recipe surface, delegates across nodes over **A2A**, and persists
-  memory/knowledge to **PostgreSQL + pgvector**.
+- Requests flow through **agent-pipe** — the single OpenAI-compatible front door
+  and orchestrator (`mios-agent-pipe.service`, `:8640`, served model
+  `MiOS-Agent`) that every gateway funnels through. It refines intent, routes by
+  domain, and fans out across council/swarm and verb-DAG nodes; **MiOS-Hermes**
+  (`hermes-agent.service`, `:8642`) is one leaf it dispatches to — an
+  OpenAI-compat agent gateway / tool-loop, not the orchestrator. The pipeline
+  **injects the `/MiOS.md` identity per request** (it is not baked into any
+  GGUF), runs the tool-calling loop over the unified **MCP** tool/skill/recipe
+  surface, delegates across nodes over **A2A** (MCP = tools, A2A = agents), and
+  persists memory/knowledge to **PostgreSQL + pgvector**.
 
 So the Gemini CLI's job is narrow and clear: **bind to `MIOS_AI_ENDPOINT` only**.
 No `gemini.googleapis.com` endpoints; no proprietary protocols — function-calling

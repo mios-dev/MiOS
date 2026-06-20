@@ -279,27 +279,28 @@ Enforced by build-time lint and `automation/99-postcheck.sh`:
 | 2 | **NO-MKDIR-IN-VAR** — every `/var/` path declared via `usr/lib/tmpfiles.d/*.conf`. Never written at build time. | `usr/lib/tmpfiles.d/mios*.conf` |
 | 3 | **BOUND-IMAGES** — every Quadlet image symlinked into `/usr/lib/bootc/bound-images.d/` and baked into `/usr/lib/containers/storage` at build time. | `usr/lib/bootc/bound-images.d/`, `automation/08-system-files-overlay.sh` |
 | 4 | **BOOTC-CONTAINER-LINT** — every build ends with `bootc container lint`. Fail = fail the build. | `Containerfile` (last `RUN`) |
-| 5 | **UNIFIED-AI-REDIRECTS** — every OpenAI-API-shaped client resolves through `MIOS_AI_ENDPOINT` (default `http://localhost:8642/v1`), `MIOS_AI_MODEL`, `MIOS_AI_KEY`. **No vendor-cloud URLs. No vendor-specific agent / dev-tool product names anywhere.** | `/etc/profile.d/mios-env.sh`, `usr/bin/mios`, `usr/bin/mios-env`, `etc/mios/ai/` |
+| 5 | **UNIFIED-AI-REDIRECTS** — every OpenAI-API-shaped client resolves through `MIOS_AI_ENDPOINT` (the agent-pipe front door, `mios.toml [ai].endpoint`), `MIOS_AI_MODEL`, `MIOS_AI_KEY`. Resolve the variable; never bake a literal port or vendor-cloud URL. **No vendor-specific agent / dev-tool product names anywhere.** | `/etc/profile.d/mios-env.sh`, `usr/bin/mios`, `usr/bin/mios-env`, `etc/mios/ai/` |
 | 6 | **UNPRIVILEGED-QUADLETS** — every Quadlet declares `User=`, `Group=`, `Delegate=yes`. Documented exceptions (rationale in their headers): `mios-ceph`, `mios-k3s`, `mios-forgejo-runner`, `mios-coderun-sandbox`, and the gated heavy inference lanes (`mios-llm-heavy` / `mios-llm-heavy-alt`, whose upstream SGLang/vLLM images run as image-default root). | `etc/containers/systemd/`, `usr/share/containers/systemd/` |
 | 7 | **OFFLINE-FIRST** — every MiOS lifecycle phase works without internet from EITHER scenario: (1) a pre-built MiOS image, or (2) full repos on a USB drive + a Windows or minimal Fedora live env. Lifecycle phases: **overlay → pull → build → deploy → run → host → re-build → use AI** — all offline-capable. AI agents + tools + scripts + models + knowledge + skills + browser + search + code-run sandboxes all run from the local MiOS stack. Internet-using features (Discord, Tailscale, GitHub PRs, web_search-against-cloud Firecrawl/Tavily/Exa) are OPTIONAL and gracefully degrade when offline; nothing CORE is gated on network reachability. Operator-restated 2026-05-17. **See `docs/concepts/OFFLINE-FIRST.md` for the per-phase capability matrix + remaining build-time gaps.** | runtime: `automation/08-system-files-overlay.sh` (bound-images), model-bake automation, `usr/share/mios/owui/`, `web.search_backend: searxng` seeded config. build: cached wheels + bundled binaries (see OFFLINE-FIRST.md for gap status) |
 
 ## 6. Endpoint contract (OpenAI-compatible)
 
-The **single addressable brain** is `MIOS_AI_ENDPOINT` (default
-`http://localhost:8642/v1`, the MiOS-Hermes gateway). Per Architectural
+The **single addressable front door** is `MIOS_AI_ENDPOINT` — the
+agent-pipe orchestrator (`mios.toml [ai].endpoint`). Per Architectural
 Law 5, every MiOS AI surface resolves through it — **never** hard-code a
 port, backend, or vendor URL. The endpoint fronts a layered AI plane;
 the pieces below are *function-named* MiOS units (not upstream tool
-names), wired together by the agent-pipe orchestrator:
+names), all funnelled through the agent-pipe orchestrator (`:8640`),
+which fronts MiOS-Hermes and the inference lanes:
 
 | Unit | Port | Role |
 |---|---|---|
 | **agent-pipe** (`mios-agent-pipe`) | `:8640` | Standalone FastAPI orchestrator — router + refine + dispatch + critic/polish; fronts Hermes for every gateway (OWUI, Discord, future Slack/Telegram); persists Q+A to pgvector |
-| **MiOS-Hermes** (`hermes-agent`) | `:8642` | Canonical OpenAI-compat agent gateway — sessions, tool-calling, skills, native browser/CDP + terminal tool loop |
+| **MiOS-Hermes** (`hermes-agent`) | `:8642` | A LEAF the pipe fronts/dispatches to (not the front door) — OpenAI-compat agent gateway / tool-loop: sessions, tool-calling, skills, native browser/CDP + terminal loop. Dispatched with `fanout=false` to avoid recursion; often also run as a thin client back to `:8640` |
 | **MiOS-Prefilter** | `:8641` | Injects `tool_choice=delegate_task` on fan-outable prompts, forwards to Hermes |
 | **mios-llm-light** | `:11450` | **PRIMARY local inference lane** — llama.cpp behind the upstream llama-swap proxy image; multi-model auto-swap + KV-paging (`/slots` save/restore). Serves the everyday chat/reasoning models, the `mios-opencode` coder model, **and embeddings** (`nomic-embed-text`, OpenAI-compat `/v1/embeddings`). Config: `usr/share/mios/llamacpp/mios-llm-light.yaml` |
 | **mios-llm-heavy** | `:11441` | Heavy GPU lane (SGLang), served-name `mios-heavy`. Gated / off-by-default (VRAM) |
-| **mios-llm-heavy-alt** | (gated) | Alternate heavy lane (vLLM, PagedAttention + APC). Gated / off-by-default |
+| **mios-llm-heavy-alt** | `:11440` | Alternate heavy lane (vLLM, PagedAttention + APC). Gated / off-by-default |
 | **mios-llm-worker@** | (per-instance) | Single-model swarm workers |
 | **opencode-gateway** | `:8633` | opencode → OpenAI `/v1` shim — makes `[agents.opencode]` a real `/v1` council peer (loopback only) |
 | **mios-pgvector** | `:5432` | PostgreSQL + pgvector — the unified agent datastore (agent_memory, event, tool_call, session, skill, scratch, knowledge, sys_env, kanban, …) |
@@ -325,7 +326,8 @@ Standard request paths through the gateway:
 | `/v1/embeddings` | POST | embeddings (served by `nomic-embed-text` on `mios-llm-light`) |
 | `/v1/audio/{transcriptions,speech}` | POST | when configured |
 
-Default model: `mios.toml [ai].model`. Streaming is mandatory for chat;
+Default model: `mios.toml [ai].agent_model` (the served-model name the
+orchestrator advertises on `:8640/v1/models`). Streaming is mandatory for chat;
 non-streaming is reserved for batch tools. Lanes marked `api="llamacpp"`
 enable the agent-pipe's `_kv_paging` (per-conversation KV checkpoint to
 `--slot-save-path`), the MiOS AIOS Context Manager.

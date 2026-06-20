@@ -1,5 +1,5 @@
 <!-- AI-hint: Provides the core MiOS knowledge base and architectural facts (hardware, stack, and infrastructure) for grounding agent reasoning and ensuring technical accuracy across the system.
-     AI-related: /usr/share/mios/ai/system.md, /etc/mios/MiOS.md, /usr/share/mios/mios.toml, /etc/mios/mios.toml, /usr/lib/mios/agents/opencode/bin/, mios-delegation-prefilter, mios-opencode-gateway, mios-searxng, mios-open-webui, mios-bootstrap -->
+     AI-related: /usr/share/mios/ai/system.md, /etc/mios/MiOS.md, /usr/share/mios/mios.toml, /etc/mios/mios.toml, /usr/lib/mios/agents/opencode/bin/, mios-agent-pipe, hermes-agent, mios-delegation-prefilter, mios-opencode-gateway, mios-searxng, mios-open-webui, mios-bootstrap -->
 > _FHS: `/usr/share/mios/ai/system.md` — canonical MiOS AI grounding /
 > knowledge base (the CONTEXT layer). This is NOT the identity SSOT: the agent
 > identity, posture, and tool/agent doctrine live in `/MiOS.md` (layered
@@ -46,14 +46,22 @@ the federation of cooperating processes that serve agent traffic on a MiOS host
 Runtime is **llama.cpp serving GGUF models** (fronted by the upstream mios-llm-light
 proxy) behind the OpenAI-compat
 endpoint; identity is injected per-request by agent-pipe (not baked into any
-model). The orchestrator seat is **MiOS-Hermes**: lightweight gathering fans out
-to CPU/iGPU/dGPU lanes; non-trivial code work is dispatched to the MiOS-OpenCoder
-peer as a co-equal OpenAI `/v1` council peer (NOT spawned over ACP); web research
-goes via `web_search`, which routes through the local SearXNG.
+model). The orchestrator seat AND the single OpenAI-compatible front door is
+**MiOS-Agent-Pipe** (`:8640`, served model "MiOS-Agent"): every gateway (OWUI,
+Discord/CLI, Slack) funnels through it, where it refines intent, routes by where
+the answer comes from, then runs the matching path — trivial chat, OS-control
+fast-path, a native single-agent tool-loop, a multi-task/verb-DAG, council
+fan-out across lanes, or A2A/MCP federation — and finishes with critic/polish
+plus a real Sources list. **MiOS-Hermes** is NOT the orchestrator; it is a leaf
+the pipe fronts and dispatches to (an OpenAI-compat agent gateway / tool-loop)
+with fanout off to avoid recursion. Non-trivial code work is dispatched to the
+MiOS-OpenCoder peer as a co-equal OpenAI `/v1` council peer (NOT spawned over
+ACP); web research goes via `web_search`, which routes through the local SearXNG.
 
 | Role               | Process                                                                              | Port     | Purpose                                                                       |
 |--------------------|-------------------------------------------------------------------------------------|----------|------------------------------------------------------------------------------|
-| **MiOS-Hermes**    | `hermes-agent.service` (host-direct)                                                 | `:8642`  | OpenAI-compat agent gateway — sessions, tool-calling, kanban, skills          |
+| **MiOS-Agent-Pipe**| `mios-agent-pipe.service`                                                            | `:8640`  | The front door AND orchestrator — refine + route + council/swarm fan-out + critic/polish; every gateway funnels through it; fronts Hermes and the lanes |
+| **MiOS-Hermes**    | `hermes-agent.service` (host-direct)                                                 | `:8642`  | OpenAI-compat agent gateway / tool-loop the pipe fronts — sessions, tool-calling, skills, browser/CDP loop |
 | **MiOS-Prefilter** | `mios-delegation-prefilter.service`                                                  | `:8641`  | HTTP forwarder; injects `tool_choice=delegate_task` on fan-outable prompts    |
 | **MiOS-Inference** | `mios-llm-light` (llama.cpp, fronted by the upstream llama-swap proxy) primary + `mios-llm-heavy`/`-heavy-alt` (SGLang/vLLM) heavy lanes | `:11450` | GGUF models + embeddings (`nomic-embed-text`) behind the unified `MIOS_AI_ENDPOINT`; lanes across CPU / iGPU / dGPU / heavy |
 | **MiOS-Memory**    | `mios-pgvector` (PostgreSQL + pgvector)                                              | `:5432`  | Unified agent datastore — memory, sessions, events, skills, knowledge/RAG vectors |
@@ -136,15 +144,18 @@ next MiOS forever (Day-0 → Day-1 → Day-N).
   (rootful), Justfile, dnf5.
 - **AI / inference:** the local LLM engines are tier-named by role:
   **`mios-llm-light`** (llama.cpp via the upstream llama-swap proxy, :11450) is the primary lane —
-  it serves the everyday GGUF models AND embeddings (`nomic-embed-text`,
-  OpenAI-compat `/v1/embeddings`) and hot-swaps models on demand; **`mios-llm-heavy`**
+  it serves the everyday GGUF models, the coder model, embeddings (`nomic-embed-text`,
+  OpenAI-compat `/v1/embeddings`), AND a vision VLM (`qwen3-vl`), hot-swapping on
+  demand; **`mios-llm-heavy`**
   (SGLang, :11441, served-name `mios-heavy`) is the heavy GPU lane with
   **`mios-llm-heavy-alt`** (vLLM) the gated alternate, and **`mios-llm-worker@`** for
   single-model swarm fan-out. All sit behind the OpenAI-compat `MIOS_AI_ENDPOINT`.
-  **MiOS-Hermes** (`hermes-agent.service` :8642) is the agent gateway in front,
-  with **MiOS-Prefilter** (:8641) injecting `tool_choice=delegate_task` on
-  fan-outable prompts; **MiOS-OpenCoder** (`mios-opencode-gateway.service` :8633)
-  is a first-class `/v1` council peer. The unified agent datastore is
+  The front door AND orchestrator is **MiOS-Agent-Pipe**
+  (`mios-agent-pipe.service` :8640) — every gateway funnels through it; it fronts
+  **MiOS-Hermes** (`hermes-agent.service` :8642), an OpenAI-compat agent gateway /
+  tool-loop it dispatches to. **MiOS-Prefilter** (:8641) injects
+  `tool_choice=delegate_task` on fan-outable prompts; **MiOS-OpenCoder**
+  (`mios-opencode-gateway.service` :8633) is a first-class `/v1` council peer. The unified agent datastore is
   **PostgreSQL + pgvector** (`mios-pgvector`) — memory, sessions, events, skills,
   knowledge/RAG vectors. Optional drop-in alternatives (LocalAI, LiteLLM) flip on
   in `mios.toml [ai]`.
