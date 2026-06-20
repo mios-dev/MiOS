@@ -17105,7 +17105,7 @@ def _build_agent_card() -> dict:
     # so a discovering peer knows how to actually drive MiOS.
     return {
         "protocolVersion": A2A_PROTOCOL_VERSION,
-        "name": os.environ.get("MIOS_A2A_AGENT_NAME", "MiOS Agent"),
+        "name": os.environ.get("MIOS_A2A_AGENT_NAME", "MiOS AI"),
         "description": app.description,
         "version": app.version,
         # Primary service URL: the OpenAI-compatible chat surface.
@@ -17862,7 +17862,7 @@ async def _a2a_dispatch_send(task: dict) -> dict:
     await _a2a_task_record(task)
     await _a2a_fire_push_notifications(task)
     body = {
-        "model": os.environ.get("MIOS_A2A_DEFAULT_MODEL", "MiOS-Agent"),
+        "model": os.environ.get("MIOS_A2A_DEFAULT_MODEL", "MiOS AI"),
         "messages": [{"role": "user", "content": text}],
         "stream": False,
         "metadata": {"chat_id": task.get("contextId") or task["id"]},
