@@ -169,7 +169,7 @@ so the agent stack stays portable and sandboxed.
 | 3 | **BOUND-IMAGES** — every Quadlet image symlinked into `/usr/lib/bootc/bound-images.d/` and baked into `/usr/lib/containers/storage` at build time. |
 | 4 | **BOOTC-CONTAINER-LINT** — final `RUN` of `Containerfile`. Fail = fail the build. |
 | 5 | **UNIFIED-AI-REDIRECTS** — every agent/tool targets `MIOS_AI_ENDPOINT` (default `http://localhost:8080/v1`). No vendor-hardcoded URLs. |
-| 6 | **UNPRIVILEGED-QUADLETS** — every Quadlet declares `User=`, `Group=`, `Delegate=yes`. Exceptions: `mios-ceph`, `mios-k3s`, `mios-forgejo-runner` (rationale in their headers). |
+| 6 | **UNPRIVILEGED-QUADLETS** — every Quadlet declares `User=`, `Group=`, `Delegate=yes`. Documented root exceptions (rationale in their headers; kept in sync with `99-postcheck.sh`): `mios-ceph`, `mios-k3s`, `mios-llm-heavy` (no `User=`); `mios-forgejo-runner`, `mios-coderun-sandbox@` (explicit `User=root`). |
 
 ### Package management
 

@@ -515,12 +515,15 @@ fi
 
 # 13. UNPRIVILEGED-QUADLETS (Architectural Law 6).
 # Every Quadlet *.container under /etc/containers/systemd or
-# /usr/share/containers/systemd MUST declare User= (with the documented
-# mios-ceph and mios-k3s exceptions, both of which require uid 0). Group=
-# and Delegate=yes are SHOULD-have but not strictly load-bearing for the
-# unprivileged invariant; the User= guarantee is what matters.
+# /usr/share/containers/systemd MUST declare User=, with the DOCUMENTED root
+# exceptions below (kept in sync with CLAUDE.md Law 6). Two classes of root
+# exception: NO User= line -> mios-ceph + mios-k3s (need uid 0) + mios-llm-heavy
+# (SGLang needs root for the nvidia-smi probe); explicit User=root -> mios-
+# forgejo-runner (CI runner, --privileged) + mios-coderun-sandbox@ (root but
+# Network=none + ReadOnly). Group= + Delegate=yes are SHOULD-have. (SHOULD-have
+# follow-up: also flag an UNDOCUMENTED User=root Quadlet, not just a missing User=.)
 log "Validating UNPRIVILEGED-QUADLETS (Law 6): every Quadlet declares User=..."
-_law6_exceptions='^(mios-ceph|mios-k3s|mios-llm-heavy)\.container$'
+_law6_exceptions='^(mios-ceph|mios-k3s|mios-llm-heavy|mios-forgejo-runner|mios-coderun-sandbox.*)\.container$'
 _law6_missing=""
 for d in /etc/containers/systemd /usr/share/containers/systemd; do
     [[ -d "$d" ]] || continue
@@ -535,7 +538,7 @@ for d in /etc/containers/systemd /usr/share/containers/systemd; do
 done
 if [[ -n "$_law6_missing" ]]; then
     printf '%s' "$_law6_missing" >&2
-    die "UNPRIVILEGED-QUADLETS: Quadlet missing User= (exceptions: mios-ceph, mios-k3s, mios-llm-heavy)"
+    die "UNPRIVILEGED-QUADLETS: Quadlet missing User= (exceptions: mios-ceph, mios-k3s, mios-llm-heavy, mios-forgejo-runner, mios-coderun-sandbox)"
 fi
 log "  every Quadlet declares User= (or is a documented root exception)"
 
