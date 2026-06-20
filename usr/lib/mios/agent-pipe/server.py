@@ -25123,25 +25123,26 @@ async def chat_completions(request: Request) -> Any:
     if (refined and refined.get("intent") == "chat"
             and not _force_council and not _force_delegate):
         _mem_block = await _recall_agent_memory(last_user_text)
-        # Fire when the router tagged this turn `memory`, OR -- router-misclassify
-        # fallback -- when a stored fact CONFIDENTLY matches the question. The router is a
-        # small model: "what is my favorite color?" -> memory, but "what is my dog
-        # called?" -> files. The recall SCORE is the reliable signal the question maps to a
-        # saved fact. The 0.45 self-gate already dropped weak hits; require a clearer match
-        # (>=0.6) for non-memory-tagged turns so a greeting that faintly matches a fact
-        # never surfaces it instead of a real answer.
+        # Gate ONLY on the recall SCORE -- the question must CONFIDENTLY match a stored
+        # fact (>=0.6). The router's `memory` tag is NOT a reliable trigger: it is a small
+        # model that misclassifies BOTH ways -- "what is my dog called?" -> files (a real
+        # recall it would MISS) AND "who are you and who made you?" -> memory (an identity
+        # question it would WRONGLY surface user facts for). The embedding score is the
+        # honest signal: real recalls score high ("favorite color" 0.84, "dog called"
+        # >=0.6) while a misrouted identity/greeting stays low ("who are you" 0.52 -> falls
+        # through to the proper answer). The 0.45 self-gate already dropped the weakest hits.
         _mem_scores = [float(_s) for _s in re.findall(r"\[(\d(?:\.\d+)?)\]", _mem_block or "")]
         _mem_top = max(_mem_scores) if _mem_scores else 0.0
-        if (_mem_block and _mem_block.strip()
-                and (_routed_domain_var.get(None) == "memory" or _mem_top >= 0.6)):
-            _facts = re.sub(
-                r"(?im)^\s*(Durable facts|Relevant knowledge|Recent web|Context from|Saved).*$",
-                "", _mem_block)
-            _facts = re.sub(
-                r"(?im)^.*(do NOT call a tool|answer FROM IT|fetch with a tool|these saved "
-                r"facts|NEVER ask|second person|first-person|asking back|re-derive).*$",
-                "", _facts)
-            _facts = re.sub(r"\[\d(?:\.\d+)?\]\s*", "", _facts)
+        if _mem_block and _mem_block.strip() and _mem_top >= 0.6:
+            # Keep only the fact lines that CONFIDENTLY match (>=0.6) -- "what is my dog
+            # called?" must not also surface a faintly-matched favourite-colour fact. The
+            # block's framing/header lines carry no [score], so they drop out here too.
+            _kept = []
+            for _ln in _mem_block.splitlines():
+                _ms = re.search(r"\[(\d(?:\.\d+)?)\]", _ln)
+                if _ms and float(_ms.group(1)) >= 0.6:
+                    _kept.append(_ln)
+            _facts = re.sub(r"\[\d(?:\.\d+)?\]\s*", "", "\n".join(_kept))
             # Dedup identical facts (the same fact re-saved across turns returns as N
             # near-duplicate hits) -- order-preserved, case-insensitive on the fact text.
             _seen_f: set = set()
