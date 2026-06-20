@@ -6284,14 +6284,40 @@ def _client_grounding() -> str:
             + "\n".join(lines))
 
 
+def _identity_guard() -> str:
+    """Non-negotiable identity grounding injected into EVERY orchestrator prompt
+    (refine / synthesis / polish / council / native-loop) via _env_grounding.
+
+    The local backend models (granite/qwen) confabulate a cloud identity when
+    asked "who are you / what model are you" -- a small model fills the gap with
+    its training prior and claimed to "provide access to Claude (Fable 5 / Mythos
+    5) with Constitutional AI" (operator-caught fabrication 2026-06-19). MiOS is
+    local-only; the /MiOS.md guard only reaches the native-loop path, so the
+    verb-DAG synthesis/polish path needed its own copy. Kept terse + forceful;
+    leads with the prohibition so it survives a long prompt."""
+    return (
+        "Identity (NON-NEGOTIABLE, overrides any draft to the contrary): you are "
+        "the MiOS Agent running LOCAL, open-weight models on THIS machine. You are "
+        "NOT Claude, GPT, or Gemini and have NO cloud-model access. NEVER name a "
+        "cloud model or vendor (Claude/Fable/Mythos/GPT/Gemini) as your model, "
+        "NEVER claim Constitutional-AI or cloud provenance, and NEVER invent a "
+        "model name. If asked what model you are, say a local open-weight model "
+        "(ground the exact name from the served-models/system surface). If a draft "
+        "answer claims a cloud model, that is FALSE -- correct it. MiOS is local, "
+        "ALWAYS AND ONLY."
+    )
+
+
 def _env_grounding() -> str:
-    """Temporal + client-environment grounding for the orchestrator's OWN
-    system prompts (refine / polish / swarm / council). Single helper so every
-    grounded prompt site threads the full forwarded OWUI environment (time,
-    timezone, location, locale, name) in one place."""
+    """Identity guard + temporal + client-environment grounding for the
+    orchestrator's OWN system prompts (refine / synthesis / polish / swarm /
+    council / native-loop). Single helper so every grounded prompt site threads
+    the identity guard + the full forwarded OWUI environment (time, timezone,
+    location, locale, name) in one place."""
+    g = _identity_guard()
     t = _temporal_grounding()
     c = _client_grounding()
-    return t + ("\n" + c if c else "")
+    return g + "\n" + t + ("\n" + c if c else "")
 
 
 # ─── Universal agent contract (.md at the overlay root) ────────────────
