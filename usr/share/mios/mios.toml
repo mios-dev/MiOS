@@ -3328,13 +3328,15 @@ sig        = "code, lang=bash?, net?, timeout=60?"
 desc       = "Run a SHORT one-off code snippet / command in an isolated sandbox (bubblewrap: read-only system, writable scratch only, NO network by default, resource caps + timeout). lang: bash (default) | python. Pass net=true only if it must reach the network. Use to compute/test something safely WITHOUT touching the host -- not to orchestrate MiOS verbs (run_python_tool_script) or to run Windows PowerShell (powershell_run)."
 model_name = "run_sandboxed_code"
 examples   = ["run this bash one-liner safely", "test this python snippet in a sandbox", "compute a quick calculation without touching the host", "calculate the exact value of a math expression", "do this arithmetic / numeric / date computation precisely", "execute this shell command in isolation"]
-# CORE tier (operator 2026-06-19 "natural language!!! not verbs/keywords"): the sandbox
-# code/Python executor must be AMBIENT -- always on the model's tool surface every turn,
-# NOT gated behind the per-turn cosine/BM25 relevance tail (a pure-math query shares no
-# tokens with "run code in a sandbox" so it was dropped -> the 8B did wrong in-head math).
-# Ambient capability + the COMPUTATION limitation-steer let the model self-select it from
-# natural-language understanding, exactly like OWUI's always-present code interpreter.
-tier       = "core"
+# COMMON tier (operator 2026-06-19, REVERTED from a brief 'core' experiment): the math
+# path does NOT need coderun on the model's surface -- the native-loop COMPUTE PREFETCH
+# runs it PIPE-SIDE (a generative _needs_compute judge -> dispatch_mios_verb -> inject the
+# verified result), so the model gets correct math WITHOUT seeing coderun. Making it 'core'
+# (always-ambient) caused a small 8B to SPURIOUSLY fire run_sandboxed_code on non-compute
+# turns -- esp. in the client-tools merged surface (Hermes desktop), spinning the loop on
+# MiOS verbs and returning EMPTY. Keep it 'common' (reaches the model only when the turn is
+# genuinely code-relevant via the cosine tail / a code domain); the prefetch covers math.
+tier       = "common"
 permission = "interactive"
 cmd        = "mios-coderun --code {code!} {lang?--lang} --timeout {timeout=60}"
   [verbs.coderun.params.code]
@@ -4173,6 +4175,9 @@ heavy_engine        = "sglang"
 # Direct-install source for automation/38-hermes-agent.sh. Operators
 # pin a tag/SHA for reproducible images via mios.html.
 hermes_agent_repo   = "https://github.com/NousResearch/hermes-agent.git"
+# Track LATEST via "main" (operator 2026-06-19: "don't pin any versions in MiOS!!!").
+# The build + mios-hermes-firstboot run `pip install git+<repo>@<ref>`, so every fresh
+# build/boot picks up the newest Hermes automatically. Do NOT pin to a tag/SHA.
 hermes_agent_ref    = "main"
 
 # opencode (https://opencode.ai) -- code-specialist agent CLI installed

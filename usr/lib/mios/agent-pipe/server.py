@@ -21469,6 +21469,24 @@ async def _client_tools_loop(body: dict, client_names: set, chat_id: str,
             messages.append({
                 "role": "tool", "tool_call_id": tc.get("id"),
                 "content": json.dumps(result)[:4000]})
+    # Robustness (operator 2026-06-19, Hermes desktop "empty response"): reaching here
+    # means the loop exhausted max_iters on MiOS-verb tool_calls WITHOUT the model ever
+    # emitting plain content or a CLIENT tool_call (a small 8B can spin on the merged
+    # surface). `last` is then a MiOS-tool-call message with NO content -> the caller (the
+    # desktop agent) gets an EMPTY reply. Make ONE final tools-LESS call so the model must
+    # synthesise a content answer from the tool results already in `messages`. Degrade-open.
+    if not str((last or {}).get("content") or "").strip():
+        try:
+            _fr = dict(base_req)
+            _fr.pop("tools", None)
+            _fr.pop("tool_choice", None)
+            _fr["messages"] = messages
+            _fresp = await _client_tools_backend(_fr)
+            _fmsg = ((_fresp.get("choices") or [{}])[0] or {}).get("message") or {}
+            if str(_fmsg.get("content") or "").strip():
+                return _fmsg
+        except Exception as _e:  # noqa: BLE001 -- degrade-open, return `last`
+            log.debug("client-tools final synthesis failed: %s", _e)
     return last
 
 
