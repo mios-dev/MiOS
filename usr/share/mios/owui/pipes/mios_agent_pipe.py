@@ -512,10 +512,13 @@ class Pipe:
                     _sys = _m.get("content")
                     if not isinstance(_sys, str) or not _sys:
                         continue
-                    _mt = re.search(r"location is\s+(.+?)(?:\.\s|\.$|\n|$)",
-                                    _sys, re.I)
+                    # Match the prose form ("...location is <v>.") AND the labelled
+                    # env-block form ("User location: <v>" / "location = <v>").
+                    _mt = re.search(
+                        r"location\s*(?:is|[:=])\s*(.+?)(?:\n|\.\s|\.$|$)",
+                        _sys, re.I)
                     if _mt:
-                        _rec = _mt.group(1).strip()
+                        _rec = _mt.group(1).strip().rstrip(".").strip()
                         if ("{{" not in _rec and re.search(r"[0-9A-Za-z]", _rec)
                                 and _env_ok(_rec)):
                             sub.setdefault("{{USER_LOCATION}}", _rec)

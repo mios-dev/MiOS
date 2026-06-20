@@ -7472,9 +7472,13 @@ def _client_env(body: dict) -> dict:
                 _sys = _m.get("content")
                 if not isinstance(_sys, str) or not _sys:
                     continue
-                _mt = re.search(r"location is\s+(.+?)(?:\.\s|\.$|\n|$)", _sys, re.I)
+                # Match both the prose form ("...location is <v>.") and the
+                # labelled form the mios-agent.md env block uses ("User location:
+                # <v>" / "location = <v>"), value bounded by newline or sentence end.
+                _mt = re.search(r"location\s*(?:is|[:=])\s*(.+?)(?:\n|\.\s|\.$|$)",
+                                _sys, re.I)
                 if _mt:
-                    _rec = _mt.group(1).strip()
+                    _rec = _mt.group(1).strip().rstrip(".").strip()
                     if ("{{" not in _rec and re.search(r"[0-9A-Za-z]", _rec)
                             and _rec.lower() not in _ENV_SENTINELS):
                         out["location"] = _rec
