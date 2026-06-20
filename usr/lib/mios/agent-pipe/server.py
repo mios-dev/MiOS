@@ -24441,6 +24441,30 @@ async def _respond_native_loop_direct(
             else:
                 log.info("native-loop: %s", "surfaced tool evidence (raw+polish empty)"
                          if _ans else "no answer/raw/evidence (empty)")
+    # ANTI-FABRICATED-CITATION guard (operator no-farce 2026-06-20): on a web/news turn, a
+    # cited URL that is NOT among the sources actually FETCHED this turn was invented --
+    # granite confidently emits e.g. "ai.googleblog.com/2024/..." as "this week's news"
+    # from TRAINING data, ignoring the real fetched sources (the swarm safety net already
+    # routed here, yet the model still fabricates a plausible stale story + fake URL). The
+    # fetched-source set is ground truth; an off-list URL means the specifics are
+    # untrustworthy, so replace the answer with an honest note -- the REAL **Sources:** are
+    # appended just below. Gated to router=web so a non-web answer that legitimately names
+    # a URL from knowledge is untouched; degrade-open keeps the model answer on any error.
+    if _routed_domain_var.get(None) == "web":
+        try:
+            _real_norm = {re.sub(r"[/\s.]+$", "", str(_s.get("url") or ""))
+                          for _s in (_src_collected() or []) if isinstance(_s, dict)}
+            _ans_urls = re.findall(r"https?://[^\s)\]\"'<>]+", _ans or "")
+            _fab = [_u for _u in _ans_urls
+                    if re.sub(r"[/\s.]+$", "", _u) not in _real_norm]
+            if _fab and _real_norm:
+                log.warning("native-loop: web answer cited %d fabricated URL(s) not in %d "
+                            "fetched source(s) -> honest source list", len(_fab), len(_real_norm))
+                _ans = ("I couldn't extract a specific, verified story from this week's live "
+                        "sources (several major news sites block automated reading). Here are "
+                        "the current sources I found -- open one for the latest:")
+        except Exception:  # noqa: BLE001 -- degrade-open, keep the model answer
+            pass
     # SAVE REFERENCES (operator 2026-06-16 "doesn't save references for web links"):
     # a small model cites web sources by NAME and drops the URL, so the answer loses
     # its links. Append a deterministic **Sources:** list from the REAL web_search
