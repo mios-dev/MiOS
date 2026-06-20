@@ -7456,6 +7456,31 @@ def _client_env(body: dict) -> dict:
         u = body.get("user")
         if isinstance(u, str) and u.strip():
             out["user_name"] = u.strip()
+    # CONNECTION-MODEL PATH (operator 2026-06-20): when OWUI drives a direct
+    # connection model (NOT the pipe), it substitutes the live geo into the SYSTEM
+    # MESSAGE TEXT (the model's {{USER_LOCATION}} prompt), NOT into
+    # metadata.variables -- so the loops above find nothing and 'near me'/weather
+    # fall back to "ask for your city". Recover it from the resolved system
+    # message(s) so the connection path grounds too. Anchored on the SSOT prompt
+    # wording ("location is <value>"); requires an alphanumeric value and rejects a
+    # leftover "{{" or a stripped "location is ." -- best-effort, never throws.
+    if not out["location"]:
+        try:
+            for _m in (body.get("messages") or []):
+                if not (isinstance(_m, dict) and _m.get("role") == "system"):
+                    continue
+                _sys = _m.get("content")
+                if not isinstance(_sys, str) or not _sys:
+                    continue
+                _mt = re.search(r"location is\s+(.+?)(?:\.\s|\.$|\n|$)", _sys, re.I)
+                if _mt:
+                    _rec = _mt.group(1).strip()
+                    if ("{{" not in _rec and re.search(r"[0-9A-Za-z]", _rec)
+                            and _rec.lower() not in _ENV_SENTINELS):
+                        out["location"] = _rec
+                        break
+        except Exception:  # noqa: BLE001 -- recovery is best-effort
+            pass
     return out
 
 
