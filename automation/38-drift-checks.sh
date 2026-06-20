@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# AI-hint: Source-tree drift fitness-functions (WS-0A). Read-only static analysis over the repo (== system root) that FAILS on AI-plane SSOT drift no other gate catches: a retired local :11434 lane in active config, a retired model-id (gemma4 / qwen3:1.7b) hardcoded in a CONSUMER unit, a [nodes.local-*] lane pointing at a localhost port no shipped unit serves, and an ai/v1/*.json manifest that won't parse or references a missing schema file. Sibling to 38-ssot-lint.sh; runs standalone, as a build sub-phase, and as a CI/PR drift-gate (needs NO built image). bash + grep + (optional) python3 for the toml/json checks.
-# AI-related: ./automation/38-ssot-lint.sh, ./automation/99-postcheck.sh, ./usr/share/mios/mios.toml, ./usr/share/mios/ai/v1, ./usr/share/containers/systemd
-# AI-functions: _violation, check_dead_lane, check_retired_models, check_structured, main
+# AI-hint: Source-tree drift fitness-functions (WS-0A). Read-only static analysis over the repo (== system root) that FAILS on AI-plane SSOT drift no other gate catches: a retired local :11434 lane in active config, a retired model-id (gemma4 / qwen3:1.7b) hardcoded in a CONSUMER unit, a [nodes.local-*] lane pointing at a localhost port no shipped unit serves, an ai/v1/*.json manifest that won't parse or references a missing schema file, and (check 5, WS-10) AI-hint header coverage regressing past [ai_tag].max_untagged. Sibling to 38-ssot-lint.sh; runs standalone, as a build sub-phase, and as a CI/PR drift-gate (needs NO built image). bash + grep + (optional) python3 for the toml/json/coverage checks.
+# AI-related: ./automation/38-ssot-lint.sh, ./automation/99-postcheck.sh, ./usr/libexec/mios/mios-ai-hint-coverage, ./usr/share/mios/mios.toml, ./usr/share/mios/ai/v1
+# AI-functions: _violation, check_dead_lane, check_retired_models, check_structured, check_hint_coverage, main
 # automation/38-drift-checks.sh
 # ----------------------------------------------------------------------------
 # WHY THIS EXISTS (WS-0A drift-freeze). 99-postcheck.sh enforces the same
@@ -219,10 +219,34 @@ PY
     fi
 }
 
+# --- (5) AI-hint header coverage ratchet (reuses mios-ai-tag SSOT). ----------
+# Delegates to mios-ai-hint-coverage, which imports mios-ai-tag's walk()/
+# existing_hint() (the taggability SSOT -- no keyword/dir lists duplicated here)
+# and fails when untagged taggable files exceed [ai_tag].max_untagged. This is
+# the source-tree half of WS-10 coverage: a NEW untagged file reds the PR before
+# the bake. _SOFT is applied globally by main(), so just propagate the exit code.
+check_hint_coverage() {
+    local tool="$ROOT/usr/libexec/mios/mios-ai-hint-coverage"
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "[38-drift-checks]   WARNING: python3 missing -- skipping AI-hint coverage" >&2
+        return 0
+    fi
+    if [[ ! -f "$tool" ]]; then
+        echo "[38-drift-checks]   WARNING: mios-ai-hint-coverage not found -- skipping" >&2
+        return 0
+    fi
+    if python3 "$tool" --root "$ROOT"; then
+        echo "[38-drift-checks]   (5) AI-hint coverage within ratchet ceiling"
+    else
+        _violation "AI-hint coverage regressed: a new taggable file lacks an AI-hint header (run mios-ai-tag, or raise [ai_tag].max_untagged only for prompt/data files)"
+    fi
+}
+
 main() {
     check_dead_lane
     check_retired_models
     check_structured
+    check_hint_coverage
 
     echo "[38-drift-checks] ---------------------------------------------------------"
     if [[ "$VIOLATIONS" -eq 0 ]]; then

@@ -1,0 +1,184 @@
+#!/usr/bin/env python3
+# AI-hint: AI-hint coverage fitness-function -- reuses the mios-ai-tag taggability
+# AI-related: mios-ai-tag, mios-codebase-index, ./automation/38-drift-checks.sh, ./usr/share/mios/mios.toml
+# AI-functions: _load_tagger, _ceiling, measure, main
+#   SSOT (walk + existing_hint + indexable + SKIP/EXT) to measure what fraction of
+#   taggable source files carry an `AI-hint:` header, and FAILS (exit 1) when the
+#   untagged count exceeds a ratchet ceiling ([ai_tag].max_untagged in mios.toml,
+#   env MIOS_AITAG_MAX_UNTAGGED, or --max-untagged). Read-only; a CI/build drift
+#   gate that stops AI-hint coverage from regressing. Defines NO file/keyword lists
+#   of its own -- taggability is whatever mios-ai-tag says it is.
+"""mios-ai-hint-coverage -- ratchet gate for AI-hint header coverage.
+
+Taggability is NOT redefined here: this tool imports mios-ai-tag (the single
+source of truth for which files should carry a header) and reuses its
+walk()/existing_hint(). It only ADDS a pass/fail policy: untagged_count <= ceiling.
+
+The ceiling (max permitted untagged files) is resolved, highest priority first:
+  1. --max-untagged N            (CLI)
+  2. $MIOS_AITAG_MAX_UNTAGGED     (env)
+  3. [ai_tag].max_untagged        (mios.toml SSOT, layered: vendor < /etc < ~)
+  4. permissive fallback          (report-only; never false-fails a bare checkout)
+
+Why a ratchet, not a hard 100%: a few taggable files MUST stay header-free --
+agent SOUL/prompt markdown (a `<!-- AI-hint -->` line would leak into the prompt)
+and single-value data files (a comment would corrupt the value). The ceiling lets
+those remain while failing the build the moment a NEW untagged file lands. Drive
+the ceiling toward 0 as real code/config gets tagged (`mios-ai-tag`).
+
+Usage:
+  mios-ai-hint-coverage --root .                   # gate cwd (repo == system root)
+  mios-ai-hint-coverage --root . --max-untagged 0  # require 100%
+  mios-ai-hint-coverage --root . --json            # machine-readable summary
+"""
+from __future__ import annotations
+import argparse
+import importlib.machinery
+import importlib.util
+import json
+import os
+import sys
+
+_FALLBACK_CEILING = 10 ** 9  # no source found -> report-only, never false-fail
+
+
+def _load_tagger(explicit: str | None):
+    """Load mios-ai-tag (the taggability SSOT) as a module. Sibling by default."""
+    cand = []
+    if explicit:
+        cand.append(explicit)
+    here = os.path.dirname(os.path.abspath(__file__))
+    cand.append(os.path.join(here, "mios-ai-tag"))
+    cand.append("/usr/libexec/mios/mios-ai-tag")
+    for p in cand:
+        if p and os.path.isfile(p):
+            loader = importlib.machinery.SourceFileLoader("mios_ai_tag", p)
+            spec = importlib.util.spec_from_loader("mios_ai_tag", loader)
+            mod = importlib.util.module_from_spec(spec)
+            loader.exec_module(mod)
+            return mod, p
+    return None, None
+
+
+def _toml_ceiling(roots) -> int | None:
+    """[ai_tag].max_untagged from layered mios.toml (vendor < /etc < ~). Highest wins."""
+    try:
+        import tomllib as _toml
+    except ImportError:
+        try:
+            import tomli as _toml  # type: ignore
+        except ImportError:
+            return None
+    paths = []
+    for r in roots:
+        paths.append(os.path.join(r, "usr/share/mios/mios.toml"))
+    paths.append("/usr/share/mios/mios.toml")
+    paths.append("/etc/mios/mios.toml")
+    paths.append(os.path.expanduser("~/.config/mios/mios.toml"))
+    val = None
+    for p in paths:
+        if not os.path.isfile(p):
+            continue
+        try:
+            with open(p, "rb") as fh:
+                data = _toml.load(fh)
+        except (OSError, ValueError):
+            continue
+        sect = data.get("ai_tag")
+        if isinstance(sect, dict) and "max_untagged" in sect:
+            try:
+                val = int(sect["max_untagged"])  # later (more specific) layer wins
+            except (TypeError, ValueError):
+                pass
+    return val
+
+
+def _ceiling(args, roots):
+    """Resolve the ratchet ceiling + where it came from."""
+    if args.max_untagged is not None:
+        return args.max_untagged, "--max-untagged"
+    env = os.environ.get("MIOS_AITAG_MAX_UNTAGGED")
+    if env not in (None, ""):
+        try:
+            return int(env), "env MIOS_AITAG_MAX_UNTAGGED"
+        except ValueError:
+            pass
+    t = _toml_ceiling(roots)
+    if t is not None:
+        return t, "[ai_tag].max_untagged"
+    return _FALLBACK_CEILING, "fallback (report-only: no ceiling configured)"
+
+
+def measure(tagger, roots):
+    """(tagged, total, missing[]) using the tagger's own walk()+existing_hint()."""
+    tagged = 0
+    total = 0
+    missing = []
+    for p in tagger.walk(roots):
+        total += 1
+        try:
+            head = open(p, encoding="utf-8", errors="replace").read(8192)
+        except OSError:
+            head = ""
+        if tagger.existing_hint(head):
+            tagged += 1
+        else:
+            missing.append(p.replace("\\", "/"))
+    missing.sort()
+    return tagged, total, missing
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(prog="mios-ai-hint-coverage")
+    ap.add_argument("--root", action="append", default=None,
+                    help="repo/system root to scan (repeatable; default: cwd)")
+    ap.add_argument("--max-untagged", type=int, default=None,
+                    help="ratchet ceiling override (max permitted untagged files)")
+    ap.add_argument("--tagger", default=None, help="path to mios-ai-tag (SSOT)")
+    ap.add_argument("--json", action="store_true", help="machine-readable summary")
+    ap.add_argument("--list", action="store_true",
+                    help="always print the untagged file list")
+    a = ap.parse_args()
+    roots = a.root or ["."]
+
+    tagger, tagger_path = _load_tagger(a.tagger)
+    if tagger is None:
+        # The SSOT is the tagger; without it we cannot measure. Degrade open --
+        # a missing tagger must not red an unrelated build.
+        sys.stderr.write("[ai-hint-coverage] WARNING: mios-ai-tag not found -- "
+                         "cannot measure coverage; skipping (exit 0)\n")
+        return 0
+
+    tagged, total, missing = measure(tagger, roots)
+    ceiling, src = _ceiling(a, roots)
+    untagged = len(missing)
+    pct = (100.0 * tagged / total) if total else 100.0
+    over = untagged > ceiling
+
+    if a.json:
+        print(json.dumps({
+            "tagged": tagged, "total": total, "untagged": untagged,
+            "coverage_pct": round(pct, 2), "ceiling": ceiling,
+            "ceiling_source": src, "ok": not over,
+            "missing": missing, "tagger": tagger_path,
+        }, indent=2))
+    else:
+        print(f"[ai-hint-coverage] tagged={tagged}/{total} "
+              f"({pct:.2f}%) untagged={untagged} ceiling={ceiling} "
+              f"[{src}]")
+        if (over or a.list) and missing:
+            print("[ai-hint-coverage] untagged taggable files:")
+            for p in missing:
+                print(f"    {p}")
+
+    if over:
+        sys.stderr.write(
+            f"[ai-hint-coverage] FAIL: {untagged} untagged > ceiling {ceiling}. "
+            f"Tag new files with `mios-ai-tag`, or (only for prompt/data files "
+            f"that must stay header-free) raise [ai_tag].max_untagged.\n")
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

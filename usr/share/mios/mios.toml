@@ -83,6 +83,24 @@ default_password = "mios"
 # revocation_list_url = "https://mios.example.ts.net/.well-known/revoked.json"
 
 # ----------------------------------------------------------------------------
+# [ai_tag] -- AI-hint codebase-tagging COVERAGE gate. Read by
+# mios-ai-hint-coverage, wired into automation/38-drift-checks.sh (check 5) so it
+# runs in build.sh, both CI workflows, and `just drift-gate`. Taggability itself
+# is defined by mios-ai-tag (the SSOT for WHICH files should carry a header);
+# this section only sets the pass/fail POLICY.
+# ----------------------------------------------------------------------------
+[ai_tag]
+# max_untagged: ceiling on how many taggable source files may LACK an `AI-hint:`
+# header before the drift gate fails. It is a RATCHET -- the build fails the
+# moment a NEW untagged taggable file lands. Drive it toward 0 by tagging real
+# code/config with `mios-ai-tag`. The non-zero floor exists only for the few
+# files that MUST stay header-free: agent SOUL/prompt markdown (a comment line
+# would leak into the model's prompt) and single-value data files (a comment
+# would corrupt the value). Env override: MIOS_AITAG_MAX_UNTAGGED; CLI:
+# --max-untagged. Current intentional remainder = soul prompts + data/plan docs.
+max_untagged = 12
+
+# ----------------------------------------------------------------------------
 # [portal] -- MiOS Portal web app (served by mios-agent-pipe at GET / on
 # MIOS_PORT_AGENT_PIPE). Login gates the portal UI + its /portal/* data
 # endpoints; the /v1 OpenAI API, /a2a and /health stay open programmatic
