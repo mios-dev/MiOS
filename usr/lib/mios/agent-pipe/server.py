@@ -21115,18 +21115,20 @@ async def dci_schema() -> JSONResponse:
 # ── /v1/models (passthrough) ───────────────────────────────────────
 @app.get("/v1/models")
 async def list_models(request: Request) -> JSONResponse:
-    # Always advertise the MiOS-Agent chain model so ANY OpenAI-compatible
-    # client (Firefox Smart Window "bring your own model", etc.) can list +
-    # select it WITHOUT a backend key -- /v1/chat/completions runs the chain
-    # locally and needs no auth. If the caller DID pass an Authorization
-    # header, augment with the backend's own model list (best-effort).
+    # Always advertise the MiOS AI chain model so ANY OpenAI-compatible client
+    # (Firefox Smart Window "bring your own model", OWUI, etc.) can list + select it
+    # WITHOUT a backend key -- /v1/chat/completions runs the chain locally and needs
+    # no auth. The id is the SSOT [ai].agent_model ("MiOS AI"), NOT a hardcode
+    # (operator "NO HARDCODES" + "MiOS is known as MiOS AI on every surface"). If the
+    # caller passed an Authorization header, augment with the backend's model list.
     created = int(time.time())
+    _agent_id = str((_toml_section("ai") or {}).get("agent_model") or "MiOS AI")
     # Advertise a large context so strict clients (e.g. the Hermes desktop, which
     # enforces a 64K floor) accept the model. The chain manages real context budget
     # internally per node; this is the logical window the front door exposes.
     _ctx = int(os.environ.get("MIOS_AGENT_PIPE_CTX", "65536"))
     models: list = [{
-        "id": "MiOS-Agent", "object": "model",
+        "id": _agent_id, "object": "model",
         "created": created, "owned_by": "mios",
         "max_model_len": _ctx, "context_length": _ctx,
         "max_context_length": _ctx, "context_window": _ctx,

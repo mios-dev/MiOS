@@ -142,7 +142,7 @@ Environment=DEFAULT_USER_ROLE=admin
 # IDs from the picker (operator sees friendly "MiOS-Agent" name set
 # via the model registration's `name` field, NOT the underlying
 # "hermes-agent" model id).
-Environment=DEFAULT_MODELS=hermes-agent
+Environment=DEFAULT_MODELS=MiOS AI
 
 # Global feature gates -- ENABLE the rich-chat features that MiOS-Agent
 # advertises in its model.meta.capabilities (web_search,
