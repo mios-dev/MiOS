@@ -21480,6 +21480,23 @@ async def _client_tools_backend(req: dict) -> dict:
     lane (a different engine often accepts what the heavy lane rejected). Returns {}
     (never raises) when neither lane yields a 200, so the loop's synthesis / never-
     empty fallback engages instead of the whole turn erroring out."""
+    # Clamp the completion budget so input + max_tokens fit the lane context.
+    # Hermes sends max_tokens = its context_length (65536 = the WHOLE window), so
+    # input(~29.6k) + completion(65.5k) = ~95k > 65536 -> SGLang 400 ("Requested
+    # token count exceeds the model's maximum context length", operator 2026-06-19,
+    # the REPL 'No reply'). Estimate input tokens (~4 chars/tok over messages +
+    # tools) and cap the completion to what's left. Never blocks on the estimate.
+    try:
+        _ctx = int(os.environ.get("MIOS_AGENT_PIPE_TOOL_CTX", "65536") or 65536)
+        _in_chars = (len(json.dumps(req.get("messages") or []))
+                     + len(json.dumps(req.get("tools") or [])))
+        _cap = max(512, _ctx - (_in_chars // 4) - 1024)
+        _req_mt = int(req.get("max_tokens") or 0)
+        if _req_mt <= 0 or _req_mt > _cap:
+            req = dict(req)
+            req["max_tokens"] = _cap
+    except Exception:  # noqa: BLE001 -- never block the call on the clamp
+        pass
     _url, _mdl = await _pick_tool_backend()
 
     async def _post(url: str, mdl: str):
