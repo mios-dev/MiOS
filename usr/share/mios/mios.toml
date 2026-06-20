@@ -81,6 +81,16 @@ default_password = "mios"
 # signing_key_path = "/etc/mios/agent-passport/ed25519.key"   # PEM or 32-byte raw
 # signing_key_dns  = "_agent-passport.mios.example.ts.net"
 # revocation_list_url = "https://mios.example.ts.net/.well-known/revoked.json"
+# principal_mode (#60 WS-6): inbound A2A delegation signed-principal enforcement.
+#   off (default) -- attribution only: a delegation's signed principal is verified
+#                    and audit-logged, but absent/unsigned/forged ones still run
+#                    (matches today's open behaviour; single-node / trusted peers).
+#   require       -- reject any inbound delegation whose principal is absent or
+#                    fails verification (text-bound Ed25519). Turn on once peers
+#                    are provisioned with passport keys (zero-trust federation).
+# Env override: MIOS_A2A_PRINCIPAL_MODE. Outbound delegations are ALWAYS signed
+# when a passport key is present, regardless of this setting.
+# principal_mode  = "off"
 
 # ----------------------------------------------------------------------------
 # [ai_tag] -- AI-hint codebase-tagging COVERAGE gate. Read by

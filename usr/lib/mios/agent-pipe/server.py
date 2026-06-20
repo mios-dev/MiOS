@@ -1,5 +1,5 @@
 # AI-hint: FastAPI gateway service on port 8640 that routes, dispatches, and proxies chat/embedding requests from external interfaces (Discord, Slack) to the hermes-agent backend and SurrealDB.
-# AI-related: mios_jsonsalvage, mios_owui, mios_sched, mios_evict, mios_hitl, mios_aci, mios_kvfork, mios_codemode, mios_pg, /usr/share/mios/mios.toml
+# AI-related: mios_jsonsalvage, mios_owui, mios_sched, mios_evict, mios_hitl, mios_aci, mios_kvfork, mios_codemode, mios_pg, mios_lanes, mios_a2a_principal, /usr/share/mios/mios.toml
 # AI-functions: _toml_section, _cfg_num, _is_remote_endpoint, _should_health_probe, _trip_breaker, _parse_lane_caps, _lane_tool_cap, _dispatch_toml, _dispatch_num, _priority_gate, _parse_lane_priority, _lane_sem
 """'MiOS' Agent Pipe -- standalone FastAPI service.
 
@@ -103,6 +103,7 @@ from mios_kvfork import (validate_fork as _kvfork_validate,  # noqa: E402  -- WS
 import mios_codemode as _codemode   # noqa: E402  -- WS-2 Code Mode pure helpers
 import mios_pg as _mios_pg   # noqa: E402  -- WS-9 Postgres+pgvector client
 import mios_lanes   # noqa: E402  -- WS-1 unified inference-lane resolver
+import mios_a2a_principal as _a2a_pp   # noqa: E402  -- WS-6 signed delegation principal
 
 # ── Config (SSOT-sourced via env) ──────────────────────────────────
 PORT = int(os.environ.get("MIOS_PORT_AGENT_PIPE", "8640"))
@@ -18412,6 +18413,21 @@ async def _a2a_jsonrpc_dispatch(msg: dict) -> dict:
         if not _a2a_text_from_message(in_msg):
             return _a2a_rpc_err(mid, -32602,
                                 "params.message has no text Parts")
+        # #60 WS-6: verify the inbound delegation's signed principal. Audit-log by
+        # default; reject only when [agent_passport].principal_mode requires it
+        # (absent/unsigned/forged principals are allowed in the default open mode,
+        # matching today's behaviour -- this adds attribution, not a new wall).
+        _pv, _preason, _pclaims = _a2a_verify_principal(in_msg)
+        if _pv is True:
+            log.info("a2a inbound: principal verified (agent=%s on behalf of %s)",
+                     _pclaims.get("agent") or "?", _pclaims.get("principal") or "-")
+        elif _pv is False:
+            log.warning("a2a inbound: principal verify FAILED (%s)", _preason)
+            if _A2A_PRINCIPAL_REQUIRE:
+                return _a2a_rpc_err(mid, -32600,
+                                    f"signed principal required: {_preason}")
+        elif _A2A_PRINCIPAL_REQUIRE:   # _pv is None -> no principal block at all
+            return _a2a_rpc_err(mid, -32600, "signed principal required: absent")
         task = _a2a_make_task(in_msg.get("contextId") or "", in_msg)
         await _a2a_task_record(task)
         task = await _a2a_dispatch_send(task)
@@ -19449,6 +19465,10 @@ async def _a2a_send_message_to_peer(peer_id: str, text: str,
     }
     if context_id:
         msg["contextId"] = context_id
+    # #60 WS-6: attach the signed delegation principal (no-op when no passport key)
+    _pp = _a2a_principal_metadata(text, peer_id, context_id)
+    if _pp:
+        msg["metadata"] = {**(msg.get("metadata") or {}), "mios_principal": _pp}
     body = {
         "jsonrpc": "2.0",
         "id": int(time.time() * 1000) & 0x7FFFFFFF,
@@ -19473,6 +19493,43 @@ async def _a2a_send_message_to_peer(peer_id: str, text: str,
         return {"error": err.get("message") or "rpc error",
                 "code": err.get("code"), "peer_id": peer_id}
     return resp.get("result") or {}
+
+
+# ── #60 WS-6: signed delegation principal (A2A) ──────────────────────────────
+# When MiOS AI delegates a task to an A2A peer, attach a SIGNED statement of the
+# principal -- who is acting (agent), on whose behalf (user principal) -- bound to
+# the delegated instruction (text digest), the target peer, and the context.
+# Reuses the agent-passport Ed25519 keypair (_passport_sign/_passport_verify).
+# DEGRADE-OPEN: with no key the claims still ride along but unsigned, and the peer
+# treats them as untrusted. CONFORMANCE: rides A2A's message.metadata extension
+# point, so non-MiOS peers simply ignore the unknown key. Inbound enforcement is
+# gated by [agent_passport].principal_mode (default "off" -> audit-log only).
+_A2A_PRINCIPAL_REQUIRE = str(os.environ.get(
+    "MIOS_A2A_PRINCIPAL_MODE",
+    str(_toml_section("agent_passport").get("principal_mode", "off")))
+    ).strip().lower() in {"require", "enforce", "1", "true", "yes"}
+
+
+def _a2a_principal_metadata(text: str, peer_id: str,
+                           context_id: Optional[str]) -> Optional[dict]:
+    """{'claims':…, 'passport':envelope|None} to attach as message.metadata
+    ['mios_principal'], or None when the passport system is disabled. Thin wrapper
+    over mios_a2a_principal (pure logic) with the live principal + sign fn."""
+    if not PASSPORT_ENABLE:
+        return None
+    env = _client_env_var.get()
+    env = env if isinstance(env, dict) else {}
+    principal = str(env.get("user_name") or env.get("user_email") or "").strip()
+    return _a2a_pp.build_metadata(PASSPORT_AGENT_NAME, principal, peer_id,
+                                  context_id, text, _passport_sign)
+
+
+def _a2a_verify_principal(in_msg: dict) -> "tuple[Optional[bool], str, dict]":
+    """Receive-side check (thin wrapper over mios_a2a_principal.verify): binds the
+    delivered text + routes to the passport verifier. (verdict, reason, claims);
+    verdict None = no principal block (legacy / non-MiOS peer)."""
+    md = in_msg.get("metadata") if isinstance(in_msg, dict) else None
+    return _a2a_pp.verify(md, _a2a_text_from_message(in_msg), _passport_verify)
 
 
 def _a2a_extract_text(env: dict) -> str:
