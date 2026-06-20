@@ -86,6 +86,12 @@ Inert until peers are registered in `a2a-peers.json`. The four primitives:
 - **`#49`** compound-launch decomposition — logic shipped + regression-tested
   (`test_mios_launch.py`); needs a **live launch-test** in OWUI to confirm
   end-to-end (the agent is barred from launching apps).
-- **`#50`** desktop-app reasoning rendering — the agent-pipe emits standard
-  `reasoning_content` deltas (verified); the **Hermes desktop app's frontend**
-  must render them (its source is outside this repo).
+- **`#50`** desktop-app reasoning rendering — **both ends are verified wired**:
+  the agent-pipe emits standard `reasoning_content` deltas (verified live, 12
+  deltas over a real chat), and the Hermes desktop app (Nous Research, installed
+  at `AppData\Local\hermes`, **auto-updating** v0.16.0) consumes `reasoning_content`
+  (`agent/agent_runtime_helpers.py` reads it + `copy_reasoning_content_for_api`)
+  with `show_reasoning: true` + `streaming: true` in its `config.yaml`. There is
+  no MiOS code change left -- patching the third-party, auto-updating app is
+  out-of-scope (an update would overwrite it). Remaining: the operator confirms it
+  visibly renders (I can't see their desktop UI). CLI + OWUI render it already.
