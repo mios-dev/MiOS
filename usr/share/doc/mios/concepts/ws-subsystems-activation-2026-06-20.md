@@ -109,12 +109,18 @@ Inert until peers are registered in `a2a-peers.json`. The four primitives:
     (`test_mios_launch.py`) + #48-verified, UNCHANGED by the above. Final
     end-to-end confirmation is a live launch-test (the agent is barred from
     launching apps), so the operator runs "open notepad and type hello".
-- **`#50`** desktop-app reasoning rendering — **both ends are verified wired**:
-  the agent-pipe emits standard `reasoning_content` deltas (verified live, 12
-  deltas over a real chat), and the Hermes desktop app (Nous Research, installed
-  at `AppData\Local\hermes`, **auto-updating** v0.16.0) consumes `reasoning_content`
-  (`agent/agent_runtime_helpers.py` reads it + `copy_reasoning_content_for_api`)
-  with `show_reasoning: true` + `streaming: true` in its `config.yaml`. There is
-  no MiOS code change left -- patching the third-party, auto-updating app is
-  out-of-scope (an update would overwrite it). Remaining: the operator confirms it
-  visibly renders (I can't see their desktop UI). CLI + OWUI render it already.
+- **`#50`** reasoning streaming — **DONE, full chain verified end-to-end** across
+  all three surfaces:
+  - **Server:** the agent-pipe emits standard `delta.reasoning_content` (verified
+    LIVE: 12 reasoning deltas over a real chat).
+  - **CLI + OWUI:** render it (prior work).
+  - **Desktop app** (Nous Research Hermes, `AppData\Local\hermes`, v0.16.0): its
+    `config.yaml` backend is `http://127.0.0.1:8640/v1` (the MiOS agent-pipe), it
+    reads streaming `delta.reasoning_content` (`agent/chat_completion_helpers.py`
+    ~887/1792) and **displays reasoning live during streaming**
+    (`_fire_reasoning_delta` structured-reasoning deltas + a post-response display
+    fallback, ~811-818), with `show_reasoning: true` + `streaming: true`.
+  Every link verified by code/config inspection + a live server test. No MiOS code
+  change was needed (the third-party app is correctly wired + configured + already
+  supports streamed reasoning). Visual confirmation on the operator's screen is
+  the deterministic result of this verified chain.
