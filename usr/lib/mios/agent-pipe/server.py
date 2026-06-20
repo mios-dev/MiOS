@@ -113,6 +113,7 @@ import mios_toolconflict   # noqa: E402  -- WS-A7 per-verb dispatch conflict/par
 import mios_trace   # noqa: E402  -- WS-A8 per-request trace/span observability
 import mios_pdp as _pdp   # noqa: E402  -- WS-A9 policy decision point (capability gate)
 import mios_embed_backfill as _embf   # noqa: E402  -- WS-A2 embedding-version backfill planner
+import mios_memory   # noqa: E402  -- WS-A15 pluggable MemoryProvider seam
 
 # ── Config (SSOT-sourced via env) ──────────────────────────────────
 PORT = int(os.environ.get("MIOS_PORT_AGENT_PIPE", "8640"))
@@ -10999,6 +11000,24 @@ AGENT_MEMORY_RECALL_MIN_SCORE = float(
     os.environ.get("MIOS_AGENT_MEMORY_RECALL_MIN_SCORE", "0.45"))
 
 
+# WS-A15: resolve the pluggable MemoryProvider ONCE. [pgvector].memory_provider
+# (env MIOS_MEMORY_PROVIDER) selects the backend; the recall path routes through
+# _MEMORY.retrieve so the storage backend is swappable behind a single seam. The
+# default (pgvector) is a verbatim pass-through to mios_pg -> behaviour is
+# byte-identical until a different provider is configured. The factory is
+# fail-CLOSED (ValueError on an unknown name); at STARTUP we degrade-open --
+# log loudly + fall back to the default -- so a config typo never bricks the pipe.
+_MEMORY_PROVIDER_NAME = str(
+    os.environ.get("MIOS_MEMORY_PROVIDER")
+    or (_toml_section("pgvector") or {}).get("memory_provider")
+    or "pgvector").strip().lower()
+try:
+    _MEMORY = mios_memory.get_memory_provider(_MEMORY_PROVIDER_NAME, _mios_pg)
+except ValueError as _e:
+    log.error("WS-A15 memory provider: %s -- falling back to pgvector", _e)
+    _MEMORY = mios_memory.get_memory_provider("pgvector", _mios_pg)
+
+
 async def _recall_agent_memory(query: str) -> str:
     """Semantic recall of the agent's SELF-EDITED durable facts (agent_memory:
     fact/scope, written by remember/memory_update with embed-on-write). Embed the
@@ -11016,8 +11035,8 @@ async def _recall_agent_memory(query: str) -> str:
         qv = await _embed_one(query)
         if not qv:
             return ""
-        rows = await _mios_pg.recall(qv, table=AGENT_MEMORY_TABLE,
-                                     k=AGENT_MEMORY_RECALL_K)
+        rows = await _MEMORY.retrieve(qv, table=AGENT_MEMORY_TABLE,
+                                      k=AGENT_MEMORY_RECALL_K)  # WS-A15 seam
         if not rows:
             return ""
         hits = [r for r in rows
@@ -11073,8 +11092,8 @@ async def _recall_knowledge_pg(query: str) -> "Optional[str]":
         qv = await _embed_one(query)
         if not qv:
             return None
-        rows = await _mios_pg.recall(qv, table=KNOWLEDGE_TABLE,
-                                     k=KNOWLEDGE_RECALL_K, owner=_rls_owner())
+        rows = await _MEMORY.retrieve(qv, table=KNOWLEDGE_TABLE,
+                                      k=KNOWLEDGE_RECALL_K, owner=_rls_owner())  # WS-A15 seam
         if rows is None:
             return None
         _floor = _recall_floor(query)

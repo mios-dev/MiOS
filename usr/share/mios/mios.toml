@@ -4199,6 +4199,12 @@ rls_mode    = "off"
 # MIOS_EMB_MODEL / MIOS_EMB_VERSION / MIOS_SCRATCHPAD_PERSIST.
 emb_model       = "nomic-embed-text"
 emb_version     = "nomic-768-v1"   # bump on a model/dim change -> backfill re-embeds
+# WS-A15: pluggable agent-memory backend. The recall path routes through the
+# MemoryProvider seam (mios_memory); "pgvector" (default) is a verbatim
+# pass-through to the mios_pg client. A future backend registers under a new
+# name; an UNKNOWN name fails closed (factory raises) -> the pipe logs + falls
+# back to pgvector at startup. Env override: MIOS_MEMORY_PROVIDER.
+memory_provider = "pgvector"
 scratch_persist = true             # durable per-chat working memory (survives restart)
 backfill_batch  = 50               # re-embed batch size (mios_embed_backfill.plan_batches)
 # ── WS-0 pgvector durability + bind hardening (Wave 0) ───────────────────────
