@@ -94,12 +94,17 @@ Inert until peers are registered in `a2a-peers.json`. The four primitives:
     `intent=agent` and hinted only `list_windows`; the read-tool-enrich faithfully
     runs refine's hints, so `system_status` was never dispatched (the answer
     honestly said "no system status tool output was supplied"). This is the
-    refine/enrich path, NOT the deterministic fast-path. **Safe fix direction**
-    (operator call — it touches hand-tuned refine): either nudge the refine prompt
-    to hint ALL named read capabilities in a compound, or add an additive,
-    SSOT-derived (catalog name/alias) read-enrich pass that catches read verbs
-    refine missed (read-only, capped at READ_TOOL_ENRICH_MAX=3, degrade-open) so
-    routing/intent is untouched. Not changed unilaterally — the routing is yours.
+    refine/enrich path, NOT the deterministic fast-path. **Fix direction =
+    refine-prompt / model-side (operator call):** nudge the refine prompt so it
+    emits ALL named read capabilities in `hint_tools` for a compound. NOTE: a
+    tempting "scan the user text for catalog verb names and enrich those" approach
+    is the WRONG fix — the web-enrich path (server.py ~8412) deliberately AVOIDS
+    user-text substring matching because it false-fires (documented: a "MiOS
+    system status" turn once deep-crawled the web); hint recovery here is
+    model/router-flag-driven, not keyword-driven. So the only clean fix is on the
+    refine model/prompt, which is hand-tuned -- left to the operator (the
+    launch-saga "don't risk-touch routing" rule). This entry is the diagnosis +
+    evidence; routing is unchanged.
 - **`#50`** desktop-app reasoning rendering — **both ends are verified wired**:
   the agent-pipe emits standard `reasoning_content` deltas (verified live, 12
   deltas over a real chat), and the Hermes desktop app (Nous Research, installed
