@@ -15768,13 +15768,17 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
                                       or refined.get("deep")
                                       or refined.get("deep_research"))) \
             or (_routed_domain_var.get(None) == "web")
-        # A web/news turn that captured NO real sources ANYWHERE this turn (the parent
-        # facet grounding AND the workers' own tool-loops both came back empty) is
-        # UNGROUNDED -> the heavy-model workers generated "news" from training memory =
-        # fabrication (operator's original complaint, resurfacing on the swarm path).
+        # A web/news turn whose synthesis GROUND TRUTH (_research = the FETCHED web
+        # content, the "ONLY ground truth for SPECIFICS") is EMPTY is UNGROUNDED ->
+        # the workers generated "news" from training memory = fabrication (operator's
+        # original complaint, resurfacing on the swarm path). Gate on an empty
+        # _research, NOT `not _src_collected()`: web_search REGISTERS its result URLs
+        # as sources WITHOUT fetching their content, so _src_collected() is truthy (a
+        # FALSE POSITIVE) even when research_chars=0 / grounded_nodes=0 / +0 content
+        # was fetched -- which let a fabricated headline + fake URL ship (2026-06-20).
         # Fall back to the native loop (which web-grounds + cites) even when merged>0,
         # so an ungrounded news answer is never shipped (operator 2026-06-19).
-        _ungrounded_web = bool(_web_turn and not _src_collected())
+        _ungrounded_web = bool(_web_turn and not _research.strip())
         _empty_or_punt = (not main.strip()) or _is_punt(main)
         _needs_fallback = bool((_grounded_nothing and (_empty_or_punt or _web_turn))
                                or _ungrounded_web)
