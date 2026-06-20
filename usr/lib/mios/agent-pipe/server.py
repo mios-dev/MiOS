@@ -6793,6 +6793,45 @@ def _perm_rank(perm: str) -> int:
         return len(_PERMISSION_TIERS)
 
 
+# ── #62 WS-9: human-in-the-loop gate-mode ────────────────────────────────────
+# SSOT [ai].hitl_mode = off (default) | audit | block, applied at the single
+# dispatch chokepoint (dispatch_mios_verb). It reuses the #55 risk lattice + the
+# agent-passport humanInLoop intent: an action whose permission tier is at/above
+# [ai].hitl_threshold is "high-risk". off -> no-op (zero overhead, zero behaviour
+# change). audit -> LOG every high-risk action + proceed (observe before you
+# enforce). block -> REFUSE it deterministically (no execution, no hang) until a
+# human approves / the operator allowlists it. Default off so this ships INERT;
+# the operator opts in. Degrade-open everywhere: any error -> proceed (a gate bug
+# must never spuriously block real work). The out-of-process policy arbiter named
+# in #62 is a further step ON TOP of this in-process gate.
+_HITL_MODE = str((_toml_section("ai") or {}).get("hitl_mode") or "off").strip().lower()
+_HITL_THRESHOLD = str((_toml_section("ai") or {}).get("hitl_threshold")
+                      or "interactive").strip().lower()
+
+
+def _hitl_block_reason(tool: str) -> "Optional[str]":
+    """#62: in BLOCK mode return a human-readable refusal reason if `tool` is a
+    high-risk (tier >= [ai].hitl_threshold) action requiring approval, else None.
+    AUDIT mode logs the high-risk action and returns None (proceed). OFF returns
+    None immediately. Degrade-open: never raises, never gates on error."""
+    if _HITL_MODE not in ("audit", "block"):
+        return None
+    try:
+        vperm = str((_VERB_CATALOG.get(tool) or {}).get("permission", "read")).lower()
+        if _perm_rank(vperm) < _perm_rank(_HITL_THRESHOLD):
+            return None  # below the gate threshold -> not human-gated
+        if _HITL_MODE == "audit":
+            log.info("HITL audit: %s (tier=%s >= %s) WOULD require approval -- "
+                     "proceeding (audit mode)", tool, vperm, _HITL_THRESHOLD)
+            return None
+        log.info("HITL block: refused %s (tier=%s) pending human approval", tool, vperm)
+        return (f"'{tool}' is a {vperm}-tier action and HITL block-mode is ON: it "
+                f"needs explicit human approval before running, so it was NOT "
+                f"executed. Approve it, or set [ai].hitl_mode to audit/off, to proceed.")
+    except Exception:  # noqa: BLE001 -- degrade-open: a gate bug never blocks work
+        return None
+
+
 def _agent_rbac_filter(aname: str, tools: list) -> list:
     """WS-2 per-agent RBAC + #55 capability/risk gate: restrict a dispatched
     agent's tool surface to what its role is permitted. SSOT:
@@ -16322,6 +16361,13 @@ async def dispatch_mios_verb(
     # null through as a real value. No-op for non-strict callers (no nulls present).
     if isinstance(args, dict):
         args = {k: v for k, v in args.items() if v is not None}
+    # #62 HITL gate (off by default -> the helper early-returns, ~zero overhead).
+    # In block mode a high-risk verb is REFUSED here (never executed) pending human
+    # approval; audit mode logs + proceeds. Keys off the resolved verb above.
+    _hitl_reason = _hitl_block_reason(tool)
+    if _hitl_reason is not None:
+        return {"success": False, "output": "", "stderr": _hitl_reason,
+                "exit_code": 126, "hitl_blocked": True}
     # Deterministic recency/breadth for web_search on a time-sensitive turn (see
     # _recency_ctx_var): FILL IN time_range/fanout the model omitted so a "what's
     # trending" turn always gets fresh, multi-facet coverage instead of an untimed

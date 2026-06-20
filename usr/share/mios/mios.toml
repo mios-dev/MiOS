@@ -4212,6 +4212,16 @@ endpoint            = "http://localhost:8640/v1"
 # desktop app, and the `hermes` CLI REPL). SSOT for the agent-surface model name so
 # no front-end hardcodes it (operator "NO HARDCODES"; 2026-06-18 unify of the REPL).
 agent_model         = "MiOS AI"
+# #62 WS-9 human-in-the-loop gate-mode (applied at the dispatch chokepoint).
+#   off   (default) -- no gating, zero overhead/behaviour change.
+#   audit -- LOG every action whose risk tier is >= hitl_threshold, then proceed
+#            (observe what WOULD be gated before enforcing).
+#   block -- REFUSE such actions (not executed) until a human approves them.
+# hitl_threshold is a permission tier from the risk lattice (read < write <
+# interactive); HITL fires for verbs at/above it. Reuses the #55 risk tiers + the
+# agent-passport humanInLoop thresholds. Ships off (inert) -- opt in deliberately.
+hitl_mode           = "off"
+hitl_threshold      = "interactive"
 # WS-1 unified lane resolver (operator 2026-06-19): which heavy engine the agent-pipe
 # PREFERS when both heavy lanes ([ai.sglang] :11441 + [ai.vllm] :11440 -- BOTH advertise
 # served_name "mios-heavy") are provisioned. mios_lanes.LaneResolver tries the preferred
