@@ -82,6 +82,28 @@ def _http_request(url, method="GET", data=None, timeout=15):
         sys.stderr.write(f"mios-pc-control: OS-control executor unreachable ({method} {url}): {e}\n")
         sys.exit(1)
 
+def _exit_on_verdict(resp):
+    """Exit reflecting the executor's READ-BACK verdict, not just transport success.
+    The Windows OS-control executor returns {ok,verified,reason} (Invoke-TypeText et
+    al.): a type/click/window op that did NOT land returns verified:false / ok:false
+    in the BODY. This wrapper used to `sys.exit(0)` regardless, DISCARDING that
+    verdict, so the broker's success=(exit==0) lied (operator 2026-06-19: "type
+    reported SUCCESS but nothing was typed"). Now propagate verified/ok/launched into
+    the exit code so success is a VERIFIED post-condition. Unparseable/empty body ->
+    exit 0 (don't false-fail a transport quirk; the no-executor PS1 fallback already
+    self-exits 1 on a real miss)."""
+    try:
+        d = json.loads(resp) if resp else {}
+    except Exception:
+        sys.exit(0)
+    if not isinstance(d, dict):
+        sys.exit(0)
+    for k in ("verified", "ok", "launched"):
+        if k in d:
+            sys.exit(0 if d.get(k) else 1)
+    sys.exit(0)
+
+
 def main():
     if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help", "help"):
         usage()
@@ -116,8 +138,8 @@ def main():
                 sys.stderr.write("mios-pc-control: launch needs <app-name>\n")
                 sys.exit(64)
             app = " ".join(args)
-            print(_http_request(f"{exec_ep}/launch", "POST", {"app": app}, 30))
-            sys.exit(0)
+            resp = _http_request(f"{exec_ep}/launch", "POST", {"app": app}, 30)
+            print(resp); _exit_on_verdict(resp)   # exit reflects launched==true
             
         elif sub == "window-list":
             resp = _http_request(f"{exec_ep}/windows", "GET", None, 15)
@@ -138,22 +160,22 @@ def main():
                 sys.stderr.write(f"mios-pc-control: {sub} needs an hwnd\n")
                 sys.exit(64)
             op = sub.replace("window-", "")
-            print(_http_request(f"{exec_ep}/window/{op}", "POST", {"hwnd": int(args[0])}, 15))
-            sys.exit(0)
+            resp = _http_request(f"{exec_ep}/window/{op}", "POST", {"hwnd": int(args[0])}, 15)
+            print(resp); _exit_on_verdict(resp)
             
         elif sub == "window-move":
             if len(args) < 3:
                 sys.stderr.write("mios-pc-control: window-move needs <hwnd> <x> <y>\n")
                 sys.exit(64)
-            print(_http_request(f"{exec_ep}/window/move", "POST", {"hwnd": int(args[0]), "x": int(args[1]), "y": int(args[2])}, 15))
-            sys.exit(0)
+            resp = _http_request(f"{exec_ep}/window/move", "POST", {"hwnd": int(args[0]), "x": int(args[1]), "y": int(args[2])}, 15)
+            print(resp); _exit_on_verdict(resp)
             
         elif sub == "window-resize":
             if len(args) < 3:
                 sys.stderr.write("mios-pc-control: window-resize needs <hwnd> <w> <h>\n")
                 sys.exit(64)
-            print(_http_request(f"{exec_ep}/window/resize", "POST", {"hwnd": int(args[0]), "width": int(args[1]), "height": int(args[2])}, 15))
-            sys.exit(0)
+            resp = _http_request(f"{exec_ep}/window/resize", "POST", {"hwnd": int(args[0]), "width": int(args[1]), "height": int(args[2])}, 15)
+            print(resp); _exit_on_verdict(resp)
             
         elif sub == "ui-list":
             print(_http_request(f"{exec_ep}/ui/list", "GET", None, 25))
@@ -164,8 +186,8 @@ def main():
                 sys.stderr.write(f"mios-pc-control: {sub} needs <name>\n")
                 sys.exit(64)
             op = sub.replace("ui-", "")
-            print(_http_request(f"{exec_ep}/ui/{op}", "POST", {"name": " ".join(args)}, 25))
-            sys.exit(0)
+            resp = _http_request(f"{exec_ep}/ui/{op}", "POST", {"name": " ".join(args)}, 25)
+            print(resp); _exit_on_verdict(resp)
             
         elif sub == "screen-layout":
             print(_http_request(f"{exec_ep}/screen-layout", "GET", None, 15))
@@ -201,27 +223,27 @@ def main():
             x = int(args[0]) if len(args) > 0 else 0
             y = int(args[1]) if len(args) > 1 else 0
             button = args[2] if len(args) > 2 else "left"
-            print(_http_request(f"{exec_ep}/input/click", "POST", {"x": x, "y": y, "button": button}, 15))
-            sys.exit(0)
-            
+            resp = _http_request(f"{exec_ep}/input/click", "POST", {"x": x, "y": y, "button": button}, 15)
+            print(resp); _exit_on_verdict(resp)
+
         elif sub == "double-click":
             x = int(args[0]) if len(args) > 0 else 0
             y = int(args[1]) if len(args) > 1 else 0
-            print(_http_request(f"{exec_ep}/input/double-click", "POST", {"x": x, "y": y}, 15))
-            sys.exit(0)
+            resp = _http_request(f"{exec_ep}/input/double-click", "POST", {"x": x, "y": y}, 15)
+            print(resp); _exit_on_verdict(resp)
             
         elif sub == "type":
-            print(_http_request(f"{exec_ep}/input/type", "POST", {"text": " ".join(args)}, 15))
-            sys.exit(0)
-            
+            resp = _http_request(f"{exec_ep}/input/type", "POST", {"text": " ".join(args)}, 15)
+            print(resp); _exit_on_verdict(resp)   # honor the read-back verdict
+
         elif sub == "key":
             name = args[0] if args else ""
-            print(_http_request(f"{exec_ep}/input/key", "POST", {"name": name}, 15))
-            sys.exit(0)
-            
+            resp = _http_request(f"{exec_ep}/input/key", "POST", {"name": name}, 15)
+            print(resp); _exit_on_verdict(resp)
+
         elif sub == "key-combo":
-            print(_http_request(f"{exec_ep}/input/key-combo", "POST", {"combo": " ".join(args)}, 15))
-            sys.exit(0)
+            resp = _http_request(f"{exec_ep}/input/key-combo", "POST", {"combo": " ".join(args)}, 15)
+            print(resp); _exit_on_verdict(resp)
 
     # Fallback to mios-windows ps
     ps1_helper = "/usr/share/mios/windows/mios-pc-control.ps1"
