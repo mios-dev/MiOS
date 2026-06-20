@@ -21425,22 +21425,59 @@ def _client_tools_inject_identity(messages: list) -> list:
 
 
 async def _client_tools_backend(req: dict) -> dict:
-    """One non-stream POST to the tool backend; returns parsed JSON (or raises).
-    Health-gated: routes to the heavy lane (Qwen3 reasoning) when it is up, else the
-    light lane (granite). Overrides req['model'] to match the chosen lane so the loop's
-    base_req model never mismatches the endpoint."""
+    """One non-stream POST to the tool backend, with heavy->light FALLBACK on any
+    non-200 + diagnostic logging. The heavy lane (SGLang) can 400 a tool surface it
+    rejects (operator 2026-06-19: the Hermes REPL got 'No reply' because the loop
+    treated a heavy-lane 400 as an empty completion). On a non-200 we LOG the body +
+    a request summary (so the cause is finally visible) and retry the always-on light
+    lane (a different engine often accepts what the heavy lane rejected). Returns {}
+    (never raises) when neither lane yields a 200, so the loop's synthesis / never-
+    empty fallback engages instead of the whole turn erroring out."""
     _url, _mdl = await _pick_tool_backend()
-    req = dict(req)
-    req["model"] = _mdl
-    headers = {"content-type": "application/json"}
-    _hp = _url.split("://")[-1].split("/")[0]
-    if _BACKEND_KEY and _hp in _AUTH_HOSTPORTS:
-        headers["authorization"] = f"Bearer {_BACKEND_KEY}"
-    client = await _get_client()
-    r = await client.post(
-        f"{_url}/chat/completions",
-        content=json.dumps(req).encode("utf-8"), headers=headers)
-    return r.json()
+
+    async def _post(url: str, mdl: str):
+        rq = dict(req)
+        rq["model"] = mdl
+        headers = {"content-type": "application/json"}
+        _hp = url.split("://")[-1].split("/")[0]
+        if _BACKEND_KEY and _hp in _AUTH_HOSTPORTS:
+            headers["authorization"] = f"Bearer {_BACKEND_KEY}"
+        client = await _get_client()
+        return await client.post(
+            f"{url}/chat/completions",
+            content=json.dumps(rq).encode("utf-8"), headers=headers)
+
+    try:
+        r = await _post(_url, _mdl)
+    except Exception as _e:  # noqa: BLE001 -- network/timeout -> try light below
+        log.warning("client-tools backend POST %s failed: %s", _url, _e)
+        r = None
+    if r is not None and r.status_code == 200:
+        return r.json()
+    # Non-200 -> diagnose + fall back to the light lane.
+    if r is not None:
+        try:
+            _names = [((_t.get("function") or {}).get("name") or _t.get("name"))
+                      for _t in (req.get("tools") or [])]
+            log.warning(
+                "client-tools backend %s (%s) -> HTTP %d; req[tools=%d tool_choice=%s "
+                "ptc=%s msgs=%d]; names=%s; body=%s",
+                _url, _mdl, r.status_code, len(req.get("tools") or []),
+                req.get("tool_choice"), req.get("parallel_tool_calls"),
+                len(req.get("messages") or []), _names[:40], r.text[:600])
+        except Exception:  # noqa: BLE001
+            pass
+    if _url != _TOOL_BACKEND:
+        try:
+            r2 = await _post(_TOOL_BACKEND, _TOOL_BACKEND_MODEL)
+            if r2.status_code == 200:
+                log.info("client-tools: light-lane fallback succeeded after heavy non-200")
+                return r2.json()
+            log.warning("client-tools light-lane fallback -> HTTP %d: %s",
+                        r2.status_code, r2.text[:400])
+        except Exception as _e:  # noqa: BLE001
+            log.warning("client-tools light-lane fallback failed: %s", _e)
+    return {}
 
 
 async def _client_tools_loop(body: dict, client_names: set, chat_id: str,
