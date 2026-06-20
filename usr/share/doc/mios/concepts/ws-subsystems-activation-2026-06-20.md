@@ -83,32 +83,32 @@ Inert until peers are registered in `a2a-peers.json`. The four primitives:
 
 ## Still operator-gated (not autonomously completable)
 
-- **`#49`** compound decomposition — two distinct paths:
-  - **Launch+type chain** (open→type→verify): handled by the DETERMINISTIC
-    fast-path (`_deterministic_action_route` + the type-chain), regression-tested
-    (`test_mios_launch.py`) + #48-verified. Needs a live launch-test to confirm
-    end-to-end (agent is barred from launching apps).
-  - **Read-verb compounds** (e.g. "list windows AND system status"): **LIVE-
-    REPRODUCED a gap** 2026-06-20 with read-only verbs (no launch needed) — only
-    the FIRST verb ran. Root cause: refine (granite4.1:8b) classified it
-    `intent=agent` and hinted only `list_windows`; the read-tool-enrich faithfully
-    runs refine's hints, so `system_status` was never dispatched (the answer
-    honestly said "no system status tool output was supplied"). This is the
-    refine/enrich path, NOT the deterministic fast-path.
-    **Fix attempts (TESTED 2026-06-20):**
-    - A refine-PROMPT nudge ("a compound 'X and Y' must hint a verb for EACH
-      facet") was tried live and **did NOT work** — granite4.1:8b still hinted
-      only `list_windows` (the small model drops the second hint regardless of
-      wording; reverted, no regression: `test_mios_launch.py` 14/14 + chat 200).
-    - A "scan the user text for catalog verb names" enrich is the WRONG fix — the
-      web-enrich path (server.py ~8412) deliberately AVOIDS user-text substring
-      matching because it false-fires (documented: a "MiOS system status" turn
-      once deep-crawled the web); hint recovery is intentionally model/router-flag
-      -driven, not keyword-driven.
-    **Remaining clean fix (operator design call):** either add a read-compound
-    model/router-flag compensation mirroring the web-enrich override (a deliberate
-    signal, not keyword scan), or use a more capable refine model. Both are
-    hand-tuned-routing decisions left to the operator. Routing is unchanged.
+- **`#49`** compound decomposition — two paths:
+  - **Read/cross-domain compounds** (e.g. "list windows AND system status"):
+    **FIXED 2026-06-20** (live-verified, no launch). Live debug revealed the real
+    root cause (not the small-model hint-drop I first assumed): refine correctly
+    hinted BOTH verbs (`hints=['list_windows','system_status']`, `local_state=True`)
+    but the read-tool-enrich's DOMAIN FILTER dropped the cross-domain one — the
+    compound routed to ONE domain (`apps_windows`, it leads with "list windows"),
+    whose allowlist lacks `system_status`, so the verb the user asked for was
+    silently filtered out (and so were the deterministic `local_state` core state
+    verbs). Fix (`server.py _read_tool_enrich`): the domain filter now keeps domain
+    verbs PLUS verbs refine EXPLICITLY hinted PLUS (for a `local_state` turn) the
+    core state verbs; non-local_state, non-explicit AUTO verbs stay domain-scoped
+    (a files/code query still never over-grounds). Verified live: the compound now
+    runs `['list_windows','process_list','container_status','system_status']` and
+    returns real OS/kernel/uptime data. Regression-guarded:
+    `test_mios_compound.py` (7) + `test_mios_launch.py` 14/14 + full suite 18/18.
+    NOTE (failed earlier attempt, recorded): a refine-PROMPT nudge to "hint a verb
+    for each facet" did NOT work (granite4.1:8b is non-deterministic at it) and a
+    user-text verb-name scan is the WRONG fix (the web-enrich path deliberately
+    avoids substring matching) — the domain-filter fix is the correct, signal-
+    driven one.
+  - **Launch+type chain** (open→type→verify): the DETERMINISTIC fast-path
+    (`_deterministic_action_route` + the type-chain), regression-tested
+    (`test_mios_launch.py`) + #48-verified, UNCHANGED by the above. Final
+    end-to-end confirmation is a live launch-test (the agent is barred from
+    launching apps), so the operator runs "open notepad and type hello".
 - **`#50`** desktop-app reasoning rendering — **both ends are verified wired**:
   the agent-pipe emits standard `reasoning_content` deltas (verified live, 12
   deltas over a real chat), and the Hermes desktop app (Nous Research, installed
