@@ -7424,6 +7424,13 @@ def _client_env(body: dict) -> dict:
         "os":        norm.get("os") or "",
         "shell":     norm.get("shell") or "",
     }
+    # Retain EVERY env detail the surface forwards (operator 2026-06-20: "OWUI
+    # exposes DOZENS of env details, MiOS AI uses them"): keep the canonical
+    # aliases above AND pass through any other normalized key so the allow-list
+    # never silently drops a forwarded fact. setdefault never clobbers a canonical
+    # key; _client_grounding renders the named ones, the rest are available.
+    for _k, _v in norm.items():
+        out.setdefault(_k, _v)
     if not out["user_name"]:
         u = body.get("user")
         if isinstance(u, str) and u.strip():

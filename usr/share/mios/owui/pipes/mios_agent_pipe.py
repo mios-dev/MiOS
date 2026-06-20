@@ -195,6 +195,20 @@ def _db_fire(coro: Awaitable) -> None:
     loop.create_task(coro)
 
 
+# Absent-value sentinels (mirror server.py _ENV_SENTINELS) -- case-insensitive so
+# OWUI's 'Unknown'/'undefined'/'n/a' geo never overrides a real value nor slips
+# through. Shared by _collect_env_vars across all env channels (operator
+# 2026-06-20: the prior ad-hoc {None,'','None','Unknown'} checks were case-
+# sensitive and disagreed with the server).
+_ENV_SENTINELS = frozenset({"", "unknown", "none", "null", "n/a", "undefined"})
+
+
+def _env_ok(v) -> bool:
+    """True when v is a REAL env value (non-empty, not an absent-value sentinel)."""
+    s = str(v if v is not None else "").strip()
+    return bool(s) and s.lower() not in _ENV_SENTINELS
+
+
 class Pipe:
     class Valves(BaseModel):
         BACKEND_URL: str = Field(
@@ -449,28 +463,65 @@ class Pipe:
 
     @staticmethod
     def _collect_env_vars(__user__: Optional[dict],
-                          __metadata__: Optional[dict]) -> dict:
+                          __metadata__: Optional[dict],
+                          body: Optional[dict] = None) -> dict:
         """Resolve THIS request's OWUI environment into a {{TOKEN}}: value map.
 
         Single source of truth shared by _resolve_env_vars (system-prompt
         substitution) and pipe() (structural forward to :8640 as
-        metadata.variables). Backfills the gaps OWUI leaves: the
-        frontend-captured browser variables (metadata.variables -- locale /
-        timezone / live geolocation) FIRST, then the host clock for any
-        CURRENT_* the browser omitted, then __user__ (name / email /
-        persisted info.location). OWUI's absent-value sentinels are dropped so
-        a missing fact never overrides a real backfill. Operator 2026-05-27
-        'OWUI provides entire environment details ... USE them in the
-        pipeline'."""
+        metadata.variables). Channels, in priority order: the frontend-captured
+        browser variables (metadata.variables AND body.variables -- locale /
+        timezone / live geolocation); the OWUI-backend-substituted location
+        recovered from the system-prompt TEXT (the channel that actually carries
+        the iPhone app's live geo -- see step 1.5); the host clock for any
+        CURRENT_* the browser omitted; then __user__ (name / email / persisted
+        profile location). Absent-value sentinels are dropped (case-insensitive,
+        shared with server _ENV_SENTINELS) so a missing fact never overrides a
+        real value. Operator 2026-05-27 'OWUI provides entire environment details
+        ... USE them' + 2026-06-20 'iPhone OWUI shares location but MiOS said it
+        had none -- OWUI exposes DOZENS of env details, MiOS AI uses them'."""
         import datetime as _dt
         sub: dict = {}
-        # 1. Frontend-captured variables (browser locale/timezone/geo).
-        #    Keys arrive as the full "{{TOKEN}}" literal. Drop OWUI's
-        #    absent-value sentinels so they don't override a good backfill.
+        # 1. Frontend-captured variables (browser locale/timezone/geo). Keys
+        #    arrive as the full "{{TOKEN}}" literal.
         if isinstance(__metadata__, dict):
             for _k, _v in (__metadata__.get("variables") or {}).items():
-                if _v not in (None, "", "None", "Unknown"):
-                    sub[str(_k)] = str(_v)
+                if _env_ok(_v):
+                    sub[str(_k)] = str(_v).strip()
+        # 1b. body['variables'] -- OWUI's pipe contract ALSO carries the frontend
+        #     variables dict here (the same dict the server's _client_env reads);
+        #     the pipe previously read ONLY __metadata__['variables'].
+        if isinstance(body, dict):
+            for _k, _v in (body.get("variables") or {}).items():
+                if _env_ok(_v):
+                    sub.setdefault(str(_k), str(_v).strip())
+        # 1.5 LIVE-GEO RECOVERY (operator 2026-06-20). OWUI's BACKEND substitutes
+        #     {{USER_LOCATION}} into the SYSTEM-PROMPT TEXT (the SSOT template
+        #     carries "location is {{USER_LOCATION}}."), NOT into the structured
+        #     variables the Pipe sees -- so the iPhone's live geo reaches the model
+        #     but was invisible to the orchestrator's grounding / refine / web-
+        #     search. Recover it from the resolved system message so it flows to
+        #     :8640 as a structured fact. Anchored on the SSOT wording; requires an
+        #     alphanumeric value (so a stripped "location is ." can't match) and
+        #     no leftover "{{"; best-effort -- degrades to prior behaviour on miss.
+        if "{{USER_LOCATION}}" not in sub and isinstance(body, dict):
+            try:
+                for _m in (body.get("messages") or []):
+                    if not (isinstance(_m, dict) and _m.get("role") == "system"):
+                        continue
+                    _sys = _m.get("content")
+                    if not isinstance(_sys, str) or not _sys:
+                        continue
+                    _mt = re.search(r"location is\s+(.+?)(?:\.\s|\.$|\n|$)",
+                                    _sys, re.I)
+                    if _mt:
+                        _rec = _mt.group(1).strip()
+                        if ("{{" not in _rec and re.search(r"[0-9A-Za-z]", _rec)
+                                and _env_ok(_rec)):
+                            sub.setdefault("{{USER_LOCATION}}", _rec)
+                            break
+            except Exception:
+                pass  # recovery is best-effort; never break the turn
         # 2. Host clock -- fills CURRENT_* the frontend/OWUI may have left.
         _now = _dt.datetime.now().astimezone()
         sub.setdefault("{{CURRENT_DATE}}", _now.strftime("%Y-%m-%d"))
@@ -481,20 +532,19 @@ class Pipe:
         _tz = _now.tzname() or ""
         if _tz:
             sub.setdefault("{{CURRENT_TIMEZONE}}", _tz)
-        # 3. __user__ fields (name/email/location).
+        # 3. __user__ fields (name/email/persisted-profile location).
         if isinstance(__user__, dict):
             _nm = str(__user__.get("name") or "").strip()
-            if _nm and _nm not in ("None", "Unknown"):
+            if _env_ok(_nm):
                 sub.setdefault("{{USER_NAME}}", _nm)
             _em = str(__user__.get("email") or "").strip()
-            if _em and _em not in ("None", "Unknown"):
+            if _env_ok(_em):
                 sub.setdefault("{{USER_EMAIL}}", _em)
             _info = __user__.get("info")
-            _loc = ""
             if isinstance(_info, dict):
                 _loc = str(_info.get("location") or "").strip()
-            if _loc and _loc not in ("None", "Unknown"):
-                sub.setdefault("{{USER_LOCATION}}", _loc)
+                if _env_ok(_loc):
+                    sub.setdefault("{{USER_LOCATION}}", _loc)
         return sub
 
     @staticmethod
@@ -2313,7 +2363,7 @@ class Pipe:
         # environment details ... USE them in the pipeline'). Values are length-
         # capped; absent-value sentinels already dropped in _collect_env_vars.
         try:
-            _env_vars = self._collect_env_vars(__user__, __metadata__)
+            _env_vars = self._collect_env_vars(__user__, __metadata__, body)
             if _env_vars:
                 _md["variables"] = {str(_k)[:64]: str(_v)[:512]
                                     for _k, _v in _env_vars.items()}
