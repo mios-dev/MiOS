@@ -9074,6 +9074,13 @@ async def _read_tool_enrich(refined: Optional[dict],
         return ""
     ran: dict = {}
     _hints = list(refined.get("hint_tools") or [])
+    # #49: the verbs refine EXPLICITLY hinted (the user's actual request). The
+    # domain filter below restricts AUTO-added core verbs to the routed domain, but
+    # must NOT drop an explicit hint -- a compound that spans domains ("list
+    # windows AND system status" -> apps_windows + system) routes to ONE domain, so
+    # filtering by it alone silently dropped the cross-domain verb the user asked
+    # for (live-repro'd: system_status hinted but never run).
+    _explicit_hints = set(_hints)
     _max = READ_TOOL_ENRICH_MAX
     # local_state (operator 2026-05-26): refine routinely HALLUCINATES tool names
     # for a system query ("journalctl_tail", "system_service_status", "flight_
@@ -9117,8 +9124,20 @@ async def _read_tool_enrich(refined: Optional[dict],
     if _dom and _dom in _ROUTING_DOMAINS:
         _dvset = set(_ROUTING_DOMAINS[_dom].get("verbs") or [])
         if _dvset:
-            _hints = [h for h in _hints if h in _dvset]
-            _core_set = _core_set & _dvset
+            # #49: keep domain verbs AND (a) any verb refine EXPLICITLY hinted --
+            # the user's stated request, which may legitimately span another domain
+            # in a compound -- AND (b) the deterministic local_state CORE verbs: a
+            # state query mis-routed to apps_windows (because it leads with "list
+            # windows") must still ground on system_status/etc. Non-local_state,
+            # non-explicit AUTO verbs are still domain-scoped (no over-grounding of
+            # a files/code query). Live-repro'd: "list windows AND system status"
+            # routed apps_windows, dropping the hinted+core system_status.
+            _keep = _dvset | _explicit_hints
+            if refined.get("local_state"):
+                _keep |= _core_set
+            else:
+                _core_set = _core_set & _dvset
+            _hints = [h for h in _hints if h in _keep]
     for _t in _hints:
         tool = str(_t).strip()
         if not tool or tool in ran or tool in _WEB_ENRICH_VERBS:
