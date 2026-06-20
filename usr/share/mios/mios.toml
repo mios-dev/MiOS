@@ -747,6 +747,17 @@ role     = "general"
 # one-key complement to allow/deny lists -- e.g. a read-only research worker:
 #   max_permission = "read"     # only read-tier verbs (web/search/inspect); no writes
 #   max_permission = "write"    # read + write verbs; blocks interactive-tier
+# #60 WS-6 per-USER authz (the per-USER axis, complementing the per-AGENT keys
+# above): a top-level [users.<name>] table caps the tool surface by WHO is asking,
+# matched to the principal the chat surface forwards (user_name / email). Same
+# denied_verbs / allowed_verbs / max_permission semantics + risk lattice. Unset /
+# no matching [users.*] entry => NO restriction (single-user MiOS unaffected).
+# NOTE: keys on the surface-CLAIMED identity; cryptographic signed-principal
+# verification is the remaining half of #60. Example:
+#   [users.guest]
+#   max_permission = "read"           # a guest principal: read-only surface
+#   denied_verbs   = ["pkg", "shutdown", "reboot"]
+#   # email = "guest@example.com"     # optional: also match by forwarded email
 # job (operator 2026-05-24 "no fixed roles -- MiOS-Agents are modelfiles for
 # jobs and tools/skills/recipes"): the one-line CAPABILITY the swarm planner
 # routes a sub-task by. Tools/recipes/skills are GLOBAL to every agent, so this

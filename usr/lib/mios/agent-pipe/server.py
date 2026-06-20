@@ -6875,6 +6875,68 @@ def _agent_rbac_filter(aname: str, tools: list) -> list:
     return out
 
 
+def _user_rbac_filter(tools: list) -> list:
+    """#60 WS-6 per-USER authz: restrict the dispatched tool surface by WHO the
+    request is from -- the per-USER axis, complementing _agent_rbac_filter's
+    per-AGENT axis. SSOT: [users.<name>].denied_verbs / .allowed_verbs /
+    .max_permission in mios.toml, matched to the principal the chat surface
+    forwarded (_client_env user_name / user_email). No-op when no [users.*] entry
+    matches the current user -> ZERO behaviour change (default; single-user MiOS is
+    unaffected). Same verb-gating semantics + risk lattice as #55.
+
+    SCOPE NOTE: this keys on the surface-CLAIMED identity. Cryptographic
+    SIGNED-principal verification (the 'signed principal' half of #60) is a further
+    step -- until then this is policy over a TRUSTED-surface identity, not an auth
+    boundary against a forged caller."""
+    if not tools:
+        return tools
+    env = _client_env_var.get() if isinstance(_client_env_var.get(), dict) else {}
+    uname = str(env.get("user_name") or "").strip().lower()
+    uemail = str(env.get("user_email") or "").strip().lower()
+    if not uname and not uemail:
+        return tools
+    users = _toml_section("users") or {}
+    if not isinstance(users, dict) or not users:
+        return tools
+    cfg = None
+    for k, v in users.items():
+        if not isinstance(v, dict):
+            continue
+        kk = str(k).strip().lower()
+        _vemail = str(v.get("email", "")).strip().lower()
+        # Guard the email arm with `uemail and ...`: otherwise an entry with no
+        # email ("") spuriously matches a user with no email ("" == "") -> every
+        # unlisted user would inherit the first policy. Key must be non-empty too.
+        if (kk and kk in (uname, uemail)) or (uemail and _vemail == uemail):
+            cfg = v
+            break
+    if not cfg:
+        return tools
+    denied = {str(v) for v in (cfg.get("denied_verbs") or [])}
+    allowed = {str(v) for v in (cfg.get("allowed_verbs") or [])}
+    max_perm = str(cfg.get("max_permission") or "").strip().lower()
+    max_rank = _perm_rank(max_perm) if max_perm in _PERMISSION_TIERS else None
+    if not denied and not allowed and max_rank is None:
+        return tools
+    out = []
+    for t in tools:
+        nm = ((t.get("function") or {}).get("name") if isinstance(t, dict) else "") or ""
+        if nm in denied:
+            continue
+        if allowed and nm in _VERB_CATALOG and nm not in allowed:
+            continue
+        if max_rank is not None and nm in _VERB_CATALOG:
+            vperm = str((_VERB_CATALOG.get(nm) or {}).get("permission", "read")).lower()
+            if _perm_rank(vperm) > max_rank:
+                continue
+        out.append(t)
+    if len(out) != len(tools):
+        log.info("user RBAC: %s surface %d -> %d (denied=%d allowed=%d max_perm=%s)",
+                 (uname or uemail), len(tools), len(out), len(denied), len(allowed),
+                 max_perm or "-")
+    return out
+
+
 def _stable_name(t: dict) -> str:
     """The model-facing tool name -- the deterministic tie-break key for the rerank so the
     variable tail order stays stable turn-to-turn (no RadixAttention tail jitter)."""
@@ -14026,6 +14088,7 @@ async def _execute_dag_node(node: dict, results_by_id: dict,
         if WORKER_TOOLS_ENABLE and not _reason_only:
             _wtools = await _worker_tools_surface_async(cap=_lane_tool_cap(_lane), intent=prompt)
             _wtools = _agent_rbac_filter(aname, _wtools)  # WS-2 per-agent RBAC
+            _wtools = _user_rbac_filter(_wtools)          # #60 WS-6 per-user authz
             if _wtools:
                 body["tools"] = _wtools
                 body["num_ctx"] = _fit_context(
