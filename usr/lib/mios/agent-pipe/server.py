@@ -112,6 +112,7 @@ import mios_selfimprove   # noqa: E402  -- #64 self-improvement analyzer (read-o
 import mios_toolconflict   # noqa: E402  -- WS-A7 per-verb dispatch conflict/parallel-limit gate
 import mios_trace   # noqa: E402  -- WS-A8 per-request trace/span observability
 import mios_pdp as _pdp   # noqa: E402  -- WS-A9 policy decision point (capability gate)
+import mios_embed_backfill as _embf   # noqa: E402  -- WS-A2 embedding-version backfill planner
 
 # ── Config (SSOT-sourced via env) ──────────────────────────────────
 PORT = int(os.environ.get("MIOS_PORT_AGENT_PIPE", "8640"))
@@ -431,6 +432,21 @@ def _traced_stage(name: str):
                 return await fn(*a, **kw)
         return wrapper
     return deco
+
+
+# ── WS-A2 embedding identity + working-memory durability ────────────────────
+# ONE canonical embedding identity (model + logical version) stamped onto every
+# stored vector (knowledge / agent_memory). Bump MIOS_EMB_VERSION whenever the
+# embedding model or its dimensionality changes -> mios_embed_backfill re-embeds
+# the stale rows off the hot path instead of silently mixing incompatible vector
+# spaces (which degrades cosine recall to noise).
+EMB_MODEL = os.environ.get("MIOS_EMB_MODEL", "nomic-embed-text")
+EMB_VERSION = os.environ.get("MIOS_EMB_VERSION", "nomic-768-v1")
+# Persist the per-chat scratchpad (working memory) to the pg `scratch` table so
+# it SURVIVES an agent-pipe restart (rehydrated once on chat entry). Fire-and-
+# forget + degrade-open; off -> the old in-memory-only behaviour.
+SCRATCHPAD_PERSIST = str(os.environ.get("MIOS_SCRATCHPAD_PERSIST", "1")).strip().lower() \
+    not in ("0", "false", "no", "off", "")
 
 # Pipeline-side WEB-RESEARCH loop (operator 2026-05-24: "the MiOS pipeline
 # ITSELF loops for web use and web tools" + "multi loops for all web tools" +
@@ -8002,16 +8018,71 @@ def _scratchpad_for(key: str) -> "collections.deque":
     return dq
 
 
+# WS-A2: chats whose scratchpad has already been rehydrated from pg this process
+# (so the durable-read runs at most once per chat key per restart, not per turn).
+_REHYDRATED_CHATS: set = set()
+
+
+async def _scratchpad_rehydrate(key: str) -> None:
+    """WS-A2: on the FIRST turn of a chat after an agent-pipe restart, repopulate
+    the in-memory scratchpad from the durable pg `scratch` table so cross-turn
+    working memory survives the restart. Runs at most once per chat key per
+    process; a live in-memory pad is authoritative (never overwritten). Best-
+    effort + degrade-open: any miss leaves the pad as-is (the pre-WS-A2 behaviour)."""
+    if not (SCRATCHPAD_ENABLE and SCRATCHPAD_PERSIST and key):
+        return
+    if key in _REHYDRATED_CHATS:
+        return
+    _REHYDRATED_CHATS.add(key)
+    if _SCRATCHPADS.get(key):
+        return  # a live pad already exists -> authoritative, don't clobber
+    try:
+        rows = await _mios_pg.execute(
+            "SELECT agent, lane, phase, note, extract(epoch from ts) AS ts "
+            "FROM scratch WHERE chat_id = %(cid)s AND note IS NOT NULL "
+            "ORDER BY ts DESC LIMIT %(lim)s",
+            {"cid": key, "lim": max(1, SCRATCHPAD_MAX)}, fetch=True)
+    except Exception:  # noqa: BLE001 -- rehydration is best-effort
+        return
+    if not rows:
+        return
+    dq = _scratchpad_for(key)
+    for r in reversed(rows):   # oldest-first into the bounded deque
+        try:
+            dq.append({
+                "ts": float(r.get("ts") or time.time()),
+                "agent": str(r.get("agent") or "?"),
+                "lane": str(r.get("lane") or ""),
+                "phase": str(r.get("phase") or ""),
+                "note": str(r.get("note") or ""),
+            })
+        except Exception:  # noqa: BLE001
+            continue
+
+
 def _scratchpad_note(agent: str, text: str, *, lane: str = "",
                      phase: str = "") -> None:
     """Append one agent's checkpoint to the CURRENT chat's rolling log."""
     if not (SCRATCHPAD_ENABLE and text and text.strip()):
         return
     summary = " ".join(text.split())[:SCRATCHPAD_SUMMARY_CHARS]
-    _scratchpad_for(_conv_key_var.get()).append({
+    chat_id = _conv_key_var.get()
+    _scratchpad_for(chat_id).append({
         "ts": time.time(), "agent": agent or "?",
         "lane": lane or "", "phase": phase or "", "note": summary,
     })
+    # WS-A2: durably mirror this checkpoint to the pg `scratch` table (chat_id/
+    # agent/lane/phase/note) so working memory survives an agent-pipe restart
+    # (rehydrated on chat entry by _scratchpad_rehydrate). Fire-and-forget +
+    # degrade-open, matching the daemon nudger's scratch writer.
+    if SCRATCHPAD_PERSIST and chat_id:
+        try:
+            _db_write("scratch", {
+                "chat_id": chat_id, "agent": agent or "?",
+                "lane": lane or "", "phase": phase or "", "note": summary,
+            }, now_fields=("ts",))
+        except Exception:  # noqa: BLE001 -- durability is best-effort
+            pass
 
 
 def _scratchpad_render() -> str:
@@ -10901,6 +10972,8 @@ async def _store_knowledge_task(q: str, a: str,
             emb = await _embed_one(q)
             if emb:
                 row["emb"] = emb
+                row["emb_model"] = EMB_MODEL       # WS-A2 embedding-version hygiene
+                row["emb_version"] = EMB_VERSION
         _pg_mirror("knowledge", {**row, "session_id": session_id})  # WS-9c
         sql = _db_create(KNOWLEDGE_TABLE, row, now_fields=("ts",), _mirror=False)
         if session_id:
@@ -25158,6 +25231,9 @@ async def chat_completions(request: Request) -> Any:
     # (stable across this conversation's turns); falls back to a per-request
     # id for non-OWUI callers. Read by _scratchpad_note/_render downstream.
     _conv_key_var.set(_scratchpad_key(body, chat_id))
+    # WS-A2: rehydrate this chat's working memory from the durable pg `scratch`
+    # table on the first turn after a restart (once per chat key; degrade-open).
+    await _scratchpad_rehydrate(_conv_key_var.get())
     # Turn-scoped REAL-SOURCE collector (operator 2026-06-18): every web_search this
     # turn -- native loop, council secondaries, DAG workers -- records its result URLs
     # here (child asyncio tasks inherit this contextvar), and the final answer attaches

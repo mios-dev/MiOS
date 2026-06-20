@@ -50,6 +50,12 @@ CREATE INDEX IF NOT EXISTS knowledge_last_acc  ON knowledge (last_access);
 -- surface forwards a principal. Idempotent (matches the established pattern).
 ALTER TABLE knowledge    ADD COLUMN IF NOT EXISTS owner_user text;
 CREATE INDEX IF NOT EXISTS knowledge_owner ON knowledge (owner_user);
+-- WS-A2 embedding-version hygiene: stamp the embedding identity on every vector
+-- so a model/dimension change is detectable + the row can be re-embedded off the
+-- hot path (mios_embed_backfill). Additive + nullable (NULL = pre-migration /
+-- un-stamped -> a backfill treats it as stale). Idempotent.
+ALTER TABLE knowledge    ADD COLUMN IF NOT EXISTS emb_model   text;
+ALTER TABLE knowledge    ADD COLUMN IF NOT EXISTS emb_version text;
 
 -- ── agent_memory: tool-driven self-editing facts (mios-remember) ─────────────
 CREATE TABLE IF NOT EXISTS agent_memory (
@@ -67,6 +73,10 @@ CREATE INDEX IF NOT EXISTS agent_memory_emb_hnsw
 CREATE INDEX IF NOT EXISTS agent_memory_scope ON agent_memory (scope);
 CREATE UNIQUE INDEX IF NOT EXISTS agent_memory_scope_key
     ON agent_memory (scope, mem_key) WHERE mem_key IS NOT NULL;
+-- WS-A2 embedding-version hygiene (see knowledge above): stamp the embedding
+-- identity so a model/dim change can trigger an off-hot-path re-embed.
+ALTER TABLE agent_memory ADD COLUMN IF NOT EXISTS emb_model   text;
+ALTER TABLE agent_memory ADD COLUMN IF NOT EXISTS emb_version text;
 
 -- ── event: append-only observability stream ──────────────────────────────────
 CREATE TABLE IF NOT EXISTS event (

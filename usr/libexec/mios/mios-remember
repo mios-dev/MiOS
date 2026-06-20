@@ -78,6 +78,10 @@ def _pg(sql: str) -> None:
 _EMBED_ENDPOINT = os.environ.get("MIOS_RAG_EMBED_ENDPOINT",
                                  "http://localhost:11450").rstrip("/")
 _EMBED_MODEL = os.environ.get("MIOS_RAG_EMBED_MODEL", "nomic-embed-text")
+# WS-A2 embedding-version hygiene: stamp the embedding identity alongside every
+# stored vector so a model/dim change is detectable + re-embeddable (matches the
+# agent-pipe EMB_VERSION). Bump MIOS_EMB_VERSION when the model/dims change.
+_EMB_VERSION = os.environ.get("MIOS_EMB_VERSION", "nomic-768-v1")
 
 
 def _embed_vec(text: str) -> str:
@@ -170,8 +174,10 @@ def main() -> int:
             key = args.key.strip() or f"m{abs(hash(fact)) % (10**10)}"
             # upsert by key within scope -- pgvector mirror + (unless pg-primary) SurrealDB
             _emb = _embed_vec(fact)
-            _ecol = ", emb" if _emb else ""
-            _eval = f", '{_emb}'::vector" if _emb else ""
+            # WS-A2: stamp the embedding identity (model + version) with the vector.
+            _ecol = ", emb, emb_model, emb_version" if _emb else ""
+            _eval = (f", '{_emb}'::vector, '{_pgesc(_EMBED_MODEL)}', "
+                     f"'{_pgesc(_EMB_VERSION)}'" if _emb else "")
             _pg(f"DELETE FROM {TABLE} WHERE mem_key = '{_pgesc(key)}' "
                 f"AND scope = '{_pgesc(args.scope)}'; "
                 f"INSERT INTO {TABLE} (fact, scope, mem_key, source{_ecol}) VALUES "

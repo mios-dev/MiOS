@@ -4187,6 +4187,20 @@ db_backend  = "postgres"
 #                       default-off recall paths) is incremental WS-5 hardening.
 #                       Safe to leave off for single-user; flip on for multi-user.
 rls_mode    = "off"
+# ── WS-A2 embedding-version hygiene + working-memory durability ──────────────
+# emb_model/emb_version are stamped onto every stored vector (knowledge +
+# agent_memory) so a model/dimension change is detectable. Bump emb_version when
+# the embedding model or its dims change -> mios_embed_backfill re-embeds the
+# stale rows OFF the hot path instead of silently mixing incompatible vector
+# spaces (which degrades cosine recall to noise). scratch_persist mirrors the
+# per-chat working scratchpad to the pg `scratch` table so it survives an
+# agent-pipe restart (rehydrated once on chat entry). Read by the agent-pipe
+# (EMB_MODEL/EMB_VERSION/SCRATCHPAD_PERSIST) + mios-remember; env overrides
+# MIOS_EMB_MODEL / MIOS_EMB_VERSION / MIOS_SCRATCHPAD_PERSIST.
+emb_model       = "nomic-embed-text"
+emb_version     = "nomic-768-v1"   # bump on a model/dim change -> backfill re-embeds
+scratch_persist = true             # durable per-chat working memory (survives restart)
+backfill_batch  = 50               # re-embed batch size (mios_embed_backfill.plan_batches)
 # ── WS-0 pgvector durability + bind hardening (Wave 0) ───────────────────────
 # Periodic pg_dump backups of the unified agent datastore. backup_enable ships
 # TRUE (the datastore holds tiered memory / knowledge / skills / sessions --
