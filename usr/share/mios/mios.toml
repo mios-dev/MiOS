@@ -656,6 +656,25 @@ mask_systemd_remount_fs = true
 enable = false
 
 # ----------------------------------------------------------------------------
+# [security.egress] -- #54 zero-trust OUTBOUND firewall for the AGENT process.
+# Constrains the agent-pipe user's external egress at the OS layer (nftables) so a
+# compromised/misled agent cannot exfiltrate to arbitrary internet hosts. It is
+# UID-scoped, so it does NOT touch other users: web_search still works (the agent
+# reaches searxng over loopback, and searxng -- a different uid -- reaches the
+# internet). Generated to usr/share/mios/security/egress.nft by
+# tools/generate-egress-firewall.sh; the OPERATOR applies it (`nft -f ...`), like
+# the k3s manifests -- nothing here is auto-applied.
+#   mode: off (default) -- generator emits an informational, NO-OP ruleset.
+#         audit         -- LOG would-be-blocked agent egress; block nothing.
+#         enforce       -- LOG + DROP the agent's non-allowed external egress.
+# allow: extra destination CIDRs/IPs the agent may reach, BEYOND the always-
+# allowed loopback, tailnet (100.64.0.0/10) and local WSL gateway (172.16.0.0/12).
+# ----------------------------------------------------------------------------
+[security.egress]
+mode  = "off"
+allow = []
+
+# ----------------------------------------------------------------------------
 # [uki] -- WS-7 verity-rooted Unified Kernel Image build (DEFAULT-OFF).
 # When verity_uki_build = true the gated build step runs `ukify build`
 # measuring the composefs fs-verity digest into a UKI ARTIFACT at
