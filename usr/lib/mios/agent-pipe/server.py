@@ -21433,7 +21433,13 @@ async def _client_tools_loop(body: dict, client_names: set, chat_id: str,
         last = msg
         tcs = msg.get("tool_calls") or []
         if not tcs:
-            return msg
+            if str(msg.get("content") or "").strip():
+                return msg
+            # No tool_calls AND empty content (a small 8B handed the big merged client+
+            # MiOS tool surface can return nothing, esp. with thinking on). Do NOT hand
+            # back an empty reply (the Hermes desktop "no reply" bug) -- break to the final
+            # tools-less synthesis below, which forces a content answer.
+            break
         if any(not _client_tools_is_mios(
                 (tc.get("function") or {}).get("name", ""), client_names)
                 for tc in tcs):
@@ -21480,6 +21486,10 @@ async def _client_tools_loop(body: dict, client_names: set, chat_id: str,
             _fr = dict(base_req)
             _fr.pop("tools", None)
             _fr.pop("tool_choice", None)
+            # Thinking OFF for the synthesis: the whole token budget goes to the
+            # CONTENT answer (with thinking on, an 8B spends it reasoning and emits a
+            # truncated/terse reply).
+            _fr["chat_template_kwargs"] = {"enable_thinking": False}
             _fr["messages"] = messages
             _fresp = await _client_tools_backend(_fr)
             _fmsg = ((_fresp.get("choices") or [{}])[0] or {}).get("message") or {}
