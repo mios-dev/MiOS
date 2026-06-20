@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# AI-hint: Source-tree drift fitness-functions (WS-0A). Read-only static analysis over the repo (== system root) that FAILS on AI-plane SSOT drift no other gate catches: a retired local :11434 lane in active config, a retired model-id (gemma4 / qwen3:1.7b) hardcoded in a CONSUMER unit, a [nodes.local-*] lane pointing at a localhost port no shipped unit serves, an ai/v1/*.json manifest that won't parse or references a missing schema file, and (check 5, WS-10) AI-hint header coverage regressing past [ai_tag].max_untagged. Sibling to 38-ssot-lint.sh; runs standalone, as a build sub-phase, and as a CI/PR drift-gate (needs NO built image). bash + grep + (optional) python3 for the toml/json/coverage checks.
+# AI-hint: Source-tree drift fitness-functions (WS-0A). Read-only static analysis over the repo (== system root) that FAILS on AI-plane SSOT drift no other gate catches: a retired local :11434 lane in active config, a retired model-id (gemma4 / qwen3:1.7b) hardcoded in a CONSUMER unit, a [nodes.local-*] lane pointing at a localhost port no shipped unit serves, an ai/v1/*.json manifest that won't parse or references a missing schema file, (check 5, WS-10) AI-hint header coverage regressing past [ai_tag].max_untagged, and (check 6, WS-3) an agent-pipe sibling module importing the server.py monolith (modular-monolith boundary). Sibling to 38-ssot-lint.sh; runs standalone, as a build sub-phase, and as a CI/PR drift-gate (needs NO built image). bash + grep + (optional) python3 for the toml/json/coverage checks.
 # AI-related: ./automation/38-ssot-lint.sh, ./automation/99-postcheck.sh, ./usr/libexec/mios/mios-ai-hint-coverage, ./usr/share/mios/mios.toml, ./usr/share/mios/ai/v1
-# AI-functions: _violation, check_dead_lane, check_retired_models, check_structured, check_hint_coverage, main
+# AI-functions: _violation, check_dead_lane, check_retired_models, check_structured, check_hint_coverage, check_module_boundary, main
 # automation/38-drift-checks.sh
 # ----------------------------------------------------------------------------
 # WHY THIS EXISTS (WS-0A drift-freeze). 99-postcheck.sh enforces the same
@@ -242,11 +242,41 @@ check_hint_coverage() {
     fi
 }
 
+# --- (6) modular-monolith boundary (#58 WS-3 strangler-fig). ------------------
+# The strangler-fig extracts pure logic out of the server.py monolith into
+# sibling modules (mios_*.py) that are unit-tested in ISOLATION. The dependency
+# must stay ONE-WAY: server.py imports the siblings, never the reverse. A sibling
+# that `import server` would re-couple them and break standalone testability (the
+# whole point of the extraction). Read-only static check; the source-tree mirror
+# of the import-constraint named in #58.
+check_module_boundary() {
+    local dir="$ROOT/usr/lib/mios/agent-pipe"
+    if [[ ! -d "$dir" ]]; then
+        echo "[38-drift-checks]   (6) agent-pipe dir absent -- skipped"
+        return 0
+    fi
+    local hits="" f active
+    while IFS= read -r f; do
+        [[ -f "$f" ]] || continue
+        active=$(sed -E '/^[[:space:]]*#/d' "$f")
+        if printf '%s\n' "$active" | grep -qE '^[[:space:]]*(import[[:space:]]+server|from[[:space:]]+server[[:space:]])'; then
+            hits+="    $f"$'\n'
+        fi
+    done < <(find "$dir" -maxdepth 1 -type f -name 'mios_*.py' 2>/dev/null)
+    if [[ -n "$hits" ]]; then
+        printf '%s' "$hits" >&2
+        _violation "agent-pipe sibling module imports the server monolith (breaks the modular-monolith boundary; siblings must stay server.py-free + isolation-testable)"
+    else
+        echo "[38-drift-checks]   (6) agent-pipe sibling modules are server.py-free (modular boundary intact)"
+    fi
+}
+
 main() {
     check_dead_lane
     check_retired_models
     check_structured
     check_hint_coverage
+    check_module_boundary
 
     echo "[38-drift-checks] ---------------------------------------------------------"
     if [[ "$VIOLATIONS" -eq 0 ]]; then
