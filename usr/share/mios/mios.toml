@@ -4069,9 +4069,13 @@ db_backend  = "postgres"
 # #59 WS-5 row-level security mode for owner-scoped memory recall.
 #   off    (default) -- tag-only: rows carry owner_user but recall does NOT filter
 #                       by owner (single-user behaviour; zero change).
-#   enforce          -- recall returns only rows owned by the requesting principal
-#                       (multi-user isolation). The owner_user column + write-side
-#                       tagging ship now; flip to enforce once multi-user is live.
+#   enforce          -- WIRED: knowledge recall returns only rows owned by the
+#                       requesting principal, PLUS legacy/shared rows (owner_user
+#                       IS NULL) so flipping it on never blanks the existing
+#                       single-user base. Scopes the knowledge (RAG) store today;
+#                       extending owner-scoping to agent_memory/scratch (both
+#                       default-off recall paths) is incremental WS-5 hardening.
+#                       Safe to leave off for single-user; flip on for multi-user.
 rls_mode    = "off"
 # ── WS-0 pgvector durability + bind hardening (Wave 0) ───────────────────────
 # Periodic pg_dump backups of the unified agent datastore. backup_enable ships

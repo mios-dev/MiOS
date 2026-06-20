@@ -10539,6 +10539,12 @@ async def _recall_agent_memory(query: str) -> str:
     as an injectable block (or '' on miss). Default-OFF; degrade-open -> ''."""
     if not (AGENT_MEMORY_RECALL_ENABLED and _PG_PRIMARY and query and query.strip()):
         return ""
+    # #59 WS-5: agent_memory has no owner_user column yet, so it cannot be
+    # owner-scoped. Under rls_mode=enforce FAIL CLOSED -- skip agent_memory recall
+    # rather than leak another owner's durable facts (partial enforcement is worse
+    # than none). Default rls_mode=off -> _rls_owner() is None -> unchanged.
+    if _rls_owner() is not None:
+        return ""
     try:
         qv = await _embed_one(query)
         if not qv:
@@ -10568,16 +10574,35 @@ async def _recall_agent_memory(query: str) -> str:
         return ""
 
 
+def _rls_owner() -> "Optional[str]":
+    """#59 WS-5: the owner to scope knowledge recall to, or None to disable
+    filtering. Active ONLY when [pgvector].rls_mode == 'enforce' AND the chat
+    surface forwarded a principal (user_name/user_email). Default ('off') -> None
+    -> recall SQL is byte-identical to pre-RLS. Legacy/shared rows (owner_user IS
+    NULL) stay visible (see build_recall), so flipping to enforce never blanks the
+    existing single-user knowledge base. Degrade-open: any error -> None."""
+    try:
+        if str(_toml_section("pgvector").get("rls_mode", "off")).strip().lower() != "enforce":
+            return None
+        env = _client_env_var.get()
+        env = env if isinstance(env, dict) else {}
+        owner = str(env.get("user_name") or env.get("user_email") or "").strip()
+        return owner or None
+    except Exception:  # noqa: BLE001 -- degrade-open: never break recall
+        return None
+
+
 async def _recall_knowledge_pg(query: str) -> "Optional[str]":
     """WS-9c native pgvector recall (used when DB_BACKEND='postgres'). Returns the
     injectable block, '' on a clean miss, or None to fall through to the
-    SurrealDB path on any error (degrade-open)."""
+    SurrealDB path on any error (degrade-open). #59 WS-5: scoped to the request
+    principal when [pgvector].rls_mode == 'enforce' (else unfiltered)."""
     try:
         qv = await _embed_one(query)
         if not qv:
             return None
         rows = await _mios_pg.recall(qv, table=KNOWLEDGE_TABLE,
-                                     k=KNOWLEDGE_RECALL_K)
+                                     k=KNOWLEDGE_RECALL_K, owner=_rls_owner())
         if rows is None:
             return None
         _floor = _recall_floor(query)

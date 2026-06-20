@@ -96,7 +96,8 @@ def build_insert(table: str, fields: dict) -> "tuple[str, dict]":
     return sql, params
 
 
-def build_recall(table: str = "knowledge", k: int = 3) -> "tuple[str, dict]":
+def build_recall(table: str = "knowledge", k: int = 3,
+                 owner: "Optional[str]" = None) -> "tuple[str, dict]":
     """pgvector HNSW cosine recall: nearest `k` rows to %(qvec)s, returning the
     cosine SIMILARITY (1 - distance). Threshold-filter app-side (matches the
     current recall). Pair with `SET hnsw.ef_search` (see recall_tuning).
@@ -105,20 +106,34 @@ def build_recall(table: str = "knowledge", k: int = 3) -> "tuple[str, dict]":
     agent_memory has fact/scope/mem_key; mios_rag has source/content. Projecting
     the knowledge columns against them raises UndefinedColumn -> recall()'s
     degrade-open arms the 30s global _pg_mark_down backoff, which would blank the
-    LIVE knowledge recall inside every turn. Project the right columns per table."""
+    LIVE knowledge recall inside every turn. Project the right columns per table.
+
+    #59 WS-5 RLS (MECHANISM ONLY): when `owner` is passed, scope recall to that
+    owner -- `owner_user = %(owner)s OR owner_user IS NULL` (legacy/shared rows
+    with a NULL owner stay visible, so turning enforcement on never blanks
+    existing recall). owner=None (the default) leaves the SQL BYTE-IDENTICAL to
+    the pre-RLS query -> zero behaviour change when off. The CALLER decides policy
+    (read [pgvector].rls_mode) and MUST pass owner only for a table that HAS an
+    owner_user column (today: knowledge); passing it for owner_user-less tables
+    would raise UndefinedColumn and arm the backoff."""
     if table == "agent_memory":
         proj = "mem_key AS id, fact, scope, source"
     elif table == "mios_rag":
         proj = "id, source, content"
     else:  # knowledge (default) -- unchanged
         proj = "id, q, answer, tier, satisfied, access_count"
+    where = "emb IS NOT NULL"
+    params = {"qvec": None, "k": int(k)}  # caller sets qvec = vector_literal(q)
+    if owner is not None:
+        where += " AND (owner_user = %(owner)s OR owner_user IS NULL)"
+        params["owner"] = owner
     sql = (
         f"SELECT {proj}, "
         f"1 - (emb <=> %(qvec)s::vector) AS score "
-        f"FROM {table} WHERE emb IS NOT NULL "
+        f"FROM {table} WHERE {where} "
         f"ORDER BY emb <=> %(qvec)s::vector LIMIT %(k)s;"
     )
-    return sql, {"qvec": None, "k": int(k)}  # caller sets qvec = vector_literal(q)
+    return sql, params
 
 
 def recall_tuning(ef_search: int = 100) -> str:
@@ -187,12 +202,15 @@ async def insert(table: str, fields: dict, *, cfg: Optional[dict] = None) -> Any
 
 
 async def recall(qvec, *, table: str = "knowledge", k: int = 3,
-                 ef_search: int = 100, cfg: Optional[dict] = None) -> list:
+                 ef_search: int = 100, owner: "Optional[str]" = None,
+                 cfg: Optional[dict] = None) -> list:
     """Native pgvector HNSW cosine recall on ONE connection (SET hnsw.ef_search
     then the SELECT must share a session). Returns rows [{id,q,answer,tier,
     satisfied,access_count,score}] (score = cosine similarity), or [] on any
     error / no psycopg. Caller applies the score threshold (matches the
-    SurrealDB recall)."""
+    SurrealDB recall). `owner` (#59 WS-5): when set, scopes recall to that owner
+    (+ NULL/shared rows); None = no filter, byte-identical to pre-RLS. Pass only
+    for owner_user-bearing tables -- see build_recall."""
     if _pg_skip():
         return []
     try:
@@ -205,7 +223,7 @@ async def recall(qvec, *, table: str = "knowledge", k: int = 3,
                 dsn(cfg), autocommit=True, connect_timeout=5) as conn:
             async with conn.cursor(row_factory=dict_row) as cur:
                 await cur.execute(recall_tuning(ef_search))
-                sql, params = build_recall(table, k)
+                sql, params = build_recall(table, k, owner=owner)
                 params["qvec"] = vector_literal(qvec)
                 await cur.execute(sql, params)
                 return await cur.fetchall()
