@@ -1,5 +1,5 @@
 # AI-hint: FastAPI gateway service on port 8640 that routes, dispatches, and proxies chat/embedding requests from external interfaces (Discord, Slack) to the hermes-agent backend and SurrealDB.
-# AI-related: mios_jsonsalvage, mios_owui, mios_sched, mios_evict, mios_hitl, mios_aci, mios_kvfork, mios_codemode, mios_pg, mios_lanes, mios_a2a_principal, mios_reputation, /usr/share/mios/mios.toml
+# AI-related: mios_jsonsalvage, mios_owui, mios_sched, mios_evict, mios_hitl, mios_aci, mios_kvfork, mios_codemode, mios_pg, mios_lanes, mios_a2a_principal, mios_reputation, mios_goap, /usr/share/mios/mios.toml
 # AI-functions: _toml_section, _cfg_num, _is_remote_endpoint, _should_health_probe, _trip_breaker, _parse_lane_caps, _lane_tool_cap, _dispatch_toml, _dispatch_num, _priority_gate, _parse_lane_priority, _lane_sem
 """'MiOS' Agent Pipe -- standalone FastAPI service.
 
@@ -106,6 +106,7 @@ import mios_lanes   # noqa: E402  -- WS-1 unified inference-lane resolver
 import mios_a2a_principal as _a2a_pp   # noqa: E402  -- WS-6 signed delegation principal
 import mios_reputation   # noqa: E402  -- #54 zero-trust peer reputation
 _A2A_REPUTATION = mios_reputation.PeerReputation()   # outbound-peer reliability
+import mios_goap   # noqa: E402  -- #53 deterministic GOAP planner lane
 
 # ── Config (SSOT-sourced via env) ──────────────────────────────────
 PORT = int(os.environ.get("MIOS_PORT_AGENT_PIPE", "8640"))
@@ -1525,6 +1526,42 @@ PLANNER_ENDPOINT = os.environ.get(
     # agent-pipe.env) overrides; this is only the fresh-install fallback.
     "MIOS_AGENT_PIPE_PLANNER_ENDPOINT", "http://localhost:11450",
 ).rstrip("/")
+
+
+# #53 OPTIONAL deterministic GOAP planner lane (alongside the LLM DAG). When a
+# task's steps have KNOWN pre/post-conditions, ordering is a search problem with
+# one correct answer -- mios_goap solves it deterministically (reproducible, no
+# LLM). DEFAULT-OFF ([goap].mode != "available") -> _goap_plan returns None and
+# the LLM DAG planner above is unchanged. The action model is SSOT in mios.toml
+# [goap].actions. This is the LANE (available + optional); auto-selecting GOAP vs
+# the LLM DAG for a given request is the documented follow-on.
+def _goap_actions() -> list:
+    sect = _toml_section("goap")
+    acts = sect.get("actions") if isinstance(sect, dict) else None
+    return acts if isinstance(acts, list) else []
+
+
+def _goap_enabled() -> bool:
+    return str(_toml_section("goap").get("mode", "off")).strip().lower() \
+        in {"available", "on", "enforce", "1", "true", "yes"}
+
+
+def _goap_plan(goal: dict, initial: "Optional[dict]" = None) -> "Optional[list]":
+    """Deterministic min-cost plan (list of verb names) for a goal whose action
+    model is declared in [goap].actions, or None when the lane is off / the action
+    set is invalid / the goal is unreachable. Degrade-open: never raises into the
+    request path."""
+    if not _goap_enabled():
+        return None
+    acts = _goap_actions()
+    if not acts or mios_goap.validate_actions(acts):
+        return None
+    try:
+        return mios_goap.plan(dict(initial or {}), dict(goal or {}), acts)
+    except Exception:  # noqa: BLE001 -- degrade-open
+        return None
+
+
 # Decompose substantive single-goal asks into a CONCURRENT multi-agent swarm
 # by DEFAULT (operator 2026-05-22: "decompose into sub-tasks" as the default
 # swarm mode). For an agent-intent query of >= MIN_WORDS, attempt _plan_swarm:

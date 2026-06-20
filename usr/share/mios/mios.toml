@@ -111,6 +111,37 @@ default_password = "mios"
 max_untagged = 12
 
 # ----------------------------------------------------------------------------
+# [goap] -- #53 OPTIONAL deterministic GOAP planner lane (Embabel-style),
+# alongside the LLM DAG. When a task's steps have KNOWN pre/post-conditions, the
+# order is a search problem with one correct answer -- mios_goap solves it
+# deterministically (reproducible, no LLM). mode "off" (default) leaves the LLM
+# DAG planner unchanged; "available" lets server.py use the GOAP lane for tasks
+# that match this action set. The actions are the SSOT action model: each has a
+# name (a verb), optional pre (preconditions), eff (effects), cost. SEED set =
+# the launch->type->verify sequence (#48/#49); extend per verb. Env: none --
+# read directly from this file.
+# ----------------------------------------------------------------------------
+[goap]
+mode = "off"
+
+[[goap.actions]]
+name = "open_app"
+eff  = { app_open = true }
+cost = 1
+
+[[goap.actions]]
+name = "type_text"
+pre  = { app_open = true }
+eff  = { text_entered = true }
+cost = 1
+
+[[goap.actions]]
+name = "verify_action"
+pre  = { text_entered = true }
+eff  = { verified = true }
+cost = 1
+
+# ----------------------------------------------------------------------------
 # [portal] -- MiOS Portal web app (served by mios-agent-pipe at GET / on
 # MIOS_PORT_AGENT_PIPE). Login gates the portal UI + its /portal/* data
 # endpoints; the /v1 OpenAI API, /a2a and /health stay open programmatic
