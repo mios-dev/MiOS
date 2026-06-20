@@ -22622,7 +22622,12 @@ async def _respond_os_control(
     if DCI_ENABLED:
         _db_fire(critic_then_maybe_flow(last_user_text, envelope,
                                         session_id=session_id))
-    symbol = "✅" if _eff_ok else ("🚀" if _launch_pending else "⚠️")
+    # P4 (operator 2026-06-19 "VERIFICATION NEVER HAPPENS / NEVER TYPED"): the
+    # success symbol + polish must reflect the TYPE verdict too, not just the
+    # launch. A verified launch + a type that did NOT land must NOT show ✅.
+    _type_ok = (_typed is None) or bool(_typed.get("success"))
+    symbol = ("✅" if (_eff_ok and _type_ok)
+              else ("🚀" if (_launch_pending and _type_ok) else "⚠️"))
     envelope_block = (
         f"<details type=\"tool_calls\" done=\"true\">\n"
         f"<summary>{symbol} `{tool}`</summary>\n\n"
@@ -22659,12 +22664,26 @@ async def _respond_os_control(
                             "30-60s. Report this as STARTING / LAUNCHING (e.g. "
                             "'<app> is launching via Steam -- it may take a moment "
                             "to appear'), which is NOT a failure.\n")
+    # P4: feed the TYPE-chain read-back verdict to the polish so it reports the
+    # typing HONESTLY (the launch verdict alone is not the whole story for an
+    # "open X and type Y" turn). Without this the polish only saw the launch
+    # succeeded -> "SUCCESS, you can now type" while nothing was typed.
+    if _typed is not None:
+        _ttxt = (_typed.get("text") or "")[:60]
+        if _typed.get("success"):
+            _polish_src += (f"type_chain: typed \"{_ttxt}\" and READ-BACK CONFIRMED "
+                            "the text landed in the window.\n")
+        else:
+            _polish_src += (f"type_chain: attempted to type \"{_ttxt}\" but READ-BACK "
+                            "shows the text did NOT land -- the app opened but the "
+                            "TYPING FAILED. Report that the launch succeeded but the "
+                            "text was NOT typed; do NOT claim it was typed.\n")
     # OS-control replies are SHORT + GENERATIVE (operator 2026-05-29: "completely
     # generative in its replies too" + "JUST reply SUCCESS and DETAILS and
     # FOLLOW-UPS, nothing much more"). So: model-written (no template), but a
     # tight prompt + low token cap -> fast (vs the 16s full-length polish). The
     # `verified`/window/proc facts in _polish_src are the ground truth.
-    _emit("✅" if _eff_ok else ("🚀" if _launch_pending else "⚠️"), "writing the result")
+    _emit(symbol, "writing the result")
     polished_raw = await polish_response(
         "The OS-control verb `" + tool + "` ran (result below). Reply in 1-3 "
         "short sentences with exactly: (1) SUCCESS or failure -- grounded in "
@@ -22672,7 +22691,9 @@ async def _respond_os_control(
         "retries, say it did NOT and do not claim success -- EXCEPT when "
         "`launch_fired_pending` is present, which means the launch DID fire and "
         "the app/game is still LOADING: report it as STARTING/LAUNCHING, NOT a "
-        "failure); (2) the key DETAILS "
+        "failure). If a `type_chain` line is present it is PART of success: if it "
+        "says the text did NOT land, report the app opened but the typing FAILED "
+        "(NOT a full success), and NEVER claim text was typed when it wasn't; (2) the key DETAILS "
         "(what opened/closed/was focused, the app/window name); (3) one or two "
         "natural FOLLOW-UPS the operator might want next (e.g. focus it, move "
         "it, close it, open another). No preamble, no invented coordinates, no "
