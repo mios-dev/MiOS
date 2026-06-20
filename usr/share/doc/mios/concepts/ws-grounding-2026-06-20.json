@@ -1,7 +1,6 @@
 {
- "pinned_head": "8658df1",
+ "pinned_head": "4b86de7",
  "generated": "2026-06-20",
- "grounded": 11,
  "verdicts": [
   {
    "task_id": 2,
@@ -20,6 +19,47 @@
     "Sub-item 'fix stale SurrealDB refs in agents.json/surface.json' appears already clean/N-A: grep -i surreal over both files = 0 hits; spec's agents.json:28 currently is opencode strengths, not a SurrealDB ref; surface.json:27 references pgvector table 'kanban_shadow' (not SurrealDB)."
    ],
    "gap": "Entire WS unimplemented. Needed: (1) strict/warn fail-loud path in _load_verb_catalog (server.py:5225) + _load_recipe_catalog (5910) gated by new [ai].catalog_fail_mode; (2) /usr/libexec/mios/mios-ai-manifest-gen generator projecting ai/v1/{tools,agents,surface}.generated.json from _VERB_CATALOG/_AGENT_REGISTRY/_RECIPE_CATALOG with --check diff mode; (3) registry_kind demarcation key in tools.json; (4) automation/48-ai-manifest-drift.sh fitness gate; (5) 99-postcheck.sh assertion; (6) [ai].catalog_fail_mode in mios.toml; (7) test_mios_ai_manifest.py. The SurrealDB-ref cleanup sub-item already appears satisfied (no surreal refs remain in agents.json/surface.json).",
+   "needs_vm_to_verify": false,
+   "suggested_action": "implement-delta"
+  },
+  {
+   "task_id": 3,
+   "ws_id": "WS-A3",
+   "status": "missing",
+   "confidence": "high",
+   "evidence": [
+    "mios_evict.py:20-77 still builds SurrealQL, NOT parameterized pg: protect_where uses `(tier ?? 'warm') != 'hot'` and `??` null-coalescing; ttl_where uses `time::now() - 90d`; parse_count parses `count() AS c ... GROUP ALL`; delete_stmt emits `DELETE knowledge:a, knowledge:b;` (record-id form). Header line 1-2 still says 'SurrealQL fragments'. (subtask 1 = NOT done)",
+    "server.py:11101-11126 eviction I/O wrappers still call _db_post (SurrealDB) directly: _db_count (11104), _evict_select_ids (11114), _evict_delete_ids (11125) -- none route through _db_read/_db_update/mios_pg. (subtask 2 = NOT done)",
+    "LIVE-BROKEN under config: mios.toml:4178 db_backend='postgres' so _PG_PRIMARY=True (server.py:2141). The _db_post guard at 2000-2003 returns None for DELETE/INSERT/UPDATE -> _evict_delete_ids never deletes; eviction SELECTs hit the retired SurrealDB :8000 and trip the 30s backoff. mios.toml:4176-4177 itself admits 'eviction ... degrade gracefully until finished'.",
+    "Canonical `kanban` table exists in schema-init.sql:228-235 (id text PK, kanban_status index) but NO writer targets it. server.py:10004-10043 _shadow_queue_tasks still writes table 'kanban_shadow' (not declared in schema-init.sql). (subtasks 3+4 = NOT done)",
+    "Kanban writer NOT idempotent on a text PK: _shadow_queue_tasks comment (10021) claims a 'UNIQUE INDEX on hermes_task_id' that does not exist in schema-init.sql; the pg path is _db_create->_pg_mirror plain INSERT (server.py:2144-2155) with no ON CONFLICT. (subtask 4 = NOT done)",
+    "mios-pg-query has NO parameterized path: only the simple-query 'Q' message (mios-pg-query:86-87), no Parse/Bind/Execute extended protocol. The CLI DB seam cannot kill _pgesc. (subtask 5 = NOT done)",
+    "mios-remember still SurrealDB+_pgesc: _pgesc (57-58), full _sql SurrealDB POST (101-119), `DEFINE TABLE IF NOT EXISTS` (153), SurrealDB env DB_URL=:8000/DB_USER/PASS (40-44), CREATE/DELETE via _esc string concat (182-187). (subtask 6 = NOT done)",
+    "mios-kg uses _pgesc/_pgq string interpolation throughout (54-59, all _pg_exec/_pg_rows call sites build SQL by f-string concatenation, e.g. 106-109, 181-186, 217-222). (subtask 7 = NOT done)",
+    "mios-rag dead SurrealDB code remains: _sql SurrealDB function (96-113), SurrealDB env DB_URL=:8000/DB_USER/PASS/NS (39-43), AI-hint header line 2 still 'embeds ... into SurrealDB'. Query path uses pg but with string-concatenated '...''::vector' literals (167-170, 189-191). (subtask 8 = NOT done)",
+    "Headers/comments not de-rotted: mios_evict.py:1-2 + server.py:11096-11097 ('these wrappers do the SurrealDB I/O') still describe SurrealDB. (subtask 9 = NOT done)",
+    "Remaining kanban_shadow / SurrealQL writers across server.py: kanban_shadow at 10006/10041/25693/25740; dozens of _db_post(SurrealQL) + _db_create writers (tool_call 26220-26226, events, skill 11867/11908). (subtask 10 = NOT done)",
+    "Test state: test_mios_evict.py:26-93 still asserts SurrealQL output (`time::now() - 90d`, `DELETE knowledge:a, knowledge:b;`, `count: extracts 42`); header line 1 'SurrealDB response parsing'. No test_mios_kanban.py exists (glob of test_mios_*.py)."
+   ],
+   "gap": "Essentially the entire WS-A3 cutover is unbuilt -- not a small delta. Needed: (1) rewrite mios_evict.py + test_mios_evict.py to emit parameterized pg builders (1-(emb<=>...), count(*) , DELETE WHERE id = ANY(%(ids)s), null-safe via COALESCE not ??); (2) rewrite server.py _evict_* wrappers onto mios_pg/_db_read/_db_update so eviction works under db_backend=postgres (today it silently no-ops); (3) point the kanban writer at the canonical `kanban` table with an idempotent INSERT ... ON CONFLICT(id) DO UPDATE (and drop kanban_shadow); (4) add an extended-protocol / parameterized path to mios-pg-query (or mios-db) and convert mios-remember/mios-kg/mios-rag off _pgesc/_pgq string concatenation; (5) delete the dead SurrealDB _sql/_esc/DEFINE-TABLE code + SurrealDB env defaults from mios-remember/mios-rag; (6) de-rot all SurrealDB/SurrealQL headers and comments; (7) add a kanban unit test. The prior backlog-clearing wave did NOT touch this WS (it built the security/federation half).",
+   "needs_vm_to_verify": false,
+   "suggested_action": "implement-delta"
+  },
+  {
+   "task_id": 5,
+   "ws_id": "WS-0B",
+   "status": "missing",
+   "confidence": "high",
+   "evidence": [
+    "38-drift-checks.sh:18-22 EXPLICITLY DEFERS WS-0B: 'Bare LIVE-lane port literals (:11441/:11440/:11450/:8643)... Converting those consumers to ${MIOS_PORT_*} placeholders is deferred WS-0B hardening; until then only the RETIRED :11434 lane is an error.' -- i.e. the core 'single owned keys' deliverable is acknowledged as not done.",
+    "Endpoint/lane literals are NOT collapsed onto owned keys: bare http://localhost:11441/v1 / :11440 / :11450 / :8643 hardcoded across mios.toml -- e.g. [chat].backend 539, [agents.hermes].endpoint 848 + cpu_endpoint 912, [agents.mios-daemon-agent].endpoint 965, [nodes.local-dgpu/cpu/igpu/vllm/sglang/llamaswap] 1120-1177, [ai.client_tools].tool_backend 4153, [ai].hermes_backend_url 4457, [finetune].teacher_endpoint 7476. A [ports.*] owned block exists (mios.toml:6118-6131: llm_light=11450, sglang=11441, vllm=11440, cpu_node=11451) so the target keys EXIST but consumers do not reference them.",
+    "Model literal 'granite4.1:8b' is a repeated bare literal in ~10 independent sites instead of one owned head: [chat].model 546, [ai].model 4467, [ai].stack_model 4475, [ai.client_tools].tool_backend_model 4154, [ai.host_thresholds].small_ram_model 4623 + mid_ram_model 4631, [ai.catalog] id 4547, [finetune].teacher_model 7475 + base_model 7444.",
+    "Comment de-rot NOT done -- live contradiction: authoritative [ai.sglang] (mios.toml:5106-5115) says heavy lane = Qwen3-8B-AWQ ('Qwen3.5-4B-AWQ... CRASHES SGLang... the 8B is...'), but [nodes.local-dgpu/cpu/llamaswap] + [nodes].header comments still say 'mios-heavy = Qwen2.5-14B-AWQ' at lines 1112, 1121, 1127, 1174. MEMORY also confirms heavy is Qwen3-8B-AWQ not 14B.",
+    "Stale retired-ollama :11434/:11435 references litter active-block comments: [agents.hermes] lane comment 893 'gpu = the heavy dGPU lane (:11434)', 901 'CPU lane (:11435)', 960, 1695/1699/1729 'ollama :11434 retired G5', plus remote-template :11434 (1183-1207).",
+    "ws-0-preflight-findings-2026-06-20.md:24 quantifies the outstanding drift WS-0B targets: ':11434x59, gemma4x24, qwen3x76, mios-heavy x46 -- drift real but partly reduced'.",
+    "git log (HEAD 4b86de7) shows NO WS-0B commit (committed WS work stops at WS-A8); no WS-0B-specific test or lint added. The only adjacent guards are WS-0A's 38-drift-checks.sh check_dead_lane (retired :11434) + check_retired_models (gemma4/qwen3:1.7b in CONSUMER units, mios.toml intentionally excluded :98-101) and the 2026-06-18 [ports].cpu_node SSOT-wiring -- none of which is the WS-0B collapse/de-rot itself."
+   ],
+   "gap": "WS-0B is essentially unstarted. Three deliverables remain: (1) Collapse the scattered live-lane endpoint literals (:11441/:11440/:11450/:8643) in [chat]/[agents.*]/[nodes.*]/[ai.*]/[finetune] onto the existing owned [ports.*] keys (or render via MIOS_PORT_* placeholders) -- 38-drift-checks.sh:18-22 explicitly names this as the deferred WS-0B work. (2) Reduce the repeated 'granite4.1:8b' model literal (~10 sites) to one owned head ([ai].model) that the other roles inherit. (3) De-rot stale comments: fix the 'mios-heavy = Qwen2.5-14B-AWQ' comments (mios.toml 1112/1121/1127/1174) that contradict the authoritative Qwen3-8B-AWQ in [ai.sglang] (5106), and purge stale retired-ollama :11434/:11435 references in active-block comments (893/901/960/1695). Optionally extend 38-drift-checks.sh to FAIL on a heavy-lane model-name comment that diverges from [ai.sglang].served-model, closing the comment-drift gap permanently.",
    "needs_vm_to_verify": false,
    "suggested_action": "implement-delta"
   },
@@ -65,7 +105,7 @@
   {
    "task_id": 8,
    "ws_id": "WS-A7",
-   "status": "missing",
+   "status": "done",
    "confidence": "high",
    "evidence": [
     "Named module C:/MiOS/usr/lib/mios/agent-pipe/mios_toolconflict.py does NOT exist (Glob: 16 mios_*.py siblings present, none is toolconflict).",
@@ -76,14 +116,86 @@
     "Dispatch chokepoint _dispatch_bounded (server.py:16581-16597) only serializes web_search via the single hardcoded _web_sem semaphore (defined server.py:369, used 16594); there is no generic per-verb conflict-group/parallel-limit acquire/release map (subtask 4 not done).",
     "No conflict-map primitive, no limit/group maps built at load, no module-global instance (subtasks 2,3 not done); no doc of new catalog fields, no unit test (subtasks 6,7 not done)."
    ],
-   "gap": "Entire workstream is unimplemented. Required deltas, none present: (1) create mios_toolconflict.py (conflict-map primitive: limit/group maps + asyncio acquire/release, sibling-module style); (2) parse parallel_limit + conflict_group fields in _load_verb_catalog (server.py:5251-5292); (3) build limit/group maps once at load + a module-global instance; (4) wire acquire/release into the dispatch chokepoint (_dispatch_bounded server.py:16581, alongside the existing _web_sem path); (5) declare parallel_limit/conflict_group on stateful single-instance verbs in mios.toml [verbs.*]; (6) document the new catalog fields in the loader/render contract; (7) add test_mios_toolconflict.py standalone unit test.",
+   "gap": "DONE (implemented post-grounding): WS-A7 commit 92cfe4a, test 21/21",
+   "needs_vm_to_verify": false,
+   "suggested_action": "mark-complete"
+  },
+  {
+   "task_id": 9,
+   "ws_id": "WS-1",
+   "status": "partial",
+   "confidence": "high",
+   "evidence": [
+    "mios_lanes.py EXISTS and is complete: usr/lib/mios/agent-pipe/mios_lanes.py defines class Lane (l.26), build_chain (l.44, [ai].heavy_engine -> ordered preference chain over sglang/vllm/light, comma-chain honoured, light forced terminal), class LaneResolver (l.77) with TTL health cache (_is_up l.100), per-lane cooldown park (l.102-113), terminal-floor degrade in pick() (l.118-131, returns the floor lane never None), mark_down() (l.133), snapshot() (l.140). Pure stdlib (only `time`), no server import.",
+    "test_mios_lanes.py EXISTS and PASSES: ran `python test_mios_lanes.py` -> 18 checks, 18 passed, 0 failed, exit 0. Covers build_chain ordering, prefers-heavy, sglang-down->vllm, both-heavy-down->light, cooldown-skips-reprobe, ttl-caches, recovery-after-cooldown, terminal-floor, mark_down failover.",
+    "Build-gated: automation/build.sh:402 iterates `test_mios_*.py` and dies on any non-zero (build.sh:411-412), so test_mios_lanes.py runs in the build fitness gate.",
+    "Wired into server.py: `import mios_lanes` (server.py:106); _lane_resolver() (server.py:215-254) builds the lane map {light=:11450, sglang=:11441, vllm=:11440} from already-resolved endpoint constants + [ai].heavy_engine (env MIOS_AGENT_PIPE_HEAVY_ENGINE or _toml_section('ai').heavy_engine, l.228-229), build_chain (l.239), injects an httpx /models probe (l.241-244); consumed by _pick_tool_backend() (server.py:257-271) -> pick('tool'), with degrade-open fallback to the legacy heavy/light probe. Called at the client-tools dispatch sites server.py:22537 and 22793.",
+    "[ai].heavy_engine SSOT key present: mios.toml:4390 `heavy_engine = \"sglang\"` with operator-doc comment (l.4387-4389: single engine|light|comma-chain; env MIOS_AGENT_PIPE_HEAVY_ENGINE). This collapses the two 'mios-heavy' lanes (SGLang :11441 + vLLM :11440, both served_name='mios-heavy' per mios.toml:5093/5113) behind one selector at runtime via build_chain.",
+    "Dead-lane-never-404s satisfied: cooldown park (mios_lanes.py:102-113) skips a failed lane until cooldown lapses, terminal floor (pick l.131) returns light even when all probe down, and _pick_tool_backend degrade-open (server.py:267-271) falls back to legacy probe on any resolver error.",
+    "GAP 1 -- '[nodes.*] generated from the selector' NOT done: [nodes.local-vllm] (mios.toml:1149-1154) and [nodes.local-sglang] (mios.toml:1160-1165) are still HAND-MAINTAINED static node entries; nothing generates [nodes.*] from [ai].heavy_engine. The two-heavy collapse is runtime-only in build_chain, not at the node-pool/SSOT layer; _load_node_pool (server.py:3506) reads the static [nodes.*] independently.",
+    "GAP 2 -- 'least-busy' dimension NOT implemented: mios_lanes.py is a fixed preference chain + health/cooldown only; no in-flight/load counting (the LiteLLM least-busy shaping). Spec itself defers this to WS-A6 batching / WS-A16 SmartRouting.",
+    "GAP 3 -- resolver not fully closed-loop: mios_lanes.mark_down() has ZERO call sites in server.py (grep mark_down -> only module+test), so a dispatch-time 404/connect error does not feed the cooldown back; and _lane_resolver().snapshot() is not surfaced on /v1/cluster/health (server.py:18227-18292 uses the separate _resolve_failover_chain/_AGENT_REGISTRY path, not the WS-1 resolver)."
+   ],
+   "gap": "[nodes.*] are NOT generated from the [ai].heavy_engine selector -- local-vllm/local-sglang remain hand-maintained static entries (mios.toml:1149/1160); the two-heavy collapse is runtime-only in build_chain. Also: no 'least-busy' load dimension (fixed preference chain only), mark_down() has zero call sites in server.py (no closed-loop dispatch-error failover feed), and _lane_resolver().snapshot() is not exposed on /v1/cluster/health.",
+   "needs_vm_to_verify": false,
+   "suggested_action": "implement-delta"
+  },
+  {
+   "task_id": 10,
+   "ws_id": "WS-4",
+   "status": "partial",
+   "confidence": "high",
+   "evidence": [
+    "[agents].role is first-class: mios.toml [agents.<name>].role declared (lines 850,925,969,1064...) under header 808-822 'agent-pipe is the always-first orchestrator; Hermes/OpenCode are sub-agents it delegates to'; parsed in _load_agent_registry at usr/lib/mios/agent-pipe/server.py:3430 ('role': str(cfg.get('role','general'))). Refine picks by role-match first (822, 2449).",
+    "Orchestrator-vs-worker role made concrete: hermes repointed from thin gateway to a REAL worker ingress -- mios.toml:848 endpoint='http://localhost:8643/v1' (hermes-worker.service, own native tool loop + own :11441 inference, MCP relay to :8640 DISABLED); comment 831-847 documents 'A worker MUST hit a REAL model lane, never a thin gateway that loops to the orchestrator'.",
+    "worker-never-targets-thin-gateway LINT present: automation/99-postcheck.sh:452-514, check '12c. UNIFIED-AI-REDIRECTS', comment line 453 explicitly says 'WS-4 structural invariant (the BUILD-TIME half...)'. Python TOML parse die()s if any [agents.*].endpoint port matches the orchestrator ([ai].endpoint :8640) or thin gateway ([ports].hermes :8642); ports DERIVED from SSOT, no literals (478-510).",
+    "hop-budget = primary RUNTIME structural check, fully wired: _HOP_HEADER='X-MiOS-Hop'/_VIA_HEADER='X-MiOS-Via' (server.py:1194-1231, RFC9110 Max-Forwards/Via); _hop_via_headers() stamped on worker sub-dispatches at 4139,4196,5263; _seed_hop_from_headers() at chat_completions entry 25101-25102; _depth_exhausted()/MAX_DISPATCH_DEPTH gate fan-out at 3831,4594,15575,25651,25952; _enter_dispatch_hop() at 4606; self-id-in-Via -> degrade-closed (1226-1229).",
+    "Hop-budget SSOT key present: usr/share/mios/mios.toml:1865-1873 [dispatch.autonomy].max_dispatch_depth=2 (and MAX_DISPATCH_DEPTH consumes MIOS_MAX_DISPATCH_DEPTH / 'max_dispatch_depth', server.py:1156).",
+    "Async synthesis: council/swarm secondaries + web fan-out race concurrently via asyncio.gather (server.py:6202,8972,9173,11264); width bounded by COUNCIL_MAX_DEFAULT (1263), _plan_swarm self-gates facet count (1292-1303), SWARM_DECOMPOSE_MIN_WORDS=6 (1648) gates trivial vs substantive turns.",
+    "SOFT GAP -- no explicit named 'effort' knob: grep for effort/complexity-scale/streaming-synth finds no first-class effort tier; synthesis runs streaming=False (gather-then-synthesize, e.g. _respond_agent_dag call at 4612-4613), not incrementally streamed. No dedicated test_mios_*.py exercises the hop-budget guard or the worker-recursion lint (grep of test_mios_*.py for X-MiOS-Hop/hop_budget/MAX_DISPATCH_DEPTH = zero hits)."
+   ],
+   "gap": "No first-class 'effort'-scaling knob that scales orchestration intensity by query complexity (only width caps + facet self-gating exist), synthesis is gather-then-synthesize (streaming=False) rather than incremental/async-streamed, and there is no co-located unit test exercising the hop-budget guard (_HOP_HEADER/_VIA_HEADER/_depth_exhausted) or the 99-postcheck 12c worker-recursion lint.",
+   "needs_vm_to_verify": false,
+   "suggested_action": "implement-delta"
+  },
+  {
+   "task_id": 11,
+   "ws_id": "WS-2",
+   "status": "partial",
+   "confidence": "high",
+   "evidence": [
+    "OBJECTIVE has 5 pieces; registry plumbing exists but each piece has a specific gap. No dedicated test_mios_<topic>.py for WS-2 capability-registry (ls of agent-pipe shows none for catalog/registry/manifest/skill).",
+    "PIECE 1 (structured [recipes.*]/[skills.*] DAG->pgvector) = PARTIAL. [recipes.*] exist: 19 blocks, parsed by _load_recipe_catalog (server.py:6023-6052) into flat {description,args,permission} -- NOT DAGs. [skills] at mios.toml:4072 is a MINER-CONFIG block, not per-skill [skills.<name>] structured defs. Skills are mined/promoted rows in pgvector skill table (schema-init.sql:135-149, body jsonb) -- no DAG serialization, no unified _VERB_CATALOG-style structured recipe/skill model.",
+    "PIECE 2 (ONE schema-validated manifest, single endpoint) = PARTIAL. /v1/tools (server.py:17586-17640) IS the unified projection (verbs via _verb_to_openai_tool + recipes via _recipe_to_openai_tool + promoted skills via _skill_to_openai_tool) consumed by mios-mcp-server tools/list. But it is NOT JSON-schema-validated, and parallel endpoints remain (/v1/verbs, /v1/resources 17687, /v1/skills) -- not a single schema-validated contract.",
+    "PIECE 3 (tools/list per-agent RBAC-filtered) = MISSING at the manifest. _agent_rbac_filter (server.py:7171-7211) and _user_rbac_filter (7214-7273) exist and ARE wired -- but only at the DAG fan-out dispatch surface (server.py:14513-14514 _agent_rbac_filter(aname,_wtools)). The discovery endpoint /v1/tools (17587 async def list_tools(include_rare:bool=True)) takes NO agent/principal arg and applies NO RBAC -> served manifest is unfiltered.",
+    "PIECE 4 (pkg()->high-privilege) = PARTIAL. [verbs.pkg] (mios.toml:3067-3078) is permission=\"write\", tier=\"common\" -- not elevated to a high-privilege/interactive tier nor gated.",
+    "PIECE 5 (generative refusal detection replacing hardcoded English refusal-patterns.txt) = MISSING. usr/share/mios/ai/refusal-patterns.txt still ships ~280 hardcoded English regexes; still consumed by mios-daemon, mios-delegation-prefilter, owui/pipes/mios_antimeta_filter.py (grep -rln refusal-patterns). In-pipe _looks_like_disclaimer (server.py:4748-4750) uses hardcoded English _DISCLAIM_MARKERS tuple (4739-4745). No generative/LLM refusal classifier found anywhere (grep for generative.*refus / _detect_refusal = no matches)."
+   ],
+   "gap": "Five named acceptance pieces each missing a specific element: (1) recipes are flat (not DAG); skills are pgvector miner rows with no structured [skills.*] model or DAG serialization; (2) /v1/tools is the unified projection but is NOT JSON-schema-validated and is not the sole endpoint; (3) /v1/tools (server.py:17587) applies NO per-agent RBAC -- _agent_rbac_filter is only wired at the fan-out dispatch path (14513), not at the discovery manifest; (4) [verbs.pkg] is permission=write/tier=common, not elevated to high-privilege; (5) refusal detection is still hardcoded English (refusal-patterns.txt + _DISCLAIM_MARKERS at server.py:4739) -- no generative classifier.",
+   "needs_vm_to_verify": false,
+   "suggested_action": "implement-delta"
+  },
+  {
+   "task_id": 12,
+   "ws_id": "WS-8",
+   "status": "partial",
+   "confidence": "high",
+   "evidence": [
+    "VLM lane baked (objective part 1 DONE): usr/share/mios/llamacpp/mios-llm-light.yaml:145-153 defines the 'qwen3-vl:4b' slot backed by --model /models/holo1.5-7b.gguf + --mmproj /models/holo1.5-7b-mmproj-q8_0.gguf (Holo1.5-7B, qwen2vl arch, ctx 8192); inert-until-operator-places-GGUFs is by design (security classifier blocks the assistant fetch).",
+    "Dead :11434 wiring fixed (objective part 2 DONE): server.py:296 MIOS_MICRO_ENDPOINT, :2474 MIOS_REFINE_ENDPOINT, :2509 MIOS_POLISH_ENDPOINT, :12222 DCI_ENDPOINT all now resolve to http://localhost:11450/v1 with explicit 'was dead :11434' comments; remaining :11434 hits are ollama-lane-hint constants/comments, not dead hot-path wiring.",
+    "cu_verify/cu_act verbs MISSING (objective part 3 NOT DONE): grep across /usr and /etc returns 0 occurrences of cu_act/cu_verify outside doc strings in usr/libexec/mios/mios-doctor:73,82. The SSOT verb catalog (mios.toml:2887-2979) has cu_screenshot/cu_ground/cu_atspi_query/cu_window_list/cu_click/cu_type/cu_key/cu_key_combo but NO cu_act and NO cu_verify; no closed perceive->act->verify loop verb. verify_launch (mios.toml:2254) exists but is a window-by-title launch confirmation, not the WS-8 grounded cu_verify.",
+    "Windows+Linux perception unified (objective part 4 DONE): usr/libexec/mios/mios-computer-use:1-49 is documented as 'the Linux/Wayland peer of mios-pc-control', AT-SPI-first with mios-pc-vision VLM fallback, with a subcommand set explicitly 'contract-compatible with mios-pc-control so the cu_* verbs ... are backend-agnostic'. Both pc_* (Windows UIA) and cu_* (Linux) verbs co-exist in routing.domains.computer_use (mios.toml:2215).",
+    "VLM-vs-heavy gating present (objective part 5 DONE): [ai].heavy_engine='sglang' (mios.toml:4390); mios_lanes.build_chain() collapses the two 'mios-heavy' lanes (server.py:218-251); health_gate=true on every lane (mios.toml:983-1177); vision lane co-resident/swap accounting in mios-llm-light.yaml:155-175; vision endpoint SSOT vision_grounding_endpoint/chat_vision_model (mios.toml:4652-4660) -> _vision_complete routing (server.py:25174-25176, VISION_MODEL at 22192).",
+    "No WS-8 test suite: Glob of usr/lib/mios/agent-pipe/test_mios_*.py shows no test_mios_computer_use.py / test_mios_cu.py / test_mios_vision.py; mios-doctor:72-87 is the only WS-8 readiness check (a runtime probe, not a unit test)."
+   ],
+   "gap": "The two new verbs the objective explicitly names -- cu_verify and cu_act -- are not implemented anywhere (0 occurrences outside mios-doctor doc strings); there is no closed perception->act->verify loop verb and no WS-8 test (test_mios_computer_use.py / test_mios_cu.py absent). The other 4 of 5 objective parts (VLM baking, :11434 fix, Win+Linux perception unification, heavy_engine+health-gate gating) are present in code.",
    "needs_vm_to_verify": false,
    "suggested_action": "implement-delta"
   },
   {
    "task_id": 13,
    "ws_id": "WS-A8",
-   "status": "missing",
+   "status": "done",
    "confidence": "high",
    "evidence": [
     "No mios_trace.py module: Glob of C:/MiOS/usr/lib/mios/agent-pipe/mios_*.py returns 16 modules (aci, evict, hitl, kvfork, owui, sched, stress, codemode, lanes, pg, a2a_principal, reputation, jsonsalvage, goap, selfimprove) but NO mios_trace.py",
@@ -97,7 +209,29 @@
     "No trace/span wiring in automation/build.sh (Grep no matches) -- spec ref automation/build.sh:389-417 has no trace artifact step",
     "All 'trace'/'span' server.py hits are comments (operator-flagged debug traces) or HTML/CSS <span> elements, not observability instrumentation"
    ],
-   "gap": "Entire WS-A8 is unbuilt. Need to: (1) add trace_id/span_id/parent_span_id columns to the event table in schema-init.sql; (2) create mios_trace.py (pure-stdlib span emitter) + test_mios_trace.py; (3) add trace/span contextvars + helper in server.py; (4) mint a trace id at the top of chat_completions and propagate it across the HTTP hop (header); (5) stamp route/plan/dispatch/synthesize stage spans; (6) add GET /v1/trace/{trace_id}; (7) surface trace config in scheduler_state; (8) add trace config keys to mios.toml.",
+   "gap": "DONE (implemented post-grounding): WS-A8 commit 4b86de7, test 30/30",
+   "needs_vm_to_verify": false,
+   "suggested_action": "mark-complete"
+  },
+  {
+   "task_id": 14,
+   "ws_id": "WS-A4",
+   "status": "missing",
+   "confidence": "high",
+   "evidence": [
+    "_kv_fork( has ZERO call sites: grep -nE '(await |= )?_kv_fork\\(' server.py returns only the definition at server.py:3150 (async def _kv_fork). Acceptance explicitly requires >=1 CALL site beyond the def -- it FAILS today, fork is still dead code (subtasks 4/5/6 unmet).",
+    "DAG drivers carry no fork: sed 14403-15120 (covers _execute_dag_node @14403 and execute_dag @14923) contains zero _kv_fork/kvfork references (subtasks 4,5).",
+    "Council secondary fan-out (~server.py:26606, the fanout%s primary+secondary block) contains zero _kv_fork/kvfork references (subtask 6).",
+    "No child conv-key derivation: grep for '#fork:' / fork-child-conv yields nothing; the acceptance child filename 'mios-kv-<parent>#fork:<node>.bin' is never constructed (subtask 3).",
+    "No kv_forked audit field: every 'forked'/'kv_forked' hit is inside _kv_fork's own return dict (server.py:3157-3181); no node/secondary audit envelope carries kv_forked:true (subtask 7).",
+    "mios_kvgc.py and test_mios_kvgc.py DO NOT EXIST (ls: No such file or directory). Acceptance requires `python3 .../test_mios_kvgc.py` exit 0 with all PASS -- impossible (subtasks 8,12).",
+    "No GC sweeper in background loop: only _knowledge_evict_loop (server.py:11167) and _selfimprove_loop (server.py:20013) run; no KV-GC create_task (subtask 9).",
+    "No GC SSOT/env keys: grep kv_gc/KV_GC over mios.toml + usr/lib/mios returns nothing; only kv_fork_enable=false (mios.toml:1540) + kv_fork_max_branches=4 (1541) exist (subtask 10).",
+    "No tmpfiles age-out backstop: usr/lib/tmpfiles.d/mios-llamacpp.conf has only `d` dir decls for /var/lib/mios/llamacpp/slots; grep -E '^[eDrR] ' returns NONE (subtask 11).",
+    "DONE underlying mechanism (WS-8, prior backlog): mios_kvfork.py complete (validate_fork/plan_fork/fork_outcome/clamp_branches), imported at server.py:101-103, driven by _kv_fork @3150; test_mios_kvfork.py passes 34/34; scheduler_state kv_fork config-posture block @18409 (config only, no resident child accounting).",
+    "_kv_filename still duplicated: defined in server.py:3079 AND mios_kvfork.kv_filename (kept byte-identical by comment, not de-duped) -- subtask 1 (de-dup to one source) unmet."
+   ],
+   "gap": "The entire WS-A4 delta is unimplemented. The underlying PURE fork mechanism (mios_kvfork.py + _kv_fork driver + flags + 34/34 test) exists from prior WS-8 work, but _kv_fork has zero call sites (dead code). Missing: (a) wire _kv_fork into execute_dag/_execute_dag_node and the council secondary fan-out with child conv-key derivation (mios-kv-<parent>#fork:<node>.bin); (b) add kv_forked:true to node/secondary audit envelopes; (c) create mios_kvgc.py GC sweeper module + wire into the agent-pipe background loop; (d) add kv_gc_* SSOT flags + env overrides; (e) add a tmpfiles e/D age-out backstop to mios-llamacpp.conf for the slots dir; (f) create test_mios_kvgc.py (stdlib-only, must exit 0); (g) de-dup _kv_filename to one source.",
    "needs_vm_to_verify": false,
    "suggested_action": "implement-delta"
   },
@@ -210,6 +344,224 @@
    "gap": "All 10 subtasks are unimplemented. Required: (1) create mios_pdp.py pure-stdlib decision core; (2) add _dispatch_agent_var contextvar near server.py:7397; (3) fix the fail-OPEN max_permission defect at server.py:6981-6984 (unknown tier must fail-closed, not no-ceiling); (4) build _policy_decide(...); (5) wire the PDP into _dispatch_mios_verb_inner at server.py:16701 after the tool=re.sub normalize (the actual bypass-closing step - dispatch currently has zero capability check); (6) refactor _agent_rbac_filter / _user_rbac_filter surface pruning to share the PDP core so surface and dispatch cannot diverge; (7) emit a unified PDP audit event on deny (+ optional allow when [ai].pdp_audit_allow=true); (8) add [ai]/[agents.*]/[users.*] PDP config keys to mios.toml; (9) add an RBAC config lint block to /automation/99-postcheck.sh; (10) create test_mios_pdp.py (stdlib only).",
    "needs_vm_to_verify": false,
    "suggested_action": "implement-delta"
+  },
+  {
+   "task_id": 22,
+   "ws_id": "WS-A13",
+   "status": "missing",
+   "confidence": "high",
+   "evidence": [
+    "Glob for **/mios_sandbox.py and **/test_mios_sandbox.py returns NO files; the agent-pipe sibling-module set is 17 mios_*.py (aci/evict/hitl/kvfork/owui/sched/stress/codemode/lanes/pg/a2a_principal/reputation/jsonsalvage/goap/selfimprove/toolconflict/trace) and 20 test_mios_*.py -- none named sandbox. The core WS-A13 deliverable module + test are absent.",
+    "No sandbox_profile projection in the SSOT: Grep 'sandbox_profile|sandbox_tier|sandbox_mode|mechanism=podman|ai/dispatch' over C:/MiOS/usr/share/mios/mios.toml returns zero hits. [verbs.*] blocks carry no per-verb sandbox_profile field (subtask 2 not done).",
+    "Dispatch chokepoint _dispatch_mios_verb_inner (server.py:16946) does NOT wire confinement: after the taint firewall (16969), _hitl_gate (16995), and _validate_enum_args (17002) it calls _build_dispatch_cmd (17009) straight to the launcher broker over /run/mios-launcher/launcher.sock. No tier-keyed namespace/seccomp wrap (subtask 5 not done).",
+    "All 'sandbox' references in server.py (4511,4517,8132,13261,13446,13488,24098-24538,25608) belong to the pre-existing CODE_MODE / coderun-sandbox feature (running user code SNIPPETS), not a per-verb risk-tier verb sandbox.",
+    "The only sandbox quadlet is the pre-existing usr/share/containers/systemd/users/mios-coderun-sandbox@.container -- its header explicitly states it is 'NOT the agent runtime' and quotes the operator 'we will add proper sandboxing later'. Glob of usr/lib/bootc/bound-images.d/* returns NO files, so the WS-A13 coderun-sandbox@.container bound image does not exist (subtasks 8 not done).",
+    "No /var/lib/mios/ai/dispatch writable workspace in usr/lib/tmpfiles.d/mios.conf -- only the code_mode 'cr-<ts>-<rand>' coderun subdir (lines 33,37). Subtask 6 (per-verb writable workspace under /var/lib/mios/ai/dispatch/<verbhash>-<uuid>/) not provisioned.",
+    "automation/99-postcheck.sh references sandbox ONLY in the Law-6 exception allowlist for the existing mios-coderun-sandbox@ quadlet (lines 522,526,541); there is no WS-A13 sandbox_profile drift/postcheck assertion.",
+    "mios-launcher-daemon (usr/libexec/mios) has no sandbox/tier/confine/reject-non-host logic (Grep returns no matches) -- subtask 9 (launcher rejects non-host verbs as defense-in-depth) not done.",
+    "Existing seccomp asset is /etc/mios/containers/coderun-seccomp.json bound only to the code_mode sandbox; no per-tier verb-dispatch seccomp profile exists (subtask 7 not done)."
+   ],
+   "gap": "Entire WS-A13 is unimplemented. Needs: (1) mios_sandbox.py pure-stdlib module (mirror mios_codemode.py/mios_sched.py) resolving a per-verb sandbox profile from the permission tier; (2) test_mios_sandbox.py; (3) a per-verb sandbox_profile projection added to [verbs.*] in mios.toml (tier-resolved at the catalog-load seam); (4) confinement wired at the _dispatch_mios_verb_inner chokepoint (server.py:16946); (5) per-verb writable workspace /var/lib/mios/ai/dispatch/<verbhash>-<uuid>/ declared in usr/lib/tmpfiles.d/mios.conf; (6) a tier seccomp profile; (7) optional heavy-isolation podman Quadlet under usr/lib/bootc/bound-images.d/; (8) launcher-broker rejection of non-host verbs as defense-in-depth; (9) a 99-postcheck.sh assertion; (10) an explicit fail-closed (do-not-degrade-open) degrade policy. The pre-existing code_mode/coderun-sandbox is only the cited mirror pattern, not this feature.",
+   "needs_vm_to_verify": false,
+   "suggested_action": "implement-delta"
+  },
+  {
+   "task_id": 23,
+   "ws_id": "WS-A14",
+   "status": "missing",
+   "confidence": "high",
+   "evidence": [
+    "_HIGH_PRIVILEGE_VERBS (server.py:12949) is a HARDCODED python set literal with NO SSOT load -- subtask 1/2 (SSOT-derived resolver + replace literal) NOT done. mios.toml DOES ship [security].firewall_high_privilege_verbs (mios.toml:623-654) but server.py never reads it; the two have already DRIFTED (the server literal adds 'pkg' at 12989, the toml list omits it).",
+    "Taint firewall pre-check keys off the same hardcoded literal: `if tool in _HIGH_PRIVILEGE_VERBS and session_id` (server.py:16969) -- subtask 4 (derive taint-refusal set from the same SSOT source) NOT done.",
+    "_classify_verb_taint (server.py:13056-13094) HARDCODES taint sources inline (powershell_run -> 'powershell_output'; open_url external; text_view system-prefix list; mcp.* taint). Only allowlist_hosts + the provenance_taint flag are SSOT; subtask 5 (SSOT-drive the taint sources) NOT done.",
+    "TWO separate HITL mechanisms still coexist unreconciled: (a) _hitl_block_reason / [ai].hitl_mode tier gate wired in dispatch_mios_verb at server.py:16869; (b) _hitl_gate / [hitl] scope gate wired in _dispatch_mios_verb_inner at server.py:16995. No PDP, no single routed gate -- subtask 6 NOT done (mios_pdp.py also absent per WS-A9).",
+    "Both gates ship INERT, not block-capable by default: [ai].hitl_mode='off' (mios.toml:4373), [hitl].mode='log' (mios.toml:1656). Subtask 7 (flip high-risk tier to block-capable by default) NOT done.",
+    "/v1/hitl/approve (server.py:13871-13896) accepts an UNAUTHENTICATED POST; the approver is a free-text body field (json.dumps(body.get('approver') or 'operator')) with no token/principal verification. Subtask 8 (require a verified approver, consume WS-A10) NOT done.",
+    "scheduler/introspection (server.py:21879-21882) surfaces only sorted(_HIGH_PRIVILEGE_VERBS) under security.high_privilege_verbs -- no provenance/source/taint-set. Subtask 10 NOT done.",
+    "mios_hitl.py still has ONLY the original 4 WS-6 helpers (parse_scope, requires_approval, gate_outcome, block_result; file is 60 lines) -- no SSOT/taint/block-capable decision helpers. Subtask 12 NOT done.",
+    "Test gap: spec ref usr/lib/mios/agent-pipe/test_mios_hitl_ssot.py DOES NOT EXIST (Glob confirms). Only test_mios_hitl.py is present and it covers solely the original WS-6 scope/gate/block logic (t_parse_scope/t_requires_approval/t_gate_outcome/t_block_result).",
+    "Targeted grep for _resolve_high_priv / high_privilege_resolver / taint_sources / taint_refusal / hitl_block_default / hitl provenance / shadow_block / soft_fail / curated-union across agent-pipe returned NO matches -- none of the WS-A14 machinery exists under any name."
+   ],
+   "gap": "All 12 WS-A14 subtasks are unimplemented. Pre-existing foundations from earlier WS-6 ([hitl] gate + /v1/hitl/approve + mios_hitl.py) and #62 ([ai].hitl_mode tier gate + out-of-process arbiter) exist, but the WS-A14 deltas are absent: (1) _HIGH_PRIVILEGE_VERBS is a hardcoded literal not derived from [security].firewall_high_privilege_verbs (which already exists and has drifted); (2) no curated-union derived set; (3) no lazy/refresh-safe resolution; (4) taint-refusal set not derived from the same source; (5) _classify_verb_taint sources still hardcoded; (6) the two HITL gates not reconciled into one PDP-routed gate (mios_pdp.py absent); (7) high-risk tier not block-capable by default (hitl_mode=off, [hitl].mode=log); (8) /v1/hitl/approve has no verified-approver check; (10) introspection lacks provenance; (11) no soft-fail/shadow-block window; (12) mios_hitl.py not extended and test_mios_hitl_ssot.py does not exist. This is the security/HITL workstream the prior backlog-clearing effort did NOT build.",
+   "needs_vm_to_verify": false,
+   "suggested_action": "implement-delta"
+  },
+  {
+   "task_id": 24,
+   "ws_id": "WS-9",
+   "status": "partial",
+   "confidence": "high",
+   "evidence": [
+    "WS-9 core #62 gate IS implemented + wired: _hitl_block_reason (server.py:7104-7124) refuses high-risk verbs (perm tier >= [ai].hitl_threshold) in block mode; called at the single dispatch chokepoint dispatch_mios_verb (server.py:16869-16874) returning {hitl_blocked:true, exit_code:126}. Config [ai].hitl_mode=off|audit|block + hitl_threshold at mios.toml:4365-4374.",
+    "Out-of-process policy arbiter CLIENT implemented + wired: _hitl_arbiter_verdict (server.py:7138-7168) POSTs {verb,tier,args} to [ai].hitl_arbiter_url, honors hitl_arbiter_fail=open|closed (degrade-open default), called at chokepoint server.py:16870-16871. Config mios.toml:4375-4381.",
+    "A2A inbound signed-principal verify+ENFORCE is DONE: _a2a_verify_principal (server.py:19926) consumed in message/send handler server.py:18809-18819, rejects absent/forged principal with JSON-RPC -32600 when _A2A_PRINCIPAL_REQUIRE (server.py:19906, [agent_passport].principal_mode=enforce).",
+    "GAP (WS-A9 absorbed): single dispatch-time PDP closing the RBAC bypass NOT built. No mios_pdp.py, no _policy_decide, no _dispatch_agent_var, no test_mios_pdp.py (Glob: not found; grep: no matches). _agent_rbac_filter (server.py:7171) + _user_rbac_filter (server.py:7214) are SURFACE-only pruning of the model-shown tool list -- there is NO per-agent/per-user capability enforcement at _dispatch_mios_verb_inner (server.py:16946), so a directly-dispatched verb bypasses RBAC.",
+    "GAP (WS-A9): max_permission fail-OPEN-on-unknown-tier unchanged at server.py:7186-7189 ('a typo/unknown value fails OPEN'); WS-A9 subtask 3 wanted this fixed. No RBAC config lint in automation/99-postcheck.sh (grep: no matches).",
+    "GAP (WS-A14 absorbed): high-privilege set is NOT SSOT-derived. _HIGH_PRIVILEGE_VERBS (server.py:12949-12990) is a hardcoded Python literal; the SSOT list [security].firewall_high_privilege_verbs (mios.toml:623) has ZERO consumers in server.py (grep firewall_high_privilege_verbs: no matches) -> two drift-prone parallel copies. _classify_verb_taint (server.py:13056) taint sources are hardcoded, not SSOT-driven.",
+    "GAP (WS-A14): the two HITL mechanisms are NOT reconciled into one PDP-routed gate. WS-6 [hitl] _hitl_gate (server.py:13821, mode=log/gate, mios.toml:1654) and #62 [ai].hitl_mode _hitl_block_reason (mode=off/audit/block) coexist as parallel surfaces. mios_hitl.py is still only a decision-helper (parse_scope/requires_approval/gate_outcome/block_result), unchanged from WS-6.",
+    "GAP: no single _shape_tool_choice() function (grep: no matches); tool_choice handling stays scattered across ~20 sites. Objective explicitly wants 'single _shape_tool_choice()'.",
+    "GAP: no test for the #62 gate. test_mios_hitl.py only covers OLD WS-6 helpers; does not exercise _hitl_block_reason/_hitl_arbiter_verdict. test_mios_pdp.py and test_mios_hitl_ssot.py absent. No mios-policy-arbiter service/unit/binary anywhere (Glob usr/libexec + usr/lib/systemd/system: not found)."
+   ],
+   "gap": "WS-9's own #62 block-capable HITL gate + arbiter client + A2A passport enforce ARE implemented and wired at the dispatch chokepoint. Missing pieces, all from the absorbed WS-A9/WS-A14 checklists: (1) the single dispatch-time PDP that closes the RBAC bypass -- mios_pdp.py/_policy_decide/_dispatch_agent_var/test_mios_pdp.py + the max_permission fail-OPEN fix (server.py:7186) + the 99-postcheck RBAC lint; (2) SSOT-derived high-privilege/taint resolver replacing the hardcoded _HIGH_PRIVILEGE_VERBS literal (server.py:12949) with [security].firewall_high_privilege_verbs (mios.toml:623, currently unconsumed); (3) reconcile the two parallel HITL surfaces ([hitl] _hitl_gate vs [ai].hitl_mode _hitl_block_reason) into one gate; (4) a single _shape_tool_choice(); (5) tests for the #62 gate (test_mios_pdp.py, test_mios_hitl_ssot.py) and an actual mios-policy-arbiter service (only an arbiter URL client exists).",
+   "needs_vm_to_verify": false,
+   "suggested_action": "implement-delta"
+  },
+  {
+   "task_id": 25,
+   "ws_id": "WS-A10",
+   "status": "missing",
+   "confidence": "high",
+   "evidence": [
+    "mios_principal.py, mios_crl.py, test_mios_principal.py, test_mios_crl.py are ALL ABSENT (verified via test -e in /c/MiOS/usr/lib/mios/agent-pipe/) -- the four core modules/tests the WS names do not exist.",
+    "No edge auth middleware: grep for _principal_auth_mw / _load_caller_tokens / caller-tokens / principal_resolved across agent-pipe returns NOTHING. The only http middleware is _usage_completeness_mw (server.py:24933). So unauthenticated POST /v1/dispatch is NOT 401'd (acceptance criterion 1 fails).",
+    "No [access] SSOT table: grep '^[access]' / 'principal_mode' in /usr/share/mios/mios.toml shows only the A2A [agent_passport].principal_mode comment block (mios.toml:84-93), default 'off'. The WS-A10-required [access].principal_mode='enforce' surface does not exist; /etc/mios/caller-tokens.json absent (ls exit=2).",
+    "_client_env still trusts forwarded identity, not a verified principal: _client_env (server.py:7830) feeds RBAC at server.py:7218-7229, whose own docstring states signed-principal verification 'is a further step' -- i.e. metadata.variables USER_EMAIL can still widen the surface (acceptance criterion 2 fails).",
+    "A2A inbound principal-verify EXISTS but is the adjacent WS-6 piece, NOT WS-A10's default: _a2a_verify_principal + reject path at server.py:18805-18819 is gated by [agent_passport].principal_mode default 'off' (server.py:19906-19909), not the WS-A10 verify+enforce default.",
+    "CRL is advertised-only, not enforced: server.py:17965-17967 only copies revocation_list_url into the A2A card's revocationListUrl. No mios_crl.py, no is_revoked/revoked check anywhere in server.py.",
+    "Reputation is in-memory ONLY: mios_reputation.py docstring lines 14-15 say 'persistence is a later concern'; _A2A_REPUTATION = PeerReputation() (server.py:109) is rebuilt every restart; schema-init.sql has NO reputation/crl/caller_token/principal table. test_mios_reputation.py has zero persistence/load_snapshot/dirty_peers cases (that is WS-A18 task 1).",
+    "/v1/hitl/approve has NO authorization: hitl_approve (server.py:13871-13896) just parses the request body and writes status; the 'approver' is taken verbatim from the body with no verified-approver check (acceptance 'require real authorization on /v1/hitl/approve' fails)."
+   ],
+   "gap": "All 11 WS-A10 subtasks are unimplemented: (1) mios_principal.py + (2) test_mios_principal.py absent; (3) scoped-token store + _load_caller_tokens()/caller-tokens.json absent; (4) _principal_auth_mw inbound-auth ASGI middleware absent (no 401 on no-Authorization dispatch, no [access].principal_mode); (5) _client_env does not defer to a verified principal; (6) no PDP integration; (7) A2A principal_mode default is 'off' not verify+enforce and lives under [agent_passport] not [access]; (8) mios_crl.py CRL enforcement absent (only an advertised card URL); (9) persistent reputation absent (in-memory only, no pg table, no load/flush seam); (10) /v1/hitl/approve still has no authorization; (11) the [access] SSOT config surface in mios.toml is absent. Only the adjacent WS-6 signed-A2A-delegation principal (mios_a2a_principal.py + test_mios_a2a_passport.py) and #54 in-memory reputation exist -- they are NOT the edge-bound caller-principal/CRL/persistent-reputation this WS specifies.",
+   "needs_vm_to_verify": false,
+   "suggested_action": "implement-delta"
+  },
+  {
+   "task_id": 26,
+   "ws_id": "WS-6",
+   "status": "partial",
+   "confidence": "high",
+   "evidence": [
+    "Per-USER authz IS built+wired: _user_rbac_filter (server.py:7214-7273) applies [users.<name>].denied_verbs/allowed_verbs/max_permission from mios.toml, called at server.py:14514 (#60 WS-6 per-user authz). SSOT documented mios.toml:865-875 ([users.guest] example).",
+    "A2A SIGNED delegation principal IS built+wired: mios_a2a_principal.py (text_digest/build_claims/build_metadata/verify, Ed25519 dependency-injected) + test_mios_a2a_passport.py; wired inbound verify at server.py:18805-18819 (_a2a_verify_principal, gated by [agent_passport].principal_mode) and outbound attach at 19857-19922 (_a2a_principal_metadata).",
+    "owner_user memory tagging + RLS present (WS-5 overlap): server.py:10832 stamps owner from user_name/user_email; _rls_owner (10923) + rls_mode=='enforce' (10942).",
+    "MISSING signed X-MiOS-User edge identity: grep for X-MiOS-User/X_MiOS_User across usr/ returns ZERO matches; _orch_ctx_var (server.py:24295) is populated from surface-CLAIMED _client_env identity with no signature verification. Code SELF-ADMITS the gap: server.py:7223-7226 ('Cryptographic SIGNED-principal verification (the signed-principal half of #60) is a further step') and mios.toml:870 ('cryptographic signed-principal verification is the remaining half of #60').",
+    "MISSING WS-A10 edge-bound principal (which WS-6 absorbs+depends on): no _principal_auth_mw, no _load_caller_tokens, no [access] section, no mios_principal.py / test_mios_principal.py, no mios_crl.py / test_mios_crl.py, no /etc/mios/caller-tokens.json.",
+    "MISSING [tenancy] + per-user quota: grep tenancy|quota across usr/ returns no matches; only allow/deny/max_permission caps exist, no quota/budget concept.",
+    "MISSING principal-scoped sandbox + per-user OS substrate: mios-coderun-sandbox@.container is per-RUN (%i=run-id) under the single mios-ai account (UserNS=keep-id); subuid/linger provisioned for mios-ai ONLY (mios-ai-firstboot:116-133), not per-principal sysusers/subuid/@-quadlets.",
+    "MISSING per-principal lane fairness + KV-prefix scoping: grep lane.fair|fairness|kv_prefix|per_principal across usr/ returns no matches.",
+    "MISSING persistent reputation/CRL: mios_reputation.py is explicitly in-memory ('both rebuild on restart; persistence is a [future step]', line 14), snapshot() exists but no pg load/flush; no test for _user_rbac_filter in any test_mios_*.py."
+   ],
+   "gap": "Signed X-MiOS-User (ed25519 passport) edge identity into _orch_ctx is entirely missing (no X-MiOS-User header, no _principal_auth_mw / scoped-token store / mios_principal.py / mios_crl.py); per-user authz keys only on the surface-CLAIMED, unverified identity (code self-admits at server.py:7223-7226 and mios.toml:870). Also missing: [tenancy] table + per-user quota; principal-scoped coderun sandbox + per-user OS substrate (per-principal sysusers/linger/subuid/@-quadlets — current sandbox is per-RUN under one mios-ai account); per-principal lane fairness + KV-prefix scoping; persistent reputation + CRL (WS-A10 pieces WS-6 absorbs); and a test for _user_rbac_filter. Present: per-user RBAC filter (_user_rbac_filter, wired), A2A signed delegation principal (mios_a2a_principal.py + test, wired in/out), and owner_user+RLS memory tagging.",
+   "needs_vm_to_verify": false,
+   "suggested_action": "implement-delta"
+  },
+  {
+   "task_id": 27,
+   "ws_id": "WS-5",
+   "status": "partial",
+   "confidence": "high",
+   "evidence": [
+    "DURABILITY done: nightly pg_dump shipped as usr/lib/systemd/system/mios-pgvector-backup.service (Type=oneshot, User=mios-pgvector uid 826, loopback pg_hba-trust, degrade-open every branch exits 0, gzip+timestamp+prune-to-KEEP) + mios-pgvector-backup.timer (OnCalendar=*-*-* 00:30:00, Persistent=true). Backup dir declared NO-MKDIR-IN-VAR in usr/lib/tmpfiles.d/mios-backups.conf (d /var/lib/mios/backups 0750 826 826).",
+    "LOOPBACK bind done: usr/share/containers/systemd/mios-pgvector.container:72 Exec=postgres -c listen_addresses=${MIOS_PG_BIND_ADDR:-127.0.0.1}; SSOT [pgvector].listen_loopback=true (mios.toml:4210) -> userenv MIOS_PG_BIND_ADDR; comment 'nothing off-box reaches it'.",
+    "owner_user COLUMN done: schema-init.sql:47-52 'ALTER TABLE knowledge ADD COLUMN IF NOT EXISTS owner_user text' + knowledge_owner index (idempotent, additive nullable); re-applied every boot via container ExecStartPost:91 psql -f 10-mios-schema.sql.",
+    "RLS implemented as APP-SIDE filter-before-retrieval (NOT native CREATE POLICY): mios_pg.py build_recall(owner=...) lines 127-129 appends 'AND (owner_user = %(owner)s OR owner_user IS NULL)'; mios_pg.recall(owner=) lines 204-232; server.py _rls_owner() (10920-10935) reads [pgvector].rls_mode, returns principal from _client_env_var; wired into _recall_knowledge_pg (10948 owner=_rls_owner()); agent_memory recall FAIL-CLOSES under enforce (server.py:10880-10885). SSOT rls_mode='off' default (mios.toml:4189).",
+    "embed-on-write done: mios-remember _embed_vec (lines 83-98, nomic-embed-text via :11450/v1/embeddings) called on add (172) and update (228); server.py _store_knowledge embeds q (10845-10847) and tags owner_user from _client_env_var (10838-10841).",
+    "agent SELF-EDIT memory verbs done: mios-remember subcommands add/list/forget/update (argparse 126-142) = Letta core_memory_append/replace; pgvector-primary path (DB_BACKEND=postgres) writes agent_memory via mios-db --pg.",
+    "GAP - no native Postgres RLS: repo-wide grep for 'CREATE POLICY|ROW LEVEL SECURITY|ENABLE ROW LEVEL|current_setting|set_config' returns ZERO hits in schema-init.sql; enforcement is app-side WHERE-clause only. Deliberate per plan doc ws-remaining-implementation-plan-2026-06-20.md:16 ('tag-only first ... enable Postgres RLS in a second, reviewed step').",
+    "GAP - owner_user only on knowledge table: agent_memory + scratch have NO owner_user column (schema-init.sql:55-69, 207-224) and mios-remember writes do not set it; activation doc ws-subsystems-activation-2026-06-20.md:21-23 lists owner-tagging agent_memory/scratch as an explicit 'follow-on'.",
+    "GAP - no test coverage for owner-scoping: test_mios_pg.py:66 t_build_recall asserts only the base recall SQL and never passes/asserts the owner param; no test_mios_rls/owner suite exists (Glob of test_mios_*.py).",
+    "GAP - kanban->pgvector authoritative incomplete (WS-A3 scope): canonical 'kanban' table exists (schema-init.sql:228) but agent-pipe still writes 'kanban_shadow' (server.py _shadow_queue_tasks 10004-10043); no pipe/libexec writer targets the canonical kanban table."
+   ],
+   "gap": "Three nameable residuals: (1) RLS is app-side filter-before-retrieval (mios_pg.build_recall owner clause) not native Postgres CREATE POLICY/ENABLE ROW LEVEL SECURITY (deliberately deferred per plan doc, but the objective names 'Postgres RLS'); (2) owner_user exists only on the knowledge table -- agent_memory and scratch lack the column and mios-remember does not owner-tag them (agent_memory recall fail-closes under enforce); (3) no test exercises the owner-scoped recall path (test_mios_pg.py t_build_recall ignores the owner param). The kanban->pgvector authoritative cutover (canonical kanban table populated; pipe still writes kanban_shadow) is WS-A3's deliverable, not a WS-5 blocker.",
+   "needs_vm_to_verify": true,
+   "suggested_action": "implement-delta"
+  },
+  {
+   "task_id": 28,
+   "ws_id": "WS-7",
+   "status": "partial",
+   "confidence": "high",
+   "evidence": [
+    "k3s BRIDGE = DONE (strong): tools/generate-k3s-manifests.sh:5,48-90 uses `podman kube generate` (podman-authored, NOT hand-rolled), strips volatile fields (creationTimestamp/bind-mount-options/podman-version) for deterministic output, emits an AI-hint header per file, writes to usr/share/mios/k3s/generated/. Path is k3s/generated/ NOT the spec's literal usr/share/mios/k3s-manifests/, but the pods-as-SSOT->k8s objective is met.",
+    "k3s ARTIFACTS committed: 11 generated manifests (mios-webtools, mios-adguard, mios-code-server, mios-cpu-node, mios-forge, mios-forgejo-runner, mios-llm-heavy, mios-llm-light, mios-open-webui, mios-pgvector, mios-searxng) under usr/share/mios/k3s/generated/.",
+    "k3s TEST = present: usr/lib/mios/agent-pipe/test_mios_k3s.py validates every committed manifest parses as YAML, declares apiVersion, carries the AI-hint header, and has all volatile fields stripped (the determinism contract). usr/share/mios/k3s/README.md documents the bridge + the per-trait k3s adaptation still needed (hostNetwork/GPU device-plugin/PV-PVC/securityContext) and explicitly states the manifests are INERT until [k3s] enabled.",
+    "Law-6 BOUND-IMAGE EXCEPTIONS = DONE (exceeds spec baseline): automation/99-postcheck.sh:526 `_law6_exceptions='^(mios-ceph|mios-k3s|mios-llm-heavy|mios-forgejo-runner|mios-coderun-sandbox.*)\\.container$'` with documented rationale block at lines 516-524 (kept in sync with CLAUDE.md Law 6); the BOUND-IMAGES (Law 3) check at lines 545-583 enforces Quadlet<->bound-images.d/ symlink coverage.",
+    ".pod QUADLETS = PARTIAL: only usr/share/containers/systemd/mios-webtools.pod exists (a 4-container co-located pod: redis + firecrawl-api + firecrawl-worker + crawl4ai), wired via Pod=mios-webtools in all 4 member .container files. This was an operator-directed conversion ('make it a pod', 2026-05-24). No broader co-resident-group->pod conversion: the LLM lanes (mios-llm-light/heavy/heavy-alt/worker@) remain standalone Network=host containers.",
+    "[gpu] ENV BLOCK CENTRALIZATION = MISSING: grep of usr/share/mios/mios.toml for `^[gpu`, nvidia.com/gpu, AddDevice, visible_devices, driver_capabilities, gpu_env all return ZERO matches. GPU passthrough stays decentralized per-quadlet: AddDevice=nvidia.com/gpu=all duplicated in mios-llm-light.container:43, mios-llm-heavy.container:48, mios-llm-heavy-alt.container:50, mios-llm-worker@.container:47.",
+    "Activation doc usr/share/doc/mios/concepts/ws-subsystems-activation-2026-06-20.md:80-82 lists the k3s manifests (#61) as a shipped build/CI artifact with the 'adapt host-net/GPU/bind-mounts before deploying' caveat -- corroborates k3s done + deploy-adaptation pending."
+   ],
+   "gap": "Two of four objective bullets are unmet. (1) The `[gpu]` env block is NOT centralized: no [gpu] table in mios.toml; AddDevice=nvidia.com/gpu=all remains duplicated across mios-llm-light/heavy/heavy-alt/worker@ quadlets. (2) `.pod` conversion is single-pod-only (mios-webtools.pod); no other co-resident groups were collapsed to pods. The k3s bridge (generator+11 manifests+test+README) and the Law-6 bound-image exception list are both fully done.",
+   "needs_vm_to_verify": false,
+   "suggested_action": "implement-delta"
+  },
+  {
+   "task_id": 29,
+   "ws_id": "WS-A17",
+   "status": "missing",
+   "confidence": "high",
+   "evidence": [
+    "Spec WS-A17 (task_id 29) in C:/Users/mios/_mios_delta_specs.json requires: mios-registry CLI, mios-pkg.toml manifests, mios-pkg.schema.json + mios-registry.schema.json, ai/v1/packages/ tree, mios_manifest_gen.py (extended), automation/lib/generate-packages.sh, [ai].package_registry flag, 99-postcheck drift check, test_mios_manifest_gen.py.",
+    "Glob for **/mios-registry*, **/mios_manifest_gen.py, **/mios-pkg*.json, **/generate-packages.sh, **/ai/v1/packages/**, **/mios-pkg.toml ALL return 'No files found'.",
+    "usr/lib/mios/schemas/ contains only build_status.schema.json, kargs_diagnosis.schema.json, security_audit.schema.json -- no mios-pkg.schema.json or mios-registry.schema.json.",
+    "usr/libexec/mios/ listing (full) has no mios-registry CLI; the only 'registry' references in usr/libexec/mios/mios-apps:155-409 are about the Windows app registry, unrelated.",
+    "usr/lib/mios/agent-pipe/ has no mios_manifest_gen.py among mios_*.py (aci/evict/hitl/kvfork/owui/sched/stress/codemode/lanes/pg/a2a_principal/reputation/jsonsalvage/goap/selfimprove/toolconflict/trace) and no test_mios_manifest_gen.py among the 20 test_mios_*.py files.",
+    "Grep for package_registry|mios-registry|ai/v1/packages|mios-pkg|generate-packages|manifest_gen|manifest-gen across whole tree matches ONLY 3 doc/planning files (ws-grounding-2026-06-20.md/.json, ws-remaining-implementation-plan-2026-06-20.md) -- zero code/schema/test hits.",
+    "Grep 'package_registry' in usr/share/mios/mios.toml: No matches found -- SSOT feature flag absent.",
+    "automation/99-postcheck.sh has no packages/registry/mios-pkg drift check (grep matches only WSL/bound-image/ollama-lane drift gates at lines 117/163/424/549/578).",
+    "usr/share/mios/ai/v1/ contains tools/config/system-prompts/a2a-peers/agents/mcp/models/context/surface.json -- no packages/ subdir and no *.generated.json.",
+    "Dependency note: WS-A17 subtask 3 extends the WS-A1 generator (mios-ai-manifest-gen/mios_manifest_gen.py), which is itself absent (WS-A1 task #2 still pending); the prior backlog-clearing effort built the SECURITY/FEDERATION/INFRA half (mtls/reputation/egress/k3s/goap/selfimprove tests present) but not this packaging WS."
+   ],
+   "gap": "Entire workstream unbuilt. Missing: (1) usr/lib/mios/schemas/mios-pkg.schema.json + mios-registry.schema.json; (2) package manifest/index emission in mios_manifest_gen.py (which itself does not yet exist -- depends on WS-A1); (3) automation/lib/generate-packages.sh + build-time materialization of usr/share/mios/ai/v1/packages/<author>/<name>/<version>/mios-pkg.toml + registry.json; (4) [ai].package_registry feature flag in mios.toml + version/author SSOT keys; (5) read-only usr/libexec/mios/mios-registry CLI (verify/list); (6) packages drift check in 99-postcheck.sh that passes when the flag is false; (7) test_mios_manifest_gen.py coverage. None of the 8 subtasks have any code.",
+   "needs_vm_to_verify": false,
+   "suggested_action": "implement-delta"
+  },
+  {
+   "task_id": 30,
+   "ws_id": "WS-A18",
+   "status": "missing",
+   "confidence": "high",
+   "evidence": [
+    "mios_gossip.py absent: Glob 'usr/lib/mios/agent-pipe/mios_gossip.py' and '**/*gossip*' both return no files; grep 'gossip|DHT|discovery_round|dirty_peers|load_snapshot' across usr/lib/mios/agent-pipe = no matches.",
+    "test_mios_gossip.py absent: Glob 'usr/lib/mios/agent-pipe/test_mios_gossip.py' returns no files (subtask 11 not done).",
+    "No gossip transport endpoint or round loop in server.py: grep 'quarantine|/v1/a2a/gossip|gossip' over server.py = no matches (subtasks 5,6 not done). The only A2A discovery is _a2a_autodiscover_peers (server.py:19779, tailnet, off unless MIOS_A2A_TAILNET_DISCOVER) and mios-a2a-discover (SSOT/CIDR probe) -- neither is gossip/DHT.",
+    "Reputation is in-memory only: mios_reputation.py (PeerReputation, lines 28-69) has record/score/rank/snapshot only; docstring line 14 states 'persistence is a later concern'; no load_snapshot/save_snapshot/dirty_peers seam (subtasks 1,2 not done).",
+    "No pg persistence wiring: in server.py _A2A_REPUTATION (line 109) is used only at .record() (19892), .snapshot() (19970,19986), .rank() (20109) -- no startup load or periodic flush (subtask 3 not done).",
+    "No reputation table in SSOT schema: grep 'reputation|gossip|peer_score|a2a_peer' (case-insensitive) over usr/share/mios/postgres/schema-init.sql = no matches; only owner_user (lines 47-52, from #59/WS-5) exists (subtask 1 not done).",
+    "test_mios_reputation.py has no persistence cases: covers neutral/scoring/recent_penalty/rank only (t_neutral..t_rank_prefers_reliable, lines 26-83); no load_snapshot round-trip or dirty_peers test (subtask 12 not done).",
+    "mios-a2a-quarantine absent: Glob 'usr/libexec/mios/*quarantine*' returns no files; mios-a2a-discover (usr/libexec/mios/mios-a2a-discover) has no quarantine/clear surface and no reputation-gated admission (subtasks 7,8 not done).",
+    "etc/mios/ai/v1/a2a-peers.json unchanged: a single loopback self-peer, no gossip-merged/additive layer schema comment or vendor default for gossip (subtasks 9,10 not done)."
+   ],
+   "gap": "Entire WS-A18 delta is unbuilt. Build (a) persistent reputation: add a DB-free persistence seam to mios_reputation.py (load_snapshot/dirty_peers), a pg reputation table in schema-init.sql, and load+periodic-flush wiring in server.py; (b) gossip discovery: new mios_gossip.py module, a /v1/a2a/gossip transport endpoint and periodic gossip round loop in server.py, reputation-gated discovery admission, a quarantine/clear surface (mios-a2a-quarantine + mios-a2a-discover), an additive gossip-merged peer-layer schema comment + vendor default in a2a-peers.json; plus test_mios_gossip.py and persistence cases in test_mios_reputation.py. Only the prior #54 in-memory PeerReputation, mios-a2a-discover, tailnet autodiscover, and #60 signed A2A principal exist as the foundation.",
+   "needs_vm_to_verify": false,
+   "suggested_action": "implement-delta"
+  },
+  {
+   "task_id": 31,
+   "ws_id": "WS-10",
+   "status": "partial",
+   "confidence": "high",
+   "evidence": [
+    "CI drift-gate job exists but is INVARIANT/UNIT checks, NOT a regenerate-and-diff round-trip: .github/workflows/mios-ci.yml:32-69 runs only 38-ssot-lint.sh, agent-pipe test_mios_*.py, test_mios_docgen.py, 38-drift-checks.sh. Mirrored by `just drift-gate` (Justfile:68-82) and post-build sub-phases (automation/build.sh:361-389).",
+    "GAP (core WS-10 acceptance) — no 'regenerate derived surface from SSOT then diff vs committed, fail on any diff' step exists anywhere: grep for `git diff`/`--exit-code`/`round-trip`/`regenerate.*diff` across automation/, Justfile, .github/workflows, .forgejo/workflows returns no such gate. tools/generate-ai-manifest.py + ai-bootstrap.sh (artifact generators) are NOT wired into either CI workflow.",
+    "install.env regeneration is NOT diff-gated. 38-ssot-lint.sh asserts every ${MIOS_*} Quadlet placeholder is wired on BOTH ends (userenv.sh slot + 15-render-quadlets.sh allowlist) — a wiring invariant, but it never RENDERS quadlets/install.env and diffs the output vs committed (38-ssot-lint.sh:155-194).",
+    "ai/v1 manifest is only integrity-checked, not regenerated+diffed: 38-drift-checks.sh check_structured (lines 126-220) asserts each usr/share/mios/ai/v1/*.json PARSES and tools.json schema refs resolve on disk — it does not regenerate from SSOT and diff. ai/v1 dir holds 9 manifests (tools.json, mcp.json, agents.json, models.json, surface.json, system-prompts.json, config.json, context.json, a2a-peers.json).",
+    "DONE: 100% AI-hint coverage gate + index. usr/libexec/mios/mios-ai-hint-coverage implements a ratchet gate reusing mios-ai-tag's taggability SSOT (walk()/existing_hint()); wired as 38-drift-checks.sh check 5 check_hint_coverage (lines 222-243) and into CI. Index = mios-codebase-index. Ceiling is [ai_tag].max_untagged (ratchet, not literal 100%, by deliberate design for prompt/data files).",
+    "DONE: single MiOS.md inject point. /MiOS.md exists at repo root; server.py _AGENT_CONTRACT_PATHS (lines 6773-6775) layers ~/.config/mios/MiOS.md < /etc/mios/MiOS.md < /MiOS.md; injected per-request via _agent_contract + _inject_agent_contract (server.py:22496, ~12 hops). AGENTS.md/CLAUDE.md/GEMINI.md are thin redirectors deferring to /MiOS.md (AGENTS.md:8-16).",
+    "Self-grounding generator exists (mios-gen-role-system emits role-system prompts AFTER the /MiOS.md identity; server.py:6813) but it is NOT regenerated-and-diffed in CI either. mios-docgen is a Pandoc/LibreOffice document-CONVERSION tool — unrelated to WS-10 'self-grounding' regeneration.",
+    "Repo's own preflight doc concurs: usr/share/doc/mios/concepts/ws-0-preflight-findings-2026-06-20.md:71-72 'WS-10 (#31): check_hint_coverage already exists; CI rebuild-test gate partly satisfied.'"
+   ],
+   "gap": "The defining WS-10 acceptance is unmet: there is no CI/build step that REGENERATES the derived surfaces (install.env, quadlet renders, ai/v1/*.json manifest, self-grounding/role-system prompts) from the mios.toml SSOT and then DIFFS the regenerated output against the committed tree to FAIL on any difference. The existing gates are static invariant checks (38-ssot-lint placeholder-wiring; 38-drift-checks manifest-parse/ref-integrity + AI-hint coverage ratchet) and unit tests — none performs a generate-then-`git diff --exit-code` round-trip. Required delta: a CI step (and matching `just` target / build sub-phase) that runs the generators (tools/generate-ai-manifest.py, 15-render-quadlets render, mios-sync-env/install.env, mios-gen-role-system) into a clean worktree and fails if the result differs from committed. The two already-satisfied clauses (100%-ratchet AI-hint coverage + index, single /MiOS.md inject point) are complete.",
+   "needs_vm_to_verify": false,
+   "suggested_action": "implement-delta"
+  },
+  {
+   "task_id": 32,
+   "ws_id": "WS-11",
+   "status": "missing",
+   "confidence": "high",
+   "evidence": [
+    "3-projection skills/recipes is INCOMPLETE: OpenAI (/v1/tools server.py:17586-17640) and MCP (/v1/resources server.py:17687-17709) both project verbs+recipes+skills, but the A2A projection _build_agent_card (server.py:17773-17859) renders ONLY _AGENT_REGISTRY agents as A2A skills -- promoted skills and OS recipes are NOT in the AgentCard. So skills/recipes are not 'finished in all three projections'.",
+    "AGNTCY directory is explicitly NOT built: server.py:18018-18020 comment in _build_agntcy_manifest states 'Implementing only the manifest (publish side); the AGNTCY *directory* (where manifests get registered + searched) is a separate task.' Only the OASF manifest (/v1/... publish) exists.",
+    "A2A discovery is NOT passport-gated for admission: _a2a_refresh_peer (server.py:19690-19737) accepts and registers any peer whose card has name/protocolVersion (server.py:17695-17703 probe in mios-a2a-discover lines 57-68), then adds it to _AGENT_REGISTRY as routable -- no passport check, no reputation threshold, no quarantine. Inbound passport verify exists (_a2a_verify_principal server.py:19926-19931, mios_a2a_principal.py) but A2A_PRINCIPAL_MODE defaults to 'off' (server.py:19905-19908) = audit-log only.",
+    "Closed propose->validate->promote self-improve loop is MISSING: mios_selfimprove.py:8-9 + 47-91 is OBSERVE/ANALYZE only ('CLOSING the loop (auto-tuning) is a separate gated step ... intentionally NOT here'); _selfimprove_loop (server.py:20013-20044) only logs findings. Replay is capture+observability only: _capture_run_template + /v1/run-templates (server.py:14847-14916) with explicit 'replay-REUSE ... is a documented follow-up' -- no reliability gate guarding a promote loop.",
+    "Absorbed WS-A17 package format is MISSING: no mios_manifest_gen.py, no usr/lib/mios/schemas/mios-pkg.schema.json, no /usr/libexec/mios/mios-registry CLI, no /usr/share/mios/ai/v1/packages/ tree, no [ai].package_registry flag (Glob+Grep all empty; ai/v1 has only tools/agents/surface/mcp/a2a-peers/config/context/models/system-prompts.json).",
+    "Absorbed WS-A18 gossip/DHT + persistent reputation is MISSING: no mios_gossip.py; mios_reputation.py:13-15 PeerReputation is explicitly 'in-memory + per-process ... persistence is a later concern' with no pg load/flush seam; no gossip transport endpoint or round loop in server.py; no mios-a2a-quarantine. (Prior backlog built A2A signed principal + in-memory reputation + discovery scaffolding, but not the WS-11 federation scale-out.)",
+    "No WS-11-specific test suite: test_mios_a2a_passport.py covers only the signed-principal claim/digest glue (injected fakes), test_mios_selfimprove.py covers only the analyzer; there is NO test for 3-projection-parity, AGNTCY directory, gossip, package registry, or a closed replay/promote loop."
+   ],
+   "gap": "Three core WS-11 deliverables are absent or only half-built: (1) A2A projection of promoted skills + OS recipes into the AgentCard (today agents-only); (2) a passport-gated AGNTCY directory (register+search) plus passport/reputation-gated discovery ADMISSION (today admission is open, principal_mode defaults off); (3) the replay-reliability gate guarding a closed propose->validate->promote self-improve loop (today only capture/observability + read-only analyzer exist). Both absorbed sub-workstreams are unbuilt: WS-A17 versioned package format + mios-registry CLI + ai/v1/packages projection, and WS-A18 mios_gossip.py + pg-persistent reputation + quarantine surface.",
+   "needs_vm_to_verify": false,
+   "suggested_action": "implement-delta"
   }
- ]
+ ],
+ "note": "4 tasks complete: #1 PREFLIGHT, #4 WS-0A (verify), #8 WS-A7, #13 WS-A8. Remaining 25 = 18 missing + 7 partial (vs plan acceptance)."
 }
