@@ -19653,6 +19653,56 @@ async def selfimprove_report_ep() -> JSONResponse:
                          **(await _selfimprove_report())})
 
 
+# #64 closure (observe -> surface): a DEFAULT-OFF periodic task that runs the
+# analyzer and LOGS new high/medium findings -> the daemon-agent (which tails
+# journals) + the operator see them. [selfimprove].interval_min = 0 (default) ->
+# no task is spawned and the hot path is byte-identical. It only SURFACES;
+# auto-remediation (self-modification) is a separate, guardrail-gated step.
+_SELFIMPROVE_SEEN: set = set()
+
+
+async def _selfimprove_loop() -> None:
+    try:
+        interval = int(_toml_section("selfimprove").get("interval_min", 0))
+    except Exception:  # noqa: BLE001
+        interval = 0
+    if interval <= 0:
+        return
+    log.info("self-improve: proactive surfacing loop every %d min", interval)
+    while True:
+        try:
+            await asyncio.sleep(interval * 60)
+            rep = await _selfimprove_report()
+            new = 0
+            for f in rep.get("findings", []):
+                if f.get("severity") not in ("high", "medium"):
+                    continue
+                key = (f.get("kind"), f.get("subject"))
+                if key in _SELFIMPROVE_SEEN:
+                    continue
+                _SELFIMPROVE_SEEN.add(key)
+                new += 1
+                log.warning("self-improve [%s] %s: %s -- %s",
+                            f.get("severity"), f.get("subject"),
+                            f.get("detail"), f.get("suggestion"))
+            if new:
+                log.info("self-improve: surfaced %d new finding(s)", new)
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:  # noqa: BLE001 -- degrade-open; never crash the loop
+            log.debug("self-improve loop: %s", e)
+
+
+@app.on_event("startup")
+async def _selfimprove_on_startup() -> None:
+    """Spawn the proactive self-improve surfacing loop when enabled (#64)."""
+    try:
+        if int(_toml_section("selfimprove").get("interval_min", 0)) > 0:
+            asyncio.create_task(_selfimprove_loop())
+    except Exception:  # noqa: BLE001
+        pass
+
+
 @app.get("/v1/a2a/skills")
 async def a2a_skills_list() -> JSONResponse:
     """Federated skill catalog: every skill any ready peer declared, with the

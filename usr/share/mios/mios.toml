@@ -153,6 +153,12 @@ sample_size    = 500     # most-recent tool_call rows to analyze
 min_samples    = 5       # don't judge a tool with fewer calls (no over-reaction)
 fail_threshold = 0.3     # tools failing >= this fraction are flagged
 slow_ms        = 10000   # tools averaging >= this many ms are flagged slow
+# interval_min: how often the agent proactively runs the analyzer and SURFACES
+# new high/medium findings to the log (picked up by the daemon-agent + visible in
+# journalctl) -- the "loop closure" in the observe->surface sense. 0 (default) =
+# off, no background task (byte-identical hot path). It only SURFACES; auto-
+# remediation (self-modification) is a separate, guardrail-gated step.
+interval_min   = 0
 
 # ----------------------------------------------------------------------------
 # [portal] -- MiOS Portal web app (served by mios-agent-pipe at GET / on
