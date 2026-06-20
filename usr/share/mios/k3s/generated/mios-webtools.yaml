@@ -1,0 +1,124 @@
+# AI-hint: GENERATED k3s/k8s manifest for the MiOS mios-webtools pod (pods-as-SSOT, WS-7). DO NOT EDIT -- regenerate via tools/generate-k3s-manifests.sh. Inert until the [k3s] lane is enabled; host-net/GPU/bind-mount services need k3s adaptation first.
+# AI-related: tools/generate-k3s-manifests.sh, mios-webtools.container, usr/share/mios/k3s/README.md
+# Save the output of this file and use kubectl create -f to import
+# it into Kubernetes.
+#
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+    io.containers.autoupdate/mios-webtools-crawl4ai: local
+    io.containers.autoupdate/mios-webtools-firecrawl-api: local
+    io.containers.autoupdate/mios-webtools-firecrawl-worker: local
+    io.containers.autoupdate/mios-webtools-redis: registry
+    io.kubernetes.cri-o.SandboxID/mios-webtools-crawl4ai: 04eec1cf4499719fdc66e46f63464670531b93729a12cd3d411f365e6d9eff19
+    io.kubernetes.cri-o.SandboxID/mios-webtools-firecrawl-api: 04eec1cf4499719fdc66e46f63464670531b93729a12cd3d411f365e6d9eff19
+    io.kubernetes.cri-o.SandboxID/mios-webtools-firecrawl-worker: 04eec1cf4499719fdc66e46f63464670531b93729a12cd3d411f365e6d9eff19
+    io.kubernetes.cri-o.SandboxID/mios-webtools-redis: 04eec1cf4499719fdc66e46f63464670531b93729a12cd3d411f365e6d9eff19
+    io.podman.annotations.infra.name: mios-webtools-infra
+  labels:
+    app: mios-webtools
+  name: mios-webtools
+spec:
+  containers:
+  - args:
+    - redis-server
+    - --bind
+    - 127.0.0.1
+    - --port
+    - "6380"
+    - --appendonly
+    - "no"
+    image: docker.io/library/redis:7-alpine
+    name: mios-webtools-redis
+    securityContext:
+      runAsGroup: 0
+      runAsUser: 0
+    volumeMounts:
+    - mountPath: /data
+      name: 795e0dff145ba5290dbceed18dda8b44372781739ec2f8ec9578673742782767-pvc
+  - env:
+    - name: MIOS_CRAWL_CAMOUFOX
+      value: "true"
+    - name: MIOS_CRAWL_CDP_URL
+      value: http://127.0.0.1:9222
+    - name: MIOS_CRAWL_MIN_CHARS
+      value: "200"
+    - name: MIOS_PORT_CRAWL4AI
+      value: "11235"
+    - name: MIOS_CRAWL_BIND
+      value: 127.0.0.1
+    image: localhost/mios-crawl4ai-slim:latest
+    name: mios-webtools-crawl4ai
+    securityContext:
+      runAsGroup: 0
+      runAsUser: 0
+    volumeMounts:
+    - mountPath: /app/mios-crawl4ai-service.py
+      name: usr-lib-mios-crawl4ai-mios-crawl4ai-service-py-host-0
+      readOnly: true
+  - args:
+    - pnpm
+    - run
+    - workers
+    env:
+    - name: BULL_AUTH_KEY
+      value: mios
+    - name: NODE_ENV
+      value: production
+    - name: NUM_WORKERS_PER_QUEUE
+      value: "2"
+    - name: PORT
+      value: "3002"
+    - name: HOST
+      value: 127.0.0.1
+    - name: REDIS_URL
+      value: redis://127.0.0.1:6380
+    - name: LOGGING_LEVEL
+      value: INFO
+    - name: REDIS_RATE_LIMIT_URL
+      value: redis://127.0.0.1:6380
+    - name: USE_DB_AUTHENTICATION
+      value: "false"
+    image: localhost/mios-firecrawl:v1.0.0
+    name: mios-webtools-firecrawl-worker
+    securityContext:
+      runAsGroup: 0
+      runAsUser: 0
+  - args:
+    - pnpm
+    - run
+    - start:production
+    env:
+    - name: NUM_WORKERS_PER_QUEUE
+      value: "2"
+    - name: PORT
+      value: "3002"
+    - name: BULL_AUTH_KEY
+      value: mios
+    - name: REDIS_RATE_LIMIT_URL
+      value: redis://127.0.0.1:6380
+    - name: REDIS_URL
+      value: redis://127.0.0.1:6380
+    - name: USE_DB_AUTHENTICATION
+      value: "false"
+    - name: HOST
+      value: 127.0.0.1
+    - name: NODE_ENV
+      value: production
+    - name: LOGGING_LEVEL
+      value: INFO
+    image: localhost/mios-firecrawl:v1.0.0
+    name: mios-webtools-firecrawl-api
+    securityContext:
+      runAsGroup: 0
+      runAsUser: 0
+  hostNetwork: true
+  volumes:
+  - name: 795e0dff145ba5290dbceed18dda8b44372781739ec2f8ec9578673742782767-pvc
+    persistentVolumeClaim:
+      claimName: 795e0dff145ba5290dbceed18dda8b44372781739ec2f8ec9578673742782767
+  - hostPath:
+      path: /usr/lib/mios/crawl4ai/mios-crawl4ai-service.py
+      type: File
+    name: usr-lib-mios-crawl4ai-mios-crawl4ai-service-py-host-0

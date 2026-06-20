@@ -1,0 +1,2 @@
+# AI-hint: GENERATED k3s/k8s manifest for the MiOS mios-webtools-crawl4ai pod (pods-as-SSOT, WS-7). DO NOT EDIT -- regenerate via tools/generate-k3s-manifests.sh. Inert until the [k3s] lane is enabled; host-net/GPU/bind-mount services need k3s adaptation first.
+# AI-related: tools/generate-k3s-manifests.sh, mios-webtools-crawl4ai.container, usr/share/mios/k3s/README.md

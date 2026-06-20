@@ -1,0 +1,46 @@
+# AI-hint: GENERATED k3s/k8s manifest for the MiOS mios-adguard pod (pods-as-SSOT, WS-7). DO NOT EDIT -- regenerate via tools/generate-k3s-manifests.sh. Inert until the [k3s] lane is enabled; host-net/GPU/bind-mount services need k3s adaptation first.
+# AI-related: tools/generate-k3s-manifests.sh, mios-adguard.container, usr/share/mios/k3s/README.md
+# Save the output of this file and use kubectl create -f to import
+# it into Kubernetes.
+#
+
+# NOTE: If you generated this yaml from an unprivileged and rootless podman container on an SELinux
+# enabled system, check the podman generate kube man page for steps to follow to ensure that your pod/container
+# has the right permissions to access the volumes added.
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+  labels:
+    app: mios-adguard-pod
+  name: mios-adguard-pod
+spec:
+  containers:
+  - args:
+    - --no-check-update
+    - -c
+    - /opt/adguardhome/conf/AdGuardHome.yaml
+    - -w
+    - /opt/adguardhome/work
+    image: docker.io/adguard/adguardhome:latest
+    name: mios-adguard
+    securityContext:
+      runAsGroup: 825
+      runAsUser: 825
+    volumeMounts:
+    - mountPath: /opt/adguardhome/work
+      name: var-lib-mios-adguard-host-0
+    - mountPath: /opt/adguardhome/conf
+      name: etc-mios-adguard-host-1
+  hostNetwork: true
+  hostname: MiOS-955
+  volumes:
+  - hostPath:
+      path: /var/lib/mios/adguard
+      type: Directory
+    name: var-lib-mios-adguard-host-0
+  - hostPath:
+      path: /etc/mios/adguard
+      type: Directory
+    name: etc-mios-adguard-host-1

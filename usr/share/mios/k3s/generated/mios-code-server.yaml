@@ -1,0 +1,59 @@
+# AI-hint: GENERATED k3s/k8s manifest for the MiOS mios-code-server pod (pods-as-SSOT, WS-7). DO NOT EDIT -- regenerate via tools/generate-k3s-manifests.sh. Inert until the [k3s] lane is enabled; host-net/GPU/bind-mount services need k3s adaptation first.
+# AI-related: tools/generate-k3s-manifests.sh, mios-code-server.container, usr/share/mios/k3s/README.md
+# Save the output of this file and use kubectl create -f to import
+# it into Kubernetes.
+#
+
+# NOTE: If you generated this yaml from an unprivileged and rootless podman container on an SELinux
+# enabled system, check the podman generate kube man page for steps to follow to ensure that your pod/container
+# has the right permissions to access the volumes added.
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+    io.containers.autoupdate/mios-code-server: registry
+  labels:
+    app: mios-code-server-pod
+  name: mios-code-server-pod
+spec:
+  containers:
+  - env:
+    - name: GIT_CONFIG_COUNT
+      value: "1"
+    - name: PASSWORD
+      value: mios
+    - name: BIND_ADDR
+      value: 0.0.0.0:8080
+    - name: DEFAULT_WORKSPACE
+      value: /mnt/mios-root
+    - name: GIT_CONFIG_KEY_0
+      value: safe.directory
+    - name: GIT_CONFIG_VALUE_0
+      value: /mnt/mios-root
+    - name: SUDO_PASSWORD
+      value: mios
+    image: ghcr.io/coder/code-server:latest
+    name: mios-code-server
+    securityContext:
+      runAsGroup: 0
+      runAsNonRoot: true
+      runAsUser: 0
+      seLinuxOptions:
+        type: spc_t
+    volumeMounts:
+    - mountPath: /home/coder
+      name: var-lib-mios-code-server-host-0
+    - mountPath: /mnt/mios-root
+      name: root-host-1
+  hostNetwork: true
+  hostname: MiOS-955
+  volumes:
+  - hostPath:
+      path: /var/lib/mios/code-server
+      type: Directory
+    name: var-lib-mios-code-server-host-0
+  - hostPath:
+      path: /
+      type: Directory
+    name: root-host-1

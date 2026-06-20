@@ -1,0 +1,56 @@
+# AI-hint: GENERATED k3s/k8s manifest for the MiOS mios-pgvector pod (pods-as-SSOT, WS-7). DO NOT EDIT -- regenerate via tools/generate-k3s-manifests.sh. Inert until the [k3s] lane is enabled; host-net/GPU/bind-mount services need k3s adaptation first.
+# AI-related: tools/generate-k3s-manifests.sh, mios-pgvector.container, usr/share/mios/k3s/README.md
+# Save the output of this file and use kubectl create -f to import
+# it into Kubernetes.
+#
+
+# NOTE: If you generated this yaml from an unprivileged and rootless podman container on an SELinux
+# enabled system, check the podman generate kube man page for steps to follow to ensure that your pod/container
+# has the right permissions to access the volumes added.
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+  labels:
+    app: mios-pgvector-pod
+  name: mios-pgvector-pod
+spec:
+  containers:
+  - args:
+    - postgres
+    - -c
+    - port=5432
+    - -c
+    - listen_addresses=*
+    env:
+    - name: PGDATA
+      value: /var/lib/postgresql/data/pgdata
+    - name: POSTGRES_PASSWORD
+      value: mios
+    - name: POSTGRES_USER
+      value: mios
+    - name: POSTGRES_DB
+      value: mios
+    image: docker.io/pgvector/pgvector:pg17
+    name: mios-pgvector
+    securityContext:
+      runAsGroup: 826
+      runAsUser: 826
+    volumeMounts:
+    - mountPath: /docker-entrypoint-initdb.d/10-mios-schema.sql
+      name: usr-share-mios-postgres-schema-init-sql-host-0
+      readOnly: true
+    - mountPath: /var/lib/postgresql/data
+      name: var-lib-mios-pgvector-host-1
+  hostNetwork: true
+  hostname: MiOS-955
+  volumes:
+  - hostPath:
+      path: /usr/share/mios/postgres/schema-init.sql
+      type: File
+    name: usr-share-mios-postgres-schema-init-sql-host-0
+  - hostPath:
+      path: /var/lib/mios/pgvector
+      type: Directory
+    name: var-lib-mios-pgvector-host-1

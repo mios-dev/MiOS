@@ -1,0 +1,68 @@
+# AI-hint: GENERATED k3s/k8s manifest for the MiOS mios-forgejo-runner pod (pods-as-SSOT, WS-7). DO NOT EDIT -- regenerate via tools/generate-k3s-manifests.sh. Inert until the [k3s] lane is enabled; host-net/GPU/bind-mount services need k3s adaptation first.
+# AI-related: tools/generate-k3s-manifests.sh, mios-forgejo-runner.container, usr/share/mios/k3s/README.md
+# Save the output of this file and use kubectl create -f to import
+# it into Kubernetes.
+#
+
+# NOTE: If you generated this yaml from an unprivileged and rootless podman container on an SELinux
+# enabled system, check the podman generate kube man page for steps to follow to ensure that your pod/container
+# has the right permissions to access the volumes added.
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+  labels:
+    app: mios-forgejo-runner-pod
+  name: mios-forgejo-runner-pod
+spec:
+  containers:
+  - args:
+    - daemon
+    env:
+    - name: FORGEJO_RUNNER_NAME
+      value: mios-self-hosted
+    - name: FORGEJO_RUNNER_REGISTRATION_TOKEN
+      value: SGpZD5vzKHkKcmgIXxuAtPuRPOnIEYkMdmQlvWea
+    - name: FORGEJO_INSTANCE_URL
+      value: http://localhost:3000/
+    - name: FORGEJO_RUNNER_DEFAULT_LABELS
+      value: mios-self-hosted
+    - name: FORGEJO_RUNNER_LABELS
+      value: mios-self-hosted,podman,bootc,fedora-44
+    image: code.forgejo.org/forgejo/runner:7
+    name: mios-forgejo-runner
+    securityContext:
+      privileged: true
+      procMount: Unmasked
+      runAsGroup: 0
+      runAsUser: 0
+    volumeMounts:
+    - mountPath: /data
+      name: srv-mios-forge-runner-host-0
+    - mountPath: /etc/mios/forge
+      name: etc-mios-forge-host-1
+      readOnly: true
+    - mountPath: /var/lib/mios/forge-runner
+      name: var-lib-mios-forge-runner-host-2
+    - mountPath: /var/lib/containers/storage
+      name: var-lib-containers-storage-host-3
+  hostNetwork: true
+  hostname: MiOS-955
+  volumes:
+  - hostPath:
+      path: /srv/mios/forge-runner
+      type: Directory
+    name: srv-mios-forge-runner-host-0
+  - hostPath:
+      path: /etc/mios/forge
+      type: Directory
+    name: etc-mios-forge-host-1
+  - hostPath:
+      path: /var/lib/mios/forge-runner
+      type: Directory
+    name: var-lib-mios-forge-runner-host-2
+  - hostPath:
+      path: /var/lib/containers/storage
+      type: Directory
+    name: var-lib-containers-storage-host-3

@@ -1,0 +1,75 @@
+# AI-hint: GENERATED k3s/k8s manifest for the MiOS mios-llm-heavy pod (pods-as-SSOT, WS-7). DO NOT EDIT -- regenerate via tools/generate-k3s-manifests.sh. Inert until the [k3s] lane is enabled; host-net/GPU/bind-mount services need k3s adaptation first.
+# AI-related: tools/generate-k3s-manifests.sh, mios-llm-heavy.container, usr/share/mios/k3s/README.md
+# Save the output of this file and use kubectl create -f to import
+# it into Kubernetes.
+#
+
+# NOTE: If you generated this yaml from an unprivileged and rootless podman container on an SELinux
+# enabled system, check the podman generate kube man page for steps to follow to ensure that your pod/container
+# has the right permissions to access the volumes added.
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+  labels:
+    app: mios-llm-heavy-pod
+  name: mios-llm-heavy-pod
+spec:
+  containers:
+  - args:
+    - python3
+    - -m
+    - sglang.launch_server
+    - --model-path
+    - /models
+    - --served-model-name
+    - mios-heavy
+    - --host
+    - 0.0.0.0
+    - --port
+    - "11441"
+    - --mem-fraction-static
+    - "0.7"
+    - --context-length
+    - "65536"
+    - --tool-call-parser
+    - qwen25
+    - --reasoning-parser
+    - qwen3
+    - --disable-cuda-graph
+    - --disable-piecewise-cuda-graph
+    env:
+    - name: SGLANG_ALLOW_OVERWRITE_LONGER_CONTEXT_LEN
+      value: "1"
+    - name: DO_NOT_TRACK
+      value: "1"
+    - name: XDG_CACHE_HOME
+      value: /tmp/.cache
+    - name: FLASHINFER_WORKSPACE_DIR
+      value: /tmp/flashinfer
+    - name: TRANSFORMERS_OFFLINE
+      value: "1"
+    - name: TRITON_CACHE_DIR
+      value: /tmp/triton
+    - name: HF_HUB_OFFLINE
+      value: "1"
+    - name: TORCHINDUCTOR_CACHE_DIR
+      value: /tmp/inductor
+    - name: SGLANG_DISABLE_USAGE_STATS
+      value: "1"
+    - name: HOME
+      value: /tmp
+    image: docker.io/lmsysorg/sglang:latest
+    name: mios-llm-heavy
+    volumeMounts:
+    - mountPath: /models
+      name: usr-share-mios-sglang-model-host-0
+      readOnly: true
+  hostNetwork: true
+  hostname: MiOS-955
+  volumes:
+  - hostPath:
+      path: /usr/share/mios/sglang/model
+      type: Directory
+    name: usr-share-mios-sglang-model-host-0

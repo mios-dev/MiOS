@@ -1,0 +1,72 @@
+# AI-hint: GENERATED k3s/k8s manifest for the MiOS mios-cpu-node pod (pods-as-SSOT, WS-7). DO NOT EDIT -- regenerate via tools/generate-k3s-manifests.sh. Inert until the [k3s] lane is enabled; host-net/GPU/bind-mount services need k3s adaptation first.
+# AI-related: tools/generate-k3s-manifests.sh, mios-cpu-node.container, usr/share/mios/k3s/README.md
+# Save the output of this file and use kubectl create -f to import
+# it into Kubernetes.
+#
+
+# NOTE: If you generated this yaml from an unprivileged and rootless podman container on an SELinux
+# enabled system, check the podman generate kube man page for steps to follow to ensure that your pod/container
+# has the right permissions to access the volumes added.
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+  labels:
+    app: mios-cpu-node-pod
+  name: mios-cpu-node-pod
+spec:
+  containers:
+  - args:
+    - --model
+    - /models/granite-4.1-8b.gguf
+    - --host
+    - 0.0.0.0
+    - --port
+    - "11451"
+    - --ctx-size
+    - "131072"
+    - --flash-attn
+    - "on"
+    - --cache-type-k
+    - q4_0
+    - --cache-type-v
+    - q4_0
+    - --parallel
+    - "1"
+    - --threads
+    - "14"
+    - --n-gpu-layers
+    - "0"
+    - --jinja
+    - --alias
+    - mios-cpu
+    - --slot-save-path
+    - /var/lib/mios/llamacpp/slots
+    command:
+    - /app/llama-server
+    env:
+    - name: HOME
+      value: /var/lib/mios/llamacpp
+    image: ghcr.io/mostlygeek/llama-swap:cuda
+    name: mios-cpu-node
+    securityContext:
+      runAsGroup: 827
+      runAsUser: 827
+    volumeMounts:
+    - mountPath: /models
+      name: usr-share-mios-llamacpp-models-host-0
+      readOnly: true
+    - mountPath: /var/lib/mios/llamacpp/slots
+      name: var-lib-mios-llamacpp-slots-host-1
+  hostNetwork: true
+  hostname: MiOS-955
+  volumes:
+  - hostPath:
+      path: /usr/share/mios/llamacpp/models
+      type: Directory
+    name: usr-share-mios-llamacpp-models-host-0
+  - hostPath:
+      path: /var/lib/mios/llamacpp/slots
+      type: Directory
+    name: var-lib-mios-llamacpp-slots-host-1
