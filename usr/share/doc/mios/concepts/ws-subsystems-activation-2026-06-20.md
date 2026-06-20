@@ -83,9 +83,23 @@ Inert until peers are registered in `a2a-peers.json`. The four primitives:
 
 ## Still operator-gated (not autonomously completable)
 
-- **`#49`** compound-launch decomposition — logic shipped + regression-tested
-  (`test_mios_launch.py`); needs a **live launch-test** in OWUI to confirm
-  end-to-end (the agent is barred from launching apps).
+- **`#49`** compound decomposition — two distinct paths:
+  - **Launch+type chain** (open→type→verify): handled by the DETERMINISTIC
+    fast-path (`_deterministic_action_route` + the type-chain), regression-tested
+    (`test_mios_launch.py`) + #48-verified. Needs a live launch-test to confirm
+    end-to-end (agent is barred from launching apps).
+  - **Read-verb compounds** (e.g. "list windows AND system status"): **LIVE-
+    REPRODUCED a gap** 2026-06-20 with read-only verbs (no launch needed) — only
+    the FIRST verb ran. Root cause: refine (granite4.1:8b) classified it
+    `intent=agent` and hinted only `list_windows`; the read-tool-enrich faithfully
+    runs refine's hints, so `system_status` was never dispatched (the answer
+    honestly said "no system status tool output was supplied"). This is the
+    refine/enrich path, NOT the deterministic fast-path. **Safe fix direction**
+    (operator call — it touches hand-tuned refine): either nudge the refine prompt
+    to hint ALL named read capabilities in a compound, or add an additive,
+    SSOT-derived (catalog name/alias) read-enrich pass that catches read verbs
+    refine missed (read-only, capped at READ_TOOL_ENRICH_MAX=3, degrade-open) so
+    routing/intent is untouched. Not changed unilaterally — the routing is yours.
 - **`#50`** desktop-app reasoning rendering — **both ends are verified wired**:
   the agent-pipe emits standard `reasoning_content` deltas (verified live, 12
   deltas over a real chat), and the Hermes desktop app (Nous Research, installed
