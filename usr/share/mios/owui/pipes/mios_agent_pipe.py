@@ -2319,6 +2319,14 @@ class Pipe:
                                     for _k, _v in _env_vars.items()}
         except Exception:
             pass  # env forwarding is best-effort; never break the turn
+        # Tag the invocation SURFACE so the orchestrator knows WHERE the turn
+        # came from (operator 2026-06-19 "OWUI should know where it's being
+        # spoken to from ... aware of all env details for all chat surfaces").
+        # The agent-pipe (_client_env) reads metadata.variables.surface.
+        try:
+            _md.setdefault("variables", {})["SURFACE"] = "owui"
+        except Exception:
+            pass
         if _md:
             body["metadata"] = _md
 

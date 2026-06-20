@@ -654,8 +654,29 @@ def main(argv: list[str]) -> int:
     # (metadata.chat_id -- the SAME key the agent-pipe/OWUI path uses -- plus the
     # `user` field) so a gateway that persists per-conversation state threads the
     # turns server-side too. extra_body merges into the request JSON body.
+    # Forward this shell's INVOCATION ENVIRONMENT so the agent knows WHERE it is
+    # being spoken to from (operator 2026-06-19 "@*/mios ... should know what
+    # folder it's currently in ... aware of all env details for all chat surfaces
+    # natively"). The agent-pipe reads metadata.variables (_client_env) and
+    # threads cwd/surface/host + local date/time into its grounding. Best-effort:
+    # any probe failure just omits that key.
+    import socket as _socket, platform as _platform, datetime as _datetime
+    _now = _datetime.datetime.now().astimezone()
+    _client_vars = {"SURFACE": "mios-cli"}
+    try: _client_vars["CWD"] = os.getcwd()
+    except OSError: pass
+    try: _client_vars["HOST"] = _socket.gethostname()
+    except OSError: pass
+    try: _client_vars["OS"] = (_platform.system() + " " + _platform.release()).strip()
+    except Exception: pass
+    _client_vars["CURRENT_DATE"] = _now.strftime("%Y-%m-%d")
+    _client_vars["CURRENT_TIME"] = _now.strftime("%H:%M")
+    _client_vars["CURRENT_WEEKDAY"] = _now.strftime("%A")
+    if _now.tzname():
+        _client_vars["CURRENT_TIMEZONE"] = _now.tzname()
     extra_body = {"metadata": {"chat_id": session.get("id"),
-                               "session_id": session.get("id")}}
+                               "session_id": session.get("id"),
+                               "variables": _client_vars}}
     request_user = session.get("id")
 
     # Capture the assistant's visible answer so it can be appended to the rolling

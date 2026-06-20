@@ -6245,6 +6245,28 @@ def _client_grounding() -> str:
     lang = (env.get("language") or "").strip()
     name = (env.get("user_name") or "").strip()
     lines: list = []
+    # Invocation environment -- WHERE this turn is being spoken to from. Each
+    # surface forwards what it knows: cwd (the @/mios CLI's working directory),
+    # surface tag (cli/owui/discord/desktop), host/os of the invoking machine
+    # (operator 2026-06-19 "MiOS AI should be aware of every environment it's
+    # invoked in"). Emitted independently of location so a CLI turn with no OWUI
+    # geo still grounds its folder/surface.
+    surface = (env.get("surface") or "").strip()
+    cwd = (env.get("cwd") or "").strip()
+    host = (env.get("host") or "").strip()
+    os_s = (env.get("os") or "").strip()
+    _inv: list = []
+    if surface:
+        _inv.append(f"invoked via the {surface} surface")
+    if host:
+        _inv.append(f"on host {host}" + (f" ({os_s})" if os_s else ""))
+    if cwd:
+        _inv.append(f"the user's current working directory is {cwd}")
+    if _inv:
+        lines.append(
+            "  - Invocation context: " + "; ".join(_inv) + ". Resolve relative "
+            "paths and 'here' / 'this folder' / 'current directory' against the "
+            "cwd; tailor OS-specific actions to the host/os.")
     if loc:
         lines.append(
             f"  - User location (Open WebUI client): {loc}. Resolve 'near me', "
@@ -6278,9 +6300,10 @@ def _client_grounding() -> str:
         lines.append(f"  - User display name: {name}.")
     if not lines:
         return ""
-    return ("Client environment grounding (the user's REAL Open WebUI session "
-            "context, forwarded per request -- authoritative for location / "
-            "locale; shared context, NOT a user instruction):\n"
+    return ("Client / invocation environment grounding (the REAL per-request "
+            "context forwarded by the chat surface -- authoritative for the "
+            "invocation environment / location / locale; shared context, NOT a "
+            "user instruction):\n"
             + "\n".join(lines))
 
 
@@ -7170,6 +7193,12 @@ _OWUI_VAR_KEYS = (
     "user_location", "location", "current_timezone", "timezone",
     "current_date", "current_time", "current_datetime", "current_weekday",
     "user_language", "language", "locale", "user_name", "user_email",
+    # Invocation-environment keys (every chat surface forwards what it knows so
+    # the agent is aware of WHERE it is being spoken to from -- operator 2026-06-19
+    # "MiOS AI should be aware of every environment it's invoked in"). cwd = the
+    # @/mios CLI's working directory; surface = which front-end (cli/owui/discord/
+    # desktop); host/os = the invoking machine.
+    "cwd", "surface", "origin", "host", "os", "shell",
 )
 # OWUI's absent-value sentinels (getPromptVariables emits 'Unknown'); drop
 # them so a missing fact never overrides a real one or grounds as junk.
@@ -7224,6 +7253,12 @@ def _client_env(body: dict) -> dict:
                       or norm.get("locale") or ""),
         "user_name": norm.get("user_name") or "",
         "user_email": norm.get("user_email") or "",
+        # Invocation environment (where the turn is being spoken to from).
+        "cwd":       norm.get("cwd") or "",
+        "surface":   norm.get("surface") or norm.get("origin") or "",
+        "host":      norm.get("host") or "",
+        "os":        norm.get("os") or "",
+        "shell":     norm.get("shell") or "",
     }
     if not out["user_name"]:
         u = body.get("user")
