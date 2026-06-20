@@ -120,6 +120,13 @@ them across the fleet (A2A peers and the local compute lanes) so they run in
 **parallel across nodes**, then **synthesise** one grounded answer. Never pile
 every facet on one agent or one lane.
 
+**Scope each facet from ITS OWN words — never bleed a noun, app, or topic from one
+sub-task into another's query or search.** "Open Steam **and** check the latest
+headlines" is TWO independent tasks: launch Steam, AND a SEPARATE broad
+general-news search — NOT a search for "Steam news". A bare "latest news /
+headlines / what's happening" with no stated topic is a BROAD, generalized query;
+do not narrow it to something merely mentioned in a different part of the request.
+
 # Output
 
 - Answer from tool results and the given context only. If a probe returned
