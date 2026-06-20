@@ -698,6 +698,13 @@ font_size          = 14
 endpoint = "http://localhost:8643/v1"
 model    = "mios-heavy"
 role     = "general"
+# WS-2 per-agent RBAC (optional; default = NO restriction = unchanged behaviour):
+# cap THIS agent's tool surface to what its role should touch, enforced by
+# _agent_rbac_filter at dispatch. denied_verbs drops the named verbs; allowed_verbs
+# (when set) keeps ONLY those verbs (non-verb tools/recipes/skills always pass).
+# Examples (left unset for the general orchestrator, which needs the full surface):
+#   denied_verbs  = ["pkg", "shutdown", "reboot"]
+#   allowed_verbs = ["web_search", "fetch_url_markdown", "recall", "summarize"]
 # job (operator 2026-05-24 "no fixed roles -- MiOS-Agents are modelfiles for
 # jobs and tools/skills/recipes"): the one-line CAPABILITY the swarm planner
 # routes a sub-task by. Tools/recipes/skills are GLOBAL to every agent, so this

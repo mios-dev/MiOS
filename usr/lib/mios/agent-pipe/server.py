@@ -3315,6 +3315,11 @@ def _load_agent_registry() -> dict[str, dict]:
                 "default":  bool(cfg.get("default", False)),
                 "strengths": list(cfg.get("strengths") or []),
                 "lane":     str(cfg.get("lane", "")).lower().strip(),
+                # WS-2 per-agent RBAC: optional verb allow/deny for THIS agent's
+                # tool surface (default empty = no restriction). Consumed by
+                # _agent_rbac_filter at dispatch.
+                "denied_verbs":  list(cfg.get("denied_verbs") or []),
+                "allowed_verbs": list(cfg.get("allowed_verbs") or []),
                 # fan-out opt-out (default True = eligible as a secondary).
                 "fanout":   bool(cfg.get("fanout", True)),
                 # CPU-compute twin (operator 2026-05-22: every agent has a
@@ -6266,7 +6271,19 @@ def _client_grounding() -> str:
         lines.append(
             "  - Invocation context: " + "; ".join(_inv) + ". Resolve relative "
             "paths and 'here' / 'this folder' / 'current directory' against the "
-            "cwd; tailor OS-specific actions to the host/os.")
+            "cwd; tailor OS-specific actions to the host/os. This is the LIVE "
+            "per-invocation environment -- report the working directory / surface "
+            "ONLY from THIS context, NEVER from memory, recall, or a prior session.")
+    else:
+        # No invocation env forwarded this turn (e.g. a surface with no folder
+        # context). cwd/surface are LIVE per-invocation facts -- the agent must NOT
+        # answer them from a recalled/stored value (operator 2026-06-19: 'what
+        # folder are we in' returned a STALE test cwd from prior recorded context).
+        lines.append(
+            "  - No working-directory / surface context was forwarded this turn. "
+            "If asked where you are / what folder this is, say you cannot determine "
+            "it for THIS turn -- do NOT recall, guess, or report a cwd/surface from "
+            "memory or a prior session.")
     if loc:
         lines.append(
             f"  - User location (Open WebUI client): {loc}. Resolve 'near me', "
@@ -6649,6 +6666,35 @@ async def _worker_tools_surface_async(cap: int = 0, intent: str = "") -> list:
     if cap and cap > 0:
         return await _select_child_tools(surface, intent, cap)
     return surface
+
+
+def _agent_rbac_filter(aname: str, tools: list) -> list:
+    """WS-2 per-agent RBAC: restrict a dispatched agent's tool surface to what its
+    role is permitted. SSOT: [agents.<name>].denied_verbs / .allowed_verbs in
+    mios.toml (layered vendor<etc<user, surfaced via _AGENT_REGISTRY). No-op when
+    neither is set -> ZERO behaviour change. Only gates BARE VERBS (names in
+    _VERB_CATALOG): names in denied_verbs are dropped; if allowed_verbs is set, any
+    verb NOT in it is dropped. Non-verb tools (recipes/skills/MCP/client tools)
+    pass through untouched unless explicitly named in denied_verbs."""
+    if not aname or not tools:
+        return tools
+    cfg = _AGENT_REGISTRY.get(aname) or {}
+    denied = {str(v) for v in (cfg.get("denied_verbs") or [])}
+    allowed = {str(v) for v in (cfg.get("allowed_verbs") or [])}
+    if not denied and not allowed:
+        return tools
+    out = []
+    for t in tools:
+        nm = ((t.get("function") or {}).get("name") if isinstance(t, dict) else "") or ""
+        if nm in denied:
+            continue
+        if allowed and nm in _VERB_CATALOG and nm not in allowed:
+            continue
+        out.append(t)
+    if len(out) != len(tools):
+        log.info("agent RBAC: %s surface %d -> %d (denied=%d allowed=%d)",
+                 aname, len(tools), len(out), len(denied), len(allowed))
+    return out
 
 
 def _stable_name(t: dict) -> str:
@@ -13765,6 +13811,7 @@ async def _execute_dag_node(node: dict, results_by_id: dict,
         _reason_only = node.get("_no_tools") or (_slow_node and _grounded_node)
         if WORKER_TOOLS_ENABLE and not _reason_only:
             _wtools = await _worker_tools_surface_async(cap=_lane_tool_cap(_lane), intent=prompt)
+            _wtools = _agent_rbac_filter(aname, _wtools)  # WS-2 per-agent RBAC
             if _wtools:
                 body["tools"] = _wtools
                 body["num_ctx"] = _fit_context(
