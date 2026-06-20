@@ -6352,16 +6352,35 @@ def _identity_guard() -> str:
     )
 
 
+def _arch_grounding() -> str:
+    """Concise SELF-ARCHITECTURE grounding (#65) so the agent answers 'how are you
+    built / which model / what's the orchestrator' from FACT, not a guess -- it
+    hallucinated its own stack before (e.g. 'the orchestrator is Hermes', stale).
+    Folds the key system.md facts in (system.md is not otherwise injected at
+    runtime). Kept short to bound per-turn token cost."""
+    return (
+        "Self-architecture (ground any 'how are you built / which model / what's the "
+        "orchestrator' answer on THIS, never guess): the agent-pipe orchestrator "
+        "(:8640, served model 'MiOS-Agent') is the front door — it refines, routes, "
+        "fans out across a council/DAG, and polishes. LOCAL inference lanes behind it: "
+        "mios-llm-light (:11450 — everyday models + embeddings + a vision VLM) + the "
+        "heavy lane mios-llm-heavy (:11441, SGLang). MiOS-Hermes (:8642) is a tool-loop "
+        "WORKER the pipe fronts, NOT the orchestrator. Memory = pgvector; web_search = "
+        "local SearXNG. Hardware: AMD Ryzen 9 9950X3D + NVIDIA RTX 4090."
+    )
+
+
 def _env_grounding() -> str:
-    """Identity guard + temporal + client-environment grounding for the
-    orchestrator's OWN system prompts (refine / synthesis / polish / swarm /
-    council / native-loop). Single helper so every grounded prompt site threads
-    the identity guard + the full forwarded OWUI environment (time, timezone,
-    location, locale, name) in one place."""
+    """Identity guard + self-architecture + temporal + client-environment grounding
+    for the orchestrator's OWN system prompts (refine / synthesis / polish / swarm /
+    council / native-loop). Single helper so every grounded prompt site threads the
+    identity + arch + forwarded OWUI environment (time, timezone, location, locale,
+    name) in one place."""
     g = _identity_guard()
+    a = _arch_grounding()
     t = _temporal_grounding()
     c = _client_grounding()
-    return g + "\n" + t + ("\n" + c if c else "")
+    return g + "\n" + a + "\n" + t + ("\n" + c if c else "")
 
 
 # ─── Universal agent contract (.md at the overlay root) ────────────────
