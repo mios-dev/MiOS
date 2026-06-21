@@ -1,24 +1,30 @@
 #!/usr/bin/env python3
-# AI-hint: Provides the active memory write interface for agents to manually store, update, or delete durable facts in the SurrealDB/Postgres agent_memory table across global, agent-specific, or conversation-scoped contexts.
-# AI-related: /usr/libexec/mios/mios-db, mios-db, localhost:8000, localhost:11450
+# AI-hint: Active-memory write interface for agents to store/update/delete durable facts in the Postgres+pgvector agent_memory table, scoped global/agent:<name>/conversation:<id>. WS-A3: every write is PARAMETERIZED via `mios-db --pg-json` (values bound out-of-band through mios-pg-query's extended protocol -- never f-string-spliced into SQL); the retired SurrealDB transport is removed.
+# AI-related: /usr/libexec/mios/mios-db, mios-db, /usr/libexec/mios/mios-pg-query, localhost:11450
+# AI-functions: _pg_json, _embed_vec, main
 """mios-remember -- agent-authored durable memory (Letta/MemGPT core tier).
 
 P4.2 (Letta/MemGPT active virtual memory): MiOS already has the PASSIVE tiers
--- per-conversation scratchpad (working), the SurrealDB knowledge table
-(auto-stored Q+A, recall), and episodic SKILL.md + viking:// (archival). What
-was missing is the ACTIVE / SELF-EDITING tier: the agent (or operator)
-deliberately WRITING a durable fact it wants to keep -- Letta's
-core_memory_append. This shim is that write half.
+-- per-conversation scratchpad (working), the knowledge table (auto-stored Q+A,
+recall), and episodic SKILL.md + viking:// (archival). What was missing is the
+ACTIVE / SELF-EDITING tier: the agent (or operator) deliberately WRITING a
+durable fact it wants to keep -- Letta's core_memory_append. This shim is that
+write half.
 
 DESIGN respects the MiOS "NO context injection" rule ([[CLAUDE.md]]): memory is
 TOOL-DRIVEN both ways -- the agent WRITES with this verb and READS with `recall`
 (or viking_ls memory). Nothing is auto-prepended to prompts; the model learns
 its memory by CALLING tools, not via a pre_llm_call inject.
 
-Stored in SurrealDB `agent_memory` table, scope-tagged:
+Stored in Postgres+pgvector `agent_memory`, scope-tagged:
   global         -- durable facts true across all conversations
   agent:<name>   -- specific to one agent
   conversation:<id> -- scoped to one chat thread
+
+WS-A3 cutover: SurrealDB (:8000) is RETIRED. The datastore is Postgres+pgvector,
+and EVERY statement is parameterized -- values are bound out-of-band via
+`mios-db --pg-json` (-> mios-pg-query extended protocol), never spliced into the
+SQL string. The pg column is `mem_key` (this tool's `key`).
 
 USAGE
   mios-remember add "<fact>" [--scope global] [--key <k>] [--source <s>]
@@ -31,44 +37,29 @@ Output JSON: {ok, ...}.
 from __future__ import annotations
 
 import argparse
-import base64
 import json
 import os
 import sys
 import urllib.request
 
-DB_URL = os.environ.get("MIOS_DB_URL", "http://localhost:8000")
-DB_USER = os.environ.get("MIOS_DB_USER", "root")
-DB_PASS = os.environ.get("MIOS_DB_PASS", "root")
-DB_NS = os.environ.get("MIOS_DB_NS", "mios")
-DB_DB = os.environ.get("MIOS_DB_DB", "mios")
 TABLE = os.environ.get("MIOS_AGENT_MEMORY_TABLE", "agent_memory")
-
-# WS-9c cutover: also mirror writes to Postgres+pgvector (agent_memory). Backend
-# select matches the agent-pipe (MIOS_DB_BACKEND: surreal|dual|postgres). The
-# pgvector write goes through the shared mios-db --pg CLI (psql), so this
-# system-python shim needs no psycopg. The pg column is `mem_key` (maps `key`).
-DB_BACKEND = os.environ.get("MIOS_DB_BACKEND", "dual").strip().lower()
-_PG_ENABLED = DB_BACKEND in ("dual", "postgres")
-_PG_PRIMARY = DB_BACKEND == "postgres"
 _MIOS_DB = "/usr/libexec/mios/mios-db"
 
 
-def _pgesc(s) -> str:
-    return str(s).replace("'", "''")
-
-
-def _pg(sql: str) -> None:
-    """Mirror a write to pgvector via the shared mios-db --pg CLI. Degrade-open
-    (a pg miss never breaks the SurrealDB path during dual)."""
-    if not _PG_ENABLED:
-        return
+def _pg_json(envelope: dict):
+    """Run a parameterized statement / atomic batch via `mios-db --pg-json`,
+    which binds the values OUT-OF-BAND through mios-pg-query's extended protocol
+    (no value is ever spliced into the SQL text -> SQL-injection-safe). Returns
+    (ok, stdout). Degrade-open: any error -> (False, '') so a DB hiccup never
+    breaks a turn."""
     try:
         import subprocess
-        subprocess.run([_MIOS_DB, "--pg", sql],
-                       capture_output=True, text=True, timeout=15)
+        r = subprocess.run([_MIOS_DB, "--pg-json"],
+                           input=json.dumps(envelope),
+                           capture_output=True, text=True, timeout=20)
+        return r.returncode == 0, (r.stdout or "").strip()
     except Exception:  # noqa: BLE001
-        pass
+        return False, ""
 
 
 # P1 AIOS Memory Manager: embed agent-memory facts ON WRITE so they're
@@ -85,7 +76,8 @@ _EMB_VERSION = os.environ.get("MIOS_EMB_VERSION", "nomic-768-v1")
 
 
 def _embed_vec(text: str) -> str:
-    """Embed -> pgvector literal '[..]', or '' on any miss (degrade-open)."""
+    """Embed -> pgvector literal '[..]', or '' on any miss (degrade-open). The
+    literal is BOUND as a text param with a ::vector cast, not spliced as SQL."""
     try:
         base = (_EMBED_ENDPOINT if _EMBED_ENDPOINT.endswith("/v1")
                 else _EMBED_ENDPOINT + "/v1")
@@ -100,31 +92,6 @@ def _embed_vec(text: str) -> str:
         return "[" + ",".join(f"{float(x):.6f}" for x in emb) + "]" if emb else ""
     except Exception:  # noqa: BLE001
         return ""
-
-
-def _sql(sql: str) -> list:
-    req = urllib.request.Request(
-        f"{DB_URL.rstrip('/')}/sql",
-        data=sql.encode("utf-8"),
-        headers={"surreal-ns": DB_NS, "surreal-db": DB_DB,
-                 "Accept": "application/json",
-                 "Authorization": "Basic " +
-                 base64.b64encode(f"{DB_USER}:{DB_PASS}".encode()).decode()},
-        method="POST")
-    with urllib.request.urlopen(req, timeout=15) as r:
-        d = json.loads(r.read().decode("utf-8", errors="replace"))
-    res = []
-    for st in (d or []):
-        if isinstance(st, dict):
-            if st.get("status") == "ERR":
-                raise RuntimeError(st.get("result") or "db error")
-            if isinstance(st.get("result"), list):
-                res = st["result"]
-    return res
-
-
-def _esc(s: str) -> str:
-    return str(s).replace("\\", "\\\\").replace("'", "\\'")
 
 
 def main() -> int:
@@ -146,15 +113,6 @@ def main() -> int:
     args = p.parse_args()
 
     try:
-        # Idempotently ensure the SurrealDB table exists (SurrealDB strict mode
-        # rejects CREATE on an undefined table). SCHEMALESS so any field is
-        # accepted. SKIP when pg is primary: SurrealDB is RETIRED (the pgvector
-        # cutover) -- this UNCONDITIONAL call hit the dead :8000 and failed
-        # remember/recall entirely even though the pgvector write below succeeds
-        # (Claude 2026-06-15 hardening; the writes at L164 were already gated but
-        # this table-def was missed).
-        if not _PG_PRIMARY:
-            _sql(f"DEFINE TABLE IF NOT EXISTS {TABLE} SCHEMALESS;")
         if args.cmd == "add":
             fact = args.fact.strip()
             # Strip leading conversational filler so the STORED fact is clean
@@ -172,76 +130,66 @@ def main() -> int:
                 print(json.dumps({"ok": False, "error": "empty fact"}))
                 return 2
             key = args.key.strip() or f"m{abs(hash(fact)) % (10**10)}"
-            # upsert by key within scope -- pgvector mirror + (unless pg-primary) SurrealDB
+            # Upsert by (key, scope): DELETE then INSERT in ONE atomic batch
+            # (BEGIN/COMMIT). All values are BOUND params ($1..$n) -- TABLE is a
+            # trusted config identifier, never request data.
             _emb = _embed_vec(fact)
-            # WS-A2: stamp the embedding identity (model + version) with the vector.
-            _ecol = ", emb, emb_model, emb_version" if _emb else ""
-            _eval = (f", '{_emb}'::vector, '{_pgesc(_EMBED_MODEL)}', "
-                     f"'{_pgesc(_EMB_VERSION)}'" if _emb else "")
-            _pg(f"DELETE FROM {TABLE} WHERE mem_key = '{_pgesc(key)}' "
-                f"AND scope = '{_pgesc(args.scope)}'; "
-                f"INSERT INTO {TABLE} (fact, scope, mem_key, source{_ecol}) VALUES "
-                f"('{_pgesc(fact)}', '{_pgesc(args.scope)}', "
-                f"'{_pgesc(key)}', '{_pgesc(args.source)}'{_eval});")
-            rows = True
-            if not _PG_PRIMARY:
-                _sql(f"DELETE {TABLE} WHERE key = '{_esc(key)}' "
-                     f"AND scope = '{_esc(args.scope)}';")
-                rows = _sql(
-                    f"CREATE {TABLE} SET fact = '{_esc(fact)}', "
-                    f"scope = '{_esc(args.scope)}', key = '{_esc(key)}', "
-                    f"source = '{_esc(args.source)}', ts = time::now();")
-            print(json.dumps({"ok": True, "op": "add", "key": key,
-                              "scope": args.scope, "stored": bool(rows)}))
-            return 0
+            cols = ["fact", "scope", "mem_key", "source"]
+            phs = ["$1", "$2", "$3", "$4"]
+            ins_params = [fact, args.scope, key, args.source]
+            if _emb:
+                # WS-A2: stamp the embedding identity (model + version) too.
+                cols += ["emb", "emb_model", "emb_version"]
+                phs += ["$5::vector", "$6", "$7"]
+                ins_params += [_emb, _EMBED_MODEL, _EMB_VERSION]
+            ok, _ = _pg_json({"statements": [
+                {"sql": f"DELETE FROM {TABLE} WHERE mem_key = $1 AND scope = $2",
+                 "params": [key, args.scope]},
+                {"sql": (f"INSERT INTO {TABLE} (" + ", ".join(cols)
+                         + ") VALUES (" + ", ".join(phs) + ")"),
+                 "params": ins_params},
+            ]})
+            print(json.dumps({"ok": ok, "op": "add", "key": key,
+                              "scope": args.scope, "stored": ok}))
+            return 0 if ok else 1
         if args.cmd == "list":
-            if _PG_PRIMARY:
-                import subprocess
-                pgwhere = (f"WHERE scope = '{_pgesc(args.scope)}' "
-                           if args.scope else "")
-                inner = (f"SELECT mem_key AS key, scope, fact, source FROM {TABLE} "
-                         f"{pgwhere}ORDER BY ts DESC LIMIT {int(args.limit)}")
+            params = []
+            where = ""
+            if args.scope:
+                where = "WHERE scope = $1 "
+                params = [args.scope]
+            # LIMIT stays inline (int-coerced -> not injectable); scope is bound.
+            inner = (f"SELECT mem_key AS key, scope, fact, source FROM {TABLE} "
+                     f"{where}ORDER BY ts DESC LIMIT {int(args.limit)}")
+            ok, out = _pg_json({
+                "sql": (f"SELECT coalesce(json_agg(row_to_json(t)),'[]') "
+                        f"FROM ({inner}) t;"),
+                "params": params})
+            try:
+                mem = json.loads(out) if out else []
+            except Exception:  # noqa: BLE001
                 mem = []
-                try:
-                    out = subprocess.run(
-                        [_MIOS_DB, "--json", "--pg",
-                         f"SELECT coalesce(json_agg(row_to_json(t)),'[]') "
-                         f"FROM ({inner}) t;"],
-                        capture_output=True, text=True, timeout=15).stdout.strip()
-                    mem = json.loads(out) if out else []
-                except Exception:  # noqa: BLE001
-                    mem = []
-                print(json.dumps({"ok": True, "count": len(mem),
-                                  "memories": mem}))
-                return 0
-            where = (f"WHERE scope = '{_esc(args.scope)}' "
-                     if args.scope else "")
-            rows = _sql(f"SELECT fact, scope, key, source, ts FROM {TABLE} "
-                        f"{where}ORDER BY ts DESC LIMIT {int(args.limit)};")
-            print(json.dumps({"ok": True, "count": len(rows),
-                              "memories": [
-                                  {"key": r.get("key"), "scope": r.get("scope"),
-                                   "fact": r.get("fact"),
-                                   "source": r.get("source")} for r in rows]}))
+            print(json.dumps({"ok": True, "count": len(mem), "memories": mem}))
             return 0
         if args.cmd == "forget":
-            _pg(f"DELETE FROM {TABLE} WHERE mem_key = '{_pgesc(args.key)}';")
-            if not _PG_PRIMARY:
-                _sql(f"DELETE {TABLE} WHERE key = '{_esc(args.key)}';")
-            print(json.dumps({"ok": True, "op": "forget", "key": args.key}))
-            return 0
+            ok, _ = _pg_json({"sql": f"DELETE FROM {TABLE} WHERE mem_key = $1;",
+                              "params": [args.key]})
+            print(json.dumps({"ok": ok, "op": "forget", "key": args.key}))
+            return 0 if ok else 1
         if args.cmd == "update":
             _emb = _embed_vec(args.fact)
-            _eset = f", emb = '{_emb}'::vector" if _emb else ""
-            _pg(f"UPDATE {TABLE} SET fact = '{_pgesc(args.fact)}'{_eset}, "
-                f"ts = now() WHERE mem_key = '{_pgesc(args.key)}';")
-            rows = [1] if _PG_PRIMARY else \
-                _sql(f"UPDATE {TABLE} SET fact = '{_esc(args.fact)}', "
-                     f"ts = time::now() WHERE key = '{_esc(args.key)}';")
-            print(json.dumps({"ok": bool(rows), "op": "update",
-                              "key": args.key,
-                              "updated": len(rows)}))
-            return 0
+            if _emb:
+                sql = (f"UPDATE {TABLE} SET fact = $1, emb = $2::vector, "
+                       f"ts = now() WHERE mem_key = $3;")
+                params = [args.fact, _emb, args.key]
+            else:
+                sql = (f"UPDATE {TABLE} SET fact = $1, ts = now() "
+                       f"WHERE mem_key = $2;")
+                params = [args.fact, args.key]
+            ok, _ = _pg_json({"sql": sql, "params": params})
+            print(json.dumps({"ok": ok, "op": "update", "key": args.key,
+                              "updated": 1 if ok else 0}))
+            return 0 if ok else 1
     except Exception as e:  # noqa: BLE001
         print(json.dumps({"ok": False, "error": f"{type(e).__name__}: {e}"}))
         return 1

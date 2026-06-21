@@ -1,52 +1,50 @@
 #!/usr/bin/env python3
-# AI-hint: Python tool for RAG-based knowledge retrieval that embeds MiOS documentation into SurrealDB using nomic-embed-text to provide context-aware data to agents during the enrichment stage of the agent-pipe.
-# AI-related: /usr/share/mios/docs, /usr/libexec/mios/mios-pg-query, mios-pg-query, localhost:11434, localhost:8000, localhost:11450
-"""mios-rag -- agent-pipe RAG over MiOS knowledge, on infra MiOS already
-runs: nomic-embed-text (ollama) for embeddings + SurrealDB for the vector
-store. Keeps RAG in-loop for every agent/sub-agent turn WITHOUT OWUI's
-blocking pre-pipe knowledge_search (operator 2026-05-20: "move RAG into
-the agent-pipe enrich stage ... SurrealDB vector + nomic-embed-text").
+# AI-hint: Python tool for RAG retrieval that embeds MiOS documentation into Postgres+pgvector (table mios_rag) via nomic-embed-text to provide context to agents during the agent-pipe enrich stage. WS-A3: the ingest INSERT is PARAMETERIZED via mios-pg-query --exec-json (source/content/emb bound out-of-band, never f-string-spliced); the retired SurrealDB transport is removed.
+# AI-related: /usr/share/mios/docs, /usr/libexec/mios/mios-pg-query, mios-pg-query, localhost:11450, localhost:11434
+# AI-functions: _embed, _pg, _pg_param, _vec, _chunks, cmd_ingest, cmd_query, main
+"""mios-rag -- agent-pipe RAG over MiOS knowledge, on infra MiOS already runs:
+nomic-embed-text for embeddings + Postgres+pgvector for the vector store. Keeps
+RAG in-loop for every agent/sub-agent turn WITHOUT OWUI's blocking pre-pipe
+knowledge_search (operator 2026-05-20: "move RAG into the agent-pipe enrich
+stage").
 
 Subcommands:
-  ingest [--dir D ...]   Chunk + embed the MiOS docs (and any extra dirs)
-                         into SurrealDB table `mios_rag`. Idempotent:
-                         clears + rebuilds. Run on docs change.
-  query  <text> [--k N]  Embed the text, vector-search the store, print
-                         the top-N {source, text, score} as JSON.
+  ingest [--dir D ...]   Chunk + embed the MiOS docs (and any extra dirs) into
+                         the pgvector table `mios_rag`. Idempotent: clears +
+                         rebuilds. Run on docs change.
+  query  <text> [--k N]  Embed the text, vector-search the store, print the
+                         top-N {source, text, score} as JSON.
+
+WS-A3 cutover: SurrealDB (:8000) is RETIRED. The vector store is Postgres+
+pgvector reached via the pure-python mios-pg-query wire client, and the ingest
+INSERT binds source/content/emb as OUT-OF-BAND params (mios-pg-query --exec-json
+extended protocol) -- no filesystem-sourced value is ever spliced into SQL.
 
 Config (SSOT-overridable via env):
-  MIOS_RAG_EMBED_ENDPOINT  default http://localhost:11434
+  MIOS_RAG_EMBED_ENDPOINT  default http://localhost:11450 (mios-llm-light /v1)
   MIOS_RAG_EMBED_MODEL     default nomic-embed-text
-  MIOS_DB_URL              default http://localhost:8000  (SurrealDB)
-  MIOS_DB_USER/PASS/NS     default root/root/mios ; DB fixed to `agent`
   MIOS_RAG_DOCS_DIR        default /usr/share/mios/docs
   MIOS_RAG_CHUNK_CHARS     default 700
 """
 from __future__ import annotations
 
 import argparse
-import base64
 import glob
 import json
 import os
 import sys
-import urllib.error
 import urllib.request
 
 EMBED_ENDPOINT = os.environ.get("MIOS_RAG_EMBED_ENDPOINT",
-                                "http://localhost:11450").rstrip("/")  # mios-llm-light /v1 (ollama :11434 retired)
+                                "http://localhost:11450").rstrip("/")  # mios-llm-light /v1
 EMBED_MODEL = os.environ.get("MIOS_RAG_EMBED_MODEL", "nomic-embed-text")
-DB_URL = os.environ.get("MIOS_DB_URL", "http://localhost:8000").rstrip("/")
-DB_USER = os.environ.get("MIOS_DB_USER", "root")
-DB_PASS = os.environ.get("MIOS_DB_PASS", "root")
-DB_NS = os.environ.get("MIOS_DB_NS", "mios")
-DB_DB = "agent"
 DOCS_DIR = os.environ.get("MIOS_RAG_DOCS_DIR", "/usr/share/mios/docs")
 CHUNK_CHARS = int(os.environ.get("MIOS_RAG_CHUNK_CHARS", "700"))
 TABLE = "mios_rag"
+_PGQ = "/usr/libexec/mios/mios-pg-query"
 
 
-def _embed(text: str) -> list[float]:
+def _embed(text: str) -> "list[float]":
     import time
     # OpenAI /v1/embeddings (mios-llm-light serves nomic-embed-text)
     # Falls back to the ollama shape if needed.
@@ -78,10 +76,24 @@ def _embed(text: str) -> list[float]:
 
 
 def _pg(sql: str) -> list:
-    """Run one SQL statement on pgvector via mios-pg-query (pure-python pg wire
-    client -- no psql/psycopg/podman). Rows -> lists of string columns (psql -At)."""
+    """Run one CONSTANT SQL statement (DDL/TRUNCATE) on pgvector via mios-pg-query
+    (pure-python pg wire client). For statements with VALUES, use _pg_param so
+    nothing is spliced. Rows -> lists of string columns (psql -At)."""
     import subprocess
-    p = subprocess.run(["/usr/libexec/mios/mios-pg-query", sql],
+    p = subprocess.run([_PGQ, sql],
+                       capture_output=True, text=True, timeout=90)
+    if p.returncode != 0:
+        raise RuntimeError(f"pg error: {(p.stderr or '')[:200]}")
+    return [ln.split("\t") for ln in p.stdout.splitlines() if ln]
+
+
+def _pg_param(sql: str, params: list) -> list:
+    """Run a PARAMETERIZED statement via mios-pg-query --exec-json: values are
+    bound out-of-band ($1..$n) through the extended protocol -- SQL-injection-safe
+    (the WS-A3 way). Rows -> lists of string columns."""
+    import subprocess
+    p = subprocess.run([_PGQ, "--exec-json"],
+                       input=json.dumps({"sql": sql, "params": params}),
                        capture_output=True, text=True, timeout=90)
     if p.returncode != 0:
         raise RuntimeError(f"pg error: {(p.stderr or '')[:200]}")
@@ -89,28 +101,9 @@ def _pg(sql: str) -> list:
 
 
 def _vec(emb: list) -> str:
-    """pgvector literal: [f1,f2,...]."""
+    """pgvector literal: [f1,f2,...]. Bound as a text param with a ::vector cast,
+    never spliced as SQL."""
     return "[" + ",".join(f"{float(x):.6f}" for x in emb) + "]"
-
-
-def _sql(query: str) -> list:
-    auth = base64.b64encode(f"{DB_USER}:{DB_PASS}".encode()).decode()
-    # Prepend USE NS/DB in-query: urllib title-cases custom headers
-    # (NS -> Ns) so SurrealDB never sees the namespace headers and returns
-    # NamespaceEmpty. The USE statement is immune to header mangling.
-    full = f"USE NS {DB_NS} DB {DB_DB}; {query}"
-    req = urllib.request.Request(
-        f"{DB_URL}/sql", data=full.encode("utf-8"),
-        headers={"Authorization": f"Basic {auth}",
-                 "Accept": "application/json", "Content-Type": "text/plain"},
-        method="POST",
-    )
-    try:
-        return json.loads(urllib.request.urlopen(req, timeout=30).read())
-    except urllib.error.HTTPError as e:
-        body = e.read().decode("utf-8", "replace")[:200]
-        sys.stderr.write(f"  surql {e.code}: {body}  (q={query[:80]})\n")
-        return []
 
 
 def _chunks(text: str, src: str):
@@ -132,8 +125,8 @@ def _chunks(text: str, src: str):
         yield buf.strip(), src
 
 
-def cmd_ingest(dirs: list[str]) -> int:
-    paths: list[str] = []
+def cmd_ingest(dirs: "list[str]") -> int:
+    paths: "list[str]" = []
     for d in [DOCS_DIR] + (dirs or []):
         paths += glob.glob(os.path.join(d, "**", "*.md"), recursive=True)
         paths += glob.glob(os.path.join(d, "**", "*.txt"), recursive=True)
@@ -141,9 +134,8 @@ def cmd_ingest(dirs: list[str]) -> int:
     if not paths:
         print("mios-rag: no source files found", file=sys.stderr)
         return 1
-    # pgvector store (pg unification; the SurrealDB agent DB is retired and 500s
-    # on write). Brute-force cosine is fine for the docs-sized corpus; an HNSW
-    # index is added best-effort.
+    # pgvector store. Brute-force cosine is fine for the docs-sized corpus; an
+    # HNSW index is added best-effort.
     _pg("CREATE TABLE IF NOT EXISTS mios_rag ("
         "id bigserial PRIMARY KEY, source text, content text, emb vector(768));")
     try:
@@ -164,10 +156,13 @@ def cmd_ingest(dirs: list[str]) -> int:
                 emb = _embed(chunk)
                 if not emb:
                     continue
-                c = chunk.replace("'", "''").replace("\x00", "")
-                s = src.replace("'", "''").replace("\x00", "")
-                _pg(f"INSERT INTO mios_rag (source, content, emb) "
-                    f"VALUES ('{s}', '{c}', '{_vec(emb)}'::vector);")
+                # PARAMETERIZED: source (filesystem path) + content (file text)
+                # are BOUND, never spliced -> no quote/backslash/encoding edge
+                # case can break or inject the SQL.
+                _pg_param(
+                    "INSERT INTO mios_rag (source, content, emb) "
+                    "VALUES ($1, $2, $3::vector)",
+                    [src, chunk, _vec(emb)])
                 n += 1
             except Exception:
                 # transient embed 500 (mios-llm-light loading) or a bad chunk --
@@ -183,14 +178,15 @@ def cmd_query(text: str, k: int) -> int:
         print(json.dumps({"ok": False, "error": "embed_failed", "hits": []}))
         return 1
     qv = _vec(emb)
-    # pgvector cosine: distance is emb <=> qv ; similarity = 1 - distance.
+    # pgvector cosine: distance is emb <=> qv ; similarity = 1 - distance. The
+    # vector is BOUND as $1 (reused); LIMIT stays inline (int-coerced -> safe).
     # Flatten newlines/tabs in content so mios-pg-query's tab-separated,
     # one-row-per-line output stays parseable.
-    q = (f"SELECT source, translate(content, E'\\n\\t\\r', '   '), "
-         f"round((1 - (emb <=> '{qv}'::vector))::numeric, 4) "
-         f"FROM mios_rag ORDER BY emb <=> '{qv}'::vector LIMIT {int(k)};")
+    q = ("SELECT source, translate(content, E'\\n\\t\\r', '   '), "
+         "round((1 - (emb <=> $1::vector))::numeric, 4) "
+         "FROM mios_rag ORDER BY emb <=> $1::vector LIMIT " + str(int(k)) + ";")
     try:
-        rows = _pg(q)
+        rows = _pg_param(q, [qv])
     except Exception as e:
         print(json.dumps({"ok": False, "error": str(e), "hits": []}))
         return 1

@@ -95,6 +95,7 @@ while [ "$#" -gt 0 ]; do
         --owui)        MODE="owui"; OWUI_SQL="$2"; shift 2 ;;
         --embed)       MODE="embed"; EMBED_TEXT="$2"; shift 2 ;;
         --pg)          MODE="pg"; PG_SQL="$2"; shift 2 ;;
+        --pg-json)     MODE="pgjson"; shift ;;
         --embed-model) EMBED_MODEL="$2"; shift 2 ;;
         -h|--help)
             sed -n '2,46p' "$0" | sed 's/^# \?//'
@@ -147,10 +148,12 @@ if [ "$MODE" = "embed" ]; then
         exit 2
     fi
     # OpenAI-compat shape -- Ollama implements identical schema.
-    PAYLOAD=$(python3 -c "
+    # Pass model + text as argv (NOT spliced into the -c source) so a model name
+    # or text containing a quote can't break out into the python program.
+    PAYLOAD=$(python3 -c '
 import json, sys
-print(json.dumps({'model': '$EMBED_MODEL', 'input': sys.argv[1]}))
-" "$EMBED_TEXT")
+print(json.dumps({"model": sys.argv[1], "input": sys.argv[2]}))
+' "$EMBED_MODEL" "$EMBED_TEXT")
     exec curl -sS --max-time 15 \
         -X POST "${EMBED_URL}/v1/embeddings" \
         -H "Content-Type: application/json" \
@@ -199,6 +202,22 @@ if [ "$MODE" = "pg" ]; then
     fi
     echo "mios-db: no psql + no mios-pgvector container + no mios-pg-query" >&2
     echo "  check: systemctl start mios-pgvector.service" >&2
+    exit 2
+fi
+
+# ── MODE: --pg-json  (parameterized pgvector via the extended wire protocol) ──
+# Reads a {"sql","params"} / {"statements":[...]} envelope on STDIN and binds the
+# values OUT-OF-BAND (SQL-injection-safe). Only mios-pg-query can bind from an
+# envelope (psql/podman exec take raw SQL), so this routes straight there with
+# the SSOT-mapped connection env. (WS-A3 CLI SQL-safety -- the parameterized path
+# the python memory tools call instead of f-string-splicing values into SQL.)
+if [ "$MODE" = "pgjson" ]; then
+    if [ -x /usr/libexec/mios/mios-pg-query ]; then
+        export MIOS_PG_HOST="$PG_HOST" MIOS_PG_PORT="$PG_PORT" \
+               MIOS_PG_USER="$PG_USER" MIOS_PG_DB="$PG_DB"
+        exec /usr/libexec/mios/mios-pg-query --exec-json
+    fi
+    echo "mios-db: --pg-json needs mios-pg-query (not found/executable)" >&2
     exit 2
 fi
 

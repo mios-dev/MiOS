@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
-# AI-hint: CLI tool for managing the PostgreSQL/pgvector-backed Personal Knowledge Graph (PKG) to resolve ambiguous user phrases into concrete app targets via the kg_lookup() helper in the agent-pipe.
-# AI-related: /usr/libexec/mios/mios-db, mios-db, mios-apps, args.target
+# AI-hint: CLI for the PostgreSQL/pgvector Personal Knowledge Graph (PKG) that resolves ambiguous user phrases into concrete app targets via the kg_lookup() helper in the agent-pipe. WS-A3: every read + write is PARAMETERIZED via `mios-db --pg-json` (phrase/target/filter/env/NDJSON values bound out-of-band through mios-pg-query's extended protocol, never f-string-spliced); the hand-rolled _pgq/_pgesc escaping is gone.
+# AI-related: /usr/libexec/mios/mios-db, mios-db, /usr/libexec/mios/mios-pg-query, mios-apps, args.target
 """mios-kg -- Personal Knowledge Graph CLI for the MiOS agent stack.
 
-Phase C.1 of the AgentOS roadmap. Manages the operator-preference
-data in PostgreSQL/pgvector (person / app_install / alias +
-resolves_to natural-key edge). The agent-pipe's kg_lookup() helper
-queries the same tables (JOIN on app_id) to resolve ambiguous noun
-phrases to concrete launch targets. Mappings are PER-OPERATOR data
--- this CLI is the interface, never the source. NO hardcoded English
-aliases in this codebase. (SurrealDB, BSL 1.1, is retired.)
+Phase C.1 of the AgentOS roadmap. Manages the operator-preference data in
+PostgreSQL/pgvector (person / app_install / alias + resolves_to natural-key
+edge). The agent-pipe's kg_lookup() helper queries the same tables (JOIN on
+app_id) to resolve ambiguous noun phrases to concrete launch targets. Mappings
+are PER-OPERATOR data -- this CLI is the interface, never the source. NO
+hardcoded English aliases in this codebase. (SurrealDB, BSL 1.1, is retired.)
 
 Subcommands:
   bootstrap                Create the person row (from $USER /
@@ -26,9 +25,10 @@ Subcommands:
   who                      Print the person row.
 
 Fully local: routes all reads + writes through the shared
-/usr/libexec/mios/mios-db --pg CLI (pure-python pg wire client, no
-pip deps). resolves_to / app_install / alias / person tables are
-defined in /usr/share/mios/postgres/schema-init.sql.
+/usr/libexec/mios/mios-db --pg-json CLI, which binds every value OUT-OF-BAND via
+mios-pg-query's extended protocol (no value is spliced into SQL -> injection-
+safe). resolves_to / app_install / alias / person tables are defined in
+/usr/share/mios/postgres/schema-init.sql.
 """
 from __future__ import annotations
 
@@ -40,48 +40,49 @@ import socket as _socket
 import subprocess
 import sys
 
-# PKG store: PostgreSQL + pgvector via the shared mios-db --pg CLI. SurrealDB
-# (BSL 1.1) is retired -- ALL reads + writes go to pg. Natural-key model
-# (resolves_to(phrase, app_id)) -- no record-id round-trips. MIOS_DB_BACKEND
-# is kept for SSOT compatibility but the only live store is pg, so the tool
-# behaves identically under surreal|dual|postgres (always pg).
-DB_BACKEND = os.environ.get("MIOS_DB_BACKEND", "postgres").strip().lower()
-_PG_ENABLED = True
-_PG_PRIMARY = True
+# PKG store: PostgreSQL + pgvector via the shared mios-db --pg-json CLI (which
+# binds params through mios-pg-query's extended protocol). SurrealDB (BSL 1.1) is
+# retired -- ALL reads + writes go to pg. Natural-key model
+# (resolves_to(phrase, app_id)) -- no record-id round-trips.
 _MIOS_DB = "/usr/libexec/mios/mios-db"
 
 
-def _pgesc(s) -> str:
-    return str(s).replace("'", "''").replace("\x00", "")
-
-
-def _pgq(s) -> str:
-    return "'" + _pgesc(s) + "'"
-
-
-def _pg_exec(sql: str) -> None:
-    if not _PG_ENABLED:
-        return
+def _pg_json(envelope: dict) -> str:
+    """Run a parameterized statement / atomic batch via `mios-db --pg-json` and
+    return stdout. Degrade-open: any error -> '' (a DB hiccup never breaks the
+    CLI)."""
     try:
-        import subprocess
-        subprocess.run([_MIOS_DB, "--pg", sql],
-                       capture_output=True, text=True, timeout=15)
+        out = subprocess.run([_MIOS_DB, "--pg-json"],
+                             input=json.dumps(envelope),
+                             capture_output=True, text=True, timeout=15)
+        return (out.stdout or "").strip()
     except Exception:  # noqa: BLE001
-        pass
+        return ""
 
 
-def _pg_rows(sql_inner: str) -> list:
-    """Read rows from pgvector as list[dict] via json_agg + mios-db --pg."""
+def _pg_exec(sql: str, params: "list | None" = None) -> None:
+    """One parameterized statement (values bound out-of-band, never spliced)."""
+    _pg_json({"sql": sql, "params": params or []})
+
+
+def _pg_batch(statements: list) -> None:
+    """Several parameterized statements run ATOMICALLY (one BEGIN/COMMIT) -- for
+    the delete-then-insert upserts. Each item is {"sql","params"}."""
+    _pg_json({"statements": statements})
+
+
+def _pg_rows(sql_inner: str, params: "list | None" = None) -> list:
+    """Read rows from pgvector as list[dict] via json_agg, parameterized. The
+    inner SELECT uses $1..$n placeholders bound from `params`."""
+    out = _pg_json({
+        "sql": (f"SELECT coalesce(json_agg(row_to_json(t)),'[]') "
+                f"FROM ({sql_inner}) t;"),
+        "params": params or []})
     try:
-        import subprocess
-        out = subprocess.run(
-            [_MIOS_DB, "--json", "--pg",
-             f"SELECT coalesce(json_agg(row_to_json(t)),'[]') "
-             f"FROM ({sql_inner}) t;"],
-            capture_output=True, text=True, timeout=15).stdout.strip()
         return json.loads(out) if out else []
     except Exception:  # noqa: BLE001
         return []
+
 
 # Phase C.1 SSOT knobs from mios.toml [pkg].* (via userenv.sh slot
 # map). Defaults match the mios.toml seed so a Day-0 deploy with
@@ -101,14 +102,14 @@ def cmd_bootstrap(args: argparse.Namespace) -> int:
                 or "operator")
     hostname = os.environ.get("MIOS_HOSTNAME") or _socket.gethostname()
     # Upsert the person via DELETE + INSERT (cheaper than UPDATE for the
-    # singleton case + survives schema changes). pg `person` table, natural
-    # key = username.
-    _pg_exec(
-        f"DELETE FROM person WHERE username = {_pgq(username)}; "
-        f"INSERT INTO person (username, hostname, created_at) VALUES "
-        f"({_pgq(username)}, {_pgq(hostname)}, now());")
-    pr = _pg_rows(
-        f"SELECT id FROM person WHERE username = {_pgq(username)} LIMIT 1")
+    # singleton case + survives schema changes). Natural key = username; values
+    # are BOUND params.
+    _pg_batch([
+        {"sql": "DELETE FROM person WHERE username = $1", "params": [username]},
+        {"sql": ("INSERT INTO person (username, hostname, created_at) "
+                 "VALUES ($1, $2, now())"), "params": [username, hostname]},
+    ])
+    pr = _pg_rows("SELECT id FROM person WHERE username = $1 LIMIT 1", [username])
     if not pr:
         sys.stderr.write("bootstrap: failed to create person row\n")
         return 1
@@ -176,14 +177,16 @@ def cmd_bootstrap(args: argparse.Namespace) -> int:
             label = description or short_name
             launch_hint = entry.get("launch") or entry.get("launch_cmd") or ""
             # Idempotent insert into pg app_install (natural key:
-            # short_name + source). _pgq single-quote-escapes every string
-            # field so embedded apostrophes ("'MiOS' CDI spec ...") stay safe.
-            _pg_exec(
-                f"DELETE FROM app_install WHERE short_name = {_pgq(short_name)} "
-                f"AND source = {_pgq(source)}; "
-                f"INSERT INTO app_install (short_name, app_id, source, label, "
-                f"launch_hint) VALUES ({_pgq(short_name)}, {_pgq(app_id)}, "
-                f"{_pgq(source)}, {_pgq(label or '')}, {_pgq(launch_hint or '')});")
+            # short_name + source). All NDJSON-sourced fields are BOUND params
+            # -- an embedded apostrophe ("'MiOS' CDI spec ...") needs no escaping.
+            _pg_batch([
+                {"sql": ("DELETE FROM app_install WHERE short_name = $1 "
+                         "AND source = $2"), "params": [short_name, source]},
+                {"sql": ("INSERT INTO app_install (short_name, app_id, source, "
+                         "label, launch_hint) VALUES ($1, $2, $3, $4, $5)"),
+                 "params": [short_name, app_id, source,
+                            label or "", launch_hint or ""]},
+            ])
             inserted += 1
 
     print(f"bootstrap: ingested {inserted} app_install rows")
@@ -202,10 +205,9 @@ def cmd_alias_add(args: argparse.Namespace) -> int:
         target = target[4:]
     # pg path (natural-key): phrase -> app_id via app_install.short_name.
     # Resolve the target's app_id first so we can fail loudly when the
-    # operator names an app that isn't in the inventory (preserves the old
-    # surreal UX: stderr + exit 1, suggesting `mios-kg apps`).
-    pgr = _pg_rows(f"SELECT app_id FROM app_install "
-                   f"WHERE short_name = {_pgq(target)} LIMIT 1")
+    # operator names an app that isn't in the inventory.
+    pgr = _pg_rows("SELECT app_id FROM app_install WHERE short_name = $1 LIMIT 1",
+                   [target])
     if not pgr or not pgr[0].get("app_id"):
         sys.stderr.write(
             f"alias add: no app_install with short_name = {target!r}. "
@@ -213,21 +215,24 @@ def cmd_alias_add(args: argparse.Namespace) -> int:
         )
         return 1
     app_id = pgr[0]["app_id"]
-    # Upsert the alias + its resolves_to edge (delete-then-insert).
-    _pg_exec(
-        f"DELETE FROM alias WHERE phrase = {_pgq(phrase)}; "
-        f"INSERT INTO alias (phrase) VALUES ({_pgq(phrase)}); "
-        f"DELETE FROM resolves_to WHERE phrase = {_pgq(phrase)}; "
-        f"INSERT INTO resolves_to (phrase, app_id) VALUES "
-        f"({_pgq(phrase)}, {_pgq(app_id)});")
+    # Upsert the alias + its resolves_to edge (delete-then-insert), atomically.
+    _pg_batch([
+        {"sql": "DELETE FROM alias WHERE phrase = $1", "params": [phrase]},
+        {"sql": "INSERT INTO alias (phrase) VALUES ($1)", "params": [phrase]},
+        {"sql": "DELETE FROM resolves_to WHERE phrase = $1", "params": [phrase]},
+        {"sql": ("INSERT INTO resolves_to (phrase, app_id) VALUES ($1, $2)"),
+         "params": [phrase, app_id]},
+    ])
     print(f"alias: {phrase!r} -> app:{target} ({app_id})")
     return 0
 
 
 def cmd_alias_rm(args: argparse.Namespace) -> int:
-    phrase = args.phrase.strip().lower().replace("'", "''").replace("\x00", "")
-    _pg_exec(f"DELETE FROM resolves_to WHERE phrase = '{phrase}'; "
-             f"DELETE FROM alias WHERE phrase = '{phrase}';")
+    phrase = args.phrase.strip().lower()
+    _pg_batch([
+        {"sql": "DELETE FROM resolves_to WHERE phrase = $1", "params": [phrase]},
+        {"sql": "DELETE FROM alias WHERE phrase = $1", "params": [phrase]},
+    ])
     print(f"alias: removed {phrase!r}")
     return 0
 
@@ -236,6 +241,7 @@ def cmd_alias_list(args: argparse.Namespace) -> int:
     # pg JOIN replaces the surreal `->resolves_to->app_install` graph walk.
     # LEFT JOIN so aliases with no edge still list (as "(unresolved)").
     # Aggregate resolved targets per phrase into a JSON array of short_names.
+    # Constant SQL -- no external value.
     rows = _pg_rows(
         "SELECT al.phrase AS phrase, "
         "coalesce(json_agg(ai.short_name) "
@@ -257,13 +263,12 @@ def cmd_alias_list(args: argparse.Namespace) -> int:
 
 # ─── lookup ────────────────────────────────────────────────────────
 def cmd_lookup(args: argparse.Namespace) -> int:
-    phrase = args.phrase.strip().lower().replace("'", "''").replace("\x00", "")
-    # Exact first; fall back to contains. SurrealDB doesn't accept
-    # boolean expressions in ORDER BY, so we run the queries in
-    # priority order and pick the first non-empty. pg JOINs replace the
-    # surreal `->resolves_to->app_install` graph walk (same shape the
-    # agent-pipe kg_lookup uses); each row aggregates its resolved apps into
-    # the `app` JSON array.
+    phrase = args.phrase.strip().lower()
+    # Exact first; fall back to contains. Run the queries in priority order and
+    # pick the first non-empty. pg JOINs replace the surreal
+    # `->resolves_to->app_install` graph walk (same shape the agent-pipe
+    # kg_lookup uses); each row aggregates its resolved apps into the `app` JSON
+    # array. `_app_obj` is a CONSTANT projection; `phrase` is a BOUND param ($1).
     _app_obj = ("json_build_object('id', ai.id, 'short_name', ai.short_name, "
                 "'app_id', ai.app_id, 'source', ai.source, 'label', ai.label, "
                 "'launch_hint', ai.launch_hint)")
@@ -273,8 +278,8 @@ def cmd_lookup(args: argparse.Namespace) -> int:
         f"FROM alias al "
         f"JOIN resolves_to r ON r.phrase = al.phrase "
         f"JOIN app_install ai ON ai.app_id = r.app_id "
-        f"WHERE al.phrase = '{phrase}' "
-        f"GROUP BY al.phrase LIMIT 1")
+        f"WHERE al.phrase = $1 "
+        f"GROUP BY al.phrase LIMIT 1", [phrase])
     if not rows:
         # Stage 1b: alias CONTAINS match (fuzzy fallback).
         rows = _pg_rows(
@@ -282,17 +287,17 @@ def cmd_lookup(args: argparse.Namespace) -> int:
             f"FROM alias al "
             f"JOIN resolves_to r ON r.phrase = al.phrase "
             f"JOIN app_install ai ON ai.app_id = r.app_id "
-            f"WHERE al.phrase ILIKE '%{phrase}%' "
-            f"   OR '{phrase}' ILIKE '%' || al.phrase || '%' "
-            f"GROUP BY al.phrase LIMIT 3")
+            f"WHERE al.phrase ILIKE '%' || $1 || '%' "
+            f"   OR $1 ILIKE '%' || al.phrase || '%' "
+            f"GROUP BY al.phrase LIMIT 3", [phrase])
     if not rows:
         # Stage 2: direct app_install lookup by short_name substring.
         rows = _pg_rows(
-            f"SELECT id, short_name, app_id, source, label, launch_hint "
-            f"FROM app_install "
-            f"WHERE short_name ILIKE '%{phrase}%' "
-            f"   OR '{phrase}' ILIKE '%' || short_name || '%' "
-            f"LIMIT 5")
+            "SELECT id, short_name, app_id, source, label, launch_hint "
+            "FROM app_install "
+            "WHERE short_name ILIKE '%' || $1 || '%' "
+            "   OR $1 ILIKE '%' || short_name || '%' "
+            "LIMIT 5", [phrase])
         if not rows:
             print(f"(no match for {args.phrase!r})")
             return 1
@@ -313,10 +318,16 @@ def cmd_lookup(args: argparse.Namespace) -> int:
 
 # ─── apps ──────────────────────────────────────────────────────────
 def cmd_apps(args: argparse.Namespace) -> int:
-    filt = (args.filter or "").strip().lower().replace("'", "''").replace("\x00", "")
-    pgwhere = (f"WHERE short_name ILIKE '%{filt}%' " if filt else "")
-    rows = _pg_rows(f"SELECT short_name, source, label FROM app_install "
-                    f"{pgwhere}ORDER BY short_name LIMIT 50")
+    filt = (args.filter or "").strip().lower()
+    if filt:
+        rows = _pg_rows(
+            "SELECT short_name, source, label FROM app_install "
+            "WHERE short_name ILIKE '%' || $1 || '%' "
+            "ORDER BY short_name LIMIT 50", [filt])
+    else:
+        rows = _pg_rows(
+            "SELECT short_name, source, label FROM app_install "
+            "ORDER BY short_name LIMIT 50")
     if not rows:
         print("(no apps)")
         return 0
