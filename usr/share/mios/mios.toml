@@ -6474,6 +6474,32 @@ firecrawl_workers  = 2                        # NUM_WORKERS_PER_QUEUE for firecr
 firecrawl_bull_key = "mios"                   # BULL_AUTH_KEY shared between the firecrawl api + worker (loopback-only pod)
 firecrawl_log_level = "INFO"                  # LOGGING_LEVEL for the firecrawl stack
 
+# ----------------------------------------------------------------------------
+# [pods.*] -- co-resident container GROUPS (WS-7 "pods as SSOT"). Each entry
+# declares a set of containers that must be scheduled together in ONE podman pod
+# (shared network namespace / lifecycle). The .pod Quadlet under
+# usr/share/containers/systemd/<name>.pod is GENERATED from this section by
+# tools/generate-pod-quadlets.py (drift-gated in 38-drift-checks.sh) so the pod
+# definition can't drift from SSOT; each member .container still declares its own
+# `Pod=<name>.pod` membership. tools/generate-k3s-manifests.sh then projects the
+# LIVE pods to k3s (the runtime half), so the cluster path is one bridge removed
+# from the same SSOT. Fields: description, network ("host"|"private"), after[],
+# wants[], wanted_by[], members[] (documented; the .container files wire it), doc.
+# ----------------------------------------------------------------------------
+[pods.mios-webtools]
+description = "'MiOS' web-tools pod (firecrawl api+worker + crawl4ai + redis)"
+network     = "host"
+after       = ["network-online.target", "mios-hermes-browser.service"]
+wants       = ["network-online.target", "mios-hermes-browser.service"]
+wanted_by   = ["multi-user.target", "default.target"]
+members     = [
+  "mios-webtools-redis",            # docker.io/redis:7-alpine (loopback :6379)
+  "mios-webtools-firecrawl-api",    # firecrawl :3002 (Hermes FIRECRAWL_API_URL)
+  "mios-webtools-firecrawl-worker", # same image, `pnpm run workers`
+  "mios-webtools-crawl4ai",         # mios-crawl4ai-slim :11235 (`crawl` verb, Chrome-CDP)
+]
+doc = """FOUR co-located web-service containers in ONE pod (operator 2026-05-24 \"make it a pod\"). Replaces the prior fat single-container supervisord monolith: each web service is its own container, all joined to this pod via `Pod=mios-webtools.pod`. NETWORKING: host networking (Network=host on the POD) because (a) the WSL2 podman PublishPort quirk often fails to bind private-netns pods on the Windows host, (b) host-net lets the crawl4ai member reach the host's ChromeDev CDP at 127.0.0.1:9222, (c) members reach each other on host loopback (redis 6379, firecrawl 3002, crawl4ai 11235). Network=host publishes nothing, so NO PublishPort here (combining the two is a Quadlet/podman error)."""
+
 # AdGuard Home DNS resolver / ad-blocker. SYSTEM tier (mios-sys), like CrowdSec
 # -- network infrastructure, not an AI agent. uid owns /etc/mios/adguard (config)
 # + /var/lib/mios/adguard (state/db). Next free UID after mios-crawl4ai (824).

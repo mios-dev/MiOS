@@ -504,6 +504,27 @@ PY
     fi
 }
 
+check_pod_quadlets() {
+    # WS-7 pods-as-SSOT: the .pod Quadlets under usr/share/containers/systemd are
+    # GENERATED from mios.toml [pods.*]; fail if any committed .pod drifted from
+    # SSOT (regenerate via tools/generate-pod-quadlets.py). Also warns if a
+    # declared member has no .container file.
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "[38-drift-checks]   WARNING: python3 missing -- skipping pod-quadlet check" >&2
+        return 0
+    fi
+    local gen="$ROOT/tools/generate-pod-quadlets.py"
+    if [[ ! -f "$gen" ]]; then
+        echo "[38-drift-checks]   WARNING: generate-pod-quadlets.py absent -- skipping" >&2
+        return 0
+    fi
+    if MIOS_ROOT="$ROOT" python3 "$gen" --check; then
+        echo "[38-drift-checks]   (13) .pod Quadlets in sync with mios.toml [pods.*] SSOT"
+    else
+        _violation ".pod Quadlet(s) STALE vs mios.toml [pods.*] -- regenerate with tools/generate-pod-quadlets.py (WS-7/WS-10)"
+    fi
+}
+
 main() {
     check_dead_lane
     check_retired_models
@@ -516,6 +537,7 @@ main() {
     check_cli_sql_safety
     check_module_test_coverage
     check_capability_manifest
+    check_pod_quadlets
 
     echo "[38-drift-checks] ---------------------------------------------------------"
     if [[ "$VIOLATIONS" -eq 0 ]]; then

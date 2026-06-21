@@ -1,36 +1,21 @@
-# AI-hint: A Quadlet pod definition for the mios-webtools suite, grouping redis, firecrawl-api, firecrawl-worker, and crawl4ai into a single Network=host pod to enable local communication and host-level port binding.
-# AI-related: mios-webtools, mios-webtools-redis, mios-webtools-firecrawl-api, mios-webtools-firecrawl-worker, mios-webtools-crawl4ai, mios-crawl4ai-slim, mios-webtools-pod, mios-ollama-cpu, mios-hermes-browser, mios-webtools.container
+# AI-hint: GENERATED Quadlet pod for the co-resident group 'mios-webtools' (WS-7 pods-as-SSOT). DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [pods.mios-webtools] in mios.toml. Members (4): mios-webtools-redis, mios-webtools-firecrawl-api, mios-webtools-firecrawl-worker, mios-webtools-crawl4ai.
+# AI-related: usr/share/mios/mios.toml, tools/generate-pod-quadlets.py, mios-webtools-redis.container, mios-webtools-firecrawl-api.container, mios-webtools-firecrawl-worker.container, mios-webtools-crawl4ai.container
 # /usr/share/containers/systemd/mios-webtools.pod
-# 'MiOS' web-tools POD -- FOUR co-located web-service containers in ONE pod.
-#
-# Operator directive 2026-05-24: "make it a pod". This REPLACES the prior
-# fat single-container design (the monolith mios-webtools.container +
-# usr/share/mios/webtools/{Containerfile,supervisord.conf}). Instead of one
-# image running every process under supervisord, each web service is its own
-# container, all joined to THIS pod:
-#
-#   mios-webtools-redis            docker.io/redis:7-alpine   (loopback :6379)
-#   mios-webtools-firecrawl-api    firecrawl v1.0.0 image     (:3002, Hermes's
-#                                  native FIRECRAWL_API_URL scrape backend)
-#   mios-webtools-firecrawl-worker SAME firecrawl image, runs `pnpm run workers`
-#   mios-webtools-crawl4ai         localhost/mios-crawl4ai-slim:latest (:11235,
-#                                  the `crawl` verb backend, Chrome-CDP primary)
-#
-# Quadlet generates mios-webtools-pod.service from this file; every member
-# .container references it via `Pod=mios-webtools.pod` and Quadlet wires the
-# Wants=/After= dependency on the pod service automatically.
-#
-# ── NETWORKING: host networking (Network=host on the POD) ───────────────────
-# Rationale (same as the other MiOS WSL sidecars -- mios-ollama-cpu, surrealdb):
-#   (a) The WSL2 podman PublishPort quirk means private-netns pods often don't
-#       bind on the Windows host; host-net sidesteps the broken port-forwarder.
-#   (b) host-net lets the crawl4ai member reach the HOST's ChromeDev CDP at
-#       127.0.0.1:9222 (the flatpak mios-hermes-browser.service keeps up).
-#   (c) With host-net, pod members reach EACH OTHER on the host loopback --
-#       redis 6379, firecrawl api 3002, crawl4ai 11235 -- no port collisions.
-# Because the pod is Network=host we deliberately set NO PublishPort here:
-# host-net publishes nothing (the processes bind host loopback directly), and
-# combining PublishPort with Network=host is a Quadlet/podman error.
+# FOUR co-located web-service containers in ONE pod (operator 2026-05-24
+# "make it a pod"). Replaces the prior fat single-container supervisord
+# monolith: each web service is its own container, all joined to this pod
+# via `Pod=mios-webtools.pod`. NETWORKING: host networking (Network=host on
+# the POD) because (a) the WSL2 podman PublishPort quirk often fails to bind
+# private-netns pods on the Windows host, (b) host-net lets the crawl4ai
+# member reach the host's ChromeDev CDP at 127.0.0.1:9222, (c) members reach
+# each other on host loopback (redis 6379, firecrawl 3002, crawl4ai 11235).
+# Network=host publishes nothing, so NO PublishPort here (combining the two
+# is a Quadlet/podman error).
+# Members (each member .container declares Pod=mios-webtools.pod):
+#   mios-webtools-redis
+#   mios-webtools-firecrawl-api
+#   mios-webtools-firecrawl-worker
+#   mios-webtools-crawl4ai
 [Unit]
 Description='MiOS' web-tools pod (firecrawl api+worker + crawl4ai + redis)
 After=network-online.target mios-hermes-browser.service
