@@ -119,6 +119,7 @@ import mios_reputation   # noqa: E402  -- #54 zero-trust peer reputation
 import mios_quota   # noqa: E402  -- WS-6 per-user quota / rate-limit (inert until configured)
 import mios_capreg   # noqa: E402  -- WS-2 unified RBAC-filtered capability manifest
 import mios_crl   # noqa: E402  -- WS-A10 principal/cert revocation list (inert until a CRL file exists)
+import mios_gossip   # noqa: E402  -- WS-A18 epidemic peer discovery (inert until [gossip].interval_min>0)
 _A2A_REPUTATION = mios_reputation.PeerReputation()   # outbound-peer reliability
 import mios_goap   # noqa: E402  -- #53 deterministic GOAP planner lane
 import mios_selfimprove   # noqa: E402  -- #64 self-improvement analyzer (read-only)
@@ -18200,6 +18201,24 @@ async def v1_capabilities(request: Request) -> JSONResponse:
                              "error": str(e), "data": []})
 
 
+@app.get("/v1/peers")
+async def v1_peers() -> JSONResponse:
+    """WS-A18 gossip anti-entropy digest: this node's known A2A peers
+    {id, endpoint, heartbeat}. Other nodes PULL this each gossip round and merge
+    it (trust-gated) into their own peer set, so the federation discovers peers
+    epidemically without a central registry. Additive + read-only."""
+    try:
+        async with _A2A_PEERS_LOCK:
+            peers = [{"id": pid,
+                      "endpoint": str(p.get("url") or ""),
+                      "heartbeat": int(p.get("heartbeat", 1) or 1)}
+                     for pid, p in _A2A_PEERS.items()]
+        return JSONResponse({"object": "mios.peer.digest", "peers": peers})
+    except Exception as e:  # noqa: BLE001
+        return JSONResponse({"object": "mios.peer.digest", "error": str(e),
+                             "peers": []})
+
+
 @app.get("/v1/resources")
 async def list_resources() -> JSONResponse:
     """The COMPLETE read-only MiOS capability surface as MCP Resources: every
@@ -20569,6 +20588,80 @@ async def selfimprove_report_ep() -> JSONResponse:
 # journals) + the operator see them. [selfimprove].interval_min = 0 (default) ->
 # no task is spawned and the hot path is byte-identical. It only SURFACES;
 # auto-remediation (self-modification) is a separate, guardrail-gated step.
+# ── WS-A18 gossip peer-discovery loop (epidemic anti-entropy over mios_gossip) ──
+# DEFAULT-OFF: [gossip].interval_min = 0 -> no task spawned, zero overhead. When
+# on, each round PULLs a seeded fanout of known peers' /v1/peers digests and
+# merges them TRUST-GATED (mios_gossip.merge_peer_set, trust from the peer's
+# _A2A_REPUTATION score >= [gossip].min_trust) so a rogue/low-rep peer can't
+# inject itself. Newly-discovered peers are added (status=discovered) for the A2A
+# prober to validate. Degrade-open; outbound-only (no inbound mutation here).
+async def _gossip_loop() -> None:
+    try:
+        interval = int(_toml_section("gossip").get("interval_min", 0))
+    except Exception:  # noqa: BLE001
+        interval = 0
+    if interval <= 0:
+        return
+    g = _toml_section("gossip")
+    fanout = int(g.get("fanout", 3) or 3)
+    min_trust = float(g.get("min_trust", 0.0) or 0.0)
+    log.info("gossip: peer-discovery loop every %d min (fanout=%d, min_trust=%.2f)",
+             interval, fanout, min_trust)
+    rnd = 0
+    while True:
+        try:
+            await asyncio.sleep(interval * 60)
+            rnd += 1
+            async with _A2A_PEERS_LOCK:
+                local = {pid: mios_gossip.Peer(
+                    pid, str(p.get("url") or ""), int(p.get("heartbeat", 1) or 1),
+                    time.time(), _A2A_REPUTATION.score(pid))
+                    for pid, p in _A2A_PEERS.items()}
+            targets = mios_gossip.select_gossip_peers(list(local.keys()), fanout, seed=rnd)
+            client = await _get_client()
+            added = 0
+            for tid in targets:
+                url = (local[tid].endpoint or "").rstrip("/")
+                if not url:
+                    continue
+                try:
+                    r = await client.get(f"{url}/v1/peers", timeout=5.0)
+                    if r.status_code != 200:
+                        continue
+                    incoming = [mios_gossip.Peer(
+                        str(pp.get("id")), str(pp.get("endpoint") or ""),
+                        int(pp.get("heartbeat", 1) or 1), time.time(),
+                        _A2A_REPUTATION.score(str(pp.get("id"))))
+                        for pp in (r.json().get("peers") or []) if pp.get("id")]
+                    added += mios_gossip.merge_peer_set(
+                        local, incoming, now=time.time(), min_trust=min_trust,
+                        trust_of=lambda i: _A2A_REPUTATION.score(i))
+                except Exception:  # noqa: BLE001 -- one bad peer never breaks the round
+                    continue
+            if added:
+                async with _A2A_PEERS_LOCK:
+                    for pid, peer in local.items():
+                        if pid not in _A2A_PEERS and peer.endpoint:
+                            _A2A_PEERS[pid] = {"url": peer.endpoint,
+                                               "status": "discovered",
+                                               "heartbeat": peer.heartbeat}
+                log.info("gossip round %d: merged %d peer rumor(s)", rnd, added)
+        except asyncio.CancelledError:
+            break
+        except Exception as e:  # noqa: BLE001 -- the loop must never die
+            log.debug("gossip loop: %s", e)
+            await asyncio.sleep(5)
+
+
+@app.on_event("startup")
+async def _gossip_on_startup() -> None:
+    try:
+        if int(_toml_section("gossip").get("interval_min", 0)) > 0:
+            asyncio.create_task(_gossip_loop())
+    except Exception:  # noqa: BLE001
+        pass
+
+
 _SELFIMPROVE_SEEN: set = set()
 
 

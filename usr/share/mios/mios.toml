@@ -2151,6 +2151,16 @@ docgen_max_bytes   = 20000000    # refuse inputs/content larger than this (DoS g
 # delegable node. NO hardcoded endpoints: declare your fleet here (operator
 # overlay) or set a CIDR to auto-sweep. Tailscale is OFF by policy -> use
 # LAN/local IPs (172.x WSL gateway / 192.168.x), NOT tailnet (100.x).
+[gossip]
+# WS-A18 epidemic peer discovery (anti-entropy over the A2A peer set). DEFAULT
+# OFF: interval_min = 0 -> no loop is spawned (single-box MiOS unaffected). When
+# >0, each round PULLs `fanout` known peers' /v1/peers digests and merges them
+# TRUST-GATED (a peer rumor is accepted only when its reputation score >=
+# min_trust), so a rogue/low-rep peer can't inject itself into the federation.
+interval_min = 0    # minutes between gossip rounds (0 = disabled)
+fanout       = 3    # peers contacted per round (seeded -> coverage rotates)
+min_trust    = 0.0  # reject peer rumors below this reputation score (0 = accept all)
+
 [a2a]
 nodes = []          # e.g. in /etc/mios: nodes = ["http://172.20.0.5:8640", "http://192.168.1.40:8640"]
 discover_cidr = ""  # e.g. "192.168.1.0/24" -> auto-sweep a LAN segment (bounded to 256 hosts)
