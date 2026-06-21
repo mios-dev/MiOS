@@ -4533,6 +4533,12 @@ package_version     = "0.0.0"
 # explicit comma-chain ("sglang,vllm,light") is honoured verbatim. Read directly from this
 # SSOT by the agent-pipe (no quadlet placeholder); env override MIOS_AGENT_PIPE_HEAVY_ENGINE.
 heavy_engine        = "sglang"
+# WS-A16 remote-core escalation: when "on", any REMOTE [nodes.*] endpoint becomes
+# a first-class TRAILING lane in the resolver -- local lanes are still preferred
+# (LiteLLM order-based fallback: local-first), and a remote core is reached only
+# when every local lane is on cooldown/unreachable. Default "off" -> local-only
+# (byte-identical lane chain). The cost/quality trigger is mios_smartroute.
+remote_escalation   = "off"
 # Direct-install source for automation/38-hermes-agent.sh. Operators
 # pin a tag/SHA for reproducible images via mios.html.
 hermes_agent_repo   = "https://github.com/NousResearch/hermes-agent.git"

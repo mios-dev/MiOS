@@ -256,6 +256,27 @@ def _lane_resolver():
         "vllm":   mios_lanes.Lane("vllm",   _vllm_url,           _vllm_model),
     }
     chain = mios_lanes.build_chain(heavy_engine, lanes.keys())
+    # WS-A16: make remote [nodes.*] cores FIRST-CLASS escalation lanes appended
+    # AFTER the local lanes (LiteLLM order-based fallback: local-first, escalate to
+    # a remote core only when every local lane is on cooldown / unreachable). The
+    # quality/cost trigger (mios_smartroute.should_escalate) is the richer layer;
+    # this is the reliability-escalation baseline. INERT BY DEFAULT: when
+    # [ai].remote_escalation is off (default) OR no remote node is configured, the
+    # lanes/chain are byte-identical to the local-only resolver. Degrade-open.
+    try:
+        if str(_ai.get("remote_escalation", "off")).strip().lower() in {
+                "on", "true", "1", "yes", "enforce"}:
+            for _nname, _ncfg in (_toml_section("nodes") or {}).items():
+                if not isinstance(_ncfg, dict):
+                    continue
+                _nep = str(_ncfg.get("endpoint") or "").strip().rstrip("/")
+                if _nep and _is_remote_endpoint(_nep) and f"remote:{_nname}" not in lanes:
+                    _lid = f"remote:{_nname}"
+                    lanes[_lid] = mios_lanes.Lane(
+                        _lid, _nep, str(_ncfg.get("model") or _TOOL_BACKEND_MODEL))
+                    chain = chain + [_lid]   # trailing = lowest preference = escalation
+    except Exception:  # noqa: BLE001 -- escalation is best-effort; never break lanes
+        pass
 
     async def _probe(url: str) -> bool:
         client = await _get_client()
