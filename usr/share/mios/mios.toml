@@ -590,6 +590,15 @@ enable   = true
 [gpu]
 device = "nvidia.com/gpu=all"
 
+# WS-A13 risk-tier dispatch sandbox. enable=false ships the policy resolver
+# (mios_sandbox) + the per-dispatch workspace (/var/lib/mios/ai/dispatch) INERT:
+# the confinement PROFILE is resolved + observable, but the server.py engine-side
+# confinement (bwrap/seccomp/podman) is not yet applied. The resolver is
+# FAIL-CLOSED (an unknown tier -> the strictest profile, never 'none'). Flip on
+# once the confinement executor lands + is VM-verified. Env: MIOS_SANDBOX_ENABLE.
+[sandbox]
+enable = false
+
 # ----------------------------------------------------------------------------
 [security]
 # Phase B.3 of the AgentOS roadmap: TOML-driven Semantic Firewall
