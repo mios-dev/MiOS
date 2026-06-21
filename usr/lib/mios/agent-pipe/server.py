@@ -11629,22 +11629,42 @@ async def _recall_knowledge(query: str) -> str:
         try:
             for _s, _r in top:
                 _rid = _r.get("id")
-                if _rid is not None:
-                    _rid = _rid if isinstance(_rid, str) else str(_rid)
-                    if ":" in _rid:
-                        # Also promote to tier='hot' once the row has been paged
-                        # in >= KNOWLEDGE_HOT_THRESHOLD times -- the hot/cold
-                        # transition (so the HOT recall weight + future eviction
-                        # pass have a signal). Same statement, no extra round-trip;
-                        # IF/ELSE keeps a row that hasn't crossed the bar at warm.
-                        _db_fire(_db_post(
-                            f"UPDATE {_rid} SET "
-                            f"access_count = (access_count ?? 0) + 1, "
-                            f"recall_hits = (recall_hits ?? 0) + 1, "
-                            f"last_access = time::now(), "
-                            f"tier = IF (access_count ?? 0) >= "
-                            f"{KNOWLEDGE_HOT_THRESHOLD} THEN 'hot' ELSE "
-                            f"(tier ?? 'warm') END;"))
+                if _rid is None:
+                    continue
+                _rid_s = _rid if isinstance(_rid, str) else str(_rid)
+                _pgid = _mios_pg.rid_to_pg_id(_rid)
+                # SurrealDB record-id path (legacy/dual): `??` + IF/ELSE keep the
+                # bump safe on rows that never wrote access_count/recall_hits.
+                _surreal = (
+                    f"UPDATE {_rid_s} SET "
+                    f"access_count = (access_count ?? 0) + 1, "
+                    f"recall_hits = (recall_hits ?? 0) + 1, "
+                    f"last_access = time::now(), "
+                    f"tier = IF (access_count ?? 0) >= "
+                    f"{KNOWLEDGE_HOT_THRESHOLD} THEN 'hot' ELSE "
+                    f"(tier ?? 'warm') END;") if ":" in _rid_s else ""
+                # WS-MEM-TIER: on pgvector-primary the id is a BIGINT (no ':') so
+                # the old `:" in _rid` guard skipped the bump entirely AND the raw
+                # _db_post(UPDATE) was a dead no-op (_PG_PRIMARY guard returns None)
+                # -> access_count/recall_hits/last_access/tier were NEVER refreshed
+                # on recall, so K-LRU eviction (mios_evict) ran on stale/zero
+                # counters. Route through _db_update with a parameterized PG UPDATE
+                # (COALESCE/CASE mirror the ??/IF semantics; CASE sees the
+                # pre-increment access_count exactly like the surreal IF) so the
+                # tiering feedback loop is LIVE on the active store. Fire-and-forget.
+                if not _surreal and not (_PG_PRIMARY and _pgid is not None):
+                    continue
+                _db_fire(_db_update(
+                    _surreal,
+                    pg_sql=(
+                        f"UPDATE {KNOWLEDGE_TABLE} SET "
+                        "access_count = COALESCE(access_count,0) + 1, "
+                        "recall_hits = COALESCE(recall_hits,0) + 1, "
+                        "last_access = now(), "
+                        "tier = CASE WHEN COALESCE(access_count,0) >= %(hot)s "
+                        "THEN 'hot' ELSE COALESCE(tier,'warm') END "
+                        "WHERE id = %(id)s"),
+                    pg_params={"id": _pgid, "hot": int(KNOWLEDGE_HOT_THRESHOLD)}))
         except Exception:  # noqa: BLE001
             pass
         log.info("knowledge recall: %d/%d hits (top=%.2f)",
@@ -12709,8 +12729,13 @@ async def execute_skill(name: str, params: dict, *,
             # skill as a win (any-of-N semantics).
             if step_ok:
                 await _skill_invocation_close(inv_id, success=True)
-                await _db_post(
-                    f"UPDATE {row.get('id')} SET last_used_at = time::now();")
+                # WS-MEM-TIER: dead _db_post(UPDATE) on pgvector-primary left the
+                # skill's last_used_at (configurator UI + recency signal) un-bumped;
+                # route through _db_update with a parameterized PG UPDATE.
+                await _db_update(
+                    f"UPDATE {row.get('id')} SET last_used_at = time::now();",
+                    pg_sql="UPDATE skill SET last_used_at = now() WHERE id = %(id)s",
+                    pg_params={"id": _mios_pg.rid_to_pg_id(row.get('id'))})
                 _db_write("event", {
                     "source": "agent-pipe",
                     "kind": "skill_run",
@@ -12767,8 +12792,11 @@ async def execute_skill(name: str, params: dict, *,
                 "mode": "try-each"}
     await _skill_invocation_close(inv_id, success=True)
     # Update last_used_at on the skill row for the configurator UI.
-    await _db_post(
-        f"UPDATE {row.get('id')} SET last_used_at = time::now();")
+    # WS-MEM-TIER: dead _db_post(UPDATE) on pgvector-primary -> route via _db_update.
+    await _db_update(
+        f"UPDATE {row.get('id')} SET last_used_at = time::now();",
+        pg_sql="UPDATE skill SET last_used_at = now() WHERE id = %(id)s",
+        pg_params={"id": _mios_pg.rid_to_pg_id(row.get('id'))})
     _db_write("event", {
         "source": "agent-pipe",
         "kind": "skill_run",
@@ -14538,19 +14566,35 @@ async def hitl_approve(request: Request) -> JSONResponse:
     except Exception:  # noqa: BLE001
         body = {}
     rid = str(body.get("id") or "").strip()
-    if not rid or ":" not in rid:
+    # WS-MEM-TIER: accept a SurrealDB record-id ('pending_action:NNN') OR a bare
+    # pgvector bigint id -- the old `":" not in rid` guard REJECTED every valid pg
+    # id, so HITL approve/deny was unreachable on pgvector-primary.
+    _pgid = _mios_pg.rid_to_pg_id(rid)
+    if not rid or (":" not in rid and _pgid is None):
         return JSONResponse({"success": False,
                              "error": "missing/invalid 'id' (a pending_action "
-                                      "record id from /v1/hitl/pending)"})
+                                      "id from /v1/hitl/pending)"})
     status = "approved" if bool(body.get("approved", True)) else "denied"
+    approver = str(body.get('approver') or 'operator')
     try:
         env = _passport_sign("pending_action", {"id": rid, "status": status})
         sets = [f"status = {json.dumps(status)}",
                 "decided_at = time::now()",
-                f"approver = {json.dumps(str(body.get('approver') or 'operator'))}"]
+                f"approver = {json.dumps(approver)}"]
         if env is not None:
             sets.append(f"approval_passport = {json.dumps(env)}")
-        await _db_post(f"UPDATE {rid} SET " + ", ".join(sets) + ";")
+        # WS-MEM-TIER: the raw _db_post(UPDATE) was a dead no-op on
+        # pgvector-primary, so an approval/denial was NEVER persisted (the gate
+        # could never record its decision). Route through _db_update with a
+        # parameterized PG UPDATE (passport cast to jsonb) so the decision lands.
+        await _db_update(
+            f"UPDATE {rid} SET " + ", ".join(sets) + ";",
+            pg_sql=("UPDATE pending_action SET status = %(status)s, "
+                    "decided_at = now(), approver = %(approver)s, "
+                    "approval_passport = %(passport)s::jsonb WHERE id = %(id)s"),
+            pg_params={"status": status, "approver": approver,
+                       "passport": (json.dumps(env) if env is not None else None),
+                       "id": _pgid})
     except Exception as e:  # noqa: BLE001
         return JSONResponse({"success": False, "error": str(e)})
     return JSONResponse({"success": True, "id": rid, "status": status})

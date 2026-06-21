@@ -1,5 +1,5 @@
 # AI-hint: Provides a PostgreSQL and pgvector client for the agent plane (WS-9), offering a standalone, SQL-injection-safe replacement for the SurrealDB client using parameterized queries and HNSW-indexed vector recall.
-# AI-functions: _pg_skip, _pg_mark_down, pg_config, dsn, vector_literal, build_insert, build_recall, recall_tuning, execute, _table_columns, insert, recall
+# AI-functions: _pg_skip, _pg_mark_down, rid_to_pg_id, pg_config, dsn, vector_literal, build_insert, build_recall, recall_tuning, execute, _table_columns, insert, recall
 """mios_pg -- PostgreSQL + pgvector client foundation for the agent plane (WS-9).
 
 FOSS-pure replacement path for the SurrealDB HTTP client. The PURE, deterministic
@@ -42,6 +42,26 @@ def _pg_skip() -> bool:
 def _pg_mark_down() -> None:
     global _pg_down_until
     _pg_down_until = time.monotonic() + _PG_BACKOFF_S
+
+
+def rid_to_pg_id(rid: Any) -> "Optional[int]":
+    """Extract the Postgres bigint id from an agent-plane row id that may be a
+    SurrealDB 'table:NNN' record-string OR a bare bigint (int or numeric str).
+
+    WS-MEM-TIER: several agent-plane UPDATE sites round-trip a row id from a
+    SELECT back into an UPDATE. On SurrealDB the id is a record-string
+    ('knowledge:abc'); on pgvector it is a bigint. A caller converting such an
+    UPDATE to a parameterized PG statement needs the bigint. Returns None when the
+    trailing segment is not an integer (e.g. a legacy surreal alpha id with no pg
+    analog) so the caller can SKIP the pg write rather than bind a bad id. Pure +
+    deterministic (no DB)."""
+    if rid is None:
+        return None
+    try:
+        tail = str(rid).split(":")[-1].strip()
+        return int(tail)
+    except (TypeError, ValueError):
+        return None
 
 
 # ── config / DSN (SSOT: mios.toml [pgvector] -> MIOS_PG_* env via userenv.sh) ──
