@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Provides a tiered, read-only virtual filesystem (viking://) for agents to navigate local skills, knowledge, and memory via L0 (abstract), L1 (overview), and L2 (raw) levels to manage context window density.
-# AI-related: /usr/libexec/mios/mios-db, mios-db, mios-summarize, localhost:8000
+# AI-related: /usr/libexec/mios/mios-db, mios-db, /usr/libexec/mios/mios-pg-query, mios-summarize
 """mios-viking -- OpenViking-style viking:// VFS over the local second brain.
 
 P5.2 (OpenViking brief): a virtual filesystem with HIERARCHICAL TOKEN GATING
@@ -13,7 +13,7 @@ never flooded with full documents.
 NAMESPACES (viking://<ns>/...):
   skills     -- the episodic SKILL.md files (/var/lib/mios/ai/skills/episodic)
                 written by the self-learn loop (P5.7).
-  knowledge  -- the SurrealDB `knowledge` table (every finished Q+A).
+  knowledge  -- the Postgres+pgvector `knowledge` table (every finished Q+A).
   memory     -- the operator AI memory dir (/var/lib/mios/ai/memory), if present.
 
 TIERS:
@@ -38,53 +38,26 @@ import json
 import os
 import subprocess
 import sys
-import urllib.request
 
 SKILLS_DIR = os.environ.get("MIOS_SKILLS_EPISODIC_DIR",
                             "/var/lib/mios/ai/skills/episodic")
 MEMORY_DIR = os.environ.get("MIOS_AI_MEMORY_DIR", "/var/lib/mios/ai/memory")
-DB_URL = os.environ.get("MIOS_DB_URL", "http://localhost:8000")
-DB_USER = os.environ.get("MIOS_DB_USER", "root")
-DB_PASS = os.environ.get("MIOS_DB_PASS", "root")
-DB_NS = os.environ.get("MIOS_DB_NS", "mios")
-DB_DB = os.environ.get("MIOS_DB_DB", "mios")
 KNOWLEDGE_TABLE = os.environ.get("MIOS_KNOWLEDGE_TABLE", "knowledge")
 SUMMARIZE = os.environ.get("MIOS_SUMMARIZE_BIN", "mios-summarize")
-
-
-def _db_sql(sql: str) -> list:
-    req = urllib.request.Request(
-        f"{DB_URL.rstrip('/')}/sql",
-        data=sql.encode("utf-8"),
-        headers={"surreal-ns": DB_NS, "surreal-db": DB_DB,
-                 "Accept": "application/json",
-                 "Authorization": "Basic " + _basic()},
-        method="POST")
-    with urllib.request.urlopen(req, timeout=15) as r:
-        d = json.loads(r.read().decode("utf-8", errors="replace"))
-    for st in (d or []):
-        if isinstance(st, dict) and isinstance(st.get("result"), list):
-            return st["result"]
-    return []
-
-
-def _basic() -> str:
-    import base64
-    return base64.b64encode(f"{DB_USER}:{DB_PASS}".encode()).decode()
-
-
 _MIOS_DB = os.environ.get("MIOS_DB_BIN", "/usr/libexec/mios/mios-db")
 
 
-def _pg_rows(inner_sql: str) -> list:
-    """P3 (AIOS LSFS/RAG-as-storage): the viking knowledge ns read SurrealDB,
-    which is DEAD under the live pg-primary backend (-> 0 rows). Read the live
-    pgvector store via the shared mios-db --pg CLI instead. Degrade-open -> []."""
+def _pg_rows(inner_sql: str, params: "list | None" = None) -> list:
+    """WS-A3: read rows as list[dict] from the live pgvector store via
+    `mios-db --pg-json`, which binds values OUT-OF-BAND ($1..$n) -- the inner
+    SELECT uses placeholders, never f-string-spliced values. (The retired
+    SurrealDB knowledge-ns transport _db_sql is gone.) Degrade-open -> []."""
     try:
+        env = {"sql": (f"SELECT coalesce(json_agg(row_to_json(t)),'[]') "
+                       f"FROM ({inner_sql}) t;"),
+               "params": params or []}
         out = subprocess.run(
-            [_MIOS_DB, "--json", "--pg",
-             f"SELECT coalesce(json_agg(row_to_json(t)),'[]') "
-             f"FROM ({inner_sql}) t;"],
+            [_MIOS_DB, "--pg-json"], input=json.dumps(env),
             capture_output=True, text=True, timeout=15).stdout.strip()
         return json.loads(out) if out else []
     except Exception:  # noqa: BLE001
@@ -126,12 +99,14 @@ def _ls_skills(limit: int) -> list:
 
 def _ls_knowledge(limit: int, query: str) -> list:
     where = ""
+    params: list = []
     if query:
-        q = query.replace("'", "''").lower()
-        where = f"WHERE position('{q}' in lower(q)) > 0 "
+        where = "WHERE position($1 in lower(q)) > 0 "
+        params = [query.lower()]
+    # LIMIT stays inline (int-coerced -> not injectable); the query is bound.
     rows = _pg_rows(
         f"SELECT id, q FROM {KNOWLEDGE_TABLE} {where}"
-        f"ORDER BY ts DESC LIMIT {int(limit)}")
+        f"ORDER BY ts DESC LIMIT {int(limit)}", params)
     return [{"id": f"knowledge/{r.get('id')}",
              "l0": str(r.get("q", ""))[:160]} for r in rows]
 
@@ -168,7 +143,7 @@ def _cat_knowledge(node: str, tier: str) -> dict:
         _id = int(str(rid).split(":")[-1])
     except (ValueError, TypeError):
         return {"ok": False, "error": f"bad knowledge id: {rid}"}
-    rows = _pg_rows(f"SELECT q, answer FROM {KNOWLEDGE_TABLE} WHERE id = {_id}")
+    rows = _pg_rows(f"SELECT q, answer FROM {KNOWLEDGE_TABLE} WHERE id = $1", [_id])
     if not rows:
         return {"ok": False, "error": f"not found: {rid}"}
     r = rows[0]

@@ -74,7 +74,9 @@ drift-gate names them so they can't hide:
    (+ supply pg_sql for the two untranslated reads) once VM-verifiable. The one
    tainted read value (`_tool_calls_for_refine` `refine_ts`) only reaches a
    `_PG_PRIMARY`-gated branch; bind it as `$1` when that gate flips.
-3. **mios-viking** — SurrealDB-backed; migrate its archival store to pg.
+3. ~~**mios-viking**~~ — DONE: dead `_db_sql` SurrealDB transport removed, the
+   knowledge-ns reads (`_ls_knowledge` filter, `_cat_knowledge` id) bound via
+   `mios-db --pg-json`; no longer in the drift-10 allowlist.
 
 Operator: live-test the memory/skill/kanban/RAG paths in the VM
 (`just build` → boot → `mios-remember add`, `mios-kg lookup`, `mios-skills mine`,
