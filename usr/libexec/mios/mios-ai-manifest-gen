@@ -1,0 +1,63 @@
+#!/usr/bin/env python3
+# AI-hint: WS-A1 anti-drift generator CLI -- regenerates (or --check verifies) the ai/v1 verb-catalog manifest projection (ai/v1/tools.generated.json) from the live mios.toml [verbs.*] SSOT, via the pure mios_manifest core in the agent-pipe. Default writes the manifest; --check regenerates in-memory and DIFFS the committed file, exiting 1 on any drift so 38-drift-checks / CI fail when the committed projection no longer matches the SSOT. Standalone (adds the agent-pipe dir to sys.path); no server.py, no DB, no network.
+# AI-related: /usr/lib/mios/agent-pipe/mios_manifest.py, /usr/share/mios/mios.toml, /usr/share/mios/ai/v1/tools.generated.json, /usr/share/mios/ai/v1/tools.json, ./mios-docgen
+# AI-functions: _generate, main
+"""mios-ai-manifest-gen -- project mios.toml [verbs.*] -> ai/v1/tools.generated.json.
+
+Usage:
+  mios-ai-manifest-gen           # regenerate the manifest (write)
+  mios-ai-manifest-gen --check   # verify the committed manifest is in sync (exit 1 on drift)
+
+The generated manifest is the COMMITTED, diffable projection of the live verb
+catalog (registry_kind="verb-catalog") -- distinct from the file-backed Hermes
+build-tools registry (ai/v1/tools.json, registry_kind="hermes-build-tools")."""
+
+import json
+import os
+import sys
+
+_PIPE = os.environ.get("MIOS_AGENT_PIPE_DIR", "/usr/lib/mios/agent-pipe")
+if _PIPE not in sys.path:
+    sys.path.insert(0, _PIPE)
+
+import mios_manifest as man  # noqa: E402  -- the pure projection core
+
+TOML = os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml")
+OUT = os.environ.get("MIOS_VERB_MANIFEST",
+                     "/usr/share/mios/ai/v1/tools.generated.json")
+
+
+def _generate() -> dict:
+    return man.project_verb_catalog(man.load_verbs_from_toml(TOML))
+
+
+def main(argv) -> int:
+    mani = _generate()
+    if "--check" in argv:
+        try:
+            with open(OUT, encoding="utf-8") as fh:
+                committed = json.load(fh)
+        except (OSError, ValueError) as e:
+            sys.stderr.write(
+                f"[manifest-gen] FAIL: cannot read committed manifest {OUT}: {e}\n")
+            return 1
+        diffs = man.diff_manifest(mani, committed)
+        if diffs:
+            sys.stderr.write(
+                f"[manifest-gen] DRIFT: {OUT} is stale vs mios.toml [verbs.*]:\n")
+            for d in diffs[:40]:
+                sys.stderr.write(f"    {d}\n")
+            sys.stderr.write("[manifest-gen] regenerate with: mios-ai-manifest-gen\n")
+            return 1
+        sys.stdout.write(f"[manifest-gen] OK: {OUT} in sync ({mani['count']} verbs).\n")
+        return 0
+    with open(OUT, "w", encoding="utf-8") as fh:
+        json.dump(mani, fh, ensure_ascii=False, indent=2, sort_keys=True)
+        fh.write("\n")
+    sys.stdout.write(
+        f"[manifest-gen] wrote {OUT} ({mani['count']} verbs, registry_kind=verb-catalog).\n")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

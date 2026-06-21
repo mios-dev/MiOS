@@ -1,5 +1,6 @@
 {
   "object": "mios.tools.registry",
+  "registry_kind": "hermes-build-tools",
   "version": "v1",
   "manifest_path": "/usr/share/mios/ai/v1/tools.json",
   "endpoint": "http://localhost:8642/v1",

@@ -446,6 +446,13 @@ def _traced_stage(name: str):
 # spaces (which degrades cosine recall to noise).
 EMB_MODEL = os.environ.get("MIOS_EMB_MODEL", "nomic-embed-text")
 EMB_VERSION = os.environ.get("MIOS_EMB_VERSION", "nomic-768-v1")
+# WS-A1: SSOT catalog load posture. "warn" (default) = the loaders log + degrade
+# to an empty/partial catalog on a parse error (today's behaviour). "fail" =
+# FAIL-LOUD: a malformed verb/recipe/agent catalog RAISES at startup so the pipe
+# never silently serves an empty tool surface from a broken mios.toml. Opt-in via
+# [ai].catalog_fail_mode (env MIOS_CATALOG_FAIL_MODE); ship "warn", flip to "fail"
+# once the build/CI manifest-drift gate (mios-ai-manifest-gen --check) is green.
+CATALOG_FAIL_MODE = str(os.environ.get("MIOS_CATALOG_FAIL_MODE", "warn")).strip().lower()
 # Persist the per-chat scratchpad (working memory) to the pg `scratch` table so
 # it SURVIVES an agent-pipe restart (rehydrated once on chat entry). Fire-and-
 # forget + degrade-open; off -> the old in-memory-only behaviour.
@@ -3516,6 +3523,8 @@ def _load_agent_registry() -> dict[str, dict]:
             registry[name]["engines"] = _build_agent_engines(cfg, registry[name])
     except Exception as e:
         log.warning("agent registry load failed: %s; using fallback", e)
+        if CATALOG_FAIL_MODE == "fail":   # WS-A1 fail-loud (opt-in)
+            raise
     if not registry:
         registry["hermes"] = {
             "endpoint": BACKEND, "model": BACKEND_MODEL,
@@ -5433,6 +5442,8 @@ def _load_verb_catalog() -> dict:
                 }
     except Exception as e:
         log.warning("verb catalog load failed: %s", e)
+        if CATALOG_FAIL_MODE == "fail":   # WS-A1 fail-loud (opt-in)
+            raise
     return cat
 
 
@@ -6073,8 +6084,14 @@ def _load_recipe_catalog() -> dict:
         try:
             with open(p, "rb") as f:
                 recs = (tomllib.load(f).get("recipes") or {})
-        except (OSError, tomllib.TOMLDecodeError):
+        except tomllib.TOMLDecodeError:
+            # WS-A1: a MALFORMED toml is a real SSOT defect -> fail-loud when
+            # opted in; otherwise skip this file (degrade, today's behaviour).
+            if CATALOG_FAIL_MODE == "fail":
+                raise
             continue
+        except OSError:
+            continue  # absent /etc overlay is normal -> always skip
         for name, cfg in recs.items():
             if isinstance(cfg, dict):
                 out[name] = {

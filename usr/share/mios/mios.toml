@@ -4416,6 +4416,13 @@ pdp_audit_allow     = false
 # byte-identical to the legacy //4 estimate -- the only backend shipped today.
 # A vendored real tokenizer registers under its own name. Env: MIOS_TOKENIZER_BACKEND.
 tokenizer_backend   = "heuristic"
+# WS-A1 SSOT catalog load posture. "warn" (default): the verb/recipe/agent
+# catalog loaders log + degrade to empty/partial on a parse error. "fail":
+# FAIL-LOUD -- a malformed mios.toml RAISES at agent-pipe startup so a broken
+# SSOT never silently serves an empty tool surface. Flip to "fail" once the
+# manifest-drift gate (mios-ai-manifest-gen --check) is green in CI. Env:
+# MIOS_CATALOG_FAIL_MODE.
+catalog_fail_mode   = "warn"
 # WS-1 unified lane resolver (operator 2026-06-19): which heavy engine the agent-pipe
 # PREFERS when both heavy lanes ([ai.sglang] :11441 + [ai.vllm] :11440 -- BOTH advertise
 # served_name "mios-heavy") are provisioned. mios_lanes.LaneResolver tries the preferred

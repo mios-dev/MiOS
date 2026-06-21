@@ -318,6 +318,49 @@ PY
     fi
 }
 
+# (8, WS-A1) The committed ai/v1/tools.generated.json verb-catalog projection
+# must match the live mios.toml [verbs.*] SSOT. Catches a verb added / removed /
+# changed (incl. its conflict_group/parallel_limit) without regenerating the
+# manifest (mios-ai-manifest-gen). Uses the SAME pure projection core the CLI does.
+check_ai_manifest() {
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "[38-drift-checks]   WARNING: python3 missing -- skipping AI manifest drift check" >&2
+        return 0
+    fi
+    if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
+import os, sys, json
+root = os.environ["MIOS_DRIFT_ROOT"]
+sys.path.insert(0, os.path.join(root, "usr/lib/mios/agent-pipe"))
+try:
+    import mios_manifest as man
+except Exception as e:  # noqa: BLE001 -- module absent on a bare checkout -> skip
+    sys.stderr.write(f"    cannot import mios_manifest ({e}) -- skipping\n")
+    sys.exit(0)
+toml = os.path.join(root, "usr/share/mios/mios.toml")
+out  = os.path.join(root, "usr/share/mios/ai/v1/tools.generated.json")
+try:
+    gen = man.project_verb_catalog(man.load_verbs_from_toml(toml))
+except Exception as e:  # noqa: BLE001
+    sys.stderr.write(f"    verb-catalog projection failed: {e}\n")
+    sys.exit(1)
+try:
+    with open(out, encoding="utf-8") as fh:
+        committed = json.load(fh)
+except (OSError, ValueError) as e:
+    sys.stderr.write(f"    committed manifest unreadable ({out}): {e}\n")
+    sys.exit(1)
+diffs = man.diff_manifest(gen, committed)
+for d in diffs[:30]:
+    sys.stderr.write("    " + d + "\n")
+sys.exit(1 if diffs else 0)
+PY
+    then
+        echo "[38-drift-checks]   (8) ai/v1 verb-catalog manifest in sync with mios.toml SSOT"
+    else
+        _violation "ai/v1/tools.generated.json is STALE vs mios.toml [verbs.*] -- regenerate with mios-ai-manifest-gen (WS-A1)"
+    fi
+}
+
 main() {
     check_dead_lane
     check_retired_models
@@ -325,6 +368,7 @@ main() {
     check_hint_coverage
     check_module_boundary
     check_rbac_tiers
+    check_ai_manifest
 
     echo "[38-drift-checks] ---------------------------------------------------------"
     if [[ "$VIOLATIONS" -eq 0 ]]; then
