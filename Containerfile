@@ -149,6 +149,8 @@ RUN bootc completion bash > /etc/bash_completion.d/bootc
 # defensively. Any bound image that fails to bake fails the build LOUD --
 # better than shipping an image whose every deployment artifact 404s.
 RUN --network=host set -eux; \
+    mkdir -p /tmp/inner-podman; \
+    echo -e '[storage]\ndriver = "overlay"\n[storage.options.overlay]\nmountopt = "nodev"' > /tmp/inner-podman/storage.conf; \
     install -d -m 0755 /usr/lib/containers/storage; \
     baked=0; failed=0; \
     for q in /usr/lib/bootc/bound-images.d/*.container; do \
@@ -181,7 +183,7 @@ RUN --network=host set -eux; \
         echo "bound-image: baking $img"; \
         _pulled=0; \
         for _try in 1 2 3; do \
-            if podman --root /usr/lib/containers/storage pull "$img"; then _pulled=1; break; fi; \
+            if CONTAINERS_STORAGE_CONF=/tmp/inner-podman/storage.conf podman --root /usr/lib/containers/storage pull "$img"; then _pulled=1; break; fi; \
             echo "  bound-image pull attempt $_try/3 failed for $img -- retrying in 3s"; sleep 3; \
         done; \
         if [ "$_pulled" = 1 ]; then \
@@ -210,7 +212,8 @@ RUN --network=host set -eux; \
     # (preset-enabled, commit f5a1ac9) which runs chmod -R go+rX on the running \
     # host where layer sizes and build-time commit limits do not matter. \
     echo "bound-images: chmod 0755 the main storage directory"; \
-    chmod 0755 /usr/lib/containers/storage
+    chmod 0755 /usr/lib/containers/storage; \
+    rm -rf /tmp/inner-podman
 
 RUN ostree container commit
 # bootc container lint MUST be the final instruction (ARCHITECTURAL LAW 4).
