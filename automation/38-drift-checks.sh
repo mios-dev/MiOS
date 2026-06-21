@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # AI-hint: Source-tree drift fitness-functions (WS-0A). Read-only static analysis over the repo (== system root) that FAILS on AI-plane SSOT drift no other gate catches: a retired local :11434 lane in active config, a retired model-id (gemma4 / qwen3:1.7b) hardcoded in a CONSUMER unit, a [nodes.local-*] lane pointing at a localhost port no shipped unit serves, an ai/v1/*.json manifest that won't parse or references a missing schema file, (check 5, WS-10) AI-hint header coverage regressing past [ai_tag].max_untagged, and (check 6, WS-3) an agent-pipe sibling module importing the server.py monolith (modular-monolith boundary). Sibling to 38-ssot-lint.sh; runs standalone, as a build sub-phase, and as a CI/PR drift-gate (needs NO built image). bash + grep + (optional) python3 for the toml/json/coverage checks.
 # AI-related: ./automation/38-ssot-lint.sh, ./automation/99-postcheck.sh, ./usr/libexec/mios/mios-ai-hint-coverage, ./usr/share/mios/mios.toml, ./usr/share/mios/ai/v1
-# AI-functions: _violation, check_dead_lane, check_retired_models, check_structured, check_hint_coverage, check_module_boundary, check_rbac_tiers, check_ai_manifest, check_package_registry, check_cli_sql_safety, main
+# AI-functions: _violation, check_dead_lane, check_retired_models, check_structured, check_hint_coverage, check_module_boundary, check_rbac_tiers, check_ai_manifest, check_package_registry, check_cli_sql_safety, check_module_test_coverage, main
 # automation/38-drift-checks.sh
 # ----------------------------------------------------------------------------
 # WHY THIS EXISTS (WS-0A drift-freeze). 99-postcheck.sh enforces the same
@@ -430,6 +430,35 @@ check_cli_sql_safety() {
     fi
 }
 
+# (11, WS-0A) Every agent-pipe pure module (mios_*.py) MUST ship a sibling
+# test_mios_*.py assert-script. The sibling-module pattern's whole value is that
+# the extracted logic is unit-tested in ISOLATION; a module with no test is logic
+# whose regressions pass the build gate unnoticed (the gap that left 5 cores --
+# a2a_principal/crl/jsonsalvage/manifest/owui -- silently untested until covered).
+# This locks the gap closed: a NEW mios_*.py with no test_mios_*.py reds the PR.
+check_module_test_coverage() {
+    local dir="$ROOT/usr/lib/mios/agent-pipe"
+    if [[ ! -d "$dir" ]]; then
+        echo "[38-drift-checks]   (11) agent-pipe dir absent -- skipped"
+        return 0
+    fi
+    local missing="" f base
+    while IFS= read -r f; do
+        [[ -f "$f" ]] || continue
+        base="$(basename "$f")"
+        case "$base" in test_*) continue ;; esac          # tests don't need tests
+        if [[ ! -f "$dir/test_${base}" ]]; then
+            missing+="    $base (no test_${base})"$'\n'
+        fi
+    done < <(find "$dir" -maxdepth 1 -type f -name 'mios_*.py' 2>/dev/null)
+    if [[ -n "$missing" ]]; then
+        printf '%s' "$missing" >&2
+        _violation "an agent-pipe pure module has NO sibling unit test -- author test_<module>.py (stdlib assert-script, the sibling-module pattern); isolation-tested logic is the point of the extraction (WS-0A)"
+    else
+        echo "[38-drift-checks]   (11) every agent-pipe mios_*.py has a sibling unit test"
+    fi
+}
+
 main() {
     check_dead_lane
     check_retired_models
@@ -440,6 +469,7 @@ main() {
     check_ai_manifest
     check_package_registry
     check_cli_sql_safety
+    check_module_test_coverage
 
     echo "[38-drift-checks] ---------------------------------------------------------"
     if [[ "$VIOLATIONS" -eq 0 ]]; then
