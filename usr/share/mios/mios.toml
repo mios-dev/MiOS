@@ -4304,6 +4304,15 @@ db_backend  = "postgres"
 #                       default-off recall paths) is incremental WS-5 hardening.
 #                       Safe to leave off for single-user; flip on for multi-user.
 rls_mode    = "off"
+# ── WS-MEM-VALIDATE (OWASP ASI08) write-time memory-poisoning guard. A durable
+# knowledge fact is RECALLED later + folded into context, so an embedded
+# prompt-injection imperative / code-exfil payload persisted today can steer a
+# future turn. mios_memguard scans each fact before store. Modes: off (no-op;
+# default, zero behaviour change) | log (emit a memory_poison_flag audit event +
+# store) | strip (neutralize URLs/code-fences in the stored text) | reject (drop
+# a HIGH-severity fact). Complements the existing verdict-gate (unsatisfied turns
+# already skipped). Env: MIOS_MEMORY_GUARD_MODE.
+memory_guard_mode = "off"
 # ── WS-A2 embedding-version hygiene + working-memory durability ──────────────
 # emb_model/emb_version are stamped onto every stored vector (knowledge +
 # agent_memory) so a model/dimension change is detectable. Bump emb_version when

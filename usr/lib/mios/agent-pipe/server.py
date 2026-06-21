@@ -115,6 +115,7 @@ import mios_interop   # noqa: E402  -- WS-11 3-projection (A2A skill shape) inte
 import mios_router   # noqa: E402  -- WS-A11/WS-3 pure routing decision
 import mios_dispatcher   # noqa: E402  -- WS-A11/WS-3 pure mode dispatcher
 import mios_kernel   # noqa: E402  -- WS-A11/WS-3 Kernel facade (Router+Dispatcher+managers)
+import mios_memguard   # noqa: E402  -- WS-MEM-VALIDATE write-time memory-poisoning guard (ASI08)
 import mios_batch   # noqa: E402  -- WS-A6 batch coalescing (bypass native-batch lanes)
 import mios_smartroute   # noqa: E402  -- WS-A16 cost/quality SmartRouting (local-first escalation)
 import mios_codemode as _codemode   # noqa: E402  -- WS-2 Code Mode pure helpers
@@ -11116,6 +11117,16 @@ KNOWLEDGE_STORE_GATE_UNSATISFIED = os.environ.get(
     "MIOS_KNOWLEDGE_STORE_GATE_UNSATISFIED", "true").strip().lower() not in ("0", "false", "no")
 KNOWLEDGE_TABLE = (os.environ.get("MIOS_KNOWLEDGE_TABLE", "knowledge").strip()
                    or "knowledge")
+# WS-MEM-VALIDATE (OWASP ASI08): scan a candidate knowledge fact for poisoning
+# indicators (prompt-injection imperatives / dangerous code / URLs) BEFORE it is
+# persisted, so a recalled fact can't later steer the model. mios_memguard owns
+# the pure scan; this is the policy mode. Default "off" = zero behaviour change;
+# "log" observes (emits a memory_poison_flag event, still stores), "strip"
+# neutralizes URLs/code-fences in the stored text, "reject" drops a HIGH-severity
+# fact. SSOT [pgvector].memory_guard_mode / MIOS_MEMORY_GUARD_MODE.
+MEMORY_GUARD_MODE = (os.environ.get("MIOS_MEMORY_GUARD_MODE")
+                     or (_toml_section("pgvector").get("memory_guard_mode", "off"))
+                     ).strip().lower()
 KNOWLEDGE_ANSWER_MAX = int(
     os.environ.get("MIOS_KNOWLEDGE_ANSWER_MAX", "8000") or 8000)
 # Knowledge RECALL (operator 2026-05-23: read the store back). The query is
@@ -11379,6 +11390,29 @@ async def _store_knowledge_task(q: str, a: str,
         if satisfied is False and KNOWLEDGE_STORE_GATE_UNSATISFIED:
             log.info("knowledge store SKIPPED: turn judged UNSATISFIED (anti-poison)")
             return
+        # WS-MEM-VALIDATE (OWASP ASI08): content-scan the answer for poisoning
+        # indicators (injection imperatives / dangerous code / URLs) the
+        # verdict-gate above can't catch (a SATISFIED answer can still carry an
+        # embedded instruction that later steers recall). Default mode "off" ->
+        # no-op; log emits an audit event + stores; strip neutralizes the stored
+        # text; reject drops a HIGH-severity fact. Fail-open in mios_memguard.
+        if MEMORY_GUARD_MODE in ("log", "strip", "reject"):
+            _mg = mios_memguard.validate_for_store(a, mode=MEMORY_GUARD_MODE)
+            if _mg.get("flags"):
+                _db_fire(_db_post(_db_create("event", {
+                    "source": "agent-pipe", "kind": "memory_poison_flag",
+                    "severity": ("high" if _mg.get("severity") == "high" else "warn"),
+                    "summary": f"knowledge store {MEMORY_GUARD_MODE}: "
+                               f"{_mg.get('severity')} {_mg.get('flags')}"[:200],
+                    "payload": {"flags": _mg.get("flags"),
+                                "severity": _mg.get("severity"),
+                                "stored": _mg.get("ok"), "session_id": session_id},
+                }, now_fields=("ts",))))
+            if not _mg.get("ok"):
+                log.warning("knowledge store REJECTED (ASI08 %s): %s",
+                            _mg.get("severity"), _mg.get("flags"))
+                return
+            a = _mg.get("store_text", a)        # 'strip' neutralizes; else unchanged
         row = {"q": q, "answer": a, "sources": sources,
                "access_count": 0, "recall_hits": 0, "tier": "warm"}
         # #59 WS-5: tag the memory row with its OWNER (the principal the chat
