@@ -1626,6 +1626,15 @@ cua_max_steps     = 12          # bound the perceive->act->verify loop (anti-run
 # it; the fan-out ranks on it) SURVIVES an agent-pipe restart. No-op when pg isn't
 # primary. Env: MIOS_REPUTATION_FLUSH_S.
 reputation_flush_s = 300.0      # seconds between reputation->pg flushes (0 = off, in-memory only)
+# ── WS-A11/WS-3 kernel facade (Stage 2a). The decomposed Router/Dispatcher/Kernel
+# are instantiated + LIVE (introspect via /v1/scheduler.kernel + POST /v1/route);
+# the Dispatcher delegates the DAG mode to the real execute_dag. kernel_route on
+# => a SHADOW classification is logged next to the live inline cascade so the
+# Router's decision can be verified for parity on real traffic BEFORE the Stage-2b
+# execution-body swap (which migrates the remaining mode bodies out of
+# chat_completions, VM-verified). Default-off => zero behaviour change (the live
+# path never calls dispatcher.run). Env: MIOS_KERNEL_ROUTE.
+kernel_route      = false       # off => no shadow log; execution always inline (unchanged)
 # ── Batch coalescing (WS-A6). RESEARCHED: vLLM/SGLang/llama.cpp already do
 # server-side CONTINUOUS BATCHING (a rolling scheduler coalesces concurrent
 # requests optimally), so client-side coalescing BYPASSES those lanes (double-

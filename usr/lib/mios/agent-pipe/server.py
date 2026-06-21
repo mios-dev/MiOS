@@ -112,6 +112,9 @@ import mios_preempt   # noqa: E402  -- WS-A12 RR-preemption state machine + snap
 import mios_sandbox   # noqa: E402  -- WS-A13 risk-tier dispatch-sandbox profile resolver
 import mios_cua   # noqa: E402  -- WS-8 perceive->act->verify computer-use loop core
 import mios_interop   # noqa: E402  -- WS-11 3-projection (A2A skill shape) interop
+import mios_router   # noqa: E402  -- WS-A11/WS-3 pure routing decision
+import mios_dispatcher   # noqa: E402  -- WS-A11/WS-3 pure mode dispatcher
+import mios_kernel   # noqa: E402  -- WS-A11/WS-3 Kernel facade (Router+Dispatcher+managers)
 import mios_batch   # noqa: E402  -- WS-A6 batch coalescing (bypass native-batch lanes)
 import mios_smartroute   # noqa: E402  -- WS-A16 cost/quality SmartRouting (local-first escalation)
 import mios_codemode as _codemode   # noqa: E402  -- WS-2 Code Mode pure helpers
@@ -19223,6 +19226,87 @@ def _lane_sched_stats() -> list:
     return out
 
 
+# ── WS-A11/WS-3 Kernel facade — Stage 2a: instantiate + make it LIVE ──────────
+# Stage 1 shipped the pure modules (mios_router decide / mios_dispatcher run /
+# mios_kernel compose) + their unit tests but NEVER instantiated them in
+# server.py, so the decomposition's facade was inert. This wires ONE live Kernel
+# over the existing subsystems: the Router classifies the refined plan, the
+# Dispatcher delegates the DAG mode to the REAL execute_dag, and the five AIOS
+# manager seams reference the live scheduler/memory/context/tool/access paths so
+# the kernel is INTROSPECTABLE (/v1/scheduler.kernel + /v1/route). The remaining
+# modes' execution-body migration OUT of the intertwined chat_completions cascade
+# is Stage 2b (VM-verified) -- those handlers fail LOUD (NotImplementedError) so a
+# premature full-kernel-execution attempt can't silently misroute. KERNEL_ROUTE
+# (default-off) turns on a SHADOW classification log so the Router's decision can
+# be verified against the inline cascade on real traffic before any swap. Zero
+# behaviour change: the live path never calls dispatcher.run() yet.
+KERNEL_ROUTE = (
+    str(os.environ.get("MIOS_KERNEL_ROUTE")
+        or _DISPATCH_TOML.get("kernel_route", "false"))
+    .strip().lower() not in {"false", "0", "no", "off", ""})
+
+
+async def _kernel_dag_handler(decision, *, refined=None, session_id=None, **ctx):
+    """Dispatcher 'dag' handler -> the real DAG runner (a genuine Stage-2
+    delegation; the other modes' bodies are still inline -> Stage 2b)."""
+    return await execute_dag(refined or {}, session_id=session_id)
+
+
+def _kernel_stage2b(mode: str):
+    async def _handler(decision, **ctx):
+        raise NotImplementedError(
+            f"kernel execution for mode {mode!r} is Stage 2b -- its body is still "
+            f"inline in chat_completions; only classification (router.route) + the "
+            f"'dag' delegation are live. Shadow-route only.")
+    return _handler
+
+
+_KERNEL = mios_kernel.Kernel(
+    router=mios_router.Router(),
+    dispatcher=mios_dispatcher.Dispatcher({
+        "dag": _kernel_dag_handler,
+        "chat": _kernel_stage2b("chat"),
+        "dispatch": _kernel_stage2b("dispatch"),
+        "multi_task": _kernel_stage2b("multi_task"),
+        "agent": _kernel_stage2b("agent"),
+    }, default_mode="agent"),
+    scheduler=_GLOBAL_PRIORITY_GATE,        # SchedulerManager seam (live gate + RR)
+    memory=_MEMORY,                          # MemoryManager seam (pgvector provider)
+    context={"kv_paging": KV_PAGING_ENABLE},  # ContextManager seam (KV/tokenize)
+    tools=_VERB_CATALOG,                     # ToolManager seam (verb surface)
+    access=_pdp)                             # AccessManager seam (PDP gate)
+
+
+def _kernel_managers_detail() -> dict:
+    """Per-seam liveness + a live stat, for /v1/scheduler observability."""
+    return {
+        "scheduler": _GLOBAL_PRIORITY_GATE.stats(),
+        "preempt": _PREEMPT.stats(),
+        "memory": {"provider": type(_MEMORY).__name__ if _MEMORY is not None else None,
+                   "pg_primary": _PG_PRIMARY},
+        "context": {"kv_paging": KV_PAGING_ENABLE},
+        "tools": {"verbs": len(_VERB_CATALOG)},
+        "access": {"pdp": True, "tiers": list(_PERMISSION_TIERS)},
+    }
+
+
+@app.post("/v1/route")
+async def v1_route(request: Request) -> JSONResponse:
+    """WS-A11/WS-3 Router introspection: classify a refined plan WITHOUT executing
+    it. POST a bare refined dict or {"refined": {...}} -> the typed RouteDecision
+    {mode, intent, tool, fanout, reason}. Lets an operator confirm the decomposed
+    Router matches the inline chat_completions cascade before the Stage-2b
+    execution swap. Pure + read-only."""
+    try:
+        body = await request.json()
+    except Exception:  # noqa: BLE001
+        body = {}
+    refined = (body.get("refined") if isinstance(body, dict) and "refined" in body
+               else body)
+    dec = _KERNEL.router.route(refined if isinstance(refined, dict) else {})
+    return JSONResponse({"object": "mios.route_decision", **dec.to_dict()})
+
+
 @app.get("/v1/scheduler")
 async def scheduler_state() -> JSONResponse:
     """AIOS-style scheduler observability: live per-lane concurrency state
@@ -19298,6 +19382,18 @@ async def scheduler_state() -> JSONResponse:
                   "max_size": BATCH_MAX_SIZE, "native_bypass_hints": BATCH_NATIVE_HINTS},
         # WS-A16 SmartRouting: local-first escalation posture + budget.
         "smartroute": {"enabled": SMARTROUTE_ENABLE, "budget": SMARTROUTE_BUDGET},
+        # WS-A11/WS-3 Kernel facade: which manager seams are wired, the
+        # Dispatcher's registered modes, and the shadow-route posture. Proves the
+        # decomposition's Router/Dispatcher/Kernel are LIVE (not inert modules);
+        # POST /v1/route to introspect a classification.
+        "kernel": {
+            "managers": _KERNEL.managers(),
+            "manager_detail": _kernel_managers_detail(),
+            "modes": _KERNEL.dispatcher.modes(),
+            "shadow_route": KERNEL_ROUTE,
+            "stage": "2a (live+introspectable; dag delegates to execute_dag; "
+                     "other mode bodies = Stage 2b, still inline)",
+        },
         "ts": int(time.time()),
     })
 
@@ -26621,6 +26717,16 @@ async def chat_completions(request: Request) -> Any:
     # instead of the single-brain native loop; trivial chat stays single. Bounded by
     # council_max + admission + lane/sub-lane semaphores. Explicit toggle (None ->
     # unset) still wins; force_delegate (DAG mode) takes precedence if set.
+    # WS-A11/WS-3 Stage 2a SHADOW route (default-off): log the decomposed Router's
+    # decision alongside the live inline cascade so the operator can confirm parity
+    # on real traffic BEFORE the Stage-2b execution swap. Pure classification only
+    # -- it never alters control flow. Inert unless MIOS_KERNEL_ROUTE is on.
+    if KERNEL_ROUTE and refined:
+        try:
+            _kdec = _KERNEL.router.route(refined)
+            log.info("kernel shadow-route: %s", _kdec.to_dict())
+        except Exception:  # noqa: BLE001 -- observability must never break a turn
+            pass
     if (COUNCIL_DEFAULT and refined and not _force_council and not _force_delegate
             and _mflags.get("force_council") is None):
         _ci = str(refined.get("intent") or "")
