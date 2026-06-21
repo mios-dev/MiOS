@@ -611,3 +611,5 @@ in firstboot scripts.**
 | Annotated FHS tree | [`usr/share/doc/mios/reference/tree.md`](usr/share/doc/mios/reference/tree.md) |
 | Audit reports | [`usr/share/doc/mios/audits/`](usr/share/doc/mios/audits/) |
 | LLM ingest indexes | [`llms.txt`](llms.txt), [`llms-full.txt`](llms-full.txt) |
+
+## Imported Claude Cowork project instructions
