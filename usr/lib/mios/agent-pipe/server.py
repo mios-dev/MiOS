@@ -18423,7 +18423,8 @@ async def v1_capabilities(request: Request) -> JSONResponse:
             _ucfg = {}
         ceiling = str((_ucfg or {}).get("max_permission") or "interactive")
         man = mios_capreg.build_capability_manifest(
-            _VERB_CATALOG, _toml_section("recipes") or {}, ceiling=ceiling)
+            _VERB_CATALOG, _toml_section("recipes") or {}, ceiling=ceiling,
+            skills=_cap_skills())
         return JSONResponse({"object": "mios.capability.manifest",
                              "ceiling": ceiling,
                              "summary": mios_capreg.manifest_summary(man),
@@ -18431,6 +18432,46 @@ async def v1_capabilities(request: Request) -> JSONResponse:
     except Exception as e:  # noqa: BLE001 -- never 500 the surface
         return JSONResponse({"object": "mios.capability.manifest",
                              "error": str(e), "data": []})
+
+
+# Structured JSON skills (body.steps[].verb = the DAG edges) seed dir. SSOT
+# [skills]; the committed capabilities manifest projects from the same dir.
+_CAP_SKILLS_DIR = os.environ.get("MIOS_SKILLS_SEED_DIR", "/usr/share/mios/skills")
+_CAP_SKILLS_CACHE: "Optional[dict]" = None
+
+
+def _cap_skills() -> dict:
+    """Load the structured JSON skills once (cached). Degrade-open -> {}."""
+    global _CAP_SKILLS_CACHE
+    if _CAP_SKILLS_CACHE is None:
+        try:
+            _CAP_SKILLS_CACHE = mios_capreg.load_skills_from_dir(_CAP_SKILLS_DIR)
+        except Exception:  # noqa: BLE001
+            _CAP_SKILLS_CACHE = {}
+    return _CAP_SKILLS_CACHE
+
+
+@app.get("/v1/capabilities/dag")
+async def v1_capabilities_dag() -> JSONResponse:
+    """WS-2 structured capability DAG: nodes (verbs|recipes|skills) + edges (each
+    skill -> the verb/skill its steps invoke), with detected skill->skill `cycles`
+    and `dangling` step targets (a step naming an unknown verb/skill). The
+    structural counterpart of the flat /v1/capabilities manifest -- lets a caller
+    (or an A2A peer) see WHICH primitives a skill composes + validate the graph is
+    acyclic + fully-grounded. Read-only, degrade-open, NOT RBAC-filtered (it is the
+    full authored graph; /v1/capabilities is the per-caller filtered view)."""
+    try:
+        dag = mios_capreg.build_capability_dag(
+            _VERB_CATALOG, _toml_section("recipes") or {}, _cap_skills())
+        return JSONResponse({"object": "mios.capability.dag",
+                             "counts": {"nodes": len(dag["nodes"]),
+                                        "edges": len(dag["edges"]),
+                                        "cycles": len(dag["cycles"]),
+                                        "dangling": len(dag["dangling"])},
+                             **dag})
+    except Exception as e:  # noqa: BLE001 -- never 500 the surface
+        return JSONResponse({"object": "mios.capability.dag",
+                             "error": str(e), "nodes": [], "edges": []})
 
 
 @app.get("/v1/peers")

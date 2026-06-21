@@ -1,6 +1,6 @@
-# AI-hint: WS-2 unified capability registry projection -- the PURE half: merge the [verbs.*] catalog and the [recipes.*] OS-command templates into ONE RBAC-filtered, platform-aware capability manifest (each capability tagged kind=verb|recipe + its permission tier; included only if the caller's ceiling permits it). FAIL-CLOSED on unknown tier/ceiling (a security control, mirrors mios_pdp). Deterministic, stdlib-only so it unit-tests in isolation; server.py owns wiring this to the live surface + the generative-refusal (LLM) half. Complements mios_manifest (verb-only projection) + mios_registry (packages).
-# AI-related: ./mios_manifest.py, ./mios_pdp.py, ./mios_registry.py, /usr/share/mios/mios.toml, ./server.py, ./test_mios_capreg.py
-# AI-functions: tier_rank, allowed, recipe_platforms, build_capability_manifest, manifest_summary, load_recipes_from_toml, project_from_toml, diff_capabilities
+# AI-hint: WS-2 unified capability registry projection -- the PURE half: merge the [verbs.*] catalog, the [recipes.*] OS-command templates, AND the structured JSON skills (usr/share/mios/skills/*.json, whose body.steps[].verb form the capability DAG) into ONE RBAC-filtered, platform-aware capability manifest (each tagged kind=verb|recipe|skill + its permission tier; a skill carries `uses` = its component verbs and is admitted only if its tier AND every component verb is permitted -- reachability fail-closed). build_capability_dag exposes the nodes/edges/cycles/dangling graph. FAIL-CLOSED on unknown tier/ceiling/dangling-edge/cycle (a security control, mirrors mios_pdp). Deterministic, stdlib-only so it unit-tests in isolation; server.py owns wiring this to the live surface + the generative-refusal (LLM) half. Complements mios_manifest (verb-only projection) + mios_registry (packages).
+# AI-related: ./mios_manifest.py, ./mios_pdp.py, ./mios_registry.py, /usr/share/mios/mios.toml, /usr/share/mios/skills, ./server.py, ./test_mios_capreg.py
+# AI-functions: tier_rank, allowed, recipe_platforms, skill_steps, skill_effective_tier, build_capability_manifest, manifest_summary, load_recipes_from_toml, load_skills_from_dir, build_capability_dag, project_from_toml, diff_capabilities
 """mios_capreg -- unified, RBAC-filtered capability registry projection (WS-2).
 
 MiOS's capability surface is three-projected (verbs / MCP / A2A), and mios_manifest
@@ -52,20 +52,64 @@ def recipe_platforms(spec: dict) -> "List[str]":
     return sorted(p for p in ("linux", "windows") if (spec or {}).get(p))
 
 
+def skill_steps(spec: dict) -> "List[str]":
+    """The ordered capability names a skill invokes -- the DAG edges out of a
+    skill. Reads body.steps[].verb (a step may name a verb OR another skill)."""
+    body = (spec or {}).get("body") or spec or {}
+    out: "List[str]" = []
+    for s in (body.get("steps") or []):
+        if isinstance(s, dict) and s.get("verb"):
+            out.append(str(s["verb"]))
+    return out
+
+
+def skill_effective_tier(name: str, skills: "Dict[str, dict]",
+                         verbs: "Optional[Dict[str, dict]]",
+                         tiers: "Sequence[str]" = _DEFAULT_TIERS,
+                         _seen: "Optional[frozenset]" = None) -> str:
+    """A skill is no safer than the MOST-privileged capability it invokes, so its
+    effective RBAC tier = the MAX tier over its transitive verb closure. Fail-
+    closed: a component that is neither a known verb nor a known skill -> an
+    unknown tier (never admitted); a skill->skill CYCLE -> the strictest known
+    tier. A leaf-less skill is 'read'."""
+    seen = _seen or frozenset()
+    if name in seen:
+        return tiers[-1]                     # cycle -> strictest known (fail-closed)
+    seen = seen | {name}
+    verbs = verbs or {}
+    best, best_rank = "read", -1
+    for comp in skill_steps(skills.get(name) or {}):
+        if comp in verbs:
+            t = str((verbs[comp] or {}).get("permission", "read"))
+        elif comp in skills:
+            t = skill_effective_tier(comp, skills, verbs, tiers, seen)
+        else:
+            return "(unknown)"               # dangling edge -> fail-closed
+        r = tier_rank(t, tiers)
+        if r > best_rank:
+            best_rank, best = r, t
+    return best
+
+
 def build_capability_manifest(verbs: "Optional[Dict[str, dict]]",
                               recipes: "Optional[Dict[str, dict]]", *,
                               ceiling: str,
+                              skills: "Optional[Dict[str, dict]]" = None,
                               tiers: "Sequence[str]" = _DEFAULT_TIERS,
                               platform: "Optional[str]" = None) -> "List[dict]":
     """Project ONE RBAC-filtered capability manifest from the verb catalog +
-    recipe table for a caller whose permission ceiling is `ceiling`. Each entry:
-      {name, kind: "verb"|"recipe", tier, description[, platforms]}.
-    Verbs use their `tier` (default "read"); recipes use `permission` (default
-    "read") and are additionally dropped when `platform` is given and the recipe
-    has no command template for it. Deterministic (sorted by kind then name);
-    fail-closed via `allowed`."""
+    recipe table + skill set for a caller whose permission ceiling is `ceiling`.
+    Each entry: {name, kind: "verb"|"recipe"|"skill", tier, description
+    [, platforms][, uses]}.
+    Verbs/recipes use `permission` (default "read"); a recipe is dropped when
+    `platform` is given and it has no template for it. A SKILL's tier is the max
+    over its component verbs (skill_effective_tier) and it is admitted only when
+    BOTH that tier is allowed AND every component verb is itself admitted
+    (reachability fail-closed -- a skill you cannot fully execute is not offered).
+    Deterministic (sorted by kind then name); fail-closed via `allowed`."""
     out: "List[dict]" = []
-    for name, spec in sorted((verbs or {}).items()):
+    verbs = verbs or {}
+    for name, spec in sorted(verbs.items()):
         spec = spec or {}
         # The RBAC tier is `permission` (read|write|interactive); `tier` on a verb
         # is COMMONNESS (common/rare/core) -- a different axis. Default read (safest).
@@ -84,6 +128,20 @@ def build_capability_manifest(verbs: "Optional[Dict[str, dict]]",
             continue                 # recipe not available on this host platform
         out.append({"name": str(name), "kind": "recipe", "tier": str(tier),
                     "platforms": plats,
+                    "description": str(spec.get("description", ""))[:200]})
+    for name, spec in sorted((skills or {}).items()):
+        spec = spec or {}
+        uses = skill_steps(spec)
+        tier = skill_effective_tier(name, skills, verbs, tiers)
+        if not allowed(tier, ceiling, tiers):
+            continue
+        # Reachability fail-closed: every component verb must itself be admitted.
+        if not all(allowed(str((verbs.get(u) or {}).get("permission", "read")),
+                           ceiling, tiers)
+                   for u in uses if u in verbs):
+            continue
+        out.append({"name": str(name), "kind": "skill", "tier": str(tier),
+                    "uses": uses,
                     "description": str(spec.get("description", ""))[:200]})
     out.sort(key=lambda c: (c["kind"], c["name"]))
     return out
@@ -119,20 +177,107 @@ def load_recipes_from_toml(path: str) -> "Dict[str, dict]":
     return {str(k): (v or {}) for k, v in recs.items() if isinstance(v, dict)}
 
 
+def load_skills_from_dir(skills_dir: str) -> "Dict[str, dict]":
+    """Read the structured JSON skills (usr/share/mios/skills/*.json) -- each has
+    body.steps[].verb, the DAG edges. Returns {name: spec}; {} if the dir is
+    absent/unreadable. Hermes prose SKILL.md skills are NOT structured capabilities
+    (free text, no machine-readable steps) so they are intentionally not loaded."""
+    import glob
+    import json
+    import os
+    out: "Dict[str, dict]" = {}
+    try:
+        paths = sorted(glob.glob(os.path.join(skills_dir, "*.json")))
+    except (OSError, ValueError):
+        return {}
+    for p in paths:
+        try:
+            with open(p, encoding="utf-8") as fh:
+                d = json.load(fh)
+        except (OSError, ValueError):
+            continue
+        if not isinstance(d, dict):
+            continue
+        name = str(d.get("name") or os.path.splitext(os.path.basename(p))[0])
+        out[name] = d
+    return out
+
+
+def build_capability_dag(verbs: "Optional[Dict[str, dict]]",
+                         recipes: "Optional[Dict[str, dict]]",
+                         skills: "Optional[Dict[str, dict]]") -> dict:
+    """The structured capability DAG (WS-2): nodes (verbs|recipes|skills) + edges
+    (skill -> the verb/skill each step invokes). Recipes + verbs are leaves; only
+    skills have out-edges. Returns {nodes, edges, cycles, dangling}: `cycles` are
+    skill->skill reference cycles (a malformed skill set; the manifest fails such
+    a skill closed via skill_effective_tier) and `dangling` are step targets that
+    are neither a known verb nor a known skill. Pure + deterministic."""
+    verbs = verbs or {}
+    recipes = recipes or {}
+    skills = skills or {}
+    known_verb, known_skill = set(verbs), set(skills)
+    nodes = ([{"name": n, "kind": "verb"} for n in sorted(verbs)]
+             + [{"name": n, "kind": "recipe"} for n in sorted(recipes)]
+             + [{"name": n, "kind": "skill"} for n in sorted(skills)])
+    edges: "List[dict]" = []
+    dangling: set = set()
+    for s in sorted(skills):
+        for comp in skill_steps(skills[s]):
+            kind = ("skill" if comp in known_skill
+                    else "verb" if comp in known_verb else "unknown")
+            edges.append({"from": s, "to": comp, "to_kind": kind})
+            if kind == "unknown":
+                dangling.add(comp)
+
+    # Cycle detection over skill->skill edges only (DFS, white/grey/black).
+    adj = {s: [c for c in skill_steps(skills[s]) if c in known_skill]
+           for s in skills}
+    WHITE, GREY, BLACK = 0, 1, 2
+    color = {s: WHITE for s in skills}
+    cycles: "List[str]" = []
+
+    def _visit(u: str, stack: "List[str]") -> None:
+        color[u] = GREY
+        stack.append(u)
+        for v in adj.get(u, []):
+            if color.get(v) == GREY:
+                i = stack.index(v) if v in stack else 0
+                cycles.append(" -> ".join(stack[i:] + [v]))
+            elif color.get(v) == WHITE:
+                _visit(v, stack)
+        stack.pop()
+        color[u] = BLACK
+
+    for s in sorted(skills):
+        if color[s] == WHITE:
+            _visit(s, [])
+    return {"nodes": nodes, "edges": edges,
+            "cycles": sorted(set(cycles)), "dangling": sorted(dangling)}
+
+
+def _default_skills_dir(toml_path: str) -> str:
+    """skills/ sits beside mios.toml (usr/share/mios/{mios.toml,skills/})."""
+    import os
+    return os.path.join(os.path.dirname(os.path.abspath(toml_path)), "skills")
+
+
 def project_from_toml(toml_path: str, *, ceiling: str = "interactive",
-                      verbs: "Optional[Dict[str, dict]]" = None) -> "List[dict]":
-    """Load [verbs.*] (via mios_manifest) + [recipes.*] and project the unified
-    capability manifest at `ceiling` (default interactive = the full known-tier
-    surface, the committed-artifact view). Platform-agnostic (lists every
-    recipe's platforms)."""
+                      verbs: "Optional[Dict[str, dict]]" = None,
+                      skills_dir: "Optional[str]" = None) -> "List[dict]":
+    """Load [verbs.*] (via mios_manifest) + [recipes.*] + the structured JSON
+    skills and project the unified capability manifest at `ceiling` (default
+    interactive = the full known-tier surface, the committed-artifact view).
+    Platform-agnostic (lists every recipe's platforms). `skills_dir` defaults to
+    the skills/ directory beside mios.toml."""
     if verbs is None:
         try:
             import mios_manifest as _man   # sibling; loads [verbs.*]
             verbs = _man.load_verbs_from_toml(toml_path)
         except Exception:  # noqa: BLE001
             verbs = {}
+    skills = load_skills_from_dir(skills_dir or _default_skills_dir(toml_path))
     return build_capability_manifest(verbs, load_recipes_from_toml(toml_path),
-                                     ceiling=ceiling)
+                                     ceiling=ceiling, skills=skills)
 
 
 def diff_capabilities(generated: "Sequence[dict]",

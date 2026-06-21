@@ -125,6 +125,69 @@ def t_load_and_diff():
     check("diff: tier change detected", any("~ verb:a tier" in d for d in cr.diff_capabilities(changed, base)))
 
 
+def t_skills():
+    verbs = {
+        "focus_window": {"permission": "read"},
+        "pc_type":      {"permission": "write"},
+        "pc_key":       {"permission": "write"},
+        "open_app":     {"permission": "write"},
+    }
+    skills = {
+        "open-and-focus": {"description": "launch + focus",
+                           "body": {"steps": [{"verb": "open_app"},
+                                              {"verb": "focus_window"}]}},
+        "peek": {"description": "read-only peek",
+                 "body": {"steps": [{"verb": "focus_window"}]}},
+    }
+    # steps extraction (DAG edges out of a skill)
+    check("skill_steps reads body.steps[].verb",
+          cr.skill_steps(skills["open-and-focus"]) == ["open_app", "focus_window"])
+    # effective tier = MAX over component verbs (write, because open_app is write)
+    check("skill effective tier = max(verb tiers)",
+          cr.skill_effective_tier("open-and-focus", skills, verbs) == "write")
+    check("read-only skill stays read",
+          cr.skill_effective_tier("peek", skills, verbs) == "read")
+    # dangling component -> fail-closed unknown tier (never admitted)
+    bad = {"x": {"body": {"steps": [{"verb": "no_such_verb"}]}}}
+    check("dangling step -> fail-closed unknown tier",
+          cr.skill_effective_tier("x", bad, verbs) == "(unknown)")
+
+    # manifest: skill admitted at interactive ceiling, carries `uses`
+    man = cr.build_capability_manifest(verbs, {}, ceiling="interactive", skills=skills)
+    sk = [c for c in man if c["kind"] == "skill"]
+    check("skills projected as kind=skill", len(sk) == 2, f"{len(sk)}")
+    oaf = next(c for c in sk if c["name"] == "open-and-focus")
+    check("skill carries uses[] (DAG edges)", oaf["uses"] == ["open_app", "focus_window"])
+    check("skill tier recorded", oaf["tier"] == "write")
+    # RBAC reachability: a read-ceiling caller gets ONLY the read skill (open-and-focus
+    # needs write verbs -> dropped), and the write verbs themselves are dropped too.
+    man_r = cr.build_capability_manifest(verbs, {}, ceiling="read", skills=skills)
+    sk_r = {c["name"] for c in man_r if c["kind"] == "skill"}
+    check("read ceiling: write-needing skill dropped (reachability fail-closed)",
+          sk_r == {"peek"}, f"{sk_r}")
+
+
+def t_dag():
+    verbs = {"a": {"permission": "read"}, "b": {"permission": "write"}}
+    skills = {
+        "s1": {"body": {"steps": [{"verb": "a"}, {"verb": "s2"}]}},  # s1 -> a, s2
+        "s2": {"body": {"steps": [{"verb": "b"}]}},                  # s2 -> b
+        "loop1": {"body": {"steps": [{"verb": "loop2"}]}},           # cycle
+        "loop2": {"body": {"steps": [{"verb": "loop1"}]}},
+        "dang": {"body": {"steps": [{"verb": "ghost"}]}},            # dangling
+    }
+    dag = cr.build_capability_dag(verbs, {"r1": {}}, skills)
+    kinds = {n["kind"] for n in dag["nodes"]}
+    check("dag has verb+recipe+skill nodes", kinds == {"verb", "recipe", "skill"}, kinds)
+    e = {(x["from"], x["to"], x["to_kind"]) for x in dag["edges"]}
+    check("dag edge skill->verb", ("s1", "a", "verb") in e)
+    check("dag edge skill->skill", ("s1", "s2", "skill") in e)
+    check("dag edge dangling flagged", ("dang", "ghost", "unknown") in e)
+    check("dag cycle detected (loop1<->loop2)", any("loop1" in c and "loop2" in c
+                                                    for c in dag["cycles"]), dag["cycles"])
+    check("dag dangling list", dag["dangling"] == ["ghost"], dag["dangling"])
+
+
 def main():
     t_tier_rank()
     t_allowed()
@@ -132,6 +195,8 @@ def main():
     t_build()
     t_summary()
     t_load_and_diff()
+    t_skills()
+    t_dag()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
 

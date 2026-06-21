@@ -2,14 +2,15 @@
   "object": "mios.capability.manifest",
   "ceiling": "interactive",
   "summary": {
-    "total": 106,
+    "total": 117,
     "by_kind": {
       "recipe": 19,
+      "skill": 11,
       "verb": 87
     },
     "by_tier": {
       "read": 60,
-      "write": 43,
+      "write": 54,
       "interactive": 3
     }
   },
@@ -196,6 +197,121 @@
         "windows"
       ],
       "description": "Show a notification toast."
+    },
+    {
+      "name": "install-flatpak-app",
+      "kind": "skill",
+      "tier": "write",
+      "uses": [
+        "flatpak_search",
+        "flatpak_install",
+        "open_app"
+      ],
+      "description": "Search configured flatpak remotes for `query`, install the matched id, then launch it via open_app."
+    },
+    {
+      "name": "install-windows-app",
+      "kind": "skill",
+      "tier": "write",
+      "uses": [
+        "winget_search",
+        "winget_install"
+      ],
+      "description": "Search winget for `query`, then install the matched package by `id`."
+    },
+    {
+      "name": "open-and-focus",
+      "kind": "skill",
+      "tier": "write",
+      "uses": [
+        "open_app",
+        "focus_window"
+      ],
+      "description": "Launch the app named `app`, then focus its window."
+    },
+    {
+      "name": "open-url-fallback-chain",
+      "kind": "skill",
+      "tier": "write",
+      "uses": [
+        "open_url"
+      ],
+      "description": "Open `url` and try each id from the `browsers` array in order until one succeeds. Halts on the first browser that lands a visible window. Use when the default browser may fail in the current runtime c"
+    },
+    {
+      "name": "open-url-resilient",
+      "kind": "skill",
+      "tier": "write",
+      "uses": [
+        "open_url",
+        "open_url"
+      ],
+      "description": "Open `url` in the operator's default browser; on failure, try the same url with each browser id from `fallbacks` in order. First step that lands a visible window wins. Use when sandboxed flatpak brows"
+    },
+    {
+      "name": "safe-open-flatpak",
+      "kind": "skill",
+      "tier": "write",
+      "uses": [
+        "flatpak_preflight",
+        "open_app"
+      ],
+      "description": "Probe the flatpak `id` sandbox via flatpak_preflight; on success, launch via open_app. Halts on preflight failure so the agent surfaces the actual sandbox error (portal_helper_env_fd / user_bus_creden"
+    },
+    {
+      "name": "save-document",
+      "kind": "skill",
+      "tier": "write",
+      "uses": [
+        "focus_window",
+        "pc_type",
+        "pc_key"
+      ],
+      "description": "Focus a window matching `editor`, type `body` text into it, save via Ctrl+S."
+    },
+    {
+      "name": "window-focus-mode",
+      "kind": "skill",
+      "tier": "write",
+      "uses": [
+        "maximize_window",
+        "minimize_window"
+      ],
+      "description": "Maximize the window matching `focus`, minimize the window matching `distractor`."
+    },
+    {
+      "name": "window-restore-and-focus",
+      "kind": "skill",
+      "tier": "write",
+      "uses": [
+        "restore_window",
+        "focus_window"
+      ],
+      "description": "Restore a minimized/maximized window matching `title`, then focus it."
+    },
+    {
+      "name": "window-tile-side-by-side",
+      "kind": "skill",
+      "tier": "write",
+      "uses": [
+        "focus_window",
+        "position_window",
+        "resize_window",
+        "focus_window",
+        "position_window",
+        "resize_window"
+      ],
+      "description": "Tile two windows side-by-side: window matching `left` at (0,0) sized `half_width`x`height`, window matching `right` at (`half_width`,0) same size."
+    },
+    {
+      "name": "write-text-file",
+      "kind": "skill",
+      "tier": "write",
+      "uses": [
+        "text_create",
+        "text_view"
+      ],
+      "description": "Create a file at `path` with `body` content via text_create, then text_view it to confirm."
     },
     {
       "name": "a2a_delegate",
