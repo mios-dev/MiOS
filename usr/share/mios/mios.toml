@@ -1611,6 +1611,15 @@ rr_slice_timeout_s = 120.0      # per-slice completion timeout
 # wrapped here; code-exec verbs already self-confine at mios-coderun. Env:
 # MIOS_SANDBOX_ENFORCE.
 sandbox_enforce   = false       # off => resolve+record only; on => also wrap opted-in verbs
+# ── WS-8 computer-use perceive->act->verify loop (POST /v1/computer-use). The
+# agent-pipe drives a closed VLM loop -- screenshot -> the VLM plans ONE action ->
+# dispatch the platform verb (windows_desktop_*/linux_desktop_*, unified by
+# mios_cua) -> screenshot -> the VLM verifies the goal -> repeat. FAIL-SAFE: an
+# unparseable verify is NOT-done, so the loop never claims a goal it didn't
+# verify. DEFAULT-OFF + VLM-gated (no [ai].chat_vision_model loaded -> honest
+# stop). Env: MIOS_CUA_ENABLE / MIOS_CUA_MAX_STEPS.
+cua_enable        = false       # off => /v1/computer-use returns a disabled notice
+cua_max_steps     = 12          # bound the perceive->act->verify loop (anti-runaway)
 # ── Batch coalescing (WS-A6). RESEARCHED: vLLM/SGLang/llama.cpp already do
 # server-side CONTINUOUS BATCHING (a rolling scheduler coalesces concurrent
 # requests optimally), so client-side coalescing BYPASSES those lanes (double-

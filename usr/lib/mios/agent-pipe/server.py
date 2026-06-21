@@ -110,6 +110,7 @@ import mios_secset   # noqa: E402  -- WS-A14 SSOT-derived high-privilege/taint s
 import mios_hopbudget   # noqa: E402  -- WS-4 hop-budget recursion guard + effort scaling
 import mios_preempt   # noqa: E402  -- WS-A12 RR-preemption state machine + snapshot contract
 import mios_sandbox   # noqa: E402  -- WS-A13 risk-tier dispatch-sandbox profile resolver
+import mios_cua   # noqa: E402  -- WS-8 perceive->act->verify computer-use loop core
 import mios_batch   # noqa: E402  -- WS-A6 batch coalescing (bypass native-batch lanes)
 import mios_smartroute   # noqa: E402  -- WS-A16 cost/quality SmartRouting (local-first escalation)
 import mios_codemode as _codemode   # noqa: E402  -- WS-2 Code Mode pure helpers
@@ -23352,6 +23353,178 @@ async def _vision_complete(body: dict, streaming: bool, chat_id: str,
             yield _sse_done()
 
     return StreamingResponse(_gen(), media_type="text/event-stream")
+
+
+# ── WS-8 unified perceive->act->verify computer-use loop ─────────────────────
+# Composes the tested mios_cua pure core (logical-action -> per-platform verb
+# mapping + loop control + FAIL-SAFE verify) with the live VLM lane (_vision_*)
+# and the verb-dispatch chokepoint (_dispatch_mios_verb_inner). DEFAULT-OFF
+# (cua_enable=false) + VLM-gated (no vision model -> immediate honest stop), so
+# this is inert until the operator opts in AND a GPU VLM is loaded. Degrade-open
+# at every I/O hop; the loop NEVER claims a goal it did not verify.
+CUA_ENABLE = (
+    str(os.environ.get("MIOS_CUA_ENABLE")
+        or _DISPATCH_TOML.get("cua_enable", "false"))
+    .strip().lower() not in {"false", "0", "no", "off", ""})
+CUA_MAX_STEPS = _dispatch_num("MIOS_CUA_MAX_STEPS", "cua_max_steps", 12)
+
+
+def _cua_extract_png(result: dict) -> "Optional[str]":
+    """Pull a screenshot PNG path out of a screenshot verb's result. The
+    *_desktop_screenshot verbs write a PNG + name it in stdout; degrade-open ->
+    None when no path is found."""
+    out = str((result or {}).get("output") or "")
+    m = re.search(r"(/[^\s\"']+\.png|[A-Za-z]:[\\/][^\s\"']+\.png)", out)
+    return m.group(1) if m else None
+
+
+async def _cua_screenshot_uri(platform: str, session_id: "Optional[str]") -> "tuple":
+    """Take a screenshot via the platform's verb, read the PNG, return
+    (data_uri, raw_observation). Degrade-open -> (None, ""). The data URI is what
+    the VLM 'sees'; the raw observation digest drives stall detection."""
+    verb = mios_cua.resolve_verb("screenshot", platform)
+    if not verb:
+        return None, ""
+    res = await _dispatch_mios_verb_inner(verb, {}, session_id=session_id)
+    path = _cua_extract_png(res)
+    if not path:
+        return None, str((res or {}).get("output") or "")
+    try:
+        import base64
+        with open(path, "rb") as fh:
+            raw = fh.read()
+        return "data:image/png;base64," + base64.b64encode(raw).decode(), \
+            mios_cua.observation_digest(raw)
+    except Exception:  # noqa: BLE001 -- degrade-open: no image -> VLM stop
+        return None, path
+
+
+async def _cua_vlm_json(system: str, user_text: str,
+                        image_uri: "Optional[str]") -> dict:
+    """One VLM call returning the model's parsed JSON object (a plan or a verify
+    verdict). Degrade-open -> {} on any backend/parse failure (the caller's
+    fail-safe handles an empty verdict as NOT-done)."""
+    if not (image_uri and (VISION_MODEL or "").strip()):
+        return {}
+    content = [{"type": "text", "text": user_text},
+               {"type": "image_url", "image_url": {"url": image_uri}}]
+    vbody = {"model": VISION_MODEL, "stream": False,
+             "messages": [{"role": "system", "content": system},
+                          {"role": "user", "content": content}]}
+    headers = {"content-type": "application/json"}
+    if _BACKEND_KEY:
+        headers["authorization"] = f"Bearer {_BACKEND_KEY}"
+    try:
+        client = await _get_client()
+        r = await client.post(f"{VISION_ENDPOINT}/v1/chat/completions",
+                              content=json.dumps(vbody).encode("utf-8"),
+                              headers=headers)
+        if _vision_backend_failed(r.status_code, r.text):
+            return {}
+        txt = str(((r.json().get("choices") or [{}])[0].get("message") or {})
+                  .get("content") or "")
+        m = re.search(r"\{.*\}", txt, re.DOTALL)
+        return json.loads(m.group(0)) if m else {}
+    except Exception:  # noqa: BLE001 -- degrade-open
+        return {}
+
+
+async def _cua_loop(goal: str, platform: str = "windows",
+                    max_steps: "Optional[int]" = None,
+                    session_id: "Optional[str]" = None) -> dict:
+    """Run the perceive->act->verify loop until the VLM verifies the goal or a
+    budget/stall guard fires. Returns mios_cua.CuaTrace.to_dict(). VLM-gated +
+    degrade-open: no vision model / no screenshot -> an honest non-reached stop
+    (it never fabricates success)."""
+    platform = (platform or "windows").strip().lower()
+    if platform not in mios_cua.PLATFORMS:
+        platform = "windows"
+    budget = int(max_steps or CUA_MAX_STEPS)
+    trace = mios_cua.CuaTrace(platform, goal)
+    plan_sys = (f"You drive the {platform} desktop to accomplish a GOAL. Look at "
+                "the screenshot. Reply ONLY with a JSON object: either "
+                '{"action":"click|type|key|click_element","args":{...},"why":"..."} '
+                'for the NEXT single step, or {"done":true} if the GOAL is already '
+                "satisfied on screen. Use pixel coords for click {x,y}; text for "
+                'type {text}; a key name for key {key}; an element name for '
+                "click_element {name}. One step at a time.")
+    verify_sys = (f"You verify a {platform} desktop GOAL. Look at the screenshot and "
+                  'reply ONLY JSON {"done":true|false,"reason":"..."} -- done=true '
+                  "ONLY if the GOAL is clearly satisfied on screen right now.")
+    prev_obs, stall = None, 0
+    step = 0
+    while True:
+        step += 1
+        uri, obs = await _cua_screenshot_uri(platform, session_id)
+        if uri is None:                         # cannot perceive -> honest stop
+            trace.record("screenshot", mios_cua.resolve_verb("screenshot", platform),
+                         False, False)
+            return trace.finish(mios_cua.STALLED).to_dict()
+        plan = await _cua_vlm_json(plan_sys, f"GOAL: {goal}", uri)
+        if plan.get("done"):                    # VLM says already satisfied -> verify
+            v = mios_cua.parse_verify_verdict(json.dumps(
+                await _cua_vlm_json(verify_sys, f"GOAL: {goal}", uri)))
+            trace.record("verify", None, True, False)
+            return trace.finish(mios_cua.GOAL_REACHED if v["done"]
+                                else mios_cua.MAX_STEPS).to_dict()
+        action = str(plan.get("action") or "").strip().lower()
+        verb = mios_cua.resolve_verb(action, platform)
+        if not verb:                            # no plan / bad action
+            stall += 1
+        else:
+            res = await _dispatch_mios_verb_inner(
+                verb, dict(plan.get("args") or {}), session_id=session_id)
+            # VERIFY: re-perceive, detect a no-change stall, ask the VLM the verdict.
+            uri2, obs2 = await _cua_screenshot_uri(platform, session_id)
+            changed = mios_cua.observation_changed(obs, obs2)
+            stall = 0 if changed else stall + 1
+            trace.record(action, verb, bool((res or {}).get("success")), changed)
+            v = mios_cua.parse_verify_verdict(json.dumps(
+                await _cua_vlm_json(verify_sys, f"GOAL: {goal}", uri2 or uri)))
+            status = mios_cua.loop_status(step=step, max_steps=budget,
+                                          goal_done=v["done"], stall_count=stall)
+            if status != mios_cua.RUNNING:
+                return trace.finish(status).to_dict()
+            prev_obs = obs2
+            continue
+        status = mios_cua.loop_status(step=step, max_steps=budget,
+                                      goal_done=False, stall_count=stall)
+        if status != mios_cua.RUNNING:
+            return trace.finish(status).to_dict()
+        prev_obs = obs
+
+
+@app.post("/v1/computer-use")
+async def v1_computer_use(request: Request) -> JSONResponse:
+    """WS-8 perceive->act->verify computer-use. Body: {goal, platform?
+    (windows|linux), max_steps?}. Runs the closed VLM loop and returns the trace
+    {status, reached, steps[...]}. DEFAULT-OFF (MIOS_CUA_ENABLE): returns a clear
+    disabled notice until the operator opts in AND a GPU VLM is loaded. Never
+    claims a goal it did not verify (fail-safe in mios_cua)."""
+    if not CUA_ENABLE:
+        return JSONResponse({"object": "mios.computer_use",
+                             "enabled": False,
+                             "detail": "computer-use loop is disabled "
+                                       "([dispatch].cua_enable / MIOS_CUA_ENABLE); "
+                                       "enable it and load a GPU VLM to use it."},
+                            status_code=200)
+    try:
+        body = await request.json()
+    except Exception:  # noqa: BLE001
+        body = {}
+    goal = str((body or {}).get("goal") or "").strip()
+    if not goal:
+        return JSONResponse({"object": "mios.computer_use",
+                             "error": "missing 'goal'"}, status_code=400)
+    try:
+        trace = await _cua_loop(goal,
+                                platform=str((body or {}).get("platform") or "windows"),
+                                max_steps=(body or {}).get("max_steps"),
+                                session_id=(body or {}).get("session_id"))
+        return JSONResponse({"object": "mios.computer_use", "enabled": True, **trace})
+    except Exception as e:  # noqa: BLE001 -- never 500 the surface
+        return JSONResponse({"object": "mios.computer_use", "error": str(e)},
+                            status_code=200)
 
 
 def _has_client_tools(body: dict) -> bool:
