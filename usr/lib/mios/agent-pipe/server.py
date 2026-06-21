@@ -139,8 +139,22 @@ PORT = int(os.environ.get("MIOS_PORT_AGENT_PIPE", "8640"))
 # mios-mcp-server (MIOS_PORT_MCP -> MIOS_MCP_PORT -> 8765 default).
 MCP_SERVER_PORT = int(os.environ.get("MIOS_PORT_MCP")
                       or os.environ.get("MIOS_MCP_PORT") or "8765")
-BACKEND = os.environ.get("MIOS_AGENT_PIPE_BACKEND",
-                         "http://localhost:8642/v1").rstrip("/")
+# WS-0B: ONE owned light-lane base. The mios-llm-light port was hardcoded as the
+# literal `http://localhost:11450` in ~10 endpoint defaults below (drift). Derive
+# it ONCE from the [ports].llm_light SSOT key (MIOS_PORT_LLM_LIGHT via install.env;
+# default 11450) so a port change is a single edit; each endpoint still honors its
+# explicit MIOS_*_ENDPOINT override first.
+_LIGHT_BASE = "http://localhost:" + (os.environ.get("MIOS_PORT_LLM_LIGHT") or "11450")
+# WS-0B: the agent-pipe's reasoning backend. An explicit MIOS_AGENT_PIPE_BACKEND URL
+# wins; else when the deployment opts into reasoning DIRECTLY on the light lane
+# (MIOS_AGENT_PIPE_BACKEND_LIGHT -- the operator "EVERYTHING IS LLAMA.CPP, bypass
+# Hermes" directive) compose it from the ONE owned light-lane base (no port literal
+# in the unit); else front Hermes on :8642 (the original design default).
+BACKEND = (os.environ.get("MIOS_AGENT_PIPE_BACKEND")
+           or (_LIGHT_BASE + "/v1"
+               if (os.environ.get("MIOS_AGENT_PIPE_BACKEND_LIGHT") or "").strip().lower()
+                  in {"1", "true", "yes", "on"}
+               else "http://localhost:8642/v1")).rstrip("/")
 BACKEND_MODEL = (os.environ.get("MIOS_AGENT_PIPE_BACKEND_MODEL")
                  or os.environ.get("MIOS_AI_MODEL")   # WS-0B: ONE owned key = [ai].model
                  or "hermes-agent")
@@ -193,8 +207,9 @@ _AUTH_HOSTPORTS = {
 CLIENT_TOOLS_PASSTHROUGH = os.environ.get(
     "MIOS_AGENT_PIPE_CLIENT_TOOLS_PASSTHROUGH", "true"
 ).strip().lower() in {"1", "true", "yes", "on"}
+# WS-0B: _LIGHT_BASE (the ONE owned light-lane base) is defined above, before BACKEND.
 _TOOL_BACKEND = os.environ.get(
-    "MIOS_AGENT_PIPE_TOOL_BACKEND", "http://localhost:11450/v1").rstrip("/")
+    "MIOS_AGENT_PIPE_TOOL_BACKEND", _LIGHT_BASE + "/v1").rstrip("/")
 _TOOL_BACKEND_MODEL = os.environ.get(
     "MIOS_AGENT_PIPE_TOOL_BACKEND_MODEL", "granite4.1:8b")
 # Heavy-lane PREFERENCE for the client-tools tool loop (the agentic surface that
@@ -337,7 +352,7 @@ _STACK_MODEL = (os.environ.get("MIOS_STACK_MODEL")        # explicit per-deploy 
                 or "granite4.1:8b")  # served brain on :11450 (gemma4:12b retired -> 404; 2026-06-18)
 _MICRO_MODEL = os.environ.get("MIOS_MICRO_MODEL", _STACK_MODEL)
 _MICRO_ENDPOINT = os.environ.get(
-    "MIOS_MICRO_ENDPOINT", "http://localhost:11450/v1",  # mios-llm-light (was dead :11434)
+    "MIOS_MICRO_ENDPOINT", _LIGHT_BASE + "/v1",  # mios-llm-light (WS-0B: one owned port key)
 ).rstrip("/")
 # Callers below append "/v1/chat/completions"; strip a trailing /v1 so we
 # don't double it.
@@ -595,7 +610,7 @@ _JUDGE_MODEL = os.environ.get(
     "MIOS_WEB_RESEARCH_JUDGE_MODEL", os.environ.get("MIOS_DAEMON_MODEL", _STACK_MODEL))
 _JUDGE_ENDPOINT = os.environ.get(
     "MIOS_WEB_RESEARCH_JUDGE_ENDPOINT",
-    os.environ.get("MIOS_DAEMON_ENDPOINT", "http://localhost:11450/v1")).rstrip("/")  # mios-llm-light (ollama :11435 retired G5)
+    os.environ.get("MIOS_DAEMON_ENDPOINT", _LIGHT_BASE + "/v1")).rstrip("/")  # mios-llm-light (WS-0B)
 _JUDGE_BASE = (_JUDGE_ENDPOINT[:-3].rstrip("/") if _JUDGE_ENDPOINT.endswith("/v1") else _JUDGE_ENDPOINT)
 
 # Health-gated (remote / slow) node call timeouts. A SHORT connect drops an
@@ -1609,7 +1624,7 @@ ROUTER_MODEL = os.environ.get("MIOS_AGENT_PIPE_ROUTER_MODEL", _MICRO_MODEL)
 # behind big-model inference -> refine 41s, polish 42s. On the light lane
 # the warm qwen3:0.6b-cpu answers in ~1-2s regardless of dGPU load.
 _LIGHT_LANE = os.environ.get("MIOS_OLLAMA_CPU_ENDPOINT",
-                             "http://localhost:11450").rstrip("/")  # mios-llm-light (ollama :11435 retired G5)
+                             _LIGHT_BASE).rstrip("/")  # mios-llm-light (WS-0B: one owned port key)
 
 # Last-resort runaway reaper (operator 2026-06-01j). A turn that BLEW its
 # wall-clock deadline may have left CPU-lane gens running -- ollama does NOT abort
@@ -1667,7 +1682,7 @@ PLANNER_MODEL = os.environ.get(
 PLANNER_ENDPOINT = os.environ.get(
     # mios-llm-light /v1 (the old :11434 ollama default is dead -- G5/G17). Env (SSOT
     # agent-pipe.env) overrides; this is only the fresh-install fallback.
-    "MIOS_AGENT_PIPE_PLANNER_ENDPOINT", "http://localhost:11450",
+    "MIOS_AGENT_PIPE_PLANNER_ENDPOINT", _LIGHT_BASE,
 ).rstrip("/")
 
 
@@ -2550,7 +2565,7 @@ REFINE_ENABLED = os.environ.get(
 # so the call stays a few seconds even on the shared dGPU lane.
 REFINE_MODEL = os.environ.get("MIOS_REFINE_MODEL", _STACK_MODEL)
 REFINE_ENDPOINT = os.environ.get(
-    "MIOS_REFINE_ENDPOINT", "http://localhost:11450",  # mios-llm-light (was dead :11434)
+    "MIOS_REFINE_ENDPOINT", _LIGHT_BASE,  # mios-llm-light (WS-0B: one owned port key)
 ).rstrip("/")
 # Default 30s (was 12): a COLD dGPU refine measured 9.7-12s on a fresh
 # restart / after a VRAM eviction -- right at the old 12s edge, so it
@@ -2585,7 +2600,7 @@ POLISH_ENABLED = os.environ.get(
 # qwen3.5:4b on the dGPU lane (think=False) consolidates in a few seconds.
 POLISH_MODEL = os.environ.get("MIOS_POLISH_MODEL", _STACK_MODEL)
 POLISH_ENDPOINT = os.environ.get(
-    "MIOS_POLISH_ENDPOINT", "http://localhost:11450",  # mios-llm-light (was dead :11434)
+    "MIOS_POLISH_ENDPOINT", _LIGHT_BASE,  # mios-llm-light (WS-0B: one owned port key)
 ).rstrip("/")
 POLISH_TIMEOUT_S = int(os.environ.get("MIOS_POLISH_TIMEOUT_S", "15"))
 POLISH_MAX_TOKENS = int(os.environ.get("MIOS_POLISH_MAX_TOKENS", "800"))
@@ -5065,7 +5080,7 @@ def _tmsgs_indicate_failure(tmsgs: list) -> bool:
 
 _DAEMON_DIAGNOSE_MODEL = os.environ.get("MIOS_DAEMON_MODEL", _STACK_MODEL)
 _DAEMON_DIAGNOSE_ENDPOINT = os.environ.get(
-    "MIOS_DAEMON_ENDPOINT", "http://localhost:11450/v1").rstrip("/")
+    "MIOS_DAEMON_ENDPOINT", _LIGHT_BASE + "/v1").rstrip("/")
 _DAEMON_DIAGNOSE_ENABLE = os.environ.get(
     "MIOS_DAEMON_DIAGNOSE", "true").strip().lower() not in ("0", "false", "no")
 
@@ -12641,7 +12656,7 @@ DCI_ENABLED = os.environ.get("MIOS_AGENT_PIPE_DCI_ENABLED",
                               "true").lower() not in {"false", "0", "no"}
 DCI_MODEL = os.environ.get("MIOS_AGENT_PIPE_DCI_MODEL", _STACK_MODEL)  # = _STACK_MODEL (granite4.1:8b on :11450; gemma4:12b retired -> 404)
 DCI_ENDPOINT = os.environ.get(
-    "MIOS_AGENT_PIPE_DCI_ENDPOINT", "http://localhost:11450",  # mios-llm-light (local ollama :11434 retired G5)
+    "MIOS_AGENT_PIPE_DCI_ENDPOINT", _LIGHT_BASE,  # mios-llm-light (WS-0B: one owned port key)
 ).rstrip("/")
 DCI_TIMEOUT_S = int(os.environ.get("MIOS_AGENT_PIPE_DCI_TIMEOUT_S", "20"))
 DCI_MAX_TOKENS = int(os.environ.get("MIOS_AGENT_PIPE_DCI_MAX_TOKENS", "400"))
@@ -20792,7 +20807,7 @@ async def _a2a_client_on_startup() -> None:
 _VERB_EMBED_MODEL = os.environ.get(
     "MIOS_VERB_EMBED_MODEL", "nomic-embed-text")
 _VERB_EMBED_URL = os.environ.get(
-    "MIOS_VERB_EMBED_URL", "http://localhost:11450/v1/embeddings")
+    "MIOS_VERB_EMBED_URL", _LIGHT_BASE + "/v1/embeddings")
 _VERB_EMBEDDINGS: dict[str, list[float]] = {}
 _VERB_EMBEDDINGS_LOCK = asyncio.Lock()
 # P4 (operator 2026-06-11): external MCP tools are surfaced as "mcp.<id>.<tool>" but were
@@ -22854,7 +22869,7 @@ VISION_ENABLE = os.environ.get(
 # stopped" / "png: invalid format") -- switch back via this env once fixed.
 VISION_MODEL = os.environ.get("MIOS_AGENT_PIPE_VISION_MODEL", "qwen3-vl:4b")
 VISION_ENDPOINT = os.environ.get(
-    "MIOS_AGENT_PIPE_VISION_ENDPOINT", "http://localhost:11450").rstrip("/")
+    "MIOS_AGENT_PIPE_VISION_ENDPOINT", _LIGHT_BASE).rstrip("/")
 
 
 def _messages_have_image(messages: list) -> bool:

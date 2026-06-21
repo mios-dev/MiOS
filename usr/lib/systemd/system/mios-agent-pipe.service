@@ -1,5 +1,5 @@
-# AI-hint: Systemd unit defining the agent-pipe FastAPI service which acts as a router, refiner, and critic for the Hermes gateway, routing inference requests to the llama.cpp backend on port 11450.
-# AI-related: /usr/lib/mios/agent-pipe/server.py, /etc/mios/hermes/api.env, /etc/mios/agent-pipe.env, /etc/mios/agent-pipe.env., /usr/lib/mios/agents/.venv/bin/python3, mios-surrealdb, mios-passport-provision, mios-ai, mios-hermes, mios-env
+# AI-hint: Systemd unit defining the agent-pipe FastAPI service which acts as a router, refiner, and critic for the Hermes gateway, routing inference requests to the llama.cpp light lane (mios-llm-light); the lane port is the single SSOT key [ports].llm_light (MIOS_PORT_LLM_LIGHT), composed in server.py via _LIGHT_BASE.
+# AI-related: /usr/lib/mios/agent-pipe/server.py, /etc/mios/install.env, /etc/mios/agent-pipe.env, /usr/lib/mios/agents/.venv/bin/python3, mios-pgvector, mios-passport-provision, mios-ai, mios-hermes, mios-env
 [Unit]
 Description='MiOS' Agent Pipe (router + refine + critic FastAPI; fronts hermes for every gateway)
 Documentation=file:///usr/lib/mios/agent-pipe/server.py
@@ -24,6 +24,11 @@ WorkingDirectory=/var/lib/mios/agent-pipe
 # environment. The service code reads MIOS_PORT_AGENT_PIPE +
 # MIOS_AGENT_PIPE_BACKEND + MIOS_DB_URL etc. as os.environ overrides.
 EnvironmentFile=-/etc/mios/agent-pipe.env
+# WS-0B: source the SSOT env bridge (same pattern as hermes-agent.service) so the
+# derived MIOS_PORT_LLM_LIGHT ([ports].llm_light in mios.toml) reaches the service
+# -> server.py composes EVERY light-lane endpoint from it via _LIGHT_BASE. ONE
+# owned port key; no per-endpoint :11450 literal in this unit anymore.
+EnvironmentFile=-/etc/mios/install.env
 Environment=MIOS_PORT_AGENT_PIPE=8640
 # WS-10 (operator 2026-06-05 "EVERYTHING IS LLAMA.CPP, NO OLLAMA"): the agent-pipe
 # reasons DIRECTLY on mios-llm-light (:11450) instead of via Hermes->ollama. All
@@ -35,8 +40,12 @@ Environment=MIOS_PORT_AGENT_PIPE=8640
 # BASE default MIOS_STACK_MODEL (which _MICRO/DCI/SWARM/refine/polish/planner inherit
 # via server.py) + the explicit BACKEND/SWARM/MICRO names. ONE resident model = no
 # llama-swap thrash. Override per-deployment in /etc/mios/agent-pipe.env.
-Environment=MIOS_AGENT_PIPE_BACKEND=http://localhost:11450/v1
-Environment=MIOS_MICRO_ENDPOINT=http://localhost:11450/v1
+# WS-0B: the agent-pipe reasons DIRECTLY on the light lane (NOT fronting Hermes
+# :8642). Opt in by FLAG -- server.py composes the URL from _LIGHT_BASE, so the
+# port lives in ONE place ([ports].llm_light), not a literal here. MICRO/ROUTER/
+# OLLAMA_CPU/PLANNER/REFINE/POLISH endpoints ALSO derive from _LIGHT_BASE now and
+# are no longer pinned in this unit.
+Environment=MIOS_AGENT_PIPE_BACKEND_LIGHT=1
 # WS-0B: ONE owned model key. BACKEND/MICRO/SWARM/PLANNER/REFINE/POLISH all
 # INHERIT this via server.py (_STACK_MODEL), which ALSO honors MIOS_AI_MODEL
 # ([ai].model SSOT) -- so set the model in ONE place, not seven. Override
@@ -53,16 +62,9 @@ Environment=MIOS_AI_MODEL=granite4.1:8b
 Environment=MIOS_NO_TOOL_CHOICE_HINTS=11436
 Environment=MIOS_KV_PAGING_HINTS=11436,11450
 Environment=MIOS_OLLAMA_API_HINTS=
-# Router calls qwen3:1.7b on the CPU light-lane (:11435), not
-# the dGPU/CUDA lane (:11434). Keeps router latency sub-second under
-# dGPU load. Override via /etc/mios/agent-pipe.env if a deployment
-# doesn't have mios-ollama-cpu standing up (e.g., bare-metal with
-# only NVIDIA dGPU).
-Environment=MIOS_AGENT_PIPE_ROUTER_ENDPOINT=http://localhost:11450
-# CPU light-lane -> llama.cpp (was :11435 ollama, now retired). Agents that
-# prefer_cpu-offload resolve here; point it at mios-llm-light so they land on
-# gemma4@:11450 instead of connection-erroring on the dead ollama-cpu lane.
-Environment=MIOS_OLLAMA_CPU_ENDPOINT=http://localhost:11450
+# WS-0B: ROUTER + the CPU-offload light-lane (MIOS_OLLAMA_CPU_ENDPOINT) both now
+# default to _LIGHT_BASE in server.py (mios-llm-light) -- no per-endpoint pin here.
+# Override either via /etc/mios/agent-pipe.env only if a deployment splits lanes.
 # Phase A.1 -- planner runs on the dGPU/CUDA lane :11434. Falls back to
 # whatever lane is reachable if :11434 is down.
 # Model: mios-agent -- the canonical "MiOS AI" model (Modelfile FROM
@@ -74,8 +76,8 @@ Environment=MIOS_OLLAMA_CPU_ENDPOINT=http://localhost:11450
 # proxy. Override via /etc/mios/agent-pipe.env.
 # History: qwen2.5-coder:7b -> mios-planner(gemma4) -> mios-agent(gemma4)
 # -> mios-agent(qwen3.5:4b, consolidated brain) 2026-05-22.
-Environment=MIOS_AGENT_PIPE_PLANNER_ENDPOINT=http://localhost:11450
-# WS-0B: PLANNER model inherits MIOS_STACK_MODEL via server.py (no per-role re-pin).
+# WS-0B: PLANNER endpoint+model both derive from server.py (_LIGHT_BASE +
+# MIOS_STACK_MODEL) -- no per-role pin here.
 # WS-A3 de-rot: SurrealDB (:8000) is RETIRED -> the agent DB is Postgres+pgvector
 # (MIOS_PG_* / mios-pgvector). The former MIOS_DB_URL/USER/PASS/NS/DB SurrealDB env
 # is removed (the pg client reads MIOS_PG_* + the pgvector quadlet creds).
@@ -84,13 +86,12 @@ Environment=MIOS_PASSPORT_AGENT_NAME=agent-pipe
 # refine (input prompt-enhancement -> the structured plan every downstream node
 # consumes; THE quality lever) + polish (final-answer shaping WITH the MiOS
 # persona) both run on the ONE resident served brain via the agent-pipe lane
-# resolver (mios-llm-light :11450; the retired qwen3.5:4b/qwen3:1.7b dGPU :11434
-# pins are GONE). WS-0B: their MODEL inherits MIOS_AI_MODEL (one owned key, above)
-# through server.py -- only the endpoints are pinned here. The CONCURRENT swarm
-# secondaries still fan out to OTHER lanes at the same dispatch step
-# ([[mios_heterogeneous_parallel_dispatch]]). Override via /etc/mios/agent-pipe.env.
-Environment=MIOS_REFINE_ENDPOINT=http://localhost:11450
-Environment=MIOS_POLISH_ENDPOINT=http://localhost:11450
+# resolver (mios-llm-light; the retired qwen3.5:4b/qwen3:1.7b dGPU :11434 pins are
+# GONE). WS-0B: their endpoint AND model now derive from server.py (_LIGHT_BASE +
+# MIOS_AI_MODEL, the one owned keys) -- NEITHER is pinned in this unit anymore. The
+# CONCURRENT swarm secondaries still fan out to OTHER lanes at the same dispatch
+# step ([[mios_heterogeneous_parallel_dispatch]]). Override via
+# /etc/mios/agent-pipe.env only to split a lane.
 # Phase D.5 -- refine + polish timeouts on CPU-bound dev hardware.
 # Real ROCm/CUDA finishes the LLM call in <1s; WSL CPU takes 15-30s
 # for the same prompt. Generous timeout works on both.
