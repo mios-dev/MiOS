@@ -59,12 +59,37 @@ def t_shape():
     check("shape: keys", set(d) == {"tier", "mechanism", "workspace", "read_only_root", "network", "confined"})
 
 
+def t_bwrap():
+    cmd = ["powershell_run", "--", "echo hi"]
+    # 'read' tier (none) -> run direct, no wrapper
+    none_argv = sb.build_bwrap_argv(sb.resolve_profile("read"), cmd)
+    check("bwrap: none tier runs direct (cmd unchanged)", none_argv == cmd)
+    # 'write' tier (workspace, ro-root, network) + a workspace
+    wp = sb.resolve_profile("write")
+    wa = sb.build_bwrap_argv(wp, cmd, workspace="/var/lib/mios/ai/dispatch/x-1")
+    check("bwrap: write starts with bwrap", wa[0] == "bwrap")
+    check("bwrap: write has --unshare-all + --die-with-parent", "--unshare-all" in wa and "--die-with-parent" in wa)
+    check("bwrap: write re-adds net (--share-net)", "--share-net" in wa)
+    check("bwrap: write read-only root (--ro-bind / /)", "--ro-bind" in wa and wa[wa.index("--ro-bind")+1:wa.index("--ro-bind")+3] == ["/", "/"])
+    check("bwrap: write binds the workspace rw", "--bind" in wa and "/var/lib/mios/ai/dispatch/x-1" in wa)
+    check("bwrap: write proc/dev/tmpfs", "--proc" in wa and "--dev" in wa and "--tmpfs" in wa)
+    check("bwrap: cmd after the -- separator", wa[wa.index("--", 1):] == ["--"] + cmd)
+    # 'interactive' tier (strict, NO network)
+    sa = sb.build_bwrap_argv(sb.resolve_profile("interactive"), cmd, workspace="/ws")
+    check("bwrap: strict has NO --share-net (no network)", "--share-net" not in sa)
+    check("bwrap: strict still --unshare-all", "--unshare-all" in sa)
+    # unknown tier fails CLOSED -> strict (no net)
+    uk = sb.build_bwrap_argv(sb.resolve_profile("bogus"), cmd, workspace="/ws")
+    check("bwrap: unknown tier fail-closed (confined, no net)", uk[0] == "bwrap" and "--share-net" not in uk)
+
+
 def main():
     t_tiers()
     t_fail_closed()
     t_explicit()
     t_workspace()
     t_shape()
+    t_bwrap()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
 

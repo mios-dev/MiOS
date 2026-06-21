@@ -1,6 +1,6 @@
 # AI-hint: WS-A13 risk-tier dispatch-sandbox profile resolver. Pure-stdlib core that maps a verb's permission tier (read|write|interactive) to a SandboxProfile -- the confinement (mechanism + writable workspace + read-only/network posture) the dispatch chokepoint should run the verb under. read -> none (pure info), write -> a per-dispatch writable workspace with the rest read-only, interactive -> the strictest isolation (bwrap/podman, no net). FAIL-CLOSED (security-sensitive, NOT degrade-open): an unknown/missing tier resolves to the STRICTEST profile, never 'none'. server.py owns the actual confinement (bwrap/seccomp/podman) + the workspace tmpfiles; this module owns only the deterministic policy so it unit-tests in isolation.
 # AI-related: ./server.py, ./mios_pdp.py, /usr/share/mios/mios.toml, /var/lib/mios/ai/dispatch, ./test_mios_sandbox.py
-# AI-functions: resolve_profile, workspace_path, class SandboxProfile
+# AI-functions: resolve_profile, workspace_path, build_bwrap_argv, class SandboxProfile
 """mios_sandbox -- risk-tier dispatch sandbox profiles (WS-A13, the AIOS
 Access-Manager confinement layer).
 
@@ -83,3 +83,39 @@ def workspace_path(verb: str, uniq: str, *, base: str = "/var/lib/mios/ai/dispat
     vh = hashlib.sha256(str(verb or "").encode()).hexdigest()[:12]
     safe_uniq = "".join(c for c in str(uniq or "") if c.isalnum() or c in "-_")[:36] or "0"
     return f"{base.rstrip('/')}/{vh}-{safe_uniq}"
+
+
+def build_bwrap_argv(profile: "SandboxProfile", cmd: Sequence[str], *,
+                     workspace: Optional[str] = None,
+                     bwrap: str = "bwrap") -> "list[str]":
+    """WS-A13 enforcement primitive: translate a resolved SandboxProfile into the
+    concrete bubblewrap argv server.py should exec (the PURE, testable half; the
+    actual exec/seccomp + workspace mkdir stays in server.py). `cmd` is the verb's
+    argv. Flags verified against bubblewrap docs (ArchWiki Bubblewrap/Examples):
+
+      mechanism 'none'  -> NO wrapper: returns cmd unchanged (run direct).
+      confined          -> bwrap --die-with-parent --new-session --unshare-all
+                           [--share-net IFF profile.network] (no --share-net =>
+                           --unshare-all already dropped the net namespace = no net),
+                           --ro-bind / /  (read_only_root) | --bind / /  (else),
+                           --proc /proc --dev /dev --tmpfs /tmp,
+                           [--bind WS WS --chdir WS  IFF workspace given], -- CMD...
+
+    --unshare-all isolates every namespace; --share-net re-adds only networking
+    for tiers that need it. Later binds override earlier ones, so --ro-bind / /
+    then --bind WS WS yields a read-only root with one writable workspace. The
+    `--` ends bwrap's options so the verb's own argv is never mis-parsed."""
+    argv = list(cmd or [])
+    if not profile.confined:
+        return argv                               # 'none' tier -> run direct
+    out = [bwrap, "--die-with-parent", "--new-session", "--unshare-all"]
+    if profile.network:
+        out.append("--share-net")
+    out += (["--ro-bind", "/", "/"] if profile.read_only_root
+            else ["--bind", "/", "/"])
+    out += ["--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp"]
+    if profile.workspace and workspace:
+        out += ["--bind", workspace, workspace, "--chdir", workspace]
+    out.append("--")
+    out += argv
+    return out
