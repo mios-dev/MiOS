@@ -361,35 +361,49 @@ def _db_post(sql: str, *, timeout: float = 3.0) -> Optional[list]:
         return None
 
 
-def _pg_query(select_sql: str) -> list:
-    """R15/G10: read rows from pgvector via mios-db --pg --json. Wraps the
-    SELECT in json_agg(row_to_json) so the output is a single JSON array
-    (mios-pg-query emits tuples-only). Returns a list of dicts ([] on error/
-    pg-disabled). The daemon had no pg-read path -- only _pg_exec for writes."""
+def _pg_query(select_sql: str, params: "Optional[list]" = None) -> list:
+    """R15/G10: read rows from pgvector. Wraps the SELECT in json_agg(row_to_json)
+    so the output is a single JSON array. Returns a list of dicts ([] on error/
+    pg-disabled). WS-A3: when `params` is given, the values are BOUND out-of-band
+    ($1..$n) via `mios-db --pg-json` -- the select_sql must use placeholders, not
+    f-string-spliced values. Without params, the legacy `mios-db --pg` path runs
+    a constant SQL string."""
     if not _PG_ENABLED:
         return []
     try:
-        import subprocess
         wrapped = ("SELECT COALESCE(json_agg(row_to_json(t)), '[]'::json) FROM ("
                    + select_sql.rstrip().rstrip(";") + ") t;")
-        p = subprocess.run([_MIOS_DB, "--pg", wrapped, "--json"],
-                           capture_output=True, text=True, timeout=15)
-        if p.returncode != 0:
-            return []
-        out = (p.stdout or "").strip()
+        if params is not None:
+            out = _pg_run({"sql": wrapped, "params": params})
+        else:
+            import subprocess
+            p = subprocess.run([_MIOS_DB, "--pg", wrapped, "--json"],
+                               capture_output=True, text=True, timeout=15)
+            out = (p.stdout or "").strip() if p.returncode == 0 else ""
         return json.loads(out) if out else []
     except Exception:  # noqa: BLE001 -- degrade-open
         return []
 
 
-def _db_read(surreal_sql: str, *, pg_sql: "Optional[str]" = None) -> list:
-    """Agent-plane READ seam (mirrors agent-pipe's). When Postgres is primary
-    AND a pg_sql translation is supplied, run it and wrap the rows in
-    SurrealDB's [{"result": [...]}] envelope so _ok_result parses both shapes
-    UNCHANGED. Else SurrealDB. Lets reads migrate incrementally + go live at
-    the flip without touching call-site result parsing."""
-    if _PG_PRIMARY and pg_sql:
-        return [{"result": _pg_query(pg_sql)}]
+def _db_read(surreal_sql: str, *, pg_sql: "Optional[str]" = None,
+             pg_params: "Optional[list]" = None) -> list:
+    """Agent-plane READ seam (mirrors agent-pipe's). When pg is ENABLED AND a
+    pg_sql translation is supplied, run it and wrap the rows in SurrealDB's
+    [{"result": [...]}] envelope so _ok_result parses both shapes UNCHANGED. Else
+    SurrealDB.
+
+    WS-A3: gated on _PG_ENABLED (not _PG_PRIMARY) -- in the DEFAULT 'dual' mode
+    SurrealDB (:8000) is retired and dead, so a _PG_PRIMARY gate left every
+    translated read (satisfaction monitor, refine scan, ...) hitting the dead
+    backend and returning [] (the documented training/telemetry-starvation bug).
+    Reading the live pgvector mirror in dual is correct (daemon writes already
+    mirror to pg) and strictly non-regressive: a missing/bad translation still
+    falls back to SurrealDB -> [] (degrade-open), same as before, and pg responds
+    instead of timing out + arming the 30s backoff. Reads WITHOUT a pg_sql still
+    go to SurrealDB (-> [] until translated). pg_params (when the pg_sql uses
+    $1..$n placeholders) are bound out-of-band -> injection-safe."""
+    if _PG_ENABLED and pg_sql:
+        return [{"result": _pg_query(pg_sql, pg_params)}]
     return _db_post(surreal_sql) or []
 
 
@@ -2330,11 +2344,15 @@ def _tool_calls_for_refine(refine_ts: str,
         f"  AND ts < '{refine_ts}' + {int(lookback_after_min)}m "
         f"ORDER BY ts ASC LIMIT 20;"
     )
+    # WS-A3: this read is now LIVE in dual mode (see _db_read gate) -> bind
+    # refine_ts ($1, a DB-row value treated as tainted) out-of-band; the interval
+    # count is int-coerced inline.
     return [r for r in _ok_result(_db_read(sql, pg_sql=(
-        f"SELECT id, ts, tool, args, success, exit_code, result_preview "
-        f"FROM tool_call WHERE ts > '{refine_ts}'::timestamptz "
-        f"AND ts < '{refine_ts}'::timestamptz + interval "
-        f"'{int(lookback_after_min)} minutes' ORDER BY ts ASC LIMIT 20")))
+        "SELECT id, ts, tool, args, success, exit_code, result_preview "
+        "FROM tool_call WHERE ts > $1::timestamptz "
+        "AND ts < $1::timestamptz + interval '"
+        + str(int(lookback_after_min)) + " minutes' "
+        "ORDER BY ts ASC LIMIT 20"), pg_params=[refine_ts]))
         if isinstance(r, dict)]
 
 
