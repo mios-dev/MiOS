@@ -118,13 +118,13 @@ jobs:
         # matters less than building successfully.
         uses: jlumbroso/free-disk-space@main
         with:
-          tool-cache: false
+          tool-cache: true
           android: true
           dotnet: true
           haskell: true
           large-packages: true
-          docker-images: false
-          swap-storage: false
+          docker-images: true
+          swap-storage: true
 
       - name: Login to GHCR (raise base-image pull rate limit)
         # Anonymous GHCR pulls hit "503 Egress is over the account limit"
@@ -299,13 +299,13 @@ jobs:
         # extra room for the 16+ bound-image bakes during smoke build.
         uses: jlumbroso/free-disk-space@main
         with:
-          tool-cache: false
+          tool-cache: true
           android: true
           dotnet: true
           haskell: true
           large-packages: true
-          docker-images: false
-          swap-storage: false
+          docker-images: true
+          swap-storage: true
 
       - name: Login to GHCR (raise base-image pull rate limit, smoke step)
         env:
