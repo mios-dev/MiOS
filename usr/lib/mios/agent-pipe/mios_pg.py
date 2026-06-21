@@ -114,8 +114,9 @@ def build_recall(table: str = "knowledge", k: int = 3,
     existing recall). owner=None (the default) leaves the SQL BYTE-IDENTICAL to
     the pre-RLS query -> zero behaviour change when off. The CALLER decides policy
     (read [pgvector].rls_mode) and MUST pass owner only for a table that HAS an
-    owner_user column (today: knowledge); passing it for owner_user-less tables
-    would raise UndefinedColumn and arm the backoff."""
+    owner_user column (knowledge AND agent_memory both do; schema-init.sql);
+    passing it for an owner_user-less table would raise UndefinedColumn and arm
+    the backoff."""
     if table == "agent_memory":
         proj = "mem_key AS id, fact, scope, source"
     elif table == "mios_rag":

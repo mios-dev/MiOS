@@ -11445,18 +11445,20 @@ async def _recall_agent_memory(query: str) -> str:
     as an injectable block (or '' on miss). Default-OFF; degrade-open -> ''."""
     if not (AGENT_MEMORY_RECALL_ENABLED and _PG_PRIMARY and query and query.strip()):
         return ""
-    # #59 WS-5: agent_memory has no owner_user column yet, so it cannot be
-    # owner-scoped. Under rls_mode=enforce FAIL CLOSED -- skip agent_memory recall
-    # rather than leak another owner's durable facts (partial enforcement is worse
-    # than none). Default rls_mode=off -> _rls_owner() is None -> unchanged.
-    if _rls_owner() is not None:
-        return ""
+    # #59 WS-5 multi-tenant durable memory: agent_memory now HAS an owner_user
+    # column (schema-init.sql), so under rls_mode=enforce we OWNER-SCOPE the recall
+    # (mios_pg adds `owner_user = %(owner)s OR owner_user IS NULL` -- the caller's
+    # own facts + shared/legacy rows, never another principal's), exactly like
+    # knowledge recall -- instead of fail-closed-SKIPPING (which lost the user
+    # their own durable facts). Default rls_mode=off -> _rls_owner() is None ->
+    # owner not passed -> recall SQL is byte-identical to pre-RLS.
     try:
         qv = await _embed_one(query)
         if not qv:
             return ""
         rows = await _MEMORY.retrieve(qv, table=AGENT_MEMORY_TABLE,
-                                      k=AGENT_MEMORY_RECALL_K)  # WS-A15 seam
+                                      k=AGENT_MEMORY_RECALL_K,
+                                      owner=_rls_owner())  # WS-A15 seam / WS-5 RLS
         if not rows:
             return ""
         hits = [r for r in rows
