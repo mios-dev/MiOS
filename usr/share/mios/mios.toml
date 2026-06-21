@@ -1564,6 +1564,15 @@ kv_gc_interval_s  = 900         # sweep cadence (seconds)
 kv_gc_ttl_s       = 86400       # evict a non-active KV file older than this (24h)
 kv_gc_max_bytes   = 2000000000  # total KV-file budget; oldest-first eviction over this (~2GB)
 kv_slots_dir      = ""          # llama.cpp --slot-save-path IF local to the agent-pipe (else "" -> tmpfiles-only GC)
+# ── RR time-slice preemption (WS-A12) — bound how long one dispatch holds a lane
+# before its quantum expires + it is snapshotted/requeued so the next waiter
+# runs. The policy/bookkeeping (mios_preempt) ships + is observable on
+# /v1/scheduler; the engine-side interruptible decode that ACTS on it is deferred
+# -> DEFAULT-OFF (inert, zero behaviour change). Env: MIOS_RR_ENABLE /
+# MIOS_RR_QUANTUM_S / MIOS_RR_MAX_SUSPENDED.
+rr_enable         = false       # master switch (inert until the decode hook + WS-A11 Context seam land)
+rr_quantum_s      = 8.0         # seconds a dispatch runs before it becomes preemptible
+rr_max_suspended  = 4           # bounded snapshot-slot free-list (max concurrently-suspended generations)
 # ── Per-request trace/span observability (WS-A8). A chat_completions request
 # mints (or adopts via the X-MiOS-Trace header) a trace_id; each pipeline stage
 # (route/plan/refine/dispatch) opens a child span, and finished spans land in a

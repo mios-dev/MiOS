@@ -105,6 +105,7 @@ from mios_kvfork import (validate_fork as _kvfork_validate,  # noqa: E402  -- WS
 import mios_kvgc   # noqa: E402  -- WS-A4 KV slot-file GC planner
 import mios_secset   # noqa: E402  -- WS-A14 SSOT-derived high-privilege/taint sets
 import mios_hopbudget   # noqa: E402  -- WS-4 hop-budget recursion guard + effort scaling
+import mios_preempt   # noqa: E402  -- WS-A12 RR-preemption state machine + snapshot contract
 import mios_codemode as _codemode   # noqa: E402  -- WS-2 Code Mode pure helpers
 import mios_pg as _mios_pg   # noqa: E402  -- WS-9 Postgres+pgvector client
 import mios_lanes   # noqa: E402  -- WS-1 unified inference-lane resolver
@@ -3121,6 +3122,20 @@ KV_GC_TTL_S = _dispatch_num("MIOS_KV_GC_TTL_S", "kv_gc_ttl_s", 86400, cast=float
 KV_GC_MAX_BYTES = _dispatch_num("MIOS_KV_GC_MAX_BYTES", "kv_gc_max_bytes", 2000000000)
 KV_SLOTS_DIR = (os.environ.get("MIOS_KV_SLOTS_DIR", "")
                 or str(_DISPATCH_TOML.get("kv_slots_dir", "") or "")).strip()
+# ── RR time-slice preemption (WS-A12) — bound how long one dispatch holds a lane
+# before its quantum expires + it is snapshotted/requeued so the next waiter runs.
+# The POLICY/bookkeeping (mios_preempt: quantum, bounded snapshot-slot free-list,
+# priority-ordered resume) ships here + is observable; the engine-side
+# interruptible decode that ACTS on it is deferred (needs llama.cpp/SGLang decode
+# hooks + the WS-A11 Context seam). DEFAULT-OFF: the state machine is inert until
+# rr_enable AND the decode hook land, so this is a zero-behaviour-change deploy.
+RR_ENABLE = (
+    str(os.environ.get("MIOS_RR_ENABLE")
+        or _DISPATCH_TOML.get("rr_enable", "false"))
+    .strip().lower() not in {"false", "0", "no", "off", ""})
+RR_QUANTUM_S = _dispatch_num("MIOS_RR_QUANTUM_S", "rr_quantum_s", 8.0, cast=float)
+RR_MAX_SUSPENDED = _dispatch_num("MIOS_RR_MAX_SUSPENDED", "rr_max_suspended", 4)
+_PREEMPT = mios_preempt.PreemptScheduler(max_suspended=RR_MAX_SUSPENDED)
 
 
 def _endpoint_is_llamacpp(ep: str, cfg: dict, engine: Optional[str] = None) -> bool:
@@ -18755,6 +18770,8 @@ async def scheduler_state() -> JSONResponse:
         "tool_conflict": _TOOL_CONFLICT.stats(),
         # WS-A8 per-request trace/span observability: buffer posture + recent traces.
         "trace": {**_TRACER.stats(), "recent": _TRACER.recent(10)},
+        # WS-A12 RR preemption: policy posture + live suspended/free-slot counts.
+        "preempt": {"enabled": RR_ENABLE, "quantum_s": RR_QUANTUM_S, **_PREEMPT.stats()},
         "ts": int(time.time()),
     })
 
