@@ -114,6 +114,9 @@ import mios_trace   # noqa: E402  -- WS-A8 per-request trace/span observability
 import mios_pdp as _pdp   # noqa: E402  -- WS-A9 policy decision point (capability gate)
 import mios_embed_backfill as _embf   # noqa: E402  -- WS-A2 embedding-version backfill planner
 import mios_memory   # noqa: E402  -- WS-A15 pluggable MemoryProvider seam
+import mios_tokenize   # noqa: E402  -- WS-A5 tokenizer seam (token accounting)
+import mios_ctxpack    # noqa: E402  -- WS-A5 priority token-budget context packer
+import mios_compact    # noqa: E402  -- WS-A5 rolling-summary compaction planner
 
 # ── Config (SSOT-sourced via env) ──────────────────────────────────
 PORT = int(os.environ.get("MIOS_PORT_AGENT_PIPE", "8640"))
@@ -448,6 +451,15 @@ EMB_VERSION = os.environ.get("MIOS_EMB_VERSION", "nomic-768-v1")
 # forget + degrade-open; off -> the old in-memory-only behaviour.
 SCRATCHPAD_PERSIST = str(os.environ.get("MIOS_SCRATCHPAD_PERSIST", "1")).strip().lower() \
     not in ("0", "false", "no", "off", "")
+# WS-A5: tokenizer backend selector (SSOT [ai].tokenizer_backend via the env
+# bridge). "heuristic" (default) is the offline ~4-chars/token estimate -- the
+# only backend shipped today; a vendored real tokenizer would register under its
+# own name + be installed via mios_tokenize.set_backend(). Unknown -> heuristic
+# (degrade-open, offline-safe -- never a hard dep on a tokenizer asset).
+_TOKENIZER_BACKEND = str(os.environ.get("MIOS_TOKENIZER_BACKEND", "heuristic")).strip().lower()
+if _TOKENIZER_BACKEND not in ("", "heuristic"):
+    log.info("WS-A5: tokenizer_backend=%r requested but only the heuristic "
+             "backend is shipped -- using heuristic (offline-safe)", _TOKENIZER_BACKEND)
 
 # Pipeline-side WEB-RESEARCH loop (operator 2026-05-24: "the MiOS pipeline
 # ITSELF loops for web use and web tools" + "multi loops for all web tools" +
@@ -3768,7 +3780,8 @@ def _trim_sys_prefix(sys_prefix: list, lane: str) -> list:
             trimmed.append(m)
             continue
         if len(c) > SLOW_LANE_BLOCK_CHARS:
-            c = (c[:SLOW_LANE_BLOCK_CHARS].rstrip()
+            # WS-A5: route through the tokenizer seam (token-budget truncation).
+            c = (mios_tokenize.truncate_to_tokens(c, SLOW_LANE_BLOCK_CHARS // 4)
                  + "\n[...trimmed for the light lane...]")
         trimmed.append({**m, "content": c})
     return trimmed
@@ -7602,8 +7615,7 @@ def _fit_context(messages: list, tools: list, lane: str, want_ctx: int) -> int:
     try:
         if lane in SLOW_LANES:
             return want_ctx
-        est = (sum(len(str((m or {}).get("content") or "")) for m in (messages or []))
-               + len(json.dumps(tools or []))) // 4
+        est = mios_tokenize.count_messages(messages, tools)  # WS-A5 tokenizer seam (was //4)
         return max(want_ctx, min(WORKER_TOOL_CTX_MAX, est + 512))
     except Exception:  # noqa: BLE001
         return want_ctx
@@ -8551,7 +8563,8 @@ async def _quick_chat_reply(user_text: str, history: list = None) -> str:
         for h in history[-2:]:
             if isinstance(h, dict) and h.get("role") in ("user", "assistant"):
                 msgs.append({"role": h["role"],
-                             "content": str(h.get("content", ""))[:200]})
+                             "content": mios_tokenize.truncate_to_tokens(
+                                 str(h.get("content", "")), 50)})  # WS-A5 seam (was [:200])
     msgs.append({"role": "user", "content": user_text[:500]})
     # OpenAI /v1 (mios-llm-light :11450). The old ollama /api/chat 404'd post
     # ollama-retirement -> refine returned "" = NO refined routing/decompose/
@@ -9659,7 +9672,8 @@ async def refine_intent(user_text: str,
         for h in history[-2:]:
             if isinstance(h, dict) and h.get("role") in ("user", "assistant"):
                 msgs.append({"role": h["role"],
-                             "content": str(h.get("content", ""))[:200]})
+                             "content": mios_tokenize.truncate_to_tokens(
+                                 str(h.get("content", "")), 50)})  # WS-A5 seam (was [:200])
     # Cap the refine input to the TAIL. OWUI's RAG ("Searching Knowledge")
     # rewrites the user turn as "<context...>\n\nQuery: <actual question>"
     # -- the real question is at the END (operator test 2026-05-20 showed a
@@ -25093,8 +25107,8 @@ def _usage_estimate(prompt: str, completion: str) -> dict:
     CLIENT-VISIBLE exchange (user query + final answer) -- an honest per-turn
     approximation for the client's token display, NOT a faked single-model-call
     number. A future per-stage back-end usage aggregation can replace it."""
-    pt = max(1, len(prompt or "") // 4)
-    ct = max(1, len(completion or "") // 4)
+    pt = max(1, mios_tokenize.count_text(prompt))       # WS-A5 tokenizer seam (was //4)
+    ct = max(1, mios_tokenize.count_text(completion))
     return {"prompt_tokens": pt, "completion_tokens": ct, "total_tokens": pt + ct}
 
 

@@ -4410,6 +4410,12 @@ hitl_arbiter_fail   = "open"
 # audit verbosity: false (default) emits a pdp_block event on DENY only; true
 # also emits a pdp_allow event per permitted dispatch.
 pdp_audit_allow     = false
+# WS-A5 tokenizer seam: selects the token-COUNTING backend (mios_tokenize), used
+# by context-fit sizing, the OpenAI usage estimate, and history/block
+# truncation. "heuristic" (default, ~4 chars/token) is offline + zero-dep and
+# byte-identical to the legacy //4 estimate -- the only backend shipped today.
+# A vendored real tokenizer registers under its own name. Env: MIOS_TOKENIZER_BACKEND.
+tokenizer_backend   = "heuristic"
 # WS-1 unified lane resolver (operator 2026-06-19): which heavy engine the agent-pipe
 # PREFERS when both heavy lanes ([ai.sglang] :11441 + [ai.vllm] :11440 -- BOTH advertise
 # served_name "mios-heavy") are provisioned. mios_lanes.LaneResolver tries the preferred
