@@ -118,6 +118,7 @@ import mios_a2a_principal as _a2a_pp   # noqa: E402  -- WS-6 signed delegation p
 import mios_reputation   # noqa: E402  -- #54 zero-trust peer reputation
 import mios_quota   # noqa: E402  -- WS-6 per-user quota / rate-limit (inert until configured)
 import mios_capreg   # noqa: E402  -- WS-2 unified RBAC-filtered capability manifest
+import mios_crl   # noqa: E402  -- WS-A10 principal/cert revocation list (inert until a CRL file exists)
 _A2A_REPUTATION = mios_reputation.PeerReputation()   # outbound-peer reliability
 import mios_goap   # noqa: E402  -- #53 deterministic GOAP planner lane
 import mios_selfimprove   # noqa: E402  -- #64 self-improvement analyzer (read-only)
@@ -20429,12 +20430,46 @@ def _a2a_principal_metadata(text: str, peer_id: str,
                                   context_id, text, _passport_sign)
 
 
+_CRL_PATH = os.environ.get("MIOS_CRL_PATH", "/usr/share/mios/ai/v1/crl.json")
+_CRL_CACHE: dict = {"mtime": -1.0, "crl": None}
+
+
+def _load_crl() -> "mios_crl.CRL":
+    """WS-A10 principal/cert revocation list, loaded from MIOS_CRL_PATH (a JSON
+    list or {"revoked":[...]}) + cached by mtime. INERT BY DEFAULT: no CRL file
+    -> an empty CRL (nothing revoked), so the revocation check is a no-op until an
+    operator publishes a CRL. Degrade-open."""
+    try:
+        st = os.stat(_CRL_PATH)
+        if _CRL_CACHE["crl"] is None or st.st_mtime != _CRL_CACHE["mtime"]:
+            with open(_CRL_PATH, encoding="utf-8") as fh:
+                _CRL_CACHE["crl"] = mios_crl.CRL.load(json.load(fh))
+            _CRL_CACHE["mtime"] = st.st_mtime
+        return _CRL_CACHE["crl"]
+    except Exception:  # noqa: BLE001 -- missing/unreadable -> empty CRL (inert)
+        return _CRL_CACHE["crl"] if _CRL_CACHE["crl"] is not None else mios_crl.CRL()
+
+
 def _a2a_verify_principal(in_msg: dict) -> "tuple[Optional[bool], str, dict]":
     """Receive-side check (thin wrapper over mios_a2a_principal.verify): binds the
     delivered text + routes to the passport verifier. (verdict, reason, claims);
-    verdict None = no principal block (legacy / non-MiOS peer)."""
+    verdict None = no principal block (legacy / non-MiOS peer).
+
+    WS-A10: a validly-SIGNED principal is still REJECTED if its principal/agent id
+    is on the CRL (mios_crl) -- revocation overrides a good signature. Inert when
+    no CRL file exists (empty CRL); degrade-open."""
     md = in_msg.get("metadata") if isinstance(in_msg, dict) else None
-    return _a2a_pp.verify(md, _a2a_text_from_message(in_msg), _passport_verify)
+    verdict, reason, claims = _a2a_pp.verify(
+        md, _a2a_text_from_message(in_msg), _passport_verify)
+    if verdict and isinstance(claims, dict):
+        try:
+            crl = _load_crl()
+            for _pid in (claims.get("principal"), claims.get("agent")):
+                if _pid and crl.is_revoked(str(_pid)):
+                    return (False, f"revoked principal: {_pid}", claims)
+        except Exception:  # noqa: BLE001 -- degrade-open: a CRL bug never blocks
+            pass
+    return verdict, reason, claims
 
 
 def _a2a_extract_text(env: dict) -> str:
