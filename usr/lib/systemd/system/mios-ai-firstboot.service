@@ -17,6 +17,13 @@ ConditionPathExists=!/var/lib/mios/.ai-firstboot-done
 Type=oneshot
 RemainAfterExit=yes
 TimeoutStartSec=2400
+# The script reads MIOS_LLAMACPP_BAKE_MODELS (the GGUF download spec) +
+# MIOS_AI_* from the env bridge. Without this, a fresh systemd boot has an
+# EMPTY environment -> bake_models reads empty -> "GGUFs not baked" -> the
+# llm-light lane stays inert forever. The leading '-' makes it optional so
+# the unit still starts (and retries) if the bridge isn't generated yet.
+# install-robustness 2026-06-21.
+EnvironmentFile=-/etc/mios/install.env
 ExecStart=/usr/libexec/mios/mios-ai-firstboot
 
 [Install]

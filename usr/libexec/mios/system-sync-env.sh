@@ -164,6 +164,14 @@ EOF
     [[ -n "$PREV_PWHASH" ]]     && echo "MIOS_USER_PASSWORD_HASH=\"$PREV_PWHASH\""
     [[ -n "$PREV_FORGE_PW" ]]   && echo "MIOS_FORGE_ADMIN_PASSWORD=\"$PREV_FORGE_PW\""
     [[ -n "$PREV_GHCR_TOKEN" ]] && echo "MIOS_GITHUB_TOKEN=\"$PREV_GHCR_TOKEN\""
+    # CRITICAL: the secret lines above are conditional `&& echo`. On a fresh
+    # install with no preserved secrets the LAST one is a false `[[ -n "" ]]`
+    # returning non-zero -- which makes `generate_env > "$TMP"` fail under
+    # `set -e`, aborting the script BEFORE `mv "$TMP" "$OUT"`. The EXIT trap
+    # then rm's the temp, so install.env is NEVER written and the run exits
+    # ~silently (no "regenerated" line). This bricked the whole env bridge on
+    # every secret-less host. Force a clean 0 return. install-robustness 2026-06-21.
+    return 0
 }
 
 if [[ "$SHOW_SOURCE" -eq 1 ]]; then

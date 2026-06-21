@@ -27,6 +27,11 @@ Before=hermes-agent.service multi-user.target
 [Service]
 Type=oneshot
 RemainAfterExit=yes
+# Read MIOS_AI_* + model-tier vars from the env bridge so a fresh systemd
+# boot has the resolved config (model pick, endpoints). Optional ('-') so
+# the unit still self-heals if the bridge isn't generated yet.
+# install-robustness 2026-06-21.
+EnvironmentFile=-/etc/mios/install.env
 ExecStart=/usr/libexec/mios/mios-hermes-firstboot
 
 [Install]
