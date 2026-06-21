@@ -10251,22 +10251,25 @@ async def refine_intent(user_text: str,
 
 def _shadow_queue_tasks(tasks: list[dict],
                         session_id: Optional[str]) -> list[dict]:
-    """Write one kanban_shadow row per refined multi-task entry.
-    Returns the same list augmented with `hermes_task_id` so the
+    """Write one row per refined multi-task entry to the CANONICAL pg `kanban`
+    table. Returns the same list augmented with `hermes_task_id` so the
     dispatcher + polish can refer to each row by id.
 
-    The shadow rows give every agent in the stack a single
-    SurrealDB-visible queue without coupling to Hermes's SQLite
-    schema. Hermes (or whichever sub-agent picks up a task) syncs
-    its native kanban entry back via the existing sync path."""
+    WS-A3: this was the SurrealDB `kanban_shadow` shadow-queue, which silently
+    no-op'd once SurrealDB (:8000) was retired (and whose pg mirror targeted a
+    `kanban_shadow` table that doesn't exist) -- so the multi-task queue was
+    invisible. It now upserts the canonical pg `kanban` (id/title/status/detail
+    jsonb) via a PARAMETERIZED statement (psycopg binds values; never spliced),
+    giving every agent a single pg-visible queue. Hermes (or whichever sub-agent
+    picks up a task) syncs its native kanban entry back via the existing path."""
     if not isinstance(tasks, list) or not tasks:
         return []
     out: list[dict] = []
     for i, t in enumerate(tasks):
         if not isinstance(t, dict):
             continue
-        # Stable id so the same task in a retried request collapses
-        # onto the same shadow row (UNIQUE INDEX on hermes_task_id).
+        # Stable id so the same task in a retried request collapses onto the
+        # same kanban row (id is the PK -> ON CONFLICT upserts the latest status).
         tid = (
             "mt-"
             + (session_id or "anon")[:12].replace(":", "")
@@ -10279,16 +10282,21 @@ def _shadow_queue_tasks(tasks: list[dict],
         status = "in_progress" if i == 0 else "todo"
         prio = t.get("priority")
         prio_str = str(prio) if prio is not None else None
-        row = {
+        detail = json.dumps({
             "hermes_task_id": tid,
-            "title": title,
-            "status": status,
             "priority": prio_str,
             "tags": ["multi_task", "agent-pipe-refined"],
-        }
-        _db_fire(_db_post(
-            _db_create("kanban_shadow", row, now_fields=("synced_at",))
-        ))
+            "session_id": session_id,
+        }, default=str)
+        # Parameterized upsert into the canonical pg kanban table (degrade-open
+        # via mios_pg; fire-and-forget so streaming is never delayed).
+        _db_fire(_mios_pg.execute(
+            "INSERT INTO kanban (id, title, status, detail) "
+            "VALUES (%(id)s, %(title)s, %(status)s, %(detail)s::jsonb) "
+            "ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, "
+            "status = EXCLUDED.status, detail = EXCLUDED.detail, ts = now()",
+            {"id": tid, "title": title, "status": status, "detail": detail},
+            fetch=False))
         out.append({**t, "hermes_task_id": tid, "status": status})
     _db_fire(_db_post(_db_create("event", {
         "source": "mios-agent-pipe",
