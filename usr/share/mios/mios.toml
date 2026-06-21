@@ -4448,6 +4448,10 @@ tokenizer_backend   = "heuristic"
 # manifest-drift gate (mios-ai-manifest-gen --check) is green in CI. Env:
 # MIOS_CATALOG_FAIL_MODE.
 catalog_fail_mode   = "warn"
+# WS-4: orchestration "effort" -- scales swarm fan-out WIDTH (1..swarm_max_width)
+# to query complexity. "max" (default) = full width (behaviour-preserving);
+# low|medium|high narrow it, or a 0..1 score. Env MIOS_EFFORT.
+effort              = "max"
 # WS-A17 local package registry. When true, the build materializes a versioned
 # package tree (ai/v1/packages/<author>/<name>/<version>/mios-pkg.toml +
 # registry.json) projected from the live SSOT (verbs/agents/recipes) via the

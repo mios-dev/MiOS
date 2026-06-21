@@ -104,6 +104,7 @@ from mios_kvfork import (validate_fork as _kvfork_validate,  # noqa: E402  -- WS
                         kv_filename as _kvfork_kv_filename)   # WS-A4 de-dup target
 import mios_kvgc   # noqa: E402  -- WS-A4 KV slot-file GC planner
 import mios_secset   # noqa: E402  -- WS-A14 SSOT-derived high-privilege/taint sets
+import mios_hopbudget   # noqa: E402  -- WS-4 hop-budget recursion guard + effort scaling
 import mios_codemode as _codemode   # noqa: E402  -- WS-2 Code Mode pure helpers
 import mios_pg as _mios_pg   # noqa: E402  -- WS-9 Postgres+pgvector client
 import mios_lanes   # noqa: E402  -- WS-1 unified inference-lane resolver
@@ -1221,7 +1222,7 @@ def _enter_dispatch_hop() -> int:
 def _depth_exhausted() -> bool:
     """True when a further fan-out hop would exceed MAX_DISPATCH_DEPTH -> the
     caller must degrade CLOSED to single-agent (no _plan_swarm / no fanout)."""
-    return MAX_DISPATCH_DEPTH > 0 and _dispatch_depth() >= MAX_DISPATCH_DEPTH
+    return mios_hopbudget.depth_exhausted(_dispatch_depth(), MAX_DISPATCH_DEPTH)  # WS-4 pure guard
 
 
 # ── P0 CROSS-HOP recursion bound (operator 2026-06-19 meta-pipeline refactor, RFC
@@ -1242,8 +1243,7 @@ def _hop_via_headers() -> dict:
     HTTP hop: the receiving worker's depth (this hop + 1) and our self-id appended to
     the Via chain. (A2A_SELF_ID resolved at call time -- defined later in the module.)"""
     try:
-        _via = (_via_chain_var.get() or "").strip()
-        _chain = (_via + "," + A2A_SELF_ID) if _via else A2A_SELF_ID
+        _chain = mios_hopbudget.append_via(_via_chain_var.get(), A2A_SELF_ID)  # WS-4
         return {_HOP_HEADER: str(_dispatch_depth() + 1), _VIA_HEADER: _chain}
     except Exception:  # noqa: BLE001 -- never break a dispatch on the loop-guard
         return {}
@@ -1256,14 +1256,13 @@ def _seed_hop_from_headers(hop_hdr, via_hdr) -> None:
     loop answers single-agent instead of recursing. Degrade-open on any error."""
     try:
         if hop_hdr is not None and str(hop_hdr).strip():
-            _dispatch_depth_var.set(max(0, int(hop_hdr)))
+            _dispatch_depth_var.set(mios_hopbudget.seed_depth(hop_hdr))  # WS-4
     except Exception:  # noqa: BLE001
         pass
     _via = str(via_hdr or "").strip()
     try:
         _via_chain_var.set(_via)
-        _chain = [v.strip().lower() for v in _via.split(",") if v.strip()]
-        if A2A_SELF_ID and A2A_SELF_ID in _chain:
+        if mios_hopbudget.is_loop(_via, A2A_SELF_ID):  # WS-4 pure loop guard
             _dispatch_depth_var.set(max(MAX_DISPATCH_DEPTH, _dispatch_depth()))
             log.warning("loop guard: self-id %s already in Via %r -> degrade-closed "
                         "(single-agent, no fan-out)", A2A_SELF_ID, _via)
@@ -1318,6 +1317,12 @@ COUNCIL_DEFAULT = str(os.environ.get(
 # its own node. Bound the swarm to at most this many DISTINCT (endpoint,model)
 # targets. 0 = uncapped. SSOT [dispatch].swarm_max_width.
 SWARM_MAX_WIDTH = _dispatch_num("MIOS_SWARM_MAX_WIDTH", "swarm_max_width", 6)
+# WS-4: first-class "effort" knob -- scales the swarm fan-out WIDTH between 1 and
+# SWARM_MAX_WIDTH by query effort/complexity (low|medium|high|max, or a 0..1
+# score). Default "max" == today's FULL width (behaviour-preserving); dial down
+# to make orchestration intensity track complexity. Env MIOS_EFFORT (bridged
+# from [ai].effort). Applied via mios_hopbudget.effort_width at the width cap.
+EFFORT_DEFAULT = (os.environ.get("MIOS_EFFORT") or "max").strip().lower()
 # Empty-DAG native-loop fallback (operator 2026-06-19 "swarm returns empty/
 # fabricated when leaf agents are down"): when a swarm/DAG turn grounds NOTHING
 # (research_chars==0 AND merged_chars==0) and the answer is empty/punt OR it was a
@@ -15609,8 +15614,13 @@ def _dedup_pool_by_target(pool: list) -> list:
         seen.add(key)
         keep.add(a)
     out = [a for a in pool if a in keep]   # restore natural order (primary first)
-    if SWARM_MAX_WIDTH > 0 and len(out) > SWARM_MAX_WIDTH:
-        out = out[:SWARM_MAX_WIDTH]
+    # WS-4: cap to the EFFORT-scaled width (1..SWARM_MAX_WIDTH). Default effort
+    # "max" -> the full SWARM_MAX_WIDTH (unchanged); a lower effort narrows the
+    # fan-out so orchestration intensity tracks query complexity.
+    _eff_w = (mios_hopbudget.effort_width(EFFORT_DEFAULT, base=2, cap=SWARM_MAX_WIDTH)
+              if SWARM_MAX_WIDTH > 0 else 0)
+    if _eff_w > 0 and len(out) > _eff_w:
+        out = out[:_eff_w]
     return out
 
 
