@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-# AI-hint: Provides a shared, persistent snapshot of hardware, services, and app inventory in SurrealDB, allowing agents to query current system state via the `sys_env` table instead of performing live probes.
+# AI-hint: Provides a shared, persistent snapshot of hardware, services, and app inventory in pgvector, allowing agents to query current system state via the `sys_env` table instead of performing live probes.
 # AI-related: /usr/libexec/mios/mios-sys-env, mios-daemon, mios-os-control, mios-env-probe, mios-apps, mios-shim, localhost:8000
 """/usr/libexec/mios/mios-sys-env <refresh|get|help> [--json]
 
-Live system/environment probe persisted to SurrealDB so EVERY agent reads a
+Live system/environment probe persisted to pgvector so EVERY agent reads a
 fast, always-current snapshot from the shared DB -- the same cache pattern
 mios-daemon uses for directory_entry.
 
@@ -11,7 +11,7 @@ Operator 2026-05-23: "mios-os-control should fetch live system apps from a
 tool/skill for probing systems/environment live and storing+updating a
 mios-sys-env database; ALL agents share global read+write access (via verbs)".
 
-What it stores (single row `sys_env:current`, NS mios DB agent):
+What it stores (single row `sys_env:current`, in sys_env table):
   env   -- the full `mios-env-probe --json` envelope (identity, host HW, stack
            services up/down, loaded ollama models, launchable-app counts).
   apps  -- live launchable inventory, names per category (mios-apps --names
@@ -124,13 +124,6 @@ def cmd_refresh(json_out: bool) -> int:
     host = (((payload.get("env") or {}).get("identity") or {})
             .get("hostname_live") or "")
     now = _now()
-    # Single ATOMIC upsert of the fixed record id. UPSERT (vs DELETE+CREATE)
-    # is race-safe when the refresh timer and an agent's sys_env_refresh fire
-    # concurrently -- last-write-wins, no "record already exists" CREATE race
-    # -- while staying O(1) + bounded (one row, no history bloat). The values
-    # are json.dumps'd into the CONTENT object literal (valid JSON == valid
-    # SurrealQL object; escapes quotes/specials -- same shape mios-daemon uses
-    # for directory_entry, so no injection from app names/paths).
     row = {
         "env": payload["env"], "apps": payload["apps"],
         "host": host, "source": "mios-sys-env", "indexed_at": now,
@@ -169,7 +162,7 @@ def cmd_refresh(json_out: bool) -> int:
 def _read_current() -> dict | None:
     # The whole envelope is stored under the `data` jsonb column of the
     # singleton row; unwrap it back to a top-level dict (env/apps/host/...)
-    # so _compact / cmd_get see the same shape the SurrealDB row had.
+    # so _compact / cmd_get see the same shape the database row had.
     rid = RECORD.replace("'", "''")
     rows = _pg(f"SELECT data FROM {TABLE} WHERE id = '{rid}';")
     if not rows:

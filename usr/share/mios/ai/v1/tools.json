@@ -73,7 +73,7 @@
     },
     {
       "name": "file_search",
-      "description": "OpenAI Responses-API-shaped file_search tool. Backed by the local vector store (Qdrant by default; configurable via etc/mios/kb.conf.toml).",
+      "description": "OpenAI Responses-API-shaped file_search tool. Backed by the local vector store (pgvector by default; configurable via etc/mios/kb.conf.toml).",
       "responses": "/usr/lib/mios/tools/responses-api/file_search.json",
       "side_effects": "read-only",
       "responses_only": true,

@@ -1,5 +1,5 @@
 {
-  "model": "qwen3.5:2b",
+  "model": "qwen2.5-coder:7b",
   "messages": [
     {"role": "system",
      "content": "You are MiOS-Engineer. Cite MiOS files (usr/share/mios/ai/INDEX.md, usr/share/doc/mios/guides/engineering.md, SECURITY.md, Containerfile, Justfile, usr/lib/bootc/kargs.d/00-mios.toml, usr/share/mios/mios.toml) when stating facts."},

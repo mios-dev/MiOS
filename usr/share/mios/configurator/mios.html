@@ -580,13 +580,15 @@
         <p style="color: var(--muted); font-size: 12px; margin: 0 0 12px;">
           Architectural Law 5: every MiOS surface speaks to one local
           OpenAI-compatible endpoint. Default is Hermes-Agent on :8642
-          (the LIVE MiOS agent at root, fronting Ollama). Edit only when
-          swapping backends (Ollama direct / external).
+          (the LIVE MiOS agent at root, fronting inference lanes). Edit only when
+          OpenAI-compatible endpoint. Default is llm_light on :11450
+          (the LIVE MiOS inference lane, fronting model weights). Edit only when
+          swapping backends (external / direct).
         </p>
         <fieldset style="grid-column: 1 / -1;">
           <legend>ai</legend>
           <label for="f-ai-endpoint">endpoint</label>
-          <input type="text" id="f-ai-endpoint" data-key="ai.endpoint" placeholder="http://localhost:8642/v1">
+          <input type="text" id="f-ai-endpoint" data-key="ai.endpoint" placeholder="http://localhost:11450/v1">
           <label for="f-ai-model">model</label>
           <select id="f-ai-model" data-key="ai.model" data-catalog-of="ai.catalog">
             <!-- Options are repopulated at load-time from [[ai.catalog]]
@@ -602,10 +604,10 @@
             <option value="__custom__">custom...</option>
           </select>
           <input type="text" id="f-ai-model-custom" data-key="ai.model" data-custom-of="f-ai-model"
-                 placeholder="custom model id (any Ollama tag, e.g. mistral-small3:24b)" style="margin-top:4px; display:none">
+                 placeholder="custom model id (any OpenAI-compatible model tag, e.g. mistral-small3:24b)" style="margin-top:4px; display:none">
           <label for="f-ai-embed">embed_model</label>
           <input type="text" id="f-ai-embed" data-key="ai.embed_model" placeholder="nomic-embed-text">
-          <label for="f-ai-bake">bake_models (CSV; consumed by 37-ollama-prep.sh)</label>
+          <label for="f-ai-bake">bake_models (CSV; consumed by model prep scripts)</label>
           <input type="text" id="f-ai-bake" data-key="ai.bake_models"
                  placeholder="granite4.1:3b,nomic-embed-text">
           <label for="f-ai-key">api_key (empty for localhost)</label>
@@ -815,7 +817,7 @@
         <legend>ports — core services</legend>
         <label for="f-port-ssh">ssh (host sshd)</label>
         <input type="text" id="f-port-ssh" data-key="ports.ssh" data-type="int" placeholder="22">
-        <label for="f-port-hermes">hermes (LAW 5 OpenAI-API endpoint -- live agent)</label>
+        <label for="f-port-hermes">hermes (OpenAI-API endpoint -- live agent)</label>
         <input type="text" id="f-port-hermes" data-key="ports.hermes" data-type="int" placeholder="8642">
         <label for="f-port-hermes-workspace">hermes_workspace (chat front-end)</label>
         <input type="text" id="f-port-hermes-workspace" data-key="ports.hermes_workspace" data-type="int" placeholder="3030">
@@ -823,8 +825,12 @@
         <input type="text" id="f-port-cockpit" data-key="ports.cockpit" data-type="int" placeholder="9090">
         <label for="f-port-cockpit-link">cockpit_link (Podman Desktop discovery shim)</label>
         <input type="text" id="f-port-cockpit-link" data-key="ports.cockpit_link" data-type="int" placeholder="19090">
-        <label for="f-port-ollama">ollama (alternate local LLM backend)</label>
-        <input type="text" id="f-port-ollama" data-key="ports.ollama" data-type="int" placeholder="11434">
+        <label for="f-port-llm-light">llm_light (primary local inference lane; llama.cpp)</label>
+        <input type="text" id="f-port-llm-light" data-key="ports.llm_light" data-type="int" placeholder="11450">
+        <label for="f-port-sglang">sglang (heavy local LLM backend)</label>
+        <input type="text" id="f-port-sglang" data-key="ports.sglang" data-type="int" placeholder="11441">
+        <label for="f-port-vllm">vllm (alternate heavy local LLM backend)</label>
+        <input type="text" id="f-port-vllm" data-key="ports.vllm" data-type="int" placeholder="11440">
         <label for="f-port-k3s">k3s_api (Kubernetes API)</label>
         <input type="text" id="f-port-k3s" data-key="ports.k3s_api" data-type="int" placeholder="6443">
       </fieldset>
@@ -836,8 +842,6 @@
         <input type="text" id="f-port-forge-ssh" data-key="ports.forge_ssh" data-type="int" placeholder="2222">
         <label for="f-port-searxng">searxng (privacy metasearch)</label>
         <input type="text" id="f-port-searxng" data-key="ports.searxng" data-type="int" placeholder="8888">
-        <label for="f-port-hermes">hermes (OpenAI-compatible gateway)</label>
-        <input type="text" id="f-port-hermes" data-key="ports.hermes" data-type="int" placeholder="8642">
         <label for="f-port-code-server">code_server (VS Code in browser)</label>
         <input type="text" id="f-port-code-server" data-key="ports.code_server" data-type="int" placeholder="8080">
         <label for="f-port-guacamole">guacamole_web (browser desktop)</label>
@@ -846,8 +850,8 @@
         <input type="text" id="f-port-ceph" data-key="ports.ceph_dashboard" data-type="int" placeholder="8443">
         <label for="f-port-rdp">rdp (GNOME Remote Desktop / xRDP)</label>
         <input type="text" id="f-port-rdp" data-key="ports.rdp" data-type="int" placeholder="3389">
-        <label for="f-port-surrealdb">surrealdb (shared agent state -- context layer)</label>
-        <input type="text" id="f-port-surrealdb" data-key="ports.surrealdb" data-type="int" placeholder="8000">
+        <label for="f-port-pgvector">pgvector (unified agent datastore)</label>
+        <input type="text" id="f-port-pgvector" data-key="ports.pgvector" data-type="int" placeholder="5432">
         <label for="f-port-agent-pipe">agent_pipe (standalone router + refine + critic; fronts hermes)</label>
         <input type="text" id="f-port-agent-pipe" data-key="ports.agent_pipe" data-type="int" placeholder="8640">
       </fieldset>
@@ -873,8 +877,8 @@
     <div class="grid">
       <fieldset>
         <legend>image.sidecars — primary AI / forge / cluster</legend>
-        <label for="f-img-ollama">ollama (LLM + embedding backend)</label>
-        <input type="text" id="f-img-ollama" data-key="image.sidecars.ollama" placeholder="docker.io/ollama/ollama:latest">
+        <label for="f-img-llm-light">llm_light (llama.cpp multi-model + KV-paging lane)</label>
+        <input type="text" id="f-img-llm-light" data-key="image.sidecars.llm_light" placeholder="ghcr.io/mostlygeek/llama-swap:cuda">
         <label for="f-img-hermes">hermes (live MiOS agent at /)</label>
         <input type="text" id="f-img-hermes" data-key="image.sidecars.hermes" placeholder="docker.io/nousresearch/hermes-agent:latest">
         <label for="f-img-hermes-workspace">hermes_workspace (chat front-end)</label>
@@ -906,8 +910,8 @@
         <input type="text" id="f-img-pxe-hub" data-key="image.sidecars.pxe_hub" placeholder="quay.io/poseidon/matchbox:latest">
         <label for="f-img-bib-alpine">bib_alpine (build helper)</label>
         <input type="text" id="f-img-bib-alpine" data-key="image.sidecars.bib_alpine" placeholder="docker.io/library/alpine:latest">
-        <label for="f-img-surrealdb">surrealdb (shared agent state)</label>
-        <input type="text" id="f-img-surrealdb" data-key="image.sidecars.surrealdb" placeholder="docker.io/surrealdb/surrealdb:latest">
+        <label for="f-img-pgvector">pgvector (unified agent datastore)</label>
+        <input type="text" id="f-img-pgvector" data-key="image.sidecars.pgvector" placeholder="docker.io/pgvector/pgvector:pg17">
       </fieldset>
       <fieldset>
         <legend>services — per-Quadlet identity (UID 800–829)</legend>
@@ -923,8 +927,10 @@
         <input type="text" id="f-svc-ceph-uid" data-key="services.ceph.uid" data-type="int" placeholder="819">
         <label for="f-svc-hermes-uid">hermes.uid / .gid</label>
         <input type="text" id="f-svc-hermes-uid" data-key="services.hermes.uid" data-type="int" placeholder="820">
-        <label for="f-svc-surrealdb-uid">surrealdb.uid / .gid</label>
-        <input type="text" id="f-svc-surrealdb-uid" data-key="services.surrealdb.uid" data-type="int" placeholder="821">
+        <label for="f-svc-pgvector-uid">pgvector.uid / .gid</label>
+        <input type="text" id="f-svc-pgvector-uid" data-key="services.pgvector.uid" data-type="int" placeholder="826">
+        <label for="f-svc-llamacpp-uid">llamacpp.uid / .gid</label>
+        <input type="text" id="f-svc-llamacpp-uid" data-key="services.llamacpp.uid" data-type="int" placeholder="827">
         <label for="f-svc-agent-pipe-uid">agent_pipe.uid / .gid</label>
         <input type="text" id="f-svc-agent-pipe-uid" data-key="services.agent_pipe.uid" data-type="int" placeholder="822">
       </fieldset>
@@ -939,7 +945,7 @@
       Gateway-agnostic chain that fronts hermes-agent for every
       frontend (OWUI, Hermes Discord, future Slack/Telegram/MCP). One
       pipe, many gateways -- every chat path gets the same router,
-      tool-call envelope, critic verdicts, and SurrealDB state writes.
+      tool-call envelope, critic verdicts, and pgvector state writes.
     </p>
     <div class="grid">
       <fieldset>
@@ -971,7 +977,7 @@
       <fieldset>
         <legend>security -- firewall config</legend>
         <label for="f-sec-allowlist">allowlist_hosts (CSV)</label>
-        <input type="text" id="f-sec-allowlist" data-key="security.allowlist_hosts" placeholder="localhost,127.0.0.1,mios-ollama,...">
+        <input type="text" id="f-sec-allowlist" data-key="security.allowlist_hosts" placeholder="localhost,127.0.0.1,mios-llm-light,...">
         <label for="f-sec-hpv">firewall_high_privilege_verbs (CSV)</label>
         <input type="text" id="f-sec-hpv" data-key="security.firewall_high_privilege_verbs" placeholder="service_restart,container_restart,pc_type,pc_key,pc_click">
       </fieldset>
@@ -984,7 +990,7 @@
   <div class="section-body">
     <p style="color: var(--muted); font-size: 12px; margin: 0 0 12px;">
       Phase A.2 -- mios-daemon's fs-watcher thread tails these
-      dirs via inotify and emits SurrealDB event(kind=fs_change)
+      dirs via inotify and emits pgvector event(kind=fs_change)
       rows on every mutation. Operator can add per-deployment
       watch points without code edits.
     </p>
@@ -1002,7 +1008,7 @@
   <summary>KG · Personal Knowledge Graph tunables <span class="phase-badge">Phase 10 · Runtime</span></summary>
   <div class="section-body">
     <p style="color: var(--muted); font-size: 12px; margin: 0 0 12px;">
-      Phase C.1 -- the per-operator SurrealDB graph (person /
+      Phase C.1 -- the per-operator pgvector graph (person /
       app_install / alias). These caps prevent pathological
       inventories from flooding the graph; operators can raise
       them on hosts with large catalogs.
@@ -1078,7 +1084,7 @@
     <p style="color: var(--muted); font-size: 12px; margin: 0 0 12px;">
       Phase C.3 -- every agent in the stack gets an Ed25519
       keypair under <code>key_dir/&lt;agent&gt;/</code>. Security-
-      relevant SurrealDB writes (tool_call, skill_invocation,
+      relevant pgvector writes (tool_call, skill_invocation,
       event) carry a passport envelope that binds the signature to
       the exact data. Verification is OFFLINE: public keys are
       world-readable. Operator can rotate via
@@ -1113,7 +1119,7 @@
   <summary>Skills · Sequential Pattern Mining + cross-agent catalog <span class="phase-badge">Phase 10 · Runtime</span></summary>
   <div class="section-body">
     <p style="color: var(--muted); font-size: 12px; margin: 0 0 12px;">
-      Phase C.2 -- the miner scans SurrealDB tool_call history for
+      Phase C.2 -- the miner scans pgvector tool_call history for
       repeating verb sequences and codifies them as runnable
       skills. Every agent in the stack (mios-agent-pipe,
       MiOS-Hermes, MiOS-OpenCode) reads from the same catalog via
@@ -1153,41 +1159,38 @@
 </details>
 
 <details class="section">
-  <summary>SurrealDB · shared cross-cutting agent state <span class="phase-badge">Phase 10 · Boot</span></summary>
+  <summary>pgvector — unified agent datastore <span class="phase-badge">Phase 10 — Boot</span></summary>
   <div class="section-body">
     <p style="color: var(--muted); font-size: 12px; margin: 0 0 12px;">
-      Cross-agent context layer (mios-agent-pipe + hermes + mios-daemon
-      query in lockstep). Hosts tables OWUI doesn't natively own:
-      agent, session, tool_call, event, kanban_shadow, scratch,
-      agent_metric. OWUI's webui.db remains source of truth for
-      memory / knowledge / files / tools / functions / models.
+      Unified PostgreSQL + pgvector agent-plane datastore (FOSS replacement for SurrealDB).
+      Stores agent_memory, events, tool_calls, sessions, skills, scratch, knowledge, and system environment.
     </p>
     <div class="grid">
       <fieldset>
-        <legend>surrealdb — endpoint + auth</legend>
-        <label for="f-sdb-url">url (loopback endpoint)</label>
-        <input type="text" id="f-sdb-url" data-key="surrealdb.url" placeholder="http://localhost:8000">
-        <label for="f-sdb-user">user</label>
-        <input type="text" id="f-sdb-user" data-key="surrealdb.user" placeholder="root">
-        <label for="f-sdb-pass">pass</label>
-        <input type="text" id="f-sdb-pass" data-key="surrealdb.pass" placeholder="root">
-        <label for="f-sdb-ns">namespace</label>
-        <input type="text" id="f-sdb-ns" data-key="surrealdb.namespace" placeholder="mios">
-        <label for="f-sdb-db">database</label>
-        <input type="text" id="f-sdb-db" data-key="surrealdb.database" placeholder="mios">
-        <label for="f-sdb-enable">enable (master toggle)</label>
-        <input type="text" id="f-sdb-enable" data-key="surrealdb.enable" data-type="bool" placeholder="true">
+        <legend>pgvector — connection + credentials</legend>
+        <label for="f-pg-host">host (loopback endpoint)</label>
+        <input type="text" id="f-pg-host" data-key="pgvector.host" placeholder="localhost">
+        <label for="f-pg-user">user</label>
+        <input type="text" id="f-pg-user" data-key="pgvector.user" placeholder="mios">
+        <label for="f-pg-pass">pass</label>
+        <input type="text" id="f-pg-pass" data-key="pgvector.pass" placeholder="mios">
+        <label for="f-pg-db">database</label>
+        <input type="text" id="f-pg-db" data-key="pgvector.db" placeholder="mios">
+        <label for="f-pg-enable">enable (master toggle)</label>
+        <input type="text" id="f-pg-enable" data-key="pgvector.enable" data-type="bool" placeholder="true">
+        <label for="f-pg-backend">db_backend (surreal | dual | postgres)</label>
+        <input type="text" id="f-pg-backend" data-key="pgvector.db_backend" placeholder="postgres">
       </fieldset>
       <fieldset>
-        <legend>surrealdb — storage + schema</legend>
-        <label for="f-sdb-data-dir">data_dir (persistent volume)</label>
-        <input type="text" id="f-sdb-data-dir" data-key="surrealdb.data_dir" placeholder="/var/lib/mios/surrealdb">
-        <label for="f-sdb-backend">backend (3.0+ surrealkv:// uri)</label>
-        <input type="text" id="f-sdb-backend" data-key="surrealdb.backend" placeholder="surrealkv:///var/lib/mios/surrealdb/mios.skv">
-        <label for="f-sdb-schema">schema_init (applied on first boot)</label>
-        <input type="text" id="f-sdb-schema" data-key="surrealdb.schema_init" placeholder="/usr/share/mios/surrealdb/schema-init.surql">
-        <label for="f-sdb-embed">embed_model (OpenAI-compat /v1/embeddings via Ollama)</label>
-        <input type="text" id="f-sdb-embed" data-key="surrealdb.embed_model" placeholder="nomic-embed-text">
+        <legend>pgvector — storage + schema</legend>
+        <label for="f-pg-data-dir">data_dir (persistent volume)</label>
+        <input type="text" id="f-pg-data-dir" data-key="pgvector.data_dir" placeholder="/var/lib/mios/pgvector">
+        <label for="f-pg-schema">schema_init (applied on boot)</label>
+        <input type="text" id="f-pg-schema" data-key="pgvector.schema_init" placeholder="/usr/share/mios/postgres/schema-init.sql">
+        <label for="f-pg-embed">embed_model (nomic-embed-text)</label>
+        <input type="text" id="f-pg-embed" data-key="pgvector.embed_model" placeholder="nomic-embed-text">
+        <label for="f-pg-rls">rls_mode (off | enforce)</label>
+        <input type="text" id="f-pg-rls" data-key="pgvector.rls_mode" placeholder="off">
       </fieldset>
     </div>
   </div>
@@ -1446,7 +1449,7 @@
 const QUADLETS = [
   "mios-hermes", "mios-hermes-workspace", "mios-code-server",
   "mios-ceph", "mios-k3s", "mios-forge", "mios-cockpit-link", "mios-searxng",
-  "mios-crowdsec-dashboard", "mios-ollama", "mios-guacamole", "mios-pxe-hub",
+  "mios-crowdsec-dashboard", "mios-llm-light", "mios-pgvector", "mios-guacamole", "mios-pxe-hub",
   "mios-guacamole-postgres", "mios-guacd"
 ];
 
@@ -1487,7 +1490,7 @@ const PACKAGES = [
   { name: "gnome",                 default: true,  group: "desktop", desc: "GNOME Shell + core session" },
   { name: "phosh",                 default: true,  group: "desktop", desc: "Phosh mobile shell (PinePhone form-factor)" },
   // ai
-  { name: "ai",                    default: true,  group: "ai",      desc: "ollama (LLM + embeddings), hermes-agent, chat front-end" },
+  { name: "ai",                    default: true,  group: "ai",      desc: "inference lanes (LLM + embeddings), hermes-agent, chat front-end" },
   // k8s / cluster
   { name: "k3s",                   default: true,  group: "cluster", desc: "k3s lightweight Kubernetes" },
   { name: "ceph",                  default: true,  group: "cluster", desc: "Ceph storage cluster client + cephadm" },

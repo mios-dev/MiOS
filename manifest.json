@@ -449,7 +449,7 @@
     {
       "path": "/var/lib/mios/embeddings/ingest_local.py",
       "format": "python",
-      "purpose": "embed chunks.jsonl + upsert to Qdrant (any OpenAI-compatible /v1/embeddings)",
+      "purpose": "embed chunks.jsonl + upsert to pgvector (any OpenAI-compatible /v1/embeddings)",
       "endpoint": "local"
     },
     {

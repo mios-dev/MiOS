@@ -1,5 +1,5 @@
 #!/bin/bash
-# AI-hint: Executes a Day-0 global reset of the MiOS AI stack by purging all transient runtime states, Hermes cron jobs, OWUI data, and SurrealDB agent caches while preserving core identities and configurations.
+# AI-hint: Executes a Day-0 global reset of the MiOS AI stack by purging all transient runtime states, Hermes cron jobs, OWUI data, and pgvector agent caches while preserving core identities and configurations.
 # AI-related: /usr/libexec/mios/mios-ai-clear, /usr/libexec/mios/mios-rag, mios-rag, mios-ai-reset, mios-agent-pipe, mios-daemon, mios-log-watcher, mios-cron-director, mios-hermes-browser, mios-open-webui
 # AI-functions: sec, ok, note, run
 set -euo pipefail
@@ -12,14 +12,14 @@ set -euo pipefail
 #   * OWUI: chat / message / memory / feedback / tags  (via mios-ai-reset)
 #   * Observability: log-watcher + cron-director batches
 #   * Browser sidecar profile, opencode subagent caches
-#   * SurrealDB agent state: events, sessions, tool_call, metrics, skill
+#   * pgvector agent state: events, sessions, tool_call, metrics, skill
 #     index, directory cache, AND the doc RAG (mios_rag) -- re-ingested
 #   * agent-env inventory caches (windows-apps, suggestions)
 #
 # PRESERVED (identity / config / models -- NOT regenerable):
 #   * OWUI: user, auth, group, model, function, tool, api_key
 #   * Hermes: config.yaml, SOUL.md, .env, skills/, bin/, hooks/
-#   * SurrealDB: agent_keypair, agent, person  (crypto identity + registry)
+#   * pgvector: agent_keypair, agent, person  (crypto identity + registry)
 #   * ollama models, /etc/mios/* configs, vendor /usr/share/mios/*
 #
 # Operator directive 2026-05-20: "clear ... EVERYTHING to Day-0 ... constant
@@ -65,7 +65,7 @@ run()  { if [ "$DRY_RUN" = 1 ]; then printf "  [dry-run] %s\n" "$*"; else eval "
 
 echo "════════════════════════════════════════════════════════════════"
 printf "  mios ai clear -- DAY-0 GLOBAL CLEAN SLATE%s\n" "$([ "$DRY_RUN" = 1 ] && echo '  (DRY RUN)')"
-echo "  Wipes chats, history, kanban, tasks, Hermes jobs, SurrealDB"
+echo "  Wipes chats, history, kanban, tasks, Hermes jobs, pgvector"
 echo "  state + RAG to Day-0. Preserves identity/config/models."
 echo "  NOT reversible."
 echo "════════════════════════════════════════════════════════════════"
@@ -98,7 +98,7 @@ sec "3. pgvector agent state -> Day-0 (preserve knowledge identity tables)"
 # at runtime (e.g. mios_rag before first ingest). Each statement is wrapped
 # so a missing table can't abort the batch. agent_memory (mios-remember's
 # operator/agent facts) is PRESERVED as identity-adjacent, mirroring the old
-# SurrealDB preserve of agent/person/agent_keypair.
+# pgvector preserve of agent/person/agent_keypair.
 _CLEAR="alias app_install directory_entry event kanban log_digest mios_rag \
         pending_action resolves_to run_template scratch session skill \
         skill_invocation sys_env tool_call"
@@ -140,6 +140,6 @@ if [ "$DRY_RUN" = 1 ]; then
     echo "  DRY RUN complete. Re-run without --dry-run (or: mios ai clear) to apply."
 else
     echo "  Day-0 clean slate complete. Scheduled Discord posters cleared;"
-    echo "  chats/kanban/tasks/SurrealDB state wiped; identity + config kept."
+    echo "  chats/kanban/tasks/pgvector state wiped; identity + config kept."
 fi
 echo "════════════════════════════════════════════════════════════════"

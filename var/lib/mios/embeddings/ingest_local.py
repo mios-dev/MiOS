@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-# AI-hint: Processes chunks.jsonl by generating embeddings via OpenAI-compatible local endpoints (LocalAI, Ollama, vLLM) and upserting the resulting vectors into the Qdrant vector database for RAG retrieval.
-# AI-related: mios-kb, localhost:8080, localhost:11434, localhost:8000, localhost:1234, localhost:4000, localhost:6333
-# AI-functions: embed_batch, stable_id, main
+# AI-hint: Processes chunks.jsonl by generating embeddings via OpenAI-compatible local endpoints (LocalAI, Ollama, vLLM) and upserting the resulting vectors into the pgvector PostgreSQL database for RAG retrieval.
+# AI-related: mios-kb, localhost:8080, localhost:11450, localhost:8000, localhost:1234, localhost:4000, localhost:5432
+# AI-functions: embed_batch, stable_id, vector_literal, main
 """
 ingest_local.py — Embed chunks.jsonl against any OpenAI-API-compatible
-/v1/embeddings endpoint (LAW 5) and upsert into Qdrant.
+/v1/embeddings endpoint (LAW 5) and upsert into pgvector.
 
 Day-0 compatible. Works against:
   - MiOS LocalAI         (http://localhost:8080/v1)  ← canonical (LAW 5)
@@ -19,14 +19,16 @@ Env vars (matches MiOS LAW 5: UNIFIED-AI-REDIRECTS):
   MIOS_AI_KEY         — default empty (LocalAI accepts empty key)
   MIOS_AI_EMBED_MODEL — default nomic-embed-text (canonical mios.toml [ai].embed_model)
 
-Qdrant:
-  QDRANT_URL         — default http://localhost:6333
-  QDRANT_COLLECTION  — default mios-kb
+pgvector:
+  MIOS_PG_HOST         — default localhost
+  MIOS_PORT_PGVECTOR   — default 5432
+  MIOS_PG_USER         — default mios
+  MIOS_PG_PASS         — default mios
+  MIOS_PG_DB           — default mios
+  MIOS_SYS_ENV_TABLE   — default mios_kb (collection name with hyphens -> underscores)
 
 Usage:
-  pip install qdrant-client httpx
-  podman run -d --name qdrant -p 6333:6333 -p 6334:6334 \\
-    -v $PWD/qdrant_data:/qdrant/storage:Z docker.io/qdrant/qdrant:latest
+  pip install psycopg httpx
   python3 ingest_local.py [path/to/chunks.jsonl]
 
 Default path: ./chunks.jsonl (sibling of this script when shipped under
@@ -39,13 +41,12 @@ from pathlib import Path
 try:
     import httpx
 except ImportError:
-    sys.exit("pip install httpx qdrant-client")
+    sys.exit("pip install httpx psycopg")
 
 try:
-    from qdrant_client import QdrantClient
-    from qdrant_client.models import Distance, VectorParams, PointStruct
+    import psycopg
 except ImportError:
-    sys.exit("pip install qdrant-client")
+    sys.exit("pip install psycopg")
 
 
 def embed_batch(client: httpx.Client, endpoint: str, key: str, model: str,
@@ -70,12 +71,25 @@ def stable_id(chunk_id: str) -> int:
     return int(hashlib.sha1(chunk_id.encode()).hexdigest()[:16], 16)
 
 
+def vector_literal(vec) -> str:
+    """Format a float sequence as a pgvector text literal: '[0.1,0.2,...]'."""
+    return "[" + ",".join(repr(float(x)) for x in (vec or [])) + "]"
+
+
 def main(chunks_path: str = "chunks.jsonl") -> int:
     endpoint = os.environ.get("MIOS_AI_ENDPOINT", "http://localhost:8080/v1").rstrip("/")
     key      = os.environ.get("MIOS_AI_KEY", "")
     model    = os.environ.get("MIOS_AI_EMBED_MODEL", "nomic-embed-text")
-    qdrant_url        = os.environ.get("QDRANT_URL", "http://localhost:6333")
-    qdrant_collection = os.environ.get("QDRANT_COLLECTION", "mios-kb")
+    
+    # pgvector config
+    pg_host = os.environ.get("MIOS_PG_HOST", "localhost")
+    pg_port = int(os.environ.get("MIOS_PORT_PGVECTOR", "5432") or 5432)
+    pg_user = os.environ.get("MIOS_PG_USER", "mios")
+    pg_pass = os.environ.get("MIOS_PG_PASS", "mios")
+    pg_db   = os.environ.get("MIOS_PG_DB", "mios")
+    
+    collection = os.environ.get("QDRANT_COLLECTION", "mios-kb")
+    table_name = collection.replace("-", "_")
 
     path = Path(chunks_path)
     if not path.exists():
@@ -103,36 +117,75 @@ def main(chunks_path: str = "chunks.jsonl") -> int:
     dim = len(all_vectors[0])
     print(f"All vectors embedded (dim={dim})")
 
-    # 2. Upsert to Qdrant
-    qdrant = QdrantClient(url=qdrant_url)
-    existing = [c.name for c in qdrant.get_collections().collections]
-    if qdrant_collection not in existing:
-        qdrant.create_collection(
-            collection_name=qdrant_collection,
-            vectors_config=VectorParams(size=dim, distance=Distance.COSINE),
-        )
-        print(f"Created Qdrant collection: {qdrant_collection}")
+    # 2. Upsert to pgvector
+    dsn = f"postgresql://{pg_user}:{pg_pass}@{pg_host}:{pg_port}/{pg_db}"
+    print(f"Connecting to pgvector at {pg_host}:{pg_port} (db={pg_db}, table={table_name})...")
+    
+    with psycopg.connect(dsn, autocommit=True) as conn:
+        with conn.cursor() as cur:
+            # Enable vector extension
+            cur.execute("CREATE EXTENSION IF NOT EXISTS vector;")
+            
+            # Create schema
+            cur.execute(f"""
+                CREATE TABLE IF NOT EXISTS {table_name} (
+                    id bigint PRIMARY KEY,
+                    chunk_id text,
+                    content text,
+                    metadata jsonb,
+                    emb vector({dim})
+                );
+            """)
+            
+            # Create HNSW index
+            try:
+                cur.execute(f"""
+                    CREATE INDEX IF NOT EXISTS {table_name}_emb_hnsw 
+                    ON {table_name} USING hnsw (emb vector_cosine_ops);
+                """)
+            except Exception:
+                pass  # Optional index
+                
+            print(f"Table {table_name} created/verified.")
+            
+            # Truncate and upsert
+            cur.execute(f"TRUNCATE TABLE {table_name};")
+            
+            # Batch inserts
+            print("Upserting vectors...")
+            for c, v in zip(chunks, all_vectors):
+                cid = c["id"]
+                content = c["text"]
+                metadata = c.get("metadata", {})
+                vec_str = vector_literal(v)
+                
+                cur.execute(f"""
+                    INSERT INTO {table_name} (id, chunk_id, content, metadata, emb)
+                    VALUES (%s, %s, %s, %s, %s::vector);
+                """, (stable_id(cid), cid, content, json.dumps(metadata), vec_str))
+                
+            print(f"Upserted {len(chunks)} points into pgvector table {table_name}")
 
-    points = [
-        PointStruct(
-            id=stable_id(c["id"]),
-            vector=v,
-            payload={**c.get("metadata", {}), "chunk_id": c["id"], "text": c["text"]},
-        )
-        for c, v in zip(chunks, all_vectors)
-    ]
-    qdrant.upsert(collection_name=qdrant_collection, points=points, wait=True)
-    print(f"Upserted {len(points)} points into {qdrant_collection}")
-
-    # 3. Sanity probe
-    sample_query = "What is the kargs.d format in MiOS?"
-    qv = embed_batch(httpx.Client(), endpoint, key, model, [sample_query])[0]
-    hits = qdrant.search(collection_name=qdrant_collection, query_vector=qv, limit=3)
-    print(f"\nSanity probe — top 3 hits for '{sample_query}':")
-    for h in hits:
-        cid = h.payload.get("chunk_id", "?")
-        snippet = h.payload.get("text", "")[:120].replace("\n", " ")
-        print(f"  {h.score:.3f}  {cid}  {snippet}…")
+            # 3. Sanity probe
+            sample_query = "What is the kargs.d format in MiOS?"
+            qv = embed_batch(httpx.Client(), endpoint, key, model, [sample_query])[0]
+            qv_str = vector_literal(qv)
+            
+            cur.execute(f"""
+                SELECT chunk_id, content, 1 - (emb <=> %s::vector) AS score
+                FROM {table_name}
+                ORDER BY emb <=> %s::vector
+                LIMIT 3;
+            """, (qv_str, qv_str))
+            
+            hits = cur.fetchall()
+            print(f"\nSanity probe — top 3 hits for '{sample_query}':")
+            for h in hits:
+                cid = h[0]
+                snippet = h[1][:120].replace("\n", " ")
+                score = float(h[2])
+                print(f"  {score:.3f}  {cid}  {snippet}…")
+                
     return 0
 
 
