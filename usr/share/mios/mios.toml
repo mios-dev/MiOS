@@ -1109,7 +1109,7 @@ strengths   = ["mobile_local_model", "on_device", "offline_edge"]
 # health_gate=true -> a lane is probed + skipped if mios-llm-light is momentarily down
 # (never a false "All connection attempts failed" fan-out; operator 2026-06-07 e2e).
 # Operator 2026-06-12 "ALL AGENTS USE SGLANG": every swarm worker dispatches to
-# the SGLang heavy lane (:11441, mios-heavy = Qwen2.5-14B-AWQ) instead of the
+# the SGLang heavy lane (:11441, mios-heavy = Qwen3-8B-AWQ; see [ai.sglang]) instead of the
 # mios-llm-light multi-model lane. SGLang does CONTINUOUS BATCHING, so N concurrent
 # research facets are served in parallel on ONE backend -- whereas mios-llm-light
 # loads one model at a time and THRASHED when these nodes requested different
@@ -1118,7 +1118,7 @@ strengths   = ["mobile_local_model", "on_device", "offline_edge"]
 # nodes now share the sglang endpoint+model so the fan-out is real concurrency.
 [nodes.local-dgpu]
 endpoint = "http://localhost:11441/v1"
-model    = "mios-heavy"        # SGLang heavy lane (Qwen2.5-14B-AWQ, continuous batching)
+model    = "mios-heavy"        # SGLang heavy lane (Qwen3-8B-AWQ, continuous batching; served-model SSOT = [ai.sglang])
 lane     = "gpu"
 api      = "openai"            # SGLang speaks /v1 + honours tool_choice=required
 health_gate = true
@@ -1171,7 +1171,7 @@ health_gate = true             # inert until the gated mios-llm-heavy.service is
 # KV-paging here (_kv_paging) + skips tool_choice=required -> fleet-wide KV-cache.
 [nodes.local-llamaswap]
 endpoint    = "http://localhost:11441/v1"   # ALL AGENTS USE SGLANG (was :11450 mios-llm-light)
-model       = "mios-heavy"     # SGLang heavy lane (Qwen2.5-14B-AWQ, continuous batching)
+model       = "mios-heavy"     # SGLang heavy lane (Qwen3-8B-AWQ, continuous batching; served-model SSOT = [ai.sglang])
 lane        = "gpu"            # shares the dGPU lane semaphore
 api         = "openai"         # SGLang speaks /v1 natively + honours tool_choice=required
 health_gate = true             # inert until mios-llm-heavy is up + reachable
