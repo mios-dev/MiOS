@@ -18629,6 +18629,11 @@ async def cluster_health() -> JSONResponse:
             "agents_up": up,
             "agents_total": len(agents_out),
             "spofs": spofs,
+            # WS-1: the unified lane-resolver's live health/cooldown snapshot
+            # (collapses the two heavy lanes behind [ai].heavy_engine). None until
+            # first resolved -> the resolver is lazily built on first dispatch.
+            "lane_resolver": (_LANE_RESOLVER.snapshot()
+                              if _LANE_RESOLVER is not None else None),
             "ts": int(time.time()),
         })
     except Exception as e:  # noqa: BLE001
