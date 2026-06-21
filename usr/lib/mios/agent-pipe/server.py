@@ -4859,6 +4859,32 @@ def _cap_verb_result(verb: str, out: str) -> str:
                           head_frac=ACI_HEAD_FRAC, label=verb)
 
 
+def _format_tool_error(res: Any) -> Optional[dict]:
+    if isinstance(res, dict):
+        if "error" in res and isinstance(res["error"], dict) and "message" in res["error"]:
+            return res
+        has_error = False
+        err_msg = ""
+        if res.get("success") is False:
+            has_error = True
+            err_msg = res.get("error") or res.get("stderr") or "verb execution failed"
+        elif res.get("ok") is False:
+            has_error = True
+            err_msg = res.get("error") or res.get("stderr") or "verb execution failed"
+        elif "error" in res and res["error"]:
+            has_error = True
+            err_msg = str(res["error"])
+        if has_error:
+            return {
+                "error": {
+                    "message": err_msg,
+                    "type": "invalid_request_error",
+                    "code": "tool_execution_failed"
+                }
+            }
+    return None
+
+
 async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
     """Execute the verbs in an OpenAI tool_calls[] list via the broker and return
     (tool_result_messages, ran_any). Shared by every pipe-side sub-agent tool-loop
@@ -5155,6 +5181,23 @@ async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
                     _src_record(_rj.get("results") or [])
             except Exception:  # noqa: BLE001 -- never break the tool loop
                 pass
+        # Check for failure in the result (either dict or string)
+        _res_dict = None
+        if isinstance(res, dict):
+            _res_dict = res
+        elif isinstance(res, str):
+            try:
+                _parsed = _loads_lenient(res)
+                if isinstance(_parsed, dict):
+                    _res_dict = _parsed
+            except Exception:
+                pass
+
+        if _res_dict:
+            _err = _format_tool_error(_res_dict)
+            if _err:
+                res = _err
+
         out = (json.dumps(res, ensure_ascii=False)
                if isinstance(res, (dict, list)) else str(res))
         tmsg["content"] = _cap_verb_result(_key, out)
@@ -7208,6 +7251,7 @@ def _env_block() -> str:
     location-chain as _client_grounding so the structured + prose views agree."""
     env = _client_env_var.get() if isinstance(_client_env_var.get(), dict) else {}
     rows: list = []
+    rows.append(("current_date", _current_date_str()))
     _tz = _host_timezone()
     if _tz:
         rows.append(("timezone", _tz))
@@ -7259,7 +7303,13 @@ def _env_grounding() -> str:
     a = _arch_grounding()
     t = _temporal_grounding()
     c = _client_grounding()
-    return (e + "\n" if e else "") + g + "\n" + a + "\n" + t + ("\n" + c if c else "")
+    anti_stale = (
+        "WARNING: Avoid stale information! If the query asks about current events, "
+        "today's topics, this week, or recent occurrences, do NOT rely on your training "
+        "data. You MUST execute active web search queries to verify and pull live, "
+        "accurate facts. Strictly prevent any stale grounding or assumptions."
+    )
+    return (e + "\n" if e else "") + g + "\n" + a + "\n" + t + "\n" + anti_stale + ("\n" + c if c else "")
 
 
 # ─── Universal agent contract (.md at the overlay root) ────────────────
@@ -9384,6 +9434,17 @@ def _current_date_str() -> str:
     return datetime.datetime.now().strftime("%Y-%m-%d")
 
 
+def _is_port_open(port: int, host: str = "127.0.0.1") -> bool:
+    import socket
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(0.1)
+            s.connect((host, port))
+            return True
+    except Exception:
+        return False
+
+
 async def _web_research_enrich(query: str, refined: Optional[dict],
                                emit=None, quick: bool = False) -> str:
     """Pipeline-side WEB-RESEARCH loop (operator 2026-05-24: "the MiOS pipeline
@@ -9492,6 +9553,8 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
     async def _crawl(url: str) -> tuple:
         # Deep render via the local crawl engine (crawl4ai+CDP / Camoufox).
         # Returns (markdown, links) -- links feed the 2-hop article drill below.
+        if not _is_port_open(11235):
+            return "", []
         try:
             p = await asyncio.create_subprocess_exec(
                 "mios-crawl", "--json", "--max-chars", str(WEB_RESEARCH_FETCH_CHARS),
@@ -9513,6 +9576,8 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
         # backend). A THIRD fetch engine raced beside extract + crawl4ai so the
         # pipeline uses ALL web tools (operator) -- richest wins in _fetch_all.
         # Returns (markdown, links).
+        if not _is_port_open(3002) or not _is_port_open(6379):
+            return "", []
         try:
             p = await asyncio.create_subprocess_exec(
                 "mios-firecrawl", "--max-chars", str(WEB_RESEARCH_FETCH_CHARS),
@@ -13055,31 +13120,64 @@ def _skill_to_openai_tool(row: dict) -> dict:
     }
 
 
+def _make_schema_strict(schema: dict) -> dict:
+    if not isinstance(schema, dict):
+        return {"type": "object", "properties": {}, "required": [], "additionalProperties": False}
+    s = dict(schema)
+    if s.get("type") == "object":
+        properties = s.get("properties") or {}
+        if not isinstance(properties, dict):
+            properties = {}
+        s["properties"] = dict(properties)
+        
+        required = s.get("required") or []
+        if not isinstance(required, list):
+            required = []
+            
+        new_required = list(required)
+        for prop_name, prop_val in s["properties"].items():
+            if isinstance(prop_val, dict):
+                prop_val = _make_schema_strict(prop_val)
+                s["properties"][prop_name] = prop_val
+                if prop_name not in required:
+                    new_required.append(prop_name)
+                    t = prop_val.get("type")
+                    if isinstance(t, str):
+                        prop_val["type"] = [t, "null"]
+                    elif isinstance(t, list):
+                        if "null" not in t:
+                            prop_val["type"] = list(t) + ["null"]
+                    else:
+                        prop_val["type"] = ["object", "null"]
+            else:
+                prop_val = {"type": ["string", "null"]}
+                s["properties"][prop_name] = prop_val
+                if prop_name not in required:
+                    new_required.append(prop_name)
+        s["required"] = new_required
+        s["additionalProperties"] = False
+    elif s.get("type") == "array":
+        items = s.get("items")
+        if isinstance(items, dict):
+            s["items"] = _make_schema_strict(items)
+    return s
+
+
 def _mcp_tool_to_openai_tool(key: str, info: dict) -> dict:
     """Project a registered external MCP tool (key 'mcp.<server>.<tool>', raw
     MCP inputSchema) into OpenAI function-tool shape so it joins the worker tool
     surface (operator 2026-06-01 P0: wire the MCP CLIENT into the agent loop).
-    MCP inputSchema IS JSON-Schema -> drops straight into function.parameters."""
+    MCP inputSchema IS JSON-Schema -> drops straight into function.parameters.
+    Strictified for OpenAI compliance."""
     schema = info.get("inputSchema")
-    if not isinstance(schema, dict):
-        # Empty fallback: CONSTRAIN it (audit P3 2026-06-16) -- the old
-        # additionalProperties:true let malformed args through + broke strict callers.
-        schema = {"type": "object", "properties": {}, "additionalProperties": False}
-    elif "additionalProperties" not in schema and str(schema.get("type")) == "object":
-        # Raw EXTERNAL MCP inputSchema with no additionalProperties -> default to
-        # CONSTRAINED (False) rather than open, so unconstrained args can't slip
-        # through. We do NOT force strict:True on a third-party schema (it may have
-        # optionals not in `required`, which strict would reject) -- just close the
-        # open-by-default hole. MiOS's OWN verbs are already strict via
-        # _verb_to_openai_tool; this guards genuinely external servers.
-        schema = dict(schema)
-        schema["additionalProperties"] = False
+    strict_schema = _make_schema_strict(schema)
     return {
         "type": "function",
         "function": {
             "name": key,
             "description": info.get("description") or f"MCP tool {key}",
-            "parameters": schema,
+            "strict": True,
+            "parameters": strict_schema,
         },
         "x-mios-mcp-server": info.get("server_id"),
     }
@@ -14468,7 +14566,9 @@ async def _formulate_web_query(user_text: str, local_grounding: str) -> str:
         if r.status_code != 200:
             return user_text
         q = ((r.json().get("choices") or [{}])[0].get("message", {})
-             .get("content") or "").strip().strip('"').strip()
+             .get("content") or "").strip()
+        import re
+        q = re.sub(r'(?s)<think>.*?</think>', '', q).strip().strip('"').strip()
         return q[:200] if q else user_text
     except Exception as e:  # noqa: BLE001 -- degrade-open (-> raw query)
         log.debug("web-query formulation failed (-> raw query): %s", e)
@@ -24315,6 +24415,9 @@ async def _client_tools_loop(body: dict, client_names: set, chat_id: str,
                     _resolve_verb_key(fn.get("name", "")), args, session_id=chat_id)
             except Exception as e:  # noqa: BLE001
                 result = {"success": False, "stderr": f"dispatch error: {e}"}
+            _err = _format_tool_error(result)
+            if _err:
+                result = _err
             messages.append({
                 "role": "tool", "tool_call_id": tc.get("id"),
                 "content": json.dumps(result)[:4000]})
@@ -28682,11 +28785,8 @@ async def chat_completions(request: Request) -> Any:
                         _node_body["tools"] = _wtools
                         _node_body["num_ctx"] = WORKER_TOOL_CTX
                         _node_body["_allow_write"] = _hints_write_action(refined)
-                # Strip tool_choice='required' for an endpoint that rejects it
-                # (the Windows iGPU llama.cpp 400'd on it -> the iGPU node always
-                # 💤'd on a force-tool turn; operator 2026-06-01 "not seeing iGPU
-                # fire"). It still gets `tools` and the secondary tool-loop.
-                if _node_body.get("tool_choice") and not \
+                _tc_val = _node_body.get("tool_choice")
+                if _tc_val and _tc_val not in ("none", "auto") and not \
                         _endpoint_supports_tool_choice(
                             str(_c.get("endpoint") or ""), _c,
                             _agent_offload_engine(_c)):
@@ -29074,9 +29174,8 @@ async def chat_completions(request: Request) -> Any:
             _b["tools"] = _sec_wtools[:_cap] if _cap > 0 else _sec_wtools
             _b["num_ctx"] = WORKER_TOOL_CTX
             _b["_allow_write"] = _sec_allow_write
-        # Strip tool_choice='required' for an endpoint that rejects it (iGPU
-        # llama.cpp 400s on it; operator 2026-06-01) -- non-streaming path.
-        if _b.get("tool_choice") and not _endpoint_supports_tool_choice(
+        _tc_val = _b.get("tool_choice")
+        if _tc_val and _tc_val not in ("none", "auto") and not _endpoint_supports_tool_choice(
                 str(_c.get("endpoint") or ""), _c, _agent_offload_engine(_c)):
             # llama.cpp REJECTS tool_choice='required' but ACCEPTS 'auto' and then
             # emits real OpenAI tool_calls (proven: gemma4/qwen3 on mios-llm-light).

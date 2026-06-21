@@ -25,17 +25,33 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import socket
+import subprocess
 import sys
+import time
 import urllib.request
 
 FIRECRAWL_URL = os.environ.get(
     "MIOS_FIRECRAWL_URL", "http://127.0.0.1:3002").rstrip("/")
 
 
+def _is_port_open(port: int, host: str = "127.0.0.1") -> bool:
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(0.1)
+            s.connect((host, port))
+            return True
+    except Exception:
+        return False
+
+
 def scrape(url: str, max_chars: int, timeout: float) -> dict:
     """POST /v1/scrape -> clean markdown of the page. Firecrawl renders the
     page (JS) server-side and strips chrome/nav, so the markdown is article
     text ready to ground on."""
+    if not _is_port_open(3002) or not _is_port_open(6379):
+        raise ConnectionError("Firecrawl (3002) or Redis (6379) port is closed")
+
     payload = {
         "url": url,
         "formats": ["markdown"],
@@ -48,7 +64,40 @@ def scrape(url: str, max_chars: int, timeout: float) -> dict:
     )
     with urllib.request.urlopen(req, timeout=timeout) as r:
         d = json.loads(r.read().decode("utf-8", "replace"))
+
+    # Check if this is an async job
+    job_id = None
+    if isinstance(d, dict):
+        for k in ("jobId", "job_id", "id"):
+            if k in d and d[k] and not d.get("data"):
+                job_id = str(d[k])
+                break
+
+    if job_id:
+        poll_start = time.time()
+        while time.time() - poll_start < timeout:
+            status_req = urllib.request.Request(f"{FIRECRAWL_URL}/v1/crawl/status/{job_id}")
+            try:
+                with urllib.request.urlopen(status_req, timeout=10.0) as r:
+                    status_d = json.loads(r.read().decode("utf-8", "replace"))
+                if not isinstance(status_d, dict):
+                    break
+                status = str(status_d.get("status") or "").lower()
+                if status == "completed":
+                    d = status_d
+                    break
+                elif status == "failed":
+                    raise Exception(f"Firecrawl job {job_id} failed")
+            except Exception as pe:
+                raise Exception(f"Failed to poll Firecrawl status: {pe}")
+            time.sleep(1.0)
+        else:
+            raise TimeoutError(f"Timed out waiting for Firecrawl job {job_id}")
+
     data = d.get("data") or {}
+    if isinstance(data, list) and data:
+        data = data[0] or {}
+
     md = (data.get("markdown") or "").strip()
     if max_chars and len(md) > max_chars:
         md = md[:max_chars].rstrip() + "\n[...truncated]"
@@ -63,11 +112,27 @@ def scrape(url: str, max_chars: int, timeout: float) -> dict:
     }
 
 
+def _fallback_crawl(url: str, max_chars: int) -> dict:
+    """Fall back to mios-crawl (crawl4ai). Returns {} on failure."""
+    if not _is_port_open(11235):
+        return {}
+    n = str(max_chars if max_chars and max_chars > 0 else 20000)
+    try:
+        p = subprocess.run(["mios-crawl", "--json", "--max-chars", n, url],
+                           capture_output=True, text=True, timeout=60)
+        if p.returncode == 0 and p.stdout.strip():
+            j = json.loads(p.stdout)
+            if j.get("success"):
+                return j
+    except Exception:
+        pass
+    return {}
+
+
 def _fallback_extract(url: str, max_chars: int) -> dict:
     """Firecrawl down (pod/image not up) -> fall back to mios-web-extract so
     web_scrape still GROUNDS on real page content (degrade-open, never
     fabricated). Returns {} if the fallback also fails."""
-    import subprocess
     n = str(max_chars if max_chars and max_chars > 0 else 4000)
     try:
         p = subprocess.run(["mios-web-extract", "-n", n, url],
@@ -104,18 +169,22 @@ def main() -> int:
         return 64
     try:
         out = scrape(url, max(0, a.max_chars), a.timeout)
-    except Exception as e:  # offline / firecrawl down -> web_extract fallback
-        fb = _fallback_extract(url, a.max_chars)
-        if fb:
-            md = fb["markdown"]
-            if a.max_chars and a.max_chars > 0 and len(md) > a.max_chars:
-                fb["markdown"] = md[:a.max_chars].rstrip() + "\n[...truncated]"
-            out = fb
+    except Exception as e:  # offline / firecrawl down -> cascade fallback
+        fb_crawl = _fallback_crawl(url, a.max_chars)
+        if fb_crawl:
+            out = fb_crawl
         else:
-            out = {"success": False, "engine": "firecrawl", "url": url,
-                   "error": f"firecrawl scrape unavailable: {e} "
-                            f"(web_extract fallback also returned nothing)",
-                   "markdown": ""}
+            fb_ext = _fallback_extract(url, a.max_chars)
+            if fb_ext:
+                md = fb_ext["markdown"]
+                if a.max_chars and a.max_chars > 0 and len(md) > a.max_chars:
+                    fb_ext["markdown"] = md[:a.max_chars].rstrip() + "\n[...truncated]"
+                out = fb_ext
+            else:
+                out = {"success": False, "engine": "firecrawl", "url": url,
+                       "error": f"firecrawl scrape unavailable: {e} "
+                                f"(crawl4ai and web_extract fallbacks also returned nothing)",
+                       "markdown": ""}
     print(json.dumps(out, ensure_ascii=False))
     return 0 if out.get("success") else 1
 
