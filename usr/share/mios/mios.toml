@@ -915,6 +915,12 @@ role     = "general"
 #   max_permission = "read"           # a guest principal: read-only surface
 #   denied_verbs   = ["pkg", "shutdown", "reboot"]
 #   # email = "guest@example.com"     # optional: also match by forwarded email
+#   # WS-6 per-user quota / rate-limit (enforced at the dispatch chokepoint via
+#   # mios_quota; INERT until set -- both default 0 = unlimited, single-user
+#   # MiOS unaffected). rpm_limit = max verb dispatches per 60s; daily_budget =
+#   # max cost units per 24h (for paid remote lanes). Over -> exit 429 quota_block.
+#   # rpm_limit    = 60                # e.g. cap a guest to 60 tool calls/min
+#   # daily_budget = 5.0               # e.g. cap a guest's remote-lane spend/day
 # job (operator 2026-05-24 "no fixed roles -- MiOS-Agents are modelfiles for
 # jobs and tools/skills/recipes"): the one-line CAPABILITY the swarm planner
 # routes a sub-task by. Tools/recipes/skills are GLOBAL to every agent, so this

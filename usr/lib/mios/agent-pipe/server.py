@@ -116,6 +116,7 @@ import mios_pg as _mios_pg   # noqa: E402  -- WS-9 Postgres+pgvector client
 import mios_lanes   # noqa: E402  -- WS-1 unified inference-lane resolver
 import mios_a2a_principal as _a2a_pp   # noqa: E402  -- WS-6 signed delegation principal
 import mios_reputation   # noqa: E402  -- #54 zero-trust peer reputation
+import mios_quota   # noqa: E402  -- WS-6 per-user quota / rate-limit (inert until configured)
 _A2A_REPUTATION = mios_reputation.PeerReputation()   # outbound-peer reliability
 import mios_goap   # noqa: E402  -- #53 deterministic GOAP planner lane
 import mios_selfimprove   # noqa: E402  -- #64 self-improvement analyzer (read-only)
@@ -7406,6 +7407,51 @@ def _user_rbac_filter(tools: list) -> list:
 # (default off -> deny-only auditing, ~zero overhead on the hot allow path).
 _PDP_AUDIT_ALLOW = str((_toml_section("ai") or {}).get("pdp_audit_allow")
                        or "").strip().lower() in ("1", "true", "yes", "on")
+
+
+# ── WS-6 per-user quota / rate-limit (mios_quota) ───────────────────────────
+# Per-user QuotaTracker cache, built LAZILY from the matched [users.<name>]
+# config's rpm_limit / daily_budget. INERT BY DEFAULT: a user with no quota keys
+# (the single-user MiOS default) -> _quota_for returns None -> the dispatch quota
+# gate is skipped entirely (one dict lookup), so behaviour is unchanged until an
+# operator adds limits. server.py owns this wiring; mios_quota owns the decision.
+_QUOTA_TRACKERS: dict = {}
+
+
+def _quota_for(ulabel: str, ucfg: dict):
+    """Return the QuotaTracker for a user, or None when that user has no limits
+    configured (rpm_limit/daily_budget both <= 0 -> unlimited -> skip)."""
+    rpm = int((ucfg or {}).get("rpm_limit", 0) or 0)
+    budget = float((ucfg or {}).get("daily_budget", 0) or 0.0)
+    if rpm <= 0 and budget <= 0:
+        return None
+    tr = _QUOTA_TRACKERS.get(ulabel)
+    if tr is None:
+        tr = mios_quota.QuotaTracker(rpm_limit=rpm, daily_budget=budget)
+        _QUOTA_TRACKERS[ulabel] = tr
+    return tr
+
+
+def _dispatch_quota_reason(verb: str) -> "Optional[str]":
+    """WS-6 per-user rate/budget gate at the dispatch chokepoint. Counts one
+    request per verb dispatch for the matched [users.*] principal; DENY when over
+    the user's rpm_limit / daily_budget. Returns a refusal reason on deny, else
+    None. INERT when the principal has no quota config (the default), and
+    degrade-open (a quota bug must never block real work)."""
+    try:
+        ulabel, ucfg = _match_user_cfg()
+        if not ucfg:
+            return None
+        tr = _quota_for(ulabel, ucfg)
+        if tr is None:
+            return None
+        v = tr.check(ulabel, time.time())
+        if not v.allowed:
+            return (f"quota exceeded for user '{ulabel}' ({v.reason}); "
+                    f"'{verb}' was NOT executed.")
+        return None
+    except Exception:  # noqa: BLE001 -- degrade-open: a quota bug never blocks work
+        return None
 
 
 def _dispatch_pdp_reason(verb: str) -> "Optional[str]":
@@ -17357,6 +17403,23 @@ async def _dispatch_mios_verb_inner(
             "stderr": f"pdp_block: {_pdp_deny}",
             "exit_code": 126, "latency_ms": 0,
             "pdp_blocked": True,
+        }
+    # ── WS-6 per-user quota / rate-limit gate (after PDP). INERT unless the
+    # caller's [users.*] config sets rpm_limit/daily_budget; degrade-open. ──
+    _q_deny = _dispatch_quota_reason(tool)
+    if _q_deny is not None:
+        _db_fire(_db_post(_db_create("event", {
+            "source": "agent-pipe",
+            "kind": "quota_block",
+            "severity": "warn",
+            "summary": _q_deny[:200],
+            "payload": {"tool": tool, "user": (_match_user_cfg()[0] or "")},
+        }, now_fields=("ts",))))
+        return {
+            "success": False, "tool": tool, "args": args, "output": "",
+            "stderr": f"quota_block: {_q_deny}",
+            "exit_code": 429, "latency_ms": 0,
+            "quota_blocked": True,
         }
     # ── Firewall pre-check for high-privilege verbs ──
     if tool in _HIGH_PRIVILEGE_VERBS and session_id:
