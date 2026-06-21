@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # AI-hint: Source-tree drift fitness-functions (WS-0A). Read-only static analysis over the repo (== system root) that FAILS on AI-plane SSOT drift no other gate catches: a retired local :11434 lane in active config, a retired model-id (gemma4 / qwen3:1.7b) hardcoded in a CONSUMER unit, a [nodes.local-*] lane pointing at a localhost port no shipped unit serves, an ai/v1/*.json manifest that won't parse or references a missing schema file, (check 5, WS-10) AI-hint header coverage regressing past [ai_tag].max_untagged, and (check 6, WS-3) an agent-pipe sibling module importing the server.py monolith (modular-monolith boundary). Sibling to 38-ssot-lint.sh; runs standalone, as a build sub-phase, and as a CI/PR drift-gate (needs NO built image). bash + grep + (optional) python3 for the toml/json/coverage checks.
 # AI-related: ./automation/38-ssot-lint.sh, ./automation/99-postcheck.sh, ./usr/libexec/mios/mios-ai-hint-coverage, ./usr/share/mios/mios.toml, ./usr/share/mios/ai/v1
-# AI-functions: _violation, check_dead_lane, check_retired_models, check_structured, check_hint_coverage, check_module_boundary, check_rbac_tiers, check_ai_manifest, check_package_registry, check_cli_sql_safety, check_module_test_coverage, check_capability_manifest, main
+# AI-functions: _violation, check_dead_lane, check_retired_models, check_structured, check_hint_coverage, check_module_boundary, check_rbac_tiers, check_ai_manifest, check_package_registry, check_cli_sql_safety, check_module_test_coverage, check_capability_manifest, check_pod_quadlets, check_egress_firewall, main
 # automation/38-drift-checks.sh
 # ----------------------------------------------------------------------------
 # WHY THIS EXISTS (WS-0A drift-freeze). 99-postcheck.sh enforces the same
@@ -29,6 +29,20 @@
 #     DISJOINT namespaces (the verb catalog projects live via MCP /v1/verbs, not
 #     a static file). Asserting name-equality would false-fail. The real,
 #     available projection invariant is manifest reference-integrity (check 4).
+#
+# DERIVED-SURFACE REGEN GATES (WS-10 "regenerate every derived surface from SSOT
+# + fail on diff"). Each surface below is GENERATED from mios.toml and gated here
+# by a regenerate-and-diff check, so a committed artifact can NEVER drift from the
+# SSOT it is projected from. This is the offline half of the rebuild-test gate
+# (it runs in build.sh + both CI drift-gates, no built image needed):
+#   (8)  ai/v1 verb-catalog manifest   <- tools/generate-ai-manifest.py   [verbs.*]
+#   (12) ai/v1 capabilities.generated  <- mios_capreg                     [verbs.*]+[recipes.*]
+#   (13) usr/share/containers/.../*.pod<- tools/generate-pod-quadlets.py  [pods.*]
+#   (14) usr/share/mios/security/egress.nft <- generate-egress-firewall.py [security.egress]
+# VM-GATED (NOT offline-derivable, so deliberately excluded here): the k3s
+# manifests (tools/generate-k3s-manifests.sh) read the LIVE running pods via
+# `podman kube generate`, and repo-rag-snapshot.json.gz is a non-deterministic
+# data snapshot -- both regenerate on a host/VM, not in this static gate.
 #
 # Read-only. Exit 1 on any violation (fails a CI/build step). Set
 # MIOS_DRIFT_CHECK_SOFT=1 to report but exit 0 (advisory, while a fix is staged).
@@ -525,6 +539,31 @@ check_pod_quadlets() {
     fi
 }
 
+check_egress_firewall() {
+    # WS-10 regen-and-diff: the agent egress nftables ruleset is GENERATED from
+    # mios.toml [security.egress]; fail if the committed usr/share/mios/security/
+    # egress.nft drifted from SSOT (regenerate via tools/generate-egress-firewall.py).
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "[38-drift-checks]   WARNING: python3 missing -- skipping egress-fw check" >&2
+        return 0
+    fi
+    local gen="$ROOT/tools/generate-egress-firewall.py"
+    local committed="$ROOT/usr/share/mios/security/egress.nft"
+    if [[ ! -f "$gen" || ! -f "$committed" ]]; then
+        echo "[38-drift-checks]   WARNING: egress generator/artifact absent -- skipping" >&2
+        return 0
+    fi
+    local tmp; tmp="$(mktemp)"
+    if MIOS_ROOT="$ROOT" MIOS_EGRESS_OUT="$tmp" python3 "$gen" >/dev/null 2>&1 \
+            && diff -q "$committed" "$tmp" >/dev/null 2>&1; then
+        echo "[38-drift-checks]   (14) egress.nft in sync with mios.toml [security.egress] SSOT"
+        rm -f "$tmp"
+    else
+        rm -f "$tmp"
+        _violation "usr/share/mios/security/egress.nft is STALE vs mios.toml [security.egress] -- regenerate with tools/generate-egress-firewall.py (WS-10)"
+    fi
+}
+
 main() {
     check_dead_lane
     check_retired_models
@@ -538,6 +577,7 @@ main() {
     check_module_test_coverage
     check_capability_manifest
     check_pod_quadlets
+    check_egress_firewall
 
     echo "[38-drift-checks] ---------------------------------------------------------"
     if [[ "$VIOLATIONS" -eq 0 ]]; then
