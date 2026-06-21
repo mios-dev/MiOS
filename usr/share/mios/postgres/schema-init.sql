@@ -73,6 +73,9 @@ CREATE INDEX IF NOT EXISTS agent_memory_emb_hnsw
 CREATE INDEX IF NOT EXISTS agent_memory_scope ON agent_memory (scope);
 CREATE UNIQUE INDEX IF NOT EXISTS agent_memory_scope_key
     ON agent_memory (scope, mem_key) WHERE mem_key IS NOT NULL;
+-- WS-5: owner_user for per-owner RLS (additive + nullable; NULL = shared/legacy).
+ALTER TABLE agent_memory ADD COLUMN IF NOT EXISTS owner_user text;
+CREATE INDEX IF NOT EXISTS agent_memory_owner ON agent_memory (owner_user);
 -- WS-A2 embedding-version hygiene (see knowledge above): stamp the embedding
 -- identity so a model/dim change can trigger an off-hot-path re-embed.
 ALTER TABLE agent_memory ADD COLUMN IF NOT EXISTS emb_model   text;
@@ -232,6 +235,9 @@ CREATE INDEX IF NOT EXISTS scratch_chat ON scratch (chat_id, ts DESC);
 ALTER TABLE scratch ADD COLUMN IF NOT EXISTS source text;
 ALTER TABLE scratch ADD COLUMN IF NOT EXISTS topic  text;
 ALTER TABLE scratch ADD COLUMN IF NOT EXISTS body   text;
+-- WS-5: owner_user for per-owner RLS (additive + nullable; NULL = shared/legacy).
+ALTER TABLE scratch ADD COLUMN IF NOT EXISTS owner_user text;
+CREATE INDEX IF NOT EXISTS scratch_owner ON scratch (owner_user);
 
 -- ── kanban: task queue (authoritative here; retires Hermes' kanban.db + the
 --    SurrealDB shadow) ─────────────────────────────────────────────────────────
@@ -361,4 +367,31 @@ CREATE TABLE IF NOT EXISTS mios_rag (
 );
 CREATE INDEX IF NOT EXISTS mios_rag_emb_hnsw
     ON mios_rag USING hnsw (emb vector_cosine_ops) WITH (m = 16, ef_construction = 64);
+
+-- ── WS-5: native Postgres Row-Level Security (defense-in-depth owner scoping) ──
+-- RESEARCHED best practice (AWS / Supabase / Postgres RLS guides): the app sets a
+-- PER-REQUEST session var `mios.owner_user` keyed on the VERIFIED principal
+-- (WS-A10), and these policies enforce owner isolation IN THE DATABASE -- so even
+-- if the app-side owner filter (mios_pg.build_recall) is bypassed or has a bug, a
+-- caller sees only its OWN rows + shared (owner_user IS NULL) rows.
+--
+-- SAFE / behaviour-preserving: current_setting('mios.owner_user', true) returns
+-- NULL when UNSET (single-user, or before the app wires the var), and the policy
+-- is PERMISSIVE when unset -> ALL rows visible exactly as today. Isolation engages
+-- only once the app SETs the var per request (`SET LOCAL mios.owner_user = ...`).
+-- FORCE so the table-owner connection is subject to it too. Idempotent.
+DO $mios_rls$
+DECLARE t text;
+BEGIN
+  FOREACH t IN ARRAY ARRAY['knowledge', 'agent_memory', 'scratch'] LOOP
+    EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
+    EXECUTE format('ALTER TABLE %I FORCE ROW LEVEL SECURITY', t);
+    EXECUTE format('DROP POLICY IF EXISTS %I_owner_rls ON %I', t, t);
+    -- USING clause: unset session var -> permissive (single-user / pre-wiring);
+    -- shared (NULL-owner) rows always visible; else only the caller's own rows.
+    EXECUTE format('CREATE POLICY %I_owner_rls ON %I USING (current_setting(''mios.owner_user'', true) IS NULL OR owner_user IS NULL OR owner_user = current_setting(''mios.owner_user'', true))', t, t);
+  END LOOP;
+END
+$mios_rls$;
+
 
