@@ -37,6 +37,7 @@ import importlib.machinery
 import importlib.util
 import json
 import os
+import subprocess
 import sys
 
 _FALLBACK_CEILING = 10 ** 9  # no source found -> report-only, never false-fail
@@ -109,12 +110,42 @@ def _ceiling(args, roots):
     return _FALLBACK_CEILING, "fallback (report-only: no ceiling configured)"
 
 
+def _gitignored(paths, root):
+    """Set of walked paths that git IGNORES. Local gitignored scratch (e.g. a
+    dev's tmp-*.py / audit_*.ps1 at repo root) is NOT shipped or tracked, so it
+    must not count against AI-hint coverage -- otherwise any dev's local scratch
+    reds `just drift-gate` / the CI PR gate / a repo-root build.sh run. The OCI
+    bake already excludes it (only the copied usr/etc/tools/automation subset is
+    in /ctx); this aligns the repo-root invocation with the in-image semantics.
+    Degrade-open: git missing / not-a-repo / error -> empty set (count
+    everything, the prior behaviour) so this never falsely passes a real gap."""
+    paths = list(paths)
+    if not paths:
+        return set()
+    try:
+        r = subprocess.run(
+            ["git", "-C", root, "check-ignore", "-z", "--stdin"],
+            input="\0".join(paths).encode("utf-8", "replace"),
+            capture_output=True, timeout=20)
+        if r.returncode not in (0, 1):       # 0=some ignored, 1=none; else (128) not a repo
+            return set()
+        return {x.replace("\\", "/")
+                for x in r.stdout.decode("utf-8", "replace").split("\0") if x}
+    except Exception:                        # noqa: BLE001 -- degrade-open
+        return set()
+
+
 def measure(tagger, roots):
-    """(tagged, total, missing[]) using the tagger's own walk()+existing_hint()."""
+    """(tagged, total, missing[]) using the tagger's own walk()+existing_hint().
+    Gitignored files are skipped (local scratch is not shipped/tracked coverage)."""
     tagged = 0
     total = 0
     missing = []
-    for p in tagger.walk(roots):
+    paths = list(tagger.walk(roots))
+    _ignored = _gitignored(paths, (roots[0] if roots else "."))
+    for p in paths:
+        if p.replace("\\", "/") in _ignored:
+            continue                         # gitignored local scratch -> not coverage
         total += 1
         try:
             head = open(p, encoding="utf-8", errors="replace").read(8192)

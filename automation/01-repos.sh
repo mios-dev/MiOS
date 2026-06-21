@@ -28,11 +28,16 @@ echo "[01-repos] Importing Fedora 44 GPG key..."
 # On ucore (which is CoreOS-based on Fedora), the key is usually present already.
 GPG_KEY_PATH="/etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-44-x86_64"
 if [[ ! -f "$GPG_KEY_PATH" ]]; then
-    # Fallback: import from the package. Failure here is fatal -- the F44 repo
-    # below uses repo_gpgcheck=1 and silently dropping the key would surface
-    # later as opaque "package not signed" errors on every install. (Audit
-    # 2026-05-01 finding: do not swallow this with 2>/dev/null.)
-    $DNF_BIN "${DNF_SETOPT[@]}" install -y fedora-gpg-keys
+    # Fallback: import from the package. NON-FATAL but LOUD (install-robustness
+    # audit 2026-06-21): under a no-egress / unauthenticated early build the
+    # install can't reach a mirror, and aborting the WHOLE build here (set -e) is
+    # too brittle for "works on every config". The F44 repo below sets
+    # repo_gpgcheck=0 + skip_if_unavailable=True, and on ucore the key is usually
+    # already present, so warn (NOT swallow with 2>/dev/null -- the 2026-05-01
+    # finding still holds) and continue; a genuinely-needed missing key surfaces
+    # as a clear later signature error, not an opaque early abort.
+    $DNF_BIN "${DNF_SETOPT[@]}" install -y --skip-unavailable fedora-gpg-keys \
+        || warn "[01-repos] fedora-gpg-keys import failed (no egress?); continuing -- F44 repo is repo_gpgcheck=0 + skip_if_unavailable=True"
 fi
 
 echo "[01-repos] Adding Fedora 44 repository..."

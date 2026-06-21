@@ -74,6 +74,15 @@ RESTART_ON_CHANGE="${MIOS_GPU_RESTART_ON_CHANGE:-0}"
 MIOS_AI_QUADLETS_DEFAULT=(
     "ollama"
     "mios-open-webui"
+    # Install-robustness 2026-06-21: the FRONT-DOOR brain lanes + workers also
+    # hardcode AddDevice=nvidia.com/gpu=all, so on a non-NVIDIA host (AMD/Intel/
+    # CPU-only) podman hard-FAILS to start them ("CDI device nvidia.com/gpu=all
+    # not found") and the AI plane's primary lane dies. Reconcile them here too so
+    # the device line is authoritative-per-detected-hardware, not baked NVIDIA.
+    "mios-llm-light"
+    "mios-llm-worker@"
+    "mios-llm-heavy"
+    "mios-llm-heavy-alt"
 )
 
 # Operator override: drop a one-liner here:
@@ -145,10 +154,21 @@ build_dropin() {
 # resolve them at container start.
 
 [Container]
+# Install-robustness 2026-06-21: RESET the inherited AddDevice list first.
+# The base Quadlets hardcode AddDevice=nvidia.com/gpu=all; a drop-in can only
+# APPEND, so without this empty reset a non-NVIDIA host would STILL request the
+# absent nvidia device and podman would hard-fail container start. The empty
+# assignment clears the merged list (systemd list-reset semantics), then we
+# re-add ONLY the device whose CDI spec is actually present -> the drop-in is the
+# authoritative, hardware-adaptive source. No vendor present (CPU-only) -> the
+# reset alone -> the container starts with NO GPU device (CPU mode) instead of
+# dying on a missing nvidia spec. (Worst case if Quadlet ignores the reset: an
+# NVIDIA host gets a benign duplicate nvidia line -- never a regression.)
+AddDevice=
 EOF
-    # NVIDIA is intentionally omitted -- the base Quadlet already
-    # hardcodes AddDevice=nvidia.com/gpu=all. Adding it again here
-    # would be a benign duplicate but noisy in podman logs.
+    if [ "$NVIDIA_PRESENT" = "1" ]; then
+        echo "AddDevice=nvidia.com/gpu=all"
+    fi
     if [ "$AMD_PRESENT" = "1" ]; then
         echo "AddDevice=amd.com/gpu=all"
     fi
@@ -164,17 +184,12 @@ for quadlet in "${MIOS_AI_QUADLETS[@]}"; do
     dropin_parent="${SD_DIR}/${quadlet}.container.d"
     dropin_file="${dropin_parent}/${DROPIN_NAME}"
 
-    # If neither AMD nor Intel iGPU is present, DELETE any stale
-    # drop-in so the Quadlet runs without the missing device wiring.
-    if [ "$AMD_PRESENT" = "0" ] && [ "$INTEL_PRESENT" = "0" ]; then
-        if [ -f "$dropin_file" ]; then
-            rm -f "$dropin_file"
-            log "$quadlet: removed stale drop-in (no iGPU present)"
-            changed_quadlets+=("$quadlet")
-        fi
-        continue
-    fi
-
+    # Install-robustness 2026-06-21: ALWAYS write the drop-in now -- it is the
+    # AUTHORITATIVE, hardware-adaptive device source (reset + the detected vendor,
+    # or just the reset on CPU-only). The old "delete when no iGPU" path left the
+    # base quadlet's hardcoded nvidia AddDevice in force, which hard-failed every
+    # non-NVIDIA host. (The base quadlet's static line stays as a no-CDI fallback
+    # but is overridden by this drop-in whenever the reconciler has run.)
     install -d -m 0755 "$dropin_parent" || {
         log "$quadlet: cannot create $dropin_parent"; exit 2;
     }
