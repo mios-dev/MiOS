@@ -116,6 +116,7 @@ import mios_router   # noqa: E402  -- WS-A11/WS-3 pure routing decision
 import mios_dispatcher   # noqa: E402  -- WS-A11/WS-3 pure mode dispatcher
 import mios_kernel   # noqa: E402  -- WS-A11/WS-3 Kernel facade (Router+Dispatcher+managers)
 import mios_memguard   # noqa: E402  -- WS-MEM-VALIDATE write-time memory-poisoning guard (ASI08)
+import mios_slo   # noqa: E402  -- WS-SCHED-SLO deadline/SLO classes + fail-closed shed
 import mios_batch   # noqa: E402  -- WS-A6 batch coalescing (bypass native-batch lanes)
 import mios_smartroute   # noqa: E402  -- WS-A16 cost/quality SmartRouting (local-first escalation)
 import mios_codemode as _codemode   # noqa: E402  -- WS-2 Code Mode pure helpers
@@ -1444,6 +1445,24 @@ ADMIT_LOAD_CEIL = _dispatch_num("MIOS_ADMIT_LOAD_CEIL", "admit_load_ceil",
                             max(2, (os.cpu_count() or 4)) * 2, float)
 ADMIT_MEM_PCT = _dispatch_num("MIOS_ADMIT_MEM_PCT", "admit_mem_pct", 92, float)
 ADMIT_MAX_WAIT = _dispatch_num("MIOS_ADMIT_MAX_WAIT", "admit_max_wait", 8.0, float)
+# WS-SCHED-SLO: give admission the ability to say "no". When enabled, a
+# BEST_EFFORT (low-priority / autonomous / fan-out) dispatch is SHED under
+# capacity contention OR when the host probe failed (fail-CLOSED -- the inversion
+# of _admit's degrade-OPEN hole), while an INTERACTIVE foreground turn is NEVER
+# shed. mios_slo owns the pure decision; this is the flag. Default-off => _admit
+# never raises _SloShed => byte-identical. SSOT [dispatch].slo_shed_enable.
+SLO_SHED_ENABLE = (
+    str(os.environ.get("MIOS_SLO_SHED_ENABLE")
+        or _DISPATCH_TOML.get("slo_shed_enable", "false"))
+    .strip().lower() not in {"false", "0", "no", "off", ""})
+
+
+class _SloShed(Exception):
+    """Raised by _admit to SHED a best_effort dispatch under contention (WS-SCHED-
+    SLO). Caught at the fan-out call sites -> the node drops from the merge (the
+    swarm already tolerates a dead/empty node); never raised for interactive."""
+
+
 _HOST_STATS_CACHE = {"t": 0.0, "v": None}
 _RESIDENT_CACHE: dict = {}   # ep -> {"t":ts,"v":[models]}
 _ADMIT_SEQ = 0  # monotonic tie-breaker for priority waits
@@ -1561,6 +1580,15 @@ async def _admit(ep: str, model: str, lane: str, priority: float = 5.0,
     ceiling endpoint waits briefly so cold loads serialize. Warm/under-ceiling
     dispatch returns immediately. (_host_stats_cached/_resident_cached/
     _over_global_ceiling/_is_warm are defined below near _ollama_resident.)"""
+    # WS-SCHED-SLO fail-closed shed (independent of ADMIT_ENABLE): shed a
+    # best_effort dispatch FAST (before the capacity wait) when over the ceiling
+    # OR when the host probe failed (empty stats -> healthy=False -> shed). An
+    # interactive turn (high priority) is never shed. Default-off.
+    if SLO_SHED_ENABLE:
+        _slo = mios_slo.classify(priority=float(priority))
+        if mios_slo.should_shed(_slo, over_ceiling=_over_global_ceiling(),
+                                healthy=bool(_host_stats_cached())):
+            raise _SloShed(_slo)
     if not ADMIT_ENABLE:
         return
     try:
@@ -4348,7 +4376,11 @@ async def _call_agent_complete(name, cfg, body, headers, client,
     # loads on ONE ollama daemon), lane cap INNER (hardware category) -- operator
     # 2026-06-01 thundering-herd fix.
     _est = _opt_int_mb(cfg.get("vram_mb"))   # Phase-1 per-worker VRAM (0 = unknown)
-    await _admit(_ep, _adm_model, _engine or _lane_sem_key(cfg), _prio, _est)
+    try:
+        await _admit(_ep, _adm_model, _engine or _lane_sem_key(cfg), _prio, _est)
+    except _SloShed:  # WS-SCHED-SLO: best_effort shed -> drop this node from the merge
+        log.info("SLO shed: best_effort fan-out %s dropped under contention", name)
+        return name, ""
     # WS-A12: RR-preemptible path. This fn IS the fan-out/secondary dispatch (the
     # work that SHOULD yield a lane to a higher-priority waiter), so when RR is on
     # and this is a plain completion on a /slots lane, drive it through _rr_run --
@@ -5487,7 +5519,11 @@ async def _call_agent_stream(name, cfg, body, headers, client, q,
     # degrade-open -- never blocks a turn). Endpoint cap OUTER (serialize cold-
     # loads on ONE ollama daemon), lane cap INNER -- operator 2026-06-01.
     _est = _opt_int_mb(cfg.get("vram_mb"))   # Phase-1 per-worker VRAM (0 = unknown)
-    await _admit(_ep, _adm_model, _engine or _lane_sem_key(cfg), _prio, _est)
+    try:
+        await _admit(_ep, _adm_model, _engine or _lane_sem_key(cfg), _prio, _est)
+    except _SloShed:  # WS-SCHED-SLO: best_effort shed -> drop this node from the merge
+        log.info("SLO shed: best_effort fan-out %s dropped under contention", name)
+        return name, ""
     async with _priority_gate(_prio):
         async with _endpoint_sem(_ep):
             async with _lane_sem(_engine or _lane_sem_key(cfg)):
@@ -19460,6 +19496,12 @@ async def scheduler_state() -> JSONResponse:
                   "max_size": BATCH_MAX_SIZE, "native_bypass_hints": BATCH_NATIVE_HINTS},
         # WS-A16 SmartRouting: local-first escalation posture + budget.
         "smartroute": {"enabled": SMARTROUTE_ENABLE, "budget": SMARTROUTE_BUDGET},
+        # WS-SCHED-SLO: deadline/SLO admission posture. When shed_enable, a
+        # best_effort dispatch is shed under contention (fail-CLOSED on probe
+        # failure); interactive is never shed. EDF ordering available via mios_slo.
+        "slo": {"shed_enable": SLO_SHED_ENABLE,
+                "classes": [mios_slo.BEST_EFFORT, mios_slo.INTERACTIVE],
+                "model": "EDF least-deadline-first + fail-closed best_effort shed"},
         # WS-A11/WS-3 Kernel facade: which manager seams are wired, the
         # Dispatcher's registered modes, and the shadow-route posture. Proves the
         # decomposition's Router/Dispatcher/Kernel are LIVE (not inert modules);
