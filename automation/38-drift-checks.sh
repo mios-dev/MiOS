@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # AI-hint: Source-tree drift fitness-functions (WS-0A). Read-only static analysis over the repo (== system root) that FAILS on AI-plane SSOT drift no other gate catches: a retired local :11434 lane in active config, a retired model-id (gemma4 / qwen3:1.7b) hardcoded in a CONSUMER unit, a [nodes.local-*] lane pointing at a localhost port no shipped unit serves, an ai/v1/*.json manifest that won't parse or references a missing schema file, (check 5, WS-10) AI-hint header coverage regressing past [ai_tag].max_untagged, and (check 6, WS-3) an agent-pipe sibling module importing the server.py monolith (modular-monolith boundary). Sibling to 38-ssot-lint.sh; runs standalone, as a build sub-phase, and as a CI/PR drift-gate (needs NO built image). bash + grep + (optional) python3 for the toml/json/coverage checks.
 # AI-related: ./automation/38-ssot-lint.sh, ./automation/99-postcheck.sh, ./usr/libexec/mios/mios-ai-hint-coverage, ./usr/share/mios/mios.toml, ./usr/share/mios/ai/v1
-# AI-functions: _violation, check_dead_lane, check_retired_models, check_structured, check_hint_coverage, check_module_boundary, main
+# AI-functions: _violation, check_dead_lane, check_retired_models, check_structured, check_hint_coverage, check_module_boundary, check_rbac_tiers, check_ai_manifest, check_package_registry, check_cli_sql_safety, main
 # automation/38-drift-checks.sh
 # ----------------------------------------------------------------------------
 # WHY THIS EXISTS (WS-0A drift-freeze). 99-postcheck.sh enforces the same
@@ -391,6 +391,45 @@ check_package_registry() {
     fi
 }
 
+# (10, WS-A3) CLI SQL-safety: a libexec tool must not (re)introduce the retired
+# SurrealDB HTTP transport (post_sql/_sql -> :8000/sql, surreal-ns headers) or
+# hand-rolled SQL-escaping (_pgesc/_pgq single-quote doubling). The WS-A3 cutover
+# replaced both with PARAMETERIZED pg -- values bound OUT-OF-BAND via
+# mios-pg-query --exec-json / mios-db --pg-json -- so a regression silently
+# no-ops on pg (dead SurrealQL) or reopens a SQL-injection hole. TWO tools carry
+# a DOCUMENTED, deferred residual (higher-risk to cut over, not silent): mios-
+# daemon (harmless dead SurrealQL branches + _pgesc inside _db_create's CREATE-
+# string builder; its LIVE pg writes _pg_insert/_pg_replace_directory_entries ARE
+# parameterized) and mios-viking (SurrealDB-backed, not yet migrated). They are
+# allowlisted + named here so the gate protects every other tool without false-
+# failing intentional residual; shrink the allowlist as they are cut over.
+check_cli_sql_safety() {
+    local dir="$ROOT/usr/libexec/mios"
+    if [[ ! -d "$dir" ]]; then
+        echo "[38-drift-checks]   (10) libexec dir absent -- skipped"
+        return 0
+    fi
+    local allow=" mios-daemon mios-viking "   # documented WS-A3 residuals
+    local pattern='(_pgesc\(|_pgq\(|post_sql\(|def _sql\(|/sql"|surreal-ns)'
+    local hits="" f base active
+    while IFS= read -r f; do
+        [[ -f "$f" ]] || continue
+        base="$(basename "$f")"
+        case "$base" in test_*|*.pyc) continue ;; esac
+        [[ "$allow" == *" $base "* ]] && continue
+        active=$(sed -E '/^[[:space:]]*#/d' "$f")
+        if printf '%s\n' "$active" | grep -qE "$pattern"; then
+            hits+="    $f"$'\n'
+        fi
+    done < <(find "$dir" -maxdepth 1 -type f 2>/dev/null)
+    if [[ -n "$hits" ]]; then
+        printf '%s' "$hits" >&2
+        _violation "a libexec CLI (re)introduced the retired SurrealDB transport (post_sql/_sql/:8000/sql) or hand-rolled SQL escaping (_pgesc/_pgq) -- use parameterized pg via mios-pg-query --exec-json / mios-db --pg-json (WS-A3)"
+    else
+        echo "[38-drift-checks]   (10) libexec CLIs SQL-safe (parameterized pg; documented residual allowlist: mios-daemon, mios-viking)"
+    fi
+}
+
 main() {
     check_dead_lane
     check_retired_models
@@ -400,6 +439,7 @@ main() {
     check_rbac_tiers
     check_ai_manifest
     check_package_registry
+    check_cli_sql_safety
 
     echo "[38-drift-checks] ---------------------------------------------------------"
     if [[ "$VIOLATIONS" -eq 0 ]]; then
