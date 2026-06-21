@@ -735,7 +735,18 @@ Start-Phase 11 "Importing WSL2 distro..."
 $ErrorActionPreference = "Continue"
 if (Test-Path $TargetWsl) {
     $WslName = "MiOS"; $WslPath = Join-Path $env:USERPROFILE "WSL\$WslName"
-    $existing = wsl --list --quiet 2>$null | Where-Object { $_ -match "^$WslName" }
+    # Install-robustness 2026-06-21: `wsl --list` emits UTF-16LE. Decoding it with
+    # the default console encoding produces NUL-interleaved strings (+ a BOM on
+    # line 1), so a bare `-match "^MiOS"` MISSED an existing distro -> the import
+    # below failed with "distribution already exists" on every re-install. Force
+    # UTF-16 decode, strip NULs, and match on TRIMMED exact equality (not a `^`
+    # prefix, which would also mis-match siblings like MiOS-DEV).
+    $prevEnc = [Console]::OutputEncoding
+    try { [Console]::OutputEncoding = [Text.Encoding]::Unicode } catch {}
+    $existing = (wsl --list --quiet 2>$null) |
+        ForEach-Object { ($_ -replace "`0", "").Trim() } |
+        Where-Object { $_ -ieq $WslName }
+    try { [Console]::OutputEncoding = $prevEnc } catch {}
     if ($existing) { wsl --unregister $WslName 2>$null | Out-Null }
     New-Item -ItemType Directory -Path $WslPath -Force | Out-Null
     wsl --import $WslName $WslPath $TargetWsl --version 2 2>&1 | ForEach-Object { Set-Op $_ }

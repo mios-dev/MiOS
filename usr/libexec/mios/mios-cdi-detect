@@ -104,8 +104,14 @@ _log "virt=$VIRT nvidia=$HAS_NVIDIA amd=$HAS_AMD (wsl=$HAS_AMD_WSL) intel=$HAS_I
 # (NVIDIA Container Toolkit v1.18+). It auto-regenerates on driver/device
 # change, so we don't want to race with it.
 if [[ "$HAS_NVIDIA" == 1 ]] && command -v nvidia-ctk >/dev/null 2>&1; then
-    if systemctl list-unit-files nvidia-cdi-refresh.service 2>/dev/null | grep -q nvidia-cdi-refresh; then
-        _log "nvidia: nvidia-cdi-refresh.service present -- deferring to upstream"
+    # Install-robustness 2026-06-21: only defer to upstream nvidia-cdi-refresh on
+    # BARE METAL. On WSL2 the upstream refresh is unreliable on the paravirt
+    # /dev/dxg surface and may NEVER materialize a /run/cdi spec -> the GPU is
+    # silently lost and the AI lanes fall back to CPU. So on WSL2 always GENERATE
+    # the spec (--mode=wsl below) instead of deferring.
+    if [[ "$VIRT" != "wsl" && ! -e /dev/dxg ]] \
+       && systemctl list-unit-files nvidia-cdi-refresh.service 2>/dev/null | grep -q nvidia-cdi-refresh; then
+        _log "nvidia: nvidia-cdi-refresh.service present (bare-metal) -- deferring to upstream"
     else
         # WSL2 surfaces GPUs via /dev/dxg with the standard WDDM
         # paravirt driver. nvidia-ctk's --mode=wsl emits a CDI spec
