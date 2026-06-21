@@ -83,6 +83,25 @@ def t_bwrap():
     check("bwrap: unknown tier fail-closed (confined, no net)", uk[0] == "bwrap" and "--share-net" not in uk)
 
 
+def t_sandbox_exec_prefix():
+    # 'read' tier (none) -> no prefix (run direct, unwrapped)
+    check("prefix: none tier -> [] (no wrap)",
+          sb.sandbox_exec_prefix(sb.resolve_profile("read")) == [])
+    # 'write' tier (workspace, network) -> enforce + --net + --workspace, ends in --
+    wp = sb.sandbox_exec_prefix(sb.resolve_profile("write"), workspace="/ws/x-1")
+    check("prefix: write level enforce", wp[:3] == ["mios-sandbox-exec", "--level", "enforce"])
+    check("prefix: write keeps net (--net)", "--net" in wp)
+    check("prefix: write binds workspace", "--workspace" in wp and "/ws/x-1" in wp)
+    check("prefix: write ends in -- separator", wp[-1] == "--")
+    # 'interactive' tier (strict, NO network) -> enforce, no --net
+    sp = sb.sandbox_exec_prefix(sb.resolve_profile("interactive"), workspace="/ws")
+    check("prefix: strict no --net (no egress)", "--net" not in sp and sp[-1] == "--")
+    # unknown tier fails CLOSED -> confined, no net
+    uk = sb.sandbox_exec_prefix(sb.resolve_profile("bogus"), workspace="/ws")
+    check("prefix: unknown tier fail-closed (confined, no net)",
+          uk and uk[0] == "mios-sandbox-exec" and "--net" not in uk)
+
+
 def main():
     t_tiers()
     t_fail_closed()
@@ -90,6 +109,7 @@ def main():
     t_workspace()
     t_shape()
     t_bwrap()
+    t_sandbox_exec_prefix()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
 

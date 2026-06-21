@@ -85,6 +85,28 @@ def workspace_path(verb: str, uniq: str, *, base: str = "/var/lib/mios/ai/dispat
     return f"{base.rstrip('/')}/{vh}-{safe_uniq}"
 
 
+def sandbox_exec_prefix(profile: "SandboxProfile", *,
+                        workspace: Optional[str] = None,
+                        level: str = "enforce",
+                        exe: str = "mios-sandbox-exec") -> "list[str]":
+    """The mios-sandbox-exec argv PREFIX (ending in '--') a confined profile maps
+    to, or [] for an unconfined ('none') profile. server.py prepends this to a
+    verb's broker command so a write/interactive verb runs under the MiOS sandbox
+    CLI (which wraps bwrap with progressive --level + cgroup caps). `--level
+    enforce` => read-only root + one writable workspace; `--net` is added ONLY when
+    the tier permits egress (so 'strict' stays no-net). This is the testable policy
+    half; server.py owns the workspace mkdir + the actual exec."""
+    if not profile.confined:
+        return []
+    out = [exe, "--level", level]
+    if profile.network:
+        out.append("--net")
+    if profile.workspace and workspace:
+        out += ["--workspace", workspace]
+    out.append("--")
+    return out
+
+
 def build_bwrap_argv(profile: "SandboxProfile", cmd: Sequence[str], *,
                      workspace: Optional[str] = None,
                      bwrap: str = "bwrap") -> "list[str]":

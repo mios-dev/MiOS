@@ -1601,6 +1601,16 @@ rr_quantum_s      = 8.0         # seconds a dispatch runs before it becomes pree
 rr_max_suspended  = 4           # bounded snapshot-slot free-list (max concurrently-suspended generations)
 rr_slice_tokens   = 512         # tokens per slice; sized so short/medium answers finish in ONE slice (no chunking)
 rr_slice_timeout_s = 120.0      # per-slice completion timeout
+# ── WS-A13 risk-tier dispatch sandbox. The agent-pipe RESOLVES each verb's
+# permission tier -> a confinement profile (mios_sandbox, FAIL-CLOSED: unknown ->
+# strict) and RECORDS it on every dispatch result (audit; see /v1 result.sandbox).
+# When sandbox_enforce=true it also WRAPS the broker cmd of a verb that OPTS IN via
+# [verbs.<v>].sandbox_profile = "workspace"|"strict" through mios-sandbox-exec
+# (bwrap: ro-root + writable workspace + no-net unless the tier allows). OPT-IN +
+# DEFAULT-OFF so OS-control/launch verbs (which bwrap would break) are never
+# wrapped here; code-exec verbs already self-confine at mios-coderun. Env:
+# MIOS_SANDBOX_ENFORCE.
+sandbox_enforce   = false       # off => resolve+record only; on => also wrap opted-in verbs
 # ── Batch coalescing (WS-A6). RESEARCHED: vLLM/SGLang/llama.cpp already do
 # server-side CONTINUOUS BATCHING (a rolling scheduler coalesces concurrent
 # requests optimally), so client-side coalescing BYPASSES those lanes (double-

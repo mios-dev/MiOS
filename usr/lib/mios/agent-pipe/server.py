@@ -109,6 +109,7 @@ import mios_kvgc   # noqa: E402  -- WS-A4 KV slot-file GC planner
 import mios_secset   # noqa: E402  -- WS-A14 SSOT-derived high-privilege/taint sets
 import mios_hopbudget   # noqa: E402  -- WS-4 hop-budget recursion guard + effort scaling
 import mios_preempt   # noqa: E402  -- WS-A12 RR-preemption state machine + snapshot contract
+import mios_sandbox   # noqa: E402  -- WS-A13 risk-tier dispatch-sandbox profile resolver
 import mios_batch   # noqa: E402  -- WS-A6 batch coalescing (bypass native-batch lanes)
 import mios_smartroute   # noqa: E402  -- WS-A16 cost/quality SmartRouting (local-first escalation)
 import mios_codemode as _codemode   # noqa: E402  -- WS-2 Code Mode pure helpers
@@ -3220,6 +3221,54 @@ BATCH_NATIVE_HINTS = [h.strip() for h in str(
 SMARTROUTE_ENABLE = str(os.environ.get("MIOS_SMARTROUTE_ENABLE", "")).strip().lower() \
     in ("1", "true", "yes", "on")
 SMARTROUTE_BUDGET = float(os.environ.get("MIOS_SMARTROUTE_BUDGET", "0") or 0)
+# ── Risk-tier dispatch sandbox (WS-A13). mios_sandbox resolves each verb's
+# permission tier -> a confinement profile (FAIL-CLOSED: unknown tier -> strict).
+# The agent-pipe is the POLICY point: it RESOLVES + RECORDS the profile on every
+# dispatch (audit), and -- when SANDBOX_ENFORCE is on -- WRAPS the broker cmd of a
+# verb that OPTS IN via [verbs.*].sandbox_profile through mios-sandbox-exec (bwrap)
+# so a write/interactive verb runs ro-root + writable-workspace + (no-net unless
+# its tier allows). OPT-IN per verb + DEFAULT-OFF so it never misfires on the
+# OS-control/launch verbs that bwrap would break (display/`/mnt/c`); those run
+# broker-side, already confined by the broker's systemd hardening + PDP/taint/HITL
+# gates. Code-exec verbs (coderun/code_mode) already self-confine at mios-coderun.
+SANDBOX_ENFORCE = (
+    str(os.environ.get("MIOS_SANDBOX_ENFORCE")
+        or _DISPATCH_TOML.get("sandbox_enforce", "false"))
+    .strip().lower() not in {"false", "0", "no", "off", ""})
+# A verb's broker cmd that ALREADY routes through one of these self-confines, so
+# the agent-pipe must NOT double-wrap it.
+_SANDBOX_SELF_CONFINED = ("mios-sandbox-exec", "mios-coderun")
+
+
+def _dispatch_sandbox_profile(tool: str) -> "mios_sandbox.SandboxProfile":
+    """Resolve the WS-A13 confinement profile for `tool`: its [verbs.*].permission
+    tier, with an optional [verbs.*].sandbox_profile explicit override. Fail-closed
+    in mios_sandbox (unknown tier/override -> strict)."""
+    vcfg = _VERB_CATALOG.get(tool) or {}
+    return mios_sandbox.resolve_profile(
+        str(vcfg.get("permission", "read")).lower(),
+        explicit=vcfg.get("sandbox_profile"))
+
+
+def _sandbox_wrap_cmd(tool: str, cmd: str,
+                      profile: "mios_sandbox.SandboxProfile") -> "tuple":
+    """Return (cmd, workspace_or_None). When SANDBOX_ENFORCE is on AND `tool` OPTS
+    IN to confinement (an explicit [verbs.*].sandbox_profile) AND the resolved
+    profile is confined AND the cmd does not already self-confine, prefix it with
+    mios-sandbox-exec (--level enforce, +--net iff the tier allows egress) bound to
+    a fresh per-dispatch workspace. Otherwise the cmd is returned unchanged. The
+    OPT-IN gate (explicit override, not tier alone) is what keeps OS-control/launch
+    verbs -- which bwrap would break -- from ever being wrapped here."""
+    opted_in = bool((_VERB_CATALOG.get(tool) or {}).get("sandbox_profile"))
+    if not (SANDBOX_ENFORCE and opted_in and profile.confined):
+        return cmd, None
+    if any(w in cmd for w in _SANDBOX_SELF_CONFINED):
+        return cmd, None
+    ws = mios_sandbox.workspace_path(tool, uuid.uuid4().hex)
+    prefix = mios_sandbox.sandbox_exec_prefix(profile, workspace=ws)
+    if not prefix:
+        return cmd, None
+    return " ".join(shlex.quote(p) for p in prefix) + " " + cmd, ws
 
 
 def _endpoint_is_llamacpp(ep: str, cfg: dict, engine: Optional[str] = None) -> bool:
@@ -17696,6 +17745,16 @@ async def _dispatch_mios_verb_inner(
             "output": "", "stderr": f"broker socket missing at {LAUNCHER_SOCK}",
             "exit_code": -1, "latency_ms": 0,
         }
+    # ── WS-A13 risk-tier sandbox: resolve this verb's confinement profile (recorded
+    # on the result for audit) + OPT-IN wrap the broker cmd through mios-sandbox-exec.
+    # Default-off / opt-in-per-verb => cmd is unchanged unless a verb declares
+    # [verbs.*].sandbox_profile AND MIOS_SANDBOX_ENFORCE is on (degrade-open: any
+    # resolve error falls back to the strictest profile + the unwrapped cmd).
+    try:
+        _sbx_profile = _dispatch_sandbox_profile(tool)
+        cmd, _sbx_ws = _sandbox_wrap_cmd(tool, cmd, _sbx_profile)
+    except Exception:  # noqa: BLE001
+        _sbx_profile, _sbx_ws = mios_sandbox.resolve_profile(""), None
     t0 = time.time()
     try:
         def _broker_io() -> str:
@@ -17765,6 +17824,7 @@ async def _dispatch_mios_verb_inner(
             "latency_ms": latency_ms,
             "tainted": v_tainted,
             "taint_reason": v_reason,
+            "sandbox": _sbx_profile.to_dict(),  # WS-A13 resolved confinement posture
         }
     except OSError as e:
         return {
