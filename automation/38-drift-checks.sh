@@ -397,19 +397,19 @@ check_package_registry() {
 # replaced both with PARAMETERIZED pg -- values bound OUT-OF-BAND via
 # mios-pg-query --exec-json / mios-db --pg-json -- so a regression silently
 # no-ops on pg (dead SurrealQL) or reopens a SQL-injection hole. TWO tools carry
-# a DOCUMENTED, deferred residual (higher-risk to cut over, not silent): mios-
-# daemon (harmless dead SurrealQL branches + _pgesc inside _db_create's CREATE-
-# string builder; its LIVE pg writes _pg_insert/_pg_replace_directory_entries ARE
-# parameterized). It is allowlisted + named here so the gate protects every other
-# tool without false-failing intentional residual; shrink the allowlist as it is
-# cut over. (mios-viking was migrated to parameterized pg + de-SurrealQL'd.)
+# The allowlist is now EMPTY: every libexec tool was cut over to parameterized pg
+# (mios-daemon's dead SurrealQL transports _db_post/_db_post_sync are stubbed
+# no-ops + _pgesc deleted + its live pg writes parameterized; mios-viking
+# migrated). Any reappearance of these markers anywhere in libexec is a real
+# regression -> fail. (Re-add a NAMED entry to `allow` only for a deliberate,
+# documented residual; never to silence a regression.)
 check_cli_sql_safety() {
     local dir="$ROOT/usr/libexec/mios"
     if [[ ! -d "$dir" ]]; then
         echo "[38-drift-checks]   (10) libexec dir absent -- skipped"
         return 0
     fi
-    local allow=" mios-daemon "   # documented WS-A3 residual (see below)
+    local allow=" "   # empty: all libexec tools cut over to parameterized pg
     local pattern='(_pgesc\(|_pgq\(|post_sql\(|def _sql\(|/sql"|surreal-ns)'
     local hits="" f base active
     while IFS= read -r f; do
@@ -426,7 +426,7 @@ check_cli_sql_safety() {
         printf '%s' "$hits" >&2
         _violation "a libexec CLI (re)introduced the retired SurrealDB transport (post_sql/_sql/:8000/sql) or hand-rolled SQL escaping (_pgesc/_pgq) -- use parameterized pg via mios-pg-query --exec-json / mios-db --pg-json (WS-A3)"
     else
-        echo "[38-drift-checks]   (10) libexec CLIs SQL-safe (parameterized pg; documented residual allowlist: mios-daemon)"
+        echo "[38-drift-checks]   (10) libexec CLIs SQL-safe (parameterized pg; allowlist empty -- all tools cut over)"
     fi
 }
 

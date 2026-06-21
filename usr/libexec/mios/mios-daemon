@@ -264,10 +264,6 @@ _PG_PRIMARY = DB_BACKEND == "postgres"
 _MIOS_DB = "/usr/libexec/mios/mios-db"
 
 
-def _pgesc(s) -> str:
-    return str(s).replace("'", "''")
-
-
 def _pg_exec(sql: str) -> None:
     if not _PG_ENABLED:
         return
@@ -329,36 +325,13 @@ def _pg_insert(table: str, fields: dict) -> None:
 
 
 def _db_post(sql: str, *, timeout: float = 3.0) -> Optional[list]:
-    """Best-effort SurrealDB write/query. Returns the parsed list of
-    per-statement results, or None on any error. A 30s backoff after
-    each failure prevents retry storms when the DB is down."""
-    global _DB_DOWN_UNTIL
-    if not sql or not sql.strip():
-        return None
-    # WS-9c: when Postgres is primary, daemon writes are mirrored to pgvector at
-    # the _db_create chokepoint -- skip the SurrealDB write here.
-    if _PG_PRIMARY:
-        _verb = sql.lstrip().split(None, 1)[0].upper()
-        if _verb in ("CREATE", "UPDATE", "DELETE", "INSERT", "RELATE"):
-            return None
-    if time.time() < _DB_DOWN_UNTIL:
-        return None
-    body = (f"USE NS {DB_NS} DB {DB_DB}; " + sql).encode("utf-8")
-    try:
-        req = urllib.request.Request(
-            f"{DB_URL}/sql",
-            data=body,
-            headers={
-                "Authorization": _DB_AUTH,
-                "Accept": "application/json",
-            },
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=timeout) as r:
-            return json.loads(r.read())
-    except Exception:
-        _DB_DOWN_UNTIL = time.time() + 30
-        return None
+    """WS-A3: SurrealDB (:8000) is RETIRED -> hard no-op. Returns None (callers
+    do `or []` / _ok_result(None) -> []), exactly as the dead backend resolved to
+    but WITHOUT the per-call 3s timeout + 30s backoff. Writes are already mirrored
+    to pgvector at the _db_create chokepoint (_pg_insert); translated reads go
+    through _db_read's pg path. Kept as a stub (signature incl. `timeout`) so the
+    many _db_post(_db_create(...)) write sites + read fallbacks need no change."""
+    return None
 
 
 def _pg_query(select_sql: str, params: "Optional[list]" = None) -> list:
@@ -2826,32 +2799,12 @@ def _atomic_replace_for_root(root_label: str,
 
 
 def _db_post_sync(sql: str) -> list:
-    """Synchronous SurrealDB POST -- mios-daemon doesn't run an
-    asyncio loop, so we use urllib for the index loop's DB writes.
-
-    Like agent-pipe's _db_post we PREFIX every query with
-    `USE NS mios DB agent;` because the NS:/DB: HTTP headers are
-    not honored on this SurrealDB version (returns
-    "NamespaceEmpty: Specify a namespace to use"). The USE
-    statement lands as the first statement; subsequent statements
-    run in that namespace. Returns the parsed response list or
-    raises on HTTP error. Errors-per-statement come back as
-    {"status":"ERR","result":"..."} entries; caller inspects."""
-    import urllib.request as _ur
-    body = f"USE NS mios DB agent; {sql}".encode("utf-8")
-    req = _ur.Request(
-        f"{os.environ.get('MIOS_DB_URL', 'http://localhost:8000')}/sql",
-        data=body,
-        headers={
-            # root:root base64 = "cm9vdDpyb290"
-            "Authorization": "Basic cm9vdDpyb290",
-            "Accept": "application/json",
-            "Content-Type": "text/plain",
-        },
-        method="POST",
-    )
-    with _ur.urlopen(req, timeout=15) as r:
-        return json.loads(r.read().decode("utf-8", errors="replace"))
+    """WS-A3: SurrealDB (:8000) is RETIRED -> hard no-op (returns []). The
+    directory index is written to pgvector by _pg_replace_directory_entries
+    (called FIRST in _atomic_replace_for_root, in dual + postgres modes), so this
+    surreal mirror was redundant dead work. Stub kept so the index-loop call
+    sites need no change."""
+    return []
 
 
 def index_loop() -> None:
