@@ -1588,12 +1588,19 @@ kv_slots_dir      = ""          # llama.cpp --slot-save-path IF local to the age
 # ── RR time-slice preemption (WS-A12) — bound how long one dispatch holds a lane
 # before its quantum expires + it is snapshotted/requeued so the next waiter
 # runs. The policy/bookkeeping (mios_preempt) ships + is observable on
-# /v1/scheduler; the engine-side interruptible decode that ACTS on it is deferred
-# -> DEFAULT-OFF (inert, zero behaviour change). Env: MIOS_RR_ENABLE /
-# MIOS_RR_QUANTUM_S / MIOS_RR_MAX_SUSPENDED.
-rr_enable         = false       # master switch (inert until the decode hook + WS-A11 Context seam land)
+# /v1/scheduler; the engine-side interruptible decode that ACTS on it is _rr_run()
+# in server.py -- a CHUNKED fan-out completion that snapshots the KV (/slots save)
+# + yields the priority gate at a slice boundary, then re-acquires + restores so
+# the preempted generation resumes without reprocessing. DEFAULT-OFF (inert, zero
+# behaviour change until you opt in + load-test). Applies only to a llama.cpp
+# /slots lane on a no-tools fan-out dispatch (tool-loop preemption needs WS-A11).
+# Env: MIOS_RR_ENABLE / MIOS_RR_QUANTUM_S / MIOS_RR_MAX_SUSPENDED /
+# MIOS_RR_SLICE_TOKENS / MIOS_RR_SLICE_TIMEOUT_S.
+rr_enable         = false       # master switch (off => _call_agent_complete never routes through _rr_run)
 rr_quantum_s      = 8.0         # seconds a dispatch runs before it becomes preemptible
 rr_max_suspended  = 4           # bounded snapshot-slot free-list (max concurrently-suspended generations)
+rr_slice_tokens   = 512         # tokens per slice; sized so short/medium answers finish in ONE slice (no chunking)
+rr_slice_timeout_s = 120.0      # per-slice completion timeout
 # ── Batch coalescing (WS-A6). RESEARCHED: vLLM/SGLang/llama.cpp already do
 # server-side CONTINUOUS BATCHING (a rolling scheduler coalesces concurrent
 # requests optimally), so client-side coalescing BYPASSES those lanes (double-

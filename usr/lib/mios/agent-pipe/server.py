@@ -3170,19 +3170,32 @@ KV_GC_TTL_S = _dispatch_num("MIOS_KV_GC_TTL_S", "kv_gc_ttl_s", 86400, cast=float
 KV_GC_MAX_BYTES = _dispatch_num("MIOS_KV_GC_MAX_BYTES", "kv_gc_max_bytes", 2000000000)
 KV_SLOTS_DIR = (os.environ.get("MIOS_KV_SLOTS_DIR", "")
                 or str(_DISPATCH_TOML.get("kv_slots_dir", "") or "")).strip()
-# ── RR time-slice preemption (WS-A12) — bound how long one dispatch holds a lane
-# before its quantum expires + it is snapshotted/requeued so the next waiter runs.
-# The POLICY/bookkeeping (mios_preempt: quantum, bounded snapshot-slot free-list,
-# priority-ordered resume) ships here + is observable; the engine-side
-# interruptible decode that ACTS on it is deferred (needs llama.cpp/SGLang decode
-# hooks + the WS-A11 Context seam). DEFAULT-OFF: the state machine is inert until
-# rr_enable AND the decode hook land, so this is a zero-behaviour-change deploy.
+# ── RR time-slice preemption (WS-A12) — bound how long one fan-out dispatch holds
+# a lane before its quantum expires + it is snapshotted so the next (higher-prio)
+# waiter runs. The POLICY/bookkeeping is mios_preempt (quantum, bounded
+# snapshot-slot free-list, priority-ordered resume, the per-slice decide()). The
+# engine-side interruptible decode that ACTS on it is _rr_run() below: a CHUNKED
+# completion that, at each RR_SLICE_TOKENS slice boundary, snapshots this gen's KV
+# (/slots save -- the real, verified llama.cpp endpoint) + RELEASES the priority
+# gate so a higher-priority waiter jumps in, then RE-ACQUIRES + restores (/slots
+# restore + cache_prompt) so no token is reprocessed. The achievable preemption
+# QUANTUM for an autoregressive server is a bounded token chunk (no engine does
+# sub-forward-pass preemption); the chunk boundary IS the time-slice. DEFAULT-OFF
+# (rr_enable=false) => _call_agent_complete never routes through _rr_run, so the
+# deploy is byte-identical until the operator opts in + load-tests. Only applies
+# to a llama.cpp /slots lane on a NO-tools (single-completion) fan-out dispatch;
+# tool-loop preemption needs the WS-A11 Context seam and stays single-call.
 RR_ENABLE = (
     str(os.environ.get("MIOS_RR_ENABLE")
         or _DISPATCH_TOML.get("rr_enable", "false"))
     .strip().lower() not in {"false", "0", "no", "off", ""})
 RR_QUANTUM_S = _dispatch_num("MIOS_RR_QUANTUM_S", "rr_quantum_s", 8.0, cast=float)
 RR_MAX_SUSPENDED = _dispatch_num("MIOS_RR_MAX_SUSPENDED", "rr_max_suspended", 4)
+# A generation slice = at most this many tokens before a preemption check. Sized
+# so short/medium fan-out answers finish in ONE slice (zero chunking overhead) and
+# only genuinely-long generations chunk + become preemptible.
+RR_SLICE_TOKENS = _dispatch_num("MIOS_RR_SLICE_TOKENS", "rr_slice_tokens", 512)
+RR_SLICE_TIMEOUT = _dispatch_num("MIOS_RR_SLICE_TIMEOUT_S", "rr_slice_timeout_s", 120.0, cast=float)
 _PREEMPT = mios_preempt.PreemptScheduler(max_suspended=RR_MAX_SUSPENDED)
 # ── Batch coalescing (WS-A6). RESEARCHED: vLLM/SGLang/llama.cpp do server-side
 # CONTINUOUS BATCHING, so client-side coalescing BYPASSES those lanes (double-
@@ -3327,6 +3340,127 @@ async def _kv_fork(client, ep: str, cfg: dict, engine, src_conv: str,
         if forked:
             _KV_RESIDENT[key] = dst_conv  # the slot now holds the child's KV
     return {"forked": forked, "reason": reason}
+
+
+# ── RR preemptible decode driver (WS-A12) ────────────────────────────────────
+# The engine-side actor for the mios_preempt policy. See the RR_ENABLE comment
+# block above for the design; in short: chunk a fan-out completion into
+# RR_SLICE_TOKENS slices and, when a higher-priority dispatch is queued and the
+# quantum is spent, snapshot the KV (/slots save) + yield the priority gate, then
+# re-acquire + restore so the preempted gen resumes WITHOUT reprocessing.
+def _rr_eligible(body: dict, ep: str, cfg: dict, engine) -> bool:
+    """A fan-out dispatch is RR-preemptible only when preemption can both HELP and
+    be done safely: RR is on, the priority gate is active (it is what re-orders
+    waiters), the lane is a llama.cpp /slots lane (save/restore actually work),
+    and this is a PLAIN completion -- no tools[] -> no multi-step tool loop to
+    bisect mid-flight (that needs the WS-A11 Context seam)."""
+    return bool(RR_ENABLE and PRIORITY_QUEUE_ENABLE
+                and not (body or {}).get("tools")
+                and (body or {}).get("messages")
+                and ep and _endpoint_is_llamacpp(ep, cfg, engine))
+
+
+async def _rr_slice(client, ep: str, model, messages, max_tokens, headers):
+    """One bounded completion slice on a llama.cpp /v1 lane. cache_prompt + a
+    pinned id_slot reuse the warm (or just-restored) KV so only the new suffix is
+    decoded. Returns (text, finished); `finished` is True on a real stop/EOS
+    (finish_reason not in {length, ''}) -- else the slice hit the token budget and
+    more remains."""
+    payload = {"model": model, "messages": messages,
+               "max_tokens": int(max_tokens), "stream": False,
+               "cache_prompt": True, "id_slot": KV_PAGING_SLOT,
+               "chat_template_kwargs": {"enable_thinking": False}}
+    hdrs = {"Content-Type": "application/json", **(headers or {})}
+    if _BACKEND_KEY and ep.split("://")[-1].split("/")[0] in _AUTH_HOSTPORTS:
+        for _k in [k for k in hdrs if k.lower() == "authorization"]:
+            hdrs.pop(_k)
+        hdrs["Authorization"] = f"Bearer {_BACKEND_KEY}"
+    r = await client.post(ep.rstrip("/") + "/chat/completions",
+                          content=json.dumps(payload).encode("utf-8"),
+                          headers=hdrs, timeout=RR_SLICE_TIMEOUT)
+    r.raise_for_status()
+    j = r.json()
+    ch = (j.get("choices") or [{}])[0]
+    text = str((ch.get("message") or {}).get("content") or "")
+    finished = (ch.get("finish_reason") or "") not in ("length", "")
+    return text, finished
+
+
+async def _rr_run(client, ep: str, model, messages, *, conv: str,
+                  priority: float, max_tokens, headers=None) -> str:
+    """Interruptible chunked decode (WS-A12). SINGLE-OWNER of the global priority
+    gate: acquires once, releases once in `finally`, and across a preemption does
+    a balanced release->re-acquire (held tracked precisely) so permit accounting
+    can never drift. Returns the full assistant text. Degrade-open: ANY failure
+    falls back to one completion of the whole budget; the partial is never lost."""
+    held = False
+    partial, produced = "", 0
+    total = int(max_tokens or RR_SLICE_TOKENS)
+    try:
+        await _GLOBAL_PRIORITY_GATE.acquire(priority)
+        held = True
+        q = mios_preempt.Quantum(time.monotonic(), RR_QUANTUM_S)
+        while produced < total:
+            msgs = list(messages)
+            if partial:                       # continue the assistant turn
+                msgs.append({"role": "assistant", "content": partial})
+            want = min(RR_SLICE_TOKENS, total - produced)
+            text, finished = await _rr_slice(client, ep, model, msgs, want, headers)
+            partial += text
+            produced += want
+            if finished or not text:
+                break
+            try:
+                head = _GLOBAL_PRIORITY_GATE.head_priority()
+            except Exception:  # noqa: BLE001
+                head = None
+            action = mios_preempt.decide(
+                finished=False,
+                quantum_expired=q.expired(time.monotonic()),
+                higher_priority_waiting=(head is not None and head > priority),
+                can_suspend=_PREEMPT.can_admit())
+            if action != mios_preempt.PREEMPT:
+                continue
+            slot = _PREEMPT.acquire_slot()
+            if slot is None:                  # lost the slot race -> keep running
+                continue
+            # Snapshot KV, record the suspension, hand the lane to the waiter.
+            await _kv_slot_action(client, ep, "save", conv, model)
+            _PREEMPT.suspend(mios_preempt.Snapshot(conv, priority, produced, partial, slot))
+            _GLOBAL_PRIORITY_GATE.release()
+            held = False
+            try:
+                await _GLOBAL_PRIORITY_GATE.acquire(priority)  # blocks till we're next
+                held = True
+            finally:
+                _PREEMPT.discharge(conv)      # free our snapshot slot
+            await _kv_slot_action(client, ep, "restore", conv, model)
+            q = mios_preempt.Quantum(time.monotonic(), RR_QUANTUM_S)  # fresh quantum
+        return partial
+    except asyncio.CancelledError:
+        raise
+    except Exception:  # noqa: BLE001 -- degrade-open: one shot for the whole budget
+        log.warning("RR preemptible decode failed; single-completion fallback",
+                    exc_info=True)
+        if _PREEMPT.is_suspended(conv):
+            _PREEMPT.discharge(conv)
+        if not held:
+            try:
+                await _GLOBAL_PRIORITY_GATE.acquire(priority)
+                held = True
+            except Exception:  # noqa: BLE001
+                pass
+        try:
+            text, _ = await _rr_slice(client, ep, model, list(messages), total, headers)
+            return (partial + text) if partial else text
+        except Exception:  # noqa: BLE001
+            return partial
+    finally:
+        if held:
+            try:
+                _GLOBAL_PRIORITY_GATE.release()
+            except Exception:  # noqa: BLE001
+                pass
 
 
 # ── Model-adapter gateway: OpenAI <-> Alternative Providers (item #1 slice 4) ──
@@ -4160,6 +4294,26 @@ async def _call_agent_complete(name, cfg, body, headers, client,
     # 2026-06-01 thundering-herd fix.
     _est = _opt_int_mb(cfg.get("vram_mb"))   # Phase-1 per-worker VRAM (0 = unknown)
     await _admit(_ep, _adm_model, _engine or _lane_sem_key(cfg), _prio, _est)
+    # WS-A12: RR-preemptible path. This fn IS the fan-out/secondary dispatch (the
+    # work that SHOULD yield a lane to a higher-priority waiter), so when RR is on
+    # and this is a plain completion on a /slots lane, drive it through _rr_run --
+    # which OWNS the priority gate itself (release/re-acquire across preemptions),
+    # so it runs UNDER the endpoint+lane caps but NOT _priority_gate (single gate
+    # owner = no double-accounting). Default-off => the else-branch below is the
+    # unchanged, proven path.
+    if _rr_eligible(body, _ep, cfg, _engine):
+        async with _endpoint_sem(_ep):
+            async with _lane_sem(_engine or _lane_sem_key(cfg)):
+                await _model_active(_ep, _adm_model, 1, _est)
+                try:
+                    _conv = _conv_key_var.get() or name
+                    _t = await _rr_run(client, _ep, _adm_model,
+                                       body.get("messages") or [], conv=_conv,
+                                       priority=_prio, max_tokens=body.get("max_tokens"),
+                                       headers=headers)
+                finally:
+                    await _model_active(_ep, _adm_model, -1, _est)
+                return name, _strip_agent_chrome(_t)
     # Global host cap OUTERMOST (bounds TOTAL running dispatches across all lanes
     # so a wide all-nodes fan-out can't sum past host capacity), then endpoint,
     # then lane.
@@ -18985,7 +19139,8 @@ async def scheduler_state() -> JSONResponse:
         # WS-A8 per-request trace/span observability: buffer posture + recent traces.
         "trace": {**_TRACER.stats(), "recent": _TRACER.recent(10)},
         # WS-A12 RR preemption: policy posture + live suspended/free-slot counts.
-        "preempt": {"enabled": RR_ENABLE, "quantum_s": RR_QUANTUM_S, **_PREEMPT.stats()},
+        "preempt": {"enabled": RR_ENABLE, "quantum_s": RR_QUANTUM_S,
+                    "slice_tokens": RR_SLICE_TOKENS, **_PREEMPT.stats()},
         # WS-A6 batch coalescing: posture (native lanes self-batch -> bypassed).
         "batch": {"enabled": BATCH_ENABLE, "interval_s": BATCH_INTERVAL_S,
                   "max_size": BATCH_MAX_SIZE, "native_bypass_hints": BATCH_NATIVE_HINTS},

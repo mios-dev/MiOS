@@ -18,6 +18,35 @@ from __future__ import annotations
 import collections
 from typing import Dict, List, Optional
 
+# ── per-slice (quantum-boundary) decision outcomes for the interruptible driver ──
+# server.py's preemptible decode loop generates in bounded slices and, at every
+# slice boundary, asks decide() what to do next. Keeping the rule HERE (pure +
+# truth-tabled in tests) means the engine-side driver carries no policy of its own.
+CONTINUE = "continue"   # same task keeps the lane -- run another slice
+PREEMPT = "preempt"     # snapshot this gen's KV + yield the lane to a waiter
+COMPLETE = "complete"   # the slice hit a stop/EOS -> the generation is done
+
+
+def decide(*, finished: bool, quantum_expired: bool,
+           higher_priority_waiting: bool, can_suspend: bool) -> str:
+    """Pure per-slice-boundary decision for an interruptible generation.
+
+    - finished -> COMPLETE (the decode loop saw a stop/EOS within the slice).
+    - a higher-priority waiter IS queued AND this run has spent its quantum AND
+      we can bound the suspension (a free snapshot slot exists) -> PREEMPT.
+    - otherwise CONTINUE (run another slice).
+
+    Bounded-suspension safety: when no snapshot slot is free (`can_suspend` is
+    False) we NEVER preempt -- the task runs to completion instead -- so the set
+    of suspended generations can never exceed the cap and a preempted task is
+    never dropped on the floor. A generation is only ever preempted at a slice
+    boundary, so its partial output up to that boundary is always captured."""
+    if finished:
+        return COMPLETE
+    if quantum_expired and higher_priority_waiting and can_suspend:
+        return PREEMPT
+    return CONTINUE
+
 
 class Quantum:
     """A dispatch's time-slice: started at t0, expires after `limit_s` seconds."""
@@ -104,6 +133,21 @@ class PreemptScheduler:
         snap = self._suspended.pop(best_id)
         self.release_slot(snap.slot)
         return snap
+
+    def discharge(self, task_id: str) -> Optional[Snapshot]:
+        """Remove a SPECIFIC suspended task and free its slot, returning its
+        Snapshot (None if it was not suspended). This is the self-resume path for
+        the gate-driven driver: a preempted generation re-acquires the lane via
+        the priority gate (which already orders waiters by priority), so it
+        discharges ITS OWN snapshot rather than popping the global highest via
+        resume() -- that would let one coroutine steal another's saved state."""
+        snap = self._suspended.pop(str(task_id), None)
+        if snap is not None:
+            self.release_slot(snap.slot)
+        return snap
+
+    def is_suspended(self, task_id: str) -> bool:
+        return str(task_id) in self._suspended
 
     def stats(self) -> dict:
         return {
