@@ -107,7 +107,7 @@ jobs:
         run: |
           sudo mkdir -p /etc/containers
           echo -e '[storage]\ndriver = "vfs"\nrunroot = "/run/containers/storage"\ngraphroot = "/var/lib/containers/storage"' | sudo tee /etc/containers/storage.conf
-          sudo podman system reset -f
+          sudo rm -rf /var/lib/containers/storage /run/containers/storage
 
       - name: Free disk space on the GHA runner
         # GitHub-hosted ubuntu-24.04 runners ship with ~14 GB free on
@@ -304,7 +304,7 @@ jobs:
         run: |
           sudo mkdir -p /etc/containers
           echo -e '[storage]\ndriver = "vfs"\nrunroot = "/run/containers/storage"\ngraphroot = "/var/lib/containers/storage"' | sudo tee /etc/containers/storage.conf
-          sudo podman system reset -f
+          sudo rm -rf /var/lib/containers/storage /run/containers/storage
 
       - name: Free disk space on the GHA runner (smoke job)
         # Same rationale as the main build job -- runner needs ~30 GB
