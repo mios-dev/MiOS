@@ -668,9 +668,10 @@ def main(argv: list[str]) -> int:
             # agent can ask / resolve (rather than the CLI guessing a target).
 
     client = OpenAI(base_url=ENDPOINT, api_key=API_KEY)
-    msgs: list[dict[str, Any]] = [
-        {"role": "system", "content": resolve_system_prompt()},
-    ]
+    is_orchestrator = ":8640" in ENDPOINT or "/agent-pipe" in ENDPOINT
+    msgs: list[dict[str, Any]] = []
+    if not is_orchestrator:
+        msgs.append({"role": "system", "content": resolve_system_prompt()})
     # Replay this terminal's rolling transcript so the model sees prior turns
     # (BUG C). --json is a single-shot structured contract -> no replay.
     _replay = (not schema_obj) and isinstance(session.get("history"), list)
