@@ -1,0 +1,123 @@
+#!/usr/bin/env python3
+# AI-hint: WS-A17 read-mostly local package-registry CLI. `list` prints the materialized package index, `verify` checks the committed registry.json is in sync with the live SSOT (exit 1 on drift, used by the drift gate), `generate` materializes the package tree (ai/v1/packages/<author>/<name>/<version>/mios-pkg.toml + registry.json) from the live catalogs via the pure mios_registry core -- ALL gated behind [ai].package_registry (MIOS_PACKAGE_REGISTRY): when the flag is off, generate/verify are inert no-ops so the feature ships dormant. Standalone (adds the agent-pipe dir to sys.path); no server.py, no DB, no network.
+# AI-related: /usr/lib/mios/agent-pipe/mios_registry.py, /usr/lib/mios/agent-pipe/mios_manifest.py, /usr/share/mios/mios.toml, /usr/share/mios/ai/v1/packages/registry.json, /automation/lib/generate-packages.sh
+# AI-functions: _items, _project, _emit_toml, cmd_generate, cmd_list, cmd_verify, main
+"""mios-registry -- list / verify / generate the local MiOS package registry (WS-A17)."""
+
+import json
+import os
+import sys
+
+_PIPE = os.environ.get("MIOS_AGENT_PIPE_DIR", "/usr/lib/mios/agent-pipe")
+if _PIPE not in sys.path:
+    sys.path.insert(0, _PIPE)
+
+import mios_registry as reg  # noqa: E402  -- pure projection core
+
+TOML = os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml")
+PKG_DIR = os.environ.get("MIOS_PACKAGES_DIR", "/usr/share/mios/ai/v1/packages")
+REGISTRY = os.path.join(PKG_DIR, "registry.json")
+ENABLED = str(os.environ.get("MIOS_PACKAGE_REGISTRY", "")).strip().lower() in (
+    "1", "true", "yes", "on")
+AUTHOR = os.environ.get("MIOS_PACKAGE_AUTHOR", "mios")
+VERSION = os.environ.get("MIOS_PACKAGE_VERSION", "0.0.0")
+
+
+def _items():
+    try:
+        import tomllib as _toml
+    except ImportError:  # pragma: no cover
+        import tomli as _toml  # type: ignore
+    with open(TOML, "rb") as fh:
+        data = _toml.load(fh)
+    items = []
+    for name, cfg in (data.get("verbs") or {}).items():
+        if isinstance(cfg, dict) and "section" in cfg:
+            items.append((name, "verb", cfg))
+    for name, cfg in (data.get("recipes") or {}).items():
+        if isinstance(cfg, dict):
+            items.append((name, "recipe", cfg))
+    for name, cfg in (data.get("agents") or {}).items():
+        if isinstance(cfg, dict):
+            items.append((name, "agent", cfg))
+    return items
+
+
+def _project():
+    return reg.build_registry(_items(), author=AUTHOR, version=VERSION)
+
+
+def _emit_toml(pkg: dict) -> str:
+    """Minimal flat-TOML serializer for a package manifest (scalars + [manifest])."""
+    def _v(x):
+        return json.dumps(x) if not isinstance(x, bool) else ("true" if x else "false")
+    lines = [f"{k} = {_v(pkg[k])}" for k in ("object", "schema", "author", "name", "version", "kind")]
+    man = pkg.get("manifest") or {}
+    if man:
+        lines.append("\n[manifest]")
+        lines += [f"{k} = {_v(v)}" for k, v in man.items()]
+    return "\n".join(lines) + "\n"
+
+
+def cmd_generate(argv) -> int:
+    if not ENABLED:
+        sys.stdout.write("[mios-registry] package_registry disabled (flag off) -- not materializing\n")
+        return 0
+    proj = _project()
+    os.makedirs(PKG_DIR, exist_ok=True)
+    for pkg in proj["packages"]:
+        d = os.path.join(PKG_DIR, pkg["author"], pkg["name"], pkg["version"])
+        os.makedirs(d, exist_ok=True)
+        with open(os.path.join(d, "mios-pkg.toml"), "w", encoding="utf-8") as fh:
+            fh.write(_emit_toml(pkg))
+    with open(REGISTRY, "w", encoding="utf-8") as fh:
+        json.dump(proj["index"], fh, ensure_ascii=False, indent=2, sort_keys=True)
+        fh.write("\n")
+    sys.stdout.write(f"[mios-registry] materialized {proj['index']['count']} packages -> {PKG_DIR}\n")
+    return 0
+
+
+def cmd_list(argv) -> int:
+    if not os.path.isfile(REGISTRY):
+        hint = "run: mios-registry generate" if ENABLED else "[ai].package_registry is off"
+        sys.stdout.write(f"[mios-registry] no registry materialized ({hint}).\n")
+        return 0
+    with open(REGISTRY, encoding="utf-8") as fh:
+        idx = json.load(fh)
+    for p in idx.get("packages", []):
+        sys.stdout.write(f"{p.get('kind',''):7} {p.get('author','')}/{p.get('name','')}@{p.get('version','')}\n")
+    sys.stdout.write(f"-- {idx.get('count', 0)} packages\n")
+    return 0
+
+
+def cmd_verify(argv) -> int:
+    if not ENABLED:
+        sys.stdout.write("[mios-registry] package_registry disabled (flag off) -- nothing to verify.\n")
+        return 0
+    if not os.path.isfile(REGISTRY):
+        sys.stderr.write("[mios-registry] FAIL: flag on but registry.json absent (run: mios-registry generate)\n")
+        return 1
+    with open(REGISTRY, encoding="utf-8") as fh:
+        committed = json.load(fh)
+    diffs = reg.verify_registry(_project()["index"], committed)
+    if diffs:
+        sys.stderr.write("[mios-registry] DRIFT: registry stale vs SSOT:\n")
+        for d in diffs[:40]:
+            sys.stderr.write(f"    {d}\n")
+        return 1
+    sys.stdout.write(f"[mios-registry] OK: registry in sync ({committed.get('count', 0)} packages).\n")
+    return 0
+
+
+def main(argv) -> int:
+    cmd = (argv[0] if argv else "list").strip().lower()
+    rest = argv[1:]
+    handler = {"list": cmd_list, "verify": cmd_verify, "generate": cmd_generate}.get(cmd)
+    if handler is None:
+        sys.stderr.write("usage: mios-registry [list|verify|generate]\n")
+        return 2
+    return handler(rest)
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

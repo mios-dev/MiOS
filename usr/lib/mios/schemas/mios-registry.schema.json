@@ -1,0 +1,31 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://mios.local/schemas/mios-registry.schema.json",
+  "title": "MiOS local package registry index (WS-A17)",
+  "description": "A flat catalogue of the versioned packages projected from the live SSOT, keyed by author/name/version. Materialized at ai/v1/packages/registry.json when [ai].package_registry is enabled; read by the mios-registry CLI.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["object", "schema", "count", "packages"],
+  "properties": {
+    "object": { "const": "mios.registry" },
+    "schema": { "const": "mios-registry/v1" },
+    "author": { "type": "string" },
+    "version": { "type": "string" },
+    "count": { "type": "integer", "minimum": 0 },
+    "packages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["author", "name", "version", "kind", "path"],
+        "properties": {
+          "author": { "type": "string" },
+          "name": { "type": "string" },
+          "version": { "type": "string" },
+          "kind": { "enum": ["verb", "agent", "recipe"] },
+          "path": { "type": "string", "pattern": "^ai/v1/packages/" }
+        }
+      }
+    }
+  }
+}

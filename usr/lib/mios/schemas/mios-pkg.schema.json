@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://mios.local/schemas/mios-pkg.schema.json",
+  "title": "MiOS package manifest (WS-A17)",
+  "description": "A versioned, self-describing wrapper around ONE MiOS capability (a verb/tool, an agent, or a recipe). Projected from the live SSOT (mios.toml / agent registry / recipes) by mios_registry; materialized at ai/v1/packages/<author>/<name>/<version>/mios-pkg.toml when [ai].package_registry is enabled.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["object", "schema", "author", "name", "version", "kind"],
+  "properties": {
+    "object": { "const": "mios.package" },
+    "schema": { "const": "mios-pkg/v1" },
+    "author": { "type": "string", "minLength": 1 },
+    "name": { "type": "string", "minLength": 1 },
+    "version": { "type": "string", "minLength": 1 },
+    "kind": { "enum": ["verb", "agent", "recipe"] },
+    "manifest": {
+      "type": "object",
+      "description": "A stable subset of the capability's SSOT entry so the package is self-describing.",
+      "additionalProperties": true
+    }
+  }
+}

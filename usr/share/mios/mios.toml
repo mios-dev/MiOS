@@ -4423,6 +4423,15 @@ tokenizer_backend   = "heuristic"
 # manifest-drift gate (mios-ai-manifest-gen --check) is green in CI. Env:
 # MIOS_CATALOG_FAIL_MODE.
 catalog_fail_mode   = "warn"
+# WS-A17 local package registry. When true, the build materializes a versioned
+# package tree (ai/v1/packages/<author>/<name>/<version>/mios-pkg.toml +
+# registry.json) projected from the live SSOT (verbs/agents/recipes) via the
+# mios-registry CLI, and the drift gate verifies it stays in sync. DEFAULT FALSE
+# -> the feature ships DORMANT: nothing is materialized and every gate passes
+# trivially. Env: MIOS_PACKAGE_REGISTRY / MIOS_PACKAGE_AUTHOR / MIOS_PACKAGE_VERSION.
+package_registry    = false
+package_author      = "mios"
+package_version     = "0.0.0"
 # WS-1 unified lane resolver (operator 2026-06-19): which heavy engine the agent-pipe
 # PREFERS when both heavy lanes ([ai.sglang] :11441 + [ai.vllm] :11440 -- BOTH advertise
 # served_name "mios-heavy") are provisioned. mios_lanes.LaneResolver tries the preferred

@@ -361,6 +361,36 @@ PY
     fi
 }
 
+# (9, WS-A17) When the local package registry is ENABLED ([ai].package_registry
+# / MIOS_PACKAGE_REGISTRY true), the committed ai/v1/packages/registry.json must
+# be in sync with the live SSOT. DORMANT by default (flag off) -> trivial pass,
+# so the dormant feature never reds the build.
+check_package_registry() {
+    local _en
+    _en="$(printf '%s' "${MIOS_PACKAGE_REGISTRY:-false}" | tr '[:upper:]' '[:lower:]')"
+    case "$_en" in
+        1|true|yes|on) : ;;
+        *)
+            echo "[38-drift-checks]   (9) package registry dormant ([ai].package_registry off) -- skipped"
+            return 0 ;;
+    esac
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "[38-drift-checks]   WARNING: python3 missing -- skipping package registry check" >&2
+        return 0
+    fi
+    if MIOS_AGENT_PIPE_DIR="$ROOT/usr/lib/mios/agent-pipe" \
+       MIOS_TOML="$ROOT/usr/share/mios/mios.toml" \
+       MIOS_PACKAGES_DIR="$ROOT/usr/share/mios/ai/v1/packages" \
+       python3 "$ROOT/usr/libexec/mios/mios-registry" verify >/dev/null 2>"$ROOT/.pkgreg.err"; then
+        rm -f "$ROOT/.pkgreg.err" 2>/dev/null || true
+        echo "[38-drift-checks]   (9) package registry in sync with mios.toml SSOT"
+    else
+        sed 's/^/    /' "$ROOT/.pkgreg.err" >&2 2>/dev/null || true
+        rm -f "$ROOT/.pkgreg.err" 2>/dev/null || true
+        _violation "ai/v1/packages/registry.json is STALE vs the SSOT -- regenerate with mios-registry generate (WS-A17)"
+    fi
+}
+
 main() {
     check_dead_lane
     check_retired_models
@@ -369,6 +399,7 @@ main() {
     check_module_boundary
     check_rbac_tiers
     check_ai_manifest
+    check_package_registry
 
     echo "[38-drift-checks] ---------------------------------------------------------"
     if [[ "$VIOLATIONS" -eq 0 ]]; then
