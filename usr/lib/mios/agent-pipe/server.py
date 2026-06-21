@@ -141,8 +141,9 @@ MCP_SERVER_PORT = int(os.environ.get("MIOS_PORT_MCP")
                       or os.environ.get("MIOS_MCP_PORT") or "8765")
 BACKEND = os.environ.get("MIOS_AGENT_PIPE_BACKEND",
                          "http://localhost:8642/v1").rstrip("/")
-BACKEND_MODEL = os.environ.get("MIOS_AGENT_PIPE_BACKEND_MODEL",
-                               "hermes-agent")
+BACKEND_MODEL = (os.environ.get("MIOS_AGENT_PIPE_BACKEND_MODEL")
+                 or os.environ.get("MIOS_AI_MODEL")   # WS-0B: ONE owned key = [ai].model
+                 or "hermes-agent")
 # host:port of the Hermes backend -- used to scope the bearer key so the
 # fanout/DAG agent path authenticates to Hermes (which enforces it) without
 # leaking the key to other local agents (operator 2026-05-25 swarm non-answer:
@@ -331,7 +332,9 @@ _INGRESS_KEY = os.environ.get("MIOS_AGENT_PIPE_INGRESS_KEY", "").strip()
 # small-model mis-routing fix -- a 12b picks the right verb among 82). SSOT knob
 # MIOS_STACK_MODEL; embeddings + vision keep their own. Every reasoning stage
 # below defaults to this single model.
-_STACK_MODEL = os.environ.get("MIOS_STACK_MODEL", "granite4.1:8b")  # served brain on :11450 (gemma4:12b retired -> 404; 2026-06-18)
+_STACK_MODEL = (os.environ.get("MIOS_STACK_MODEL")        # explicit per-deploy override
+                or os.environ.get("MIOS_AI_MODEL")        # WS-0B: ONE owned key = [ai].model (install.env)
+                or "granite4.1:8b")  # served brain on :11450 (gemma4:12b retired -> 404; 2026-06-18)
 _MICRO_MODEL = os.environ.get("MIOS_MICRO_MODEL", _STACK_MODEL)
 _MICRO_ENDPOINT = os.environ.get(
     "MIOS_MICRO_ENDPOINT", "http://localhost:11450/v1",  # mios-llm-light (was dead :11434)

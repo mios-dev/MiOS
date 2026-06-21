@@ -36,11 +36,12 @@ Environment=MIOS_PORT_AGENT_PIPE=8640
 # via server.py) + the explicit BACKEND/SWARM/MICRO names. ONE resident model = no
 # llama-swap thrash. Override per-deployment in /etc/mios/agent-pipe.env.
 Environment=MIOS_AGENT_PIPE_BACKEND=http://localhost:11450/v1
-Environment=MIOS_AGENT_PIPE_BACKEND_MODEL=granite4.1:8b
-Environment=MIOS_STACK_MODEL=granite4.1:8b
-Environment=MIOS_MICRO_MODEL=granite4.1:8b
 Environment=MIOS_MICRO_ENDPOINT=http://localhost:11450/v1
-Environment=MIOS_SWARM_MODEL=granite4.1:8b
+# WS-0B: ONE owned model key. BACKEND/MICRO/SWARM/PLANNER/REFINE/POLISH all
+# INHERIT this via server.py (_STACK_MODEL), which ALSO honors MIOS_AI_MODEL
+# ([ai].model SSOT) -- so set the model in ONE place, not seven. Override
+# per-deploy in /etc/mios/agent-pipe.env, or globally via [ai].model -> MIOS_AI_MODEL.
+Environment=MIOS_AI_MODEL=granite4.1:8b
 # llama.cpp/mios-llm-light (:11450) is OpenAI /v1 ONLY (no ollama /api/chat, /api/ps)
 # and 400s on tool_choice=required. Register it so the pipe treats it as llamacpp:
 # skip forced tool_choice (no 400) + use the /slots KV-paging path. No bare port
@@ -74,10 +75,7 @@ Environment=MIOS_OLLAMA_CPU_ENDPOINT=http://localhost:11450
 # History: qwen2.5-coder:7b -> mios-planner(gemma4) -> mios-agent(gemma4)
 # -> mios-agent(qwen3.5:4b, consolidated brain) 2026-05-22.
 Environment=MIOS_AGENT_PIPE_PLANNER_ENDPOINT=http://localhost:11450
-# 2026-06-18: was qwen3:1.7b (RETIRED -> 404 on :11450); the runtime drop-in
-# 10-model-align.conf had to re-pin it to granite4.1:8b. Source now carries the
-# served brain directly, so the drop-in is redundant + a fresh boot is correct.
-Environment=MIOS_AGENT_PIPE_PLANNER_MODEL=granite4.1:8b
+# WS-0B: PLANNER model inherits MIOS_STACK_MODEL via server.py (no per-role re-pin).
 Environment=MIOS_DB_URL=http://localhost:8000
 Environment=MIOS_DB_USER=root
 Environment=MIOS_DB_PASS=root
@@ -108,9 +106,8 @@ Environment=MIOS_PASSPORT_AGENT_NAME=agent-pipe
 # 2026-06-18: refine + polish were qwen3:1.7b (RETIRED -> 404), re-pinned by the
 # runtime drop-in to the served brain. Source now uses granite4.1:8b directly
 # (mirrors mios.toml [refine].model / [polish].model). Override via agent-pipe.env.
-Environment=MIOS_REFINE_MODEL=granite4.1:8b
+# WS-0B: REFINE/POLISH models inherit MIOS_STACK_MODEL via server.py (no re-pin).
 Environment=MIOS_REFINE_ENDPOINT=http://localhost:11450
-Environment=MIOS_POLISH_MODEL=granite4.1:8b
 Environment=MIOS_POLISH_ENDPOINT=http://localhost:11450
 # Phase D.5 -- refine + polish timeouts on CPU-bound dev hardware.
 # Real ROCm/CUDA finishes the LLM call in <1s; WSL CPU takes 15-30s
