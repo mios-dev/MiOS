@@ -106,7 +106,10 @@ jobs:
       - name: Configure host podman storage (disable metacopy)
         run: |
           sudo mkdir -p /etc/containers
-          echo -e '[storage]\ndriver = "overlay"\n[storage.options.overlay]\nmountopt = "nodev"' | sudo tee /etc/containers/storage.conf
+          # runroot + graphroot are REQUIRED: writing a [storage] table with only
+          # `driver` makes `podman system reset` abort with "runroot must be set"
+          # (install-robustness 2026-06-21). Use the standard rootful paths.
+          echo -e '[storage]\ndriver = "overlay"\ngraphroot = "/var/lib/containers/storage"\nrunroot = "/run/containers/storage"\n[storage.options.overlay]\nmountopt = "nodev"' | sudo tee /etc/containers/storage.conf
           sudo podman system reset -f
 
       - name: Free disk space on the GHA runner
@@ -303,7 +306,10 @@ jobs:
       - name: Configure host podman storage (disable metacopy)
         run: |
           sudo mkdir -p /etc/containers
-          echo -e '[storage]\ndriver = "overlay"\n[storage.options.overlay]\nmountopt = "nodev"' | sudo tee /etc/containers/storage.conf
+          # runroot + graphroot are REQUIRED: writing a [storage] table with only
+          # `driver` makes `podman system reset` abort with "runroot must be set"
+          # (install-robustness 2026-06-21). Use the standard rootful paths.
+          echo -e '[storage]\ndriver = "overlay"\ngraphroot = "/var/lib/containers/storage"\nrunroot = "/run/containers/storage"\n[storage.options.overlay]\nmountopt = "nodev"' | sudo tee /etc/containers/storage.conf
           sudo podman system reset -f
 
       - name: Free disk space on the GHA runner (smoke job)
