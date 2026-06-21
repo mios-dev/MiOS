@@ -8384,6 +8384,60 @@ def _sources_metadata(refs: list) -> list:
     return [{"n": i + 1, "title": _t, "url": _u} for i, (_t, _u) in enumerate(refs)]
 
 
+def _sources_annotations(refs: list, text: str) -> list:
+    """OpenAI url_citation annotations (Chat/Responses parity): one
+    {type:'url_citation', url, title, start_index, end_index} per cited source.
+    start/end are char offsets into `text` where the URL appears inline (so a UI
+    renders a clickable cite); 0/0 when the source is a turn-source not inlined.
+    This is OpenAI's canonical citation contract -- attaching it lets MiOS clients
+    render web citations the same way ChatGPT does. web-tools hardening 2026-06-21."""
+    out: list = []
+    _txt = text or ""
+    for _ref in (refs or []):
+        try:
+            _t, _u = _ref
+        except (ValueError, TypeError):
+            continue
+        if not _u:
+            continue
+        _i = _txt.find(_u)
+        out.append({
+            "type": "url_citation",
+            "url": _u,
+            "title": (_t or _u),
+            "start_index": (_i if _i >= 0 else 0),
+            "end_index": (_i + len(_u) if _i >= 0 else 0),
+        })
+    return out
+
+
+def _filter_relevant_sources(refs: list, *texts: str) -> list:
+    """OpenAI grounding rule: 'include only search results/citations that support
+    the cited response text -- irrelevant sources permanently degrade user trust.'
+    Keep a source only when its title shares a content word (>=4 chars) with the
+    answer/query, OR its registrable-domain stem appears in them. DEGRADE-OPEN: if
+    the filter would drop EVERYTHING (the answer echoed no source token), return the
+    originals -- never strip citations to empty. Kills the off-topic-source bleed
+    (a Fedora answer citing 'Shaolin monks'). web-tools hardening 2026-06-21."""
+    if not refs:
+        return refs
+    _blob = " ".join(t for t in texts if t).lower()
+    if not _blob:
+        return refs
+    _kept: list = []
+    for _ref in refs:
+        try:
+            _t, _u = _ref
+        except (ValueError, TypeError):
+            continue
+        _dom = re.sub(r"^https?://(www\.)?", "", str(_u or "")).split("/")[0].lower()
+        _stem = _dom.split(".")[0] if _dom else ""
+        _words = set(re.findall(r"[a-z0-9]{4,}", str(_t or "").lower()))
+        if (_stem and len(_stem) >= 4 and _stem in _blob) or any(_w in _blob for _w in _words):
+            _kept.append((_t, _u))
+    return _kept if _kept else refs
+
+
 # Parse a sub-agent's appended '**Sources:**\nN. title — url' block (or any bare
 # http URLs) back into citable items. A council/DAG facet is dispatched to a leaf
 # agent (hermes/opencode) that re-calls :8640 WITHOUT the turn-id header, so its
@@ -17221,6 +17275,7 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
             except Exception:  # noqa: BLE001
                 pass
             _dag_refs = _src_collected()
+            _dag_refs = _filter_relevant_sources(_dag_refs, main)
             if _dag_refs and "**Sources:**" not in main:
                 main = main.rstrip() + _sources_markdown(_dag_refs)
             yield _sse_reasoning(envelope + "\n", chat_id=chat_id, model=model)
@@ -17256,13 +17311,17 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
     except Exception:  # noqa: BLE001
         pass
     _dag_refs = _src_collected()
+    # OpenAI grounding: drop off-topic sources before citing. web-tools hardening.
+    _dag_refs = _filter_relevant_sources(_dag_refs, main)
     if _dag_refs and "**Sources:**" not in main:
         main = main.rstrip() + _sources_markdown(_dag_refs)
     return JSONResponse(content={
         "id": chat_id, "object": "chat.completion",
         "created": int(time.time()), "model": model,
         "choices": [{"index": 0,
-                     "message": {"role": "assistant", "content": main},
+                     "message": {"role": "assistant", "content": main,
+                                 # OpenAI url_citation annotations.
+                                 "annotations": _sources_annotations(_dag_refs, main)},
                      "finish_reason": "stop"}],
         "usage": _usage_estimate(last_user_text, main),  # P4 /v1 conformance
         "mios_sources": _sources_metadata(_dag_refs) if _dag_refs else [],
@@ -26332,6 +26391,10 @@ async def _respond_native_loop_direct(
     except Exception:  # noqa: BLE001
         pass
     _refs = _src_collected() or _refs
+    # OpenAI grounding: keep ONLY sources that support the answer -- drop the
+    # off-topic bleed (a Fedora answer must not cite 'Shaolin monks') before any
+    # citation surface. web-tools hardening 2026-06-21.
+    _refs = _filter_relevant_sources(_refs, _ans, last_user_text)
     if _refs and _ans and _ans.strip() and "**Sources:**" not in _ans:
         _append = _sources_markdown(_refs)
         if _append:
@@ -26360,7 +26423,10 @@ async def _respond_native_loop_direct(
         "id": chat_id, "object": "chat.completion",
         "created": int(time.time()), "model": model,
         "choices": [{"index": 0,
-                     "message": {"role": "assistant", "content": _ans},
+                     "message": {"role": "assistant", "content": _ans,
+                                 # OpenAI url_citation annotations (canonical
+                                 # citation contract). web-tools hardening 2026-06-21.
+                                 "annotations": _sources_annotations(_refs, _ans)},
                      "finish_reason": "stop"}],
         "usage": _usage_estimate(last_user_text, _ans),
         "mios_sources": _sources_metadata(_refs) if _refs else [],
@@ -28922,6 +28988,7 @@ async def chat_completions(request: Request) -> Any:
             except Exception:  # noqa: BLE001
                 pass
             _stream_refs = _src_collected()
+            _stream_refs = _filter_relevant_sources(_stream_refs, wrapped)
             if _stream_refs and "**Sources:**" not in wrapped:
                 wrapped = wrapped.rstrip() + _sources_markdown(_stream_refs)
             yield _sse_chunk("", chat_id=chat_id, model=model,
@@ -29159,10 +29226,17 @@ async def chat_completions(request: Request) -> Any:
                     except Exception:  # noqa: BLE001
                         pass
                     _refs = _src_collected()
+                    # OpenAI grounding: keep ONLY sources that support the answer
+                    # (drop the off-topic bleed) before citing. web-tools hardening
+                    # 2026-06-21.
+                    _refs = _filter_relevant_sources(_refs, wrapped, last_user_text)
                     if _refs and "**Sources:**" not in wrapped:
                         wrapped = wrapped.rstrip() + _sources_markdown(_refs)
                     if _refs:
                         backend_json["mios_sources"] = _sources_metadata(_refs)
+                        # OpenAI url_citation annotations -- the canonical citation
+                        # contract so clients render clickable web cites.
+                        msg["annotations"] = _sources_annotations(_refs, wrapped)
                     msg["content"] = wrapped
                     choices[0]["message"] = msg
                     backend_json["choices"] = choices
