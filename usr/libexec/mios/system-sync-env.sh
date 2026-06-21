@@ -151,6 +151,18 @@ EOF
     [[ -n "${MIOS_PORT_SGLANG:-}" ]] && echo "MIOS_AI_HEAVY_ENDPOINT=\"http://localhost:${MIOS_PORT_SGLANG}/v1\""
     [[ -n "${MIOS_PORT_VLLM:-}" ]]   && echo "MIOS_AI_HEAVY_ALT_ENDPOINT=\"http://localhost:${MIOS_PORT_VLLM}/v1\""
 
+    # Resolved service ports (SSOT [ports].*). Emitted as NUMERIC vars so
+    # EnvironmentFile= consumers (agent-pipe, hermes) AND ${MIOS_PORT_*}
+    # templates in mios.toml endpoint URLs can resolve -- systemd and Python
+    # do NOT expand ${...} from sibling env lines, so the ports must exist as
+    # their own vars. Without this the agent-pipe read a LITERAL
+    # "${MIOS_PORT_HERMES_WORKER}" worker port -> httpx InvalidURL -> :8640 500.
+    # install-robustness 2026-06-21.
+    for _pk in MIOS_PORT_LLM_LIGHT MIOS_PORT_HERMES MIOS_PORT_HERMES_WORKER MIOS_PORT_AGENT_PIPE MIOS_PORT_PREFILTER MIOS_PORT_OPENCODE MIOS_PORT_SGLANG MIOS_PORT_VLLM; do
+        _pv="${!_pk:-}"
+        if [[ -n "$_pv" ]]; then echo "${_pk}=\"${_pv}\""; fi
+    done
+
     # Image
     [[ -n "${MIOS_IMAGE_REF:-}" ]]    && echo "MIOS_IMAGE_REF=\"${MIOS_IMAGE_REF}\""
     [[ -n "${MIOS_BRANCH:-}" ]]       && echo "MIOS_BRANCH=\"${MIOS_BRANCH}\""

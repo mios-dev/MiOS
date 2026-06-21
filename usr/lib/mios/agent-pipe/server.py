@@ -404,7 +404,23 @@ def _toml_section(section: str) -> dict:
                 out.update(_layer)
     except Exception:  # noqa: BLE001 -- best-effort; callers fall to literals
         log.warning("Failed to load overlay config section %s", section, exc_info=True)
-    return out
+    # Expand ${MIOS_PORT_*}/$VAR placeholders in string values against the
+    # process env (install.env supplies MIOS_PORT_*). mios.toml stores endpoint
+    # URLs as deferred-expansion templates ("http://localhost:${MIOS_PORT_HERMES_WORKER}/v1");
+    # systemd EnvironmentFile and Python do NOT expand ${...}, so without this
+    # the agent registry got a LITERAL "${MIOS_PORT_HERMES_WORKER}" port ->
+    # httpx InvalidURL -> the :8640 front door 500'd on every request. expandvars
+    # only touches $-prefixed tokens (ordinary values untouched; an unknown var
+    # is left verbatim). install-robustness 2026-06-21.
+    def _xpand(v):
+        if isinstance(v, str):
+            return os.path.expandvars(v) if "$" in v else v
+        if isinstance(v, dict):
+            return {k: _xpand(x) for k, x in v.items()}
+        if isinstance(v, list):
+            return [_xpand(x) for x in v]
+        return v
+    return _xpand(out)
 
 
 def _cfg_num(table: dict, env: str, key: str, default, cast=int):
@@ -3829,7 +3845,12 @@ def _load_agent_registry() -> dict[str, dict]:
             if not isinstance(cfg, dict):
                 continue
             registry[name] = {
-                "endpoint": str(cfg.get("endpoint", "")).rstrip("/"),
+                # expandvars: [agents.*].endpoint is stored as a deferred
+                # ${MIOS_PORT_*} template (e.g. the :8643 hermes-worker); the
+                # env supplies the numeric port (install.env). Without this the
+                # registry kept a literal "${MIOS_PORT_HERMES_WORKER}" -> httpx
+                # InvalidURL -> :8640 500 on every request. install-robustness 2026-06-21.
+                "endpoint": os.path.expandvars(str(cfg.get("endpoint", ""))).rstrip("/"),
                 "model":    str(cfg.get("model", name)),
                 "role":     str(cfg.get("role", "general")),
                 "default":  bool(cfg.get("default", False)),
@@ -6765,18 +6786,44 @@ def _validate_enum_args(tool: str, args: dict) -> Optional[str]:
 
 def _pick_agent(role: str) -> tuple[str, dict]:
     """Pick a sub-agent by role match. Order: exact-role -> default
-    -> first registered. Returns (name, cfg)."""
+    -> first registered. Returns (name, cfg).
+
+    Degrade-open (install-robustness 2026-06-21): if the chosen agent is a
+    health_gate (come-and-go) node -- e.g. the :8643 hermes-worker bound to the
+    heavy GPU lane, which is gated off by default -- that the liveness cache does
+    NOT confirm reachable, blank its endpoint so the caller's `endpoint or
+    BACKEND` falls back to the always-on local lane. Without this the PRIMARY
+    dispatch went to a dead gated worker -> httpx "All connection attempts
+    failed" -> 502 on EVERY turn on any host where that lane is down (a fresh
+    dev VM, a CPU host). The worker is still used the moment the probe confirms
+    it live (heavy lane enabled)."""
     role = (role or "").lower().strip()
+    chosen = None
     if role:
         for name, cfg in _AGENT_REGISTRY.items():
             if cfg.get("role", "").lower() == role:
-                return name, cfg
-    for name, cfg in _AGENT_REGISTRY.items():
-        if cfg.get("default"):
-            return name, cfg
-    # Whatever is first.
-    name = next(iter(_AGENT_REGISTRY))
-    return name, _AGENT_REGISTRY[name]
+                chosen = (name, cfg)
+                break
+    if chosen is None:
+        for name, cfg in _AGENT_REGISTRY.items():
+            if cfg.get("default"):
+                chosen = (name, cfg)
+                break
+    if chosen is None:
+        _n = next(iter(_AGENT_REGISTRY))
+        chosen = (_n, _AGENT_REGISTRY[_n])
+    name, cfg = chosen
+    if cfg.get("health_gate"):
+        _c = _NODE_LIVE.get(name)
+        if not (_c and _c[1]):  # not confirmed reachable -> fall back to BACKEND
+            # Blank the endpoint AND swap the model: this agent's model (e.g.
+            # the worker's heavy "mios-heavy") is NOT served by BACKEND (the
+            # light llama-swap lane), so keeping it yields llama-swap "no router
+            # for requested model". Reset to MIOS_AI_MODEL (the light-lane
+            # default) so the fallback request routes. install-robustness 2026-06-21.
+            _fb_model = (os.environ.get("MIOS_AI_MODEL") or "").strip()
+            cfg = {**cfg, "endpoint": "", **({"model": _fb_model} if _fb_model else {})}
+    return name, cfg
 
 
 # Trivial-input bypass regex -- short messages with no question
@@ -28911,6 +28958,15 @@ async def chat_completions(request: Request) -> Any:
     # Non-streaming: run the enrich passes (no live emits on this path) and
     # build the proxy body -- same _finalize the streaming generator runs live.
     _sys_prefix, proxy_body = await _finalize()
+    # Pin the model to the lane this request is ACTUALLY dispatched to. The front
+    # door advertises a single virtual model ("MiOS AI") and sub-agents carry
+    # lane-specific models (e.g. the heavy worker's "mios-heavy"); when the
+    # primary resolves to the BACKEND light lane -- including the health-gate
+    # fallback when the heavy worker is down -- that incoming/heavy model is NOT
+    # served there, so llama-swap returns "no router for requested model". Force
+    # BACKEND_MODEL so the fallback request routes. install-robustness 2026-06-21.
+    if str(target_endpoint).rstrip("/") == str(BACKEND).rstrip("/"):
+        proxy_body["model"] = BACKEND_MODEL
     proxy_bytes = json.dumps(proxy_body).encode("utf-8")
     client = await _get_client()
     # Council fan-out on the NON-streaming path too (operator 2026-05-22
