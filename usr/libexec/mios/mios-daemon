@@ -208,25 +208,15 @@ WATCHED_UNITS = [u for u in os.environ.get(
     "MIOS_DAEMON_WATCH_UNITS", "",
 ).split(",") if u.strip()]
 
-# ── SurrealDB best-effort writer ─────────────────────────────────────
-# Mirrors the helper in usr/share/mios/owui/pipes/mios_agent_pipe.py.
-# Daemon-side is sync (urllib) since the loops run on threads; pipe
-# side is async (aiohttp). Both target the same /sql endpoint with the
-# SurrealDB 3.0+ "USE NS ... DB ...;" body prefix (NS:/DB: HTTP
-# headers dropped in 3.0). Phase-2 directive 2026-05-18: the daemon
-# writes kanban_shadow + scratch + event + agent_metric rows on its
-# 5-minute task_collector tick so other agents (mios-agent-pipe,
-# hermes) can query a single source of truth instead of polling N
-# JSON files.
-
-import base64 as _base64
-DB_URL  = os.environ.get("MIOS_DB_URL",  "http://localhost:8000")
-DB_USER = os.environ.get("MIOS_DB_USER", "root")
-DB_PASS = os.environ.get("MIOS_DB_PASS", "root")
-DB_NS   = os.environ.get("MIOS_DB_NS",   "mios")
-DB_DB   = os.environ.get("MIOS_DB_DB",   "mios")
-_DB_AUTH = "Basic " + _base64.b64encode(f"{DB_USER}:{DB_PASS}".encode()).decode()
-_DB_DOWN_UNTIL: float = 0.0
+# ── agent-plane DB writer (Postgres+pgvector; SurrealDB retired) ──────
+# WS-A3: SurrealDB (:8000) is retired -> _db_post / _db_post_sync are no-op
+# stubs. The daemon persists to Postgres+pgvector: _db_create mirrors rows via
+# _pg_insert (parameterized), reads go through _db_read's pg_sql path, and the
+# task_collector tick writes the canonical `kanban` + scratch + event rows on
+# its 5-minute cadence so other agents (mios-agent-pipe, hermes) query one
+# source of truth instead of polling N JSON files. (The SurrealDB connection
+# constants DB_URL/DB_USER/DB_PASS/DB_NS/DB_DB/_DB_AUTH were removed with the
+# transports.)
 
 
 # WS-9c cutover: mirror daemon writes to Postgres+pgvector via the shared
@@ -383,21 +373,15 @@ def _db_read(surreal_sql: str, *, pg_sql: "Optional[str]" = None,
 def _db_create(table: str, fields: dict, *,
                now_fields: tuple = (),
                extra: str = "") -> str:
-    """Build `CREATE <table> SET ...` -- SurrealDB 3.0+ rejects plain
-    ISO-Z strings for TYPE datetime fields, so the canonical pattern
-    is `field = time::now()` literal for datetimes + JSON-encoded
-    values for everything else (JSON-object syntax IS SurrealQL-object
-    syntax, so nested payload dicts pass through unchanged)."""
-    parts = [f"{k} = time::now()" for k in now_fields]
-    for k, v in fields.items():
-        if k in now_fields or v is None:
-            continue
-        parts.append(f"{k} = {json.dumps(v, default=str)}")
-    sql = f"CREATE {table} SET " + ", ".join(parts)
-    if extra:
-        sql += " " + extra
-    _pg_insert(table, fields)  # WS-9c: mirror to pgvector at the chokepoint
-    return sql + ";"
+    """WS-A3: write a row to Postgres+pgvector via _pg_insert (parameterized) and
+    return "" -- the agent-plane DB is pg now. Callers wrap this in
+    `_db_post(_db_create(...))`; _db_post is a no-op stub (SurrealDB retired), so
+    returning "" makes the surreal write vanish cleanly with NO call-site change.
+    `now_fields` (datetime cols) are omitted from the insert so the pgvector
+    column DEFAULT now() applies; `now_fields`/`extra` are vestigial (were the
+    SurrealQL time::now()/clause shaping) and kept only for signature compat."""
+    _pg_insert(table, fields)
+    return ""
 
 
 # ── inotify wrapper (stdlib ctypes; no pip deps for offline / Day-0) ──
@@ -2071,29 +2055,31 @@ def task_collector_loop() -> None:
                     "launch_failures": len(agg["launch_failures"]),
                 },
             })
-            # Best-effort SurrealDB sync: kanban_shadow (UPSERT per
-            # hermes_task_id), scratch (the digest itself), and a
-            # per-tick event row. fail-quiet via _db_post backoff.
+            # WS-A3: sync into the CANONICAL pg kanban table (id/title/status/
+            # detail jsonb). Was a SurrealDB kanban_shadow UPSERT -- dead on the
+            # retired :8000, and its pg mirror targeted a non-existent
+            # kanban_shadow table -> the daemon's task view never persisted.
+            # Parameterized upsert (id is the PK), degrade-open via _pg_run.
             for k in agg["kanban"]:
                 _tid = str(k.get("id") or "").strip()
                 if not _tid:
                     continue
-                _row = {
+                _tags = (k.get("tags").split(",")
+                         if isinstance(k.get("tags"), str) else (k.get("tags") or []))
+                _detail = json.dumps({
                     "hermes_task_id": _tid,
-                    "title": str(k.get("title") or "")[:240],
-                    "status": str(k.get("status") or "unknown")[:40],
                     "priority": str(k.get("priority") or "") or None,
-                    "tags": (k.get("tags").split(",")
-                             if isinstance(k.get("tags"), str) else []),
-                }
-                # UPSERT pattern: DELETE-then-CREATE keyed on the unique
-                # hermes_task_id index defined in schema-init.surql.
-                _db_post(
-                    "DELETE kanban_shadow WHERE hermes_task_id = "
-                    f"{json.dumps(_tid)}; "
-                    + _db_create("kanban_shadow", _row,
-                                 now_fields=("synced_at",))
-                )
+                    "tags": _tags,
+                    "source": "mios-daemon",
+                }, default=str)
+                _pg_run({
+                    "sql": "INSERT INTO kanban (id, title, status, detail) "
+                           "VALUES ($1, $2, $3, $4::jsonb) "
+                           "ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, "
+                           "status = EXCLUDED.status, detail = EXCLUDED.detail, "
+                           "ts = now()",
+                    "params": [_tid, str(k.get("title") or "")[:240],
+                               str(k.get("status") or "unknown")[:40], _detail]})
             # Scratch row carrying the digest text (so other agents can
             # see what the nudger concluded without re-parsing the .md).
             _digest = (parsed.get("digest") or "").strip()
@@ -2914,10 +2900,15 @@ def rolling_report_loop() -> None:
         if _stop_event.wait(interval):
             break
         try:
-            rows = _ok_result(_db_post(
+            rows = _ok_result(_db_read(
                 "SELECT ts, summary, severity FROM log_digest "
                 "WHERE ts > time::now() - 1h AND severity IN ['med','high'] "
-                "ORDER BY ts DESC LIMIT 30;"))
+                "ORDER BY ts DESC LIMIT 30;",
+                pg_sql=(  # WS-A3: live pg read (was a dead SurrealQL _db_post)
+                    "SELECT ts, summary, severity FROM log_digest "
+                    "WHERE ts > now() - interval '1 hour' "
+                    "AND severity IN ('med','high') "
+                    "ORDER BY ts DESC LIMIT 30")))
             sigs = [f"[{r.get('severity','?')}] {str(r.get('summary',''))[:160]}"
                     for r in rows if isinstance(r, dict)]
             if not sigs:
@@ -2997,10 +2988,14 @@ def _daemon_global_log_context(max_rows: int = 20) -> str:
     core competency (it subscribes to the whole journal). Returns a short
     markdown block; empty when nothing notable / DB unavailable."""
     try:
-        rows = _ok_result(_db_post(
+        rows = _ok_result(_db_read(
             "SELECT ts, summary, severity FROM log_digest "
             "WHERE ts > time::now() - 2h "
-            "ORDER BY ts DESC LIMIT " + str(int(max_rows)) + ";")) or []
+            "ORDER BY ts DESC LIMIT " + str(int(max_rows)) + ";",
+            pg_sql=(  # WS-A3: live pg read (was a dead SurrealQL _db_post)
+                "SELECT ts, summary, severity FROM log_digest "
+                "WHERE ts > now() - interval '2 hours' "
+                "ORDER BY ts DESC LIMIT " + str(int(max_rows)))) ) or []
     except Exception:
         rows = []
     lines = [f"- [{r.get('severity', '?')}] {str(r.get('summary', ''))[:200]}"
