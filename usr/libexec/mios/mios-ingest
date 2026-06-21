@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# AI-hint: Python script for offline ingestion of local files (md, txt, rst, org) into the SurrealDB knowledge table, utilizing mios-summarize to generate tiered L0/L1 metadata for the viking:// vault.
-# AI-related: mios-summarize, localhost:8000
+# AI-hint: Python script for offline ingestion of local files (md, txt, rst, org) into the Postgres+pgvector knowledge table via parameterized mios-pg-query (extended-protocol bound params), utilizing mios-summarize to generate tiered L0/L1 metadata for the viking:// vault.
+# AI-related: mios-summarize, mios-pg-query
 """mios-ingest -- OFFLINE local-source ingestion into the viking:// vault.
 
 P5.1 (OpenHuman ingestion, offline core): OpenHuman polls external SaaS
@@ -23,6 +23,11 @@ USAGE
 
 Output JSON: {ok, ingested, skipped, sources:[...]}.
 Offline: only mios-summarize (local CPU lane) + local pgvector. No network.
+
+Storage: Postgres+pgvector via mios-pg-query. File-derived values (source path,
+title/L0, L1 overview, embedding vector) are bound OUT-OF-BAND through the
+parameterized extended protocol (mios-pg-query --exec-json $1..$n), never spliced
+into SQL text; only trusted config identifiers (table/column names) stay inline.
 """
 from __future__ import annotations
 
@@ -56,7 +61,9 @@ def _pg(sql: str) -> list:
     """Run one SQL statement on pgvector via mios-pg-query (pure-python pg wire
     client -- no psql/psycopg/podman). Rows -> lists of string columns (psql -At).
     Raises RuntimeError on a backend error so the caller's try/except can record
-    the per-source failure (matches the old _sql contract)."""
+    the per-source failure (matches the old _sql contract). For statements that
+    carry external (file-derived) values use _pg_param() instead -- it binds them
+    out-of-band so nothing is ever spliced into SQL text."""
     p = subprocess.run([PG_QUERY, sql], capture_output=True, text=True,
                        timeout=90)
     if p.returncode != 0:
@@ -64,11 +71,23 @@ def _pg(sql: str) -> list:
     return [ln.split("\t") for ln in p.stdout.splitlines() if ln]
 
 
-def _esc(s: str) -> str:
-    # PostgreSQL single-quoted literal: double the quote. Backslashes are
-    # literal in standard-conforming strings, so DON'T escape them (would
-    # corrupt file paths / content).
-    return str(s).replace("'", "''")
+def _pg_param(statements: list) -> None:
+    """Run one or more parameterized statements atomically on pgvector via
+    `mios-pg-query --exec-json`, which reads a JSON envelope on STDIN and binds
+    each param OUT-OF-BAND through the pg v3 extended protocol -- no string
+    splicing, no escaping. `statements` is a list of {"sql": "... $1 ...",
+    "params": [...]}; a multi-element list runs as an atomic BEGIN/COMMIT batch
+    (used for the delete-then-insert upsert). Strings/vectors/text bind as params;
+    INTEGER values (LIMIT, interval counts) must stay inline in the SQL. A vector
+    is bound as a TEXT param with a ::vector cast in the SQL. Raises RuntimeError
+    on a backend error so the caller's try/except records the per-source failure
+    (matches _pg's contract)."""
+    envelope = ({"sql": statements[0]["sql"], "params": statements[0]["params"]}
+                if len(statements) == 1 else {"statements": statements})
+    p = subprocess.run([PG_QUERY, "--exec-json"], input=json.dumps(envelope),
+                       capture_output=True, text=True, timeout=90)
+    if p.returncode != 0:
+        raise RuntimeError(f"pg error: {(p.stderr or '')[:200]}")
 
 
 def _summarize(text: str) -> dict:
@@ -204,20 +223,35 @@ def main() -> int:
         # (was source='ingest'). ts defaults to now() at the column level.
         src_json = json.dumps([sp])
         try:
-            _pg(f"DELETE FROM {TABLE} WHERE sources @> '{_esc(src_json)}'::jsonb "
-                f"AND session_id = 'ingest';")
-            # Add `emb` to the column list ONLY when the embed succeeded, casting
-            # the literal with ::vector (matches mios_pg.build_insert). On a miss
-            # we omit the column so it defaults to NULL -- never fail the ingest.
-            cols = "q, answer, sources, session_id"
-            vals = (f"'{_esc(l0[:300])}', "
-                    f"'{_esc(answer[:6000])}', "
-                    f"'{_esc(src_json)}'::jsonb, "
-                    f"'ingest'")
+            # Atomic delete-then-insert upsert keyed on the source path. ALL
+            # file-derived values bind out-of-band ($1..$n); only the trusted
+            # table/column identifiers stay inline. The literal 'ingest'
+            # session_id is a fixed constant (not request data) so it stays
+            # inline. Add `emb` to the column list ONLY when the embed succeeded,
+            # binding the vector literal as a TEXT param cast with ::vector
+            # (matches mios_pg.build_insert). On a miss we omit the column so it
+            # defaults to NULL -- never fail the ingest.
+            del_stmt = {
+                "sql": f"DELETE FROM {TABLE} WHERE sources @> $1::jsonb "
+                       f"AND session_id = 'ingest';",
+                "params": [src_json],
+            }
             if embedded:
-                cols += ", emb"
-                vals += f", '{_vec_literal(emb)}'::vector"
-            _pg(f"INSERT INTO {TABLE} ({cols}) VALUES ({vals});")
+                ins_stmt = {
+                    "sql": f"INSERT INTO {TABLE} (q, answer, sources, "
+                           f"session_id, emb) VALUES ($1, $2, $3::jsonb, "
+                           f"'ingest', $4::vector);",
+                    "params": [l0[:300], answer[:6000], src_json,
+                               _vec_literal(emb)],
+                }
+            else:
+                ins_stmt = {
+                    "sql": f"INSERT INTO {TABLE} (q, answer, sources, "
+                           f"session_id) VALUES ($1, $2, $3::jsonb, "
+                           f"'ingest');",
+                    "params": [l0[:300], answer[:6000], src_json],
+                }
+            _pg_param([del_stmt, ins_stmt])
             ingested += 1
             report.append({"source": sp, "l0": l0[:120], "embedded": embedded})
         except Exception as e:  # noqa: BLE001

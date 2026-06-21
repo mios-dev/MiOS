@@ -1,7 +1,7 @@
 #!/bin/bash
-# AI-hint: Purges volatile runtime data (sessions, tool_calls, knowledge, logs) from SurrealDB while preserving core system configurations and identity keys to reset the AI's operational state to a clean "day-0" baseline.
-# AI-related: /usr/libexec/mios/mios-day0-reset, mios-agent-pipe, mios-hermes-tail, mios-daemon, mios-mcp, mios-pgvector, mios-daemon-state, mios-ai, mios-agent-pipe.service, hermes-agent.service
-# AI-functions: SR
+# AI-hint: Purges volatile runtime data (sessions, tool_calls, knowledge, logs) from the pgvector agent DB (via parameterized mios-db --pg) plus OWUI's sqlite chats and filesystem caches, while preserving core system configurations and identity keys to reset the AI's operational state to a clean "day-0" baseline.
+# AI-related: /usr/libexec/mios/mios-day0-reset, mios-db, mios-pg-query, mios-agent-pipe, mios-hermes-tail, mios-daemon, mios-mcp, mios-pgvector, mios-daemon-state, mios-ai, mios-agent-pipe.service, hermes-agent.service
+# AI-functions:
 # mios-day0-reset
 #
 # Clear MiOS runtime + AI state back to a day-0 starting point.
@@ -9,6 +9,11 @@
 # row, scratchpads, sessions, OWUI chats, SearXNG/crawl caches. KEEPS
 # /etc, /usr, agent definitions, person/skill/app_install inventories,
 # the ed25519 passport keypairs, MCP + A2A registries (operator config).
+#
+# Backend: pgvector is the SOLE agent datastore (SurrealDB :8000 is retired).
+# pg runtime tables are TRUNCATEd through mios-db --pg; the table list is a
+# trusted constant (config identifiers, never request data) so the names stay
+# inline. OWUI chat history lives in webui.db (sqlite).
 #
 # Why a script: a chat-turn through Claude can't perform mass deletes
 # (the auto-mode classifier blocks named-target destructive ops without
@@ -18,7 +23,7 @@
 #
 # Idempotent enough to re-run; not a "factory reset" -- the host stays
 # fully provisioned. For a deeper reset (passport keys, agents, skills),
-# extend the SR_DROP / KEEP lists below.
+# extend the PG_DROP / KEEP lists below.
 #
 # Usage: sudo /usr/libexec/mios/mios-day0-reset
 set -uo pipefail
@@ -28,73 +33,40 @@ if [[ $EUID -ne 0 ]]; then
   exit 1
 fi
 
-SR() {
-  curl -s -u root:root \
-    -H 'surreal-ns: mios' -H 'surreal-db: mios' \
-    -H 'Accept: application/json' \
-    -X POST http://localhost:8000/sql --data "$1"
-}
-
-# Tables CLEARED at reset (runtime + AI state).
-SR_DROP=(
-  session tool_call knowledge scratch skill_invocation log_digest
-  emitted agent_metric kanban_shadow directory_entry
-)
-# Tables PRESERVED (definitional + operator-curated):
-#   agent agent_keypair alias app_install includes owns person resolves_to skill
-
 echo "==> stopping live agents for clean DB writes"
 systemctl stop mios-agent-pipe.service hermes-agent.service \
   mios-hermes-tail.service mios-daemon.service hermes-dashboard.service \
   mios-mcp.service 2>/dev/null
 
-echo "==> clearing SurrealDB runtime tables"
-for T in "${SR_DROP[@]}"; do
-  printf "   %-20s -> " "$T"
-  SR "DELETE $T;" | python3 -c \
-    'import sys,json; print(json.load(sys.stdin)[0].get("status","?"))' 2>/dev/null
-done
-
-# `event` is high-volume; SurrealDB's memtable runs out mid-DELETE on
-# >100k rows. Drop+redefine the table (schema reinstated below).
-echo "   event                -> drop+redefine (high-volume bypass)"
-SR "REMOVE TABLE event;
-DEFINE TABLE event TYPE NORMAL SCHEMAFULL PERMISSIONS NONE;
-DEFINE FIELD kind ON event TYPE string PERMISSIONS FULL;
-DEFINE FIELD passport ON event TYPE none | object FLEXIBLE PERMISSIONS FULL;
-DEFINE FIELD payload  ON event TYPE none | object FLEXIBLE PERMISSIONS FULL;
-DEFINE FIELD severity ON event TYPE string DEFAULT 'info' PERMISSIONS FULL;
-DEFINE FIELD source   ON event TYPE string PERMISSIONS FULL;
-DEFINE FIELD summary  ON event TYPE string PERMISSIONS FULL;
-DEFINE FIELD ts       ON event TYPE datetime PERMISSIONS FULL;
-DEFINE INDEX event_kind   ON event FIELDS kind;
-DEFINE INDEX event_source ON event FIELDS source;
-DEFINE INDEX event_ts     ON event FIELDS ts;" > /dev/null
-
-# ── pgvector is the PRIMARY agent store since the SurrealDB->pgvector migration
-# (the SurrealDB DELETEs above are now legacy/no-op for a pg-primary host but kept
-# so a Surreal-primary host still resets). Clear the SAME runtime/AI tables in pg.
-# KEEP the definitional/operator-curated tables (alias, app_install, resolves_to,
-# run_template, skill) AND mios_rag (the docs-index RAG = baked SYSTEM knowledge,
-# regenerated from /usr/share/doc -- leave it so "full AI systems knowledge" stays
-# baked). TRUNCATE keeps schema + indexes; one statement so FK order never bites.
+# ── pgvector is the SOLE agent store since the SurrealDB->pgvector migration.
+# Clear the runtime/AI tables in pg. KEEP the definitional/operator-curated
+# tables (alias, app_install, resolves_to, run_template, skill) AND mios_rag
+# (the docs-index RAG = baked SYSTEM knowledge, regenerated from /usr/share/doc
+# -- leave it so "full AI systems knowledge" stays baked). TRUNCATE keeps
+# schema + indexes; one statement so FK order never bites.
+#
+# PG_DROP is a trusted CONSTANT list (config identifiers, never request data),
+# so the table NAMES stay inline in the SQL -- parameterization binds VALUES,
+# not identifiers, and pg can't bind a table name out-of-band. Routed through
+# mios-db --pg so creds + connection come from the SSOT [pgvector] section.
 PG_DROP="knowledge session tool_call scratch skill_invocation log_digest event directory_entry agent_memory kanban pending_action sys_env"
 echo "==> clearing pgvector runtime/AI tables (db=mios)"
-if podman ps --format '{{.Names}}' 2>/dev/null | grep -q '^mios-pgvector$'; then
-  _pglist=$(echo "$PG_DROP" | tr ' ' '\n' | while read -r T; do
-    [[ -n "$T" ]] && podman exec mios-pgvector psql -U mios -d mios -tAc \
-      "SELECT to_regclass('public.$T');" 2>/dev/null | grep -qx "$T" && printf '%s,' "$T"
-  done)
-  _pglist=${_pglist%,}
-  if [[ -n $_pglist ]]; then
-    podman exec mios-pgvector psql -U mios -d mios -c \
-      "TRUNCATE TABLE $_pglist RESTART IDENTITY;" 2>&1 | sed 's/^/   /'
-    printf "   truncated: %s\n" "$_pglist"
-  else
-    echo "   (no matching pg tables found)"
+# Resolve the table names that actually exist (to_regclass returns NULL for a
+# missing table) so a schema-drifted host still resets the rest. Degrade-open:
+# any mios-db failure (DB down) leaves _pglist empty and we skip, never crash.
+_pglist=$(for T in $PG_DROP; do
+  [[ -n "$T" ]] || continue
+  if mios-db --pg "SELECT to_regclass('public.$T');" 2>/dev/null \
+       | tr -d '[:space:]' | grep -qx "$T"; then
+    printf '%s,' "$T"
   fi
+done)
+_pglist=${_pglist%,}
+if [[ -n $_pglist ]]; then
+  mios-db --pg "TRUNCATE TABLE $_pglist RESTART IDENTITY;" 2>&1 | sed 's/^/   /'
+  printf "   truncated: %s\n" "$_pglist"
 else
-  echo "   (mios-pgvector container not running -- skipped)"
+  echo "   (no matching pg tables found -- pgvector down or schema empty)"
 fi
 
 echo "==> clearing filesystem runtime dirs"

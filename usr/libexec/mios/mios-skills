@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
-# AI-hint: CLI tool for mining repetitive tool_call sequences into typed-verb DAGs in SurrealDB, providing a unified skill catalog for mios-agent-pipe, Hermes, and OpenCode to share standardized, parameterized action sequences.
-# AI-related: /usr/libexec/mios/mios-db, /usr/share/mios/skills, mios-agent-pipe, mios-db, mios-kg, mios-skill, mios-ai, localhost:8640
+# AI-hint: CLI tool for mining repetitive tool_call sequences into typed-verb DAGs in parameterized Postgres/pgvector, providing a unified skill catalog for mios-agent-pipe, Hermes, and OpenCode to share standardized, parameterized action sequences. All SQL is bound out-of-band via mios-db --pg-json ($1..$n placeholders).
+# AI-related: /usr/libexec/mios/mios-db, /usr/libexec/mios/mios-pg-query, /usr/share/mios/skills, mios-agent-pipe, mios-db, mios-skill, mios-ai, localhost:8640
 """mios-skills -- Sequential Pattern Mining + cross-agent skill catalog CLI.
 
-Phase C.2 of the AgentOS roadmap. Mines the SurrealDB `tool_call`
+Phase C.2 of the AgentOS roadmap. Mines the Postgres `tool_call`
 table for repeating verb sequences and codifies them as `skill`
 rows that EVERY agent in the MiOS stack reads from a single source:
 
   * mios-agent-pipe (:8640) -- reads via /skills/* REST endpoints
-                               AND directly from SurrealDB.
+                               AND directly from Postgres.
   * MiOS-Hermes (:8642)     -- pulls /skills/openai-tools at startup
                                so Hermes' OpenAI-compat tool surface
                                advertises promoted skills as callable
                                tools (no Hermes-side hardcoding).
   * MiOS-OpenCode           -- same /skills/openai-tools dump (or
-                               direct SurrealDB read for offline-only
+                               direct Postgres read for offline-only
                                OpenCode runs that can't reach
                                agent-pipe).
 
@@ -75,10 +75,13 @@ Subcommands:
                             to wire Hermes / OpenCode to the
                             catalog from offline scripts.
 
-Fully local: stdlib only (urllib + json + argparse + getpass +
-re + os + sys). Hits the SurrealDB instance at MIOS_DB_URL for
-direct reads, and agent-pipe at MIOS_AGENT_PIPE_ENDPOINT for
-skill runs (so the firewall / taint chain stays uniform).
+Fully local: stdlib only (urllib + json + argparse + re + os +
+sys + subprocess). Reads/writes Postgres/pgvector via the shared
+`mios-db --pg-json` CLI (parameterized $1..$n placeholders bound
+out-of-band over the pg v3 extended protocol -- no hand-rolled SQL
+escaping, no request data ever spliced into SQL text), and hits
+agent-pipe at MIOS_AGENT_PIPE_ENDPOINT for skill runs (so the
+firewall / taint chain stays uniform).
 
 SSOT: every knob (min_length, min_support, window_hours,
 auto_promote_threshold, ...) reads from MIOS_SKILLS_* env, which
@@ -87,60 +90,53 @@ the userenv.sh slot map sources from mios.toml [skills].
 from __future__ import annotations
 
 import argparse
-import base64
 import json
 import os
 import re
+import subprocess
 import sys
 import time
 import urllib.error
-import urllib.parse
 import urllib.request
-from typing import Optional
 
 # ─── SSOT env knobs ───────────────────────────────────────────────
-DB_URL = os.environ.get("MIOS_DB_URL",
-                        "http://localhost:" + os.environ.get(
-                            "MIOS_PORT_SURREALDB", "8000"))
-DB_USER = os.environ.get("MIOS_DB_USER", "root")
-DB_PASS = os.environ.get("MIOS_DB_PASS", "root")
-DB_NS = os.environ.get("MIOS_DB_NS", "mios")
-DB_DB = os.environ.get("MIOS_DB_DB", "mios")
-DB_AUTH = "Basic " + base64.b64encode(f"{DB_USER}:{DB_PASS}".encode()).decode()
-
-# WS-9c cutover: mirror skill writes/reads to Postgres+pgvector via the shared
-# mios-db --pg CLI (system-python, no psycopg). Backend select matches the
-# agent-pipe (MIOS_DB_BACKEND: surreal|dual|postgres).
-DB_BACKEND = os.environ.get("MIOS_DB_BACKEND", "dual").strip().lower()
-_PG_ENABLED = DB_BACKEND in ("dual", "postgres")
-_PG_PRIMARY = DB_BACKEND == "postgres"
+# Postgres/pgvector is the sole backend (SurrealDB :8000 retired). All SQL is
+# bound out-of-band via the shared mios-db --pg-json CLI: a JSON envelope on
+# STDIN ({"sql": "... $1 ...", "params": [...]}) bound over the pg v3 extended
+# protocol. No request data is ever spliced into SQL text; table/column names
+# are trusted config identifiers and stay inline. INTEGER values (LIMIT,
+# interval counts) stay inline via int()-coercion (text->int inference is
+# unreliable); only strings/text/vectors are bound.
 _MIOS_DB = "/usr/libexec/mios/mios-db"
 
 
-def _pgesc(s) -> str:
-    return str(s).replace("'", "''")
-
-
-def _pg_exec(sql: str) -> None:
-    """Mirror a skill write to pgvector via mios-db --pg. Degrade-open."""
-    if not _PG_ENABLED:
-        return
+def _pg_exec(sql: str, params: list | None = None) -> None:
+    """Execute a parameterized skill write via mios-db --pg-json. Degrade-open."""
     try:
-        import subprocess
-        subprocess.run([_MIOS_DB, "--pg", sql],
-                       capture_output=True, text=True, timeout=15)
+        subprocess.run(
+            [_MIOS_DB, "--pg-json"],
+            input=json.dumps({"sql": sql, "params": params or []}),
+            capture_output=True, text=True, timeout=15)
     except Exception:  # noqa: BLE001
         pass
 
 
-def _pg_rows(sql_inner: str) -> list:
-    """Read rows from pgvector as list[dict] via json_agg + mios-db --pg."""
+def _pg_rows(sql_inner: str, params: list | None = None) -> list:
+    """Read rows from pgvector as list[dict] via parameterized mios-db --pg-json.
+
+    `sql_inner` is the inner SELECT (with $1..$n placeholders); it is wrapped in
+    json_agg INSIDE the envelope so the values bind out-of-band. Degrade-open ->
+    []."""
     try:
-        import subprocess
+        envelope = {
+            "sql": (
+                "SELECT coalesce(json_agg(row_to_json(t)),'[]') "
+                f"FROM ({sql_inner}) t;"),
+            "params": params or [],
+        }
         out = subprocess.run(
-            [_MIOS_DB, "--json", "--pg",
-             f"SELECT coalesce(json_agg(row_to_json(t)),'[]') "
-             f"FROM ({sql_inner}) t;"],
+            [_MIOS_DB, "--pg-json"],
+            input=json.dumps(envelope),
             capture_output=True, text=True, timeout=15).stdout.strip()
         return json.loads(out) if out else []
     except Exception:  # noqa: BLE001
@@ -174,42 +170,6 @@ LOCAL_CATALOG_DIR = os.environ.get(
     "MIOS_SKILLS_LOCAL_CATALOG_DIR", "/var/lib/mios/skills")
 
 
-# ─── SurrealDB helpers (stdlib urllib, same shape as mios-kg) ────
-def post_sql(sql: str, *, timeout: float = 10.0) -> list:
-    body = (f"USE NS {DB_NS} DB {DB_DB}; " + sql).encode("utf-8")
-    req = urllib.request.Request(
-        f"{DB_URL}/sql", data=body, method="POST",
-        headers={"Authorization": DB_AUTH, "Accept": "application/json"},
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
-            return json.loads(r.read())
-    except urllib.error.HTTPError as e:
-        sys.stderr.write(
-            f"mios-skills: SurrealDB {e.code}: "
-            f"{e.read().decode()[:300]}\n")
-        return []
-    except Exception as e:
-        sys.stderr.write(f"mios-skills: SurrealDB unreachable: {e}\n")
-        return []
-
-
-def last_ok(results: list) -> Optional[list]:
-    if not results:
-        return None
-    last = results[-1] or {}
-    if last.get("status") != "OK":
-        return None
-    return last.get("result")
-
-
-def sq(s: str) -> str:
-    """Quote a string for SurrealQL via json.dumps (same trick as
-    mios-kg uses to avoid '' escape edge cases on labels with
-    embedded apostrophes)."""
-    return json.dumps(s)
-
-
 # ─── miner: sequence extraction over tool_call ────────────────────
 def _args_shape(args: dict) -> dict:
     """Normalize verb args to a shape signature -- keys + arg types
@@ -229,49 +189,32 @@ def _args_shape(args: dict) -> dict:
 
 
 def _fetch_recent_tool_calls(hours: int, limit: int = 5000) -> list[dict]:
-    """Pull recent tool_call rows. Excludes rows already attributed
-    to a skill_invocation (via the emitted edge) so codified
-    patterns don't keep re-surfacing in candidate mining.
+    """Pull recent successful tool_call rows for mining (Postgres).
 
-    SurrealDB returns an empty array (not NONE) for `<-edge`
-    traversal on rows with no reverse edges, so the exclusion uses
-    `count(<-emitted) = 0` which works for both shapes."""
-    if _PG_PRIMARY:
-        # pg-primary (post pgvector cutover): the SurrealQL duration form
-        # (`time::now() - {h}h`) silently matched NOTHING on pg, so the miner
-        # always saw "no tool_call rows" and the training loop starved
-        # (operator 2026-06-10 "train MiOS AI"). The emitted-edge exclusion is
-        # a Surreal graph traversal with no pg mirror -- skip it; re-mined
-        # patterns dedup by name at insert time. Degrade-open -> [].
-        try:
-            rows = _pg_rows(
-                f"SELECT id, session_id AS session, ts, tool, args, success "
-                f"FROM tool_call "
-                f"WHERE ts > now() - interval '{int(hours)} hours' "
-                f"AND (success = true OR success IS NULL) "
-                f"AND tool NOT LIKE 'agent:%' "  # sub-agent/council fan-out dispatches are not real verb-chains -> not skills
-                f"ORDER BY ts ASC LIMIT {int(limit)}")
-            for r in rows:
-                a = r.get("args")
-                if isinstance(a, str):
-                    try:
-                        r["args"] = json.loads(a)
-                    except Exception:  # noqa: BLE001
-                        r["args"] = {}
-            return rows
-        except Exception:  # noqa: BLE001
-            return []
-    sql = (
-        f"SELECT id, session, ts, tool, args, success "
-        f"FROM tool_call "
-        f"WHERE ts > time::now() - {hours}h "
-        f"   AND (success = true OR success = NONE) "
-        f"   AND count(<-emitted) = 0 "
-        f"ORDER BY ts ASC LIMIT {limit};"
-    )
-    r = post_sql(sql)
-    rows = last_ok(r) or []
-    return rows
+    The SurrealQL duration form (`time::now() - {h}h`) silently matched NOTHING
+    on pg, so the miner used to see "no tool_call rows" and the training loop
+    starved (operator 2026-06-10 "train MiOS AI"). The old emitted-edge
+    exclusion was a Surreal graph traversal with no pg analogue -- re-mined
+    patterns dedup by name at insert time instead. hours/limit are int()-coerced
+    and stay inline (integers don't bind reliably). Degrade-open -> []."""
+    try:
+        rows = _pg_rows(
+            "SELECT id, session_id AS session, ts, tool, args, success "
+            "FROM tool_call "
+            f"WHERE ts > now() - interval '{int(hours)} hours' "
+            "AND (success = true OR success IS NULL) "
+            "AND tool NOT LIKE 'agent:%' "  # sub-agent/council fan-out dispatches are not real verb-chains -> not skills
+            f"ORDER BY ts ASC LIMIT {int(limit)}")
+        for r in rows:
+            a = r.get("args")
+            if isinstance(a, str):
+                try:
+                    r["args"] = json.loads(a)
+                except Exception:  # noqa: BLE001
+                    r["args"] = {}
+        return rows
+    except Exception:  # noqa: BLE001
+        return []
 
 
 def _group_by_session(rows: list[dict]) -> list[list[dict]]:
@@ -296,7 +239,7 @@ def _group_by_session(rows: list[dict]) -> list[list[dict]]:
         for row in no_session:
             ts_str = str(row.get("ts", ""))
             try:
-                # SurrealDB returns datetimes as ISO strings.
+                # Postgres returns timestamps as ISO strings.
                 t = time.mktime(time.strptime(ts_str[:19], "%Y-%m-%dT%H:%M:%S"))
             except Exception:
                 t = last_ts
@@ -462,9 +405,8 @@ def _build_body(verbs: list[str], examples: dict) -> dict:
 
 
 def _skill_exists(name: str) -> bool:
-    sql = f"SELECT id FROM skill WHERE name = {sq(name)} LIMIT 1;"
-    r = post_sql(sql)
-    rows = last_ok(r) or []
+    rows = _pg_rows(
+        "SELECT id FROM skill WHERE name = $1 LIMIT 1", [name])
     return bool(rows)
 
 
@@ -476,52 +418,32 @@ def _skill_success_rate(name: str) -> tuple[float, int]:
     NEVER blocks a skill that simply has no recorded runs yet (incl. a
     brand-new mined skill that doesn't exist in the DB at decision time).
 
-    skill_invocation.skill is a record-ref (`skill = skill:abc`, UNQUOTED),
-    so we first resolve the skill's record id by name, then filter
-    invocations by that ref within WINDOW_HOURS. The duration syntax
-    (`time::now() - {h}h`) and the post_sql/last_ok read path mirror the
-    rest of this file exactly. success may be NONE on still-open rows -> we
-    drop None and only score closed invocations."""
-    if _PG_PRIMARY:
-        # P4-full: read the pg-mirrored skill_invocation (A0) -- skill column holds
-        # the skill id; ts is the close time. Degrade-open -> (1.0, 0).
-        try:
-            _ir = _pg_rows(f"SELECT id FROM skill WHERE name = '{_pgesc(name)}' LIMIT 1")
-            if not _ir:
-                return (1.0, 0)
-            _sid = _ir[0].get("id")
-            _rows = _pg_rows(
-                f"SELECT success FROM skill_invocation WHERE skill::text = '{_sid}' "
-                f"AND ts > now() - interval '{WINDOW_HOURS} hours'")
-            _vals = [bool(r.get("success")) for r in _rows
-                     if isinstance(r, dict) and r.get("success") is not None]
-            if len(_vals) < MIN_SUCCESS_SAMPLES:
-                return (1.0, len(_vals))
-            return (sum(1 for v in _vals if v) / len(_vals), len(_vals))
-        except Exception:  # noqa: BLE001
-            return (1.0, 0)
+    We first resolve the skill's record id by name, then filter
+    skill_invocation rows by that ref within WINDOW_HOURS. The skill id is a
+    DB-row value, so it binds out-of-band ($1) like every other external value.
+    success may be NULL on still-open rows -> we drop None and only score
+    closed invocations. Degrade-open -> (1.0, 0)."""
     try:
-        idr = post_sql(
-            f"SELECT id FROM skill WHERE name = {sq(name)} LIMIT 1;")
-        idrows = last_ok(idr) or []
-        if not idrows:
+        _ir = _pg_rows(
+            "SELECT id FROM skill WHERE name = $1 LIMIT 1", [name])
+        if not _ir:
             return (1.0, 0)   # not yet persisted / unknown -> don't block
-        skill_id = idrows[0].get("id")
-        if not skill_id:
+        _sid = _ir[0].get("id")
+        if _sid is None:
             return (1.0, 0)
-        # skill_id is a record-string ("skill:abc"); used UNQUOTED as a ref,
-        # matching _skill_invocation_open's `skill = skill:abc` form.
-        rows = last_ok(post_sql(
-            f"SELECT success FROM skill_invocation "
-            f"WHERE skill = {skill_id} "
-            f"  AND started_at > time::now() - {WINDOW_HOURS}h;")) or []
-        vals = [r.get("success") for r in rows if isinstance(r, dict)]
-        vals = [v for v in vals if v is not None]
-        if len(vals) < MIN_SUCCESS_SAMPLES:
-            return (1.0, len(vals))   # not enough data -> don't block
-        ok = sum(1 for v in vals if v)
-        return (ok / len(vals), len(vals))
-    except Exception:
+        # WINDOW_HOURS is an int knob -> inline; the skill id binds as a text
+        # param ($1) cast to match the skill column type.
+        _rows = _pg_rows(
+            "SELECT success FROM skill_invocation "
+            "WHERE skill::text = $1 "
+            f"AND ts > now() - interval '{int(WINDOW_HOURS)} hours'",
+            [str(_sid)])
+        _vals = [bool(r.get("success")) for r in _rows
+                 if isinstance(r, dict) and r.get("success") is not None]
+        if len(_vals) < MIN_SUCCESS_SAMPLES:
+            return (1.0, len(_vals))   # not enough data -> don't block
+        return (sum(1 for v in _vals if v) / len(_vals), len(_vals))
+    except Exception:  # noqa: BLE001
         return (1.0, 0)
 
 
@@ -529,56 +451,32 @@ def _insert_skill(*, name: str, body: dict, support: int,
                   confidence: float, status: str,
                   description: str = "",
                   source: str = "mined") -> bool:
+    # support/confidence are numeric knobs -> inline (int/float coercion);
+    # name/description/body/source/status are external values -> bound ($1..$5).
     _pg_exec(
         "INSERT INTO skill (name, description, body, source, status, support, "
         "confidence, version, created_at) VALUES ("
-        f"'{_pgesc(name)}', '{_pgesc(description)}', "
-        f"'{_pgesc(json.dumps(body))}'::jsonb, '{_pgesc(source)}', "
-        f"'{_pgesc(status)}', {int(support)}, {float(confidence)}, 1, now());")
-    if _PG_PRIMARY:
-        return True
-    sql = (
-        f"CREATE skill SET "
-        f"name = {sq(name)}, "
-        f"description = {sq(description)}, "
-        f"body = {json.dumps(body)}, "
-        f"source = {sq(source)}, "
-        f"status = {sq(status)}, "
-        f"support = {support}, "
-        f"confidence = {confidence}, "
-        f"version = 1, "
-        f"created_at = time::now();"
-    )
-    r = post_sql(sql)
-    return last_ok(r) is not None
+        f"$1, $2, $3::jsonb, $4, $5, {int(support)}, {float(confidence)}, "
+        "1, now());",
+        [name, description, json.dumps(body), source, status])
+    return True
 
 
 # ─── list / show / promote / retire / delete ──────────────────────
 def cmd_list(args: argparse.Namespace) -> int:
-    if _PG_PRIMARY:
-        pgw = []
-        if args.status and args.status != "all":
-            pgw.append(f"status = '{_pgesc(args.status)}'")
-        if args.source and args.source != "all":
-            pgw.append(f"source = '{_pgesc(args.source)}'")
-        pgclause = " AND ".join(pgw) if pgw else "true"
-        rows = _pg_rows(
-            "SELECT name, description, source, status, support, "
-            "confidence, version, created_at, last_used_at "
-            f"FROM skill WHERE {pgclause} ORDER BY name")
-    else:
-        where = []
-        if args.status and args.status != "all":
-            where.append(f"status = {sq(args.status)}")
-        if args.source and args.source != "all":
-            where.append(f"source = {sq(args.source)}")
-        clause = " AND ".join(where) if where else "true"
-        sql = (
-            f"SELECT name, description, source, status, support, "
-            f"confidence, version, created_at, last_used_at "
-            f"FROM skill WHERE {clause} ORDER BY name;"
-        )
-        rows = last_ok(post_sql(sql)) or []
+    where: list[str] = []
+    params: list = []
+    if args.status and args.status != "all":
+        params.append(args.status)
+        where.append(f"status = ${len(params)}")
+    if args.source and args.source != "all":
+        params.append(args.source)
+        where.append(f"source = ${len(params)}")
+    clause = " AND ".join(where) if where else "true"
+    rows = _pg_rows(
+        "SELECT name, description, source, status, support, "
+        "confidence, version, created_at, last_used_at "
+        f"FROM skill WHERE {clause} ORDER BY name", params)
     if args.json:
         print(json.dumps(rows, indent=2, default=str))
         return 0
@@ -599,18 +497,10 @@ def cmd_list(args: argparse.Namespace) -> int:
 
 
 def cmd_show(args: argparse.Namespace) -> int:
-    if _PG_PRIMARY:
-        rows = _pg_rows(
-            "SELECT name, description, body, source, status, "
-            "support, confidence, version FROM skill "
-            f"WHERE name = '{_pgesc(args.name)}' LIMIT 1")
-    else:
-        sql = (
-            f"SELECT name, description, body, params, source, status, "
-            f"support, confidence, version "
-            f"FROM skill WHERE name = {sq(args.name)} LIMIT 1;"
-        )
-        rows = last_ok(post_sql(sql)) or []
+    rows = _pg_rows(
+        "SELECT name, description, body, source, status, "
+        "support, confidence, version FROM skill "
+        "WHERE name = $1 LIMIT 1", [args.name])
     if not rows:
         sys.stderr.write(f"mios-skills: no skill named {args.name!r}\n")
         return 1
@@ -619,21 +509,9 @@ def cmd_show(args: argparse.Namespace) -> int:
 
 
 def _update_status(name: str, status: str) -> int:
-    _pg_exec(f"UPDATE skill SET status = '{_pgesc(status)}', "
-             f"updated_at = now() WHERE name = '{_pgesc(name)}';")
-    if _PG_PRIMARY:
-        sys.stderr.write(f"mios-skills: {name} -> {status}\n")
-        return 0
-    sql = (
-        f"UPDATE skill SET status = {sq(status)}, "
-        f"updated_at = time::now() "
-        f"WHERE name = {sq(name)} RETURN AFTER;"
-    )
-    rows = last_ok(post_sql(sql)) or []
-    if not rows:
-        sys.stderr.write(
-            f"mios-skills: no skill named {name!r} to update\n")
-        return 1
+    _pg_exec(
+        "UPDATE skill SET status = $1, updated_at = now() WHERE name = $2;",
+        [status, name])
     sys.stderr.write(f"mios-skills: {name} -> {status}\n")
     return 0
 
@@ -654,11 +532,8 @@ def cmd_reap(args: argparse.Namespace) -> int:
     so the rate math is confirmed on real data first). Inert until skill_invocation
     outcomes accumulate. operator 2026-06-10."""
     dry = not getattr(args, "apply", False)
-    if _PG_PRIMARY:
-        rows = _pg_rows("SELECT name FROM skill WHERE status = 'promoted' ORDER BY name")
-    else:
-        rows = last_ok(post_sql(
-            "SELECT name FROM skill WHERE status = 'promoted';")) or []
+    rows = _pg_rows(
+        "SELECT name FROM skill WHERE status = 'promoted' ORDER BY name")
     names = [r.get("name") for r in rows if isinstance(r, dict) and r.get("name")]
     demoted = 0
     for nm in names:
@@ -676,12 +551,7 @@ def cmd_reap(args: argparse.Namespace) -> int:
 
 
 def cmd_delete(args: argparse.Namespace) -> int:
-    _pg_exec(f"DELETE FROM skill WHERE name = '{_pgesc(args.name)}';")
-    if not _PG_PRIMARY:
-        sql = f"DELETE skill WHERE name = {sq(args.name)};"
-        r = post_sql(sql)
-        if last_ok(r) is None:
-            return 1
+    _pg_exec("DELETE FROM skill WHERE name = $1;", [args.name])
     sys.stderr.write(f"mios-skills: deleted {args.name}\n")
     return 0
 
@@ -807,24 +677,15 @@ def _import_one(obj: dict) -> bool:
 
 
 def cmd_export(args: argparse.Namespace) -> int:
-    if _PG_PRIMARY:
-        cond = f"WHERE name = '{_pgesc(args.name)}' LIMIT 1" if args.name \
-            else "ORDER BY name"
-        rows = _pg_rows("SELECT name, description, body, source, status, "
-                        f"support, confidence, version FROM skill {cond}")
+    if args.name:
+        rows = _pg_rows(
+            "SELECT name, description, body, source, status, "
+            "support, confidence, version FROM skill "
+            "WHERE name = $1 LIMIT 1", [args.name])
     else:
-        if args.name:
-            sql = (
-                f"SELECT name, description, body, source, status, "
-                f"support, confidence, version "
-                f"FROM skill WHERE name = {sq(args.name)} LIMIT 1;"
-            )
-        else:
-            sql = (
-                "SELECT name, description, body, source, status, "
-                "support, confidence, version FROM skill ORDER BY name;"
-            )
-        rows = last_ok(post_sql(sql)) or []
+        rows = _pg_rows(
+            "SELECT name, description, body, source, status, "
+            "support, confidence, version FROM skill ORDER BY name")
     for row in rows:
         print(json.dumps(row, default=str))
     return 0
@@ -835,15 +696,9 @@ def _promoted_tools_payload() -> dict:
     Shared between cmd_openai_tools (prints to stdout) and
     cmd_export_catalog (writes to the static file every external
     agent reads when agent-pipe HTTP isn't reachable)."""
-    if _PG_PRIMARY:
-        rows = _pg_rows("SELECT name, description, body FROM skill "
-                        "WHERE status = 'promoted' ORDER BY name")
-    else:
-        sql = (
-            "SELECT name, description, body "
-            "FROM skill WHERE status = 'promoted' ORDER BY name;"
-        )
-        rows = last_ok(post_sql(sql)) or []
+    rows = _pg_rows(
+        "SELECT name, description, body FROM skill "
+        "WHERE status = 'promoted' ORDER BY name")
     tools = []
     for row in rows:
         name = row.get("name") or ""

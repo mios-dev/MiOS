@@ -96,9 +96,27 @@ def t_remember():
           any("$1" in s for s in sqls))
 
 
+def t_skills():
+    sk = _load("mios-skills")
+    cap = []
+    sk._pg_exec = lambda sql, params=None: cap.append({"sql": sql, "params": params or []})
+    sk._pg_rows = lambda sql, params=None: (cap.append({"sql": sql, "params": params or []}) or [])
+    sk.cmd_delete(argparse.Namespace(name=EVIL))
+    sk._update_status(EVIL, EVIL2)
+    sqls = _all_sql(cap)
+    params = _all_params(cap)
+    check("skills: captured DB calls", len(cap) >= 2, str(len(cap)))
+    check("skills: NO injected SQL in any statement",
+          all("drop table" not in s.lower() for s in sqls))
+    check("skills: name payload bound as a param", EVIL in params)
+    check("skills: status payload bound as a param", EVIL2 in params)
+    check("skills: statements use $-placeholders", any("$1" in s for s in sqls))
+
+
 def main():
     t_kg()
     t_remember()
+    t_skills()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
 

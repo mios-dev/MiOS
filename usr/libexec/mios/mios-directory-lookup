@@ -1,13 +1,19 @@
 #!/usr/bin/env python3
-# AI-hint: Provides high-speed (<100ms) retrieval of the SurrealDB-cached directory map to allow agents to perform rapid file/directory lookups and navigation instead of slow filesystem crawls.
-# AI-related: /usr/libexec/mios/mios-db, mios-db, mios-daemon, mios-find, mios-sys-env, localhost:8000
+# AI-hint: Provides high-speed (<100ms) retrieval of the pgvector-cached directory map (parameterized pg via mios-db --pg-json) to allow agents to perform rapid file/directory lookups and navigation instead of slow filesystem crawls.
+# AI-related: /usr/libexec/mios/mios-db, mios-db, mios-daemon, mios-find, mios-sys-env, mios-pg-query
 """mios-directory-lookup -- query the cached directory map that
-mios-daemon's index_loop maintains in SurrealDB.
+mios-daemon's index_loop maintains in PostgreSQL/pgvector.
 
 Operator directive: "mios-daemon should be indexing directories for
 directory maps for llms cache/lut/DB/etc for faster navigation/
 recall!!". This shim is the read-side of that index. Sub-100ms
 lookups (DB query) vs the 60ms+ live mios-find / fs_search.
+
+The query is parameterized end-to-end: every external value (the
+search substring + the --root / --ext / --kind filters) is bound
+out-of-band via `mios-db --pg-json` ($1..$n through the pg v3 extended
+protocol), never spliced into the SQL text. Only the integer LIMIT is
+inlined (int()-coerced).
 
 USAGE
   mios-directory-lookup <query> [--root <label>] [--ext <.md>]
@@ -22,20 +28,11 @@ OUTPUT
 from __future__ import annotations
 
 import argparse
-import base64
 import json
 import os
 import sys
-import urllib.error
-import urllib.request
 
-SURREAL_URL = os.environ.get("MIOS_DB_URL", "http://localhost:8000")
-# Creds from the MIOS_DB_* SSOT (same as agent-pipe / mios-daemon / mios-sys-env)
-# -- was a hardcoded `Basic cm9vdDpyb290` (root:root) which broke on any host
-# that rotated the SurrealDB password. Operator: no hardcodes.
-_DB_USER = os.environ.get("MIOS_DB_USER", "root")
-_DB_PASS = os.environ.get("MIOS_DB_PASS", "root")
-_DB_AUTH = "Basic " + base64.b64encode(f"{_DB_USER}:{_DB_PASS}".encode()).decode()
+MIOS_DB = "/usr/libexec/mios/mios-db"
 DEFAULT_LIMIT = int(os.environ.get(
     "MIOS_DIRECTORY_LOOKUP_LIMIT", "20"))
 # Per-hit summary cap + a hard envelope cap so the --json output ALWAYS stays
@@ -59,65 +56,38 @@ def _trim_hit(h: dict) -> dict:
     }
 
 
-def _sql(query: str) -> list:
-    # PREFIX `USE NS mios DB agent;` -- the NS:/DB: HTTP headers
-    # aren't honored on this SurrealDB version (returns
-    # "NamespaceEmpty: Specify a namespace to use"). Matches the
-    # agent-pipe + mios-daemon pattern.
-    body = f"USE NS mios DB agent; {query}".encode("utf-8")
-    req = urllib.request.Request(
-        f"{SURREAL_URL}/sql",
-        data=body,
-        headers={
-            "Authorization": _DB_AUTH,  # MIOS_DB_* SSOT, not hardcoded
-            "Accept": "application/json",
-            "Content-Type": "text/plain",
-        },
-        method="POST",
-    )
-    with urllib.request.urlopen(req, timeout=10) as r:
-        # First statement is USE; results start at index 1.
-        full = json.loads(r.read().decode("utf-8", errors="replace"))
-        return full[1:] if isinstance(full, list) and len(full) > 1 else full
-
-
-def _q(s: str) -> str:
-    """SurrealDB string-literal escape -- backslash + double-quote."""
-    return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
-
-
-_DB_BACKEND = os.environ.get("MIOS_DB_BACKEND", "dual").strip().lower()
-_PG_TRY = _DB_BACKEND in ("dual", "postgres")
-_PG_PRIMARY = _DB_BACKEND == "postgres"
-
-
 def _pg_lookup(ql: str, root: str, ext: str, kind: str,
                limit: int) -> "list | None":
-    """R15: directory lookup against pgvector via `mios-db --pg --json`.
-    Returns the rows list, or None when pg is unreachable so the caller can
-    fall back to SurrealDB (dual mode). strpos() substring match mirrors the
-    SurrealDB CONTAINS query; ranking happens in the shared pass below."""
+    """Directory lookup against pgvector via the parameterized
+    `mios-db --pg-json` envelope (pg v3 extended protocol -- values bound
+    out-of-band as $1..$n, never spliced into the SQL text). Returns the
+    rows list, or None when pg is unreachable so the caller degrades open
+    (empty result, no crash). strpos() substring match; ranking happens in
+    the shared pass below. Only the integer LIMIT is inlined (int-coerced --
+    text->int inference is unreliable on the bound path)."""
     import subprocess
 
-    def _e(s: str) -> str:
-        return str(s).replace("'", "''")
-    conds = [f"(strpos(lower(basename), '{_e(ql)}') > 0 "
-             f"OR strpos(lower(path), '{_e(ql)}') > 0)"]
+    params: list = [ql]
+    conds = ["(strpos(lower(basename), $1) > 0 OR strpos(lower(path), $1) > 0)"]
     if root:
-        conds.append(f"root_label = '{_e(root)}'")
+        params.append(root)
+        conds.append(f"root_label = ${len(params)}")
     if ext:
         e = ext if ext.startswith(".") else "." + ext
-        conds.append(f"ext = '{_e(e.lower())}'")
+        params.append(e.lower())
+        conds.append(f"ext = ${len(params)}")
     if kind:
-        conds.append(f"kind = '{_e(kind)}'")
+        params.append(kind)
+        conds.append(f"kind = ${len(params)}")
     sql = ("SELECT COALESCE(json_agg(row_to_json(t)), '[]') FROM ("
            "SELECT path, parent, basename, kind, size, mtime, ext, summary, "
            "root_label FROM directory_entry WHERE " + " AND ".join(conds)
            + f" LIMIT {int(limit) * 3}) t;")
     try:
         p = subprocess.run(
-            ["/usr/libexec/mios/mios-db", "--pg", sql, "--json"],
-            capture_output=True, text=True, timeout=10)
+            [MIOS_DB, "--pg-json"],
+            input=json.dumps({"sql": sql, "params": params}),
+            capture_output=True, text=True, timeout=15)
         if p.returncode != 0:
             if os.environ.get("MIOS_LOOKUP_DEBUG"):
                 sys.stderr.write(
@@ -133,65 +103,17 @@ def _pg_lookup(ql: str, root: str, ext: str, kind: str,
 
 def lookup(query: str, root: str, ext: str, kind: str,
            limit: int) -> list[dict]:
-    """Compose a WHERE clause from the filters + return ranked hits.
+    """Query the pgvector directory index + return ranked hits.
     Ranking heuristic: basename exact == > basename starts-with >
-    basename contains > summary contains > parent contains."""
+    basename contains > summary contains > parent contains.
+    Degrades open: a pg miss/unreachable backend returns [] (no crash)."""
     q = (query or "").strip()
     if not q:
         return []
     ql = q.lower()
-    conds = []
-    # Basename / path substring (case-insensitive via SurrealDB's
-    # string::lowercase + CONTAINS). The `~` operator was 2.x; 3.x
-    # requires CONTAINS. Summary field NOT included in the WHERE
-    # clause -- nullable-field comparison was rejected by SurrealDB
-    # 3.x even with IS NOT NONE guard; the rank pass below uses
-    # summary content when present, so summary-matches still bubble
-    # up via path/basename indirect hits.
-    conds.append(
-        f"(string::lowercase(basename) CONTAINS {_q(ql)} "
-        f"OR string::lowercase(path) CONTAINS {_q(ql)})"
-    )
-    if root:
-        conds.append(f"root_label = {_q(root)}")
-    if ext:
-        if not ext.startswith("."):
-            ext = "." + ext
-        conds.append(f"ext = {_q(ext.lower())}")
-    if kind:
-        conds.append(f"kind = {_q(kind)}")
-    where = " AND ".join(conds)
-    rows = None
-    # R15: prefer pgvector when the plane is on Postgres (dual/postgres). In
-    # dual mode a pg miss falls back to SurrealDB; once MIOS_DB_BACKEND=postgres
-    # pg is authoritative (no fallback to a retired surreal). Mirrors the
-    # agent-pipe _db_read cutover seam.
-    if _PG_TRY:
-        rows = _pg_lookup(ql, root, ext, kind, limit)
-        if rows is None and _PG_PRIMARY:
-            rows = []
-    if rows is None:
-        sql = (
-            f"SELECT path, parent, basename, kind, size, mtime, "
-            f"ext, summary, root_label "
-            f"FROM directory_entry WHERE {where} "
-            f"LIMIT {int(limit) * 3};"
-        )
-        if os.environ.get("MIOS_LOOKUP_DEBUG"):
-            sys.stderr.write(f"DEBUG SQL: {sql}\n")
-        try:
-            r = _sql(sql)
-            if os.environ.get("MIOS_LOOKUP_DEBUG"):
-                sys.stderr.write(f"DEBUG RESP: {json.dumps(r)[:600]}\n")
-        except urllib.error.HTTPError as e:
-            sys.stderr.write(
-                f"SurrealDB HTTP {e.code}: "
-                f"{e.read().decode('utf-8', errors='replace')[:200]}\n")
-            return []
-        except Exception as e:
-            sys.stderr.write(f"SurrealDB error: {e}\n")
-            return []
-        rows = (r[-1] or {}).get("result") or [] if isinstance(r, list) else []
+    # pgvector is the unconditional path (SurrealDB is retired). A None return
+    # means the backend was unreachable -> degrade open to an empty result.
+    rows = _pg_lookup(ql, root, ext, kind, limit)
     if not isinstance(rows, list):
         return []
     # Rank in-process: we pulled 3x the requested limit so the
