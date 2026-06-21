@@ -107,6 +107,7 @@ import mios_secset   # noqa: E402  -- WS-A14 SSOT-derived high-privilege/taint s
 import mios_hopbudget   # noqa: E402  -- WS-4 hop-budget recursion guard + effort scaling
 import mios_preempt   # noqa: E402  -- WS-A12 RR-preemption state machine + snapshot contract
 import mios_batch   # noqa: E402  -- WS-A6 batch coalescing (bypass native-batch lanes)
+import mios_smartroute   # noqa: E402  -- WS-A16 cost/quality SmartRouting (local-first escalation)
 import mios_codemode as _codemode   # noqa: E402  -- WS-2 Code Mode pure helpers
 import mios_pg as _mios_pg   # noqa: E402  -- WS-9 Postgres+pgvector client
 import mios_lanes   # noqa: E402  -- WS-1 unified inference-lane resolver
@@ -3152,6 +3153,14 @@ BATCH_MAX_SIZE = _dispatch_num("MIOS_BATCH_MAX_SIZE", "batch_max_size", 8)
 BATCH_NATIVE_HINTS = [h.strip() for h in str(
     os.environ.get("MIOS_BATCH_NATIVE_HINTS")
     or _DISPATCH_TOML.get("batch_native_hints", "")).split(",") if h.strip()]
+# ── Cost/quality SmartRouting (WS-A16, researched local-first escalation). Run
+# local lanes first; escalate to a paid remote core only on a quality-gate fail
+# / local exhaustion, within a per-day budget (mios_smartroute). DISABLED by
+# default (local-only); the remote adapters + quality gate are the server.py/VM
+# integration. Env: MIOS_SMARTROUTE_ENABLE / MIOS_SMARTROUTE_BUDGET.
+SMARTROUTE_ENABLE = str(os.environ.get("MIOS_SMARTROUTE_ENABLE", "")).strip().lower() \
+    in ("1", "true", "yes", "on")
+SMARTROUTE_BUDGET = float(os.environ.get("MIOS_SMARTROUTE_BUDGET", "0") or 0)
 
 
 def _endpoint_is_llamacpp(ep: str, cfg: dict, engine: Optional[str] = None) -> bool:
@@ -18807,6 +18816,8 @@ async def scheduler_state() -> JSONResponse:
         # WS-A6 batch coalescing: posture (native lanes self-batch -> bypassed).
         "batch": {"enabled": BATCH_ENABLE, "interval_s": BATCH_INTERVAL_S,
                   "max_size": BATCH_MAX_SIZE, "native_bypass_hints": BATCH_NATIVE_HINTS},
+        # WS-A16 SmartRouting: local-first escalation posture + budget.
+        "smartroute": {"enabled": SMARTROUTE_ENABLE, "budget": SMARTROUTE_BUDGET},
         "ts": int(time.time()),
     })
 

@@ -4500,6 +4500,15 @@ catalog_fail_mode   = "warn"
 # to query complexity. "max" (default) = full width (behaviour-preserving);
 # low|medium|high narrow it, or a 0..1 score. Env MIOS_EFFORT.
 effort              = "max"
+# WS-A16 cost/quality SmartRouting (RESEARCHED local-first escalation, LiteLLM-
+# shaped): run the local lane(s) first, escalate to a paid REMOTE core ONLY when
+# a quality gate fails / locals are exhausted, within a per-day cost budget
+# (mios_smartroute). DISABLED by default = local-only (today's behaviour). Add a
+# remote core under a future [ai.remote_cores.<name>] block (url/model/cost_in/
+# quality_tier/key_ref -- key from the secret store, NOT here) + flip the flag.
+# Env: MIOS_SMARTROUTE_ENABLE / MIOS_SMARTROUTE_BUDGET.
+smartroute_enable   = false
+smartroute_budget   = 0.0       # per-day cost cap for paid remote escalation (0 = unlimited)
 # WS-A17 local package registry. When true, the build materializes a versioned
 # package tree (ai/v1/packages/<author>/<name>/<version>/mios-pkg.toml +
 # registry.json) projected from the live SSOT (verbs/agents/recipes) via the
