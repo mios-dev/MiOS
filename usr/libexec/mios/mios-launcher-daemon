@@ -172,20 +172,36 @@ def handle(conn: socket.socket) -> None:
         #     AGAIN").
         env = dict(os.environ)
         env.setdefault("GDK_BACKEND", "wayland")
-        # Stream stdout/stderr to a per-dispatch log under /var/log/
-        # mios-launcher/ so debug-able. Service has StateDirectory= so
-        # the dir is auto-created + writable.
-        log_dir = "/var/log/mios-launcher"
-        os.makedirs(log_dir, mode=0o755, exist_ok=True)
-        ts_id = subprocess.check_output(["date", "+%Y%m%d-%H%M%S-%N"]).decode().strip()
-        log_path = os.path.join(log_dir, f"dispatch-{ts_id}.log")
+        # Per-dispatch log -- BEST-EFFORT, must NEVER block the launch. The
+        # daemon runs as the operator (uid 992) and CANNOT create under
+        # /var/log (root-owned); the old StateDirectory= assumption is gone, so
+        # os.makedirs("/var/log/mios-launcher") raised Permission denied and
+        # aborted the WHOLE dispatch -> no app ever launched (operator
+        # 2026-06-21 "open notepad" -> broker logged "dispatch: notepad.exe"
+        # then died "Permission denied: /var/log/mios-launcher"). Log to the
+        # operator-writable runtime dir, and fall back to DEVNULL on ANY error
+        # so the app still launches. install-robustness 2026-06-21.
+        log_fp = None
+        log_path = "(none)"
         try:
+            log_dir = os.environ.get("MIOS_LAUNCHER_LOG_DIR", "/run/mios-launcher/log")
+            os.makedirs(log_dir, mode=0o755, exist_ok=True)
+            ts_id = subprocess.check_output(["date", "+%Y%m%d-%H%M%S-%N"]).decode().strip()
+            log_path = os.path.join(log_dir, f"dispatch-{ts_id}.log")
             log_fp = open(log_path, "w")
-            os.chmod(log_path, 0o644)
+            try:
+                os.chmod(log_path, 0o644)
+            except OSError:
+                pass
+        except OSError as e:
+            log.warning("per-dispatch log unavailable (%s) -- launching without a log file", e)
+            log_fp = None
+            log_path = "(none)"
+        try:
             proc = subprocess.Popen(
                 ["bash", "-lc", line],
                 stdin=subprocess.DEVNULL,
-                stdout=log_fp,
+                stdout=(log_fp or subprocess.DEVNULL),
                 stderr=subprocess.STDOUT,
                 start_new_session=True,
                 env=env,
