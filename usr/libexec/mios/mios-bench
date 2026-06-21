@@ -1,0 +1,159 @@
+#!/usr/bin/env python3
+# AI-hint: MiOS agentic-capability benchmark harness CLI -- the runner half of the blueprint's missing benchmark piece. `score` (OFFLINE, pure): reads a trial-results JSON and prints the CLASSic rollup + pass@k / pass^k (tau-bench reliability) via the tested mios_bench core. `run` (VM-gated): drives a suite of prompts against the agent-pipe endpoint (:8640, MIOS_AI_ENDPOINT, Law-5) k times each, substring-checks the answer, writes the results JSON that `score` consumes. Stdlib-only; scoring logic lives in mios_bench (unit-tested).
+# AI-related: /usr/lib/mios/agent-pipe/mios_bench.py, mios_bench, /usr/share/doc/mios/concepts/aios-engineering-blueprint.md, localhost:8640
+# AI-functions: _load_json, cmd_score, cmd_run, main
+"""mios-bench -- agentic-capability benchmark harness for the MiOS agent plane.
+
+The AIOS engineering blueprint flagged the absence of a standard capability
+benchmark runner (SWE-bench / OSWorld / tau-bench). This is that harness.
+
+  mios-bench score <results.json> [--k 8]
+      OFFLINE. Reads a JSON list of trial records
+        [{"task","ok","cost","latency_ms","error","security_violation"}, ...]
+      (or {"results":[...]}) and prints the CLASSic rollup + mean pass@k / pass^k
+      grouped by task. Pure -- no endpoint needed.
+
+  mios-bench run <suite.json> [--k 8] [--endpoint URL] [--out results.json]
+      Drives the agent-pipe endpoint. suite = JSON list of
+        [{"task","prompt","expect": "<substring>" | ["any","of"]}, ...].
+      Runs each task k times, marks ok when an `expect` substring is present,
+      records latency, writes the results JSON. Needs the live :8640 lane.
+
+Endpoint resolves from MIOS_AI_ENDPOINT (Law 5) -> default http://localhost:8640/v1.
+Degrade-open: a dead lane records a failed/errored trial, never crashes the run.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+import time
+
+sys.path.insert(0, "/usr/lib/mios/agent-pipe")
+try:
+    import mios_bench as mb
+except Exception as e:  # noqa: BLE001 -- module must ship alongside the agent-pipe
+    sys.stderr.write(f"mios-bench: cannot import mios_bench scoring core: {e}\n")
+    sys.exit(2)
+
+_ENDPOINT = os.environ.get("MIOS_AI_ENDPOINT", "http://localhost:8640/v1").rstrip("/")
+_MODEL = os.environ.get("MIOS_BENCH_MODEL", "mios")
+_KEY = os.environ.get("MIOS_API_SERVER_KEY") or os.environ.get("MIOS_API_KEY") or ""
+
+
+def _load_json(path: str):
+    if path == "-":
+        return json.loads(sys.stdin.read())
+    with open(path, encoding="utf-8") as fh:
+        return json.loads(fh.read())
+
+
+def _records_of(doc) -> list:
+    if isinstance(doc, dict) and isinstance(doc.get("results"), list):
+        return doc["results"]
+    return doc if isinstance(doc, list) else []
+
+
+def _report(records: list, k: int) -> dict:
+    """Group flat records by task -> (n, c) and roll up everything."""
+    by_task: dict = {}
+    for r in records:
+        if not isinstance(r, dict):
+            continue
+        slot = by_task.setdefault(str(r.get("task") or ""), [0, 0])
+        slot[0] += 1
+        if r.get("ok"):
+            slot[1] += 1
+    tasks = [(v[0], v[1]) for v in by_task.values()]
+    classic = mb.classic_rollup(records, k=k)
+    return {
+        "k": k,
+        "tasks": len(tasks),
+        "trials": classic["n"],
+        "pass_at_1": round(mb.aggregate_pass_at_k(tasks, 1), 4),
+        "pass_at_k": round(mb.aggregate_pass_at_k(tasks, k), 4),
+        "pass_hat_k": round(mb.aggregate_pass_hat_k(tasks, k), 4),
+        "classic": classic,
+    }
+
+
+def cmd_score(args: argparse.Namespace) -> int:
+    records = _records_of(_load_json(args.results))
+    if not records:
+        sys.stderr.write("mios-bench: no trial records found\n")
+        return 1
+    print(json.dumps(_report(records, max(1, int(args.k))), indent=2))
+    return 0
+
+
+def _expect_ok(answer: str, expect) -> bool:
+    a = (answer or "").lower()
+    if isinstance(expect, list):
+        return any(str(e).lower() in a for e in expect)
+    return str(expect or "").lower() in a if expect else bool(a.strip())
+
+
+def cmd_run(args: argparse.Namespace) -> int:
+    import urllib.request
+    suite = _load_json(args.suite)
+    if not isinstance(suite, list) or not suite:
+        sys.stderr.write("mios-bench: suite must be a non-empty JSON list\n")
+        return 1
+    k = max(1, int(args.k))
+    endpoint = (args.endpoint or _ENDPOINT).rstrip("/")
+    headers = {"Content-Type": "application/json"}
+    if _KEY:
+        headers["Authorization"] = f"Bearer {_KEY}"
+    records: list = []
+    for spec in suite:
+        if not isinstance(spec, dict):
+            continue
+        task = str(spec.get("task") or spec.get("prompt", "")[:40])
+        prompt = str(spec.get("prompt") or "")
+        expect = spec.get("expect")
+        for _ in range(k):
+            t0 = time.time()
+            ok = False
+            err = False
+            try:
+                body = json.dumps({"model": _MODEL,
+                                   "messages": [{"role": "user", "content": prompt}],
+                                   "stream": False}).encode()
+                req = urllib.request.Request(f"{endpoint}/chat/completions",
+                                             data=body, headers=headers, method="POST")
+                r = json.loads(urllib.request.urlopen(req, timeout=args.timeout).read())
+                ans = (((r.get("choices") or [{}])[0].get("message") or {}).get("content") or "")
+                ok = _expect_ok(ans, expect)
+            except Exception:  # noqa: BLE001 -- degrade-open: a dead lane = errored trial
+                err = True
+            records.append({"task": task, "ok": ok, "error": err,
+                            "cost": 0.0, "latency_ms": round((time.time() - t0) * 1000, 1),
+                            "security_violation": False})
+    if args.out:
+        with open(args.out, "w", encoding="utf-8") as fh:
+            json.dump({"results": records}, fh, indent=2)
+    print(json.dumps(_report(records, k), indent=2))
+    return 0
+
+
+def main() -> int:
+    p = argparse.ArgumentParser(prog="mios-bench")
+    sub = p.add_subparsers(dest="cmd", required=True)
+    ps = sub.add_parser("score", help="score a results JSON (offline)")
+    ps.add_argument("results")
+    ps.add_argument("--k", type=int, default=8)
+    ps.set_defaults(func=cmd_score)
+    pr = sub.add_parser("run", help="run a suite against the agent-pipe endpoint")
+    pr.add_argument("suite")
+    pr.add_argument("--k", type=int, default=8)
+    pr.add_argument("--endpoint", default="")
+    pr.add_argument("--out", default="")
+    pr.add_argument("--timeout", type=float, default=120.0)
+    pr.set_defaults(func=cmd_run)
+    args = p.parse_args()
+    return args.func(args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
