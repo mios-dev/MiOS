@@ -110,7 +110,16 @@ jobs:
           # `driver` makes `podman system reset` abort with "runroot must be set"
           # (install-robustness 2026-06-21). Use the standard rootful paths.
           echo -e '[storage]\ndriver = "overlay"\ngraphroot = "/var/lib/containers/storage"\nrunroot = "/run/containers/storage"\n[storage.options.overlay]\nmountopt = "nodev"' | sudo tee /etc/containers/storage.conf
-          sudo podman system reset -f
+          # The GHA runner ships a pre-seeded containers store whose libpod DB
+          # may record an empty/foreign graph driver. `podman system reset`
+          # reads that DB FIRST and aborts with 'database graph driver "" does
+          # not match our graph driver "overlay"' BEFORE it can wipe. Remove
+          # the stale store (rootful + rootless) so reset starts from a clean
+          # slate, then make reset itself non-fatal (install-robustness
+          # 2026-06-21).
+          sudo rm -rf /var/lib/containers/storage /run/containers/storage
+          rm -rf "${HOME}/.local/share/containers/storage" 2>/dev/null || true
+          sudo podman system reset -f || true
 
       - name: Free disk space on the GHA runner
         # GitHub-hosted ubuntu-24.04 runners ship with ~14 GB free on
@@ -310,7 +319,16 @@ jobs:
           # `driver` makes `podman system reset` abort with "runroot must be set"
           # (install-robustness 2026-06-21). Use the standard rootful paths.
           echo -e '[storage]\ndriver = "overlay"\ngraphroot = "/var/lib/containers/storage"\nrunroot = "/run/containers/storage"\n[storage.options.overlay]\nmountopt = "nodev"' | sudo tee /etc/containers/storage.conf
-          sudo podman system reset -f
+          # The GHA runner ships a pre-seeded containers store whose libpod DB
+          # may record an empty/foreign graph driver. `podman system reset`
+          # reads that DB FIRST and aborts with 'database graph driver "" does
+          # not match our graph driver "overlay"' BEFORE it can wipe. Remove
+          # the stale store (rootful + rootless) so reset starts from a clean
+          # slate, then make reset itself non-fatal (install-robustness
+          # 2026-06-21).
+          sudo rm -rf /var/lib/containers/storage /run/containers/storage
+          rm -rf "${HOME}/.local/share/containers/storage" 2>/dev/null || true
+          sudo podman system reset -f || true
 
       - name: Free disk space on the GHA runner (smoke job)
         # Same rationale as the main build job -- runner needs ~30 GB
