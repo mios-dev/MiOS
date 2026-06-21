@@ -111,6 +111,7 @@ import mios_hopbudget   # noqa: E402  -- WS-4 hop-budget recursion guard + effor
 import mios_preempt   # noqa: E402  -- WS-A12 RR-preemption state machine + snapshot contract
 import mios_sandbox   # noqa: E402  -- WS-A13 risk-tier dispatch-sandbox profile resolver
 import mios_cua   # noqa: E402  -- WS-8 perceive->act->verify computer-use loop core
+import mios_interop   # noqa: E402  -- WS-11 3-projection (A2A skill shape) interop
 import mios_batch   # noqa: E402  -- WS-A6 batch coalescing (bypass native-batch lanes)
 import mios_smartroute   # noqa: E402  -- WS-A16 cost/quality SmartRouting (local-first escalation)
 import mios_codemode as _codemode   # noqa: E402  -- WS-2 Code Mode pure helpers
@@ -18663,6 +18664,12 @@ def _build_agent_card() -> dict:
             "discovery": {
                 "tools": f"{base}/v1/verbs",
                 "tool_search": f"{base}/v1/tool-search",
+                # WS-11: the full capability surface as A2A skills (the 3rd
+                # projection), RBAC-filtered per caller -- the passport-gated
+                # A2A directory complementing this lean (agent-peers) card.
+                "a2a_skill_directory": f"{base}/a2a/skills",
+                "capabilities": f"{base}/v1/capabilities",
+                "capability_dag": f"{base}/v1/capabilities/dag",
                 "context": f"{base}/a2a/contexts/{{contextId}}",
                 "health": f"{base}/health",
             },
@@ -18687,6 +18694,47 @@ async def a2a_agent_card_alias() -> JSONResponse:
     """Convenience alias under /v1 for clients that don't probe
     the well-known path."""
     return JSONResponse(_build_agent_card())
+
+
+@app.get("/a2a/skills")
+async def a2a_skill_directory(request: Request) -> JSONResponse:
+    """WS-11 passport-gated A2A capability DIRECTORY: EVERY MiOS capability
+    (verb/recipe/skill) projected into the A2A AgentCard skill shape via
+    mios_interop -- the THIRD interop projection alongside the MCP tool + OpenAI
+    function surfaces this server already emits, so an A2A peer can discover the
+    full surface in the open standard, not only via MCP/OpenAI. RBAC-filtered by
+    the caller's permission ceiling (the SAME mios_capreg lattice as
+    /v1/capabilities -> a matched [users.*].max_permission), so a peer is shown
+    only what it may invoke -- the 'passport-gated directory'. The AgentCard
+    itself stays lean (the agent PEERS); this is the capability crawl. Read-only,
+    degrade-open."""
+    try:
+        try:
+            _, _ucfg = _match_user_cfg()
+        except Exception:  # noqa: BLE001
+            _ucfg = {}
+        ceiling = str((_ucfg or {}).get("max_permission") or "interactive")
+        recipes = _toml_section("recipes") or {}
+        skills = _cap_skills()
+        # RBAC-admitted (name, kind) set via the unified manifest projection.
+        man = mios_capreg.build_capability_manifest(
+            _VERB_CATALOG, recipes, ceiling=ceiling, skills=skills)
+        out = []
+        for c in man:
+            kind, nm = c.get("kind"), c.get("name")
+            if kind == "verb":
+                spec = _VERB_CATALOG.get(nm) or {}
+            elif kind == "recipe":
+                spec = recipes.get(nm) or {}
+            else:
+                spec = skills.get(nm) or {}
+            out.append(mios_interop.to_a2a_skill(nm, spec, kind))
+        return JSONResponse({"object": "mios.a2a.skill_directory",
+                             "ceiling": ceiling, "count": len(out),
+                             "skills": out})
+    except Exception as e:  # noqa: BLE001 -- never 500 the surface
+        return JSONResponse({"object": "mios.a2a.skill_directory",
+                             "error": str(e), "skills": []})
 
 
 # ── Agent Passport (/.well-known/agent-passport.json) ────────────────────────
