@@ -46,7 +46,7 @@
 #   MIOS_DB_NS           mios             [surrealdb].namespace
 #   MIOS_DB_DB           mios             [surrealdb].database
 #   MIOS_OWUI_DB         /var/lib/mios/open-webui/webui.db
-#   MIOS_OLLAMA_URL      http://localhost:${MIOS_PORT_OLLAMA:-11450}
+#   MIOS_OLLAMA_URL      http://localhost:${MIOS_PORT_LLM_LIGHT:-11450}
 #   MIOS_EMBED_MODEL     nomic-embed-text [surrealdb].embed_model
 #
 # Exits 0 on success, 1 on backend unreachable, 2 on missing binary.
@@ -228,5 +228,5 @@ fi
 echo "mios-db: no backend flag (SurrealDB is retired -> pgvector is the agent DB)." >&2
 echo "  mios-db --pg    '<sql>'    -- agent/session/event/scratch/skill (pgvector)" >&2
 echo "  mios-db --owui  '<sql>'    -- Open WebUI webui.db (SQLite)" >&2
-echo "  mios-db --embed '<text>'   -- embeddings via mios-llm-light (:11450)" >&2
+echo "  mios-db --embed '<text>'   -- embeddings via mios-llm-light (port ${MIOS_PORT_LLM_LIGHT:-11450})" >&2
 exit 2

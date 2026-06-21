@@ -225,6 +225,7 @@ slots = [
     ("ports.crawl4ai",                 "MIOS_PORT_CRAWL4AI"),
     ("ports.firecrawl",                "MIOS_PORT_FIRECRAWL"),
     ("ports.hermes",                   "MIOS_PORT_HERMES"),
+    ("ports.hermes_worker",            "MIOS_PORT_HERMES_WORKER"),
     ("ports.hermes_workspace",         "MIOS_PORT_HERMES_WORKSPACE"),
     ("ports.open_webui",               "MIOS_PORT_OPEN_WEBUI"),
     ("ports.code_server",              "MIOS_PORT_CODE_SERVER"),

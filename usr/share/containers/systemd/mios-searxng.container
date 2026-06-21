@@ -3,7 +3,7 @@
 # /etc/containers/systemd/mios-searxng.container
 # 'MiOS' privacy-respecting metasearch (SearXNG upstream).
 #
-# Search counterpart to mios-hermes/ollama: a single localhost endpoint
+# Search counterpart to mios-hermes/mios-llm-light: a single localhost endpoint
 # (for the operator and the LLM via tools) that
 # aggregates results from ~250 upstream search engines without leaking
 # any IP, user-agent, or session identifier to those engines. It is

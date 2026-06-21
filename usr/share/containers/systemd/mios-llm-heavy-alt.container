@@ -1,12 +1,12 @@
 # AI-hint: Systemd container unit defining the vLLM heavy-reasoning lane; provides an OpenAI-compatible /v1 API with PagedAttention and APC, gated by weight existence and dGPU availability for high-throughput inference.
-# AI-related: /usr/share/mios/vllm/model/config.json, /usr/share/mios/vllm/model, mios-llm-heavy-alt, mios-grounding, mios-cdi-detect, mios-ollama, mios-heavy, mios-llm-heavy-alt.service, mios-cdi-detect.service, ollama.container
+# AI-related: /usr/share/mios/vllm/model/config.json, /usr/share/mios/vllm/model, mios-llm-heavy-alt, mios-grounding, mios-cdi-detect, mios-heavy, mios-llm-heavy-alt.service, mios-cdi-detect.service
 # /etc/containers/systemd/mios-llm-heavy-alt.container
 # 'MiOS' vLLM server -- the GENERIC, gated, OpenAI-compatible /v1 dGPU lane.
 #
 # RE-SCOPED 2026-06-01 (operator "Both, in order" -> Phase 2 = "gated vLLM heavy
 # lane (dGPU)"). Was the GUI-grounding-VLM lane; now serves a HEAVY TEXT reasoner
 # by default with vLLM's PagedAttention + Automatic Prefix Caching (APC):
-#   * PagedAttention -- the in-GPU VRAM-compress primitive (what ollama lacks).
+#   * PagedAttention -- the in-GPU VRAM-compress primitive.
 #   * APC (--enable-prefix-caching) -- reuses the SHARED swarm system-prompt
 #     prefix across concurrent fan-out agents at ~0 extra cost.
 #   * KV disk/CPU TIERING (the operator's "compress or write to disk, clean state
@@ -44,14 +44,14 @@ ConditionPathExists=/usr/share/mios/vllm/model/config.json
 Image=${MIOS_VLLM_IMAGE:-docker.io/vllm/vllm-openai:latest}
 ContainerName=mios-llm-heavy-alt
 Network=mios.network
-# GPU passthrough -- identical CDI device line to ollama.container, resolved by
+# GPU passthrough -- identical CDI device line, resolved by
 # mios-cdi-detect.service (bare-metal nvidia-ctk spec OR the WSL2
 # /run/cdi/wsl2-nvidia.yaml that maps /dev/dxg + rbinds /usr/lib/wsl).
 AddDevice=${MIOS_GPU_DEVICE:-nvidia.com/gpu=all}
 # Unprivileged identity (Architectural Law 6 -- UNPRIVILEGED-QUADLETS). Numeric
-# UID/GID, same as ollama.container: the upstream vllm/vllm-openai image has no
+# UID/GID: the upstream vllm/vllm-openai image has no
 # `mios-*` entry in /etc/passwd, so a name-based User= lookup fails (status 126).
-# Reuse the mios-ollama service identity (815, mios.toml [services.ollama]) -- the
+# Reuse the inert mios-ollama service identity (815, mios.toml [services.ollama]) -- the
 # GPU-inference sibling sharing the same CDI device line; it only READS the
 # immutable RO weights mount below (no writable volume to own).
 User=${MIOS_VLLM_UID:-815}
@@ -62,7 +62,7 @@ Group=${MIOS_VLLM_GID:-815}
 Delegate=yes
 # Serve the baked reasoner, OpenAI-compatible, on the SSOT vllm port. APC is
 # always on (the whole point of this lane). --gpu-memory-utilization is a BOUNDED
-# slice so it co-resides with ollama's dGPU models + leaves margin for the
+# slice so it leaves margin for the
 # Windows host's VRAM co-tenancy (the VM can't see host-side usage). Raise it on
 # a dedicated/large GPU via mios.toml [ai.vllm].gpu_util.
 Exec=--model /models --served-model-name ${MIOS_VLLM_SERVED_NAME:-mios-heavy} --host 0.0.0.0 --port ${MIOS_PORT_VLLM:-11440} --gpu-memory-utilization ${MIOS_VLLM_GPU_UTIL:-0.45} --max-model-len ${MIOS_VLLM_MAX_MODEL_LEN:-16384} --enable-prefix-caching

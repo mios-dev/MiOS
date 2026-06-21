@@ -1,5 +1,5 @@
 # AI-hint: Systemd container unit defining the firecrawl API service within the mios-webtools pod, providing the scraping/crawling HTTP surface at 127.0.0.1:3002 for the Hermes agent.
-# AI-related: mios-webtools, mios-webtools-firecrawl-api, mios-firecrawl, mios-webtools-redis, hermes-agent.service, mios-webtools-redis.service, qdrant.container, multi-user.target, default.target, localhost:3002
+# AI-related: mios-webtools, mios-webtools-firecrawl-api, mios-firecrawl, mios-webtools-redis, hermes-agent.service, mios-webtools-redis.service, multi-user.target, default.target, localhost:3002
 # /usr/share/containers/systemd/mios-webtools-firecrawl-api.container
 # 'MiOS' web-tools POD member 2/4 -- firecrawl API (the scrape/crawl HTTP
 # surface Hermes points FIRECRAWL_API_URL at; see hermes-agent.service).
@@ -38,7 +38,7 @@ Exec=pnpm run start:production
 # LAW 6 (UNPRIVILEGED-QUADLETS): User= is mandatory (99-postcheck.sh). The
 # upstream firecrawl v1.0.0 image (apps/api/Dockerfile) ships no USER and runs
 # as root -- pnpm/tsc/node and the baked /usr/bin/chromium (puppeteer) all
-# expect uid 0. Documented root member, same pattern as qdrant.container.
+# expect uid 0. Documented root member, as allowed by Law 6.
 User=0
 Group=0
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# AI-hint: Provides a single JSON blob of hardware (CPU, GPU, RAM, Disk), service status, and Ollama model data to the `system_status` verb to prevent the LLM from hallucinating system metrics.
-# AI-related: mios-open-webui, mios-delegation-prefilter, mios-hermes-tail, hermes-agent.service, mios-open-webui.service, mios-delegation-prefilter.service, mios-hermes-tail.service, ollama.service
+# AI-hint: Provides a single JSON blob of hardware (CPU, GPU, RAM, Disk), service status, and model data (via the mios-llm-light API) to the `system_status` verb to prevent the LLM from hallucinating system metrics.
+# AI-related: mios-open-webui, mios-delegation-prefilter, mios-hermes-tail, hermes-agent.service, mios-open-webui.service, mios-delegation-prefilter.service, mios-hermes-tail.service, mios-llm-light.service
 """mios-system-status -- emit a single JSON blob with the live MiOS
 host dashboard data the chat model needs to answer "system status?"
 questions WITHOUT fabricating fields.
@@ -20,7 +20,7 @@ Fields:
   memory      {total_mib, used_mib, available_mib, swap_total_mib}
   disk        list of {mount, total, used, available, pct}
   services    {failed: [...], active_count, mios: {<name>: <state>}}
-  ollama      list of {model, size, modified}
+  ollama      list of {model, size, modified} (emulated from mios-llm-light)
   uptime_s    int
   ts          float (unix-epoch)
 """
@@ -217,6 +217,7 @@ def _probe_services() -> dict:
 
 
 def _probe_ollama() -> list[dict]:
+    """Query model list from the mios-llm-light API (port 11450)."""
     out: list[dict] = []
     try:
         import urllib.request

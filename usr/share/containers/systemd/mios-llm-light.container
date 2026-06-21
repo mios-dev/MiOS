@@ -10,7 +10,7 @@
 # OpenAI /v1 endpoint, AND each llama-server can KV-page to disk (/slots
 # save/restore, --slot-save-path) -- which ollama can NEVER do.
 #
-# Stands up ALONGSIDE ollama (own port); nothing live moves. The agent-pipe is
+# Stands up as the primary inference engine. The agent-pipe is
 # ALREADY ready: add a [nodes.*]/[agents.*] entry pointing here with
 # api="llamacpp" and `_endpoint_is_llamacpp` + `_kv_paging` fire automatically
 # (config-first, no port hardcode -- server.py:2249).
@@ -39,7 +39,7 @@ ContainerName=mios-llm-light
 # Host networking (matches mios-surrealdb/pgvector): reliable localhost:<port>
 # for the pipe + a stable endpoint the swarm node points at.
 Network=host
-# dGPU passthrough (CDI), same as mios-ollama -- llama-server offloads to CUDA.
+# dGPU passthrough (CDI) -- llama-server offloads to CUDA.
 AddDevice=${MIOS_GPU_DEVICE:-nvidia.com/gpu=all}
 
 # Identity from mios.toml [services.llamacpp] (uid 827, AI tier). Numeric (the
@@ -47,7 +47,7 @@ AddDevice=${MIOS_GPU_DEVICE:-nvidia.com/gpu=all}
 User=${MIOS_LLAMACPP_UID:-827}
 Group=${MIOS_LLAMACPP_GID:-827}
 
-# GGUF model store (RO seed; baked at build time -- replaces the ollama bake for
+# GGUF model store (RO seed; baked at build time -- replaces the retired Ollama model bake for
 # this lane), the mios-llm-light model map, and the KV slot-save dir (so /slots
 # save/restore + the agent-pipe's _kv_paging persist per-conversation KV here).
 Volume=/usr/share/mios/llamacpp/models:/models:ro,Z
@@ -61,7 +61,7 @@ Environment=HOME=/var/lib/mios/llamacpp
 # "no usable GPU found" and ran ENTIRELY on CPU despite --n-gpu-layers 999. Prepend
 # the WSL lib dir (+ the image's CUDA runtime) so llama.cpp loads the WSL libcuda
 # and detects CUDA0. Verified live: with this, llama-server logs "CUDA0 : NVIDIA
-# GeForce RTX 4090 (24563 MiB)". ollama already sets this; llama-swap didn't.
+# GeForce RTX 4090 (24563 MiB)".
 Environment=LD_LIBRARY_PATH=/usr/lib/wsl/lib:/usr/local/cuda/lib64
 # Pin the entrypoint to the confirmed llama-swap binary so the Exec args below are
 # ITS args regardless of the image's default entrypoint (verified /app/llama-swap).

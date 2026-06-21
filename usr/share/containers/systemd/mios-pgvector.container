@@ -1,11 +1,9 @@
 # AI-hint: Systemd container unit defining the pgvector-enabled PostgreSQL instance as the primary FOSS-compliant unified agent-plane datastore for relational, JSONB, and vector memory storage.
-# AI-related: /usr/share/mios/postgres/schema-init.sql, /etc/mios/mios.toml, mios-pgvector, mios-surrealdb, mios-daemon, mios-schema, mios-services, network-online.target, multi-user.target, default.target
+# AI-related: /usr/share/mios/postgres/schema-init.sql, /etc/mios/mios.toml, mios-pgvector, mios-daemon, mios-schema, mios-services, network-online.target, multi-user.target, default.target
 # /usr/share/containers/systemd/mios-pgvector.container
 # 'MiOS' unified agent-plane datastore -- PostgreSQL + pgvector (WS-9, 2026-06-04).
 # FOSS-pure (PostgreSQL License + pgvector) replacement for the SurrealDB
-# (BSL 1.1) agent store. Stands up ALONGSIDE SurrealDB (additive) -- nothing live
-# cuts over yet (see concepts/postgres-pgvector-unification.md for the staged
-# migration). One engine for relational + JSONB (document) + vector (pgvector
+# (BSL 1.1) agent store. One engine for relational + JSONB (document) + vector (pgvector
 # HNSW) -- the standard "back to SQL" agent-memory stack (Letta/MemGPT/Memori/
 # OWUI all converge here). OWUI + Guacamole fold onto this at cutover.
 #
@@ -35,7 +33,7 @@ ConditionVirtualization=|wsl
 # pgvector/pgvector bundles the `vector` extension on top of upstream postgres.
 Image=${MIOS_PGVECTOR_IMAGE:-docker.io/pgvector/pgvector:pg17}
 ContainerName=mios-pgvector
-# Host networking (matches mios-surrealdb): reliable localhost:5432 for the pipe
+# Host networking: reliable localhost:5432 for the pipe
 # + mios-daemon + every MiOS AI surface, sidestepping the podman-WSL port-
 # forwarder quirk. Loopback-class infra service. (guacamole-postgres uses the
 # bridge net on its OWN port, so there's no host:5432 collision.)

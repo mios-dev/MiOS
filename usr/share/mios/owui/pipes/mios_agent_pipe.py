@@ -102,15 +102,9 @@ _TAIL_ICONS = {
 }
 
 
-# ── SurrealDB best-effort writer ─────────────────────────────────────
-# Cross-agent state goes into SurrealDB (the schema-init.surql tables:
-# agent, session, tool_call, event, kanban_shadow, scratch,
-# agent_metric). OWUI native tables (chat/message/memory/knowledge/
-# file/tool/function/model) are NOT mirrored here -- mios-db --owui
-# fronts them directly. Phase-2 directive 2026-05-18: the pipe writes
-# tool_call + event + session rows on every turn so other agents
-# (mios-daemon, hermes, future OpenCode) can query a single source
-# of truth instead of polling N JSON files.
+# ── Retired database best-effort writer ─────────────────────────────────────
+# Migration note: SurrealDB is retired. Cross-agent state is now managed by
+# PostgreSQL/pgvector via agent-pipe. The writes in this class are retired.
 #
 # Resilience: writes are FIRE-AND-FORGET via asyncio.create_task so the
 # streaming response is never delayed. A 30s "DB down" backoff prevents
@@ -129,7 +123,7 @@ _DB_DOWN_UNTIL: float = 0.0
 
 
 async def _db_post(sql: str, *, timeout: float = 3.0) -> Optional[list]:
-    """Best-effort SurrealDB write/query. Returns the parsed list of
+    """Best-effort retired database write/query. Returns the parsed list of
     per-statement results, or None on any error. A 30s backoff after
     each failure prevents per-turn retry storms when the DB is down."""
     global _DB_DOWN_UNTIL
@@ -164,7 +158,7 @@ def _db_create(table: str, fields: dict, *,
                extra: str = "") -> str:
     """Build a `CREATE <table> SET ... [<extra>];` statement.
 
-    SurrealDB 3.0+ rejects plain ISO-Z strings for fields with TYPE
+    The retired database rejected plain ISO-Z strings for fields with TYPE
     datetime ("Expected datetime but found '...'"). The canonical
     pattern is `field = time::now()` literal. now_fields lists the
     keys to assign via time::now(); all OTHER keys go through
@@ -213,7 +207,7 @@ class Pipe:
     class Valves(BaseModel):
         BACKEND_URL: str = Field(
             default="http://host.containers.internal:8640/v1",
-            description="OpenAI-compat backend = the standalone MiOS Agent Pipe service at :8640 (NOT hermes directly). Operator directive 2026-05-18: extract the router/dispatch/SurrealDB-writes chain out of this OWUI pipe class into a gateway-agnostic FastAPI service so Hermes Discord + future Slack/Telegram/MCP gateways get the same tool-understanding parity as OWUI. The agent-pipe service forwards to hermes-agent (:8642) itself. OWUI runs in a podman Quadlet so the host is reached via host.containers.internal.",
+            description="OpenAI-compat backend = the standalone MiOS Agent Pipe service at :8640 (NOT hermes directly). Operator directive 2026-05-18: extract the router/dispatch/writes chain out of this OWUI pipe class into a gateway-agnostic FastAPI service so Hermes Discord + future Slack/Telegram/MCP gateways get the same tool-understanding parity as OWUI. The agent-pipe service forwards to hermes-agent (:8642) itself. OWUI runs in a podman Quadlet so the host is reached via host.containers.internal.",
         )
         BACKEND_MODEL: str = Field(
             default="hermes-agent",
@@ -227,8 +221,8 @@ class Pipe:
         # ── In-pipe CPU refinement (operator-architecture 2026-05-17) ──
         # MiOS-Agent IS the CPU refiner -- it sits in front of hermes,
         # takes the user's raw prompt, calls a small CPU model on
-        # Ollama, and forwards a refined / contextualized prompt to
-        # the heavy GPU orchestrator. Sub-second target. Operator:
+        # local inference lanes, and forwards a refined / contextualized prompt to
+        # the heavy orchestrator. Sub-second target. Operator:
         # "OWUI's MIOS_AGENT OPERATES ON THE CPU MODEL ... QUICKLY
         # REFINING THE USERS PROMPTS WITH MORE CONTEXT AND CLEARER
         # DIRECTIONS FOR HERMES AGENTS/DELEGATED SUB-AGENTS".
@@ -242,7 +236,7 @@ class Pipe:
         )
         REFINE_ENDPOINT: str = Field(
             default="http://host.containers.internal:11450",
-            description="Refine-call endpoint -- mios-llm-light (:11450, llama.cpp behind llama-swap; the local ollama :11434 lane is retired G5). Hits /api/chat (NOT /v1, which drops options field).",
+            description="Refine-call endpoint -- mios-llm-light (:11450, llama.cpp behind llama-swap; the local inference :11434 lane is retired G5). Hits /api/chat (NOT /v1, which drops options field).",
         )
         REFINE_TIMEOUT_S: int = Field(
             default=180,
@@ -704,7 +698,7 @@ class Pipe:
     # CLEARER DIRECTIONS FOR HERMES AGENTS/DELEGATED SUB-AGENTS".
     # The pipe owns this step end-to-end:
     #   1. Receive raw user text
-    #   2. Call a small CPU model on Ollama (default qwen3.5:4b)
+    #   2. Call a small CPU model (default qwen3.5:4b)
     #      with a tight system prompt -- num_predict capped low,
     #      keep_alive=-1, num_gpu=0, native /api/chat endpoint
     #   3. Return the refined text -- forwarded as the user message
@@ -1133,7 +1127,7 @@ class Pipe:
     # standard OpenAI Chat Completions message format. Hermes
     # records exactly this in session JSON; we surface it untouched
     # to the compose model. Any OpenAI-API-compatible model
-    # (Claude, GPT-*, local Ollama) can consume the structured
+    # (Claude, GPT-*, local engines) can consume the structured
     # input identically.
     HERMES_SESSIONS_DIR = "/var/lib/mios/hermes/sessions"
 
@@ -1254,7 +1248,7 @@ class Pipe:
 
     # ── Router classifier system prompt + dispatch ─────────────────
     # Micro-LLM gets a terse tool list + the user's prompt; emits
-    # JSON {action, tool?, args?, reply?}. JSON Mode (Ollama
+    # JSON {action, tool?, args?, reply?}. JSON Mode (inference
     # /v1/chat/completions response_format) constrains the output --
     # no parsing tax.
     _ROUTER_SYSTEM = (
@@ -1391,7 +1385,7 @@ class Pipe:
             return None
         if not isinstance(parsed, dict) or "action" not in parsed:
             return None
-        # Best-effort SurrealDB event: layer-1 router verdict.
+        # Best-effort event: layer-1 router verdict.
         _row = {
             "source": "mios-agent-pipe",
             "kind": "classify",
@@ -1569,7 +1563,7 @@ class Pipe:
         # Broker dispatch (same socket Tools.* uses).
         sock_path = os.environ.get("MIOS_LAUNCHER_SOCK",
                                     "/run/mios-launcher/launcher.sock")
-        # Capture call start for SurrealDB tool_call.latency_ms.
+        # Capture call start for tool_call.latency_ms.
         _t0 = time.time()
         _result_payload: Optional[dict] = None
         if not os.path.exists(sock_path):
@@ -1618,7 +1612,7 @@ class Pipe:
             except OSError as e:
                 _result_payload = {"success": False, "stderr": f"broker: {e}",
                                    "output": "", "tool": tool, "args": args}
-        # Best-effort SurrealDB write: tool_call row. Carries session id
+        # Best-effort retired write: tool_call row. Carries session id
         # if pipe() opened one this turn (self._session_id). Output is
         # truncated to keep the row compact.
         _latency_ms = int((time.time() - _t0) * 1000)
@@ -1635,7 +1629,7 @@ class Pipe:
         _sid = getattr(self, "_session_id", None)
         if _sid:
             # session is a record link; assign as a raw expression
-            # (record-id literals in SurrealQL aren't JSON-quoted).
+            # (record-id literals aren't JSON-quoted).
             _db_fire(_db_post(
                 _db_create("tool_call", _row, now_fields=("ts",)).rstrip(";")
                 + f", session = {_sid};"
@@ -1915,7 +1909,7 @@ class Pipe:
         try:
             parsed = json.loads(content)
             if isinstance(parsed, dict):
-                # Best-effort SurrealDB event: critic verdict.
+                # Best-effort event: critic verdict.
                 _row = {
                     "source": "mios-agent-pipe",
                     "kind": "critic_verdict",
@@ -2059,7 +2053,7 @@ class Pipe:
         user_text: str,
         emitter: Optional[Callable[..., Awaitable[None]]],
     ) -> str:
-        """Call the small CPU refiner on Ollama. Returns refined text
+        """Call the small CPU refiner. Returns refined text
         on success, or the ORIGINAL on failure / timeout / empty
         (best-effort -- the pipe is OWUI-facing so we never 503 here;
         worst case the unrefined prompt goes through)."""
@@ -2095,7 +2089,7 @@ class Pipe:
                                   headers={"Content-Type": "application/json"}) as r:
                     if r.status != 200:
                         await self._emit(emitter,
-                            f"⚠️ refine ollama {r.status} → original")
+                            f"⚠️ refine endpoint {r.status} → original")
                         return user_text
                     body = await r.json()
             msg = body.get("message") or {}
@@ -2133,7 +2127,7 @@ class Pipe:
         and not using the MiOS-Agent CPU model(s) ... MiOS-Agent is
         the agents driving the operations and retrying the sub-agents
         (MiOS-Hermes, MiOS-OpenCode, etc-etc)". Routes task-gen to
-        the CPU model directly (Ollama /v1/chat/completions, which is
+        the CPU model directly (via mios-llm-light /v1/chat/completions, which is
         OpenAI-compat), not to Hermes. Hermes is the heavy
         orchestrator -- spinning it up for trivial title/tag
         generation wastes 30-90s of CPU + delegate-spawn overhead per
@@ -2151,7 +2145,7 @@ class Pipe:
         # eat a full polish-sized output for a title.
         body.setdefault("max_tokens", 220)
 
-        # Ollama exposes /v1/chat/completions as an OpenAI-compatible
+        # mios-llm-light exposes /v1/chat/completions as an OpenAI-compatible
         # endpoint -- same request + streaming shape as the BACKEND_URL
         # OWUI was hitting before. No client-side transform needed.
         headers = {"Content-Type": "application/json"}
@@ -2307,7 +2301,7 @@ class Pipe:
         # tail-derived generative status carry the activity. Operator
         # 2026-05-20: "nothing hardcoded -- pure streamed + generative".)
 
-        # ── SurrealDB session open ──────────────────────────────────
+        # ── Retired database session open ──────────────────────────────────
         # Open a session row for this OWUI turn; subsequent tool_call /
         # event writes link back via SET session = <record_id>. Fire-
         # and-forget so the DB write never delays streaming. Per-turn
@@ -2334,8 +2328,8 @@ class Pipe:
                 if isinstance(rows, list) and rows:
                     rid = rows[0].get("id")
                     if rid:
-                        # SurrealDB returns record-id as "table:hashid"
-                        # already in unquoted SurrealQL form.
+                        # The retired database returned record-id as "table:hashid"
+                        # already in unquoted form.
                         self._session_id = str(rid)
         except Exception:
             self._session_id = None
@@ -2399,7 +2393,7 @@ class Pipe:
                 break
 
         # ── Layer-1 ROUTER -- DELEGATED to mios-agent-pipe service ──
-        # The router + dispatch + chat-fast-path + SurrealDB writes
+        # The router + dispatch + chat-fast-path + database writes
         # are owned by the standalone agent-pipe service at :8640 now
         # (operator directive 2026-05-18: "discord chats not going
         # through MiOS-Agent paths" -- extracted the chain into a

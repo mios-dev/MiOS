@@ -5,14 +5,14 @@
 #
 # Open WebUI provides an OpenAI-API-style browser chat UI fronting the MiOS AI
 # stack. AI chain (2026-05-13 architecture):
-#   ollama container (:11450)  -- raw inference + embeddings
+#   mios-llm-light container (:11450)  -- raw inference + embeddings
 #     -> Hermes-Agent (:8642/v1) -- DIRECT host install (NOT a
 #        container; automation/38-hermes-agent.sh + hermes-agent.service),
 #        OpenAI gateway + agent layer
 #       -> Open WebUI (this container, :3030) -- browser UI
 #
 # Open WebUI's OPENAI_API_BASE_URL points at Hermes-Agent so the AGENT
-# (with tool-calling / sessions / kanban / skills), not raw ollama, is
+# (with tool-calling / sessions / kanban / skills), not raw inference lanes, is
 # the model Open WebUI serves -- Architectural Law 5 (UNIFIED-AI-REDIRECTS).
 
 [Unit]
@@ -120,7 +120,7 @@ EnvironmentFile=/etc/mios/hermes/api.env
 Environment=OPENAI_API_BASE_URL=http://host.containers.internal:8640/v1
 
 # Disable Open WebUI's direct-Ollama integration -- all inference must
-# route through Hermes-Agent (Law 5). The ollama backend URL is still
+# route through Hermes-Agent (Law 5). The backend URL is still
 # provided for completeness but ENABLE_OLLAMA=False keeps it dormant.
 Environment=ENABLE_OLLAMA=False
 Environment=OLLAMA_BASE_URL=http://host.containers.internal:11450
@@ -201,8 +201,8 @@ Environment=ENABLE_RAG_HYBRID_SEARCH=True
 # embedding model. Left unset, OWUI's default engine downloads a
 # SentenceTransformers model from HuggingFace on first use -- which fails
 # in this air-gapped environment and SILENTLY breaks memory add/query
-# (operator-flagged 2026-05-22). Point embeddings at the LOCAL ollama
-# nomic-embed-text (baked into the ollama image; mios.toml [ai].embed_model
+# (operator-flagged 2026-05-22). Point embeddings at the LOCAL
+# nomic-embed-text (served by mios-llm-light; mios.toml [ai].embed_model
 # == /etc/mios/install.env MIOS_AI_EMBED_MODEL == nomic-embed-text, 768-dim).
 # VECTOR_DB stays the bundled on-disk Chroma -- also fully offline.
 Environment=RAG_EMBEDDING_ENGINE=ollama

@@ -48,12 +48,12 @@ allow_cockpit          = true
 allow_libvirt_bridge   = true
 
 [ai]
-# Hermes-Agent /v1 (the live MiOS agent at /) fronts Ollama.
+# Migration note: Ollama, SurrealDB, and Qdrant are retired from the live stack.
+# Hermes-Agent /v1 (the live MiOS agent at /) fronts the local inference lanes.
 endpoint        = "http://localhost:8642/v1"
-model           = "granite4.1:3b"
+model           = "granite4.1:8b"
 embed_model     = "nomic-embed-text"
 api_key         = ""
-enable_ollama   = true
 mcp_registry    = "/usr/share/mios/ai/v1/mcp.json"
 
 [desktop]
@@ -102,7 +102,7 @@ mios-hermes-workspace = true
 # host crowdsec agent for ~6 days. Retired; the host agent provides the IPS.
 # Full rationale in mios.toml [quadlets.enable] + memory mios_crowdsec_recovery.
 mios-crowdsec-dashboard    = false
-mios-ollama                = true
+# Migration note: mios-ollama is retired and removed.
 mios-guacamole        = true
 mios-pxe-hub          = true
 mios-guacamole-postgres    = true

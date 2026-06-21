@@ -459,7 +459,7 @@ class Tools:
         __user__: Optional[dict] = None,
     ) -> str:
         """Query the cached filesystem map mios-daemon maintains in
-        SurrealDB. Sub-100ms typical (DB query) vs the 60ms+ live
+        Postgres + pgvector. Sub-100ms typical (DB query) vs the 60ms+ live
         mios-find / fs_search. The map is rebuilt every 15 min from
         operator-configured roots (vendor MiOS dirs + operator
         home + Windows mounts) and carries one-line summaries for
@@ -558,13 +558,13 @@ class Tools:
         """Return a structured snapshot of the live MiOS host: GPU(s) +
         VRAM, RAM, disk, failed/active service count, MiOS service
         health roll-up (hermes / OWUI / prefilter / hermes-tail /
-        ollama), and the full ollama model list. ONE tool call,
+        llm_light), and the full model list. ONE tool call,
         deterministic JSON, no fabrication.
 
         Use this when the operator asks "system status", "dashboard",
         "what's running", "what GPU do I have", "how much disk left",
-        "list ollama models", or any system-overview question. Beats
-        running df / nvidia-smi / systemctl / ollama list separately
+        "list models", or any system-overview question. Beats
+        running df / nvidia-smi / systemctl / mios-llm-light models separately
         and assembling them in prose -- the model has been observed
         fabricating GPU fields ("No NVIDIA driver detected") when
         forced to do the assembly itself.
@@ -720,7 +720,7 @@ class Tools:
         """Close a window by title pattern. Graceful (WM_CLOSE) lets
         the app save state; force (TerminateProcess) drops unsaved
         work and bypasses any save-prompt. NEVER use this on MiOS
-        infrastructure (hermes-agent / mios-open-webui / ollama /
+        infrastructure (hermes-agent / mios-open-webui / mios-llm-light /
         mios-daemon / mios-launcher) -- those drop the conversation.
         Use `mios-restart <svc>` for graceful service restarts.
 

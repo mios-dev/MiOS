@@ -1,5 +1,5 @@
 # AI-hint: Systemd container unit defining the firecrawl worker pod member; it processes Bull queue jobs for web scraping via the firecrawl image, connecting to Redis at 127.0.0.1:6380 without exposing an HTTP port.
-# AI-related: mios-webtools-firecrawl-worker, mios-webtools-redis, mios-webtools, mios-firecrawl, mios-webtools-redis.service, qdrant.container, multi-user.target, default.target
+# AI-related: mios-webtools-firecrawl-worker, mios-webtools-redis, mios-webtools, mios-firecrawl, mios-webtools-redis.service, multi-user.target, default.target
 # /usr/share/containers/systemd/mios-webtools-firecrawl-worker.container
 # 'MiOS' web-tools POD member 3/4 -- firecrawl WORKER (the Bull queue job
 # processor; no HTTP port).
@@ -29,7 +29,7 @@ WorkingDir=/app
 Exec=pnpm run workers
 # LAW 6 (UNPRIVILEGED-QUADLETS): User= is mandatory (99-postcheck.sh). Same
 # locally-built firecrawl v1.0.0 image as the api member -- ships no USER and
-# runs as root. Documented root member, same pattern as qdrant.container.
+# runs as root. Documented root member, as allowed by Law 6.
 User=0
 Group=0
 

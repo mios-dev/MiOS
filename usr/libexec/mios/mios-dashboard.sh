@@ -385,7 +385,7 @@ print_endpoints() {
     _p_cockpit=$(_mios_port cockpit 9090)
     _p_ollama=$(_mios_port ollama 11434)
     _p_ollama_cpu=$(_mios_port ollama_cpu 11435)
-    _p_llamaswap=$(_mios_port llamaswap 11450)
+    _p_llamaswap=$(_mios_port llm_light 11450)
     _p_searxng=$(_mios_port searxng 8888)
     _p_hermes=$(_mios_port hermes 8642)
     _p_dash=$(_mios_port hermes_dashboard 9119)

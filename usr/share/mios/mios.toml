@@ -270,17 +270,16 @@ allow_libvirt_bridge   = true   # for VM networking
 #       - Apache 2.0; OpenAI /v1/embeddings-shaped via LocalAI.
 #       - https://huggingface.co/nomic-ai/nomic-embed-text-v1.5
 #
-# Build-baked: automation/37-ollama-prep.sh pulls the 'model' +
-# 'embed_model' set into /usr/share/ollama/models on the immutable
-# composefs surface during 'just build'. mios-ollama-firstboot.service
-# hardlink-copies that seed into /var/lib/ollama/models on first deploy.
+# Build-baked: automation/38-llamacpp-prep.sh pulls the 'model' +
+# 'embed_model' set into /usr/share/mios/llamacpp/models on the immutable
+# composefs surface during 'just build'. mios-llamacpp-firstboot.service
+# hardlink-copies that seed into /var/lib/mios/llamacpp/models on first deploy.
 # Operators can swap models post-deploy by editing this file
 # (/etc/mios/mios.toml or ~/.config/mios/mios.toml -- highest layer
-# wins) and running 'systemctl restart mios-ollama'.
+# wins) and running 'systemctl restart mios-llm-light'.
 #
 # Larger / smaller alternates (NOT baked by default; operators opt in
-# via MIOS_OLLAMA_BAKE_MODELS at build time, or 'ollama pull' post-
-# deploy):
+# via MIOS_LLAMACPP_BAKE_MODELS at build time, or pull post-deploy):
 #   "qwen2.5-coder:14b"    24+ GB RAM systems; better multi-step code
 #   "llama3.2:3b"          low-RAM (8 GB total) / fast-response profile
 # ----------------------------------------------------------------------------
@@ -532,11 +531,11 @@ enable   = true
 
 [hermes]
 # Hermes-Agent: OpenAI-compatible gateway and the live MiOS agent at /.
-# Fronts Ollama (mios-ollama:11434). API key generated at first boot
+# Fronts mios-llm-light (${MIOS_PORT_LLM_LIGHT}). API key generated at first boot
 # into /etc/mios/hermes/api.env. Mirrors [ai].model -- this key is
 # kept for back-compat with older callers; the SSOT default is [ai].model.
-endpoint = "http://localhost:8642/v1"
-backend  = "http://localhost:11450"   # mios-llm-light (ALL llama.cpp; ollama retired G5)
+endpoint = "http://localhost:${MIOS_PORT_HERMES}/v1"
+backend  = "http://localhost:${MIOS_PORT_LLM_LIGHT}"   # mios-llm-light (ALL llama.cpp)
 # Back-compat default only; the SSOT default is [ai].model. Repointed to the
 # 4-model-set reasoning base 2026-06-01 (was granite4.1:3b, dropped from fleet).
 # 2026-06-19: realigned to the live [ai].model head (was "qwen3:1.7b", which was
@@ -874,7 +873,7 @@ font_size          = 14
 # is the backstop. The :8642 gateway service stays thin for INCOMING Discord/CLI ->
 # :8640 (unification preserved; :8643 worker is a distinct instance, Discord OFF).
 # hermes stays a first-class dispatched agent (job/strengths surface via the pipe loop).
-endpoint = "http://localhost:8643/v1"
+endpoint = "http://localhost:${MIOS_PORT_HERMES_WORKER}/v1"
 model    = "mios-heavy"
 role     = "general"
 # WS-2 per-agent RBAC (optional; default = NO restriction = unchanged behaviour):
@@ -925,7 +924,7 @@ job      = "General orchestration of multi-step, tool-driven tasks -- decide loc
 fanout   = false
 default  = false
 # Inference lane (operator 2026-05-21: "self-delegate to CPU concurrently
-# to pending/future GPU operations"). gpu = the heavy dGPU lane (:11434);
+# to pending/future GPU operations"). gpu = the heavy dGPU lane (${MIOS_PORT_SGLANG});
 # cpu = the light iGPU/CPU lane. The fan-out pairs a GPU primary with a
 # CPU secondary so both lanes work in parallel -- and so Hermes is never
 # the ONLY dispatched agent.
@@ -933,7 +932,7 @@ lane     = "gpu"
 # CPU-compute twin (operator 2026-05-22: "all MiOS AI Agents/Sub-Agents
 # have a relevant MiOS Modelfile(s) for both CPU and GPU compute"). When
 # Hermes is dispatched as a concurrent fan-out SECONDARY, agent-pipe runs
-# this twin on the light iGPU/CPU lane (:11435) instead of the dGPU
+# this twin on the light iGPU/CPU lane (${MIOS_PORT_LLM_LIGHT}) instead of the dGPU
 # endpoint above -- so the dGPU stays free for whichever agent holds the
 # primary stream. Backed by mios-hermes-cpu.Modelfile (the CPU half of the
 # pair; `model` above -> mios-hermes is the GPU half). Omit cpu_* to keep
@@ -944,7 +943,7 @@ lane     = "gpu"
 # its 64k tool-use context + native browser/CDP/terminal loop, which the 16k
 # SGLang lane can't host; moving the workers OFF mios-llm-light already relieves the
 # contention that was timing the Hermes primary out.
-cpu_endpoint = "http://localhost:11441/v1"
+cpu_endpoint = "http://localhost:${MIOS_PORT_SGLANG}/v1"
 cpu_model    = "mios-heavy"
 # Tools Hermes is good at -- the refine pass surfaces these
 # as hint_tools when the intent matches.
@@ -997,7 +996,7 @@ failover_agents = ["hermes"]
 # dispatches to the SGLang heavy lane (:11441, mios-heavy) like every other
 # agent, instead of the contended mios-llm-light :11450. (The always-on background
 # log/telemetry loop on :8644 is unchanged; this is only its FAN-OUT dispatch.)
-endpoint = "http://localhost:11441/v1"
+endpoint = "http://localhost:${MIOS_PORT_SGLANG}/v1"
 model    = "mios-heavy"
 # REASONING now (was "telemetry"): a real CPU second opinion, grounded in --
 # not limited to -- system telemetry.
@@ -1139,8 +1138,8 @@ strengths   = ["mobile_local_model", "on_device", "offline_edge"]
 # auto-join when reachable + drop when gone (local nodes omit it = always live).
 # The target endpoint MUST actually serve that Modelfile tag.
 # ALL LLAMA.CPP (operator binding: "EVERYTHING IS LLAMA.CPP, NO OLLAMA"). The GPU +
-# light lanes point to mios-llm-light (:11450) -- the retired ollama endpoints
-# (:11434/:11435, G5) are GONE. api=llamacpp -> KV-paging + no tool_choice=required.
+# light lanes point to mios-llm-light (${MIOS_PORT_LLM_LIGHT}) -- the retired ollama endpoints
+# are GONE. api=llamacpp -> KV-paging + no tool_choice=required.
 # health_gate=true -> a lane is probed + skipped if mios-llm-light is momentarily down
 # (never a false "All connection attempts failed" fan-out; operator 2026-06-07 e2e).
 # Operator 2026-06-12 "ALL AGENTS USE SGLANG": every swarm worker dispatches to
@@ -1152,13 +1151,13 @@ strengths   = ["mobile_local_model", "on_device", "offline_edge"]
 # 75s/150s node timeouts on the "global trending tech" research turn. All worker
 # nodes now share the sglang endpoint+model so the fan-out is real concurrency.
 [nodes.local-dgpu]
-endpoint = "http://localhost:11441/v1"
+endpoint = "http://localhost:${MIOS_PORT_SGLANG}/v1"
 model    = "mios-heavy"        # SGLang heavy lane (Qwen3-8B-AWQ, continuous batching; served-model SSOT = [ai.sglang])
 lane     = "gpu"
 api      = "openai"            # SGLang speaks /v1 + honours tool_choice=required
 health_gate = true
 [nodes.local-cpu]
-endpoint = "http://localhost:11441/v1"
+endpoint = "http://localhost:${MIOS_PORT_SGLANG}/v1"
 model    = "mios-heavy"        # SGLang heavy lane (ALL AGENTS USE SGLANG)
 lane     = "gpu"
 api      = "openai"
@@ -1182,9 +1181,9 @@ api      = "llamacpp"
 # service on a dGPU with headroom, then it joins research/deep fan-outs. api=openai
 # (vLLM speaks /v1 natively + honours tool_choice=required, unlike the iGPU).
 [nodes.local-vllm]
-endpoint    = "http://localhost:11440/v1"
+endpoint    = "http://localhost:${MIOS_PORT_VLLM}/v1"
 model       = "mios-heavy"     # = [ai.vllm].served_name; the heavy reasoner vLLM serves
-lane        = "gpu"            # shares the dGPU lane semaphore (VRAM-admission governs co-load with ollama)
+lane        = "gpu"            # shares the dGPU lane semaphore (VRAM-admission governs co-load)
 api         = "openai"
 health_gate = true             # inert until the gated mios-llm-heavy-alt.service is enabled + reachable
 # Local SGLang heavy lane (operator 2026-06-07 "continue with SGLang") -- the
@@ -1193,7 +1192,7 @@ health_gate = true             # inert until the gated mios-llm-heavy-alt.servic
 # model is baked + the service enabled. api=openai (SGLang speaks /v1 + honours
 # tool_choice=required). Mutually exclusive with local-vllm (both serve "mios-heavy").
 [nodes.local-sglang]
-endpoint    = "http://localhost:11441/v1"
+endpoint    = "http://localhost:${MIOS_PORT_SGLANG}/v1"
 model       = "mios-heavy"     # = [ai.sglang].served_name; the heavy reasoner SGLang serves
 lane        = "gpu"            # shares the dGPU lane semaphore (VRAM-admission governs co-load)
 api         = "openai"
@@ -1205,7 +1204,7 @@ health_gate = true             # inert until the gated mios-llm-heavy.service is
 # operator bakes GGUFs + enables the lane. api=llamacpp => the pipe does /slots
 # KV-paging here (_kv_paging) + skips tool_choice=required -> fleet-wide KV-cache.
 [nodes.local-llamaswap]
-endpoint    = "http://localhost:11441/v1"   # ALL AGENTS USE SGLANG (was :11450 mios-llm-light)
+endpoint    = "http://localhost:${MIOS_PORT_SGLANG}/v1"   # ALL AGENTS USE SGLANG (was mios-llm-light)
 model       = "mios-heavy"     # SGLang heavy lane (Qwen3-8B-AWQ, continuous batching; served-model SSOT = [ai.sglang])
 lane        = "gpu"            # shares the dGPU lane semaphore
 api         = "openai"         # SGLang speaks /v1 natively + honours tool_choice=required
@@ -1483,7 +1482,7 @@ ollama_num_predict_cap = 2048   # hard per-generation token ceiling on AGENT oll
 # tokens = ~400s of pegged cores per gen; ollama can't be aborted on disconnect,
 # so stacked slow-lane gens drove loadavg to 387. Give the SLOW lanes a short
 # ceiling (~512 ≈ ~100s) so each self-clears fast; the dGPU keeps the full 2048.
-ollama_num_predict_cap_cpu = 512   # token ceiling on CPU/iGPU (:11435/:11436) dispatches
+ollama_num_predict_cap_cpu = 512   # token ceiling on CPU/iGPU (mios-llm-light / host-iGPU) dispatches
 turn_deadline_s        = 600    # wall-clock backstop per turn (s); generous so deep research still finishes
 runaway_reap           = true   # on a BLOWN deadline (not supersede), unload CPU-lane models (keep_alive:0) -- the only real release for ollama's un-abortable gens
 # ── COUNCIL ROSTER WIDTH + PER-ENDPOINT CAP (runaway fix 2026-06-01). The
@@ -1829,7 +1828,7 @@ gid              = 828
 # resident weights).
 enable           = true
 model            = "mios-agent"
-endpoint         = "http://localhost:11450"   # mios-llm-light (ALL llama.cpp; ollama :11434 retired G5)
+endpoint         = "http://localhost:${MIOS_PORT_LLM_LIGHT}"   # mios-llm-light (ALL llama.cpp)
 # Timeout headroom: on bare-metal Fedora-bootc with real ROCm/
 # CUDA, qwen3:1.7b emits a 400-token JSON in <1s. On WSL2 dev
 # (CPU only -- /dev/kfd isn't exposed for ROCm) it takes 15-30s
@@ -1859,7 +1858,7 @@ bypass_chars     = 24
 # bare base model.
 enable           = true
 model            = "mios-agent"
-endpoint         = "http://localhost:11450"   # mios-llm-light (ALL llama.cpp; ollama :11434 retired G5)
+endpoint         = "http://localhost:${MIOS_PORT_LLM_LIGHT}"   # mios-llm-light (ALL llama.cpp)
 # Same CPU-vs-GPU headroom rationale as [refine].timeout_seconds.
 timeout_seconds  = 45
 max_tokens       = 800
@@ -4277,8 +4276,8 @@ min_success_samples = 3     # ...and it has at least this many recorded invocati
 # understanding and environments details now!!!!)" -- centralizing the
 # pipe so all gateways get the same tool surface + critic + SurrealDB
 # state writes.
-endpoint       = "http://localhost:8640/v1"
-backend        = "http://localhost:8642/v1"   # hermes-agent OpenAI gateway
+endpoint       = "http://localhost:${MIOS_PORT_AGENT_PIPE}/v1"
+backend        = "http://localhost:${MIOS_PORT_HERMES}/v1"   # hermes-agent OpenAI gateway
 backend_model  = "hermes-agent"               # the model id hermes-agent advertises
 enable         = true
 # Client-side tool-calling PASSTHROUGH (operator 2026-06-15, Zen browser smart-window).
@@ -4288,12 +4287,12 @@ enable         = true
 # returning tool_calls unmodified -- the structural twin of the vision bypass. A2A and
 # Agent Passports are the wrong tool for this (researched 2026-06-15). DEDICATED backend
 # knobs (NOT backend/backend_model above) so the relay never inherits model-drift.
-# Default granite4.1:8b on the keyless mios-llm-light :11450 lane (verified to emit
+# Default granite4.1:8b on the keyless mios-llm-light (${MIOS_PORT_LLM_LIGHT}) lane (verified to emit
 # tool_calls); repoint tool_backend->:11441 + tool_backend_model->mios-heavy for harder
 # multi-tool routing. ingress_key (optional, empty=off) gates the route with a static
 # bearer a browser CAN send -- passports can't gate Zen (it's keyless).
 client_tools_passthrough = true
-tool_backend             = "http://localhost:11450/v1"
+tool_backend             = "http://localhost:${MIOS_PORT_LLM_LIGHT}/v1"
 tool_backend_model       = "granite4.1:8b"
 ingress_key              = ""
 
@@ -4678,7 +4677,7 @@ agent_venv          = "/usr/lib/mios/agents/.venv"
 agent_install_dir   = "/usr/lib/mios/agents/hermes-agent"
 # Inference backend Hermes-Agent forwards to. The ollama container's
 # OpenAI-compatible surface; swap to vllm / llama.cpp by editing this.
-hermes_backend_url  = "http://localhost:11450/v1"   # mios-llm-light (ALL llama.cpp; ollama :11434 retired G5)
+hermes_backend_url  = "http://localhost:${MIOS_PORT_LLM_LIGHT}/v1"   # mios-llm-light (ALL llama.cpp; ollama :11434 retired G5)
 # SSOT for the default chat model. The 4-model-set reasoning base
 # (qwen3.5:4b, ~3.4 GB resident) -- was granite4.1:3b, repointed in the
 # 2026-06-01 consolidation (granite was dropped from the fleet). Same value as
@@ -4688,7 +4687,7 @@ hermes_backend_url  = "http://localhost:11450/v1"   # mios-llm-light (ALL llama.
 # the picked value into the per-host mios.toml overlay at /etc/mios/mios.toml.
 # mios-hermes-firstboot reads the resolved value through the layered overlay
 # chain (~/.config -> /etc -> /usr/share). mios.html exposes [[ai.catalog]].
-model               = "granite4.1:8b"   # 2026-06-13: IBM Granite 4.1 8B (dense 'granite' arch, mainline llama.cpp, 131K ctx, --jinja tool-calls). Replaces qwen3.5:4b (BLOCKED on mainline llama.cpp -> the gemma4:12b fallback). Family-diversity: first non-Qwen brain. Served by mios-llm-light :11450 (see mios-llm-light.yaml).
+model               = "granite4.1:8b"   # 2026-06-13: IBM Granite 4.1 8B (dense 'granite' arch, mainline llama.cpp, 131K ctx, --jinja tool-calls). Replaces qwen3.5:4b (BLOCKED on mainline llama.cpp -> the gemma4:12b fallback). Family-diversity: first non-Qwen brain. Served by mios-llm-light :${MIOS_PORT_LLM_LIGHT} (see mios-llm-light.yaml).
 # Per-role BASE brain the agent-pipe reasoning stages (refine, polish, planner,
 # DCI, swarm, micro) inherit when their own MIOS_*_MODEL env is unset (server.py
 # _STACK_MODEL = ${MIOS_STACK_MODEL:-stack_model}). ONE resident served brain =
@@ -4699,7 +4698,6 @@ model               = "granite4.1:8b"   # 2026-06-13: IBM Granite 4.1 8B (dense 
 stack_model         = "granite4.1:8b"
 embed_model         = "nomic-embed-text"   # served NAME unchanged (768d); backing GGUF swapped to EmbeddingGemma-300m QAT in mios-llm-light.yaml (zero pgvector migration)
 api_key             = ""
-enable_ollama       = true
 mcp_registry        = "/usr/share/mios/ai/v1/mcp.json"
 system_prompt_file  = ""                # optional override; empty = use canonical
 # Bash prompt shortcut: type `@how do I X` (no space after the char)
@@ -4710,7 +4708,7 @@ system_prompt_file  = ""                # optional override; empty = use canonic
 # by the shell parser at command-start). Safe choices: @ , %
 prompt_shortcut     = "@"
 # Build-time model bake list. Comma-separated; consumed by
-# automation/37-ollama-prep.sh as MIOS_OLLAMA_BAKE_MODELS. Empty disables
+# automation/38-llamacpp-prep.sh as MIOS_LLAMACPP_BAKE_MODELS. Empty disables
 # baking (image stays small; first-boot pulls instead).
 #
 # 4-MODEL POLICY (operator 2026-06-01: "should be 3-4 max including micro-llm;
@@ -4729,12 +4727,12 @@ prompt_shortcut     = "@"
 # qwen3-vl:4b, gemma4:e4b) was REMOVED from the fleet per the 3-4-model cap.
 #
 # The list below also names the derived mios-* role tags. Those are produced by
-# `ollama create <tag> -f <Modelfile>` in automation/37-ollama-prep.sh and REUSE
-# the 3 LLM base blobs (under /var/lib/ollama/models) -- they add ~no disk, so
+# `ollama create <tag> -f <Modelfile>` in automation/38-llamacpp-prep.sh and REUSE
+# the 3 LLM base blobs (under /usr/share/mios/llamacpp/models) -- they add ~no disk, so
 # listing them only guarantees they are present after a build. Total baked: the
 # 3 LLM bases + nomic (~9.8 GB) + the (blob-sharing) mios-* tags.
 #
-# Consumed by automation/37-ollama-prep.sh as MIOS_OLLAMA_BAKE_MODELS. Operators
+# Consumed by automation/38-llamacpp-prep.sh as MIOS_LLAMACPP_BAKE_MODELS. Operators
 # on bandwidth-constrained networks can shrink this in /etc/mios/mios.toml; empty
 # disables baking entirely (first-boot pulls instead).
 bake_models         = "granite4.1:8b,lfm2:700m,nomic-embed-text,mios-agent,mios-agent-cpu,mios-hermes,mios-hermes-cpu,mios-opencode,mios-sys-agent"   # 2026-06-13 family-diverse fleet: Granite 4.1 8B (IBM) = brain+coder (one served GGUF, mainline llama.cpp), LFM2-700M (Liquid AI) = micro, nomic-embed-text NAME = EmbeddingGemma-300m QAT (Google, 768d, backing GGUF swapped in mios-llm-light.yaml). qwen3.5:4b/qwen3:1.7b/qwen2.5-coder:7b retired (Qwen-monoculture + qwen35 blocked on llama.cpp). mios-* tags blob-share the brain base.
@@ -4743,11 +4741,6 @@ bake_models         = "granite4.1:8b,lfm2:700m,nomic-embed-text,mios-agent,mios-
 # the 8 GB usable budget on a 12 GB / 8-core box. Auto-pick promotes
 # beyond this on hosts with more headroom.
 ram_floor_gb        = 8
-# Where ollama reads/writes models at runtime. Both paths are wired in
-# the Quadlet via Volume= directives; OLLAMA_MODELS points at the
-# writable one.
-seed_dir            = "/usr/share/ollama/models"     # immutable, build-baked
-runtime_dir         = "/var/lib/ollama/models"        # writable, first-boot-seeded
 
 # ----------------------------------------------------------------------------
 # [[ai.catalog]] -- array of model entries the mios.html dropdown
@@ -4874,7 +4867,7 @@ big_ram_model    = "mistral-magistral-small-2509"   # 2026-06-13: 16GB+ dGPU cla
 # are OPT-IN -- to re-enable, add a vision tag to [[ai.catalog]], pull it, and
 # set these to that tag in /etc/mios/mios.toml (operator overlay).
 vision_grounding_model    = ""
-vision_grounding_endpoint = "http://localhost:11450/v1"   # mios-llm-light (ALL llama.cpp; needs a vision GGUF in the map to activate)
+vision_grounding_endpoint = "http://localhost:${MIOS_PORT_LLM_LIGHT}/v1"   # mios-llm-light (needs a vision GGUF in the map to activate)
 # Chat VLM: agent-pipe routes any chat turn carrying an image straight to this
 # model. SSOT for MIOS_AGENT_PIPE_VISION_MODEL (bridged in tools/lib/userenv.sh).
 # 2026-06-18 (operator "FIX ALL VISION"): provisioned the Holo1.5-7B GGUFs under
@@ -4890,7 +4883,7 @@ chat_vision_model         = "qwen3-vl:4b"
 # serving a HEAVY TEXT reasoner by DEFAULT (operator "vLLM heavy lane"); to serve
 # a grounding VLM instead, point vllm_bake_model at one + set vllm_served_name =
 # "mios-grounding". The lane now lives on :vllm (11440), off the iGPU's :11436.
-grounding_endpoint = "http://localhost:11440/v1"
+grounding_endpoint = "http://localhost:${MIOS_PORT_VLLM}/v1"
 grounding_model    = "mios-grounding"
 
 # Always-on micro-LLM. ~600 MB resident; sub-second classification.
@@ -6333,6 +6326,7 @@ searxng            = 8888     # local privacy-respecting metasearch
 crawl4ai           = 11235    # local crawl engine -- the crawl4ai FastAPI (crawl4ai over Chrome CDP + Camoufox fallback), the crawl4ai member of the mios-webtools pod. LOOPBACK only (127.0.0.1), NOT a published/LAN port.
 firecrawl          = 3002     # self-hosted firecrawl api -- the firecrawl-api member of the mios-webtools pod (Hermes's native web backend; FIRECRAWL_API_URL). LOOPBACK only (127.0.0.1), NOT a published/LAN port. (3002 is firecrawl's own default; free on MiOS -- 3000=forge_http, 3030=open_webui.)
 hermes             = 8642     # Hermes-Agent (canonical /v1; live MiOS agent at /)
+hermes_worker      = 8643     # Hermes-Agent worker instance
 hermes_dashboard   = 9119     # Hermes Dashboard web UI (sessions, skills, stats)
 open_webui         = 3030     # Open WebUI (rich LLM interface at http://localhost:3030)
 # hermes_workspace REMOVED 2026-05-13 (port 3030 freed) -- use the
@@ -6408,8 +6402,6 @@ open_webui         = "ghcr.io/open-webui/open-webui:main"
 # hermes-agent's built-in dashboard at port 9119.
 code_server_version = "latest"
 code_server        = "ghcr.io/coder/code-server:latest"
-ollama_version     = "latest"
-ollama_cpu_version = "latest"
 guacamole_version  = "latest"
 guacamole          = "docker.io/guacamole/guacamole:latest"
 forge_runner_version = "7"
@@ -6469,10 +6461,7 @@ user = "mios-hermes"
 uid  = 820
 gid  = 820
 
-[services.surrealdb]
-user = "mios-surrealdb"
-uid  = 821
-gid  = 821
+# Migration note: [services.surrealdb] (UID 821) is retired. Datastore is now mios-pgvector.
 
 # WS-9 unified agent-plane Postgres+pgvector. AI tier (mios-ai) so agents read it
 # like surrealdb; own uid for /var/lib ownership stability. 826 = next free after
@@ -6494,22 +6483,7 @@ user = "mios-agent-pipe"
 uid  = 822
 gid  = 822
 
-[services.ollama_cpu]
-user = "mios-ollama-cpu"
-uid  = 823
-gid  = 823
-# Runaway/OOM guard (operator 2026-06-01): the CPU light-lane cold-loaded up to
-# 6 models x 8 parallel slots with NO memory cap -> a wide research fan-out
-# OOM-wedged the 40GiB VM (kernel OOM killer 3x). Cap loaded models LOW (the
-# light-lane only needs a micro-LLM resident) + a hard MemoryMax so a herd dies
-# WITHIN this cgroup, not the box. Rendered into mios-ollama-cpu.container.
-# 2026-06-01j: dropped 4 -> 2. With 4 concurrent gens each pegging all cores, a
-# swarm turn drove load to 387 (the runaway). 2 = at most ONE heavy agent gen
-# (now ~512-token capped) + ONE slot free for the fast router/refine micro-LLMs.
-num_parallel = 2
-max_loaded   = 2
-mem_high     = "12G"
-mem_max      = "16G"
+# Migration note: [services.ollama_cpu] (UID 823) is retired. Inference is now handled by mios-llm-light.
 
 # [services.webtools] -- the consolidated web-tools container (mios-webtools:
 # firecrawl + crawl4ai + camoufox). Renamed from [services.crawl4ai] on the
@@ -7722,9 +7696,9 @@ grad_checkpointing = true              # saves memory; set false if a custom-op 
 # (verb catalog from the running pipe + real operator Q+A from the knowledge DB);
 # labels are produced by the teacher against the live refine schema + catalog. So
 # the corpus tracks the real system, never a hand-written topic list.
-teacher_model        = "granite4.1:8b"   # 2026-06-13: the strongest LOCALLY-SERVED model (mios-llm-light :11450) is now Granite 4.1 8B (the new brain); gemma4:12b is no longer the served reasoning GGUF after the fleet swap. Teacher MUST be a served model. For a STRONGER teacher than the refiner, enable the heavy lane and point this at the served-name mios-heavy (Magistral Small 2509).
-teacher_endpoint     = "http://localhost:11450"   # mios-llm-light (ALL llama.cpp; ollama retired G5)
-pipe_url             = "http://127.0.0.1:8640"
+teacher_model        = "granite4.1:8b"   # 2026-06-13: the strongest LOCALLY-SERVED model (mios-llm-light) is now Granite 4.1 8B (the new brain); gemma4:12b is no longer the served reasoning GGUF after the fleet swap. Teacher MUST be a served model. For a STRONGER teacher than the refiner, enable the heavy lane and point this at the served-name mios-heavy (Magistral Small 2509).
+teacher_endpoint     = "http://localhost:${MIOS_PORT_LLM_LIGHT}"   # mios-llm-light (ALL llama.cpp)
+pipe_url             = "http://127.0.0.1:${MIOS_PORT_AGENT_PIPE}"
 seeds_per_capability = 4               # teacher-generated phrasings per catalog verb
 include_knowledge    = true            # also mine REAL operator queries from the knowledge table
 dataset_path         = "/var/lib/mios/finetune/refiner-sft.jsonl"

@@ -1,18 +1,18 @@
 # AI-hint: Configures the MiOS Knowledge Base (KB) by defining LLM endpoints, model identifiers, embedding dimensions, chunking strategies, and vector store connection parameters for the local RAG pipeline.
-# AI-related: mios-kb, mios-dev, localhost:8642, localhost:11450, localhost:8000, localhost:1234, localhost:4000, localhost:6333
+# AI-related: mios-kb, mios-dev, localhost:8642, localhost:11450, localhost:1234, localhost:4000
 # MiOS KB local config — overrides for downstream consumers
-# Day-0 defaults target the MiOS LocalAI endpoint at http://localhost:8642/v1
+# Day-0 defaults target the MiOS Hermes-Agent endpoint at http://localhost:8642/v1
 # (LAW 5: UNIFIED-AI-REDIRECTS). Override per environment.
 
 [runtime]
-# Default to MiOS's own LocalAI endpoint. Honors $MIOS_AI_ENDPOINT if set.
+# Default to MiOS's own Hermes-Agent endpoint. Honors $MIOS_AI_ENDPOINT if set.
 base_url    = "${MIOS_AI_ENDPOINT:-http://localhost:8642/v1}"
-api_key_env = "MIOS_AI_KEY"   # empty key accepted by LocalAI
+api_key_env = "MIOS_AI_KEY"   # empty key accepted by Hermes-Agent
 # Examples for other local OpenAI-API-compatible runtimes:
 #   LLM-Light:       base_url = "http://localhost:11450/v1"
 #   vLLM:            base_url = "http://localhost:8000/v1"
 #   LM Studio:       base_url = "http://localhost:1234/v1"
-#   llama.cpp:       base_url = "http://localhost:8642/v1"
+#   hermes-agent:    base_url = "http://localhost:8642/v1"
 #   LiteLLM proxy:   base_url = "http://localhost:4000/v1"
 
 [models]
@@ -24,7 +24,7 @@ embed_dims      = 768            # nomic-embed-text default; some local runtimes
 grader          = "${MIOS_AI_GRADER:-qwen2.5-coder:7b}"
 
 [api_surface]
-# Which OpenAI surfaces the runtime supports. Defaults reflect MiOS LocalAI.
+# Which OpenAI surfaces the runtime supports. Defaults reflect MiOS Hermes-Agent.
 # Set to true when targeting OpenAI/Azure cloud.
 chat_completions = true
 embeddings       = true

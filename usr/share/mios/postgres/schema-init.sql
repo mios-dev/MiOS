@@ -7,7 +7,7 @@
 -- column with an HNSW cosine index wherever semantic recall is needed.
 --
 -- Embeddings: 768-dim from nomic-embed-text via the OpenAI-compatible
--- /v1/embeddings endpoint (ollama; MiOS Law 5). 768 < pgvector's 2000-dim HNSW
+-- /v1/embeddings endpoint (served by mios-llm-light; MiOS Law 5). 768 < pgvector's 2000-dim HNSW
 -- limit for the `vector` type, so no halfvec needed. Cosine distance operator is
 -- `<=>` with opclass vector_cosine_ops.
 --
