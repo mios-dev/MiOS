@@ -1264,6 +1264,24 @@ health_gate = true             # inert until mios-llm-heavy is up + reachable
 # Dead endpoints (e.g. opencode :8633 when not served as /v1) drop out.
 # fanout_max = 1 restores exact single-agent behaviour.
 # ----------------------------------------------------------------------------
+
+# ----------------------------------------------------------------------------
+# [cost] -- WS-RES-GOV cost/energy accounting (CLASSic "Cost" axis). On a local-
+# GPU OS the POWER/thermal envelope is the binding constraint, not an API bill;
+# mios_cost prices each dispatch by ENERGY (gpu_watts x elapsed -> Wh, optionally
+# $ at usd_per_kwh) for a local lane, or $/Mtok for a remote lane, and accumulates
+# per-lane totals (observe via /v1/cost + /v1/scheduler.cost). OBSERVE-ONLY +
+# default-off: recording is pure arithmetic that gates nothing. Env:
+# MIOS_COST_ACCOUNTING_ENABLE.
+# ----------------------------------------------------------------------------
+[cost]
+enable              = false     # off => ledger stays empty (zero behaviour change)
+gpu_watts           = 350.0     # the dGPU board power used for the energy estimate
+usd_per_kwh         = 0.0       # 0 => energy tracked in Wh, local $ stays 0
+remote_usd_per_mtok = 0.0       # $/million-tokens for a remote escalation lane (WS-A16)
+budget_usd          = 0.0       # 0 => no $ ceiling (observe only)
+
+# ----------------------------------------------------------------------------
 [dispatch]
 enable     = true
 # Selection mode (operator 2026-05-22 "weigh every agent equally + dispatch

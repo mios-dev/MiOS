@@ -117,6 +117,7 @@ import mios_dispatcher   # noqa: E402  -- WS-A11/WS-3 pure mode dispatcher
 import mios_kernel   # noqa: E402  -- WS-A11/WS-3 Kernel facade (Router+Dispatcher+managers)
 import mios_memguard   # noqa: E402  -- WS-MEM-VALIDATE write-time memory-poisoning guard (ASI08)
 import mios_slo   # noqa: E402  -- WS-SCHED-SLO deadline/SLO classes + fail-closed shed
+import mios_cost   # noqa: E402  -- WS-RES-GOV cost/energy accounting (CLASSic Cost axis)
 import mios_batch   # noqa: E402  -- WS-A6 batch coalescing (bypass native-batch lanes)
 import mios_smartroute   # noqa: E402  -- WS-A16 cost/quality SmartRouting (local-first escalation)
 import mios_codemode as _codemode   # noqa: E402  -- WS-2 Code Mode pure helpers
@@ -3255,6 +3256,42 @@ BATCH_NATIVE_HINTS = [h.strip() for h in str(
 SMARTROUTE_ENABLE = str(os.environ.get("MIOS_SMARTROUTE_ENABLE", "")).strip().lower() \
     in ("1", "true", "yes", "on")
 SMARTROUTE_BUDGET = float(os.environ.get("MIOS_SMARTROUTE_BUDGET", "0") or 0)
+# ── WS-RES-GOV cost/energy accounting (CLASSic Cost axis). On a local-GPU OS the
+# POWER envelope is the binding constraint, not an API bill; mios_cost prices each
+# dispatch by energy (gpu_watts x elapsed) for a local lane / $/Mtok for a remote
+# lane and accumulates per-lane totals (observe via /v1/cost + /v1/scheduler.cost).
+# OBSERVE-ONLY + DEFAULT-OFF: recording is pure arithmetic that gates nothing.
+# SSOT [cost].{enable,gpu_watts,usd_per_kwh,remote_usd_per_mtok,budget_usd}.
+_COST_CFG = _toml_section("cost") or {}
+COST_ACCOUNTING_ENABLE = (
+    str(os.environ.get("MIOS_COST_ACCOUNTING_ENABLE")
+        or _COST_CFG.get("enable", "false"))
+    .strip().lower() not in {"false", "0", "no", "off", ""})
+COST_BUDGET_USD = float(_COST_CFG.get("budget_usd", 0.0) or 0.0)
+_COST_MODEL = mios_cost.CostModel(
+    gpu_watts=float(_COST_CFG.get("gpu_watts", 350.0) or 350.0),
+    usd_per_kwh=float(_COST_CFG.get("usd_per_kwh", 0.0) or 0.0),
+    remote_usd_per_mtok=float(_COST_CFG.get("remote_usd_per_mtok", 0.0) or 0.0))
+_COST_LEDGER = mios_cost.CostLedger()
+
+
+def _record_cost(cfg: dict, ep: str, t0: float, body: dict, text: str) -> None:
+    """WS-RES-GOV observe-only: record one dispatch's energy/$ cost into the
+    ledger. No-op unless COST_ACCOUNTING_ENABLE; degrade-open (accounting must
+    never break a turn). Token counts are a cheap char/4 estimate (energy is
+    dominated by elapsed x watts; tokens matter only for a remote $/Mtok lane)."""
+    if not COST_ACCOUNTING_ENABLE:
+        return
+    try:
+        _msgs = (body or {}).get("messages") or []
+        _ptok = sum(len(str(m.get("content") or "")) for m in _msgs) // 4
+        _ctok = len(str(text or "")) // 4
+        _COST_LEDGER.record(_COST_MODEL.estimate(
+            lane=_lane_sem_key(cfg), elapsed_s=max(0.0, time.time() - t0),
+            prompt_tokens=_ptok, completion_tokens=_ctok,
+            is_remote=_is_remote_endpoint(ep)))
+    except Exception:  # noqa: BLE001
+        pass
 # ── Risk-tier dispatch sandbox (WS-A13). mios_sandbox resolves each verb's
 # permission tier -> a confinement profile (FAIL-CLOSED: unknown tier -> strict).
 # The agent-pipe is the POLICY point: it RESOLVES + RECORDS the profile on every
@@ -4409,11 +4446,13 @@ async def _call_agent_complete(name, cfg, body, headers, client,
             async with _lane_sem(_engine or _lane_sem_key(cfg)):
                 # Mark the model in-flight so idle-VRAM reclaim won't evict it.
                 await _model_active(_ep, _adm_model, 1, _est)
+                _cost_t0 = time.time()
                 try:
                     _n, _t = await _call_agent_complete_inner(
                         name, cfg, body, headers, client, prefer_cpu=prefer_cpu)
                 finally:
                     await _model_active(_ep, _adm_model, -1, _est)
+                _record_cost(cfg, _ep, _cost_t0, body, _t)   # WS-RES-GOV observe-only
                 return _n, _strip_agent_chrome(_t)
 
 
@@ -19502,6 +19541,10 @@ async def scheduler_state() -> JSONResponse:
         "slo": {"shed_enable": SLO_SHED_ENABLE,
                 "classes": [mios_slo.BEST_EFFORT, mios_slo.INTERACTIVE],
                 "model": "EDF least-deadline-first + fail-closed best_effort shed"},
+        # WS-RES-GOV: cost/energy accounting (CLASSic Cost axis). Observe-only.
+        "cost": {"enabled": COST_ACCOUNTING_ENABLE, "budget_usd": COST_BUDGET_USD,
+                 "over_budget": _COST_LEDGER.over_budget(COST_BUDGET_USD),
+                 **_COST_LEDGER.snapshot()},
         # WS-A11/WS-3 Kernel facade: which manager seams are wired, the
         # Dispatcher's registered modes, and the shadow-route posture. Proves the
         # decomposition's Router/Dispatcher/Kernel are LIVE (not inert modules);
@@ -19515,6 +19558,25 @@ async def scheduler_state() -> JSONResponse:
                      "other mode bodies = Stage 2b, still inline)",
         },
         "ts": int(time.time()),
+    })
+
+
+@app.get("/v1/cost")
+async def cost_ledger() -> JSONResponse:
+    """WS-RES-GOV cost/energy accounting (CLASSic Cost axis): the running ledger
+    of dispatch energy (Wh) + $ + tokens, broken down per lane, since process
+    start. Observe-only; populated when [cost].enable is on. The power envelope is
+    the real constraint on a local-GPU OS, so this surfaces it as a first-class
+    signal (complements the token-rate budget tripwire)."""
+    return JSONResponse({
+        "object": "mios.cost",
+        "enabled": COST_ACCOUNTING_ENABLE,
+        "budget_usd": COST_BUDGET_USD,
+        "over_budget": _COST_LEDGER.over_budget(COST_BUDGET_USD),
+        "model": {"gpu_watts": _COST_MODEL.gpu_watts,
+                  "usd_per_kwh": _COST_MODEL.usd_per_kwh,
+                  "remote_usd_per_mtok": _COST_MODEL.remote_usd_per_mtok},
+        **_COST_LEDGER.snapshot(),
     })
 
 
