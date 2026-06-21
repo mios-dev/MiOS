@@ -105,11 +105,16 @@ jobs:
 
       - name: Configure host podman storage (disable metacopy)
         run: |
-          sudo mkdir -p /etc/containers
-          # runroot + graphroot are REQUIRED: writing a [storage] table with only
-          # `driver` makes `podman system reset` abort with "runroot must be set"
-          # (install-robustness 2026-06-21). Use the standard rootful paths.
-          echo -e '[storage]\ndriver = "overlay"\ngraphroot = "/var/lib/containers/storage"\nrunroot = "/run/containers/storage"\n[storage.options.overlay]\nmountopt = "nodev"' | sudo tee /etc/containers/storage.conf
+          sudo mkdir -p /etc/containers /mnt/tmp
+          # runroot + graphroot are REQUIRED (a [storage] table with only `driver`
+          # makes `podman system reset` abort with "runroot must be set"). Put
+          # graphroot on /mnt -- the GHA runner's LARGE ephemeral disk (~65GB+
+          # free) vs / (~21GB even after jlumbroso frees ~30GB). The MiOS image
+          # bakes 21 large bound-images (~50GB incl AI lanes); committing that
+          # layer on / exhausts the disk and the layer copy's pipe closes ("io:
+          # read/write on closed pipe", exit 125, 2026-06-21). runroot stays on
+          # tmpfs /run (small runtime state only). install-robustness 2026-06-21.
+          echo -e '[storage]\ndriver = "overlay"\ngraphroot = "/mnt/containers-storage"\nrunroot = "/run/containers/storage"\n[storage.options.overlay]\nmountopt = "nodev"' | sudo tee /etc/containers/storage.conf
           # The GHA runner ships a pre-seeded containers store whose libpod DB
           # may record an empty/foreign graph driver. `podman system reset`
           # reads that DB FIRST and aborts with 'database graph driver "" does
@@ -117,7 +122,7 @@ jobs:
           # the stale store (rootful + rootless) so reset starts from a clean
           # slate, then make reset itself non-fatal (install-robustness
           # 2026-06-21).
-          sudo rm -rf /var/lib/containers/storage /run/containers/storage
+          sudo rm -rf /var/lib/containers/storage /run/containers/storage /mnt/containers-storage
           rm -rf "${HOME}/.local/share/containers/storage" 2>/dev/null || true
           sudo podman system reset -f || true
 
@@ -188,7 +193,9 @@ jobs:
           # has full UID range and skips the remap. Operator-confirmed
           # CI failure 2026-05-15 (qdrant + 13 other bound images failed
           # with this exact error mid-bake).
-          sudo podman build \
+          # TMPDIR on /mnt too -- buildah's commit scratch must not spill onto
+          # the small / (install-robustness 2026-06-21).
+          sudo TMPDIR=/mnt/tmp podman build \
               "${BUILD_ARGS[@]}" \
               -f Containerfile \
               -t "localhost/mios:latest" \
@@ -314,11 +321,16 @@ jobs:
 
       - name: Configure host podman storage (disable metacopy)
         run: |
-          sudo mkdir -p /etc/containers
-          # runroot + graphroot are REQUIRED: writing a [storage] table with only
-          # `driver` makes `podman system reset` abort with "runroot must be set"
-          # (install-robustness 2026-06-21). Use the standard rootful paths.
-          echo -e '[storage]\ndriver = "overlay"\ngraphroot = "/var/lib/containers/storage"\nrunroot = "/run/containers/storage"\n[storage.options.overlay]\nmountopt = "nodev"' | sudo tee /etc/containers/storage.conf
+          sudo mkdir -p /etc/containers /mnt/tmp
+          # runroot + graphroot are REQUIRED (a [storage] table with only `driver`
+          # makes `podman system reset` abort with "runroot must be set"). Put
+          # graphroot on /mnt -- the GHA runner's LARGE ephemeral disk (~65GB+
+          # free) vs / (~21GB even after jlumbroso frees ~30GB). The MiOS image
+          # bakes 21 large bound-images (~50GB incl AI lanes); committing that
+          # layer on / exhausts the disk and the layer copy's pipe closes ("io:
+          # read/write on closed pipe", exit 125, 2026-06-21). runroot stays on
+          # tmpfs /run (small runtime state only). install-robustness 2026-06-21.
+          echo -e '[storage]\ndriver = "overlay"\ngraphroot = "/mnt/containers-storage"\nrunroot = "/run/containers/storage"\n[storage.options.overlay]\nmountopt = "nodev"' | sudo tee /etc/containers/storage.conf
           # The GHA runner ships a pre-seeded containers store whose libpod DB
           # may record an empty/foreign graph driver. `podman system reset`
           # reads that DB FIRST and aborts with 'database graph driver "" does
@@ -326,7 +338,7 @@ jobs:
           # the stale store (rootful + rootless) so reset starts from a clean
           # slate, then make reset itself non-fatal (install-robustness
           # 2026-06-21).
-          sudo rm -rf /var/lib/containers/storage /run/containers/storage
+          sudo rm -rf /var/lib/containers/storage /run/containers/storage /mnt/containers-storage
           rm -rf "${HOME}/.local/share/containers/storage" 2>/dev/null || true
           sudo podman system reset -f || true
 
@@ -354,7 +366,7 @@ jobs:
         run: |
           # sudo: rootful podman avoids user-namespace UID exhaustion in
           # the bake step (same fix as the main build step above).
-          sudo podman build -t mios:smoke -f Containerfile .
+          sudo TMPDIR=/mnt/tmp podman build -t mios:smoke -f Containerfile .
 
       - name: Smoke RUN (image runs; key MiOS components present + agent-pipe compiles)
         run: |
