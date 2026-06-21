@@ -202,23 +202,15 @@ RUN --network=host set -eux; \
     # die with: "configure storage: open .../overlay-images/images.lock: \
     # permission denied". \
     # \
-    # Only chmod the per-driver TOPLEVEL DIRS here -- not chmod -R, which \
-    # caused buildah commit failures on >15-image bakes (operator- \
-    # confirmed CI failure 2026-05-15: chmod -R produced a layer buildah \
-    # couldn't commit, exit 1 mid-build). The deep recursion happens at \
-    # boot via mios-additionalimagestores-perms.service (preset-enabled, \
-    # commit f5a1ac9). That service uses chmod -R go+rX on the running \
-    # host where layer sizes don't matter. Containerfile only needs the \
-    # toplevel dirs world-traversable for boot to find them. \
-    echo "bound-images: chmod 0755 the per-driver toplevel dirs (deep recursion at boot via mios-additionalimagestores-perms.service)"; \
-    for d in /usr/lib/containers/storage \
-             /usr/lib/containers/storage/overlay \
-             /usr/lib/containers/storage/overlay-images \
-             /usr/lib/containers/storage/overlay-containers \
-             /usr/lib/containers/storage/overlay-layers \
-             /usr/lib/containers/storage/libpod; do \
-        [ -d "$d" ] && chmod 0755 "$d"; \
-    done
+    # Only chmod the main storage directory here -- do not touch the per-driver \
+    # subdirectories (overlay, libpod, etc.). Mutating permissions of these \
+    # directories inside the build container causes buildah commit failures \
+    # (exit 125 / error committing container) when the image count grows (e.g. >15-21 images). \
+    # The deep recursion happens at boot via mios-additionalimagestores-perms.service \
+    # (preset-enabled, commit f5a1ac9) which runs chmod -R go+rX on the running \
+    # host where layer sizes and build-time commit limits do not matter. \
+    echo "bound-images: chmod 0755 the main storage directory"; \
+    chmod 0755 /usr/lib/containers/storage
 
 RUN ostree container commit
 # bootc container lint MUST be the final instruction (ARCHITECTURAL LAW 4).
