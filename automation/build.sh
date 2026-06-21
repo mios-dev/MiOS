@@ -416,18 +416,31 @@ else
     _row "  WARNING: agent-pipe dir or python3 missing -- skipping unit tests"
 fi
 
-# ── Doc-generator unit test (lives in usr/libexec/mios, outside the glob) ────
-# WS-0A(2b): test_mios_docgen.py covers mios-docgen and is NOT under the
-# agent-pipe glob above, so it ran nowhere. Run it explicitly; fail on red.
-_docgen_test="$(cd "${SCRIPT_DIR}/.." && pwd)/usr/libexec/mios/test_mios_docgen.py"
-if [[ -f "$_docgen_test" ]] && command -v python3 >/dev/null 2>&1; then
-    if ( cd "$(dirname "$_docgen_test")" && python3 "$(basename "$_docgen_test")" >/dev/null 2>&1 ); then
-        _row "  [ OK ] test_mios_docgen.py"
-    else
-        die "agent-pipe unit tests: test_mios_docgen.py failed"
+# ── libexec/mios unit tests (live outside the agent-pipe glob) ───────────────
+# WS-0A(2b)/WS-A3: the standalone test_mios_*.py assert-scripts under
+# usr/libexec/mios cover CLI tools that are NOT in the agent-pipe dir --
+# test_mios_docgen (mios-docgen), test_mios_pgwire (mios-pg-query extended-
+# protocol param binding), test_mios_cli_sqlsafety (the parameterized memory
+# CLIs). Glob them all so a new libexec test is picked up automatically; fail on
+# any red.
+_libexec_dir="$(cd "${SCRIPT_DIR}/.." && pwd)/usr/libexec/mios"
+if [[ -d "$_libexec_dir" ]] && command -v python3 >/dev/null 2>&1; then
+    _lx_fails=0
+    shopt -s nullglob
+    for _t in "$_libexec_dir"/test_mios_*.py; do
+        if ( cd "$_libexec_dir" && PYTHONIOENCODING=utf-8 python3 "$(basename "$_t")" >/dev/null 2>&1 ); then
+            _row "  [ OK ] $(basename "$_t")"
+        else
+            _row "  [FAIL] $(basename "$_t")"
+            _lx_fails=$((_lx_fails + 1))
+        fi
+    done
+    shopt -u nullglob
+    if [[ "$_lx_fails" -gt 0 ]]; then
+        die "libexec unit tests: ${_lx_fails} test script(s) failed"
     fi
 else
-    _row "  WARNING: test_mios_docgen.py or python3 missing -- skipping"
+    _row "  WARNING: libexec dir or python3 missing -- skipping libexec unit tests"
 fi
 
 # ── Quadlet image digest capture (build-day :latest snapshot) ───────────────
