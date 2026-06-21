@@ -1601,6 +1601,17 @@ kv_slots_dir      = ""          # llama.cpp --slot-save-path IF local to the age
 rr_enable         = false       # master switch (inert until the decode hook + WS-A11 Context seam land)
 rr_quantum_s      = 8.0         # seconds a dispatch runs before it becomes preemptible
 rr_max_suspended  = 4           # bounded snapshot-slot free-list (max concurrently-suspended generations)
+# ── Batch coalescing (WS-A6). RESEARCHED: vLLM/SGLang/llama.cpp already do
+# server-side CONTINUOUS BATCHING (a rolling scheduler coalesces concurrent
+# requests optimally), so client-side coalescing BYPASSES those lanes (double-
+# batching only adds latency) and applies a short batch_interval window ONLY to
+# NON-native endpoints (a rate-limited remote core, added via WS-A16). With only
+# local lanes -- all native -- this is INERT. batch_native_hints = host:port
+# substrings that self-batch (the local lane ports). Env: MIOS_BATCH_*.
+batch_enable        = false
+batch_interval_s    = 0.05      # window for a NON-native endpoint (seconds)
+batch_max_size      = 8         # flush a window at this many pending calls
+batch_native_hints  = "11441,11440,11450"  # SGLang / vLLM / llama-swap -> bypass coalescing
 # ── Per-request trace/span observability (WS-A8). A chat_completions request
 # mints (or adopts via the X-MiOS-Trace header) a trace_id; each pipeline stage
 # (route/plan/refine/dispatch) opens a child span, and finished spans land in a

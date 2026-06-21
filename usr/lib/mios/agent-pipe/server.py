@@ -106,6 +106,7 @@ import mios_kvgc   # noqa: E402  -- WS-A4 KV slot-file GC planner
 import mios_secset   # noqa: E402  -- WS-A14 SSOT-derived high-privilege/taint sets
 import mios_hopbudget   # noqa: E402  -- WS-4 hop-budget recursion guard + effort scaling
 import mios_preempt   # noqa: E402  -- WS-A12 RR-preemption state machine + snapshot contract
+import mios_batch   # noqa: E402  -- WS-A6 batch coalescing (bypass native-batch lanes)
 import mios_codemode as _codemode   # noqa: E402  -- WS-2 Code Mode pure helpers
 import mios_pg as _mios_pg   # noqa: E402  -- WS-9 Postgres+pgvector client
 import mios_lanes   # noqa: E402  -- WS-1 unified inference-lane resolver
@@ -3136,6 +3137,21 @@ RR_ENABLE = (
 RR_QUANTUM_S = _dispatch_num("MIOS_RR_QUANTUM_S", "rr_quantum_s", 8.0, cast=float)
 RR_MAX_SUSPENDED = _dispatch_num("MIOS_RR_MAX_SUSPENDED", "rr_max_suspended", 4)
 _PREEMPT = mios_preempt.PreemptScheduler(max_suspended=RR_MAX_SUSPENDED)
+# ── Batch coalescing (WS-A6). RESEARCHED: vLLM/SGLang/llama.cpp do server-side
+# CONTINUOUS BATCHING, so client-side coalescing BYPASSES those lanes (double-
+# batching only adds head-of-line latency) and applies a small batch_interval
+# window ONLY to NON-native endpoints (a rate-limited remote core). With only
+# local lanes (all native) this is INERT; it becomes useful once WS-A16 adds a
+# remote core. mios_batch owns the decision; the chokepoint checks the bypass.
+BATCH_ENABLE = (
+    str(os.environ.get("MIOS_BATCH_ENABLE")
+        or _DISPATCH_TOML.get("batch_enable", "false"))
+    .strip().lower() not in {"false", "0", "no", "off", ""})
+BATCH_INTERVAL_S = _dispatch_num("MIOS_BATCH_INTERVAL_S", "batch_interval_s", 0.05, cast=float)
+BATCH_MAX_SIZE = _dispatch_num("MIOS_BATCH_MAX_SIZE", "batch_max_size", 8)
+BATCH_NATIVE_HINTS = [h.strip() for h in str(
+    os.environ.get("MIOS_BATCH_NATIVE_HINTS")
+    or _DISPATCH_TOML.get("batch_native_hints", "")).split(",") if h.strip()]
 
 
 def _endpoint_is_llamacpp(ep: str, cfg: dict, engine: Optional[str] = None) -> bool:
@@ -18788,6 +18804,9 @@ async def scheduler_state() -> JSONResponse:
         "trace": {**_TRACER.stats(), "recent": _TRACER.recent(10)},
         # WS-A12 RR preemption: policy posture + live suspended/free-slot counts.
         "preempt": {"enabled": RR_ENABLE, "quantum_s": RR_QUANTUM_S, **_PREEMPT.stats()},
+        # WS-A6 batch coalescing: posture (native lanes self-batch -> bypassed).
+        "batch": {"enabled": BATCH_ENABLE, "interval_s": BATCH_INTERVAL_S,
+                  "max_size": BATCH_MAX_SIZE, "native_bypass_hints": BATCH_NATIVE_HINTS},
         "ts": int(time.time()),
     })
 
