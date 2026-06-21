@@ -58,30 +58,31 @@ vectors / text bind out-of-band. 36 byte-level wire asserts in
   libexec tool reintroduces `post_sql`/`_sql`/`:8000/sql`/`_pgesc`/`_pgq`.
 - **Build gate**: all `usr/libexec/mios/test_mios_*.py` now run in `build.sh`.
 
-## Deferred residuals (NOT silent — allowlisted in drift-check 10)
+## Residuals — ALL CLOSED (drift-check 10 allowlist is now EMPTY)
 
-These are *functional-hygiene / migration* items, not live injection holes; the
-drift-gate names them so they can't hide:
+Every libexec tool is cut over; the gate enforces it everywhere with no
+exceptions. The former residuals, all now done:
 
-1. **mios-daemon dead SurrealQL** — ~20 harmless no-op SurrealQL branches
-   (`_db_post`/`_db_create` CREATE strings/`time::now()` log queries) remain.
-   Higher-risk to excise blind in the always-running daemon (runaway history; not
-   host-live-testable from the build host). Its **live pg writes are already
-   parameterized** (above).
-2. ~~**mios-daemon read-gating**~~ — DONE: `_db_read` now gates on `_PG_ENABLED`
-   (not `_PG_PRIMARY`), so dual-mode translated reads (satisfaction monitor /
-   refine scan / tool-call linkage) read the live pgvector mirror instead of the
-   dead `:8000`; non-regressive (missing translation still falls back to `[]`).
-   `_tool_calls_for_refine`'s now-live `refine_ts` is bound (`$1`) via the new
-   `pg_params`. STILL residual: the two reads with NO pg_sql
-   (`rolling_report_loop`, `_daemon_global_log_context`) need translations; and
-   the harmless dead SurrealQL *write* branches (`_db_post`/`_db_create`
-   CREATE-strings + `_pgesc`) remain (the daemon's live pg writes are already
-   parameterized) -- this is why mios-daemon is still the lone drift-10 residual.
-3. ~~**mios-viking**~~ — DONE: dead `_db_sql` SurrealDB transport removed, the
-   knowledge-ns reads (`_ls_knowledge` filter, `_cat_knowledge` id) bound via
-   `mios-db --pg-json`; no longer in the drift-10 allowlist.
+1. ~~**mios-daemon dead SurrealQL**~~ — DONE: both surreal transports (`_db_post`,
+   `_db_post_sync`) are behavior-preserving no-op stubs (the backend was already
+   dead → `[]`/`None`, now without the per-call 3s timeout + 30s backoff);
+   `_db_create` is mirror-only (`_pg_insert` + `return ""`, so the dead
+   CREATE/`time::now()` string-build vanishes with zero call-site change); unused
+   `_pgesc` + the dead `DB_URL/USER/PASS/NS/DB/_DB_AUTH` constants removed. (A few
+   `time::now()` strings remain ONLY as the unused `surreal_sql` positional arg of
+   pg-translated `_db_read` calls — documented-dead, ungated.)
+2. ~~**mios-daemon read-gating**~~ — DONE: `_db_read` gates on `_PG_ENABLED`;
+   `_tool_calls_for_refine` `refine_ts` bound (`$1`); the two previously-untranslated
+   reads (`rolling_report_loop`, `_daemon_global_log_context`) now have pg_sql
+   translations against the live `log_digest` table; the task_collector kanban sync
+   writes the canonical pg `kanban` (was dead `kanban_shadow`).
+3. ~~**mios-viking**~~ — DONE: dead `_db_sql` transport removed; knowledge-ns reads
+   bound via `mios-db --pg-json`.
 
-Operator: live-test the memory/skill/kanban/RAG paths in the VM
+Operator: live-test the memory/skill/kanban/RAG/daemon paths in the VM
 (`just build` → boot → `mios-remember add`, `mios-kg lookup`, `mios-skills mine`,
-a multi-task prompt, `mios-rag query`).
+a multi-task prompt, `mios-rag query`, and check the daemon rolling-report +
+nudger kanban rows land in pg). Optional: flip default `MIOS_DB_BACKEND`
+dual→postgres to drop the now-pointless dead-surreal write *attempts* in the
+agent-pipe (its `_db_read` gate is the one central-path flip I left for the VM
+loop).
