@@ -170,7 +170,7 @@ jobs:
           # has full UID range and skips the remap. Operator-confirmed
           # CI failure 2026-05-15 (qdrant + 13 other bound images failed
           # with this exact error mid-bake).
-          sudo podman build \
+          sudo podman --storage-driver vfs build \
               "${BUILD_ARGS[@]}" \
               -f Containerfile \
               -t "localhost/mios:latest" \
@@ -318,7 +318,7 @@ jobs:
         run: |
           # sudo: rootful podman avoids user-namespace UID exhaustion in
           # the bake step (same fix as the main build step above).
-          sudo podman build -t mios:smoke -f Containerfile .
+          sudo podman --storage-driver vfs build -t mios:smoke -f Containerfile .
 
       - name: Smoke RUN (image runs; key MiOS components present + agent-pipe compiles)
         run: |

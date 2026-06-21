@@ -109,7 +109,7 @@ jobs:
               [[ -n "${MIOS_AI_EMBED_MODEL:-}" ]] && BUILD_ARGS+=(--build-arg "MIOS_AI_EMBED_MODEL=${MIOS_AI_EMBED_MODEL}")
               [[ -n "${MIOS_OLLAMA_BAKE_MODELS:-}" ]] && BUILD_ARGS+=(--build-arg "MIOS_OLLAMA_BAKE_MODELS=${MIOS_OLLAMA_BAKE_MODELS}")
           fi
-          podman build \
+          podman --storage-driver vfs build \
               "${BUILD_ARGS[@]}" \
               -f Containerfile \
               -t "localhost/mios:latest" \
