@@ -17973,13 +17973,24 @@ async def list_tools(include_rare: bool = True) -> JSONResponse:
             skill_n += 1
     except Exception:  # noqa: BLE001 -- best-effort section; degrade open
         pass
+    # WS-2: apply per-USER RBAC to the DISCOVERY manifest too -- previously the
+    # filter ran only at fan-out dispatch (server.py:14792), so /v1/tools exposed
+    # the FULL surface to a restricted user (a verb pruned from dispatch still
+    # appeared discoverable). Now the manifest matches what the user can actually
+    # run. No-op when no [users.*] policy matches (single-user unaffected); recipe/
+    # skill tools (non-verb names) pass through unless explicitly denied.
+    tools = _user_rbac_filter(tools)
+    _rn = sum(1 for t in tools
+              if str((t.get("function") or {}).get("name") or "").startswith("mios_recipe__"))
+    _sn = sum(1 for t in tools
+              if str((t.get("function") or {}).get("name") or "").startswith("mios_skill__"))
     return JSONResponse({
         "tools": tools,
         "count": len(tools),
         "counts": {
-            "verbs": len(tools) - recipe_n - skill_n,
-            "recipes": recipe_n,
-            "skills": skill_n,
+            "verbs": len(tools) - _rn - _sn,
+            "recipes": _rn,
+            "skills": _sn,
         },
     })
 
