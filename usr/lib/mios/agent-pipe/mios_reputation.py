@@ -1,6 +1,6 @@
 # AI-hint: Pure in-memory per-peer reliability tracker (#54 zero-trust federation):
 # AI-related: server.py, mios_a2a_principal, mios_lanes
-# AI-functions: PeerReputation.record, PeerReputation.score, PeerReputation.rank, PeerReputation.snapshot
+# AI-functions: PeerReputation.record, PeerReputation.score, PeerReputation.rank, PeerReputation.snapshot, PeerReputation.rows, PeerReputation.restore
 #   records outbound A2A delegation outcomes (ok/bad) and ranks ready peers by a
 #   Laplace-smoothed success rate so the orchestrator prefers reliable peers and
 #   deprioritises flaky ones. Dependency-free + deterministic -> unit-testable
@@ -67,3 +67,30 @@ class PeerReputation:
             p: {**s, "score": round(self.score(p), 3)}
             for p, s in self._stats.items()
         }
+
+    # ── WS-A18 persistence seam (DB-free; server.py owns the pg flush/load) ──
+    def rows(self) -> List[dict]:
+        """The state as DB-insertable rows (the FLUSH form): one per peer with the
+        raw counters only (NOT the derived score -- that's recomputed). Sorted +
+        deterministic. server.py upserts these into the `peer_reputation` table."""
+        return [
+            {"peer_id": p, "ok": s["ok"], "bad": s["bad"], "streak_bad": s["streak_bad"]}
+            for p, s in sorted(self._stats.items())
+        ]
+
+    def restore(self, rows) -> None:
+        """Load persisted counter rows back into state (REPLACING current), so
+        reputation survives a restart. The inverse of rows(). Degrade-open: a
+        malformed row is skipped (a bad row never wipes the rest)."""
+        out: Dict[str, dict] = {}
+        for r in (rows or []):
+            try:
+                pid = str((r or {}).get("peer_id") or "").strip()
+                if not pid:
+                    continue
+                out[pid] = {"ok": int(r.get("ok") or 0),
+                            "bad": int(r.get("bad") or 0),
+                            "streak_bad": int(r.get("streak_bad") or 0)}
+            except (TypeError, ValueError, AttributeError):
+                continue
+        self._stats = out

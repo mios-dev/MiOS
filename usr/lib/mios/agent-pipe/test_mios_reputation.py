@@ -83,9 +83,37 @@ def t_rank_prefers_reliable() -> None:
     _check("snapshot: carries score", "score" in snap.get("reliable", {}))
 
 
+def t_persistence() -> None:
+    # WS-A18: rows() <-> restore() round-trip so reputation survives a restart.
+    r = R.PeerReputation()
+    for _ in range(5):
+        r.record("p1", True)
+    r.record("p1", False)            # p1: ok=5 bad=1 streak_bad=1
+    for _ in range(3):
+        r.record("p2", False)        # p2: ok=0 bad=3 streak_bad=3
+    rows = r.rows()
+    _check("rows: one per peer, raw counters", len(rows) == 2 and "score" not in rows[0],
+           str(rows))
+    _check("rows: deterministic sort", [x["peer_id"] for x in rows] == ["p1", "p2"])
+    # restore into a fresh tracker -> scores match the original (survives restart).
+    r2 = R.PeerReputation()
+    r2.restore(rows)
+    _check("restore: round-trips score", abs(r2.score("p1") - r.score("p1")) < 1e-9
+           and abs(r2.score("p2") - r.score("p2")) < 1e-9,
+           f"{r2.score('p1'):.3f}/{r2.score('p2'):.3f}")
+    _check("restore: streak_bad preserved", r2.rows()[1]["streak_bad"] == 3)
+    # malformed rows are skipped, valid ones kept (a bad row never wipes the rest).
+    r3 = R.PeerReputation()
+    r3.restore([{"peer_id": "ok", "ok": 2, "bad": 0, "streak_bad": 0},
+                {"no_id": 1}, None, {"peer_id": "", "ok": 9}])
+    _check("restore: skips malformed, keeps valid", r3.rows() == [
+        {"peer_id": "ok", "ok": 2, "bad": 0, "streak_bad": 0}], str(r3.rows()))
+    _check("restore: replaces prior state", (r2.restore([]) or True) and r2.rows() == [])
+
+
 def main() -> int:
     for t in (t_neutral, t_scoring, t_recent_penalty, t_rank_stable,
-              t_rank_prefers_reliable):
+              t_rank_prefers_reliable, t_persistence):
         t()
     passed = sum(1 for _, ok in _RESULTS if ok)
     total = len(_RESULTS)

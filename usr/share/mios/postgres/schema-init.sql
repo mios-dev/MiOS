@@ -368,6 +368,19 @@ CREATE TABLE IF NOT EXISTS mios_rag (
 CREATE INDEX IF NOT EXISTS mios_rag_emb_hnsw
     ON mios_rag USING hnsw (emb vector_cosine_ops) WITH (m = 16, ef_construction = 64);
 
+-- ── peer_reputation: WS-A18 persistent A2A peer reliability (mios_reputation) ──
+-- The in-process PeerReputation flushes its raw counters here so reliability
+-- SURVIVES an agent-pipe restart (load via restore() on startup, flush on a
+-- timer). Federation-global (not owner-scoped) -> intentionally OUTSIDE the WS-5
+-- RLS set below. Idempotent.
+CREATE TABLE IF NOT EXISTS peer_reputation (
+    peer_id    text PRIMARY KEY,
+    ok         integer DEFAULT 0,
+    bad        integer DEFAULT 0,
+    streak_bad integer DEFAULT 0,
+    ts         timestamptz DEFAULT now()
+);
+
 -- ── WS-5: native Postgres Row-Level Security (defense-in-depth owner scoping) ──
 -- RESEARCHED best practice (AWS / Supabase / Postgres RLS guides): the app sets a
 -- PER-REQUEST session var `mios.owner_user` keyed on the VERIFIED principal
