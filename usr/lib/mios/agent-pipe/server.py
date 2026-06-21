@@ -20987,6 +20987,68 @@ async def _gossip_on_startup() -> None:
         pass
 
 
+# ── WS-A10/A18 PERSISTENT peer reputation ────────────────────────────────────
+# PeerReputation is in-memory; without this it reset every restart (so a peer's
+# accrued reliability -- which gossip trust-gates on + the fan-out ranks on -- was
+# lost on every deploy). The mios_reputation persistence seam (rows()/restore())
+# + the peer_reputation pg table existed but were never wired. Restore on startup
+# + flush on a timer so reliability SURVIVES a restart. Degrade-open + no-op when
+# pg isn't primary (the counters just stay in-memory as before).
+REPUTATION_FLUSH_S = _dispatch_num("MIOS_REPUTATION_FLUSH_S", "reputation_flush_s",
+                                   300.0, cast=float)
+
+
+async def _reputation_restore() -> None:
+    """Load persisted per-peer counters from pg into _A2A_REPUTATION (the inverse
+    of the flush) so reliability survives a restart. Degrade-open -> start cold."""
+    if not _PG_PRIMARY:
+        return
+    try:
+        rows = await _mios_pg.execute(
+            "SELECT peer_id, ok, bad, streak_bad FROM peer_reputation", {},
+            fetch=True)
+        if rows:
+            _A2A_REPUTATION.restore(rows)
+            log.info("peer reputation restored from pg: %d peer(s)", len(rows))
+    except Exception:  # noqa: BLE001 -- degrade-open: start with no history
+        pass
+
+
+async def _reputation_flush() -> None:
+    """Upsert the in-process reputation counters into peer_reputation so they
+    persist. One idempotent upsert per peer; best-effort per row."""
+    if not _PG_PRIMARY:
+        return
+    for r in _A2A_REPUTATION.rows():
+        try:
+            await _mios_pg.execute(
+                "INSERT INTO peer_reputation (peer_id, ok, bad, streak_bad, ts) "
+                "VALUES (%(peer_id)s, %(ok)s, %(bad)s, %(streak_bad)s, now()) "
+                "ON CONFLICT (peer_id) DO UPDATE SET ok = EXCLUDED.ok, "
+                "bad = EXCLUDED.bad, streak_bad = EXCLUDED.streak_bad, ts = now()",
+                r, fetch=False)
+        except Exception:  # noqa: BLE001 -- best-effort; a bad row never aborts the rest
+            pass
+
+
+@app.on_event("startup")
+async def _reputation_on_startup() -> None:
+    await _reputation_restore()
+
+    async def _flush_loop() -> None:
+        while True:
+            try:
+                await asyncio.sleep(REPUTATION_FLUSH_S)
+                await _reputation_flush()
+            except asyncio.CancelledError:
+                raise
+            except Exception:  # noqa: BLE001
+                pass
+
+    if _PG_PRIMARY and REPUTATION_FLUSH_S > 0:
+        asyncio.create_task(_flush_loop())
+
+
 _SELFIMPROVE_SEEN: set = set()
 
 

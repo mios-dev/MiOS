@@ -1620,6 +1620,12 @@ sandbox_enforce   = false       # off => resolve+record only; on => also wrap op
 # stop). Env: MIOS_CUA_ENABLE / MIOS_CUA_MAX_STEPS.
 cua_enable        = false       # off => /v1/computer-use returns a disabled notice
 cua_max_steps     = 12          # bound the perceive->act->verify loop (anti-runaway)
+# ── WS-A10/A18 persistent peer reputation. The in-process PeerReputation flushes
+# its raw counters to the peer_reputation pg table every reputation_flush_s and
+# restores them on startup, so a peer's accrued reliability (gossip trust-gates on
+# it; the fan-out ranks on it) SURVIVES an agent-pipe restart. No-op when pg isn't
+# primary. Env: MIOS_REPUTATION_FLUSH_S.
+reputation_flush_s = 300.0      # seconds between reputation->pg flushes (0 = off, in-memory only)
 # ── Batch coalescing (WS-A6). RESEARCHED: vLLM/SGLang/llama.cpp already do
 # server-side CONTINUOUS BATCHING (a rolling scheduler coalesces concurrent
 # requests optimally), so client-side coalescing BYPASSES those lanes (double-
