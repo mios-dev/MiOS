@@ -558,28 +558,15 @@ enable   = true
 # authenticate from the in-page JS without external token wiring.
 
 # ----------------------------------------------------------------------------
-# [surrealdb] -- shared cross-cutting agent state (the "context layer
-# for AI agents" per upstream framing). Hosts tables that OWUI doesn't
-# natively own: agent, session, tool_call, event, kanban_shadow,
-# scratch, agent_metric. OWUI's webui.db remains source of truth for
-# memory/knowledge/files/tools/functions/models; SurrealDB stores the
-# cross-agent state that needs to be queried in lockstep across
-# mios-agent-pipe + hermes + mios-daemon.
-#
-# Engine: SurrealDB 3.0+ with the embedded `surrealkv://` KV store
-# (the legacy `file://` scheme was dropped in 3.0; on-disk durability
-# in a single file under data_dir/mios.skv).
-#
-# Bind: 0.0.0.0:<port> so host (operator + pipe + mios-daemon) AND
-# the mios.network bridge (containers, future agents) reach the same
-# endpoint. Host networking is configured in the Quadlet itself
-# (matching ollama's pattern; bridge + PublishPort hit a podman-WSL
-# port-forwarder quirk).
-#
-# Credentials default to root:root because this is a LOCAL service on
-# loopback; lock down by overriding `user`/`pass` in
-# /etc/mios/mios.toml or via /etc/containers/systemd/
-# mios-surrealdb.container.d/<name>.conf if exposing beyond loopback.
+# WS-0B/WS-A3 de-rot: SurrealDB is RETIRED. Shared cross-cutting agent state
+# (agent, session, tool_call, event, kanban, scratch, knowledge, agent_memory,
+# directory_entry, skill, log_digest, peer_reputation, ...) now lives in
+# Postgres+pgvector -- see the [pgvector] section + usr/share/mios/postgres/
+# schema-init.sql, accessed via mios-pg-query / mios-db --pg(-json) / the
+# agent-pipe mios_pg client. OWUI's webui.db remains SOT for OWUI-native
+# memory/knowledge/files/tools/functions/models. (The former [surrealdb] config
+# block + its :8000 service were removed in the WS-A3 cutover; this note is left
+# as a signpost.)
 # ----------------------------------------------------------------------------
 # WS-7: GPU device passthrough -- ONE owned key for the CDI device the GPU
 # Quadlets (mios-llm-light/heavy/heavy-alt/worker@) attach via AddDevice. Was
