@@ -138,15 +138,16 @@ Plus: HITL validation (`mios_hitl` + arbiter), per-request tracing, SSOT
 round-trip drift detection, and module-test-coverage gate (drift-check 11 —
 every `mios_*.py` ships a unit test).
 
-**Verdict + the one true gap:** MiOS has the *operational* CLASSic stack (cost,
-latency, stability, security, build-time fitness gates) but **no standard
-agentic-capability benchmark harness** — there is no runner for SWE-bench
-Verified (arXiv: human-validated 500-issue set), OSWorld (369 GUI tasks), τ-bench
-(`pass^k` reliability — "all k succeed", arXiv 2406.12045), or WebArena. This is
-the single clearest external-validation gap: MiOS proves its own engineering
-knowledge but cannot yet self-report against published SOTA. (Proposed: a
-`mios-bench` harness that drives the agent-pipe endpoint against τ-bench-style
-`pass^k` and an OSWorld subset via the existing computer-use verbs.)
+**Verdict + the closing gap:** MiOS has the *operational* CLASSic stack (cost,
+latency, stability, security, build-time fitness gates). The capability-benchmark
+gap is now **partially closed**: `mios_bench.py` + `mios-bench` (committed) provide
+the research-grounded scoring core — unbiased `pass@k`, τ-bench `pass^k` ("all k
+succeed", arXiv 2406.12045), the i.i.d. `p**k` reliability form, and the CLASSic
+rollup — with an offline `score` mode (any results JSON) and a `run` mode that
+drives the agent-pipe endpoint. **Remaining:** the live trial execution + curated
+task suites (τ-bench / OSWorld subset against the computer-use verbs) need the VM
+endpoint + external datasets — the scoring half is done and unit-tested (35
+asserts).
 
 ---
 
@@ -157,7 +158,7 @@ knowledge but cannot yet self-report against published SOTA. (Proposed: a
 | Kernel Stage-2 hot-path rewire | WS-A11/#15 | central-path: delegate `chat_completions`→`kernel.handle()`; VM-verify (staged, see ws-decompose-stage2-plan) |
 | RR time-slice preemption wiring | WS-A12/#16 | wire `mios_preempt` to engine (snapshot/restore via `/slots`); VM-verify |
 | Remote SmartRouting + quality gate | WS-A16/#20 | implement remote lane adapters + orchestrate score gate; needs remote keys |
-| Risk-tier sandbox **enforcement** | WS-A13/#22 | invoke bwrap/seccomp per tier from dispatch; VM-verify (security-critical) |
+| Risk-tier sandbox **enforcement** | WS-A13/#22 | argv-builder `mios_sandbox.build_bwrap_argv` DONE (web-verified flags, 14 asserts); remaining = `exec` it + seccomp + workspace mkdir from dispatch; VM-verify (security-critical) |
 | Principal `enforce` + inbound auth | WS-A10/#25 | ASGI auth middleware + `principal_mode=enforce` path; VM-verify |
 | Multi-tenant RLS app-wiring | WS-5/#27 | `SET LOCAL mios.owner_user` per request + principal extraction |
 | Per-user quota keying/persistence | WS-6/#26 | key `mios_quota` on verified principal + persist |
@@ -165,7 +166,7 @@ knowledge but cannot yet self-report against published SOTA. (Proposed: a
 | pods→.pod quadlets / k3s bridge | WS-7/#28 | `.pod` quadlet gen; k3s regen-diff needs live pods (VM) |
 | Gossip/DHT federated discovery | WS-A18/#30 | discovery transport over `mios_reputation` |
 | Self-improve loop closure | WS-11/#32 | background daemon (interval) + replay-gated *act* half |
-| Capability-benchmark harness | (new) | `mios-bench`: τ-bench `pass^k` + OSWorld subset against :8640 |
+| Capability-benchmark harness | (new) | scoring core DONE (`mios_bench` + `mios-bench`: `pass@k`/`pass^k`/CLASSic, 35 asserts); remaining = live trial run + task suites (τ-bench/OSWorld) against :8640 (VM) |
 | VLM perception→act→verify | WS-8/#12 | ground a VLM lane + unify computer-use; VM helper |
 | Port-literal SSOT collapse | WS-0B/#5 | `.service` env can't `${}`-expand — VM-build-loop |
 
