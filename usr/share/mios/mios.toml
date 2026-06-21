@@ -666,6 +666,15 @@ arbiter_deny       = []        # verbs the arbiter ALWAYS refuses (hard floor)
 arbiter_allow      = ""        # exclusive allow-list when non-empty (CSV); "" = no allow-list
 arbiter_block_tier = ""        # refuse verbs at/above this risk tier (read|write|interactive); "" = no tier ceiling
 arbiter_port       = 8650      # loopback port mios-policy-arbiter listens on
+# WS-A10 verified-caller principal (edge identity). principal_mode gates inbound
+# auth: "off" (default -- trust the surface-claimed user, today's behaviour) |
+# "verify" (require a valid scoped token, mios_principal) | "enforce" (verify +
+# 401 on a missing/invalid token). token_ttl_s = scoped-token lifetime. The
+# mint/verify + revocation cores (mios_principal + mios_crl) ship + are tested;
+# the inbound ASGI middleware + caller-tokens store + mTLS transport are the
+# deeper server.py/VM wiring. Env: MIOS_PRINCIPAL_MODE / MIOS_TOKEN_TTL_S.
+principal_mode     = "off"
+token_ttl_s        = 3600
 
 # Composefs security mode -- moved here 2026-05-18 to dedupe
 # the second [security] section (strict TOML parsers reject
