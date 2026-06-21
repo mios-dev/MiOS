@@ -652,6 +652,11 @@ firewall_high_privilege_verbs = [
     "flatpak_upgrade",
     "flatpak_uninstall",
 ]
+# WS-A14: verbs whose OWN execution introduces session taint (downstream
+# high-privilege verbs then get firewall-checked). UNIONED with the built-in
+# external-fetch set (web_search/web_extract/crawl/web_scrape) by mios_secset --
+# add a verb here to taint on it without a code change. Empty by default.
+taint_verbs = []
 
 # Composefs security mode -- moved here 2026-05-18 to dedupe
 # the second [security] section (strict TOML parsers reject
@@ -4401,7 +4406,7 @@ agent_model         = "MiOS AI"
 # hitl_threshold is a permission tier from the risk lattice (read < write <
 # interactive); HITL fires for verbs at/above it. Reuses the #55 risk tiers + the
 # agent-passport humanInLoop thresholds. Ships off (inert) -- opt in deliberately.
-hitl_mode           = "off"
+hitl_mode           = "block"   # WS-A14 (operator steer 2026-06-20 "full capabilities"): GATE high-risk verbs (perm tier >= hitl_threshold) pending approval. Was "off"; tune to "audit" (log+proceed) or "off" to dial back.
 hitl_threshold      = "interactive"
 # #62 out-of-process policy arbiter: when set, a high-risk action (tier >=
 # hitl_threshold) is POSTed to this URL ({verb,tier,args}) for an {allow,reason}

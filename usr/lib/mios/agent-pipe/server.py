@@ -103,6 +103,7 @@ from mios_kvfork import (validate_fork as _kvfork_validate,  # noqa: E402  -- WS
                         fork_outcome as _kvfork_outcome,
                         kv_filename as _kvfork_kv_filename)   # WS-A4 de-dup target
 import mios_kvgc   # noqa: E402  -- WS-A4 KV slot-file GC planner
+import mios_secset   # noqa: E402  -- WS-A14 SSOT-derived high-privilege/taint sets
 import mios_codemode as _codemode   # noqa: E402  -- WS-2 Code Mode pure helpers
 import mios_pg as _mios_pg   # noqa: E402  -- WS-9 Postgres+pgvector client
 import mios_lanes   # noqa: E402  -- WS-1 unified inference-lane resolver
@@ -13225,7 +13226,7 @@ async def dci_critic_pass(
 # touch the operator's host services; pc_type / pc_key / pc_click
 # inject input into Win32 windows (could enter credentials if
 # tainted content prompted it).
-_HIGH_PRIVILEGE_VERBS = {
+_HIGH_PRIVILEGE_CURATED = {
     "service_restart",
     "container_restart",
     "pc_type",
@@ -13267,6 +13268,20 @@ _HIGH_PRIVILEGE_VERBS = {
     # Fail-safe: this also gates pkg reads (search/list/show) when tainted -- acceptable.
     "pkg",
 }
+# WS-A14: the EFFECTIVE high-privilege set = the curated floor above UNION the
+# SSOT [security].firewall_high_privilege_verbs (which previously existed but was
+# never consumed -> could silently drift from the literal). Derived once at load:
+# the curated base can never be dropped by a config edit, but the SSOT can ADD
+# verbs without a code change. Drives the taint firewall + the HITL gate scope.
+_HIGH_PRIVILEGE_VERBS = mios_secset.high_privilege_set(
+    _HIGH_PRIVILEGE_CURATED,
+    (_toml_section("security") or {}).get("firewall_high_privilege_verbs"))
+# WS-A14: always-taint verb set = the built-in external-fetch verbs UNION the
+# SSOT [security].taint_verbs (a verb whose own execution introduces taint, so
+# downstream high-privilege verbs in the same session get firewall-checked).
+_TAINT_VERBS = mios_secset.taint_verb_set(
+    ("web_search", "web_extract", "crawl", "web_scrape"),
+    (_toml_section("security") or {}).get("taint_verbs"))
 
 # Domains that are part of the operator's own infrastructure -- a
 # verb opening these is NOT a taint source. Anything else
@@ -13335,8 +13350,7 @@ PROVENANCE_TAINT_ENABLE = str(
 def _classify_verb_taint(tool: str, args: dict) -> tuple[bool, str]:
     """Decide whether a verb's OWN execution introduces taint.
     Returns (tainted, reason)."""
-    if PROVENANCE_TAINT_ENABLE and tool in (
-            "web_search", "web_extract", "crawl", "web_scrape"):
+    if PROVENANCE_TAINT_ENABLE and tool in _TAINT_VERBS:   # WS-A14 SSOT-derived
         return True, f"{tool}_external"
     if tool == "open_url":
         url = str((args or {}).get("url", ""))
@@ -22184,6 +22198,11 @@ async def health() -> dict[str, Any]:
         "security": {
             "allowlist_hosts": sorted(_ALLOWLIST_HOSTS),
             "high_privilege_verbs": sorted(_HIGH_PRIVILEGE_VERBS),
+            # WS-A14: provenance -- curated-floor vs SSOT-added origin of the set.
+            "high_privilege_provenance": mios_secset.provenance(
+                _HIGH_PRIVILEGE_CURATED,
+                (_toml_section("security") or {}).get("firewall_high_privilege_verbs")),
+            "taint_verbs": sorted(_TAINT_VERBS),
         },
         "skills": {
             "enabled": SKILLS_ENABLED,
