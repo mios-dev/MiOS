@@ -1,5 +1,5 @@
 <!-- AI-hint: Standalone, dependency-free web interface for editing the /etc/mios/mios.toml configuration file, providing a WYSIWYG UI to modify system identity, hostnames, and themes.
-     AI-related: automation/15-render-quadlets.sh, /etc/mios/mios.toml, /usr/share/mios/configurator/mios.html, /usr/share/mios/mios.toml., /usr/libexec/mios/mios-powershell, /usr/share/mios/skills, /usr/share/mios/surrealdb/schema-init.surql, /usr/share/mios/ai, /usr/share/mios/oh-my-posh/mios.omp.json, /etc/mios/install.env
+     AI-related: automation/15-render-quadlets.sh, /etc/mios/mios.toml, /usr/share/mios/configurator/mios.html, /usr/share/mios/mios.toml., /usr/libexec/mios/mios-powershell, /usr/share/mios/skills, /usr/share/mios/postgres/schema-init.sql, /usr/share/mios/ai, /usr/share/mios/oh-my-posh/mios.omp.json, /etc/mios/install.env
      AI-functions: refreshFromData, renderRaw, renderFlatpaks, renderColors, applyColorsToRoot, renderPresets, detectActivePresetId, syncFlatpakExtraTextarea, updateFlatpakCount, gatherFromForm, detectPlatform, suggestedPaths -->
 <!DOCTYPE html>
 <html lang="en">
@@ -329,7 +329,7 @@
 <body>
 
 <header>
-  <h1>MiOS configurator <span class="v" id="v-meta">schema 1.2.0 / mios 0.2.4</span></h1>
+  <h1>MiOS configurator <span class="v" id="v-meta">schema 1.1.0 / mios 0.2.4</span></h1>
   <div class="toolbar">
     <button id="btn-pick" type="button" title="Pick the file to edit (uses File System Access API where available; remembers the handle so subsequent saves are one-click no-prompt overwrites with no (1) suffix)">Pick file</button>
     <label class="btn-label" for="file-open" id="file-open-label" title="Fallback: open via standard file picker; saves go through Downloads">Open (fallback)</label>
@@ -379,6 +379,11 @@
         mobile terminal, Cockpit, Forge, Ceph &mdash; vendor default
         <code>mios</code>)</span></label>
       <input type="text" id="f-default-password" data-key="identity.default_password" placeholder="mios">
+      <label for="f-location">home location
+        <span style="opacity:.6">(city, "City, ST", or "lat,long" &mdash; resolves
+        "near me" / weather / news when the chat surface sends no GPS; empty falls
+        back to the timezone region)</span></label>
+      <input type="text" id="f-location" data-key="identity.location" placeholder="(empty — falls back to timezone region)">
     </div>
 
     <div class="card">
@@ -567,8 +572,8 @@
             <label for="f-net-zone">firewalld_default_zone</label>
             <input type="text" id="f-net-zone" data-key="network.firewalld_default_zone" placeholder="drop">
             <div class="checkbox-row"><input type="checkbox" id="f-net-cockpit" data-key="network.allow_cockpit"><label for="f-net-cockpit">allow_cockpit (9090/tcp)</label></div>
-            <div class="checkbox-row"><input type="checkbox" id="f-net-ssh" data-key="network.allow_ssh"><label for="f-net-ssh">allow_ssh (22/tcp)</label></div>
-            <div class="checkbox-row"><input type="checkbox" id="f-net-rdp" data-key="network.allow_rdp"><label for="f-net-rdp">allow_rdp (3389/tcp)</label></div>
+            <div class="checkbox-row"><input type="checkbox" id="f-net-ssh" data-key="network.allow_ssh"><label for="f-net-ssh">allow_ssh (2222/tcp)</label></div>
+            <div class="checkbox-row"><input type="checkbox" id="f-net-libvirt" data-key="network.allow_libvirt_bridge"><label for="f-net-libvirt">allow_libvirt_bridge (VM networking)</label></div>
           </fieldset>
         </div>
       </div>
@@ -579,37 +584,38 @@
       <div class="section-body">
         <p style="color: var(--muted); font-size: 12px; margin: 0 0 12px;">
           Architectural Law 5: every MiOS surface speaks to one local
-          OpenAI-compatible endpoint. Default is Hermes-Agent on :8642
-          (the LIVE MiOS agent at root, fronting inference lanes). Edit only when
-          OpenAI-compatible endpoint. Default is llm_light on :11450
-          (the LIVE MiOS inference lane, fronting model weights). Edit only when
+          OpenAI-compatible endpoint. Canonical surface is the Agent-Pipe
+          orchestrator on :8640 (served model <code>MiOS AI</code>) &mdash; the
+          unified entrypoint that runs the full refine &rarr; route &rarr; dispatch
+          &rarr; polish chain and fronts Hermes-Agent (:8642) + the inference lanes.
+          Point clients here, NOT at the bare Hermes/llm-light leaf. Edit only when
           swapping backends (external / direct).
         </p>
         <fieldset style="grid-column: 1 / -1;">
           <legend>ai</legend>
           <label for="f-ai-endpoint">endpoint</label>
-          <input type="text" id="f-ai-endpoint" data-key="ai.endpoint" placeholder="http://localhost:11450/v1">
+          <input type="text" id="f-ai-endpoint" data-key="ai.endpoint" placeholder="http://localhost:8640/v1">
+          <label for="f-ai-agent-model">agent_model (served model id the orchestrator advertises)</label>
+          <input type="text" id="f-ai-agent-model" data-key="ai.agent_model" placeholder="MiOS AI">
           <label for="f-ai-model">model</label>
           <select id="f-ai-model" data-key="ai.model" data-catalog-of="ai.catalog">
-            <!-- Options are repopulated at load-time from [[ai.catalog]]
-                 in mios.toml; the static fallback below mirrors the
-                 vendor catalog so the page works even without a parsed
-                 mios.toml. Keep in sync with [[ai.catalog]] in
-                 /usr/share/mios/mios.toml. -->
-            <option value="granite4.1:3b">granite4.1:3b (8 GB RAM, low-RAM default)</option>
-            <option value="gpt-oss:20b">gpt-oss:20b (16 GB RAM, agent-tuned MoE)</option>
-            <option value="granite4.1:30b">granite4.1:30b (24+ GB RAM, big-RAM auto-pick)</option>
-            <option value="qwen3-coder:30b">qwen3-coder:30b (24+ GB RAM, code-focused)</option>
-            <option value="qwen3:32b">qwen3:32b (28+ GB RAM, dense)</option>
+            <!-- Static fallback mirrors the vendor [[ai.catalog]] in
+                 /usr/share/mios/mios.toml so the page works without a parsed
+                 mios.toml. Keep in sync with [[ai.catalog]] there (the
+                 2026-06-13 family-diverse, mainline-llama.cpp-safe fleet:
+                 Granite brain+coder, LFM2 micro, Magistral heavy). -->
+            <option value="granite4.1:8b">granite4.1:8b (8 GB, IBM dense brain+coder default; 131K ctx)</option>
+            <option value="lfm2:700m">lfm2:700m (4 GB, Liquid AI micro/CPU classify lane)</option>
+            <option value="mistral-magistral-small-2509">mistral-magistral-small-2509 (24 GB, Mistral 24B reasoning, heavy dGPU lane)</option>
             <option value="__custom__">custom...</option>
           </select>
           <input type="text" id="f-ai-model-custom" data-key="ai.model" data-custom-of="f-ai-model"
-                 placeholder="custom model id (any OpenAI-compatible model tag, e.g. mistral-small3:24b)" style="margin-top:4px; display:none">
+                 placeholder="custom model id (any OpenAI-compatible model tag, e.g. qwen3-coder:30b)" style="margin-top:4px; display:none">
           <label for="f-ai-embed">embed_model</label>
           <input type="text" id="f-ai-embed" data-key="ai.embed_model" placeholder="nomic-embed-text">
           <label for="f-ai-bake">bake_models (CSV; consumed by model prep scripts)</label>
           <input type="text" id="f-ai-bake" data-key="ai.bake_models"
-                 placeholder="granite4.1:3b,nomic-embed-text">
+                 placeholder="granite4.1:8b,lfm2:700m,nomic-embed-text,mios-agent,mios-agent-cpu,mios-hermes,mios-hermes-cpu,mios-opencode,mios-sys-agent">
           <label for="f-ai-key">api_key (empty for localhost)</label>
           <input type="text" id="f-ai-key" data-key="ai.api_key" placeholder="">
         </fieldset>
@@ -638,9 +644,9 @@
             <option value="false">false &mdash; skip xrdp; rely on WSLg-per-window only</option>
           </select>
 
-          <label for="f-enhsess-port">port (TCP, mstsc connects to localhost:&lt;port&gt;)</label>
+          <label for="f-enhsess-port">port (TCP, mstsc connects to localhost:&lt;port&gt;; 13389 NOT 3389 &mdash; mstsc loopback on 3389 hits Windows error 0x708)</label>
           <input type="number" id="f-enhsess-port" data-key="enhanced_session.port"
-                 min="1024" max="65535" placeholder="3389">
+                 min="1024" max="65535" placeholder="13389">
 
           <label for="f-enhsess-user">user (empty = inherit <code>[identity].username</code>)</label>
           <input type="text" id="f-enhsess-user" data-key="enhanced_session.user"
@@ -712,10 +718,10 @@
         After the OCI image is built, bootc-image-builder renders one
         artifact per enabled format under
         <code>/var/lib/mios/build/output/</code>.
-        <strong>Default = vhdx + qcow2 + iso + raw + wsl ON</strong>
-        (every portable target). AMI / OVA / Anaconda installer are
-        OFF by default — they need extra host tools (aws-cli, ovftool,
-        anaconda).
+        <strong>Default = qcow2 + iso + anaconda_iso + raw + vhd ON</strong>.
+        VMDK / AMI / OVA / GCE / PXE are OFF by default — they need extra
+        host tools (ovftool, aws-cli, etc.). The WSL2 tarball is produced
+        separately (<code>podman save</code>), not through this table.
       </p>
       <div id="deploy-grid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 4px;"></div>
     </fieldset>
@@ -815,18 +821,20 @@
     <div class="grid">
       <fieldset>
         <legend>ports — core services</legend>
-        <label for="f-port-ssh">ssh (host sshd)</label>
-        <input type="text" id="f-port-ssh" data-key="ports.ssh" data-type="int" placeholder="22">
-        <label for="f-port-hermes">hermes (OpenAI-API endpoint -- live agent)</label>
+        <label for="f-port-ssh">ssh (host sshd; hardened off :22)</label>
+        <input type="text" id="f-port-ssh" data-key="ports.ssh" data-type="int" placeholder="2222">
+        <label for="f-port-hermes">hermes (OpenAI-API endpoint -- live agent leaf)</label>
         <input type="text" id="f-port-hermes" data-key="ports.hermes" data-type="int" placeholder="8642">
-        <label for="f-port-hermes-workspace">hermes_workspace (chat front-end)</label>
-        <input type="text" id="f-port-hermes-workspace" data-key="ports.hermes_workspace" data-type="int" placeholder="3030">
+        <label for="f-port-open-webui">open_webui (Open WebUI chat front-end)</label>
+        <input type="text" id="f-port-open-webui" data-key="ports.open_webui" data-type="int" placeholder="3030">
         <label for="f-port-cockpit">cockpit (host web console)</label>
         <input type="text" id="f-port-cockpit" data-key="ports.cockpit" data-type="int" placeholder="9090">
         <label for="f-port-cockpit-link">cockpit_link (Podman Desktop discovery shim)</label>
         <input type="text" id="f-port-cockpit-link" data-key="ports.cockpit_link" data-type="int" placeholder="19090">
         <label for="f-port-llm-light">llm_light (primary local inference lane; llama.cpp)</label>
         <input type="text" id="f-port-llm-light" data-key="ports.llm_light" data-type="int" placeholder="11450">
+        <label for="f-port-cpu-node">cpu_node (always-on / gaming-immune CPU llama-server lane)</label>
+        <input type="text" id="f-port-cpu-node" data-key="ports.cpu_node" data-type="int" placeholder="11451">
         <label for="f-port-sglang">sglang (heavy local LLM backend)</label>
         <input type="text" id="f-port-sglang" data-key="ports.sglang" data-type="int" placeholder="11441">
         <label for="f-port-vllm">vllm (alternate heavy local LLM backend)</label>
@@ -838,14 +846,14 @@
         <legend>ports — sidecar services</legend>
         <label for="f-port-forge-http">forge_http (Forgejo web UI)</label>
         <input type="text" id="f-port-forge-http" data-key="ports.forge_http" data-type="int" placeholder="3000">
-        <label for="f-port-forge-ssh">forge_ssh (Forgejo git+ssh)</label>
-        <input type="text" id="f-port-forge-ssh" data-key="ports.forge_ssh" data-type="int" placeholder="2222">
+        <label for="f-port-forge-ssh">forge_ssh (Forgejo git+ssh; vacated 2222 for host sshd)</label>
+        <input type="text" id="f-port-forge-ssh" data-key="ports.forge_ssh" data-type="int" placeholder="49922">
         <label for="f-port-searxng">searxng (privacy metasearch)</label>
         <input type="text" id="f-port-searxng" data-key="ports.searxng" data-type="int" placeholder="8888">
         <label for="f-port-code-server">code_server (VS Code in browser)</label>
-        <input type="text" id="f-port-code-server" data-key="ports.code_server" data-type="int" placeholder="8080">
+        <input type="text" id="f-port-code-server" data-key="ports.code_server" data-type="int" placeholder="8800">
         <label for="f-port-guacamole">guacamole_web (browser desktop)</label>
-        <input type="text" id="f-port-guacamole" data-key="ports.guacamole_web" data-type="int" placeholder="8090">
+        <input type="text" id="f-port-guacamole" data-key="ports.guacamole_web" data-type="int" placeholder="8080">
         <label for="f-port-ceph">ceph_dashboard</label>
         <input type="text" id="f-port-ceph" data-key="ports.ceph_dashboard" data-type="int" placeholder="8443">
         <label for="f-port-rdp">rdp (GNOME Remote Desktop / xRDP)</label>
@@ -854,6 +862,10 @@
         <input type="text" id="f-port-pgvector" data-key="ports.pgvector" data-type="int" placeholder="5432">
         <label for="f-port-agent-pipe">agent_pipe (standalone router + refine + critic; fronts hermes)</label>
         <input type="text" id="f-port-agent-pipe" data-key="ports.agent_pipe" data-type="int" placeholder="8640">
+        <label for="f-port-opencode-gateway">opencode_gateway (opencode -&gt; /v1 council peer; loopback)</label>
+        <input type="text" id="f-port-opencode-gateway" data-key="ports.opencode_gateway" data-type="int" placeholder="8633">
+        <label for="f-port-adguard-ui">adguard_ui (AdGuard Home web UI + REST API)</label>
+        <input type="text" id="f-port-adguard-ui" data-key="ports.adguard_ui" data-type="int" placeholder="3053">
       </fieldset>
       <fieldset>
         <legend>network.quadlet — internal podman bridge</legend>
@@ -881,8 +893,8 @@
         <input type="text" id="f-img-llm-light" data-key="image.sidecars.llm_light" placeholder="ghcr.io/mostlygeek/llama-swap:cuda">
         <label for="f-img-hermes">hermes (live MiOS agent at /)</label>
         <input type="text" id="f-img-hermes" data-key="image.sidecars.hermes" placeholder="docker.io/nousresearch/hermes-agent:latest">
-        <label for="f-img-hermes-workspace">hermes_workspace (chat front-end)</label>
-        <input type="text" id="f-img-hermes-workspace" data-key="image.sidecars.hermes_workspace" placeholder="ghcr.io/outsourc-e/hermes-workspace:latest">
+        <label for="f-img-open-webui">open_webui (Open WebUI chat front-end)</label>
+        <input type="text" id="f-img-open-webui" data-key="image.sidecars.open_webui" placeholder="ghcr.io/open-webui/open-webui:main">
         <label for="f-img-code-server">code_server (VS Code in browser)</label>
         <input type="text" id="f-img-code-server" data-key="image.sidecars.code_server" placeholder="ghcr.io/coder/code-server:latest">
         <label for="f-img-searxng">searxng</label>
@@ -892,7 +904,7 @@
         <label for="f-img-forge-runner">forge_runner (CI)</label>
         <input type="text" id="f-img-forge-runner" data-key="image.sidecars.forge_runner" placeholder="code.forgejo.org/forgejo/runner:7">
         <label for="f-img-k3s">k3s</label>
-        <input type="text" id="f-img-k3s" data-key="image.sidecars.k3s" placeholder="rancher/k3s:v1.32.1-k3s1">
+        <input type="text" id="f-img-k3s" data-key="image.sidecars.k3s" placeholder="docker.io/rancher/k3s:v1.32.1-k3s1">
         <label for="f-img-ceph">ceph</label>
         <input type="text" id="f-img-ceph" data-key="image.sidecars.ceph" placeholder="quay.io/ceph/ceph:v19">
       </fieldset>
@@ -912,6 +924,8 @@
         <input type="text" id="f-img-bib-alpine" data-key="image.sidecars.bib_alpine" placeholder="docker.io/library/alpine:latest">
         <label for="f-img-pgvector">pgvector (unified agent datastore)</label>
         <input type="text" id="f-img-pgvector" data-key="image.sidecars.pgvector" placeholder="docker.io/pgvector/pgvector:pg17">
+        <label for="f-img-adguard">adguard (DNS sinkhole + resolver)</label>
+        <input type="text" id="f-img-adguard" data-key="image.sidecars.adguard" placeholder="docker.io/adguard/adguardhome:latest">
       </fieldset>
       <fieldset>
         <legend>services — per-Quadlet identity (UID 800–829)</legend>
@@ -921,6 +935,8 @@
         </p>
         <label for="f-svc-forge-uid">forge.uid / .gid</label>
         <input type="text" id="f-svc-forge-uid" data-key="services.forge.uid" data-type="int" placeholder="816">
+        <label for="f-svc-open-webui-uid">open_webui.uid / .gid</label>
+        <input type="text" id="f-svc-open-webui-uid" data-key="services.open_webui.uid" data-type="int" placeholder="817">
         <label for="f-svc-searxng-uid">searxng.uid / .gid</label>
         <input type="text" id="f-svc-searxng-uid" data-key="services.searxng.uid" data-type="int" placeholder="818">
         <label for="f-svc-ceph-uid">ceph.uid / .gid</label>
@@ -1244,19 +1260,19 @@
     </p>
     <div class="grid">
       <fieldset>
-        <legend>terminal (post-install MiOS app: 80x20; cols-5 = WT chrome 3 + CRLF wrap 1 + visible right-border slack 1)</legend>
+        <legend>terminal (post-install MiOS app: 80x20 portal feel, edge-to-edge framing)</legend>
         <label for="f-term-cols">cols</label>
         <input type="text" id="f-term-cols" data-key="terminal.cols" data-type="int" placeholder="80">
         <label for="f-term-rows">rows</label>
         <input type="text" id="f-term-rows" data-key="terminal.rows" data-type="int" placeholder="20">
         <label for="f-term-scroll">scrollback_rows</label>
         <input type="text" id="f-term-scroll" data-key="terminal.scrollback_rows" data-type="int" placeholder="9000">
-        <label for="f-term-fw">frame_width (= cols - right_margin)</label>
-        <input type="text" id="f-term-fw" data-key="terminal.frame_width" data-type="int" placeholder="75">
+        <label for="f-term-fw">frame_width (= cols - right_margin; 80 = edge-to-edge)</label>
+        <input type="text" id="f-term-fw" data-key="terminal.frame_width" data-type="int" placeholder="80">
         <label for="f-term-fh">frame_height (= rows - 1, leave 1 row for prompt)</label>
         <input type="text" id="f-term-fh" data-key="terminal.frame_height" data-type="int" placeholder="19">
-        <label for="f-term-rm">right_margin (chrome + CRLF-wrap + right-border-slack; check M:\MiOS\diagnostics\window-width.txt)</label>
-        <input type="text" id="f-term-rm" data-key="terminal.right_margin" data-type="int" placeholder="5">
+        <label for="f-term-rm">right_margin (0 = edge-to-edge; raise to 1 only if powerline wraps on first paint)</label>
+        <input type="text" id="f-term-rm" data-key="terminal.right_margin" data-type="int" placeholder="0">
       </fieldset>
       <fieldset>
         <legend>terminal.install (BOOTSTRAP window: 80x40 for install output + readme)</legend>
@@ -1342,14 +1358,14 @@
         <legend>theme.terminal</legend>
         <label for="f-tt-scheme">scheme_name</label>
         <input type="text" id="f-tt-scheme" data-key="theme.terminal.scheme_name" placeholder="MiOS">
-        <label for="f-tt-profile">profile_name</label>
-        <input type="text" id="f-tt-profile" data-key="theme.terminal.profile_name" placeholder="MiOS">
-        <label for="f-tt-devprofile">dev_profile_name</label>
+        <label for="f-tt-profile">profile_name (WT pwsh dashboard profile)</label>
+        <input type="text" id="f-tt-profile" data-key="theme.terminal.profile_name" placeholder="MiOS-WIN">
+        <label for="f-tt-devprofile">dev_profile_name (the MiOS.lnk target)</label>
         <input type="text" id="f-tt-devprofile" data-key="theme.terminal.dev_profile_name" placeholder="MiOS-DEV">
         <label for="f-tt-summon-keys">summon_keys (toggle MiOS app from anywhere)</label>
         <input type="text" id="f-tt-summon-keys" data-key="theme.terminal.summon_keys" placeholder="win+space">
         <label for="f-tt-summon-name">summon_window_name</label>
-        <input type="text" id="f-tt-summon-name" data-key="theme.terminal.summon_window_name" placeholder="MiOS">
+        <input type="text" id="f-tt-summon-name" data-key="theme.terminal.summon_window_name" placeholder="MiOS-DEV">
       </fieldset>
       <fieldset>
         <legend>theme.prompt — additional powerline glyphs</legend>
@@ -1432,7 +1448,7 @@
 <div id="status" class="status info" style="display:none"></div>
 
 <footer>
-  <p>Spec: <code>https://toml.io/en/v1.0.0</code> · After saving, run <code>sudo mios-sync-env</code> to regenerate <code>/etc/mios/install.env</code> from the layered <code>mios.toml</code>, then <code>systemctl restart mios-hermes ollama</code> if AI keys changed. <code>mios-env --explain</code> shows which layer supplied each resolved <code>MIOS_*</code> value.</p>
+  <p>Spec: <code>https://toml.io/en/v1.0.0</code> · After saving, run <code>sudo mios-sync-env</code> to regenerate <code>/etc/mios/install.env</code> from the layered <code>mios.toml</code>, then <code>systemctl restart mios-agent-pipe hermes-agent mios-llm-light</code> if AI keys changed. <code>mios-env --explain</code> shows which layer supplied each resolved <code>MIOS_*</code> value.</p>
 </footer>
 
 <script>
@@ -1446,11 +1462,25 @@
 // verbatim by streaming through unmodified lines.
 //
 
+// Per-Quadlet first-boot enablement, mirroring [quadlets.enable] in the
+// canonical mios.toml. These are the operator-toggleable first-boot services;
+// the always-on lanes (mios-llm-light / mios-pgvector / mios-searxng) and the
+// DIRECT host install (hermes-agent, NOT a quadlet) are not listed there.
+// mios-crowdsec-dashboard ships force-disabled (corrupts the shared host
+// crowdsec volume). Toggling writes [quadlets.enable].<name>.
 const QUADLETS = [
-  "mios-hermes", "mios-hermes-workspace", "mios-code-server",
-  "mios-ceph", "mios-k3s", "mios-forge", "mios-cockpit-link", "mios-searxng",
-  "mios-crowdsec-dashboard", "mios-llm-light", "mios-pgvector", "mios-guacamole", "mios-pxe-hub",
-  "mios-guacamole-postgres", "mios-guacd"
+  { name: "mios-ceph",                default: true  },
+  { name: "mios-k3s",                 default: true  },
+  { name: "mios-forge",               default: true  },
+  { name: "mios-cockpit-link",        default: true  },
+  { name: "mios-open-webui",          default: true  },
+  { name: "mios-code-server",         default: true  },
+  { name: "mios-crowdsec-dashboard",  default: false },
+  { name: "mios-guacamole",           default: true  },
+  { name: "mios-pxe-hub",             default: true  },
+  { name: "mios-guacamole-postgres",  default: true  },
+  { name: "mios-guacd",               default: true  },
+  { name: "mios-adguard",             default: true  },
 ];
 
 // ── Package groups: every [packages.<name>] table the build can layer ─────
@@ -1460,10 +1490,13 @@ const QUADLETS = [
 // writes [packages.<name>].enable in the saved mios.toml.
 const PACKAGES = [
   // core
-  { name: "base",                  default: true,  group: "core",    desc: "kernel + glibc + systemd + bash baseline" },
+  { name: "repos",                 default: true,  group: "core",    desc: "RPM Fusion + DNF plugin repos (most other packages depend on these)" },
+  { name: "critical",              default: true,  group: "core",    desc: "critical baseline: gnome-shell, podman, bootc, libvirt, kernel-core, firewalld, cockpit (do NOT disable)" },
+  { name: "base",                  default: true,  group: "core",    desc: "selinux, firewalld, audit, fapolicyd, crowdsec, usbguard baseline" },
   { name: "security",              default: true,  group: "core",    desc: "audit, tpm2-tools, clevis, openscap, aide, nftables" },
   { name: "utils",                 default: true,  group: "core",    desc: "lsof, jq, ripgrep, vim, tmux, fastfetch, htop" },
   { name: "boot",                  default: true,  group: "core",    desc: "shim, grub2, dracut, plymouth (boot chain)" },
+  { name: "kernel",                default: true,  group: "core",    desc: "kernel-modules-extra + devel/headers + kernel-tools + python3.13" },
   // dev / build
   { name: "build-toolchain",       default: true,  group: "dev",     desc: "gcc, make, cmake, go, rust, python-devel" },
   { name: "self-build",            default: true,  group: "dev",     desc: "in-tree build automation deps" },
@@ -1472,8 +1505,11 @@ const PACKAGES = [
   { name: "k3s-selinux-build",     default: true,  group: "build",   desc: "build-time SELinux policy for k3s" },
   { name: "cockpit-plugins-build", default: true,  group: "build",   desc: "in-house cockpit plugin packages" },
   { name: "looking-glass-build",   default: true,  group: "build",   desc: "build LookingGlass for VFIO GPU passthrough" },
+  { name: "glibc-hwcaps-v3",       default: true,  group: "build",   desc: "glibc x86-64-v3 optimized libs (Haswell/Zen1+; gated by [hwcaps].level)" },
+  { name: "glibc-hwcaps-v4",       default: true,  group: "build",   desc: "glibc x86-64-v4 optimized libs (AVX-512; Skylake-X/Zen4+)" },
   // host / hosting
   { name: "containers",            default: true,  group: "host",    desc: "podman, buildah, skopeo, podman-compose" },
+  { name: "moby",                  default: true,  group: "host",    desc: "Moby / Docker engine (docker CLI compatibility)" },
   { name: "cockpit",               default: true,  group: "host",    desc: "cockpit + cockpit-podman + cockpit-machines" },
   { name: "storage",               default: true,  group: "host",    desc: "btrfs / zfs / luks / lvm tooling" },
   { name: "virt",                  default: true,  group: "host",    desc: "qemu-kvm, libvirt, virt-install, spice" },
@@ -1486,11 +1522,15 @@ const PACKAGES = [
   { name: "gpu-nvidia",            default: true,  group: "gpu",     desc: "akmod-nvidia, CUDA, NVIDIA Container Toolkit" },
   { name: "gpu-amd-compute",       default: true,  group: "gpu",     desc: "ROCm runtime (amdgpu compute)" },
   { name: "gpu-intel-compute",     default: true,  group: "gpu",     desc: "Intel Compute Runtime (oneAPI)" },
+  { name: "gpu-cdi-toolkits",      default: true,  group: "gpu",     desc: "Container Device Interface toolkits (GPU passthrough into containers)" },
   // desktop
   { name: "gnome",                 default: true,  group: "desktop", desc: "GNOME Shell + core session" },
+  { name: "gnome-flatpak-runtime", default: true,  group: "desktop", desc: "Flatpak runtime: portals, PipeWire audio, GVfs, Adwaita theming, keyring" },
+  { name: "gnome-core-apps",       default: true,  group: "desktop", desc: "gnome-software (RPM) + grim/gnome-screenshot capture backends" },
   { name: "phosh",                 default: true,  group: "desktop", desc: "Phosh mobile shell (PinePhone form-factor)" },
   // ai
   { name: "ai",                    default: true,  group: "ai",      desc: "inference lanes (LLM + embeddings), hermes-agent, chat front-end" },
+  { name: "docgen",                default: true,  group: "ai",      desc: "Pandoc + LibreOffice headless (offline office-doc generation for mios-docgen)" },
   // k8s / cluster
   { name: "k3s",                   default: true,  group: "cluster", desc: "k3s lightweight Kubernetes" },
   { name: "ceph",                  default: true,  group: "cluster", desc: "Ceph storage cluster client + cephadm" },
@@ -1507,19 +1547,22 @@ const PACKAGES = [
 ];
 
 // ── Deployment target image formats (bootc-image-builder) ─────────────────
-// Each toggle controls whether the build pipeline produces that image
-// format. Default ON for the 5 portable formats; OFF for cloud-specific
-// (AMI/OVA) and Anaconda-installer ISO since those require additional
-// host-side tools (aws-cli, ovftool, anaconda) the operator may not have.
+// Mirrors [deployment].target_<key> in mios.toml. Each toggle controls whether
+// bootc-image-builder renders that format. NOTE: there is no `wsl` BIB type --
+// the WSL2 tarball is produced separately (podman save + post-process), not via
+// this table. Cloud / VM-specific formats (vmdk/ami/ova/gce/pxe) are OFF by
+// default since they need extra host tools (aws-cli, ovftool, anaconda, etc.).
 const DEPLOY_TARGETS = [
-  { key: "vhdx",         default: true,  desc: "Hyper-V / Azure VM disk" },
   { key: "qcow2",        default: true,  desc: "QEMU / KVM / libvirt / Proxmox / GNOME Boxes" },
-  { key: "iso",          default: true,  desc: "live + installer ISO" },
-  { key: "raw",          default: true,  desc: "raw disk image (bare-metal write)" },
-  { key: "wsl",          default: true,  desc: "WSL2 rootfs tarball" },
+  { key: "iso",          default: true,  desc: "bootc-installer ISO (live + installer)" },
+  { key: "anaconda_iso", default: true,  desc: "Anaconda-based installer ISO (Fedora-style)" },
+  { key: "raw",          default: true,  desc: "raw disk image (dd to USB / bare-metal)" },
+  { key: "vhd",          default: true,  desc: "Hyper-V VM disk (Windows guests, Azure)" },
+  { key: "vmdk",         default: false, desc: "VirtualBox / VMware" },
   { key: "ami",          default: false, desc: "AWS AMI (requires aws-cli + signing)" },
   { key: "ova",          default: false, desc: "vSphere OVA (requires ovftool)" },
-  { key: "anaconda_iso", default: false, desc: "Anaconda installer ISO (slower build path)" },
+  { key: "gce",          default: false, desc: "Google Compute Engine" },
+  { key: "pxe_tar_xz",   default: false, desc: "PXE network-boot tarball" },
 ];
 
 // ── Color palette: defaults + named-token / ANSI-slot definitions ─────────────
@@ -1778,20 +1821,27 @@ const COLOR_ANSI_LABELS = {
 // Flatpak ref to mios.toml without listing it here means the configurator
 // cannot present it -- always update both.
 const FLATPAKS = [
-  // ── Default session apps (substrate-like; pre-selected) ──
-  { id: "org.gnome.Epiphany",                          cat: "session",  label: "Epiphany",            note: "GNOME Web (default browser)",                    def: true },
-  { id: "org.gnome.Ptyxis",                            cat: "session",  label: "Ptyxis",              note: "Terminal emulator (replaces RPM)",               def: true },
-  { id: "org.gnome.Nautilus",                          cat: "session",  label: "Nautilus",            note: "File manager (replaces RPM)",                    def: true },
-  // ── App management / Flatpak tooling (pre-selected) ──
-  { id: "org.gnome.Software",                          cat: "appmgmt",  label: "GNOME Software",      note: "Native GNOME app store (Flatpak frontend)",       def: true },
+  // ── Default session apps (the canonical baked set; pre-selected). IDs carry
+  //    their remote prefix where the canonical [desktop].flatpaks pins one
+  //    (Flathub stable Nautilus is EOL → gnome-nightly Devel; fedora Epiphany
+  //    is current vs a stale Flathub). ──
+  { id: "fedora:org.gnome.Epiphany",                   cat: "session",  label: "Epiphany",            note: "GNOME Web (default browser; fedora remote = 50.x current)",       def: true },
+  { id: "app.devsuite.Ptyxis",                         cat: "session",  label: "Ptyxis",              note: "Terminal emulator (renamed from org.gnome.Ptyxis)",               def: true },
+  { id: "gnome-nightly:org.gnome.Nautilus.Devel",      cat: "session",  label: "Nautilus",            note: "File manager (Devel build; Flathub stable is EOL on GNOME 3.28)", def: true },
+  { id: "com.google.ChromeDev",                        cat: "session",  label: "Chrome Dev",          note: "Chrome Dev channel — operator alt browser + Hermes CDP target",   def: true },
+  { id: "org.gtk.Gtk3theme.adw-gtk3-dark",             cat: "session",  label: "adw-gtk3-dark",       note: "GTK3 theme extension (dark Adwaita for flatpak sandboxes)",        def: true },
+  { id: "org.gtk.Gtk3theme.adw-gtk3",                  cat: "session",  label: "adw-gtk3",            note: "GTK3 theme extension (light variant)",                            def: true },
+  // ── App management / Flatpak tooling (pre-selected). GNOME Software is now an
+  //    RPM ([packages.gnome-core-apps]); the Flathub org.gnome.Software ID is
+  //    delisted, so it is no longer a flatpak entry here. ──
   { id: "com.github.tchx84.Flatseal",                  cat: "appmgmt",  label: "Flatseal",            note: "Flatpak permissions UI",                         def: true },
   { id: "com.mattjakeman.ExtensionManager",            cat: "appmgmt",  label: "Extension Manager",   note: "GNOME Shell extensions (replaces gnome-tweaks)", def: true },
-  // ── Developer: code-server (mios-code-server.container, http://localhost:8080)
+  // ── Developer: code-server (mios-code-server.container, http://localhost:8800)
   //    edits the live root FHS at /mnt/mios-root -- the self-hosting dev loop.
   //    No desktop IDE flatpak shipped. ──
-  // ── Virtualization GUIs (pre-selected; libvirt/qemu daemons stay as RPM) ──
-  { id: "org.virt_manager.Manager",                    cat: "virt",     label: "virt-manager",        note: "VM manager GUI (replaces RPM)",                  def: true },
-  { id: "org.remmina.Remmina",                         cat: "virt",     label: "Remmina",             note: "RDP/SPICE/VNC viewer (replaces virt-viewer RPM)", def: true },
+  // ── Virtualization GUIs (opt-in; libvirt/qemu daemons stay as RPM) ──
+  { id: "org.virt_manager.Manager",                    cat: "virt",     label: "virt-manager",        note: "VM manager GUI",                                 def: false },
+  { id: "org.remmina.Remmina",                         cat: "virt",     label: "Remmina",             note: "RDP/SPICE/VNC viewer",                           def: false },
   // ── Gaming (default-OFF; opt-in) ──
   { id: "com.valvesoftware.Steam",                     cat: "gaming",   label: "Steam",               note: "Bundles Proton (replaces RPM)",                  def: false },
   { id: "net.lutris.Lutris",                           cat: "gaming",   label: "Lutris",              note: "Game launcher (replaces RPM)",                   def: false },
@@ -1835,7 +1885,7 @@ const FLATPAK_CATEGORY_LABELS = {
   session: "Default session apps (pre-selected)",
   appmgmt: "App management / Flatpak tooling (pre-selected)",
   dev:     "Developer (pre-selected)",
-  virt:    "Virtualization GUIs (pre-selected)",
+  virt:    "Virtualization GUIs (opt-in)",
   gaming:  "Gaming (opt-in)",
   gnome:   "GNOME core apps (opt-in)",
   other:   "Alternatives (opt-in)"
@@ -2041,15 +2091,17 @@ function refreshFromData() {
   const qg = document.getElementById("quadlet-grid");
   qg.innerHTML = "";
   for (const q of QUADLETS) {
-    const v = DATA["quadlets.enable"]?.[q] ?? true;
-    const id = `q-${q.replace(/[^A-Za-z0-9]/g, "-")}`;
+    // Read order: existing toml > spec default (so a returning operator's
+    // saved enable wins; a fresh load uses the per-quadlet vendor default).
+    const v = DATA["quadlets.enable"]?.[q.name] ?? q.default;
+    const id = `q-${q.name.replace(/[^A-Za-z0-9]/g, "-")}`;
     const row = document.createElement("div");
     row.className = "checkbox-row";
-    row.innerHTML = `<input type="checkbox" id="${id}" ${v ? "checked" : ""}><label for="${id}">${q}</label>`;
+    row.innerHTML = `<input type="checkbox" id="${id}" ${v ? "checked" : ""}><label for="${id}">${q.name}</label>`;
     qg.appendChild(row);
     row.querySelector("input").addEventListener("change", e => {
       DATA["quadlets.enable"] = DATA["quadlets.enable"] || {};
-      DATA["quadlets.enable"][q] = e.target.checked;
+      DATA["quadlets.enable"][q.name] = e.target.checked;
       renderRaw();
     });
   }
@@ -2501,6 +2553,7 @@ editor_url     = "/usr/share/mios/configurator/mios.html"
 username = "mios"
 hostname = "mios"
 fullname = "MiOS User"
+location = ""
 shell    = "/bin/bash"
 groups   = ["wheel","libvirt","kvm","video","render","input","dialout","docker"]
 
@@ -2517,13 +2570,14 @@ ssh_key_action = "generate"
 firewalld_default_zone = "drop"
 allow_cockpit          = true
 allow_ssh              = true
-allow_rdp              = true
+allow_libvirt_bridge   = true
 
 [ai]
-endpoint     = "http://localhost:8642/v1"
-model        = "qwen3.5:4b"
+endpoint     = "http://localhost:8640/v1"
+agent_model  = "MiOS AI"
+model        = "granite4.1:8b"
 embed_model  = "nomic-embed-text"
-bake_models  = "qwen3.5:4b,qwen3:1.7b,qwen2.5-coder:7b,nomic-embed-text,mios-agent,mios-agent-cpu,mios-hermes,mios-hermes-cpu,mios-opencode,mios-sys-agent"
+bake_models  = "granite4.1:8b,lfm2:700m,nomic-embed-text,mios-agent,mios-agent-cpu,mios-hermes,mios-hermes-cpu,mios-opencode,mios-sys-agent"
 api_key      = ""
 
 [image]
@@ -2539,14 +2593,14 @@ color_scheme  = "prefer-dark"
 # saving the file as /etc/mios/mios.toml or ~/.config/mios/mios.toml
 # overrides this set via the layered resolver.
 flatpaks      = [
-    "org.gnome.Epiphany",
-    "org.gnome.Ptyxis",
-    "org.gnome.Nautilus",
-    "org.gnome.Software",
+    "org.gtk.Gtk3theme.adw-gtk3-dark",
+    "org.gtk.Gtk3theme.adw-gtk3",
+    "app.devsuite.Ptyxis",
+    "gnome-nightly:org.gnome.Nautilus.Devel",
+    "fedora:org.gnome.Epiphany",
     "com.github.tchx84.Flatseal",
     "com.mattjakeman.ExtensionManager",
-    "org.virt_manager.Manager",
-    "org.remmina.Remmina",
+    "com.google.ChromeDev",
 ]
 `.trim();
 
