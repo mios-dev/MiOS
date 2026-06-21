@@ -279,28 +279,53 @@ def _pg_exec(sql: str) -> None:
         pass
 
 
+def _pg_run(envelope: dict) -> str:
+    """WS-A3: run a PARAMETERIZED statement/batch via `mios-db --pg-json`, which
+    binds values OUT-OF-BAND through mios-pg-query's extended protocol (no value
+    is spliced into SQL -> injection-safe). Returns stdout; degrade-open -> ''."""
+    if not _PG_ENABLED:
+        return ""
+    try:
+        import subprocess
+        r = subprocess.run([_MIOS_DB, "--pg-json"], input=json.dumps(envelope),
+                           capture_output=True, text=True, timeout=15)
+        return (r.stdout or "").strip()
+    except Exception:  # noqa: BLE001
+        return ""
+
+
 def _pg_insert(table: str, fields: dict) -> None:
     """Mirror a daemon write to pgvector (chokepoint, called from _db_create).
-    Builds a parameter-free INSERT (dict/list -> jsonb); time columns use the
-    pgvector column DEFAULT (now()) so now_fields are omitted. Degrade-open."""
+    WS-A3: values are now BOUND via $1..$n params (mios-db --pg-json), never
+    f-string-spliced (the old _pgesc single-quote doubling was not a binding).
+    dict/list -> jsonb via a ::jsonb cast on the bound param; time columns use
+    the pgvector column DEFAULT (now()). `table`/column names are trusted
+    identifiers (never request data). Degrade-open."""
     if not _PG_ENABLED:
         return
-    cols, vals = [], []
+    cols, phs, params = [], [], []
+    n = 0
     for k, v in fields.items():
         if v is None:
             continue
+        n += 1
         cols.append(k)
         if isinstance(v, (dict, list)):
-            vals.append("'" + _pgesc(json.dumps(v, default=str)) + "'::jsonb")
+            phs.append(f"${n}::jsonb")
+            params.append(json.dumps(v, default=str))
         elif isinstance(v, bool):
-            vals.append("true" if v else "false")
+            phs.append(f"${n}")
+            params.append("true" if v else "false")
         elif isinstance(v, (int, float)):
-            vals.append(str(v))
+            phs.append(f"${n}")
+            params.append(str(v))
         else:
-            vals.append("'" + _pgesc(str(v)) + "'")
+            phs.append(f"${n}")
+            params.append(str(v))
     if cols:
-        _pg_exec(f"INSERT INTO {table} ({', '.join(cols)}) "
-                 f"VALUES ({', '.join(vals)});")
+        _pg_run({"sql": f"INSERT INTO {table} ({', '.join(cols)}) "
+                        f"VALUES ({', '.join(phs)})",
+                 "params": params})
 
 
 def _db_post(sql: str, *, timeout: float = 3.0) -> Optional[list]:
@@ -2717,33 +2742,46 @@ def _pg_replace_directory_entries(root_label: str,
     modes. Degrade-open via _pg_exec (mios-db --pg)."""
     if not _PG_ENABLED:
         return
-    _pg_exec(f"DELETE FROM directory_entry WHERE root_label = "
-             f"'{_pgesc(root_label)}';")
+    # WS-A3: root_label + every per-entry value (filesystem PATHS and first-line
+    # file CONTENT -- attacker-influenceable) are BOUND as $n params, never
+    # f-string-spliced (the old _pgesc was not a binding). DELETE + batch INSERT
+    # run in ONE atomic statements-envelope so the root's index never half-updates.
     cols = ("path", "parent", "basename", "kind", "size",
             "mtime", "ext", "summary", "root_label")
+    statements = [{"sql": "DELETE FROM directory_entry WHERE root_label = $1",
+                   "params": [root_label]}]
     CHUNK = 200
     for i in range(0, len(entries), CHUNK):
-        rows = []
+        tuples, params = [], []
+        n = 0
         for e in entries[i:i + CHUNK]:
-            vals = []
+            phs = []
             for k in cols:
                 v = e.get(k)
+                n += 1
                 if v is None:
-                    vals.append("NULL")
+                    # keep NULL inline (not a value) so the column default/NULL
+                    # applies; drop the placeholder number back.
+                    n -= 1
+                    phs.append("NULL")
                 elif k == "size" and isinstance(v, (int, float)):
-                    vals.append(str(int(v)))
+                    phs.append(f"${n}")
+                    params.append(str(int(v)))
                 else:
-                    vals.append("'" + _pgesc(str(v)) + "'")
-            rows.append("(" + ", ".join(vals) + ")")
-        if rows:
-            _pg_exec(
-                "INSERT INTO directory_entry (" + ", ".join(cols) + ") VALUES "
-                + ", ".join(rows)
+                    phs.append(f"${n}")
+                    params.append(str(v))
+            tuples.append("(" + ", ".join(phs) + ")")
+        if tuples:
+            statements.append({
+                "sql": "INSERT INTO directory_entry (" + ", ".join(cols)
+                + ") VALUES " + ", ".join(tuples)
                 + " ON CONFLICT (path) DO UPDATE SET parent=EXCLUDED.parent, "
                 "basename=EXCLUDED.basename, kind=EXCLUDED.kind, "
                 "size=EXCLUDED.size, mtime=EXCLUDED.mtime, ext=EXCLUDED.ext, "
                 "summary=EXCLUDED.summary, root_label=EXCLUDED.root_label, "
-                "updated_at=now();")
+                "updated_at=now()",
+                "params": params})
+    _pg_run({"statements": statements})
 
 
 def _atomic_replace_for_root(root_label: str,
