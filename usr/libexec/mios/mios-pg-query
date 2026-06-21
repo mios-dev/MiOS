@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-# AI-hint: A standalone Python-based PostgreSQL wire protocol client used by the MiOS agent plane to execute SQL queries directly over a loopback TCP socket when psql or podman access is restricted.
-# AI-related: mios-ai, mios-daemon, mios-db, socket.socket
+# AI-hint: A standalone Python-based PostgreSQL wire-protocol client used by the MiOS agent plane to execute SQL directly over a loopback TCP socket when psql or podman access is restricted. Two modes: legacy simple-Query (raw SQL on argv/stdin -- unchanged) AND `--exec-json` parameterized binding (reads a {"sql","params"} or {"statements":[...]} envelope on stdin and uses the v3 EXTENDED query protocol Parse/Bind/Execute/Sync so values are bound out-of-band -> SQL-injection-safe; this is the WS-A3 CLI-safety foundation the python memory tools call).
+# AI-related: mios-ai, mios-daemon, mios-db, mios-remember, mios-kg, mios-rag, socket.socket, test_mios_pgwire.py
+# AI-functions: _cstr, _be16, _be32, _be32s, build_parse, build_bind, build_execute, build_sync, encode_param, parse_envelope, _connect, run_simple, run_extended, main
 """mios-pg-query -- minimal pure-stdlib PostgreSQL client for the MiOS agent
 plane. No psql binary, no psycopg, no podman needed: it speaks the v3 wire
 protocol directly over a loopback TCP socket.
@@ -14,15 +15,31 @@ pgvector pg_hba `host all all 127.0.0.1/32 trust` line (loopback trust), so
 there is no auth exchange -- the StartupMessage is answered with
 AuthenticationOk directly.
 
-Usage:  mios-pg-query [-At ...ignored...] '<sql>'      (or SQL on stdin)
+Two modes:
+  1. SIMPLE (default, unchanged):  mios-pg-query [-At ...] '<sql>'   (or SQL on
+     stdin). Sends the SQL verbatim as one simple-Query ('Q') message. Multiple
+     / multi-statement queries are handled. The SQL is run AS-IS -- the caller
+     owns its safety (it is a trusted raw-SQL transport / console).
+  2. EXTENDED / parameterized (WS-A3):  mios-pg-query --exec-json   reads a JSON
+     envelope on stdin and binds the values OUT-OF-BAND via the v3 extended
+     query protocol (Parse/Bind/Execute/Sync), so NO value is ever spliced into
+     the SQL text (kills SQL-injection). Two envelope shapes:
+        {"sql": "... $1 ... $2 ...", "params": [v1, v2, ...]}
+        {"statements": [{"sql": "...", "params": [...]}, ...]}  # one txn (atomic)
+     Placeholders are $1..$n; params are bound as TEXT format with unspecified
+     type (the backend infers from context / an explicit ::cast in the SQL).
+     NULL is JSON null; keep integers (e.g. LIMIT) inline in the SQL string
+     (int-coerced by the caller) to avoid text->int inference edge cases.
+
 Env:    MIOS_PG_HOST (127.0.0.1) MIOS_PG_PORT (5432)
         MIOS_PG_USER (mios)      MIOS_PG_DB (mios)
-Output: tab-separated columns, one row per line (psql -At shape). Multi-row
-        and multi-statement queries are handled; NULLs render as empty. Exit 1
-        on any backend ErrorResponse or unsupported (non-trust) auth.
+Output: tab-separated columns, one row per line (psql -At shape) for BOTH modes.
+        Multi-row handled; NULLs render as empty. Exit 1 on any backend
+        ErrorResponse or unsupported (non-trust) auth.
 """
 from __future__ import annotations
 
+import json
 import os
 import socket
 import struct
@@ -34,6 +51,105 @@ USER = os.environ.get("MIOS_PG_USER") or "mios"
 DB = os.environ.get("MIOS_PG_DB") or "mios"
 
 
+# ── wire-format builders (pure; unit-tested by test_mios_pgwire.py) ───────────
+def _cstr(s: str) -> bytes:
+    """A protocol String: UTF-8 bytes + NUL terminator."""
+    return s.encode("utf-8") + b"\x00"
+
+
+def _be16(n: int) -> bytes:
+    return struct.pack("!h", n)
+
+
+def _be32(n: int) -> bytes:
+    """Unsigned Int32 (message length -- always positive)."""
+    return struct.pack("!I", n)
+
+
+def _be32s(n: int) -> bytes:
+    """Signed Int32 (value lengths: -1 == NULL; row-limit 0 == unlimited)."""
+    return struct.pack("!i", n)
+
+
+def _frame(type_byte: bytes, body: bytes) -> bytes:
+    """type byte + Int32 length (includes the 4 length bytes, NOT the type byte)
+    + body."""
+    return type_byte + _be32(4 + len(body)) + body
+
+
+def build_parse(sql: str, stmt: str = "") -> bytes:
+    """Parse ('P'): name the (unnamed) prepared statement, the query string, and
+    0 parameter type OIDs -> the backend INFERS each $n's type from context."""
+    body = _cstr(stmt) + _cstr(sql) + _be16(0)
+    return _frame(b"P", body)
+
+
+def build_bind(params, portal: str = "", stmt: str = "") -> bytes:
+    """Bind ('B'): bind text-format param values to the prepared statement.
+    `params` is a list of already-text-encoded str (or None for SQL NULL). One
+    param format code (0=text) applied to all; 0 result format codes -> all
+    columns returned as text."""
+    body = _cstr(portal) + _cstr(stmt)
+    body += _be16(1) + _be16(0)              # 1 fmt code, 0=text, applies to all
+    body += _be16(len(params))               # number of parameter values
+    for p in params:
+        if p is None:
+            body += _be32s(-1)               # NULL: length -1, no bytes
+        else:
+            b = p.encode("utf-8")
+            body += _be32s(len(b)) + b
+    body += _be16(0)                         # 0 result-format codes -> text
+    return _frame(b"B", body)
+
+
+def build_execute(portal: str = "", max_rows: int = 0) -> bytes:
+    """Execute ('E'): run the portal, max_rows=0 -> return all rows."""
+    return _frame(b"E", _cstr(portal) + _be32s(max_rows))
+
+
+def build_sync() -> bytes:
+    """Sync ('S'): close the implicit transaction + request ReadyForQuery."""
+    return _frame(b"S", b"")
+
+
+def encode_param(v) -> "str | None":
+    """JSON value -> the TEXT representation Bind sends (None -> SQL NULL).
+    bool BEFORE int (bool is an int subclass). dict/list -> JSON text (bind with
+    a ::jsonb cast in the SQL if a jsonb column)."""
+    if v is None:
+        return None
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    if isinstance(v, (int, float)):
+        return str(v)
+    if isinstance(v, str):
+        return v
+    return json.dumps(v, default=str)
+
+
+def parse_envelope(text: str):
+    """Parse the --exec-json stdin envelope into (statements, in_txn) where
+    statements is a list of (sql, [encoded params]). {"statements":[...]} runs in
+    one BEGIN/COMMIT (atomic, for upserts); {"sql","params"} is a single
+    statement (no explicit txn). Raises ValueError on a malformed envelope."""
+    obj = json.loads(text)
+    if not isinstance(obj, dict):
+        raise ValueError("envelope must be a JSON object")
+    if "statements" in obj:
+        stmts = []
+        for s in (obj.get("statements") or []):
+            if not isinstance(s, dict) or "sql" not in s:
+                raise ValueError("each statement needs an 'sql' field")
+            stmts.append((str(s["sql"]),
+                          [encode_param(x) for x in (s.get("params") or [])]))
+        return stmts, True
+    if "sql" in obj:
+        return [(str(obj["sql"]),
+                 [encode_param(x) for x in (obj.get("params") or [])])], False
+    raise ValueError('envelope must be {"sql","params"} or {"statements":[...]}')
+
+
+# ── low-level read helpers ────────────────────────────────────────────────────
 def _recv_exact(sock: socket.socket, n: int) -> bytes:
     buf = b""
     while len(buf) < n:
@@ -58,65 +174,141 @@ def _err_text(body: bytes) -> str:
     return body.decode("utf-8", "replace")[:200]
 
 
-def main() -> int:
-    sql_args = [a for a in sys.argv[1:] if not a.startswith("-")]
-    sql = sql_args[0] if sql_args else sys.stdin.read()
-    if not sql.strip():
-        return 0
+def _parse_datarow(body: bytes) -> str:
+    """A DataRow body -> tab-joined text fields (NULL -> '')."""
+    nf = struct.unpack("!H", body[:2])[0]
+    off = 2
+    fields = []
+    for _ in range(nf):
+        flen = struct.unpack("!i", body[off:off + 4])[0]
+        off += 4
+        if flen == -1:
+            fields.append("")
+        else:
+            fields.append(body[off:off + flen].decode("utf-8", "replace"))
+            off += flen
+    return "\t".join(fields)
+
+
+# ── connection ────────────────────────────────────────────────────────────────
+def _connect() -> "socket.socket | None":
+    """Open the socket and drain the StartupMessage exchange up to the first
+    ReadyForQuery. Returns the live socket, or None on a non-trust auth / startup
+    error (after writing the reason to stderr)."""
     s = socket.create_connection((HOST, PORT), timeout=15)
+    params = (b"user\x00" + USER.encode() + b"\x00"
+              + b"database\x00" + DB.encode() + b"\x00\x00")
+    s.sendall(struct.pack("!I", 8 + len(params))
+              + struct.pack("!I", 196608) + params)
+    while True:
+        t, body = _read_msg(s)
+        if t == b"R":
+            if struct.unpack("!I", body[:4])[0] != 0:
+                sys.stderr.write(
+                    "pg: non-trust auth requested -- mios-pg-query only "
+                    "supports loopback trust\n")
+                s.close()
+                return None
+        elif t == b"E":
+            sys.stderr.write("pg startup error: " + _err_text(body) + "\n")
+            s.close()
+            return None
+        elif t == b"Z":
+            return s
+
+
+def _drain_to_ready(s: socket.socket, out: list) -> int:
+    """Read backend messages until ReadyForQuery ('Z'). Collect DataRows into
+    `out`; return 0, or 1 if an ErrorResponse was seen."""
+    rc = 0
+    while True:
+        t, body = _read_msg(s)
+        if t == b"D":                       # DataRow
+            out.append(_parse_datarow(body))
+        elif t == b"E":                     # ErrorResponse
+            sys.stderr.write("pg error: " + _err_text(body) + "\n")
+            rc = 1
+        elif t == b"Z":                     # ReadyForQuery -> this query done
+            return rc
+        # ParseComplete(1)/BindComplete(2)/RowDescription(T)/CommandComplete(C)/
+        # ParameterStatus(S)/NoData(n)/EmptyQuery(I) -> ignore.
+
+
+def _simple_query(s: socket.socket, sql: str, out: list) -> int:
+    q = sql.encode("utf-8") + b"\x00"
+    s.sendall(b"Q" + struct.pack("!I", 4 + len(q)) + q)
+    return _drain_to_ready(s, out)
+
+
+def _terminate(s: socket.socket) -> None:
     try:
-        params = (b"user\x00" + USER.encode() + b"\x00"
-                  + b"database\x00" + DB.encode() + b"\x00\x00")
-        s.sendall(struct.pack("!I", 8 + len(params))
-                  + struct.pack("!I", 196608) + params)
-        # Drain startup until ReadyForQuery; trust auth -> AuthenticationOk(0).
-        while True:
-            t, body = _read_msg(s)
-            if t == b"R":
-                if struct.unpack("!I", body[:4])[0] != 0:
-                    sys.stderr.write(
-                        "pg: non-trust auth requested -- mios-pg-query only "
-                        "supports loopback trust\n")
-                    return 1
-            elif t == b"E":
-                sys.stderr.write("pg startup error: " + _err_text(body) + "\n")
-                return 1
-            elif t == b"Z":
-                break
-        q = sql.encode("utf-8") + b"\x00"
-        s.sendall(b"Q" + struct.pack("!I", 4 + len(q)) + q)
-        rc = 0
-        out = []
-        while True:
-            t, body = _read_msg(s)
-            if t == b"D":  # DataRow
-                nf = struct.unpack("!H", body[:2])[0]
-                off = 2
-                fields = []
-                for _ in range(nf):
-                    flen = struct.unpack("!i", body[off:off + 4])[0]
-                    off += 4
-                    if flen == -1:
-                        fields.append("")
-                    else:
-                        fields.append(
-                            body[off:off + flen].decode("utf-8", "replace"))
-                        off += flen
-                out.append("\t".join(fields))
-            elif t == b"E":  # ErrorResponse
-                sys.stderr.write("pg error: " + _err_text(body) + "\n")
-                rc = 1
-            elif t == b"Z":  # ReadyForQuery -> done
-                break
+        s.sendall(b"X" + struct.pack("!I", 4))
+    except Exception:
+        pass
+    s.close()
+
+
+# ── modes ─────────────────────────────────────────────────────────────────────
+def run_simple(sql: str) -> int:
+    """Legacy path: one simple-Query with the verbatim SQL (unchanged)."""
+    s = _connect()
+    if s is None:
+        return 1
+    try:
+        out: list = []
+        rc = _simple_query(s, sql, out)
         if out:
             sys.stdout.write("\n".join(out) + "\n")
         return rc
     finally:
+        _terminate(s)
+
+
+def run_extended(stmts, in_txn: bool) -> int:
+    """Parameterized path: each statement Parse/Bind/Execute/Sync with its params
+    bound out-of-band. `in_txn` wraps the batch in BEGIN/COMMIT (atomic upserts);
+    any error rolls back."""
+    s = _connect()
+    if s is None:
+        return 1
+    try:
+        out: list = []
+        if in_txn:
+            if _simple_query(s, "BEGIN", out) != 0:
+                return 1
+        for sql, params in stmts:
+            s.sendall(build_parse(sql) + build_bind(params)
+                      + build_execute() + build_sync())
+            if _drain_to_ready(s, out) != 0:
+                if in_txn:
+                    _simple_query(s, "ROLLBACK", [])
+                return 1
+        if in_txn:
+            _simple_query(s, "COMMIT", out)
+        if out:
+            sys.stdout.write("\n".join(out) + "\n")
+        return 0
+    finally:
+        _terminate(s)
+
+
+def main() -> int:
+    argv = sys.argv[1:]
+    if "--exec-json" in argv:
         try:
-            s.sendall(b"X" + struct.pack("!I", 4))  # Terminate
-        except Exception:
-            pass
-        s.close()
+            stmts, in_txn = parse_envelope(sys.stdin.read())
+        except ValueError as e:
+            sys.stderr.write("mios-pg-query: bad --exec-json envelope: "
+                             + str(e) + "\n")
+            return 2
+        if not stmts:
+            return 0
+        return run_extended(stmts, in_txn)
+    sql_args = [a for a in argv if not a.startswith("-")]
+    sql = sql_args[0] if sql_args else sys.stdin.read()
+    if not sql.strip():
+        return 0
+    return run_simple(sql)
 
 
 if __name__ == "__main__":
