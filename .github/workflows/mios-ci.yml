@@ -106,7 +106,7 @@ jobs:
       - name: Configure Podman to use VFS storage driver
         run: |
           sudo mkdir -p /etc/containers
-          echo -e '[storage]\ndriver = "vfs"' | sudo tee /etc/containers/storage.conf
+          echo -e '[storage]\ndriver = "vfs"\nrunroot = "/run/containers/storage"\ngraphroot = "/var/lib/containers/storage"' | sudo tee /etc/containers/storage.conf
           sudo podman system reset -f
 
       - name: Free disk space on the GHA runner
@@ -303,7 +303,7 @@ jobs:
       - name: Configure Podman to use VFS storage driver
         run: |
           sudo mkdir -p /etc/containers
-          echo -e '[storage]\ndriver = "vfs"' | sudo tee /etc/containers/storage.conf
+          echo -e '[storage]\ndriver = "vfs"\nrunroot = "/run/containers/storage"\ngraphroot = "/var/lib/containers/storage"' | sudo tee /etc/containers/storage.conf
           sudo podman system reset -f
 
       - name: Free disk space on the GHA runner (smoke job)
