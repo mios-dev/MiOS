@@ -100,7 +100,9 @@ from mios_hitl import (parse_scope as _hitl_parse_scope,  # noqa: E402
 from mios_aci import normalize_output as _aci_normalize   # noqa: E402  -- WS-5 ACI
 from mios_kvfork import (validate_fork as _kvfork_validate,  # noqa: E402  -- WS-8 KV-cache fork
                         plan_fork as _kvfork_plan,
-                        fork_outcome as _kvfork_outcome)
+                        fork_outcome as _kvfork_outcome,
+                        kv_filename as _kvfork_kv_filename)   # WS-A4 de-dup target
+import mios_kvgc   # noqa: E402  -- WS-A4 KV slot-file GC planner
 import mios_codemode as _codemode   # noqa: E402  -- WS-2 Code Mode pure helpers
 import mios_pg as _mios_pg   # noqa: E402  -- WS-9 Postgres+pgvector client
 import mios_lanes   # noqa: E402  -- WS-1 unified inference-lane resolver
@@ -3097,6 +3099,22 @@ KV_FORK_ENABLE = (
         or _DISPATCH_TOML.get("kv_fork_enable", "false"))
     .strip().lower() not in {"false", "0", "no", "off", ""})
 KV_FORK_MAX_BRANCHES = _dispatch_num("MIOS_KV_FORK_MAX_BRANCHES", "kv_fork_max_branches", 4)
+# ── KV slot-file GC (WS-A4) — bound the on-disk KV paging/fork files so an
+# unbounded fork fan-out can't fill the disk. The systemd-tmpfiles age-out is
+# the OS-level backstop; this in-process sweep ALSO runs when the slots dir is
+# LOCAL (MIOS_KV_SLOTS_DIR set + accessible -- i.e. the agent-pipe is co-located
+# with the light lane). Plans TTL + total-size eviction via mios_kvgc, NEVER
+# touching the file of the conversation resident in the active slot. Default-ON
+# but a true no-op when no local slots dir / no KV files exist.
+KV_GC_ENABLE = (
+    str(os.environ.get("MIOS_KV_GC")
+        or _DISPATCH_TOML.get("kv_gc_enable", "true"))
+    .strip().lower() not in {"false", "0", "no", "off", ""})
+KV_GC_INTERVAL_S = _dispatch_num("MIOS_KV_GC_INTERVAL_S", "kv_gc_interval_s", 900, cast=float)
+KV_GC_TTL_S = _dispatch_num("MIOS_KV_GC_TTL_S", "kv_gc_ttl_s", 86400, cast=float)
+KV_GC_MAX_BYTES = _dispatch_num("MIOS_KV_GC_MAX_BYTES", "kv_gc_max_bytes", 2000000000)
+KV_SLOTS_DIR = (os.environ.get("MIOS_KV_SLOTS_DIR", "")
+                or str(_DISPATCH_TOML.get("kv_slots_dir", "") or "")).strip()
 
 
 def _endpoint_is_llamacpp(ep: str, cfg: dict, engine: Optional[str] = None) -> bool:
@@ -3115,9 +3133,10 @@ def _kv_base(ep: str) -> str:
 
 def _kv_filename(conv: str) -> str:
     """A filesystem-safe slot-save filename for one conversation's KV. The file
-    lands under the server's --slot-save-path on the llama.cpp host."""
-    safe = re.sub(r"[^A-Za-z0-9_.-]", "_", str(conv or "default"))[:120]
-    return f"mios-kv-{safe or 'default'}.bin"
+    lands under the server's --slot-save-path on the llama.cpp host. WS-A4:
+    delegates to mios_kvfork.kv_filename so the naming has ONE source (the fork
+    child-filename derivation and this paging filename can never diverge)."""
+    return _kvfork_kv_filename(conv)
 
 
 def _kv_lock(key: str) -> "asyncio.Lock":
@@ -4240,6 +4259,20 @@ async def _call_agent_complete_inner(name: str, cfg: dict, body: dict,
         _tid = _current_trace_id()
         if _tid:
             _hdrs["X-MiOS-Trace"] = _tid
+        # WS-A4: KV-cache FORK for a fan-out child. When KV_FORK_ENABLE and this
+        # dispatch is a swarm/DAG child (a parent conv is set), branch the parent's
+        # saved KV into a child file (mios-kv-<parent>#fork:<node>) so the node
+        # warm-starts from the SHARED PREFIX, then page the forked child below.
+        # Fully inert by default: _kv_fork self-guards (disabled / non-llama.cpp ->
+        # no-op) and degrades open; the parent var is "" on the primary path.
+        _kv_parent = _kv_fork_parent_var.get() or ""
+        if KV_FORK_ENABLE and _kv_parent and _kv_parent != (_conv_key_var.get() or ""):
+            _child_conv = f"{_kv_parent}#fork:{name}"
+            try:
+                if (await _kv_fork(client, ep, cfg, _eng, _kv_parent, _child_conv)).get("forked"):
+                    _conv_key_var.set(_child_conv)   # page the forked child slot file
+            except Exception:  # noqa: BLE001 -- degrade-open: a fork miss -> cold start
+                pass
         # KV-paging bracket (operator 2026-06-01): on a llama.cpp endpoint, page
         # THIS conversation's KV into the slot (saving whoever held it) before the
         # tool-loop + final completion, holding the slot across the bracket so a
@@ -7703,6 +7736,13 @@ _client_env_var: "contextvars.ContextVar" = contextvars.ContextVar(
 # primary/native path) -> agent-axis PDP is a no-op there (user-axis still applies).
 _dispatch_agent_var: "contextvars.ContextVar" = contextvars.ContextVar(
     "mios_dispatch_agent", default="")
+
+# WS-A4: the PARENT conversation a fan-out child should fork its KV from (set on
+# the swarm/DAG fan-out path; "" on the primary path so the primary never forks).
+# Read at the KV-paging bracket: when KV_FORK_ENABLE, the child branches the
+# parent's saved KV (shared-prefix warm start) then pages the forked child.
+_kv_fork_parent_var: "contextvars.ContextVar" = contextvars.ContextVar(
+    "mios_kv_fork_parent", default="")
 
 # Stage-1 domain-router result for THIS request (operator 2026-06-07): set once at
 # the chat entry, inherited by all child council/DAG tasks; read by the planner
@@ -11356,6 +11396,66 @@ async def _knowledge_evict_loop() -> None:
             await asyncio.sleep(60)
 
 
+def _kv_gc_sweep_once() -> None:
+    """WS-A4: one GC pass over the LOCAL KV slot dir (no-op when it's remote /
+    unset / empty). Plans TTL+size eviction via mios_kvgc, protecting the file of
+    whatever conversation is resident in the active slot, then removes evictees.
+    Best-effort + degrade-open: any error leaves the files (the tmpfiles age-out
+    is the backstop)."""
+    d = KV_SLOTS_DIR
+    if not (d and os.path.isdir(d)):
+        return
+    try:
+        files = []
+        for fn in os.listdir(d):
+            if not (fn.startswith("mios-kv-") and fn.endswith(".bin")):
+                continue
+            p = os.path.join(d, fn)
+            try:
+                st = os.stat(p)
+            except OSError:
+                continue
+            files.append({"path": p, "mtime": st.st_mtime, "size": st.st_size})
+        protect = {os.path.join(d, _kv_filename(c))
+                   for c in _KV_RESIDENT.values() if c}
+        plan = mios_kvgc.plan_gc(files, ttl_s=KV_GC_TTL_S,
+                                 max_bytes=KV_GC_MAX_BYTES, now=time.time(),
+                                 protect=protect)
+        for p in plan.evict:
+            try:
+                os.remove(p)
+            except OSError:
+                pass
+        if plan.evict:
+            log.info("kv-gc: removed %d KV file(s), freed ~%d bytes",
+                     len(plan.evict), plan.freed_bytes)
+    except Exception:  # noqa: BLE001 -- GC is best-effort
+        pass
+
+
+async def _kv_gc_loop() -> None:
+    """Periodic KV slot-file GC. Sleeps first (no boot sweep), then every
+    KV_GC_INTERVAL_S. Survives errors (matches _knowledge_evict_loop)."""
+    while True:
+        try:
+            await asyncio.sleep(max(60, int(KV_GC_INTERVAL_S)))
+            _kv_gc_sweep_once()
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001
+            await asyncio.sleep(60)
+
+
+@app.on_event("startup")
+async def _kv_gc_on_startup() -> None:
+    # Only when a LOCAL slots dir is configured (else the tmpfiles age-out is the
+    # sole, sufficient backstop -> zero overhead).
+    if KV_GC_ENABLE and KV_SLOTS_DIR:
+        asyncio.create_task(_kv_gc_loop())
+        log.info("kv-gc loop on (interval=%ss ttl=%ss max=%d bytes dir=%s)",
+                 KV_GC_INTERVAL_S, KV_GC_TTL_S, KV_GC_MAX_BYTES, KV_SLOTS_DIR)
+
+
 @app.on_event("startup")
 async def _knowledge_evict_on_startup() -> None:
     # Start the sweep ONLY when the operator opted into eviction or dry-run
@@ -14684,6 +14784,12 @@ async def _execute_dag_node(node: dict, results_by_id: dict,
         #     WORKER_TOOL_CTX_SLOW window so its tool-loop fits the budget.
         #   * a fast lane (dGPU/accelerator) is unchanged: full surface + full ctx +
         #     work-steal deepen.
+        # WS-A4: mark this fan-out node so its dispatch FORKS the turn's parent KV
+        # (RadixAttention-style shared-prefix warm start). Inert unless
+        # KV_FORK_ENABLE; the parent var stays "" on the primary path so the
+        # primary never forks. The node task (created below) snapshots this value.
+        if KV_FORK_ENABLE:
+            _kv_fork_parent_var.set(_conv_key_var.get() or "")
         _slow_node = _lane in SLOW_LANES
         _grounded_node = bool(node.get("_grounding"))
         _reason_only = node.get("_no_tools") or (_slow_node and _grounded_node)

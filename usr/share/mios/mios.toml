@@ -1539,6 +1539,17 @@ kv_paging_timeout = 12.0     # seconds for one save/restore POST (best-effort; n
 # overrides MIOS_KV_FORK / MIOS_KV_FORK_MAX_BRANCHES.
 kv_fork_enable       = false  # master switch (only ACTS when kv_paging is on AND the endpoint speaks llama.cpp /slots)
 kv_fork_max_branches = 4      # runaway guard: max child KV files one fork request may spawn
+# ── KV slot-file GC (WS-A4) — bound the on-disk KV paging/fork files so an
+# unbounded fork fan-out can't fill the disk. The systemd-tmpfiles age-out
+# (usr/lib/tmpfiles.d) is the OS-level backstop; this in-process sweep ALSO runs
+# when kv_slots_dir is LOCAL + accessible (agent-pipe co-located with the light
+# lane). Default-on but a true no-op without a local slots dir. Env:
+# MIOS_KV_GC / MIOS_KV_GC_INTERVAL_S / _TTL_S / _MAX_BYTES / MIOS_KV_SLOTS_DIR.
+kv_gc_enable      = true        # in-process KV-file GC (no-op when kv_slots_dir empty/remote)
+kv_gc_interval_s  = 900         # sweep cadence (seconds)
+kv_gc_ttl_s       = 86400       # evict a non-active KV file older than this (24h)
+kv_gc_max_bytes   = 2000000000  # total KV-file budget; oldest-first eviction over this (~2GB)
+kv_slots_dir      = ""          # llama.cpp --slot-save-path IF local to the agent-pipe (else "" -> tmpfiles-only GC)
 # ── Per-request trace/span observability (WS-A8). A chat_completions request
 # mints (or adopts via the X-MiOS-Trace header) a trace_id; each pipeline stage
 # (route/plan/refine/dispatch) opens a child span, and finished spans land in a
