@@ -1,6 +1,6 @@
 # AI-hint: WS-2 unified capability registry projection -- the PURE half: merge the [verbs.*] catalog and the [recipes.*] OS-command templates into ONE RBAC-filtered, platform-aware capability manifest (each capability tagged kind=verb|recipe + its permission tier; included only if the caller's ceiling permits it). FAIL-CLOSED on unknown tier/ceiling (a security control, mirrors mios_pdp). Deterministic, stdlib-only so it unit-tests in isolation; server.py owns wiring this to the live surface + the generative-refusal (LLM) half. Complements mios_manifest (verb-only projection) + mios_registry (packages).
 # AI-related: ./mios_manifest.py, ./mios_pdp.py, ./mios_registry.py, /usr/share/mios/mios.toml, ./server.py, ./test_mios_capreg.py
-# AI-functions: tier_rank, allowed, recipe_platforms, build_capability_manifest, manifest_summary
+# AI-functions: tier_rank, allowed, recipe_platforms, build_capability_manifest, manifest_summary, load_recipes_from_toml, project_from_toml, diff_capabilities
 """mios_capreg -- unified, RBAC-filtered capability registry projection (WS-2).
 
 MiOS's capability surface is three-projected (verbs / MCP / A2A), and mios_manifest
@@ -67,10 +67,13 @@ def build_capability_manifest(verbs: "Optional[Dict[str, dict]]",
     out: "List[dict]" = []
     for name, spec in sorted((verbs or {}).items()):
         spec = spec or {}
-        tier = spec.get("tier", "read")
+        # The RBAC tier is `permission` (read|write|interactive); `tier` on a verb
+        # is COMMONNESS (common/rare/core) -- a different axis. Default read (safest).
+        tier = spec.get("permission", "read")
         if allowed(tier, ceiling, tiers):
             out.append({"name": str(name), "kind": "verb", "tier": str(tier),
-                        "description": str(spec.get("description", ""))[:200]})
+                        "description": str(spec.get("description")
+                                           or spec.get("desc", ""))[:200]})
     for name, spec in sorted((recipes or {}).items()):
         spec = spec or {}
         tier = spec.get("permission", "read")
@@ -94,3 +97,61 @@ def manifest_summary(manifest: "Sequence[dict]") -> dict:
         by_kind[c.get("kind", "?")] = by_kind.get(c.get("kind", "?"), 0) + 1
         by_tier[c.get("tier", "?")] = by_tier.get(c.get("tier", "?"), 0) + 1
     return {"total": len(manifest or []), "by_kind": by_kind, "by_tier": by_tier}
+
+
+# ── SSOT load + manifest projection + drift diff (for the generator + gate) ──
+def load_recipes_from_toml(path: str) -> "Dict[str, dict]":
+    """Read the [recipes.*] table from mios.toml (file I/O, mirrors
+    mios_manifest.load_verbs_from_toml). Returns {} if absent/unparseable."""
+    try:
+        import tomllib as _toml
+    except ImportError:  # pragma: no cover -- py<3.11 fallback
+        try:
+            import tomli as _toml  # type: ignore
+        except ImportError:
+            return {}
+    try:
+        with open(path, "rb") as fh:
+            data = _toml.load(fh)
+    except (OSError, ValueError):
+        return {}
+    recs = data.get("recipes", {}) or {}
+    return {str(k): (v or {}) for k, v in recs.items() if isinstance(v, dict)}
+
+
+def project_from_toml(toml_path: str, *, ceiling: str = "interactive",
+                      verbs: "Optional[Dict[str, dict]]" = None) -> "List[dict]":
+    """Load [verbs.*] (via mios_manifest) + [recipes.*] and project the unified
+    capability manifest at `ceiling` (default interactive = the full known-tier
+    surface, the committed-artifact view). Platform-agnostic (lists every
+    recipe's platforms)."""
+    if verbs is None:
+        try:
+            import mios_manifest as _man   # sibling; loads [verbs.*]
+            verbs = _man.load_verbs_from_toml(toml_path)
+        except Exception:  # noqa: BLE001
+            verbs = {}
+    return build_capability_manifest(verbs, load_recipes_from_toml(toml_path),
+                                     ceiling=ceiling)
+
+
+def diff_capabilities(generated: "Sequence[dict]",
+                      committed: "Sequence[dict]") -> "List[str]":
+    """Human-readable drift between a freshly-projected manifest and the committed
+    one, keyed by (kind, name). [] == in sync (used by the regen-diff gate)."""
+    def _key(c):
+        return (str(c.get("kind", "")), str(c.get("name", "")))
+    gen = {_key(c): c for c in (generated or [])}
+    com = {_key(c): c for c in (committed or [])}
+    diffs: "List[str]" = []
+    for k in sorted(set(gen) - set(com)):
+        diffs.append(f"+ {k[0]}:{k[1]} (in SSOT, missing from committed)")
+    for k in sorted(set(com) - set(gen)):
+        diffs.append(f"- {k[0]}:{k[1]} (committed, no longer in SSOT)")
+    for k in sorted(set(gen) & set(com)):
+        g, c = gen[k], com[k]
+        if g.get("tier") != c.get("tier"):
+            diffs.append(f"~ {k[0]}:{k[1]} tier {c.get('tier')!r} -> {g.get('tier')!r}")
+        if sorted(g.get("platforms") or []) != sorted(c.get("platforms") or []):
+            diffs.append(f"~ {k[0]}:{k[1]} platforms {c.get('platforms')} -> {g.get('platforms')}")
+    return diffs

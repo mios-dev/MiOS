@@ -18,11 +18,13 @@ def check(name, cond, detail=""):
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
 
 
+# Verbs carry their RBAC tier in `permission` (read|write|interactive); the `tier`
+# key on a real verb is COMMONNESS (common/rare/core) and must be IGNORED here.
 VERBS = {
-    "list_windows": {"tier": "read", "description": "list windows"},
-    "open_app": {"tier": "write", "description": "launch an app"},
-    "run_powershell": {"tier": "interactive", "description": "run pwsh"},
-    "weird": {"tier": "superuser", "description": "unknown tier verb"},
+    "list_windows": {"permission": "read", "tier": "common", "description": "list windows"},
+    "open_app": {"permission": "write", "tier": "common", "description": "launch an app"},
+    "run_powershell": {"permission": "interactive", "tier": "rare", "description": "run pwsh"},
+    "weird": {"permission": "superuser", "description": "unknown tier verb"},
 }
 RECIPES = {
     "open-folder": {"permission": "read", "linux": "xdg-open {path}", "windows": "explorer {path}"},
@@ -56,6 +58,8 @@ def t_build():
     m = cr.build_capability_manifest(VERBS, RECIPES, ceiling="write")
     names = {(c["name"], c["kind"]) for c in m}
     check("build: includes read+write verbs", ("list_windows", "verb") in names and ("open_app", "verb") in names)
+    check("build: uses `permission` not commonness `tier`",
+          next(c["tier"] for c in m if c["name"] == "list_windows") == "read")
     check("build: excludes interactive verb under write", ("run_powershell", "verb") not in names)
     check("build: excludes unknown-tier verb (fail-closed)", ("weird", "verb") not in names)
     check("build: includes read recipes", ("open-folder", "recipe") in names and ("run-bash", "recipe") in names)
@@ -84,12 +88,50 @@ def t_summary():
     check("summary: empty safe", cr.manifest_summary([]) == {"total": 0, "by_kind": {}, "by_tier": {}})
 
 
+def t_load_and_diff():
+    import os
+    import tempfile
+    toml_text = (
+        '[recipes.open-folder]\n'
+        'description = "open"\n'
+        'permission = "read"\n'
+        'linux = "xdg-open {path}"\n'
+        'windows = "explorer {path}"\n\n'
+        '[recipes.reboot]\n'
+        'permission = "interactive"\n'
+        'windows = "shutdown /r"\n'
+    )
+    fd, p = tempfile.mkstemp(suffix=".toml")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(toml_text)
+        recs = cr.load_recipes_from_toml(p)
+        check("load: parses recipes", set(recs) == {"open-folder", "reboot"})
+        check("load: missing file -> {}", cr.load_recipes_from_toml("/no/such.toml") == {})
+        man = cr.project_from_toml(p, ceiling="interactive", verbs={"v1": {"tier": "read", "description": "x"}})
+        names = {(c["name"], c["kind"]) for c in man}
+        check("project: merges verbs + recipes", ("v1", "verb") in names and ("open-folder", "recipe") in names)
+    finally:
+        os.unlink(p)
+    # diff
+    base = [{"kind": "verb", "name": "a", "tier": "read"},
+            {"kind": "recipe", "name": "r", "tier": "read", "platforms": ["linux"]}]
+    check("diff: identical -> []", cr.diff_capabilities(base, base) == [])
+    added = base + [{"kind": "verb", "name": "b", "tier": "write"}]
+    check("diff: added detected", any("+ verb:b" in d for d in cr.diff_capabilities(added, base)))
+    check("diff: removed detected", any("- verb:b" in d for d in cr.diff_capabilities(base, added)))
+    changed = [{"kind": "verb", "name": "a", "tier": "write"},
+               {"kind": "recipe", "name": "r", "tier": "read", "platforms": ["linux"]}]
+    check("diff: tier change detected", any("~ verb:a tier" in d for d in cr.diff_capabilities(changed, base)))
+
+
 def main():
     t_tier_rank()
     t_allowed()
     t_platforms()
     t_build()
     t_summary()
+    t_load_and_diff()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
 

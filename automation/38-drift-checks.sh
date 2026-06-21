@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # AI-hint: Source-tree drift fitness-functions (WS-0A). Read-only static analysis over the repo (== system root) that FAILS on AI-plane SSOT drift no other gate catches: a retired local :11434 lane in active config, a retired model-id (gemma4 / qwen3:1.7b) hardcoded in a CONSUMER unit, a [nodes.local-*] lane pointing at a localhost port no shipped unit serves, an ai/v1/*.json manifest that won't parse or references a missing schema file, (check 5, WS-10) AI-hint header coverage regressing past [ai_tag].max_untagged, and (check 6, WS-3) an agent-pipe sibling module importing the server.py monolith (modular-monolith boundary). Sibling to 38-ssot-lint.sh; runs standalone, as a build sub-phase, and as a CI/PR drift-gate (needs NO built image). bash + grep + (optional) python3 for the toml/json/coverage checks.
 # AI-related: ./automation/38-ssot-lint.sh, ./automation/99-postcheck.sh, ./usr/libexec/mios/mios-ai-hint-coverage, ./usr/share/mios/mios.toml, ./usr/share/mios/ai/v1
-# AI-functions: _violation, check_dead_lane, check_retired_models, check_structured, check_hint_coverage, check_module_boundary, check_rbac_tiers, check_ai_manifest, check_package_registry, check_cli_sql_safety, check_module_test_coverage, main
+# AI-functions: _violation, check_dead_lane, check_retired_models, check_structured, check_hint_coverage, check_module_boundary, check_rbac_tiers, check_ai_manifest, check_package_registry, check_cli_sql_safety, check_module_test_coverage, check_capability_manifest, main
 # automation/38-drift-checks.sh
 # ----------------------------------------------------------------------------
 # WHY THIS EXISTS (WS-0A drift-freeze). 99-postcheck.sh enforces the same
@@ -459,6 +459,51 @@ check_module_test_coverage() {
     fi
 }
 
+# (12, WS-2/WS-10) The committed ai/v1/capabilities.generated.json UNIFIED RBAC
+# capability manifest must match the live mios.toml [verbs.*] + [recipes.*] SSOT.
+# Catches a verb/recipe added / removed / re-tiered (permission) without
+# regenerating (mios-ai-capabilities-gen) -- the regenerate-from-SSOT-and-diff
+# gate WS-10 asks for, over the WS-2 unified capability surface. Uses the SAME
+# pure projection (mios_capreg) the generator CLI does.
+check_capability_manifest() {
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "[38-drift-checks]   WARNING: python3 missing -- skipping capability manifest check" >&2
+        return 0
+    fi
+    if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
+import os, sys, json
+root = os.environ["MIOS_DRIFT_ROOT"]
+sys.path.insert(0, os.path.join(root, "usr/lib/mios/agent-pipe"))
+try:
+    import mios_capreg as cap
+except Exception as e:  # noqa: BLE001 -- module absent on a bare checkout -> skip
+    sys.stderr.write(f"    cannot import mios_capreg ({e}) -- skipping\n")
+    sys.exit(0)
+toml = os.path.join(root, "usr/share/mios/mios.toml")
+out = os.path.join(root, "usr/share/mios/ai/v1/capabilities.generated.json")
+try:
+    gen = cap.project_from_toml(toml, ceiling="interactive")
+except Exception as e:  # noqa: BLE001
+    sys.stderr.write(f"    capability projection failed: {e}\n")
+    sys.exit(1)
+try:
+    with open(out, encoding="utf-8") as fh:
+        committed = json.load(fh).get("data", [])
+except (OSError, ValueError) as e:
+    sys.stderr.write(f"    committed capabilities manifest unreadable ({out}): {e}\n")
+    sys.exit(1)
+diffs = cap.diff_capabilities(gen, committed)
+for d in diffs[:30]:
+    sys.stderr.write("    " + d + "\n")
+sys.exit(1 if diffs else 0)
+PY
+    then
+        echo "[38-drift-checks]   (12) ai/v1 capability manifest in sync with mios.toml SSOT"
+    else
+        _violation "ai/v1/capabilities.generated.json is STALE vs mios.toml [verbs.*]+[recipes.*] -- regenerate with mios-ai-capabilities-gen (WS-2/WS-10)"
+    fi
+}
+
 main() {
     check_dead_lane
     check_retired_models
@@ -470,6 +515,7 @@ main() {
     check_package_registry
     check_cli_sql_safety
     check_module_test_coverage
+    check_capability_manifest
 
     echo "[38-drift-checks] ---------------------------------------------------------"
     if [[ "$VIOLATIONS" -eq 0 ]]; then

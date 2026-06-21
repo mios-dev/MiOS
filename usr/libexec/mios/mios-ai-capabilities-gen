@@ -1,0 +1,67 @@
+#!/usr/bin/env python3
+# AI-hint: WS-2/WS-10 generator CLI -- regenerates (or --check verifies) the UNIFIED RBAC capability manifest ai/v1/capabilities.generated.json from the live mios.toml [verbs.*] + [recipes.*] SSOT, via the pure mios_capreg core (projected at ceiling=interactive = the full known-tier surface). Default writes the manifest; --check regenerates in-memory and DIFFS the committed file, exiting 1 on drift so 38-drift-checks / CI fail when the committed projection no longer matches the SSOT. Mirrors mios-ai-manifest-gen (verb-only). Standalone (adds the agent-pipe dir to sys.path); no server.py, no DB, no network.
+# AI-related: /usr/lib/mios/agent-pipe/mios_capreg.py, /usr/share/mios/mios.toml, /usr/share/mios/ai/v1/capabilities.generated.json, ./mios-ai-manifest-gen
+# AI-functions: _doc, main
+"""mios-ai-capabilities-gen -- project mios.toml [verbs.*]+[recipes.*] -> the
+unified, RBAC-filterable capability manifest ai/v1/capabilities.generated.json.
+
+  mios-ai-capabilities-gen          # regenerate the manifest (write)
+  mios-ai-capabilities-gen --check  # verify committed == projection (exit 1 on drift)
+
+The committed artifact is projected at ceiling=interactive (every known-tier
+capability); server.py RE-filters per caller via mios_capreg.build_capability_manifest
++ mios_pdp at request time. Paths override via MIOS_TOML / MIOS_CAPS_OUT.
+"""
+from __future__ import annotations
+
+import json
+import os
+import sys
+
+sys.path.insert(0, "/usr/lib/mios/agent-pipe")
+try:
+    import mios_capreg as cap
+except Exception as e:  # noqa: BLE001
+    sys.stderr.write(f"mios-ai-capabilities-gen: cannot import mios_capreg: {e}\n")
+    sys.exit(2)
+
+TOML = os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml")
+OUT = os.environ.get("MIOS_CAPS_OUT",
+                     "/usr/share/mios/ai/v1/capabilities.generated.json")
+
+
+def _doc() -> dict:
+    man = cap.project_from_toml(TOML, ceiling="interactive")
+    return {"object": "mios.capability.manifest",
+            "ceiling": "interactive",
+            "summary": cap.manifest_summary(man),
+            "data": man}
+
+
+def main() -> int:
+    doc = _doc()
+    if "--check" in sys.argv[1:]:
+        try:
+            with open(OUT, encoding="utf-8") as fh:
+                committed = json.load(fh)
+        except (OSError, ValueError) as e:
+            sys.stderr.write(f"[caps-gen] committed manifest unreadable ({OUT}): {e}\n")
+            return 1
+        diffs = cap.diff_capabilities(doc["data"], committed.get("data", []))
+        if diffs:
+            sys.stderr.write("[caps-gen] capabilities.generated.json STALE vs mios.toml:\n")
+            for d in diffs[:30]:
+                sys.stderr.write(f"    {d}\n")
+            sys.stderr.write("[caps-gen] regenerate with: mios-ai-capabilities-gen\n")
+            return 1
+        print("[caps-gen] capability manifest in sync with SSOT")
+        return 0
+    with open(OUT, "w", encoding="utf-8") as fh:
+        json.dump(doc, fh, indent=2, ensure_ascii=False)
+        fh.write("\n")
+    print(f"[caps-gen] wrote {len(doc['data'])} capabilities -> {OUT}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
