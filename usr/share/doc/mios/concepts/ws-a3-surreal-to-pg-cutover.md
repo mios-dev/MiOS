@@ -68,12 +68,16 @@ drift-gate names them so they can't hide:
    Higher-risk to excise blind in the always-running daemon (runaway history; not
    host-live-testable from the build host). Its **live pg writes are already
    parameterized** (above).
-2. **mios-daemon read-gating** — several reads gate the pg path on `_PG_PRIMARY`
-   not `_PG_ENABLED`, so in the default `dual` mode the rolling report /
-   satisfaction monitor read the dead `:8000` and get `[]`. Flip to `_PG_ENABLED`
-   (+ supply pg_sql for the two untranslated reads) once VM-verifiable. The one
-   tainted read value (`_tool_calls_for_refine` `refine_ts`) only reaches a
-   `_PG_PRIMARY`-gated branch; bind it as `$1` when that gate flips.
+2. ~~**mios-daemon read-gating**~~ — DONE: `_db_read` now gates on `_PG_ENABLED`
+   (not `_PG_PRIMARY`), so dual-mode translated reads (satisfaction monitor /
+   refine scan / tool-call linkage) read the live pgvector mirror instead of the
+   dead `:8000`; non-regressive (missing translation still falls back to `[]`).
+   `_tool_calls_for_refine`'s now-live `refine_ts` is bound (`$1`) via the new
+   `pg_params`. STILL residual: the two reads with NO pg_sql
+   (`rolling_report_loop`, `_daemon_global_log_context`) need translations; and
+   the harmless dead SurrealQL *write* branches (`_db_post`/`_db_create`
+   CREATE-strings + `_pgesc`) remain (the daemon's live pg writes are already
+   parameterized) -- this is why mios-daemon is still the lone drift-10 residual.
 3. ~~**mios-viking**~~ — DONE: dead `_db_sql` SurrealDB transport removed, the
    knowledge-ns reads (`_ls_knowledge` filter, `_cat_knowledge` id) bound via
    `mios-db --pg-json`; no longer in the drift-10 allowlist.
