@@ -1,0 +1,76 @@
+#!/usr/bin/env python3
+# AI-hint: WS-9 out-of-process HITL policy-arbiter SERVICE. A tiny stdlib HTTP service (no deps, loopback) that answers the agent-pipe's HITL arbiter client (_hitl_arbiter_verdict): POST / with {verb,tier,args} -> {allow,reason,rule}, decided by the pure mios_arbiter core over an operator-owned policy (MIOS_ARBITER_DENY / _ALLOW / _BLOCK_TIER from install.env). This is the dangerous-verb gate's SECOND, out-of-process opinion -- changeable/ownable without redeploying the agent-pipe. GET / is a health probe. Default policy is allow-all (no deny/allow-list/block-tier) so it ships as a working no-op until the operator sets a policy. Bound to 127.0.0.1 only.
+# AI-related: /usr/lib/mios/agent-pipe/mios_arbiter.py, /usr/lib/mios/agent-pipe/server.py, /usr/lib/systemd/system/mios-policy-arbiter.service, /usr/share/mios/mios.toml
+# AI-functions: _policy, do_POST, do_GET, main, class _Handler
+"""mios-policy-arbiter -- the MiOS out-of-process HITL policy arbiter (WS-9)."""
+
+import json
+import os
+import sys
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+_PIPE = os.environ.get("MIOS_AGENT_PIPE_DIR", "/usr/lib/mios/agent-pipe")
+if _PIPE not in sys.path:
+    sys.path.insert(0, _PIPE)
+
+import mios_arbiter as arb  # noqa: E402  -- pure decision core
+
+HOST = os.environ.get("MIOS_ARBITER_HOST", "127.0.0.1")
+PORT = int(os.environ.get("MIOS_ARBITER_PORT", "8650") or 8650)
+
+
+def _csv(name):
+    return [x.strip() for x in os.environ.get(name, "").split(",") if x.strip()]
+
+
+def _policy():
+    """Resolve the operator policy from env (install.env bridges the SSOT
+    [security].arbiter_* keys). allow="__none__" -> no allow-list."""
+    deny = _csv("MIOS_ARBITER_DENY")
+    allow_raw = os.environ.get("MIOS_ARBITER_ALLOW", "__none__")
+    allow = None if allow_raw.strip() in ("", "__none__") else \
+        [x.strip() for x in allow_raw.split(",") if x.strip()]
+    block_tier = os.environ.get("MIOS_ARBITER_BLOCK_TIER", "").strip()
+    return deny, allow, block_tier
+
+
+class _Handler(BaseHTTPRequestHandler):
+    def _send(self, code, obj):
+        body = json.dumps(obj).encode("utf-8")
+        self.send_response(code)
+        self.send_header("content-type", "application/json")
+        self.send_header("content-length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_POST(self):  # noqa: N802
+        try:
+            n = int(self.headers.get("content-length") or 0)
+            req = json.loads(self.rfile.read(n) or b"{}") if n else {}
+        except (ValueError, json.JSONDecodeError):
+            req = {}
+        deny, allow, block_tier = _policy()
+        v = arb.decide(str(req.get("verb", "")), str(req.get("tier", "")),
+                       deny=deny, allow=allow, block_tier=block_tier)
+        self._send(200, v.to_dict())
+
+    def do_GET(self):  # noqa: N802 -- health probe
+        self._send(200, {"object": "mios.policy.arbiter", "ok": True,
+                         "host": HOST, "port": PORT})
+
+    def log_message(self, *a):  # quiet (journald captures stderr if needed)
+        return
+
+
+def main() -> int:
+    srv = ThreadingHTTPServer((HOST, PORT), _Handler)
+    sys.stderr.write(f"[mios-policy-arbiter] listening on {HOST}:{PORT}\n")
+    try:
+        srv.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

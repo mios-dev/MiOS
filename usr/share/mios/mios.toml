@@ -657,6 +657,15 @@ firewall_high_privilege_verbs = [
 # external-fetch set (web_search/web_extract/crawl/web_scrape) by mios_secset --
 # add a verb here to taint on it without a code change. Empty by default.
 taint_verbs = []
+# WS-9 out-of-process policy arbiter (mios-policy-arbiter.service) policy. The
+# arbiter is a SECOND opinion the agent-pipe consults for high-risk verbs when
+# [ai].hitl_arbiter_url points at it. Default policy is allow-all (empty) -> the
+# arbiter permits everything until the operator sets a deny-list / block-tier.
+# Bridged to the service as MIOS_ARBITER_DENY / _ALLOW / _BLOCK_TIER.
+arbiter_deny       = []        # verbs the arbiter ALWAYS refuses (hard floor)
+arbiter_allow      = ""        # exclusive allow-list when non-empty (CSV); "" = no allow-list
+arbiter_block_tier = ""        # refuse verbs at/above this risk tier (read|write|interactive); "" = no tier ceiling
+arbiter_port       = 8650      # loopback port mios-policy-arbiter listens on
 
 # Composefs security mode -- moved here 2026-05-18 to dedupe
 # the second [security] section (strict TOML parsers reject
@@ -4413,7 +4422,7 @@ hitl_threshold      = "interactive"
 # verdict, on top of the in-process gate above. Empty (default) -> no arbiter, no
 # overhead. hitl_arbiter_fail = open (default; a down/erroring arbiter proceeds)
 # or closed (fail-safe-deny).
-hitl_arbiter_url    = ""
+hitl_arbiter_url    = ""   # WS-9: set to "http://127.0.0.1:8650" to consult the mios-policy-arbiter.service (out-of-process gate). Left "" by default so a not-yet-running arbiter can't add a per-verb timeout; activate after confirming the service is up.
 hitl_arbiter_fail   = "open"
 # WS-A9 dispatch-time PDP (Policy Decision Point) capability gate. The per-agent
 # [agents.<name>] and per-user [users.<name>] denied_verbs / allowed_verbs /
