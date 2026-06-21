@@ -118,6 +118,8 @@ import mios_kernel   # noqa: E402  -- WS-A11/WS-3 Kernel facade (Router+Dispatch
 import mios_memguard   # noqa: E402  -- WS-MEM-VALIDATE write-time memory-poisoning guard (ASI08)
 import mios_slo   # noqa: E402  -- WS-SCHED-SLO deadline/SLO classes + fail-closed shed
 import mios_cost   # noqa: E402  -- WS-RES-GOV cost/energy accounting (CLASSic Cost axis)
+import mios_promptver   # noqa: E402  -- WS-LIFECYCLE-VER versioned hop-prompt registry
+_PROMPT_REGISTRY = mios_promptver.PromptRegistry()
 import mios_batch   # noqa: E402  -- WS-A6 batch coalescing (bypass native-batch lanes)
 import mios_smartroute   # noqa: E402  -- WS-A16 cost/quality SmartRouting (local-first escalation)
 import mios_codemode as _codemode   # noqa: E402  -- WS-2 Code Mode pure helpers
@@ -19578,6 +19580,39 @@ async def cost_ledger() -> JSONResponse:
                   "remote_usd_per_mtok": _COST_MODEL.remote_usd_per_mtok},
         **_COST_LEDGER.snapshot(),
     })
+
+
+@app.on_event("startup")
+async def _register_hop_prompts() -> None:
+    """WS-LIFECYCLE-VER: stamp the live hop prompts (content-hash + version) so
+    each is drift-detectable + rollback-able -- the prerequisite for the WS-11
+    self-improve ACT half (you cannot safely auto-edit a prompt without a way to
+    identify the live version + roll it back). Registered at startup (after the
+    module-level constants are assigned); observe via /v1/prompts. Degrade-open."""
+    for _pn, _pc in (("router", _ROUTER_SYSTEM), ("refine", _REFINE_SYSTEM),
+                     ("polish", _POLISH_SYSTEM), ("planner", _PLANNER_SYSTEM),
+                     ("reflect", _REFLECT_SYSTEM), ("swarm", _SWARM_SYSTEM),
+                     ("dci_critic", _DCI_CRITIC_SYSTEM),
+                     ("dci_framer", _DCI_FRAMER_SYSTEM),
+                     ("dci_explorer", _DCI_EXPLORER_SYSTEM),
+                     ("dci_challenger", _DCI_CHALLENGER_SYSTEM),
+                     ("dci_integrator", _DCI_INTEGRATOR_SYSTEM),
+                     ("local_state", _LOCAL_STATE_SYSTEM)):
+        try:
+            _PROMPT_REGISTRY.register(_pn, _pc)
+        except Exception:  # noqa: BLE001
+            pass
+
+
+@app.get("/v1/prompts")
+async def prompt_registry_view() -> JSONResponse:
+    """WS-LIFECYCLE-VER versioned hop-prompt registry: each live system prompt's
+    version + content-hash + length + history depth (content-FREE -- never leaks
+    the prompt text). The substrate for self-improve rollback + prompt-drift
+    detection. Empty until the startup registration runs."""
+    snap = _PROMPT_REGISTRY.snapshot()
+    return JSONResponse({"object": "mios.prompt_registry",
+                         "count": len(snap), "prompts": snap})
 
 
 @app.get("/v1/trace/{trace_id}")
