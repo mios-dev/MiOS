@@ -45,7 +45,7 @@ ContainerName=mios-llm-heavy
 Network=host
 # GPU passthrough -- CDI device resolved by mios-cdi-detect.service (bare-metal
 # nvidia-ctk spec OR the WSL2 /run/cdi/wsl2-nvidia.yaml mapping /dev/dxg + /usr/lib/wsl).
-AddDevice=nvidia.com/gpu=all
+AddDevice=${MIOS_GPU_DEVICE:-nvidia.com/gpu=all}
 # Law-6 EXCEPTION (UNPRIVILEGED-QUADLETS): the upstream NVIDIA lmsysorg/sglang image
 # MUST run as root -- server_args probes GPU memory via nvidia-smi which the container
 # PATH resolves to a root-only binary (uid 815 -> PermissionError, operator 2026-06-11),

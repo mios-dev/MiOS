@@ -581,6 +581,16 @@ enable   = true
 # /etc/mios/mios.toml or via /etc/containers/systemd/
 # mios-surrealdb.container.d/<name>.conf if exposing beyond loopback.
 # ----------------------------------------------------------------------------
+# WS-7: GPU device passthrough -- ONE owned key for the CDI device the GPU
+# Quadlets (mios-llm-light/heavy/heavy-alt/worker@) attach via AddDevice. Was
+# duplicated as a bare "nvidia.com/gpu=all" literal in all four; now rendered
+# from here (15-render-quadlets -> ${MIOS_GPU_DEVICE}) so the passthrough target
+# is tunable in one place (e.g. a specific GPU id on a multi-GPU host). The
+# Quadlets keep ":-nvidia.com/gpu=all" inline defaults -> byte-identical if unset.
+[gpu]
+device = "nvidia.com/gpu=all"
+
+# ----------------------------------------------------------------------------
 [security]
 # Phase B.3 of the AgentOS roadmap: TOML-driven Semantic Firewall
 # allowlist. Hosts in this list are TRUSTED -- open_url to one of

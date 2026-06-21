@@ -40,7 +40,7 @@ ContainerName=mios-llm-light
 # for the pipe + a stable endpoint the swarm node points at.
 Network=host
 # dGPU passthrough (CDI), same as mios-ollama -- llama-server offloads to CUDA.
-AddDevice=nvidia.com/gpu=all
+AddDevice=${MIOS_GPU_DEVICE:-nvidia.com/gpu=all}
 
 # Identity from mios.toml [services.llamacpp] (uid 827, AI tier). Numeric (the
 # upstream image has no mios user), pinned in sysusers.d/50-mios-services.conf.

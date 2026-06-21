@@ -47,7 +47,7 @@ Network=mios.network
 # GPU passthrough -- identical CDI device line to ollama.container, resolved by
 # mios-cdi-detect.service (bare-metal nvidia-ctk spec OR the WSL2
 # /run/cdi/wsl2-nvidia.yaml that maps /dev/dxg + rbinds /usr/lib/wsl).
-AddDevice=nvidia.com/gpu=all
+AddDevice=${MIOS_GPU_DEVICE:-nvidia.com/gpu=all}
 # Unprivileged identity (Architectural Law 6 -- UNPRIVILEGED-QUADLETS). Numeric
 # UID/GID, same as ollama.container: the upstream vllm/vllm-openai image has no
 # `mios-*` entry in /etc/passwd, so a name-based User= lookup fails (status 126).

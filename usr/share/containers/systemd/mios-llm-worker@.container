@@ -44,7 +44,7 @@ ConditionPathExists=/usr/share/mios/llamacpp/models/.ready
 Image=${MIOS_LLM_LIGHT_IMAGE:-ghcr.io/mostlygeek/llama-swap:cuda}
 ContainerName=mios-llm-worker-%i
 Network=host
-AddDevice=nvidia.com/gpu=all
+AddDevice=${MIOS_GPU_DEVICE:-nvidia.com/gpu=all}
 # Identity from mios.toml [services.llamacpp] (numeric -- the upstream image has
 # no mios user), same as mios-llm-light.
 User=${MIOS_LLAMACPP_UID:-827}

@@ -276,6 +276,7 @@ slots = [
     ("ai.sglang.tool_parser",          "MIOS_SGLANG_TOOL_PARSER"),
     ("ai.sglang.reasoning_parser",     "MIOS_SGLANG_REASONING_PARSER"),
     ("ai.sglang.bake_model",           "MIOS_SGLANG_BAKE_MODEL"),
+    ("gpu.device",                     "MIOS_GPU_DEVICE"),
     # legacy aliases for ports
     ("ports.forge_http",               "MIOS_FORGE_HTTP_PORT"),
     ("ports.forge_ssh",                "MIOS_FORGE_SSH_PORT"),
