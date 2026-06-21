@@ -117,6 +117,7 @@ import mios_lanes   # noqa: E402  -- WS-1 unified inference-lane resolver
 import mios_a2a_principal as _a2a_pp   # noqa: E402  -- WS-6 signed delegation principal
 import mios_reputation   # noqa: E402  -- #54 zero-trust peer reputation
 import mios_quota   # noqa: E402  -- WS-6 per-user quota / rate-limit (inert until configured)
+import mios_capreg   # noqa: E402  -- WS-2 unified RBAC-filtered capability manifest
 _A2A_REPUTATION = mios_reputation.PeerReputation()   # outbound-peer reliability
 import mios_goap   # noqa: E402  -- #53 deterministic GOAP planner lane
 import mios_selfimprove   # noqa: E402  -- #64 self-improvement analyzer (read-only)
@@ -18149,6 +18150,32 @@ def _verb_to_mcp_resource(vname: str, vcfg: dict) -> dict:
         "mimeType": "application/json",
         "annotations": {"miosKind": "verb", "tier": vcfg.get("tier")},
     }
+
+
+@app.get("/v1/capabilities")
+async def v1_capabilities(request: Request) -> JSONResponse:
+    """WS-2 unified, RBAC-filtered capability manifest: the single list of
+    capabilities (verbs + recipes) the CALLER may use, filtered by their
+    permission ceiling (matched [users.*].max_permission via the same lattice the
+    PDP uses; default 'interactive' = the full known-tier surface when no
+    principal/ceiling is forwarded). One projection over the [verbs.*]+[recipes.*]
+    SSOT (mios_capreg) -- the live counterpart of the committed
+    ai/v1/capabilities.generated.json. Degrade-open."""
+    try:
+        try:
+            _, _ucfg = _match_user_cfg()
+        except Exception:  # noqa: BLE001
+            _ucfg = {}
+        ceiling = str((_ucfg or {}).get("max_permission") or "interactive")
+        man = mios_capreg.build_capability_manifest(
+            _VERB_CATALOG, _toml_section("recipes") or {}, ceiling=ceiling)
+        return JSONResponse({"object": "mios.capability.manifest",
+                             "ceiling": ceiling,
+                             "summary": mios_capreg.manifest_summary(man),
+                             "data": man})
+    except Exception as e:  # noqa: BLE001 -- never 500 the surface
+        return JSONResponse({"object": "mios.capability.manifest",
+                             "error": str(e), "data": []})
 
 
 @app.get("/v1/resources")
