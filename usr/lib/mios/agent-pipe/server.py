@@ -87,11 +87,14 @@ from mios_jsonsalvage import loads_lenient as _loads_lenient   # noqa: E402
 from mios_owui import (strip_owui_scaffold as _strip_owui_scaffold,  # noqa: E402
                        OWUI_TEMPLATE_MARKERS as _OWUI_TEMPLATE_MARKERS)
 from mios_sched import PriorityGate   # noqa: E402  -- WS-1 priority scheduler queue
-from mios_evict import (protect_where as _evict_protect_where,  # noqa: E402
-                        ttl_where as _evict_ttl_where,
+from mios_evict import (evict_where as _evict_where,  # noqa: E402  -- WS-A3 parameterized pg
+                        order_by as _evict_order_by,
+                        count_sql as _evict_count_sql,
+                        select_ids_sql as _evict_select_ids_sql,
+                        delete_ids_sql as _evict_delete_ids_sql,
+                        evict_params as _evict_params,
                         parse_count as _evict_parse_count,
                         parse_ids as _evict_parse_ids,
-                        delete_stmt as _evict_delete_stmt,
                         plan_sweep as _evict_plan_sweep)
 from mios_hitl import (parse_scope as _hitl_parse_scope,  # noqa: E402
                        requires_approval as _hitl_requires,
@@ -11363,32 +11366,48 @@ async def _recall_knowledge(query: str) -> str:
 # sweep removes only STALE, never-recalled, neutral-outcome rows and NEVER a
 # hot / satisfied / pinned / recently-accessed one. DEFAULT OFF (loop doesn't
 # even start); evict_dryrun=true starts it LOG-ONLY; evict_enable=true deletes.
-async def _db_count(where: str = "") -> int:
-    """Best-effort COUNT over the knowledge table (degrade-open -> 0)."""
-    w = f" WHERE {where}" if where else ""
-    resp = await _db_post(
-        f"SELECT count() AS c FROM {KNOWLEDGE_TABLE}{w} GROUP ALL;")
-    return _evict_parse_count(resp)
+async def _db_count(*, with_ttl: bool = False) -> int:
+    """WS-A3: best-effort COUNT over the EVICTABLE knowledge set via parameterized
+    Postgres (mios_pg). Degrade-open -> 0. (Was SurrealQL via _db_post, which
+    no-op'd under db_backend=postgres -> eviction never ran.)"""
+    try:
+        rows = await _mios_pg.execute(
+            _evict_count_sql(KNOWLEDGE_TABLE, _evict_where(with_ttl=with_ttl)),
+            _evict_params(KNOWLEDGE_EVICT_MIN_ACCESS, KNOWLEDGE_EVICT_TTL_DAYS),
+            fetch=True)
+        return _evict_parse_count(rows)
+    except Exception:  # noqa: BLE001 -- count is best-effort
+        return 0
 
 
-async def _evict_select_ids(where: str, limit: int,
-                            order: str = "(last_access ?? ts) ASC") -> list:
-    """Select up to `limit` evictable record ids, oldest/lowest-value first."""
+async def _evict_select_ids(*, with_ttl: bool, limit: int, cap: bool = False) -> list:
+    """WS-A3: select up to `limit` evictable bigint ids, lowest-value first
+    (parameterized pg). cap=True orders by least-recalled for the cap-overflow
+    sweep; otherwise oldest-accessed for the TTL sweep."""
     if limit <= 0:
         return []
-    resp = await _db_post(
-        f"SELECT id FROM {KNOWLEDGE_TABLE} WHERE {where} "
-        f"ORDER BY {order} LIMIT {int(limit)};")
-    return _evict_parse_ids(resp)
+    rows = await _mios_pg.execute(
+        _evict_select_ids_sql(KNOWLEDGE_TABLE, _evict_where(with_ttl=with_ttl),
+                              _evict_order_by(cap=cap)),
+        _evict_params(KNOWLEDGE_EVICT_MIN_ACCESS, KNOWLEDGE_EVICT_TTL_DAYS, limit),
+        fetch=True)
+    return _evict_parse_ids(rows)
 
 
 async def _evict_delete_ids(ids: list) -> int:
-    """Delete the given record ids in one statement. Returns how many."""
-    stmt = _evict_delete_stmt(ids)
-    if not stmt:
+    """WS-A3: delete the given bigint ids in one PARAMETERIZED statement
+    (id = ANY(%(ids)s)). Returns how many."""
+    clean = []
+    for i in (ids or []):
+        try:
+            clean.append(int(i))
+        except (TypeError, ValueError):
+            continue
+    if not clean:
         return 0
-    await _db_post(stmt)
-    return len([s for s in (str(i) for i in ids) if ":" in s])
+    await _mios_pg.execute(_evict_delete_ids_sql(KNOWLEDGE_TABLE),
+                           {"ids": clean}, fetch=False)
+    return len(clean)
 
 
 async def _evict_knowledge() -> dict:
@@ -11396,12 +11415,10 @@ async def _evict_knowledge() -> dict:
     LOGS what it WOULD remove; otherwise it DELETEs (bounded by the batch).
     Degrade-open: any DB error -> no-op. Returns a small report (observability/
     tests)."""
-    prot = _evict_protect_where(KNOWLEDGE_EVICT_MIN_ACCESS)
-    ttlw = _evict_ttl_where(prot, KNOWLEDGE_EVICT_TTL_DAYS)
     report = {"deleted": 0, "dry_run": not KNOWLEDGE_EVICT_ENABLE}
     try:
-        ttl_candidates = await _db_count(ttlw)
-        total = await _db_count()
+        ttl_candidates = await _db_count(with_ttl=True)
+        total = await _db_count(with_ttl=False)
         plan = _evict_plan_sweep(total, ttl_candidates,
                                  KNOWLEDGE_EVICT_MAX_ROWS, KNOWLEDGE_EVICT_BATCH)
         report.update({"total_rows": total, "ttl_candidates": ttl_candidates,
@@ -11415,11 +11432,10 @@ async def _evict_knowledge() -> dict:
         deleted = 0
         if plan["ttl_delete"]:
             deleted += await _evict_delete_ids(
-                await _evict_select_ids(ttlw, plan["ttl_delete"]))
+                await _evict_select_ids(with_ttl=True, limit=plan["ttl_delete"]))
         if plan["cap_delete"]:
-            deleted += await _evict_delete_ids(await _evict_select_ids(
-                prot, plan["cap_delete"],
-                order="(access_count ?? 0) ASC, (last_access ?? ts) ASC"))
+            deleted += await _evict_delete_ids(
+                await _evict_select_ids(with_ttl=False, limit=plan["cap_delete"], cap=True))
         report["deleted"] = deleted
         if deleted:
             log.info("knowledge-evict: removed %d rows (%d total before)",

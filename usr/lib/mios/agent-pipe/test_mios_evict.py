@@ -1,110 +1,84 @@
-# AI-hint: Standalone unit test for mios_evict to verify SQL construction for knowledge eviction, including blast-radius arithmetic, TTL logic, and SurrealDB response parsing for count and ID extraction.
-# AI-related: mios_evict
-# AI-functions: _check, t_protect_where, t_ttl_where, t_parse_count, t_parse_ids, t_delete_stmt, t_plan_sweep, main
-"""Standalone unit test for mios_evict (WS-3 knowledge eviction helpers).
-
-Pure stdlib + the sibling module only -- no server.py / SurrealDB needed, so it
-runs on any Python 3.10+. Covers the SQL-building, response-parsing, and the
-blast-radius arithmetic (the risky bits); the live DELETE semantics are verified
-by the operator via dry-run logs against a real SurrealDB.
-
-Run:  python test_mios_evict.py
-"""
+#!/usr/bin/env python3
+# AI-hint: Standalone assert-script unit test for mios_evict (WS-A3 parameterized-pg eviction). Pure stdlib, no server.py/DB/pytest. Verifies the WHERE fragment is PARAMETERIZED pg (named %(...)s placeholders, COALESCE not ??, no SurrealQL time::now()/record-ids), TTL added only with_ttl, the count/select/delete SQL shapes (count(*) AS c, LIMIT %(limit)s, DELETE ... id = ANY(%(ids)s)), pg dict-row parsing (count + bigint ids), and plan_sweep arithmetic.
+# AI-related: ./mios_evict.py
+# AI-functions: check, main
+"""Unit tests for mios_evict (WS-A3 parameterized-pg cutover)."""
 
 import sys
 
-import mios_evict as E
+import mios_evict as ev
 
-_RESULTS: list = []
-
-
-def _check(name: str, ok: bool, detail: str = "") -> None:
-    _RESULTS.append((name, ok))
-    print(f"[{'PASS' if ok else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
+_fails = 0
+TABLE = "knowledge"
 
 
-def t_protect_where() -> None:
-    w = E.protect_where(1)
-    _check("protect: excludes hot", "(tier ?? 'warm') != 'hot'" in w)
-    _check("protect: excludes satisfied", "(satisfied ?? false) != true" in w)
-    _check("protect: excludes pinned", "(pinned ?? false) != true" in w)
-    _check("protect: min_access wired", "(access_count ?? 0) < 1" in w, w)
-    _check("protect: min_access=3 renders", "< 3" in E.protect_where(3))
+def check(name, cond, detail=""):
+    global _fails
+    if not cond:
+        _fails += 1
+    print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
 
 
-def t_ttl_where() -> None:
-    w = E.ttl_where(E.protect_where(1), 90)
-    _check("ttl: age predicate", "(last_access ?? ts) < time::now() - 90d" in w, w)
-    _check("ttl: keeps protect", "(tier ?? 'warm') != 'hot'" in w)
-    _check("ttl: custom days", "- 30d" in E.ttl_where("X", 30))
+def t_where_parameterized():
+    w = ev.evict_where(with_ttl=False)
+    check("where: COALESCE not SurrealQL ??", "COALESCE" in w and "??" not in w)
+    check("where: parameterized min_access", "%(min_access)s" in w)
+    check("where: protects hot/satisfied/pinned",
+          all(s in w for s in ("<> 'hot'", "COALESCE(satisfied", "COALESCE(pinned")))
+    check("where: no TTL when with_ttl=False", "ttl_days" not in w and "make_interval" not in w)
+    check("where: no SurrealQL time::now()", "time::now()" not in w)
+    wt = ev.evict_where(with_ttl=True)
+    check("where: TTL predicate parameterized", "make_interval(days => %(ttl_days)s)" in wt)
+    check("where: no interpolated literal Nd", "90d" not in wt)
 
 
-def t_parse_count() -> None:
-    # SurrealDB /sql returns a list of statement-result objects; the USE prefix
-    # yields a non-list result that must be skipped.
-    resp = [{"status": "OK", "result": None},
-            {"status": "OK", "result": [{"c": 42}]}]
-    _check("count: extracts 42", E.parse_count(resp) == 42, str(E.parse_count(resp)))
-    _check("count: empty -> 0", E.parse_count([]) == 0)
-    _check("count: None -> 0", E.parse_count(None) == 0)
-    _check("count: no-list -> 0", E.parse_count([{"result": None}]) == 0)
-    _check("count: empty-list -> 0", E.parse_count([{"result": []}]) == 0)
+def t_sql_shapes():
+    where = ev.evict_where(with_ttl=True)
+    csql = ev.count_sql(TABLE, where)
+    check("count: count(*) AS c", "SELECT count(*) AS c FROM knowledge WHERE" in csql)
+    ssql = ev.select_ids_sql(TABLE, where, ev.order_by(cap=False))
+    check("select: SELECT id + LIMIT param", "SELECT id FROM knowledge WHERE" in ssql and "LIMIT %(limit)s" in ssql)
+    check("select: order oldest-access first", "COALESCE(last_access, ts) ASC" in ssql)
+    csap = ev.select_ids_sql(TABLE, where, ev.order_by(cap=True))
+    check("select: cap order least-recalled first", "COALESCE(access_count, 0) ASC" in csap)
+    dsql = ev.delete_ids_sql(TABLE)
+    check("delete: parameterized ANY (not record-id concat)",
+          dsql == "DELETE FROM knowledge WHERE id = ANY(%(ids)s)", dsql)
+    check("delete: no SurrealQL 'DELETE knowledge:'", "knowledge:" not in dsql)
 
 
-def t_parse_ids() -> None:
-    resp = [{"result": None},
-            {"result": [{"id": "knowledge:abc"}, {"id": "knowledge:def"},
-                        {"nope": 1}, {"id": "no-colon"}]}]
-    ids = E.parse_ids(resp)
-    _check("ids: extracts record ids", ids == ["knowledge:abc", "knowledge:def"],
-           str(ids))
-    _check("ids: empty -> []", E.parse_ids([]) == [])
-    # non-string id coerced then ':'-checked
-    _check("ids: stringifies", E.parse_ids([{"result": [{"id": 5}]}]) == [],
-           "int id has no ':' -> dropped")
+def t_params():
+    p = ev.evict_params(2, 90, 50)
+    check("params: typed", p == {"min_access": 2, "ttl_days": 90, "limit": 50})
+    check("params: limit floored >=0", ev.evict_params(0, 0, -5)["limit"] == 0)
 
 
-def t_delete_stmt() -> None:
-    _check("delete: builds stmt",
-           E.delete_stmt(["knowledge:a", "knowledge:b"])
-           == "DELETE knowledge:a, knowledge:b;",
-           E.delete_stmt(["knowledge:a", "knowledge:b"]))
-    _check("delete: empty -> ''", E.delete_stmt([]) == "")
-    _check("delete: filters invalid", E.delete_stmt(["bad", "knowledge:c"])
-           == "DELETE knowledge:c;")
+def t_parse():
+    check("parse_count: pulls c", ev.parse_count([{"c": 42}]) == 42)
+    check("parse_count: empty -> 0", ev.parse_count([]) == 0)
+    check("parse_count: malformed -> 0", ev.parse_count([{"x": 1}]) == 0)
+    check("parse_ids: bigint ids", ev.parse_ids([{"id": 1}, {"id": 2}, {"id": 3}]) == [1, 2, 3])
+    check("parse_ids: skips non-int", ev.parse_ids([{"id": 5}, {"id": None}, {"nope": 1}]) == [5])
+    check("parse_ids: empty -> []", ev.parse_ids([]) == [])
 
 
-def t_plan_sweep() -> None:
-    # under cap, only TTL candidates
-    p = E.plan_sweep(total=100, ttl_candidates=10, max_rows=50000, batch=500)
-    _check("plan: ttl only", p == {"overflow": 0, "ttl_delete": 10, "cap_delete": 0},
-           str(p))
-    # over cap, no ttl
-    p = E.plan_sweep(total=50100, ttl_candidates=0, max_rows=50000, batch=500)
-    _check("plan: cap only (batch-bounded)",
-           p == {"overflow": 100, "ttl_delete": 0, "cap_delete": 100}, str(p))
-    # ttl takes priority within batch; cap gets the remainder
-    p = E.plan_sweep(total=51000, ttl_candidates=400, max_rows=50000, batch=500)
-    _check("plan: ttl priority then cap remainder",
-           p == {"overflow": 1000, "ttl_delete": 400, "cap_delete": 100}, str(p))
-    # ttl alone exceeds batch -> cap gets nothing this sweep
-    p = E.plan_sweep(total=60000, ttl_candidates=600, max_rows=50000, batch=500)
-    _check("plan: ttl saturates batch",
-           p == {"overflow": 10000, "ttl_delete": 500, "cap_delete": 0}, str(p))
-    # nothing to do
-    p = E.plan_sweep(total=10, ttl_candidates=0, max_rows=50000, batch=500)
-    _check("plan: noop", p == {"overflow": 0, "ttl_delete": 0, "cap_delete": 0},
-           str(p))
+def t_plan_sweep():
+    p = ev.plan_sweep(total=1000, ttl_candidates=30, max_rows=900, batch=50)
+    check("plan: ttl within batch", p["ttl_delete"] == 30)
+    check("plan: overflow = total-cap", p["overflow"] == 100)
+    check("plan: cap uses remaining batch", p["cap_delete"] == 20)
+    p2 = ev.plan_sweep(total=100, ttl_candidates=0, max_rows=900, batch=50)
+    check("plan: no overflow -> no cap delete", p2["overflow"] == 0 and p2["cap_delete"] == 0)
 
 
-def main() -> int:
-    for t in (t_protect_where, t_ttl_where, t_parse_count, t_parse_ids,
-              t_delete_stmt, t_plan_sweep):
-        t()
-    passed = sum(1 for _, ok in _RESULTS if ok)
-    total = len(_RESULTS)
-    print(f"\n{passed}/{total} checks passed")
-    return 0 if passed == total else 1
+def main():
+    t_where_parameterized()
+    t_sql_shapes()
+    t_params()
+    t_parse()
+    t_plan_sweep()
+    print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
+    return 1 if _fails else 0
 
 
 if __name__ == "__main__":
