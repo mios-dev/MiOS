@@ -25,6 +25,7 @@ After=network-online.target mios-forge.service
 Wants=network-online.target
 
 [Container]
+Pod=mios-devforge.pod
 # Image / port placeholders rendered at image build time by
 # automation/15-render-quadlets.sh from mios.toml [image.sidecars].
 # code_server + [ports].code_server.
@@ -53,7 +54,6 @@ Group=0
 # http://localhost:3000/ from code-server's terminal in this mode.
 Network=host
 SecurityLabelDisable=true
-Pod=mios-devforge.pod
 Exec=--bind-addr 0.0.0.0:8800
 
 # code-server's own state (settings, extensions, User/ dir). Dedicated

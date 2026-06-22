@@ -22,18 +22,18 @@ scripts (except agent/federation), the AI-header tags.
 
 ---
 
-## G2-TASK 1 — Verify + clean up the Round-1 pod quadlets (highest value)
+## G2-TASK 1 — Verify + clean up the Round-1 pod quadlets (highest value) [DONE]
 *Why: Round 1 added `Pod=` to many `.container` files via bulk edits; verify they're correct + catch any artifact.*
 - Run `python3 tools/generate-pod-quadlets.py --check` → must report **no drift** for all 7 pods. Fix any drift.
 - **Comment-artifact sweep:** a bulk replace can insert a `Pod=…` line into the WRONG place (observed in `mios-llm-heavy-alt.container` ~line 89, where `Pod=mios-ai-heavy.pod` landed *inside a comment block* under a `# [Container]` reference, breaking the comment + creating a stray directive). `grep -nE '^Pod=' usr/share/containers/systemd/*.container` and confirm **each is the FIRST line under the real `[Container]` header**, exactly once per member, and NOT inside a comment. Fix any stray/duplicate.
 - Confirm Law 6 still holds: every podded `.container` keeps its `User=`/`Group=`/`Delegate=` (the documented root exceptions intact), and `bootc container lint`-relevant structure is valid.
 - **Accept:** `--check` green; exactly one well-placed `Pod=` per member; no mangled comments; the un-gated pods would render + start.
 
-## G2-TASK 2 — Pod architecture concept doc
+## G2-TASK 2 — Pod architecture concept doc [DONE]
 - Write `usr/share/doc/mios/concepts/pod-architecture-2026-06-22.md`: the 7-pod map (members + rationale), the port-minimization (~24 raw binds → ~8 front doors), the **host-services-stay-host** constraint (hermes-agent/agent-pipe/mcp/etc. reached via `host.containers.internal`), the SSOT pod-gen lifecycle, and the standalone exceptions (OWUI front door, searxng). Cite `MIOS-ROADMAP-2026-06-22.md` §WS-C.
 - **Accept:** doc committed with the AI-hint/AI-related header; matches the live `[pods.*]` SSOT.
 
-## G2-TASK 3 — Install-robustness MED residual (mios-bootstrap + docs)
+## G2-TASK 3 — Install-robustness MED residual (mios-bootstrap + docs) [DONE]
 From `usr/share/mios/docs/install-robustness-2026-06-21.md` "Med:" list — each is small + self-contained:
 - `.wslconfig` written BOM-free (verify it's done; the BOM voids `[wsl2]`).
 - `mios-gui-watch.ps1`: add a single-instance mutex (`Global\MiOS-GuiWatch`) to the unbounded poll.
@@ -44,7 +44,7 @@ From `usr/share/mios/docs/install-robustness-2026-06-21.md` "Med:" list — each
 - `install-host-tools.ps1`: hard `throw` on a winget pkg failure → warn + retry/checksum + per-pkg exit.
 - **Accept:** each item fixed in its own file; `[Parser]::ParseFile` clean on any `.ps1`; `bash -n` clean on `.sh`.
 
-## G2-TASK 4 — AI-header tags on Round-1 new/changed files
+## G2-TASK 4 — AI-header tags on Round-1 new/changed files [DONE]
 - Run/refresh the `# AI-hint:` / `# AI-related:` / `# AI-functions:` headers (the `mios-ai-tag` system) on the files Round 1 created/changed (the new `.pod` quadlets, any render script, the new docs) so the codebase index stays consistent. Don't tag generated/transient files.
 - **Accept:** `mios-ai-hint-coverage` (the drift-gate) stays green; new files carry headers.
 

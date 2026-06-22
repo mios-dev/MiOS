@@ -28,6 +28,7 @@ ConditionVirtualization=|!container
 ConditionVirtualization=|wsl
 
 [Container]
+Pod=mios-devforge.pod
 # Image / Port / UID placeholders -- resolved at image build time by
 # automation/15-render-quadlets.sh from mios.toml [image.sidecars].forge,
 # [ports].forge_http, [ports].forge_ssh, [services.forge].uid/.gid.
@@ -42,7 +43,7 @@ Network=mios.network
 EnvironmentFile=/etc/mios/install.env
 PublishPort=${MIOS_PORT_FORGE_HTTP:-3000}:3000
 PublishPort=${MIOS_PORT_FORGE_SSH:-2222}:22
-Pod=mios-devforge.pod
+AddCapability=CAP_NET_BIND_SERVICE
 
 # OCI image labels. Values MUST NOT contain whitespace -- Quadlet's
 # Label= parser word-splits on spaces and emits each word as a separate
