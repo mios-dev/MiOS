@@ -6526,19 +6526,9 @@ def _deterministic_action_route(user_text: str) -> Optional[dict]:
         if _typ:
             return {"intent": "dispatch", "tool": "pc_type",
                     "args": {"text": _typ}, "_deterministic": True}
-    # Compound "<launch> <app> and type <text>": strip the "and type <text>" tail
-    # EARLY (operator 2026-06-11: "open notepad and type: X" misrouted to the GATED
-    # computer_use vision lane + HUNG -- the colon after "type" broke the later
-    # compound regex AND a long type-text tripped the 80-char guard, so the launch
-    # fell to the LLM router). Strip the tail on the FULL text first -- tolerating
-    # punctuation after the verb ("type:", "type-") -- so only the launch part faces
-    # the length/word guards; the launch fast-path types the trailing text via its
-    # type-chain (read off the raw message downstream).
-    _tail = (re.search(
-        r"\s+(?:" + _COMPOUND_CONJ_ALT + r")\s+(?:" + _COMPOUND_ACTION_ALT + r")\b[\s:.\-]*\S",
-        t, re.IGNORECASE) if (_COMPOUND_CONJ_ALT and _COMPOUND_ACTION_ALT) else None)
-    if _tail:
-        t = t[:_tail.start()].strip()
+    # Native AIOS implementation: Do NOT strip compound tails in the deterministic
+    # fast-path. We WANT "open notepad and type hello" to fall through to the LLM
+    # router so it is natively decomposed into two separate tool calls (open_app + pc_type).
     if not t or len(t) > 80:
         return None
     words = t.split()
@@ -6581,18 +6571,7 @@ def _deterministic_action_route(user_text: str) -> Optional[dict]:
         _rw.pop()
     rest = " ".join(_rw).strip()
     _low = rest.lower()
-    # Compound "open <app> and type <text>": keep ONLY the app for the
-    # deterministic launch; the launch fast-path's type-chain types the trailing
-    # text from the raw user message. Without this the >3-word / conjunction
-    # guards below bail to the flaky LLM router, which routes "open notepad and
-    # type hello" INCONSISTENTLY (single-launch one turn, research swarm the next)
-    # and the type is dropped (operator 2026-06-09, repeated notepad failures).
-    _cm = (re.match(
-        r"(.+?)\s+(?:" + _COMPOUND_CONJ_ALT + r")\s+(?:" + _COMPOUND_ACTION_ALT + r")\s+\S",
-        rest, re.IGNORECASE) if (_COMPOUND_CONJ_ALT and _COMPOUND_ACTION_ALT) else None)
-    if _cm:
-        rest = _cm.group(1).strip()
-        _low = rest.lower()
+    # (Removed compound interception -- compounds natively fall to the LLM router)
     if not rest or len(rest.split()) > 3:
         return None
     # True compound forms (url / 'in <app>' / conjunctions = two targets) -> let
@@ -26290,90 +26269,8 @@ async def _respond_os_control(
             ok = bool(result.get("success"))
             _eff_ok = _verified
             _focus_launched = True
-    # Compound-launch TYPE-CHAIN (operator 2026-06-09 "open notepad and type
-    # hello"): the fast-path reliably LAUNCHED + centered the window above; if the
-    # user's text chains "and/then (type|write|enter|...) <text>", DETERMINISTICALLY
-    # type it into the now-focused window via pc_type. This is the reliable fix --
-    # routing the compound to the LLM agent mis-planned it to a discovery search
-    # (mios_apps), and the single-launch path silently dropped the 2nd action.
-    _typed = None
-    if _is_launch and _eff_ok:
-        # Capture the type-text up to the first NEWLINE or end -- NOT (.+)$, which
-        # (without MULTILINE) anchors to end-of-string and silently FAILS to match
-        # when OWUI appends a feature scaffold ("\n#### Code Interpreter ...") to the
-        # message, so "open notepad and type hello\n####..." typed nothing (operator
-        # 2026-06-20: notepad opened, "hello" never typed). Non-greedy + [\r\n]|$
-        # grabs just the first-line type text and ignores any trailing scaffold.
-        _m = (re.search(
-            r"\b(?:" + _COMPOUND_CONJ_ALT + r")\b\s+(?:" + _COMPOUND_ACTION_ALT + r")\s+(.+?)(?:[\r\n]|$)",
-            (last_user_text or "").strip(), re.IGNORECASE)
-            if (_COMPOUND_CONJ_ALT and _COMPOUND_ACTION_ALT) else None)
-        if _m:
-            _txt = _m.group(1).strip().strip("\"'").rstrip(" .!")
-            if _txt:
-                # FOCUS the just-opened window BEFORE typing so SendKeys lands in IT,
-                # not whatever window held foreground during the launch race (operator
-                # 2026-06-16: "open notepad and type hey there" verified-typed into the
-                # WRONG window -> notepad stayed "Untitled - Notepad"). pc_type's
-                # read-back then verifies the TARGET window actually received the text.
-                _opened_titles = [str(w.get("title") or "").strip()
-                                  for w in ((_wdiff or {}).get("opened", [])
-                                            if isinstance(_wdiff, dict) else [])
-                                  if isinstance(w, dict) and str(w.get("title") or "").strip()]
-                if _opened_titles:
-                    try:
-                        await dispatch_mios_verb(
-                            "focus_window", {"title": _opened_titles[0]},
-                            session_id=session_id)
-                        await asyncio.sleep(0.35)
-                    except Exception:  # noqa: BLE001 -- best-effort focus
-                        pass
-                _emit("⌨️", f"typing “{_txt[:40]}”")
-                await asyncio.sleep(max(0.6, OS_CONTROL_LAUNCH_POLL_S))
-                _tr = await dispatch_mios_verb("pc_type", {"text": _txt},
-                                               session_id=session_id)
-                _typed = {"text": _txt, "success": bool(_tr.get("success")),
-                          "stderr": (_tr.get("stderr") or "")[:200]}
-                log.info("compound-launch type-chain: focus(%r)+pc_type(%r) -> success=%s",
-                         (_opened_titles[0] if _opened_titles else ""),
-                         _txt[:40], _typed["success"])
-                # CLOSED LOOP (operator 2026-06-16 "loop anything not successful or
-                # fully fulfilled"): pc_type's STRICT read-back reports whether the text
-                # ACTUALLY landed. If NOT (dropped keystrokes / focus race), the action
-                # is UNFULFILLED -> re-focus the target window + re-type, BOUNDED by the
-                # SSOT knob so a genuinely-unverifiable target can't loop forever. The
-                # read-back VERDICT drives the retry -- not a fixed assume-success. This
-                # is the per-action closed loop (monitor -> loop-unfulfilled -> re-check).
-                _retry = 0
-                while (not _typed["success"]) and _retry < TYPE_RETRY_MAX:
-                    _retry += 1
-                    _emit("🔁", f"retry {_retry}: type not verified, re-typing")
-                    if _opened_titles:
-                        try:
-                            await dispatch_mios_verb(
-                                "focus_window", {"title": _opened_titles[0]},
-                                session_id=session_id)
-                        except Exception:  # noqa: BLE001
-                            pass
-                    # CLEAR the field before re-typing (operator 2026-06-16): attempt 1
-                    # often lands PARTIAL text (a dropped/raced keystroke), so a blind
-                    # re-type APPENDS -> garbled/duplicated content ("MiOS pip" + full =
-                    # "*OS pipeline verified atpathMiOS pip") even though read-back then
-                    # finds the full substring + reports success. Select-all so the
-                    # re-type REPLACES the partial, not appends. Best-effort.
-                    try:
-                        await dispatch_mios_verb("pc_key", {"key": "ctrl+a"},
-                                                 session_id=session_id)
-                        await asyncio.sleep(0.15)
-                    except Exception:  # noqa: BLE001
-                        pass
-                    await asyncio.sleep(max(0.6, OS_CONTROL_LAUNCH_POLL_S))
-                    _tr = await dispatch_mios_verb("pc_type", {"text": _txt},
-                                                   session_id=session_id)
-                    _typed = {"text": _txt, "success": bool(_tr.get("success")),
-                              "stderr": (_tr.get("stderr") or "")[:200]}
-                    log.info("type-chain closed-loop RETRY %d -> success=%s",
-                             _retry, _typed["success"])
+    # (Compound-launch TYPE-CHAIN hack removed: the agent now relies on 
+    # native AIOS routing to compose open_app and pc_type sequentially.)
     if _action:
         _index_window_event(tool, _args, _before, _after, _wdiff, session_id)
     _row = {
@@ -26417,17 +26314,11 @@ async def _respond_os_control(
             "closed": [str(w.get("title") or w.get("proc") or "")
                        for w in _wdiff.get("closed", []) if isinstance(w, dict)],
         }
-    if _typed is not None:
-        envelope["type_chain"] = _typed
+    # (type_chain removed)
     if DCI_ENABLED:
         _db_fire(critic_then_maybe_flow(last_user_text, envelope,
                                         session_id=session_id))
-    # P4 (operator 2026-06-19 "VERIFICATION NEVER HAPPENS / NEVER TYPED"): the
-    # success symbol + polish must reflect the TYPE verdict too, not just the
-    # launch. A verified launch + a type that did NOT land must NOT show ✅.
-    _type_ok = (_typed is None) or bool(_typed.get("success"))
-    symbol = ("✅" if (_eff_ok and _type_ok)
-              else ("🚀" if (_launch_pending and _type_ok) else "⚠️"))
+    symbol = ("✅" if _eff_ok else ("🚀" if _launch_pending else "⚠️"))
     envelope_block = (
         f"<details type=\"tool_calls\" done=\"true\">\n"
         f"<summary>{symbol} `{tool}`</summary>\n\n"
@@ -26464,20 +26355,7 @@ async def _respond_os_control(
                             "30-60s. Report this as STARTING / LAUNCHING (e.g. "
                             "'<app> is launching via Steam -- it may take a moment "
                             "to appear'), which is NOT a failure.\n")
-    # P4: feed the TYPE-chain read-back verdict to the polish so it reports the
-    # typing HONESTLY (the launch verdict alone is not the whole story for an
-    # "open X and type Y" turn). Without this the polish only saw the launch
-    # succeeded -> "SUCCESS, you can now type" while nothing was typed.
-    if _typed is not None:
-        _ttxt = (_typed.get("text") or "")[:60]
-        if _typed.get("success"):
-            _polish_src += (f"type_chain: typed \"{_ttxt}\" and READ-BACK CONFIRMED "
-                            "the text landed in the window.\n")
-        else:
-            _polish_src += (f"type_chain: attempted to type \"{_ttxt}\" but READ-BACK "
-                            "shows the text did NOT land -- the app opened but the "
-                            "TYPING FAILED. Report that the launch succeeded but the "
-                            "text was NOT typed; do NOT claim it was typed.\n")
+    # (type_chain reporting removed)
     # OS-control replies are SHORT + GENERATIVE (operator 2026-05-29: "completely
     # generative in its replies too" + "JUST reply SUCCESS and DETAILS and
     # FOLLOW-UPS, nothing much more"). So: model-written (no template), but a
@@ -26491,9 +26369,7 @@ async def _respond_os_control(
         "retries, say it did NOT and do not claim success -- EXCEPT when "
         "`launch_fired_pending` is present, which means the launch DID fire and "
         "the app/game is still LOADING: report it as STARTING/LAUNCHING, NOT a "
-        "failure). If a `type_chain` line is present it is PART of success: if it "
-        "says the text did NOT land, report the app opened but the typing FAILED "
-        "(NOT a full success), and NEVER claim text was typed when it wasn't; (2) the key DETAILS "
+        "failure); (2) the key DETAILS "
         "(what opened/closed/was focused, the app/window name); (3) one or two "
         "natural FOLLOW-UPS the operator might want next (e.g. focus it, move "
         "it, close it, open another). No preamble, no invented coordinates, no "
