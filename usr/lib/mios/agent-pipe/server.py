@@ -7288,6 +7288,16 @@ def _env_block() -> str:
     if _loc:
         rows.append(("location", _loc))
         rows.append(("location_source", _src))
+    else:
+        # EXPLICIT unknown (NOT omitted): an 8B model otherwise fills the gap by
+        # inferring a city from the `timezone` row above (operator 2026-06-22: it
+        # kept answering "New York" off America/New_York). Granite obeys the
+        # structured key:value block far more reliably than prose, so the hard
+        # guard lives HERE, in the env block itself.
+        rows.append(("location",
+                     "UNKNOWN -- not shared this turn. The timezone is NOT a "
+                     "location: do NOT infer or name any city/region from it. "
+                     "Ask the user for their city or use [identity].location."))
     if not rows:
         return ""
     body = "\n".join(f"  {k}: {v}" for k, v in rows)
@@ -8714,6 +8724,19 @@ def _client_env(body: dict, headers: Optional[Any] = None) -> dict:
                         break
         except Exception:  # noqa: BLE001 -- recovery is best-effort
             pass
+    # Diagnostic: surface EXACTLY what the chat surface forwarded for location, so
+    # an "I enabled location but it still doesn't know where I am" report is
+    # debuggable from the journal (operator 2026-06-22). Logs the forwarded var
+    # keys + the resolved location/timezone, never the full payload.
+    try:
+        _hdr_email = ""
+        if headers is not None and hasattr(headers, "get"):
+            _hdr_email = headers.get("x-openwebui-user-email") or ""
+        log.info("client_env: fwd_var_keys=%s hdr_email=%r -> location=%r timezone=%r",
+                 sorted(raw.keys())[:30], _hdr_email,
+                 out.get("location"), out.get("timezone"))
+    except Exception:  # noqa: BLE001
+        pass
     return out
 
 
