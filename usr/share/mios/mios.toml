@@ -983,6 +983,16 @@ default  = false
 # so real work spills to CPU. Exclude it from automatic fan-out; it engages only
 # when a turn is explicitly code-routed. Re-enable once `opencode run` is fixed.
 fanout   = false
+# health_gate (operator 2026-06-22 -- root cause of the "all nodes succeed=false,
+# output=0 / merged_chars=0" multi-agent failure): the opencode gateway (:8633) is
+# default-OFF (the `run` hang documented above), but WITHOUT this flag the
+# orchestrator's liveness model (_live_agent_names) treats a non-health-gated
+# agent as ALWAYS live, so _reroute_dead_nodes sinks every dead-node DAG facet
+# onto the dead :8633 -> "All connection attempts failed" xN -> ZERO agent output
+# merged. health_gate makes opencode liveness-probed + DROPPED when unreachable
+# (identical to the :8643 hermes-worker pattern), so a fan-out DAG degrades to a
+# reachable agent instead of a dead sink. Auto-rejoins if the gateway is ever up.
+health_gate = true
 lane     = "gpu"
 strengths = ["file_edit", "code_review", "git", "test_running",
              "refactor"]
