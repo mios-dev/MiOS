@@ -2083,7 +2083,7 @@ app = FastAPI(
     title="MiOS Agent Pipe",
     version="0.2.0",
     description=(
-        "Gateway-agnostic router + dispatch + SurrealDB-state chain "
+        "Gateway-agnostic router + dispatch + pgvector-state chain "
         "fronting hermes-agent."
     ),
 )

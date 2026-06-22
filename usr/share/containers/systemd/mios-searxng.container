@@ -32,8 +32,10 @@ ContainerName=mios-searxng
 # The agent reaches SearXNG via SEARXNG_URL (host/localhost), not container
 # DNS -- one network is enough (ai-net consolidated away 2026-05-23).
 Network=mios.network
-# Canonical MiOS SearXNG port (mios.toml [ports].searxng = 8888).
-PublishPort=8888:8888
+# SearXNG listens on 8080 inside the container.
+# Map to host's loopback (it's consumed only by host hermes)
+EnvironmentFile=/etc/mios/install.env
+PublishPort=127.0.0.1:${MIOS_PORT_SEARXNG:-8888}:8080
 
 # Persistent state: settings.yml + uwsgi.ini live under /etc/searxng;
 # the container expects them at /etc/searxng inside. We bind-mount the

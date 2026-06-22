@@ -6603,6 +6603,61 @@ members     = [
 ]
 doc = """FOUR co-located web-service containers in ONE pod (operator 2026-05-24 \"make it a pod\"). Replaces the prior fat single-container supervisord monolith: each web service is its own container, all joined to this pod via `Pod=mios-webtools.pod`. NETWORKING: host networking (Network=host on the POD) because (a) the WSL2 podman PublishPort quirk often fails to bind private-netns pods on the Windows host, (b) host-net lets the crawl4ai member reach the host's ChromeDev CDP at 127.0.0.1:9222, (c) members reach each other on host loopback (redis 6379, firecrawl 3002, crawl4ai 11235). Network=host publishes nothing, so NO PublishPort here (combining the two is a Quadlet/podman error)."""
 
+
+[pods.mios-ai-inference]
+description = "'MiOS' AI inference pod"
+network     = "host"
+after       = ["network-online.target"]
+wants       = ["network-online.target"]
+wanted_by   = ["multi-user.target", "default.target"]
+members     = ["mios-llm-light", "mios-cpu-node", "mios-llm-worker@"]
+doc = """Inference lane pod."""
+
+[pods.mios-ai-heavy]
+description = "'MiOS' AI heavy inference pod"
+network     = "host"
+after       = ["network-online.target"]
+wants       = ["network-online.target"]
+wanted_by   = ["multi-user.target", "default.target"]
+members     = ["mios-llm-heavy", "mios-llm-heavy-alt"]
+doc = """Heavy inference lane pod."""
+
+[pods.mios-ai-data]
+description = "'MiOS' AI data pod"
+network     = "host"
+after       = ["network-online.target"]
+wants       = ["network-online.target"]
+wanted_by   = ["multi-user.target", "default.target"]
+members     = ["mios-pgvector"]
+doc = """Data layer for AI agent memory."""
+
+[pods.mios-devforge]
+description = "'MiOS' dev forge pod"
+network     = "host"
+after       = ["network-online.target"]
+wants       = ["network-online.target"]
+wanted_by   = ["multi-user.target", "default.target"]
+members     = ["mios-forge", "mios-forgejo-runner", "mios-code-server"]
+doc = """Self-replication and code platform."""
+
+[pods.mios-netinfra-dns]
+description = "'MiOS' network infra DNS pod"
+network     = "host"
+after       = ["network-online.target"]
+wants       = ["network-online.target"]
+wanted_by   = ["multi-user.target", "default.target"]
+members     = ["mios-adguard"]
+doc = """DNS sinkhole pod."""
+
+[pods.mios-remote-desktop]
+description = "'MiOS' remote desktop pod"
+network     = "host"
+after       = ["network-online.target"]
+wants       = ["network-online.target"]
+wanted_by   = ["multi-user.target", "default.target"]
+members     = ["mios-guacamole", "mios-guacd", "mios-guacamole-postgres"]
+doc = """Remote desktop platform."""
+
 # AdGuard Home DNS resolver / ad-blocker. SYSTEM tier (mios-sys), like CrowdSec
 # -- network infrastructure, not an AI agent. uid owns /etc/mios/adguard (config)
 # + /var/lib/mios/adguard (state/db). Next free UID after mios-crawl4ai (824).

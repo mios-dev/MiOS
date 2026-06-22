@@ -58,7 +58,7 @@ vectors / text bind out-of-band. 36 byte-level wire asserts in
   libexec tool reintroduces `post_sql`/`_sql`/`:8000/sql`/`_pgesc`/`_pgq`.
 - **Build gate**: all `usr/libexec/mios/test_mios_*.py` now run in `build.sh`.
 
-## Residuals — ALL CLOSED (drift-check 10 allowlist is now EMPTY)
+## Residuals — built-but-gated / partial / introspection-only (see aios-engineering-blueprint.md)
 
 Every libexec tool is cut over; the gate enforces it everywhere with no
 exceptions. The former residuals, all now done:

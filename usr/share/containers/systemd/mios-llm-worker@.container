@@ -41,6 +41,7 @@ ConditionPathExists=/run/mios/swarm/%i.env
 ConditionPathExists=/usr/share/mios/llamacpp/models/.ready
 
 [Container]
+Pod=mios-ai-inference.pod
 Image=${MIOS_LLM_LIGHT_IMAGE:-ghcr.io/mostlygeek/llama-swap:cuda}
 ContainerName=mios-llm-worker-%i
 Network=host

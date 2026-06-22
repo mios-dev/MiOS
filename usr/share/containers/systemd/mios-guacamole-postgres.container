@@ -9,6 +9,7 @@ Wants=network-online.target
 ConditionVirtualization=!container
 
 [Container]
+Pod=mios-remote-desktop.pod
 # Image / Network placeholders -- resolved at image build time by
 # automation/15-render-quadlets.sh from mios.toml
 # [image.sidecars].postgres and [network.quadlet].network.

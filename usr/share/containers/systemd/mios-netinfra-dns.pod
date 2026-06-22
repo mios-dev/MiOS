@@ -1,0 +1,17 @@
+# AI-hint: GENERATED Quadlet pod for the co-resident group 'mios-netinfra-dns' (WS-7 pods-as-SSOT). DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [pods.mios-netinfra-dns] in mios.toml. Members (1): mios-adguard.
+# AI-related: usr/share/mios/mios.toml, tools/generate-pod-quadlets.py, mios-adguard.container
+# /usr/share/containers/systemd/mios-netinfra-dns.pod
+# DNS sinkhole pod.
+# Members (each member .container declares Pod=mios-netinfra-dns.pod):
+#   mios-adguard
+[Unit]
+Description='MiOS' network infra DNS pod
+After=network-online.target
+Wants=network-online.target
+
+[Pod]
+PodName=mios-netinfra-dns
+Network=host
+
+[Install]
+WantedBy=multi-user.target default.target

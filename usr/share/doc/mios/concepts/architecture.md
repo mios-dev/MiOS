@@ -182,7 +182,7 @@ grounded, tool-using work:
 | **MiOS-Agent-Pipe** (`mios-agent-pipe.service`) | `:8640` | The orchestrator. Classifies each request, refines it, decomposes substantive asks into concurrent sub-tasks across lanes/agents, runs the tool-loop, then synthesizes + polishes. Fronts Hermes for every gateway (OWUI, Discord, future Slack/Telegram). |
 | **MiOS-Prefilter** | `:8641` | Injects `tool_choice=delegate_task` on fan-outable prompts, then forwards to Hermes. |
 | **MiOS-Hermes** (`hermes-agent.service`) | `:8642` | OpenAI-compat agent gateway -- sessions, native tool-calling, browser/CDP + skills. The canonical `MIOS_AI_ENDPOINT` front door. |
-| **MiOS-OpenCode** gateway | `:8633` | opencode -> OpenAI `/v1` shim; a real council peer the orchestrator dispatches code/doc work to. Loopback only. |
+| **MiOS-OpenCode** gateway | :8633 | opencode -> OpenAI /v1 shim; built-but-gated / partial / introspection-only council peer the orchestrator dispatches code/doc work to (see aios-engineering-blueprint.md). Loopback only. |
 | **MiOS-OWUI** (Open WebUI) | `:3030` | Browser front-end; its `OPENAI_API_BASE_URL` points at the agent plane. |
 | **MiOS-Search** (SearXNG) | `:8888` | Privacy-respecting metasearch backing the `web_search` tool. |
 

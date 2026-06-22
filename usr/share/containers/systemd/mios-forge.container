@@ -39,8 +39,10 @@ Network=mios.network
 # forge_http = web UI (reverse-proxy via Cockpit/Caddy if desired).
 # forge_ssh  = git+ssh, mapped to container :22; non-22 host port so sshd
 # (also on :22) and the forge's git transport coexist on the same host.
-PublishPort=3000:3000
-PublishPort=2222:22
+EnvironmentFile=/etc/mios/install.env
+PublishPort=${MIOS_PORT_FORGE_HTTP:-3000}:3000
+PublishPort=${MIOS_PORT_FORGE_SSH:-2222}:22
+Pod=mios-devforge.pod
 
 # OCI image labels. Values MUST NOT contain whitespace -- Quadlet's
 # Label= parser word-splits on spaces and emits each word as a separate
@@ -91,7 +93,7 @@ Environment=GITEA__server__HTTP_ADDR=0.0.0.0
 Environment=FORGEJO__server__HTTP_PORT=3000
 # SSH binding (operator 2026-05-28: external SSH on :2222 was unreachable).
 # The drop-in 10-mios-dev-host-network.conf forces Network=host so the
-# Quadlet PublishPort=2222:22 mapping is a NO-OP (host networking bypasses
+# Quadlet PublishPort=${MIOS_PORT_FORGE_SSH:-2222}:22 mapping is a NO-OP (host networking bypasses
 # port publishing). Two SSH stacks could serve git-ssh:
 #   (a) The image's bundled openssh-server (default), which has its sshd
 #       hardcoded to LISTEN on container port 22. With host networking

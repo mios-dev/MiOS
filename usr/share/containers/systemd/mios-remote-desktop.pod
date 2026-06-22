@@ -1,0 +1,19 @@
+# AI-hint: GENERATED Quadlet pod for the co-resident group 'mios-remote-desktop' (WS-7 pods-as-SSOT). DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [pods.mios-remote-desktop] in mios.toml. Members (3): mios-guacamole, mios-guacd, mios-guacamole-postgres.
+# AI-related: usr/share/mios/mios.toml, tools/generate-pod-quadlets.py, mios-guacamole.container, mios-guacd.container, mios-guacamole-postgres.container
+# /usr/share/containers/systemd/mios-remote-desktop.pod
+# Remote desktop platform.
+# Members (each member .container declares Pod=mios-remote-desktop.pod):
+#   mios-guacamole
+#   mios-guacd
+#   mios-guacamole-postgres
+[Unit]
+Description='MiOS' remote desktop pod
+After=network-online.target
+Wants=network-online.target
+
+[Pod]
+PodName=mios-remote-desktop
+Network=host
+
+[Install]
+WantedBy=multi-user.target default.target

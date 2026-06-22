@@ -30,6 +30,7 @@ Requires=mios-adguard-firstboot.service
 ConditionPathExists=/etc/mios/adguard/AdGuardHome.yaml
 
 [Container]
+Pod=mios-netinfra-dns.pod
 Image=${MIOS_ADGUARD_IMAGE:-docker.io/adguard/adguardhome:latest}
 ContainerName=mios-adguard
 # Host networking: bind the real loopback + Tailscale interfaces directly (see

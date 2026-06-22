@@ -347,6 +347,38 @@ case "$sub" in
         hwnd="$(_resolve_hwnd "$pat")" || exit 1
         _show_window "$hwnd" 9
         ;;
+    left|right|top|bottom|top-left|top-right|bottom-left|bottom-right|maximize-pos)
+        pat="${1:-}"; [[ -z "$pat" ]] && { echo "mios-window $sub: missing <title-pattern>" >&2; exit 64; }
+        hwnd="$(_resolve_hwnd "$pat")" || exit 1
+        _layout="$(mios-pc-control screen-layout 2>/dev/null)"
+        eval "$(echo "$_layout" | python3 - "$sub" "$hwnd" <<'PYEOF'
+import sys, json
+try:
+    layout = json.loads(sys.stdin.read())
+    work = layout['screens'][0]['work']
+    wx, wy, ww, wh = work['x'], work['y'], work['width'], work['height']
+except Exception:
+    sys.exit(0)
+pos = sys.argv[1]
+hwnd = sys.argv[2]
+if pos == 'maximize-pos':
+    print(f"mios-pc-control window-move {hwnd} {wx} {wy} >/dev/null;")
+    print(f"mios-pc-control window-resize {hwnd} {ww} {wh} >/dev/null;")
+    sys.exit(0)
+w, h, x, y = ww, wh, wx, wy
+if pos == 'left': w = ww//2
+elif pos == 'right': w = ww//2; x = wx + ww//2
+elif pos == 'top': h = wh//2
+elif pos == 'bottom': h = wh//2; y = wy + wh//2
+elif pos == 'top-left': w = ww//2; h = wh//2
+elif pos == 'top-right': w = ww//2; h = wh//2; x = wx + ww//2
+elif pos == 'bottom-left': w = ww//2; h = wh//2; y = wy + wh//2
+elif pos == 'bottom-right': w = ww//2; h = wh//2; x = wx + ww//2; y = wy + wh//2
+print(f"mios-pc-control window-move {hwnd} {x} {y} >/dev/null;")
+print(f"mios-pc-control window-resize {hwnd} {w} {h} >/dev/null;")
+PYEOF
+)"
+        ;;
     close|quit|x)
         # Graceful close via WM_CLOSE -- the same as the operator
         # clicking the X. NOT a kill; apps with unsaved state get to

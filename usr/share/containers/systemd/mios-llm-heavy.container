@@ -36,6 +36,7 @@ Conflicts=mios-llm-heavy-alt.service
 ConditionPathExists=/usr/share/mios/sglang/model/config.json
 
 [Container]
+Pod=mios-ai-heavy.pod
 Image=${MIOS_SGLANG_IMAGE:-docker.io/lmsysorg/sglang:latest}
 ContainerName=mios-llm-heavy
 # host networking: the server binds :11441 directly on the host. The custom

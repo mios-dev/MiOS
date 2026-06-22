@@ -51,6 +51,7 @@ ConditionVirtualization=|!container
 ConditionVirtualization=|wsl
 
 [Container]
+Pod=mios-devforge.pod
 # Image / Network placeholders -- resolved at image build time by
 # automation/15-render-quadlets.sh from mios.toml
 # [image.sidecars].forge_runner and [network.quadlet].network.

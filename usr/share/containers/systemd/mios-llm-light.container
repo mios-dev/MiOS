@@ -31,6 +31,7 @@ Wants=network-online.target
 ConditionPathExists=/usr/share/mios/llamacpp/models/.ready
 
 [Container]
+Pod=mios-ai-inference.pod
 # Image / Port / User placeholders rendered by automation/15-render-quadlets.sh.
 # SSOT: mios.toml [image.sidecars].llm_light, [ports].llm_light,
 # [services.llamacpp].{uid,gid}, [llamacpp].*.

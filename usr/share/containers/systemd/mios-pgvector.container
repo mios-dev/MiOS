@@ -29,6 +29,7 @@ ConditionVirtualization=|!container
 ConditionVirtualization=|wsl
 
 [Container]
+Pod=mios-ai-data.pod
 # Image / Port / User placeholders rendered by automation/15-render-quadlets.sh.
 # pgvector/pgvector bundles the `vector` extension on top of upstream postgres.
 Image=${MIOS_PGVECTOR_IMAGE:-docker.io/pgvector/pgvector:pg17}

@@ -145,7 +145,7 @@ eval** · **code-mode** for heavy verbs · storage **versioning/rollback**.
     periodic cosine-dedup compaction.
 
 ## Net
-The historic gap — the AIOS *kernel* — has largely closed this and prior sessions. The
+The historic gap — the AIOS *kernel* — is built-but-gated / partial / introspection-only (see aios-engineering-blueprint.md). The
 single highest-leverage move is **P1#1 (turn-boundary preemption)** because both halves
 exist and only need wiring; the single most *strategic* move is **P1#2 (federation
 consume)** because it converts MiOS from a one-operator ensemble into a true federated
