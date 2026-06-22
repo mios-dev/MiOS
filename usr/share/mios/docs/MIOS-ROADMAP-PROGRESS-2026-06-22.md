@@ -23,7 +23,27 @@ means *active + live-fired*, not "built + gated-OFF" (the WS-G standard).
 | **F1** OWUI RAG embedding | engine `ollama`(→`/api/embed` 404) → `openai`(→`/v1/embeddings`) + embed `--parallel 4` | `:11450/v1/embeddings` 768-dim verified; **residual below** |
 | latent bug | `_usage_completeness_mw` passed bytes to `loads_lenient(str)` → silent no-op (usage guarantee broken too) | fixed; usage + mios_mode now land |
 
+## ✅ Done — second pass (after the Stop-hook "keep going")
+
+| Task | What shipped | Live evidence |
+|---|---|---|
+| **A3** opencode | resolved via honest exclusion (root cause: `opencode run` returns empty even with the served alias→granite working — upstream 1.17.9 headless limit); made cluster-health enabled-aware | `council_peers_up` 3→2, `council_distinct_up`=1; opencode flagged `enabled=false, failover_only` |
+| **A5+** | added `enabled` + `failover_only` per agent; council count excludes disabled + (distinct) failover-only peers | honest peer math |
+| **F2** coderun-sandbox | the build failed on **C compile errors** (NOT egress): `prctl_mm_map` redef + landlock `handled_access_net` missing on the alpine base. Fixed exec-init.c | `podman build` SUCCEEDS → `localhost/mios-coderun-sandbox:latest` (348 MB) in the rootless store |
+| **FED-G2** follow-up | `_apply_outbound_auth` at the ollama-shim + DCI-critic dispatch sites | chat intact, no regression |
+| **B6** expandvars | already done (server.py:448 helper applied to endpoints at :3971/:3979) | verified |
+
 ## ⚠️ Residuals (honest — NOT fully closed)
+
+- **coderun HITL vs compute (NEW finding)**: with the F2 image built, a compute turn
+  ("calculate 19387*4472") routes to `coderun`, but coderun is HITL-gated
+  (`tier=interactive` → "refused pending human approval"), so the model FALLS BACK to
+  in-head math and returns a WRONG number (`86656064` vs correct `86698664`). Two safe
+  fixes (deferred — one is security-sensitive): (a) a SAFE-COMPUTE sandbox tier (the
+  coderun-sandbox image is already Network=none + landlock-fs-restricted, so pure
+  arithmetic is safe to auto-run without HITL — needs per-verb HITL granularity like
+  os_recipe got); and/or (b) anti-fabrication: when coderun is blocked, the answer must
+  NOT present an unverified in-head number as exact.
 
 - **F1 bulk vectorize**: the engine path is now correct, but re-vectorizing the 32-file
   collection still hits a llama-swap **concurrency-429** under OWUI's burst (distinct
