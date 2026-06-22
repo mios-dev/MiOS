@@ -7135,31 +7135,25 @@ def _client_grounding() -> str:
             "real value into the query / answer. When it is coordinates "
             "(lat, long), treat them as the user's position.")
     else:
+        # No real location this turn. A TIMEZONE IS NOT A LOCATION: it spans a
+        # huge area, so we NEVER derive a city/metro from it (operator 2026-06-22:
+        # "Where am I exactly" was wrongly answered "New York" off America/New_York).
+        # Be honest + point at the real sources; never fabricate a city.
         _tz = _host_timezone()
-        if _tz and "/" in _tz:
-            _region = _tz.rsplit("/", 1)[1].replace("_", " ")
-            lines.append(
-                f"  - Working user location (from the host system timezone {_tz}): the "
-                f"{_region} region. This is the env value in the <env> block above "
-                "(location_source: host-timezone-region). USE it as the location for "
-                "'where am I' / 'local' / 'near me' / weather / news asks -- ANSWER "
-                "with it (search its principal metro); do NOT refuse and do NOT ask "
-                "the user to name their city first. State ONCE, briefly, that it is "
-                "the system-region approximation and they can correct it or set "
-                "[identity].location for precision -- then give the grounded answer. "
-                "Do NOT fabricate unrelated cities and do NOT pass generic national "
-                "data off as 'local'.")
-        elif env:
-            # No client geo, no config, no usable host tz. Honest punt (operator
-            # 2026-05-27): never silently generalise a 'near me' ask to a country.
-            lines.append(
-                "  - No user location was forwarded this turn and none is "
-                "configured. If the request uses 'near me' / 'nearby' / 'local' / "
-                "'closest' or otherwise needs the user's location, do NOT invent or "
-                "silently assume a specific city/country and do NOT emit a "
-                "'[location]' placeholder: answer with general (non-localized) info "
-                "and briefly note you couldn't determine their location, inviting "
-                "them to name their city for local results.")
+        _tz_clause = (f" The host system timezone is {_tz} -- but a timezone covers "
+                      "a broad area and is NOT a location, so do NOT derive or name "
+                      "a city/metro from it." if _tz else "")
+        lines.append(
+            "  - User location: NOT available this turn -- no geolocation was "
+            "forwarded from the chat surface and no [identity].location is "
+            "configured." + _tz_clause + " For 'where am I' / exact-location / "
+            "'my city' asks: say plainly you do not have their precise location, "
+            "and that they can enable location sharing in the chat client or set "
+            "[identity].location (or just name their city). For 'near me' / "
+            "'local' / weather asks: answer with general, non-localized info and "
+            "note you couldn't determine their location. NEVER invent a city, a "
+            "list of cities, a '[location]' placeholder, or pass the timezone area "
+            "off as where they are.")
     if lang:
         lines.append(
             f"  - User language / locale: {lang}. Use its date / number / "
@@ -7277,16 +7271,20 @@ def _env_block() -> str:
         _os_v = _server_os or _client_os
     if _os_v:
         rows.append(("os", _os_v))
-    # location chain (client -> configured [identity].location -> host-tz region),
+    # location chain (client-forwarded geo -> configured [identity].location),
     # with provenance, MIRRORING _client_grounding so the two views never disagree.
+    # We DELIBERATELY do NOT downgrade the host timezone into a `location`: a tz
+    # area (e.g. America/New_York) spans a third of a country and is NOT the
+    # user's city -- claiming its principal metro is a fabrication (operator
+    # 2026-06-22: "Where am I exactly" was wrongly answered "New York"). `location`
+    # is emitted ONLY from a real source; the honest "unknown" path lives in
+    # _client_grounding's directives (the timezone fact stays in the `timezone` row).
     _loc = str(env.get("location") or "").strip()
     _src = "client"
     if not _loc:
         _cfg = str((_toml_section("identity") or {}).get("location") or "").strip()
         if _cfg:
             _loc, _src = _cfg, "configured"
-    if not _loc and _tz and "/" in _tz:
-        _loc, _src = _tz.rsplit("/", 1)[1].replace("_", " "), "host-timezone-region"
     if _loc:
         rows.append(("location", _loc))
         rows.append(("location_source", _src))
@@ -27632,19 +27630,12 @@ async def chat_completions(request: Request) -> Any:
         # detail; granite ignores the soft _client_grounding prose AND this guard
         # returns before the model runs, so resolve it DETERMINISTICALLY here. Only ASK
         # when even the host timezone is unavailable.
-        _tzr = _host_timezone()
-        _region = (_tzr.rsplit("/", 1)[1].replace("_", " ")
-                   if _tzr and "/" in _tzr else "")
-        if _region:
-            _loc_reply = (
-                f"Going by your system timezone ({_tzr}), you're in the {_region} "
-                f"region -- I'll treat the {_region} area as your location for "
-                "'local' / 'near me' / weather questions. That is a system-region "
-                "approximation; tell me a specific city and I'll use that instead.")
-            log.info("needs_location + no client loc -> grounded to host-tz region %r (no swarm)", _region)
-        else:
-            _loc_reply = await _ask_for_location(last_user_text)
-            log.info("needs_location + no client location + no host tz -> ask for city (no swarm)")
+        # No client location -> ask for the city HONESTLY via the existing helper.
+        # NEVER derive a city/region from the host timezone (operator 2026-06-22:
+        # a tz area such as America/New_York is NOT the user's location) and never
+        # fan out a guessing swarm.
+        _loc_reply = await _ask_for_location(last_user_text)
+        log.info("needs_location + no client loc -> honest ask-for-city (no tz-city, no swarm)")
         _store_knowledge(query=last_user_text, answer=_loc_reply,
                          session_id=session_id, tool_history=[])
         if streaming:
