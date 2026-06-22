@@ -1885,6 +1885,67 @@ def _load_backend_key() -> str:
 
 _BACKEND_KEY = _load_backend_key()
 
+# ── FED-G1 inbound auth gate (operator 2026-06-22, flag-gated, degrade-open) ──────
+# DEFAULT OFF -> the middleware (defined far below) is a pass-through, behaviour
+# byte-identical. When [security].api_require_auth is ON it gates /v1/* + /a2a: a
+# request must carry the canonical shared key (what OWUI + the mios/@ CLI already
+# send), the ingress key, OR a per-caller key -> a scoped principal. See mios.toml
+# [security].api_require_auth for the full rationale + the operator-greenlight note.
+_API_REQUIRE_AUTH = str(
+    os.environ.get("MIOS_API_REQUIRE_AUTH")
+    or (_toml_section("security") or {}).get("api_require_auth", "false")
+).strip().lower() in {"1", "true", "yes"}
+_CALLER_KEYS_PATH = str(
+    os.environ.get("MIOS_CALLER_KEYS_PATH")
+    or (_toml_section("security") or {}).get("api_caller_keys_path")
+    or "/etc/mios/ai/v1/caller-keys.json")
+# /v1/* + /a2a are gated when ON; discovery/health stay open so an unauth'd peer can
+# still fetch the card/passport to LEARN how to authenticate (federation join).
+_AUTH_GATED_PREFIXES = ("/v1/", "/a2a")
+_AUTH_OPEN_PATHS = frozenset({
+    "/v1/models", "/.well-known/agent-card.json", "/.well-known/agent.json",
+    "/.well-known/agent-passport.json", "/a2a/card", "/health",
+    "/v1/cluster/health"})
+_CALLER_KEYS_CACHE: dict = {"mtime": -1.0, "keys": {}}
+
+
+def _load_caller_keys() -> dict:
+    """mtime-cached caller-key store {token: {principal, scope/max_permission,...}}.
+    INERT by default -- a missing file -> {} (only the shared/ingress key works).
+    Mirrors the CRL mtime-cache. Degrade-open: any error -> last good / {}."""
+    try:
+        st = os.stat(_CALLER_KEYS_PATH)
+    except OSError:
+        _CALLER_KEYS_CACHE["keys"] = {}
+        return {}
+    if st.st_mtime != _CALLER_KEYS_CACHE["mtime"]:
+        try:
+            with open(_CALLER_KEYS_PATH, encoding="utf-8") as fh:
+                data = json.load(fh)
+            keys = data.get("keys", data) if isinstance(data, dict) else {}
+            _CALLER_KEYS_CACHE["keys"] = keys if isinstance(keys, dict) else {}
+            _CALLER_KEYS_CACHE["mtime"] = st.st_mtime
+        except Exception:  # noqa: BLE001 -- keep last good
+            pass
+    return _CALLER_KEYS_CACHE["keys"]
+
+
+def _check_inbound_principal(token: str) -> "Optional[dict]":
+    """Resolve a bearer token to a scoped principal, or None if unrecognised. The
+    canonical shared key + the ingress key map to the full-trust operator principal;
+    a caller-key maps to its stored scoped identity (FED-G6/G8 enforce scope later)."""
+    t = (token or "").strip()
+    if not t:
+        return None
+    if (_BACKEND_KEY and t == _BACKEND_KEY) or (_INGRESS_KEY and t == _INGRESS_KEY):
+        return {"principal": "operator", "scope": "full", "via": "shared-key"}
+    ent = _load_caller_keys().get(t)
+    if isinstance(ent, dict):
+        return {"principal": ent.get("principal") or "caller", "via": "caller-key", **ent}
+    if ent:  # a bare {"token": "name"} mapping
+        return {"principal": str(ent), "via": "caller-key"}
+    return None
+
 
 def _probe_auth_headers(ep: str) -> dict:
     """Bearer header for a liveness / model-list probe IFF the endpoint ENFORCES
@@ -8416,6 +8477,16 @@ _recency_ctx_var: "contextvars.ContextVar" = contextvars.ContextVar(
 # list. Default False -> byte-identical behaviour on any non-refined path.
 _turn_volatile_var: "contextvars.ContextVar" = contextvars.ContextVar(
     "mios_turn_volatile", default=False)
+
+# A5 COUNCIL HONESTY (operator 2026-06-22): the TRUE per-turn dispatch mode. Default
+# "single-agent" -- set to "council" ONLY when the turn actually fans out to >=1
+# secondary peer. The usage middleware injects it as `mios_mode` on every chat
+# response, so the front door reports the mode it REALLY used instead of advertising
+# a council it silently degraded from when all peers are down. Per-request (each
+# request runs in its own copied context); modern Starlette propagates it from the
+# endpoint up to the BaseHTTPMiddleware.
+_council_mode_var: "contextvars.ContextVar" = contextvars.ContextVar(
+    "mios_council_mode", default="single-agent")
 
 # TURN-SCOPED SOURCE COLLECTOR (operator 2026-06-18 "no sources are working / aren't
 # attached / hallucinated -- they should be A2A or metadata"). EVERY web_search across
@@ -19312,6 +19383,35 @@ async def read_resource(uri: str = "") -> JSONResponse:
 A2A_PROTOCOL_VERSION = os.environ.get("MIOS_A2A_PROTOCOL_VERSION", "0.3.0")
 
 
+def _agent_card_signature(card: dict) -> "Optional[dict]":
+    """FED-G4: a JWS-style detached signature over the JCS/RFC-8785-canonical AgentCard
+    (minus `signatures`) using the Ed25519 passport key, so a discovering peer can
+    verify the card's ISSUER. None when no passport key is provisioned (degrade-open
+    -> the card simply ships unsigned). Reuses the same key + canonicalizer as the
+    Open Agent Passport so a verifier uses one trust anchor."""
+    try:
+        priv = _passport_load_priv()
+        if not priv:
+            return None
+        payload = {k: v for k, v in card.items() if k != "signatures"}
+        canon = _passport_canonical_json(payload).encode("utf-8")
+        protected = _passport_canonical_json(
+            {"alg": PASSPORT_ALGO, "kid": _passport_kid(), "typ": "JWS"}).encode("utf-8")
+        def _b64u(b: bytes) -> str:
+            return base64.urlsafe_b64encode(b).rstrip(b"=").decode("ascii")
+        signing_input = (_b64u(protected) + "." + _b64u(canon)).encode("ascii")
+        sig = priv.sign(signing_input)
+        return {
+            "protected": _b64u(protected),
+            "signature": _b64u(sig),
+            "header": {"alg": PASSPORT_ALGO, "kid": _passport_kid(),
+                       "canon": "JCS/RFC-8785 over the card minus `signatures`"},
+        }
+    except Exception as e:  # noqa: BLE001 -- degrade-open: ship unsigned
+        log.debug("agent-card signature skipped: %s", e)
+        return None
+
+
 def _build_agent_card() -> dict:
     """Render the A2A AgentCard from MiOS SSOT (no hardcoded skills).
 
@@ -19343,7 +19443,7 @@ def _build_agent_card() -> dict:
     # The agent speaks the OpenAI Chat Completions API (this server's /v1
     # surface); tool execution is the co-located MCP server. Advertise both
     # so a discovering peer knows how to actually drive MiOS.
-    return {
+    card: dict = {
         "protocolVersion": A2A_PROTOCOL_VERSION,
         "name": os.environ.get("MIOS_A2A_AGENT_NAME", "MiOS AI"),
         "description": app.description,
@@ -19405,6 +19505,24 @@ def _build_agent_card() -> dict:
             },
         },
     }
+    # FED-G4 (operator 2026-06-22): make the card SELF-DESCRIBING about auth + signed by
+    # the issuer, so a discovering peer learns HOW to authenticate and can VERIFY this
+    # card. securitySchemes is always advertised (how to auth when the gate is on); the
+    # hard `security` REQUIREMENT is asserted only when the inbound gate is actually
+    # enforced (honest posture). Data-driven from [a2a.security] SSOT when present.
+    _a2a_sec = (_toml_section("a2a") or {}).get("security") or {}
+    card["securitySchemes"] = (
+        _a2a_sec.get("schemes")
+        if isinstance(_a2a_sec, dict) and isinstance(_a2a_sec.get("schemes"), dict)
+        else {"bearer": {"type": "http", "scheme": "bearer",
+                         "description": "MiOS shared API key or a per-caller key "
+                                        "(Authorization: Bearer <token>)."}})
+    if _API_REQUIRE_AUTH:
+        card["security"] = [{k: []} for k in card["securitySchemes"]]
+    _sig = _agent_card_signature(card)
+    if _sig:
+        card["signatures"] = [_sig]
+    return card
 
 
 @app.get("/.well-known/agent-card.json")
@@ -19868,8 +19986,18 @@ async def cluster_health() -> JSONResponse:
         up = sum(1 for a in agents_out if a["effective_up"])
         spofs = [a["name"] for a in agents_out
                  if a["single_point_of_failure"]]
+        # A5 council honesty (operator 2026-06-22): a COUNCIL needs >=1 SECONDARY
+        # (non-default) peer effective_up; with none up the front door silently
+        # degrades to single-agent. Surface that truthfully instead of advertising a
+        # council it can't form. council_peers_up counts the non-primary live peers.
+        _peers_up = sum(1 for a in agents_out
+                        if a["effective_up"] and not a["default"])
+        _mode = ("council" if _peers_up > 0
+                 else "single-agent (no council peers up)")
         return JSONResponse({
             "object": "mios.cluster.health",
+            "mode": _mode,
+            "council_peers_up": _peers_up,
             "agents": agents_out,
             "agents_up": up,
             "agents_total": len(agents_out),
@@ -21585,6 +21713,103 @@ async def _a2a_client_startup() -> None:
              len(peers), len(peers) - len(_disc), len(_disc))
     await asyncio.gather(*(_a2a_probe_peer(s) for s in peers),
                          return_exceptions=True)
+
+
+# ── FED-G3 live membership reload (operator 2026-06-22) ───────────────────────────
+# "Network reachability + a verifiable credential is the ONLY thing required to join
+# the council" -> adding a peer must NOT require a restart. A reload re-reads the
+# agent/node registry + the A2A peer registry from disk and refreshes the live caches.
+# Two triggers: a background mtime-watch on the registry files + layered mios.toml, and
+# an auth-gated POST /a2a/peers/reload. Degrade-open throughout.
+MEMBERSHIP_WATCH_ENABLE = str(
+    os.environ.get("MIOS_MEMBERSHIP_WATCH")
+    or (_A2A_CFG.get("membership_watch", "true"))).strip().lower() in {"1", "true", "yes"}
+try:
+    MEMBERSHIP_WATCH_INTERVAL_S = int(
+        os.environ.get("MIOS_MEMBERSHIP_WATCH_INTERVAL")
+        or (_A2A_CFG.get("membership_watch_interval_s", 30)))
+except (TypeError, ValueError):
+    MEMBERSHIP_WATCH_INTERVAL_S = 30
+_MEMBERSHIP_WATCH_PATHS = list(_A2A_PEER_REGISTRY_PATHS) + [
+    "/usr/share/mios/mios.toml", "/etc/mios/mios.toml",
+    os.path.expanduser("~/.config/mios/mios.toml")]
+
+
+async def _reload_membership(reason: str = "manual") -> dict:
+    """Re-read the agent/node registry + A2A peer registry from disk and refresh the
+    LIVE module caches WITHOUT a restart (FED-G3). Removes 'restart to add an agent'.
+    Degrade-open: a partial failure logs + still refreshes what it can."""
+    global _AGENT_REGISTRY, _WORKER_TOOLS_FULL_CACHE
+    out: dict = {"reason": reason}
+    try:
+        _reg = _load_agent_registry()
+        _load_node_pool(_reg)
+        _AGENT_REGISTRY = _reg
+        out["agents"] = len(_reg)
+    except Exception as e:  # noqa: BLE001
+        out["agents_error"] = f"{type(e).__name__}: {e}"[:160]
+        log.warning("membership reload: agent registry refresh failed: %s", e)
+    try:
+        async with _A2A_PEERS_LOCK:
+            _A2A_PEERS.clear()          # drop stale peers; re-probe repopulates the live ones
+        await _a2a_client_startup()     # re-load + re-probe from disk
+        out["a2a_peers"] = len(_A2A_PEERS)
+    except Exception as e:  # noqa: BLE001
+        out["a2a_error"] = f"{type(e).__name__}: {e}"[:160]
+        log.warning("membership reload: a2a peer refresh failed: %s", e)
+    _WORKER_TOOLS_FULL_CACHE = None      # force re-merge of the worker tool surface
+    log.info("membership reloaded (%s): %s", reason, out)
+    return out
+
+
+async def _membership_watch_loop() -> None:
+    """Poll the mtime of the peer registry + layered mios.toml; on any change, hot-
+    reload membership. Cheap (stat-only between reloads). Cancel-safe; degrade-open."""
+    _seen: dict = {}
+    for _p in _MEMBERSHIP_WATCH_PATHS:
+        try:
+            _seen[_p] = os.stat(_p).st_mtime
+        except OSError:
+            _seen[_p] = -1.0
+    log.info("membership watch: ON (interval=%ds, %d paths)",
+             MEMBERSHIP_WATCH_INTERVAL_S, len(_MEMBERSHIP_WATCH_PATHS))
+    while True:
+        try:
+            await asyncio.sleep(max(5, MEMBERSHIP_WATCH_INTERVAL_S))
+            _changed = []
+            for _p in _MEMBERSHIP_WATCH_PATHS:
+                try:
+                    _m = os.stat(_p).st_mtime
+                except OSError:
+                    _m = -1.0
+                if _seen.get(_p) != _m:
+                    _seen[_p] = _m
+                    _changed.append(os.path.basename(_p))
+            if _changed:
+                await _reload_membership(reason="mtime:" + ",".join(sorted(set(_changed))))
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:  # noqa: BLE001 -- never let a watch tick kill the loop
+            log.debug("membership watch tick error: %s", e)
+
+
+@app.on_event("startup")
+async def _membership_watch_startup() -> None:
+    if MEMBERSHIP_WATCH_ENABLE:
+        asyncio.create_task(_membership_watch_loop())
+
+
+@app.post("/a2a/peers/reload")
+async def a2a_peers_reload(request: Request) -> JSONResponse:
+    """FED-G3: explicit hot-reload of agent/node/peer membership. Always credential-
+    gated (a control-plane mutation), independent of the global api_require_auth flag."""
+    _tok = (request.headers.get("authorization") or "").removeprefix("Bearer ").strip()
+    if _check_inbound_principal(_tok) is None:
+        return JSONResponse(
+            content={"error": {"message": "unauthorized", "type": "invalid_request_error"}},
+            status_code=401)
+    out = await _reload_membership(reason="api")
+    return JSONResponse(content={"object": "mios.membership.reload", **out})
 
 
 async def _a2a_send_message_to_peer(peer_id: str, text: str,
@@ -27063,18 +27288,63 @@ async def _usage_completeness_mw(request: Request, call_next):
         return response
     out = body
     try:
-        data = _loads_lenient(body)
-        if (isinstance(data, dict) and data.get("object") == "chat.completion"
-                and not data.get("usage")):
-            _ans = ((data.get("choices") or [{}])[0].get("message") or {}).get("content") or ""
-            data["usage"] = _usage_estimate("", _ans)
-            out = json.dumps(data).encode()
+        # loads_lenient expects str; `body` is bytes accumulated from the iterator.
+        # Passing bytes silently failed -> the middleware was a latent no-op (no usage
+        # backfill, no mios_mode). Decode first (operator 2026-06-22).
+        data = _loads_lenient(body.decode("utf-8", "replace"))
+        if isinstance(data, dict) and data.get("object") == "chat.completion":
+            _changed = False
+            if not data.get("usage"):
+                _ans = ((data.get("choices") or [{}])[0].get("message") or {}).get("content") or ""
+                data["usage"] = _usage_estimate("", _ans)
+                _changed = True
+            # A5 council honesty: stamp the TRUE dispatch mode (single-agent vs council)
+            # on every chat response, centrally. Contextvar set by the fan-out path;
+            # default "single-agent" reflects a turn that used only the primary.
+            if "mios_mode" not in data:
+                try:
+                    data["mios_mode"] = _council_mode_var.get()
+                    _changed = True
+                except Exception:  # noqa: BLE001
+                    pass
+            if _changed:
+                out = json.dumps(data).encode()
     except Exception:
         out = body
     from starlette.responses import Response as _Resp
     _hdrs = {k: v for k, v in response.headers.items() if k.lower() != "content-length"}
     return _Resp(content=out, status_code=response.status_code,
                  headers=_hdrs, media_type="application/json")
+
+
+@app.middleware("http")
+async def _inbound_auth_mw(request: Request, call_next):
+    """FED-G1: gate /v1/* + /a2a with a credential when [security].api_require_auth is
+    ON. DEFAULT OFF -> pass-through (byte-identical). Registered AFTER the usage MW so
+    it runs OUTERMOST (rejects before any processing). Discovery/health stay open so an
+    unauth'd peer can still fetch the card/passport to learn how to authenticate. On
+    success the resolved principal is stashed on request.state for downstream RBAC."""
+    if not _API_REQUIRE_AUTH:
+        return await call_next(request)
+    path = request.url.path
+    if (path in _AUTH_OPEN_PATHS
+            or not any(path.startswith(p) for p in _AUTH_GATED_PREFIXES)):
+        return await call_next(request)
+    try:
+        _tok = (request.headers.get("authorization") or "").removeprefix("Bearer ").strip()
+        princ = _check_inbound_principal(_tok)
+    except Exception:  # noqa: BLE001 -- fail CLOSED (a check error must not open the gate)
+        princ = None
+    if princ is None:
+        return JSONResponse(
+            content={"error": {"message": "unauthorized: a valid credential is required",
+                               "type": "invalid_request_error", "code": "unauthorized"}},
+            status_code=401)
+    try:
+        request.state.mios_principal = princ
+    except Exception:  # noqa: BLE001
+        pass
+    return await call_next(request)
 
 
 @app.post("/v1/responses")
@@ -28817,6 +29087,11 @@ async def chat_completions(request: Request) -> Any:
                  "(read-only secondaries cannot perform writes)")
         _fanout = []
     if _fanout:
+        # A5: this turn REALLY fans out to >=1 secondary -> report council mode honestly.
+        try:
+            _council_mode_var.set("council")
+        except Exception:  # noqa: BLE001
+            pass
         log.info("fanout%s: primary=%s + %d secondary %s",
                  " (FORCED swarm)" if _force_council else "",
                  target_name, len(_fanout), [n for n, _ in _fanout])

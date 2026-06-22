@@ -618,6 +618,20 @@ allowlist_hosts = [
 # (RAG runs every turn -> tainting it would block all OS-control).
 provenance_taint = false
 
+# FED-G1 INBOUND AUTH GATE (operator 2026-06-22). The agent-pipe front door
+# (:8640 /v1/* + /a2a) accepts requests with NO credential today. When ON, an ASGI
+# middleware gates those paths: a request must present the canonical shared key
+# (API_SERVER_KEY -- what OWUI + the `mios`/`@` CLI already send), the ingress key,
+# OR a per-caller key from `api_caller_keys_path` -> a scoped principal stashed for
+# RBAC. Discovery/health (`/v1/models`, agent-card, passport, `/health`,
+# `/v1/cluster/health`) stay OPEN so an unauth'd peer can still learn how to auth.
+# DEFAULT FALSE -> the middleware is a pass-through (byte-identical behaviour). Turn
+# ON only with a loopback or firewall-scoped (172.16/12) bind -- it changes the
+# front-door auth posture (operator-greenlight). The federation JOIN contract
+# (FED-G6/G8) enforces per-peer scope once peers are keyed.
+api_require_auth     = false
+api_caller_keys_path = "/etc/mios/ai/v1/caller-keys.json"
+
 # Verbs whose dispatch is REFUSED when the session is tainted
 # (Phase A.3 / B.3 Semantic Firewall). These cause visible system
 # effects -- restarting services, injecting input into Win32 GUI
