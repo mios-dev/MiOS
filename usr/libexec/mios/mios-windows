@@ -420,49 +420,84 @@ case "$sub" in
             # PowerShell here-doc: snapshot -> launch -> poll new windows.
             # Single-line for the broker's "CAPTURE: <cmdline>\n" wire.
             cat <<PSEOF
-\$pre = (Get-Process | Where-Object { \$_.MainWindowHandle -ne 0 } | ForEach-Object { \$_.MainWindowHandle.ToInt64() })
-${sp}
 Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
-Add-Type -Name W32M2 -Namespace MX -MemberDefinition @'
-[System.Runtime.InteropServices.DllImport("user32.dll")] public static extern bool MoveWindow(System.IntPtr h,int x,int y,int w,int n,bool r);
-[System.Runtime.InteropServices.DllImport("user32.dll")] public static extern bool SetForegroundWindow(System.IntPtr h);
-[System.Runtime.InteropServices.DllImport("user32.dll")] public static extern bool GetWindowRect(System.IntPtr h, out RECT r);
-[System.Runtime.InteropServices.DllImport("user32.dll")] public static extern bool ShowWindow(System.IntPtr h, int n);
-[System.Runtime.InteropServices.DllImport("dwmapi.dll")] public static extern int DwmSetWindowAttribute(System.IntPtr h,int a,ref int v,int s);
-[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)] public struct RECT { public int L,T,R,B; }
-'@ -ErrorAction SilentlyContinue
+# UNIFIED window source (operator 2026-06-22 "unify MiOS systems"): center+detect
+# the launched window via the SAME EnumWindows + IsWindowVisible enumeration the
+# window_list verb (mios-pc-control.ps1) uses -- NOT Get-Process MainWindowHandle,
+# which is 0 for Electron / child-process windows (Spotify, Steam) so the old code
+# reported "[no new window]" + skipped centering on apps that DID open. Full C#
+# class (-TypeDefinition) so the EnumWindowsProc delegate is a normal nested type.
+if (-not ([System.Management.Automation.PSTypeName]'MiosLW').Type) {
+  Add-Type -ErrorAction SilentlyContinue -TypeDefinition @'
+using System;
+using System.Text;
+using System.Runtime.InteropServices;
+public class MiosLW {
+  [DllImport("user32.dll")] public static extern bool MoveWindow(IntPtr h,int x,int y,int w,int n,bool r);
+  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
+  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int n);
+  [DllImport("dwmapi.dll")] public static extern int DwmSetWindowAttribute(IntPtr h,int a,ref int v,int s);
+  [DllImport("user32.dll")] public static extern bool EnumWindows(EnumWindowsProc cb, IntPtr l);
+  [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
+  [DllImport("user32.dll")] public static extern int GetWindowTextLength(IntPtr h);
+  [DllImport("user32.dll", CharSet=CharSet.Auto)] public static extern int GetWindowText(IntPtr h, StringBuilder s, int max);
+  public delegate bool EnumWindowsProc(IntPtr h, IntPtr l);
+  [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left, Top, Right, Bottom; }
+}
+'@
+}
+function Get-MiosVisibleWindows {
+    \$script:_wl = @()
+    \$cb = [MiosLW+EnumWindowsProc]{
+        param(\$h, \$l)
+        if ([MiosLW]::IsWindowVisible(\$h)) {
+            \$len = [MiosLW]::GetWindowTextLength(\$h)
+            if (\$len -gt 0) {
+                \$sb = New-Object System.Text.StringBuilder (\$len + 1)
+                [MiosLW]::GetWindowText(\$h, \$sb, \$sb.Capacity) | Out-Null
+                \$script:_wl += [pscustomobject]@{ hwnd = [int64]\$h; title = \$sb.ToString() }
+            }
+        }
+        return \$true
+    }
+    [MiosLW]::EnumWindows(\$cb, [IntPtr]::Zero) | Out-Null
+    return \$script:_wl
+}
+\$preRows = Get-MiosVisibleWindows
+\$pre = @(\$preRows | ForEach-Object { \$_.hwnd })
+${sp}
 \$hint = '${hint}'
 \$deadline = (Get-Date).AddSeconds(${timeout})
-\$target = \$null
+\$targetHwnd = [IntPtr]::Zero
+\$targetTitle = ''
 while ((Get-Date) -lt \$deadline) {
-    \$candidates = Get-Process | Where-Object {
-        \$_.MainWindowHandle -ne 0 -and (\$_.MainWindowHandle.ToInt64() -notin \$pre)
-    }
+    \$newRows = Get-MiosVisibleWindows | Where-Object { \$pre -notcontains \$_.hwnd }
     if (\$hint -ne '') {
-        \$target = \$candidates | Where-Object { \$_.MainWindowTitle -match [regex]::Escape(\$hint) } | Select-Object -First 1
+        \$m = \$newRows | Where-Object { \$_.title -match [regex]::Escape(\$hint) } | Select-Object -First 1
     } else {
-        \$target = \$candidates | Select-Object -First 1
+        \$m = \$newRows | Select-Object -First 1
     }
-    if (\$target) { break }
+    if (\$m) { \$targetHwnd = [IntPtr][int64]\$m.hwnd; \$targetTitle = \$m.title; break }
     Start-Sleep -Milliseconds 250
 }
-if (\$target) {
+if (\$targetHwnd -ne [IntPtr]::Zero) {
     # Un-minimize if needed (SW_RESTORE = 9), then center + focus.
-    [MX.W32M2]::ShowWindow(\$target.MainWindowHandle, 9) | Out-Null
-    \$r = New-Object MX.W32M2+RECT
-    [MX.W32M2]::GetWindowRect(\$target.MainWindowHandle, [ref]\$r) | Out-Null
-    \$w = \$r.R - \$r.L
-    \$h = \$r.B - \$r.T
+    [MiosLW]::ShowWindow(\$targetHwnd, 9) | Out-Null
+    \$r = New-Object MiosLW+RECT
+    [MiosLW]::GetWindowRect(\$targetHwnd, [ref]\$r) | Out-Null
+    \$w = \$r.Right - \$r.Left
+    \$h = \$r.Bottom - \$r.Top
     \$s = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
     \$x = \$s.X + [int]((\$s.Width  - \$w) / 2)
     \$y = \$s.Y + [int]((\$s.Height - \$h) / 2)
-    [MX.W32M2]::MoveWindow(\$target.MainWindowHandle, \$x, \$y, \$w, \$h, \$true) | Out-Null
-    \$cp = 2; [MX.W32M2]::DwmSetWindowAttribute(\$target.MainWindowHandle, 33, [ref]\$cp, 4) | Out-Null
-    [MX.W32M2]::SetForegroundWindow(\$target.MainWindowHandle) | Out-Null
-    Write-Output ("[centered] " + \$target.ProcessName + " '" + \$target.MainWindowTitle + "' at (" + \$x + "," + \$y + ") size " + \$w + "x" + \$h)
+    [MiosLW]::MoveWindow(\$targetHwnd, \$x, \$y, \$w, \$h, \$true) | Out-Null
+    \$cp = 2; [MiosLW]::DwmSetWindowAttribute(\$targetHwnd, 33, [ref]\$cp, 4) | Out-Null
+    [MiosLW]::SetForegroundWindow(\$targetHwnd) | Out-Null
+    Write-Output ("[centered] '" + \$targetTitle + "' at (" + \$x + "," + \$y + ") size " + \$w + "x" + \$h)
 } else {
-    \$msg = "[no new top-level window appeared within ${timeout}s"
-    if (\$hint -ne '') { \$msg = \$msg + " matching '" + \$hint + "'" }
+    \$msg = "[launched; window centering deferred to enumeration"
+    if (\$hint -ne '') { \$msg = \$msg + " (no new visible window matching '" + \$hint + "' within ${timeout}s)" }
     \$msg = \$msg + "]"
     Write-Output \$msg
 }
@@ -636,44 +671,85 @@ extra_args = sys.argv[2:]
 # last-position; centering here means every launched window appears
 # in the middle of the operator's primary monitor working area.
 # -PassThru returns the Process object so we can read MainWindowHandle.
-start = f"$p = Start-Process -FilePath {shlex.quote(target)} -PassThru"
+start = f"Start-Process -FilePath {shlex.quote(target)} -PassThru | Out-Null;\n"
 if extra_args:
     arglist = ", ".join(shlex.quote(a) for a in extra_args)
-    start = f"$p = Start-Process -FilePath {shlex.quote(target)} -ArgumentList {arglist} -PassThru"
-center = (
-    "; "
-    "for ($i = 0; $i -lt 50; $i++) { "
-    "  $p = Get-Process -Id $p.Id -ErrorAction SilentlyContinue; "
-    "  if ($p -and $p.MainWindowHandle -ne 0) { break }; "
-    "  Start-Sleep -Milliseconds 100 "
-    "}; "
-    "if ($p -and $p.MainWindowHandle -ne 0) { "
-    "  Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue; "
-    "  Add-Type -Name W32M -Namespace MX -MemberDefinition @'\n"
-    "[System.Runtime.InteropServices.DllImport(\"user32.dll\")] public static extern bool MoveWindow(System.IntPtr h,int x,int y,int w,int n,bool r);\n"
-    "[System.Runtime.InteropServices.DllImport(\"user32.dll\")] public static extern bool SetForegroundWindow(System.IntPtr h);\n"
-    "[System.Runtime.InteropServices.DllImport(\"user32.dll\")] public static extern bool GetWindowRect(System.IntPtr h, out RECT r);\n"
-    "[System.Runtime.InteropServices.DllImport(\"dwmapi.dll\")] public static extern int DwmSetWindowAttribute(System.IntPtr h,int a,ref int v,int s);\n"
-    "[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)] public struct RECT { public int L,T,R,B; }\n"
-    "'@ -ErrorAction SilentlyContinue; "
-    "$r = New-Object MX.W32M+RECT; "
-    "[MX.W32M]::GetWindowRect($p.MainWindowHandle, [ref]$r) | Out-Null; "
-    "$w = $r.R - $r.L; $h = $r.B - $r.T; "
-    "$s = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea; "
-    "$x = $s.X + [int](($s.Width - $w) / 2); "
-    "$y = $s.Y + [int](($s.Height - $h) / 2); "
-    "[MX.W32M]::MoveWindow($p.MainWindowHandle, $x, $y, $w, $h, $true) | Out-Null; "
+    start = f"Start-Process -FilePath {shlex.quote(target)} -ArgumentList {arglist} -PassThru | Out-Null;\n"
+
+pre_snapshot = """
+Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue;
+if (-not ([System.Management.Automation.PSTypeName]'MiosLW').Type) {
+  Add-Type -ErrorAction SilentlyContinue -TypeDefinition @'
+using System;
+using System.Text;
+using System.Runtime.InteropServices;
+public class MiosLW {
+  [DllImport("user32.dll")] public static extern bool MoveWindow(IntPtr h,int x,int y,int w,int n,bool r);
+  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
+  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int n);
+  [DllImport("dwmapi.dll")] public static extern int DwmSetWindowAttribute(IntPtr h,int a,ref int v,int s);
+  [DllImport("user32.dll")] public static extern bool EnumWindows(EnumWindowsProc cb, IntPtr l);
+  [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
+  [DllImport("user32.dll")] public static extern int GetWindowTextLength(IntPtr h);
+  [DllImport("user32.dll", CharSet=CharSet.Auto)] public static extern int GetWindowText(IntPtr h, StringBuilder s, int max);
+  public delegate bool EnumWindowsProc(IntPtr h, IntPtr l);
+  [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left, Top, Right, Bottom; }
+}
+'@
+}
+function Get-MiosVisibleWindows {
+    $script:_wl = @()
+    $cb = [MiosLW+EnumWindowsProc]{
+        param($h, $l)
+        if ([MiosLW]::IsWindowVisible($h)) {
+            $len = [MiosLW]::GetWindowTextLength($h)
+            if ($len -gt 0) {
+                $sb = New-Object System.Text.StringBuilder ($len + 1)
+                [MiosLW]::GetWindowText($h, $sb, $sb.Capacity) | Out-Null
+                $script:_wl += [pscustomobject]@{ hwnd = [int64]$h; title = $sb.ToString() }
+            }
+        }
+        return $true
+    }
+    [MiosLW]::EnumWindows($cb, [IntPtr]::Zero) | Out-Null
+    return $script:_wl
+}
+$preRows = Get-MiosVisibleWindows;
+$pre = @($preRows | ForEach-Object { $_.hwnd });
+"""
+
+import os
+hint_val = os.path.splitext(os.path.basename(target))[0]
+
+post_center = """
+$hint = '<HINT>';
+$deadline = (Get-Date).AddSeconds(15);
+$targetHwnd = [IntPtr]::Zero;
+while ((Get-Date) -lt $deadline) {
+    $newRows = Get-MiosVisibleWindows | Where-Object { $pre -notcontains $_.hwnd };
+    $m = $newRows | Where-Object { $_.title -match [regex]::Escape($hint) } | Select-Object -First 1;
+    if (-not $m) { $m = $newRows | Select-Object -First 1 };
+    if ($m) { $targetHwnd = [IntPtr][int64]$m.hwnd; break };
+    Start-Sleep -Milliseconds 250;
+};
+if ($targetHwnd -ne [IntPtr]::Zero) {
+    [MiosLW]::ShowWindow($targetHwnd, 9) | Out-Null;
+    $r = New-Object MiosLW+RECT;
+    [MiosLW]::GetWindowRect($targetHwnd, [ref]$r) | Out-Null;
+    $w = $r.Right - $r.Left;
+    $h = $r.Bottom - $r.Top;
+    $s = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea;
+    $x = $s.X + [int](($s.Width - $w) / 2);
+    $y = $s.Y + [int](($s.Height - $h) / 2);
+    [MiosLW]::MoveWindow($targetHwnd, $x, $y, $w, $h, $true) | Out-Null;
     # Win11 DWMWA_WINDOW_CORNER_PREFERENCE = 33; DWMCSP_ROUND = 2.
-    # Forces rounded corners on the launched window even when the
-    # window class would normally render square (common for WSLg
-    # / Xwayland / Electron / non-Adwaita Win32 apps). Silently no-ops
-    # on Win10. Operator directive 2026-05-16: "the application
-    # windows should be rounded globally again TOO".
-    "$cp = 2; [MX.W32M]::DwmSetWindowAttribute($p.MainWindowHandle, 33, [ref]$cp, 4) | Out-Null; "
-    "[MX.W32M]::SetForegroundWindow($p.MainWindowHandle) | Out-Null "
-    "}"
-)
-ps = start + center
+    $cp = 2; [MiosLW]::DwmSetWindowAttribute($targetHwnd, 33, [ref]$cp, 4) | Out-Null;
+    [MiosLW]::SetForegroundWindow($targetHwnd) | Out-Null;
+}
+""".replace('<HINT>', hint_val)
+
+ps = pre_snapshot + start + post_center
 # PowerShell path resolution order (operator directive 2026-05-16:
 # environment args first):
 #   1. $WINDOWS_POWERSHELL env (set by hermes-agent.service.d drop-in)
