@@ -4663,7 +4663,11 @@ ask_to_run_ttl_s    = 1800
 # clarifications too, not just coderunning"): when the answer is PRIMARILY a clarifying
 # question (model-classified, gated on a '?'), mark it so OWUI/Hermes render a native
 # INPUT prompt + feed the typed answer back as the next turn.
-ask_clarify         = true
+ask_clarify         = true     # STRUCTURAL clarifications (e.g. the location guard) -- reliable, ON.
+# The BROAD post-answer clarification judge is SEPARATE + DEFAULT OFF: the small judge
+# model false-positives on greetings that end with a social question ("how are you?")
+# -> a stray OWUI input dialog. Flip on only with a stronger judge model.
+ask_clarify_judge   = false
 # #62 out-of-process policy arbiter: when set, a high-risk action (tier >=
 # hitl_threshold) is POSTed to this URL ({verb,tier,args}) for an {allow,reason}
 # verdict, on top of the in-process gate above. Empty (default) -> no arbiter, no

@@ -12994,10 +12994,10 @@ async def polish_response(raw_text: str,
     # already propose an action, mark it mios_clarification so OWUI/Hermes render a native
     # INPUT prompt (the typed answer becomes the next turn). Degrade-open.
     try:
-        if (ASK_CLARIFY_ENABLE and "?" in (polished or "")
+        if (ASK_CLARIFY_JUDGE_ENABLE and "?" in (polished or "")
                 and not isinstance(_proposal_var.get(), dict)
                 and "mios_clarification" not in (polished or "")):
-            _cq = await _clarify_question(polished)
+            _cq = await _clarify_question(user_q, polished)
             if _cq:
                 import json as _cj
                 _cb = _cj.dumps({"mios_clarification": {"question": _cq}}, ensure_ascii=False)
@@ -15485,9 +15485,19 @@ except (TypeError, ValueError):
 ASK_CLARIFY_ENABLE = str(
     os.environ.get("MIOS_ASK_CLARIFY")
     or _ATR_TOML.get("ask_clarify", "true")).strip().lower() in {"1", "true", "yes"}
+# The BROAD post-answer judge (below) is separate + DEFAULT OFF: the small ROUTER_MODEL
+# cannot reliably tell a complete greeting that ends with a social question ("how are
+# you?") from a genuine "I'm blocked, give me X" clarification, so it FALSE-POSITIVED on
+# greetings (operator 2026-06-22: "Hey! What are you up to?" got a spurious clarification
+# -> a stray OWUI input dialog -> empty turn). STRUCTURAL clarifications (the location
+# guard, etc.) are reliable + stay ON via ASK_CLARIFY_ENABLE; flip this on only with a
+# stronger judge model.
+ASK_CLARIFY_JUDGE_ENABLE = str(
+    os.environ.get("MIOS_ASK_CLARIFY_JUDGE")
+    or _ATR_TOML.get("ask_clarify_judge", "false")).strip().lower() in {"1", "true", "yes"}
 
 
-async def _clarify_question(answer: str) -> str:
+async def _clarify_question(user_text: str, answer: str) -> str:
     """Generative judge (NO keywords -- operator "NOTHING HARDCODED"): is `answer`
     PRIMARILY asking the USER for information it NEEDS to proceed (a clarification /
     missing detail / a choice between options), vs a complete answer or an incidental/
@@ -15496,15 +15506,19 @@ async def _clarify_question(answer: str) -> str:
     rarely. Degrade -> '' (no prompt)."""
     if not (answer or "").strip():
         return ""
-    sys = ("Decide BY MEANING (not keywords): is the assistant's message PRIMARILY asking "
-           "the USER for information it NEEDS to proceed -- a clarification, a missing "
-           "detail, or a choice between options? If YES, return the single clearest "
-           "question to ask the user. If the message is a COMPLETE answer, or only has a "
-           "rhetorical/incidental question, return an empty string.")
+    sys = ("Given the USER's request and the ASSISTANT's reply, decide BY MEANING (never "
+           "by keywords): does the reply FULLY address what the user asked, or is it "
+           "BLOCKED -- unable to complete the request until the USER supplies a specific "
+           "missing detail? Return the single question to put to the user ONLY if it is "
+           "genuinely blocked and gave no usable result. If the reply addresses the "
+           "request -- INCLUDING greetings, small talk, or a complete answer that merely "
+           "ends with a polite or optional question -- return an empty string. Be "
+           "CONSERVATIVE: when uncertain, return an empty string.")
     payload = {
         "model": ROUTER_MODEL,
         "messages": [{"role": "system", "content": sys},
-                     {"role": "user", "content": answer[:1500]}],
+                     {"role": "user", "content":
+                      f"USER REQUEST: {(user_text or '')[:600]}\n\nASSISTANT REPLY: {answer[:1200]}"}],
         "response_format": {"type": "json_schema", "json_schema": {
             "name": "clarify", "strict": True, "schema": {
                 "type": "object",
