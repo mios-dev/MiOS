@@ -206,9 +206,17 @@ Environment=ENABLE_RAG_HYBRID_SEARCH=True
 # nomic-embed-text (served by mios-llm-light; mios.toml [ai].embed_model
 # == /etc/mios/install.env MIOS_AI_EMBED_MODEL == nomic-embed-text, 768-dim).
 # VECTOR_DB stays the bundled on-disk Chroma -- also fully offline.
-Environment=RAG_EMBEDDING_ENGINE=ollama
+# F1 fix (operator 2026-06-22): use the OPENAI embedding engine, NOT ollama. The
+# backend (mios-llm-light / llama-swap on :11450) speaks the OpenAI API and serves
+# `/v1/embeddings` (nomic-embed-text, 768-dim, VERIFIED) -- it does NOT serve the
+# Ollama `/api/embed` path the `ollama` engine hits, so RAG embedding 404'd for every
+# file and the MiOS Documentation collection never vectorized (knowledge_search
+# returned 0 hits). RAG_OPENAI_API_KEY is required-non-empty by OWUI's openai engine
+# but llama-swap is keyless -> a noop token. base URL carries the /v1 suffix.
+Environment=RAG_EMBEDDING_ENGINE=openai
 Environment=RAG_EMBEDDING_MODEL=nomic-embed-text
-Environment=RAG_OLLAMA_BASE_URL=http://host.containers.internal:11450
+Environment=RAG_OPENAI_API_BASE_URL=http://host.containers.internal:11450/v1
+Environment=RAG_OPENAI_API_KEY=sk-noop
 
 # ── Task / suggestion generation ────────────────────────────────────
 # Operator directive 2026-05-17: "suggested is not generated and

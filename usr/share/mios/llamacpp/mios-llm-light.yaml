@@ -120,10 +120,17 @@ models:
   # the real nomic GGUF; to roll back, point --model at /models/nomic-embed-text.gguf.
   # Embeddings are EXEMPT from the 128k mandate -- ctx stays short (2048).
   "nomic-embed-text":
+    # --parallel 4 (operator 2026-06-22, F1): the embedding server had ONE slot, so a
+    # BURST of concurrent /v1/embeddings (OWUI re-vectorizing a knowledge collection;
+    # any multi-chunk RAG batch) overran it -> llama-swap returned 429 Too Many Requests
+    # and the MiOS Documentation collection never vectorized (knowledge_search 0 hits).
+    # 4 embedding slots absorb the concurrency; the 300m model is tiny so the extra KV
+    # is negligible. Pairs with the co-resident `swap:false` group (which fixed the
+    # SWAP-induced 429); this fixes the CONCURRENCY-induced one.
     cmd: >
       /app/llama-server --model /models/embeddinggemma-300m-qat-q8_0.gguf
       --port ${PORT} --host 127.0.0.1
-      --ctx-size 2048 --embedding --pooling mean --n-gpu-layers 999
+      --ctx-size 2048 --embedding --pooling mean --n-gpu-layers 999 --parallel 4
     proxy: "http://127.0.0.1:${PORT}"
     ttl: 600
 
