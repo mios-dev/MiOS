@@ -7855,6 +7855,16 @@ def _hitl_block_reason(tool: str, args: "Optional[dict]" = None) -> "Optional[st
                      "proceeding (audit mode)", tool, vperm, _HITL_THRESHOLD)
             return None
         log.info("HITL block: refused %s (tier=%s) pending human approval", tool, vperm)
+        # record the block turn-scoped so the final answer can flag it honestly
+        try:
+            _bl = _hitl_blocked_var.get()
+            if not isinstance(_bl, list):
+                _bl = []
+                _hitl_blocked_var.set(_bl)
+            if tool not in _bl:
+                _bl.append(tool)
+        except Exception:  # noqa: BLE001
+            pass
         return (f"'{tool}' is a {vperm}-tier action and HITL block-mode is ON: it "
                 f"needs explicit human approval before running, so it was NOT "
                 f"executed. Approve it, or set [ai].hitl_mode to audit/off, to proceed.")
@@ -8492,6 +8502,15 @@ _turn_volatile_var: "contextvars.ContextVar" = contextvars.ContextVar(
 # endpoint up to the BaseHTTPMiddleware.
 _council_mode_var: "contextvars.ContextVar" = contextvars.ContextVar(
     "mios_council_mode", default="single-agent")
+
+# ANTI-FABRICATION on a HITL BLOCK (operator 2026-06-22): tools that HITL block-mode
+# REFUSED this turn (tier >= threshold, pending human approval). Recorded so the final
+# answer can HONESTLY say a NEEDED action did not run -- instead of the small model
+# silently FABRICATING a result it never computed (live-seen: a HITL-blocked `coderun`
+# on "calculate 19387*4472" -> a WRONG in-head product presented as exact). The HITL
+# gate itself is UNCHANGED; this only OBSERVES the block and makes the answer honest.
+_hitl_blocked_var: "contextvars.ContextVar" = contextvars.ContextVar(
+    "mios_hitl_blocked", default=None)
 
 # TURN-SCOPED SOURCE COLLECTOR (operator 2026-06-18 "no sources are working / aren't
 # attached / hallucinated -- they should be A2A or metadata"). EVERY web_search across
@@ -12925,6 +12944,24 @@ async def polish_response(raw_text: str,
     if not (polished and polished.strip()):
         log.info("polish: figure-guard emptied a grounded answer -> raw draft")
         polished = (raw_text or "").strip()
+    # HITL-block honesty (operator 2026-06-22 anti-fabrication): if a NEEDED tool was
+    # refused by HITL block-mode this turn, the model may have answered WITHOUT it --
+    # and a small model then FABRICATES the missing result (live-seen: a HITL-blocked
+    # `coderun` -> a WRONG in-head product presented as exact). Append a deterministic
+    # notice so the answer never silently passes off an un-run action's invented result
+    # as real, and tells the operator how to unblock. The HITL gate is UNCHANGED.
+    try:
+        _blocked = _hitl_blocked_var.get()
+        if isinstance(_blocked, list) and _blocked and "HITL block-mode" not in (polished or ""):
+            _tools = ", ".join("`%s`" % t for t in sorted(set(_blocked)))
+            polished = (polished or "").rstrip() + (
+                f"\n\n> ⚠️ **Unverified:** I needed to run {_tools} but it requires human "
+                f"approval (HITL block-mode), so it did **not** execute. Any value above "
+                f"that depended on it is an unverified estimate, not a computed/real "
+                f"result. Approve the action (or set `[ai].hitl_mode` to `audit`/`off`) "
+                f"to run it for an exact answer.")
+    except Exception:  # noqa: BLE001 -- never break the answer on the honesty note
+        pass
     # Store the finished Q+A (with sources) to the global knowledge table.
     # Fire-and-forget -- the answer is already returned regardless.
     # P2: satisfied is left None here -- polish_response has no DoD verdict in
