@@ -849,6 +849,37 @@ font_size          = 14
 # Refine pass picks by role-match first, then default=true,
 # then the first registered agent.
 
+# ── UNIFIED AGENT TEMPLATE / SSOT (roadmap WS-A1) ─────────────────────────────
+# Every [agents.<name>] inherits these defaults, then overrides ONLY what differs.
+# The agent-pipe loader (_load_agent_registry) pops this table, merges
+# {**_defaults, **agent} per agent (agent keys win), and skips any _-prefixed name
+# as a non-agent. There is exactly ONE merge path, shared with the node loader, so
+# an agent can never silently miss a safety field. The loader UPGRADES health_gate
+# to true for any local-but-OPTIONAL endpoint (enabled=false) or kind in
+# cli/remote/edge/node/a2a -- the root-cause guard for the "dead local endpoint
+# treated as live -> merged_chars=0" multi-agent failure. An /etc or ~/.config
+# overlay can override these host-wide. (Absent => byte-identical legacy behaviour.)
+[agents._defaults]
+kind            = "local-http"   # local-http|remote-http|cli|mobile|edge|node|a2a
+role            = "general"
+job             = ""
+default         = false
+fanout          = true
+enabled         = true           # set false on a default-off / optional unit
+lane            = "gpu"
+health_gate     = false          # loader upgrades -> true for local-optional / remote / cli
+transport       = "http"         # cli => subprocess shim (e.g. opencode)
+timeout_s       = 0              # 0 = lane default; required for kind=cli
+strengths       = []
+cpu_endpoint    = ""
+cpu_model       = ""
+failover_agents = []
+denied_verbs    = []
+allowed_verbs   = []
+max_permission  = ""             # "" = no ceiling; e.g. "read" for an untrusted edge node
+api             = ""             # openai|llamacpp|ollama|vllm|sglang
+research_only   = false
+
 [agents.hermes]
 # WS-10b (operator 2026-06-06): the Hermes SERVICE now runs ON llama.cpp (its
 # config repointed :11434->:11450, model granite4.1:3b aliased to gemma4). Route
@@ -965,6 +996,14 @@ endpoint = "http://localhost:8633/v1"
 # ollama Modelfile build name:tag). Was "opencode"; unified to the real tag the
 # gateway advertises and ollama serves.
 model    = "mios-opencode:latest"
+# WS-A1 unified-template fields: opencode is a default-OFF subprocess-shim (CLI)
+# agent reached via the :8633 gateway. Declaring kind=cli + enabled=false makes
+# the loader auto-upgrade health_gate=true (so a dead gateway is probed + dropped,
+# never a DAG sink) even if the explicit flag below were ever removed.
+kind     = "cli"
+transport = "cli"
+enabled  = false
+timeout_s = 90
 role     = "coding"
 job      = "Software engineering -- read, edit, review, test and commit code, configs, scripts, systemd units, Containerfiles and TOML in this repo/system."
 # default=false (operator 2026-06-01): opencode's `run` mode HANGS — even with

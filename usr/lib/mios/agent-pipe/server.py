@@ -3849,9 +3849,30 @@ def _load_agent_registry() -> dict[str, dict]:
             for _n, _cfg in (_d.get("agents") or {}).items():
                 if isinstance(_cfg, dict):
                     agents.setdefault(_n, {}).update(_cfg)
+        # Unified agent template (roadmap WS-A1): every [agents.<name>] inherits
+        # [agents._defaults], overriding only what differs -- ONE merge path so an
+        # agent can never silently miss a safety field (the opencode merged_chars=0
+        # bug = opencode lacked health_gate while the hermes-worker had it). Reserved
+        # `_`-prefixed names are skipped as non-agents. Absent _defaults => {} =>
+        # byte-identical to the prior behaviour.
+        _agent_defaults = (agents.pop("_defaults", {})
+                           if isinstance(agents.get("_defaults"), dict) else {})
         for name, cfg in agents.items():
-            if not isinstance(cfg, dict):
+            if name.startswith("_") or not isinstance(cfg, dict):
                 continue
+            cfg = {**_agent_defaults, **cfg}
+            # SAFE health_gate default: a LOCAL-but-OPTIONAL endpoint (a default-off
+            # unit, or kind in cli/remote/edge/node/a2a) MUST be liveness-probed --
+            # otherwise _should_health_probe never probes a dead LOCAL endpoint,
+            # _live_agent_names marks it live, and _reroute_dead_nodes sinks DAG
+            # facets onto it -> merged_chars=0. Mirrors the node-loader's safe default.
+            _ep_x = os.path.expandvars(str(cfg.get("endpoint", ""))).rstrip("/")
+            _kind = str(cfg.get("kind", "")).strip().lower()
+            _hg_default = (
+                _kind in ("remote-http", "cli", "mobile", "edge", "node", "a2a")
+                or not bool(cfg.get("enabled", True))
+                or _is_remote_endpoint(_ep_x)
+            )
             registry[name] = {
                 # expandvars: [agents.*].endpoint is stored as a deferred
                 # ${MIOS_PORT_*} template (e.g. the :8643 hermes-worker); the
@@ -3890,7 +3911,7 @@ def _load_agent_registry() -> dict[str, dict]:
                 # When set, the secondary call uses a SHORT timeout so a
                 # sleeping/absent node drops from the merge fast instead of
                 # stalling the turn -- auto-join-when-up, auto-drop-when-gone.
-                "health_gate":  bool(cfg.get("health_gate", False)),
+                "health_gate":  bool(cfg.get("health_gate", _hg_default)),
                 # P3.2 cluster resilience (operator 2026-05-27 "remove
                 # :8642/:11434 SPOFs"): ordered list of agent names to fall back
                 # to when this agent's PRIMARY endpoint is dead. The router
@@ -3909,6 +3930,14 @@ def _load_agent_registry() -> dict[str, dict]:
                 # contexts on the dGPU's 2-4GB model, 2 on CPU, 1 iGPU, 1 mobile)
                 # -- VRAM-cheap multiplicity, not N distinct loaded models.
                 "research_only": bool(cfg.get("research_only", False)),
+                # WS-A1 unified-template fields (kind discriminator + the cli/
+                # optional contract the schema validator enforces in 38-drift-checks).
+                "kind":      (_kind or ("remote-http" if _is_remote_endpoint(_ep_x)
+                                        else "local-http")),
+                "enabled":   bool(cfg.get("enabled", True)),
+                "transport": str(cfg.get("transport",
+                                         "cli" if _kind == "cli" else "http")).strip().lower(),
+                "timeout_s": int(cfg.get("timeout_s", 0) or 0),
             }
             # Per-engine + per-node binding map (operator 2026-05-24: "any Agent
             # in any AI engine -- CPU/dGPU/iGPU/accelerator" + "any Agent/Sub-
