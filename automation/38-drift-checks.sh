@@ -332,6 +332,92 @@ PY
     fi
 }
 
+# (WS-A2) Unified agent-schema contract. The [agents._defaults] template (WS-A1)
+# is only safe if every [agents.*] honours the contract. The class-of-bug it
+# makes UNREPRESENTABLE: a LOCAL, non-default, always-on-looking agent whose
+# backing unit is actually OPTIONAL -> when it's down, _should_health_probe never
+# probes it, _live_agent_names marks it live, _reroute_dead_nodes sinks DAG facets
+# onto it -> merged_chars=0 (the live opencode failure). Fail the build so it can
+# never re-merge. Advisory warns (bare-port literal, unknown key) print but pass.
+check_agent_schema() {
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "[38-drift-checks]   WARNING: python3 missing -- skipping agent-schema check" >&2
+        return 0
+    fi
+    if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
+import os, sys, re
+root = os.environ["MIOS_DRIFT_ROOT"]
+try:
+    import tomllib as _toml
+except ImportError:
+    try:
+        import tomli as _toml  # type: ignore
+    except ImportError:
+        sys.exit(0)
+p = os.path.join(root, "usr/share/mios/mios.toml")
+if not os.path.isfile(p):
+    sys.exit(0)
+with open(p, "rb") as fh:
+    d = _toml.load(fh)
+ag = dict(d.get("agents") or {})
+defs = ag.pop("_defaults", {}) if isinstance(ag.get("_defaults"), dict) else {}
+CANON = {"kind","endpoint","model","role","job","default","fanout","enabled","lane",
+         "sub_lane","health_gate","transport","timeout_s","strengths","cpu_endpoint",
+         "cpu_model","failover_agents","denied_verbs","allowed_verbs","max_permission",
+         "api","vram_mb","ram_mb","tool_capable","research_only","auth","trust",
+         "engines","nodes","backend"}
+def _local(ep):
+    h = re.sub(r'^[a-z]+://', '', str(ep)).split('/')[0].rsplit(':', 1)[0]
+    return h in ("localhost", "127.0.0.1", "::1", "0.0.0.0", "")
+bad, warn, ndefault = [], [], 0
+for name, cfg in ag.items():
+    if name.startswith("_") or not isinstance(cfg, dict):
+        continue
+    m = {**defs, **cfg}
+    kind = str(m.get("kind", "")).strip().lower()
+    ep = str(m.get("endpoint", "")).strip()
+    enabled = bool(m.get("enabled", True))
+    hg = bool(m.get("health_gate", False))
+    if bool(m.get("default", False)):
+        ndefault += 1
+    loc = _local(ep)
+    # (a) local + non-default + enabled + plain local-http MUST be health-gated
+    if loc and not bool(m.get("default", False)) and enabled and kind in ("", "local-http") and not hg:
+        bad.append(f"    [agents.{name}] LOCAL + non-default + enabled but no health_gate=true (or enabled=false): a dead endpoint is treated as live -> DAG sink -> merged_chars=0")
+    # (b) cli contract
+    if kind == "cli":
+        if not (hg or not enabled):
+            bad.append(f"    [agents.{name}] kind=cli must set health_gate=true OR enabled=false")
+        if int(m.get("timeout_s", 0) or 0) <= 0:
+            bad.append(f"    [agents.{name}] kind=cli must set timeout_s>0 (fail-fast budget)")
+    # (c) node/remote contract
+    if kind == "node" and not (str(m.get("api", "")).strip() and str(m.get("lane", "")).strip()):
+        bad.append(f"    [agents.{name}] kind=node must set api + lane")
+    if kind in ("remote-http", "edge", "mobile") and not hg:
+        bad.append(f"    [agents.{name}] kind={kind} must set health_gate=true")
+    # (d) advisory: bare :PORT literal instead of a ${MIOS_PORT_*} template
+    if re.search(r':\d{2,5}(/|$)', ep) and "${MIOS_PORT" not in ep:
+        warn.append(f"    [agents.{name}].endpoint bare :PORT literal (use ${{MIOS_PORT_*}}): {ep}")
+    # (f) advisory: unknown key (typo guard)
+    for k in cfg:
+        if k not in CANON:
+            warn.append(f"    [agents.{name}] unknown key {k!r} (not in the canonical agent schema)")
+# (e) at most ONE default=true (0 is valid: the orchestrator's primary is the backend)
+if ndefault > 1:
+    bad.append(f"    {ndefault} [agents.*] set default=true; at most one is allowed")
+for w in warn:
+    sys.stdout.write("[38-drift-checks]   (advisory)" + w + "\n")
+for b in bad:
+    sys.stderr.write(b + "\n")
+sys.exit(1 if bad else 0)
+PY
+    then
+        echo "[38-drift-checks]   (WS-A2) agent-schema contract satisfied (health_gate / cli / node / single-default rules)"
+    else
+        _violation "an [agents.*] entry violates the unified agent schema (WS-A2): a local-optional agent missing health_gate, a kind=cli without timeout_s, a kind=node without api+lane, or >1 default=true -- the opencode 'dead local endpoint treated as live -> merged_chars=0' class. Fix the [agents.*] block (or [agents._defaults])."
+    fi
+}
+
 # (8, WS-A1) The committed ai/v1/tools.generated.json verb-catalog projection
 # must match the live mios.toml [verbs.*] SSOT. Catches a verb added / removed /
 # changed (incl. its conflict_group/parallel_limit) without regenerating the
@@ -571,6 +657,7 @@ main() {
     check_hint_coverage
     check_module_boundary
     check_rbac_tiers
+    check_agent_schema
     check_ai_manifest
     check_package_registry
     check_cli_sql_safety
