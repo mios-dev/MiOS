@@ -159,6 +159,15 @@ if [ -n "$ALIAS_TARGET" ]; then
     QUERY="$ALIAS_TARGET"
 fi
 
+# ─── WS-D: App-type resolution ───────────────────────────────────────
+if command -v mios-app-type >/dev/null 2>&1; then
+    _app_type_resolved="$(mios-app-type "$QUERY" 2>/dev/null || true)"
+    if [ -n "$_app_type_resolved" ] && [ "$_app_type_resolved" != "$QUERY" ]; then
+        echo "(app-type: '$QUERY' -> '$_app_type_resolved')" >&2
+        QUERY="$_app_type_resolved"
+    fi
+fi
+
 # ─── Specific-before-role reduction ──────────────────────────────────
 # Operator 2026-06-19 "open edge browser opened zen randomly": "<app> <role>"
 # (e.g. "edge browser") -> the scorer can't substring-match the FULL query to

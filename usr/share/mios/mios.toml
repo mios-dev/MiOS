@@ -1494,7 +1494,7 @@ stable_tool_prefix   = true
 # part of tools[] that varies per turn). Small = a longer stable cached prefix; large =
 # more per-turn tool coverage at the cost of a shorter cache hit. Only used when
 # stable_tool_prefix = true.
-stable_prefix_tail   = 10
+stable_prefix_tail   = 4
 # Inject a user-adjacent "likely-relevant tools" TEXT hint (the relevance signal that
 # can't ride the now-byte-stable tools[] order). DEFAULT false: it nudges the 8B toward
 # tool-hunting + regressed memory-recall in testing (the cosine TAIL already signals
@@ -1671,8 +1671,8 @@ offload_cpu          = false
 # ── Tool-surface shaping (operator 2026-06-01). Per-lane tool CAP (weak lanes
 # like the iGPU llama.cpp time out grammar-constraining all 71 verbs; they get a
 # capped REAL subset, never zero) + endpoints that 400 on tool_choice=required.
-lane_tool_cap        = "igpu:15,mobile:15"   # lane:cap CSV; per-lane override (0 = full surface for that lane)
-default_tool_cap     = 24                    # per-turn visible-tool cap for any other lane; cosine picks the N + tool_search reaches the rest (0 = uncapped)
+lane_tool_cap        = "igpu:12,mobile:12"
+default_tool_cap     = 16
 no_tool_choice_hints = "11436"               # host:port substrings whose llama.cpp rejects tool_choice=required
 parallel_tools_hints = "11441"               # host:port substrings whose model reliably emits PARALLEL tool calls -> OpenAI-default parallel_tool_calls=True (capable heavy lane); everything else stays sequential (small models malform parallel calls). MIOS_PARALLEL_TOOLS_HINTS overrides.
 worker_mcp_tools     = true                  # surface external MCP client tools to fan-out workers
@@ -2480,13 +2480,14 @@ desc  = "PERFORM a communication or automation ACTION: send / post / share / DM 
 verbs = ["handoff", "a2a_delegate", "discord_send", "schedule", "docgen_build", "docgen_convert", "tool_search"]
 
 [verbs.open_app]
+hidden = true
 section    = "Window / app launch"
 sig        = 'name, position="default"?, args?, monitor=0?'
 desc       = "LAUNCH any app/program by name (resolves Windows AND Linux/flatpak apps) and optionally place its window (position center/left/right/top-left..., monitor index) or pass CLI args. THE one launch verb -- use for any 'open / launch / start / run X'. After launching, confirm with verify_launch."
 model_name = "launch_windows_app"
 hidden_aliases = ["launch_app", "launch_verified", "launch_and_verify_app"]  # consolidated INTO open_app; resolve here, never re-shown on the model surface
 examples   = ["open Firefox on my second monitor", "launch Spotify on the left half of the screen", "start Notepad with this file and put it top-left", "run Discord maximized on monitor 1"]
-tier       = "core"
+tier = "rare"
 permission = "write"
 conflict_group = "desktop_ui"  # WS-A7: one foreground window + keyboard -- serialize vs focus_window/pc_type so a fan-out can't race them
 cmd        = "MIOS_LAUNCH_POSITION={position=default} mios-launch {name!}"
@@ -2509,11 +2510,12 @@ cmd_args   = "MIOS_LAUNCH_POSITION={position=default} mios-windows launch {name!
   default = 0
 
 [verbs.verify_launch]
+hidden = true
 section    = "Window / app launch"
 sig        = "app"
 desc       = "CHECK whether an app/window ACTUALLY launched, read-only, in-turn (delegates to the daemon-agent's Definition-of-Done window check). Call with the SAME name AFTER you fired launch_app / launch_windows_app / focus_window to confirm before claiming success. This only CHECKS -- it does NOT launch; to launch and confirm in one go use launch_and_verify_app."
 examples   = ["did Firefox actually open?", "check whether Spotify launched", "confirm the Discord window came up", "is the app I just started actually running?"]
-tier       = "core"
+tier = "rare"
 permission = "read"
 cmd        = "mios-verify-launch {app}"
   [verbs.verify_launch.params.app]
@@ -2522,11 +2524,12 @@ cmd        = "mios-verify-launch {app}"
   aliases = ["name", "query", "title", "target", "program", "window", "path", "exe"]
 
 [verbs.focus_window]
+hidden = true
 section    = "Window / app launch"
 sig        = 'title, position="default"?'
 desc       = "Raise an already-OPEN Windows window to the FRONT (by title) and optionally re-position it (same placement enum as launch_windows_app). Use to switch to / bring forward / activate a window that already exists -- it does NOT launch anything. Run list_windows first to confirm the title."
 examples   = ["bring Firefox to the front", "switch to the Spotify window", "focus the Discord window and move it to the left", "activate the Notepad window"]
-tier       = "common"
+tier = "rare"
 permission = "write"
 conflict_group = "desktop_ui"  # WS-A7: serialize vs open_app/pc_type (shared foreground-window focus)
 cmd            = "mios-window focus {title}"
@@ -2554,12 +2557,13 @@ cmd        = "mios-window close {title}"
   aliases = ["name", "window", "app"]
 
 [verbs.move_window]
+hidden = true
 section    = "Window / app launch"
 sig        = "title, position, monitor=0?"
 desc       = "Move an OPEN Windows window to a SEMANTIC region: center / left / right / top-left / top-right / etc., optionally on a chosen monitor. Use when the operator names a place ('to the left', 'center it') rather than exact coordinates. For literal pixel (x,y) use place_window_at_pixel; to change size use resize_window."
 model_name = "move_window_to_region"
 examples   = ["move Firefox to the right half of the screen", "center the Spotify window", "put Notepad in the top-left corner", "snap Discord to the left on monitor 2"]
-tier       = "common"
+tier = "rare"
 permission = "write"
 cmd        = "mios-window {position=center} {title} {monitor?--monitor}"
   [verbs.move_window.params.title]
@@ -2573,12 +2577,13 @@ cmd        = "mios-window {position=center} {title} {monitor?--monitor}"
   default = 0
 
 [verbs.position_window]
+hidden = true
 section    = "Window / app launch"
 sig        = "title, x, y"
 desc       = "Move an OPEN Windows window to LITERAL pixel coordinates (x, y). Use only when you have exact coords -- call screen_layout first to learn monitor geometry/resolution. For named regions (center/left/right) use move_window_to_region; to change size use resize_window."
 model_name = "place_window_at_pixel"
 examples   = ["move the window to pixel 100, 200", "position Firefox at coordinates 0,0", "place the window at x=1920 y=0 on the second monitor", "put Notepad exactly at 500, 300"]
-tier       = "common"
+tier = "rare"
 permission = "write"
 cmd        = "mios-window move {title} {x=0} {y=0}"
   [verbs.position_window.params.title]
@@ -2590,11 +2595,12 @@ cmd        = "mios-window move {title} {x=0} {y=0}"
   type = "integer"
 
 [verbs.resize_window]
+hidden = true
 section    = "Window / app launch"
 sig        = "title, width, height"
 desc       = "Resize an OPEN Windows window to a literal pixel size (width x height). This ONLY changes size -- it does NOT move the window. To relocate use move_window_to_region (named region) or place_window_at_pixel (exact x,y); to fill the monitor use maximize_window."
 examples   = ["resize Firefox to 1280 by 720", "make the Notepad window 800x600", "set the Spotify window width to 1000 and height to 700", "shrink the Discord window to 640 by 480"]
-tier       = "common"
+tier = "rare"
 permission = "write"
 cmd        = "mios-window resize {title} {width} {height}"
   [verbs.resize_window.params.title]
@@ -2612,7 +2618,7 @@ section    = "Window / app launch"
 sig        = "title"
 desc       = "Minimize an OPEN Windows window -- hide it to the taskbar without closing it. To bring it back use restore_window; to actually close it use close_window."
 examples   = ["minimize the Firefox window", "hide Spotify to the taskbar", "minimize Notepad", "send the Discord window to the taskbar"]
-tier       = "common"
+tier = "rare"
 permission = "write"
 hidden     = true   # consolidated into [verbs.window_state]; kept parsed + dispatchable
 cmd        = "mios-window minimize {title}"
@@ -2625,7 +2631,7 @@ section    = "Window / app launch"
 sig        = "title"
 desc       = "Maximize an OPEN Windows window to fill its containing monitor. To restore it back to normal size use restore_window; for a specific pixel size use resize_window."
 examples   = ["maximize the Firefox window", "make Spotify fill the screen", "maximize Notepad", "blow up the Discord window to full screen"]
-tier       = "common"
+tier = "rare"
 permission = "write"
 hidden     = true   # consolidated into [verbs.window_state]; kept parsed + dispatchable
 cmd        = "mios-window maximize {title}"
@@ -2638,7 +2644,7 @@ section    = "Window / app launch"
 sig        = "title"
 desc       = "Restore an OPEN Windows window from a minimized OR maximized state back to its last normal-size geometry. Use to 'un-minimize' / 'un-maximize' / bring back a window. Pairs with minimize_window and maximize_window."
 examples   = ["restore the Firefox window", "un-minimize Spotify", "bring the Notepad window back to normal size", "un-maximize the Discord window"]
-tier       = "common"
+tier = "rare"
 permission = "write"
 hidden     = true   # consolidated into [verbs.window_state]; kept parsed + dispatchable
 cmd        = "mios-window restore {title}"
@@ -2651,7 +2657,7 @@ section    = "Window / app launch"
 sig        = 'title, mode="graceful"?'
 desc       = "Gracefully CLOSE an OPEN Windows window by title (sends WM_CLOSE so the app saves state). Force-kill is intentionally unsupported. Use to close / quit / dismiss a window -- not to hide it (use minimize_window to send it to the taskbar)."
 examples   = ["close the Firefox window", "quit Notepad", "close the Spotify window", "dismiss the dialog window"]
-tier       = "common"
+tier = "rare"
 permission = "write"
 hidden     = true   # consolidated into [verbs.window_state]; kept parsed + dispatchable (mode was never in cmd)
 cmd        = "mios-window close {title}"
@@ -2664,11 +2670,12 @@ cmd        = "mios-window close {title}"
   default = "graceful"
 
 [verbs.window_state]
+hidden = true
 section    = "Window / app launch"
 sig        = "action, title"
 desc       = "Change the STATE of an OPEN Windows window (by title): minimize (hide to taskbar), maximize (fill its monitor), restore (back to normal size), or close (graceful WM_CLOSE so the app saves state). Run list_windows first to confirm the title. This is state only -- to bring a window to the front use focus_window, to relocate use move_window_to_region / place_window_at_pixel, to change size use resize_window."
 examples   = ["minimize the Firefox window", "maximize Spotify", "restore the Notepad window", "close the Discord window", "send Slack to the taskbar"]
-tier       = "common"
+tier = "rare"
 permission = "write"
 cmd        = "mios-window {action} {title}"
   [verbs.window_state.params.action]
@@ -2682,11 +2689,12 @@ cmd        = "mios-window {action} {title}"
   aliases = ["name", "window", "app"]
 
 [verbs.list_windows]
+hidden = true
 section    = "Window / app launch"
 sig        = ""
 desc       = "Enumerate the currently OPEN Windows-desktop windows (titles). Run this BEFORE focus/move/close to confirm the target window exists. NOT the installed-app inventory (use list_installed_apps) and NOT the Linux/Wayland desktop (that is linux_desktop_window_list)."
 examples   = ["what windows are open right now?", "list my open windows", "show me the open application windows", "which windows are currently on screen?"]
-tier       = "core"
+tier = "rare"
 permission = "read"
 cmd        = "mios-pc-control window-list --json"
 # Fit a busy desktop's whole window list (the grounding for "what's open"). The
@@ -2739,12 +2747,13 @@ cmd        = "mios-cron-schedule add --prompt {prompt} --every {every}"
 
 # ─── Section: Discovery / resolution ──────────────────────────────────
 [verbs.mios_find]
+hidden = true
 section    = "Discovery / resolution"
 sig        = "name"
 desc       = "Resolve an app/program NAME to the exact runnable launch command WITHOUT launching it -- returns the cmd line only; the agent then decides whether to run it (e.g. via launch_windows_app/launch_app). This is NOT a file search (use find_file_fast / windows_file_search / linux_file_search to locate files) and does NOT open anything. Use it to get the precise command before launching, or to check how something would be started."
 model_name = "resolve_launch_command"
 examples   = ["what's the exact command to launch Blender", "how would I start Discord from the command line", "give me the launch command for VS Code without opening it", "resolve the run command for steam but don't launch it"]
-tier       = "common"
+tier = "rare"
 permission = "read"
 cmd        = "mios-find --json {name}"
   [verbs.mios_find.params.name]
@@ -2752,12 +2761,13 @@ cmd        = "mios-find --json {name}"
   aliases = ["query", "app", "target"]
 
 [verbs.mios_apps]
+hidden = true
 section    = "Discovery / resolution"
 sig        = "filter?"
 desc       = "Full INVENTORY of installed apps AND games across every surface (flatpak/rpm/winget/store/steam/epic/xbox/gog/cli/service). THE verb for 'what apps/games are installed', 'list my programs', 'detect my installed games'. Optional substring filter. NOT a web search, NOT list_windows (open windows only); for fuzzy 'which app does X' use app_search."
 model_name = "list_installed_apps"
 examples   = ["what apps do I have installed?", "list all my installed games", "show me my installed programs", "detect my Steam and Epic games"]
-tier       = "core"
+tier = "rare"
 permission = "read"
 cmd        = "mios-apps --json{filter?--filter}"
 # The full inventory (apps + games across every surface) is ~27KB; the default
@@ -2771,12 +2781,13 @@ max_result_chars = 30000
   aliases = ["query", "search", "name"]
 
 [verbs.everything_search]
+hidden = true
 section    = "Discovery / resolution"
 sig        = "query, limit=10?, ext?"
 desc       = "Search for files on the WINDOWS side of this machine via the Voidtools Everything NTFS index (exhaustive, name/extension match). Finds FILES that already exist on Windows drives (C:, etc.) -- NOT a web or knowledge search, and NOT the Linux filesystem (use linux_file_search for that). Good for 'where is X.exe' on Windows; use find_file_fast first for a quick cached hit."
 model_name = "windows_file_search"
 examples   = ["find game.exe on my Windows drive", "where is the installer .msi on C drive", "search Windows for all my .pdf invoices", "locate steam.exe on Windows"]
-tier       = "core"
+tier = "rare"
 permission = "read"
 cmd        = "mios-everything --json -n {limit=10} {query}{ext?-ext}"
   [verbs.everything_search.params.query]
@@ -2790,12 +2801,13 @@ cmd        = "mios-everything --json -n {limit=10} {query}{ext?-ext}"
   desc = "Filter to extension (e.g. 'exe')."
 
 [verbs.fs_search]
+hidden = true
 section    = "Discovery / resolution"
 sig        = "query, limit=20?, ext?, path?, type?"
 desc       = "Search for files on the LINUX side of this machine (plocate -> locate -> find; exhaustive name/extension/path match). Finds FILES on the Linux filesystem -- NOT a web or knowledge search, and NOT Windows drives (use windows_file_search for C:/Windows paths). Use find_file_fast first for a quick cached hit; fall back here for a full disk scan."
 model_name = "linux_file_search"
 examples   = ["find nginx.conf on the Linux side", "where is the systemd unit file for mios-agent-pipe", "search Linux for all .py files under /usr/lib/mios", "locate the log file on the Linux filesystem"]
-tier       = "common"
+tier = "rare"
 permission = "read"
 cmd        = "mios-locate --json -n {limit=20} {query}{ext?-ext}{path?-path}{type?-type}"
   [verbs.fs_search.params.query]
@@ -2814,11 +2826,12 @@ cmd        = "mios-locate --json -n {limit=20} {query}{ext?-ext}{path?-path}{typ
   enum = ["f", "d", "l"]
 
 [verbs.knowledge_search]
+hidden = true
 section    = "Discovery / resolution"
 sig        = "query, collection?, top_k=5?"
 desc       = "Query the OWUI RAG knowledge COLLECTIONS (curated document corpora uploaded to Open WebUI) and return citation-ready hits {score, source, snippet}. This is the RAG document store -- distinct from the local notes vault (notes_vault_search, your second-brain of skills/Q&A/memory), from durable AI memories (recall), and from web/file search."
 examples   = ["search the RAG knowledge collections for the deployment runbook", "what do the uploaded OWUI documents say about firewall rules", "cite the knowledge base on the SurrealDB migration", "find passages in my knowledge collections about embeddings"]
-tier       = "common"
+tier = "rare"
 permission = "read"
 cmd        = "mios-knowledge-search --json --top-k {top_k=5} {query}{collection?--collection}"
   [verbs.knowledge_search.params.query]
@@ -2833,12 +2846,13 @@ cmd        = "mios-knowledge-search --json --top-k {top_k=5} {query}{collection?
   aliases = ["k", "limit"]
 
 [verbs.directory_lookup]
+hidden = true
 section    = "Discovery / resolution"
 sig        = "query, root?, ext?, kind?, limit=20?"
 desc       = "FAST first-try 'where is X' lookup over a cached filesystem map (~19k entries via mios-daemon, refreshed every 15 min, sub-100ms). TRY THIS FIRST for 'where is X' / 'find the file X' / 'what's the path to X' before the slower per-OS scans (windows_file_search, linux_file_search). Locates existing files/dirs on THIS machine -- not a web or knowledge search. May miss very new/uncached files."
 model_name = "find_file_fast"
 examples   = ["where is my resume file", "find the path to config.yaml", "what folder is project_notes.md in", "locate budget.xlsx on my machine"]
-tier       = "core"
+tier = "rare"
 permission = "read"
 cmd        = "mios-directory-lookup --json --limit {limit=20} {query}{root?--root}{ext?--ext}{kind?--kind}"
   [verbs.directory_lookup.params.query]
@@ -2891,12 +2905,13 @@ cmd        = "mios-web-search -n {limit=5} --fanout {fanout=$MIOS_WEB_FANOUT:2}{
   aliases = ["topic", "source"]
 
 [verbs.web_scrape]
+hidden = true
 section    = "Discovery / resolution"
 sig        = "url, limit=20000?"
 desc       = "Fetch ONE web page by URL to clean, LLM-ready MARKDOWN via the LOCAL self-hosted Firecrawl engine (offline-first, no cloud). A second markdown fetch engine alongside fetch_url_markdown; its verified strength is NEWS / ARTICLE INDEX and LISTING pages (homepages, news fronts, blog/forum indexes) where the markdown of links + headlines must render reliably -- prefer it for those. For a single long article/doc page use fetch_url_markdown; for quick readable plain text use fetch_url_text."
 model_name = "fetch_index_markdown"
 examples   = ["scrape the BBC news front page and list today's top headlines", "get the markdown of this blog's index page so I can see the post titles", "fetch the article listing from this news site as markdown", "render this forum index page to clean markdown"]
-tier       = "core"
+tier = "rare"
 permission = "read"
 cmd        = "mios-firecrawl --max-chars {limit=20000} {url}"
   [verbs.web_scrape.params.url]
@@ -2908,12 +2923,13 @@ cmd        = "mios-firecrawl --max-chars {limit=20000} {url}"
   aliases = ["max_chars", "chars", "n"]
 
 [verbs.crawl]
+hidden = true
 section    = "Discovery / resolution"
 sig        = "url, limit=20000?"
 desc       = "Fetch ONE web page you already have the URL for and return its FULL content as clean, LLM-ready MARKDOWN via the LOCAL crawl4ai engine (headless Chrome over CDP, with a Camoufox stealth-Firefox fail-retry; offline-first, no cloud). The default reader for a single long ARTICLE or DOC page (~20000 chars). Does NOT fetch_url_markdown multiple pages / a whole site. For news/article INDEX pages use fetch_index_markdown; for quick short plain text use fetch_url_text."
 model_name = "fetch_url_markdown"
 examples   = ["fetch this documentation page as markdown so you can read the whole thing", "get the full markdown of this article URL", "read this long blog post end to end and give me the markdown", "open this URL and convert the page to clean markdown"]
-tier       = "core"
+tier = "rare"
 permission = "read"
 cmd        = "mios-crawl --json --max-chars {limit=20000} {url}"
   [verbs.crawl.params.url]
@@ -3015,12 +3031,13 @@ cmd        = "mios-crawl --json --max-chars {limit=20000} {url}"
 #   MIOS_DISPATCH_DEDUP        = true -- set false to disable single-flight dedup
 
 [verbs.web_extract]
+hidden = true
 section    = "Discovery / resolution"
 sig        = "url, limit=4000?"
 desc       = "Fetch ONE web page you already have the URL for and return its readable ARTICLE TEXT (lightweight, ~4000 chars, plain text not markdown). Use after web_search to read a single promising result and quote what it actually says. For full clean MARKDOWN of a long doc use fetch_url_markdown; for a news/article INDEX page use fetch_index_markdown. If the page lacks the answer, say so; never invent."
 model_name = "fetch_url_text"
 examples   = ["read this Wikipedia page and tell me what it says about the Treaty of Versailles", "open https://example.com/article and summarize the main point", "what does this etymonline page say about the origin of the word 'salary'", "pull the text from this URL so you can quote it"]
-tier       = "core"
+tier = "rare"
 permission = "read"
 cmd        = "mios-web-extract -n {limit=4000} {url}"
   [verbs.web_extract.params.url]
@@ -3054,12 +3071,13 @@ cmd        = "mios-discord-send {content}{user?--user}{channel?--channel}"
 
 # ─── Section: PC input (raw send-input) ───────────────────────────────
 [verbs.pc_type]
+hidden = true
 section    = "PC input"
 sig        = "text"
 desc       = "Type literal text into the focused window on the HOST WINDOWS desktop. Sends keystrokes to the foreground Windows app, NOT the in-VM Linux desktop (use linux_desktop_type_text). For editing FILES, prefer create_file / replace_file_text instead. Write-class."
 model_name = "windows_desktop_type_text"
 examples   = ["type 'hello' into the focused windows app", "enter this text on the host windows desktop", "type into the foreground windows window", "send these keystrokes to windows"]
-tier       = "rare"
+tier = "rare"
 permission = "write"
 conflict_group = "desktop_ui"  # WS-A7: keystrokes land in the focused window -- serialize vs open_app/focus_window
 cmd        = "mios-pc-control type {text}"
@@ -3068,23 +3086,25 @@ cmd        = "mios-pc-control type {text}"
   aliases = ["content", "input"]
 
 [verbs.pc_key]
+hidden = true
 section    = "PC input"
 sig        = "key"
 desc       = "Press a key or modifier chord on the HOST WINDOWS desktop (e.g. Enter, Tab, F5, or Ctrl+S as a combo). Targets the real Windows screen, NOT the in-VM Linux desktop (use linux_desktop_press_key / linux_desktop_press_key_combo). Write-class. This single verb handles both bare keys and modifier combos."
 model_name = "windows_desktop_press_key"
 examples   = ["press Enter on the windows desktop", "send Ctrl+S on the host windows screen", "hit Alt+Tab on windows", "press F5 on the host desktop"]
-tier       = "rare"
+tier = "rare"
 permission = "write"
   [verbs.pc_key.params.key]
   type = "string"
 
 [verbs.pc_click]
+hidden = true
 section    = "PC input"
 sig        = 'x, y, button="left"?'
 desc       = "Move the cursor to (x,y) on the HOST WINDOWS desktop and click. This clicks the real Windows screen the operator sees, NOT the in-VM Linux desktop (use linux_desktop_click for that). Write-class. button = left|right|middle."
 model_name = "windows_desktop_click"
 examples   = ["click at 800,400 on the windows desktop", "left-click the windows screen at these coordinates", "right-click on the host desktop at x,y", "press the mouse button at that point on windows"]
-tier       = "rare"
+tier = "rare"
 permission = "write"
   [verbs.pc_click.params.x]
   type = "integer"
@@ -3100,12 +3120,13 @@ permission = "write"
 # the #1 Windows GUI gap (Linux had AT-SPI; Windows was coordinate-only). Routed via
 # mios-pc-control ui-find/ui-click to the in-session executor (foreground-window-scoped).
 [verbs.pc_find_element]
+hidden = true
 section    = "PC input"
 sig        = "name"
 desc       = "Find UI controls BY NAME (substring) in the FOREGROUND window on the HOST WINDOWS desktop via UI Automation -- the SEMANTIC alternative to guessing pixel coordinates. Returns matching elements with control type, automation_id, bounds, and clickable center. Use to LOCATE a button/menu/field before acting; then pc_click_element (by name) or pc_click (with the returned center). READ-only."
 model_name = "windows_desktop_find_element_by_name"
 examples   = ["find the Save button on the windows desktop", "locate the element named 'Sign in' on the host screen", "what controls are in the foreground windows app", "find the search box by name on windows"]
-tier       = "rare"
+tier = "rare"
 permission = "read"
 cmd        = "mios-pc-control ui-find {name}"
   [verbs.pc_find_element.params.name]
@@ -3113,12 +3134,13 @@ cmd        = "mios-pc-control ui-find {name}"
   aliases = ["element", "label", "control"]
 
 [verbs.pc_click_element]
+hidden = true
 section    = "PC input"
 sig        = "name"
 desc       = "Click a UI control BY NAME (substring) in the FOREGROUND window on the HOST WINDOWS desktop via UI Automation -- finds the named control and clicks its center, acting on a SEMANTIC target instead of guessed pixels (more robust than pc_click x,y). Prefer this over pixel-clicking when the control has a name; use pc_find_element first if unsure of the exact name. Write-class."
 model_name = "windows_desktop_click_element"
 examples   = ["click the Save button on the windows desktop", "click the element named OK on the host screen", "press the 'Sign in' button on windows by name", "click the File menu on the host desktop"]
-tier       = "rare"
+tier = "rare"
 permission = "write"
 cmd        = "mios-pc-control ui-click {name}"
   [verbs.pc_click_element.params.name]
@@ -3126,12 +3148,13 @@ cmd        = "mios-pc-control ui-click {name}"
   aliases = ["element", "label", "control", "button"]
 
 [verbs.pc_list_elements]
+hidden = true
 section    = "PC input"
 sig        = ""
 desc       = "List ALL named UI controls in the FOREGROUND window on the HOST WINDOWS desktop via UI Automation -- a 'set of marks' SURVEY (each with control type, automation_id, bounds, clickable center, mark number) so you can SEE what's actionable, then pc_click_element (by name) or pc_click (the center). Use when you don't know the control names yet. READ-only."
 model_name = "windows_desktop_list_elements"
 examples   = ["list the controls in the foreground windows app", "what can I click in the active windows window", "show the UI elements on the host desktop", "survey the windows screen's actionable elements"]
-tier       = "rare"
+tier = "rare"
 permission = "read"
 cmd        = "mios-pc-control ui-list"
 
@@ -3181,12 +3204,13 @@ cmd        = "mios-pc-control screenshot {path}"
   aliases = ["out", "file"]
 
 [verbs.cu_screenshot]
+hidden = true
 section    = "Computer-use"
 sig        = "path"
 desc       = "Capture the LINUX (Wayland/Hyprland) desktop inside the MiOS VM to a PNG file (one-shot). This is the Linux in-VM screen, NOT the host Windows screen. Read-class. Pair with linux_desktop_click / linux_desktop_locate_element to act on what you see."
 model_name = "linux_desktop_screenshot"
 examples   = ["take a screenshot of the linux desktop", "capture the wayland screen to a png", "grab an image of the in-vm desktop", "screenshot what's on the linux display"]
-tier       = "rare"
+tier = "rare"
 permission = "read"
 cmd        = "mios-computer-use screenshot {path}"
   [verbs.cu_screenshot.params.path]
@@ -3194,12 +3218,13 @@ cmd        = "mios-computer-use screenshot {path}"
   aliases = ["out", "file"]
 
 [verbs.cu_ground]
+hidden = true
 section    = "Computer-use"
 sig        = "query"
 desc       = "Locate a LINUX desktop UI element from a NATURAL-LANGUAGE description and return {x,y,confidence}. Tries the AT-SPI a11y tree first, then falls back to a vision model (qwen3-vl / UI-TARS) on a screenshot. Read-class. Use for fuzzy 'find the blue Submit button'; use linux_desktop_find_element_by_name when you know the exact label."
 model_name = "linux_desktop_locate_element"
 examples   = ["find the search box on screen and give me its coordinates", "where is the submit button on the linux desktop", "locate the blue download icon by description", "ground the 'settings gear' element to x,y"]
-tier       = "rare"
+tier = "rare"
 permission = "read"
 cmd        = "mios-computer-use ground {query} --json"
   [verbs.cu_ground.params.query]
@@ -3207,12 +3232,13 @@ cmd        = "mios-computer-use ground {query} --json"
   aliases = ["target", "element", "description"]
 
 [verbs.cu_atspi_query]
+hidden = true
 section    = "Computer-use"
 sig        = "query"
 desc       = "Find a LINUX desktop UI element via the AT-SPI accessibility tree by its role/name and return its screen coordinates -- semantic a11y-tree lookup, NO pixels/vision. Read-class. Use when you can name the control (its label/role); use linux_desktop_locate_element for a fuzzy/visual description that may need the vision model."
 model_name = "linux_desktop_find_element_by_name"
 examples   = ["find the OK button in the linux accessibility tree", "get the screen coordinates of the widget named Save", "locate the menu item by its a11y role and name", "where is the element labeled Cancel on the linux desktop"]
-tier       = "rare"
+tier = "rare"
 permission = "read"
 cmd        = "mios-computer-use atspi-query {query} --json"
   [verbs.cu_atspi_query.params.query]
@@ -3220,22 +3246,24 @@ cmd        = "mios-computer-use atspi-query {query} --json"
   aliases = ["target", "element"]
 
 [verbs.cu_window_list]
+hidden = true
 section    = "Computer-use"
 sig        = ""
 desc       = "List the open top-level windows on the LINUX (Wayland/Hyprland) desktop inside the MiOS VM (via wmctrl / hyprctl / AT-SPI). This is the in-VM Linux desktop, NOT the host Windows windows (use list_windows for those). Read-class. Returns window titles/handles for the Linux session."
 model_name = "linux_desktop_window_list"
 examples   = ["list the open windows on the linux desktop", "what windows are open in the vm", "show me the wayland windows", "enumerate hyprland top-level windows"]
-tier       = "rare"
+tier = "rare"
 permission = "read"
 cmd        = "mios-computer-use window-list --json"
 
 [verbs.cu_click]
+hidden = true
 section    = "Computer-use"
 sig        = 'x, y, button="left"?'
 desc       = "Move the pointer to (x,y) on the LINUX (Wayland/Hyprland) desktop inside the MiOS VM and click. This clicks the in-VM Linux screen, NOT the host Windows screen (use windows_desktop_click for that). Write-class, approval-gated. button = left|right|middle."
 model_name = "linux_desktop_click"
 examples   = ["click at 300,500 on the linux desktop", "left-click the wayland screen at these coordinates", "right-click in the vm at x,y", "tap that point on the linux display"]
-tier       = "rare"
+tier = "rare"
 permission = "write"
 cmd        = "mios-computer-use click {x} {y} {button}"
   [verbs.cu_click.params.x]
@@ -3248,12 +3276,13 @@ cmd        = "mios-computer-use click {x} {y} {button}"
   default = "left"
 
 [verbs.cu_type]
+hidden = true
 section    = "Computer-use"
 sig        = "text"
 desc       = "Type literal text into the focused surface on the LINUX (Wayland/Hyprland) desktop inside the MiOS VM. Sends keystrokes to whatever window has focus in the in-VM Linux session, NOT the host Windows desktop (use windows_desktop_type_text). For editing FILES, prefer create_file / replace_file_text instead. Write-class, approval-gated."
 model_name = "linux_desktop_type_text"
 examples   = ["type 'hello world' into the focused linux window", "enter this text on the wayland desktop", "type my password into the in-vm field", "send these keystrokes to the focused linux app"]
-tier       = "rare"
+tier = "rare"
 permission = "write"
 cmd        = "mios-computer-use type {text}"
   [verbs.cu_type.params.text]
@@ -3261,24 +3290,26 @@ cmd        = "mios-computer-use type {text}"
   aliases = ["content", "input"]
 
 [verbs.cu_key]
+hidden = true
 section    = "Computer-use"
 sig        = "key"
 desc       = "Press ONE key (Enter, Tab, F5, Escape, ...) on the LINUX (Wayland/Hyprland) desktop inside the MiOS VM. Single key only -- use linux_desktop_press_key_combo for modifier chords like Ctrl+S. Targets the in-VM Linux session, NOT the host Windows desktop (use windows_desktop_press_key). Write-class."
 model_name = "linux_desktop_press_key"
 examples   = ["press Enter on the linux desktop", "hit the Tab key in the vm", "send F5 to the wayland session", "press Escape on the linux screen"]
-tier       = "rare"
+tier = "rare"
 permission = "write"
 cmd        = "mios-computer-use key {key}"
   [verbs.cu_key.params.key]
   type = "string"
 
 [verbs.cu_key_combo]
+hidden = true
 section    = "Computer-use"
 sig        = "combo"
 desc       = "Press a MODIFIER CHORD (e.g. Ctrl+S, Alt+Tab, Ctrl+Shift+T) on the LINUX (Wayland/Hyprland) desktop inside the MiOS VM. Use this for any combo with modifiers; use linux_desktop_press_key for a single bare key. Targets the in-VM Linux session, NOT the host Windows desktop. Write-class."
 model_name = "linux_desktop_press_key_combo"
 examples   = ["press Ctrl+S on the linux desktop", "send Alt+Tab in the vm", "do a Ctrl+Shift+T shortcut on the wayland session", "trigger the Ctrl+C keyboard shortcut on linux"]
-tier       = "rare"
+tier = "rare"
 permission = "write"
 cmd        = "mios-computer-use key-combo {combo}"
   [verbs.cu_key_combo.params.combo]
@@ -3306,12 +3337,13 @@ cmd        = "mios-text-edit view {path}{start?--start}{end?--end}"
   desc = "End line (inclusive)."
 
 [verbs.text_create]
+hidden = true
 section    = "Text editor"
 sig        = "path, content"
 desc       = "CREATE a NEW file on disk with the given text content (path + content). For making a file that does not yet exist; to change an EXISTING file use replace_file_text or insert_file_lines, and to read one use read_file. Refuses write-protected system paths (/etc, /usr, /boot, /mnt/c/Windows, /mnt/c/Program Files)."
 model_name = "create_file"
 examples   = ["create a file at /home/mios/notes.txt with my meeting agenda", "make a new python script hello.py that prints hello world", "write out a README.md for this project", "save this text to a new file on disk"]
-tier       = "common"
+tier = "rare"
 permission = "write"
   [verbs.text_create.params.path]
   type = "string"
@@ -3321,12 +3353,13 @@ permission = "write"
   aliases = ["text", "body", "data"]
 
 [verbs.text_str_replace]
+hidden = true
 section    = "Text editor"
 sig        = "path, old, new"
 desc       = "Find-and-replace text inside an existing file: replace an EXACT substring (old) with new text (new). `old` must occur EXACTLY once -- supply a larger surrounding block if it is ambiguous. Use this to MODIFY/overwrite existing content; to ADD lines without deleting use insert_file_lines, and to make a new file use create_file."
 model_name = "replace_file_text"
 examples   = ["change the port from 8642 to 8765 in config.toml", "rename the function foo to bar in utils.py", "fix the typo 'recieve' to 'receive' in README.md", "update the version string in pyproject.toml to 2.0.0"]
-tier       = "common"
+tier = "rare"
 permission = "write"
   [verbs.text_str_replace.params.path]
   type = "string"
@@ -3339,12 +3372,13 @@ permission = "write"
   aliases = ["to", "after", "replace"]
 
 [verbs.text_insert]
+hidden = true
 section    = "Text editor"
 sig        = "path, line, content"
 desc       = "INSERT new text into an existing file AFTER a given 1-indexed line number (0 = prepend to the very top); all existing content is kept. Args: path, line, content. Use this to ADD text at a position WITHOUT deleting anything; to OVERWRITE/replace existing text use replace_file_text, and to make a brand-new file use create_file."
 model_name = "insert_file_lines"
 examples   = ["add a new import line at the top of main.py", "insert a TODO comment after line 40 of server.py", "insert a new section after line 12 of notes.md", "put a shebang line at the very start of the script"]
-tier       = "common"   # was rare; siblings text_create/text_str_replace are common -- surface the edit family together
+tier = "rare"
 permission = "write"
   [verbs.text_insert.params.path]
   type = "string"
@@ -3563,40 +3597,44 @@ cmd = "mios-flatpak-preflight {id}"
 
 # ─── Section: System ──────────────────────────────────────────────────
 [verbs.system_status]
+hidden = true
 section    = "System"
 sig        = ""
 desc       = "Live LOCAL machine health dashboard (JSON): OS (Linux distro + kernel + whether this is WSL2 + the WINDOWS HOST OS caption/version when on WSL2), GPU/VRAM, RAM, disk usage, running services, loaded ollama models. THE verb for 'system status', 'system health', 'what OS / Windows version am I on', 'is the GPU/memory/disk ok'. Local state only -- NEVER a web search, and NEVER answer the OS/host from training data: read it HERE (the `os` field). Single source of truth for these live numbers."
 examples   = ["what OS / Windows version am I actually running", "how's my system doing right now", "check GPU and VRAM usage", "is my disk getting full"]
-tier       = "core"
+tier = "rare"
 permission = "read"
 cmd        = "mios-system-status"
 max_result_chars = 5000   # the full dashboard JSON (GPU/RAM/disk/services/models) > the 1500 default; fit it whole so the model never invents missing values
 
 [verbs.sys_env]
+hidden = true
 section    = "System"
 sig        = ""
 desc       = "READ the cached system/environment inventory (shared store): identity, the host OS + whether this is WSL2 + the Windows host, host hardware, which MiOS stack services are up/down, loaded ollama models, and the installed launchable-app inventory by category. Read this to know the ENVIRONMENT and WHAT IS INSTALLED/RUNNING instead of guessing the OS or the apps. Cached (may be slightly stale -> sys_env_refresh). Read-only."
 model_name = "sys_env_snapshot"
 examples   = ["what OS / environment am I running on", "what's installed and running on this box", "list the MiOS services and loaded models", "give me the environment inventory"]
-tier       = "core"
+tier = "rare"
 permission = "read"
 cmd        = "mios-sys-env get --json"
 
 [verbs.sys_env_refresh]
+hidden = true
 section    = "System"
 sig        = ""
 desc       = "WRITE/UPDATE the cached environment inventory: re-probe apps + services + models + host and overwrite the shared sys_env_snapshot database. Call when you suspect the sys_env_snapshot cache is stale (e.g. just installed/removed an app or started a service). This is the refresh half; sys_env_snapshot is the read half."
 examples   = ["refresh the system environment cache", "re-probe installed apps and services", "the inventory is stale, update it", "rescan what's installed after this install"]
-tier       = "common"
+tier = "rare"
 permission = "write"
 cmd        = "mios-sys-env refresh"
 
 [verbs.system_logs]
+hidden = true
 section    = "System"
 sig        = 'unit?, since="10m"?, lines=50?, level?'
 desc       = "Read recent LOG / journal entries from systemd. Filter by unit (mios-agent-pipe / hermes-agent / mios-open-webui / ...) or level (err / warning / info). Default: 50 lines from the last 10 minutes. Use to debug what a service printed -- NOT for live health numbers (system_status) or service up/down state (service_status)."
 examples   = ["show me the agent-pipe error logs", "what did open-webui log in the last hour", "any warnings in the journal recently", "tail the hermes service logs"]
-tier       = "core"
+tier = "rare"
 permission = "read"
 cmd        = "mios-sysview logs --since {since=10m} --lines {lines=50}{unit?--unit}{level?--level}"
 # Logs are bulky: a DEFAULT 50-line slice of a busy unit (e.g. mios-open-webui)
@@ -3625,11 +3663,12 @@ max_result_chars = 12000
   desc = "Minimum severity (journalctl -p)"
 
 [verbs.service_status]
+hidden = true
 section    = "System"
 sig        = "name"
 desc       = "Check ONE Linux systemd SERVICE: is-active state + a status snapshot for the named unit (e.g. mios-agent-pipe, hermes-agent). For systemd services -- NOT podman CONTAINERS (use container_status) and NOT whole-machine health (use system_status). Read-only."
 examples   = ["is the agent-pipe service running", "status of the hermes systemd unit", "check if mios-open-webui is active", "is the cron-director service up"]
-tier       = "common"
+tier = "rare"
 permission = "read"
 cmd        = "mios-os-recipe service-status service={name}"
   [verbs.service_status.params.name]
@@ -3649,11 +3688,12 @@ cmd        = "mios-restart {name}"
   aliases = ["service", "unit"]
 
 [verbs.process_list]
+hidden = true
 section    = "System"
 sig        = 'filter?, sort="rss"?, limit=20?'
 desc       = "List running OS PROCESSES, optionally filtered by name; sorted by rss (memory) / cpu / pid. Use to see which processes are running and what they consume. For container/service state use container_status / service_status instead."
 examples   = ["what's using the most memory", "list processes named ollama", "show top CPU processes", "is python still running"]
-tier       = "common"
+tier = "rare"
 permission = "read"
 cmd        = "mios-sysview proc --sort {sort=rss} --limit {limit=20}{filter?--filter}"
 max_result_chars = 6000   # fit the default 20-process list whole (1500 cut it mid-process -> fabricated entries)
@@ -3675,11 +3715,12 @@ max_result_chars = 6000   # fit the default 20-process list whole (1500 cut it m
 # OpenAI tools/skills/recipes ... unless baked in the modelfile or docs".
 
 [verbs.container_status]
+hidden = true
 section    = "System"
 sig        = "name?"
 desc       = "Check podman/quadlet CONTAINER status. Empty name = all containers. For podman CONTAINERS -- NOT systemd services (use service_status) and NOT whole-machine health (system_status). Read-only."
 examples   = ["are my podman containers running", "status of the searxng container", "list all container states", "is the adguard container up"]
-tier       = "common"
+tier = "rare"
 permission = "read"
 cmd        = "mios-sysview containers{name?--name}"
 max_result_chars = 4000   # fit the full container list whole (avoids a mid-row cut the model would complete from imagination)
@@ -3702,11 +3743,12 @@ cmd        = "mios-sysview container-restart --name {name}"
 # ─── Section: OS shell verbs (mios.toml-driven recipes) ───────────────
 # ─── Section: Semantic app discovery ──────────────────────────────────
 [verbs.app_search]
+hidden = true
 section    = "Discovery / resolution"
 sig        = "query, limit=5?"
 desc       = "SEMANTIC search over the installed-app inventory: given a fuzzy natural-language description ('my note-taking app', 'phone settings'), return the top matching installed apps {name, category, launch, score}. Use when you need to FIND which app matches a vague description. For the FULL installed-app+game list use list_installed_apps; to actually launch use launch_app."
 examples   = ["what's my note-taking app called?", "find the app I use for video calls", "which installed app handles photo editing?", "search my apps for a music player"]
-tier       = "core"
+tier = "rare"
 permission = "read"
 cmd        = "mios-app-search --json --limit {limit=5} {query!}"
   [verbs.app_search.params.query]
@@ -3737,12 +3779,13 @@ cmd        = "mios-tool-search --json --limit {limit=5} {query!}"
   aliases = ["top_k", "k", "n"]
 
 [verbs.handoff]
+hidden = true
 section    = "Agent collaboration"
 sig        = "to?, skill?, context_id, goal?, from?"
 desc       = "TRANSFER (take-over) the live session to ANOTHER agent: the target inherits the shared session state via the A2A contextId and CONTINUES the workflow in your place. Use when a DIFFERENT model should TAKE OVER from here (e.g. hand a heavy task down to a lightweight CPU agent). This passes control away; to get a sub-answer back while staying in control use delegate_subtask_to_peer_agent."
 model_name = "transfer_session_to_agent"
 examples   = ["hand this conversation over to the CPU agent", "transfer control to a lighter model to continue", "let another agent take over from here", "pass the session to the daemon agent"]
-tier       = "common"
+tier = "rare"
 permission = "read"
 cmd        = "mios-handoff {to?--to} {skill?--skill} --context-id {context_id!} {goal?--goal} {from?--from}"
   [verbs.handoff.params.to]
@@ -3767,12 +3810,13 @@ cmd        = "mios-handoff {to?--to} {skill?--skill} --context-id {context_id!} 
   aliases = ["source", "src", "from_agent"]
 
 [verbs.a2a_delegate]
+hidden = true
 section    = "Agent collaboration"
 sig        = "peer?, skill?, text, context_id?"
 desc       = "Hand a SUB-TASK to another registered agent and GET ITS ANSWER BACK so YOU fold it into your own reasoning (you stay in control; this is NOT a final user reply and NOT a take-over). Pick a peer by id (mios-a2a-delegate --list-peers) or by skill name (--list-skills). Use when you want a second agent's result; to PASS THE SESSION to another agent use transfer_session_to_agent."
 model_name = "delegate_subtask_to_peer_agent"
 examples   = ["ask the code agent to handle this part and return it", "delegate this sub-question to a peer agent", "get a specialist agent's answer to fold in", "have another agent solve this piece for me"]
-tier       = "common"
+tier = "rare"
 permission = "read"
 cmd        = "mios-a2a-delegate {peer?--peer} {skill?--skill} {context_id?--context-id} --text {text!}"
   [verbs.a2a_delegate.params.peer]
@@ -3814,6 +3858,7 @@ cmd        = "mios-summarize --json {text?--text} {file?--file} {tiers?--tiers}"
   aliases = ["levels", "depth"]
 
 [verbs.coderun]
+hidden = true
 section    = "OS shell verbs"
 sig        = "code, lang=bash?, net?, timeout=60?"
 desc       = "Run a SHORT one-off code snippet / command in an isolated sandbox (bubblewrap: read-only system, writable scratch only, NO network by default, resource caps + timeout). lang: bash (default) | python. Pass net=true only if it must reach the network. Use to compute/test something safely WITHOUT touching the host -- not to orchestrate MiOS verbs (run_python_tool_script) or to run Windows PowerShell (powershell_run)."
@@ -3827,7 +3872,7 @@ examples   = ["run this bash one-liner safely", "test this python snippet in a s
 # turns -- esp. in the client-tools merged surface (Hermes desktop), spinning the loop on
 # MiOS verbs and returning EMPTY. Keep it 'common' (reaches the model only when the turn is
 # genuinely code-relevant via the cosine tail / a code domain); the prefetch covers math.
-tier       = "common"
+tier = "rare"
 permission = "interactive"
 cmd        = "mios-coderun --code {code!} {lang?--lang} --timeout {timeout=60}"
   [verbs.coderun.params.code]
@@ -3850,12 +3895,13 @@ cmd        = "mios-coderun --code {code!} {lang?--lang} --timeout {timeout=60}"
   aliases = ["timeout_s", "max_seconds"]
 
 [verbs.code_mode]
+hidden = true
 section    = "OS shell verbs"
 sig        = "code, lang=python?, net?, timeout=60?"
 desc       = "Write a PYTHON snippet that ORCHESTRATES MULTIPLE MiOS verbs programmatically instead of emitting one verb call at a time: `import mios_tools` exposes the verb surface (mios_tools.web_search(...), .system_status(), .call('<verb>', ...)). Runs in a rootless podman sandbox (no network, read-only, dropped caps). Use when a task needs several tool calls glued with logic/loops -- NOT for a one-off shell command (run_sandboxed_code)."
 model_name = "run_python_tool_script"
 examples   = ["loop over these URLs and crawl each one", "chain several tools together in one script", "programmatically call web_search then summarize each result", "write code that orchestrates multiple verbs"]
-tier       = "common"
+tier = "rare"
 permission = "interactive"
 cmd        = "mios-coderun-codemode --lang {lang=python} --timeout {timeout=60} --session {session?}"
   [verbs.code_mode.params.code]
@@ -3882,12 +3928,13 @@ cmd        = "mios-coderun-codemode --lang {lang=python} --timeout {timeout=60} 
   aliases = ["conversation", "chat_id"]
 
 [verbs.ingest]
+hidden = true
 section    = "Discovery / resolution"
 sig        = "path?, file?, ext?, max=100?"
 desc       = "INGEST local files/notes INTO the notes vault (the offline second-brain) -- LOCAL sources only, no cloud/SaaS. Walks a directory (or one file), tiers each doc (L0 abstract + L1 overview via the light model), and stores it as a vault node so notes_vault_list/search/read can navigate it and recall can surface it. Idempotent. This is a WRITE that adds documents to the vault, not a search."
 model_name = "notes_vault_ingest"
 examples   = ["ingest my markdown notes folder into the second brain", "add this file to the notes vault", "load my docs directory into the knowledge vault", "import these txt notes so I can search them later"]
-tier       = "common"
+tier = "rare"
 permission = "write"
 cmd        = "mios-ingest {path?--path} {file?--file} {ext?--ext} --max {max=100}"
   [verbs.ingest.params.path]
@@ -3908,11 +3955,12 @@ cmd        = "mios-ingest {path?--path} {file?--file} {ext?--ext} --max {max=100
   aliases = ["limit", "n"]
 
 [verbs.remember]
+hidden = true
 section    = "Discovery / resolution"
 sig        = "fact, scope=global?, key?"
 desc       = "WRITE a durable FACT to your own persistent memory (Letta/MemGPT core-memory, self-editing). Use when the operator tells you something to keep, or you learn a stable fact worth carrying across turns/conversations. scope: global (default) | agent:<name> | conversation:<id>. Optional `key` lets you later memory_update/memory_forget it. This stores ONE fact -- to bulk-notes_vault_ingest documents use notes_vault_ingest."
 examples   = ["remember that my Discord channel is #ops", "keep this fact: the heavy lane runs on port 11441", "note for later that I prefer dark mode", "store this so you don't forget across conversations"]
-tier       = "common"
+tier = "rare"
 permission = "write"
 cmd        = "mios-remember add {fact!} {scope?--scope} {key?--key}"
   [verbs.remember.params.fact]
@@ -3929,11 +3977,12 @@ cmd        = "mios-remember add {fact!} {scope?--scope} {key?--key}"
   aliases = ["id", "name"]
 
 [verbs.recall]
+hidden = true
 section    = "Discovery / resolution"
 sig        = "scope=global?, limit=30?"
 desc       = "READ back the durable FACTS you previously stored with `remember` (Letta/MemGPT core-memory read). Returns the agent-authored memories for a scope {ok, count, memories:[{key, scope, fact, source}]}. This is your own persistent memory of facts -- NOT a vault search (notes_vault_search), NOT RAG (knowledge_search). Pair: remember (write) / memory_update (edit) / memory_forget (delete)."
 examples   = ["what do you remember about my preferences", "recall the facts you stored for this conversation", "read back your durable memory for the global scope", "what stable facts have I told you to keep"]
-tier       = "common"
+tier = "rare"
 permission = "read"
 cmd        = "mios-remember list {scope?--scope} --limit {limit=30}"
   [verbs.recall.params.scope]
@@ -3946,11 +3995,12 @@ cmd        = "mios-remember list {scope?--scope} --limit {limit=30}"
   aliases = ["n", "top_k"]
 
 [verbs.memory_update]
+hidden = true
 section    = "Discovery / resolution"
 sig        = "key, fact"
 desc       = "EDIT a durable memory you previously stored (Letta/MemGPT core_memory_replace): overwrite the fact at `key` with a new value. Use to CORRECT or refine a stored fact instead of piling up duplicates with `remember`. Requires the existing key. Pair: remember (write-new) / recall (read) / memory_forget (delete). Returns {ok, op, key, updated}."
 examples   = ["update the stored fact about my email address", "correct the memory keyed on heavy_lane_port to 11441", "change that remembered preference to dark mode", "fix the stored fact under that key"]
-tier       = "common"
+tier = "rare"
 permission = "write"
 cmd        = "mios-remember update --key {key!} {fact!}"
   [verbs.memory_update.params.key]
@@ -3963,11 +4013,12 @@ cmd        = "mios-remember update --key {key!} {fact!}"
   aliases = ["text", "new", "value", "content", "memory"]
 
 [verbs.memory_forget]
+hidden = true
 section    = "Discovery / resolution"
 sig        = "key"
 desc       = "DELETE a durable memory you previously stored (Letta/MemGPT core_memory_remove) by its `key`. Use when a stored fact is wrong or obsolete and should be removed entirely. Pair: remember (write) / recall (read) / memory_update (edit). Returns {ok, op, key}."
 examples   = ["forget what I told you about my old address", "delete the stored memory under that key", "remove the obsolete fact about the SurrealDB port", "wipe that remembered preference"]
-tier       = "common"
+tier = "rare"
 permission = "write"
 cmd        = "mios-remember forget --key {key!}"
   [verbs.memory_forget.params.key]
@@ -3976,12 +4027,13 @@ cmd        = "mios-remember forget --key {key!}"
   aliases = ["id", "name"]
 
 [verbs.viking_ls]
+hidden = true
 section    = "Discovery / resolution"
 sig        = "ns, query?, limit=20?"
 desc       = "LIST nodes in the local notes vault (the offline second-brain) at the cheap one-line (L0) tier for navigation. Pick a namespace: `skills` (self-learned SKILL.md files), `knowledge` (every finished Q&A), `memory` (stored AI memories). Skim these abstracts FIRST, then notes_vault_read the right node at a deeper tier. This is the local vault index, NOT web/file/RAG search."
 model_name = "notes_vault_list"
 examples   = ["list the skills in my notes vault", "show me what's stored in the second brain knowledge namespace", "browse the knowledge vault entries", "what nodes are in my notes vault memory namespace"]
-tier       = "common"
+tier = "rare"
 permission = "read"
 cmd        = "mios-viking ls {ns} {query?--query} --limit {limit=20}"
   [verbs.viking_ls.params.ns]
@@ -3998,12 +4050,13 @@ cmd        = "mios-viking ls {ns} {query?--query} --limit {limit=20}"
   aliases = ["n", "top_k"]
 
 [verbs.viking_cat]
+hidden = true
 section    = "Discovery / resolution"
 sig        = "node, tier=l0?"
 desc       = "READ ONE node from the local notes vault at a chosen detail TIER (hierarchical gating): l0 = one-line abstract, l1 = structured overview (generated on read), l2 = raw full content (most context, fetch only when truly needed). `node` is `skills/<file>` or `knowledge/<id>` obtained from notes_vault_list / notes_vault_search. This reads a vault node, NOT a disk file (read_file) and NOT a web page."
 model_name = "notes_vault_read"
 examples   = ["read the full content of that notes vault node", "open knowledge/abc123 from my vault at the overview tier", "show me the l2 raw text of that second-brain entry", "give me the l1 summary of the skill node I just found"]
-tier       = "common"
+tier = "rare"
 permission = "read"
 cmd        = "mios-viking cat {node} --tier {tier=l0}"
   [verbs.viking_cat.params.node]
@@ -4018,12 +4071,13 @@ cmd        = "mios-viking cat {node} --tier {tier=l0}"
   aliases = ["level", "depth"]
 
 [verbs.viking_find]
+hidden = true
 section    = "Discovery / resolution"
 sig        = "query, ns?, limit=20?"
 desc       = "SEMANTIC search across the LOCAL notes vault (the offline second-brain: self-learned skills + stored Q&A + AI memory + ingested notes). Matches your query against L0 abstracts and returns hits {id, l0}; then notes_vault_read the best at a deeper tier. This searches YOUR local vault, NOT the OWUI RAG document collections (knowledge_search), NOT the web, NOT files on disk."
 model_name = "notes_vault_search"
 examples   = ["search my notes vault for what I know about pgvector", "find second-brain entries related to the agent pipeline", "look up stored knowledge about the heavy lane in my vault", "what have I previously learned about WSLg rendering"]
-tier       = "common"
+tier = "rare"
 permission = "read"
 cmd        = "mios-viking find {query!} {ns?--ns} --limit {limit=20}"
   [verbs.viking_find.params.query]
@@ -4085,12 +4139,13 @@ permission = "write"
 # desktop. Backed by mios-docgen; gated by [computer_use].docgen_enable (default
 # off -> verbs visible but inert/degrade-open). permission=write (writes a file).
 [verbs.docgen_build]
+hidden = true
 section    = "Doc-gen"
 sig        = "out_path, content, from_fmt=\"markdown\"?"
 desc       = "Author a NEW document FROM TEXT YOU WRITE -> a real office artifact (.docx/.pptx/.xlsx/.pdf/.html). Output format inferred from out_path extension; write markdown (or CSV rows for .xlsx with from_fmt=csv); for .pptx separate slides with a line of ---. Fully local (Pandoc/LibreOffice). Use this to GENERATE a doc from content; to convert an EXISTING file use convert_document_format."
 model_name = "create_office_document"
 examples   = ["make a docx report from this text", "generate a powerpoint from these slides", "create an excel sheet from this csv", "write a pdf from this markdown"]
-tier       = "rare"
+tier = "rare"
 permission = "write"
 cmd        = "mios-docgen build {out_path} --from {from_fmt} --content {content}"
   [verbs.docgen_build.params.out_path]
@@ -4106,12 +4161,13 @@ cmd        = "mios-docgen build {out_path} --from {from_fmt} --content {content}
   default = "markdown"
 
 [verbs.docgen_convert]
+hidden = true
 section    = "Doc-gen"
 sig        = "in_path, out_path"
 desc       = "Convert an EXISTING file to another format (.docx->.pdf, .md->.docx, .csv->.xlsx, .pptx->.pdf). Target format inferred from out_path extension. Fully local via Pandoc / LibreOffice headless. Use this to TRANSFORM a file that already exists; to author a NEW doc from text you write use create_office_document."
 model_name = "convert_document_format"
 examples   = ["convert this docx to pdf", "turn my markdown file into a word doc", "export the pptx as a pdf", "change this csv into an xlsx"]
-tier       = "rare"
+tier = "rare"
 permission = "write"
 cmd        = "mios-docgen convert {in_path} {out_path}"
   [verbs.docgen_convert.params.in_path]
@@ -7950,3 +8006,294 @@ gguf_convert    = true
 gguf_quant      = "q8_0"               # adapter export precision
 work_dir        = "/var/lib/mios/finetune"
 serve_port      = 11438                # mios-finetune-serve OpenAI+ollama endpoint (opt-in)
+
+# ─── WS-F Tool Consolidation (Phase 1) Merged Verbs ─────────────────────
+
+[verbs.find_file]
+section = "Discovery / resolution"
+sig = "query, scope"
+desc = "Search for files on disk. scope='fast' (cached DB, sub-100ms, use FIRST), 'windows' (NTFS exhaustive search), or 'linux' (exhaustive Linux search). Use 'fast' unless a recent file is missing."
+model_name = "find_local_file"
+tier = "core"
+permission = "read"
+cmd = "if [ '{scope}' = 'fast' ]; then mios-directory-lookup --json --limit 20 {query}; elif [ '{scope}' = 'windows' ]; then mios-everything --json -n 10 {query}; else mios-locate --json -n 20 {query}; fi"
+  [verbs.find_file.params.query]
+  type = "string"
+  aliases = ["name", "filename", "term"]
+  [verbs.find_file.params.scope]
+  type = "string"
+  enum = ["fast", "windows", "linux"]
+
+[verbs.apps]
+section = "Discovery / resolution"
+sig = "mode, query?"
+desc = "Query applications. mode='list' (inventory of all installed apps), 'semantic' (fuzzy app capability search), or 'resolve' (get exact CLI launch command for an app without launching it)."
+tier = "core"
+permission = "read"
+cmd = "if [ '{mode}' = 'list' ]; then mios-apps --json; elif [ '{mode}' = 'semantic' ]; then mios-app-search {query}; else mios-find --json {query}; fi"
+  [verbs.apps.params.mode]
+  type = "string"
+  enum = ["list", "semantic", "resolve"]
+  [verbs.apps.params.query]
+  type = "string"
+
+[verbs.fetch_page]
+section = "Discovery / resolution"
+sig = "url, format"
+desc = "Fetch ONE web page content. format='text' (lightweight ~4000 char plain text), 'article-md' (clean markdown of a long article via crawl4ai), or 'index-md' (markdown of a news/listing/index page via firecrawl)."
+tier = "core"
+permission = "read"
+cmd = "if [ '{format}' = 'text' ]; then mios-web-extract -n 4000 {url}; elif [ '{format}' = 'article-md' ]; then mios-crawl --json --max-chars 20000 {url}; else mios-firecrawl --max-chars 20000 {url}; fi"
+  [verbs.fetch_page.params.url]
+  type = "string"
+  [verbs.fetch_page.params.format]
+  type = "string"
+  enum = ["text", "article-md", "index-md"]
+
+[verbs.search_store]
+section = "Discovery / resolution"
+sig = "query, store"
+desc = "Search stored information. store='knowledge' (curated OWUI RAG document collections) or 'vault' (the local notes/skills vault)."
+tier = "common"
+permission = "read"
+cmd = "if [ '{store}' = 'knowledge' ]; then mios-knowledge-search --json --top-k 5 {query}; else mios-viking search {query}; fi"
+  [verbs.search_store.params.query]
+  type = "string"
+  [verbs.search_store.params.store]
+  type = "string"
+  enum = ["knowledge", "vault"]
+
+[verbs.vault]
+section = "Discovery / resolution"
+sig = "op, target?, content?"
+desc = "Manage the local second-brain vault. op='list' (ls), 'read' (cat), 'search' (find), or 'ingest' (add local file to vault)."
+tier = "common"
+permission = "read"
+cmd = "if [ '{op}' = 'list' ]; then mios-viking ls; elif [ '{op}' = 'read' ]; then mios-viking cat {target}; elif [ '{op}' = 'search' ]; then mios-viking find {target}; else mios-viking ingest {target}; fi"
+  [verbs.vault.params.op]
+  type = "string"
+  enum = ["list", "read", "search", "ingest"]
+  [verbs.vault.params.target]
+  type = "string"
+  [verbs.vault.params.content]
+  type = "string"
+
+[verbs.memory]
+section = "Discovery / resolution"
+sig = "op, fact?, query?, id?"
+desc = "Manage agent's self-directed memories/facts. op='add' (remember a new fact), 'list' (recall matching memories), 'update', or 'forget'."
+tier = "core"
+permission = "write"
+cmd = "if [ '{op}' = 'add' ]; then mios-memory add '{fact}'; elif [ '{op}' = 'list' ]; then mios-memory search '{query}'; elif [ '{op}' = 'update' ]; then mios-memory update {id} '{fact}'; else mios-memory forget {id}; fi"
+  [verbs.memory.params.op]
+  type = "string"
+  enum = ["add", "list", "update", "forget"]
+  [verbs.memory.params.fact]
+  type = "string"
+  [verbs.memory.params.query]
+  type = "string"
+  [verbs.memory.params.id]
+  type = "string"
+
+[verbs.document]
+section = "Messaging"
+sig = "op, input, output?"
+desc = "Generate or convert documents. op='build' (compile markdown to pdf/docx/etc.) or 'convert' (convert office docs/csv to markdown)."
+tier = "common"
+permission = "write"
+cmd = "if [ '{op}' = 'build' ]; then mios-docgen build {input} {output}; else mios-docgen convert {input} {output}; fi"
+  [verbs.document.params.op]
+  type = "string"
+  enum = ["build", "convert"]
+  [verbs.document.params.input]
+  type = "string"
+  [verbs.document.params.output]
+  type = "string"
+
+[verbs.agent_route]
+section = "Messaging"
+sig = "mode, agent, task"
+desc = "Cross-agent routing. mode='handoff' (transfer control entirely, ending your turn) or 'delegate' (sub-task an agent and get the result back)."
+tier = "common"
+permission = "write"
+cmd = "if [ '{mode}' = 'handoff' ]; then mios-agent handoff {agent} '{task}'; else mios-agent delegate {agent} '{task}'; fi"
+  [verbs.agent_route.params.mode]
+  type = "string"
+  enum = ["handoff", "delegate"]
+  [verbs.agent_route.params.agent]
+  type = "string"
+  [verbs.agent_route.params.task]
+  type = "string"
+
+[verbs.run_code]
+section = "Code / shell"
+sig = "mode, code"
+desc = "Execute Python code. mode='sandbox' (safe isolated run) or 'orchestrate' (run a script that imports mios_tools to coordinate agentic sub-actions)."
+tier = "core"
+permission = "write"
+cmd = "if [ '{mode}' = 'sandbox' ]; then mios-coderun '{code}'; else mios-code-mode '{code}'; fi"
+  [verbs.run_code.params.mode]
+  type = "string"
+  enum = ["sandbox", "orchestrate"]
+  [verbs.run_code.params.code]
+  type = "string"
+
+# ─── WS-F Tool Consolidation (Phase 2) Merged Verbs ─────────────────────
+
+[verbs.window_op]
+section = "Window / app launch"
+sig = "op, title, width?, height?, x?, y?, position?"
+desc = "Perform window operations: op='focus' (bring to front), 'move-region' (snap to left/right/etc via position), 'move-pixel' (set x/y), 'resize' (set width/height), 'min', 'max', 'restore', 'close'."
+tier = "core"
+permission = "write"
+cmd = "mios-window {op} '{title}'"
+cmd_positioned = "mios-window {op} '{title}' {position}"
+cmd_pixel = "mios-window {op} '{title}' {x} {y}"
+cmd_resize = "mios-window {op} '{title}' {width} {height}"
+  [verbs.window_op.params.op]
+  type = "string"
+  enum = ["focus", "move-region", "move-pixel", "resize", "min", "max", "restore", "close"]
+  [verbs.window_op.params.title]
+  type = "string"
+  [verbs.window_op.params.width]
+  type = "integer"
+  [verbs.window_op.params.height]
+  type = "integer"
+  [verbs.window_op.params.x]
+  type = "integer"
+  [verbs.window_op.params.y]
+  type = "integer"
+  [verbs.window_op.params.position]
+  type = "string"
+
+[verbs.launch_app]
+section = "Window / app launch"
+sig = "name, verify=false, args?, position?"
+desc = "Launch an application or system component. verify=true waits and confirms the launch. position=left/right/fullscreen."
+tier = "core"
+permission = "write"
+cmd = "mios-launch '{name}'"
+cmd_args = "mios-launch '{name}' {args}"
+  [verbs.launch_app.params.name]
+  type = "string"
+  [verbs.launch_app.params.verify]
+  type = "boolean"
+  default = false
+  [verbs.launch_app.params.args]
+  type = "string"
+  [verbs.launch_app.params.position]
+  type = "string"
+
+[verbs.system]
+section = "System"
+sig = "query, target?"
+desc = "Query system status: query='status' (overall), 'env' (environment variables), 'env-refresh' (reload shell env), 'logs' (system logs for target service), 'service-status' (systemd status), 'processes' (top), 'containers' (podman ps)."
+tier = "core"
+permission = "read"
+cmd = "if [ '{query}' = 'status' ]; then mios-system status; elif [ '{query}' = 'logs' ]; then journalctl -u {target} -n 50 --no-pager; elif [ '{query}' = 'service-status' ]; then systemctl status {target} --no-pager; elif [ '{query}' = 'processes' ]; then ps aux --sort=-%cpu | head -n 20; else mios-system {query} {target}; fi"
+  [verbs.system.params.query]
+  type = "string"
+  enum = ["status", "env", "env-refresh", "logs", "service-status", "processes", "containers"]
+  [verbs.system.params.target]
+  type = "string"
+
+[verbs.windows_input]
+section = "PC input"
+sig = "action, text?, key?, name?, x?, y?"
+desc = "Inject input into the HOST WINDOWS desktop. action='type', 'key' (press a key/combo), 'click' (pixel click), 'find' (find UI element), 'click-element' (click named UI element), 'list-element' (list all UI elements)."
+tier = "common"
+permission = "write"
+cmd = "if [ '{action}' = 'type' ]; then mios-pc-control type '{text}'; elif [ '{action}' = 'key' ]; then mios-pc-control key '{key}'; elif [ '{action}' = 'click' ]; then mios-pc-control click {x} {y}; elif [ '{action}' = 'find' ]; then mios-pc-control ui-find '{name}'; elif [ '{action}' = 'click-element' ]; then mios-pc-control ui-click '{name}'; else mios-pc-control ui-list; fi"
+  [verbs.windows_input.params.action]
+  type = "string"
+  enum = ["type", "key", "click", "find", "click-element", "list-element"]
+  [verbs.windows_input.params.text]
+  type = "string"
+  [verbs.windows_input.params.key]
+  type = "string"
+  [verbs.windows_input.params.name]
+  type = "string"
+  [verbs.windows_input.params.x]
+  type = "integer"
+  [verbs.windows_input.params.y]
+  type = "integer"
+
+[verbs.linux_input]
+section = "Computer-use"
+sig = "action, text?, key?, x?, y?"
+desc = "Inject input into the LINUX in-VM desktop. action='screenshot', 'ground', 'atspi', 'window-list', 'click', 'type', 'key'."
+tier = "common"
+permission = "write"
+cmd = "if [ '{action}' = 'screenshot' ]; then mios-computer-use screenshot /tmp/linux.png; elif [ '{action}' = 'type' ]; then mios-computer-use type '{text}'; elif [ '{action}' = 'key' ]; then mios-computer-use key '{key}'; elif [ '{action}' = 'click' ]; then mios-computer-use click {x} {y}; else mios-computer-use {action} '{text}'; fi"
+  [verbs.linux_input.params.action]
+  type = "string"
+  enum = ["screenshot", "ground", "atspi", "window-list", "click", "type", "key"]
+  [verbs.linux_input.params.text]
+  type = "string"
+  [verbs.linux_input.params.key]
+  type = "string"
+  [verbs.linux_input.params.x]
+  type = "integer"
+  [verbs.linux_input.params.y]
+  type = "integer"
+
+[verbs.file_edit]
+section = "File edits"
+sig = "op, path, content?, find?, replace?"
+desc = "Edit text files on disk. op='create' (write new file), 'replace' (replace matching text), 'insert' (insert text at top/bottom)."
+tier = "core"
+permission = "write"
+cmd = "if [ '{op}' = 'create' ]; then mios-file create '{path}' '{content}'; elif [ '{op}' = 'replace' ]; then mios-file replace '{path}' '{find}' '{replace}'; else mios-file insert '{path}' '{content}'; fi"
+  [verbs.file_edit.params.op]
+  type = "string"
+  enum = ["create", "replace", "insert"]
+  [verbs.file_edit.params.path]
+  type = "string"
+  [verbs.file_edit.params.content]
+  type = "string"
+  [verbs.file_edit.params.find]
+  type = "string"
+  [verbs.file_edit.params.replace]
+  type = "string"
+
+# ----------------------------------------------------------------------------
+# [desktop.app_types] -- WS-D: App-type aliases & default resolution SSOT.
+# Maps generic application types (like 'browser', 'editor', 'terminal') to
+# their specific concrete application defaults on each platform.
+# ----------------------------------------------------------------------------
+[[desktop.app_types]]
+type = "games"
+os_priority = "windows"
+
+[[desktop.app_types]]
+type = "settings"
+os_priority = "both"
+
+[[desktop.app_types]]
+type = "system"
+os_priority = "both"
+
+[[desktop.app_types]]
+type = "browser"
+os_priority = "linux-first"
+linux_default = "org.gnome.Epiphany"
+windows_default = "zen"
+
+[[desktop.app_types]]
+type = "fallback"
+os_priority = "linux-first"
+
+
+[verbs.switch_app_default]
+section    = "Configuration"
+sig        = "type, app"
+desc       = "Switch the default application for an abstract app type (e.g. 'browser', 'editor')."
+examples   = ["make zen my default browser", "set vscode as the editor"]
+tier       = "common"
+cmd        = "mios-app-default {type} {app}"
+  [verbs.switch_app_default.params.type]
+  type = "string"
+  desc = "The abstract app type, e.g. 'browser', 'editor', 'terminal'."
+  [verbs.switch_app_default.params.app]
+  type = "string"
+  desc = "The concrete application name or id, e.g. 'zen', 'code'."

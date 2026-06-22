@@ -159,6 +159,15 @@ if [ -n "$_alias" ] && [ "$_alias" != "$NAME" ]; then
     NAME="$_alias"
 fi
 
+# ─── WS-D: App-type resolution ───────────────────────────────────────
+if command -v mios-app-type >/dev/null 2>&1; then
+    _app_type_resolved="$(mios-app-type "$NAME" 2>/dev/null || true)"
+    if [ -n "$_app_type_resolved" ] && [ "$_app_type_resolved" != "$NAME" ]; then
+        echo "mios-launch: app-type '$NAME' -> '$_app_type_resolved'" >&2
+        NAME="$_app_type_resolved"
+    fi
+fi
+
 # ─── 1. Internal-service URL alias ───────────────────────────────────
 case "$NAME" in
     cockpit)    exec mios-open-url "http://localhost:9090" "$@" ;;

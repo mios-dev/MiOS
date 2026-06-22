@@ -130,7 +130,7 @@ models:
     cmd: >
       /app/llama-server --model /models/embeddinggemma-300m-qat-q8_0.gguf
       --port ${PORT} --host 127.0.0.1
-      --ctx-size 2048 --embedding --pooling mean --n-gpu-layers 999 --parallel 4
+      --ctx-size 8192 --batch-size 2048 --ubatch-size 2048 --embedding --pooling mean --n-gpu-layers 999 --parallel 4
     proxy: "http://127.0.0.1:${PORT}"
     ttl: 600
 

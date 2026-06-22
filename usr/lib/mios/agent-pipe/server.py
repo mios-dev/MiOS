@@ -2448,138 +2448,6 @@ _ROUTER_SYSTEM = (
     '              several tools. Emit\n'
     '              {"action":"agent","reason":"<short>"}\n'
     "\n"
-    "MiOS verbs available for dispatch. Each verb is tagged WRITE\n"
-    "(causes a visible system effect) or READ (returns info only):\n"
-    '  [WRITE] open_app(name, position="default", args?, monitor=0)\n'
-    '          -- LAUNCH an app/program. Use for "open X" / "launch X" /\n'
-    '             "start X" / "run X". position enum:\n'
-    '             default / as-is / center / left / right / top /\n'
-    '             bottom / top-left / top-right / bottom-left /\n'
-    '             bottom-right / maximize\n'
-    '  [WRITE] launch_app(name)                -- simpler launch, no position arg\n'
-    '  [WRITE] focus_window(title, position="default")\n'
-    '          -- bring an OPEN window to front + apply default golden+\n'
-    '             16:10-centered geometry (same position enum as open_app).\n'
-    '             pass position="as-is" to focus WITHOUT resizing.\n'
-    '  [WRITE] move_window(title, position, monitor=0)\n'
-    '          -- SEMANTIC position: center / left / right / top-left etc.\n'
-    '             For literal pixel coords use position_window(title, x, y).\n'
-    '  [WRITE] position_window(title, x, y)\n'
-    '          -- Move window to LITERAL (x,y) pixel coords. Use after\n'
-    '             screen_layout when the agent has computed exact target.\n'
-    '  [WRITE] resize_window(title, width, height)\n'
-    '          -- Resize to literal pixel WxH (does NOT move).\n'
-    '  [WRITE] minimize_window(title)\n'
-    '          -- Hide to taskbar.\n'
-    '  [WRITE] maximize_window(title)\n'
-    '          -- Maximize to full screen of containing monitor.\n'
-    '  [WRITE] restore_window(title)\n'
-    '          -- Undo minimize/maximize: return to last normal-state\n'
-    '             geometry.\n'
-    '  [WRITE] close_window(title, mode="graceful")   -- mode: graceful|force\n'
-    '  [WRITE] open_url(url, browser?)         -- open a URL in a browser\n'
-    '  [READ ] list_windows()                  -- list currently OPEN windows\n'
-    '  [READ ] screen_layout()                 -- monitor geometry\n'
-    '  [READ ] mios_find(name)                 -- resolve name -> path, no launch\n'
-    '  [READ ] mios_apps(filter?)              -- INVENTORY of installed apps, no launch\n'
-    '  [READ ] everything_search(query, limit=10, ext?)\n'
-    '          -- Windows-side filesystem search via Voidtools Everything CLI.\n'
-    '  [READ ] fs_search(query, limit=20, ext?, path?, type?)\n'
-    '          -- Linux-side filesystem search (plocate -> locate -> find).\n'
-    '  [READ ] knowledge_search(query, collection?, top_k=5)\n'
-    '          -- Query OWUI knowledge collections (RAG). Hits return\n'
-    '             {score, source, snippet} for citation in the reply.\n'
-    '             `collection` is a name or id; empty = search all.\n'
-    '  [READ ] directory_lookup(query, root?, ext?, kind?, limit=20)\n'
-    '          -- Sub-100ms filesystem search via mios-daemon\'s cached\n'
-    '             map. Hits return {path, kind, size, mtime, summary,\n'
-    '             root_label}. Use this FIRST for "where is foo" -\n'
-    '             cheaper than mios-find / everything_search.\n'
-    '  [READ ] system_status()\n'
-    '  [READ ] service_status(name)\n'
-    '          -- systemctl is-active + status snapshot for a Linux service.\n'
-    '  [WRITE] service_restart(name)\n'
-    '  [READ ] process_list(filter?, sort="rss", limit=20)\n'
-    '  [READ ] container_status(name?)\n'
-    '  [WRITE] container_restart(name)\n'
-    '  [READ ] text_view(path, start?, end?)\n'
-    '          -- Read a file (with 1-indexed line numbers) or list a directory.\n'
-    '             For Windows-side paths, hit everything_search FIRST to resolve\n'
-    "             the exact path -- text_view on a missing path is fast but the\n"
-    "             planner shouldn't depend on Everything fallback for the happy path.\n"
-    '  [WRITE] text_create(path, content)\n'
-    '          -- Create a new file. Refuses /etc, /usr, /boot, /sys, /proc, /dev,\n'
-    "             /mnt/c/Windows, /mnt/c/Program Files -- write-protected system paths.\n"
-    '  [WRITE] text_str_replace(path, old, new)\n'
-    "          -- Exact-match replace. `old` must occur EXACTLY once -- supply\n"
-    "             a larger old block if the substring is ambiguous.\n"
-    '  [WRITE] text_insert(path, line, content)\n'
-    '          -- Insert content AFTER 1-indexed line N (0 = prepend).\n'
-    '  [WRITE] powershell_run(script, timeout=30, work_dir?)\n'
-    '          -- Execute a PowerShell script on the Windows side. Returns\n'
-    "             stdout/stderr/exit_code. High-privilege -- tainted sessions\n"
-    "             are refused. Default timeout 30s; script cap 64 KiB.\n"
-    '  [READ ] winget_search(query, limit=10)\n'
-    '  [READ ] winget_list()\n'
-    '  [READ ] winget_show(id)\n'
-    '  [WRITE] winget_install(id)\n'
-    '  [WRITE] winget_upgrade(id?)         -- id = package id OR --all\n'
-    '  [WRITE] winget_uninstall(id)\n'
-    '          -- Windows-side package management via winget.exe through\n'
-    "             WSL interop. Install/upgrade/uninstall are high-priv.\n"
-    '  [READ ] flatpak_search(query, limit=10)\n'
-    '  [READ ] flatpak_list()\n'
-    '  [READ ] flatpak_show(id)\n'
-    '  [WRITE] flatpak_install(id, scope?) -- scope: system|user (default system)\n'
-    '  [WRITE] flatpak_upgrade(id?)        -- id = flatpak ref OR --all\n'
-    '  [WRITE] flatpak_uninstall(id)\n'
-    '          -- Linux-side package management via flatpak CLI. Install/\n'
-    "             upgrade/uninstall are high-priv.\n"
-    '  [WRITE] os_recipe(name, params?, os?)\n'
-    '          -- Run a NAMED, allow-listed OS shell recipe from mios.toml\n'
-    '             [recipes.*]. Picks the OS-appropriate template (linux /\n'
-    '             windows) and quote-escapes every param before splicing.\n'
-    '             `name` is the recipe key (e.g. open-folder,\n'
-    '             open-shell-folder, reveal-in-folder, open-control-panel,\n'
-    '             open-settings-uri, run-powershell, run-bash, lock-screen,\n'
-    '             list-drives, show-network, show-process,\n'
-    '             copy-to-clipboard, read-clipboard, toast, shutdown,\n'
-    '             reboot). `params` is a dict matching the recipe\'s\n'
-    '             declared `args`. `os` is optional ("linux" | "windows");\n'
-    '             default = WSL-aware detection.\n'
-    '             EXAMPLES:\n'
-    '               os_recipe(name="open-folder", params={"path":"/mnt/c/Users"})\n'
-    '               os_recipe(name="open-shell-folder", params={"folder":"Desktop"})\n'
-    '               os_recipe(name="lock-screen")\n'
-    "\n"
-    "Verb-pick priority (most common cases first):\n"
-    '  "open X" / "launch X" / "start X" / "run X"  -> open_app(name=X)\n'
-    '  "close X"                                    -> close_window(title=X)\n'
-    '  "focus X" / "bring X to front" / "switch to X" -> focus_window(title=X)\n'
-    '  "move X to <pos>"                            -> move_window(title=X, position=<pos>)\n'
-    '  "move X to (a,b)" / "X to position (a,b)"    -> position_window(title=X, x=a, y=b)\n'
-    '  "resize X to WxH" / "make X WxH"             -> resize_window(title=X, width=W, height=H)\n'
-    '  "minimize X" / "hide X"                      -> minimize_window(title=X)\n'
-    '  "maximize X" / "fullscreen X"                -> maximize_window(title=X)\n'
-    '  "restore X" / "un-minimize X" / "un-maximize X" -> restore_window(title=X)\n'
-    '  "find X in winget" / "winget search X"       -> winget_search(query=X)\n'
-    '  "install X via winget"                       -> winget_install(id=X)\n'
-    '  "what Windows apps are installed"            -> winget_list()\n'
-    '  "find X in flathub" / "flatpak search X"     -> flatpak_search(query=X)\n'
-    '  "install X via flatpak"                      -> flatpak_install(id=X)\n'
-    '  "what flatpaks are installed"                -> flatpak_list()\n'
-    "  Platform hint: WIN-only apps (Office, Notepad++, ...) -> winget;\n"
-    "  Linux GUI / cross-platform via Flathub      -> flatpak.\n"
-    '  "what apps are installed" / "list apps"      -> mios_apps()\n'
-    '  "what windows are open"                      -> list_windows()\n'
-    '  "go to <url>" / "visit <url>"                -> open_url(url=<url>)\n'
-    '  "read X" / "show me X" / "cat X"             -> text_view(path=X)\n'
-    '  "write X to <path>" / "save X to <path>"     -> text_create(path=<path>, content=X)\n'
-    '  "in <file> replace A with B"                 -> text_str_replace(path=<file>, old=A, new=B)\n'
-    '  "run powershell: <script>" / "ps: <script>"  -> powershell_run(script=<script>)\n'
-    "  For ANY file/folder reference on the Windows side, use everything_search\n"
-    "  FIRST to resolve the exact path -- it's faster than recursing directories.\n"
-    "\n"
     "Rules:\n"
     "- `dispatch` only when ONE verb solves it.\n"
     "- A WRITE verb is the right pick whenever the user asks for a\n"
@@ -6420,7 +6288,7 @@ _SCHEDULE_VERBS = frozenset(
 # the fast-path so "remember X" / "recall Y" FIRE the verb instead of falling to the
 # council (operator 2026-06-06: "remember X" ran mios_apps under unify-on because
 # remember wasn't a fast-path verb -> the dispatch intent fell back to the agent).
-_MEMORY_VERBS = {"remember", "recall"}
+_MEMORY_VERBS = {"remember", "recall", "memory"}
 # Raw PC-input verbs (type / key / click / keycombo) are deterministic
 # single-actions too -- a standalone "type 'X' into it" must FIRE pc_type and
 # stop, NOT fall to the research agent (operator 2026-06-16 multi-turn trace:
@@ -14527,6 +14395,14 @@ _HIGH_PRIVILEGE_CURATED = {
     # BYPASSING the gate the legacy verbs hit (live pre-existing gap, 2026-06-15).
     # Fail-safe: this also gates pkg reads (search/list/show) when tainted -- acceptable.
     "pkg",
+    "window_op",
+    "windows_input",
+    "linux_input",
+    "file_edit",
+    "memory",
+    "run_code",
+    "agent_route",
+    "document",
 }
 # WS-A14: the EFFECTIVE high-privilege set = the curated floor above UNION the
 # SSOT [security].firewall_high_privilege_verbs (which previously existed but was
@@ -18326,22 +18202,16 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
     # SKIP verbs with pre-processing guards (basename extraction, probe-name
     # reject, position routing, dimension validation): they render templates
     # explicitly AFTER validation in their own branch.
-    _GUARDED_VERBS = {"open_app", "launch_app", "focus_window", "resize_window"}
+    _GUARDED_VERBS = {"launch_app", "window_op"}
     _tmpl = (_VERB_CATALOG.get(tool) or {}).get("cmd")
     if _tmpl and tool not in _GUARDED_VERBS:
         _rendered = _template_to_cmd(tool, _tmpl, args)
         if _rendered:
             return _rendered
-    if tool in ("open_app", "launch_app"):
+    if tool == "launch_app":
         name = _arg_with_synonyms(tool, "name", args).strip()
-        # Path-shaped arg: extract basename (planner sometimes emits
-        # `path="/usr/bin/nautilus"` instead of `name="nautilus"`).
-        # Operator-flagged 2026-05-19. The basename extract is purely
-        # structural -- no English keyword list, just FS path semantics.
         if name and ("/" in name or "\\" in name):
             base = os.path.basename(name.rstrip("/\\")) or name
-            # Strip .exe / .desktop suffixes so step-5 alias resolver
-            # gets a clean short-name.
             for suf in (".exe", ".desktop", ".lnk"):
                 if base.lower().endswith(suf):
                     base = base[: -len(suf)]
@@ -18349,92 +18219,43 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
             name = base
         if not name:
             return None
-        # Defensive: planner sometimes emits `launch_app(name=<verb>)`
-        # where <verb> is the PROBE TOOL NAME (e.g. "mios-apps",
-        # "mios_apps") instead of the discovered target. Reject so
-        # the agent surfaces a clear error + re-plans, instead of
-        # launching the probe tool. Normalised key matches the verb
-        # catalog after underscore/hyphen folding. Operator-flagged
-        # 2026-05-19.
         norm = name.lower().replace("-", "_").rstrip("s")
         if norm in _VERB_CATALOG or norm.rstrip("_") in {
             v.replace("-", "_").rstrip("s") for v in _VERB_CATALOG
         }:
             return None
-        # Normalize args for template: inject cleaned name back into args
-        # so the SSOT template sees the basename-extracted value.
         _clean = dict(args, name=name)
         extra_args = args.get("args") or []
-        # Resolve via SSOT: `cmd_args` template when extra args present,
-        # `cmd` template otherwise. Both defined in [verbs.open_app].
-        _cat = _VERB_CATALOG.get("open_app") or {}
+        _cat = _VERB_CATALOG.get("launch_app") or {}
         if extra_args:
             _tmpl = _cat.get("cmd_args") or _cat.get("cmd")
         else:
             _tmpl = _cat.get("cmd")
         if _tmpl:
-            return _template_to_cmd("open_app", _tmpl, _clean)
-        return None  # no template -> cannot dispatch
-    if tool == "focus_window":
-        pos = str(args.get("position", "default")).lower()
-        # "default"/"as-is"/empty => focus ONLY, no reposition. Previously
-        # only "as-is" short-circuited, so the DEFAULT position ran a second
-        # `mios-window default <title>` -> "unknown subcommand: default" exit 64
-        # -> focus_window reported FAILURE even though the focus succeeded
-        # (operator 2026-05-29 OS-control train). "default" is not a placement.
-        _cat = _VERB_CATALOG.get("focus_window") or {}
-        if pos in ("as-is", "default", ""):
-            # Focus only -- use base `cmd` template.
-            _tmpl = _cat.get("cmd")
+            return _template_to_cmd("launch_app", _tmpl, _clean)
+        return None
+    if tool == "window_op":
+        op = str(args.get("op", "focus")).lower()
+        _cat = _VERB_CATALOG.get("window_op") or {}
+        if op == "focus":
+            pos = str(args.get("position", "default")).lower()
+            if pos in ("as-is", "default", ""):
+                _tmpl = _cat.get("cmd")
+            else:
+                _tmpl = _cat.get("cmd_positioned")
+        elif op == "move-pixel":
+            _tmpl = _cat.get("cmd_pixel")
+        elif op == "resize":
+            w = int(args.get("width", 0))
+            h = int(args.get("height", 0))
+            if w <= 0 or h <= 0:
+                return None
+            _tmpl = _cat.get("cmd_resize")
         else:
-            # Focus + reposition -- use `cmd_positioned` template.
-            _tmpl = _cat.get("cmd_positioned")
+            _tmpl = _cat.get("cmd")
         if _tmpl:
-            return _template_to_cmd(tool, _tmpl, args)
-        return None  # no template -> cannot dispatch
-    # close_window migrated to SSOT [verbs.close_window].cmd "mios-window close
-    # {title}" (P3). Graceful-only by operator decision 2026-05-23: the old
-    # `mode=force -> mios-window kill` path was BROKEN (no `kill` subcommand)
-    # AND contradicted the 2026-05-17 no-force-kill directive (window-close in
-    # mios-pc-control.ps1: never Stop-Process/taskkill -- a force-kill once
-    # self-terminated hermes-agent). The `mode` enum stays for compatibility
-    # but every mode closes gracefully via WM_CLOSE.
-    # ── Window-state verbs (Phase D.3 -- PC-control template) ──
-    # All five wrap `mios-window <subcmd>` which resolves the title
-    # pattern to an hwnd internally; the agent only needs to supply
-    # a substring match. Title patterns are quoted via shlex so
-    # spaces / special chars in window titles ("Task Manager",
-    # "VS Code - foo.py") survive the broker round-trip.
-    if tool == "resize_window":
-        w = int(args.get("width", 0))
-        h = int(args.get("height", 0))
-        if w <= 0 or h <= 0:
-            return None
-        # Render via SSOT [verbs.resize_window].cmd template.
-        _cat = _VERB_CATALOG.get("resize_window") or {}
-        _tmpl = _cat.get("cmd")
-        if _tmpl:
-            return _template_to_cmd(tool, _tmpl, args)
-        return None  # no template -> cannot dispatch
-    # move_window / position_window / minimize_window / maximize_window /
-    # restore_window migrated to SSOT [verbs.*].cmd templates (P3); they
-    # dispatch via the catalog-template check at the top of this function.
-    # open_app / launch_app migrated to SSOT cmd/cmd_args templates (P3);
-    # validation guards (basename extraction, probe-name reject) stay in code.
-    # focus_window migrated to SSOT cmd/cmd_positioned templates (P3);
-    # position routing (as-is/default -> cmd, else -> cmd_positioned) stays in code.
-    # resize_window migrated to SSOT cmd template (P3); w/h>0 guard stays in code.
-    # close_window (mode enum) stays as code (all modes -> graceful WM_CLOSE).
-    # app_search + tool_search migrated to SSOT [verbs.*].cmd templates (P3)
-    # using the {query!} required-or-None form -- the template aborts to None
-    # when query is empty, replacing the old `if not q: return None` guard, and
-    # {limit=5} renders the int default. They dispatch via the catalog-template
-    # check at the top of this function.
-    # ── os_recipe (SSOT-driven OS shell verb) ──
-    # Generic dispatcher to mios-os-recipe; the recipe NAME + its arg
-    # contract live in mios.toml [recipes.*]. agent-pipe doesn't know
-    # which recipes exist -- it just forwards. Operator binding
-    # 2026-05-18: "RECIPES" + "harden the OS Control tools/skills".
+            return _template_to_cmd("window_op", _tmpl, args)
+        return None
     if tool == "os_recipe":
         name = _arg_with_synonyms(tool, "name", args).strip()
         if not name:

@@ -77,10 +77,18 @@ esac
 # the WSLg portal env-fd error (operator-flagged trace 2026-05-18),
 # the next browser (ChromeDev, then Windows-side host) gets a shot.
 _resolve_browser_chain() {
+    if command -v mios-app-type >/dev/null 2>&1; then
+        _lead="$(mios-app-type "browser" 2>/dev/null || true)"
+        [ -n "$_lead" ] && echo "$_lead"
+    fi
     python3 - <<'PYEOF' 2>/dev/null
-import tomllib
-chain: list[str] = []
-seen: set[str] = set()
+import sys
+try:
+    import tomllib
+except ImportError:
+    import tomli as tomllib
+chain = []
+seen = set()
 # MiOS is Linux-native first. Browser chain reads [[desktop.apps]]
 # role=browser in declaration order (defaults first). Windows-side
 # fallback (cmd.exe /c start) is the LAST resort -- appended only

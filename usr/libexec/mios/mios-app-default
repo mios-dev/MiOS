@@ -1,44 +1,40 @@
-#!/usr/bin/env bash
-# AI-hint: Lets the operator (by telling the AI) change a per-application-TYPE launch
-# default or OS preference -- writes a per-user ~/.config/mios/mios.toml override row
-# that mios-app-type merges field-by-field (last wins), so "use Chrome as my browser"
-# or "open games on Windows" takes effect with no rebuild and no vendor-file edit.
-# AI-related: /usr/libexec/mios/mios-app-type, ~/.config/mios/mios.toml, mios-open-url, mios-launch, mios.toml
-# AI-functions: (writer-only)
+#!/bin/bash
+# AI-hint: Mutates /etc/mios/mios.toml to switch the default application for a given type.
 set -euo pipefail
-# mios-app-default set <type> <app> [--windows]   -- set the default (or windows_default) app for a type
-# mios-app-default os  <type> <linux-first|windows|both>  -- set the OS preference for a type
-# mios-app-default get <type> | list              -- read current policy (delegates to mios-app-type)
 
-CONF="${MIOS_USER_TOML:-${HOME:-/root}/.config/mios/mios.toml}"
-sub="${1:-}"; shift 2>/dev/null || true
+if [ "$#" -lt 2 ]; then
+    echo "usage: mios-app-default <type> <app_name>" >&2
+    exit 64
+fi
 
-case "$sub" in
-    get|list)
-        exec mios-app-type "$sub" "$@" ;;
-    set)
-        type="$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')"; app="${2:-}"; field="default"
-        [ "${3:-}" = "--windows" ] && field="windows_default"
-        if [ -z "$type" ] || [ -z "$app" ]; then
-            echo "usage: mios-app-default set <type> <app> [--windows]" >&2; exit 64
-        fi
-        mkdir -p "$(dirname "$CONF")"
-        printf '\n[[desktop.app_types]]\ntype = "%s"\n%s = "%s"\n' "$type" "$field" "$app" >> "$CONF"
-        echo "ok: $type $field -> $app  (override written to $CONF)"
-        ;;
-    os)
-        type="$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')"; pref="${2:-}"
-        case "$pref" in
-            linux-first|windows|both) : ;;
-            *) echo "os_pref must be one of: linux-first | windows | both" >&2; exit 64 ;;
-        esac
-        [ -n "$type" ] || { echo "usage: mios-app-default os <type> <linux-first|windows|both>" >&2; exit 64; }
-        mkdir -p "$(dirname "$CONF")"
-        printf '\n[[desktop.app_types]]\ntype = "%s"\nos_pref = "%s"\n' "$type" "$pref" >> "$CONF"
-        echo "ok: $type os_pref -> $pref  (override written to $CONF)"
-        ;;
-    -h|--help|help|"")
-        sed -n '11,13p' "$0" | sed 's/^# //'; [ -z "$sub" ] && exit 64 || exit 0 ;;
-    *)
-        echo "mios-app-default: unknown subcommand '$sub' (set|os|get|list)" >&2; exit 64 ;;
-esac
+TYPE="$1"
+APP="$2"
+
+python3 - "$TYPE" "$APP" <<'PYEOF' 2>/dev/null
+import sys, os, re
+
+target_type = sys.argv[1].lower().strip()
+new_app = sys.argv[2].strip()
+etc_path = "/etc/mios/mios.toml"
+
+if not os.path.exists(etc_path):
+    with open(etc_path, "w", encoding="utf-8") as f:
+        f.write("\n")
+
+with open(etc_path, "r", encoding="utf-8") as f:
+    content = f.read()
+
+# Very basic TOML array-of-tables injection
+block = f"""
+[[desktop.app_types]]
+type = "{target_type}"
+linux_default = "{new_app}"
+windows_default = "{new_app}"
+"""
+
+# Append to file
+with open(etc_path, "a", encoding="utf-8") as f:
+    f.write("\n" + block + "\n")
+
+print(f"Updated default for '{target_type}' to '{new_app}'")
+PYEOF
