@@ -49,8 +49,13 @@ def scrape(url: str, max_chars: int, timeout: float) -> dict:
     """POST /v1/scrape -> clean markdown of the page. Firecrawl renders the
     page (JS) server-side and strips chrome/nav, so the markdown is article
     text ready to ground on."""
-    if not _is_port_open(3002) or not _is_port_open(6379):
-        raise ConnectionError("Firecrawl (3002) or Redis (6379) port is closed")
+    # Gate ONLY on the Firecrawl API port this CLI actually talks to. Redis
+    # (6379) is the firecrawl pod's INTERNAL job queue -- reachable only by the
+    # firecrawl-api/worker containers inside the pod netns, never from this
+    # host-side CLI -- so probing it here ALWAYS failed and wrongly forced the
+    # healthy Firecrawl primary down to web_extract_fallback after deploy.
+    if not _is_port_open(3002):
+        raise ConnectionError("Firecrawl (3002) port is closed")
 
     payload = {
         "url": url,
@@ -76,14 +81,19 @@ def scrape(url: str, max_chars: int, timeout: float) -> dict:
     if job_id:
         poll_start = time.time()
         while time.time() - poll_start < timeout:
-            status_req = urllib.request.Request(f"{FIRECRAWL_URL}/v1/crawl/status/{job_id}")
+            # A scrape job_id polls the SCRAPE-status endpoint (v1.0.0:
+            # GET /v1/scrape/{job_id}), NOT the crawl-status one -- a scrape job
+            # is not a crawl job. v1.0.0 may also return the scraped data
+            # directly (no crawl-style status=="completed"), so treat a payload
+            # that already carries data/markdown as complete.
+            status_req = urllib.request.Request(f"{FIRECRAWL_URL}/v1/scrape/{job_id}")
             try:
                 with urllib.request.urlopen(status_req, timeout=10.0) as r:
                     status_d = json.loads(r.read().decode("utf-8", "replace"))
                 if not isinstance(status_d, dict):
                     break
                 status = str(status_d.get("status") or "").lower()
-                if status == "completed":
+                if status == "completed" or status_d.get("data") or status_d.get("markdown"):
                     d = status_d
                     break
                 elif status == "failed":

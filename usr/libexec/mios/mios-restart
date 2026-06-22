@@ -152,9 +152,21 @@ fi
 
 echo "── restarting $UNIT ──"
 $SUDO systemctl restart "$UNIT"
-sleep 2
+# Bounded readiness poll instead of a fixed `sleep 2` + single is-active: a
+# slow-starting unit (a container Quadlet, the SGLang heavy lane, OWUI) is still
+# 'activating' 2 s in, so the old code reported a transient/incorrect state.
+# Poll every 1 s up to 30 s (well under TimeoutStartSec), break on a TERMINAL
+# state, and report elapsed time so the result is honest.
+_poll_start="$(date +%s)"
 state="$($SUDO systemctl is-active "$UNIT" 2>&1 || true)"
-echo "  state: $state"
+for _ in $(seq 1 30); do
+    case "$state" in
+        active|failed|inactive) break ;;
+    esac
+    sleep 1
+    state="$($SUDO systemctl is-active "$UNIT" 2>&1 || true)"
+done
+echo "  state: $state (after $(( $(date +%s) - _poll_start ))s)"
 
 # Hermes-specific POST-restart: drop the in-process skills-prompt cache
 # so SOUL.md / SKILL.md edits take effect immediately on the very next

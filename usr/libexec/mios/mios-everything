@@ -130,7 +130,13 @@ fi
 # slower -- 8s ceiling so a cold first call isn't killed mid-spawn. stderr is
 # CAPTURED (not discarded) so a connection failure is reported, not silenced.
 _ES_ERR="$(mktemp 2>/dev/null || echo /tmp/mios-es-err.$$)"
-RAW=$(timeout 8 "$ES_BIN" -n "$MAX" "$QUERY" 2>"$_ES_ERR" | tr -d '\r')
+# `|| true`: this script runs under `set -euo pipefail`, and a nonzero es.exe
+# (e.g. exit 8 "IPC window not found" when es.exe is version-mismatched to the
+# running Everything) would otherwise abort the WHOLE script here -- BEFORE the
+# unreachable-vs-no-match JSON envelope below runs -- so the agent got a bare
+# exit code instead of the structured error. stderr is captured separately into
+# $_ES_ERR, so the IPC-detection grep + both envelopes still fire correctly.
+RAW=$(timeout 8 "$ES_BIN" -n "$MAX" "$QUERY" 2>"$_ES_ERR" | tr -d '\r') || true
 _ES_STDERR="$(tr -d '\r' < "$_ES_ERR" 2>/dev/null)"; rm -f "$_ES_ERR"
 
 if [ -z "$RAW" ]; then

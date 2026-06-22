@@ -166,6 +166,14 @@ BACKEND = (os.environ.get("MIOS_AGENT_PIPE_BACKEND")
                if (os.environ.get("MIOS_AGENT_PIPE_BACKEND_LIGHT") or "").strip().lower()
                   in {"1", "true", "yes", "on"}
                else "http://localhost:8642/v1")).rstrip("/")
+# True when the reasoning backend is the light llama.cpp lane DIRECTLY (the
+# BACKEND_LIGHT "bypass Hermes" deployment), so callers know the primary endpoint
+# is llama.cpp -- which 200-accepts but SILENTLY IGNORES tool_choice='required'.
+# Hermes (:8642) is an OpenAI gateway that DOES honor it, so this stays False then.
+_BACKEND_IS_LIGHT = (
+    (os.environ.get("MIOS_AGENT_PIPE_BACKEND_LIGHT") or "").strip().lower()
+    in {"1", "true", "yes", "on"}
+    and not (os.environ.get("MIOS_AGENT_PIPE_BACKEND") or "").strip())
 BACKEND_MODEL = (os.environ.get("MIOS_AGENT_PIPE_BACKEND_MODEL")
                  or os.environ.get("MIOS_AI_MODEL")   # WS-0B: ONE owned key = [ai].model
                  or "hermes-agent")
@@ -7659,15 +7667,36 @@ _HITL_THRESHOLD = str((_toml_section("ai") or {}).get("hitl_threshold")
                       or "interactive").strip().lower()
 
 
-def _hitl_block_reason(tool: str) -> "Optional[str]":
+def _effective_perm(tool: str, args: "Optional[dict]" = None) -> str:
+    """The permission tier that actually governs THIS call. Umbrella verbs that
+    dispatch to a NAMED sub-action with its own permission (os_recipe -> a named
+    [recipes.*]) must be gated by the RECIPE's tier, not the umbrella verb's
+    worst-case 'interactive' -- otherwise HITL block-mode neutralizes even the
+    read-only recipes (service-status / show-network / disk-usage / os-control-
+    health) the agent needs for routine OS introspection. Falls back to the
+    verb's own permission. Degrade-open: any lookup miss -> the verb tier."""
+    vperm = str((_VERB_CATALOG.get(tool) or {}).get("permission", "read")).lower()
+    try:
+        if tool == "os_recipe" and args:
+            rn = str((args or {}).get("name") or "").strip().replace("_", "-")
+            rc = _RECIPE_CATALOG.get(rn)
+            if rc:
+                return str(rc.get("permission", vperm)).lower()
+    except Exception:  # noqa: BLE001 -- degrade-open
+        pass
+    return vperm
+
+
+def _hitl_block_reason(tool: str, args: "Optional[dict]" = None) -> "Optional[str]":
     """#62: in BLOCK mode return a human-readable refusal reason if `tool` is a
     high-risk (tier >= [ai].hitl_threshold) action requiring approval, else None.
     AUDIT mode logs the high-risk action and returns None (proceed). OFF returns
-    None immediately. Degrade-open: never raises, never gates on error."""
+    None immediately. Degrade-open: never raises, never gates on error. For
+    os_recipe the effective tier is the NAMED recipe's, not the umbrella verb's."""
     if _HITL_MODE not in ("audit", "block"):
         return None
     try:
-        vperm = str((_VERB_CATALOG.get(tool) or {}).get("permission", "read")).lower()
+        vperm = _effective_perm(tool, args)
         if _perm_rank(vperm) < _perm_rank(_HITL_THRESHOLD):
             return None  # below the gate threshold -> not human-gated
         if _HITL_MODE == "audit":
@@ -7700,7 +7729,7 @@ async def _hitl_arbiter_verdict(tool: str, args: dict) -> "Optional[str]":
     if not _HITL_ARBITER_URL:
         return None
     try:
-        vperm = str((_VERB_CATALOG.get(tool) or {}).get("permission", "read")).lower()
+        vperm = _effective_perm(tool, args)
         if _perm_rank(vperm) < _perm_rank(_HITL_THRESHOLD):
             return None  # below the threshold -> arbiter not consulted
         client = await _get_client()
@@ -9576,7 +9605,12 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
         # backend). A THIRD fetch engine raced beside extract + crawl4ai so the
         # pipeline uses ALL web tools (operator) -- richest wins in _fetch_all.
         # Returns (markdown, links).
-        if not _is_port_open(3002) or not _is_port_open(6379):
+        # Gate ONLY on :3002 (the host-published Firecrawl proxy mios-firecrawl
+        # targets). Redis :6379 is the firecrawl pod's INTERNAL job queue, reached
+        # only by the firecrawl-api/worker containers -- never from this host-side
+        # broker -- so probing it here always failed and silently dropped the
+        # firecrawl engine out of the _fetch_all race once the pod was deployed.
+        if not _is_port_open(3002):
             return "", []
         try:
             p = await asyncio.create_subprocess_exec(
@@ -17898,7 +17932,7 @@ async def dispatch_mios_verb(
     # #62 HITL gate (off by default -> the helper early-returns, ~zero overhead).
     # In block mode a high-risk verb is REFUSED here (never executed) pending human
     # approval; audit mode logs + proceeds. Keys off the resolved verb above.
-    _hitl_reason = _hitl_block_reason(tool)
+    _hitl_reason = _hitl_block_reason(tool, args)
     if _hitl_reason is None and _HITL_ARBITER_URL:
         _hitl_reason = await _hitl_arbiter_verdict(tool, args)  # #62 out-of-process arbiter
     if _hitl_reason is not None:
@@ -28440,6 +28474,25 @@ async def chat_completions(request: Request) -> Any:
             # refusal instead of calling discord_send). An action domain MUST act.
             if not isinstance(pb.get("tool_choice"), dict):
                 pb["tool_choice"] = "required"
+        # PRIMARY force-tool opt-out (mirrors the council/secondary downgrade at
+        # _sec_body): llama.cpp 200-ACCEPTS but SILENTLY IGNORES tool_choice, so
+        # 'required'/named reaches :11450 un-forcing -- the force-tool guard is a
+        # no-op on the BACKEND_LIGHT primary path. Downgrade required->auto when the
+        # resolved primary endpoint doesn't honor it (llama.cpp still emits real
+        # tool_calls under 'auto'); leave SGLang/vLLM heavy lanes that DO honor it
+        # untouched. The BACKEND-light lane carries no api='llamacpp' in target_cfg,
+        # so synthesize that cfg from the SSOT flag so the helper recognizes it.
+        _pc = pb.get("tool_choice")
+        if _pc not in ("none", "auto", None):
+            _prim_cfg = ({"api": "llamacpp"}
+                         if (_BACKEND_IS_LIGHT
+                             and str(target_endpoint).rstrip("/")
+                             == str(BACKEND).rstrip("/"))
+                         else target_cfg)
+            if not _endpoint_supports_tool_choice(
+                    str(target_endpoint or ""), _prim_cfg,
+                    _agent_offload_engine(_prim_cfg)):
+                pb["tool_choice"] = "auto"
         # Universal agent contract FIRST (operator 2026-05-30 ".md presented
         # to every agent"): the primary + every council secondary lead with
         # the overlay contract (global tools, live internet, delegation, no

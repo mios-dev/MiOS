@@ -162,6 +162,20 @@ _exec_post() {  # <path> <json-body>
 _exec_get() { curl -s --connect-timeout 2 --max-time 12 "${_OSC_EP}$1"; }
 _json_str() { printf '%s' "$1" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))'; }
 
+# Executor health-gate -- mirror mios-pc-control's guard (its python L141-145
+# probes "<exec_ep>/health" with a 3s timeout and clears the endpoint on any
+# failure). mios-window historically LACKED this: on a default WSL dev VM the
+# auto-discovery above sets _OSC_EP=http://<gw>:11437 even though no executor
+# is listening there, so every window op POSTed to a dead socket and the branch
+# ended in `exit $?` (curl's timeout rc) -- the working LOCAL mios-pc-control
+# window-* fallback (the case block below) was dead code. Probing /health and
+# clearing _OSC_EP on failure makes a down/absent executor fall through to the
+# local path, while a real, reachable executor (federation / bare-metal-with-
+# server) still wins. Fixes focus/move/position/resize/close/window_state at once.
+if [ -n "$_OSC_EP" ] && ! curl -sf --connect-timeout 2 --max-time 3 -o /dev/null "${_OSC_EP}/health" 2>/dev/null; then
+    _OSC_EP=""
+fi
+
 if [ -n "$_OSC_EP" ]; then
     _title=""
     _monitor="-1"

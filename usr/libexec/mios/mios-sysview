@@ -117,6 +117,21 @@ def cmd_container_restart(a) -> int:
         sys.stderr.write("mios-sysview: container-restart needs --name\n")
         return 64
     q = shlex.quote(name)
+    # Every MiOS container is a systemd Quadlet. A bare `podman restart` desyncs
+    # the managing <name>.service (systemd still owns the OLD container object;
+    # its next action can kill or duplicate the one podman just restarted). If
+    # this name is Quadlet-managed, delegate to mios-restart (systemctl restart +
+    # readiness poll); only an unmanaged ad-hoc container falls back to podman.
+    unit = name if name.endswith(".service") else f"{name}.service"
+    quadlet_managed = (
+        subprocess.run(["systemctl", "cat", unit],
+                       capture_output=True, text=True).returncode == 0
+        or any(os.path.exists(os.path.join(d, f"{name}.container"))
+               for d in ("/usr/share/containers/systemd",
+                         "/etc/containers/systemd"))
+    )
+    if quadlet_managed:
+        return _run(f"mios-restart {shlex.quote(name)}")
     return _run(f"podman restart {q} && podman ps --filter name={q}")
 
 

@@ -3454,6 +3454,13 @@ examples   = ["show me the agent-pipe error logs", "what did open-webui log in t
 tier       = "core"
 permission = "read"
 cmd        = "mios-sysview logs --since {since=10m} --lines {lines=50}{unit?--unit}{level?--level}"
+# Logs are bulky: a DEFAULT 50-line slice of a busy unit (e.g. mios-open-webui)
+# measures ~10 KB, but without an explicit cap this verb inherits the global
+# READ_TOOL_ENRICH_CHARS default (1500) and gets head-tail-truncated to ~19% of
+# what the model asked for. 12000 fits the worst-case default-50 slice whole
+# while still bounding a pathological large-`lines` request. (Siblings
+# system_status / service_status / process_list set their own caps similarly.)
+max_result_chars = 12000
   [verbs.system_logs.params.unit]
   type = "string"
   desc = "systemd unit name; empty = all"
@@ -6077,6 +6084,11 @@ pkgs = [
     "zstd",
     "rsync",
     "tree",
+    # plocate: the indexed fast path for fs_search / linux_file_search. Without
+    # it those verbs fall back to a full find-walk (~11 s vs sub-100 ms), so the
+    # script's advertised plocate path never fires. The DB is refreshed off the
+    # mios-daemon directory-indexer cadence (no separate updatedb timer).
+    "plocate",
     "jq",
     "yq",
     "bc",

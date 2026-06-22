@@ -6,10 +6,12 @@ the `user` table is empty, so a fresh install / reinstall doesn't
 lock the operator out of Open WebUI.
 
 Resolves identity from layered mios.toml ([identity].username,
-[identity].email) and password from /etc/mios/secrets.env's
-MIOS_OPERATOR_PASSWORD, falling back to a generated 24-char password
-which is written to /etc/mios/owui-admin-password (mode 0600 root-only)
-so the operator can read it once.
+[identity].email) and the password from the MiOS password SSOT (see
+_read_password): MIOS_OPERATOR_PASSWORD / MIOS_OWUI_ADMIN_PASSWORD ->
+mios.toml [identity].default_password -> MIOS_DEFAULT_PASSWORD -> "mios"
+-- the SAME source Forge / Portal / Cockpit / RDP use, so one operator
+password works everywhere. A "__random__" override generates + writes a
+24-char password to /etc/mios/owui-admin-password (mode 0600 root-only).
 
 Idempotent: skips if any user row exists. Logs to stderr so
 mios-hermes-firstboot can capture the output via _log.
@@ -37,6 +39,7 @@ from pathlib import Path
 DB = Path(os.environ.get("MIOS_OWUI_DB", "/var/lib/mios/open-webui/webui.db"))
 PASSWORD_OUT = Path(os.environ.get("MIOS_OWUI_PASSWORD_FILE", "/etc/mios/owui-admin-password"))
 SECRETS_ENV = Path("/etc/mios/secrets.env")
+INSTALL_ENV = Path("/etc/mios/install.env")
 
 
 def _log(msg: str) -> None:
@@ -77,22 +80,103 @@ def _read_mios_toml_identity():
     return name, email
 
 
-def _read_password():
-    """Return (password, source) -- prefer secrets.env, fall back to generated."""
-    if SECRETS_ENV.is_file():
+def _env_or_file(varname, files):
+    """Resolve varname from os.environ first, then from the first env-style
+    file (KEY="value") that sets it. Returns the unquoted value or None."""
+    v = os.environ.get(varname)
+    if v is not None and v.strip():
+        return v.strip().strip('"').strip("'")
+    for f in files:
+        if not f.is_file():
+            continue
         try:
-            for line in SECRETS_ENV.read_text(encoding="utf-8").splitlines():
-                stripped = line.strip()
-                if stripped.startswith("MIOS_OPERATOR_PASSWORD="):
-                    pw = stripped.split("=", 1)[1].strip().strip('"').strip("'")
-                    if pw:
-                        return pw, "MIOS_OPERATOR_PASSWORD in /etc/mios/secrets.env"
+            for line in f.read_text(encoding="utf-8").splitlines():
+                s = line.strip()
+                if s.startswith("#") or "=" not in s:
+                    continue
+                k, _, val = s.partition("=")
+                if k.strip() == varname:
+                    val = val.strip().strip('"').strip("'")
+                    if val:
+                        return val
         except OSError:
-            pass
-    # generate
+            continue
+    return None
+
+
+def _read_toml_default_password():
+    """[identity].default_password from layered mios.toml -- the canonical
+    MiOS SSOT for the operator's shared admin password (same field Forge /
+    Portal / Cockpit / RDP resolve)."""
+    for p in (
+        Path(os.environ.get("HOME", "/root")) / ".config/mios/mios.toml",
+        Path("/etc/mios/mios.toml"),
+        Path("/usr/share/mios/mios.toml"),
+    ):
+        if not p.is_file():
+            continue
+        try:
+            text = p.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        in_identity = False
+        found = None
+        for line in text.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("[") and stripped.endswith("]"):
+                in_identity = stripped == "[identity]"
+                continue
+            if not in_identity or "=" not in stripped or stripped.startswith("#"):
+                continue
+            k, _, v = stripped.partition("=")
+            if k.strip() == "default_password":
+                v = v.split("#", 1)[0].strip().strip('"').strip("'")
+                if v:
+                    found = v
+        if found:
+            return found
+    return None
+
+
+def _read_password():
+    """Return (password, source) resolved from the MiOS password SSOT.
+
+    ONE operator password backs every MiOS admin surface (Forge / Portal /
+    Cockpit / RDP / OWUI). Resolution order, highest precedence first:
+      1. MIOS_OPERATOR_PASSWORD     -- explicit override (secrets.env / env)
+      2. MIOS_OWUI_ADMIN_PASSWORD   -- per-service override (parallels
+                                       MIOS_FORGE_ADMIN_PASSWORD)
+      3. mios.toml [identity].default_password  -- the canonical SSOT field
+      4. MIOS_DEFAULT_PASSWORD (install.env)    -- shell/systemd bridge of #3
+      5. literal "mios"             -- vendor default; the same final fallback
+                                       as usr/libexec/mios/forge-firstboot.sh
+
+    A value of "__random__" at any tier opts INTO a generated 24-char password
+    (written to PASSWORD_OUT, mode 0600), mirroring forge's __random__ token.
+    We deliberately do NOT silently generate a random password: an operator
+    who never sees it can't log in, and it diverges from the rest of the OS.
+    """
+    for source, pw in (
+        ("MIOS_OPERATOR_PASSWORD (secrets.env/env)",
+         _env_or_file("MIOS_OPERATOR_PASSWORD", [SECRETS_ENV])),
+        ("MIOS_OWUI_ADMIN_PASSWORD (secrets.env/install.env/env)",
+         _env_or_file("MIOS_OWUI_ADMIN_PASSWORD", [SECRETS_ENV, INSTALL_ENV])),
+        ("mios.toml [identity].default_password (SSOT)",
+         _read_toml_default_password()),
+        ("MIOS_DEFAULT_PASSWORD (install.env)",
+         _env_or_file("MIOS_DEFAULT_PASSWORD", [INSTALL_ENV])),
+        ("vendor default 'mios'", "mios"),
+    ):
+        if not pw:
+            continue
+        if pw == "__random__":
+            alphabet = string.ascii_letters + string.digits + "_-"
+            gen = "".join(secrets.choice(alphabet) for _ in range(24))
+            return gen, f"generated ({source}=__random__)"
+        return pw, source
+    # Unreachable (the vendor default always matches), but keep a safety net.
     alphabet = string.ascii_letters + string.digits + "_-"
-    pw = "".join(secrets.choice(alphabet) for _ in range(24))
-    return pw, "generated"
+    return "".join(secrets.choice(alphabet) for _ in range(24)), "generated"
 
 
 def _write_password_file(pw: str, name: str, email: str, source: str) -> None:
@@ -102,9 +186,11 @@ def _write_password_file(pw: str, name: str, email: str, source: str) -> None:
         f"# Auto-created by mios-owui-bootstrap-admin at {time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}\n"
         f"# Source: {source}\n"
         "#\n"
-        "# Use these to log in at http://localhost:3030/. Once you've\n"
-        "# logged in once, set a real password via Settings -> Profile;\n"
-        "# this file can then be deleted.\n"
+        "# Use these to log in at http://localhost:3030/. This password is\n"
+        "# reconciled from the MiOS SSOT ([identity].default_password, or\n"
+        "# MIOS_OPERATOR_PASSWORD / MIOS_OWUI_ADMIN_PASSWORD) on every first-\n"
+        "# boot run -- to change it, set the SSOT field, NOT the OWUI profile\n"
+        "# UI (a reboot would otherwise revert that change).\n"
         "#\n"
         f"  username: {name}\n"
         f"  email:    {email}\n"
@@ -152,36 +238,88 @@ def main():
 
     conn = sqlite3.connect(str(DB))
     try:
-        # Detect existing users -- bail if any.
+        # OWUI's user-table schema DRIFTS across releases (api_key dropped,
+        # oauth_sub -> oauth, scim/profile/presence columns added). Introspect
+        # the live columns once; a fixed column list breaks on every schema bump
+        # (observed live: "table user has no column named api_key").
         try:
-            existing = conn.execute("SELECT COUNT(*) FROM user").fetchone()[0]
+            user_cols = {row[1] for row in conn.execute("PRAGMA table_info(user)")}
         except sqlite3.OperationalError as e:
             _log(f"OWUI db schema not ready ({e}) -- skipping")
             return 0
-        if existing > 0:
-            _log(f"OWUI already has {existing} user(s) -- not creating an admin")
+        if "id" not in user_cols:
+            _log("OWUI user table not ready (no columns) -- skipping")
             return 0
 
         name, email = _read_mios_toml_identity()
         password, source = _read_password()
-        _log(f"creating first OWUI admin: name={name!r} email={email!r} (password source: {source})")
-
-        uid = str(uuid.uuid4())
         now = int(time.time())
         password_hash = _bcrypt_hash(password)
 
-        # OWUI's user table schema is stable across recent releases;
-        # bare-minimum fields. role=admin per Quadlet's DEFAULT_USER_ROLE.
-        conn.execute(
-            "INSERT INTO user (id, name, email, role, profile_image_url, "
-            "last_active_at, updated_at, created_at, api_key, settings, info, oauth_sub) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-            (uid, name, email, "admin", "/static/favicon.png", now, now, now, None,
-             json.dumps({}), None, None)
-        )
+        # Is our SSOT-managed admin already present? Identify by the SSOT
+        # [identity].email. If so, RECONCILE its login password to the SSOT
+        # (non-destructive UPDATE) on every run -- the same lock-step model as
+        # usr/libexec/mios/forge-firstboot.sh, so ONE operator password backs
+        # OWUI / Forge / Portal / Cockpit / RDP alike. An operator who wants a
+        # different OWUI password changes the SSOT field, not the OWUI profile
+        # UI (which a reboot would otherwise silently revert).
+        row = conn.execute("SELECT id FROM user WHERE email = ? LIMIT 1", (email,)).fetchone()
+        if row:
+            uid = row[0]
+            arow = conn.execute("SELECT id FROM auth WHERE id = ?", (uid,)).fetchone()
+            if arow:
+                conn.execute(
+                    "UPDATE auth SET email = ?, password = ?, active = 1 WHERE id = ?",
+                    (email, password_hash, uid),
+                )
+            else:
+                conn.execute(
+                    "INSERT INTO auth (id, email, password, active) VALUES (?,?,?,?)",
+                    (uid, email, password_hash, 1),
+                )
+            if "role" in user_cols:
+                conn.execute("UPDATE user SET role = 'admin', updated_at = ? WHERE id = ?", (now, uid))
+            conn.commit()
+            _write_password_file(password, name, email, source)
+            _log(f"reconciled OWUI admin {email!r} password to SSOT (source: {source})")
+            return 0
+
+        # Other user(s) exist but none match the MiOS admin email -- be
+        # conservative and do not inject a second admin into someone's setup.
+        existing = conn.execute("SELECT COUNT(*) FROM user").fetchone()[0]
+        if existing > 0:
+            _log(f"OWUI has {existing} user(s), none with the MiOS admin email "
+                 f"{email!r} -- leaving as-is")
+            return 0
+
+        # Fresh install: create the admin from the SSOT. Only `id` is NOT NULL,
+        # so the column intersection is always insertable. role=admin per the
+        # Quadlet's DEFAULT_USER_ROLE.
+        uid = str(uuid.uuid4())
+        _log(f"creating first OWUI admin: name={name!r} email={email!r} (password source: {source})")
+        candidate = {
+            "id": uid,
+            "name": name,
+            "username": name,
+            "email": email,
+            "role": "admin",
+            "profile_image_url": "/static/favicon.png",
+            "last_active_at": now,
+            "updated_at": now,
+            "created_at": now,
+            "settings": json.dumps({}),
+            "info": None,
+            "api_key": None,    # legacy (<= 0.x) schemas only
+            "oauth_sub": None,  # legacy column name
+            "oauth": None,      # current column name
+        }
+        use = {k: v for k, v in candidate.items() if k in user_cols}
+        cols_sql = ", ".join(use)
+        ph_sql = ", ".join("?" for _ in use)
+        conn.execute(f"INSERT INTO user ({cols_sql}) VALUES ({ph_sql})", tuple(use.values()))
         conn.execute(
             "INSERT INTO auth (id, email, password, active) VALUES (?,?,?,?)",
-            (uid, email, password_hash, 1)
+            (uid, email, password_hash, 1),
         )
         conn.commit()
         _log(f"admin user created (id={uid[:8]}..., role=admin)")

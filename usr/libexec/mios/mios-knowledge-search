@@ -115,13 +115,25 @@ def _pgvector_knowledge_fallback(query: str, top_k: int, threshold: float,
             "FROM knowledge WHERE emb IS NOT NULL "
             f"ORDER BY emb <=> '{qv}'::vector LIMIT {int(top_k)}")
         hits = []
+        # Independent relevance FLOOR for this degrade-open fallback. The pg
+        # `knowledge` table holds agent CHAT Q&A memories, NOT the curated doc
+        # corpus this verb claims to search, so an unrelated query can surface
+        # low-score off-topic rows (~0.51-0.53 observed) and present them as an
+        # answer. Gate on max(caller threshold, floor) so an unrelated query
+        # returns an honest empty result. Tunable via MIOS_KNOWLEDGE_FALLBACK_FLOOR.
+        try:
+            import os as _os
+            _floor = float(_os.environ.get("MIOS_KNOWLEDGE_FALLBACK_FLOOR", "0.62"))
+        except Exception:  # noqa: BLE001
+            _floor = 0.62
+        _gate = max(threshold or 0.0, _floor)
         for r in rows:
             if len(r) >= 3:
                 try:
                     sc = float(r[2])
                 except (ValueError, TypeError):
                     sc = 0.0
-                if sc >= (threshold or 0.0):
+                if sc >= _gate:
                     hits.append({"q": r[0], "answer": r[1], "score": sc})
         env = {"ok": True, "query": query,
                "source": "pgvector_knowledge_fallback",

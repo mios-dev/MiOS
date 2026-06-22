@@ -87,7 +87,16 @@ def _run_json(cmd: list[str], timeout: float = 20.0):
         out = subprocess.run(cmd, capture_output=True, text=True,
                              timeout=timeout).stdout
         return json.loads(out) if out.strip() else None
-    except Exception:
+    except subprocess.TimeoutExpired:
+        # Do NOT swallow silently: a timed-out env-probe returns None, which
+        # empties the entire `env` envelope (identity / host HW / services) --
+        # the most valuable part of sys_env. Surface it loudly so an empty env
+        # is never mistaken for "no data available".
+        sys.stderr.write(
+            f"mios-sys-env: {cmd[0]} timed out after {timeout:.0f}s\n")
+        return None
+    except Exception as e:
+        sys.stderr.write(f"mios-sys-env: {cmd[0]} failed: {e}\n")
         return None
 
 
@@ -103,7 +112,14 @@ def _run_lines(cmd: list[str], timeout: float = 20.0) -> list[str]:
 def _probe() -> dict:
     """Gather the live environment: the env-probe envelope + the launchable
     app inventory (names per category, capped)."""
-    env = _run_json(["mios-env-probe", "--json"]) or {}
+    # The env-probe is the slow leg (~24 s on a busy box -- seven sequential
+    # service/HW probes), so give it a generous, env-tunable budget instead of
+    # the 20 s _run_json default. A too-short timeout silently empties `env`
+    # (host='', env_sections=[]) even on a successful refresh.
+    env = _run_json(
+        ["mios-env-probe", "--json"],
+        timeout=float(os.environ.get("MIOS_SYS_ENV_PROBE_TIMEOUT", "60")),
+    ) or {}
     apps: dict[str, list[str]] = {}
     for cat in APP_CATEGORIES:
         cat = cat.strip()
