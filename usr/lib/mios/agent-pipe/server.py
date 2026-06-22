@@ -1893,9 +1893,16 @@ def _probe_auth_headers(ep: str) -> dict:
     log a spurious 'rejected invalid API key' WARNING (operator 2026-06-12);
     harmless functionally (probes treat <500 as live) but it buries real 401s."""
     try:
-        if (_BACKEND_KEY and ep
-                and ep.split("://")[-1].split("/")[0] in _AUTH_HOSTPORTS):
+        _hp = ep.split("://")[-1].split("/")[0] if ep else ""
+        if _BACKEND_KEY and _hp in _AUTH_HOSTPORTS:
             return {"Authorization": f"Bearer {_BACKEND_KEY}"}
+        # WS-FED/G2: a REMOTE agent's liveness probe needs ITS credential too,
+        # else the probe 401s and _live_agent_names wrongly marks the peer dead.
+        _ahdr = _AGENT_AUTH_BY_HOSTPORT.get(_hp)
+        if _ahdr and ":" in _ahdr:
+            _hk, _hv = _ahdr.split(":", 1)
+            if _hk.strip() and _hv.strip():
+                return {_hk.strip(): _hv.strip()}
     except Exception:  # noqa: BLE001
         pass
     return {}
@@ -4719,13 +4726,9 @@ async def _call_agent_complete_inner(name: str, cfg: dict, body: dict,
         # supplied; scoped to the backend netloc so the key never reaches a
         # non-backend node (opencode/daemon/ollama don't enforce it anyway).
         _hdrs = dict(headers or {})
-        if (_BACKEND_KEY
-                and ep.split("://")[-1].split("/")[0] in _AUTH_HOSTPORTS):
-            # Hermes accepts ONE canonical key -- a forwarded client bearer
-            # 401s the node, so the pipe's credential replaces it here.
-            for _k in [k for k in _hdrs if k.lower() == "authorization"]:
-                _hdrs.pop(_k)
-            _hdrs["Authorization"] = f"Bearer {_BACKEND_KEY}"
+        # WS-FED/G2: shared backend key for a local lane, or this agent's OWN
+        # header for a remote/federated endpoint (see _apply_outbound_auth).
+        _apply_outbound_auth(_hdrs, ep)
         # Propagate the turn-id so a sub-request that re-enters :8640 records its
         # web_search sources into the PARENT turn's registry bucket (cross-agent
         # source unification). Harmless on a leaf endpoint (ignored).
@@ -5846,13 +5849,9 @@ async def _call_agent_stream_inner(name: str, cfg: dict, body: dict,
         # enforces Bearer auth; see _call_agent_complete_inner). Scoped to the
         # backend netloc so a non-backend node never receives the key.
         _hdrs = dict(headers or {})
-        if (_BACKEND_KEY
-                and ep.split("://")[-1].split("/")[0] in _AUTH_HOSTPORTS):
-            # Hermes accepts ONE canonical key -- a forwarded client bearer
-            # 401s the node, so the pipe's credential replaces it here.
-            for _k in [k for k in _hdrs if k.lower() == "authorization"]:
-                _hdrs.pop(_k)
-            _hdrs["Authorization"] = f"Bearer {_BACKEND_KEY}"
+        # WS-FED/G2: shared backend key for a local lane, or this agent's OWN
+        # header for a remote/federated endpoint (see _apply_outbound_auth).
+        _apply_outbound_auth(_hdrs, ep)
         # Propagate the turn-id (cross-agent source unification; see the
         # non-streaming sibling). Harmless on a leaf endpoint.
         _tk = _src_turn_key()
