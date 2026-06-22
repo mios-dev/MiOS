@@ -27629,6 +27629,16 @@ async def chat_completions(request: Request) -> Any:
     # falls through to the multi-node swarm (it's intent=chat + >= MIN_WORDS).
     if (not _chat_reply and refined and refined.get("intent") == "chat"
             and len((last_user_text or "").split()) < SWARM_DECOMPOSE_MIN_WORDS
+            # NOT a SHORT current-events / external-fact ask ("what is new today?",
+            # "latest on X") -- those are < MIN_WORDS so they LOOK like trivial banter,
+            # but the model flagged them web/news/external (or the router routed them to
+            # domain=web), meaning they need WEB GROUNDING. Short-circuiting them to a
+            # direct reply is exactly the fabrication the operator hit (2026-06-22: "What
+            # is new today?" -> a fabricated "here are today's headlines:" with NO sources).
+            # Let them fall through to the web-promotion + native-loop prefetch below.
+            and not (refined.get("web") or refined.get("news")
+                     or refined.get("domain_type") in ("external", "both")
+                     or _routed_domain_var.get(None) == "web")
             and not _force_council and not _force_delegate):
         _chat_reply = str(refined.get("reply") or "").strip()
         if not _chat_reply:
@@ -27756,6 +27766,38 @@ async def chat_completions(request: Request) -> Any:
                 refined["intent"] = "agent"
                 refined["_needs_compute"] = True
                 log.info("compute promotion: chat -> agent (calculation needed)")
+        except Exception:  # noqa: BLE001 -- degrade-open
+            pass
+    # CURRENT-EVENTS / EXTERNAL-FACT PROMOTION (operator 2026-06-22 "news fabricated
+    # without search"): granite often refines a current-events / live-fact ask to
+    # intent=chat EVEN WHILE flagging it web/news/external ("what is new today", "latest
+    # on X") -- an inconsistency. A chat-intent turn never reaches the native loop (which
+    # holds the deterministic web prefetch, L26553 gated on web/news), so it takes the
+    # trivial/planner chat path and the model emits a fabricated "here are today's
+    # headlines:" roundup with NO real sources (mios_sources: NONE -- live-confirmed).
+    # Promote chat -> agent (+ ensure web=true) whenever ANY model signal says this needs
+    # the web -- refine web/news/domain_type=external|both OR the router's domain=web (the
+    # same signals _web_flagged trusts) -- so it routes to the native loop, the web
+    # prefetch fires, and the answer is GROUNDED + CITED. Model-classified, NOT a keyword
+    # list. Degrade-open.
+    if (NATIVE_LOOP_ENABLE and refined
+            and refined.get("intent") == "chat"
+            and (refined.get("web") or refined.get("news")
+                 or refined.get("domain_type") in ("external", "both")
+                 or _routed_domain_var.get(None) == "web")
+            and not _force_council and not _force_delegate):
+        try:
+            refined["intent"] = "agent"
+            refined["web"] = True
+            refined["domain_type"] = "both" if refined.get("local_state") else "web"
+            # a web/current turn is time-bound: skip stale-recall inject + don't cache
+            # its own time-bound answer (consistent with the temporal gate above).
+            try:
+                _turn_volatile_var.set(True)
+            except Exception:  # noqa: BLE001
+                pass
+            log.info("web promotion: router domain=web on a chat turn -> intent=agent "
+                     "+ web=true (anti-fabrication, grounds current-events asks)")
         except Exception:  # noqa: BLE001 -- degrade-open
             pass
     # LOCAL-STATE FAST-PATH (operator 2026-05-27): a "what's installed / what's
