@@ -1349,7 +1349,7 @@ health_gate = true             # inert until mios-llm-heavy is up + reachable
 # MIOS_COST_ACCOUNTING_ENABLE.
 # ----------------------------------------------------------------------------
 [cost]
-enable              = false     # off => ledger stays empty (zero behaviour change)
+enable              = true      # roadmap B1: observe-only ledger (records dispatches/tokens/energy; no behaviour change). /v1/cost reports it.
 gpu_watts           = 350.0     # the dGPU board power used for the energy estimate
 usd_per_kwh         = 0.0       # 0 => energy tracked in Wh, local $ stays 0
 remote_usd_per_mtok = 0.0       # $/million-tokens for a remote escalation lane (WS-A16)
@@ -4419,7 +4419,10 @@ rls_mode    = "off"
 # store) | strip (neutralize URLs/code-fences in the stored text) | reject (drop
 # a HIGH-severity fact). Complements the existing verdict-gate (unsatisfied turns
 # already skipped). Env: MIOS_MEMORY_GUARD_MODE.
-memory_guard_mode = "off"
+# Roadmap B1: default "log" -- audit-only (emits memory_poison_flag + stores, no
+# behaviour change), so ASI08 poisoning is actually observed instead of inert.
+# Operator can raise to strip/reject. (off = silent; the prior credibility gap.)
+memory_guard_mode = "log"
 # ── WS-A2 embedding-version hygiene + working-memory durability ──────────────
 # emb_model/emb_version are stamped onto every stored vector (knowledge +
 # agent_memory) so a model/dimension change is detectable. Bump emb_version when
