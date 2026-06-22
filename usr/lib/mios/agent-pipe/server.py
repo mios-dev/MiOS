@@ -4744,6 +4744,11 @@ async def _call_agent_complete_inner(name: str, cfg: dict, body: dict,
             if _tk:   # propagate the turn-id so a re-entrant sub-request's sources
                 _oll_hdrs[_SRC_TURN_HEADER] = _tk   # land in the parent turn bucket
             _oll_hdrs.update(_hop_via_headers())   # P0 cross-hop recursion bound
+            # FED-G2 follow-up: attach the OUTBOUND credential for `base` (shared key for
+            # a local lane, the per-agent header for a remote/federated endpoint). Was
+            # omitted on this shim path -> a keyed remote peer reached here got no auth.
+            # Idempotent + degrade-open: a keyless endpoint gets no header (no-op today).
+            _apply_outbound_auth(_oll_hdrs, base)
             r = await client.post(
                 f"{base}/v1/chat/completions",
                 content=json.dumps(payload).encode("utf-8"),
@@ -14316,10 +14321,14 @@ async def dci_critic_pass(
     }
     try:
         async with httpx.AsyncClient(timeout=DCI_TIMEOUT_S) as s:
+            # FED-G2 follow-up: attach the outbound credential for the critic endpoint
+            # (shared key for a local lane / per-agent header for a remote one).
+            _dci_hdrs = {"Content-Type": "application/json"}
+            _apply_outbound_auth(_dci_hdrs, DCI_ENDPOINT)
             r = await s.post(
                 f"{DCI_ENDPOINT}/v1/chat/completions",
                 json=payload,
-                headers={"Content-Type": "application/json"},
+                headers=_dci_hdrs,
             )
             if r.status_code != 200:
                 return None
