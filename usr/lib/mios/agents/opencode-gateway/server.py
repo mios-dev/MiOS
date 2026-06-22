@@ -169,7 +169,13 @@ def _run_opencode(prompt: str, model: str):
     cmd = [OPENCODE_BIN, "run", "--format", "json",
            "-m", _selector(model), prompt]
     proc = subprocess.run(
-        cmd, capture_output=True, text=True, timeout=TIMEOUT, env=env
+        cmd, capture_output=True, text=True, timeout=TIMEOUT, env=env,
+        # stdin=DEVNULL (roadmap WS-A3): `--format json` above already suppresses
+        # the TUI replay-frame hang, but opencode's `run` otherwise inherits the
+        # gateway's stdin and, with no TTY, can BLOCK waiting on input -- the other
+        # half of the long-standing "opencode run hangs / returns zero" symptom.
+        # A closed stdin makes the invocation non-interactive end-to-end.
+        stdin=subprocess.DEVNULL,
     )
     raw = proc.stdout or ""
     # Assistant text = concatenation, in order, of every part.type=="text"
