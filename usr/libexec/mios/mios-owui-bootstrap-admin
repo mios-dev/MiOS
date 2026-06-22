@@ -231,6 +231,41 @@ def _bcrypt_hash_via_container(password: str) -> str:
         raise SystemExit(2)
 
 
+def _export_admin_api_key(conn, uid: str) -> None:
+    """Export the admin's OWUI api_key to /etc/mios/owui-admin.key (0640
+    root:mios-ai) so the agent-pipe / mios-ai broker -- which CANNOT read
+    webui.db (0640 mios-open-webui) -- can authenticate to OWUI's retrieval
+    API for knowledge_search instead of silently degrading to the pgvector
+    fallback. The key is minted by mios-owui-install-pipe (or OWUI); this only
+    EXPORTS it. Best-effort, idempotent, never raises (we already run as root
+    here so the chown succeeds on a real host)."""
+    try:
+        cols = {r[1] for r in conn.execute("PRAGMA table_info(api_key)")}
+        if "key" not in cols:
+            return
+        row = conn.execute(
+            "SELECT key FROM api_key WHERE user_id = ? ORDER BY created_at DESC LIMIT 1;",
+            (uid,),
+        ).fetchone()
+        key = (row[0] if row else "") or ""
+        if not key:
+            _log("no OWUI admin api_key minted yet -- skipping export "
+                 "(install-pipe mints it; a later boot will export)")
+            return
+        out = Path(os.environ.get("MIOS_OWUI_API_KEY_FILE", "/etc/mios/owui-admin.key"))
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(key + "\n", encoding="utf-8")
+        out.chmod(0o640)
+        try:
+            import grp
+            os.chown(str(out), 0, grp.getgrnam("mios-ai").gr_gid)
+        except (KeyError, PermissionError, OSError):
+            pass  # group may not exist / not root -- file is still 0640
+        _log(f"exported OWUI admin api_key -> {out} (mode 0640, root:mios-ai)")
+    except Exception as e:  # noqa: BLE001 -- never block firstboot
+        _log(f"api_key export skipped: {e}")
+
+
 def main():
     if not DB.exists():
         _log(f"OWUI db {DB} not present yet -- skipping (re-run after first OWUI start)")
@@ -281,6 +316,7 @@ def main():
                 conn.execute("UPDATE user SET role = 'admin', updated_at = ? WHERE id = ?", (now, uid))
             conn.commit()
             _write_password_file(password, name, email, source)
+            _export_admin_api_key(conn, uid)
             _log(f"reconciled OWUI admin {email!r} password to SSOT (source: {source})")
             return 0
 
@@ -324,6 +360,7 @@ def main():
         conn.commit()
         _log(f"admin user created (id={uid[:8]}..., role=admin)")
         _write_password_file(password, name, email, source)
+        _export_admin_api_key(conn, uid)
         _log(f"credentials written to {PASSWORD_OUT} (mode 0600)")
         return 0
     finally:

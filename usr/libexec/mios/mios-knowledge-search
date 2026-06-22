@@ -157,8 +157,25 @@ def _pgvector_knowledge_fallback(query: str, top_k: int, threshold: float,
 
 
 def _admin_token() -> str:
-    """Look up the admin api_key the install-pipe minted. Read-only
-    SQLite query; never mutates webui.db."""
+    """Resolve the OWUI admin api_key. Prefer a broker-readable secret
+    (MIOS_OWUI_API_KEY env, or /etc/mios/owui-admin.key written 0640
+    root:mios-ai by mios-owui-bootstrap-admin) so the agent-pipe / mios-ai user
+    does NOT need read access to webui.db (0640 mios-open-webui) -- that
+    permission gap is exactly why this returned '' and silently degraded to the
+    pgvector fallback. Falls back to a read-only webui.db lookup for an admin/
+    root caller. Never mutates webui.db."""
+    env_key = os.environ.get("MIOS_OWUI_API_KEY", "").strip()
+    if env_key:
+        return env_key
+    for kf in ("/etc/mios/owui-admin.key",
+               os.environ.get("MIOS_OWUI_API_KEY_FILE", "")):
+        if kf and os.path.isfile(kf):
+            try:
+                k = open(kf, encoding="utf-8").read().strip()
+                if k:
+                    return k
+            except OSError:
+                pass
     if not os.path.isfile(OWUI_DB):
         return ""
     try:
@@ -176,9 +193,28 @@ def _admin_token() -> str:
         return ""
 
 
-def _list_collections() -> list[dict]:
-    """Read all knowledge collection rows from webui.db. Used to
-    resolve --collection by name to its id."""
+def _list_collections(token: str = "") -> list[dict]:
+    """List knowledge collections. Prefer OWUI's API when a token is available
+    (the mios-ai broker CANNOT read webui.db -- 0640 mios-open-webui -- so the
+    sqlite path returns [] for it, which is why a no-collection search silently
+    matched nothing); fall back to a read-only webui.db read for an admin/root
+    caller without a token."""
+    if token:
+        try:
+            req = urllib.request.Request(
+                f"{OWUI_URL}/api/v1/knowledge/",
+                headers={"Authorization": f"Bearer {token}"})
+            with urllib.request.urlopen(req, timeout=15) as r:
+                data = json.loads(r.read().decode("utf-8", "replace"))
+            # OWUI 0.9.6 returns {"items":[...], "total":N}; older returns a list.
+            if isinstance(data, dict):
+                data = data.get("items") or data.get("data") or []
+            if isinstance(data, list):
+                return [{"id": c.get("id", ""), "name": c.get("name", ""),
+                         "description": c.get("description", "") or ""}
+                        for c in data if isinstance(c, dict) and c.get("id")]
+        except Exception:
+            pass  # fall through to webui.db
     if not os.path.isfile(OWUI_DB):
         return []
     try:
@@ -197,14 +233,14 @@ def _list_collections() -> list[dict]:
         return []
 
 
-def _resolve_collection(name_or_id: str) -> str:
+def _resolve_collection(name_or_id: str, token: str = "") -> str:
     """Resolve a user-provided collection name OR id to the canonical
     id. Exact-id match wins; otherwise case-insensitive name match.
     Empty input -> '' (caller iterates all collections)."""
     name_or_id = (name_or_id or "").strip()
     if not name_or_id:
         return ""
-    cols = _list_collections()
+    cols = _list_collections(token)
     for c in cols:
         if c["id"] == name_or_id:
             return c["id"]
@@ -217,16 +253,17 @@ def _resolve_collection(name_or_id: str) -> str:
     return name_or_id
 
 
-def _query(token: str, collection_id: str, query: str,
+def _query(token: str, collection_ids: list, query: str,
            top_k: int, threshold: float) -> dict:
     """POST /api/v1/retrieval/query/collection. Returns the parsed
     response dict or {"error": "..."}.
 
-    Endpoint shape verified by probe-owui-knowledge-api2.sh against
-    the running OWUI; earlier `/api/v1/retrieval/process/query`
-    returned 405 (path moved or never accepted POST on this version)."""
+    `collection_ids` is the list of collections to search (ALL of them when the
+    caller didn't scope to one -- an empty list searches NOTHING, which is why a
+    bare query used to return 0 hits). Endpoint shape verified against the
+    running OWUI; earlier `/api/v1/retrieval/process/query` returned 405."""
     body = {
-        "collection_names": [collection_id] if collection_id else [],
+        "collection_names": list(collection_ids or []),
         "query": query,
         "k": top_k,
         "r": threshold,
@@ -314,7 +351,7 @@ def main() -> int:
     args = p.parse_args()
 
     if args.list_collections:
-        cols = _list_collections()
+        cols = _list_collections(_admin_token())
         if args.json:
             print(json.dumps({"collections": cols}, indent=2))
         else:
@@ -336,8 +373,14 @@ def main() -> int:
         return _pgvector_knowledge_fallback(args.query, args.top_k,
                                             args.threshold, args.json)
 
-    collection_id = _resolve_collection(args.collection)
-    resp = _query(token, collection_id, args.query,
+    if args.collection:
+        cid = _resolve_collection(args.collection, token)
+        collection_ids = [cid] if cid else []
+    else:
+        # No scope -> search across ALL collections (listed via the OWUI API,
+        # since the broker can't read webui.db). An empty list searches nothing.
+        collection_ids = [c["id"] for c in _list_collections(token)]
+    resp = _query(token, collection_ids, args.query,
                   args.top_k, args.threshold)
     if isinstance(resp, dict) and resp.get("error"):
         envelope = {
@@ -360,7 +403,8 @@ def main() -> int:
             "ok": True,
             "query": args.query,
             "collection": args.collection,
-            "collection_id": collection_id,
+            "collection_ids": collection_ids,
+            "searched": len(collection_ids),
             "hits": hits,
         }))
     else:
