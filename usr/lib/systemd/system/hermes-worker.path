@@ -1,0 +1,23 @@
+# AI-hint: Systemd path unit (WS-A4 boot-ordering fix) that watches for the Hermes venv binary and (re)starts hermes-worker.service once it exists, so a worker that failed its ConditionPathExists at first boot (venv not yet built) comes up automatically when the venv lands -- instead of staying inactive until a manual restart.
+# AI-related: hermes-worker.service, hermes-worker-firstboot.service, /usr/lib/mios/agents/.venv/bin/hermes, multi-user.target, 90-mios.preset
+# /usr/lib/systemd/system/hermes-worker.path
+# WS-A4 (operator 2026-06-22): hermes-worker.service carries
+# ConditionPathExists=/usr/lib/mios/agents/.venv/bin/hermes. On a fresh boot the
+# venv is not built yet -> the Condition fails -> the worker is skipped, and once
+# the venv-build/firstboot finishes systemd never retries it (so :8643 stays
+# inactive forever and the orchestrator silently runs single-agent). This .path
+# closes that gap: PathExists is satisfied the moment the venv binary EXISTS
+# (on creation AND if already present at activation), starting the worker. The
+# worker's own Condition still guards against a half-built venv; start is idempotent.
+
+[Unit]
+Description='MiOS' watch for the Hermes venv -> (re)start hermes-worker
+Documentation=file:///usr/lib/systemd/system/hermes-worker.service
+After=hermes-worker-firstboot.service
+
+[Path]
+PathExists=/usr/lib/mios/agents/.venv/bin/hermes
+Unit=hermes-worker.service
+
+[Install]
+WantedBy=multi-user.target

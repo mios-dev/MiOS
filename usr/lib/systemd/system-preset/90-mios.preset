@@ -107,6 +107,7 @@ enable mios-hermes-browser.service
 # CDP browser (:9223, profile-w2) so it never stomps the primary :9222 browser.
 enable hermes-worker-firstboot.service
 enable hermes-worker.service
+enable hermes-worker.path
 enable mios-hermes-browser-worker.service
 # System-wide flatpak override policy: every installed flatpak
 # inherits read+write access to the operator's XDG user dirs

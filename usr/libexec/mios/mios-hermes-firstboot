@@ -1610,6 +1610,20 @@ if [[ -x /usr/libexec/mios/mios-owui-apply-knowledge ]]; then
         | while IFS= read -r _line; do _log "$_line"; done
 fi
 
+# ─── Open WebUI: apply the MiOS AI system prompt ({{USER_LOCATION}}) ───
+# E1 (operator 2026-06-22): recreate the "MiOS AI" model row with the
+# location/time-aware system prompt ({{USER_LOCATION}} / {{CURRENT_TIMEZONE}} /
+# {{CURRENT_DATE}}) on EVERY firstboot, so the OWUI-native location grounding
+# survives a rebuild/reinstall (it was applied live-only and would otherwise be
+# lost). Idempotent (the script upserts the model row). Runs after
+# apply-knowledge so the model row exists for the prompt to attach to. Browser
+# geolocation needs a SECURE CONTEXT (https://...ts.net or http://localhost:3030,
+# NOT http://<LAN-IP>) -- documented in the script + the roadmap E1 note.
+if [[ -x /usr/libexec/mios/mios-owui-apply-system-prompt ]]; then
+    /usr/libexec/mios/mios-owui-apply-system-prompt 2>&1 | sed 's/^/  /' \
+        | while IFS= read -r _line; do _log "$_line"; done
+fi
+
 # ─── Auto-install MiOS-Agent OWUI Pipe ────────────────────────────────
 # Operator directive 2026-05-16: "OWUIs MiOS-Agent is the model that
 # users speak to ... should be using OWUIs emitter function". The
