@@ -1834,8 +1834,10 @@ recall_pref_min_score = 0.50 # lower recall floor for SELF-REFERENTIAL asks (a p
 rank_outcome        = 0.05   # weight: + if the recalled answer's turn was satisfied, - if unsatisfied
 rank_hot            = 0.03   # weight: + if the row is tier=hot (frequently paged in)
 rank_access         = 0.02   # weight: * log1p(access_count)
-rank_age            = 0.0    # weight: - age in days (inert by default)
+rank_age            = 0.3    # RECENCY-DECAY SWING (operator 2026-06-22 "weigh date/time appropriately in an AIOS env"). Bounded MULTIPLIER on the blended score: (1-rank_age) + rank_age*0.5**(age_days/recall_halflife_days). 0.3 -> floor 0.7 (a fully-stale row keeps 70% of its score; freshest ~1.43x edge) per research (Generative-Agents/LangChain-TimeWeighted/Elasticsearch). 0 = inert (cosine-only). Cosine stays dominant; recency only breaks near-ties.
+recall_halflife_days = 7.0   # recency half-life: at this row age the decay has removed HALF the rank_age swing. Lower = fresher-biased. age from last_access (refreshed on recall), fallback ts.
 hot_threshold       = 5      # access_count at which a recalled row is promoted to tier=hot
+store_skip_volatile = true   # anti-stale-recall: skip durable STORE *and* RECALL injection for model-classified VOLATILE turns (refine local_state/news/needs_location -- live system-state, current-events, location-bound). Such a turn is a point-in-time snapshot (cwd, windows, weather, latest-news) that poisons recall if cached; it is re-derived LIVE every turn. Model-classified, NOT a keyword check. false = legacy (cache/recall everything).
 # ── WS-3 eviction (P2.1, 2026-06-04). The knowledge table appends one row per
 # finished turn -> unbounded. This bounded K-LRU + TTL sweep removes only STALE,
 # never-recalled, neutral-outcome rows; it NEVER deletes a hot / satisfied /
@@ -2348,6 +2350,13 @@ remember_trigger_phrases = ["remember", "note", "save", "keep in mind", "don't f
 # CONTEXT phrase -> set web=true (e.g. "search ... online", "look up ... on the web").
 web_search_trigger_phrases = ["search", "look up", "google", "find", "search the web", "search online"]
 web_search_trigger_contexts = ["web", "internet", "online"]
+# location_sensitive: a web research query carrying one of these phrases needs the
+# user's REAL resolved location spliced into the SEARCH STRING, else the engine
+# returns generic/foreign hits the model passes off as local (operator 2026-06-22:
+# Cobourg weather/local-news grounded to New York sources). This is the SSOT FALLBACK
+# behind the model-classified `needs_location` flag (refine) -- both feed the splice;
+# edit here, never hardcode in code. Empty = rely on the model flag alone.
+location_sensitive_phrases = ["weather", "forecast", "near me", "nearby", "near here", "around here", "local news", "local", "my area", "things to do", "restaurants", "closest", "directions to"]
 # browser_action: a URL + a READ/browse verb -> force the CDP browse path (real DOM)
 # over the launch-only open_url fast-path. SSOT (operator 2026-06-16 "NOTHING
 # HARDCODED"): was a hardcoded regex in refine. EMPTY this list -> the force is skipped

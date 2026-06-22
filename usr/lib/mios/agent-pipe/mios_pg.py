@@ -141,8 +141,8 @@ def build_recall(table: str = "knowledge", k: int = 3,
         proj = "mem_key AS id, fact, scope, source"
     elif table == "mios_rag":
         proj = "id, source, content"
-    else:  # knowledge (default) -- unchanged
-        proj = "id, q, answer, tier, satisfied, access_count"
+    else:  # knowledge (default) -- + ts/last_access for the recall recency decay
+        proj = "id, q, answer, tier, satisfied, access_count, ts, last_access"
     where = "emb IS NOT NULL"
     params = {"qvec": None, "k": int(k)}  # caller sets qvec = vector_literal(q)
     if owner is not None:

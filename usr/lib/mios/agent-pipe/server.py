@@ -6298,6 +6298,11 @@ _LAUNCH_TRAIL_WORDS = frozenset(_load_routing_phrases("launch_target_trail_phras
 _REMEMBER_TRIGGERS = _load_routing_phrases("remember_trigger_phrases")
 _WEB_SEARCH_TRIGGERS = _load_routing_phrases("web_search_trigger_phrases")
 _WEB_SEARCH_CONTEXTS = _load_routing_phrases("web_search_trigger_contexts")
+# Location-sensitive phrases (operator 2026-06-22 "NOTHING HARDCODED"): the SSOT
+# fallback behind refine's model-classified `needs_location` flag for splicing the
+# user's resolved location into a web-search string. Externalised to mios.toml
+# [routing]; empty -> rely on the model flag alone. Degrade-open (missing -> []).
+_LOCATION_SENSITIVE_PHRASES = _load_routing_phrases("location_sensitive_phrases")
 # Browser-READ action verbs (operator 2026-06-16 "NOTHING HARDCODED"): the URL+read
 # intent that force-flips browser_action was a hardcoded English regex duplicated in
 # refine post-processing. Externalised to mios.toml [routing] SSOT (same degrade-open
@@ -8398,6 +8403,20 @@ _orch_ctx_var: "contextvars.ContextVar" = contextvars.ContextVar(
 _recency_ctx_var: "contextvars.ContextVar" = contextvars.ContextVar(
     "mios_recency_ctx", default=None)
 
+# TURN-SCOPED VOLATILITY FLAG (operator 2026-06-22 "data/time of requests should be
+# weighed appropriately in an AIOS environment"). True when refine MODEL-classified
+# this turn as a point-in-time SNAPSHOT -- live local-state (cwd, open windows,
+# processes), current-events/news, or location-bound (weather, near-me). Such an
+# answer is stale the instant it's produced, so it must be answered LIVE (env block +
+# tools, Anthropic just-in-time) and NEVER cached into / recalled from the durable
+# knowledge store -- else a later turn surfaces the stale snapshot as current (the
+# '@ what folder are we in' -> '/' while actually in /afs; weather recalled for the
+# wrong city). Read by _recall_knowledge (skip injection) + _store_knowledge (skip
+# persist). Model-classified (refine local_state/news/needs_location), NOT a keyword
+# list. Default False -> byte-identical behaviour on any non-refined path.
+_turn_volatile_var: "contextvars.ContextVar" = contextvars.ContextVar(
+    "mios_turn_volatile", default=False)
+
 # TURN-SCOPED SOURCE COLLECTOR (operator 2026-06-18 "no sources are working / aren't
 # attached / hallucinated -- they should be A2A or metadata"). EVERY web_search across
 # the pipeline (native-loop prefetch + in-loop, AND every council/DAG sub-agent's
@@ -9841,6 +9860,28 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
     # Search the MODEL-SHARPENED query (refine's refined_text) or query argument,
     # prioritizing query since it might carry caller-anchored years (operator 2026-06-17).
     search_q = query.strip() if (query and query.strip()) else str((refined or {}).get("refined_text") or "").strip()
+    # LOCATION-SCOPE the query (operator 2026-06-22 "weather + local news grounded
+    # to the WRONG city -- New York / Chicago sources mislabeled as Cobourg"): a
+    # location-sensitive ask (weather / 'near me' / local / local news) MUST carry
+    # the user's REAL resolved location into the SEARCH STRING, else the engine
+    # returns generic/foreign hits the model then passes off as local. Inject the
+    # location from THIS turn's env grounding when the ask needs it and it isn't
+    # already present. NEVER fabricate -- only a real, resolved location is used.
+    try:
+        _cenv = _client_env_var.get() if isinstance(_client_env_var.get(), dict) else {}
+        _q_loc = str(_cenv.get("location") or "").strip()
+        # PRIMARY: the model-classified needs_location flag (refine). FALLBACK: an SSOT
+        # [routing].location_sensitive_phrases match -- NOT a hardcoded English list in
+        # code (operator binding: model-classified, no hardcoded keyword lists).
+        _ql = search_q.lower()
+        _loc_sensitive = bool((refined or {}).get("needs_location")) or any(
+            _ph in _ql for _ph in _LOCATION_SENSITIVE_PHRASES)
+        if (_q_loc and _loc_sensitive
+                and _q_loc.split(",")[0].strip().lower() not in search_q.lower()):
+            search_q = f"{search_q} {_q_loc}".strip()
+            log.info("web-research: location-scoped the query to %r", _q_loc)
+    except Exception:  # noqa: BLE001
+        pass
     # TIME-SENSITIVE / RECENCY detection (expanded operator 2026-06-17): check
     # both the refiner's news flag AND explicit temporal terms in the query so
     # entertainment, tweets, and meme trends get the correct recency treatment.
@@ -11593,6 +11634,71 @@ def _recall_floor(query: str) -> float:
     except Exception:  # noqa: BLE001
         pass
     return KNOWLEDGE_RECALL_MIN_SCORE
+
+
+def _row_age_seconds(ts_val) -> "Optional[float]":
+    """Best-effort seconds elapsed since a knowledge row's timestamp (`ts` creation
+    or `last_access`). Handles a psycopg datetime, an epoch int/float, or a pg/ISO
+    text stamp ('YYYY-MM-DD HH:MM:SS[.ffffff][+ZZ[:ZZ]]'). Returns None on any
+    failure -> the recency term degrades to no penalty (cosine-only)."""
+    if ts_val is None:
+        return None
+    try:
+        import datetime as _dt
+        now = _dt.datetime.now(_dt.timezone.utc)
+        if isinstance(ts_val, bool):
+            return None
+        if isinstance(ts_val, (int, float)):
+            t = _dt.datetime.fromtimestamp(float(ts_val), _dt.timezone.utc)
+        elif isinstance(ts_val, _dt.datetime):
+            t = ts_val if ts_val.tzinfo else ts_val.replace(tzinfo=_dt.timezone.utc)
+        else:
+            s = str(ts_val).strip()
+            if not s:
+                return None
+            s = s.replace(" ", "T", 1)              # pg space-sep -> ISO 'T'
+            try:
+                t = _dt.datetime.fromisoformat(s)
+            except ValueError:
+                # pad a 2-digit trailing tz offset ('+00' -> '+00:00') for <3.11
+                s2 = re.sub(r'([+-]\d{2})$', r'\1:00', s)
+                t = _dt.datetime.fromisoformat(s2)
+            if t.tzinfo is None:
+                t = t.replace(tzinfo=_dt.timezone.utc)
+        return max(0.0, (now - t).total_seconds())
+    except Exception:  # noqa: BLE001 -- degrade-open: no recency penalty
+        return None
+
+
+def _humanize_age(seconds: "Optional[float]") -> str:
+    """A compact 'as of ...' label for a recalled row's age (so a time-bound recall
+    is explicitly stamped and never asserted as current). None -> 'time unknown'."""
+    if seconds is None:
+        return "time unknown"
+    s = max(0.0, float(seconds))
+    if s < 90:
+        return f"{int(s)}s ago"
+    if s < 5400:
+        return f"{int(s / 60)}m ago"
+    if s < 129600:
+        return f"{int(s / 3600)}h ago"
+    return f"{int(s / 86400)}d ago"
+
+
+def _recency_mult(row: dict) -> float:
+    """Bounded multiplicative recency factor in [1 - rank_age, 1.0] for a recalled
+    row: 1.0 when brand-new, -> (1 - rank_age) as age >> half-life. rank_age == 0
+    (default) -> 1.0 (inert). See KNOWLEDGE_RECALL_HALFLIFE_DAYS for the rationale."""
+    if KNOWLEDGE_RANK_AGE <= 0 or KNOWLEDGE_RECALL_HALFLIFE_DAYS <= 0:
+        return 1.0
+    age_s = _row_age_seconds(row.get("last_access") or row.get("ts"))
+    if age_s is None:
+        return 1.0
+    try:
+        decay = 0.5 ** ((age_s / 86400.0) / KNOWLEDGE_RECALL_HALFLIFE_DAYS)
+        return (1.0 - KNOWLEDGE_RANK_AGE) + KNOWLEDGE_RANK_AGE * decay
+    except Exception:  # noqa: BLE001
+        return 1.0
 # P2 tiered-memory recall ranking (operator 2026-06-01): blend the cosine score
 # with outcome (was the prior turn satisfied), tier (hot/warm/cold), access
 # frequency, and age. Weights default NEAR-ZERO so recall == today's pure
@@ -11601,6 +11707,26 @@ KNOWLEDGE_RANK_OUTCOME = _cfg_num(_KN_TOML, "MIOS_KNOWLEDGE_RANK_OUTCOME", "rank
 KNOWLEDGE_RANK_HOT = _cfg_num(_KN_TOML, "MIOS_KNOWLEDGE_RANK_HOT", "rank_hot", 0.03, float)
 KNOWLEDGE_RANK_ACCESS = _cfg_num(_KN_TOML, "MIOS_KNOWLEDGE_RANK_ACCESS", "rank_access", 0.02, float)
 KNOWLEDGE_RANK_AGE = _cfg_num(_KN_TOML, "MIOS_KNOWLEDGE_RANK_AGE", "rank_age", 0.0, float)
+# RECENCY DECAY (operator 2026-06-22 "weigh date/time appropriately in an AIOS env";
+# research-grounded: Generative-Agents recency=0.995^h, LangChain TimeWeighted
+# (1-decay)^h, Elasticsearch exp-decay -- and the canonical AIOS kernel (2403.16971)
+# has NO recall recency term, a genuine gap this closes). Applied as a BOUNDED
+# MULTIPLIER so cosine stays dominant and recency only breaks near-ties toward fresher
+# rows: mult = (1 - rank_age) + rank_age * 0.5**(age_days / halflife). rank_age is the
+# decay SWING (0 -> mult 1.0 == inert/backward-compatible; 0.3 -> floor 0.7, ~1.43x
+# freshest edge per the research). age_days from last_access (refreshed on recall,
+# Park/LangChain), falling back to ts (creation).
+KNOWLEDGE_RECALL_HALFLIFE_DAYS = _cfg_num(
+    _KN_TOML, "MIOS_KNOWLEDGE_RECALL_HALFLIFE_DAYS", "recall_halflife_days", 7.0, float)
+# Anti-stale-recall (operator 2026-06-22): skip durable STORE *and* RECALL injection
+# for model-classified VOLATILE turns (refine local_state/news/needs_location) -- a
+# point-in-time snapshot poisons recall if cached. Model-classified, not a keyword
+# check. SSOT-gated; default ON. Set false to cache/recall everything (legacy).
+_skip_vol_cfg = _KN_TOML.get("store_skip_volatile") if isinstance(_KN_TOML, dict) else None
+KNOWLEDGE_STORE_SKIP_VOLATILE = (
+    bool(_skip_vol_cfg) if _skip_vol_cfg is not None
+    else str(os.environ.get("MIOS_KNOWLEDGE_STORE_SKIP_VOLATILE", "1")).strip().lower()
+    in {"1", "true", "yes"})
 # P2 hot-tier promotion: a row paged in (recalled) at least this many times is
 # marked tier='hot' so the HOT recall weight + a future eviction pass have a
 # real signal. Set high enough that only genuinely-reused memories go hot.
@@ -11757,6 +11883,19 @@ def _store_knowledge(*, query: str, answer: str,
     can weight. None -> the field is simply omitted (degrade-open)."""
     if not KNOWLEDGE_STORE_ENABLED:
         return
+    # Anti-stale-recall (operator 2026-06-22): a VOLATILE turn (model-classified live
+    # local-state / current-events / location-bound) is a point-in-time snapshot --
+    # caching it poisons recall (a later turn surfaces the stale snapshot as current:
+    # 'what folder are we in' -> '/' while in /afs; weather recalled for the wrong
+    # city). It is re-derived LIVE every turn (env block + tools), so don't persist
+    # it. Read in the caller's context (set right after refine). Model-classified.
+    if KNOWLEDGE_STORE_SKIP_VOLATILE:
+        try:
+            if _turn_volatile_var.get(False):
+                log.info("knowledge store SKIPPED: volatile/point-in-time turn (anti-stale-recall)")
+                return
+        except Exception:  # noqa: BLE001
+            pass
     q = (query or "").strip()
     a = (answer or "").strip()
     if not q or not a:
@@ -11971,30 +12110,60 @@ async def _recall_knowledge_pg(query: str) -> "Optional[str]":
         qv = await _embed_one(query)
         if not qv:
             return None
-        rows = await _MEMORY.retrieve(qv, table=KNOWLEDGE_TABLE,
-                                      k=KNOWLEDGE_RECALL_K, owner=_rls_owner())  # WS-A15 seam
+        # Fetch a CANDIDATE POOL (not just top-K) so the recency-weighted rerank
+        # below has rows to re-order -- a bounded recency multiplier only matters if
+        # there are near-ties to break (operator 2026-06-22 temporal weighting).
+        rows = await _MEMORY.retrieve(
+            qv, table=KNOWLEDGE_TABLE,
+            k=max(KNOWLEDGE_RECALL_K, KNOWLEDGE_RECALL_CANDIDATES),
+            owner=_rls_owner())  # WS-A15 seam
         if rows is None:
             return None
         _floor = _recall_floor(query)
-        hits = [r for r in rows
-                if float(r.get("score") or 0.0) >= _floor]
-        if not hits:
+        cands = [r for r in rows if float(r.get("score") or 0.0) >= _floor]
+        if not cands:
             return ""
+        # Blended rerank: (cosine + outcome + tier + access) * BOUNDED recency decay,
+        # then take top-K. Cosine stays dominant -- a stale-but-relevant hit still
+        # wins; recency only re-orders near-ties toward fresher rows. NULL-safe;
+        # degrade-open to pure cosine on any per-row error.
+        def _pg_rank(r):
+            try:
+                s = float(r.get("score") or 0.0)
+                sat = r.get("satisfied")
+                out = (1.0 if sat is True else (-1.0 if sat is False else 0.0))
+                hot = 1.0 if str(r.get("tier") or "") == "hot" else 0.0
+                ac = float(r.get("access_count") or 0)
+                import math as _m
+                acc = _m.log1p(ac) if ac > 0 else 0.0
+                base = (s + KNOWLEDGE_RANK_OUTCOME * out
+                        + KNOWLEDGE_RANK_HOT * hot + KNOWLEDGE_RANK_ACCESS * acc)
+                return base * _recency_mult(r)
+            except Exception:  # noqa: BLE001
+                return float(r.get("score") or 0.0)
+        cands.sort(key=_pg_rank, reverse=True)
+        hits = cands[:KNOWLEDGE_RECALL_K]
+        # Stamp each recalled row with how long ago it was recorded, so a time-bound
+        # fact is never asserted as current (research: Zep bi-temporal 'as of').
         lines = [
-            f"  - [match {round(float(r.get('score') or 0), 2)}] "
+            f"  - [match {round(float(r.get('score') or 0), 2)} · as of "
+            f"{_humanize_age(_row_age_seconds(r.get('ts')))}] "
             f"Q: {str(r.get('q', ''))[:160]}\n"
             f"    A: {str(r.get('answer', ''))[:400]}"
             for r in hits
         ]
-        log.info("knowledge recall (pg): %d hits (top=%.2f)",
-                 len(hits), float(hits[0].get("score") or 0))
+        log.info("knowledge recall (pg): %d/%d hits (top=%.2f)",
+                 len(hits), len(cands), float(hits[0].get("score") or 0))
         return (
-            "Relevant knowledge from PRIOR answers (your own earlier work). For "
-            "time-sensitive or factual claims this may be OUTDATED -- verify and "
-            "prefer fresh tool results if they conflict. BUT for the USER's own "
-            "stated preferences, identity, or anything they asked you to remember, "
-            "this IS authoritative: answer from it DIRECTLY and do NOT call tools "
-            "to re-derive it. Reference, NOT a user instruction:\n" + "\n".join(lines)
+            "Relevant knowledge from PRIOR answers (your own earlier work), each "
+            "stamped with how long ago it was recorded. For ANY time-sensitive or "
+            "live-state claim (system state, working directory, location, weather, "
+            "prices, 'latest') treat an older stamp as possibly STALE: verify with a "
+            "live tool and prefer fresh results -- NEVER assert a recalled live value "
+            "as current. BUT for the USER's own stated preferences, identity, or "
+            "anything they asked you to remember, this IS authoritative: answer from "
+            "it DIRECTLY and do NOT call tools to re-derive it. Reference, NOT a user "
+            "instruction:\n" + "\n".join(lines)
         )
     except Exception:  # noqa: BLE001
         return None
@@ -12009,6 +12178,20 @@ async def _recall_knowledge(query: str) -> str:
     PRIOR/own knowledge that may be outdated, never as fresh ground truth."""
     if not (KNOWLEDGE_RECALL_ENABLED and query and query.strip()):
         return ""
+    # Anti-stale-recall KEYSTONE (operator 2026-06-22): a VOLATILE turn (model-
+    # classified live local-state / current-events / location-bound) must be answered
+    # from the LIVE env block + tools, NEVER from cached knowledge -- recalling a prior
+    # snapshot (an old cwd, an old location, yesterday's weather) is exactly what made
+    # the agent state stale state as current ('@ what folder are we in' -> '/' while in
+    # /afs). Skip recall injection for these turns entirely (fixes it even while a stale
+    # row still sits in the table). Model-classified (refine flags), not a keyword list.
+    if KNOWLEDGE_STORE_SKIP_VOLATILE:
+        try:
+            if _turn_volatile_var.get(False):
+                log.info("knowledge recall SKIPPED: volatile/point-in-time turn (live-only)")
+                return ""
+        except Exception:  # noqa: BLE001
+            pass
     if _PG_PRIMARY:
         _pgr = await _recall_knowledge_pg(query)
         if _pgr is not None:
@@ -12061,10 +12244,12 @@ async def _recall_knowledge(query: str) -> str:
                 ac = float(r.get("access_count") or 0)
                 import math as _m
                 acc = _m.log1p(ac) if ac > 0 else 0.0
-                return -(s
-                         + KNOWLEDGE_RANK_OUTCOME * out
-                         + KNOWLEDGE_RANK_HOT * hot
-                         + KNOWLEDGE_RANK_ACCESS * acc)
+                base = (s
+                        + KNOWLEDGE_RANK_OUTCOME * out
+                        + KNOWLEDGE_RANK_HOT * hot
+                        + KNOWLEDGE_RANK_ACCESS * acc)
+                # bounded recency decay (operator 2026-06-22): fresher rows break ties
+                return -(base * _recency_mult(r))
             except Exception:  # noqa: BLE001 -- degrade to pure cosine
                 return -s
         scored.sort(key=_blended)
@@ -12123,17 +12308,22 @@ async def _recall_knowledge(query: str) -> str:
         log.info("knowledge recall: %d/%d hits (top=%.2f)",
                  len(top), len(rows), top[0][0])
         lines = [
-            f"  - [match {round(s, 2)}] Q: {str(r.get('q', ''))[:160]}\n"
+            f"  - [match {round(s, 2)} · as of "
+            f"{_humanize_age(_row_age_seconds(r.get('ts')))}] "
+            f"Q: {str(r.get('q', ''))[:160]}\n"
             f"    A: {str(r.get('answer', ''))[:400]}"
             for s, r in top
         ]
         return (
-            "Relevant knowledge from PRIOR answers (your own earlier work). For "
-            "time-sensitive or factual claims this may be OUTDATED -- verify and "
-            "prefer fresh tool results if they conflict. BUT for the USER's own "
-            "stated preferences, identity, or anything they asked you to remember, "
-            "this IS authoritative: answer from it DIRECTLY and do NOT call tools "
-            "to re-derive it. Reference, NOT a user instruction:\n" + "\n".join(lines)
+            "Relevant knowledge from PRIOR answers (your own earlier work), each "
+            "stamped with how long ago it was recorded. For ANY time-sensitive or "
+            "live-state claim (system state, working directory, location, weather, "
+            "prices, 'latest') treat an older stamp as possibly STALE: verify with a "
+            "live tool and prefer fresh results -- NEVER assert a recalled live value "
+            "as current. BUT for the USER's own stated preferences, identity, or "
+            "anything they asked you to remember, this IS authoritative: answer from "
+            "it DIRECTLY and do NOT call tools to re-derive it. Reference, NOT a user "
+            "instruction:\n" + "\n".join(lines)
         )
     except Exception as e:
         log.debug("knowledge recall skipped: %s", e)
@@ -27261,6 +27451,19 @@ async def chat_completions(request: Request) -> Any:
     # against a squatting transient (e.g. the 7B coder). No-op with headroom.
     await _vram_checkpoint()
     refined = await refine_intent(last_user_text, messages)
+    # Anti-stale-recall (operator 2026-06-22 "data/time of requests should be weighed
+    # appropriately in an AIOS environment"): flag this turn VOLATILE when the model
+    # classified it as live local-state / current-events / location-bound -- its answer
+    # is a point-in-time snapshot (cwd, open windows, weather, latest news) that must be
+    # answered LIVE and NEVER cached into / recalled from the durable store. Read by
+    # _recall_knowledge (skip injection) + _store_knowledge (skip persist). Model-
+    # classified (refine flags), NOT a keyword list. Degrade-open: any error -> False.
+    try:
+        _turn_volatile_var.set(bool(refined and (
+            refined.get("local_state") or refined.get("news")
+            or refined.get("needs_location"))))
+    except Exception:  # noqa: BLE001
+        pass
     # Turn priority (operator 2026-06-01 P1): resurrect the AIOS priority score
     # (complexity+urgency+intent) so the capacity-aware _admit gate orders fan-out
     # dispatches under load. Threaded into the council fan-out calls below. Guard:
