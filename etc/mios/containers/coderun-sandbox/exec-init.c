@@ -36,7 +36,10 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <linux/landlock.h>
-#include <linux/prctl.h>
+/* NOTE: do NOT include <linux/prctl.h> -- it redefines `struct prctl_mm_map`
+ * already provided by <sys/prctl.h> below (build error on musl/alpine kernel
+ * headers). <sys/prctl.h> supplies prctl() + the PR_* constants we use; any
+ * constant a given libc omits is fallback-#define'd below. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -65,8 +68,23 @@
 #ifndef LANDLOCK_CREATE_RULESET_VERSION
 #define LANDLOCK_CREATE_RULESET_VERSION (1U << 0)
 #endif
+/* PR_SET_NO_NEW_PRIVS comes from <sys/prctl.h>; fallback for an older libc. */
+#ifndef PR_SET_NO_NEW_PRIVS
+#define PR_SET_NO_NEW_PRIVS 38
+#endif
+/* Kernel headers older than the landlock-NET ABI (v4, Linux 6.7) define a
+ * `struct landlock_ruleset_attr` WITHOUT `handled_access_net`, so referencing
+ * that field fails to COMPILE on the alpine base even though we gate its USE on
+ * the runtime ABI. Use our own complete struct (both fields, kernel-ABI order)
+ * for the create call: the syscall is size-gated, and on a pre-v4 kernel we set
+ * handled_access_net=0 (abi<4), so the kernel's forward-compat zero-check on the
+ * trailing field passes. This compiles against ANY header + works on any kernel. */
+struct mios_landlock_ruleset_attr {
+    __u64 handled_access_fs;
+    __u64 handled_access_net;
+};
 
-static int ll_create(const struct landlock_ruleset_attr *a, size_t s, __u32 f) {
+static int ll_create(const void *a, size_t s, __u32 f) {
     return (int)syscall(SYS_landlock_create_ruleset, a, s, f);
 }
 static int ll_addrule(int r, enum landlock_rule_type t, const void *a, __u32 f) {
@@ -131,7 +149,8 @@ int main(int argc, char **argv) {
     __u64 fs_ro = LANDLOCK_ACCESS_FS_EXECUTE | LANDLOCK_ACCESS_FS_READ_FILE |
                   LANDLOCK_ACCESS_FS_READ_DIR;
 
-    struct landlock_ruleset_attr attr = { .handled_access_fs = fs_all };
+    struct mios_landlock_ruleset_attr attr = { .handled_access_fs = fs_all,
+                                               .handled_access_net = 0 };
     /* ABI 4+: also handle TCP access. We add NO connect/bind rules
      * below, which means default-deny for both -- matching the
      * Quadlet's Network=none belt-and-braces. */
