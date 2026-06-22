@@ -129,6 +129,11 @@ enable mios-cron-director.service
 # "the micro-llm should be intercepting these failure logs and
 # nudging".
 enable mios-agent-nudger.service
+# sys_env environment cache: keep the shared snapshot (installed apps /
+# services / HW) warm on the timer's 15-min cadence so sys_env reads are
+# fast + current (the manual sys_env_refresh verb covers "I just installed
+# X"). Ships disabled-by-default in systemd; this preset turns it on.
+enable mios-sys-env-refresh.timer
 enable mios-open-webui.service
 enable mios-code-server.service
 # Forge bootstrap: admin user + initial repo + runner registration token
