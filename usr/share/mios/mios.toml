@@ -4651,6 +4651,14 @@ agent_model         = "MiOS AI"
 # agent-passport humanInLoop thresholds. Ships off (inert) -- opt in deliberately.
 hitl_mode           = "block"   # WS-A14 (operator steer 2026-06-20 "full capabilities"): GATE high-risk verbs (perm tier >= hitl_threshold) pending approval. Was "off"; tune to "audit" (log+proceed) or "off" to dial back.
 hitl_threshold      = "interactive"
+# ASK-TO-RUN (operator 2026-06-22 "mios daemon should ask user to run things"): when a
+# HITL-tier verb is intercepted, the pipe PROPOSES it + asks the user to approve (instead
+# of silently no-op'ing / fabricating). The user's next reply is MODEL-classified (no
+# keyword list) as approve/reject; approve re-runs exactly that hashed action. OWUI + the
+# Hermes desktop app render the proposal as a NATIVE prompt (the mios_proposed_action
+# block); the text round-trip is the portable fallback. TTL expires an unanswered proposal.
+ask_to_run          = true
+ask_to_run_ttl_s    = 1800
 # #62 out-of-process policy arbiter: when set, a high-risk action (tier >=
 # hitl_threshold) is POSTed to this URL ({verb,tier,args}) for an {allow,reason}
 # verdict, on top of the in-process gate above. Empty (default) -> no arbiter, no

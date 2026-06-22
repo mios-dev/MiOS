@@ -7847,6 +7847,12 @@ def _hitl_block_reason(tool: str, args: "Optional[dict]" = None) -> "Optional[st
     if _HITL_MODE not in ("audit", "block"):
         return None
     try:
+        # ask-to-run: if the user EXPLICITLY approved THIS exact action this turn
+        # (hash match), let it run -- the proposal they confirmed. Scoped to the one
+        # hashed action; every other high-tier action is still gated as before.
+        _appr = _hitl_approved_var.get()
+        if _appr and _appr == _pending_hash(tool, args or {}):
+            return None
         vperm = _effective_perm(tool, args)
         if _perm_rank(vperm) < _perm_rank(_HITL_THRESHOLD):
             return None  # below the gate threshold -> not human-gated
@@ -8511,6 +8517,18 @@ _council_mode_var: "contextvars.ContextVar" = contextvars.ContextVar(
 # gate itself is UNCHANGED; this only OBSERVES the block and makes the answer honest.
 _hitl_blocked_var: "contextvars.ContextVar" = contextvars.ContextVar(
     "mios_hitl_blocked", default=None)
+
+# ASK-TO-RUN (operator 2026-06-22 "mios daemon should ask user to run things"). When a
+# HITL-tier (mutating) verb is intercepted, the pipe doesn't silently no-op/fabricate --
+# it PROPOSES the action and asks the user to approve it. `_proposal_var` carries the
+# structured proposal {tool,args,action_hash,reason} so the answer can render "reply yes
+# to run it"; `_hitl_approved_var` carries the action_hash the user EXPLICITLY approved
+# THIS turn, so the HITL gate lets exactly that one action through on re-dispatch (the
+# gate is otherwise UNCHANGED -- approval is scoped to one hashed action, never blanket).
+_proposal_var: "contextvars.ContextVar" = contextvars.ContextVar(
+    "mios_proposal", default=None)
+_hitl_approved_var: "contextvars.ContextVar" = contextvars.ContextVar(
+    "mios_hitl_approved", default=None)
 
 # TURN-SCOPED SOURCE COLLECTOR (operator 2026-06-18 "no sources are working / aren't
 # attached / hallucinated -- they should be A2A or metadata"). EVERY web_search across
@@ -12944,23 +12962,31 @@ async def polish_response(raw_text: str,
     if not (polished and polished.strip()):
         log.info("polish: figure-guard emptied a grounded answer -> raw draft")
         polished = (raw_text or "").strip()
-    # HITL-block honesty (operator 2026-06-22 anti-fabrication): if a NEEDED tool was
-    # refused by HITL block-mode this turn, the model may have answered WITHOUT it --
-    # and a small model then FABRICATES the missing result (live-seen: a HITL-blocked
-    # `coderun` -> a WRONG in-head product presented as exact). Append a deterministic
-    # notice so the answer never silently passes off an un-run action's invented result
-    # as real, and tells the operator how to unblock. The HITL gate is UNCHANGED.
+    # ASK-TO-RUN proposal + anti-fabrication (operator 2026-06-22 "mios daemon should
+    # ask user to run things"): if a HITL-tier action was intercepted this turn, the pipe
+    # PROPOSES it (a pending_action was recorded) and asks the user to approve -- instead
+    # of silently no-op'ing or (worse) the small model FABRICATING the un-run result
+    # (live-seen: a blocked `coderun` -> a WRONG in-head product as exact). Render a
+    # clear, portable proposal (NL + a fenced mios_proposed_action JSON block; works in
+    # OWUI + CLI, which do NOT execute upstream tool_calls -- research §4). The user's
+    # next "yes" (model-classified) re-runs it. The HITL gate itself is UNCHANGED.
     try:
-        _blocked = _hitl_blocked_var.get()
-        if isinstance(_blocked, list) and _blocked and "HITL block-mode" not in (polished or ""):
-            _tools = ", ".join("`%s`" % t for t in sorted(set(_blocked)))
+        _prop = _proposal_var.get()
+        if isinstance(_prop, dict) and _prop.get("tool") and "mios_proposed_action" not in (polished or ""):
+            import json as _pj
+            _ptool = str(_prop.get("tool"))
+            _pargs = _prop.get("args") if isinstance(_prop.get("args"), dict) else {}
+            _block = _pj.dumps({"mios_proposed_action": {
+                "tool": _ptool, "args": _pargs,
+                "action_hash": _prop.get("action_hash"),
+                "reply_yes_to_run": True}}, ensure_ascii=False)
             polished = (polished or "").rstrip() + (
-                f"\n\n> ⚠️ **Unverified:** I needed to run {_tools} but it requires human "
-                f"approval (HITL block-mode), so it did **not** execute. Any value above "
-                f"that depended on it is an unverified estimate, not a computed/real "
-                f"result. Approve the action (or set `[ai].hitl_mode` to `audit`/`off`) "
-                f"to run it for an exact answer.")
-    except Exception:  # noqa: BLE001 -- never break the answer on the honesty note
+                f"\n\n> 🛠️ **Proposed action — needs your OK.** I can run `{_ptool}` for "
+                f"you, but it's a high-impact action gated for approval, so it did **not** "
+                f"run yet. Reply **yes** to run it now, or **no** to skip. (Anything above "
+                f"that depended on it is an unverified estimate until then.)"
+                f"\n\n```json\n{_block}\n```")
+    except Exception:  # noqa: BLE001 -- never break the answer on the proposal note
         pass
     # Store the finished Q+A (with sources) to the global knowledge table.
     # Fire-and-forget -- the answer is already returned regardless.
@@ -15417,6 +15443,177 @@ async def hitl_approve(request: Request) -> JSONResponse:
     return JSONResponse({"success": True, "id": rid, "status": status})
 
 
+# ── ASK-TO-RUN: chat-native HITL approval round-trip (operator 2026-06-22) ─────────
+# "mios daemon should ask user to run things from relevant queries." Research-grounded
+# (LangGraph interrupt / OpenAI needs_approval / Claude Code permission-tiers; AIOS has
+# NO general per-action HITL -- a citable gap MiOS fills). When a HITL-tier (mutating)
+# verb is intercepted, the pipe PROPOSES it (records a pending_action + renders "reply
+# yes to run it") instead of silently no-op'ing or fabricating. The user's next-turn
+# reply is MODEL-CLASSIFIED (no keyword list -- operator "NOTHING HARDCODED") as
+# approve/reject/unrelated; approve re-dispatches exactly that hashed action (per-action
+# approval, gate otherwise unchanged); the portable surface (NL + a fenced
+# mios_proposed_action block) works in OWUI + CLI, which don't execute upstream tool_calls.
+_ATR_TOML = _toml_section("ai") or {}
+ASK_TO_RUN_ENABLE = str(
+    os.environ.get("MIOS_ASK_TO_RUN")
+    or _ATR_TOML.get("ask_to_run", "true")).strip().lower() in {"1", "true", "yes"}
+try:
+    ASK_TO_RUN_TTL_S = int(os.environ.get("MIOS_ASK_TO_RUN_TTL")
+                           or _ATR_TOML.get("ask_to_run_ttl_s", 1800))
+except (TypeError, ValueError):
+    ASK_TO_RUN_TTL_S = 1800
+
+
+async def _classify_approval_reply(user_text: str, proposal: str) -> str:
+    """Generative judge (NO phrase list -- operator "NOTHING HARDCODED"): given the
+    PROPOSED action + the user's reply, classify BY MEANING as 'approve' (run it now),
+    'reject' (skip it), or 'unrelated' (a new request, not an answer to the proposal).
+    Only called when a proposal is actually pending. Degrade -> 'unrelated' on any
+    error (SAFE: the action stays un-run; the user can re-confirm). Never auto-runs on
+    ambiguity."""
+    if not (user_text or "").strip():
+        return "unrelated"
+    sys = (
+        "The assistant PROPOSED an action and asked the user to approve it. Given the "
+        "proposed action and the user's reply, classify the reply BY MEANING (never by "
+        "keywords): 'approve' = the user agrees to run it now (e.g. yes / go ahead / do "
+        "it / sure / sounds good / please run it). 'reject' = the user declines (e.g. no "
+        "/ skip / cancel / don't / not now). 'unrelated' = the reply is a NEW request or "
+        "question, NOT an answer to the proposal. When unsure between approve and "
+        "unrelated, choose 'unrelated' -- NEVER auto-run on ambiguity.")
+    payload = {
+        "model": ROUTER_MODEL,
+        "messages": [{"role": "system", "content": sys},
+                     {"role": "user", "content":
+                      f"PROPOSED ACTION: {proposal[:400]}\n\nUSER REPLY: {user_text[:600]}"}],
+        "response_format": {"type": "json_schema", "json_schema": {
+            "name": "approval", "strict": True, "schema": {
+                "type": "object",
+                "properties": {"decision": {"type": "string",
+                                            "enum": ["approve", "reject", "unrelated"]}},
+                "required": ["decision"], "additionalProperties": False}}},
+        "chat_template_kwargs": {"enable_thinking": False},
+        "temperature": 0.0, "max_tokens": 20, "stream": False,
+    }
+    try:
+        async with httpx.AsyncClient(timeout=PLANNER_TIMEOUT_S) as s:
+            r = await s.post(f"{PLANNER_ENDPOINT}/v1/chat/completions", json=payload,
+                             headers={"Content-Type": "application/json"})
+        if r.status_code != 200:
+            return "unrelated"
+        content = ((r.json().get("choices") or [{}])[0].get("message", {})
+                   .get("content") or "")
+        _d = (_loads_lenient(content) or {}).get("decision")
+        return _d if _d in ("approve", "reject", "unrelated") else "unrelated"
+    except Exception as e:  # noqa: BLE001 -- degrade to 'unrelated' (never auto-run)
+        log.debug("approval judge failed (-> unrelated): %s", e)
+        return "unrelated"
+
+
+async def _read_recent_pending(session_id: "Optional[str]") -> "Optional[dict]":
+    """The most-recent un-decided PENDING proposal for this chat within the TTL window,
+    or None. Backs the ask-to-run approval round-trip. Degrade-open -> None."""
+    if not session_id:
+        return None
+    try:
+        resp = await _db_read(
+            "SELECT id, tool, args, action_hash, ts FROM pending_action "
+            f"WHERE status = 'pending' AND session = {session_id} ORDER BY ts DESC LIMIT 1;",
+            pg_sql=("SELECT id, tool, args, action_hash, ts FROM pending_action "
+                    "WHERE status = 'pending' AND session_id = %(sid)s "
+                    "ORDER BY ts DESC LIMIT 1"),
+            pg_params={"sid": session_id})
+        # _db_read wraps rows in the SurrealDB envelope [{"result": [...]}].
+        _rows = ((resp[0] or {}).get("result") or []) if isinstance(resp, list) and resp else []
+        if not _rows:
+            return None
+        row = _rows[0]
+        _age = _row_age_seconds(row.get("ts"))
+        if _age is not None and ASK_TO_RUN_TTL_S > 0 and _age > ASK_TO_RUN_TTL_S:
+            return None                       # proposal expired (TTL)
+        return row
+    except Exception:  # noqa: BLE001
+        return None
+
+
+async def _mark_pending_decided(rid, status: str) -> None:
+    """Set a pending_action's status (approved/denied) so it isn't re-offered."""
+    try:
+        _pgid = _mios_pg.rid_to_pg_id(str(rid)) if rid is not None else None
+        await _db_update(
+            f"UPDATE {rid} SET status = {json.dumps(status)}, decided_at = time::now();",
+            pg_sql=("UPDATE pending_action SET status = %(s)s, decided_at = now() "
+                    "WHERE id = %(id)s"),
+            pg_params={"s": status, "id": _pgid})
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _ask_to_run_completion(chat_id: str, model: str, content: str,
+                           *, streaming: bool = False) -> Any:
+    """A chat.completion (streaming SSE or JSON) for an ask-to-run approval/rejection
+    result -- stream-aware so OWUI/CLI (which request stream=true) get valid SSE."""
+    if streaming:
+        async def _stream_atr() -> "AsyncGenerator[bytes, None]":
+            yield _sse_chunk("", chat_id=chat_id, model=model, role="assistant")
+            async for _b in _stream_answer(content, chat_id=chat_id, model=model):
+                yield _b
+            yield _sse_chunk("", chat_id=chat_id, model=model, finish_reason="stop")
+            yield _sse_done()
+        return StreamingResponse(_stream_atr(), media_type="text/event-stream")
+    return JSONResponse(content={
+        "id": chat_id, "object": "chat.completion", "created": int(time.time()),
+        "model": model,
+        "choices": [{"index": 0, "message": {"role": "assistant", "content": content},
+                     "finish_reason": "stop"}],
+        "usage": _usage_estimate("", content), "mios_mode": "ask-to-run"})
+
+
+async def _maybe_run_pending_approval(user_text: str, session_id: "Optional[str]",
+                                      *, chat_id: str, model: str,
+                                      streaming: bool = False) -> Any:
+    """ASK-TO-RUN round-trip. If a proposal is pending for this chat AND the user's reply
+    APPROVES it (model-classified), execute it (per-action-hash approval, gate otherwise
+    unchanged) and return the result as a chat.completion. 'reject' -> drop it. Otherwise
+    (unrelated / none / disabled) -> None so the turn proceeds normally."""
+    if not ASK_TO_RUN_ENABLE:
+        return None
+    pend = await _read_recent_pending(session_id)
+    if not pend:
+        return None
+    _tool = str(pend.get("tool") or "")
+    _args = pend.get("args")
+    if isinstance(_args, str):
+        _args = _loads_lenient(_args) or {}
+    if not isinstance(_args, dict):
+        _args = {}
+    _ah = str(pend.get("action_hash") or "")
+    if not _tool or not _ah:
+        return None
+    _summary = f"{_tool}({json.dumps(_args, default=str)[:200]})"
+    decision = await _classify_approval_reply(user_text, _summary)
+    if decision == "unrelated":
+        return None                            # not an answer to the proposal -> proceed
+    if decision == "reject":
+        await _mark_pending_decided(pend.get("id"), "denied")
+        log.info("ask-to-run: user DECLINED %s", _tool)
+        return _ask_to_run_completion(chat_id, model, f"Okay — I won't run `{_tool}`. Skipped.")
+    # approve: run EXACTLY this hashed action (the gate lets it through this turn only)
+    _hitl_approved_var.set(_ah)
+    log.info("ask-to-run: user APPROVED %s -> executing", _tool)
+    try:
+        res = await dispatch_mios_verb(_tool, _args, session_id=session_id)
+    except Exception as e:  # noqa: BLE001
+        res = {"success": False, "stderr": f"{type(e).__name__}: {e}"}
+    await _mark_pending_decided(pend.get("id"), "approved")
+    _ok = isinstance(res, dict) and res.get("success")
+    _out = ((res.get("output") or res.get("stderr") or "") if isinstance(res, dict)
+            else str(res)).strip()
+    _ans = (f"✅ Ran `{_tool}`.\n\n{_out[:3000]}" if _ok
+            else f"⚠️ I tried to run `{_tool}` but it did not succeed:\n\n{_out[:1500]}")
+    return _ask_to_run_completion(chat_id, model, _ans)
+
+
 async def _recent_reflections(session_id: Optional[str],
                               limit: int = 4) -> list[dict]:
     """Reflexion episodic buffer (ref AIOS B.3 / Shinn et al. 2023): pull
@@ -15754,6 +15951,15 @@ def _action_hash(tool: str, args: dict) -> str:
     except (TypeError, ValueError):
         canon = repr(args)
     return f"{tool}\x00{canon}"
+
+
+def _pending_hash(tool: str, args: dict) -> str:
+    """NULL-FREE action identity for the ask-to-run pending_action store + approval
+    match. _action_hash embeds a \\x00 separator (fine in-memory) which Postgres TEXT
+    columns REJECT -> the pending insert silently failed. sha256 is null-free, fixed-
+    length, deterministic over the SAME (verb, resolved-args), and leaks no content."""
+    return hashlib.sha256(
+        _action_hash(tool, args).encode("utf-8", "replace")).hexdigest()
 
 
 # ── Concurrent dispatch single-flight (anti-swarm-duplication) ─────────
@@ -18407,6 +18613,22 @@ async def dispatch_mios_verb(
     if _hitl_reason is None and _HITL_ARBITER_URL:
         _hitl_reason = await _hitl_arbiter_verdict(tool, args)  # #62 out-of-process arbiter
     if _hitl_reason is not None:
+        # ASK-TO-RUN (operator 2026-06-22): record the blocked action as a PENDING
+        # proposal + stash it so the final answer can OFFER "reply yes to run it" instead
+        # of silently no-op'ing or fabricating. Keyed by action_hash (idempotent pending
+        # slot, research §5); the user's next-turn approval (model-classified) re-dispatches
+        # exactly this. Stash only the FIRST proposal of the turn. Degrade-open.
+        try:
+            _ah = _pending_hash(tool, args or {})   # NULL-free (pg TEXT-safe)
+            # scope the pending by the STABLE conversation key (metadata.chat_id), not
+            # the per-turn session row -- so next turn's approval can find it.
+            _scope = _conv_key_var.get() or session_id
+            _hitl_record_pending(tool, args or {}, _ah, _scope)
+            if not isinstance(_proposal_var.get(), dict):
+                _proposal_var.set({"tool": tool, "args": args or {},
+                                   "action_hash": _ah, "reason": _hitl_reason})
+        except Exception:  # noqa: BLE001
+            pass
         return {"success": False, "output": "", "stderr": _hitl_reason,
                 "exit_code": 126, "hitl_blocked": True}
     # Deterministic recency/breadth for web_search on a time-sensitive turn (see
@@ -27547,6 +27769,20 @@ async def chat_completions(request: Request) -> Any:
     # WS-A2: rehydrate this chat's working memory from the durable pg `scratch`
     # table on the first turn after a restart (once per chat key; degrade-open).
     await _scratchpad_rehydrate(_conv_key_var.get())
+    # ASK-TO-RUN approval round-trip (operator 2026-06-22): if a high-tier action was
+    # PROPOSED on a prior turn of THIS chat (a pending_action keyed by the conv key) and
+    # the user's reply APPROVES it (MODEL-classified, no keyword list), execute it now and
+    # return -- before refine/dispatch. The judge runs ONLY when a proposal is pending, so
+    # a normal turn pays nothing. The portable text/metadata proposal is rendered as a
+    # NATIVE prompt by the OWUI pipe + Hermes app; this is the server-side round-trip.
+    try:
+        _atr = await _maybe_run_pending_approval(
+            last_user_text, _conv_key_var.get(),
+            chat_id=chat_id, model=model, streaming=streaming)
+        if _atr is not None:
+            return _atr
+    except Exception as _atre:  # noqa: BLE001 -- never break the turn on the approval path
+        log.debug("ask-to-run approval check skipped: %s", _atre)
     # Turn-scoped REAL-SOURCE collector (operator 2026-06-18): every web_search this
     # turn -- native loop, council secondaries, DAG workers -- records its result URLs
     # here (child asyncio tasks inherit this contextvar), and the final answer attaches
