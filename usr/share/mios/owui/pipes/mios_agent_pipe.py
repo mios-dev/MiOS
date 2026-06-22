@@ -2217,11 +2217,121 @@ class Pipe:
         _flush_narration()
         return "".join(out_parts), tail
 
+    async def _confirm_and_followup(self, raw_text, body, url, headers,
+                                    __event_call__, __event_emitter__):
+        """GLOBAL ASK-USER native prompt (operator 2026-06-22 "OWUI ... handle asking with
+        prompts" + "for questions and clarifications too, not just coderunning"): if the
+        agent emitted a mios_proposed_action (run an action) or a mios_clarification (it
+        needs a detail) and OWUI gave us __event_call__, render a NATIVE dialog -- a
+        CONFIRMATION for the action (run it on OK) or an INPUT prompt for the question
+        (continue with the typed answer). Degrade-open -> yields nothing (the streamed
+        text + the text round-trip still work for clients without __event_call__)."""
+        if not __event_call__:
+            return
+
+        def _extract(marker):
+            try:
+                i = raw_text.find('{"' + marker + '"')
+                if i >= 0:
+                    obj, _ = json.JSONDecoder().raw_decode(raw_text[i:])
+                    return (obj or {}).get(marker)
+            except Exception:
+                return None
+            return None
+
+        async def _fu_stream(user_msg):
+            """Re-request the SAME chat (stable chat_id in body.metadata) with `user_msg`
+            appended, and stream the result content. The server's ask-to-run / continued
+            turn does the rest."""
+            _fu = dict(body)
+            _fu["messages"] = list(body.get("messages") or []) + [
+                {"role": "assistant", "content": str(raw_text)[:4000]},
+                {"role": "user", "content": user_msg}]
+            _fu["stream"] = True
+            async with aiohttp.ClientSession() as _s:
+                async with _s.post(url, headers=headers,
+                                   data=json.dumps(_fu).encode()) as _r:
+                    if _r.status != 200:
+                        yield f"_⚠️ follow-up failed ({_r.status})_"
+                        return
+                    async for _ln in _r.content:
+                        _l = _ln.decode("utf-8", "ignore").strip()
+                        if not _l.startswith("data:"):
+                            continue
+                        _p = _l[5:].strip()
+                        if _p == "[DONE]":
+                            break
+                        try:
+                            _ch = json.loads(_p)
+                        except Exception:
+                            continue
+                        _t = ((_ch.get("choices") or [{}])[0].get("delta") or {}).get("content") or ""
+                        if _t:
+                            yield _t
+
+        # 1) ACTION proposal -> confirmation dialog -> run on OK.
+        pa = _extract("mios_proposed_action")
+        if isinstance(pa, dict) and pa.get("tool"):
+            try:
+                ok = await __event_call__({
+                    "type": "confirmation",
+                    "data": {"title": "Run this action?",
+                             "message": f"MiOS proposes running `{pa.get('tool')}`. "
+                                        f"Approve to run it now, or cancel to skip."}})
+            except Exception:
+                return
+            if ok is not True:                 # Cancel / timeout-dict / False
+                yield "\n\n> ⏭️ _Action skipped — not approved._"
+                try:
+                    await self._emit(__event_emitter__, "⏭️ skipped", done=True)
+                except Exception:
+                    pass
+                return
+            yield "\n\n"
+            try:
+                async for _c in _fu_stream("yes"):
+                    yield _c
+                await self._emit(__event_emitter__, "✅ ran", done=True)
+            except Exception as _e:
+                yield f"\n\n_⚠️ approval follow-up error: {type(_e).__name__}_"
+            return
+
+        # 2) CLARIFICATION question -> input dialog -> continue with the typed answer.
+        cq = _extract("mios_clarification")
+        if isinstance(cq, dict) and str(cq.get("question") or "").strip():
+            try:
+                ans = await __event_call__({
+                    "type": "input",
+                    "data": {"title": "MiOS needs a detail",
+                             "message": str(cq.get("question")).strip(),
+                             "placeholder": "Type your answer…"}})
+            except Exception:
+                return
+            if not isinstance(ans, str) or not ans.strip():
+                yield "\n\n> ⏭️ _No answer provided._"
+                try:
+                    await self._emit(__event_emitter__, "⏭️ skipped", done=True)
+                except Exception:
+                    pass
+                return
+            yield "\n\n"
+            try:
+                async for _c in _fu_stream(ans.strip()):
+                    yield _c
+                await self._emit(__event_emitter__, "✅", done=True)
+            except Exception as _e:
+                yield f"\n\n_⚠️ clarification follow-up error: {type(_e).__name__}_"
+            return
+
     async def pipe(
         self,
         body: dict,
         __user__: Optional[dict] = None,
         __event_emitter__: Optional[Callable[..., Awaitable[None]]] = None,
+        # __event_call__ (OWUI >= v0.3.8) BLOCKS + returns the user's choice from a
+        # native dialog -- used to render the ask-to-run PROPOSAL as a real
+        # confirmation popup (operator 2026-06-22 "OWUI ... handle asking with prompts").
+        __event_call__: Optional[Callable[..., Awaitable[Any]]] = None,
         __metadata__: Optional[dict] = None,
         __task__: Optional[str] = None,
         __tools__: Optional[list] = None,
@@ -2446,6 +2556,22 @@ class Pipe:
         if self.valves.BACKEND_KEY:
             headers["Authorization"] = f"Bearer {self.valves.BACKEND_KEY}"
 
+        # Forward the STABLE OWUI conversation id to the agent-pipe so its conv-scoped
+        # state is stable ACROSS TURNS of this chat -- specifically the ask-to-run pending
+        # proposals (operator 2026-06-22 "ask user to run things"). OWUI hands the chat_id
+        # in __metadata__, not the body, so without this the agent-pipe falls back to a
+        # per-request id and the next-turn "yes" can't find the proposal. Degrade-open.
+        try:
+            _owui_cid = str((__metadata__ or {}).get("chat_id") or "") if isinstance(__metadata__, dict) else ""
+            if _owui_cid:
+                _bm = body.get("metadata")
+                if not isinstance(_bm, dict):
+                    _bm = {}
+                    body["metadata"] = _bm
+                _bm.setdefault("chat_id", _owui_cid)
+        except Exception:
+            pass
+
         # Humanistic "got it" emission while we hand the prompt
         # over to agent-pipe. agent-pipe will emit its own casual
         # phase strip (📡 listening / ✨ thinking / 🧭 picking the
@@ -2662,6 +2788,11 @@ class Pipe:
             # If polish is OFF, the legacy flow already emitted text
             # via yield above; nothing more to do.
             if not self.valves.POLISH_ENABLED:
+                # ASK-TO-RUN native prompt (operator 2026-06-22): render any proposed
+                # action as a native confirmation dialog + run it on approval.
+                async for _c in self._confirm_and_followup(
+                        raw_text, body, url, headers, __event_call__, __event_emitter__):
+                    yield _c
                 await self._emit(__event_emitter__, "✅", done=True)
                 return
 
@@ -2682,6 +2813,13 @@ class Pipe:
                 dispatch_ts=_dispatch_ts,
             )
             yield polished
+
+            # ASK-TO-RUN native prompt (operator 2026-06-22 "OWUI ... handle asking with
+            # prompts"): if the agent proposed an action, show a NATIVE confirmation dialog
+            # + run it on approval. raw_text (not polished) carries the proposal block.
+            async for _c in self._confirm_and_followup(
+                    raw_text, body, url, headers, __event_call__, __event_emitter__):
+                yield _c
 
             await self._emit(__event_emitter__, "✅", done=True)
         except asyncio.TimeoutError:

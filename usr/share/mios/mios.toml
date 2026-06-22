@@ -4659,6 +4659,11 @@ hitl_threshold      = "interactive"
 # block); the text round-trip is the portable fallback. TTL expires an unanswered proposal.
 ask_to_run          = true
 ask_to_run_ttl_s    = 1800
+# GLOBAL ASK-USER for CLARIFICATIONS (operator 2026-06-22 "ask user ... for questions and
+# clarifications too, not just coderunning"): when the answer is PRIMARILY a clarifying
+# question (model-classified, gated on a '?'), mark it so OWUI/Hermes render a native
+# INPUT prompt + feed the typed answer back as the next turn.
+ask_clarify         = true
 # #62 out-of-process policy arbiter: when set, a high-risk action (tier >=
 # hitl_threshold) is POSTed to this URL ({verb,tier,args}) for an {allow,reason}
 # verdict, on top of the in-process gate above. Empty (default) -> no arbiter, no

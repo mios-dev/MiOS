@@ -12988,6 +12988,22 @@ async def polish_response(raw_text: str,
                 f"\n\n```json\n{_block}\n```")
     except Exception:  # noqa: BLE001 -- never break the answer on the proposal note
         pass
+    # GLOBAL ASK-USER: clarification (operator 2026-06-22 "ask user ... for questions and
+    # clarifications too, not just coderunning"). If the answer is PRIMARILY a clarifying
+    # QUESTION (model-classified; gated on a '?' so the judge runs rarely) and we did NOT
+    # already propose an action, mark it mios_clarification so OWUI/Hermes render a native
+    # INPUT prompt (the typed answer becomes the next turn). Degrade-open.
+    try:
+        if (ASK_CLARIFY_ENABLE and "?" in (polished or "")
+                and not isinstance(_proposal_var.get(), dict)
+                and "mios_clarification" not in (polished or "")):
+            _cq = await _clarify_question(polished)
+            if _cq:
+                import json as _cj
+                _cb = _cj.dumps({"mios_clarification": {"question": _cq}}, ensure_ascii=False)
+                polished = (polished or "").rstrip() + f"\n\n```json\n{_cb}\n```"
+    except Exception:  # noqa: BLE001 -- never break the answer on the clarify note
+        pass
     # Store the finished Q+A (with sources) to the global knowledge table.
     # Fire-and-forget -- the answer is already returned regardless.
     # P2: satisfied is left None here -- polish_response has no DoD verdict in
@@ -15462,6 +15478,53 @@ try:
                            or _ATR_TOML.get("ask_to_run_ttl_s", 1800))
 except (TypeError, ValueError):
     ASK_TO_RUN_TTL_S = 1800
+# GLOBAL ASK-USER for CLARIFICATIONS (operator 2026-06-22 "ask user ... for questions and
+# clarifications too, not just coderunning"): when the answer is PRIMARILY a clarifying
+# question, mark it so OWUI/Hermes render a native INPUT prompt. Model-classified; gated
+# on a '?' so the judge runs rarely. SSOT [ai].ask_clarify (default true).
+ASK_CLARIFY_ENABLE = str(
+    os.environ.get("MIOS_ASK_CLARIFY")
+    or _ATR_TOML.get("ask_clarify", "true")).strip().lower() in {"1", "true", "yes"}
+
+
+async def _clarify_question(answer: str) -> str:
+    """Generative judge (NO keywords -- operator "NOTHING HARDCODED"): is `answer`
+    PRIMARILY asking the USER for information it NEEDS to proceed (a clarification /
+    missing detail / a choice between options), vs a complete answer or an incidental/
+    rhetorical question? If yes, return the SINGLE clearest question to put to the user;
+    else ''. The caller gates on a '?' present (cheap structural pre-filter) so this runs
+    rarely. Degrade -> '' (no prompt)."""
+    if not (answer or "").strip():
+        return ""
+    sys = ("Decide BY MEANING (not keywords): is the assistant's message PRIMARILY asking "
+           "the USER for information it NEEDS to proceed -- a clarification, a missing "
+           "detail, or a choice between options? If YES, return the single clearest "
+           "question to ask the user. If the message is a COMPLETE answer, or only has a "
+           "rhetorical/incidental question, return an empty string.")
+    payload = {
+        "model": ROUTER_MODEL,
+        "messages": [{"role": "system", "content": sys},
+                     {"role": "user", "content": answer[:1500]}],
+        "response_format": {"type": "json_schema", "json_schema": {
+            "name": "clarify", "strict": True, "schema": {
+                "type": "object",
+                "properties": {"question": {"type": "string"}},
+                "required": ["question"], "additionalProperties": False}}},
+        "chat_template_kwargs": {"enable_thinking": False},
+        "temperature": 0.0, "max_tokens": 80, "stream": False,
+    }
+    try:
+        async with httpx.AsyncClient(timeout=PLANNER_TIMEOUT_S) as s:
+            r = await s.post(f"{PLANNER_ENDPOINT}/v1/chat/completions", json=payload,
+                             headers={"Content-Type": "application/json"})
+        if r.status_code != 200:
+            return ""
+        content = ((r.json().get("choices") or [{}])[0].get("message", {})
+                   .get("content") or "")
+        return str((_loads_lenient(content) or {}).get("question") or "").strip()
+    except Exception as e:  # noqa: BLE001 -- degrade-open (no clarification prompt)
+        log.debug("clarify judge failed (-> none): %s", e)
+        return ""
 
 
 async def _classify_approval_reply(user_text: str, proposal: str) -> str:
@@ -15474,13 +15537,13 @@ async def _classify_approval_reply(user_text: str, proposal: str) -> str:
     if not (user_text or "").strip():
         return "unrelated"
     sys = (
-        "The assistant PROPOSED an action and asked the user to approve it. Given the "
-        "proposed action and the user's reply, classify the reply BY MEANING (never by "
-        "keywords): 'approve' = the user agrees to run it now (e.g. yes / go ahead / do "
-        "it / sure / sounds good / please run it). 'reject' = the user declines (e.g. no "
-        "/ skip / cancel / don't / not now). 'unrelated' = the reply is a NEW request or "
-        "question, NOT an answer to the proposal. When unsure between approve and "
-        "unrelated, choose 'unrelated' -- NEVER auto-run on ambiguity.")
+        "The assistant PROPOSED an action and asked the user to approve it. Read the "
+        "user's reply and classify it PURELY by what it MEANS relative to that proposal "
+        "-- never by matching specific words. 'approve' = the reply AGREES to run the "
+        "proposed action now. 'reject' = the reply DECLINES or cancels it. 'unrelated' = "
+        "the reply is a NEW request or a different question, not an answer to the "
+        "proposal. If the reply is ambiguous between approve and unrelated, choose "
+        "'unrelated' -- NEVER auto-run on ambiguity.")
     payload = {
         "model": ROUTER_MODEL,
         "messages": [{"role": "system", "content": sys},
@@ -28369,6 +28432,13 @@ async def chat_completions(request: Request) -> Any:
             and (refined.get("web") or refined.get("news")
                  or refined.get("domain_type") in ("external", "both")
                  or _routed_domain_var.get(None) == "web")
+            # NOT a needs_location turn with NO resolved location: those must reach the
+            # ask-for-city guard below (operator 2026-06-22) -- promoting them to the
+            # native-loop web search makes "weather near me" fabricate a city (it answered
+            # "New York" for an unlocated user). A LOCATED needs_location turn is fine to
+            # web-search (the city is in the query); only the UNLOCATED one must ask.
+            and not (refined.get("needs_location")
+                     and not str((_client_env(body) or {}).get("location") or "").strip())
             and not _force_council and not _force_delegate):
         try:
             refined["intent"] = "agent"
@@ -28559,6 +28629,18 @@ async def chat_completions(request: Request) -> Any:
         # a tz area such as America/New_York is NOT the user's location) and never
         # fan out a guessing swarm.
         _loc_reply = await _ask_for_location(last_user_text)
+        # GLOBAL ASK-USER: this IS a clarification (we need the user's city). Mark it so
+        # OWUI/Hermes render a native INPUT prompt + feed the typed city back as the next
+        # turn (operator 2026-06-22 "ask user ... for clarifications too"). The question
+        # shown is the agent's own generated ask (no new hardcoded string). Degrade-open.
+        try:
+            if ASK_CLARIFY_ENABLE and "mios_clarification" not in _loc_reply:
+                import json as _lcj
+                _loc_reply = _loc_reply.rstrip() + "\n\n```json\n" + _lcj.dumps(
+                    {"mios_clarification": {"question": _loc_reply.strip()[:200]}},
+                    ensure_ascii=False) + "\n```"
+        except Exception:  # noqa: BLE001
+            pass
         log.info("needs_location + no client loc -> honest ask-for-city (no tz-city, no swarm)")
         _store_knowledge(query=last_user_text, answer=_loc_reply,
                          session_id=session_id, tool_history=[])
