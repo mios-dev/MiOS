@@ -206,6 +206,39 @@ _AUTH_HOSTPORTS = {
     _HERMES_WORKER_ENDPOINT.split("://")[-1].split("/")[0],
 }
 
+# WS-FED / gap G2 (open agent-agnostic federation): per-agent OUTBOUND credential,
+# indexed by endpoint host:port. _load_agent_registry resolves each [agents.*].auth
+# header_template (env-expanded) into this map; dispatch attaches it to ANY endpoint
+# NOT in _AUTH_HOSTPORTS (the shared-backend-key set) -- so a remote OpenAI /v1
+# endpoint (a second MiOS node, a Claude/Gemini/vLLM box) finally gets its OWN
+# Authorization header and joins the council by network + credential. Empty until
+# an agent declares auth.header_template => byte-identical legacy behaviour.
+_AGENT_AUTH_BY_HOSTPORT: dict = {}
+
+
+def _apply_outbound_auth(hdrs: dict, ep: str) -> None:
+    """Attach the correct OUTBOUND credential for a dispatch to `ep`: the shared
+    backend key for a LOCAL `_AUTH_HOSTPORTS` lane, else this agent's OWN
+    per-endpoint header from `_AGENT_AUTH_BY_HOSTPORT` (WS-FED/G2 -- any reachable
+    OpenAI /v1 endpoint joins the council by network + credential). Degrade-open:
+    a keyless endpoint gets no header. Idempotent (drops any same-name header
+    first). `_BACKEND_KEY`/the map are resolved at call time (late-bound)."""
+    _hp = ep.split("://")[-1].split("/")[0]
+    if _BACKEND_KEY and _hp in _AUTH_HOSTPORTS:
+        for _k in [k for k in hdrs if k.lower() == "authorization"]:
+            hdrs.pop(_k)
+        hdrs["Authorization"] = f"Bearer {_BACKEND_KEY}"
+        return
+    _ahdr = _AGENT_AUTH_BY_HOSTPORT.get(_hp)
+    if _ahdr and ":" in _ahdr:
+        _hk, _hv = _ahdr.split(":", 1)
+        _hk, _hv = _hk.strip(), _hv.strip()
+        if _hk and _hv:
+            for _k in [k for k in hdrs if k.lower() == _hk.lower()]:
+                hdrs.pop(_k)
+            hdrs[_hk] = _hv
+
+
 # ── Client-side tool-calling passthrough (operator 2026-06-15, Zen smart-window) ──
 # An external OpenAI client (Zen browser "smart window", an IDE assistant, etc.)
 # that supplies its OWN tools[] expects the standard OpenAI contract: the model
@@ -3857,6 +3890,7 @@ def _load_agent_registry() -> dict[str, dict]:
         # byte-identical to the prior behaviour.
         _agent_defaults = (agents.pop("_defaults", {})
                            if isinstance(agents.get("_defaults"), dict) else {})
+        _AGENT_AUTH_BY_HOSTPORT.clear()  # WS-FED/G2: rebuilt each load
         for name, cfg in agents.items():
             if name.startswith("_") or not isinstance(cfg, dict):
                 continue
@@ -3938,6 +3972,9 @@ def _load_agent_registry() -> dict[str, dict]:
                 "transport": str(cfg.get("transport",
                                          "cli" if _kind == "cli" else "http")).strip().lower(),
                 "timeout_s": int(cfg.get("timeout_s", 0) or 0),
+                # WS-FED/G2: per-agent credential + trust posture.
+                "auth":  cfg.get("auth") if isinstance(cfg.get("auth"), dict) else {},
+                "trust": cfg.get("trust") if isinstance(cfg.get("trust"), dict) else {},
             }
             # Per-engine + per-node binding map (operator 2026-05-24: "any Agent
             # in any AI engine -- CPU/dGPU/iGPU/accelerator" + "any Agent/Sub-
@@ -3946,6 +3983,16 @@ def _load_agent_registry() -> dict[str, dict]:
             # [agents.<name>.engines.*] / [agents.<name>.nodes.*] tables into one
             # {label: {endpoint, model}} map -- backward-compatible.
             registry[name]["engines"] = _build_agent_engines(cfg, registry[name])
+            # WS-FED/G2: index this agent's resolved credential by endpoint
+            # host:port so dispatch attaches it to a non-backend (remote) endpoint.
+            # Only a fully env-resolved "Header: value" is stored (degrade-open).
+            _auth_t = str((registry[name].get("auth") or {}).get("header_template") or "").strip()
+            _ep0 = registry[name].get("endpoint") or ""
+            if _auth_t and _ep0:
+                _hp0 = _ep0.split("://")[-1].split("/")[0]
+                _rendered = os.path.expandvars(_auth_t)
+                if _hp0 and "${" not in _rendered and ":" in _rendered:
+                    _AGENT_AUTH_BY_HOSTPORT[_hp0] = _rendered
     except Exception as e:
         log.warning("agent registry load failed: %s; using fallback", e)
         if CATALOG_FAIL_MODE == "fail":   # WS-A1 fail-loud (opt-in)
@@ -5530,13 +5577,10 @@ async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
     # Set it unconditionally here so EVERY tool-loop caller (native, opencode, hermes,
     # daemon) is covered regardless of which client/headers they pass. Idempotent.
     _hdrs.setdefault("Content-Type", "application/json")
-    if (_BACKEND_KEY
-            and ep.split("://")[-1].split("/")[0] in _AUTH_HOSTPORTS):
-        # Hermes accepts ONE canonical key -- a forwarded client bearer
-        # 401s the node, so the pipe's credential replaces it here.
-        for _k in [k for k in _hdrs if k.lower() == "authorization"]:
-            _hdrs.pop(_k)
-        _hdrs["Authorization"] = f"Bearer {_BACKEND_KEY}"
+    # WS-FED/G2: outbound credential -- the shared backend key for a local lane,
+    # or this agent's OWN per-endpoint header for a remote/federated /v1 endpoint
+    # (a forwarded client bearer would 401 the node, so set the right one here).
+    _apply_outbound_auth(_hdrs, ep)
     for _ in range(max(1, SECONDARY_TOOL_MAX_ITERS)):
         # parallel_tool_calls (OpenAI default True): a SMALL local model handed a
         # multi-step request ("open notepad AND type hello") emits MALFORMED parallel

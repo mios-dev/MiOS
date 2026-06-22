@@ -880,6 +880,23 @@ max_permission  = ""             # "" = no ceiling; e.g. "read" for an untrusted
 api             = ""             # openai|llamacpp|ollama|vllm|sglang
 research_only   = false
 
+# Per-agent CREDENTIAL + zero-trust posture (open-federation keystone, roadmap
+# WS-FED / gap G2): an agent presents its OWN credential, so ANY reachable
+# OpenAI /v1 endpoint -- a remote box, a second MiOS node, a Claude/Gemini proxy,
+# opencode -- joins the council by network + credential, never bespoke per-agent
+# code. header_template is env-resolved at load (same render as MCP headers).
+# A LOCAL endpoint (in _AUTH_HOSTPORTS) keeps using the shared backend key; a
+# non-local endpoint with no header_template simply gets no header (degrade-open).
+[agents._defaults.auth]
+scheme          = "none"         # none|bearer|oauth2|mtls
+header_template = ""             # e.g. "Authorization: Bearer ${MIOS_AGENT_<NAME>_KEY}"
+principal_mode  = ""             # "" = inherit [a2a].principal_mode; else audit|require
+
+[agents._defaults.trust]
+min_reputation           = 0.0   # drop a peer below this reputation (mios_reputation)
+require_signed_principal = false # require a verified Ed25519 principal on inbound delegation
+mtls                     = false # require mTLS for this peer
+
 [agents.hermes]
 # WS-10b (operator 2026-06-06): the Hermes SERVICE now runs ON llama.cpp (its
 # config repointed :11434->:11450, model granite4.1:3b aliased to gemma4). Route
