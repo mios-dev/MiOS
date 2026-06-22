@@ -8572,7 +8572,7 @@ _OWUI_VAR_KEYS = (
 _ENV_SENTINELS = frozenset({"", "unknown", "none", "null", "n/a", "undefined"})
 
 
-def _client_env(body: dict) -> dict:
+def _client_env(body: dict, headers: Optional[Any] = None) -> dict:
     """Normalise the per-request client/session context the OWUI pipe forwards.
 
     Primary source is metadata.variables (OWUI's own convention; keys carry
@@ -8638,6 +8638,55 @@ def _client_env(body: dict) -> dict:
         u = body.get("user")
         if isinstance(u, str) and u.strip():
             out["user_name"] = u.strip()
+
+    # Look up user details in webui.db if we have email or user_id
+    email = ""
+    uid = ""
+    if headers and hasattr(headers, "get"):
+        email = (headers.get("x-openwebui-user-email") or "").strip()
+        uid = (headers.get("x-openwebui-user-id") or "").strip()
+    if not email:
+        email = out.get("user_email") or ""
+    if not uid:
+        uid = norm.get("user_id") or ""
+    if email or uid:
+        owui_db = os.environ.get("MIOS_OWUI_DB", "/var/lib/mios/open-webui/webui.db")
+        if os.path.isfile(owui_db):
+            try:
+                import sqlite3
+                c = sqlite3.connect(f"file:{owui_db}?mode=ro", uri=True, timeout=10.0)
+                c.row_factory = sqlite3.Row
+                row = None
+                if uid:
+                    row = c.execute("SELECT timezone, info, settings, name, email FROM user WHERE id = ? LIMIT 1;", (uid,)).fetchone()
+                if not row and email:
+                    row = c.execute("SELECT timezone, info, settings, name, email FROM user WHERE email = ? LIMIT 1;", (email,)).fetchone()
+                c.close()
+                if row:
+                    if row["timezone"] and not out.get("timezone"):
+                        out["timezone"] = str(row["timezone"])
+                    if row["name"] and not out.get("user_name"):
+                        out["user_name"] = str(row["name"])
+                    if row["email"] and not out.get("user_email"):
+                        out["user_email"] = str(row["email"])
+                    if row["info"]:
+                        try:
+                            info = json.loads(row["info"])
+                            if isinstance(info, dict) and not out.get("location") and info.get("location"):
+                                out["location"] = str(info["location"]).strip()
+                        except Exception:
+                            pass
+                    if row["settings"]:
+                        try:
+                            settings = json.loads(row["settings"])
+                            if isinstance(settings, dict) and not out.get("location"):
+                                loc = settings.get("location") or settings.get("ui", {}).get("location")
+                                if loc:
+                                    out["location"] = str(loc).strip()
+                        except Exception:
+                            pass
+            except Exception:
+                pass
     # CONNECTION-MODEL PATH (operator 2026-06-20): when OWUI drives a direct
     # connection model (NOT the pipe), it substitutes the live geo into the SYSTEM
     # MESSAGE TEXT (the model's {{USER_LOCATION}} prompt), NOT into
@@ -26899,7 +26948,7 @@ async def chat_completions(request: Request) -> Any:
     # the OWUI pipe forwarded as metadata.variables. Threaded into every
     # grounded prompt via _env_grounding so "near me" resolves + "today"/
     # "tomorrow" use the USER's wall clock (operator 2026-05-27).
-    _client_env_var.set(_client_env(body))
+    _client_env_var.set(_client_env(body, request.headers))
     # Stage-1 domain router: classify ONCE per request (thinking-off enum); all
     # paths (planner + tool-loop + swarm) read _routed_domain_var to shrink the
     # verb surface to this domain. None (router off / unsure) -> full surface.
