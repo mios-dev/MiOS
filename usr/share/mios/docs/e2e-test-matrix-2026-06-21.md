@@ -123,3 +123,31 @@ MCP 200, `:8642` hermes auth-gated); RTX 4090 live; webtools pod running
 (crawl4ai `:11235`, firecrawl `:3002`, redis, worker); `system_status`,
 `os_control_health`, memory round-trip, and the full read-only system/search/
 package surface all returned real data.
+
+## Operational verification — MiOS AI fully operational (2026-06-22)
+
+Live chat through the canonical `:8640` front door (full refine→council→polish
+pipeline on the RTX 4090):
+
+| Test | Result | Evidence |
+|---|---|---|
+| **A — generation** | ✅ PASS (16 s) | "capital of Japan" → `Tokyo` |
+| **B — web research + citations** | ✅ PASS (25 s) | real kernel answer with **5 `url_citation` annotations** + source URLs (kernel.org / wikipedia) — no fabrication |
+| **C — forced tool-failure honesty** | ✅ PASS (16 s) | read of a nonexistent file → "the live tool output indicates this file does not exist… no text to report" (no fabricated contents) |
+| **D — env grounding via OWUI user header** | ✅ PASS (15 s) | `x-openwebui-user-email` header → `webui.db` lookup → grounded to `America/New_York` (the user's stored timezone) |
+
+**OWUI Environment-Details Integration (operator's Antigravity plan) — completed + verified.**
+Part 2 (agent-pipe `_client_env`: read `x-openwebui-user-{email,id}` headers +
+`webui.db` `timezone`/`info`/`settings` → blend into the **system-role** env block,
+not the user message) was already implemented; Part 1 (`mios-open-webui.container`:
+`ENABLE_API_KEY`→`ENABLE_API_KEYS` for OWUI 0.9.6 + `ENABLE_FORWARD_USER_INFO_HEADERS`)
+deployed + committed. Test D confirms the chain end-to-end.
+
+**System health (2026-06-22):** **0 failed units**; `:8640`/`:8642`/`:11450`/`:8765`/`:3030`
+all healthy; `mios-sys-env-refresh.timer` + `mios-cron-director.service` now
+**enabled + active** (preset fix); OWUI login works with the SSOT password;
+`mios-llm-heavy-alt.service` generates (gated-off). The deploy-time lesson: repo
+Quadlets carry `${VAR:-default}` render placeholders — they MUST be rendered
+(15-render-quadlets.sh, or `sed`) before deploying to a live VM, else podman
+fails to parse them (observed: an OWUI restart broke on the raw `PublishPort`
+placeholder; recovered by rendering).
