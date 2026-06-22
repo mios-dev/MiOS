@@ -162,7 +162,30 @@ Gates: 🖥️ operator-VM/bare-metal · 🔌 needs egress · ✅ done this sess
 
 ---
 
-## Quick-reference priority order
-**P0:** (none open — the band-aid holds). **P1:** A1→A2→A3, A4, C0→C1→C2, E1. **P2:** A5, B1, B2, C3, C4, D1, F1, G. **P3:** the rest.
+## WS-FED — Open agent-agnostic federation (any agent on the net + credentials joins)
+*Source: federation research `w6i3l8oco`. The principle (operator): **"network reachability + a verifiable, scoped credential" is the ONLY thing required to join the council** — `hermes-worker`, a remote OpenAI box, a Claude/Gemini/vLLM proxy, opencode, a second MiOS node are all the SAME `[agents.*]` registry row with a different `endpoint`+`auth`. MiOS already has the PUBLISH side (AgentCard, OASF, Ed25519 passport, `/a2a`, `/v1` front door, the `[agents._defaults]` template); what was missing is the JOIN contract (inbound auth, per-agent credential, self-describing card, live reload, LAN discovery). The three-layer contract: Interface (OpenAI `/v1` or A2A) · Capability (AgentCard `skills`) · Credential (OpenAPI `securitySchemes` + passport). All flag-gated + degrade-open.*
 
-*Research evidence (this session's task outputs): location `wbzod13uf`, audit `wbkbuti2o`, pods `wuj7tswip`, agents `wuy193d96`.*
+### FED-G2 — per-agent OUTBOUND credential ✅ DONE this session (`81b623d`)
+`[agents._defaults].auth{scheme,header_template,principal_mode}` + `trust{}`; `_load_agent_registry` env-resolves `header_template` into `_AGENT_AUTH_BY_HOSTPORT`; `_apply_outbound_auth(hdrs,ep)` attaches the shared key for a local lane OR the agent's own header for a remote endpoint. **Follow-up (P1):** apply `_apply_outbound_auth` at the other 4 dispatch sites (server.py ~1873, 4699, 5829, 26208 — currently only the council/tool-loop site is wired) for full consistency.
+
+### FED-G1 — inbound auth gate  **[P0 / operator-greenlight: changes the front-door auth posture]**
+*Today `/v1/models`, `/v1/chat/completions`, `/a2a` return 200 + run inference with NO credential (live-verified); `:8640`/`:8642` bind `0.0.0.0`.* One ASGI `@app.middleware("http")` ahead of the usage shaper (server.py:26814) gating `/v1/*`+`/a2a`: accept `API_SERVER_KEY` OR a per-agent caller-key (`/etc/mios/ai/v1/caller-keys.json`) OR a `mios_principal` scoped token → scoped identity (`max_permission`+RBAC+reputation). Flag `[security].require_auth=false` default (degrade-open). Default listen=loopback; publish `0.0.0.0` only when auth ON + firewall-scoped to 172.16/12.
+
+### FED-G3 — live membership reload  **[P1]** — mtime-watch (cron-director pattern) on `a2a-peers.json` + `mios.toml [agents.*]/[nodes.*]`, or an auth-gated `POST /a2a/peers/reload`; re-run `_a2a_load_peers` + drop `_WORKER_TOOLS_FULL_CACHE`. Removes "restart to add an agent."
+### FED-G4 — self-describing + signed AgentCard  **[P1]** — `_build_agent_card` (server.py:19082) emits `securitySchemes`+`security`+`signatures[]` (JWS over RFC-8785-canonical card, Ed25519 passport key) from a `[a2a.security]` SSOT, so a discovering peer learns how to authenticate.
+### FED-G5 — LAN-native discovery  **[HIGH]** — enable `avahi` (gated); publish `_mios-ai._tcp`/`_a2a._tcp` on :8640; browse + an OpenAI `/v1/models` probe fallback; CIDR sweep fallback. Tailscale stays OFF.
+### FED-G6 — authenticated inbound delegation + least-privilege  **[HIGH]** — flip `[a2a].principal_mode` off→verify(audit)→enforce once peers keyed; map verified peer → scoped identity.
+### FED-G7 — route on the published AgentCard skills (not just strengths)  **[MED]** · FED-G8 caller-key store (`mios_principal`+`crl`)  **[MED]** · FED-G9 loopback-default bind + scoped publish  **[MED]** · FED-G10 generic `/v1/models`-only endpoint join (cardless Claude/Gemini/vLLM)  **[LOW]** · FED-G11 `/v1/agents` registry surface  **[LOW]**.
+
+### A4 resolved under WS-FED
+`hermes-worker` = one `kind=local-http` row with `auth{}` + `health_gate=true` (auto-drop/rejoin already present); a remote Claude/Gemini/box is the **identical row** with a different `endpoint`+`auth`. Its boot-ordering (`.path`/`After=venv-build`) is now *just* a systemd detail, not a federation decision. **Council membership is never a per-agent decision again.**
+
+### FED MVP (the first testable increment, mostly done)
+"a second OpenAI endpoint on the LAN + a credential = a live council peer": **FED-G2 done** → next **FED-G1** (the loopback test: unauth `/v1/*` → 401; a `kind=remote-http` loopback peer with its own key shows `effective_up:true` + contributes fan-out). Then FED-G3 so the peer row itself adds without a restart.
+
+---
+
+## Quick-reference priority order
+**P0:** FED-G1 (operator-greenlight). **P1:** A1✅→A2✅→A3✅, FED-G2✅(+4-site follow-up), FED-G3, FED-G4, A4, C0→C1→C2, E1. **P2:** A5, B1, B2, C3, C4, D1, F1, G, FED-G6/G7/G8/G9. **P3:** the rest.
+
+*Research evidence (this session's task outputs): location `wbzod13uf`, audit `wbkbuti2o`, pods `wuj7tswip`, agents `wuy193d96`, federation `w6i3l8oco`.*
