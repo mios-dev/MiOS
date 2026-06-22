@@ -52,8 +52,17 @@ and (now) `mios-devforge.pod`.
 ## ⛔ Gated / not done (need operator-VM / egress / keyed peers)
 
 - **A6** kernel Stage-2 hot-path swap — needs operator VM parity loop.
-- **A3** opencode `:8633` — band-aided (`health_gate`); opencode shows `effective_up`
-  in the council now, but the proper headless-gateway fix is unverified.
+- **A3** opencode `:8633` — RESOLVED via honest exclusion (roadmap's documented
+  fallback). Root cause found live: opencode's model `local/mios-opencode:latest`
+  resolves fine (llama-swap alias → granite, real completion verified), but
+  `opencode run --format json` returns EMPTY even so — an upstream opencode 1.17.9
+  headless limitation in the non-TTY gateway (the long-standing "run hangs/returns
+  zero"). opencode's own `:8633` is therefore unreachable; it was masquerading as a
+  council peer by FAILING OVER to hermes (a shared backend), inflating
+  `council_peers_up` to 3. Kept `enabled=false`; made `/v1/cluster/health` count only
+  ENABLED, non-default, effective_up peers (+ `council_distinct_up` excludes
+  failover-only) → now honest: `council_peers_up:2, council_distinct_up:1`. Future
+  real fix: proxy `opencode serve` instead of spawning `run` per request.
 - **F2** coderun-sandbox image — needs egress to build. **F3** Code-Mode socket.
 - **FED-G5** avahi mDNS; **FED-G6/7/8/9** inbound delegation/scoping — need keyed peers.
 - **FED-G2 follow-up** — `_apply_outbound_auth` at the ~4 non-council outbound dispatch

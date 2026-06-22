@@ -20006,9 +20006,13 @@ async def cluster_health() -> JSONResponse:
                     "role": cfg.get("role", ""),
                     "lane": _agent_lane(cfg),
                     "default": bool(cfg.get("default")),
+                    "enabled": bool(cfg.get("enabled", True)),
                     "health_gate": bool(cfg.get("health_gate")),
                     "primary_up": primary_ok,
                     "any_failover_up": fallback_ok,
+                    # a peer "up" ONLY via failover is borrowing ANOTHER agent's backend
+                    # (often a SHARED one) -- not a distinct council voice. Surface it.
+                    "failover_only": (fallback_ok and not primary_ok),
                     "effective_up": primary_ok or fallback_ok,
                     "single_point_of_failure": (
                         (not fallback_ok) and len(links) == 1),
@@ -20018,17 +20022,23 @@ async def cluster_health() -> JSONResponse:
         spofs = [a["name"] for a in agents_out
                  if a["single_point_of_failure"]]
         # A5 council honesty (operator 2026-06-22): a COUNCIL needs >=1 SECONDARY
-        # (non-default) peer effective_up; with none up the front door silently
-        # degrades to single-agent. Surface that truthfully instead of advertising a
-        # council it can't form. council_peers_up counts the non-primary live peers.
+        # (non-default) peer that is ENABLED + effective_up. A DISABLED agent must NOT
+        # inflate the count just because its failover chain reaches a shared backend --
+        # that made the council look 3-strong when "opencode" (enabled=false; its
+        # headless `run` is broken upstream so its OWN :8633 is unreachable) was silently
+        # failing over to hermes (already a peer). Count only enabled, non-default,
+        # effective_up peers; `council_distinct_up` further excludes failover-only ones.
         _peers_up = sum(1 for a in agents_out
-                        if a["effective_up"] and not a["default"])
+                        if a["effective_up"] and not a["default"] and a["enabled"])
+        _distinct_up = sum(1 for a in agents_out
+                           if a["primary_up"] and not a["default"] and a["enabled"])
         _mode = ("council" if _peers_up > 0
                  else "single-agent (no council peers up)")
         return JSONResponse({
             "object": "mios.cluster.health",
             "mode": _mode,
             "council_peers_up": _peers_up,
+            "council_distinct_up": _distinct_up,
             "agents": agents_out,
             "agents_up": up,
             "agents_total": len(agents_out),
