@@ -55,6 +55,23 @@ groups    = ["wheel", "libvirt", "kvm", "video", "render", "input", "dialout", "
 default_password = "mios"
 
 # ----------------------------------------------------------------------------
+# [user] -- Human Operator Profile. Injected natively into the AI context so
+# the agent knows the user's name, pronouns, and bio. Layered from ~/.config/mios.
+# ----------------------------------------------------------------------------
+[user]
+name = "Kabu"
+pronouns = ""
+bio = ""
+
+# ----------------------------------------------------------------------------
+# [mios] -- AI Agent Persona. Replaces hardcoded identity strings in the
+# orchestrator system prompt. Layered from ~/.config/mios.
+# ----------------------------------------------------------------------------
+[mios]
+name = "MiOS AI"
+role = "the ONE name you go by on EVERY surface (the `@`/`mios` CLI, OWUI, Discord, the desktop app, the API)"
+developer = "MiOS"
+# ----------------------------------------------------------------------------
 # [agent_passport] -- Open Agent Passport (v0.1.0; the 2026 native standard for
 # verifiable, issuer-signed AI-agent identity + authority). agent-pipe serves the
 # signed JSON at GET /.well-known/agent-passport.json from these values, beside
@@ -2440,7 +2457,7 @@ verbs = ["system_status", "sys_env", "sys_env_refresh", "system_logs", "service_
 
 [routing.domains.apps_windows]
 desc  = "list or launch applications and manage on-screen windows"
-verbs = ["open_app", "open_url", "verify_launch", "window_state", "focus_window", "move_window", "position_window", "resize_window", "list_windows", "screen_layout", "mios_apps", "app_search", "mios_find"]
+verbs = ["open_app", "close_app", "open_url", "verify_launch", "window_state", "focus_window", "move_window", "position_window", "resize_window", "list_windows", "screen_layout", "mios_apps", "app_search", "mios_find"]
 
 [routing.domains.packages]
 desc  = "install, update, remove, or query software packages (dnf/winget/flatpak)"
@@ -2522,6 +2539,19 @@ cmd_positioned = "mios-window focus {title} && MIOS_LAUNCH_POSITION={position} m
   type    = "string"
   enum    = ["default", "as-is", "center", "left", "right", "top", "bottom", "top-left", "top-right", "bottom-left", "bottom-right", "maximize"]
   default = "default"
+
+[verbs.close_app]
+section    = "Window / app launch"
+sig        = "title"
+desc       = "Gracefully CLOSE an open Windows application or window (by title pattern). Use this when the operator asks to close, quit, exit, or kill an application."
+examples   = ["close Firefox", "quit Spotify", "exit Discord"]
+tier       = "common"
+permission = "write"
+cmd        = "mios-window close {title}"
+  [verbs.close_app.params.title]
+  type    = "string"
+  desc    = "Window title pattern (substring match)."
+  aliases = ["name", "window", "app"]
 
 [verbs.move_window]
 section    = "Window / app launch"
@@ -3104,6 +3134,32 @@ examples   = ["list the controls in the foreground windows app", "what can I cli
 tier       = "rare"
 permission = "read"
 cmd        = "mios-pc-control ui-list"
+
+[verbs.pc_uia_tree]
+section    = "PC input"
+sig        = ""
+desc       = "Extract the FULL UIA accessibility tree of the FOREGROUND window as JSON to deeply understand its structure, hierarchy, and nested components. Returns node types, names, bounds, and parent/child relationships. This is the structural foundation for Native UIA grounding."
+model_name = "windows_desktop_uia_tree"
+examples   = ["dump the uia tree of the active windows app", "what is the full structure of the foreground window", "extract the uia dom of the host desktop"]
+tier       = "rare"
+permission = "read"
+cmd        = "mios-pc-control ui-tree"
+
+[verbs.pc_uia_set_value]
+section    = "PC input"
+sig        = "name, text"
+desc       = "Directly set the text/value of a named UI control (by Name or AutomationId) via Windows UIA without simulating keystrokes. Completely bypasses window focus racing and keystroke drops. Use this for robust, deterministic typing into Windows apps when the target element exposes a ValuePattern."
+model_name = "windows_desktop_uia_set_value"
+examples   = ["set the value of the 'Search' box to 'hello'", "inject text into the UIA element named 'Address'", "use uia to set the value of the textbox"]
+tier       = "rare"
+permission = "write"
+cmd        = "mios-pc-control ui-set-value {name} {text}"
+  [verbs.pc_uia_set_value.params.name]
+  type = "string"
+  aliases = ["element", "label", "automation_id"]
+  [verbs.pc_uia_set_value.params.text]
+  type = "string"
+  aliases = ["value", "content"]
 
 # ─── Section: Computer-use (Linux/Wayland desktop) ────────────────────
 # Cross-platform desktop control via mios-computer-use (env-adaptive: bare-metal

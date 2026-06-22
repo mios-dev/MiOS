@@ -552,6 +552,108 @@ function Find-UIElements($name, $maxN) {
     return $out
 }
 
+function Get-UIATree {
+    param(
+        [System.Windows.Automation.AutomationElement]$Element,
+        [int]$Depth = 0,
+        [int]$MaxDepth = 15
+    )
+    if ($Depth -gt $MaxDepth) { return $null }
+    if ($null -eq $Element) { return $null }
+
+    $node = [ordered]@{
+        Name = ''
+        ControlType = ''
+        AutomationId = ''
+        Rect = $null
+    }
+
+    try { $node.Name = [string]$Element.Current.Name } catch {}
+    try { $node.ControlType = [string]$Element.Current.ControlType.ProgrammaticName.Replace('ControlType.', '') } catch {}
+    try { $node.AutomationId = [string]$Element.Current.AutomationId } catch {}
+    $isOffscreen = $false
+    try { $isOffscreen = [bool]$Element.Current.IsOffscreen } catch {}
+    
+    try { 
+        $rect = $Element.Current.BoundingRectangle
+        if (-not $rect.IsEmpty) {
+            $node.Rect = @{ X = [int]$rect.X; Y = [int]$rect.Y; W = [int]$rect.Width; H = [int]$rect.Height }
+        }
+    } catch {}
+
+    # Skip invisible elements to reduce token bloat for the LLM
+    if ($isOffscreen -and $Depth -gt 0) { return $null }
+
+    $children = New-Object System.Collections.ArrayList
+    try {
+        # ControlViewWalker skips purely decorative elements and layouts
+        $walker = [System.Windows.Automation.TreeWalker]::ControlViewWalker
+        $child = $walker.GetFirstChild($Element)
+        $maxSiblings = 500
+        $i = 0
+        while ($null -ne $child -and $i -lt $maxSiblings) {
+            $i++
+            $childNode = Get-UIATree -Element $child -Depth ($Depth + 1) -MaxDepth $MaxDepth
+            if ($null -ne $childNode) {
+                [void]$children.Add($childNode)
+            }
+            $child = $walker.GetNextSibling($child)
+        }
+    } catch {}
+
+    if ($children.Count -gt 0) {
+        $node.Children = @($children)
+    }
+
+    $interactive = @('Button', 'Edit', 'Document', 'MenuItem', 'ListItem', 'TabItem', 'Hyperlink', 'CheckBox', 'RadioButton', 'ComboBox', 'TreeItem')
+    if ($children.Count -eq 0 -and $node.ControlType -notin $interactive -and -not $node.Name) {
+        return $null
+    }
+
+    return $node
+}
+
+function Invoke-UIASetValue($name, $text) {
+    if (-not $script:UIA_OK) { return @{ ok = $false; error = 'UIA unavailable on this host' } }
+    $fg = [OSCW32]::GetForegroundWindow()
+    $root = $null
+    try { if ($fg -ne [IntPtr]::Zero) { $root = [System.Windows.Automation.AutomationElement]::FromHandle($fg) } } catch {}
+    if (-not $root) { return @{ ok = $false; error = "no foreground window" } }
+    
+    $target = $null
+    try {
+        $all = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)
+        foreach ($el in $all) {
+            $nm = ''; $aid = ''
+            try { $nm = [string]$el.Current.Name } catch {}
+            try { $aid = [string]$el.Current.AutomationId } catch {}
+            if (($name -and ($nm -like "*$name*")) -or ($name -and ($aid -eq $name))) {
+                $target = $el
+                break
+            }
+        }
+    } catch {}
+
+    if (-not $target) {
+        return @{ ok = $false; error = "no UIA element matching '$name'" }
+    }
+
+    $vp = $null
+    if ($target.TryGetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern, [ref]$vp)) {
+        if (-not $vp.Current.IsReadOnly) {
+            try {
+                $vp.SetValue($text)
+                return @{ ok = $true; op = 'uia-set-value'; method = 'uia_setvalue'; name = $name; chars = $text.Length }
+            } catch {
+                return @{ ok = $false; error = "SetValue threw: $($_.Exception.Message)" }
+            }
+        } else {
+            return @{ ok = $false; error = "element is ReadOnly" }
+        }
+    }
+    return @{ ok = $false; error = "element does not support ValuePattern" }
+}
+
 # Read-back helpers for type verification: the FOREGROUND-window title and the
 # focused control's text (UIA Value/Text pattern). Used to confirm typed text
 # ACTUALLY landed, so the executor never reports a false success.
@@ -1067,6 +1169,40 @@ while ($listener.IsListening) {
                 $els = @(Find-UIElements '' 40)
                 for ($i = 0; $i -lt $els.Count; $i++) { $els[$i].mark = $i + 1 }
                 Write-JsonResponse $ctx 200 @{ ok = ($els.Count -gt 0); count = $els.Count; elements = $els; host = $env:COMPUTERNAME }
+            }
+        }
+        elseif ($method -eq 'GET' -and $path -eq '/ui/tree') {
+            if (-not $script:UIA_OK) {
+                Write-JsonResponse $ctx 200 @{ ok = $false; error = 'UIA unavailable on this host'; host = $env:COMPUTERNAME }
+            } else {
+                $fg = [OSCW32]::GetForegroundWindow()
+                $root = $null
+                try { if ($fg -ne [IntPtr]::Zero) { $root = [System.Windows.Automation.AutomationElement]::FromHandle($fg) } } catch {}
+                if (-not $root) {
+                    Write-JsonResponse $ctx 404 @{ ok = $false; error = "no foreground window"; host = $env:COMPUTERNAME }
+                } else {
+                    $tree = Get-UIATree -Element $root -MaxDepth 15
+                    if ($null -ne $tree) {
+                        Write-JsonResponse $ctx 200 @{ ok = $true; tree = $tree; host = $env:COMPUTERNAME }
+                    } else {
+                        Write-JsonResponse $ctx 404 @{ ok = $false; error = "failed to extract UIA tree"; host = $env:COMPUTERNAME }
+                    }
+                }
+            }
+        }
+        elseif ($method -eq 'POST' -and $path -eq '/ui/set-value') {
+            $b = Read-JsonBody $ctx
+            $name = ''; $text = ''
+            if ($b) {
+                if ($b.PSObject.Properties.Name -contains 'name') { $name = "$($b.name)" }
+                if ($b.PSObject.Properties.Name -contains 'text') { $text = "$($b.text)" }
+            }
+            if (-not $name.Trim()) {
+                Write-JsonResponse $ctx 400 @{ ok = $false; error = "missing 'name'" }
+            } else {
+                $r = Invoke-UIASetValue $name $text
+                $code = if ($r.ok) { 200 } else { 400 }
+                Write-JsonResponse $ctx $code $r
             }
         }
         else {

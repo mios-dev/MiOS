@@ -6621,6 +6621,22 @@ OS_CONTROL_LAUNCH_VERIFY_S = float(
     os.environ.get("MIOS_OS_CONTROL_LAUNCH_VERIFY_S", "16") or 16)
 OS_CONTROL_LAUNCH_POLL_S = float(
     os.environ.get("MIOS_OS_CONTROL_LAUNCH_POLL_S", "1.5") or 1.5)
+# Window-enumeration RETRY-ON-EMPTY (operator 2026-06-22 "checks aren't occurring
+# by MiOS Daemon or natively"): a LIVE Windows/Wayland desktop ALWAYS has >=1
+# window (Program Manager / the shell), so a count:0 snapshot is NEVER truth --
+# it is a transient broker timeout / launch contention (the ~3.6s list_windows
+# enumeration racing the in-flight launch that holds the single broker). The old
+# code treated count:0 as "blind" and SILENTLY DROPPED the reliable window-diff,
+# falling back to the flaky global-PID check (operator's Steam matched, but
+# Spotify -- which DID open a "Spotify Premium" window -- did not, so it reported
+# FAILURE on an app that opened). Re-enumerate on empty so the diff sees the real
+# windows + verifies via the count-delta. Each attempt is wait_for-bounded so a
+# hung broker can't blow the launch-verify deadline. 0 disables. SSOT-tunable.
+OS_CONTROL_ENUM_RETRY = int(os.environ.get("MIOS_OS_CONTROL_ENUM_RETRY", "2") or 2)
+OS_CONTROL_ENUM_RETRY_SETTLE_S = float(
+    os.environ.get("MIOS_OS_CONTROL_ENUM_RETRY_SETTLE_S", "0.7") or 0.7)
+OS_CONTROL_ENUM_TIMEOUT_S = float(
+    os.environ.get("MIOS_OS_CONTROL_ENUM_TIMEOUT_S", "6") or 6)
 # Closed-loop bound (operator 2026-06-16 "loop anything not fully fulfilled"): how many
 # times the compound type-chain re-focuses + re-types when pc_type's strict read-back
 # reports the text did NOT land. Bounded so an unverifiable target can't loop forever;
@@ -7302,8 +7318,17 @@ def _client_grounding() -> str:
             f"  - User language / locale: {lang}. Use its date / number / "
             "currency / unit conventions; reply in this language unless the "
             "user's own message is written in another.")
-    if name:
-        lines.append(f"  - User display name: {name}.")
+    _user_cfg = _toml_section("user") or {}
+    _cfg_name = str(_user_cfg.get("name") or "").strip()
+    _cfg_pronouns = str(_user_cfg.get("pronouns") or "").strip()
+    _cfg_bio = str(_user_cfg.get("bio") or "").strip()
+    _final_name = name or _cfg_name
+    if _final_name:
+        lines.append(f"  - User display name: {_final_name}.")
+    if _cfg_pronouns:
+        lines.append(f"  - User pronouns: {_cfg_pronouns}.")
+    if _cfg_bio:
+        lines.append(f"  - User bio/context: {_cfg_bio}.")
     if not lines:
         return ""
     return ("Client / invocation environment grounding (the REAL per-request "
@@ -7324,12 +7349,16 @@ def _identity_guard() -> str:
     local-only; the /MiOS.md guard only reaches the native-loop path, so the
     verb-DAG synthesis/polish path needed its own copy. Kept terse + forceful;
     leads with the prohibition so it survives a long prompt."""
+    _mios_cfg = _toml_section("mios") or {}
+    _ai_name = str(_mios_cfg.get("name") or "MiOS AI").strip()
+    _ai_role = str(_mios_cfg.get("role") or "the ONE name you go by on EVERY surface (the `@`/`mios` CLI, OWUI, Discord, the desktop app, the API)").strip()
+    _ai_dev = str(_mios_cfg.get("developer") or "MiOS").strip()
+
     return (
-        "Identity (NON-NEGOTIABLE, overrides any draft to the contrary): your name "
-        "is **MiOS AI** -- the ONE name you go by on EVERY surface (the `@`/`mios` "
-        "CLI, OWUI, Discord, the desktop app, the API). ALWAYS call yourself 'MiOS "
-        "AI'; NEVER 'MiOS Agent', 'MiOS-Hermes', 'Hermes', or a model id. You run "
-        "LOCAL, open-weight models on THIS machine, and you were DEVELOPED BY MiOS: "
+        f"Identity (NON-NEGOTIABLE, overrides any draft to the contrary): your name "
+        f"is **{_ai_name}** -- {_ai_role}. ALWAYS call yourself '{_ai_name}'; NEVER "
+        f"'MiOS Agent', 'MiOS-Hermes', 'Hermes', or a model id. You run "
+        f"LOCAL, open-weight models on THIS machine, and you were DEVELOPED BY {_ai_dev}: "
         "the underlying base model is an INTERNAL implementation detail, NOT your "
         "identity and NOT your maker -- never name the base model's vendor/company "
         "as YOUR developer, never claim a hosted/cloud provenance or safety "
@@ -25748,18 +25777,41 @@ async def _enumerate_windows() -> dict:
             log.debug("local window enumerate failed: %s", e)
             return []
 
-    endpoints = _load_oscontrol_endpoints()
-    tasks = [asyncio.create_task(_local())]
-    for ep in endpoints:
-        tasks.append(asyncio.create_task(_remote_enumerate_windows_one(ep)))
-    results = await asyncio.gather(*tasks, return_exceptions=True)
-    merged: list = []
-    any_ok = False
-    for r in results:
-        if isinstance(r, list):
-            if r:
-                any_ok = True
-            merged.extend(r)
+    async def _snapshot_once() -> tuple:
+        endpoints = _load_oscontrol_endpoints()
+        tasks = [asyncio.create_task(_local())]
+        for ep in endpoints:
+            tasks.append(asyncio.create_task(_remote_enumerate_windows_one(ep)))
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        merged: list = []
+        any_ok = False
+        for r in results:
+            if isinstance(r, list):
+                if r:
+                    any_ok = True
+                merged.extend(r)
+        return any_ok, merged
+
+    # RETRY-ON-EMPTY (operator 2026-06-22): an empty snapshot on a live desktop is a
+    # transient broker miss, not truth -- re-enumerate so a launch-verify never goes
+    # falsely BLIND (which forced the unreliable PID fallback). Each attempt is
+    # wait_for-bounded; the empty case returns fast in practice, so the common path
+    # (windows present on the first try) adds ZERO latency.
+    any_ok, merged = False, []
+    for _attempt in range(max(1, OS_CONTROL_ENUM_RETRY + 1)):
+        try:
+            any_ok, merged = await asyncio.wait_for(
+                _snapshot_once(), timeout=OS_CONTROL_ENUM_TIMEOUT_S)
+        except Exception as e:  # noqa: BLE001 -- timeout or gather failure -> empty
+            log.debug("window snapshot attempt %d failed: %s", _attempt, e)
+            any_ok, merged = False, []
+        if merged:
+            break
+        if _attempt < OS_CONTROL_ENUM_RETRY:
+            log.info("window enumeration empty (count:0) -> re-enumerate "
+                     "(attempt %d/%d); a live desktop always has >=1 window",
+                     _attempt + 1, OS_CONTROL_ENUM_RETRY)
+            await asyncio.sleep(OS_CONTROL_ENUM_RETRY_SETTLE_S)
     return {"ok": any_ok, "count": len(merged), "windows": merged}
 
 

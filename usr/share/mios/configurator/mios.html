@@ -387,6 +387,32 @@
     </div>
 
     <div class="card">
+      <h3>Human Profile</h3>
+      <p style="color: var(--muted); font-size: 11px; margin: 0 0 10px;">
+        Natively injected into the AI context so the agent knows who it's talking to.
+      </p>
+      <label for="f-user-name">name (what the agent calls you)</label>
+      <input type="text" id="f-user-name" data-key="user.name" placeholder="Kabu">
+      <label for="f-user-pronouns">pronouns</label>
+      <input type="text" id="f-user-pronouns" data-key="user.pronouns" placeholder="they/them">
+      <label for="f-user-bio">bio / context</label>
+      <textarea id="f-user-bio" data-key="user.bio" placeholder="Context about yourself for the AI..."></textarea>
+    </div>
+
+    <div class="card">
+      <h3>AI Persona</h3>
+      <p style="color: var(--muted); font-size: 11px; margin: 0 0 10px;">
+        Natively overrides the agent's identity strings in the orchestrator system prompt.
+      </p>
+      <label for="f-mios-name">name</label>
+      <input type="text" id="f-mios-name" data-key="mios.name" placeholder="MiOS AI">
+      <label for="f-mios-role">role</label>
+      <textarea id="f-mios-role" data-key="mios.role" placeholder="the ONE name you go by on EVERY surface..."></textarea>
+      <label for="f-mios-developer">developer</label>
+      <input type="text" id="f-mios-developer" data-key="mios.developer" placeholder="MiOS">
+    </div>
+
+    <div class="card">
       <h3>Locale &amp; language</h3>
       <label for="f-tz">timezone</label>
       <input type="text" id="f-tz" data-key="locale.timezone" placeholder="UTC">

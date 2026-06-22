@@ -23,6 +23,11 @@ def usage():
   window-focus <hwnd-or-pid>
   window-move <hwnd> <x> <y>
   window-resize <hwnd> <w> <h>
+  ui-find <name>
+  ui-click <name>
+  ui-list
+  ui-tree
+  ui-set-value <name> <text>
   help""")
     sys.exit(0)
 
@@ -146,7 +151,7 @@ def main():
         
     valid_subs = {"launch", "window-list", "window-close", "window-focus", "window-move", 
                   "window-resize", "window-center", "screen-layout", "screenshot", "click", 
-                  "double-click", "mouse-move", "type", "key", "key-combo", "ui-find", "ui-click", "ui-list"}
+                  "double-click", "mouse-move", "type", "key", "key-combo", "ui-find", "ui-click", "ui-list", "ui-tree", "ui-set-value"}
                   
     exec_ep = _get_executor_endpoint()
     
@@ -156,7 +161,7 @@ def main():
         except Exception:
             exec_ep = ""
             
-    if sub in ("launch", "ui-find", "ui-click", "ui-list") and not exec_ep:
+    if sub in ("launch", "ui-find", "ui-click", "ui-list", "ui-tree", "ui-set-value") and not exec_ep:
         sys.stderr.write(f"mios-pc-control: no OS-control executor reachable for {sub}\n")
         sys.exit(2)
         
@@ -208,6 +213,19 @@ def main():
         elif sub == "ui-list":
             print(_http_request(f"{exec_ep}/ui/list", "GET", None, 25))
             sys.exit(0)
+            
+        elif sub == "ui-tree":
+            print(_http_request(f"{exec_ep}/ui/tree", "GET", None, 60))
+            sys.exit(0)
+            
+        elif sub == "ui-set-value":
+            if len(args) < 2:
+                sys.stderr.write("mios-pc-control: ui-set-value needs <name> <text>\n")
+                sys.exit(64)
+            name = args[0]
+            text = " ".join(args[1:])
+            resp = _http_request(f"{exec_ep}/ui/set-value", "POST", {"name": name, "text": text}, 25)
+            print(resp); _exit_on_verdict(resp)
             
         elif sub in ("ui-find", "ui-click"):
             if not args:

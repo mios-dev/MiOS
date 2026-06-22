@@ -493,9 +493,11 @@ if [ -r "$_GAMES_CACHE" ]; then
         #   * full `mios-windows launch ...` command line -- already shaped
         case "$_hit_cmd" in
             mios-windows*)
+                export MIOS_LAUNCH_TITLE_HINT="$_hit_name"
                 eval exec "$_hit_cmd" '"$@"'
                 ;;
             *)
+                export MIOS_LAUNCH_TITLE_HINT="$_hit_name"
                 exec mios-windows launch "$_hit_cmd"
                 ;;
         esac
