@@ -12214,6 +12214,28 @@ async def _recall_knowledge_pg(query: str) -> "Optional[str]":
                 return float(r.get("score") or 0.0)
         cands.sort(key=_pg_rank, reverse=True)
         hits = cands[:KNOWLEDGE_RECALL_K]
+        # B2 PAGE-IN BUMP (operator 2026-06-22): increment access_count/recall_hits +
+        # refresh last_access + promote to tier='hot' on the rows we actually surfaced.
+        # This existed ONLY in the dead SurrealDB recall path, so on the LIVE pgvector
+        # path the counters NEVER moved -- access_count stayed 0 for every row, the
+        # outcome-ranked tiering/eviction ran on all-zero signal, and no row ever went
+        # hot. Fire-and-forget; degrade-open (a miss just skips the bump). CASE sees the
+        # pre-increment access_count, mirroring the surreal IF semantics.
+        for _r in hits:
+            _rid = _r.get("id")
+            if _rid is None:
+                continue
+            _db_fire(_db_update(
+                "",
+                pg_sql=(
+                    f"UPDATE {KNOWLEDGE_TABLE} SET "
+                    "access_count = COALESCE(access_count,0) + 1, "
+                    "recall_hits = COALESCE(recall_hits,0) + 1, "
+                    "last_access = now(), "
+                    "tier = CASE WHEN COALESCE(access_count,0) >= %(hot)s "
+                    "THEN 'hot' ELSE COALESCE(tier,'warm') END "
+                    "WHERE id = %(id)s"),
+                pg_params={"id": _rid, "hot": int(KNOWLEDGE_HOT_THRESHOLD)}))
         # Stamp each recalled row with how long ago it was recorded, so a time-bound
         # fact is never asserted as current (research: Zep bi-temporal 'as of').
         lines = [
