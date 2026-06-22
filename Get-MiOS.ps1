@@ -38,7 +38,7 @@ if ($env:MIOS_AGREEMENT_BANNER -notin @('quiet','silent','off','0','false','FALS
 "@)
 }
 
-$bootstrapUrl = "https://raw.githubusercontent.com/mios-dev/mios-bootstrap/main/Get-MiOS.ps1"
+$bootstrapUrl = "https://raw.githubusercontent.com/mios-dev/mios-bootstrap/$Branch/Get-MiOS.ps1"
 & ([scriptblock]::Create((Invoke-RestMethod $bootstrapUrl))) `
     -RepoUrl $RepoUrl -Branch $Branch -RepoDir $RepoDir -Workflow $Workflow
 exit $LASTEXITCODE

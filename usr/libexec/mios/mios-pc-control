@@ -47,24 +47,36 @@ def _read_toml_endpoint():
 
 def _get_executor_endpoint():
     ep = os.environ.get("MIOS_OSCONTROL_EXECUTOR", "")
-    if ep: return ep.rstrip("/")
-    ep = _read_toml_endpoint()
-    if ep: return ep
-    # WSL auto-discovery
+    if ep:
+        ep = ep.rstrip("/")
+    else:
+        ep = _read_toml_endpoint()
+
+    # WSL detection and dynamic gateway routing for loopback targets
     try:
         with open("/proc/sys/kernel/osrelease", "r") as f:
             content = f.read().lower()
-            if "microsoft" in content or "wsl" in content:
+            is_wsl = "microsoft" in content or "wsl" in content
+    except Exception:
+        is_wsl = False
+
+    if is_wsl:
+        needs_gw = (not ep) or ("localhost" in ep) or ("127.0.0.1" in ep)
+        if needs_gw:
+            try:
                 ip_route = subprocess.check_output(["ip", "route", "show", "default"], text=True)
                 parts = ip_route.split()
                 if "default" in parts:
                     idx = parts.index("default")
                     gw = parts[idx + 2]
-                    port = os.environ.get("MIOS_OSCONTROL_PORT", "11437")
-                    return f"http://{gw}:{port}"
-    except Exception:
-        pass
-    return ""
+                    if ep:
+                        ep = ep.replace("localhost", gw).replace("127.0.0.1", gw)
+                    else:
+                        port = os.environ.get("MIOS_OSCONTROL_PORT", "11437")
+                        ep = f"http://{gw}:{port}"
+            except Exception:
+                pass
+    return ep
 
 def _http_request(url, method="GET", data=None, timeout=15):
     req_data = None
