@@ -8,7 +8,7 @@
 # (nullDescriptor, robustness2, descriptor pool memory). Result:
 # the app's Wayland surface registers with weston RDP rail (the
 # Windows taskbar shows the icon), but the frame buffer can never
-# initialize. Operator-visible failure mode 2026-05-10: "the
+# initialize. Operator-visible failure mode "the
 # windows never render though--there's an icon on the windows
 # taskbar but no actual window EVER rendered."
 #
@@ -26,7 +26,7 @@
 [ -d /mnt/wslg ] || return 0
 
 # ── Mesa / GTK4: cairo + llvmpipe is the WSLg default ────────────
-# Operator-tested across multiple sessions 2026-05-10: every
+# Operator-tested across multiple sessions every
 # hardware path (dzn Vulkan, d3d12 Gallium, NGL, GL renderer)
 # resulted in either:
 #   (a) Apps spawning windows then crashing on GLib G_IS_OBJECT
@@ -77,7 +77,7 @@ export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-0}"
 export DISPLAY="${DISPLAY:-:0}"
 
 # ── GTK / Qt scaling on 4K Windows hosts ──────────────────────────
-# Restored 2026-05-12 after a regression: removing these broke the
+# Restored after a regression: removing these broke the
 # operator-tuned visual sizing that had previously been working.
 # Per the original comment, WSLg compounds the Windows host's DPI
 # scale (1.25-1.5 on 4K laptops) with its own scale, so without a

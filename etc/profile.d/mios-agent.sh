@@ -33,7 +33,7 @@ if [ -n "${BASH_VERSION-}" ]; then
     # binding `\r -> ...\C-m` recursively re-triggers itself and bash
     # readline aborts with "maximum macro execution nesting level
     # exceeded" on every Enter press, breaking ALL shell input
-    # (operator-confirmed 2026-05-13 in podman-MiOS-DEV: every keystroke
+    # (operator-confirmed in podman-MiOS-DEV: every keystroke
     # surfaced the readline error). \C-j is bound to accept-line by
     # default and is NOT in the rebinding chain, so it submits the line
     # cleanly without recursion.

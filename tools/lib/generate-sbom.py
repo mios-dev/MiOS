@@ -4,7 +4,7 @@
 # AI-functions: main
 # tools/lib/generate-sbom.py -- emit MiOS-SBOM.csv from mios.toml
 # [packages.<section>].pkgs + Quadlet Image= refs + base image refs +
-# .env.mios Flatpak defaults. As of v0.2.4 (2026-05-05) PACKAGES.md is
+#.env.mios Flatpak defaults. As of v0.2.4 PACKAGES.md is
 # documentation only; mios.toml is the runtime SSOT.
 
 import re

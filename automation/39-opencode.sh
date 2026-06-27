@@ -16,7 +16,7 @@
 # 38- slot already owns the shared venv, so it is the single SoT.
 #
 # The old contradictory ACP-delegation framing (opencode spawned by Hermes per
-# task) is retired: per the operator's 2026-05-31 front-door decision, opencode
+# task) is retired: per the operator's front-door decision, opencode
 # is an OpenAI /v1 council peer via mios-opencode-gateway.service (:8633), not a
 # Hermes ACP subprocess.
 #

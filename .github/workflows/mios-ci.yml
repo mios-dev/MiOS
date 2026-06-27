@@ -83,7 +83,7 @@ jobs:
         id: ver
         # VERSION must yield ONE clean token. Strip comment lines (e.g. a
         # stray AI-hint header) + all whitespace so a multi-line value can't
-        # write a bare line to $GITHUB_OUTPUT ("Invalid format" failure 2026-06-13).
+        # write a bare line to $GITHUB_OUTPUT ("Invalid format" failure).
         run: |
           ver="$(grep -vE '^[[:space:]]*#' VERSION | tr -d '[:space:]')"
           echo "version=${ver:-0.0.0}" >> "$GITHUB_OUTPUT"
@@ -112,8 +112,8 @@ jobs:
           # free) vs / (~21GB even after jlumbroso frees ~30GB). The MiOS image
           # bakes 21 large bound-images (~50GB incl AI lanes); committing that
           # layer on / exhausts the disk and the layer copy's pipe closes ("io:
-          # read/write on closed pipe", exit 125, 2026-06-21). runroot stays on
-          # tmpfs /run (small runtime state only). install-robustness 2026-06-21.
+          # read/write on closed pipe", exit 125,). runroot stays on
+          # tmpfs /run (small runtime state only). install-robustness.
           echo -e '[storage]\ndriver = "overlay"\ngraphroot = "/mnt/containers-storage"\nrunroot = "/run/containers/storage"\n[storage.options.overlay]\nmountopt = "nodev"' | sudo tee /etc/containers/storage.conf
           # The GHA runner ships a pre-seeded containers store whose libpod DB
           # may record an empty/foreign graph driver. `podman system reset`
@@ -121,7 +121,7 @@ jobs:
           # not match our graph driver "overlay"' BEFORE it can wipe. Remove
           # the stale store (rootful + rootless) so reset starts from a clean
           # slate, then make reset itself non-fatal (install-robustness
-          # 2026-06-21).
+          #).
           sudo rm -rf /var/lib/containers/storage /run/containers/storage /mnt/containers-storage
           rm -rf "${HOME}/.local/share/containers/storage" 2>/dev/null || true
           sudo podman system reset -f || true
@@ -133,7 +133,7 @@ jobs:
         # (BOUND-IMAGES law -- runtime pulls are bugs), and the bake
         # blew through the runner's free space mid-pull at the 16th
         # image (open-webui's NotoSansSC font blob, ~30 MB) on
-        # 2026-05-15. jlumbroso/free-disk-space reclaims ~30 GB by
+        #. jlumbroso/free-disk-space reclaims ~30 GB by
         # removing pre-installed Android SDK, .NET, GHC, Haskell,
         # CodeQL, large /opt entries, etc. -- none of which the OCI
         # build needs. Forgejo's self-hosted runner has plenty of
@@ -156,7 +156,7 @@ jobs:
         # don't share the anonymous pool, so logging in even with the
         # auto-provided GITHUB_TOKEN (which has GHCR read on public
         # images) bypasses the rate limit. Operator-confirmed CI failure
-        # 2026-05-15: Containerfile FROM ghcr.io/ublue-os/ucore-hci died
+        # Containerfile FROM ghcr.io/ublue-os/ucore-hci died
         # at blob 67/70 with the anonymous-quota error.
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -191,10 +191,10 @@ jobs:
           # /etc/gshadow: invalid argument" -- "potentially insufficient
           # UIDs or GIDs available in user namespace". Rootful podman
           # has full UID range and skips the remap. Operator-confirmed
-          # CI failure 2026-05-15 (qdrant + 13 other bound images failed
+          # CI failure (qdrant + 13 other bound images failed
           # with this exact error mid-bake).
           # TMPDIR on /mnt too -- buildah's commit scratch must not spill onto
-          # the small / (install-robustness 2026-06-21).
+          # the small / (install-robustness).
           sudo TMPDIR=/mnt/tmp podman build \
               "${BUILD_ARGS[@]}" \
               -f Containerfile \
@@ -294,7 +294,7 @@ jobs:
       # -- closes the "unsigned :latest" gap and makes the SECURITY.md "CI signs
       # every push with cosign keyless" claim true. Keyless OIDC; needs the
       # job's `permissions: id-token: write` (already set -- the v-tag .sig
-      # objects in GHCR prove keyless signing works). Operator 2026-06-06.
+      # objects in GHCR prove keyless signing works)..
       - name: Cosign keyless sign (all pushes incl. :latest)
         if: github.event_name != 'pull_request'
         env:
@@ -328,8 +328,8 @@ jobs:
           # free) vs / (~21GB even after jlumbroso frees ~30GB). The MiOS image
           # bakes 21 large bound-images (~50GB incl AI lanes); committing that
           # layer on / exhausts the disk and the layer copy's pipe closes ("io:
-          # read/write on closed pipe", exit 125, 2026-06-21). runroot stays on
-          # tmpfs /run (small runtime state only). install-robustness 2026-06-21.
+          # read/write on closed pipe", exit 125,). runroot stays on
+          # tmpfs /run (small runtime state only). install-robustness.
           echo -e '[storage]\ndriver = "overlay"\ngraphroot = "/mnt/containers-storage"\nrunroot = "/run/containers/storage"\n[storage.options.overlay]\nmountopt = "nodev"' | sudo tee /etc/containers/storage.conf
           # The GHA runner ships a pre-seeded containers store whose libpod DB
           # may record an empty/foreign graph driver. `podman system reset`
@@ -337,7 +337,7 @@ jobs:
           # not match our graph driver "overlay"' BEFORE it can wipe. Remove
           # the stale store (rootful + rootless) so reset starts from a clean
           # slate, then make reset itself non-fatal (install-robustness
-          # 2026-06-21).
+          #).
           sudo rm -rf /var/lib/containers/storage /run/containers/storage /mnt/containers-storage
           rm -rf "${HOME}/.local/share/containers/storage" 2>/dev/null || true
           sudo podman system reset -f || true
@@ -373,7 +373,7 @@ jobs:
           # A real runtime smoke (not just a build/lint): boot the image in
           # podman, compile the agent-pipe, and assert the load-bearing shims +
           # units shipped. Catches a build that lints clean but is missing
-          # components or has a broken server.py. Operator 2026-06-06 (closes
+          # components or has a broken server.py. (closes
           # the "CI has no run/boot test" gap from the maturity review).
           set -euo pipefail
           sudo podman run --rm mios:smoke bash -lc '

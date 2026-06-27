@@ -37,11 +37,17 @@ the gotchas that bit us.
 
 ## Project
 
-- Repo: <https://github.com/osbuild/bootc-image-builder>
+- Repo (archived): <https://github.com/osbuild/bootc-image-builder> — the
+  upstream repository has been merged into and superseded by
+  <https://github.com/osbuild/image-builder>; the standalone repo is read-only.
 - Docs: <https://osbuild.org/docs/bootc/>
-- Successor under evaluation: <https://github.com/osbuild/image-builder-cli>
-  (first-class SBOM + cross-arch; `image-versions.yml` has commented-out
-  `image_builder_cli_digest` entries ready for Renovate)
+- Image: the osbuild bootc docs still publish and reference
+  `quay.io/centos-bootc/bootc-image-builder:latest` as the canonical container to
+  run, so MiOS keeps that pull reference (SSOT `[image].bib`, `Justfile`
+  `MIOS_IMG_BIB`). Migrate to the `image-builder` successor only once it ships a
+  bootc-container disk-image path that can replace the `build --type` invocations
+  MiOS depends on — `image-builder-cli` is package-input oriented (not a
+  bootc-container drop-in) and is itself now folded into `image-builder`.
 
 ## Output types
 

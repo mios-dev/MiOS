@@ -1,6 +1,6 @@
-# AI-hint: Pure deterministic GOAP planner (#53) -- min-cost action sequence to a goal.
-# AI-related: server.py, mios_lanes, /usr/share/mios/mios.toml
-# AI-functions: satisfies, applicable, apply_effects, plan, validate_actions
+# AI-hint: Deterministic GOAP planner (#53) -- min-cost action sequence to a goal, plus the config-bound lane wrappers.
+# AI-related: server.py, mios_config, mios_lanes, /usr/share/mios/mios.toml
+# AI-functions: satisfies, applicable, apply_effects, plan, validate_actions, _goap_actions, _goap_enabled, _goap_plan
 #   Goal-Oriented Action Planning via uniform-cost (Dijkstra) search over world
 #   states: given an initial fact-state, a goal, and actions (preconditions +
 #   effects + cost), returns the minimum-cost ordered action-name list to reach
@@ -20,14 +20,17 @@ World state = a dict of fact -> value. An action = {
     "name": str, "pre": {fact: value, ...}, "eff": {fact: value, ...},
     "cost": int (default 1)}. plan() returns [action_name, ...] | [] | None.
 
-This is the SOLVER + action-model contract only; it is server.py-free and reads
-nothing. server.py loads the action set from mios.toml [goap] and decides when to
-use this lane (default off -> the LLM DAG is unchanged).
+This module is server.py-free. It provides the pure SOLVER + action-model
+contract AND the config-bound lane wrappers (_goap_enabled / _goap_actions /
+_goap_plan) that read the mode + action set from mios.toml [goap] via mios_config
+and decide when the lane is active (default off -> the LLM DAG is unchanged).
 """
 from __future__ import annotations
 
 import heapq
 from typing import Dict, List, Optional
+
+from mios_config import _toml_section
 
 
 def satisfies(state: dict, goal: dict) -> bool:
@@ -113,3 +116,37 @@ def plan(initial: dict, goal: dict, actions: list,
             counter += 1
             heapq.heappush(pq, (ng, counter, nxt, path + [action.get("name")]))
     return None
+
+
+# ── Config-bound lane wrappers (#53). The OPTIONAL deterministic GOAP planner
+# lane (alongside the LLM DAG): when a task's steps have KNOWN pre/post-conditions,
+# ordering is a search problem with one correct answer -- the solver above resolves
+# it deterministically (reproducible, no LLM). DEFAULT-OFF ([goap].mode != enabled)
+# -> _goap_plan returns None and the LLM DAG planner in server.py is unchanged. The
+# action model is SSOT in mios.toml [goap].actions. This is the LANE (available +
+# optional); auto-selecting GOAP vs the LLM DAG for a request is the follow-on.
+def _goap_actions() -> list:
+    sect = _toml_section("goap")
+    acts = sect.get("actions") if isinstance(sect, dict) else None
+    return acts if isinstance(acts, list) else []
+
+
+def _goap_enabled() -> bool:
+    return str(_toml_section("goap").get("mode", "off")).strip().lower() \
+        in {"available", "on", "enforce", "1", "true", "yes"}
+
+
+def _goap_plan(goal: dict, initial: "Optional[dict]" = None) -> "Optional[list]":
+    """Deterministic min-cost plan (list of verb names) for a goal whose action
+    model is declared in [goap].actions, or None when the lane is off / the action
+    set is invalid / the goal is unreachable. Degrade-open: never raises into the
+    request path."""
+    if not _goap_enabled():
+        return None
+    acts = _goap_actions()
+    if not acts or validate_actions(acts):
+        return None
+    try:
+        return plan(dict(initial or {}), dict(goal or {}), acts)
+    except Exception:  # noqa: BLE001 -- degrade-open
+        return None

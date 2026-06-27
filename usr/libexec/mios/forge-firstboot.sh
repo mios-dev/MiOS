@@ -258,7 +258,7 @@ if [[ -n "$runner_token" ]]; then
     # `systemctl start` here would wait for a job (mios-forgejo-runner.
     # service) that is itself queued behind this very unit finishing
     # activation -- a hard ordering deadlock (operator-confirmed
-    # 2026-05-14: forge-firstboot stuck "activating", runner jobs stuck
+    # forge-firstboot stuck "activating", runner jobs stuck
     # "waiting"). --no-block enqueues the chain and returns immediately
     # so this unit can reach "active", which then unblocks the queue.
     # mios-forgejo-runner.service Wants= the runner-firstboot

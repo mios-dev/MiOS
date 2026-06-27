@@ -16,7 +16,7 @@
 # Setup-MiOSLanPortProxy.ps1).
 #
 # MUST run elevated. Self-elevates via UAC if not already admin.
-# Operator-flagged 2026-05-12: "WEB SERVICES ARENT REACHABLE IN LOCAL
+# Operator-flagged "WEB SERVICES ARENT REACHABLE IN LOCAL
 # WINDOWS BROWSER AGAIN!!!!".
 
 $ErrorActionPreference = 'Stop'

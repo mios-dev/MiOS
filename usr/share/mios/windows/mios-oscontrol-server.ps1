@@ -81,7 +81,7 @@ $taskName = 'MiOS-OSControl-Server'
 $fwName   = "MiOS - oscontrol ($Port/tcp)"
 # Firewall remote scope: tailnet peers (Tailscale CGNAT) PLUS the local WSL NAT
 # subnet, so the in-WSL MiOS VM reaches this executor over its host gateway even
-# when Tailscale is down (operator 2026-06-07). 172.16.0.0/12 covers every WSL
+# when Tailscale is down. 172.16.0.0/12 covers every WSL
 # Hyper-V-assigned 172.x gateway; both ranges are local-only (same machine).
 $fwRemote = @('100.64.0.0/10', '172.16.0.0/12')
 $logDir   = Join-Path $env:LOCALAPPDATA 'mios\oscontrol\logs'
@@ -130,7 +130,7 @@ if ($Install) {
     } else {
         # Reconcile an existing rule's scope so a widened $fwRemote (adding the
         # local WSL subnet) applies to installs created before this change --
-        # create-if-missing alone left old rules tailnet-only (operator 2026-06-07).
+        # create-if-missing alone left old rules tailnet-only.
         Set-NetFirewallRule -DisplayName $fwName -RemoteAddress $fwRemote -ErrorAction SilentlyContinue | Out-Null
         Ok "firewall: reconciled scope -> tailnet + local WSL on :$Port"
     }
@@ -162,7 +162,7 @@ public class OSCW32 {
     [DllImport("user32.dll", CharSet=CharSet.Auto)] public static extern int GetWindowText(IntPtr h, StringBuilder s, int max);
     // InternalGetWindowText reads the title from the window's INTERNAL storage
     // WITHOUT sending WM_GETTEXT -- so enumeration never blocks on a hung /
-    // non-responding window (operator 2026-05-29: /windows intermittently
+    // non-responding window (/windows intermittently
     // wedged after launches -> GetWindowText was hanging on an unresponsive
     // app's message pump, freezing the whole listener + breaking autocenter +
     // launch-verify). Non-blocking; the robust enumeration primitive.
@@ -183,7 +183,7 @@ public class OSCW32 {
     // SystemParametersInfo(SPI_SETFOREGROUNDLOCKTIMEOUT=0) + AllowSetForegroundWindow:
     // satisfy the foreground LOCK so SetForegroundWindow from this background process
     // actually wins -- WITHOUT injecting the menubar-activating Alt-tap (operator
-    // 2026-06-16). The clean replacement for the removed keybd_event(Alt) hack.
+    //). The clean replacement for the removed keybd_event(Alt) hack.
     [DllImport("user32.dll", SetLastError=true)] public static extern bool SystemParametersInfo(uint uiAction, uint uiParam, IntPtr pvParam, uint fWinIni);
     [DllImport("user32.dll")] public static extern bool AllowSetForegroundWindow(int dwProcessId);
     [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
@@ -205,7 +205,7 @@ if (-not ([System.Management.Automation.PSTypeName]'OSCW32').Type) {
 
 # Enumerate visible top-level windows -> list of @{ title; pid; proc }.
 #
-# HANG-HARDENING (operator 2026-05-29: /windows timed out while / answered):
+# HANG-HARDENING (/windows timed out while / answered):
 # the per-window `Get-Process -Id` call below was made INSIDE the EnumWindows
 # callback, so a single hung/protected process (or a slow WMI-backed lookup)
 # stalled the ENTIRE enumeration and the route never returned. Build a
@@ -214,7 +214,7 @@ if (-not ([System.Management.Automation.PSTypeName]'OSCW32').Type) {
 # far faster across a desktop full of windows.
 function Get-VisibleWindows {
     $result = New-Object System.Collections.ArrayList
-    # CACHE the PID->name snapshot with a short TTL (operator 2026-05-29: the
+    # CACHE the PID->name snapshot with a short TTL (the
     # executor WEDGED under launch load). During a launch the agent verify-poll
     # + mios-autocenter hammer /windows ~30x in 30s; re-running the heavy +
     # occasionally-stalling Get-Process on EVERY request was the load-induced
@@ -335,7 +335,7 @@ function Invoke-WindowOp($op, $hwnd, $title, $x, $y, $w, $h, $state, $monitor = 
                 [void][OSCW32]::SystemParametersInfo(0x2001, 0, [IntPtr]$oldTimeout, 0) # Restore
             }
             # move/resize/center use SetWindowPos with SWP_ASYNCWINDOWPOS instead
-            # of MoveWindow (operator 2026-05-29: the executor stalled DURING a
+            # of MoveWindow (the executor stalled DURING a
             # launch -> centering hung the single-threaded listener). MoveWindow
             # (and a repaint:$true SetWindowPos) SENDS WM_WINDOWPOSCHANGING/paint
             # SYNCHRONOUSLY to the target window's message loop and BLOCKS until
@@ -508,7 +508,7 @@ function Invoke-DoubleClick($x, $y) {
     return @{ ok = $true; op = 'double-click'; x = [int]$x; y = [int]$y }
 }
 
-# ── UIA semantic element targeting (operator 2026-06-15; the #1 Windows gap --
+# ── UIA semantic element targeting (the #1 Windows gap --
 # Linux has AT-SPI, Windows control was pixel-only). Find a control BY NAME via UI
 # Automation, scoped to the FOREGROUND window's subtree (fast; avoids a whole-
 # desktop tree walk that can hang), returning its clickable CENTER so the agent
@@ -697,7 +697,7 @@ function Get-FocusedValueElement {
 
 function Invoke-TypeText($text) {
     $t = "$text"
-    # UIA-FIRST TYPING (operator 2026-06-16 "MIOS AI ONLY USES UIA"): set the text
+    # UIA-FIRST TYPING ("MIOS AI ONLY USES UIA"): set the text
     # DIRECTLY through the focused control's ValuePattern -- NO keystroke injection.
     # Keystroke typing (SendKeys) was the root of the operator's failures: the focus
     # path tapped Alt which ACTIVATED the app MENUBAR so the first keystroke hit the
@@ -831,7 +831,7 @@ function Invoke-Screenshot {
 # Cached index of Start-Menu .lnks: @(@{Name;Path;Wslg}). The recursive scan +
 # per-shortcut COM target-resolution (for the WSLg-skip) is the per-launch cost
 # the executor-first routing added; cache it with a TTL so repeat launches are
-# instant (operator 2026-05-29 "streamlined, fast and perfected"). Installs are
+# instant ("streamlined, fast and perfected"). Installs are
 # rare -> a 60s TTL is safe; a cold cache (first launch / post-install) pays the
 # full scan once. script: scope so it survives across requests.
 function Get-StartMenuIndex {
@@ -885,7 +885,7 @@ function Resolve-LaunchTarget($name) {
 function Invoke-LaunchAndVerify($app, $args = '', $position = 'default', $verifyName = '') {
     # Window-match needle: prefer the human title hint -- a steam:// URI or a
     # shell:appsFolder string never appears in a window title, so verifying a
-    # game by $app would always miss (operator 2026-05-30). Falls back to $app.
+    # game by $app would always miss. Falls back to $app.
     $wname = if ([string]::IsNullOrWhiteSpace($verifyName)) { $app } else { $verifyName }
     $target = Resolve-LaunchTarget $app
     $fired  = $false
@@ -913,7 +913,7 @@ function Invoke-LaunchAndVerify($app, $args = '', $position = 'default', $verify
     # FAST MISS: if the launch did NOT fire (target unresolvable on Windows /
     # Start-Process threw -- e.g. a Linux-only flatpak name), return immediately
     # instead of sleeping + polling for a window that was never started. The
-    # executor is now tried FIRST for every app (operator 2026-05-29), so a
+    # executor is now tried FIRST for every app, so a
     # non-Windows app must fall through to the Linux chain cheaply.
     if (-not $fired) {
         return @{ app = $app; node = $env:COMPUTERNAME; host = $env:COMPUTERNAME;
@@ -929,7 +929,7 @@ function Invoke-LaunchAndVerify($app, $args = '', $position = 'default', $verify
         if ($verdict.launched) { break }
         if ($i -lt ($VerifyAttempts - 1)) { Start-Sleep -Seconds $VerifyIntervalSeconds }
     }
-    # POSITION and FOCUS the launched window (operator 2026-06-17: launches default
+    # POSITION and FOCUS the launched window (launches default
     # to focused and centered unless specified as-is / none / background).
     # Settle, position + focus, briefly sleep 900ms, and repeat to counter Electron
     # apps (Discord/Teams) that restore their saved window bounds/states a beat
@@ -1157,7 +1157,7 @@ while ($listener.IsListening) {
             }
         }
         elseif ($method -eq 'GET' -and $path -eq '/ui/list') {
-            # SoM-first grounding (operator 2026-06-15): list ALL named controls in the
+            # SoM-first grounding: list ALL named controls in the
             # FOREGROUND window (the UIA tree AS the set-of-marks) so the agent surveys
             # them + picks one to click by name/center -- coordinate-free, no VLM needed
             # for UIA surfaces. (Vision-overlay SoM for non-UIA canvas surfaces is the

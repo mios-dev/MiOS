@@ -37,7 +37,7 @@
 param(
     [int]    $Port        = 11436,
     [string] $Model       = '',
-    # The iGPU's ROLE is the ALWAYS-ON LIGHT-COMPUTE BRAIN (operator 2026-05-25:
+    # The iGPU's ROLE is the ALWAYS-ON LIGHT-COMPUTE BRAIN (
     # "iGPU SHOULD BE THE MICRO LLM ... AND the always-on MiOS daemon background
     # agent"): it hosts the micro-LLM (router/refine/judge/web-expand, hit every
     # turn) + the mios-daemon-agent, so it is NEVER cold and the dGPU/CPU are
@@ -46,7 +46,7 @@ param(
     # -Model / -ModelUrl for a different micro/daemon brain (e.g. a Qwen3-1.7B
     # GGUF to match the daemon model exactly).
     [string] $ModelUrl    = 'https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf',
-    # 64K ctx (operator 2026-06-08: iGPU is now ALSO the Hermes-desktop FRONT DOOR
+    # 64K ctx (iGPU is now ALSO the Hermes-desktop FRONT DOOR
     # via mios-model-router's mios-orchestrator lane). The front door must hold the
     # full ~17K-token MCP tool surface (113 tools) that Hermes sends EVERY turn --
     # at the old 8192 the tool defs were TRUNCATED, the model never saw open_app,
@@ -55,7 +55,7 @@ param(
     # on the iGPU's shared system RAM -- cheap. (ctx-size only sizes the KV pool;
     # it does NOT slow prefill -- prefill cost scales with the ACTUAL prompt len.)
     [int]    $ContextSize = 65536,
-    # Single inference slot (operator 2026-06-01 KV-paging). llama-server defaults
+    # Single inference slot (KV-paging). llama-server defaults
     # to 4 parallel slots, which (a) splits ctx-size 4 ways (16384 each) and (b)
     # makes the OpenAI /v1 endpoint land a request on ANY slot, so the agent-pipe's
     # per-slot KV save/restore (_kv_paging, slot 0) can't deterministically bracket
@@ -69,7 +69,7 @@ param(
     # RTX 4090 (Vulkan also enumerates the 4090, and GPU-PV shares it with the
     # WSL VM where hermes runs -- spilling onto it would steal hermes's VRAM).
     # Vulkan device ENUMERATION ORDER IS NOT STABLE across processes (operator
-    # 2026-05-25: the task-managed server got Vulkan0=RTX 4090 and ran the "iGPU"
+    # the task-managed server got Vulkan0=RTX 4090 and ran the "iGPU"
     # model on the dGPU at 138 tok/s, stealing hermes's VRAM; standalone
     # --list-devices on the same host showed Vulkan0=AMD). So a fixed index is
     # unreliable. 'auto' (default) resolves the AMD/Radeon device by NAME at
@@ -86,7 +86,7 @@ $root      = Join-Path $env:LOCALAPPDATA 'mios\igpu'
 $binDir    = Join-Path $root 'bin'
 $modelsDir = Join-Path $root 'models'
 $logDir    = Join-Path $root 'logs'
-# KV-cache paging store (operator 2026-06-01 "VRAM can compress or write to disk
+# KV-cache paging store ("VRAM can compress or write to disk
 # ... clean state when agents/models load/unload"): --slot-save-path below makes
 # llama-server expose POST /slots/{id}?action=save|restore, which writes a
 # conversation's KV cache to a .bin in THIS dir and restores it near-instantly.
@@ -121,7 +121,7 @@ if ($Install) {
     # (Microsoft Store) build: the bare name is a per-user app-execution ALIAS
     # (a reparse point under %LOCALAPPDATA%\Microsoft\WindowsApps) that the task
     # service does not resolve -> the task fails 0x80070002 (ERROR_FILE_NOT_FOUND)
-    # and the iGPU "never fires" (operator 2026-05-25 debug). Resolve a CONCRETE
+    # and the iGPU "never fires" (debug). Resolve a CONCRETE
     # interpreter path: prefer a real pwsh under Program Files, but NOT the
     # WindowsApps versioned path (it changes on every pwsh update -> re-breaks);
     # fall back to Windows PowerShell 5.1 at its FIXED System32 path -- this
@@ -199,7 +199,7 @@ if (-not (Get-NetFirewallRule -DisplayName $fwName -ErrorAction SilentlyContinue
 }
 
 # ---- resolve the AMD iGPU device by NAME (enumeration order is unstable) -----
-# CRITICAL (operator 2026-05-25): Vulkan device INDICES are not stable across
+# CRITICAL: Vulkan device INDICES are not stable across
 # processes, so a fixed --device Vulkan0 sometimes pinned the RTX 4090 and ran
 # the "iGPU" model on the dGPU (138 tok/s, stealing hermes's VRAM). Resolve the
 # index by NAME here, in the SAME process context that will launch the server
@@ -233,12 +233,12 @@ $logFile = Join-Path $logDir ("llama-server-{0:yyyyMMdd}.log" -f (Get-Date))
 # unresolvable by Task Scheduler, see -Install above), a native command writing
 # to stderr with $ErrorActionPreference='Stop' + 2>&1 raises a terminating
 # NativeCommandError and KILLS the server on its FIRST log line (operator
-# 2026-05-25: task exited 1, port never bound). Relax to Continue for the exec
+# task exited 1, port never bound). Relax to Continue for the exec
 # so the server's normal logging flows into the Tee'd log instead of aborting.
 # (pwsh 7 does not treat native stderr this way, so this is harmless there.)
 $ErrorActionPreference = 'Continue'
 Info "kv-paging: --slot-save-path $slotDir (agent-pipe pages conversations to/from disk)"
-# CRITICAL (operator 2026-06-08 "iGPU NEVER fired -- not a single tick on Task
+# CRITICAL ("iGPU NEVER fired -- not a single tick on Task
 # Manager"): newer llama.cpp auto-fits params to device memory ("fitting params
 # to device memory ...") and SILENTLY places all layers on the CPU -- it prefers
 # the big Ryzen 9950X3D -- EVEN WITH --device VulkanN + --n-gpu-layers 99. So the

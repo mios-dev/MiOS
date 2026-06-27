@@ -4,7 +4,7 @@
 #
 # Canonical-verb manifest -- the source of truth the MiOS-Agent pipe
 # loads at init to make its refine step TOOL-AWARE. Operator
-# directive 2026-05-17: "prompt refining should be tool aware to be
+# directive "prompt refining should be tool aware to be
 # able to hint". The refine system prompt was previously hardcoding
 # an intent table that had to be edited every time a shim was added
 # or removed; now the table is rendered from this YAML so:

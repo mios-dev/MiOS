@@ -59,7 +59,7 @@ export XDG_SESSION_TYPE=wayland
 # environment.d is read by `systemd --user` only -- pam_systemd is
 # supposed to bridge it into bash logins, on WSL2 that bridge breaks
 # (logind is ConditionVirtualization=!wsl-gated, so pam_systemd never
-# runs). Operator-confirmed 2026-05-10 via diagnostic capture: env|grep
+# runs). Operator-confirmed via diagnostic capture: env|grep
 # XDG_ inside dev VM bash showed XDG_CURRENT_DESKTOP unset.
 # Setting it here makes it available to every interactive bash, every
 # flatpak the operator launches, and (transitively) to xdg-desktop-portal
@@ -89,7 +89,7 @@ if [ -z "${WSL_INTEROP:-}" ]; then
 fi
 
 # GDK_BACKEND=x11 -- WSLg's Wayland compositor (mios-confirmed
-# 2026-05-12) lacks xdg_popup reposition support. Symptom: GTK4 apps
+#) lacks xdg_popup reposition support. Symptom: GTK4 apps
 # (Epiphany, Nautilus, GNOME Settings) emit
 #   "Gdk-WARNING **: Compositor doesn't support moving popups, relying
 #    on remapping"
@@ -124,7 +124,7 @@ fi
 # CHROME inherits Bibata under sessionless Xwayland. WebKit + GTK widgets
 # set NAMED cursors themselves (those already show Bibata), but nothing
 # themes the X-server default cursor here -- no gsd-xsettings / XSETTINGS
-# daemon and no session sets the root cursor (operator trace 2026-05-19:
+# daemon and no session sets the root cursor (operator trace
 # "Bibata in the webpage but not on epiphany's window frame"). DISPLAY is
 # set above; backgrounded so it never blocks the shell.
 if command -v mios-cursor-apply >/dev/null 2>&1; then

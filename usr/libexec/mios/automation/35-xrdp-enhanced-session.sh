@@ -10,7 +10,7 @@
 # Bibata cursor, single mutter compositor). Complements WSLg-per-window
 # forwarding -- both launch paths remain available.
 #
-# Operator directive 2026-05-12:
+# Operator directive
 #   "Full Enhanced Session is an alternate launch option installed at
 #    irm|iex invoke and installation"
 #

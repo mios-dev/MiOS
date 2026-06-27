@@ -95,7 +95,7 @@ mios-forge            = true
 mios-cockpit-link     = true   # surfaces host Cockpit (9090) in Podman Desktop UI
 mios-hermes           = true
 mios-hermes-workspace = true
-# FORCE-DISABLED 2026-05-27 (explicit exception to the defaults-true policy):
+# FORCE-DISABLED (explicit exception to the defaults-true policy):
 # this sidecar's docker_start.sh corrupts the SHARED host /var/lib/crowdsec
 # (dangling /staging symlinks + `localhost` machine re-register) and needs the
 # online hub at boot (incompatible with offline MiOS) -- it crash-looped the

@@ -29,11 +29,11 @@ echo "[01-repos] Importing Fedora 44 GPG key..."
 GPG_KEY_PATH="/etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-44-x86_64"
 if [[ ! -f "$GPG_KEY_PATH" ]]; then
     # Fallback: import from the package. NON-FATAL but LOUD (install-robustness
-    # audit 2026-06-21): under a no-egress / unauthenticated early build the
+    # audit): under a no-egress / unauthenticated early build the
     # install can't reach a mirror, and aborting the WHOLE build here (set -e) is
     # too brittle for "works on every config". The F44 repo below sets
     # repo_gpgcheck=0 + skip_if_unavailable=True, and on ucore the key is usually
-    # already present, so warn (NOT swallow with 2>/dev/null -- the 2026-05-01
+    # already present, so warn (NOT swallow with 2>/dev/null -- the
     # finding still holds) and continue; a genuinely-needed missing key surfaces
     # as a clear later signature error, not an opaque early abort.
     $DNF_BIN "${DNF_SETOPT[@]}" install -y --skip-unavailable fedora-gpg-keys \
@@ -45,7 +45,7 @@ echo "[01-repos] Adding Fedora 44 repository..."
 # the .asc detached signature returns 404 from every Fedora mirror. Setting
 # repo_gpgcheck=1 turns that 404 into a fatal metadata-load error that
 # cascades into every subsequent dnf transaction.
-#   - repo_gpgcheck=0 : accept unsigned dev metadata (audit 2026-05-01).
+# repo_gpgcheck=0 : accept unsigned dev metadata (audit).
 #   - gpgcheck=1      : individual *packages* still verified by RPM signature.
 #   - skip_if_unavailable=True : when F44 mirrors are intermittently down,
 #     fall back to F43 (base image) instead of breaking the whole build.
@@ -82,7 +82,7 @@ ip_resolve=4
 EOREPO
 
 echo "[01-repos] Phase 1: Pre-upgrading core systemd/filesystem..."
-# --best dropped per audit 2026-05-01: on the F44↔ucore boundary --best can
+# -best dropped per audit on the F44↔ucore boundary --best can
 # refuse the transaction over a single unresolvable kernel-adjacent dep, which
 # is then logged-and-continued, masking real breakage. --allowerasing is enough.
 # --skip-unavailable: packages from external repos (crowdsec, tailscale) have

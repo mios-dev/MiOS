@@ -22,7 +22,7 @@
 
 models:
   # ── chat / reasoning models (KV-pageable; --parallel 1 = one resident slot) ──
-  # NOTE 2026-06-13 (fleet modernization): the light brain is now IBM Granite 4.1
+  # NOTE (fleet modernization): the light brain is now IBM Granite 4.1
   # 8B (dense 'granite' arch) -- it loads on MAINLINE llama.cpp, which is the REAL
   # fix for the old qwen3.5:4b qwen35-arch block (custom "qwen35" arch failed:
   # "qwen35.rope.dimension_sections wrong array length; expected 4, got 3"). The
@@ -30,7 +30,7 @@ models:
   # is needed any more; every served arch here loads on stock llama-server.
   # The fleet is now FAMILY-DIVERSE (IBM Granite + Liquid AI + Google + H Company)
   # and 128k-on-every-chat-lane via symmetric q8_0 quantized KV cache + flash-attn.
-  # micro_cpu (always-warm classify/expand/gate). 2026-06-13 fleet modernization:
+  # micro_cpu (always-warm classify/expand/gate). fleet modernization:
   # qwen3:1.7b -> Liquid AI LFM2-700M (LiquidAI/LFM2-700M-GGUF). Dense 'lfm2' arch is
   # MERGED in mainline llama.cpp (PR #14620, ~b6709) -- NOT the qwen35 trap; verified
   # `llama-cli -hf LiquidAI/LFM2-700M-GGUF`. Beats Qwen3-0.6B on MMLU/GSM8K/IFEval at
@@ -53,13 +53,13 @@ models:
     proxy: "http://127.0.0.1:${PORT}"
     ttl: 300
 
-  # light_brain + coder -- IBM Granite 4.1 8B Instruct (dense). 2026-06-13 fleet
+  # light_brain + coder -- IBM Granite 4.1 8B Instruct (dense). fleet
   # modernization: the served chat/reasoning GGUF moves from gemma4:12b to Granite 4.1
   # 8B (ibm-granite/granite-4.1-8b; GGUF unsloth/granite-4.1-8b-GGUF Q4_K_M ~5.5GB).
   # Dense GraniteForCausalLM ('granite') arch loads on MAINLINE llama.cpp (bartowski
   # quant @ b8970; Unsloth uses stock llama-server) -> sidesteps the qwen35 trap that
   # BLOCKS qwen3.5:4b and forced the gemma4:12b fallback. Granite is natively 131K-capable,
-  # but the SERVED --ctx-size is 32768 (operator 2026-06-20 model-placement decision): the
+  # but the SERVED --ctx-size is 32768 (model-placement decision): the
   # always-on SGLang heavy lane ([ai.sglang], mem_fraction 0.45 ~= 11GB RESERVED up front) +
   # granite weights (~5GB) + a full 128k q8_0 KV (~8GB) CANNOT co-fit the shared 24GB 4090 ->
   # granite's load spilled to CPU = 67-100s refine (the chat-slowness root cause). A 32k q8_0
@@ -109,7 +109,7 @@ models:
     ttl: 300
 
   # ── embeddings (replaces the ollama embed lane; OpenAI /v1/embeddings) ──
-  # 2026-06-13 fleet modernization: nomic-embed-text -> Google EmbeddingGemma-300m QAT
+  # fleet modernization: nomic-embed-text -> Google EmbeddingGemma-300m QAT
   # (ggml-org/embeddinggemma-300m-qat-q8_0-GGUF). 768d NATIVE = exact pgvector
   # vector(768) match -> ZERO schema migration. QAT (operator efficiency win);
   # 'gemma-embedding' arch merged mainline (b6384); <0.5GB, CPU-servable. The served
@@ -120,7 +120,7 @@ models:
   # the real nomic GGUF; to roll back, point --model at /models/nomic-embed-text.gguf.
   # Embeddings are EXEMPT from the 128k mandate -- ctx stays short (2048).
   "nomic-embed-text":
-    # --parallel 4 (operator 2026-06-22, F1): the embedding server had ONE slot, so a
+    # -parallel 4 (F1): the embedding server had ONE slot, so a
     # BURST of concurrent /v1/embeddings (OWUI re-vectorizing a knowledge collection;
     # any multi-chunk RAG batch) overran it -> llama-swap returned 429 Too Many Requests
     # and the MiOS Documentation collection never vectorized (knowledge_search 0 hits).
@@ -138,8 +138,8 @@ models:
   # INERT until BOTH GGUFs exist under /models -- the operator downloads them (the
   # security classifier blocks the fetch for the assistant). Once present, mios-llm-light
   # serves qwen3-vl:4b with vision on demand and cu_ground's vision fallback
-  # activates (endpoint already points here, :11450; operator 2026-06-10).
-  # 2026-06-13 fleet modernization: qwen3-vl:4b -> H Company Holo1.5-7B (UI-grounding
+  # activates (endpoint already points here, :11450;).
+  # fleet modernization: qwen3-vl:4b -> H Company Holo1.5-7B (UI-grounding
   # SFT, ScreenSpot-Pro ~57.9). GGUF mradermacher/Holo1.5-7B-GGUF Q4_K_M 4.68GB +
   # mmproj-Q8_0 1.0GB. Base arch 'qwen2vl' (fine-tune of Qwen2.5-VL) is MATURE on
   # mainline llama.cpp -> opposite of the qwen35 fork-only trap. ~5.7GB fits the 4090.
@@ -159,7 +159,7 @@ models:
     proxy: "http://127.0.0.1:${PORT}"
     ttl: 300
 
-# ── CO-RESIDENT GROUP (operator 2026-06-18 "explain the logs" exposed it) ──────
+# ── CO-RESIDENT GROUP ("explain the logs" exposed it) ──────
 # Default llama-swap is single-active: only ONE model resident, the rest swapped
 # out. So an embeddings request (RAG / memory) that arrives DURING a chat turn had
 # to swap the BUSY chat model out -- which llama-swap refuses mid-request and

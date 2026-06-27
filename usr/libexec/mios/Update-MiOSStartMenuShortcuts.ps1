@@ -15,7 +15,7 @@
 #   WindowStyle       : 7                                (minimized, GUI)
 #   IconLocation      : %LOCALAPPDATA%\Temp\WSLDVCPlugin\<distro>\<name>.ico,0
 #
-# Operator-flagged 2026-05-11 twice:
+# Operator-flagged twice:
 #   * "no icons match and all apps aren't populating in windows NATIVELY"
 #   * "opening WSL apps in windows is NOT native WSL behaviour (it
 #     launches a pwsh window for each app and the icons should be
@@ -42,7 +42,7 @@ param(
     # (NoDisplay + Terminal filtering plus its own ad-hoc rules), then
     # DELETES every .lnk in the folder that doesn't match. Result:
     # operator goes from 46 properly-iconed apps to 3 after `wsl
-    # --shutdown`. Operator-flagged 2026-05-12: "no apps on windows
+    # -shutdown`. Operator-flagged "no apps on windows
     # again!!!" -- the second time the WSL stomp wiped the shortcuts.
     #
     # Writing to a distinct folder lets MS manage its 3-app distro
@@ -224,7 +224,7 @@ if ($iconNames) {
 # single-image .ico files in 32-bit BMP format with a 32x32 source,
 # which Windows upscales badly at 256x256. The resulting Start Menu
 # tile shows either a generic icon or a blurry mess. Operator-flagged
-# 2026-05-11 twice: "no icons match", "NEVER saw native icons -- NOT
+# twice: "no icons match", "NEVER saw native icons -- NOT
 # even ONCE". A PNG-embedded ICO matches what flatpak / Microsoft
 # Store / WSL's own sync produce.
 #
@@ -284,7 +284,7 @@ function Clear-WindowsIconCache {
     # nuking the icon cache database -- previous version called
     # `ie4uinit.exe -ClearIconCache` which dropped every Start Menu
     # icon to blank until Explorer was manually restarted. Operator-
-    # flagged 2026-05-11: "the icons disappeared now!!!".
+    # flagged "the icons disappeared now!!!".
     #
     # Lighter approach: touch every .lnk mtime + the SHChangeNotify
     # broadcast. The Shell watches .lnk mtimes for change; touching
@@ -354,7 +354,7 @@ foreach ($line in $lines) {
     # Fallback: every shortcut MUST have an IconLocation set or Windows
     # renders the generic .lnk icon. If icon resolution failed (no
     # Icon= field, broken icon path, missing theme), point at the
-    # shared MiOS distro icon staged below. Operator 2026-05-11:
+    # shared MiOS distro icon staged below.
     # "I want all the Linux apps icons visible in windows".
     if (-not $iconLocation -and (Test-Path $defaultIcoPath)) {
         $iconLocation = "$defaultIcoPath,0"
@@ -394,7 +394,7 @@ Write-Host "  [+] $created Start Menu shortcuts written to $outDir (native Micro
 # per-window app shortcuts in the same MiOS Apps folder so the operator
 # can pick per session (per-window for native-Windows-window feel,
 # Full Desktop for libadwaita-uniform rendering + Bibata cursor).
-# Operator directive 2026-05-12: "Full Enhanced Session is an alternate
+# Operator directive "Full Enhanced Session is an alternate
 # launch option installed at irm|iex invoke and installation".
 $enhSessPort = 3389
 $enhSessTomlPaths = @(

@@ -4,10 +4,10 @@
 # AI-functions: _BUILD_SPA
 # automation/38-hermes-agent.sh -- UNIFIED agent-plane install driver.
 #
-# Owns BOTH halves of the MiOS agent plane (hybrid merge 2026-05-31):
+# Owns BOTH halves of the MiOS agent plane (hybrid merge):
 #   PHASE 1  Hermes-Agent direct host install + shared venv (below)
 #   PHASE 2  opencode binary fetch + opencode.json landing (end of file)
-# Full-hybrid relocation (2026-05-31): the whole agent plane lives under the
+# Full-hybrid relocation: the whole agent plane lives under the
 # unified tree /usr/lib/mios/agents/ -- hermes-agent/ (Hermes code + bin),
 # opencode/bin/opencode (binary), opencode-gateway/ (the /v1 shim) -- and all
 # three share ONE explicit python venv at /usr/lib/mios/agents/.venv (a SIBLING
@@ -18,7 +18,7 @@
 # and automation/39-opencode.sh is a retained no-op shim.
 #
 # PHASE 1 -- Install Hermes-Agent DIRECTLY onto the MiOS root filesystem
-# -- not as a container. Operator directive 2026-05-13: "Hermes-Agent
+# - not as a container. Operator directive "Hermes-Agent
 # should be installed on the Local MiOS-DEV machine directly at the root
 # directory and ALL other MiOS Images/deployment types".
 #
@@ -84,7 +84,7 @@ install -d -m 0755 "${AGENTS_ROOT}" "${VENV_ROOT}" "${BIN_DIR}" || { warn "[MiOS
 # >=3.14 (Fedora 44 ships 3.14 -> pip rejects the wheel: "requires a different
 # Python: 3.14.x not in '<3.14,>=3.11'"). Prefer an explicit <3.14 interpreter
 # for the shared venv when one is installed; degrade-open to python3 so there is
-# NO regression where only 3.14 exists (2026-06-05 rebuild fix).
+# NO regression where only 3.14 exists (rebuild fix).
 VENV_PY=python3
 for _py in python3.13 python3.12 python3.11; do
     command -v "${_py}" >/dev/null 2>&1 && { VENV_PY="${_py}"; break; }
@@ -127,26 +127,26 @@ fi
 #     OpenAI /v1 surface). The base package doesn't pull it as a hard
 #     dep, so the gateway starts but logs "API Server: aiohttp not
 #     installed / No adapter available for api_server" and /v1 never
-#     comes up (operator-confirmed 2026-05-14).
+# comes up (operator-confirmed).
 #   * websockets -- REQUIRED by tools/browser_dialog_tool +
 #     tools/browser_supervisor (CDP WebSocket client). Without it,
 #     Hermes prints "Could not import tool module
 #     tools.browser_dialog_tool: No module named 'websockets'" on
 #     every gateway start and the browser tool's dialog detection +
-#     CDP supervisor never wake up (operator-confirmed 2026-05-15
+# CDP supervisor never wake up (operator-confirmed
 #     when wiring the ChromeDev flatpak as the local CDP backend).
 #   * discord.py -- REQUIRED by hermes-agent's discord adapter +
 #     tools/discord_tool. Without it the gateway logs "Discord:
 #     discord.py not installed / No adapter available for discord"
 #     and `discord_send_message` returns ENOENT even with a valid
-#     DISCORD_BOT_TOKEN (operator-confirmed 2026-05-17). audioop-lts
+# DISCORD_BOT_TOKEN (operator-confirmed). audioop-lts
 #     comes in transitively (Python 3.13+ dropped stdlib audioop).
 #     Pinned <3 because discord.py 3.x is a partial rewrite still
 #     in pre-release.
 #   * psycopg[binary] -- REQUIRED by the agent-pipe's mios_pg client (WS-9c
 #     Postgres+pgvector dual-write mirror + cutover). mios_pg imports psycopg
 #     LAZILY and degrades to a SILENT no-op without it, so the pgvector mirror
-#     writes nothing and the DB cutover can never fill (2026-06-05: the live
+# writes nothing and the DB cutover can never fill (the live
 #     mirror was empty until psycopg was added). [binary] = prebuilt wheel, no
 #     libpq headers / compiler needed.
 # --no-input keeps it non-interactive; failure here is non-fatal.
@@ -179,7 +179,7 @@ fi
 # loader logs "Skipping ... (no plugin.yaml, depth cap reached)" and
 # the provider never registers -- web_search returns "No web search
 # provider configured" even with web.search_backend: searxng in
-# config.yaml (operator-confirmed 2026-05-17: hermes returned the
+# config.yaml (operator-confirmed hermes returned the
 # error verbatim until plugin.yaml was created). Drop the manifest
 # alongside each bundled backend so cold-installed images get a
 # working web_search loop with zero extra runtime steps.
@@ -203,7 +203,7 @@ YAML
     # but no plugin.yaml, so the loader skips it. Seed the manifest so it
     # REGISTERS -- but note it is a DORMANT fallback: hermes pins firecrawl-py v4
     # (firecrawl API v2, POST /v2/scrape) while MiOS self-hosts firecrawl v1.0.0
-    # (v1 API), so web_extract via firecrawl 404s (operator-confirmed 2026-05-31).
+    # (v1 API), so web_extract via firecrawl 404s (operator-confirmed).
     # The ACTIVE extract backend is `miosfetch` (below); this seed just keeps
     # firecrawl selectable if the self-hosted container is upgraded to v2.
     firecrawl_dir="${site_packages}/plugins/web/firecrawl"
@@ -223,7 +223,7 @@ YAML
     # via system-files-overlay at /usr/share/mios/hermes/plugins/web/miosfetch;
     # copy it into the venv's bundled plugin tree so the loader auto-registers it.
     # This is the real fix for "research can't drill past search-result homepages"
-    # (operator-confirmed 2026-05-31).
+    # (operator-confirmed).
     _mf_src="/usr/share/mios/hermes/plugins/web/miosfetch"
     _mf_dst="${site_packages}/plugins/web/miosfetch"
     if [[ -d "$_mf_src" ]]; then
@@ -257,7 +257,7 @@ shopt -u nullglob
 # without operator hand-installs. The dashboard SPA itself
 # (hermes_cli/web_dist/) is intentionally NOT built here: it requires
 # `npm install` from an untrusted dep graph, which the operator opted
-# out of (2026-05-17). Backend-only mode falls back to
+# out of. Backend-only mode falls back to
 # /usr/share/mios/hermes-agent/web_dist_stub/index.html (shipped via
 # system-files-overlay) -- a single-page explainer + curl recipes.
 # To enable the SPA, follow the instructions on the stub page.
@@ -310,7 +310,7 @@ if ! "${VENV_DIR}/bin/python3" -c "import fastapi, uvicorn, ptyprocess" 2>/dev/n
     fi
 fi
 
-# ─── MCP client SDK (operator 2026-06-07: "Hermes should have access to all
+# ─── MCP client SDK ("Hermes should have access to all
 # Global MiOS MCP surfaces"). hermes-agent's MCP-client subsystem (hermes_cli/
 # mcp_*) is a documented NO-OP without the optional `mcp` SDK -- without it the
 # `mcp_servers:` config is inert and Hermes never sees the global mios-mcp-server.
@@ -336,7 +336,7 @@ fi
 #      box during the manifest-seed step above? not necessarily;
 #      separate clone here keeps this section idempotent on re-runs).
 #   2. npm install --ignore-scripts (deps are 33 standard OSS pkgs;
-#      operator-audited 2026-05-17 — no analytics/trackers/sentry/
+# operator-audited — no analytics/trackers/sentry/
 #      posthog. --ignore-scripts blocks supply-chain lifecycle hooks).
 #   3. npm run build → outputs to ../hermes_cli/web_dist.
 #   4. STRIP externally-hosted URLs from the bundle — runtime is
@@ -413,7 +413,7 @@ _BUILD_SPA() {
 _BUILD_SPA || warn "[MiOS AI] dashboard SPA not built; hermes-dashboard.service will fall back to the web_dist_stub"
 
 # ─── OpenUI generative-UI bundle (vendor offline) ────────────────────
-# OWUI's OpenUI Tool (operator-supplied 2026-05-17) renders interactive
+# OWUI's OpenUI Tool (operator-supplied) renders interactive
 # UI (charts/forms/tables/cards/follow-ups) from a DSL. The upstream
 # tool fetches its JS bundle from jsDelivr at render time -- VIOLATES
 # Law 7. MiOS ships a patched copy that INLINES the bundle from
@@ -431,7 +431,7 @@ fi
 # TUI chat). MiOS-DEV ships a bash terminal in the dashboard instead:
 # /chat tab renders xterm.js over /api/pty WebSocket -> bash --login -i.
 # Loopback + per-session-token still gate the endpoint. Operator
-# directive 2026-05-17: "do we have a react window for terminal(s)?"
+# directive "do we have a react window for terminal(s)?"
 # -> "Plain bash terminal" picked.
 _PTY_PATCH="${BASH_SOURCE[0]%/*}/support/hermes-dashboard-shell-patch.py"
 shopt -s nullglob
@@ -447,7 +447,7 @@ for site_packages in "${VENV_DIR}/lib/"python*/site-packages; do
 done
 shopt -u nullglob
 
-# ─── Background-review tool-access patch (operator 2026-06-04) ───────
+# ─── Background-review tool-access patch ───────
 # Upstream agent/background_review.py runs the post-turn self-improvement
 # pass under a tool whitelist of ONLY ["memory","skills"] -- so the review
 # agent's `patch` call was denied ("Only memory/skill tools are allowed"),
@@ -470,9 +470,9 @@ done
 shopt -u nullglob
 
 # ════════════════════════════════════════════════════════════════════
-#  PHASE 2 -- opencode (unified agent-plane driver; merged 2026-05-31)
+# PHASE 2 -- opencode (unified agent-plane driver; merged)
 # ════════════════════════════════════════════════════════════════════
-# Operator front-door decision (2026-05-31): opencode is a first-class
+# Operator front-door decision: opencode is a first-class
 # OpenAI /v1 COUNCIL PEER served by mios-opencode-gateway.service (:8633),
 # NOT a Hermes ACP subprocess. This phase -- absorbed from the retired
 # automation/39-opencode.sh -- fetches the opencode binary and lands the

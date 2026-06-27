@@ -5,7 +5,10 @@
 """Unit tests for mios_a2a_principal (signed A2A delegation principal helpers)."""
 
 import hashlib
+import json
+import os
 import sys
+import tempfile
 
 import mios_a2a_principal as ap
 
@@ -232,6 +235,126 @@ def t_constants():
     check("const: METADATA_KEY", ap.METADATA_KEY == "mios_principal")
 
 
+# --- agent-passport Ed25519 crypto (moved from server.py) --------------------
+# These functions were extracted verbatim; the module's PASSPORT_* config consts
+# are injected via configure() (server.py keeps the surface-pinned originals).
+
+def _empty_keydir():
+    """A throwaway dir with no agent key material in it (degrade-open paths)."""
+    return tempfile.mkdtemp(prefix="mios-pp-")
+
+
+def t_passport_canonical_json():
+    # Deterministic, key-sorted, whitespace-free (matches the mios-passport CLI).
+    s = ap._passport_canonical_json({"b": 1, "a": 2})
+    check("canonical_json: keys sorted + compact", s == '{"a":2,"b":1}', s)
+    check("canonical_json: deterministic",
+          ap._passport_canonical_json({"x": [3, 2, 1], "y": "z"})
+          == ap._passport_canonical_json({"y": "z", "x": [3, 2, 1]}))
+    # default=str makes non-JSON-native values encodable instead of raising.
+    check("canonical_json: non-native value coerced via str (no raise)",
+          ap._passport_canonical_json({"a": {1, 2}}).startswith('{"a":'))
+
+
+def t_passport_op_hash():
+    h = ap._passport_op_hash("tbl", {"x": 1})
+    check("op_hash: sha256: prefix + 64 hex",
+          h.startswith("sha256:") and len(h) == len("sha256:") + 64, h)
+    check("op_hash: equals sha256 of 'table:canonical(fields)'",
+          h == "sha256:" + hashlib.sha256(b'tbl:{"x":1}').hexdigest())
+    # The passport envelope field itself is excluded from the signed-over hash.
+    check("op_hash: strips the 'passport' field before hashing",
+          ap._passport_op_hash("tbl", {"x": 1, "passport": {"sig": "z"}}) == h)
+    check("op_hash: table-bound (different table -> different hash)",
+          ap._passport_op_hash("other", {"x": 1}) != h)
+
+
+def t_passport_sign_gated():
+    # Disabled -> always None regardless of key material.
+    ap.configure(passport_enable=False)
+    check("sign: PASSPORT_ENABLE=False -> None", ap._passport_sign("t", {"x": 1}) is None)
+    # Enabled but no key on disk -> None (degrade-open: write lands unsigned).
+    kd = _empty_keydir()
+    ap.configure(passport_enable=True, passport_algo="ed25519",
+                 passport_key_dir=kd, passport_agent_name="agent-pipe")
+    ap._passport_priv = None
+    ap._passport_load_attempted = False
+    check("sign: enabled but no key -> None", ap._passport_sign("t", {"x": 1}) is None)
+
+
+def t_passport_kid_default():
+    kd = _empty_keydir()
+    ap.configure(passport_key_dir=kd, passport_agent_name="agent-pipe")
+    check("kid: defaults to '<agent>-v1' when no kid file",
+          ap._passport_kid() == "agent-pipe-v1", ap._passport_kid())
+
+
+def t_passport_load_public_missing():
+    kd = _empty_keydir()
+    ap.configure(passport_key_dir=kd, passport_agent_name="agent-pipe")
+    ap._passport_pub_cache.clear()
+    check("load_public: unknown agent -> None", ap._passport_load_public("nobody") is None)
+
+
+def t_passport_verify_branches():
+    check("verify: non-dict envelope", ap._passport_verify("nope") == (False, "envelope_not_dict"))
+    check("verify: empty dict -> missing field",
+          ap._passport_verify({}) == (False, "envelope_missing_field"))
+    full = {"agent": "bob", "ts": "t", "nonce": "n",
+            "op_hash": "sha256:dead", "sig": "c2ln", "alg": "rsa"}
+    check("verify: unsupported alg", ap._passport_verify(full) == (False, "unsupported_alg:rsa"))
+    ed = dict(full, alg="ed25519")
+    v, r = ap._passport_verify(ed, payload_for_hash=("tbl", {"x": 1}))
+    check("verify: op_hash mismatch (declared != recomputed)",
+          v is False and r == "op_hash_mismatch", r)
+    # Matching op_hash but no public key for the agent -> no_public_key.
+    kd = _empty_keydir()
+    ap.configure(passport_key_dir=kd, passport_agent_name="agent-pipe")
+    ap._passport_pub_cache.clear()
+    good_hash = ap._passport_op_hash("tbl", {"x": 1})
+    ed2 = dict(ed, op_hash=good_hash)
+    v2, r2 = ap._passport_verify(ed2, payload_for_hash=("tbl", {"x": 1}))
+    check("verify: matching hash but no pubkey -> no_public_key",
+          v2 is False and r2 == "no_public_key:bob", r2)
+
+
+def t_passport_real_roundtrip():
+    """Full sign->verify with a real provisioned Ed25519 keypair (skipped cleanly
+    if python3-cryptography is unavailable on the build host)."""
+    try:
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+        from cryptography.hazmat.primitives import serialization
+    except Exception:  # noqa: BLE001 -- crypto lib optional on the build host
+        check("roundtrip: cryptography unavailable -> skipped", True)
+        return
+    kd = _empty_keydir()
+    agent = "testagent"
+    os.makedirs(os.path.join(kd, agent), exist_ok=True)
+    priv = Ed25519PrivateKey.generate()
+    with open(os.path.join(kd, agent, "private.key"), "wb") as fh:
+        fh.write(priv.private_bytes(serialization.Encoding.PEM,
+                                    serialization.PrivateFormat.PKCS8,
+                                    serialization.NoEncryption()))
+    with open(os.path.join(kd, agent, "public.key"), "wb") as fh:
+        fh.write(priv.public_key().public_bytes(
+            serialization.Encoding.PEM,
+            serialization.PublicFormat.SubjectPublicKeyInfo))
+    ap.configure(passport_enable=True, passport_algo="ed25519",
+                 passport_key_dir=kd, passport_agent_name=agent)
+    ap._passport_priv = None
+    ap._passport_load_attempted = False
+    ap._passport_pub_cache.clear()
+    env = ap._passport_sign("tbl", {"x": 1})
+    check("roundtrip: sign returns an envelope", isinstance(env, dict) and env.get("sig"))
+    check("roundtrip: envelope agent + alg + op_hash bound",
+          env.get("agent") == agent and env.get("alg") == "ed25519"
+          and env.get("op_hash") == ap._passport_op_hash("tbl", {"x": 1}))
+    ok, reason = ap._passport_verify(env, payload_for_hash=("tbl", {"x": 1}))
+    check("roundtrip: verify valid signature + matching payload", ok is True and reason == "ok", reason)
+    okt, rt = ap._passport_verify(env, payload_for_hash=("tbl", {"x": 2}))
+    check("roundtrip: tampered payload -> op_hash_mismatch", okt is False and rt == "op_hash_mismatch", rt)
+
+
 def main():
     t_text_digest()
     t_build_claims()
@@ -244,6 +367,13 @@ def main():
     t_verify_absent_and_malformed()
     t_verify_empty_text_consistency()
     t_constants()
+    t_passport_canonical_json()
+    t_passport_op_hash()
+    t_passport_sign_gated()
+    t_passport_kid_default()
+    t_passport_load_public_missing()
+    t_passport_verify_branches()
+    t_passport_real_roundtrip()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
 

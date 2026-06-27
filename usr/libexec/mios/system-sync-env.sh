@@ -115,9 +115,9 @@ EOF
     # resolved value, emit a fallback ONLY for the few keys shell/systemd
     # consumers always expect. Fallback defaults track the live SSOT:
     #   endpoint -> [ai].endpoint  = http://localhost:8640/v1 (AGENT-PIPE ORCHESTRATOR
-    #               -- the UNIFIED entrypoint, model "MiOS-Agent"; operator 2026-06-16.
+    # - the UNIFIED entrypoint, model "MiOS-Agent";.
     #               Hermes :8642 is now a LEAF the pipe calls, NOT the client surface.)
-    #   model    -> [ai].model     = granite4.1:8b (2026-06-13 fleet; ollama-era
+    # model -> [ai].model = granite4.1:8b (fleet; ollama-era
     #               qwen3.5:2b was a dropped model -> a stale/unservable default)
     echo "MIOS_AI_ENDPOINT=\"${MIOS_AI_ENDPOINT:-http://localhost:8640/v1}\""
     echo "MIOS_AI_MODEL=\"${MIOS_AI_MODEL:-granite4.1:8b}\""
@@ -157,7 +157,7 @@ EOF
     # do NOT expand ${...} from sibling env lines, so the ports must exist as
     # their own vars. Without this the agent-pipe read a LITERAL
     # "${MIOS_PORT_HERMES_WORKER}" worker port -> httpx InvalidURL -> :8640 500.
-    # install-robustness 2026-06-21.
+    # install-robustness.
     for _pk in MIOS_PORT_LLM_LIGHT MIOS_PORT_HERMES MIOS_PORT_HERMES_WORKER MIOS_PORT_AGENT_PIPE MIOS_PORT_PREFILTER MIOS_PORT_OPENCODE MIOS_PORT_SGLANG MIOS_PORT_VLLM; do
         _pv="${!_pk:-}"
         if [[ -n "$_pv" ]]; then echo "${_pk}=\"${_pv}\""; fi
@@ -182,7 +182,7 @@ EOF
     # `set -e`, aborting the script BEFORE `mv "$TMP" "$OUT"`. The EXIT trap
     # then rm's the temp, so install.env is NEVER written and the run exits
     # ~silently (no "regenerated" line). This bricked the whole env bridge on
-    # every secret-less host. Force a clean 0 return. install-robustness 2026-06-21.
+    # every secret-less host. Force a clean 0 return. install-robustness.
     return 0
 }
 

@@ -6,7 +6,7 @@ honors HERMES_PTY_SHELL env var.
 
 Upstream hermes-agent hardcodes `_resolve_chat_argv` to spawn
 `hermes --tui` (the Node-built TUI chat). MiOS-DEV wants a plain bash
-shell in the dashboard's /chat tab (operator directive 2026-05-17:
+shell in the dashboard's /chat tab (operator directive
 "do we have a react window for terminal(s)?" -> chose "plain bash").
 Setting `HERMES_PTY_SHELL=/bin/bash` (or any shell binary) replaces
 the hardcoded TUI spawn with the requested shell.
@@ -29,7 +29,7 @@ INJECTION = '''    # MiOS-patch: HERMES_PTY_SHELL override
     # spawns the requested shell instead of `hermes --tui`. Lets the
     # dashboard's /chat tab serve a plain bash prompt with xterm.js
     # rendering it in the browser. Loopback + session-token already
-    # protect the endpoint. Operator directive 2026-05-17.
+    # protect the endpoint.
     import shlex as _shlex
     _override = os.environ.get("HERMES_PTY_SHELL")
     if _override:

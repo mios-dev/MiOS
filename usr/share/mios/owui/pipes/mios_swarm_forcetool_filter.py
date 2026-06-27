@@ -5,7 +5,7 @@ title: MiOS Swarm · Force-tool
 author: MiOS
 version: 1.0.0
 description: |
-  Chat-bar TOGGLE (operator 2026-05-22 "AI SWARM"). When ON, forces the
+  Chat-bar TOGGLE ("AI SWARM"). When ON, forces the
   executor to ACT via a real tool_call instead of narrating it -- the
   standard tool_choice=required guard against the "I posted to Discord"
   lie (a small model describing an action it never invoked). OFF =

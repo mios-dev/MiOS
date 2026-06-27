@@ -18,7 +18,7 @@ OLLAMA_BLOBS=/var/lib/ollama/models/blobs
 MODELS=/usr/share/mios/llamacpp/models
 SLOTS=/var/lib/mios/llamacpp/slots
 PORT=11450
-# Exact model-layer digests read from the ollama manifests (2026-06-04).
+# Exact model-layer digests read from the ollama manifests.
 QWEN_BLOB=sha256-81fb60c7daa80fc1123380b98970b320ae233409f0f71a72ed7b9b0d62f40490
 NOMIC_BLOB=sha256-970aa74c0a90ef7482477cf803618e776e173c007bf957f635f1015bfcfef0e6
 

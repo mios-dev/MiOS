@@ -3,7 +3,7 @@
 # AI-functions: classify, deadline, edf_key, should_shed
 """mios_slo -- SLO-class admission + EDF ordering + fail-closed shed (WS-SCHED-SLO).
 
-The 2026 SLO-serving frontier (SCORPIO/Andes/QLM): each request carries a
+The modern SLO-serving frontier (SCORPIO/Andes/QLM): each request carries a
 deadline/SLO class, the scheduler orders least-deadline-first, and best-effort
 work is SHED under contention rather than unconditionally admitted. MiOS's
 `_admit` is capacity-only (it always admits after a bounded wait) and worse,
@@ -33,20 +33,50 @@ _CLASS_RANK = {BEST_EFFORT: 0, INTERACTIVE: 1}
 
 # Default per-class deadline budget (seconds of wall-clock the turn SHOULD meet).
 # interactive = a human waiting at the keyboard; best_effort = background /
-# autonomous / fan-out work that can run long.
+# autonomous / fan-out work that can run long. These are the documented vendor
+# fallback and MUST match the [slo] seed in mios.toml; server.py reads that SSOT
+# section and injects the live values via configure() (pure injection, no I/O, so
+# the module stays deterministic for unit tests).
 _DEFAULT_BUDGET_S = {INTERACTIVE: 8.0, BEST_EFFORT: 120.0}
+# Default scheduling priority for an unclassified turn, and the interactive floor
+# (a foreground turn whose priority is clamped below this is downgraded to
+# best_effort). Documented vendor fallback; matches the [slo] seed. Injected from
+# SSOT via configure().
+_DEFAULT_PRIORITY = 7.0
+_INTERACTIVE_PRIORITY = 7.0
+
+
+def configure(*, budgets: "Optional[dict]" = None,
+              default_priority: "Optional[float]" = None,
+              interactive_priority: "Optional[float]" = None) -> None:
+    """Inject the SSOT [slo] policy (per-class deadline budgets + the interactive
+    priority floor). server.py reads mios.toml [slo] and calls this once at load.
+    Pure injection -- no I/O -- so the module stays deterministic and unit-testable
+    in isolation; values stand at their documented defaults until injected."""
+    global _DEFAULT_BUDGET_S, _DEFAULT_PRIORITY, _INTERACTIVE_PRIORITY
+    if budgets is not None:
+        _DEFAULT_BUDGET_S = dict(budgets)
+    if default_priority is not None:
+        _DEFAULT_PRIORITY = float(default_priority)
+    if interactive_priority is not None:
+        _INTERACTIVE_PRIORITY = float(interactive_priority)
 
 
 def classify(*, foreground: bool = True, autonomous: bool = False,
-             priority: float = 7.0, interactive_priority: float = 7.0) -> str:
+             priority: "Optional[float]" = None,
+             interactive_priority: "Optional[float]" = None) -> str:
     """Map turn signals to an SLO class. An AUTONOMOUS / background turn is
     best_effort; a FOREGROUND turn is interactive UNLESS its scheduling priority
     was clamped below `interactive_priority` (the autonomous-clamp path), in which
     case it is best_effort too. Fail-safe default (foreground, unclamped) ->
-    interactive (protect the human)."""
+    interactive (protect the human). Unspecified priority / interactive_priority
+    fall back to the SSOT-injected defaults (`_DEFAULT_PRIORITY` /
+    `_INTERACTIVE_PRIORITY`)."""
+    p = _DEFAULT_PRIORITY if priority is None else float(priority)
+    ip = _INTERACTIVE_PRIORITY if interactive_priority is None else float(interactive_priority)
     if autonomous or not foreground:
         return BEST_EFFORT
-    return INTERACTIVE if float(priority) >= float(interactive_priority) else BEST_EFFORT
+    return INTERACTIVE if p >= ip else BEST_EFFORT
 
 
 def deadline(slo_class: str, now: float, budgets: "Optional[dict]" = None) -> float:
@@ -54,7 +84,8 @@ def deadline(slo_class: str, now: float, budgets: "Optional[dict]" = None) -> fl
     best_effort budget (fail-safe: an unclassified turn is treated as low-urgency,
     never as a tighter-than-real deadline that could starve real interactive work)."""
     b = budgets or _DEFAULT_BUDGET_S
-    return float(now) + float(b.get(slo_class, b.get(BEST_EFFORT, 120.0)))
+    return float(now) + float(
+        b.get(slo_class, b.get(BEST_EFFORT, _DEFAULT_BUDGET_S[BEST_EFFORT])))
 
 
 def edf_key(slo_class: str, enqueue_t: float, now: float,

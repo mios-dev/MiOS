@@ -27,8 +27,11 @@ local instance absorbs the burst; agent-pipe bounds CROSS-agent concurrency.
 
 SSOT: SearXNG endpoint = $MIOS_SEARXNG_URL; micro-LLM = $MIOS_MICRO_MODEL /
 $MIOS_MICRO_ENDPOINT (same as agent-pipe); fan-out knobs = $MIOS_WEB_FANOUT /
-$MIOS_WEB_FANOUT_WORKERS / $MIOS_WEB_RRF_K (rendered from mios.toml). The
-localhost fallbacks are the only literals, matching the unit defaults.
+$MIOS_WEB_FANOUT_WORKERS / $MIOS_WEB_RRF_K; the anchor stopword screen =
+mios.toml [search].anchor_stopwords ($MIOS_WEB_ANCHOR_STOPWORDS CSV) -- all
+rendered from mios.toml. The localhost fallbacks + the documented default
+screen are the only literals, matching the unit/SSOT defaults. The query
+tokenizer is unicode-aware (CJK/accented scripts tokenize, never to zero).
 """
 from __future__ import annotations
 
@@ -63,6 +66,39 @@ _EXPAND_BASE = (_EXPAND_ENDPOINT[:-3].rstrip("/")
                 if _EXPAND_ENDPOINT.endswith("/v1") else _EXPAND_ENDPOINT)
 # Reciprocal Rank Fusion constant (the standard 60 from the RRF paper).
 _RRF_K = int(os.environ.get("MIOS_WEB_RRF_K", "60"))
+
+
+def _ssot_list(env: str, section: str, key: str, default: tuple) -> tuple:
+    """Resolve a list tunable from SSOT: a CSV env override (rendered from
+    mios.toml by the userenv slot map) -> the layered mios.toml [section].key
+    (vendor <- /etc <- ~/.config) -> the documented literal default. Keeps this
+    standalone CLI's screen lists OUT of code (Architectural Law 7)."""
+    _csv = os.environ.get(env)
+    if _csv not in (None, ""):
+        items = [t.strip() for t in _csv.split(",") if t.strip()]
+        if items:
+            return tuple(items)
+    try:
+        try:
+            import tomllib
+        except ImportError:  # py<3.11
+            import tomli as tomllib  # type: ignore
+        val = None
+        for _p in (os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml"),
+                   "/etc/mios/mios.toml",
+                   os.path.expanduser("~/.config/mios/mios.toml")):
+            try:
+                with open(_p, "rb") as _f:
+                    _v = (tomllib.load(_f).get(section) or {}).get(key)
+            except (OSError, tomllib.TOMLDecodeError):
+                continue
+            if isinstance(_v, list) and _v:
+                val = _v
+        if val:
+            return tuple(str(x).strip() for x in val if str(x).strip())
+    except Exception:  # noqa: BLE001 -- best-effort; fall to the literal default
+        pass
+    return default
 
 
 def search(query: str, limit: int, timeout: float, category: str = "",
@@ -110,32 +146,56 @@ def search(query: str, limit: int, timeout: float, category: str = "",
             "answers": answers, "infoboxes": infoboxes}
 
 
-# Topical anchor (operator 2026-05-27): a multi-word but OFF-TOPIC invented
-# sub-query ("what is 2026 minus 1978" from a flights ask) passes the degenerate
-# word-count filter yet fetches junk (age calculators), which RRF then surfaces.
-# Require >=1 shared CONTENT token with the ORIGINAL query. Structural -- a small
-# classic function-word + generic-qualifier set + trailing-s plural fold, NOT a
-# topic deny-list. Pure numbers are excluded (a bare year is too weak an anchor).
-_ANCHOR_STOPWORDS = frozenset((
-    "the", "a", "an", "of", "to", "from", "and", "or", "for", "in", "on", "at",
-    "by", "with", "as", "is", "are", "was", "were", "be", "this", "that", "these",
-    "those", "it", "its", "me", "my", "we", "our", "you", "your", "they", "them",
-    "what", "which", "who", "when", "where", "why", "how", "do", "does", "did",
-    "can", "could", "will", "would", "should", "may", "might", "near", "into",
-    "about", "than", "then", "there", "here", "out", "not", "no", "all", "any",
-    "some", "more", "most", "find", "get", "make", "show", "give", "tell", "list",
-    "need", "want", "like", "use", "using", "best", "cheap", "cheapest",
-))
-_ANCHOR_TOKEN_RE = re.compile(r"[A-Za-z][A-Za-z0-9]{2,}")
+# Topical anchor: a multi-word but OFF-TOPIC invented sub-query ("what is 2026
+# minus 1978" from a flights ask) passes the degenerate word-count filter yet
+# fetches junk (age calculators), which RRF then surfaces. Require >=1 shared
+# CONTENT token with the ORIGINAL query. Structural -- a classic function-word +
+# generic-qualifier screen + trailing-s plural fold, NOT a topic deny-list. The
+# stopword list is SSOT-sourced (mios.toml [search].anchor_stopwords), not baked
+# in code. Pure numbers are excluded (a bare year is too weak an anchor).
+_ANCHOR_STOPWORDS = frozenset(_ssot_list(
+    "MIOS_WEB_ANCHOR_STOPWORDS", "search", "anchor_stopwords", (
+        "the", "a", "an", "of", "to", "from", "and", "or", "for", "in", "on",
+        "at", "by", "with", "as", "is", "are", "was", "were", "be", "this",
+        "that", "these", "those", "it", "its", "me", "my", "we", "our", "you",
+        "your", "they", "them", "what", "which", "who", "when", "where", "why",
+        "how", "do", "does", "did", "can", "could", "will", "would", "should",
+        "may", "might", "near", "into", "about", "than", "then", "there", "here",
+        "out", "not", "no", "all", "any", "some", "more", "most", "find", "get",
+        "make", "show", "give", "tell", "list", "need", "want", "like", "use",
+        "using", "best", "cheap", "cheapest",
+    )))
+
+# Unicode-aware word tokenizer (replaces the Latin-only [A-Za-z][A-Za-z0-9]{2,},
+# which tokenized CJK/accented text to ZERO -> every non-Latin expansion was
+# dropped as "degenerate"/"off-anchor"). CJK/Kana/Hangul are written WITHOUT
+# spaces and are information-dense, so each ideograph is its own token (else a
+# whole spaceless sentence reads as ONE token and trips the word-count gates);
+# every other script keeps whole word-runs of unicode letters+digits (so "café",
+# "Zürich", "naïve" survive intact). `re.UNICODE` is implicit for str patterns.
+_CJK = r"぀-ヿ㄀-ㄯ㐀-䶿一-鿿豈-﫿가-힣"
+_WORD_RE = re.compile(rf"[{_CJK}]|[^\W_{_CJK}]+")
+
+
+def _word_tokens(text: str) -> list:
+    """Script-neutral word tokens (CJK split per ideograph, other scripts whole)."""
+    return _WORD_RE.findall(text or "")
 
 
 def _content_toks(text: str) -> set:
     out = set()
-    for m in _ANCHOR_TOKEN_RE.finditer(text or ""):
-        t = m.group(0).lower()
+    for t in _word_tokens(text):
+        t = t.lower()
+        if t.isdigit():
+            continue  # a bare number / year is too weak a content anchor
+        # ASCII noise floor: the old regex required >=3 chars, dropping tiny Latin
+        # fragments ("us"); keep that for ASCII but NEVER length-gate non-Latin
+        # (a single CJK char carries real meaning).
+        if t.isascii() and len(t) < 3:
+            continue
         if t in _ANCHOR_STOPWORDS:
             continue
-        if len(t) >= 5 and t.endswith("s"):
+        if len(t) >= 5 and t.endswith("s"):  # English plural fold (Latin-only effect)
             t = t[:-1]
         out.add(t)
     return out
@@ -243,16 +303,18 @@ def expand_queries(query: str, k: int, timeout: float,
     # page (operator 2026-06-12) -- while the micro-LLM's reformulated facets are clean.
     # So when the original is long (an instruction, not a search TERM) AND we got
     # reformulations, lead with the reformulations instead of the raw instruction.
-    # Language-agnostic word-count gate, NO keyword/topic list; degrade-open (return below
-    # falls back to [query] if every reformulation gets screened out).
-    _instruction_like = (len(re.findall(r"[A-Za-z0-9]+", query))
+    # Script-neutral word-count gate (unicode tokenizer, NO keyword/topic list);
+    # degrade-open (return below falls back to [query] if every reformulation gets
+    # screened out).
+    _instruction_like = (len(_word_tokens(query))
                          > int(os.environ.get("MIOS_WEB_REFORMULATE_WORDS", "7")))
     out = [] if (_instruction_like and extra) else [query]
     for q in extra:
-        # Token count over alphanumerics so HYPHENATED / underscored slugs
+        # Token count over unicode word-runs so HYPHENATED / underscored slugs
         # ("cheapest-flights-toronto-to-tokyo" -> 5 tokens) count as multi-word
-        # and pass, while a bare "last" / "set" (1 token) is dropped.
-        _ntok = len(re.findall(r"[A-Za-z0-9]+", q))
+        # and pass, a CJK phrase counts per-ideograph (not zero), while a bare
+        # "last" / "set" (1 token) is dropped.
+        _ntok = len(_word_tokens(q))
         if _ntok < _min_words or len(q) < _min_chars:
             print(f"mios-web-search: dropped degenerate expansion {q!r} "
                   f"({_ntok} tok / {len(q)} chars)", file=sys.stderr)

@@ -110,7 +110,7 @@ for attempt in 1 2 3; do
 done
 
 # VERIFY cursor files actually exist -- FAIL THE BUILD if missing.
-# Operator trace 2026-05-19: this check had been softened to non-fatal
+# Operator trace this check had been softened to non-fatal
 # and an image shipped with NO Bibata at all -- /usr/share/icons had no
 # Bibata-Modern-Classic, so dconf + environment.d + gtk settings.ini +
 # the flatpak override all pointed XCURSOR_THEME at a theme that did not

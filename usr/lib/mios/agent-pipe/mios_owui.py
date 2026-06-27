@@ -2,7 +2,7 @@
 # AI-functions: strip_owui_scaffold
 """Open WebUI request adapter.
 
-Extracted from server.py (2026-06-02 monolith split). Pure stdlib (re) -- NO
+Extracted from server.py (monolith split). Pure stdlib (re) -- NO
 coupling to the agent-pipe globals. Isolates the OWUI-specific quirk of wrapping
 the user message in its RAG/task template so the rest of the pipe only ever sees
 the operator's genuine question. The marker strings here are OWUI's OWN fixed
@@ -37,7 +37,7 @@ OWUI_TEMPLATE_MARKERS = (
 def strip_owui_scaffold(text: str) -> str:
     """Return the operator's genuine question, unwrapping any OWUI task template.
 
-    OWUI's native web-search/RAG (ENABLE_WEB_SEARCH, confirmed live 2026-06-02)
+ OWUI's native web-search/RAG (ENABLE_WEB_SEARCH, confirmed live)
     wraps the message in its DEFAULT_RAG_TEMPLATE -- "### Task:\\nRespond to the
     user query using the provided context ... <context>{sources}</context>" -- and
     the CURRENT default has NO <user_query> placeholder: the real question is just

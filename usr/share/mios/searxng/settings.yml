@@ -55,7 +55,7 @@ search:
     - html
     - json    # required for the agent web_search tool surface
 
-# Outgoing-request resilience (operator 2026-05-22). The default Google /
+# Outgoing-request resilience. The default Google /
 # DuckDuckGo scrape paths CAPTCHA / 403 / 429 a self-hosted instance
 # (SearxEngineTooManyRequests / AccessDenied / CAPTCHA in the logs), which
 # zeroed result sets and made the agent fall back to geo-IP'd data. More
@@ -84,7 +84,7 @@ engines:
     disabled: true
   - name: google images
     disabled: true
-  # Chronic self-hosted blockers (observed 2026-05-23: access-denied / CAPTCHA
+  # Chronic self-hosted blockers (observed access-denied / CAPTCHA
   # on EVERY query). Disable so they neither add failed requests nor surface a
   # junk fallback when the good engines are momentarily rate-limited (that's
   # how "Sword Art Online" came back as weapon-swords + "why" as dictionary

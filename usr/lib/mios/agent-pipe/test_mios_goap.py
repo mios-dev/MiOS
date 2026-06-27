@@ -1,6 +1,6 @@
 # AI-hint: Standalone unit test for mios_goap (#53 deterministic GOAP planner): already-satisfied, single + multi-step chains, precondition gating, unreachable, min-cost optimality, determinism, and action-set validation.
 # AI-related: mios_goap
-# AI-functions: _check, t_trivial, t_chain, t_gating, t_unreachable, t_optimal, t_deterministic, t_validate, main
+# AI-functions: _check, t_trivial, t_chain, t_gating, t_unreachable, t_optimal, t_deterministic, t_validate, t_lane_wrappers, main
 """Standalone unit test for mios_goap (WS / #53 GOAP planner lane).
 
 Pure stdlib + the sibling module only -- no server.py. Proves the planner finds
@@ -81,9 +81,50 @@ def t_validate() -> None:
     _check("validate: flags no-eff / dup / no-name", len(probs) >= 3, str(probs))
 
 
+# Synthetic (non-dictionary) verb + fact tokens for the config-bound lane wrappers
+# so the test exercises the SSOT-read path with no baked example words.
+SACTS = [
+    {"name": "qx_zud", "pre": {}, "eff": {"fz_1": True}, "cost": 1},
+    {"name": "qx_vop", "pre": {"fz_1": True}, "eff": {"fz_2": True}, "cost": 1},
+]
+
+
+def t_lane_wrappers() -> None:
+    # The wrappers read mios.toml [goap] via mios_config._toml_section; monkeypatch
+    # it so the lane's config is controlled (no dependency on the live mios.toml).
+    orig = G._toml_section
+    try:
+        # Lane off (no mode) -> disabled; plan/actions degrade cleanly.
+        G._toml_section = lambda s: {} if s == "goap" else orig(s)
+        _check("lane: default off -> _goap_enabled False", G._goap_enabled() is False)
+        _check("lane: off -> _goap_plan None", G._goap_plan({"fz_2": True}) is None)
+        _check("lane: off -> _goap_actions []", G._goap_actions() == [])
+
+        # Lane on (accepted mode) + valid synthetic action set -> plan resolves.
+        cfg = {"mode": "available", "actions": SACTS}
+        G._toml_section = lambda s: cfg if s == "goap" else orig(s)
+        _check("lane: accepted mode -> _goap_enabled True", G._goap_enabled() is True)
+        _check("lane: _goap_actions passes the SSOT list through", G._goap_actions() == SACTS)
+        plan = G._goap_plan({"fz_2": True})
+        _check("lane: enabled plan resolves the synthetic chain",
+               plan == ["qx_zud", "qx_vop"], str(plan))
+
+        # Enabled but invalid action set (no effects) -> degrade-open to None.
+        invalid = {"mode": "on", "actions": [{"name": "qx_nul"}]}
+        G._toml_section = lambda s: invalid if s == "goap" else orig(s)
+        _check("lane: invalid actions -> None (degrade-open)",
+               G._goap_plan({"fz_2": True}) is None)
+
+        # actions not a list -> [].
+        G._toml_section = lambda s: {"actions": "qx_str"} if s == "goap" else orig(s)
+        _check("lane: non-list actions -> []", G._goap_actions() == [])
+    finally:
+        G._toml_section = orig
+
+
 def main() -> int:
     for t in (t_trivial, t_chain, t_gating, t_unreachable, t_optimal,
-              t_deterministic, t_validate):
+              t_deterministic, t_validate, t_lane_wrappers):
         t()
     passed = sum(1 for _, ok in _RESULTS if ok)
     total = len(_RESULTS)

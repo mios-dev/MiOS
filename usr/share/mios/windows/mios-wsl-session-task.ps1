@@ -14,7 +14,7 @@
 # harness), msrdc spawns in Session 0 and every Linux GUI window renders to
 # the invisible Session-0 desktop -- apps "launch" (process runs) but no
 # window ever appears on the operator's RDP/console desktop (Session 1).
-# Operator-confirmed 2026-05-30: a Session-0 `wsl` start made all Linux
+# Operator-confirmed a Session-0 `wsl` start made all Linux
 # flatpak windows invisible; restarting WSL from the operator's own Session-1
 # terminal fixed it. This task makes that the automatic behaviour every boot.
 #
@@ -37,7 +37,7 @@ Write-Host "Registering '$TaskName' (run as $me, Interactive/Session 1, at logon
 #
 # Launched through a HIDDEN powershell host so no Windows Terminal / conhost
 # window flashes onto the operator's desktop at logon (operator report
-# 2026-06-12). The hidden powershell still runs in the interactive Session 1, so
+#). The hidden powershell still runs in the interactive Session 1, so
 # starting the VM here keeps WSLg/msrdc bound to the operator's session -- the
 # whole point of this task is preserved; only the visible window is removed. Same
 # proven `-WindowStyle Hidden` pattern as the iGPU / OSControl server tasks.

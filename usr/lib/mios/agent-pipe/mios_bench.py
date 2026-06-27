@@ -11,7 +11,7 @@ deterministic half of that harness: the reliability metrics + the CLASSic rollup
 The libexec `mios-bench` CLI drives trials against the agent-pipe endpoint
 (:8640) -- that half needs the live VM -- then scores the results through here.
 
-RESEARCH GROUNDING (web-verified 2026-06-21):
+RESEARCH GROUNDING (web-verified):
   * pass@k -- "at least one of k samples passes". Unbiased estimator
     (OpenAI Codex / HumanEval): 1 - C(n-c, k) / C(n, k) for n samples, c correct.
   * pass^k -- tau-bench's worst-case RELIABILITY metric, "ALL k attempts

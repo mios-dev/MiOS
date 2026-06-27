@@ -15,6 +15,10 @@
 ucore_hci_stable_nvidia_digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
 
 # bootc-image-builder  OCI to disk image converter
+# NOTE: the upstream bootc-image-builder repo merged into osbuild/image-builder
+# and is archived (read-only). The quay.io/centos-bootc/bootc-image-builder image
+# stays the canonical pull per the osbuild bootc docs; re-point depName only if
+# upstream relocates the published image.
 # renovate: datasource=docker depName=quay.io/centos-bootc/bootc-image-builder
 # bib_digest: sha256:<populated by Renovate>
 

@@ -16,8 +16,8 @@ def parse_markdown_journal(file_path):
         content = f.read()
 
     # Match both standard and sub-header entry styles
-    # Standard: ### [2026-04-27 05:20:00 UTC] [AI: Native CLI]
-    # Sub: [2026-04-26 20:12:40 UTC] [AI: Agent CLI]
+    # Standard: ### [05:20:00 UTC] [AI: Native CLI]
+    # Sub: [20:12:40 UTC] [AI: Agent CLI]
     regex = r'(?:###?\s+)?\[(\d{4}-\d{2}-\d{2}.*?)\] \[(AI:.*?)\]'
     
     parts = re.split(regex, content)

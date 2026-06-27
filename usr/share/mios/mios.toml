@@ -42,7 +42,7 @@ shell     = "/bin/bash"
 # Home location for "local" / "near me" / weather / news asks. When the chat
 # surface forwards no geo (e.g. OWUI on a phone with location-sharing off), the
 # agent resolves place-dependent queries against THIS instead of the host
-# timezone's coarse region (operator 2026-06-20). Free-form: a city, "City, ST",
+# timezone's coarse region. Free-form: a city, "City, ST",
 # or "lat,long". Empty -> fall back to the host system timezone region, then to
 # an honest "couldn't determine your location" punt (never fabricated cities).
 location  = ""
@@ -476,7 +476,7 @@ failure_detail     = "      Output above is the failure detail (Pass-1 has no se
 build_log_hint     = "      build-mios.ps1's own log at M:\\MiOS\\logs\\mios-install-*.log only kicks in on Pass-2 success."
 fetch_run_failed   = "  [!] Bootstrap fetch/run failed: "
 press_enter_close  = "  Press Enter to close this elevated bootstrap window..."
-# In-line success transition (operator 2026-05-09: "spawn too many
+# In-line success transition ("spawn too many
 # powershell windows ... should be performed in-line in one
 # promoted Powershell window after bootstrap").  After install
 # completes, this conhost dot-sources the MiOS profile so the
@@ -545,6 +545,23 @@ bullets = [
 # is required.
 endpoint = "http://localhost:8888/"
 enable   = true
+# Topical-anchor stopwords for mios-web-search query expansion (the structural
+# off-topic screen that requires an expanded sub-query to share >=1 CONTENT token
+# with the original). A classic function-word + generic-qualifier set -- NOT a
+# topic deny-list -- sourced here so the tokenizer carries NO baked word screen in
+# code. The matcher itself is unicode-aware (CJK/accented scripts tokenize, never
+# to zero); this list only removes the low-signal connective words. Extend per
+# locale. Flattened to MIOS_WEB_ANCHOR_STOPWORDS (CSV) by the userenv slot map.
+anchor_stopwords = [
+    "the", "a", "an", "of", "to", "from", "and", "or", "for", "in", "on", "at",
+    "by", "with", "as", "is", "are", "was", "were", "be", "this", "that", "these",
+    "those", "it", "its", "me", "my", "we", "our", "you", "your", "they", "them",
+    "what", "which", "who", "when", "where", "why", "how", "do", "does", "did",
+    "can", "could", "will", "would", "should", "may", "might", "near", "into",
+    "about", "than", "then", "there", "here", "out", "not", "no", "all", "any",
+    "some", "more", "most", "find", "get", "make", "show", "give", "tell", "list",
+    "need", "want", "like", "use", "using", "best", "cheap", "cheapest",
+]
 
 [hermes]
 # Hermes-Agent: OpenAI-compatible gateway and the live MiOS agent at /.
@@ -554,15 +571,15 @@ enable   = true
 endpoint = "http://localhost:${MIOS_PORT_HERMES}/v1"
 backend  = "http://localhost:${MIOS_PORT_LLM_LIGHT}"   # mios-llm-light (ALL llama.cpp)
 # Back-compat default only; the SSOT default is [ai].model. Repointed to the
-# 4-model-set reasoning base 2026-06-01 (was granite4.1:3b, dropped from fleet).
-# 2026-06-19: realigned to the live [ai].model head (was "qwen3:1.7b", which was
+# 4-model-set reasoning base (was granite4.1:3b, dropped from fleet).
+# realigned to the live [ai].model head (was "qwen3:1.7b", which was
 # retired from the fleet AND dropped from bake_models -- a stale ref that named an
 # un-served model). Mirrors [ai].model; vestigial back-compat key (no runtime
 # consumer reads it -- agents resolve MIOS_AI_MODEL), kept so older callers parse.
 model    = "granite4.1:8b"
 enable   = true
 
-# [hermes_workspace] -- REMOVED 2026-05-13. The hermes-agent's own
+# [hermes_workspace] -- REMOVED. The hermes-agent's own
 # dashboard at port 9119 is the canonical web UI (Sessions, Skills,
 # MCP, Plugins, Kanban -- the kanban API is /api/plugins/kanban/* on
 # port 9119 backed by /var/lib/mios/hermes/kanban.db). The separate
@@ -635,7 +652,7 @@ allowlist_hosts = [
 # (RAG runs every turn -> tainting it would block all OS-control).
 provenance_taint = false
 
-# FED-G1 INBOUND AUTH GATE (operator 2026-06-22). The agent-pipe front door
+# FED-G1 INBOUND AUTH GATE. The agent-pipe front door
 # (:8640 /v1/* + /a2a) accepts requests with NO credential today. When ON, an ASGI
 # middleware gates those paths: a request must present the canonical shared key
 # (API_SERVER_KEY -- what OWUI + the `mios`/`@` CLI already send), the ingress key,
@@ -693,6 +710,27 @@ firewall_high_privilege_verbs = [
 # external-fetch set (web_search/web_extract/crawl/web_scrape) by mios_secset --
 # add a verb here to taint on it without a code change. Empty by default.
 taint_verbs = []
+# Path prefixes whose text_view READ taints the session (the agent is reading
+# content it did not author, so downstream high-privilege verbs in the same
+# session get firewall-gated). This is the SAME write-protected prefix set the
+# native text editor refuses writes to, so a tainting read and a denied write
+# stay in lock-step -- keep it aligned with the editor's denied-write prefixes.
+text_view_taint_prefixes = [
+    "/etc/",
+    "/usr/",
+    "/boot/",
+    "/sys/",
+    "/proc/",
+    "/dev/",
+    "/mnt/c/Windows/",
+    "/mnt/c/Program Files/",
+    "/mnt/c/Program Files (x86)/",
+]
+# Host suffixes treated as the operator's OWN (internal) infrastructure: a URL
+# whose host ends with one of these is NOT a taint source (the *.local / *.lan
+# split-horizon + explicit internal zone). Single-label bare hostnames (no dot)
+# are also treated as internal by the classifier.
+internal_tld_suffixes = [".local", ".lan", ".internal"]
 # WS-9 out-of-process policy arbiter (mios-policy-arbiter.service) policy. The
 # arbiter is a SECOND opinion the agent-pipe consults for high-risk verbs when
 # [ai].hitl_arbiter_url points at it. Default policy is allow-all (empty) -> the
@@ -712,7 +750,7 @@ arbiter_port       = 8650      # loopback port mios-policy-arbiter listens on
 principal_mode     = "off"
 token_ttl_s        = 3600
 
-# Composefs security mode -- moved here 2026-05-18 to dedupe
+# Composefs security mode -- moved here to dedupe
 # the second [security] section (strict TOML parsers reject
 # duplicate sections).
 composefs_mode = "verity"
@@ -813,7 +851,7 @@ lookup_max_alias_results   = 3
 [ttyd]
 # Phase D.2 of the AgentOS roadmap: browser-accessible terminals.
 # ttyd is a C/libuv pty-over-WebSocket bridge -- the operator's
-# 2026-05-18 research note flagged it as the lightest option for
+# research note flagged it as the lightest option for
 # accessing local shells from a browser. MiOS ships TWO instances:
 #
 #   mios-ttyd-bash       :7681  -> ttyd bash       (Linux side)
@@ -866,7 +904,7 @@ font_size          = 14
 
 [agents]
 # Phase D.5 of the AgentOS roadmap: sub-agent registry. Operator
-# directive 2026-05-18 "Hermes isn't the only sub-agent on the
+# directive "Hermes isn't the only sub-agent on the
 # system" -- agent-pipe is the always-first orchestrator;
 # Hermes, OpenCode, future MCP clients are sub-agents it
 # delegates to based on the refined intent.
@@ -929,20 +967,20 @@ require_signed_principal = false # require a verified Ed25519 principal on inbou
 mtls                     = false # require mTLS for this peer
 
 [agents.hermes]
-# WS-10b (operator 2026-06-06): the Hermes SERVICE now runs ON llama.cpp (its
+# WS-10b: the Hermes SERVICE now runs ON llama.cpp (its
 # config repointed :11434->:11450, model granite4.1:3b aliased to gemma4). Route
 # BACK to the real Hermes service (:8642) so it keeps its native browser_*/CDP +
 # terminal + tool loop -- bare gemma4@:11450 had no browser tools, so CDP browse
 # (operator's "cdp web browse in hermes") needs the real Hermes. Verified: Hermes
 # answers on the dGPU at 100% util (prompt ~25k tokens -> gemma4 ctx bumped to 32k).
-# WORKER-DISPATCH endpoint (operator 2026-06-19 RUNAWAY FIX): the :8642 gateway is
+# WORKER-DISPATCH endpoint (RUNAWAY FIX): the :8642 gateway is
 # a THIN :8640 client now (see the unify note below), so dispatching a swarm/DAG/
 # reroute WORKER facet to :8642 made it RELAY BACK to :8640 -> swarm -> :8642 -> ...
 # UNBOUNDED RECURSION (the outage-reroute bypassed fanout=false; hermes spawned 30+
 # conversation loops pegging the dGPU). A worker MUST hit a REAL model lane, never a
 # thin gateway that loops to the orchestrator. The :11441-bare stopgap fixed the loop
 # but LOST hermes's native tools (bare model = no browser_*/CDP/terminal/skills loop).
-# P1 (operator 2026-06-19) restores hermes as a REAL WORKER: a SECOND non-thin Hermes
+# P1 restores hermes as a REAL WORKER: a SECOND non-thin Hermes
 # gateway on :8643 (hermes-worker.service, HERMES_HOME=/var/lib/mios/hermes-worker)
 # that runs its OWN native browser/CDP/terminal/skills tool loop AND does its OWN
 # inference on the SAME heavy lane (:11441 mios-heavy) -- so worker dispatch now hits
@@ -962,7 +1000,7 @@ role     = "general"
 # dead endpoint -> "All connection attempts failed" / 502. It auto-rejoins once
 # the operator enables the heavy lane and the worker comes up. Without this the
 # :8640 front door 502'd on every turn on any host where the worker is down
-# (e.g. a fresh dev VM with the heavy lane gated). install-robustness 2026-06-21.
+# (e.g. a fresh dev VM with the heavy lane gated). install-robustness.
 health_gate = true
 # WS-2 per-agent RBAC (optional; default = NO restriction = unchanged behaviour):
 # cap THIS agent's tool surface to what its role should touch, enforced by
@@ -995,12 +1033,12 @@ health_gate = true
 #   # max cost units per 24h (for paid remote lanes). Over -> exit 429 quota_block.
 #   # rpm_limit    = 60                # e.g. cap a guest to 60 tool calls/min
 #   # daily_budget = 5.0               # e.g. cap a guest's remote-lane spend/day
-# job (operator 2026-05-24 "no fixed roles -- MiOS-Agents are modelfiles for
+# job ("no fixed roles -- MiOS-Agents are modelfiles for
 # jobs and tools/skills/recipes"): the one-line CAPABILITY the swarm planner
 # routes a sub-task by. Tools/recipes/skills are GLOBAL to every agent, so this
 # describes what the agent is BEST at -- not what it can access.
 job      = "General orchestration of multi-step, tool-driven tasks -- decide local-vs-web, search, inspect and operate the system, launch apps, then fan out and synthesise."
-# 2026-06-18 (operator "UNIFY THE WHOLE MIOS AI"): the Hermes gateway (:8642) is now
+# (operator "UNIFY THE WHOLE MIOS AI"): the Hermes gateway (8642) is now
 # a THIN :8640 client (its model -> MiOS-Agent on the orchestrator) so Discord + every
 # gateway platform get the orchestrator's polished/grounded output. That makes :8642
 # point BACK at :8640, so the orchestrator must NOT call :8642 as a council peer or it
@@ -1011,13 +1049,13 @@ job      = "General orchestration of multi-step, tool-driven tasks -- decide loc
 # so nothing else needs :8642. Block kept for role-matched-only routing + as docs.
 fanout   = false
 default  = false
-# Inference lane (operator 2026-05-21: "self-delegate to CPU concurrently
+# Inference lane ("self-delegate to CPU concurrently
 # to pending/future GPU operations"). gpu = the heavy dGPU lane (${MIOS_PORT_SGLANG});
 # cpu = the light iGPU/CPU lane. The fan-out pairs a GPU primary with a
 # CPU secondary so both lanes work in parallel -- and so Hermes is never
 # the ONLY dispatched agent.
 lane     = "gpu"
-# CPU-compute twin (operator 2026-05-22: "all MiOS AI Agents/Sub-Agents
+# CPU-compute twin ("all MiOS AI Agents/Sub-Agents
 # have a relevant MiOS Modelfile(s) for both CPU and GPU compute"). When
 # Hermes is dispatched as a concurrent fan-out SECONDARY, agent-pipe runs
 # this twin on the light iGPU/CPU lane (${MIOS_PORT_LLM_LIGHT}) instead of the dGPU
@@ -1025,7 +1063,7 @@ lane     = "gpu"
 # primary stream. Backed by mios-hermes-cpu.Modelfile (the CPU half of the
 # pair; `model` above -> mios-hermes is the GPU half). Omit cpu_* to keep
 # an agent single-lane.
-# Operator 2026-06-12 "ALL AGENTS USE SGLANG": Hermes-as-fan-out-SECONDARY
+# "ALL AGENTS USE SGLANG": Hermes-as-fan-out-SECONDARY
 # dispatches to the SGLang heavy lane too (was the mios-llm-light CPU twin). The
 # Hermes PRIMARY stays on its :8642 gateway (endpoint above) because it needs
 # its 64k tool-use context + native browser/CDP/terminal loop, which the 16k
@@ -1054,7 +1092,7 @@ enabled  = false
 timeout_s = 90
 role     = "coding"
 job      = "Software engineering -- read, edit, review, test and commit code, configs, scripts, systemd units, Containerfiles and TOML in this repo/system."
-# default=false (operator 2026-06-01): opencode's `run` mode HANGS — even with
+# default=false: opencode's `run` mode HANGS — even with
 # mios-opencode:latest resident + a 240s budget, `opencode run` returns ZERO
 # output and times out (the model answers in <1s directly; the CLI itself is
 # stuck in non-interactive mode). With default=true opencode was pulled into
@@ -1063,14 +1101,14 @@ job      = "Software engineering -- read, edit, review, test and commit code, co
 # engages when a turn is genuinely code-focused (role-matched), not every turn.
 # Re-enable once `opencode run` headless invocation is fixed (flags/output-mode).
 default  = false
-# fanout=false (operator 2026-06-01 concurrent-swarm fix): opencode was pulled
+# fanout=false (concurrent-swarm fix): opencode was pulled
 # into EVERY swarm/council turn despite default=false, where its `run` HANGS (->
 # 90s timeout + dumps its whole prompt into the stream) AND its qwen2.5-coder:7b
 # @ num_ctx=32768 holds ~23GB = MONOPOLISES the shared 4090, blocking co-loading
 # so real work spills to CPU. Exclude it from automatic fan-out; it engages only
 # when a turn is explicitly code-routed. Re-enable once `opencode run` is fixed.
 fanout   = false
-# health_gate (operator 2026-06-22 -- root cause of the "all nodes succeed=false,
+# health_gate (- root cause of the "all nodes succeed=false,
 # output=0 / merged_chars=0" multi-agent failure): the opencode gateway (:8633) is
 # default-OFF (the `run` hang documented above), but WITHOUT this flag the
 # orchestrator's liveness model (_live_agent_names) treats a non-health-gated
@@ -1089,16 +1127,16 @@ strengths = ["file_edit", "code_review", "git", "test_running",
 failover_agents = ["hermes"]
 
 [agents.mios-daemon-agent]
-# Operator 2026-05-18: "mios-daemon also has a mios-daemon-agent that lives on
+# "mios-daemon also has a mios-daemon-agent that lives on
 # cores always running (reads all SYSTEM(S) logs, journal, etc) and keeps them
-# in the loop for followups/redirections". Operator 2026-05-24: "mios-daemon-
+# in the loop for followups/redirections". "mios-daemon-
 # agent = mios-cpu/reasoner! CONSOLIDATE" -- so this ONE always-on CPU process
 # on a loopback port is BOTH the global log/journal monitor AND the council's
 # CPU reasoning lane. It runs LIGHT in the background (~2c/4t) and BURSTS to
 # 8c/16t when it joins a foreground pipeline turn.
 # WS-10: repoint off the daemon-agent's ollama-cpu backend (:11435 dead) to
 # mios-llm-light; model 'mios-daemon-agent' is aliased to gemma4:12b. Was :8644/v1.
-# Operator 2026-06-12 "ALL AGENTS USE SGLANG": the council CPU-reasoner now
+# "ALL AGENTS USE SGLANG": the council CPU-reasoner now
 # dispatches to the SGLang heavy lane (:11441, mios-heavy) like every other
 # agent, instead of the contended mios-llm-light :11450. (The always-on background
 # log/telemetry loop on :8644 is unchanged; this is only its FAN-OUT dispatch.)
@@ -1110,7 +1148,7 @@ role     = "reasoning"
 job      = "CPU reasoning grounded in live system state -- second opinions, summaries, planning, and answers grounded in the global journal/log telemetry it continuously collects."
 default  = false
 # fanout=true (was false): the OLD telemetry-only DUMP flooded unrelated answers
-# with crowdsec/CDP digests ("fail across the board", operator 2026-05-22), so
+# with crowdsec/CDP digests ("fail across the board",), so
 # it was muted. Now it REASONS and folds telemetry in ONLY when the request
 # concerns the system (see _daemon_agent_reply's system prompt), so it is safe
 # to fan out CONCURRENTLY on every substantive turn -- exactly the operator's
@@ -1139,7 +1177,7 @@ strengths = ["reasoning", "second_opinion", "summarize", "planning",
 failover_agents = ["hermes"]
 
 # [agents.mios-reasoner-cpu] was CONSOLIDATED into [agents.mios-daemon-agent]
-# above (operator 2026-05-24 "mios-daemon-agent = mios-cpu/reasoner!"). It
+# above ("mios-daemon-agent = mios-cpu/reasoner!"). It
 # pointed at the SAME CPU ollama (:11435) running the SAME small qwen3:1.7b, so
 # the always-on daemon-agent simply ABSORBED the reasoning role rather than
 # running a duplicate light-lane. To run a CPU/iGPU reasoner on OTHER hardware
@@ -1157,7 +1195,7 @@ failover_agents = ["hermes"]
 # request time via the userenv.sh slot map.
 
 # ----------------------------------------------------------------------------
-# ANY AGENT ON ANY ENGINE / NODE (operator 2026-05-24: "make sure any Agent(s)
+# ANY AGENT ON ANY ENGINE / NODE ("make sure any Agent(s)
 # can be in any AI Engine/Compute Pipeline -- CPU, dGPU, iGPU, Accelerator" +
 # "any Agent/Sub-Agent can run on any node/endpoint -- iPhone, Android, other
 # MiOS nodes/clusters"). An agent is a JOB (a Modelfile); a BINDING is an
@@ -1178,7 +1216,7 @@ failover_agents = ["hermes"]
 # The target engine/node must actually SERVE that model; health_gate=true makes
 # a come-and-go node (phone/cluster) auto-join when up + drop when gone.
 # ----------------------------------------------------------------------------
-# CLIENT-HOSTED SWARM NODES (operator 2026-05-22 "AI.Local iphone app hosts
+# CLIENT-HOSTED SWARM NODES ("AI.Local iphone app hosts
 # its own endpoint on Tailscale ... added to the swarm as a node capable of
 # local mobile models"). A client device running an OpenAI-compatible local-
 # model server on the tailnet becomes a swarm agent here. health_gate=true
@@ -1186,7 +1224,7 @@ failover_agents = ["hermes"]
 # when asleep/absent -- auto-join-when-up, auto-drop-when-gone.
 #
 # REACH PATH: Tailscale runs INSIDE the WSL VM (node "mios-dev", installed
-# 2026-05-22), so agent-pipe reaches tailnet peers DIRECTLY by their 100.x
+#), so agent-pipe reaches tailnet peers DIRECTLY by their 100.x
 # IP -- no reverse portproxy. (mirrored/"host" WSL networking stays OFF -- it
 # death-spirals the Quadlet stack per .wslconfig; tailscaled in the VM is the
 # safe alternative. --accept-dns=false so MagicDNS doesn't disturb the VM's
@@ -1209,17 +1247,18 @@ health_gate = true
 strengths   = ["mobile_local_model", "on_device", "offline_edge"]
 
 # ----------------------------------------------------------------------------
-# CANONICAL WORKER + NODE POOL (operator 2026-06-01: "don't have separate CPU
+# CANONICAL WORKER + NODE POOL ("don't have separate CPU
 # 1,2,3 / dGPU 1,2,3 replicas -- there should just be a MiOS Modelfile dispatched
-# as many times as needed to ANY node(s)"). This REPLACES the 12 hand-partitioned
-# raw-base research replicas (research-dgpu-1/2/3, research-cpu-1/2, research-
-# potato-gpu/cpu-*, potato-gpu, ...) that lived in the /etc/mios overlay and
-# BYPASSED the MiOS Modelfiles -- they cold-loaded raw 2-4B bases per endpoint
-# (one landed a 4B model on the CPU-only :11435 lane -> the 2026-06-01 runaway).
+# as many times as needed to ANY node(s)"). The model is ONE canonical MiOS
+# worker dispatched across a declared pool of compute nodes -- NOT a set of hand-
+# partitioned per-endpoint research replicas. Per-endpoint raw-base replicas are
+# avoided on purpose: they bypass the MiOS Modelfiles and can mis-place an
+# oversized base on a CPU-only lane (a model far larger than that lane can serve
+# -> pegged cores -> a load runaway).
 #
-# THE MODEL: ONE canonical MiOS worker brain -- the mios-agent Modelfile (the
-# qwen3.5:4b brain with the baked MiOS-discipline SYSTEM block) on GPU lanes, its
-# mios-agent-cpu twin (qwen3:1.7b, num_gpu 0) on CPU/light lanes. NOT a raw base.
+# THE MODEL: ONE canonical MiOS worker brain -- a MiOS-discipline Modelfile tag
+# (mios-agent on GPU lanes, its mios-agent-cpu twin on CPU/light lanes), NOT a raw
+# base; each node serves the canonical tag its lane is sized for.
 #
 # THE DISPATCH: agent-pipe's _load_node_pool() reads [nodes.*] below and SYNTHE-
 # SISES one research-worker registry agent PER NODE -- `node:<name>` = {endpoint,
@@ -1228,12 +1267,16 @@ strengths   = ["mobile_local_model", "on_device", "offline_edge"]
 # fan-out / swarm-DAG logic (_pick_fanout_agents / _agent_dag_from_tasks, bounded
 # by the P1 admission controller + per-lane/-endpoint semaphores) dispatches the
 # ONE worker brain across the node pool BY CAPACITY -- "as many times as needed
-# to any node(s)" -- instead of 12 bespoke replica entries. research_only=true on
-# every node keeps them OUT of everyday council/chat turns (they join only on a
-# research/deep turn), so the runaway-fix admission stays intact. The CPU-lane
-# model backstop (_cap_cpu_lane_model) still force-caps any light-lane dispatch
-# to the micro model -- belt + suspenders (the cpu node already declares the
-# micro twin). Degrade-open: if [nodes.*] is ABSENT, behaviour is unchanged.
+# to any node(s)" -- instead of bespoke per-endpoint replica entries. A node's
+# per-node research_only flag selects WHEN it joins: the shipped default
+# nodes_research_only=false (below) makes every node eligible on EVERY turn, and a
+# per-node research_only=true holds that one node for research/deep turns only
+# (the per-node value wins). Safety lives in admission, never in disabling nodes:
+# the P1 admission controller + COUNCIL_MAX + per-lane/-endpoint semaphores keep
+# the wide roster from stampeding. The CPU-lane model backstop (_cap_cpu_lane_
+# model) still force-caps any light-lane dispatch to the micro model -- belt +
+# suspenders (the cpu node already declares the micro twin). Degrade-open: if
+# [nodes.*] is ABSENT, behaviour is unchanged.
 #
 # A `node` declares WHERE compute lives + WHAT canonical Modelfile it serves; the
 # `model` MUST be a Modelfile tag (mios-agent / mios-agent-cpu / mios-igpu), NOT a
@@ -1247,8 +1290,8 @@ strengths   = ["mobile_local_model", "on_device", "offline_edge"]
 # light lanes point to mios-llm-light (${MIOS_PORT_LLM_LIGHT}) -- the retired ollama endpoints
 # are GONE. api=llamacpp -> KV-paging + no tool_choice=required.
 # health_gate=true -> a lane is probed + skipped if mios-llm-light is momentarily down
-# (never a false "All connection attempts failed" fan-out; operator 2026-06-07 e2e).
-# Operator 2026-06-12 "ALL AGENTS USE SGLANG": every swarm worker dispatches to
+# (never a false "All connection attempts failed" fan-out; e2e).
+# "ALL AGENTS USE SGLANG": every swarm worker dispatches to
 # the SGLang heavy lane (:11441, mios-heavy = Qwen3-8B-AWQ; see [ai.sglang]) instead of the
 # mios-llm-light multi-model lane. SGLang does CONTINUOUS BATCHING, so N concurrent
 # research facets are served in parallel on ONE backend -- whereas mios-llm-light
@@ -1275,7 +1318,7 @@ health_gate = true
 endpoint = ""                  # set to http://<igpu-host-tailnet>:11436/v1 in /etc/mios
 model    = "mios-igpu"         # llama.cpp + Vulkan alias served on the host
 lane     = "igpu"
-# Declared protocol (operator no-hardcode 2026-06-01): llama.cpp -> the pipe
+# Declared protocol (operator no-hardcode): llama.cpp -> the pipe
 # does /slots KV-paging here (_kv_paging) + skips tool_choice=required, driven by
 # THIS field instead of a port-substring match (so it's correct even if the
 # operator serves it on a non-11436 port).
@@ -1292,7 +1335,7 @@ model       = "mios-heavy"     # = [ai.vllm].served_name; the heavy reasoner vLL
 lane        = "gpu"            # shares the dGPU lane semaphore (VRAM-admission governs co-load)
 api         = "openai"
 health_gate = true             # inert until the gated mios-llm-heavy-alt.service is enabled + reachable
-# Local SGLang heavy lane (operator 2026-06-07 "continue with SGLang") -- the
+# Local SGLang heavy lane ("continue with SGLang") -- the
 # mios-llm-heavy.container on :11441 (see [ai.sglang]). HiCache spills inactive KV to
 # CPU RAM. health_gate=true => AUTO-JOINS only when reachable; gated off until a
 # model is baked + the service enabled. api=openai (SGLang speaks /v1 + honours
@@ -1359,7 +1402,7 @@ health_gate = true             # inert until mios-llm-heavy is up + reachable
 #   tool_capable = true
 
 # ----------------------------------------------------------------------------
-# [dispatch] -- multi-agent CONCURRENT fan-out (operator 2026-05-21: "the
+# [dispatch] -- multi-agent CONCURRENT fan-out ("the
 # MiOS mechanism should dispatch to multiple agents at a time -- not ALL
 # agents, but a couple at least"). agent-pipe picks ONE primary agent
 # (refine target_agent / registry default) AND up to fanout_max-1 relevant
@@ -1387,19 +1430,94 @@ remote_usd_per_mtok = 0.0       # $/million-tokens for a remote escalation lane 
 budget_usd          = 0.0       # 0 => no $ ceiling (observe only)
 
 # ----------------------------------------------------------------------------
+# WORKER-TOOLS reranker/priority knobs (mios_worker_tools.configure). The BM25
+# lexical arm's saturation + length-normalisation, the unembedded-verb priority->
+# score fallback map, and the weak-lane tool-priority ranking flag. Kept here as SSOT
+# so none of these stay baked into the ranking code (sibling of the [dispatch] rerank_*
+# knobs). Override via MIOS_BM25_K1 / MIOS_BM25_B / MIOS_TOOL_PRIORITY_CORE_FIRST.
+[worker_tools]
+bm25_k1                  = 1.2    # Okapi BM25 term-frequency saturation (standard 1.2-2.0)
+bm25_b                   = 0.75   # Okapi BM25 document-length normalisation (standard 0.75)
+# Fallback relevance score for an UNEMBEDDED verb, indexed by its _tool_priority rank
+# (0 = core read/discovery .. 4 = external MCP/A2A); a rank past the list clamps to last.
+priority_fallback_scores = [0.55, 0.45, 0.30, 0.25, 0.15]
+# true -> a weak lane ranks the curated core-tier READ verbs first (perm=read AND
+# tier=core), via the reranker's own core-tier signal -- NOT English name substrings.
+# false -> degrade to permission order alone (read verbs rank 1); never a keyword gate.
+tool_priority_core_first = true
+
+# ----------------------------------------------------------------------------
+# WS-SCHED-SLO deadline/SLO scheduling policy (the EDF + fail-closed-shed core).
+# These tune the pure mios_slo decision module; the shed itself is gated by
+# [dispatch].slo_shed_enable (default off). A turn carries an SLO class
+# (interactive | best_effort); the scheduler orders least-deadline-first and a
+# best_effort dispatch is shed under contention while an interactive (foreground,
+# human-waiting) turn is never shed.
+[slo]
+# Per-class wall-clock deadline budget (seconds the turn SHOULD meet). interactive
+# = a human at the keyboard (tight); best_effort = background / autonomous /
+# fan-out work that may run long.
+interactive_budget_s = 8.0
+best_effort_budget_s = 120.0
+# Interactive-priority FLOOR: a foreground turn whose scheduling priority is
+# clamped below this is downgraded to best_effort (the autonomous-clamp path).
+# default_priority is the priority assumed for an unclassified turn -- at/above
+# the floor by default so a plain foreground turn classifies interactive.
+interactive_priority = 7.0
+default_priority     = 7.0
+
+# ----------------------------------------------------------------------------
+[sched]
+# Agent-pipe turn-priority scorer (mios_sched._sched_priority): priority =
+# f(complexity, urgency). Every key below is ALSO the code's degrade-open fallback
+# (a named constant), each EQUAL to the long-standing literal -- so an absent or
+# malformed [sched] reproduces prior scoring byte-for-byte. Operator-tunable here;
+# the file path itself is env-overridable via MIOS_TOML (vendor < /etc < ~/.config).
+#
+# priority_mode -- how urgency/complexity are derived (env: MIOS_SCHED_PRIORITY_MODE):
+#   "ssot"  = parameterized lexical urgency from the term sets below (today's path).
+#   "model" = PREFER an upstream model-supplied NUMERIC refined.urgency /
+#             refined.complexity when present, else the lexical/derived path. Consumes
+#             an already-present signal only -- it never adds an LLM call of its own.
+priority_mode = "ssot"
+# Urgency tiers (the score is higher = scheduled sooner).
+urgency_default = 5
+urgency_high    = 9
+urgency_low     = 2
+# A single-action OS-control dispatch is cheap + interactive -> floor its urgency here.
+urgency_dispatch_floor = 8
+# Operator-localizable urgency vocabulary. Matched case-insensitively with Unicode
+# casefold, so non-English terms work -- the LIST is SSOT (localizable) and the matcher
+# is plain casefold membership, NOT an English/ASCII keyword gate.
+urgency_high_terms = ["high", "urgent", "now"]
+urgency_low_terms  = ["low", "background", "defer"]
+# Complexity = min(cap, base + task_count + tool_hint_count // hints_divisor).
+complexity_base          = 1
+complexity_hints_divisor = 2
+complexity_cap           = 10
+# Final blend: score = round(complexity*weight + urgency*weight, ndigits).
+score_complexity_weight = 0.4
+score_urgency_weight    = 0.6
+score_round_ndigits     = 2
+
+# ----------------------------------------------------------------------------
 [dispatch]
 enable     = true
-# Selection mode (operator 2026-05-22 "weigh every agent equally + dispatch
+# Selection mode ("weigh every agent equally + dispatch
 # multiple concurrently"):
 #   council   = EQUAL WEIGHT. Every chat-eligible agent (every [agents.*]
 #               without fanout=false, minus the primary) runs CONCURRENTLY
 #               each turn, up to fanout_max, regardless of tag relevance --
 #               no Hermes monopoly. Lane-diverse so CPU + GPU agents run in
 #               parallel. This is the active policy.
-#   relevance = legacy: engage only OTHER agents whose A2A skill tags match
-#               the refined plan (top matches).
+# relevance = MODEL-DRIVEN (de-hardcode "the scoring IS a
+#               hardcode in and of itself"): the micro-model picks the relevant
+#               specialist agents from each agent's OWN published card -- was a
+#               hand-coded role/strengths token-overlap scorer + magic CPU-lane
+#               bonus + ASCII tokenizer (all removed). NO hardcoded heuristic now.
+#               Mechanism controlled by fanout_select_mode below.
 mode       = "council"
-# COUNCIL BY DEFAULT (operator 2026-06-12 "force council shouldn't be FORCED but a
+# COUNCIL BY DEFAULT ("force council shouldn't be FORCED but a
 # default option ENABLED"): true -> SUBSTANTIVE turns (intent agent/multi_task, or
 # chat >= decompose_min_words) engage the full multi-agent council BY DEFAULT, no
 # force toggle -- breadth + live thinking/emitters by default. The OWUI
@@ -1414,7 +1532,17 @@ fanout_min = 1
 # roster + the box's headroom. 3 = primary + up to 2 council members; raise
 # as more [agents.*] are added (and a tool-capable box can carry them).
 fanout_max = 3
-# ── REAL SOURCE CITATIONS (operator 2026-06-18 "sources ... should be A2A or
+# Relevance-selection mechanism for `mode = "relevance"` : the
+# legacy hand-coded token-overlap scorer is REPLACED by model-driven selection -- the
+# micro-model ([ai].micro_model/micro_endpoint) is shown the refined plan + each
+# eligible agent's published card and returns which specialists to engage. No magic
+# weights, no lexical/ASCII bias, no topic map. (Ignored under `mode = "council"`,
+# which engages every eligible agent equally.)
+#   model = micro-model picks the relevant subset (degrades to council on failure)
+#   off   = skip the model call -> council-equal-weight over the eligible pool
+fanout_select_mode      = "model"
+fanout_select_timeout_s = 8       # micro-model relevance-pick timeout (degrade-open)
+# ── REAL SOURCE CITATIONS ("sources... should be A2A or
 # metadata"): every web_search this turn (native loop, council/DAG facets, the
 # parent's harvest of each sub-agent's answer) records its REAL result URLs; the
 # final answer attaches a numbered **Sources:** list + structured `mios_sources`
@@ -1425,16 +1553,16 @@ sources_registry_cap = 64
 # When a swarm/DAG turn grounds NOTHING (research+nodes both empty) and the answer
 # is empty/punt OR it was a web/news turn, RE-ANSWER via the always-up light-lane
 # native loop (real grounding + real citations) instead of shipping blank or
-# fabricated text -- the failure mode when leaf agents are down (operator 2026-06-19).
+# fabricated text -- the failure mode when leaf agents are down.
 # false = prior behaviour (ship the empty/fabricated synthesis). Degrade-open.
 dag_empty_native_fallback = true
-# Trust the planner's atomic verdict (operator 2026-06-19 "research native patterns"):
+# Trust the planner's atomic verdict ("research native patterns"):
 # when _plan_swarm self-gates to [] (focused/atomic ask) AND no breadth signal fires
 # (refine deep/deep_research/multi_task/_multi_step or an operator toggle), do NOT
 # force-seed a synthetic swarm -> answer via the single-agent path (faster, on-topic).
 # Genuinely broad asks still fan out to ALL live nodes. false = prior always-seed.
 swarm_trust_atomic = true
-# ── NATIVE-LOOP GROUNDING / HYGIENE (operator 2026-06-19 "OWUI LITERALLY CARRIES
+# ── NATIVE-LOOP GROUNDING / HYGIENE ("OWUI LITERALLY CARRIES
 # ENVIRONMENT DETAILS EVERY TURN" + fix the "list N recent X" wrong-year fabrication).
 # agent-pipe reads these from here via _DISPATCH_TOML (runtime override via the matching
 # MIOS_NATIVE_LOOP_* env). All default-on; each behaviour degrades open on any error.
@@ -1453,8 +1581,8 @@ native_loop_query_reformulate = true
 native_loop_date_in_query     = true
 native_loop_date_anchor       = true
 native_loop_math_hint         = true
-# ── SWARM-NODE COMPUTE BUDGET + DEEPEN (operator 2026-05-26 "every node computes
-# ... loop until satisfied"; SSOT'd 2026-05-31 after "HARDCODES!!!"). agent-pipe
+# ── SWARM-NODE COMPUTE BUDGET + DEEPEN ("every node computes
+#... loop until satisfied"; SSOT'd after "HARDCODES!!!"). agent-pipe
 # reads these from here via _dispatch_toml(); runtime override via the matching
 # MIOS_* env (MIOS_DAG_NODE_MAX_TOKENS / _SLOW_MAX_TOKENS / _RETRY,
 # MIOS_SWARM_DEEPEN / _ITERS / _DEADLINE_S / _WEB_S).
@@ -1463,18 +1591,18 @@ native_loop_math_hint         = true
 dag_node_max_tokens      = 800
 dag_node_slow_max_tokens = 350
 dag_node_retry           = 1     # empty-result retries (read-only -> safe); 0 = none
-# PER-NODE WALL-CLOCK DEADLINE (runaway/slowness fix 2026-06-02): the turn used to
+# PER-NODE WALL-CLOCK DEADLINE (runaway/slowness fix): the turn used to
 # wait for the SLOWEST node (potato-cpu ~600s) -> blew every client timeout. Each
 # agent node's dispatch+retries is bounded here; a node that doesn't answer in time
 # is abandoned (empty) and the synthesiser proceeds on who DID answer.
-dag_node_deadline_s      = 140   # seconds; runaway backstop for a FAST-lane node. Raised 75->140 (operator 2026-06-12 "ALL AGENTS USE SGLANG"): with every agent on the ONE SGLang lane (lane_concurrency_gpu=2, the VRAM-safe ceiling), nodes past the 2nd QUEUE for a slot, so the per-node deadline (measured from DISPATCH, not from slot-acquire) must absorb that queue wait + the node's own web-research+gen, or back-of-queue nodes get guillotined at 0 chars (grounded_nodes=0). 140 = ~queue + ~40s research + gen.
-# NODE/ENDPOINT-AWARE deadline (operator 2026-06-02 "LOCAL CPU IS NEEDED ... ALL NODES PLAY A PART ... planning isn't taking into account the nodes and endpoints"): a SLOW lane (CPU/iGPU/phone) gets a longer deadline. It is now SIZED to its hardware -- it REASONS over the grounding the fast lanes fetched this turn (no 16K-ctx own tool-loop) -- so its single pass finishes well inside this and is never abandoned just for being slow. The fast lanes deepen while it finishes (everything concurrent, all sources every turn).
+dag_node_deadline_s      = 140   # seconds; runaway backstop for a FAST-lane node. Raised 75->140 ("ALL AGENTS USE SGLANG"): with every agent on the ONE SGLang lane (lane_concurrency_gpu=2, the VRAM-safe ceiling), nodes past the 2nd QUEUE for a slot, so the per-node deadline (measured from DISPATCH, not from slot-acquire) must absorb that queue wait + the node's own web-research+gen, or back-of-queue nodes get guillotined at 0 chars (grounded_nodes=0). 140 = ~queue + ~40s research + gen.
+# NODE/ENDPOINT-AWARE deadline ("LOCAL CPU IS NEEDED... ALL NODES PLAY A PART... planning isn't taking into account the nodes and endpoints"): a SLOW lane (CPU/iGPU/phone) gets a longer deadline. It is now SIZED to its hardware -- it REASONS over the grounding the fast lanes fetched this turn (no 16K-ctx own tool-loop) -- so its single pass finishes well inside this and is never abandoned just for being slow. The fast lanes deepen while it finishes (everything concurrent, all sources every turn).
 dag_node_deadline_slow_s = 150   # seconds; slow-lane (cpu/igpu/mobile) per-node deadline
 # WORK-STEAL (deepen) LANES: only these FAST lanes do extra coverage passes until the barrier; a slow lane does its ONE grounded pass and waits (it can't afford a second). CSV of lane categories.
 deepen_lanes         = "gpu,accelerator"
 # SLOW-lane tool-surface floor: a slow lane with no explicit lane_tool_cap entry gets this many tools (NOT the full 71-tool surface a CPU daemon can't prefill). Only used when a slow node has no injected grounding to reason over. 0 = full surface (opt out).
 slow_lane_tool_cap   = 12
-# P0 STABLE TOOL PREFIX (operator 2026-06-11 "a lot of tools but optimized"): when true,
+# P0 STABLE TOOL PREFIX ("a lot of tools but optimized"): when true,
 # the native loop emits a BYTE-IDENTICAL core tool block first (every turn, same order)
 # so SGLang RadixAttention caches the system+tools prefix across turns instead of re-
 # prefilling it on every intent change. The per-turn relevance signal moves OFF the
@@ -1483,7 +1611,7 @@ slow_lane_tool_cap   = 12
 # false = legacy behaviour (intent-ordered out[:cap], a fresh prefix every turn). Ship
 # OFF, measure the prefix-hit-rate, then flip ON. Degrade-open: OFF == byte-for-byte
 # the prior pipeline. See usr/share/mios/doc/concepts/mcp-tools-optimization.md (P0).
-# ENABLED 2026-06-11 after verification: core==23 (tier `core` only) -> ~33 tools visible
+# ENABLED after verification: core==23 (tier `core` only) -> ~33 tools visible
 # (near the working legacy 36); 33/33 byte-identical tool prefix across unrelated intents
 # (RadixAttention-cacheable); zero accuracy regression on the 7 AIOS capabilities (apps
 # -> mios_apps, recall -> the saved fact); cap-safe for slow-lane nodes (core truncated to
@@ -1501,7 +1629,7 @@ stable_prefix_tail   = 4
 # relevance inside tools[]). A future logit-mask experiment knob -- leave off until it
 # demonstrably helps. Only used when stable_tool_prefix = true.
 stable_prefix_hint   = false
-# P2 TOOL RERANK (operator 2026-06-11 "a lot of tools but optimized"): a pure-compute
+# P2 TOOL RERANK ("a lot of tools but optimized"): a pure-compute
 # stage-2 over the per-turn cosine TAIL selection -- RRF-fuse the cosine rank with an
 # in-process BM25 lexical arm (over the same name+desc+examples corpus the embeddings use),
 # then greedy MMR diversify so two confusable near-duplicates don't both crowd the tail.
@@ -1520,7 +1648,7 @@ rerank_skip_margin   = 0.08  # if the cosine cut at the N-th slot is this separa
 # answer passes UNTIL the judge is satisfied, hard-bounded by these. A satisfied
 # node exits at once; the deadline only bites a stubborn facet.
 deepen_enabled       = true
-# SATURATION SCHEDULER (operator 2026-06-01 "nothing in the pipeline is idle until
+# SATURATION SCHEDULER ("nothing in the pipeline is idle until
 # synthesis"). true -> DAG runs as a CONTINUOUS READY-QUEUE (a node dispatches the
 # moment its deps finish, bounded by the global/endpoint/lane semaphores) instead
 # of barrier'd topological levels (fast lanes idle waiting for the slowest node in
@@ -1530,9 +1658,9 @@ swarm_saturate       = true
 deepen_iters         = 12     # RUNAWAY backstop on extra passes (the deadline is the real bound)
 deepen_deadline_s    = 60     # HARD per-node deepen cap for DEEP turns (casual queries no longer deepen via the complexity gate). 60s/facet is the post-runaway deep budget.
 deepen_web_timeout_s = 20     # per-iter web-research cap so one pass can't overshoot
-# DETAIL-FILL (operator 2026-06-02 "also can loop to gather data in detail-fill passes"): a fast work-stealing node FETCHES new web data each deepen pass (bounded by deepen_web_timeout_s) and appends fresh stories to the shared grounding -> the loop enriches the FACTS, not just re-reasons them. Self-gates to web/news turns (a node carrying a web-capable refined plan). false = reason-only deepen (no new fetches).
+# DETAIL-FILL ("also can loop to gather data in detail-fill passes"): a fast work-stealing node FETCHES new web data each deepen pass (bounded by deepen_web_timeout_s) and appends fresh stories to the shared grounding -> the loop enriches the FACTS, not just re-reasons them. Self-gates to web/news turns (a node carrying a web-capable refined plan). false = reason-only deepen (no new fetches).
 deepen_fetch         = true
-# ── PER-LANE / GLOBAL CONCURRENCY (SSOT'd 2026-05-31 after "HARDCODES!!!").
+# ── PER-LANE / GLOBAL CONCURRENCY (SSOT'd after "HARDCODES!!!").
 # agent_concurrency = default per-lane cap; lane_concurrency_<lane> overrides ONE
 # lane. The LOCAL gpu/cpu lanes (the single SHARED 4090 + in-VM CPU) are capped
 # to 2 so a wide research fan-out can't oversubscribe them (live test: it
@@ -1541,7 +1669,7 @@ deepen_fetch         = true
 # MIOS_AGENT_LANE_CONCURRENCY[_<LANE>].
 agent_concurrency    = 3      # global default per-lane concurrent-agent cap
 lane_concurrency     = 3      # default per lane (each distinct hw = its own semaphore)
-# dGPU lane/endpoint caps RAISED to a BACKSTOP ceiling (operator 2026-06-01:
+# dGPU lane/endpoint caps RAISED to a BACKSTOP ceiling (
 # "multiple medium/small models dispatch concurrently to dGPUs ... until
 # satisfied"). The real governor is now VRAM-AWARE ADMISSION (_admit gates a
 # cold model on measured free VRAM + VRAM_COLOAD_RESERVE_MB; see [dispatch].
@@ -1549,9 +1677,9 @@ lane_concurrency     = 3      # default per lane (each distinct hw = its own sem
 # real headroom. These semaphores are the HARD OOM backstop if the VRAM probe
 # is wrong (the 4090 is shared with Windows). 4 = the big primary + up to 3
 # small co-loaded workers; lower if the host steals more VRAM.
-lane_concurrency_gpu = 2      # P7 swarm-safety (operator 2026-06-11 "finish! I authorize you"): reverted 4->2, the known-safe ceiling. A broad dispatch_to_nodes swarm at 4 piled concurrent 8B generations onto the single SGLang :11441 -> OOM/cycle; 2 makes excess nodes QUEUE (degrade = slower, never crash). No VRAM change. Raise again only after per-engine spreading (route some agents off the gpu lane) frees headroom -- that needs the operator's model-placement decisions.
+lane_concurrency_gpu = 2      # P7 swarm-safety ("finish! I authorize you"): reverted 4->2, the known-safe ceiling. A broad dispatch_to_nodes swarm at 4 piled concurrent 8B generations onto the single SGLang :11441 -> OOM/cycle; 2 makes excess nodes QUEUE (degrade = slower, never crash). No VRAM change. Raise again only after per-engine spreading (route some agents off the gpu lane) frees headroom -- that needs the operator's model-placement decisions.
 lane_concurrency_cpu = 2      # in-VM CPU -- cap low to avoid thrash (CPU has no VRAM elasticity)
-# ── SWARM Phase-0/2/3 (operator 2026-06-12 "delegate a swarm to many small models
+# ── SWARM Phase-0/2/3 ("delegate a swarm to many small models
 # concurrently across CPU+dGPU+nodes"). gpu_profile selects the dGPU topology:
 #   "orchestrator" (default, safe) = the single SGLang heavy lane (mios-heavy).
 #   "swarm"        = arm N single-model llama-server workers (mios-llm-worker@)
@@ -1571,69 +1699,70 @@ lane_concurrency_gpu0 = 4     # per-SUB-LANE cap for the 'gpu0' small-model pack
 #   serve = true; gguf = "qwen3-1.7b-q4_k_m.gguf"; ngl = 99; ctx = 8192
 #   [nodes.swarm-dgpu-b]  # ...11462, another small model, sub_lane="gpu0" ...
 #   [nodes.swarm-cpu-a]   # lane="cpu"; sub_lane="cpu"; ngl=0; ram_mb=2500; ...
-# GLOBAL host in-flight cap (operator 2026-06-01 load-361 fix; research-endorsed).
+# GLOBAL host in-flight cap (load-361 fix; research-endorsed).
 # Per-lane caps bound each lane, but with all-nodes-eligible the SUM of lanes can
 # swamp the host -> ONE process-wide cap on TOTAL running dispatches. Sized
 # ~cores-reserve so normal multi-lane concurrency is unaffected; only an extreme
 # wide fan-out is bounded ("saturate to capacity, never over"). 0/unset -> code
 # default max(8, cpu_count-4). Read by _GLOBAL_DISPATCH_SEM.
 global_concurrency   = 16     # max concurrently-running agent dispatches across ALL lanes
-# ── Runaway / abandoned-turn bounds (operator 2026-06-01 cancellation fix). ollama
+# ── Runaway / abandoned-turn bounds (cancellation fix). ollama
 # does NOT stop generating on client disconnect, so a hard num_predict cap is the
 # only real bound on an abandoned turn; the turn deadline is a wall-clock backstop
 # (per-node deepen caps don't bound the whole turn). The disconnect/supersede
 # cancellation lives in _execute_dag_emitting + _execute_dag_saturated.
 ollama_num_predict_cap = 2048   # hard per-generation token ceiling on AGENT ollama dispatches (fast/dGPU lanes)
-# PER-LANE cap (runaway fix 2026-06-01j): a CPU/iGPU lane gens ~5 tok/s, so 2048
+# PER-LANE cap (runaway fix j): a CPU/iGPU lane gens ~5 tok/s, so 2048
 # tokens = ~400s of pegged cores per gen; ollama can't be aborted on disconnect,
 # so stacked slow-lane gens drove loadavg to 387. Give the SLOW lanes a short
 # ceiling (~512 ≈ ~100s) so each self-clears fast; the dGPU keeps the full 2048.
 ollama_num_predict_cap_cpu = 512   # token ceiling on CPU/iGPU (mios-llm-light / host-iGPU) dispatches
 turn_deadline_s        = 600    # wall-clock backstop per turn (s); generous so deep research still finishes
 runaway_reap           = true   # on a BLOWN deadline (not supersede), unload CPU-lane models (keep_alive:0) -- the only real release for ollama's un-abortable gens
-# ── COUNCIL ROSTER WIDTH + PER-ENDPOINT CAP (runaway fix 2026-06-01). The
-# council previously fanned EVERY non-trivial turn out to ALL live agents
-# (MIOS_COUNCIL_MAX defaulted to 0 = uncapped) AND pulled in the research_only
-# replicas on non-research turns -> a trivial prompt cold-loaded 11 models at
-# once -> ollama thundering herd -> loadavg 128 -> VM wedge (terminated twice).
-# council_max bounds the SECONDARY roster size (0 = uncapped, explicit opt-in);
-# research_only replicas now join ONLY on a web/news/deep turn. endpoint_
-# concurrency caps concurrent calls to ONE inference daemon (host:port) so a
-# wide fan-out can't cold-load N models on the same ollama simultaneously --
-# distinct from the per-LANE cap (hardware category). Override via
-# MIOS_COUNCIL_MAX / MIOS_AGENT_ENDPOINT_CONCURRENCY.
+# ── COUNCIL ROSTER WIDTH + PER-ENDPOINT CAP (runaway fix). Left
+# uncapped, the council fans EVERY non-trivial turn out to ALL live agents
+# (MIOS_COUNCIL_MAX=0); with every node research-eligible by default, a trivial
+# prompt can cold-load the whole roster at once -> an inference thundering herd
+# -> load spike -> VM wedge. council_max bounds the SECONDARY roster size
+# (0 = uncapped, explicit opt-in) so only a slice of the roster joins a turn; a
+# node's own research_only=true can still hold it for research/news/deep turns
+# (default nodes_research_only=false = eligible every turn). endpoint_concurrency
+# caps concurrent calls to ONE inference daemon (host:port) so a wide fan-out
+# can't cold-load N models on the same backend simultaneously -- distinct from
+# the per-LANE cap (hardware category). Override via MIOS_COUNCIL_MAX /
+# MIOS_AGENT_ENDPOINT_CONCURRENCY.
 council_max          = 4      # max council SECONDARIES per turn (0 = all; was uncapped)
-# SWARM/DAG width cap (operator 2026-06-01 "16-agent explosion"): the swarm/DAG
+# SWARM/DAG width cap ("16-agent explosion"): the swarm/DAG
 # fan-out had NO cap (council_max only bounds the council path). Bound the swarm
 # to at most this many DISTINCT (endpoint,model) targets AFTER de-dup. 0=uncapped.
-swarm_max_width      = 3      # operator 2026-06-12 "ALL AGENTS USE SGLANG": every agent now targets the ONE SGLang heavy lane, whose VRAM only safely runs lane_concurrency_gpu=2 concurrent 14B gens. Fanning out 8 nodes onto a 2-wide lane just QUEUES 6 of them past their deadline -> all time out (grounded_nodes=0). Size the fan-out to the REAL concurrency: 3 facets (2 run immediately + 1 short queue), each grounded, finishing inside dag_node_deadline_s. Work-steal/deepen still loops the 2-3 live nodes across extra coverage facets until the barrier, so coverage stays broad without a wide cold fan-out. Raise again only when SGLang gets more concurrency headroom (more VRAM / a 2nd engine).
-# SLOW-LANE fan-out CEILING (runaway fix 2026-06-01j): GPU/fast nodes fan out
+swarm_max_width      = 3      # "ALL AGENTS USE SGLANG": every agent now targets the ONE SGLang heavy lane, whose VRAM only safely runs lane_concurrency_gpu=2 concurrent 14B gens. Fanning out 8 nodes onto a 2-wide lane just QUEUES 6 of them past their deadline -> all time out (grounded_nodes=0). Size the fan-out to the REAL concurrency: 3 facets (2 run immediately + 1 short queue), each grounded, finishing inside dag_node_deadline_s. Work-steal/deepen still loops the 2-3 live nodes across extra coverage facets until the barrier, so coverage stays broad without a wide cold fan-out. Raise again only when SGLang gets more concurrency headroom (more VRAM / a 2nd engine).
+# SLOW-LANE fan-out CEILING (runaway fix j): GPU/fast nodes fan out
 # unbounded, but CPU/iGPU lanes are where stacked ~100s gens pile up. Cap how many
 # slow-lane nodes a DAG BACKFILLS (primary facets never dropped). Default 2 = the
 # live CPU node count (local-cpu + potato-cpu) = no-op today, but bounds a deep/
 # research turn that would otherwise multiply CPU replicas across the lanes.
 swarm_max_cpu_nodes  = 2      # max CPU/iGPU slow-lane nodes backfilled into one DAG (0 = uncapped)
-# endpoint_concurrency RAISED 2->4 (operator 2026-06-01 dGPU co-load): backstop
+# endpoint_concurrency RAISED 2->4 (dGPU co-load): backstop
 # ceiling for concurrent calls to one daemon; VRAM-aware admission (admit_* +
 # VRAM_COLOAD_*) is the real per-turn governor on the dGPU. The CPU lane stays
 # protected by its own MemoryMax + the _cap_cpu_lane_model micro-only guard.
 endpoint_concurrency = 4      # was 2; backstop, VRAM-admission governs dGPU co-load
-# VRAM-aware co-load (operator 2026-06-01): admit another concurrent model onto a
+# VRAM-aware co-load: admit another concurrent model onto a
 # dGPU endpoint only when measured free VRAM fits it + reserve. SHARED-4090 guard:
 # reserve leaves margin for the Windows host's VRAM co-tenancy (the VM can't see
 # host-side usage). Read by _admit via the MIOS_VRAM_COLOAD_* env defaults.
 vram_coload_reserve_mb = 3000   # MB left free for host co-tenancy + spikes
 vram_coload_est_mb     = 5000   # assumed cold-model VRAM until /api/ps knows its size
-# ── Admission controller (P1, operator 2026-06-01). NOW ON by default: it is the
+# ── Admission controller (P1,). NOW ON by default: it is the
 # AIOS-correct SAFETY layer + the PRECONDITION for "all nodes enabled by default"
-# (research 2026-06-01: eligibility is universal, safety lives in admission, never
+# (research eligibility is universal, safety lives in admission, never
 # by disabling nodes). Degrade-open + bounded-wait everywhere -> never deadlocks.
 # _disp_num reads these from here directly.
 admit_enable         = true   # master switch (ON: the gate for the wide all-nodes roster; was false)
 admit_load_ceil      = 56     # 1-min loadavg ceiling (cpu*2 on the 28-core dev VM); over -> backpressure
 admit_mem_pct        = 92     # mem% ceiling; over -> backpressure
 admit_max_wait       = 8.0    # max seconds a dispatch waits at the gate before admitting anyway (no deadlock)
-# ── All-nodes-enabled-by-default scheduling (operator 2026-06-01 "all nodes are
+# ── All-nodes-enabled-by-default scheduling ("all nodes are
 # enabled by default ... concurrently dispatched ... nothing idle until synthesis").
 # Made safe by admit_enable=true above + COUNCIL_MAX + per-endpoint/lane semaphores.
 nodes_research_only  = false  # [nodes.*] default research_only: FALSE = every node eligible on EVERY turn (per-node override wins)
@@ -1641,7 +1770,7 @@ nodes_research_only  = false  # [nodes.*] default research_only: FALSE = every n
 # Fast LOCAL lanes high; slow/remote/research lanes low so under host pressure they
 # wait out admit_max_wait + self-shed -> the wide roster degrades, never stampedes.
 lane_priority        = "gpu:8,cpu:7,accelerator:6,igpu:3,mobile:2,_default:5"
-# ── WS-1 priority scheduler queue (AIOS Agent Scheduler reordering, 2026-06-04).
+# ── WS-1 priority scheduler queue (AIOS Agent Scheduler reordering,).
 # When ON, the next freed GLOBAL dispatch slot goes to the HIGHEST-PRIORITY
 # waiter (turn priority via _sched_priority + lane priority above, FIFO tie-break)
 # instead of arrival order -- this makes _sched_priority/_dispatch_priority ACTIVE
@@ -1650,9 +1779,9 @@ lane_priority        = "gpu:8,cpu:7,accelerator:6,igpu:3,mobile:2,_default:5"
 # starve. DEFAULT OFF + degrade-open: a pure no-op until enabled; any error falls
 # back to the proven plain FIFO global cap. Observe /v1/scheduler.priority_gate
 # first, then flip on via an /etc drop-in. _disp_num reads these directly.
-priority_queue_enable  = true   # ON (operator 2026-06-04 'everything on' for live MiOS-DEV); degrade-open to plain FIFO on any error
+priority_queue_enable  = true   # ON ('everything on' for live MiOS-DEV); degrade-open to plain FIFO on any error
 priority_starvation_ms = 4000   # a queued dispatch older than this is served ahead of priority (anti-starvation)
-# T21 request-cancellation (2026-06-04): cancel a NON-STREAMING turn's swarm the
+# T21 request-cancellation: cancel a NON-STREAMING turn's swarm the
 # moment the client disconnects, instead of churning DAG+deepen to turn_deadline_s.
 # The streaming path already self-bounds on disconnect. Default ON; degrade-open
 # (request=None / disabled -> deadline-only, unchanged). _disp_num reads these.
@@ -1662,13 +1791,13 @@ request_cancel_poll_s  = 2.0    # disconnect-watcher poll interval (seconds)
 # a cold model a turn NEEDS -- "clear RAM/VRAM for idle agents to be loaded so
 # nothing in the pipeline is idle". ollama lanes (/api/ps + keep_alive:0); the hard
 # semaphores stay the OOM backstop. llama.cpp KV is paged separately (kv_paging_*).
-vram_reclaim_idle    = false  # DISABLED 2026-06-01: proactive evict->reload of multi-GB model files thrashed disk (~2GB/s). De-dup + swarm_max_width cut the model churn at the source; let ollama's own LRU manage residency.
-# CPU-offload of fan-out secondaries: OFF (operator 2026-06-01 "concurrent true
+vram_reclaim_idle    = false  # DISABLED proactive evict->reload of multi-GB model files thrashed disk (~2GB/s). De-dup + swarm_max_width cut the model churn at the source; let ollama's own LRU manage residency.
+# CPU-offload of fan-out secondaries: OFF ("concurrent true
 # swarm / unfired nodes"). ON funneled EVERY secondary onto the single CPU lane
 # (:11435) -> 35-conn wedge while dGPU/potato/iGPU sat idle. OFF = each distinct
 # node runs on its OWN hardware concurrently (dGPU co-loads multiple models).
 offload_cpu          = false
-# ── Tool-surface shaping (operator 2026-06-01). Per-lane tool CAP (weak lanes
+# ── Tool-surface shaping. Per-lane tool CAP (weak lanes
 # like the iGPU llama.cpp time out grammar-constraining all 71 verbs; they get a
 # capped REAL subset, never zero) + endpoints that 400 on tool_choice=required.
 lane_tool_cap        = "igpu:12,mobile:12"
@@ -1676,7 +1805,7 @@ default_tool_cap     = 16
 no_tool_choice_hints = "11436"               # host:port substrings whose llama.cpp rejects tool_choice=required
 parallel_tools_hints = "11441"               # host:port substrings whose model reliably emits PARALLEL tool calls -> OpenAI-default parallel_tool_calls=True (capable heavy lane); everything else stays sequential (small models malform parallel calls). MIOS_PARALLEL_TOOLS_HINTS overrides.
 worker_mcp_tools     = true                  # surface external MCP client tools to fan-out workers
-# ── KV-cache paging (AIOS context-manager prototype, operator 2026-06-01 "VRAM
+# ── KV-cache paging (AIOS context-manager prototype, "VRAM
 # can compress or write to disk ... clean state when agents/models load/unload").
 # On a llama.cpp endpoint (launched with --slot-save-path) the agent-pipe
 # demand-pages each conversation's KV to/from DISK: page OUT the resident conv
@@ -1788,7 +1917,7 @@ trace_enable          = true   # 0/false disables span recording (near-zero cost
 trace_max_traces      = 256    # LRU cap on retained traces in the buffer
 trace_max_spans_per_trace = 128  # cap on stored spans per trace (further spans counted, not stored)
 # ── Concurrency / timeouts / per-lane trimming (agent-pipe env knobs; code
-# defaults shown, same ${MIOS_*:-default} pattern). Operator 2026-05-24: "iGPU
+# defaults shown, same ${MIOS_*:-default} pattern). "iGPU
 # fires WITH CPU ... any engine/node" + "add per-lane context trimming".
 #   MIOS_AGENT_LANE_CONCURRENCY        = 3   -- concurrent agents PER LANE. Each
 #       compute lane/engine/node (dGPU, CPU, iGPU, accelerator, each remote node)
@@ -1804,7 +1933,7 @@ trace_max_spans_per_trace = 128  # cap on stored spans per trace (further spans 
 #       TRIMMED system prefix (slow prefill); gpu + cpu keep the full context.
 #   MIOS_SLOW_LANE_BLOCK_CHARS = 1500 -- per-block cap for a slow lane, so the
 #       ~7K web-research context doesn't blow its prefill (the gist survives).
-#   MIOS_NODE_LIVENESS_TTL_S  = 45  -- OUTAGE resilience (operator 2026-05-25
+# MIOS_NODE_LIVENESS_TTL_S = 45 -- OUTAGE resilience (
 #       "iGPU is down"): TTL of the cached node-liveness probe. A health_gate
 #       client/Tailscale node (the iGPU :11436, a phone) that is DOWN is pruned
 #       from the swarm roster so the planner never assigns it a facet + any DAG
@@ -1816,7 +1945,7 @@ trace_max_spans_per_trace = 128  # cap on stored spans per trace (further spans 
 #   MIOS_NODE_LIVENESS_CONNECT_S = 1.5 -- connect timeout of that liveness probe.
 
 # ── CLOSED-LOOP + ACTION-VERIFY bounds (agent-pipe env knobs; code defaults shown,
-# same ${MIOS_*:-default} pattern). Operator 2026-06-16 "loop anything not
+# same ${MIOS_*:-default} pattern). "loop anything not
 # successful or fully fulfilled". All bounded + verdict-driven + degrade-open so a
 # robust turn never spins; they only re-engage on a CONFIRMED failure signal.
 #   MIOS_SECONDARY_REPLAN_MAX  = 1   -- supervisory re-engages in BOTH shared
@@ -1839,10 +1968,10 @@ trace_max_spans_per_trace = 128  # cap on stored spans per trace (further spans 
 #   MIOS_LAST_WINDOW_CAP  = 256 -- bound on the per-CONVERSATION last-opened-window
 #       map that lets a standalone "type X into it" focus the right window first.
 
-# ── WEB-RESEARCH loop bounds (SSOT'd 2026-05-31). The pipeline's per-facet
+# ── WEB-RESEARCH loop bounds (SSOT'd). The pipeline's per-facet
 # web-research loop (search -> fetch/extract -> judge -> re-search) is the
 # dominant research-turn LATENCY driver. MODERATE-cut values (operator
-# 2026-05-31 live test: research turns exceeded 5.5min): fewer judge-gated
+# live test: research turns exceeded 5.5min): fewer judge-gated
 # attempts + drill passes, and a much shorter crawl-fallback timeout (the deep
 # crawl is a fallback now that the miosfetch extract works). agent-pipe reads
 # these via _toml_section("web_research"); runtime override MIOS_WEB_RESEARCH_*.
@@ -1852,8 +1981,24 @@ trace_max_spans_per_trace = 128  # cap on stored spans per trace (further spans 
 max_attempts    = 3    # judge-gated re-search attempts (was 5)
 passes          = 3    # search->judge->re-search drill passes (was 4)
 crawl_timeout_s = 18   # deep crawl4ai/Camoufox fallback per-page cap, seconds (was 45)
+recency_range   = "month"  # SearXNG time_range applied to a model-classified time-sensitive turn (refine.news/needs_recency) when no explicit override; the broad degrade-open default that replaced the deleted English temporal-word gate. day|week|month|year
+# ── 2-hop article-link "real-headline" scorer (mios_web_research._rank_links). ──
+# From an INDEX page the drill harvests outbound links + ranks the most ARTICLE-LIKE
+# by URL STRUCTURE ONLY -- NO hardcoded domain/keyword/topic list. The keys below are
+# that ranker's weights / length thresholds / drop cutoff / top-N; their values EQUAL
+# the in-code degrade-open defaults, so deleting this block leaves ranking byte-
+# identical. Read via _toml_section("web_research"); each key falls back independently.
+link_rank_mode = "heuristic"  # "heuristic" = structural ranker (default); "embed" = opt-in embedding-cosine, degrades OPEN to "heuristic" until an embeddings client is wired
+seg_base       = 1    # score per path segment (path depth = article-ness signal)
+slug_weight    = 2    # bonus: last path segment is a long hyphenated headline slug
+slug_min_len   = 12   # min last-segment length to count as a headline slug
+digit_weight   = 1    # bonus: path carries a digit (a date / article id)
+anchor_weight  = 2    # bonus: anchor text is long (a real headline)
+anchor_min_len = 25   # min anchor-text length to count as a real headline
+min_score      = 2    # drop shallow generic / utility links scoring below this
+top_n          = 6    # keep at most this many ranked article links
 
-# ── Knowledge / tiered semantic memory (P2, operator 2026-06-01) ──────────────
+# ── Knowledge / tiered semantic memory (P2,) ──────────────
 # The agent-pipe persists every finished Q+A to the SurrealDB `knowledge` table
 # + recalls by embedding cosine. P2 added tiering: recall blends cosine with
 # outcome (was the prior turn satisfied), tier (hot/warm/cold), and access
@@ -1865,20 +2010,20 @@ recall_pref_min_score = 0.50 # lower recall floor for SELF-REFERENTIAL asks (a p
 rank_outcome        = 0.05   # weight: + if the recalled answer's turn was satisfied, - if unsatisfied
 rank_hot            = 0.03   # weight: + if the row is tier=hot (frequently paged in)
 rank_access         = 0.02   # weight: * log1p(access_count)
-rank_age            = 0.3    # RECENCY-DECAY SWING (operator 2026-06-22 "weigh date/time appropriately in an AIOS env"). Bounded MULTIPLIER on the blended score: (1-rank_age) + rank_age*0.5**(age_days/recall_halflife_days). 0.3 -> floor 0.7 (a fully-stale row keeps 70% of its score; freshest ~1.43x edge) per research (Generative-Agents/LangChain-TimeWeighted/Elasticsearch). 0 = inert (cosine-only). Cosine stays dominant; recency only breaks near-ties.
+rank_age            = 0.3    # RECENCY-DECAY SWING ("weigh date/time appropriately in an AIOS env"). Bounded MULTIPLIER on the blended score: (1-rank_age) + rank_age*0.5**(age_days/recall_halflife_days). 0.3 -> floor 0.7 (a fully-stale row keeps 70% of its score; freshest ~1.43x edge) per research (Generative-Agents/LangChain-TimeWeighted/Elasticsearch). 0 = inert (cosine-only). Cosine stays dominant; recency only breaks near-ties.
 recall_halflife_days = 7.0   # recency half-life: at this row age the decay has removed HALF the rank_age swing. Lower = fresher-biased. age from last_access (refreshed on recall), fallback ts.
 hot_threshold       = 5      # access_count at which a recalled row is promoted to tier=hot
 store_skip_volatile = true   # anti-stale-recall: skip durable STORE *and* RECALL injection for model-classified VOLATILE turns (refine local_state/news/needs_location -- live system-state, current-events, location-bound). Such a turn is a point-in-time snapshot (cwd, windows, weather, latest-news) that poisons recall if cached; it is re-derived LIVE every turn. Model-classified, NOT a keyword check. false = legacy (cache/recall everything).
-# ── WS-3 eviction (P2.1, 2026-06-04). The knowledge table appends one row per
+# ── WS-3 eviction (P2.1,). The knowledge table appends one row per
 # finished turn -> unbounded. This bounded K-LRU + TTL sweep removes only STALE,
 # never-recalled, neutral-outcome rows; it NEVER deletes a hot / satisfied /
 # pinned row (mios-remember facts live in a SEPARATE store and are untouched).
-# ON by default (operator 2026-06-04 'everything on' for live MiOS-DEV). The
+# ON by default ('everything on' for live MiOS-DEV). The
 # sweep DELETES only stale (>ttl) never-recalled neutral rows -- effectively a
 # no-op on a recent table until rows age past evict_ttl_days. To observe instead
 # of delete, set evict_enable=false + evict_dryrun=true (log-only). BACK UP the
 # knowledge table if it holds valuable rows older than evict_ttl_days.
-evict_enable        = true   # ON (operator 2026-06-04 'everything on'); DELETES only >ttl never-recalled neutral rows (hot/satisfied/pinned always kept, batch-capped)
+evict_enable        = true   # ON ('everything on'); DELETES only >ttl never-recalled neutral rows (hot/satisfied/pinned always kept, batch-capped)
 evict_dryrun        = false  # inert when evict_enable=true; set true WITH evict_enable=false for log-only observation
 evict_interval_s    = 3600   # seconds between sweeps
 evict_ttl_days      = 90     # evict evictable rows not accessed within this many days
@@ -1886,7 +2031,7 @@ evict_max_rows      = 50000  # hard row cap; overflow (lowest-value first) is ev
 evict_min_access    = 1      # only evict rows recalled FEWER than this many times (1 = never recalled)
 evict_batch         = 500    # max rows removed per sweep (blast-radius bound)
 
-# ── WS-6 runtime HITL approval gate (2026-06-04). 'enable' on by default; 'mode'
+# ── WS-6 runtime HITL approval gate. 'enable' on by default; 'mode'
 # = 'log' (NON-BLOCKING: record + emit a hitl_request event then proceed -- the
 # autonomous swarm never deadlocks) or 'gate' (BLOCKING: a scoped verb is refused
 # until approved via POST /v1/hitl/approve, then the agent retry passes). 'verbs'
@@ -1896,14 +2041,14 @@ enable = true
 mode   = "log"     # log = non-blocking + observable (default); gate = block-until-approved
 verbs  = ""        # CSV override of gated verbs; blank = _HIGH_PRIVILEGE_VERBS
 
-# ── WS-6 replayable DAG run-templates (2026-06-04). Capture every planned DAG to
+# ── WS-6 replayable DAG run-templates. Capture every planned DAG to
 # the run_template table (GET /v1/run-templates) keyed by a structural class hash
 # -- the determinism foundation. Replay-reuse is a follow-up; capture is additive
 # + fire-and-forget so it can never affect a live run.
 [run_template]
 enable = true
 
-# ── WS-5 Agent-Computer Interface output normalizer (2026-06-04). Head-TAIL
+# ── WS-5 Agent-Computer Interface output normalizer. Head-TAIL
 # truncation of tool/terminal results (keep the start + the end, elide the
 # middle with an anti-fabrication marker) so the tail's error/exit/result
 # survives. Read directly by the agent-pipe (_cap_verb_result).
@@ -1911,7 +2056,23 @@ enable = true
 max_lines = 160    # cap lines per tool result (head+tail kept, middle elided); 0 = no line cap
 head_frac = 0.6    # fraction of the char/line budget kept as head; the rest is tail
 
-# ── WS-2 Code Mode (2026-06-04). The agent writes CODE that calls a local tool
+# Anti-fabrication output figure-guard (mios_verity._strip_ungrounded_figures).
+# The guard splits an answer line into sentences so it can drop ONLY the sentence
+# that carries an ungrounded $-price / N%-percent figure. The splitter is
+# script-neutral (it breaks on unicode sentence terminators too -- 。！？ -- so a
+# CJK answer gets per-sentence granularity instead of all-or-nothing); the one
+# language-specific input is this list of ABBREVIATIONS whose trailing period must
+# NOT be read as a sentence end (else the grounded "$X USD)" conversion fragment
+# after "approx." / "U.S." gets split off and wrongly dropped). Sourced here so the
+# guard carries NO baked word list in code. Extend per locale. Read by the
+# agent-pipe via _toml_section("verity").
+[verity]
+sentence_abbreviations = [
+    "approx.", "Approx.", "e.g.", "i.e.", "vs.", "etc.", "U.S.", "U.K.",
+    "a.m.", "p.m.", "No.", "Inc.", "Co.", "Ltd.", "St.", "Mt.",
+]
+
+# ── WS-2 Code Mode. The agent writes CODE that calls a local tool
 # API inside the rootless podman coderun-sandbox instead of loading ~71 function
 # schemas into context (the AIOS Tool-Manager token win). DEFAULT-OFF + degrade-
 # CLOSED: code execution only runs when enable=true AND the sandbox is present.
@@ -1928,7 +2089,7 @@ gid              = 828
 [refine]
 # Phase D.5 quick-refine pass settings. ALWAYS runs before any
 # delegation. INPUT prompt-enhancement half of the "polish mechanism".
-# Operator 2026-05-22 consolidation: refine + polish + plan all share
+# consolidation: refine + polish + plan all share
 # the ONE light MiOS brain (mios-agent, FROM qwen3.5:4b) instead of a
 # bare base model -- so prompt-enhancement carries the MiOS operating
 # principles + ENGLISH-default language, and the model count stays
@@ -1953,6 +2114,29 @@ max_tokens       = 1200
 # (greetings, single-word commands), skip refine and emit a
 # minimal plan inline. Pure-bash latency on the fast path.
 bypass_chars     = 24
+# Intent-routing length/word cutoffs. These feed BOTH the post-classification
+# promotion guards AND the matching char cues embedded in the refine prompt --
+# the same number renders the cue and gates the decision, so they cannot drift.
+#   chat_chars      -- prompt cue only: chat is for very short conversational input.
+#   dispatch_chars  -- prompt cue only: dispatch is for short verb invocations.
+#   promote_chars   -- a chat/dispatch classification on a longer input is promoted
+#                      to `agent` (the worker/planner decomposes it); also a prompt cue.
+#   dispatch_arg_max_words -- a dispatch arg with more whitespace-tokens than this is
+#                      treated as a semantic phrase (not a concrete target) -> agent.
+chat_chars             = 40
+dispatch_chars         = 60
+promote_chars          = 100
+dispatch_arg_max_words = 3
+
+[planner]
+# Phase A.1 DAG-decomposition planner. Short-prompt skip: a prompt under BOTH
+# cutoffs (and not an action-domain command) almost always maps to a SINGLE
+# dispatch verb, not a multi-step DAG, so the planner is skipped and the chain
+# falls through to the single-dispatch path. Other planner tunables
+# (enabled/model/endpoint/timeout/max_tokens/max_nodes) ride the
+# MIOS_AGENT_PIPE_PLANNER_* env surface.
+short_prompt_chars = 60   # below this char count, skip the planner
+short_prompt_words = 10   # ...AND at or below this whitespace-token count
 
 [polish]
 # Phase D.5 polish pass settings. Runs ONCE on the final answer before
@@ -1960,7 +2144,7 @@ bypass_chars     = 24
 # mechanism": removes leakage, matches intended_outcome format, applies
 # the operator PERSONA + the ENGLISH-default language anchor (operator's
 # original message). Skipped for dispatch / chat / DAG fast paths (those
-# produce final-shape content already). Operator 2026-05-22: shares the
+# produce final-shape content already). shares the
 # ONE light MiOS brain (mios-agent, FROM qwen3.5:4b) with refine + plan
 # on the dGPU lane -- the final answer is shaped by the MiOS brain, not a
 # bare base model.
@@ -2068,6 +2252,22 @@ escalation_cooldown_s   = 1800
 # logs (no infinite retry loop). After this many attempts within the cooldown
 # cadence the concern is parked.
 escalation_max_attempts = 3
+# Launch-claim detector mode for the launch verifier. The daemon scans recent
+# assistant messages for a CLAIM that it launched/opened/started an app or
+# installer (something to then verify on screen). "model" = the micro-LLM
+# classifies each assistant message and resolves the claimed target generically
+# (no keyword/app-name list); degrade-open when the lane is unreachable means
+# that turn's claim check is simply skipped (never fabricate a claim). "off" =
+# disable launch-claim verification entirely.
+launch_claim_detect     = "model"
+# Refusal/fabrication detection mode for the daemon's nudger. The daemon judges
+# whether a hermes-agent response is a REFUSAL / HEDGE / FABRICATION instead of
+# doing the user's work. "model" = the micro-LLM judges EVERY response (no
+# English refusal-phrase pre-filter decides whether to even check -- the judge
+# is authoritative); degrade-open when the judge lane is unreachable means that
+# turn's check is simply skipped (never fall back to a keyword list, never
+# fabricate a refusal verdict). "off" = disable refusal detection entirely.
+refusal_detect          = "model"
 
 # ----------------------------------------------------------------------------
 # [budget] -- token / in-flight budget ceilings (Wave 0). PURE-PYTHON-READ by
@@ -2111,6 +2311,27 @@ autonomous_priority = "low"
 # to a peer that dispatches again). 2 = primary -> sub-agent -> one more hop,
 # then no further nesting. Bounds runaway delegation fan-out.
 max_dispatch_depth  = 2
+
+# ----------------------------------------------------------------------------
+# [daemon.post_check] -- per-verb visible-outcome verification map.
+# The daemon's turn-satisfaction backstop AND-folds tool_call.success with a
+# per-verb "did the OS-side effect actually land" check (a broker can return
+# exit 0 after its sandbox died with the window never shown). This table is
+# SSOT for WHICH check applies to WHICH dispatched tool name; the check
+# IMPLEMENTATIONS live in mios-daemon, keyed by the signal name declared here.
+# An unlisted tool falls back to bare tool_call.success (no post-check).
+# Add a verb here (mapped to one of the implemented signals: window_visible /
+# file_exists / file_nonempty / flatpak_installed) to extend coverage without
+# touching code. Alias tool names that should share a verb's check are listed
+# explicitly (the recorded tool name, not the canonical verb).
+[daemon.post_check]
+open_app         = "window_visible"
+open_url         = "window_visible"
+focus_window     = "window_visible"
+launch_app       = "window_visible"
+text_create      = "file_exists"
+text_str_replace = "file_nonempty"
+flatpak_install  = "flatpak_installed"
 
 # ----------------------------------------------------------------------------
 # [daemon.index] -- directory-map indexer in mios-daemon.
@@ -2207,7 +2428,7 @@ focus_after_launch  = true       # raise + foreground a window after a successfu
 # one category (mios-launch section-7 inventory fallback). SSOT for the launcher's
 # category ranking (formerly hardcoded in code; now tunable per the code's own TODO).
 # Default = Linux-native-first (the historical, proven-stable order).
-# NOTE (operator 2026-06-07): a Windows-host operator wants "open notepad" -> Windows
+# NOTE: a Windows-host operator wants "open notepad" -> Windows
 # Notepad, which means moving the windows-* entries up. BUT do it carefully + verify
 # VISUALLY: the "windows-app" (Microsoft Store / AppX) inventory entries can be flaky
 # AutoGenerated GUIDs whose interop `Start-Process` HANGS. Prefer putting "windows-gui"
@@ -2218,7 +2439,7 @@ focus_after_launch  = true       # raise + foreground a window after a successfu
 launch_category_priority = ["linux-flatpak", "linux-rpm-gui", "linux-cli", "windows-app", "windows-gui"]
 
 # Interactive-desktop OS-control executor for THIS host's own windows
-# (operator 2026-05-26). When set, mios-pc-control routes window enumeration +
+#. When set, mios-pc-control routes window enumeration +
 # ops (list / close / focus / move / resize) to this URL instead of the
 # WSL-interop PowerShell path -- because PowerShell spawned through WSL interop
 # from a user-systemd service is NOT on WinSta0\Default, so EnumWindows is BLIND
@@ -2231,7 +2452,7 @@ launch_category_priority = ["linux-flatpak", "linux-rpm-gui", "linux-cli", "wind
 executor_endpoint   = ""         # e.g. in /etc/mios: "http://100.x.y.z:11437"
 
 # ─── OS-control NODES (4B: launch + verify on a SEPARATE machine's desktop) ──
-# operator 2026-05-25 "iGPU SHOULD FIRE MIOS OS CONTROL COMMANDS ... across all
+# "iGPU SHOULD FIRE MIOS OS CONTROL COMMANDS... across all
 # nodes". `launch_verified app=X node=<name>` makes the mios-daemon-agent fire
 # the launch to that node's mios-oscontrol-server (the Windows HttpListener
 # executor in usr/share/mios/windows/mios-oscontrol-server.ps1), which launches
@@ -2286,7 +2507,7 @@ bind_address       = "127.0.0.1" # "" disables the server; set the tailnet IP fo
 # exits 0 (degrade-open). NO new daemon/quadlet -- the binaries run synchronously
 # through the operator broker like the other libexec tools. Needs LibreOffice +
 # Pandoc in the image ([packages.docgen]); a missing binary also degrades-open.
-docgen_enable      = true        # MASTER GATE for mios-docgen (operator 2026-06-04: pandoc+libreoffice installed + verified live; everything-on)
+docgen_enable      = true        # MASTER GATE for mios-docgen (pandoc+libreoffice installed + verified live; everything-on)
 docgen_pandoc      = "pandoc"    # pandoc binary or absolute path (markdown <-> docx/pptx/html/pdf)
 docgen_soffice     = "soffice"   # LibreOffice headless binary or path (office-binary + csv->xlsx + pdf)
 docgen_pdf_engine  = ""           # pandoc --pdf-engine; empty => route PDF through LibreOffice (no LaTeX needed)
@@ -2325,7 +2546,7 @@ min_trust    = 0.0  # reject peer rumors below this reputation score (0 = accept
 [a2a]
 nodes = []          # e.g. in /etc/mios: nodes = ["http://172.20.0.5:8640", "http://192.168.1.40:8640"]
 discover_cidr = ""  # e.g. "192.168.1.0/24" -> auto-sweep a LAN segment (bounded to 256 hosts)
-# SWARM Phase-4 (operator 2026-06-12): opt discovered A2A peers INTO the concurrent
+# SWARM Phase-4: opt discovered A2A peers INTO the concurrent
 # swarm fan-out so remote MiOS nodes do individual subtasks in parallel. Default
 # false = peers stay explicit-delegation-only (no self-loop overhead). self_id is
 # the local pipe's own peer id, ALWAYS excluded from fan-out so it never calls itself.
@@ -2334,7 +2555,7 @@ self_id = "local-mios"
 
 # ─── Section: Window / app launch ─────────────────────────────────────
 # ============================================================================
-# [routing] -- 2-stage domain router (operator 2026-06-07: fix 82-tool mis-routing
+# [routing] -- 2-stage domain router (fix 82-tool mis-routing
 # WITHOUT english prose rules; per OpenAI/llama.cpp research). Stage-1 classifies
 # the query into ONE domain via a constrained enum (response_format json_schema,
 # thinking-OFF -- llama.cpp #20345); Stage-2 shows the planner ONLY that domain's
@@ -2358,7 +2579,7 @@ launch_filler_phrases = [
 
 # Leading determiners/possessives dropped from a deterministic launch target so
 # "open the calculator" -> name="calculator", "open my settings" -> name="settings"
-# (operator 2026-06-07 e2e: "Open the Windows Calculator app on my desktop." fell
+# (e2e: "Open the Windows Calculator app on my desktop." fell
 # to the LLM router, which then chose hermes's built-in `terminal` tool -> exit
 # 126, instead of open_app). SSOT (no hardcoded English in code); single words,
 # stripped from the START while the leading word matches.
@@ -2370,7 +2591,7 @@ launch_target_lead_phrases = ["the", "a", "an", "my"]
 # "whatsapp" is never truncated). Add nouns your phrasings pick up.
 launch_target_trail_phrases = ["application", "program", "app", "window"]
 
-# Deterministic PRE-ROUTE trigger phrases (operator 2026-06-12 "NO hardcodes!!!"):
+# Deterministic PRE-ROUTE trigger phrases ("NO hardcodes!!!"):
 # these externalise the remember + web_search refine pre-router keywords that were
 # hardcoded English literals in code (server.py refine post-processing). SSOT data,
 # same pattern as the launch pre-router above. FAIL-SAFE: empty list -> that
@@ -2383,24 +2604,35 @@ web_search_trigger_phrases = ["search", "look up", "google", "find", "search the
 web_search_trigger_contexts = ["web", "internet", "online"]
 # location_sensitive: a web research query carrying one of these phrases needs the
 # user's REAL resolved location spliced into the SEARCH STRING, else the engine
-# returns generic/foreign hits the model passes off as local (operator 2026-06-22:
+# returns generic/foreign hits the model passes off as local (
 # Cobourg weather/local-news grounded to New York sources). This is the SSOT FALLBACK
 # behind the model-classified `needs_location` flag (refine) -- both feed the splice;
 # edit here, never hardcode in code. Empty = rely on the model flag alone.
 location_sensitive_phrases = ["weather", "forecast", "near me", "nearby", "near here", "around here", "local news", "local", "my area", "things to do", "restaurants", "closest", "directions to"]
 # browser_action: a URL + a READ/browse verb -> force the CDP browse path (real DOM)
-# over the launch-only open_url fast-path. SSOT (operator 2026-06-16 "NOTHING
+# over the launch-only open_url fast-path. SSOT ("NOTHING
 # HARDCODED"): was a hardcoded regex in refine. EMPTY this list -> the force is skipped
 # and the model's own browser_action decision stands (degrade-open, fully generative).
 browser_action_verbs = ["quote", "read", "tell", "summarise", "summarize", "what is", "what does", "what say", "what says", "first sentence", "the content", "browse", "extract", "scrape", "headline", "article", "say"]
 # compound-launch fast-lane vocab ("open X and type Y"): conjunctions joining the launch
-# to a follow-up action, and the action verbs. SSOT (operator 2026-06-16 "NOTHING
+# to a follow-up action, and the action verbs. SSOT ("NOTHING
 # HARDCODED"). EMPTY either list -> the deterministic compound fast-lane declines and the
 # LLM planner decomposes the compound (degrade-open; the planner is the authority).
 compound_conjunctions = ["and", "then"]
 compound_actions = ["type", "write", "enter", "input", "paste", "put"]
 
-# Launch FOLLOW-UP / RETRY phrases (operator 2026-06-14, BUG B/C: the `mios`/`@`
+# Conversational-bypass classifier for mios-delegation-prefilter: decides which
+# user turns are PURE chat (greeting / ack / smalltalk, no task surface) and must
+# SKIP the forced delegate_task tool_choice -- forcing it there yields a zero-token
+# reply. "model" = the micro-LLM ([ai].micro_model / micro_endpoint) classifies
+# chat-vs-act each turn (no English greeting list, no length cutoff); any other
+# value disables the classifier. Degrade-open: when the micro lane is unreachable
+# the prefilter force-delegates (the safe majority behaviour), never guessing chat
+# from keywords. prefilter_classify_timeout_s bounds that sub-second micro call.
+prefilter_conversational_bypass_mode = "model"
+prefilter_classify_timeout_s = 6
+
+# Launch FOLLOW-UP / RETRY phrases (BUG B/C: the `mios`/`@`
 # CLI deterministic launch route only matched the INITIAL "open/launch X"; a
 # follow-up like "epiphany didn't launch for me" or "attempt to launch and
 # verify" fell through to free-form Hermes which NARRATED advice + asked
@@ -2699,7 +2931,7 @@ permission = "read"
 cmd        = "mios-pc-control window-list --json"
 # Fit a busy desktop's whole window list (the grounding for "what's open"). The
 # old 1500-char default cut it mid-window so the model FABRICATED the omitted
-# windows' PIDs/titles (operator 2026-05-31). _cap_verb_result still flags any
+# windows' PIDs/titles. _cap_verb_result still flags any
 # overflow with a ⟪TRUNCATED⟫ marker the model must not invent past.
 max_result_chars = 6000
 
@@ -2772,7 +3004,7 @@ permission = "read"
 cmd        = "mios-apps --json{filter?--filter}"
 # The full inventory (apps + games across every surface) is ~27KB; the default
 # 1500-char enrich cap truncated it BEFORE the windows-game section, so "list
-# ALL my games" surfaced only 2 of 11 (operator 2026-05-27). Keep the whole
+# ALL my games" surfaced only 2 of 11. Keep the whole
 # inventory so every game/app reaches the agent.
 max_result_chars = 30000
   [verbs.mios_apps.params.filter]
@@ -2889,7 +3121,7 @@ cmd        = "mios-web-search -n {limit=5} --fanout {fanout=$MIOS_WEB_FANOUT:2}{
   type    = "integer"
   default = 3
   aliases = ["expand", "queries", "k"]
-  # Recency / category levers (operator 2026-06-12 "research trending" gap): the binary
+  # Recency / category levers ("research trending" gap): the binary
   # already supports SearXNG --time-range + --category; exposing them as OPTIONAL nullable
   # params lets the MODEL request fresh/news results for time-sensitive asks. {arg?FLAG}
   # emits nothing when null -> default = today's untimed general search (zero regression).
@@ -2939,7 +3171,7 @@ cmd        = "mios-crawl --json --max-chars {limit=20000} {url}"
   type    = "integer"
   default = 20000
   aliases = ["max_chars", "chars", "n"]
-# crawl engine (operator 2026-05-24: the unclecode/crawl4ai CONTAINER was
+# crawl engine (the unclecode/crawl4ai CONTAINER was
 # SCRAPPED -- a ~2GB image bundling its own Chromium. The crawl engine now
 # runs as a slim venv FastAPI service, mios-crawl4ai.service, exposed to all
 # agents as the `crawl` broker verb). Flow:
@@ -2966,7 +3198,7 @@ cmd        = "mios-crawl --json --max-chars {limit=20000} {url}"
 #                                       CDP path triggers the Camoufox retry
 #   MIOS_CRAWL_BIND          = 127.0.0.1 -- service bind (LOOPBACK only; the
 #                                       crawl engine is never LAN-exposed)
-# Web fan-out + load tunables (operator 2026-05-22: "shoot off more web
+# Web fan-out + load tunables ("shoot off more web
 # queries concurrently ... SearXNG setup to handle the load"). web_search
 # expands one query into `fanout` diverse sub-queries via a WARM expansion
 # model, queries the LOCAL SearXNG CONCURRENTLY, and merges with Reciprocal Rank
@@ -2977,19 +3209,19 @@ cmd        = "mios-crawl --json --max-chars {limit=20000} {url}"
 # MIOS_WEB_CONCURRENCY * MIOS_WEB_FANOUT concurrent /search requests:
 #   MIOS_WEB_FANOUT            = 2    -- sub-queries per web_search call (was 3:
 #                                       a bigger burst rate-limited the free
-#                                       engines -> junk fallbacks, 2026-05-23)
+# engines -> junk fallbacks,)
 #   MIOS_WEB_FANOUT_WORKERS    = 4    -- concurrent sub-queries within one call
 #   MIOS_WEB_CONCURRENCY       = 3    -- concurrent web_search calls (all agents)
 #   MIOS_WEB_DISPATCH_JITTER_S = 0.15 -- pre-acquire stagger (s) for simul starts
 #   MIOS_WEB_RRF_K             = 60   -- Reciprocal Rank Fusion constant
 #   MIOS_WEB_EXPAND_MODEL      = qwen3:1.7b              -- the query-expansion
 #   MIOS_WEB_EXPAND_ENDPOINT   = http://localhost:11435    model + endpoint.
-#     Operator 2026-05-24: the old micro (qwen3:0.6b-cpu @ :11434) was loaded
+# the old micro (qwen3:0.6b-cpu @ :11434) was loaded
 #     NOWHERE -- cold -- so expansion blew its 6 s budget and SILENTLY fell back
 #     to ONE query (fan-out dead, "no multiple passes/queries"). Default now to
 #     the model the mios-daemon pins ALWAYS-WARM on the CPU lane (qwen3:1.7b @
 #     :11435, keep_alive=-1): sub-second, never cold-fails, more capable.
-# PIPELINE-SIDE WEB-RESEARCH LOOP (operator 2026-05-24 "the MiOS pipeline ITSELF
+# PIPELINE-SIDE WEB-RESEARCH LOOP ("the MiOS pipeline ITSELF
 # loops for web use and web tools" + "multi loops for all web tools" + "use
 # searxng too" + "no use from any agent"): for a web-needing turn agent-pipe runs
 # the chain ITSELF -- SearXNG web_search (fan-out -> multiple queries) THEN
@@ -3006,7 +3238,7 @@ cmd        = "mios-crawl --json --max-chars {limit=20000} {url}"
 #       protected page) to mios-crawl (crawl4ai+CDP / Camoufox, the web-tools
 #       pod) so the DEEP web tool fires too, not just search+extract.
 #       MIOS_WEB_RESEARCH_MIN_CHARS (300) = thin threshold; _CRAWL_TIMEOUT_S (25).
-# Knowledge storage (operator 2026-05-23: "...present to user as final answer
+# Knowledge storage ("...present to user as final answer
 # and STORE all gained knowledge in all relevant global databases"). agent-pipe
 # persists each finished Q+A -- with the turn's derived sources (verbs invoked +
 # URLs touched) -- to SurrealDB fire-and-forget AFTER polish, so a write never
@@ -3021,7 +3253,7 @@ cmd        = "mios-crawl --json --max-chars {limit=20000} {url}"
 #   MIOS_KNOWLEDGE_RECALL_K          = 3    -- max prior answers injected
 #   MIOS_KNOWLEDGE_RECALL_CANDIDATES = 60   -- recent rows scored per query
 #   MIOS_KNOWLEDGE_RECALL_MIN_SCORE  = 0.62 -- cosine floor to inject a hit
-# Dispatch dedup (operator 2026-05-23: "dont fire amongst the swarm multiple
+# Dispatch dedup ("dont fire amongst the swarm multiple
 # times"). agent-pipe collapses CONCURRENT identical (verb, resolved-args)
 # dispatches within ONE conversation into a single launcher-broker execution
 # and shares the result -- the agentic-OS single-flight / idempotency pattern,
@@ -3115,7 +3347,7 @@ permission = "write"
   enum = ["left", "right", "middle"]
   default = "left"
 
-# UIA semantic targeting (operator 2026-06-15): find/click a Windows control BY NAME
+# UIA semantic targeting: find/click a Windows control BY NAME
 # via UI Automation (mios-oscontrol-server /ui/find + /ui/click) instead of pixels --
 # the #1 Windows GUI gap (Linux had AT-SPI; Windows was coordinate-only). Routed via
 # mios-pc-control ui-find/ui-click to the in-session executor (foreground-window-scoped).
@@ -3392,7 +3624,7 @@ permission = "write"
 # ─── Section: Package management ──────────────────────────────────────
 # Unified verb: dispatcher routes by (action, backend) to the underlying
 # winget / flatpak shim. Backend "auto" picks winget for Windows-installed
-# targets, flatpak for Linux GUI apps. Operator binding 2026-05-19:
+# targets, flatpak for Linux GUI apps. Operator binding
 # "compact, minimal, efficient -- consolidate redundant".
 [verbs.pkg]
 section    = "Package management"
@@ -3400,7 +3632,7 @@ sig        = "action, id?, query?, backend=\"auto\"?, limit=10?, scope?"
 desc       = "INSTALL / SEARCH / SHOW / UPGRADE / UNINSTALL / LIST software packages BY ID across winget (Windows), flatpak (Linux), or dnf. action=search|show|install|upgrade|uninstall|list|preflight; backend=auto picks the OS. This MANAGES packages; for the question 'what apps/games are installed' use list_installed_apps (the inventory). 'list' here = installed PACKAGES, not the app catalog."
 model_name = "manage_packages"
 examples   = ["install firefox with winget", "search flatpak for a video editor", "update all my packages", "uninstall the discord package", "is the chrome package available to install"]
-# tier=common (operator 2026-06-11, P0): a write/install op, less frequent than the
+# tier=common (P0): a write/install op, less frequent than the
 # mios_apps read inventory. Kept OUT of the always-visible stable core so it no longer
 # sits beside mios_apps and makes the 8B flip-flop on "what apps do I have"; it surfaces
 # via the per-turn cosine TAIL when a query is actually package-y (install/search pkg).
@@ -3711,7 +3943,7 @@ max_result_chars = 6000   # fit the default 20-process list whole (1500 cut it m
 # disk-usage is NOT a verb -- it's a [recipes.disk-usage] recipe (the
 # df/du command lives in the recipe SSOT below, not hardcoded in
 # agent-pipe's dispatch). Run it via os_recipe(name="disk-usage").
-# Operator binding 2026-05-21: "NO hardcodes ... should all be native
+# Operator binding "NO hardcodes... should all be native
 # OpenAI tools/skills/recipes ... unless baked in the modelfile or docs".
 
 [verbs.container_status]
@@ -3864,7 +4096,7 @@ sig        = "code, lang=bash?, net?, timeout=60?"
 desc       = "Run a SHORT one-off code snippet / command in an isolated sandbox (bubblewrap: read-only system, writable scratch only, NO network by default, resource caps + timeout). lang: bash (default) | python. Pass net=true only if it must reach the network. Use to compute/test something safely WITHOUT touching the host -- not to orchestrate MiOS verbs (run_python_tool_script) or to run Windows PowerShell (powershell_run)."
 model_name = "run_sandboxed_code"
 examples   = ["run this bash one-liner safely", "test this python snippet in a sandbox", "compute a quick calculation without touching the host", "calculate the exact value of a math expression", "do this arithmetic / numeric / date computation precisely", "execute this shell command in isolation"]
-# COMMON tier (operator 2026-06-19, REVERTED from a brief 'core' experiment): the math
+# COMMON tier (REVERTED from a brief 'core' experiment): the math
 # path does NOT need coderun on the model's surface -- the native-loop COMPUTE PREFETCH
 # runs it PIPE-SIDE (a generative _needs_compute judge -> dispatch_mios_verb -> inject the
 # verified result), so the model gets correct math WITHOUT seeing coderun. Making it 'core'
@@ -4181,7 +4413,7 @@ cmd        = "mios-docgen convert {in_path} {out_path}"
 # [owui.system_prompt] -- MiOS-Agent (MiOS AI) system prompt.
 # Concise SYSTEM MAP + PURPOSE in `template`; operator-overridable
 # `user_section_path` for personal addenda the installer appends at
-# the bottom. Operator binding 2026-05-19: "OWUI'S MiOS-Agent's SYSTEM
+# the bottom. Operator binding "OWUI'S MiOS-Agent's SYSTEM
 # PROMPT SHOULD BE A CONCISE SYSTEM MAP/PURPOSE AND A USER DEFINED
 # SECTION TOO--VERY CONCISE AND EFFICIENT".
 #
@@ -4211,7 +4443,7 @@ user_section_path = "~/.config/mios/system-prompt-user.md"
 # and then STRIPS whatever it cannot resolve. {{USER_LOCATION}} needs HTTPS
 # + Settings>Interface>"location access"; absent it OWUI renders "None"/
 # "Unknown" -- the wording above treats those as not-provided. CRITICAL
-# (operator 2026-05-22): the browser locale ({{USER_LANGUAGE}}) is NOT the
+# the browser locale ({{USER_LANGUAGE}}) is NOT the
 # reply-language directive -- pinning replies to it while the operator wrote
 # in another language was the dual-language bug. Reply language now mirrors
 # the operator's own input only; the locale vars drive formatting/units.
@@ -4289,7 +4521,7 @@ to" / "let me know".
 #     wslpath when the chosen template is `windows` (Linux path ->
 #     Windows path so File Explorer / Notepad / etc. accept them).
 #
-# Operator binding 2026-05-18: "mios-os-control should have more OS
+# Operator binding "mios-os-control should have more OS
 # Specific Shell controls/Commands for BOTH Linux + Windows + part of
 # launch params tools/skills" + "RECIPES" + "NO HARDCODES ANYWHERE".
 # SSOT here; mios-os-recipe is the generic executor.
@@ -4299,7 +4531,7 @@ to" / "let me know".
 # the Linux PATH clean of Windows-side binaries), so bare `explorer.exe`
 # / `powershell.exe` don't resolve via PATH lookup. WSL's binfmt_misc
 # still handles .exe execution when the FULL PATH is given -- so
-# templates name the binary explicitly. Operator-confirmed 2026-05-19.
+# templates name the binary explicitly. Operator-confirmed.
 [recipes.open-folder]
 description = "Open a folder in the OS file manager (Files / Explorer)."
 args        = ["path"]
@@ -4472,7 +4704,7 @@ mine_interval_minutes   = 60
 # authored skills land in /var/lib/mios/skills/ (mutable).
 seed_catalog_dir        = "/usr/share/mios/skills"
 local_catalog_dir       = "/var/lib/mios/skills"
-# P2 outcome-gated auto-promotion (operator 2026-06-01): a mined skill auto-
+# P2 outcome-gated auto-promotion: a mined skill auto-
 # promotes only if its recorded skill_invocation success rate clears the floor
 # AND it has enough samples (else samples are too few to block). mios-skills
 # reads the matching MIOS_SKILLS_* env (SSOT-routed via userenv.sh).
@@ -4487,7 +4719,7 @@ min_success_samples = 3     # ...and it has at least this many recorded invocati
 # request through the full agentic chain and forwards the heavy
 # inference to Hermes-Agent at [hermes].endpoint.
 #
-# Architecture per operator directive 2026-05-18: "mios discord chats
+# Architecture per operator directive "mios discord chats
 # not going through MiOS-Agent(OWUI) paths when contacting through
 # discord (uses only MiOS-Hermes and doesn't have the same tool
 # understanding and environments details now!!!!)" -- centralizing the
@@ -4497,12 +4729,12 @@ endpoint       = "http://localhost:${MIOS_PORT_AGENT_PIPE}/v1"
 backend        = "http://localhost:${MIOS_PORT_HERMES}/v1"   # hermes-agent OpenAI gateway
 backend_model  = "hermes-agent"               # the model id hermes-agent advertises
 enable         = true
-# Client-side tool-calling PASSTHROUGH (operator 2026-06-15, Zen browser smart-window).
+# Client-side tool-calling PASSTHROUGH (Zen browser smart-window).
 # When an external OpenAI client supplies its OWN tools[] (browser/IDE assistants that
 # EXECUTE the tools themselves and expect tool_calls back), agent-pipe bypasses the
 # server-side orchestrator and relays the request verbatim to a tool-capable backend,
 # returning tool_calls unmodified -- the structural twin of the vision bypass. A2A and
-# Agent Passports are the wrong tool for this (researched 2026-06-15). DEDICATED backend
+# Agent Passports are the wrong tool for this (researched). DEDICATED backend
 # knobs (NOT backend/backend_model above) so the relay never inherits model-drift.
 # Default granite4.1:8b on the keyless mios-llm-light (${MIOS_PORT_LLM_LIGHT}) lane (verified to emit
 # tool_calls); repoint tool_backend->:11441 + tool_backend_model->mios-heavy for harder
@@ -4529,7 +4761,7 @@ embed_model = "nomic-embed-text"   # 768-dim, OWUI/Ollama-compat (vector(768))
 enable      = true
 # WS-9c cutover backend: "surreal" (legacy) | "dual" (write BOTH, read surreal --
 # SAFE default, exercises PG live without risking reads) | "postgres" (PG primary
-# + native <=> recall). FLIPPED to "postgres" 2026-06-05 (WS-9c cutover: agent-pipe
+# + native <=> recall). FLIPPED to "postgres" (WS-9c cutover: agent-pipe
 # + mios-remember/skills/daemon/kg all read+write pgvector; mechanism verified live,
 # a chat ran pg-primary). Set back to "dual" to re-enable the SurrealDB safety net
 # during a soak. Minor deferred read paths (eviction/hitl-edge/miner-SPM/daemon
@@ -4558,6 +4790,14 @@ rls_mode    = "off"
 # behaviour change), so ASI08 poisoning is actually observed instead of inert.
 # Operator can raise to strip/reject. (off = silent; the prior credibility gap.)
 memory_guard_mode = "log"
+# memguard SEVERITY classifier path. "model" (default) -> a micro-model
+# prompt-injection / poisoning judge classifies the write's INTENT (caught in any
+# language or paraphrase, unlike a fixed keyword list); when the micro lane is
+# unavailable the verdict DEGRADES to a pure structural scan (an inert URL/code
+# fence -> low, a tokenizer control-token delimiter -> a high escalation; benign
+# content still stores -- fail-safe, no keyword gate, no silent drop). Any other
+# value -> structural-only (the judge is skipped). Env: MIOS_MEMGUARD_JUDGE_MODE.
+memguard_judge_mode = "model"
 # ── WS-A2 embedding-version hygiene + working-memory durability ──────────────
 # emb_model/emb_version are stamped onto every stored vector (knowledge +
 # agent_memory) so a model/dimension change is detectable. Bump emb_version when
@@ -4612,17 +4852,17 @@ slot_dir   = "/var/lib/mios/llamacpp/slots"
 models_dir = "/usr/share/mios/llamacpp/models"
 config     = "/usr/share/mios/llamacpp/mios-llm-light.yaml"
 # --threads for the mios-cpu-node CPU lane (rendered into its quadlet Exec). Sized
-# to leave headroom on the box; SSOT-wired alongside ports.cpu_node 2026-06-18
+# to leave headroom on the box; SSOT-wired alongside ports.cpu_node
 # (was a DEAD ${MIOS_CPU_NODE_THREADS} placeholder, never in the render allowlist).
 cpu_node_threads = 14
 # GGUF bake (38-llamacpp-prep.sh). CSV of dest.gguf=hf_repo:filename; EMPTY =
 # opt-in skip (no image bloat). dest filenames MUST match mios-llm-light.yaml's
 # /models/*. Pre-quantized FOSS GGUFs, e.g.:
 #   "granite-4.1-8b.gguf=unsloth/granite-4.1-8b-GGUF:granite-4.1-8b-Q4_K_M.gguf,lfm2-700m.gguf=LiquidAI/LFM2-700M-GGUF:LFM2-700M-Q4_K_M.gguf,embeddinggemma-300m-qat-q8_0.gguf=ggml-org/embeddinggemma-300m-qat-q8_0-GGUF:embeddinggemma-300m-qat-Q8_0.gguf"
-# 2026-06-13 fleet modernization: provision the family-diverse light-lane GGUFs so the
+# fleet modernization: provision the family-diverse light-lane GGUFs so the
 # /models/* dest names match mios-llm-light.yaml (Granite brain+coder, LFM2 micro,
 # EmbeddingGemma embeddings). Quant filenames VERIFIED present in each HF repo via the
-# HF API 2026-06-13 (granite-4.1-8b-Q4_K_M.gguf, LFM2-700M-Q4_K_M.gguf,
+# HF API (granite-4.1-8b-Q4_K_M.gguf, LFM2-700M-Q4_K_M.gguf,
 # embeddinggemma-300m-qat-Q8_0.gguf). If a name ever drifts the bake just no-ops and the
 # quadlet's models/.ready gate keeps the lane inert (fails safe, no crash). Vision
 # (holo1.5-7b.gguf + mmproj) is operator-provisioned (the security classifier blocks the
@@ -4655,7 +4895,7 @@ enabled    = true
 # the local console RDP check and refuses to connect even though the
 # target is xrdp inside the dev VM. Port 13389 bypasses that check:
 # loopback detection only triggers on the standard port.
-# Operator-flagged 2026-05-12: mstsc 0x708 error.
+# Operator-flagged mstsc 0x708 error.
 port       = 13389
 user       = ""                    # empty = inherits [identity].username
 resolution = "auto"                # "auto" lets mstsc pick from Windows display; otherwise WxH (e.g. "1920x1080")
@@ -4669,7 +4909,7 @@ resolution = "auto"                # "auto" lets mstsc pick from Windows display
 #
 # Lifted out of automation/30-locale-theme.sh + mios-flatpak-init so the
 # operator can override in /etc/mios/mios.toml [appearance] without
-# patching scripts. Operator directive 2026-05-15: theme drift between
+# patching scripts. Operator directive theme drift between
 # bake-time and firstboot was leaving Nautilus + others rendered in
 # default light Adwaita instead of the operator's preferred dark
 # variant.
@@ -4677,7 +4917,7 @@ resolution = "auto"                # "auto" lets mstsc pick from Windows display
 
 # ----------------------------------------------------------------------------
 # [flatpak] -- channel + remote preferences for all flatpak operations.
-# Operator binding 2026-05-19: "target betas for all flatpaks" -- prefer
+# Operator binding "target betas for all flatpaks" -- prefer
 # the flathub-beta remote where an app publishes there; fall back to
 # stable flathub otherwise. Picks up fresher upstreams (newer GNOME
 # runtime / GTK4 versions etc.) without manually tracking each app.
@@ -4692,12 +4932,12 @@ noninteractive   = true       # all install/update operations are headless
 gtk_theme        = "adw-gtk3-dark"              # GTK3 + libadwaita color-scheme target
 adw_color_scheme = "prefer-dark"                # ADW_DEBUG_COLOR_SCHEME for libadwaita apps
 cursor_theme     = "Bibata-Modern-Classic"      # XCURSOR_THEME (matches /usr/share/icons/)
-cursor_size      = 24                           # XCURSOR_SIZE. 24 matches the Windows-side CursorBaseSize -- operator 2026-05-19: 16px read SMALLER than Windows Bibata under x11/Xwayland. Mirrors [theme.cursor_linux].size.
+cursor_size      = 24                           # XCURSOR_SIZE. 24 matches the Windows-side CursorBaseSize -- 16px read SMALLER than Windows Bibata under x11/Xwayland. Mirrors [theme.cursor_linux].size.
 
 # ----------------------------------------------------------------------------
 # [graphics] -- WSLg-aware GTK4 render-path overrides applied globally
 # to ALL flatpaks via mios-flatpak-overrides-apply.
-# Operator binding 2026-05-19: "ALL Windowed Linux applications have
+# Operator binding "ALL Windowed Linux applications have
 # outdated and broken Windowing... out of date GLOBALLY". Root cause is
 # WSLg's Weston compositor + dxgkrnl GPU passthrough being mismatched
 # with modern GTK4 / libadwaita / Vulkan + dmabuf expectations. The
@@ -4709,7 +4949,7 @@ cursor_size      = 24                           # XCURSOR_SIZE. 24 matches the W
 # actually works on this compositor -- trades render perf for stability
 # + correct rendering of headerbars, scrolling, decorations.
 # ----------------------------------------------------------------------------
-# MODERN GTK4 rendering (operator 2026-05-29 "GTK themes regressed / old not
+# MODERN GTK4 rendering ("GTK themes regressed / old not
 # modern / windowing + CSS out of date"). cairo + software-GL was a May WSLg
 # compatibility hammer, but cairo IS the legacy renderer -> flat/old look, no
 # modern libadwaita visuals. WSLg + the 4090 (/dev/dri) have matured: use the
@@ -4736,7 +4976,7 @@ xcursor_path = "~/.local/share/icons:~/.icons:/usr/share/icons:/usr/share/pixmap
 
 [ai]
 # Canonical agent surface = the AGENT-PIPE ORCHESTRATOR on :8640 (served model
-# "MiOS-Agent"), the UNIFIED entrypoint (operator 2026-06-16 "UNIFY THE MiOS AI
+# "MiOS-Agent"), the UNIFIED entrypoint ("UNIFY THE MiOS AI
 # PIPELINE"). MIOS_AI_ENDPOINT (the surface every OpenAI-API client + the `@`/
 # `mios` CLI resolves, via userenv.sh) MUST point here so those clients get the
 # full pipeline (refine -> route -> deterministic dispatch / native-loop / council
@@ -4751,7 +4991,7 @@ endpoint            = "http://localhost:8640/v1"
 # Served model id the orchestrator advertises on :8640/v1/models, and the model
 # every THIN client requests (the @/mios CLI via MIOS_AI_GATEWAY_MODEL, the Hermes
 # desktop app, and the `hermes` CLI REPL). SSOT for the agent-surface model name so
-# no front-end hardcodes it (operator "NO HARDCODES"; 2026-06-18 unify of the REPL).
+# no front-end hardcodes it (operator "NO HARDCODES"; unify of the REPL).
 agent_model         = "MiOS AI"
 # #62 WS-9 human-in-the-loop gate-mode (applied at the dispatch chokepoint).
 #   off   (default) -- no gating, zero overhead/behaviour change.
@@ -4761,9 +5001,9 @@ agent_model         = "MiOS AI"
 # hitl_threshold is a permission tier from the risk lattice (read < write <
 # interactive); HITL fires for verbs at/above it. Reuses the #55 risk tiers + the
 # agent-passport humanInLoop thresholds. Ships off (inert) -- opt in deliberately.
-hitl_mode           = "block"   # WS-A14 (operator steer 2026-06-20 "full capabilities"): GATE high-risk verbs (perm tier >= hitl_threshold) pending approval. Was "off"; tune to "audit" (log+proceed) or "off" to dial back.
+hitl_mode           = "block"   # WS-A14 (operator steer "full capabilities"): GATE high-risk verbs (perm tier >= hitl_threshold) pending approval. Was "off"; tune to "audit" (log+proceed) or "off" to dial back.
 hitl_threshold      = "interactive"
-# ASK-TO-RUN (operator 2026-06-22 "mios daemon should ask user to run things"): when a
+# ASK-TO-RUN ("mios daemon should ask user to run things"): when a
 # HITL-tier verb is intercepted, the pipe PROPOSES it + asks the user to approve (instead
 # of silently no-op'ing / fabricating). The user's next reply is MODEL-classified (no
 # keyword list) as approve/reject; approve re-runs exactly that hashed action. OWUI + the
@@ -4771,7 +5011,7 @@ hitl_threshold      = "interactive"
 # block); the text round-trip is the portable fallback. TTL expires an unanswered proposal.
 ask_to_run          = true
 ask_to_run_ttl_s    = 1800
-# GLOBAL ASK-USER for CLARIFICATIONS (operator 2026-06-22 "ask user ... for questions and
+# GLOBAL ASK-USER for CLARIFICATIONS ("ask user... for questions and
 # clarifications too, not just coderunning"): when the answer is PRIMARILY a clarifying
 # question (model-classified, gated on a '?'), mark it so OWUI/Hermes render a native
 # INPUT prompt + feed the typed answer back as the next turn.
@@ -4833,7 +5073,7 @@ smartroute_budget   = 0.0       # per-day cost cap for paid remote escalation (0
 package_registry    = false
 package_author      = "mios"
 package_version     = "0.0.0"
-# WS-1 unified lane resolver (operator 2026-06-19): which heavy engine the agent-pipe
+# WS-1 unified lane resolver: which heavy engine the agent-pipe
 # PREFERS when both heavy lanes ([ai.sglang] :11441 + [ai.vllm] :11440 -- BOTH advertise
 # served_name "mios-heavy") are provisioned. mios_lanes.LaneResolver tries the preferred
 # heavy lane first, then the OTHER heavy lane, then the always-on light lane (mios-llm-light
@@ -4851,7 +5091,7 @@ remote_escalation   = "off"
 # Direct-install source for automation/38-hermes-agent.sh. Operators
 # pin a tag/SHA for reproducible images via mios.html.
 hermes_agent_repo   = "https://github.com/NousResearch/hermes-agent.git"
-# Track LATEST via "main" (operator 2026-06-19: "don't pin any versions in MiOS!!!").
+# Track LATEST via "main" ("don't pin any versions in MiOS!!!").
 # The build + mios-hermes-firstboot run `pip install git+<repo>@<ref>`, so every fresh
 # build/boot picks up the newest Hermes automatically. Do NOT pin to a tag/SHA.
 hermes_agent_ref    = "main"
@@ -4875,7 +5115,7 @@ hermes_agent_ref    = "main"
 # delegate path on qwen3:1.7b for non-code work).
 opencode_install_url = "https://opencode.ai/install"
 opencode_version    = "latest"           # or pin to a tag
-# ── opencode /v1 gateway (front-door commitment, operator 2026-05-31) ────────
+# ── opencode /v1 gateway (front-door commitment,) ────────
 # opencode is a first-class OpenAI /v1 COUNCIL PEER via mios-opencode-gateway.
 # service (:8633), NOT a Hermes ACP subprocess (the ACP framing above is the
 # RETIRED path). These keys are the SSOT for automation/39-opencode.sh + the
@@ -4899,7 +5139,7 @@ opencode_gateway_workdir   = "/var/lib/mios/opencode-gateway/work"
 # Per-run timeout (s). Under VRAM pressure the run times out and the gateway
 # returns empty so the swarm fan-out drops opencode harmlessly.
 opencode_gateway_timeout_s = 90    # opencode `run` HANGS (returns nothing even with the model warm + 240s); 240 just made every coding turn wait longer. Fail FAST at 90 so a hung opencode drops to a 💤 quickly. Restore a longer budget only once `run` headless mode actually returns.
-# Unified agent-plane tree (full-hybrid relocation 2026-05-31): all three
+# Unified agent-plane tree (full-hybrid relocation): all three
 # agents live under /usr/lib/mios/agents/ — hermes-agent/ (Hermes code + bin),
 # opencode/bin/opencode (binary), opencode-gateway/ (the /v1 shim) — and share
 # ONE explicit venv at /usr/lib/mios/agents/.venv (sibling, not nested inside
@@ -4917,20 +5157,20 @@ agent_install_dir   = "/usr/lib/mios/agents/hermes-agent"
 hermes_backend_url  = "http://localhost:${MIOS_PORT_LLM_LIGHT}/v1"   # mios-llm-light (ALL llama.cpp; ollama :11434 retired G5)
 # SSOT for the default chat model. The 4-model-set reasoning base
 # (qwen3.5:4b, ~3.4 GB resident) -- was granite4.1:3b, repointed in the
-# 2026-06-01 consolidation (granite was dropped from the fleet). Same value as
+# consolidation (granite was dropped from the fleet). Same value as
 # small_ram_model below so a host with no auto-pick still lands on a 4-set base
 # (never re-pulls a dropped model). build-mios.ps1's auto-pick in
 # [ai.host_thresholds] below promotes this on hosts with enough VRAM by writing
 # the picked value into the per-host mios.toml overlay at /etc/mios/mios.toml.
 # mios-hermes-firstboot reads the resolved value through the layered overlay
 # chain (~/.config -> /etc -> /usr/share). mios.html exposes [[ai.catalog]].
-model               = "granite4.1:8b"   # 2026-06-13: IBM Granite 4.1 8B (dense 'granite' arch, mainline llama.cpp, 131K ctx, --jinja tool-calls). Replaces qwen3.5:4b (BLOCKED on mainline llama.cpp -> the gemma4:12b fallback). Family-diversity: first non-Qwen brain. Served by mios-llm-light :${MIOS_PORT_LLM_LIGHT} (see mios-llm-light.yaml).
+model               = "granite4.1:8b"   # IBM Granite 4.1 8B (dense 'granite' arch, mainline llama.cpp, 131K ctx, --jinja tool-calls). Replaces qwen3.5:4b (BLOCKED on mainline llama.cpp -> the gemma4:12b fallback). Family-diversity: first non-Qwen brain. Served by mios-llm-light :${MIOS_PORT_LLM_LIGHT} (see mios-llm-light.yaml).
 # Per-role BASE brain the agent-pipe reasoning stages (refine, polish, planner,
 # DCI, swarm, micro) inherit when their own MIOS_*_MODEL env is unset (server.py
 # _STACK_MODEL = ${MIOS_STACK_MODEL:-stack_model}). ONE resident served brain =
 # no llama-swap thrash (operator's "one resident model" choice). Was the GONE
 # gemma4:12b in the server.py default -> 404; SSOT-pinned to the served brain
-# 2026-06-18. The mios-agent-pipe.service mirrors these; a fresh boot is correct
+#. The mios-agent-pipe.service mirrors these; a fresh boot is correct
 # even without the runtime model-align drop-in (which becomes redundant).
 stack_model         = "granite4.1:8b"
 embed_model         = "nomic-embed-text"   # served NAME unchanged (768d); backing GGUF swapped to EmbeddingGemma-300m QAT in mios-llm-light.yaml (zero pgvector migration)
@@ -4948,7 +5188,7 @@ prompt_shortcut     = "@"
 # automation/38-llamacpp-prep.sh as MIOS_LLAMACPP_BAKE_MODELS. Empty disables
 # baking (image stays small; first-boot pulls instead).
 #
-# 4-MODEL POLICY (operator 2026-06-01: "should be 3-4 max including micro-llm;
+# 4-MODEL POLICY ("should be 3-4 max including micro-llm;
 # the 4 newest available that fit the stack"). The fleet is EXACTLY 4 bases --
 # 3 LLMs + 1 embedder -- chosen as the newest that fit a lean shared-4090 stack:
 #   * qwen3.5:4b         REASONING  (~3.4 GB) -- mios-agent + mios-hermes +
@@ -4972,7 +5212,7 @@ prompt_shortcut     = "@"
 # Consumed by automation/38-llamacpp-prep.sh as MIOS_LLAMACPP_BAKE_MODELS. Operators
 # on bandwidth-constrained networks can shrink this in /etc/mios/mios.toml; empty
 # disables baking entirely (first-boot pulls instead).
-bake_models         = "granite4.1:8b,lfm2:700m,nomic-embed-text,mios-agent,mios-agent-cpu,mios-hermes,mios-hermes-cpu,mios-opencode,mios-sys-agent"   # 2026-06-13 family-diverse fleet: Granite 4.1 8B (IBM) = brain+coder (one served GGUF, mainline llama.cpp), LFM2-700M (Liquid AI) = micro, nomic-embed-text NAME = EmbeddingGemma-300m QAT (Google, 768d, backing GGUF swapped in mios-llm-light.yaml). qwen3.5:4b/qwen3:1.7b/qwen2.5-coder:7b retired (Qwen-monoculture + qwen35 blocked on llama.cpp). mios-* tags blob-share the brain base.
+bake_models         = "granite4.1:8b,lfm2:700m,nomic-embed-text,mios-agent,mios-agent-cpu,mios-hermes,mios-hermes-cpu,mios-opencode,mios-sys-agent"   # family-diverse fleet: Granite 4.1 8B (IBM) = brain+coder (one served GGUF, mainline llama.cpp), LFM2-700M (Liquid AI) = micro, nomic-embed-text NAME = EmbeddingGemma-300m QAT (Google, 768d, backing GGUF swapped in mios-llm-light.yaml). qwen3.5:4b/qwen3:1.7b/qwen2.5-coder:7b retired (Qwen-monoculture + qwen35 blocked on llama.cpp). mios-* tags blob-share the brain base.
 # Recommended floor for the default model. granite4.1:3b is a dense
 # 3 B model at q4_K_M (~2.5 GB on disk, ~4 GB resident). Sits inside
 # the 8 GB usable budget on a 12 GB / 8-core box. Auto-pick promotes
@@ -4988,7 +5228,7 @@ ram_floor_gb        = 8
 # thumb RAM floor (informational; surfaces under each <option>).
 # Keep ordered small -> large; first entry is the no-RAM-info fallback.
 # ----------------------------------------------------------------------------
-# ── 2026-06-13 fleet modernization (family-diverse, mainline-llama.cpp-safe) ──
+# ── fleet modernization (family-diverse, mainline-llama.cpp-safe) ──
 # The active fleet across slots: Granite 4.1 8B (IBM) brain+coder, LFM2-700M (Liquid
 # AI) micro, EmbeddingGemma-300m QAT (Google) embeddings, Magistral Small 2509
 # (Mistral) heavy, Holo1.5 (H Company) vision. RETIRED the all-Qwen + unservable
@@ -5020,7 +5260,7 @@ ram_gb  = 24
 # [[ai.catalog]] above.
 # ----------------------------------------------------------------------------
 [ai.host_thresholds]
-# Operator directive 2026-05-16: "base default models ALL fit within
+# Operator directive "base default models ALL fit within
 # 12GB systems (8GB of which are available to the Models on CPU --
 # Medium models are for users with dGPUs or just multiple GPUs. ALL
 # Global agents are default to the CPU models (even for GPU models
@@ -5060,7 +5300,7 @@ big_vram_gb       = 16                            # >= this -> big_ram_model AVA
 big_ram_gb        = 16                            # alias -> big_vram_gb
 mid_ram_gb        = 8                             # alias -> mid_vram_gb
 
-# Model picks per tier (research-driven swap 2026-05-16, operator-approved):
+# Model picks per tier (research-driven swap, operator-approved):
 # Consolidated around the qwen3.5 family for Hermes -- consistent
 # tokenizer + style across tiers means cleaner fallback escalation +
 # native OpenAI tool_calls JSON with NO harmony chain-of-thought leak
@@ -5070,34 +5310,34 @@ mid_ram_gb        = 8                             # alias -> mid_vram_gb
 #   small_ram_model -- DEFAULT for every fresh install + every global
 #     agent. Fits in 8GB CPU budget; ~3.4GB resident. Native OpenAI
 #     tool_calls JSON; sub-second first inference on dGPU; reasonable
-#     speed on a 12GB CPU-only host. Operator-flagged 2026-05-16
+# speed on a 12GB CPU-only host. Operator-flagged
 #     ("ALL AGENTS DEFAULTS TO CPU models"). Was granite4.1:3b;
-#     swapped 2026-05-16 to qwen3.5:4b per Hermes-orchestrator
+# swapped to qwen3.5:4b per Hermes-orchestrator
 #     SOTA survey (better tool-call discipline + family-consistent).
-small_ram_model  = "granite4.1:8b"   # 2026-06-13: IBM Granite 4.1 8B Q4_K_M (~5.5GB resident, fits the 8GB usable budget; dense 'granite' arch loads on mainline llama.cpp -- unlike the BLOCKED qwen3.5:4b). With q4_0 KV + flash-attn it reaches 128k on the low-end profile.
+small_ram_model  = "granite4.1:8b"   # IBM Granite 4.1 8B Q4_K_M (~5.5GB resident, fits the 8GB usable budget; dense 'granite' arch loads on mainline llama.cpp -- unlike the BLOCKED qwen3.5:4b). With q4_0 KV + flash-attn it reaches 128k on the low-end profile.
 #
 #   mid_ram_model -- 8-16GB class. Auto-deploys ONLY when build/install
 #     detects VRAM >= mid_vram_gb (8). A bigger reasoning base for a
-#     mid-tier dGPU box (operator 2026-06-01 "a large model for MiOS
+# mid-tier dGPU box ("a large model for MiOS
 #     deployments with dGPUs"). The LEAN single-box default stays on
 #     small_ram_model (qwen3.5:4b); this never deploys on a CPU-only /
 #     <8GB host, so it does not bloat the 4-set baseline.
-mid_ram_model    = "granite4.1:8b"   # 2026-06-13: 8-16GB class. qwen3.5:9b retired (Qwen + qwen35 arch blocked on mainline llama.cpp). Granite 4.1 8B at a higher quant (UD-Q5/Q8) + 128k KV uses the mid-tier headroom; same mainline-safe arch, no separate base to bake. (A larger Granite/Gemma can be slotted here once a verified mid-class GGUF is pinned.)
+mid_ram_model    = "granite4.1:8b"   # 8-16GB class. qwen3.5:9b retired (Qwen + qwen35 arch blocked on mainline llama.cpp). Granite 4.1 8B at a higher quant (UD-Q5/Q8) + 128k KV uses the mid-tier headroom; same mainline-safe arch, no separate base to bake. (A larger Granite/Gemma can be slotted here once a verified mid-class GGUF is pinned.)
 #
 #   big_ram_model -- 16GB+ dGPU class. The LARGE model for dGPU deployments
-#     (operator 2026-06-01). NEVER auto-deployed on the lean box -- gated by
+#. NEVER auto-deployed on the lean box -- gated by
 #     big_vram_gb (16) and only on an EXPLICIT operator pick / a dGPU profile,
 #     so the single-box 4-set is untouched. The role Modelfiles are base-
 #     agnostic (the pipe injects the MiOS contract + global tools at runtime,
 #     agent-contract.md: "Whatever your size, model, or lane..."), so the SAME
 #     roles run on this large base on a dGPU node with zero code change. Newest
 #     large coder/reasoner present in the registry that fits a 24GB dGPU.
-big_ram_model    = "mistral-magistral-small-2509"   # 2026-06-13: 16GB+ dGPU class. qwen3-coder:30b retired (Qwen). Mistral Magistral Small 2509 (dense 24B reasoning, AWQ-INT4 ~14GB) fits a 24GB 4090 via the heavy lane (SGLang/vLLM, --reasoning-parser mistral); family-diversity off Qwen. Serve on the heavy lane (see [ai.sglang]/[ai.vllm]); the light lane keeps Granite.
+big_ram_model    = "mistral-magistral-small-2509"   # 16GB+ dGPU class. qwen3-coder:30b retired (Qwen). Mistral Magistral Small 2509 (dense 24B reasoning, AWQ-INT4 ~14GB) fits a 24GB 4090 via the heavy lane (SGLang/vLLM, --reasoning-parser mistral); family-diversity off Qwen. Serve on the heavy lane (see [ai.sglang]/[ai.vllm]); the light lane keeps Granite.
 
 # Vision-grounding model -- read by /usr/libexec/mios/mios-pc-vision
 # for screenshot -> click-coordinate translation. Hermes's main text
 # model is separate; vision lane runs on its own Ollama tag.
-# DROPPED FROM THE FLEET 2026-06-01: the 4-model set (qwen3.5:4b / qwen3:1.7b /
+# DROPPED FROM THE FLEET the 4-model set (qwen3.5:4b / qwen3:1.7b /
 # qwen2.5-coder:7b / nomic-embed-text) carries NO vision model. The previous
 # pick (llama3.2-vision:11b, ~8 GB) is no longer baked/pulled. These slots ship
 # EMPTY so an image turn does NOT silently re-pull an 11B VLM; the vision lanes
@@ -5107,7 +5347,7 @@ vision_grounding_model    = ""
 vision_grounding_endpoint = "http://localhost:${MIOS_PORT_LLM_LIGHT}/v1"   # mios-llm-light (needs a vision GGUF in the map to activate)
 # Chat VLM: agent-pipe routes any chat turn carrying an image straight to this
 # model. SSOT for MIOS_AGENT_PIPE_VISION_MODEL (bridged in tools/lib/userenv.sh).
-# 2026-06-18 (operator "FIX ALL VISION"): provisioned the Holo1.5-7B GGUFs under
+# (operator "FIX ALL VISION"): provisioned the Holo1.5-7B GGUFs under
 # /models (served as "qwen3-vl:4b" in mios-llm-light.yaml) and ENABLED vision. Set
 # back to "" to disable image chat (the agent-pipe then returns an honest "vision
 # unavailable" turn instead of a confusing backend 5xx).
@@ -5115,7 +5355,7 @@ chat_vision_model         = "qwen3-vl:4b"
 
 # GUI click-grounding VLM lane (Phase-2 desktop control: screenshot ->
 # click coordinates). Ollama CANNOT run the grounding heads (GUI-Actor /
-# Holo1.5 / UI-TARS / Qwen3-VL) -> they need vLLM. RE-SCOPED 2026-06-01: the
+# Holo1.5 / UI-TARS / Qwen3-VL) -> they need vLLM. RE-SCOPED the
 # mios-llm-heavy-alt Quadlet is now the GENERIC gated vLLM lane (see [ai.vllm] below),
 # serving a HEAVY TEXT reasoner by DEFAULT (operator "vLLM heavy lane"); to serve
 # a grounding VLM instead, point vllm_bake_model at one + set vllm_served_name =
@@ -5128,10 +5368,10 @@ grounding_model    = "mios-grounding"
 # (gating scheduled tasks on system state), and any agent / shim
 # wanting <500 ms classification without round-tripping the big text
 # model. Loaded continuously via OLLAMA_KEEP_ALIVE=-1.
-# Operator directive 2026-05-15: "we could have a micro-LLM be running
+# Operator directive "we could have a micro-LLM be running
 # in the background on 1 core(2 threads) ... daemon for logs and log
 # collection and presenting ... could even be a cron director".
-# Operator directive 2026-05-16 (clarification): "mios-sys-agent should
+# Operator directive (clarification): "mios-sys-agent should
 # use a good 2-6Gb+ modern model for enhancing prompts and leave the
 # micro-llms to use the small models for its background/daemon tasks".
 # Two roles, two models:
@@ -5141,12 +5381,12 @@ grounding_model    = "mios-grounding"
 #                      refinement step. Configured by [ai].sys_agent_*.
 #   * micro_model      (qwen3:1.7b, ~1.4 GB, CPU lane) -- background daemons
 #                      (log-watcher, cron-director, agent-nudger, mios-micro-llm
-#                      CLI). REPOINTED 2026-06-01 from qwen3:0.6b-cpu (a dropped
+# CLI). REPOINTED from qwen3:0.6b-cpu (a dropped
 #                      5th base) to the 4-set micro/CPU base qwen3:1.7b -- which
 #                      is already the daemon's background MODEL and the
 #                      mios-agent-cpu base. Small + fast for classification; no
 #                      chat-quality needed. Endpoint stays the CPU lane (:11435).
-micro_model              = "lfm2:700m"   # 2026-06-13: Liquid AI LFM2-700M (dense 'lfm2' arch merged mainline llama.cpp; ~0.7-1.0GB resident, ~2x faster CPU decode than Qwen; beats Qwen3-0.6B on MMLU/GSM8K/IFEval). Family-diversity off Qwen. Background classify/expand/gate only (Pythonic tool-call format, not JSON-tool agent). Served by mios-llm-light :11450; the qwen3:1.7b alias still resolves.
+micro_model              = "lfm2:700m"   # Liquid AI LFM2-700M (dense 'lfm2' arch merged mainline llama.cpp; ~0.7-1.0GB resident, ~2x faster CPU decode than Qwen; beats Qwen3-0.6B on MMLU/GSM8K/IFEval). Family-diversity off Qwen. Background classify/expand/gate only (Pythonic tool-call format, not JSON-tool agent). Served by mios-llm-light :11450; the qwen3:1.7b alias still resolves.
 sys_agent_model          = "mios-sys-agent"
 micro_endpoint           = "http://localhost:11450/v1"   # mios-llm-light (ALL llama.cpp; ollama :11435 retired G5)
 micro_keep_alive_seconds = -1
@@ -5181,14 +5421,14 @@ flatpaks      = [
     "fedora:org.gnome.Epiphany",                       # 50.x current (vs. potentially-stale Flathub)
     "com.github.tchx84.Flatseal",                      # Flatpak permissions UI
     "com.mattjakeman.ExtensionManager",                # GNOME shell extensions
-    # VSCodium removed 2026-05-20: the MiOS dev surface is code-server
+    # VSCodium removed the MiOS dev surface is code-server
     # (mios-code-server.container, http://localhost:8080) editing the live
     # root FHS at /mnt/mios-root -- the self-hosting dev loop. No separate
     # desktop IDE flatpak.
     # Google Chrome Dev channel -- closest flathub-available analog to
     # the Windows "Canary" channel (true Canary doesn't ship for Linux;
     # Dev releases ~weekly, one channel ahead of Beta). Operator-requested
-    # 2026-05-11 to provide a Chromium-derived browser the Hermes agent
+    # to provide a Chromium-derived browser the Hermes agent
     # (and the operator) can drive for web tasks. Hermes's bundled
     # Playwright Chromium still handles agent browser_use tools; this
     # flatpak is for operator-facing browsing + manual CDP integration.
@@ -5198,7 +5438,7 @@ flatpaks      = [
 # ----------------------------------------------------------------------------
 # [[desktop.apps]] -- UNIFIED app metadata.
 #
-# Operator directive 2026-05-16: "toml/html packages sections are
+# Operator directive "toml/html packages sections are
 # BOTH the installation references for MiOS builds and deployments
 # globally -- AS WELL as AI agents references for defaults...
 # mios.html; user edits and adds a flatpak like zen browser >> this
@@ -5244,16 +5484,16 @@ description = "GNOME Web -- the default MiOS flatpak browser (libadwaita, native
 #     COMPOSITING_MODE=0 + WEBKIT_USE_DMABUF_RENDERER=1 allow
 #     WebKit's WebProcess to talk to the GPU directly without
 #     dragging GTK4 onto the unstable hardware path.
-# Operator-observed 2026-05-16: flipping the whole stack to gl+GPU
+# Operator-observed flipping the whole stack to gl+GPU
 # made Epiphany flash-and-die in ~327ms scopes. Split-renderer
 # (compositing-on) was attempt #3; it tripped Wayland Protocol error
-# 71 in WebKit's WebProcess on WSLg (operator trace 2026-05-19).
+# 71 in WebKit's WebProcess on WSLg (operator trace).
 # Attempt #4 -- the operator's own next-step note in this file --
 # is "wayland-without-compositing": KEEP wayland for GTK4 chrome,
 # DISABLE WebKit's GPU compositing entirely so the WebProcess stays
 # on its software-cairo path with no dmabuf passthrough. This
 # trades render perf for stability on WSLg's virtual compositor.
-# Attempt #6 (operator trace 2026-05-19): attempts #1-#5 ALL kept GTK4
+# Attempt #6 (operator trace): attempts #1-#5 ALL kept GTK4
 # chrome on Wayland and ALL still hit Gdk Error 71. WSLg's Weston
 # Wayland is the common factor. Route Epiphany (GTK4 + WebKit) through
 # XWayland instead -- X11 has no Error-71 path and WSLg implements X11
@@ -5261,7 +5501,7 @@ description = "GNOME Web -- the default MiOS flatpak browser (libadwaita, native
 # pinned explicitly so a global flip can't silently re-break it.
 GDK_BACKEND                              = "x11"
 WEBKIT_DISABLE_COMPOSITING_MODE          = 1
-# Attempt #7 (operator trace 2026-05-19): on x11 the WebProcess no
+# Attempt #7 (operator trace): on x11 the WebProcess no
 # longer hits Wayland Error 71, but Epiphany now crashes with
 # `ephy_embed_get_web_view: assertion failed (EPHY_IS_EMBED)` -- the
 # WebKitWebView never constructs (NULL embed). Root cause: the prior
@@ -5379,7 +5619,7 @@ minimal_name = "ghcr.io/mios-dev/mios-minimal"
 #
 # After the OCI image is built, mios-build-driver runs BIB once per
 # enabled target to render the disk image for that platform. Default
-# = ALL targets ON per operator instruction 2026-05-06: "deploy all
+# = ALL targets ON per operator instruction "deploy all
 # target images / build target images for ALL deployment types".
 #
 # Each toggle maps to a `--type` arg passed to bootc-image-builder.
@@ -5512,10 +5752,10 @@ native_rebuild = false
 # Composefs security settings -- merged into the first [security]
 # section below (was a duplicate [security] which strict TOML
 # parsers reject; the awk userenv parser tolerated it, tomllib
-# does not). Operator note 2026-05-18: keys preserved under the
+# does not). Operator note keys preserved under the
 # canonical [security] section earlier in this file.
 
-# ── vLLM heavy lane (Phase 2, operator 2026-06-01 "both, in order" + "a large
+# ── vLLM heavy lane (Phase 2, "both, in order" + "a large
 # model for MiOS deployments with dGPUs"). The re-scoped mios-llm-heavy-alt Quadlet serves
 # a HEAVY TEXT reasoner over OpenAI /v1 with vLLM's PagedAttention + Automatic
 # Prefix Caching (APC) -- APC reuses the shared swarm system-prompt prefix across
@@ -5546,11 +5786,11 @@ enable         = false          # documents intent; the systemd unit is the real
 bake_model     = ""             # HF repo to bake OFFLINE at build (empty = skip the bake; opt-in, no image bloat)
 served_name    = "mios-heavy"   # OpenAI served-model-name the lane advertises (= [nodes.local-vllm].model)
 gpu_util       = 0.45           # --gpu-memory-utilization: bounded slice; leaves room for ollama + Windows co-tenancy
-max_model_len  = 131072         # 2026-06-13: global 128k mandate. Heavy reasoner = Mistral Magistral Small 2509 AWQ (~14GB) leaves KV headroom on the 24GB 4090; pair with --kv-cache-dtype fp8 to fit 131072. Serve with --reasoning-parser mistral --quantization awq_marlin.
+max_model_len  = 131072         # global 128k mandate. Heavy reasoner = Mistral Magistral Small 2509 AWQ (~14GB) leaves KV headroom on the 24GB 4090; pair with --kv-cache-dtype fp8 to fit 131072. Serve with --reasoning-parser mistral --quantization awq_marlin.
 prefix_caching = true           # --enable-prefix-caching (APC): reuse the shared swarm prompt prefix across agents
 
 # ----------------------------------------------------------------------------
-# [ai.sglang] -- the SGLang heavy lane (operator 2026-06-07 "continue with SGLang").
+# [ai.sglang] -- the SGLang heavy lane ("continue with SGLang").
 # Mirror of [ai.vllm]; the mios-llm-heavy Quadlet reads these via MIOS_SGLANG_*.
 # SGLang's HiCache spills inactive KV to CPU RAM -> a quantized heavy/VLM reasoner
 # fits the partial 4090. Gated/disabled by default; enable ONE heavy lane (vLLM OR
@@ -5558,7 +5798,7 @@ prefix_caching = true           # --enable-prefix-caching (APC): reuse the share
 [ai.sglang]
 enable             = false          # documents intent; the systemd unit is the real gate (disabled by default)
 # Heavy-lane model: Qwen3-8B-AWQ (live mount /usr/share/mios/sglang/model-q3-8b).
-# Qwen3.5-4B-AWQ was TRIED 2026-06-12 (the recorded agentic pick, fits ~6GB) but it
+# Qwen3.5-4B-AWQ was TRIED (the recorded agentic pick, fits ~6GB) but it
 # CRASHES SGLang 0.5.12 under load (the qwen3_5 arch is unstable on this SGLang --
 # lane dies after a few requests regardless of the qwen3_coder parser); the 8B is
 # rock-stable. Weights parked at .../model-q35-4b; revisit after an SGLang upgrade.
@@ -5581,7 +5821,7 @@ hierarchical_cache = true           # --enable-hierarchical-cache (HiCache): spi
 # editor for the same TOML. PACKAGES.md (now under
 # usr/share/doc/mios/reference/PACKAGES.md) is human-readable
 # documentation only -- the legacy fenced ```packages-<cat>``` fallback
-# was removed in v0.2.4 (2026-05-05).
+# was removed in v0.2.4.
 #
 #   sections        sections to install on a deployed MiOS host (image-time).
 #   dev_overlay     subset to install on the Windows-side MiOS-DEV podman
@@ -5605,7 +5845,7 @@ hierarchical_cache = true           # --enable-hierarchical-cache (HiCache): spi
 # permanently, add it both here and as [packages.<section>] below.
 #
 # Default = EVERYTHING ON except bloat (per operator instruction
-# 2026-05-06: "MiOS Defaults are all pre-checked on, excluding bloat
+# "MiOS Defaults are all pre-checked on, excluding bloat
 # and including everything else -- steamos, proton/wine11+, ALL the
 # self; dev, build, host, hosting, run, deploy"). The configurator
 # pre-checks every box on first paint.
@@ -5854,7 +6094,7 @@ pkgs = [
     # python3.13: hermes-agent requires Python <3.14 but F44's python3 is 3.14;
     # 38-hermes-agent.sh builds the shared agent venv with this when present
     # (degrade-open to python3). --skip-unavailable keeps it safe if F44 names it
-    # differently (2026-06-05 rebuild fix).
+    # differently (rebuild fix).
     "python3.13",
 ]
 
@@ -5950,7 +6190,7 @@ pkgs = [
     # mios-computer-use probes: Screenshot PORTAL first (xdg-desktop-portal-gnome
     # ships with GNOME), then these CLI fallbacks -- grim for wlroots sessions
     # (sway/Hyprland), gnome-screenshot for GNOME. Without one of these the verb
-    # returns "no working capture backend" (verified live 2026-06-09). NOTE: the
+    # returns "no working capture backend" (verified live). NOTE: the
     # WSLg dev VM's Weston supports NEITHER wlr-screencopy NOR a Screenshot portal
     # ("compositor doesn't support the screen capture protocol"), so the dev VM
     # still cannot capture; bare-metal/VM Wayland MiOS (GNOME or wlroots) can.
@@ -6104,7 +6344,7 @@ enable = true   # default ON; toggle via /configurator.html (configurator.packag
 # could not be loaded" / "pmlogger.service is failing to collect data"
 # even though pmlogger IS collecting (the data is fine; the query backend
 # is missing). keydb 6.3 works with PCP 7.1; valkey 9.x is protocol-
-# incompatible (closes the pmproxy connection), so pin keydb. (2026-05-22
+# incompatible (closes the pmproxy connection), so pin keydb. (
 # regression fix: no key-server was in the list, so history broke.)
 # NOTE: there is NO `cockpit-pcp` package in Fedora 44 (retired/merged
 # into cockpit-system) -- do not re-add it; install_packages_strict skips
@@ -6135,7 +6375,7 @@ pkgs = [
     # inline browser terminals (mios-ttyd-bash :7681 / -powershell :7682; see
     # [ttyd] above). Was configured + unit-enabled but NEVER in any package
     # list, so the binary was absent and both units skipped on
-    # ConditionPathExistsGlob=/usr/?bin/ttyd (operator 2026-06-12 portal
+    # ConditionPathExistsGlob=/usr/?bin/ttyd (portal
     # "Terminals 0/2 up"). Fedora pkg, installs /usr/bin/ttyd.
     "ttyd",
 ]
@@ -6559,9 +6799,9 @@ pkgs = [
 # usr/share/mios/ai/INDEX.md §5b.
 # ----------------------------------------------------------------------------
 [ports]
-ssh                = 2222     # host admin sshd. Operator 2026-05-28: "mios-dev ssh should be port 2222" -- hardened off :22, off the prior :49955. firewall opens this; sshd_config Port drop-in lives at /etc/ssh/sshd_config.d/09-mios-ssh-port.conf and must match. Forgejo git-ssh moved to forge_ssh=49922 to vacate 2222.
+ssh                = 2222     # host admin sshd. "mios-dev ssh should be port 2222" -- hardened off :22, off the prior :49955. firewall opens this; sshd_config Port drop-in lives at /etc/ssh/sshd_config.d/09-mios-ssh-port.conf and must match. Forgejo git-ssh moved to forge_ssh=49922 to vacate 2222.
 forge_http         = 3000     # Forgejo HTTP web UI
-forge_ssh          = 49922    # Forgejo git+ssh (vacated 2222 for host admin sshd 2026-05-28). Non-22 to coexist with sshd; non-2222 to leave that as the canonical operator-SSH port.
+forge_ssh          = 49922    # Forgejo git+ssh (vacated 2222 for host admin sshd). Non-22 to coexist with sshd; non-2222 to leave that as the canonical operator-SSH port.
 cockpit            = 9090     # host Cockpit web console
 cockpit_link       = 19090    # mios-cockpit-link Podman Desktop discovery shim
 searxng            = 8888     # local privacy-respecting metasearch
@@ -6571,7 +6811,7 @@ hermes             = 8642     # Hermes-Agent (canonical /v1; live MiOS agent at 
 hermes_worker      = 8643     # Hermes-Agent worker instance
 hermes_dashboard   = 9119     # Hermes Dashboard web UI (sessions, skills, stats)
 open_webui         = 3030     # Open WebUI (rich LLM interface at http://localhost:3030)
-# hermes_workspace REMOVED 2026-05-13 (port 3030 freed) -- use the
+# hermes_workspace REMOVED (port 3030 freed) -- use the
 # hermes-agent dashboard at port 9119 instead.
 code_server        = 8800     # code-server (VS Code in a browser; matches image default)
 k3s_api            = 6443     # K3s Kubernetes API
@@ -6580,7 +6820,7 @@ ceph_dashboard     = 8443     # Ceph dashboard
 rdp                = 3389     # GNOME Remote Desktop / xRDP
 pgvector           = 5432     # PostgreSQL + pgvector unified agent DB (WS-9, FOSS; additive alongside surrealdb until cutover)
 llm_light          = 11450    # mios-llm-light: the primary llama.cpp multi-model + KV-paging lane (WS-10, FOSS; served via the upstream llama-swap proxy image)
-cpu_node           = 11451    # mios-cpu-node: the always-on / gaming-immune CPU llama-server lane (granite brain on -ngl 0). Rendered into mios-cpu-node.container's --port (was a DEAD key -> empty --port -> llama.cpp stoi crash-loop; SSOT-wired 2026-06-18).
+cpu_node           = 11451    # mios-cpu-node: the always-on / gaming-immune CPU llama-server lane (granite brain on -ngl 0). Rendered into mios-cpu-node.container's --port (was a DEAD key -> empty --port -> llama.cpp stoi crash-loop; SSOT-wired).
 agent_pipe         = 8640     # 'MiOS' standalone Agent Pipe (router + refine + critic; fronts hermes for every gateway)
 ttyd_bash          = 7681     # ttyd browser pty -- Linux bash session
 ttyd_powershell    = 7682     # ttyd browser pty -- Windows-side PowerShell session
@@ -6588,7 +6828,7 @@ adguard_dns        = 53       # AdGuard Home DNS resolver (ad/tracker/malware si
 adguard_ui         = 3053     # AdGuard Home web UI + REST API (3000 is forge_http; 3053 is mnemonic for :53)
 opencode_gateway   = 8633     # opencode -> OpenAI /v1 gateway shim (mios-opencode-gateway.service); makes [agents.opencode] a REAL /v1 council peer. LOOPBACK only (127.0.0.1).
 vllm               = 11440    # vLLM heavy dGPU lane (re-scoped mios-llm-heavy-alt Quadlet; OpenAI /v1, PagedAttention+APC). Off the iGPU's :11436 + finetune-serve :11438. GATED/disabled by default (VRAM). [ai.vllm] + [nodes.local-vllm].
-sglang             = 11441    # SGLang heavy dGPU lane (mios-llm-heavy Quadlet; OpenAI /v1, HiCache CPU KV-offload). GATED/disabled by default (VRAM). [ai.sglang] + [nodes.local-sglang]. (operator 2026-06-07)
+sglang             = 11441    # SGLang heavy dGPU lane (mios-llm-heavy Quadlet; OpenAI /v1, HiCache CPU KV-offload). GATED/disabled by default (VRAM). [ai.sglang] + [nodes.local-sglang].
 
 # ----------------------------------------------------------------------------
 # [image.sidecars] -- pinned upstream container references for every
@@ -6602,7 +6842,7 @@ k3s_version        = "v1.32.1-k3s1"
 # as a short name and refuses to silently resolve to docker.io inside
 # the OCI bake step (no TTY -> "short-name resolution enforced but cannot
 # prompt without a TTY"), failing the entire `bootc install-to-filesystem`
-# stage downstream (operator-confirmed 2026-05-15: every other sidecar
+# stage downstream (operator-confirmed every other sidecar
 # entry in this section was already fully qualified; k3s was the only
 # regression and broke ALL deployment artifacts). Keep the registry prefix.
 k3s                = "docker.io/rancher/k3s:v1.32.1-k3s1"
@@ -6612,7 +6852,7 @@ forge_version      = "12"
 forge              = "codeberg.org/forgejo/forgejo:12"
 searxng_version    = "latest"
 searxng            = "docker.io/searxng/searxng:latest"
-# web-tools POD (operator 2026-05-24: "consolidate containers to share similar
+# web-tools POD ("consolidate containers to share similar
 # services together" + "co-locate the real firecrawl stack" + "make it a pod").
 # mios-webtools is now a podman POD (usr/share/containers/systemd/
 # mios-webtools.pod, Network=host) with FOUR member containers instead of one
@@ -6640,7 +6880,7 @@ hermes_version     = "latest"
 hermes             = "docker.io/nousresearch/hermes-agent:latest"
 open_webui_version = "latest"
 open_webui         = "ghcr.io/open-webui/open-webui:main"
-# hermes_workspace sidecar REMOVED 2026-05-13 -- replaced by the
+# hermes_workspace sidecar REMOVED -- replaced by the
 # hermes-agent's built-in dashboard at port 9119.
 code_server_version = "latest"
 code_server        = "ghcr.io/coder/code-server:latest"
@@ -6729,7 +6969,7 @@ gid  = 822
 
 # [services.webtools] -- the consolidated web-tools container (mios-webtools:
 # firecrawl + crawl4ai + camoufox). Renamed from [services.crawl4ai] on the
-# 2026-05-24 consolidation. The user/uid is KEPT as mios-crawl4ai/824 to avoid
+# consolidation. The user/uid is KEPT as mios-crawl4ai/824 to avoid
 # churning /usr/lib/sysusers.d/50-mios-services.conf + tmpfiles + the live
 # passwd db (the container runs root-in-namespace anyway; this uid owns the
 # host-side cache/state dirs /var/{lib,cache}/mios/crawl4ai). Slot map exports
@@ -6908,7 +7148,7 @@ coderun_snapshots_root = "/var/home/mios/.coderun-snapshots" # coderun-session s
 codemode_workspace_root = "/var/lib/mios/codemode"          # WS-2 Code Mode generated-snippet root (uid 828, tmpfiles mios-codemode.conf)
 
 # ──── Windows-side paths consumed by mios-find / mios-windows ────────
-# Operator directive 2026-05-16: "I DON'T WANT ANY HARDCODED PATHS OR
+# Operator directive "I DON'T WANT ANY HARDCODED PATHS OR
 # WORDS!!! SKILLS AND TOOLS ARE TEMPLATES FOR ANY VARIABLES!!!". Lifted
 # out of mios-find (es.exe probe list) + mios-windows (powershell.exe
 # full path). Operators override in /etc/mios/mios.toml [paths] = ...
@@ -6925,7 +7165,7 @@ everything_cli = [
 
 # Windows PowerShell full path -- systemd user services have stripped
 # PATH that excludes /mnt/c/Windows/System32 (operator-confirmed
-# regression 2026-05-16: bash: line 1: powershell.exe: command not
+# regression bash: line 1: powershell.exe: command not
 # found from broker).
 powershell_exe = "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
 
@@ -6939,7 +7179,7 @@ launcher_socket = "/run/mios-launcher/launcher.sock"
 # ----------------------------------------------------------------------------
 # [flatpak.app_overrides."<app-id>"] -- per-app flatpak env overrides.
 #
-# Operator directive 2026-05-16: "EVERYTHING IS DICTATED AND UNDERSTOOD
+# Operator directive "EVERYTHING IS DICTATED AND UNDERSTOOD
 # FROM THE mios.toml/html file(s)". Per-app render / GPU / WebKit envs
 # previously lived as standalone files at var/lib/flatpak/overrides/<id>;
 # now they live HERE in the SSOT, and mios-flatpak-overrides-apply
@@ -6968,7 +7208,7 @@ launcher_socket = "/run/mios-launcher/launcher.sock"
 # ----------------------------------------------------------------------------
 # [mios-find.aliases] -- CANONICAL Linux/freedesktop role -> app map.
 #
-# Operator directive 2026-05-16: "DONT USE HARDCODED KEY WORDS AT
+# Operator directive "DONT USE HARDCODED KEY WORDS AT
 # ALL ANYWHERE!!!! Linux natively tags applications to its
 # environments defaults -- linux defaults things to global verbs
 # like; web, files, email, documents, etc-etc and are all mapped
@@ -6992,7 +7232,7 @@ launcher_socket = "/run/mios-launcher/launcher.sock"
 # infrastructure (xdg-settings, xdg-mime, gio mime) at lookup time
 # so the SoT is the actual system state, not a duplicate table.
 # ----------------------------------------------------------------------------
-# App-TYPE defaults (operator 2026-06-15: every application type has a default in
+# App-TYPE defaults (every application type has a default in
 # mios.toml, user-switchable by telling the AI; Linux apps first for most, Windows
 # for games/windows-specific, BOTH for system apps; agents discern intent from
 # environment context -- NO hardcoded keyword lists). os_pref tells the launcher/
@@ -7091,7 +7331,7 @@ games      = "lutris"
 # "open MiOS settings") all need to reach the same launcher:
 # /usr/libexec/mios/mios-html -- a shim that resolves the WSL UNC
 # path and dispatches Start-Process through mios-windows to the
-# operator's default Windows browser. Operator-flagged 2026-05-17:
+# operator's default Windows browser. Operator-flagged
 # agent claimed mios.html "isn't installed" and suggested a fake
 # `dnf install MiosGUI` package; the aliases below remove the
 # lookup ambiguity so mios-find resolves them to a launch line.
@@ -7105,7 +7345,7 @@ games      = "lutris"
 # (Windows) + dnf (Fedora RPM) + flatpak (Flathub). Auto-detects the
 # right backend from the package-id shape: "Microsoft.PowerToys" ->
 # winget, "org.mozilla.firefox" -> flatpak, "vim" -> dnf. Operator
-# directive 2026-05-17: "mios-installer should be able to use windows
+# directive "mios-installer should be able to use windows
 # CMD and Linux BASH for installing applications on their respective
 # platforms (using winget install, winget search, etc-etc)".
 "install"      = "mios-installer"
@@ -7117,7 +7357,7 @@ games      = "lutris"
 # capture" / "save the screen" intent flows through mios-screenshot.
 # That shim writes a PNG to the operator's Windows Pictures/Screenshots
 # folder via mios-pc-control screenshot (System.Drawing.Bitmap +
-# CopyFromScreen on the Windows side). Operator-flagged 2026-05-17:
+# CopyFromScreen on the Windows side). Operator-flagged
 # agent burned 6 minutes trying `screencapture.exe`, `Invoke-
 # Screenshot`, broken PowerShell pipelines and gave up with "Windows
 # screenshot tools aren't available in this WSL environment". The
@@ -7132,7 +7372,7 @@ games      = "lutris"
 # hwnd via window-list, then dispatches mios-pc-control window-*.
 # Launches already auto-center via mios-windows launch's URI/.exe
 # branches; post-launch move/center/focus/resize/min/max/restore flow
-# through this shim. Operator directive 2026-05-17: "make sure window
+# through this shim. Operator directive "make sure window
 # moving is active/functional and can launch things centered by
 # default and that it can be told to move the windows".
 "window"        = "mios-window"
@@ -7147,7 +7387,7 @@ games      = "lutris"
 # steam://install/<appid> -> Steam GUI prompt -- works for any owned
 # game), and `cmd` (headless SteamCMD, auto-installs Valve.SteamCMD
 # via winget if missing, works for free + dedicated-server content
-# under anonymous login). Operator directive 2026-05-17: "make a
+# under anonymous login). Operator directive "make a
 # steamCMD a native tool for handling steam CMD commands GLOBALLY".
 "steamcmd"      = "mios-steamcmd"
 "steam-cmd"     = "mios-steamcmd"
@@ -7160,13 +7400,67 @@ games      = "lutris"
 # browser, optionally pre-loaded with a file or inline text.
 # Complements OWUI's inline markdown rendering -- this is the
 # standalone surface for ad-hoc note editing + previewing.
-# Operator directive 2026-05-17: "react windows for markdown to
+# Operator directive "react windows for markdown to
 # markup text in OWUI also".
 "md"          = "mios-md"
 "markdown"    = "mios-md"
 "preview-md"  = "mios-md"
 "render-md"   = "mios-md"
 "notes"       = "mios-md"
+
+# ----------------------------------------------------------------------------
+# [mios-find.ranker] -- SSOT for the mios-find launch-disambiguation ranker.
+# mios-find resolves "launch <app>" to ONE launch command by scoring every
+# inventory entry, then picking the lowest (best) score. The score is
+# (match-tier, category-priority, length-tiebreak). These tables are the SSOT
+# for that scorer so the winner-selection weights live in config, not baked in
+# code (a hand-rolled weight map is a hardcode). Each key documents the default;
+# the defaults equal the historical in-code values, so behaviour is unchanged
+# until an operator overrides them.
+#
+# tiers: the match-type ORDERING. Lower index = stronger match = wins. Each
+# name maps to a check the ranker performs against the candidate's name/desc:
+#   name_exact   name == query
+#   name_prefix  name starts with query
+#   name_word    query at a word boundary in name
+#   name_substr  query anywhere in name
+#   desc_word    query at a word boundary in description
+#   desc_substr  query anywhere in description
+#   fuzzy        bounded-Levenshtein token match (typo tolerance)
+# Reorder/remove entries to re-rank match strength; an omitted tier disables
+# that match class. Any check whose name is absent from this list is skipped.
+[mios-find.ranker]
+tiers = [
+  "name_exact",
+  "name_prefix",
+  "name_word",
+  "name_substr",
+  "desc_word",
+  "desc_substr",
+  "fuzzy",
+]
+# Fuzzy (typo) match bounds. fuzzy_min_token_len: only query tokens at least
+# this long are fuzzy-matched (typos in 1-3 char queries are too ambiguous).
+# fuzzy_max_edit_distance: max Levenshtein distance counted as a match.
+fuzzy_min_token_len     = 4
+fuzzy_max_edit_distance = 2
+
+# [mios-find.category_priority] -- category -> priority weight (LOWER wins).
+# Tie-breaks candidates that match at the SAME tier: a REGISTERED browser or
+# native Windows app outranks a linux-flatpak, which outranks an agent-cli,
+# which outranks a mios-* shim (a shim must never shadow a real app). A
+# category absent from this table falls back to the lowest priority (99).
+[mios-find.category_priority]
+windows-browser = 1   # a REGISTERED browser (incl. the OS default) is the
+                      # highest-confidence resolve for a browser ask -- outranks
+                      # the Microsoft.AutoGenerated UWP dupes.
+windows-app     = 1
+windows-gui     = 2
+linux-flatpak   = 3
+linux-rpm-gui   = 4
+agent-cli       = 5
+mios-shim       = 6   # shims are a last resort, never load-bearing
+service-url     = 7
 
 # ----------------------------------------------------------------------------
 # [build] -- build-time tunables consumed by automation/[NN]-*.sh and
@@ -7280,7 +7574,7 @@ gpu_passthrough     = "max"      # "max" | "none" | "nvidia" | "amd" | "intel"
 # `podman-MiOS-DEV` (the name `podman machine init` creates) so Podman
 # Desktop can see and control the machine. true opts back in to the
 # legacy export/unregister/import-as-MiOS-DEV cycle which broke Podman
-# Desktop visibility (operator-confirmed regression 2026-05-12).
+# Desktop visibility (operator-confirmed regression).
 # Operator-facing UX continues to read "MiOS-DEV" via the WT profile
 # name, Start Menu labels, and the `mios-dev` shell helper regardless.
 rename_distro       = false
@@ -7297,7 +7591,7 @@ rename_distro       = false
 # Quadlet ports after WSL services crash → EADDRINUSE death-spiral on
 # auto-restart). Re-attempt mirrored after Quadlet migration: host-network
 # removal, sshd off the mirrored port range, explicit mirror cleanup on
-# service stop. Operator-confirmed 2026-05-12.
+# service stop. Operator-confirmed.
 networking_mode      = "NAT"
 localhost_forwarding = true
 firewall             = false        # only meaningful under mirrored mode
@@ -7308,7 +7602,7 @@ auto_proxy           = true
 # ----------------------------------------------------------------------------
 # [wsl2.desktop_compat] -- WSLg-specific GUI app behavior knobs. WSLg's
 # Wayland compositor lacks xdg_popup reposition support (operator-
-# confirmed 2026-05-12: GTK4 popups detach from parent windows, stay
+# confirmed GTK4 popups detach from parent windows, stay
 # visible after minimize, don't follow window moves). Routing GTK / Qt
 # / Mozilla apps through Xwayland (X11 semantics work correctly under
 # WSLg) is the documented workaround. Switch back to native Wayland via
@@ -7334,7 +7628,7 @@ qt_platform     = "xcb"     # Qt apps: "xcb" (X11) | "wayland" | "wayland;xcb"
 # the Windows host's loopback, so Network=host is safe. Under
 # networking_mode=mirrored the WSL VM's loopback IS the Windows host's
 # loopback, and Network=host produces EADDRINUSE death-spirals
-# (operator-confirmed 2026-05-12: ollama/sshd/hermes etc. all looped
+# (operator-confirmed ollama/sshd/hermes etc. all looped
 # auto-restart with "address already in use"). Switch to "bridge" when
 # migrating to mirrored mode -- the parent units already declare
 # mios.network, so the only change is to NOT install the host-network
@@ -7348,7 +7642,7 @@ quadlet_network_mode = "host"   # "host" (NAT default) | "bridge" (mirrored-safe
 # [desktop.start_menu] -- explicit Windows Start Menu shortcuts for MiOS
 # web services. WSLg's auto-publish heuristic filters out
 # Categories=System;Network;Settings; entries and Exec=xdg-open URL
-# patterns (operator-confirmed 2026-05-12 in podman-MiOS-DEV: 10
+# patterns (operator-confirmed in podman-MiOS-DEV: 10
 # mios-svc-*.desktop files present, 0 surfaced as native Windows
 # shortcuts). Install-MiOSServiceShortcuts in Get-MiOS.ps1 reads the
 # `publish` list below + per-entry label/scheme keys, resolves the port
@@ -7377,7 +7671,7 @@ code_server_label        = "Code"
 code_server_scheme       = "http"
 code_server_port_key     = "code_server"
 
-# hermes_workspace shortcut REMOVED 2026-05-13 -- use the dashboard
+# hermes_workspace shortcut REMOVED -- use the dashboard
 # shortcut (already in `publish` list above) at http://localhost:9119/.
 
 searxng_label            = "Search"
@@ -7415,7 +7709,7 @@ disk_gb             = 32      # always keep 32 GB free on M:\ for Windows-side
 # ----------------------------------------------------------------------------
 [bootstrap.prereqs]
 # Every winget ID + Windows feature the irm|iex bootstrap installs on a
-# truly-fresh Win 11 host. Operator-confirmed 2026-05-12: "MiOS should
+# truly-fresh Win 11 host. Operator-confirmed "MiOS should
 # automatically install EVERYTHING needed to install MiOS via irm|iex".
 # Scattered hardcoded IDs in Get-MiOS.ps1's Install-MiOS* functions
 # should be lifted to these keys (one TOML-first refactor in flight).
@@ -7476,14 +7770,14 @@ clone_root          = "M:\\MiOS\\repo"
 #     cell renders as a partial column that WT clips)
 #
 # Both attempts at zero-slack edge-to-edge wrapped:
-#   - 2026-05-08 commit 04c228c (margin=0, frame=80, final_space=false,
+# commit 04c228c (margin=0, frame=80, final_space=false,
 #     no trailing): doubled-`||` left-border ghost wrap on dashboard
 #     rows + 4-cell time-segment wrap (operator screenshot at 18:38)
-#   - 2026-05-08 commit 47383f0 (margin=1, frame=79, final_space=true,
+# commit 47383f0 (margin=1, frame=79, final_space=true,
 #     trailing=""): same pattern, slightly less wrap (operator
 #     screenshot at 18:39)
 #
-# Last-known-working config: 2026-05-08 commit 920af40
+# Last-known-working config: commit 920af40
 #   (margin=2, frame=78, final_space=true, trailing="  "). Operator's
 #   17:19 screenshot showed time `17:19 ` ending cleanly with no wrap.
 #   Reverting to that as the proven floor. Future operators can drop
@@ -7502,7 +7796,7 @@ clone_root          = "M:\\MiOS\\repo"
 cols                = 80
 rows                = 20      # 20 = MiOS portal-feel default; 30 for taller "console" feel
 scrollback_rows     = 9000
-# Operator 2026-05-09: "ALL dashboards render to the edge of the
+# "ALL dashboards render to the edge of the
 # MiOS app window size constraints!!" -- edge-to-edge framing.
 # frame_width = cols - 1, right_margin = 1: the rightmost frame
 # `│` lands at col 78, leaving exactly 1 cell of safety against
@@ -7513,12 +7807,12 @@ scrollback_rows     = 9000
 # the visible-cell count correctly from FIRST paint, so the
 # legacy 5-cell chrome reservation is overkill.  Bump back to 5
 # only if powerline wrap returns.
-frame_width         = 80      # = cols, edge-to-edge (operator 2026-05-10: unified)
+frame_width         = 80      # = cols, edge-to-edge (unified)
 frame_height        = 19      # = rows - 1, reserves 1 row for prompt
 right_margin        = 0       # 0 = edge-to-edge. Was 1 (slack against WT first-paint
                               # over-report) but on settled WT renders that produced
                               # a visible 1-char gap on the right of the bash dashboard.
-                              # Operator-flagged 2026-05-10 with screenshot. Setting
+                              # Operator-flagged with screenshot. Setting
                               # to 0 matches mios-bootstrap/mios.toml (UNIFIED).
 
 # ----------------------------------------------------------------------------
@@ -7528,7 +7822,7 @@ right_margin        = 0       # 0 = edge-to-edge. Was 1 (slack against WT first-
 # window smaller than these dims to exactly these dims, centered on
 # the cursor monitor.
 #
-# Operator 2026-05-10: GUI apps on WSLg spawn at native X11/GTK
+# GUI apps on WSLg spawn at native X11/GTK
 # default sizes (xeyes 129x113, nautilus 942x649, gnome-software
 # 714x486) which look invisible on a 4K display against acrylic
 # terminals. Vendor default 1600x1000 covers ~55% of a 2926x1646
@@ -7584,13 +7878,13 @@ mode                = "dark"             # "dark" | "light" (rare; vendor=dark)
 acrylic             = true               # WT useAcrylic ON
 opacity             = 50                 # WT opacity 0..100 (50 = 50% transparency)
 system_backdrop     = "acrylic"          # WT 1.18+ per-profile backdrop
-cursor_shape        = "vintage"    # steady half-block; operator 2026-05-10: thin "bar" was almost too thin to see on 4K -- "vintage" is the substantial half-block cursor (matches xterm's default visual weight without the full filledBox feel)
+cursor_shape        = "vintage"    # steady half-block; thin "bar" was almost too thin to see on 4K -- "vintage" is the substantial half-block cursor (matches xterm's default visual weight without the full filledBox feel)
 scrollbar_state     = "hidden"           # no scrollbar -- frame uses every col
 padding             = "0"                # zero padding -- frame flush to edges
 suppress_app_title  = true               # WT doesn't override our title
 launch_mode         = "focus"            # frame-less / border-less / no-titlebar / no-tab-row -- forces WT to measure the viewport at the actual cell count cols × rows from FIRST PAINT (no titlebar to strip later, no off-by-1/2 cell-count window before scrollbarState='hidden' applies). Required for true edge-to-edge in mios-bootstrap's Install-MiOSTerminalProfile.
 disable_animations  = false              # animations ON -- per operator "enable animations and all preview features in the MiOS Windows Terminal profile, full aesthetics! ALSO: can it quickly fade on open and close??". The WT window open/close fade is gated on disableAnimations=false + useAcrylic=true; both are on. If the powerline ever wraps with animations on, raise [terminal].right_margin to 1 as a targeted band-aid -- do NOT flip animations off (operator wants the aesthetics).
-enable_preview_features = false          # WT experimental.* knobs bundle (useAtlasEngine GPU renderer, experimental.detectURLs, experimental.input.forceVT, experimental.rendering.forceFullRepaint). DISABLED 2026-05-08: operator screenshots showed CLI apps (Gemini CLI, Claude Code CLI) rendering TUI frames that extend past the visible cell boundary -- text wrapping that doesn't happen in conhost or non-MiOS WT at the same window size. Strongest hypothesis: experimental.input.forceVT changes how WT's pseudo-console reports buffer dimensions to apps querying [Console]::WindowWidth (which the diagnostic at M:\MiOS\diagnostics\window-width.txt shows reporting 80 even though actual visible cells is ~76). Re-enable once WT exposes a stable knob whose width-reporting is verified correct.
+enable_preview_features = false          # WT experimental.* knobs bundle (useAtlasEngine GPU renderer, experimental.detectURLs, experimental.input.forceVT, experimental.rendering.forceFullRepaint). DISABLED operator screenshots showed CLI apps (Gemini CLI, Claude Code CLI) rendering TUI frames that extend past the visible cell boundary -- text wrapping that doesn't happen in conhost or non-MiOS WT at the same window size. Strongest hypothesis: experimental.input.forceVT changes how WT's pseudo-console reports buffer dimensions to apps querying [Console]::WindowWidth (which the diagnostic at M:\MiOS\diagnostics\window-width.txt shows reporting 80 even though actual visible cells is ~76). Re-enable once WT exposes a stable knob whose width-reporting is verified correct.
 
 [theme.cursor_windows]
 # Windows-side cursor SSOT. Bibata-Modern-Classic ships a Windows release
@@ -7619,11 +7913,11 @@ base_size           = 24
 # SVGs at their literal pixel size, while Windows downscales Bibata's
 # 32x32 .cur images via CursorBaseSize. At equal `size` values, the
 # Linux cursor renders ~2x larger than the Windows cursor; 16 lines
-# them up visually. Operator-flagged 2026-05-12.
+# them up visually. Operator-flagged.
 # ----------------------------------------------------------------------------
 [theme.cursor_linux]
 theme               = "Bibata-Modern-Classic"
-size                = 24   # x11/Xwayland renders cursors at literal px; 16 read SMALLER than the Windows base (24) -- operator 2026-05-19. The pre-x11 "16 lines them up" note above is stale (it was a Wayland-era observation).
+size                = 24   # x11/Xwayland renders cursors at literal px; 16 read SMALLER than the Windows base (24) --. The pre-x11 "16 lines them up" note above is stale (it was a Wayland-era observation).
 # Upstream source for the cursor theme. Read by automation/10-gnome.sh
 # (build seeds /usr/share/icons) AND mios-cursor-ensure (runtime self-heal
 # into ~/.local/share/icons when /usr lacks it -- /usr is RO on bootc).
@@ -7645,7 +7939,7 @@ symbols_url         = "https://github.com/ryanoasis/nerd-fonts/releases/latest/d
 # "user" forces HKCU + %LOCALAPPDATA%\Microsoft\Windows\Fonts, "auto"
 # (default) picks system when running elevated, user otherwise. Operator
 # can pin via mios.html. Geist is the MiOS GLOBAL font per operator
-# 2026-05-12: "Linux and Windows Font is Geist font (system-wide --
+# "Linux and Windows Font is Geist font (system-wide --
 # terminals, apps, UI, etc-etc)" -- system scope is the canonical mode.
 install_scope       = "auto"
 # Cell metrics at 100% DPI (used to compute window pixel size for
@@ -7658,7 +7952,7 @@ chrome_h_px         = 12
 [theme.terminal]
 # Windows Terminal "MiOS" scheme name -- the WT settings.json patcher
 # stamps a scheme block whose colors come from the [colors] table above.
-# Operator 2026-05-09 (re-decision): "MiOS app opens direct to the
+# (re-decision): "MiOS app opens direct to the
 # local OCI image(s) or podman-MiOS-DEV!!!".  Consolidated: ONE
 # user-facing app named "MiOS" that opens straight into MiOS-DEV
 # (the canonical MiOS Linux experience).  The Windows-side pwsh
@@ -7724,7 +8018,7 @@ tagline_long        = "My Personal Operating System  --  Immutable Fedora AI Wor
 # tagline_app is the one shown in Windows Application registrations
 # (Add/Remove Programs DisplayName, .lnk Description tooltips,
 # AppX manifest description, agreement gate banner). Operator
-# 2026-05-09: 'the Applications tag/description when installed
+# 'the Applications tag/description when installed
 # "MiOS - Immutable Fedora AI Workstation" should be defined as
 # My Personal Operating System or similar' -- so OS-wide the app
 # face says "MiOS - My Personal Operating System" while the
@@ -7767,7 +8061,7 @@ output_color = "cyan"
 # [dashboard] -- the framed top-of-terminal banner shown by BOTH the
 # Windows-side Show-MiosDashboard (M:\MiOS\powershell\profile.ps1)
 # and the Linux-side mios-dashboard (/usr/libexec/mios/mios-dashboard.sh).
-# Per operator 2026-05-09: "the dash is set GLOBALLY to Windows and
+# Per "the dash is set GLOBALLY to Windows and
 # Linux dashboards!! same settings!!! ... smaller metric can be
 # side-by-side in the dash; freeing up more room for the prompt
 # field." Both renderers read THIS section so a configurator edit
@@ -7782,7 +8076,7 @@ title           = "MiOS  --  My Personal Operating System"
 show_title      = true
 show_logo       = false           # 80x20 doesn't fit the 11-row ASCII logo. Set true once rows >= 30.
 show_verb_hints = true
-# Verb-hint refresh 2026-05-18: surface the current /usr/bin/mios
+# Verb-hint refresh surface the current /usr/bin/mios
 # KNOWN_VERBS surface (was stuck on the 7-verb subset from before
 # mini / ai / code / summary / user were added). The hint line is
 # the operator's quick reference at the bottom of `mios dash` --
@@ -7834,7 +8128,7 @@ aumid               = "MiOS.Workstation"
 start_menu_folder   = "MiOS"        # umbrella folder name (project)
 hub_shortcut_name   = "MiOS"        # the ONE MiOS .lnk -- opens MiOS-DEV
                                     # WT profile directly (operator
-                                    # 2026-05-09: "MiOS app opens direct
+                                    # "MiOS app opens direct
                                     # to ... podman-MiOS-DEV").  Per-verb
                                     # shortcuts (MiOS Help / MiOS Config /
                                     # MiOS-DEV / MiOS-WIN) are intentionally
@@ -7893,7 +8187,7 @@ features = ["ai", "virtualization", "k3s"]
 # force-disable a service even when it would otherwise run.
 # ----------------------------------------------------------------------------
 [quadlets.enable]
-# AI chain (2026-05-13 architecture, operator-directed):
+# AI chain (architecture, operator-directed):
 #   ollama (container)         -- LLM + embeddings inference backend.
 #                                 OpenAI-compatible /v1 surface on :11434.
 #   hermes-agent (DIRECT)      -- installed natively on the root
@@ -7907,7 +8201,7 @@ features = ["ai", "virtualization", "k3s"]
 #                                 the OpenAI /v1 surface.
 #
 # mios-hermes + mios-hermes-dashboard CONTAINER Quadlets were REMOVED
-# 2026-05-14 (operator directive). Hermes-Agent is a DIRECT host install
+# (operator directive). Hermes-Agent is a DIRECT host install
 # (automation/38-hermes-agent.sh + hermes-agent.service) -- there is no
 # containerized agent path anymore. The agent's dashboard ships inside
 # that same install; Open WebUI is the browser LLM UI.
@@ -7917,7 +8211,7 @@ mios-forge            = true
 mios-cockpit-link     = true
 mios-open-webui       = true
 mios-code-server      = true
-# crowdsec-dashboard: FORCE-DISABLED 2026-05-27. This sidecar runs the FULL
+# crowdsec-dashboard: FORCE-DISABLED. This sidecar runs the FULL
 # crowdsecurity/crowdsec image against the SHARED host /var/lib/crowdsec volume.
 # Its docker_start.sh, on EVERY start, (a) unconditionally plants dangling
 # /staging/var/lib/crowdsec/data/* symlinks into that shared volume (the
@@ -7925,7 +8219,7 @@ mios-code-server      = true
 # trace setup) and (b) re-registers the `localhost` machine, clobbering the host
 # agent's LAPI credentials. Result: the host crowdsec agent + firewall-bouncer
 # crash-looped for ~6 days (2805 restarts) -> total CrowdSec outage, fixed
-# 2026-05-27. The container ALSO needs the online hub (version.crowdsec.net) at
+#. The container ALSO needs the online hub (version.crowdsec.net) at
 # boot, which can't work on offline-by-design MiOS, so it never reaches a
 # healthy state anyway. No env-only tune is safe: the corrupting symlink loop
 # runs before any DISABLE_* guard. The host crowdsec agent already provides the
@@ -7962,7 +8256,7 @@ mios-adguard          = true
 # ~/.config/mios/ overlays and the MIOS_FINETUNE_* env (userenv.sh).
 enable          = true
 target_role     = "refiner"            # MiOS role to fine-tune (refiner = mios-sys-agent)
-base_model      = "granite4.1:8b"      # 2026-06-13: the role's base -- MUST match the Modelfile FROM. Repointed to Granite 4.1 8B (the new light_brain) from qwen3.5:4b (Qwen + qwen35 arch blocked on mainline llama.cpp).
+base_model      = "granite4.1:8b"      # the role's base -- MUST match the Modelfile FROM. Repointed to Granite 4.1 8B (the new light_brain) from qwen3.5:4b (Qwen + qwen35 arch blocked on mainline llama.cpp).
 hf_base         = "ibm-granite/granite-4.1-8b"   # HF repo id OR local safetensors dir for the SAME base (Granite 4.1 8B, Apache-2.0, public; matches base_model granite4.1:8b)
                                        # (PEFT/TRL train on HF weights; ollama stores GGUF). One-time
                                        # offline fetch, like the framework install. This is the actual
@@ -7993,7 +8287,7 @@ grad_checkpointing = true              # saves memory; set false if a custom-op 
 # (verb catalog from the running pipe + real operator Q+A from the knowledge DB);
 # labels are produced by the teacher against the live refine schema + catalog. So
 # the corpus tracks the real system, never a hand-written topic list.
-teacher_model        = "granite4.1:8b"   # 2026-06-13: the strongest LOCALLY-SERVED model (mios-llm-light) is now Granite 4.1 8B (the new brain); gemma4:12b is no longer the served reasoning GGUF after the fleet swap. Teacher MUST be a served model. For a STRONGER teacher than the refiner, enable the heavy lane and point this at the served-name mios-heavy (Magistral Small 2509).
+teacher_model        = "granite4.1:8b"   # the strongest LOCALLY-SERVED model (mios-llm-light) is now Granite 4.1 8B (the new brain); gemma4:12b is no longer the served reasoning GGUF after the fleet swap. Teacher MUST be a served model. For a STRONGER teacher than the refiner, enable the heavy lane and point this at the served-name mios-heavy (Magistral Small 2509).
 teacher_endpoint     = "http://localhost:${MIOS_PORT_LLM_LIGHT}"   # mios-llm-light (ALL llama.cpp)
 pipe_url             = "http://127.0.0.1:${MIOS_PORT_AGENT_PIPE}"
 seeds_per_capability = 4               # teacher-generated phrasings per catalog verb

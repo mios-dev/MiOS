@@ -2,7 +2,7 @@
 # AI-functions: loads_lenient
 """Generic JSON-grammar salvage for small-model output.
 
-Extracted from server.py (2026-06-02 modularization). Pure stdlib (re + json) --
+Extracted from server.py (modularization). Pure stdlib (re + json) --
 NO coupling to the agent-pipe globals, NO schema/field/topic/English knowledge.
 This is the FIRST module split out of the 19k-line monolith; keep it dependency-free
 so it stays trivially testable and importable.
@@ -24,7 +24,7 @@ def loads_lenient(content: str) -> "dict | None":
     token -- an empty value after a colon (`"k":` then `,`/`}`), a trailing comma,
     a // or /* */ comment, a Python True/False/None literal, or a truncated tail --
     and strict json.loads then DISCARDS THE ENTIRE otherwise-perfect object. That
-    is the operator 2026-06-02 failure: refine produced a flawless trending plan
+ is the failure: refine produced a flawless trending plan
     (intent=agent, news=true, a clean refined_text) but one empty `inventory_filter`
     field at line 11 made json.loads raise -> the whole plan was dropped -> the
     degraded fallback web-searched "worldwide trends today" (dictionary/shipping
@@ -77,7 +77,7 @@ def loads_lenient(content: str) -> "dict | None":
             continue
     # FIELD-LEVEL harvest: pull every well-formed top-level "key": <scalar|flat-
     # array> pair and IGNORE the one malformed field, so a SINGLE bad token (on
-    # ANY line) can never sink the whole plan (operator 2026-06-02: two refine
+    # ANY line) can never sink the whole plan (two refine
     # parse-fails in a row at "line 11" each discarded a correct intent/
     # refined_text/news -> punt). NO field/topic knowledge -- it harvests whatever
     # keys are present; routing needs only the scalars (intent/refined_text/news/

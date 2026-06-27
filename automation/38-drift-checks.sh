@@ -107,7 +107,7 @@ check_dead_lane() {
 }
 
 # --- (2) Retired model-id hardcoded in a CONSUMER unit. ----------------------
-# gemma4 (404 on :11450 since 2026-06-18) and qwen3:1.7b (dropped from the fleet
+# gemma4 (404 on :11450 since) and qwen3:1.7b (dropped from the fleet
 # + bake_models) must not be wired into a CONSUMER (.container/.service/.json/
 # .conf/.yaml). The SSOT mios.toml is intentionally EXCLUDED -- it legitimately
 # documents the fleet history; consumers must name a live model.
@@ -604,6 +604,68 @@ PY
     fi
 }
 
+# (15, refactor WS R0) server.py PUBLIC-SURFACE parity. The strangler-fig refactor
+# MOVES blocks out of the 30k-line server.py into a mios_pipe/ package and finally
+# collapses server.py to a re-export shim. The two silent regressions that move can
+# cause -- a DROPPED @app route (path/handler) and a MISSING/RENAMED public symbol
+# (a def/class/global a sibling mios_*.py, a test_*.py, or a libexec tool imports) --
+# are invisible to py_compile and to the per-module unit tests. The committed golden
+# usr/share/mios/ai/v1/surface.generated.json snapshots the CURRENT surface; this
+# gate regenerates it from the live server.py (pure ast, no import/exec) and FAILS on
+# any diff, so every extraction wave is provably surface-preserving. Projects in
+# WHOLE-PACKAGE mode (project_package) so a route MOVED off @app onto a sibling-module
+# APIRouter (mounted via app.include_router) still composes back into the same record
+# -- the gate stays honest once routes migrate cross-file (refactor R13). Regenerate the
+# golden deliberately (mios_surface.py server.py --package > surface.generated.json) ONLY
+# when the surface change is intended. Uses the SAME project_*/diff_* shape as check 8.
+check_surface_parity() {
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "[38-drift-checks]   WARNING: python3 missing -- skipping surface parity check" >&2
+        return 0
+    fi
+    if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
+import os, sys, json
+root = os.environ["MIOS_DRIFT_ROOT"]
+sys.path.insert(0, os.path.join(root, "usr/lib/mios/agent-pipe"))
+try:
+    import mios_surface as surf
+except Exception as e:  # noqa: BLE001 -- module absent on a bare checkout -> skip
+    sys.stderr.write(f"    cannot import mios_surface ({e}) -- skipping\n")
+    sys.exit(0)
+server = os.path.join(root, "usr/lib/mios/agent-pipe/server.py")
+out = os.path.join(root, "usr/share/mios/ai/v1/surface.generated.json")
+if not os.path.isfile(server):
+    sys.stderr.write("    server.py absent -- skipping\n")
+    sys.exit(0)
+try:
+    # Whole-package projection: follow app.include_router(<sibling router>) into the
+    # sibling mios_*.py so routes migrated off @app stay visible (search_dir defaults
+    # to server.py's own directory, where the flat-layout siblings live). A strict
+    # superset of project_surface -- identical on the current single-file layout.
+    gen = surf.project_package(server)
+except Exception as e:  # noqa: BLE001
+    sys.stderr.write(f"    surface projection failed: {e}\n")
+    sys.exit(1)
+try:
+    with open(out, encoding="utf-8") as fh:
+        committed = json.load(fh)
+except (OSError, ValueError) as e:
+    sys.stderr.write(f"    committed surface golden unreadable ({out}): {e}\n")
+    sys.exit(1)
+diffs = surf.diff_surface(gen, committed)
+for d in diffs[:40]:
+    sys.stderr.write("    " + d + "\n")
+if len(diffs) > 40:
+    sys.stderr.write(f"    ... and {len(diffs) - 40} more\n")
+sys.exit(1 if diffs else 0)
+PY
+    then
+        echo "[38-drift-checks]   (15) server.py public surface (routes+symbols) matches the committed golden"
+    else
+        _violation "server.py PUBLIC SURFACE drifted from usr/share/mios/ai/v1/surface.generated.json -- a route/symbol was dropped or added during the refactor. If intended, regenerate: python3 usr/lib/mios/agent-pipe/mios_surface.py usr/lib/mios/agent-pipe/server.py --package > usr/share/mios/ai/v1/surface.generated.json (refactor WS R0)"
+    fi
+}
+
 check_pod_quadlets() {
     # WS-7 pods-as-SSOT: the .pod Quadlets under usr/share/containers/systemd are
     # GENERATED from mios.toml [pods.*]; fail if any committed .pod drifted from
@@ -650,6 +712,31 @@ check_egress_firewall() {
     fi
 }
 
+# (16, NO-HARDCODE law / Architectural Law 7) The mios-hardcode-lint gate: FAILS on a
+# date/timestamp in a COMMENT or DOCSTRING (the timeless-comment rule) or an AI-Hint
+# header crash-risk (a stranded BOM, or a header above a shebang). Comment-aware
+# (tokenize + AST docstrings for .py, quote-aware for the rest) so string literals and
+# legitimate date CONFIG values are never flagged. Runs offline over the source tree.
+check_no_hardcode() {
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "[38-drift-checks]   WARNING: python3 missing -- skipping no-hardcode lint" >&2
+        return 0
+    fi
+    local tool="$ROOT/usr/libexec/mios/mios-hardcode-lint"
+    if [[ ! -f "$tool" ]]; then
+        echo "[38-drift-checks]   WARNING: mios-hardcode-lint not found -- skipping" >&2
+        return 0
+    fi
+    if python3 "$tool" "$ROOT" >/dev/null 2>"$ROOT/.nohc.err"; then
+        rm -f "$ROOT/.nohc.err" 2>/dev/null || true
+        echo "[38-drift-checks]   (16) no date-in-comment / header crash-risk (NO-HARDCODE law)"
+    else
+        sed 's/^/    /' "$ROOT/.nohc.err" >&2 2>/dev/null || true
+        rm -f "$ROOT/.nohc.err" 2>/dev/null || true
+        _violation "NO-HARDCODE law (Law 7): a date/timestamp in a comment/docstring OR an AI-Hint header crash-risk -- strip the date (timeless comment) or move the header below the shebang/BOM (see mios-hardcode-lint)"
+    fi
+}
+
 main() {
     check_dead_lane
     check_retired_models
@@ -663,6 +750,8 @@ main() {
     check_cli_sql_safety
     check_module_test_coverage
     check_capability_manifest
+    check_surface_parity
+    check_no_hardcode
     check_pod_quadlets
     check_egress_firewall
 

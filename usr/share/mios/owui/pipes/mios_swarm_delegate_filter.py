@@ -5,7 +5,7 @@ title: MiOS Swarm · Delegate
 author: MiOS
 version: 1.0.0
 description: |
-  Chat-bar TOGGLE (operator 2026-05-22 "AI SWARM"). When ON, forces the
+  Chat-bar TOGGLE ("AI SWARM"). When ON, forces the
   per-agent SWARM DECOMPOSITION for this chat: the planner splits the
   request into independent {agent, sub-task} assignments and runs them as
   a CONCURRENT per-agent DAG (different sub-prompts to different agents),

@@ -9,7 +9,7 @@
 # render time so no CDN fetch ever happens at runtime (Law 7
 # OFFLINE-FIRST).
 #
-# Operator directive 2026-05-17: "NO!!!! FULL OFFLINE".
+# Operator directive "NO!!!! FULL OFFLINE".
 #
 # Re-runnable: skips the download if files already present + non-zero.
 # Network-best-effort: warns and exits 0 if jsDelivr is unreachable

@@ -148,7 +148,7 @@ slots = [
     ("ai.embed_model",          "MIOS_VERB_EMBED_MODEL"),
     # Chat VLM for image turns (server.py VISION_MODEL). Bridged so [ai].
     # chat_vision_model is the SSOT -- empty = vision disabled (honest "unavailable"
-    # turn), a served tag (qwen3-vl:4b) = enabled (2026-06-18 "FIX ALL VISION").
+    # turn), a served tag (qwen3-vl:4b) = enabled ("FIX ALL VISION").
     ("ai.chat_vision_model",    "MIOS_AGENT_PIPE_VISION_MODEL"),
     ("ai.api_key",              "MIOS_AI_KEY"),
     ("ai.system_prompt_file",   "MIOS_SYSTEM_PROMPT_FILE"),
@@ -242,13 +242,13 @@ slots = [
     ("ports.adguard_ui",               "MIOS_PORT_ADGUARD_UI"),
     # opencode -> OpenAI /v1 gateway shim port ([ports].opencode_gateway).
     ("ports.opencode_gateway",         "MIOS_PORT_OPENCODE_GATEWAY"),
-    # vLLM heavy dGPU lane port ([ports].vllm; Phase 2 2026-06-01).
+    # vLLM heavy dGPU lane port ([ports].vllm; Phase 2).
     ("ports.vllm",                     "MIOS_PORT_VLLM"),
     ("ports.sglang",                   "MIOS_PORT_SGLANG"),
     # ── opencode + shared agent-plane (HYBRID; keys live under [ai]) ──────
     # opencode is a first-class /v1 council peer via mios-opencode-gateway.
     # service. install_url/version pre-existed; the rest are the front-door
-    # SSOT added 2026-05-31. agent_venv/agent_install_dir are the de-facto
+    # SSOT added. agent_venv/agent_install_dir are the de-facto
     # shared interpreter for hermes-agent + agent-pipe + the gateway shim
     # (mapped onto MIOS_HERMES_VENV/_DIR — the names those consumers expect).
     ("ai.opencode_install_url",        "MIOS_OPENCODE_INSTALL_URL"),
@@ -268,7 +268,7 @@ slots = [
     ("ai.vllm.gpu_util",               "MIOS_VLLM_GPU_UTIL"),
     ("ai.vllm.max_model_len",          "MIOS_VLLM_MAX_MODEL_LEN"),
     ("ai.vllm.bake_model",             "MIOS_VLLM_BAKE_MODEL"),
-    # ── SGLang heavy lane ([ai.sglang]; mios-llm-heavy Quadlet, operator 2026-06-07) ──
+    # ── SGLang heavy lane ([ai.sglang]; mios-llm-heavy Quadlet,) ──
     # Rendered into mios-llm-heavy.container's Exec= by 15-render-quadlets.sh;
     # bake_model is read by automation/38-sglang-prep.sh at build time.
     ("ai.sglang.served_name",          "MIOS_SGLANG_SERVED_NAME"),
@@ -337,7 +337,7 @@ slots = [
     ("image.sidecars.forge",           "MIOS_FORGE_IMAGE"),
     ("image.sidecars.searxng_version", "MIOS_SEARXNG_VERSION"),
     ("image.sidecars.searxng",         "MIOS_SEARXNG_IMAGE"),
-    # web-tools POD (2026-05-24 "make it a pod"): the crawl engine is now a
+    # web-tools POD ("make it a pod"): the crawl engine is now a
     # podman POD (mios-webtools.pod, Network=host) with FOUR members --
     # redis:7-alpine, firecrawl-api + firecrawl-worker (localhost/
     # mios-firecrawl:v1.0.0, built from usr/share/mios/webtools/
@@ -405,13 +405,13 @@ slots = [
     ("services.ollama_cpu.user",       "MIOS_OLLAMA_CPU_USER"),
     ("services.ollama_cpu.uid",        "MIOS_OLLAMA_CPU_UID"),
     ("services.ollama_cpu.gid",        "MIOS_OLLAMA_CPU_GID"),
-    # OOM/parallelism guard (operator 2026-06-01) -> mios-ollama-cpu.container
+    # OOM/parallelism guard -> mios-ollama-cpu.container
     ("services.ollama_cpu.num_parallel", "MIOS_OLLAMA_CPU_NUM_PARALLEL"),
     ("services.ollama_cpu.max_loaded", "MIOS_OLLAMA_CPU_MAX_LOADED"),
     ("services.ollama_cpu.mem_high",   "MIOS_OLLAMA_CPU_MEM_HIGH"),
     ("services.ollama_cpu.mem_max",    "MIOS_OLLAMA_CPU_MEM_MAX"),
     # [services.webtools] -- consolidated web-tools container (firecrawl +
-    # crawl4ai + camoufox). Renamed from [services.crawl4ai] 2026-05-24; the
+    # crawl4ai + camoufox). Renamed from [services.crawl4ai]; the
     # canonical env is now MIOS_WEBTOOLS_* + legacy MIOS_CRAWL4AI_* aliases are
     # kept (sysusers/tmpfiles still name the user mios-crawl4ai @ uid 824).
     ("services.webtools.user",         "MIOS_WEBTOOLS_USER"),

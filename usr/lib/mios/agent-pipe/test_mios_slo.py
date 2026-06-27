@@ -61,10 +61,47 @@ def t_shed():
           slo.should_shed(slo.BEST_EFFORT, over_ceiling=False, healthy=False) is True)
 
 
+def t_ssot_configure():
+    # The per-class budgets + the interactive-priority floor are NOT baked: they
+    # read from the configure()-injected SSOT ([slo] in mios.toml). Prove behaviour
+    # FOLLOWS a non-default config, then restore the documented defaults.
+    # Baseline (documented defaults): floor 7.0 -> priority 5.0 = best_effort.
+    check("ssot: default floor 7.0 clamps priority 5.0 -> best_effort",
+          slo.classify(priority=5.0) == slo.BEST_EFFORT)
+    check("ssot: default interactive budget 8s", slo.deadline(slo.INTERACTIVE, 0.0) == 8.0)
+
+    # Inject a NON-DEFAULT SSOT: tighter floor (4.0) + different budgets.
+    slo.configure(
+        budgets={slo.INTERACTIVE: 3.0, slo.BEST_EFFORT: 60.0},
+        default_priority=5.0,
+        interactive_priority=4.0,
+    )
+    check("ssot: injected floor 4.0 now admits priority 5.0 -> interactive",
+          slo.classify(priority=5.0) == slo.INTERACTIVE)
+    check("ssot: bare classify() follows injected default_priority 5.0 vs floor 4.0",
+          slo.classify() == slo.INTERACTIVE)
+    check("ssot: injected interactive budget 3s drives deadline",
+          slo.deadline(slo.INTERACTIVE, 0.0) == 3.0)
+    check("ssot: injected best_effort budget 60s drives deadline",
+          slo.deadline(slo.BEST_EFFORT, 0.0) == 60.0)
+    check("ssot: unknown class falls back to injected best_effort budget",
+          slo.deadline("weird", 0.0) == 60.0)
+
+    # Restore the documented defaults so the rest of the suite is unaffected.
+    slo.configure(
+        budgets={slo.INTERACTIVE: 8.0, slo.BEST_EFFORT: 120.0},
+        default_priority=7.0,
+        interactive_priority=7.0,
+    )
+    check("ssot: defaults restored (floor 7.0 clamps priority 5.0)",
+          slo.classify(priority=5.0) == slo.BEST_EFFORT)
+
+
 def main():
     t_classify()
     t_deadline_edf()
     t_shed()
+    t_ssot_configure()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
 

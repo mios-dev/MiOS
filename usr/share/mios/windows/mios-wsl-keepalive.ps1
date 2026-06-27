@@ -13,7 +13,7 @@
 # agent-pipe / pgvector / searxng / sglang restart, every MCP server is re-probed
 # (Playwright stdio re-spawns), the 8B is swapped in/out of VRAM, and the P0
 # byte-stable RadixAttention prefix is destroyed -- which also makes any latency /
-# VRAM / offline-eval measurement non-reproducible (operator 2026-06-11). A single
+# VRAM / offline-eval measurement non-reproducible. A single
 # long-lived `sleep infinity` process keeps a session attached, so WSL keeps the VM
 # + all enabled services running continuously.
 #
@@ -53,7 +53,7 @@ Write-Host "Registering '$TaskName' (run as $me, Interactive/Session 1, logon + 
 # execs wsl.exe in an interactive session spawns a visible Windows Terminal /
 # conhost window every time it fires. With a 1-min self-heal trigger that meant a
 # window flashing onto the operator's desktop, stealing focus, then vanishing
-# (operator report 2026-06-12). Wrapping in a hidden powershell removes the flash.
+# (operator report). Wrapping in a hidden powershell removes the flash.
 $wslExe  = Join-Path $env:SystemRoot 'System32\wsl.exe'
 $psExe   = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
 $inner   = "& '$wslExe' -d $Distro --exec /usr/bin/sleep infinity"

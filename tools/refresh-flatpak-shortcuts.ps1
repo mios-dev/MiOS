@@ -12,7 +12,7 @@
 # the distro and writes .lnk files into
 # %APPDATA%\Microsoft\Windows\Start Menu\Programs\<distro>\ -- but
 # its icon-conversion step silently fails for many flatpak .desktop
-# files (operator-confirmed 2026-05-15: ChromeDev, Codium, gedit,
+# files (operator-confirmed ChromeDev, Codium, gedit,
 # ExtensionManager, Flatseal all skipped despite valid Categories,
 # Type=Application, present .svg icons under
 # /var/lib/flatpak/exports/share/icons). When the icon-conversion

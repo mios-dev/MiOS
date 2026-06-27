@@ -7,7 +7,7 @@
 # THIN wrapper -- it does NOT inline-print anything. Whatever shows
 # up on terminal spawn is the verb declared in mios.toml
 # [terminal.startup].linux (vendor default = "mini"). Operator
-# 2026-05-10: "have the bash and pwsh/WT environment/dotfile(s)
+# "have the bash and pwsh/WT environment/dotfile(s)
 # automatically run mios dash on open/launch--NOT PRINT ON LAUNCH!!!
 # THE ACTUAL ENV/DOTFILE(S) SHOULD DICTATE THE COMMANDS/VERBS AND
 # WHATS RUN ON CONSOLE SPAWN(ALL PLATFORMS GLOBALLY)--ALL SOURCED

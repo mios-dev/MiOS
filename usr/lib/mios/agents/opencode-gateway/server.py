@@ -150,7 +150,7 @@ def _run_opencode(prompt: str, model: str):
     interactive TUI (spinner/replay frames interleaved with the answer) which
     (a) pollutes the returned text with control noise and (b) wedges when stdout
     is a partial / early-closed consumer -- the long-standing "opencode run
-    hangs / returns zero" symptom that made this peer inert (operator 2026-06-01,
+    hangs / returns zero" symptom that made this peer inert (
     opencode default=false/fanout=false). `--format json` emits ONE JSON event
     per line (step_start / text / step_finish) with no TUI, so the process exits
     promptly at step_finish and we extract exactly the assistant text. Verified
@@ -275,7 +275,7 @@ class Handler(BaseHTTPRequestHandler):
         # This gateway serves exactly ONE model (opencode itself). The caller's
         # `model` is just a routing label -- the agent-pipe sends the AGENT NAME
         # ("opencode"), which _selector would turn into the bogus "ollama/opencode"
-        # -> "Model not found" (operator 2026-06-01 live error). ALWAYS use our
+        # > "Model not found" (live error). ALWAYS use our
         # own configured OPENCODE_MODEL (mios-opencode:latest) regardless of what
         # the caller asked for; only honour a caller id that is already a real,
         # provider-qualified opencode model (contains '/').

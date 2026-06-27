@@ -555,6 +555,432 @@
       unless you have a specific reason to change something.
     </p>
 
+    <!-- ═══════════════════════════════════════════════════════════════════
+         MiOS as a CLUSTER — blades, nodes, tenants, pods, federation.
+         A BLADE is a physical machine. A NODE is one compute unit on a blade
+         (CPU / iGPU / dGPU / NPU / accelerator) plus the inference engines it
+         serves. MiOS is forecast to span up to ~6 blades, each with multiple
+         nodes, federated into one agent fabric. These four sections expose
+         that topology and are placed first so the cluster model reads clearly.
+         ═══════════════════════════════════════════════════════════════ -->
+
+    <details class="section" id="adv-blades-nodes">
+      <summary>Blades &amp; Nodes · cluster topology <span class="phase-badge">Distributed · compute fabric</span></summary>
+      <div class="section-body">
+        <p style="color: var(--muted); font-size: 12px; margin: 0 0 12px;">
+          MiOS is a multi-blade, multi-node cluster. A <b>blade</b> is a
+          physical machine; a <b>node</b> is one compute unit on a blade — a
+          <b>CPU</b>, <b>iGPU</b>, <b>dGPU</b>, <b>NPU</b> or other accelerator
+          — together with the inference engines it serves. A node lives
+          <i>local</i> on this blade or <i>remote</i> on another blade, reached
+          over the cluster network. MiOS is forecast to span up to roughly
+          <b>six blades</b>, each carrying several nodes, federated into one
+          agent fabric: the dispatcher fans work across every reachable node by
+          capacity. Each <code>[nodes.&lt;name&gt;]</code> declares WHERE compute
+          lives (<code>endpoint</code>) and WHAT canonical model tag it serves;
+          <code>health_gate</code> lets a come-and-go node auto-join when
+          reachable and drop when gone. The local nodes below ship with MiOS;
+          REMOTE nodes (other blades), an <b>NPU</b> node, phones and edge
+          devices are declared the same way in your
+          <code>/etc/mios/mios.toml</code> overlay (template at the bottom) so no
+          personal blade name / IP is baked into the vendor file.
+        </p>
+        <div class="grid">
+          <fieldset>
+            <legend>[nodes.local-dgpu] — discrete GPU node</legend>
+            <label for="f-node-dgpu-endpoint">endpoint (where this node's engine serves /v1)</label>
+            <input type="text" id="f-node-dgpu-endpoint" data-key="nodes.local-dgpu.endpoint" placeholder="http://localhost:${MIOS_PORT_SGLANG}/v1">
+            <label for="f-node-dgpu-model">model (canonical MiOS model tag this node serves)</label>
+            <input type="text" id="f-node-dgpu-model" data-key="nodes.local-dgpu.model" placeholder="mios-heavy">
+            <label for="f-node-dgpu-lane">lane (compute bucket: gpu | cpu | igpu | npu | accelerator | mobile)</label>
+            <input type="text" id="f-node-dgpu-lane" data-key="nodes.local-dgpu.lane" placeholder="gpu">
+            <label for="f-node-dgpu-api">api (engine protocol: openai | llamacpp | ollama | vllm | sglang)</label>
+            <input type="text" id="f-node-dgpu-api" data-key="nodes.local-dgpu.api" placeholder="openai">
+            <label for="f-node-dgpu-hg">health_gate (probe + auto-join/drop)</label>
+            <input type="text" id="f-node-dgpu-hg" data-key="nodes.local-dgpu.health_gate" data-type="bool" placeholder="true">
+          </fieldset>
+          <fieldset>
+            <legend>[nodes.local-cpu] — CPU node</legend>
+            <label for="f-node-cpu-endpoint">endpoint</label>
+            <input type="text" id="f-node-cpu-endpoint" data-key="nodes.local-cpu.endpoint" placeholder="http://localhost:${MIOS_PORT_SGLANG}/v1">
+            <label for="f-node-cpu-model">model</label>
+            <input type="text" id="f-node-cpu-model" data-key="nodes.local-cpu.model" placeholder="mios-heavy">
+            <label for="f-node-cpu-lane">lane</label>
+            <input type="text" id="f-node-cpu-lane" data-key="nodes.local-cpu.lane" placeholder="gpu">
+            <label for="f-node-cpu-api">api</label>
+            <input type="text" id="f-node-cpu-api" data-key="nodes.local-cpu.api" placeholder="openai">
+            <label for="f-node-cpu-hg">health_gate</label>
+            <input type="text" id="f-node-cpu-hg" data-key="nodes.local-cpu.health_gate" data-type="bool" placeholder="true">
+          </fieldset>
+          <fieldset>
+            <legend>[nodes.local-igpu] — integrated GPU node</legend>
+            <p style="color: var(--muted); font-size: 11px; margin: 4px 0 8px;">
+              Ships endpoint EMPTY: the iGPU is typically served natively on the
+              host (llama.cpp + Vulkan) at a cluster IP set in your overlay. An
+              empty endpoint = inert node.
+            </p>
+            <label for="f-node-igpu-endpoint">endpoint (set to the iGPU host in /etc/mios)</label>
+            <input type="text" id="f-node-igpu-endpoint" data-key="nodes.local-igpu.endpoint" placeholder="(empty — set http://&lt;igpu-host&gt;:11436/v1 in /etc/mios)">
+            <label for="f-node-igpu-model">model</label>
+            <input type="text" id="f-node-igpu-model" data-key="nodes.local-igpu.model" placeholder="mios-igpu">
+            <label for="f-node-igpu-lane">lane</label>
+            <input type="text" id="f-node-igpu-lane" data-key="nodes.local-igpu.lane" placeholder="igpu">
+            <label for="f-node-igpu-api">api</label>
+            <input type="text" id="f-node-igpu-api" data-key="nodes.local-igpu.api" placeholder="llamacpp">
+          </fieldset>
+          <fieldset>
+            <legend>[nodes.local-vllm] — heavy vLLM lane</legend>
+            <label for="f-node-vllm-endpoint">endpoint</label>
+            <input type="text" id="f-node-vllm-endpoint" data-key="nodes.local-vllm.endpoint" placeholder="http://localhost:${MIOS_PORT_VLLM}/v1">
+            <label for="f-node-vllm-model">model</label>
+            <input type="text" id="f-node-vllm-model" data-key="nodes.local-vllm.model" placeholder="mios-heavy">
+            <label for="f-node-vllm-lane">lane</label>
+            <input type="text" id="f-node-vllm-lane" data-key="nodes.local-vllm.lane" placeholder="gpu">
+            <label for="f-node-vllm-api">api</label>
+            <input type="text" id="f-node-vllm-api" data-key="nodes.local-vllm.api" placeholder="openai">
+            <label for="f-node-vllm-hg">health_gate (inert until the gated lane is enabled + reachable)</label>
+            <input type="text" id="f-node-vllm-hg" data-key="nodes.local-vllm.health_gate" data-type="bool" placeholder="true">
+          </fieldset>
+          <fieldset>
+            <legend>[nodes.local-sglang] — heavy SGLang lane</legend>
+            <label for="f-node-sglang-endpoint">endpoint</label>
+            <input type="text" id="f-node-sglang-endpoint" data-key="nodes.local-sglang.endpoint" placeholder="http://localhost:${MIOS_PORT_SGLANG}/v1">
+            <label for="f-node-sglang-model">model</label>
+            <input type="text" id="f-node-sglang-model" data-key="nodes.local-sglang.model" placeholder="mios-heavy">
+            <label for="f-node-sglang-lane">lane</label>
+            <input type="text" id="f-node-sglang-lane" data-key="nodes.local-sglang.lane" placeholder="gpu">
+            <label for="f-node-sglang-api">api</label>
+            <input type="text" id="f-node-sglang-api" data-key="nodes.local-sglang.api" placeholder="openai">
+            <label for="f-node-sglang-hg">health_gate</label>
+            <input type="text" id="f-node-sglang-hg" data-key="nodes.local-sglang.health_gate" data-type="bool" placeholder="true">
+          </fieldset>
+          <fieldset>
+            <legend>[nodes.local-llamaswap] — llama.cpp multi-model lane</legend>
+            <label for="f-node-ls-endpoint">endpoint</label>
+            <input type="text" id="f-node-ls-endpoint" data-key="nodes.local-llamaswap.endpoint" placeholder="http://localhost:${MIOS_PORT_SGLANG}/v1">
+            <label for="f-node-ls-model">model</label>
+            <input type="text" id="f-node-ls-model" data-key="nodes.local-llamaswap.model" placeholder="mios-heavy">
+            <label for="f-node-ls-lane">lane</label>
+            <input type="text" id="f-node-ls-lane" data-key="nodes.local-llamaswap.lane" placeholder="gpu">
+            <label for="f-node-ls-api">api</label>
+            <input type="text" id="f-node-ls-api" data-key="nodes.local-llamaswap.api" placeholder="openai">
+            <label for="f-node-ls-hg">health_gate</label>
+            <input type="text" id="f-node-ls-hg" data-key="nodes.local-llamaswap.health_gate" data-type="bool" placeholder="true">
+          </fieldset>
+        </div>
+        <fieldset style="grid-column: 1 / -1; margin-top: 4px;">
+          <legend>Remote blades · NPU · edge — overlay template (declared in /etc/mios, not vendor)</legend>
+          <p style="color: var(--muted); font-size: 11.5px; margin: 0 0 8px;">
+            A remote node on ANOTHER blade — including an <b>NPU</b> node or an
+            edge device — joins the fabric by declaring its own
+            <code>[nodes.&lt;name&gt;]</code> in your overlay. The
+            <code>lane</code> picks the compute bucket (<code>npu</code> for a
+            neural accelerator, <code>accelerator</code> for other ASICs);
+            <code>health_gate&nbsp;=&nbsp;true</code> makes a come-and-go blade
+            auto-join when reachable and drop when gone. Keep real blade
+            names/IPs out of the vendor file — set them here. Example:
+          </p>
+          <pre class="raw" style="max-height:none">  # second blade's NPU node (overlay)
+  [nodes.blade2-npu]
+  endpoint    = "http://&lt;blade2-host&gt;:11437/v1"
+  model       = "mios-agent"      # the model tag that blade serves
+  lane        = "npu"             # neural accelerator compute bucket
+  api          = "openai"
+  health_gate = true              # auto-join when reachable, drop when gone
+
+  # a remote blade's discrete GPU node (overlay)
+  [nodes.blade3-dgpu]
+  endpoint    = "http://&lt;blade3-host&gt;:11434/v1"
+  model       = "mios-agent"
+  lane        = "gpu"
+  api          = "ollama"         # or openai / vllm / sglang / llamacpp
+  health_gate = true</pre>
+        </fieldset>
+      </div>
+    </details>
+
+    <details class="section" id="adv-users-tenancy">
+      <summary>Users &amp; Tenancy · multi-tenant accounts + ACLs <span class="phase-badge">Distributed · multi-tenant</span></summary>
+      <div class="section-body">
+        <p style="color: var(--muted); font-size: 12px; margin: 0 0 12px;">
+          MiOS is multi-tenant. User accounts are PostgreSQL database entries
+          with DB-managed access control, and recall/memory is owner-scoped via
+          row-level security (RLS) so one tenant's data is invisible to another.
+          The human <b>profile</b> the agent uses to address you
+          (<code>[user]</code> name / pronouns / bio) lives in the <b>Personal</b>
+          zone at the top of the page. The knobs here govern <i>who</i> may do
+          <i>what</i>: per-tenant tool ACLs, inbound principal verification, and
+          where RLS is enforced. Per-user tool ceilings are declared as
+          <code>[users.&lt;name&gt;]</code> tables (template below); the RLS
+          mode itself is in the <b>pgvector</b> section
+          (<code>[pgvector].rls_mode</code> = <code>off</code> | <code>enforce</code>).
+        </p>
+        <div class="grid">
+          <fieldset>
+            <legend>security — inbound principal / per-tenant auth</legend>
+            <label for="f-sec-principal">principal_mode (off = trust surface-claimed user · verify = require a scoped token · enforce = verify + 401 on miss)</label>
+            <input type="text" id="f-sec-principal" data-key="security.principal_mode" placeholder="off">
+            <label for="f-sec-token-ttl">token_ttl_s (scoped-token lifetime, seconds)</label>
+            <input type="text" id="f-sec-token-ttl" data-key="security.token_ttl_s" data-type="int" placeholder="3600">
+            <label for="f-sec-require-auth">api_require_auth (gate the :8640 front door on a shared/per-caller key)</label>
+            <input type="text" id="f-sec-require-auth" data-key="security.api_require_auth" data-type="bool" placeholder="false">
+            <label for="f-sec-caller-keys">api_caller_keys_path (per-caller key → scoped principal map)</label>
+            <input type="text" id="f-sec-caller-keys" data-key="security.api_caller_keys_path" placeholder="/etc/mios/ai/v1/caller-keys.json">
+          </fieldset>
+          <fieldset>
+            <legend>[users.&lt;name&gt;] — per-tenant tool ACL (overlay template)</legend>
+            <p style="color: var(--muted); font-size: 11.5px; margin: 0 0 8px;">
+              Caps the tool surface by WHO is asking — matched to the principal
+              the chat surface forwards. Same <code>denied_verbs</code> /
+              <code>allowed_verbs</code> / <code>max_permission</code> vocabulary
+              as a per-agent ceiling, plus optional per-user rate/spend quotas.
+              No matching entry ⇒ no restriction (single-tenant MiOS
+              unaffected). Declare in <code>/etc/mios/mios.toml</code>:
+            </p>
+            <pre class="raw" style="max-height:none">  [users.guest]
+  max_permission = "read"          # read-only surface for a guest principal
+  denied_verbs   = ["pkg", "shutdown", "reboot"]
+  # email        = "guest@example.com"   # also match by forwarded email
+  # rpm_limit    = 60               # cap verb dispatches per 60s
+  # daily_budget = 5.0              # cap remote-lane spend per 24h</pre>
+          </fieldset>
+        </div>
+      </div>
+    </details>
+
+    <details class="section" id="adv-pods">
+      <summary>Pods &amp; cluster grouping · co-resident container sets <span class="phase-badge">Distributed · pod SSOT</span></summary>
+      <div class="section-body">
+        <p style="color: var(--muted); font-size: 12px; margin: 0 0 12px;">
+          A <b>pod</b> is a set of containers scheduled together in one podman
+          pod (shared network namespace + lifecycle). This table is the SSOT:
+          the <code>.pod</code> Quadlet is generated from it, and the same pods
+          project to k3s for the cluster path. <code>network</code> is
+          <code>host</code> or <code>private</code>; <code>members</code> is the
+          container set (comma-separated). The ordering keys
+          (<code>after</code> / <code>wants</code> / <code>wanted_by</code>) and
+          the <code>doc</code> string are owned by the generator and edited in
+          the TOML directly.
+        </p>
+        <div class="grid">
+          <fieldset>
+            <legend>[pods.mios-webtools]</legend>
+            <label for="f-pod-webtools-desc">description</label>
+            <input type="text" id="f-pod-webtools-desc" data-key="pods.mios-webtools.description" placeholder="'MiOS' web-tools pod (firecrawl api+worker + crawl4ai + redis)">
+            <label for="f-pod-webtools-net">network (host | private)</label>
+            <input type="text" id="f-pod-webtools-net" data-key="pods.mios-webtools.network" placeholder="host">
+            <label for="f-pod-webtools-members">members (CSV)</label>
+            <input type="text" id="f-pod-webtools-members" data-key="pods.mios-webtools.members" data-array="csv" placeholder="mios-webtools-redis,mios-webtools-firecrawl-api,mios-webtools-firecrawl-worker,mios-webtools-crawl4ai">
+          </fieldset>
+          <fieldset>
+            <legend>[pods.mios-ai-inference]</legend>
+            <label for="f-pod-aiinf-desc">description</label>
+            <input type="text" id="f-pod-aiinf-desc" data-key="pods.mios-ai-inference.description" placeholder="'MiOS' AI inference pod">
+            <label for="f-pod-aiinf-net">network</label>
+            <input type="text" id="f-pod-aiinf-net" data-key="pods.mios-ai-inference.network" placeholder="host">
+            <label for="f-pod-aiinf-members">members (CSV)</label>
+            <input type="text" id="f-pod-aiinf-members" data-key="pods.mios-ai-inference.members" data-array="csv" placeholder="mios-llm-light,mios-cpu-node,mios-llm-worker@">
+          </fieldset>
+          <fieldset>
+            <legend>[pods.mios-ai-heavy]</legend>
+            <label for="f-pod-aiheavy-desc">description</label>
+            <input type="text" id="f-pod-aiheavy-desc" data-key="pods.mios-ai-heavy.description" placeholder="'MiOS' AI heavy inference pod">
+            <label for="f-pod-aiheavy-net">network</label>
+            <input type="text" id="f-pod-aiheavy-net" data-key="pods.mios-ai-heavy.network" placeholder="host">
+            <label for="f-pod-aiheavy-members">members (CSV)</label>
+            <input type="text" id="f-pod-aiheavy-members" data-key="pods.mios-ai-heavy.members" data-array="csv" placeholder="mios-llm-heavy,mios-llm-heavy-alt">
+          </fieldset>
+          <fieldset>
+            <legend>[pods.mios-ai-data]</legend>
+            <label for="f-pod-aidata-desc">description</label>
+            <input type="text" id="f-pod-aidata-desc" data-key="pods.mios-ai-data.description" placeholder="'MiOS' AI data pod">
+            <label for="f-pod-aidata-net">network</label>
+            <input type="text" id="f-pod-aidata-net" data-key="pods.mios-ai-data.network" placeholder="host">
+            <label for="f-pod-aidata-members">members (CSV)</label>
+            <input type="text" id="f-pod-aidata-members" data-key="pods.mios-ai-data.members" data-array="csv" placeholder="mios-pgvector">
+          </fieldset>
+          <fieldset>
+            <legend>[pods.mios-devforge]</legend>
+            <label for="f-pod-devforge-desc">description</label>
+            <input type="text" id="f-pod-devforge-desc" data-key="pods.mios-devforge.description" placeholder="'MiOS' dev forge pod">
+            <label for="f-pod-devforge-net">network</label>
+            <input type="text" id="f-pod-devforge-net" data-key="pods.mios-devforge.network" placeholder="host">
+            <label for="f-pod-devforge-members">members (CSV)</label>
+            <input type="text" id="f-pod-devforge-members" data-key="pods.mios-devforge.members" data-array="csv" placeholder="mios-forge,mios-forgejo-runner,mios-code-server">
+          </fieldset>
+          <fieldset>
+            <legend>[pods.mios-netinfra-dns]</legend>
+            <label for="f-pod-dns-desc">description</label>
+            <input type="text" id="f-pod-dns-desc" data-key="pods.mios-netinfra-dns.description" placeholder="'MiOS' network infra DNS pod">
+            <label for="f-pod-dns-net">network</label>
+            <input type="text" id="f-pod-dns-net" data-key="pods.mios-netinfra-dns.network" placeholder="host">
+            <label for="f-pod-dns-members">members (CSV)</label>
+            <input type="text" id="f-pod-dns-members" data-key="pods.mios-netinfra-dns.members" data-array="csv" placeholder="mios-adguard">
+          </fieldset>
+          <fieldset>
+            <legend>[pods.mios-remote-desktop]</legend>
+            <label for="f-pod-rd-desc">description</label>
+            <input type="text" id="f-pod-rd-desc" data-key="pods.mios-remote-desktop.description" placeholder="'MiOS' remote desktop pod">
+            <label for="f-pod-rd-net">network</label>
+            <input type="text" id="f-pod-rd-net" data-key="pods.mios-remote-desktop.network" placeholder="host">
+            <label for="f-pod-rd-members">members (CSV)</label>
+            <input type="text" id="f-pod-rd-members" data-key="pods.mios-remote-desktop.members" data-array="csv" placeholder="mios-guacamole,mios-guacd,mios-guacamole-postgres">
+          </fieldset>
+        </div>
+      </div>
+    </details>
+
+    <details class="section" id="adv-agents-federation">
+      <summary>Agents &amp; Federation · sub-agent registry + A2A fabric <span class="phase-badge">Distributed · federation</span></summary>
+      <div class="section-body">
+        <p style="color: var(--muted); font-size: 12px; margin: 0 0 12px;">
+          agent-pipe is the always-first orchestrator; Hermes, OpenCode and any
+          peer it can reach are sub-agents it delegates to. Each
+          <code>[agents.&lt;name&gt;]</code> inherits <code>[agents._defaults]</code>
+          then overrides only what differs. The <code>kind</code> field
+          (<code>local-http</code> | <code>remote-http</code> | <code>cli</code> |
+          <code>mobile</code> | <code>edge</code> | <code>node</code> |
+          <code>a2a</code>) is HOW a remote blade or node federates in:
+          <code>remote-http</code>/<code>node</code> reach another blade's
+          OpenAI-compatible endpoint, <code>a2a</code> joins a peer's A2A card.
+          Auth + trust posture make federation zero-trust-capable; A2A peers and
+          epidemic gossip discover the fleet. Array fields
+          (<code>strengths</code>, <code>denied_verbs</code>,
+          <code>allowed_verbs</code>, <code>failover_agents</code>) are
+          comma-separated.
+        </p>
+        <div class="grid">
+          <fieldset>
+            <legend>[agents._defaults] — unified template every agent inherits</legend>
+            <label for="f-agd-kind">kind (local-http | remote-http | cli | mobile | edge | node | a2a)</label>
+            <input type="text" id="f-agd-kind" data-key="agents._defaults.kind" placeholder="local-http">
+            <label for="f-agd-role">role</label>
+            <input type="text" id="f-agd-role" data-key="agents._defaults.role" placeholder="general">
+            <label for="f-agd-lane">lane</label>
+            <input type="text" id="f-agd-lane" data-key="agents._defaults.lane" placeholder="gpu">
+            <label for="f-agd-enabled">enabled (false on a default-off / optional unit)</label>
+            <input type="text" id="f-agd-enabled" data-key="agents._defaults.enabled" data-type="bool" placeholder="true">
+            <label for="f-agd-fanout">fanout (eligible for council/swarm fan-out)</label>
+            <input type="text" id="f-agd-fanout" data-key="agents._defaults.fanout" data-type="bool" placeholder="true">
+            <label for="f-agd-hg">health_gate (probe + drop when unreachable)</label>
+            <input type="text" id="f-agd-hg" data-key="agents._defaults.health_gate" data-type="bool" placeholder="false">
+            <label for="f-agd-transport">transport (http | cli subprocess shim)</label>
+            <input type="text" id="f-agd-transport" data-key="agents._defaults.transport" placeholder="http">
+            <label for="f-agd-api">api (openai | llamacpp | ollama | vllm | sglang)</label>
+            <input type="text" id="f-agd-api" data-key="agents._defaults.api" placeholder="(empty)">
+            <label for="f-agd-maxperm">max_permission (risk-tier ceiling; "" = no ceiling)</label>
+            <input type="text" id="f-agd-maxperm" data-key="agents._defaults.max_permission" placeholder="(empty)">
+            <label for="f-agd-research">research_only (joins only research/deep turns)</label>
+            <input type="text" id="f-agd-research" data-key="agents._defaults.research_only" data-type="bool" placeholder="false">
+          </fieldset>
+          <fieldset>
+            <legend>[agents._defaults.auth] — per-agent credential (zero-trust federation)</legend>
+            <p style="color: var(--muted); font-size: 11px; margin: 4px 0 8px;">
+              An agent presents its OWN credential, so any reachable
+              OpenAI-compatible endpoint joins by network + credential, never
+              bespoke code.
+            </p>
+            <label for="f-aga-scheme">scheme (none | bearer | oauth2 | mtls)</label>
+            <input type="text" id="f-aga-scheme" data-key="agents._defaults.auth.scheme" placeholder="none">
+            <label for="f-aga-header">header_template (env-resolved at load)</label>
+            <input type="text" id="f-aga-header" data-key="agents._defaults.auth.header_template" placeholder="Authorization: Bearer ${MIOS_AGENT_&lt;NAME&gt;_KEY}">
+            <label for="f-aga-principal">principal_mode ("" = inherit [a2a]; else audit | require)</label>
+            <input type="text" id="f-aga-principal" data-key="agents._defaults.auth.principal_mode" placeholder="(inherit)">
+          </fieldset>
+          <fieldset>
+            <legend>[agents._defaults.trust] — peer trust gate</legend>
+            <label for="f-agt-minrep">min_reputation (drop a peer below this score)</label>
+            <input type="text" id="f-agt-minrep" data-key="agents._defaults.trust.min_reputation" data-type="float" placeholder="0.0">
+            <label for="f-agt-signed">require_signed_principal (verified Ed25519 principal on inbound delegation)</label>
+            <input type="text" id="f-agt-signed" data-key="agents._defaults.trust.require_signed_principal" data-type="bool" placeholder="false">
+            <label for="f-agt-mtls">mtls (require mutual TLS for this peer)</label>
+            <input type="text" id="f-agt-mtls" data-key="agents._defaults.trust.mtls" data-type="bool" placeholder="false">
+          </fieldset>
+          <fieldset>
+            <legend>[agents.hermes] — agent gateway + tool loop</legend>
+            <label for="f-agh-endpoint">endpoint</label>
+            <input type="text" id="f-agh-endpoint" data-key="agents.hermes.endpoint" placeholder="http://localhost:${MIOS_PORT_HERMES_WORKER}/v1">
+            <label for="f-agh-model">model</label>
+            <input type="text" id="f-agh-model" data-key="agents.hermes.model" placeholder="mios-heavy">
+            <label for="f-agh-role">role</label>
+            <input type="text" id="f-agh-role" data-key="agents.hermes.role" placeholder="general">
+            <label for="f-agh-lane">lane</label>
+            <input type="text" id="f-agh-lane" data-key="agents.hermes.lane" placeholder="gpu">
+            <label for="f-agh-fanout">fanout (council/swarm eligibility)</label>
+            <input type="text" id="f-agh-fanout" data-key="agents.hermes.fanout" data-type="bool" placeholder="false">
+            <label for="f-agh-default">default (refine fallback pick)</label>
+            <input type="text" id="f-agh-default" data-key="agents.hermes.default" data-type="bool" placeholder="false">
+            <label for="f-agh-hg">health_gate</label>
+            <input type="text" id="f-agh-hg" data-key="agents.hermes.health_gate" data-type="bool" placeholder="true">
+          </fieldset>
+          <fieldset>
+            <legend>[agents.opencode] — coding sub-agent (CLI shim)</legend>
+            <label for="f-ago-endpoint">endpoint</label>
+            <input type="text" id="f-ago-endpoint" data-key="agents.opencode.endpoint" placeholder="http://localhost:8633/v1">
+            <label for="f-ago-model">model</label>
+            <input type="text" id="f-ago-model" data-key="agents.opencode.model" placeholder="mios-opencode:latest">
+            <label for="f-ago-kind">kind</label>
+            <input type="text" id="f-ago-kind" data-key="agents.opencode.kind" placeholder="cli">
+            <label for="f-ago-enabled">enabled</label>
+            <input type="text" id="f-ago-enabled" data-key="agents.opencode.enabled" data-type="bool" placeholder="false">
+            <label for="f-ago-role">role</label>
+            <input type="text" id="f-ago-role" data-key="agents.opencode.role" placeholder="coding">
+            <label for="f-ago-default">default</label>
+            <input type="text" id="f-ago-default" data-key="agents.opencode.default" data-type="bool" placeholder="false">
+            <label for="f-ago-fanout">fanout</label>
+            <input type="text" id="f-ago-fanout" data-key="agents.opencode.fanout" data-type="bool" placeholder="false">
+            <label for="f-ago-hg">health_gate</label>
+            <input type="text" id="f-ago-hg" data-key="agents.opencode.health_gate" data-type="bool" placeholder="true">
+          </fieldset>
+          <fieldset>
+            <legend>[a2a] — agent-to-agent fleet (cross-blade delegation)</legend>
+            <p style="color: var(--muted); font-size: 11px; margin: 4px 0 8px;">
+              Peer MiOS blades the orchestrator delegates across. List explicit
+              node URLs or set a CIDR to auto-sweep a LAN segment.
+            </p>
+            <label for="f-a2a-nodes">nodes (CSV of peer /v1 URLs)</label>
+            <input type="text" id="f-a2a-nodes" data-key="a2a.nodes" data-array="csv" placeholder="http://172.20.0.5:8640,http://192.168.1.40:8640">
+            <label for="f-a2a-cidr">discover_cidr (auto-sweep a LAN segment, ≤256 hosts)</label>
+            <input type="text" id="f-a2a-cidr" data-key="a2a.discover_cidr" placeholder="192.168.1.0/24">
+            <label for="f-a2a-council">council (opt peers into the concurrent fan-out)</label>
+            <input type="text" id="f-a2a-council" data-key="a2a.council" data-type="bool" placeholder="false">
+            <label for="f-a2a-self">self_id (this pipe's own peer id; always self-excluded)</label>
+            <input type="text" id="f-a2a-self" data-key="a2a.self_id" placeholder="local-mios">
+          </fieldset>
+          <fieldset>
+            <legend>[gossip] — epidemic peer discovery (anti-entropy)</legend>
+            <label for="f-gossip-interval">interval_min (0 = disabled; no loop spawned)</label>
+            <input type="text" id="f-gossip-interval" data-key="gossip.interval_min" data-type="int" placeholder="0">
+            <label for="f-gossip-fanout">fanout (peers contacted per round)</label>
+            <input type="text" id="f-gossip-fanout" data-key="gossip.fanout" data-type="int" placeholder="3">
+            <label for="f-gossip-trust">min_trust (reject peer rumors below this reputation)</label>
+            <input type="text" id="f-gossip-trust" data-key="gossip.min_trust" data-type="float" placeholder="0.0">
+          </fieldset>
+          <fieldset>
+            <legend>[agent_passport] — Open Agent Passport (template; vendor ships commented)</legend>
+            <p style="color: var(--muted); font-size: 11px; margin: 4px 0 8px;">
+              Verifiable, issuer-signed agent identity served at
+              <code>/.well-known/agent-passport.json</code>. EVERY field is
+              optional — the builder fills MiOS defaults. The one activation knob
+              is exposed here; the rest (domain, scope, signing keys, spend
+              ceilings) are set in your overlay (template below).
+            </p>
+            <label for="f-ap-principal">principal_mode (off = attribution only · require = reject unsigned inbound delegations)</label>
+            <input type="text" id="f-ap-principal" data-key="agent_passport.principal_mode" placeholder="off">
+            <pre class="raw" style="max-height:none">  # /etc/mios overlay — activate a signed, verifiable passport
+  [agent_passport]
+  domain          = "mios.example.net"
+  scope           = ["assist.local", "tools.invoke", "web.search"]
+  spend_ceiling_amount = 0         # 0 = no autonomous spend authority
+  hitl_above_amount    = 0         # human-in-the-loop trigger threshold
+  validity_days   = 90
+  key_id          = "mios-ap-1"
+  signing_key_path = "/etc/mios/agent-passport/ed25519.key"</pre>
+          </fieldset>
+        </div>
+      </div>
+    </details>
+
     <details class="section" id="adv-identity-net">
       <summary>Identity (advanced), image, auth &amp; firewall <span class="phase-badge">Phase 1-6</span></summary>
       <div class="section-body">
@@ -628,7 +1054,7 @@
             <!-- Static fallback mirrors the vendor [[ai.catalog]] in
                  /usr/share/mios/mios.toml so the page works without a parsed
                  mios.toml. Keep in sync with [[ai.catalog]] there (the
-                 2026-06-13 family-diverse, mainline-llama.cpp-safe fleet:
+                 family-diverse, mainline-llama.cpp-safe fleet:
                  Granite brain+coder, LFM2 micro, Magistral heavy). -->
             <option value="granite4.1:8b">granite4.1:8b (8 GB, IBM dense brain+coder default; 131K ctx)</option>
             <option value="lfm2:700m">lfm2:700m (4 GB, Liquid AI micro/CPU classify lane)</option>
@@ -1458,6 +1884,505 @@
   </div>
 </details>
 
+<details class="section" id="adv-governance">
+  <summary>Governance &amp; autonomy · cost · SLO · scheduler · budget · dispatch · HITL <span class="phase-badge">AIOS · governance</span></summary>
+  <div class="section-body">
+    <p style="color: var(--muted); font-size: 12px; margin: 0 0 12px;">
+      The AIOS governance plane: what the cluster spends (energy / tokens), how
+      it prioritises and sheds work under contention, how wide it fans out, and
+      where a human stays in the loop. Defaults are observe-only or generous —
+      these bound runaway autonomous work, not a human's conversation. The
+      <code>[dispatch]</code> table below exposes the high-level fan-out +
+      admission knobs; many finer dispatch tunables stay TOML/env-overridable.
+    </p>
+    <div class="grid">
+      <fieldset>
+        <legend>[cost] — energy / spend ledger (observe-only)</legend>
+        <label for="f-cost-enable">enable (record dispatches / tokens / energy)</label>
+        <input type="text" id="f-cost-enable" data-key="cost.enable" data-type="bool" placeholder="true">
+        <label for="f-cost-watts">gpu_watts (board power for the energy estimate)</label>
+        <input type="text" id="f-cost-watts" data-key="cost.gpu_watts" data-type="float" placeholder="350.0">
+        <label for="f-cost-kwh">usd_per_kwh (0 = track Wh only)</label>
+        <input type="text" id="f-cost-kwh" data-key="cost.usd_per_kwh" data-type="float" placeholder="0.0">
+        <label for="f-cost-mtok">remote_usd_per_mtok ($/Mtok for a remote lane)</label>
+        <input type="text" id="f-cost-mtok" data-key="cost.remote_usd_per_mtok" data-type="float" placeholder="0.0">
+        <label for="f-cost-budget">budget_usd (0 = no $ ceiling)</label>
+        <input type="text" id="f-cost-budget" data-key="cost.budget_usd" data-type="float" placeholder="0.0">
+      </fieldset>
+      <fieldset>
+        <legend>[slo] — deadline / SLO class budgets</legend>
+        <label for="f-slo-int">interactive_budget_s (foreground, human-waiting)</label>
+        <input type="text" id="f-slo-int" data-key="slo.interactive_budget_s" data-type="float" placeholder="8.0">
+        <label for="f-slo-be">best_effort_budget_s (background / autonomous)</label>
+        <input type="text" id="f-slo-be" data-key="slo.best_effort_budget_s" data-type="float" placeholder="120.0">
+        <label for="f-slo-intprio">interactive_priority (floor below which a turn downgrades)</label>
+        <input type="text" id="f-slo-intprio" data-key="slo.interactive_priority" data-type="float" placeholder="7.0">
+        <label for="f-slo-defprio">default_priority (assumed for an unclassified turn)</label>
+        <input type="text" id="f-slo-defprio" data-key="slo.default_priority" data-type="float" placeholder="7.0">
+      </fieldset>
+      <fieldset>
+        <legend>[budget] — token / in-flight ceilings (runaway bound)</legend>
+        <label for="f-bud-conv">conversation_token_ceil (0 = unlimited)</label>
+        <input type="text" id="f-bud-conv" data-key="budget.conversation_token_ceil" data-type="int" placeholder="2000000">
+        <label for="f-bud-auto">autonomous_token_ceil (per self-initiated run; 0 = off)</label>
+        <input type="text" id="f-bud-auto" data-key="budget.autonomous_token_ceil" data-type="int" placeholder="400000">
+        <label for="f-bud-inflight">autonomous_max_inflight (concurrent autonomous runs)</label>
+        <input type="text" id="f-bud-inflight" data-key="budget.autonomous_max_inflight" data-type="int" placeholder="1">
+        <label for="f-bud-window">window_s (accounting window)</label>
+        <input type="text" id="f-bud-window" data-key="budget.window_s" data-type="int" placeholder="3600">
+      </fieldset>
+      <fieldset>
+        <legend>[sched] — turn-priority scorer</legend>
+        <label for="f-sched-mode">priority_mode (ssot | model)</label>
+        <input type="text" id="f-sched-mode" data-key="sched.priority_mode" placeholder="ssot">
+        <label for="f-sched-ud">urgency_default</label>
+        <input type="text" id="f-sched-ud" data-key="sched.urgency_default" data-type="int" placeholder="5">
+        <label for="f-sched-uh">urgency_high</label>
+        <input type="text" id="f-sched-uh" data-key="sched.urgency_high" data-type="int" placeholder="9">
+        <label for="f-sched-ul">urgency_low</label>
+        <input type="text" id="f-sched-ul" data-key="sched.urgency_low" data-type="int" placeholder="2">
+        <label for="f-sched-cap">complexity_cap</label>
+        <input type="text" id="f-sched-cap" data-key="sched.complexity_cap" data-type="int" placeholder="10">
+        <label for="f-sched-cw">score_complexity_weight</label>
+        <input type="text" id="f-sched-cw" data-key="sched.score_complexity_weight" data-type="float" placeholder="0.4">
+        <label for="f-sched-uw">score_urgency_weight</label>
+        <input type="text" id="f-sched-uw" data-key="sched.score_urgency_weight" data-type="float" placeholder="0.6">
+      </fieldset>
+      <fieldset>
+        <legend>[dispatch] — multi-agent fan-out + admission</legend>
+        <label for="f-disp-enable">enable</label>
+        <input type="text" id="f-disp-enable" data-key="dispatch.enable" data-type="bool" placeholder="true">
+        <label for="f-disp-mode">mode (council = equal-weight all eligible · relevance = model-picked subset)</label>
+        <input type="text" id="f-disp-mode" data-key="dispatch.mode" placeholder="council">
+        <label for="f-disp-cdef">council_default (substantive turns engage the council by default)</label>
+        <input type="text" id="f-disp-cdef" data-key="dispatch.council_default" data-type="bool" placeholder="true">
+        <label for="f-disp-fmin">fanout_min</label>
+        <input type="text" id="f-disp-fmin" data-key="dispatch.fanout_min" data-type="int" placeholder="1">
+        <label for="f-disp-fmax">fanout_max (total concurrent agents = primary + secondaries)</label>
+        <input type="text" id="f-disp-fmax" data-key="dispatch.fanout_max" data-type="int" placeholder="3">
+        <label for="f-disp-cmax">council_max (max council secondaries/turn; 0 = all)</label>
+        <input type="text" id="f-disp-cmax" data-key="dispatch.council_max" data-type="int" placeholder="4">
+        <label for="f-disp-swmax">swarm_max_width (distinct swarm/DAG targets; 0 = uncapped)</label>
+        <input type="text" id="f-disp-swmax" data-key="dispatch.swarm_max_width" data-type="int" placeholder="3">
+        <label for="f-disp-gconc">global_concurrency (max running dispatches across ALL lanes)</label>
+        <input type="text" id="f-disp-gconc" data-key="dispatch.global_concurrency" data-type="int" placeholder="16">
+        <label for="f-disp-admit">admit_enable (VRAM/load admission gate)</label>
+        <input type="text" id="f-disp-admit" data-key="dispatch.admit_enable" data-type="bool" placeholder="true">
+        <label for="f-disp-load">admit_load_ceil (1-min loadavg backpressure ceiling)</label>
+        <input type="text" id="f-disp-load" data-key="dispatch.admit_load_ceil" data-type="int" placeholder="56">
+        <label for="f-disp-mem">admit_mem_pct (mem% backpressure ceiling)</label>
+        <input type="text" id="f-disp-mem" data-key="dispatch.admit_mem_pct" data-type="int" placeholder="92">
+        <label for="f-disp-pq">priority_queue_enable (serve highest-priority waiter; degrade-open to FIFO)</label>
+        <input type="text" id="f-disp-pq" data-key="dispatch.priority_queue_enable" data-type="bool" placeholder="true">
+        <label for="f-disp-shed">slo_shed_enable (shed best-effort work under contention; never sheds interactive)</label>
+        <input type="text" id="f-disp-shed" data-key="dispatch.slo_shed_enable" data-type="bool" placeholder="false">
+        <label for="f-disp-kernel">kernel_route (shadow-log the kernel router for parity; no behaviour change)</label>
+        <input type="text" id="f-disp-kernel" data-key="dispatch.kernel_route" data-type="bool" placeholder="false">
+      </fieldset>
+      <fieldset>
+        <legend>[dispatch.autonomy] · [hitl] · [selfimprove] · [goap]</legend>
+        <label for="f-da-prio">dispatch.autonomy.autonomous_priority (low | normal | high)</label>
+        <input type="text" id="f-da-prio" data-key="dispatch.autonomy.autonomous_priority" placeholder="low">
+        <label for="f-da-depth">dispatch.autonomy.max_dispatch_depth (sub-dispatch recursion bound)</label>
+        <input type="text" id="f-da-depth" data-key="dispatch.autonomy.max_dispatch_depth" data-type="int" placeholder="2">
+        <label for="f-hitl-enable">hitl.enable (human-in-the-loop approval gate)</label>
+        <input type="text" id="f-hitl-enable" data-key="hitl.enable" data-type="bool" placeholder="true">
+        <label for="f-hitl-mode">hitl.mode (log = non-blocking · gate = block-until-approved)</label>
+        <input type="text" id="f-hitl-mode" data-key="hitl.mode" placeholder="log">
+        <label for="f-hitl-verbs">hitl.verbs (CSV override of gated verbs; blank = built-in set)</label>
+        <input type="text" id="f-hitl-verbs" data-key="hitl.verbs" placeholder="(blank = high-privilege verb set)">
+        <label for="f-si-sample">selfimprove.sample_size (recent tool_call rows analysed)</label>
+        <input type="text" id="f-si-sample" data-key="selfimprove.sample_size" data-type="int" placeholder="500">
+        <label for="f-si-min">selfimprove.min_samples (skip a tool with fewer calls)</label>
+        <input type="text" id="f-si-min" data-key="selfimprove.min_samples" data-type="int" placeholder="5">
+        <label for="f-si-fail">selfimprove.fail_threshold (flag tools failing ≥ this fraction)</label>
+        <input type="text" id="f-si-fail" data-key="selfimprove.fail_threshold" data-type="float" placeholder="0.3">
+        <label for="f-si-slow">selfimprove.slow_ms (flag tools averaging ≥ this many ms)</label>
+        <input type="text" id="f-si-slow" data-key="selfimprove.slow_ms" data-type="int" placeholder="10000">
+        <label for="f-si-interval">selfimprove.interval_min (0 = off; surface-only, never auto-acts)</label>
+        <input type="text" id="f-si-interval" data-key="selfimprove.interval_min" data-type="int" placeholder="0">
+        <label for="f-goap-mode">goap.mode (off | available — deterministic GOAP planner lane)</label>
+        <input type="text" id="f-goap-mode" data-key="goap.mode" placeholder="off">
+        <p style="color: var(--muted); font-size: 11px; margin: 8px 0 0;">
+          The GOAP action model (<code>[[goap.actions]]</code>) is an
+          array-of-tables edited in the TOML directly.
+        </p>
+      </fieldset>
+    </div>
+  </div>
+</details>
+
+<details class="section" id="adv-ai-pipeline">
+  <summary>AI pipeline tuning · refine → plan → polish · knowledge · web research <span class="phase-badge">AIOS · pipeline</span></summary>
+  <div class="section-body">
+    <p style="color: var(--muted); font-size: 12px; margin: 0 0 12px;">
+      The orchestrator's refine → route → dispatch → polish chain, the tiered
+      semantic memory, and the per-facet web-research loop. <code>refine</code>
+      and <code>polish</code> share the one light MiOS brain; the cutoffs feed
+      BOTH the prompt cues and the classification guards so they cannot drift.
+    </p>
+    <div class="grid">
+      <fieldset>
+        <legend>[hermes] — gateway back-compat</legend>
+        <label for="f-herm-endpoint">endpoint</label>
+        <input type="text" id="f-herm-endpoint" data-key="hermes.endpoint" placeholder="http://localhost:${MIOS_PORT_HERMES}/v1">
+        <label for="f-herm-backend">backend (inference lane it fronts)</label>
+        <input type="text" id="f-herm-backend" data-key="hermes.backend" placeholder="http://localhost:${MIOS_PORT_LLM_LIGHT}">
+        <label for="f-herm-model">model (mirrors [ai].model; back-compat)</label>
+        <input type="text" id="f-herm-model" data-key="hermes.model" placeholder="granite4.1:8b">
+        <label for="f-herm-enable">enable</label>
+        <input type="text" id="f-herm-enable" data-key="hermes.enable" data-type="bool" placeholder="true">
+      </fieldset>
+      <fieldset>
+        <legend>[refine] — input prompt-enhancement pass</legend>
+        <label for="f-ref-enable">enable</label>
+        <input type="text" id="f-ref-enable" data-key="refine.enable" data-type="bool" placeholder="true">
+        <label for="f-ref-model">model</label>
+        <input type="text" id="f-ref-model" data-key="refine.model" placeholder="mios-agent">
+        <label for="f-ref-endpoint">endpoint</label>
+        <input type="text" id="f-ref-endpoint" data-key="refine.endpoint" placeholder="http://localhost:${MIOS_PORT_LLM_LIGHT}">
+        <label for="f-ref-timeout">timeout_seconds</label>
+        <input type="text" id="f-ref-timeout" data-key="refine.timeout_seconds" data-type="int" placeholder="45">
+        <label for="f-ref-maxtok">max_tokens</label>
+        <input type="text" id="f-ref-maxtok" data-key="refine.max_tokens" data-type="int" placeholder="1200">
+        <label for="f-ref-bypass">bypass_chars (trivial-input fast path)</label>
+        <input type="text" id="f-ref-bypass" data-key="refine.bypass_chars" data-type="int" placeholder="24">
+        <label for="f-ref-chat">chat_chars (intent cue: chat is very short)</label>
+        <input type="text" id="f-ref-chat" data-key="refine.chat_chars" data-type="int" placeholder="40">
+        <label for="f-ref-dispatch">dispatch_chars (intent cue: short verb invocation)</label>
+        <input type="text" id="f-ref-dispatch" data-key="refine.dispatch_chars" data-type="int" placeholder="60">
+        <label for="f-ref-promote">promote_chars (longer input → agent decomposition)</label>
+        <input type="text" id="f-ref-promote" data-key="refine.promote_chars" data-type="int" placeholder="100">
+        <label for="f-ref-argwords">dispatch_arg_max_words (longer arg → semantic phrase → agent)</label>
+        <input type="text" id="f-ref-argwords" data-key="refine.dispatch_arg_max_words" data-type="int" placeholder="3">
+      </fieldset>
+      <fieldset>
+        <legend>[planner] · [polish]</legend>
+        <label for="f-plan-chars">planner.short_prompt_chars (below this, skip the planner)</label>
+        <input type="text" id="f-plan-chars" data-key="planner.short_prompt_chars" data-type="int" placeholder="60">
+        <label for="f-plan-words">planner.short_prompt_words (…and at/below this word count)</label>
+        <input type="text" id="f-plan-words" data-key="planner.short_prompt_words" data-type="int" placeholder="10">
+        <label for="f-pol-enable">polish.enable (output-shaping final pass)</label>
+        <input type="text" id="f-pol-enable" data-key="polish.enable" data-type="bool" placeholder="true">
+        <label for="f-pol-model">polish.model</label>
+        <input type="text" id="f-pol-model" data-key="polish.model" placeholder="mios-agent">
+        <label for="f-pol-endpoint">polish.endpoint</label>
+        <input type="text" id="f-pol-endpoint" data-key="polish.endpoint" placeholder="http://localhost:${MIOS_PORT_LLM_LIGHT}">
+        <label for="f-pol-timeout">polish.timeout_seconds</label>
+        <input type="text" id="f-pol-timeout" data-key="polish.timeout_seconds" data-type="int" placeholder="45">
+        <label for="f-pol-maxtok">polish.max_tokens</label>
+        <input type="text" id="f-pol-maxtok" data-key="polish.max_tokens" data-type="int" placeholder="800">
+      </fieldset>
+      <fieldset>
+        <legend>[knowledge] — tiered semantic memory</legend>
+        <label for="f-kn-strict">recall_strict_score (cosine above which a recall is trusted)</label>
+        <input type="text" id="f-kn-strict" data-key="knowledge.recall_strict_score" data-type="float" placeholder="0.82">
+        <label for="f-kn-pref">recall_pref_min_score (lower floor for self-referential asks)</label>
+        <input type="text" id="f-kn-pref" data-key="knowledge.recall_pref_min_score" data-type="float" placeholder="0.50">
+        <label for="f-kn-age">rank_age (recency-decay swing; 0 = cosine-only)</label>
+        <input type="text" id="f-kn-age" data-key="knowledge.rank_age" data-type="float" placeholder="0.3">
+        <label for="f-kn-half">recall_halflife_days (recency half-life)</label>
+        <input type="text" id="f-kn-half" data-key="knowledge.recall_halflife_days" data-type="float" placeholder="7.0">
+        <label for="f-kn-hot">hot_threshold (access_count → tier=hot)</label>
+        <input type="text" id="f-kn-hot" data-key="knowledge.hot_threshold" data-type="int" placeholder="5">
+        <label for="f-kn-volatile">store_skip_volatile (skip store+recall for volatile turns)</label>
+        <input type="text" id="f-kn-volatile" data-key="knowledge.store_skip_volatile" data-type="bool" placeholder="true">
+        <label for="f-kn-evict">evict_enable (bounded K-LRU + TTL sweep of stale rows)</label>
+        <input type="text" id="f-kn-evict" data-key="knowledge.evict_enable" data-type="bool" placeholder="true">
+        <label for="f-kn-ttl">evict_ttl_days (evict never-recalled rows older than this)</label>
+        <input type="text" id="f-kn-ttl" data-key="knowledge.evict_ttl_days" data-type="int" placeholder="90">
+        <label for="f-kn-max">evict_max_rows (hard row cap)</label>
+        <input type="text" id="f-kn-max" data-key="knowledge.evict_max_rows" data-type="int" placeholder="50000">
+      </fieldset>
+      <fieldset>
+        <legend>[web_research] — per-facet research loop</legend>
+        <label for="f-wr-attempts">max_attempts (judge-gated re-search attempts)</label>
+        <input type="text" id="f-wr-attempts" data-key="web_research.max_attempts" data-type="int" placeholder="3">
+        <label for="f-wr-passes">passes (search → judge → re-search drill passes)</label>
+        <input type="text" id="f-wr-passes" data-key="web_research.passes" data-type="int" placeholder="3">
+        <label for="f-wr-crawl">crawl_timeout_s (deep crawl fallback per-page cap)</label>
+        <input type="text" id="f-wr-crawl" data-key="web_research.crawl_timeout_s" data-type="int" placeholder="18">
+        <label for="f-wr-recency">recency_range (day | week | month | year)</label>
+        <input type="text" id="f-wr-recency" data-key="web_research.recency_range" placeholder="month">
+      </fieldset>
+    </div>
+  </div>
+</details>
+
+<details class="section" id="adv-inference-extra">
+  <summary>Inference, sandbox &amp; code · GPU · sandbox · search · ACI · code mode <span class="phase-badge">AIOS · runtime</span></summary>
+  <div class="section-body">
+    <p style="color: var(--muted); font-size: 12px; margin: 0 0 12px;">
+      Lower-level AI-plane knobs: the GPU passthrough device, the risk-tier
+      dispatch sandbox, the local metasearch backend, the tool-result output
+      normalizer, and Code Mode (the agent writes code that calls a local tool
+      API inside a sandbox instead of loading every function schema). Locale
+      word-lists (search stopwords, sentence abbreviations) are SSOT data edited
+      in the TOML so they carry no baked word screen in code.
+    </p>
+    <div class="grid">
+      <fieldset>
+        <legend>[gpu] · [sandbox] · [search]</legend>
+        <label for="f-gpu-device">gpu.device (CDI device the GPU Quadlets attach)</label>
+        <input type="text" id="f-gpu-device" data-key="gpu.device" placeholder="nvidia.com/gpu=all">
+        <label for="f-sandbox-enable">sandbox.enable (engine-side confinement; resolver always observes)</label>
+        <input type="text" id="f-sandbox-enable" data-key="sandbox.enable" data-type="bool" placeholder="false">
+        <label for="f-search-endpoint">search.endpoint (SearXNG metasearch backend)</label>
+        <input type="text" id="f-search-endpoint" data-key="search.endpoint" placeholder="http://localhost:8888/">
+        <label for="f-search-enable">search.enable</label>
+        <input type="text" id="f-search-enable" data-key="search.enable" data-type="bool" placeholder="true">
+      </fieldset>
+      <fieldset>
+        <legend>[aci] · [verity] — output normalizer + figure-guard</legend>
+        <label for="f-aci-lines">aci.max_lines (head+tail kept, middle elided; 0 = no cap)</label>
+        <input type="text" id="f-aci-lines" data-key="aci.max_lines" data-type="int" placeholder="160">
+        <label for="f-aci-head">aci.head_frac (fraction of budget kept as head)</label>
+        <input type="text" id="f-aci-head" data-key="aci.head_frac" data-type="float" placeholder="0.6">
+        <label for="f-verity-abbr">verity.sentence_abbreviations (CSV; locale list so the figure-guard never splits "approx." mid-conversion)</label>
+        <input type="text" id="f-verity-abbr" data-key="verity.sentence_abbreviations" data-array="csv" placeholder="approx.,e.g.,i.e.,vs.,etc.,U.S.,U.K.,a.m.,p.m.,No.,Inc.,Co.,Ltd.,St.,Mt.">
+      </fieldset>
+      <fieldset>
+        <legend>[code_mode] — code-writes-tool-calls execution</legend>
+        <label for="f-cm-enable">enable (OFF until an /etc drop-in flips it; degrade-closed)</label>
+        <input type="text" id="f-cm-enable" data-key="code_mode.enable" data-type="bool" placeholder="false">
+        <label for="f-cm-heavy">heavy_lane_only (only the heavy orchestrator authors code)</label>
+        <input type="text" id="f-cm-heavy" data-key="code_mode.heavy_lane_only" data-type="bool" placeholder="true">
+        <label for="f-cm-net">allow_net (AND-ed with the deploy's own net policy)</label>
+        <input type="text" id="f-cm-net" data-key="code_mode.allow_net" data-type="bool" placeholder="false">
+        <label for="f-cm-out">max_output_chars (snippet stdout/stderr fed back)</label>
+        <input type="text" id="f-cm-out" data-key="code_mode.max_output_chars" data-type="int" placeholder="8000">
+        <label for="f-cm-uid">uid (mios-codemode service uid)</label>
+        <input type="text" id="f-cm-uid" data-key="code_mode.uid" data-type="int" placeholder="828">
+        <label for="f-cm-gid">gid</label>
+        <input type="text" id="f-cm-gid" data-key="code_mode.gid" data-type="int" placeholder="828">
+      </fieldset>
+    </div>
+  </div>
+</details>
+
+<details class="section" id="adv-oscontrol">
+  <summary>OS control &amp; computer-use · window placement · desktop drive <span class="phase-badge">AIOS · OS control</span></summary>
+  <div class="section-body">
+    <p style="color: var(--muted); font-size: 12px; margin: 0 0 12px;">
+      Where freshly-launched windows land, and how the agent drives a graphical
+      desktop (this blade's, or — via an executor endpoint — another blade's
+      over the cluster network). Computer-use is environment-adaptive: a
+      reachable executor wins, else the local Wayland session, else WSL2
+      delegates to the Windows pc-control lane. NODE endpoints
+      (<code>[os_control.nodes.*]</code> / <code>[computer_use.nodes.*]</code>)
+      ship EMPTY and are set per-blade in your overlay; an empty endpoint is an
+      inert node that returns an honest error, never a fabricated success.
+    </p>
+    <div class="grid">
+      <fieldset>
+        <legend>[os_control] — window placement defaults</legend>
+        <label for="f-os-pos">default_position (placement for position="default")</label>
+        <input type="text" id="f-os-pos" data-key="os_control.default_position" placeholder="center">
+        <label for="f-os-mon">default_monitor (0 = primary)</label>
+        <input type="text" id="f-os-mon" data-key="os_control.default_monitor" data-type="int" placeholder="0">
+        <label for="f-os-gap">tile_gap_px (gap between tiled windows)</label>
+        <input type="text" id="f-os-gap" data-key="os_control.tile_gap_px" data-type="int" placeholder="8">
+        <label for="f-os-edge">edge_margin_px (inset from screen edges)</label>
+        <input type="text" id="f-os-edge" data-key="os_control.edge_margin_px" data-type="int" placeholder="0">
+        <label for="f-os-restore">restore_if_running (focus an existing instance vs relaunch)</label>
+        <input type="text" id="f-os-restore" data-key="os_control.restore_if_running" data-type="bool" placeholder="true">
+        <label for="f-os-focus">focus_after_launch (raise + foreground after launch)</label>
+        <input type="text" id="f-os-focus" data-key="os_control.focus_after_launch" data-type="bool" placeholder="true">
+        <label for="f-os-catprio">launch_category_priority (CSV; resolution order when a name matches more than one category)</label>
+        <input type="text" id="f-os-catprio" data-key="os_control.launch_category_priority" data-array="csv" placeholder="linux-flatpak,linux-rpm-gui,linux-cli,windows-app,windows-gui">
+        <label for="f-os-exec">executor_endpoint (remote interactive-session executor; set in /etc/mios)</label>
+        <input type="text" id="f-os-exec" data-key="os_control.executor_endpoint" placeholder="(empty — e.g. http://&lt;host&gt;:11437)">
+      </fieldset>
+      <fieldset>
+        <legend>[computer_use] — Linux/Wayland desktop drive</legend>
+        <label for="f-cu-exec">executor_endpoint (drive ANOTHER blade's desktop; set in /etc/mios)</label>
+        <input type="text" id="f-cu-exec" data-key="computer_use.executor_endpoint" placeholder="(empty — e.g. http://&lt;host&gt;:11438)">
+        <label for="f-cu-input">input_backend (auto | portal | uinput)</label>
+        <input type="text" id="f-cu-input" data-key="computer_use.input_backend" placeholder="auto">
+        <label for="f-cu-capture">capture_backend (auto | portal | grim | gnome | spectacle)</label>
+        <input type="text" id="f-cu-capture" data-key="computer_use.capture_backend" placeholder="auto">
+        <label for="f-cu-ground">grounding_model (vision grounding tag; empty = default)</label>
+        <input type="text" id="f-cu-ground" data-key="computer_use.grounding_model" placeholder="(empty)">
+        <label for="f-cu-approve">require_approval (write-class ops go through the approval gate)</label>
+        <input type="text" id="f-cu-approve" data-key="computer_use.require_approval" data-type="bool" placeholder="true">
+        <label for="f-cu-enable">enable (the --user unit + graphical-session.target are the real gate)</label>
+        <input type="text" id="f-cu-enable" data-key="computer_use.enable" data-type="bool" placeholder="true">
+        <label for="f-cu-port">server_port (MCP + A2A + executor share this port)</label>
+        <input type="text" id="f-cu-port" data-key="computer_use.server_port" data-type="int" placeholder="11438">
+        <label for="f-cu-bind">bind_address ("" disables; set the cluster IP for federation)</label>
+        <input type="text" id="f-cu-bind" data-key="computer_use.bind_address" placeholder="127.0.0.1">
+        <label for="f-cu-docgen">docgen_enable (FOSS offline document generation)</label>
+        <input type="text" id="f-cu-docgen" data-key="computer_use.docgen_enable" data-type="bool" placeholder="true">
+        <label for="f-cu-docto">docgen_timeout_s (per-conversion timeout)</label>
+        <input type="text" id="f-cu-docto" data-key="computer_use.docgen_timeout_s" data-type="int" placeholder="120">
+      </fieldset>
+    </div>
+  </div>
+</details>
+
+<details class="section" id="adv-routing">
+  <summary>Routing &amp; domains · 2-stage domain router <span class="phase-badge">AIOS · routing</span></summary>
+  <div class="section-body">
+    <p style="color: var(--muted); font-size: 12px; margin: 0 0 12px;">
+      A 2-stage router classifies a query into ONE domain, then shows the planner
+      only that domain's verbs (smaller, faster, more accurate). FAIL-SAFE:
+      unknown / low-confidence falls back to the FULL surface, so no capability
+      is ever lost. Each <code>[routing.domains.&lt;name&gt;]</code> below is a
+      "use-when" description the Stage-1 classifier reads plus the verb set it
+      gates. The router's locale phrase-lists (launch fillers, trigger phrases)
+      are SSOT data edited in the TOML — never hardcoded in code.
+    </p>
+    <div class="grid">
+      <fieldset style="grid-column: 1 / -1;">
+        <legend>[routing] — master switch</legend>
+        <label for="f-route-enable">router_enable (false = legacy full-surface)</label>
+        <input type="text" id="f-route-enable" data-key="routing.router_enable" data-type="bool" placeholder="true">
+      </fieldset>
+      <fieldset>
+        <legend>[routing.domains.web]</legend>
+        <label for="f-rd-web-desc">desc</label>
+        <input type="text" id="f-rd-web-desc" data-key="routing.domains.web.desc" placeholder="LOOK UP INFORMATION on the internet...">
+        <label for="f-rd-web-verbs">verbs (CSV)</label>
+        <input type="text" id="f-rd-web-verbs" data-key="routing.domains.web.verbs" data-array="csv" placeholder="web_search,web_scrape,crawl,web_extract">
+      </fieldset>
+      <fieldset>
+        <legend>[routing.domains.files]</legend>
+        <label for="f-rd-files-desc">desc</label>
+        <input type="text" id="f-rd-files-desc" data-key="routing.domains.files.desc" placeholder="find, read, or edit LOCAL files on this machine">
+        <label for="f-rd-files-verbs">verbs (CSV)</label>
+        <input type="text" id="f-rd-files-verbs" data-key="routing.domains.files.verbs" data-array="csv" placeholder="everything_search,fs_search,directory_lookup,...">
+      </fieldset>
+      <fieldset>
+        <legend>[routing.domains.system]</legend>
+        <label for="f-rd-sys-desc">desc</label>
+        <input type="text" id="f-rd-sys-desc" data-key="routing.domains.system.desc" placeholder="this machine's OS / version / state / services...">
+        <label for="f-rd-sys-verbs">verbs (CSV)</label>
+        <input type="text" id="f-rd-sys-verbs" data-key="routing.domains.system.verbs" data-array="csv" placeholder="system_status,sys_env,system_logs,service_status,...">
+      </fieldset>
+      <fieldset>
+        <legend>[routing.domains.apps_windows]</legend>
+        <label for="f-rd-aw-desc">desc</label>
+        <input type="text" id="f-rd-aw-desc" data-key="routing.domains.apps_windows.desc" placeholder="list or launch applications and manage on-screen windows">
+        <label for="f-rd-aw-verbs">verbs (CSV)</label>
+        <input type="text" id="f-rd-aw-verbs" data-key="routing.domains.apps_windows.verbs" data-array="csv" placeholder="open_app,close_app,open_url,focus_window,...">
+      </fieldset>
+      <fieldset>
+        <legend>[routing.domains.packages]</legend>
+        <label for="f-rd-pkg-desc">desc</label>
+        <input type="text" id="f-rd-pkg-desc" data-key="routing.domains.packages.desc" placeholder="install, update, remove, or query software packages">
+        <label for="f-rd-pkg-verbs">verbs (CSV)</label>
+        <input type="text" id="f-rd-pkg-verbs" data-key="routing.domains.packages.verbs" data-array="csv" placeholder="pkg,winget_install,flatpak_install,...">
+      </fieldset>
+      <fieldset>
+        <legend>[routing.domains.memory]</legend>
+        <label for="f-rd-mem-desc">desc</label>
+        <input type="text" id="f-rd-mem-desc" data-key="routing.domains.memory.desc" placeholder="recall or store the agent's own memory / knowledge">
+        <label for="f-rd-mem-verbs">verbs (CSV)</label>
+        <input type="text" id="f-rd-mem-verbs" data-key="routing.domains.memory.verbs" data-array="csv" placeholder="knowledge_search,remember,recall,ingest,summarize">
+      </fieldset>
+      <fieldset>
+        <legend>[routing.domains.computer_use]</legend>
+        <label for="f-rd-cu-desc">desc</label>
+        <input type="text" id="f-rd-cu-desc" data-key="routing.domains.computer_use.desc" placeholder="GUI pixel/element control via mouse and keyboard">
+        <label for="f-rd-cu-verbs">verbs (CSV)</label>
+        <input type="text" id="f-rd-cu-verbs" data-key="routing.domains.computer_use.verbs" data-array="csv" placeholder="cu_screenshot,cu_click,cu_type,pc_type,pc_click,...">
+      </fieldset>
+      <fieldset>
+        <legend>[routing.domains.code_shell]</legend>
+        <label for="f-rd-cs-desc">desc</label>
+        <input type="text" id="f-rd-cs-desc" data-key="routing.domains.code_shell.desc" placeholder="run code, shell, or PowerShell commands">
+        <label for="f-rd-cs-verbs">verbs (CSV)</label>
+        <input type="text" id="f-rd-cs-verbs" data-key="routing.domains.code_shell.verbs" data-array="csv" placeholder="coderun,code_mode,os_recipe,powershell_run">
+      </fieldset>
+      <fieldset>
+        <legend>[routing.domains.agents_comms]</legend>
+        <label for="f-rd-ac-desc">desc</label>
+        <input type="text" id="f-rd-ac-desc" data-key="routing.domains.agents_comms.desc" placeholder="send/post/share a message, delegate to another agent, schedule...">
+        <label for="f-rd-ac-verbs">verbs (CSV)</label>
+        <input type="text" id="f-rd-ac-verbs" data-key="routing.domains.agents_comms.verbs" data-array="csv" placeholder="handoff,a2a_delegate,discord_send,schedule,docgen_build,...">
+      </fieldset>
+    </div>
+  </div>
+</details>
+
+<details class="section" id="adv-daemon">
+  <summary>Daemon &amp; autonomy governor · back-pressure · indexer · post-check <span class="phase-badge">AIOS · daemon</span></summary>
+  <div class="section-body">
+    <p style="color: var(--muted); font-size: 12px; margin: 0 0 12px;">
+      mios-daemon runs always-on: it follows logs, indexes the filesystem, and
+      does self-initiated work in the quiet gaps. The back-pressure governor
+      calms autonomous work when the box is hot so it never starves an
+      interactive turn (degrade-open: a probe error treats pressure as absent and
+      proceeds). The post-check map AND-folds tool success with a "did the
+      visible OS effect actually land" signal.
+    </p>
+    <div class="grid">
+      <fieldset>
+        <legend>[daemon] — autonomy / back-pressure governor</legend>
+        <label for="f-dm-load">pressure_load_ceil (hold autonomous work above this loadavg)</label>
+        <input type="text" id="f-dm-load" data-key="daemon.pressure_load_ceil" data-type="float" placeholder="8.0">
+        <label for="f-dm-gpu">pressure_gpu_util_ceil (defer lane-touching work above this GPU%)</label>
+        <input type="text" id="f-dm-gpu" data-key="daemon.pressure_gpu_util_ceil" data-type="int" placeholder="90">
+        <label for="f-dm-skip">pressure_skip (true = bypass the governor entirely)</label>
+        <input type="text" id="f-dm-skip" data-key="daemon.pressure_skip" data-type="bool" placeholder="false">
+        <label for="f-dm-quiet">quiescence_window_min (idle gap before self-initiated work)</label>
+        <input type="text" id="f-dm-quiet" data-key="daemon.quiescence_window_min" data-type="int" placeholder="10">
+        <label for="f-dm-cron">cron_max_concurrent (concurrent autonomous jobs)</label>
+        <input type="text" id="f-dm-cron" data-key="daemon.cron_max_concurrent" data-type="int" placeholder="1">
+        <label for="f-dm-tick">calm_max_tick_s (runaway backstop on one tick)</label>
+        <input type="text" id="f-dm-tick" data-key="daemon.calm_max_tick_s" data-type="int" placeholder="300">
+        <label for="f-dm-esc-cd">escalation_cooldown_s (min gap between escalations of one concern)</label>
+        <input type="text" id="f-dm-esc-cd" data-key="daemon.escalation_cooldown_s" data-type="int" placeholder="1800">
+        <label for="f-dm-esc-max">escalation_max_attempts (before parking a concern)</label>
+        <input type="text" id="f-dm-esc-max" data-key="daemon.escalation_max_attempts" data-type="int" placeholder="3">
+        <label for="f-dm-launch">launch_claim_detect (model | off — verify launch claims, no keyword list)</label>
+        <input type="text" id="f-dm-launch" data-key="daemon.launch_claim_detect" placeholder="model">
+        <label for="f-dm-refuse">refusal_detect (model | off — judge refusal/fabrication, no phrase list)</label>
+        <input type="text" id="f-dm-refuse" data-key="daemon.refusal_detect" placeholder="model">
+      </fieldset>
+      <fieldset>
+        <legend>[daemon.index] — directory-map indexer</legend>
+        <label for="f-di-enable">enable</label>
+        <input type="text" id="f-di-enable" data-key="daemon.index.enable" data-type="bool" placeholder="true">
+        <label for="f-di-interval">interval_min (walk cadence)</label>
+        <input type="text" id="f-di-interval" data-key="daemon.index.interval_min" data-type="int" placeholder="15">
+        <label for="f-di-depth">max_depth (descent per root)</label>
+        <input type="text" id="f-di-depth" data-key="daemon.index.max_depth" data-type="int" placeholder="6">
+        <label for="f-di-entries">max_entries (safety cap across roots)</label>
+        <input type="text" id="f-di-entries" data-key="daemon.index.max_entries" data-type="int" placeholder="50000">
+        <label for="f-di-summary">summary_max_bytes (first N bytes of text files = summary)</label>
+        <input type="text" id="f-di-summary" data-key="daemon.index.summary_max_bytes" data-type="int" placeholder="240">
+        <p style="color: var(--muted); font-size: 11px; margin: 8px 0 0;">
+          The index roots (<code>[[daemon.index.roots]]</code>) are an
+          array-of-tables edited in the TOML directly.
+        </p>
+      </fieldset>
+      <fieldset>
+        <legend>[daemon.post_check] — verb → visible-outcome signal</legend>
+        <p style="color: var(--muted); font-size: 11px; margin: 4px 0 8px;">
+          Maps a dispatched tool name to the "did it actually land" check
+          (window_visible / file_exists / file_nonempty / flatpak_installed). An
+          unlisted tool falls back to bare tool success.
+        </p>
+        <label for="f-pc-openapp">open_app</label>
+        <input type="text" id="f-pc-openapp" data-key="daemon.post_check.open_app" placeholder="window_visible">
+        <label for="f-pc-openurl">open_url</label>
+        <input type="text" id="f-pc-openurl" data-key="daemon.post_check.open_url" placeholder="window_visible">
+        <label for="f-pc-focus">focus_window</label>
+        <input type="text" id="f-pc-focus" data-key="daemon.post_check.focus_window" placeholder="window_visible">
+        <label for="f-pc-launch">launch_app</label>
+        <input type="text" id="f-pc-launch" data-key="daemon.post_check.launch_app" placeholder="window_visible">
+        <label for="f-pc-create">text_create</label>
+        <input type="text" id="f-pc-create" data-key="daemon.post_check.text_create" placeholder="file_exists">
+        <label for="f-pc-replace">text_str_replace</label>
+        <input type="text" id="f-pc-replace" data-key="daemon.post_check.text_str_replace" placeholder="file_nonempty">
+        <label for="f-pc-flatpak">flatpak_install</label>
+        <input type="text" id="f-pc-flatpak" data-key="daemon.post_check.flatpak_install" placeholder="flatpak_installed">
+      </fieldset>
+    </div>
+  </div>
+</details>
+
 <details class="section">
   <summary>Raw TOML preview</summary>
   <div class="section-body">
@@ -1511,7 +2436,7 @@ const QUADLETS = [
 
 // ── Package groups: every [packages.<name>] table the build can layer ─────
 // One checkbox per group; default ON for every group EXCEPT bloat (per
-// operator instruction 2026-05-06: "MiOS Defaults are all pre-checked
+// operator instruction: "MiOS Defaults are all pre-checked
 // on, excluding bloat and including everything else"). Toggling a group
 // writes [packages.<name>].enable in the saved mios.toml.
 const PACKAGES = [

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Consolidated MiOS core daemon that unifies log classification, refusal detection, and cron task evaluation into a single Ollama-backed process, outputting a unified state.json for the OWUI sidecar filter.
-# AI-related: /etc/mios/daemon/cron.toml, /usr/share/mios/ai/refusal-patterns.txt, /usr/share/mios/mios.toml, /etc/mios/mios.toml, /usr/libexec/mios/mios-db, /etc/mios/daemon/cron.toml., mios-db, mios-log-watcher, mios-agent-nudger, mios-cron-director
+# AI-related: /etc/mios/daemon/cron.toml, /usr/share/mios/mios.toml, /etc/mios/mios.toml, /usr/libexec/mios/mios-db, /etc/mios/daemon/cron.toml., mios-db, mios-log-watcher, mios-agent-nudger, mios-cron-director
 # AI-functions: _atomic_write_state
 """mios-daemon -- consolidated MiOS micro-LLM daemon.
 
@@ -16,10 +16,12 @@ periodic-evaluating services (mios-log-watcher + mios-agent-nudger
   * Dispatches three handlers off a single event stream:
       - classify: every Nseconds-batch of journal lines summarized
                   via qwen3:0.6b-cpu (was: mios-log-watcher)
-      - refusal:  hermes-agent.service / mios-delegation-prefilter
-                  lines checked for refusal-pattern hits (was:
-                  mios-agent-nudger; pattern list = refusal-
-                  patterns.txt + LLM yes/no confirmation)
+      - refusal:  every hermes-agent.service response judged by the
+                  micro-LLM -- refusal / hedge / fabrication instead
+                  of doing the work? (was: mios-agent-nudger; the
+                  English refusal-pattern pre-filter is deleted -- the
+                  judge is authoritative, degrade-open when its lane
+                  is unreachable)
       - cron:     /etc/mios/daemon/cron.toml gates evaluated on a
                   cadence; YES gates fire their action (was:
                   mios-cron-director)
@@ -43,8 +45,7 @@ category exactly as before. Schema:
       "ts": <epoch>,
       "classify":    {"summary":..., "tags":[...], "severity":...,
                       "event_count":..., "events_sample":[...]},
-      "refusal":     {"trigger":..., "phrase":..., "model":...,
-                      "ts":..., "service":...},
+      "refusal":     {"phrase":..., "model":..., "ts":..., "service":...},
       "cron":        {"last_fire": {"rule":..., "ts":...},
                       "decisions":[...]}
     }
@@ -88,10 +89,6 @@ STATE_DIR = Path(os.environ.get("MIOS_DAEMON_STATE_DIR", "/var/lib/mios/daemon")
 STATE_FILE = STATE_DIR / "state.json"
 CLASSIFY_BATCH_S = float(os.environ.get("MIOS_DAEMON_CLASSIFY_S", "30"))
 CLASSIFY_BATCH_MAX = int(os.environ.get("MIOS_DAEMON_CLASSIFY_MAX", "8"))
-REFUSAL_PATTERNS_FILE = Path(os.environ.get(
-    "MIOS_REFUSAL_PATTERNS",
-    "/usr/share/mios/ai/refusal-patterns.txt",
-))
 CRON_TOML = Path(os.environ.get("MIOS_DAEMON_CRON_TOML",
                                  "/etc/mios/daemon/cron.toml"))
 CRON_TICK_S = float(os.environ.get("MIOS_DAEMON_CRON_TICK_S", "60"))
@@ -943,49 +940,76 @@ def classify_loop() -> None:
 
 
 # ── Refusal handler (was: mios-agent-nudger) ─────────────────────────
+# Refusal/fabrication detection mode (SSOT [daemon].refusal_detect; env wins).
+# "model" -> the micro-LLM judges EVERY hermes-agent response (is it a refusal,
+# hedge, or fabrication instead of doing the work?); "off" -> detection
+# disabled. There is NO English-phrase regex pre-filter deciding whether to even
+# check (the deleted refusal-patterns.txt gate is gone) -- the judge is
+# authoritative on every candidate. Degrade-open: an unreachable judge lane
+# skips that turn's check, never falling back to a keyword list and never
+# fabricating a refusal verdict. (operator NO-HARDCODE law)
+REFUSAL_DETECT = (os.environ.get("MIOS_DAEMON_REFUSAL_DETECT")
+                  or str(_DAEMON_CFG.get("refusal_detect", "model"))
+                  ).strip().lower()
+
+# System prompt for the refusal judge. The model -- not a phrase list -- decides
+# whether the assistant is refusing / hedging / fabricating instead of doing the
+# work, in ANY language. A genuine attempt, a completed action, a normal answer,
+# or a routine operational log line is NOT a refusal.
 REFUSAL_SYSTEM = (
-    "You are a Linux log filter. Decide if the following hermes-agent "
-    "log message is the agent ACTIVELY REFUSING the user (vs quoting / "
-    "discussing such a phrase). Refusal = the agent telling the user "
-    "it cannot do something when the relevant tool IS available. "
-    "Reply with a single token: \"YES\" or \"NO\". Nothing else."
+    "You inspect one assistant chat message from an agentic OS. Decide whether "
+    "the assistant is REFUSING, HEDGING, or FABRICATING instead of actually "
+    "doing the user's work -- e.g. claiming it cannot do something the OS can "
+    "do, telling the user to supply what the assistant should resolve itself, "
+    "or asserting a tool/app is missing or non-functional when it is reachable. "
+    "A genuine attempt, a completed action, a normal answer, or a routine "
+    "operational log line is NOT a refusal. Judge the message in ANY language. "
+    "Reply with a single token: \"YES\" if it is a refusal / hedge / "
+    "fabrication, or \"NO\" otherwise. Nothing else."
 )
 
 
-def _load_refusal_patterns() -> list[re.Pattern]:
-    out: list[re.Pattern] = []
-    try:
-        for line in REFUSAL_PATTERNS_FILE.read_text(encoding="utf-8").splitlines():
-            s = line.strip()
-            if not s or s.startswith("#"):
-                continue
-            try:
-                out.append(re.compile(s, re.IGNORECASE))
-            except re.error:
-                pass
-    except OSError:
-        pass
-    return out
-
-
-_refusal_res = _load_refusal_patterns()
+def _classify_refusal(message_text: str) -> Optional[bool]:
+    """MODEL-DRIVEN: ask the micro-LLM whether `message_text` is the assistant
+    refusing / hedging / fabricating instead of doing the work. Returns True or
+    False when the judge classifies, or None to signal DEGRADE-OPEN (detector
+    off, empty input, or judge lane unreachable/unparseable) so the caller skips
+    this turn's check instead of fabricating a refusal verdict. No English-regex
+    pre-filter gates the call -- every candidate response is judged."""
+    if REFUSAL_DETECT != "model":
+        return None
+    text = (message_text or "").strip()
+    if not text:
+        return None
+    verdict = llm_chat(REFUSAL_SYSTEM, text[:2000],
+                       max_tokens=4, temperature=0.0)
+    if not verdict:
+        return None  # judge lane unreachable -> degrade-open (skip)
+    v = verdict.strip().upper()
+    if v.startswith("YES"):
+        return True
+    if v.startswith("NO"):
+        return False
+    return None  # unparseable verdict -> degrade-open
 
 
 def refusal_loop() -> None:
-    """Walk the same buffer, look for hermes-agent.service messages
-    that match a refusal pattern, then confirm with the LLM."""
+    """Walk the journal buffer; for EVERY hermes-agent.service message ask the
+    micro-LLM judge whether it is a refusal / hedge / fabrication (the judge is
+    authoritative -- no English-regex pre-filter). On a YES, record it in state
+    for the nudger/sidecar."""
     last_index = 0
     while not _stop_event.is_set():
         time.sleep(5.0)
         with _buffer_lock:
             new = _event_buffer[last_index:]
             last_index = len(_event_buffer)
-        # W0-T2 (1): host-pressure gate -- when over ceiling AND pressure_skip
-        # is on, skip the LLM-confirm work this tick. last_index already
-        # advanced (the cheap pattern pre-filter is the gate trigger, not the
-        # work), so we drop the batch rather than queue refusal confirms onto a
-        # saturated box. Cheap pattern matching alone is fine; the LLM is not.
+        # Host-pressure gate -- when over ceiling AND pressure_skip is on, drop
+        # this tick's judge work rather than queue LLM calls onto a saturated
+        # box (last_index already advanced, so the batch is dropped not queued).
         if _pressure_should_skip("refusal"):
+            continue
+        if REFUSAL_DETECT != "model":
             continue
         for ev in new:
             unit = ev.get("_SYSTEMD_UNIT", "")
@@ -994,23 +1018,14 @@ def refusal_loop() -> None:
             msg = (ev.get("MESSAGE") or "")
             if not msg:
                 continue
-            # Pattern pre-filter
-            hit = None
-            for pat in _refusal_res:
-                if pat.search(msg):
-                    hit = pat.pattern
-                    break
-            if not hit:
+            verdict = _classify_refusal(msg)
+            if verdict is None:
+                # degrade-open: judge lane down / unparseable -> skip this turn
                 continue
-            # LLM confirm
-            verdict = llm_chat(REFUSAL_SYSTEM, msg[:2000],
-                               max_tokens=4, temperature=0.0)
-            is_refusal = verdict.upper().startswith("YES")
-            log.info("refusal? pattern=%r verdict=%s msg=%r",
-                     hit[:60], verdict[:8], msg[:120])
-            if is_refusal:
+            log.info("refusal? verdict=%s msg=%r",
+                     "YES" if verdict else "NO", msg[:120])
+            if verdict:
                 _update_state("refusal", {
-                    "trigger": hit,
                     "phrase": msg[:200],
                     "model": MODEL,
                     "service": unit,
@@ -1227,25 +1242,71 @@ LAUNCH_VERIFY_LOOKBACK_MIN = float(os.environ.get(
     "MIOS_DAEMON_LAUNCH_VERIFY_LOOKBACK_MIN", "10"))
 LAUNCH_FAILURES_FILE = STATE_DIR / "launch_failures.json"
 
-# Regexes that flag an assistant message as claiming a launch.
-# Each capture group 1 should hold the app name where reasonable;
-# the verifier falls back to the user's request if not.
-_LAUNCH_CLAIM_RES = [
-    re.compile(r"\b(?:Steam|Epic|Ubisoft|Uplay) (?:GUI )?is now open(?:ing)?(?: with (?:the )?(.{3,40}?) (?:install|launch))?",
-               re.IGNORECASE),
-    re.compile(r"\b(?:launched|opened|started|running) (?:the )?(.{3,40}?)(?:\.|,|$|\n)",
-               re.IGNORECASE),
-    re.compile(r"\binstallation in progress\b.{0,80}?\b(.{3,40}?)(?:\)|$|\n)",
-               re.IGNORECASE),
-    re.compile(r"\b(.{3,40}?) (?:is|has been|was) (?:successfully )?(?:launched|installed|started)\b",
-               re.IGNORECASE),
-]
+# Launch-claim detection mode (SSOT [daemon].launch_claim_detect; env wins).
+# "model" -> the micro-LLM classifies whether an assistant message CLAIMS a
+# launch and resolves the target generically; "off" -> verification disabled.
+# No keyword/app-name list gates this decision (operator NO-HARDCODE law).
+LAUNCH_CLAIM_DETECT = (os.environ.get("MIOS_DAEMON_LAUNCH_CLAIM_DETECT")
+                       or str(_DAEMON_CFG.get("launch_claim_detect", "model"))
+                       ).strip().lower()
+
+# System prompt for the launch-claim classifier. The model -- not a phrase or
+# app-name list -- decides whether the assistant CLAIMED it launched/opened/
+# started an app or installer that we should now verify on screen, and names
+# the claimed target generically (any app/game/installer, any language).
+_LAUNCH_CLAIM_SYSTEM = (
+    "You inspect one assistant chat message. Decide whether the assistant "
+    "CLAIMS it has just launched, opened, started, or begun installing some "
+    "application, game, or installer for the user -- a claim a watcher should "
+    "now verify is actually on screen. Merely offering, asking, planning, or "
+    "describing how to do it is NOT a claim. Identify the claimed target by "
+    "its name as the assistant referred to it (any app/game/installer, in any "
+    "language); do not invent one. Reply with ONLY a JSON object: "
+    '{"claim": true|false, "target": "<name or empty>"}.'
+)
+
+
+def _classify_launch_claim(assistant_text: str) -> dict | None:
+    """MODEL-DRIVEN: ask the micro-LLM whether `assistant_text` claims a launch
+    and, if so, what target was claimed. Returns {"app": <str>} when it is a
+    verifiable claim with a usable target, {} when the model says "not a claim",
+    or None to signal DEGRADE-OPEN (detector off or lane unreachable) so the
+    caller skips this turn's claim check instead of fabricating one."""
+    if LAUNCH_CLAIM_DETECT != "model":
+        return None
+    text = (assistant_text or "").strip()
+    if not text:
+        return {}
+    content = llm_chat(_LAUNCH_CLAIM_SYSTEM, text[:2000],
+                       max_tokens=80, want_json=True)
+    if not content:
+        return None  # lane unreachable -> degrade-open (skip, don't fabricate)
+    m = re.search(r"\{[\s\S]*?\}", content)
+    if not m:
+        return None
+    try:
+        d = json.loads(m.group(0))
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(d, dict) or not d.get("claim"):
+        return {}
+    # Structural (not keyword) sanity on the model-named target: strip quoting
+    # punctuation, bound the length, unicode-aware. An empty/oversized target
+    # is treated as "no usable claim", never back-filled from a list.
+    target = str(d.get("target") or "").strip(" \"'`.,*-:;()[]{}")
+    if not (2 <= len(target) <= 60):
+        return {}
+    return {"app": target}
 
 
 def _scan_chat_for_launch_claims(lookback_min: float) -> list[dict]:
     """Walk recent OWUI chats, return list of {chat_id, ts, app, claim,
     user_prompt} for assistant messages that look like launch claims."""
     if not SUGG_OWUI_DB.is_file():
+        return []
+    # Degrade-open: detector off or the classify lane unreachable -> no claims
+    # this tick (we never synthesise a claim from keywords).
+    if LAUNCH_CLAIM_DETECT != "model":
         return []
     cutoff = time.time() - lookback_min * 60
     claims: list[dict] = []
@@ -1280,21 +1341,20 @@ def _scan_chat_for_launch_claims(lookback_min: float) -> list[dict]:
                 continue
             if role != "assistant" or not content.strip():
                 continue
-            for pat in _LAUNCH_CLAIM_RES:
-                mm = pat.search(content)
-                if not mm:
-                    continue
-                app = (mm.group(1) if mm.lastindex and mm.group(1) else "").strip(" \"'`.,*-:;()[]{}")
-                # Filter junk captures
-                if app and 2 <= len(app) <= 60:
-                    claims.append({
-                        "chat_id": chat_id,
-                        "ts": updated_at,
-                        "app": app,
-                        "user_prompt": last_user,
-                        "claim_match": mm.group(0)[:180],
-                    })
-                    break  # one claim per assistant message is enough
+            verdict = _classify_launch_claim(content)
+            if verdict is None:
+                # Degrade-open: lane unreachable -> skip the rest of this scan
+                # rather than fabricate claims from the remaining messages.
+                return claims
+            app = verdict.get("app")
+            if app:
+                claims.append({
+                    "chat_id": chat_id,
+                    "ts": updated_at,
+                    "app": app,
+                    "user_prompt": last_user,
+                    "claim_match": content.strip()[:180],
+                })
     return claims
 
 
@@ -2315,89 +2375,153 @@ def _tool_calls_for_refine(refine_ts: str,
         if isinstance(r, dict)]
 
 
+def _read_verb_post_check_map() -> dict:
+    """SSOT: map a dispatched tool name -> its post-check SIGNAL from the
+    layered mios.toml [daemon.post_check] (vendor < /etc < per-user; later
+    layer wins). The check IMPLEMENTATIONS live in this module keyed by
+    signal name -- this table only decides WHICH check guards WHICH verb,
+    so coverage is operator-tunable instead of baked into the dispatch.
+    Returns {} when unreadable -> every verb degrades-open to bare
+    tool_call.success."""
+    try:
+        try:
+            import tomllib
+        except ImportError:
+            import tomli as tomllib  # type: ignore
+    except ImportError:
+        return {}
+    merged: dict = {}
+    for p in (os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml"),
+              "/etc/mios/mios.toml",
+              f"/var/home/{os.environ.get('MIOS_USER', 'mios')}"
+              "/.config/mios/mios.toml"):
+        try:
+            with open(p, "rb") as f:
+                d = tomllib.load(f)
+        except FileNotFoundError:
+            continue
+        except Exception:  # noqa: BLE001 -- malformed layer: skip it
+            continue
+        pc = (d.get("daemon", {}) or {}).get("post_check", {}) or {}
+        if isinstance(pc, dict):
+            for k, v in pc.items():
+                if isinstance(v, str) and v:
+                    merged[str(k)] = v
+    return merged
+
+
+_VERB_POST_CHECK = _read_verb_post_check_map()
+
+
+def _post_check_window_visible(args: dict, signal: str) -> dict:
+    """Cross-check that a launch/focus verb actually put a window on the
+    operator's screen. A broker can return exit 0 after its sandbox died
+    at credential bootstrap with the window never having appeared."""
+    import subprocess
+    # Pattern derived from the verb's most-likely-titled arg.
+    pat = ""
+    for key in ("name", "title", "url"):
+        v = (args or {}).get(key)
+        if v:
+            pat = str(v); break
+    if not pat:
+        return {"checked": False}
+    # URL -> netloc, then take the last path segment OR the bare name;
+    # mios-window-active accepts a comma-separated pattern list.
+    if pat.startswith(("http://", "https://", "file://")):
+        try:
+            from urllib.parse import urlparse
+            pat = urlparse(pat).netloc or pat
+        except Exception:
+            pass
+    pat = pat.split("/")[-1].split(".")[0]
+    try:
+        r = subprocess.run(
+            ["mios-window-active", pat],
+            capture_output=True, text=True, timeout=4,
+        )
+        out = r.stdout.strip()
+        if out:
+            try:
+                j = json.loads(out)
+                presented = bool(j.get("presented_to_operator")
+                                or j.get("window_visible"))
+                return {"checked": True, "passed": presented,
+                        "signal": signal,
+                        "detail": j.get("summary", "")}
+            except json.JSONDecodeError:
+                pass
+        return {"checked": True, "passed": False,
+                "signal": signal,
+                "detail": "no_window_for_pattern:" + pat[:60]}
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        return {"checked": False}
+
+
+def _post_check_file_exists(args: dict, signal: str) -> dict:
+    """Confirm a create-file verb's target path now exists on disk."""
+    path = (args or {}).get("path")
+    if not path:
+        return {"checked": False}
+    return {"checked": True, "passed": os.path.exists(str(path)),
+            "signal": signal, "detail": str(path)}
+
+
+def _post_check_file_nonempty(args: dict, signal: str) -> dict:
+    """Confirm an edit-file verb's target path exists AND is non-empty."""
+    path = (args or {}).get("path")
+    if not path:
+        return {"checked": False}
+    ok = os.path.exists(str(path)) and os.path.getsize(str(path)) > 0
+    return {"checked": True, "passed": ok,
+            "signal": signal, "detail": str(path)}
+
+
+def _post_check_flatpak_installed(args: dict, signal: str) -> dict:
+    """Confirm a flatpak-install verb's app id is now installed."""
+    import subprocess
+    ident = (args or {}).get("id")
+    if not ident:
+        return {"checked": False}
+    try:
+        r = subprocess.run(
+            ["flatpak", "info", str(ident)],
+            capture_output=True, text=True, timeout=4,
+        )
+        return {"checked": True, "passed": r.returncode == 0,
+                "signal": signal, "detail": str(ident)}
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        return {"checked": False}
+
+
+# Signal name -> check implementation. This registry is the SET of available
+# checks (the capability), NOT the policy of which verb uses which -- that
+# policy is SSOT in mios.toml [daemon.post_check] (_VERB_POST_CHECK).
+_POST_CHECK_IMPLS = {
+    "window_visible": _post_check_window_visible,
+    "file_exists": _post_check_file_exists,
+    "file_nonempty": _post_check_file_nonempty,
+    "flatpak_installed": _post_check_flatpak_installed,
+}
+
+
 def _verb_post_check(tool: str, args: dict) -> dict:
     """Per-verb visible-outcome verification beyond tool_call.success.
-    Operator-flagged 2026-05-18: mios-open-url returned exit 0 from
-    the broker but Epiphany's window never appeared (sandbox died at
-    credential bootstrap AFTER the broker had already collected its
-    exit code). Raw success column alone misses these cases; this
-    helper cross-checks the OS-side reality.
+    Dispatches the check implementation named by the verb's SSOT-declared
+    signal (mios.toml [daemon.post_check]); the raw success column alone
+    misses launches whose sandbox died after the broker collected exit 0.
 
     Returns dict {checked: <bool>, passed: <bool>, signal: <name>,
-    detail?: <str>}. checked=False means we have no post-check for
-    this verb -- caller uses tool_call.success alone."""
-    import subprocess
-    if tool in ("open_app", "open_url", "focus_window", "launch_app"):
-        # Window-visible check. Pattern derived from the verb's
-        # most-likely-titled arg.
-        pat = ""
-        for key in ("name", "title", "url"):
-            v = (args or {}).get(key)
-            if v:
-                pat = str(v); break
-        if not pat:
-            return {"checked": False}
-        # Take the last URL path segment OR the bare name; mios-window-
-        # active accepts a comma-separated pattern list.
-        if pat.startswith(("http://", "https://", "file://")):
-            try:
-                from urllib.parse import urlparse
-                pat = urlparse(pat).netloc or pat
-            except Exception:
-                pass
-        pat = pat.split("/")[-1].split(".")[0]
-        try:
-            r = subprocess.run(
-                ["mios-window-active", pat],
-                capture_output=True, text=True, timeout=4,
-            )
-            out = r.stdout.strip()
-            if out:
-                try:
-                    j = json.loads(out)
-                    presented = bool(j.get("presented_to_operator")
-                                    or j.get("window_visible"))
-                    return {"checked": True, "passed": presented,
-                            "signal": "window_visible",
-                            "detail": j.get("summary", "")}
-                except json.JSONDecodeError:
-                    pass
-            return {"checked": True, "passed": False,
-                    "signal": "window_visible",
-                    "detail": "no_window_for_pattern:" + pat[:60]}
-        except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
-            return {"checked": False}
-    if tool == "text_create":
-        path = (args or {}).get("path")
-        if not path:
-            return {"checked": False}
-        exists = os.path.exists(str(path))
-        return {"checked": True, "passed": exists,
-                "signal": "file_exists",
-                "detail": str(path)}
-    if tool == "text_str_replace":
-        path = (args or {}).get("path")
-        if not path:
-            return {"checked": False}
-        exists = os.path.exists(str(path)) and os.path.getsize(str(path)) > 0
-        return {"checked": True, "passed": exists,
-                "signal": "file_nonempty",
-                "detail": str(path)}
-    if tool == "flatpak_install":
-        ident = (args or {}).get("id")
-        if not ident:
-            return {"checked": False}
-        try:
-            r = subprocess.run(
-                ["flatpak", "info", str(ident)],
-                capture_output=True, text=True, timeout=4,
-            )
-            return {"checked": True, "passed": r.returncode == 0,
-                    "signal": "flatpak_installed",
-                    "detail": str(ident)}
-        except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
-            return {"checked": False}
-    return {"checked": False}
+    detail?: <str>}. checked=False means no post-check applies to this
+    verb (it is unlisted, or its signal has no implementation) -- the
+    caller falls back to tool_call.success alone."""
+    signal = _VERB_POST_CHECK.get(tool)
+    if not signal:
+        return {"checked": False}
+    impl = _POST_CHECK_IMPLS.get(signal)
+    if impl is None:
+        return {"checked": False}
+    return impl(args or {}, signal)
 
 
 def _emit_satisfaction(refine_row: dict, tool_calls: list[dict]) -> str:
@@ -3244,7 +3368,7 @@ def main() -> int:
     log.info("starting: model=%s endpoint=%s state=%s",
              MODEL, ENDPOINT, STATE_FILE)
     log.info("watching units: %s", ",".join(WATCHED_UNITS))
-    log.info("refusal patterns loaded: %d", len(_refusal_res))
+    log.info("refusal detect mode: %s", REFUSAL_DETECT)
 
     threads = [
         threading.Thread(target=journal_subscriber, daemon=True, name="journal"),

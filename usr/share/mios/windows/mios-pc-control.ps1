@@ -110,7 +110,7 @@ switch ($Action) {
     }
 
     'type' {
-        # READ-BACK VERIFICATION (operator 2026-06-16: the agent claimed it typed when
+        # READ-BACK VERIFICATION (the agent claimed it typed when
         # nothing reached a window -> "LIAR"). NEVER report success unless the text
         # actually landed: read the focused control value (UI Automation) and/or the
         # foreground-window title BEFORE and AFTER SendKeys. verified ONLY if the value
@@ -162,7 +162,7 @@ public class MiosWin {
         Start-Sleep -Milliseconds 400
         $titleAfter = Get-FgTitle
         $valAfter = Get-FocusedText
-        # STRICT verification (operator 2026-06-16): success ONLY if the EXACT sent text
+        # STRICT verification: success ONLY if the EXACT sent text
         # actually appears in the focused-control value OR the foreground title (Notepad
         # shows it as "*<text> - Notepad"). A partial / dropped-keystroke result must NOT
         # pass -- "value grew" / "title changed" alone was the RESIDUAL lie (it let
@@ -267,7 +267,7 @@ public class MiosWin {
         [W32]::EnumWindows($callback, [IntPtr]::Zero) | Out-Null
         if ($Json) {
             # Machine-mode envelope so the agent reads typed fields,
-            # not Format-Table prose. Operator directive 2026-05-18
+            # not Format-Table prose. Operator directive
             # task #148 (shim JSON sweep).
             $env = [pscustomobject]@{
                 ok      = $true
@@ -329,7 +329,7 @@ public class MiosWin {
     'window-center' {
         # Center the window on the primary monitor's work area.
         # Usage: window-center <hwnd-or-pid>
-        # Operator directive 2026-05-16: "MiOS apps STILL don't center
+        # Operator directive "MiOS apps STILL don't center
         # launch and don't self center" -- Windows apps launched via
         # Start-Process appear at default Win32 placement (often top-
         # left or last-position). This puts them in the screen center.
@@ -381,7 +381,7 @@ public class MiosWin {
         # this window" -- that loses unsaved state and may not even
         # close the right process when the target hosts multiple
         # windows (Chrome, Discord, browsers in general). Operator
-        # directive 2026-05-17: chat showed agent running
+        # directive chat showed agent running
         # `pkill -f hermes-agent` thinking "close the crew" meant
         # "close the agent crew" -- self-terminated. WM_CLOSE on the
         # right window is the correct verb every time.

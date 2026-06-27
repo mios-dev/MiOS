@@ -36,7 +36,7 @@ auxiliary:
 # `${API_SERVER_KEY}` placeholders -- the Hermes YAML loader does NOT
 # expand env vars, so the literal string "${API_SERVER_KEY}" becomes
 # the accepted bearer token and every real request 401s.
-# Operator-flagged 2026-05-12: "Invalid API key" on every /v1 request
+# Operator-flagged "Invalid API key" on every /v1 request
 # after the firstboot config rewrite; root cause was the placeholder
 # block left behind.
 
@@ -86,7 +86,7 @@ model:
   default: mios-heavy
   ollama_num_ctx: 65536
   context_length: 65536
-  # THE live fast-chat fix (operator 2026-06-14): cap Hermes' max OUTPUT
+  # THE live fast-chat fix: cap Hermes' max OUTPUT
   # tokens. Without max_tokens Hermes defaults the completion budget to the
   # FULL context_length, so prompt_tokens + max_output can exceed the served
   # window and SGLang rejects the request with a 400 ("requested tokens
@@ -116,7 +116,7 @@ mios_skill_catalog:
   # without restarting the agent.
   refresh_seconds: 300
 
-# MCP CLIENT (operator 2026-06-07: "Hermes should have access to all Global MiOS
+# MCP CLIENT ("Hermes should have access to all Global MiOS
 # MCP surfaces"). Hermes CONSUMES the global mios-mcp-server, so its tool registry
 # auto-extends with the COMPLETE MiOS surface -- all 82 verbs + 18 recipes +
 # promoted skills (tools/list) + the full read-only catalog (resources) -- every

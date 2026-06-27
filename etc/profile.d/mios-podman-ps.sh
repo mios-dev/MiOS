@@ -9,7 +9,7 @@
 # shell function makes them VISIBLE everywhere: it shows the root-written,
 # world-readable snapshot (mios-podman-ps.service -> /var/lib/mios/podman-ps.json,
 # the same SSOT the dashboard + the container_status verb use) whenever the real
-# rootless `podman ps` comes back empty. Operator 2026-05-23: "make sure
+# rootless `podman ps` comes back empty. "make sure
 # containers are visible in termius and other similar surfaces".
 #
 # Safe + additive: only augments an EMPTY `ps` for a NON-root caller, never hides

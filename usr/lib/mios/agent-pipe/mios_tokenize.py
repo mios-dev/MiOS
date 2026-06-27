@@ -1,6 +1,6 @@
 # AI-hint: WS-A5 tokenizer seam for the agent-pipe. Centralizes the scattered "len // 4" token estimate behind ONE pluggable interface -- count_text / count_messages / truncate_to_tokens / backend_name -- so context-fit sizing, the OpenAI usage estimate, and history/block truncation all measure tokens THE SAME WAY and a real tokenizer can replace the heuristic later without touching call sites. The default backend is the established ~4-chars/token heuristic (so behaviour is byte-identical until a better backend is configured); an optional real backend can be registered. server.py owns the wiring; this module owns the measurement.
 # AI-related: ./server.py, ./mios_ctxpack.py, ./mios_compact.py, ./test_mios_tokenize.py, /usr/share/mios/mios.toml
-# AI-functions: count_text, count_messages, truncate_to_tokens, backend_name, set_backend, class HeuristicBackend
+# AI-functions: count_text, count_messages, truncate_to_tokens, backend_name, set_backend, _usage_estimate, class HeuristicBackend
 """mios_tokenize -- the MiOS agent-pipe tokenizer seam (WS-A5, the AIOS
 Context-Manager token-accounting layer).
 
@@ -90,3 +90,14 @@ def truncate_to_tokens(text: str, max_tokens: int) -> str:
         return s
     budget = n * _cpt()
     return s[:budget].rstrip()
+
+
+def _usage_estimate(prompt: str, completion: str) -> dict:
+    """OpenAI `usage` object (Tier-0 conformance; OWUI + clients read it). MiOS is
+    a multi-call pipeline, so this reports a ~4-chars/token estimate of the
+    CLIENT-VISIBLE exchange (user query + final answer) -- an honest per-turn
+    approximation for the client's token display, NOT a faked single-model-call
+    number. A future per-stage back-end usage aggregation can replace it."""
+    pt = max(1, count_text(prompt))       # WS-A5 tokenizer seam (was //4)
+    ct = max(1, count_text(completion))
+    return {"prompt_tokens": pt, "completion_tokens": ct, "total_tokens": pt + ct}

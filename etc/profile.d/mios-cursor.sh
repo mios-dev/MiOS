@@ -14,7 +14,7 @@
 # doesn't paint the parent shell's env). Without a profile.d export,
 # bash-spawned apps see neither XCURSOR_THEME nor XCURSOR_SIZE and
 # fall back to Adwaita via /usr/share/icons/default/index.theme.
-# Operator-flagged 2026-05-11: "bibata cursor is NOT global at all!!
+# Operator-flagged "bibata cursor is NOT global at all!!
 # still see broken cursor in epiphany and other Linux windows"
 #
 # Values mirror the canonical SSOT cursor settings:

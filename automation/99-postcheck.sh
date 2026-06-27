@@ -455,7 +455,7 @@ log "  no retired local :11434 lane in active config"
 # [agents.*] must point at a real worker ingress / model lane, NEVER back at the
 # ORCHESTRATOR ([ai].endpoint, the :8640 meta-pipeline) or a THIN GATEWAY
 # ([ports].hermes Discord/CLI ingress, :8642). A target that loops to the
-# orchestrator/gateway re-creates the dGPU-pegging recursion (the 2026-06-19
+# orchestrator/gateway re-creates the dGPU-pegging recursion (the
 # runaway class). Ports are DERIVED from the SSOT ([ai].endpoint + [ports].hermes)
 # -- no hardcoded port literal. python3-guarded (TOML parse); skipped only when
 # python3 is absent (the bash Law checks above still run).

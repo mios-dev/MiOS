@@ -19,7 +19,7 @@
 #
 # Sentinel file format (written by .forgejo/workflows/build-mios.yml):
 #   <ISO-8601 timestamp> <image-ref>
-#   2026-05-03T23:42:18Z localhost/mios:latest
+# T23:42:18Z localhost/mios:latest
 #
 # Idempotent: re-running with the same ref is a no-op (bootc switch
 # deduplicates internally; if the staged deployment already points at

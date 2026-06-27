@@ -97,7 +97,7 @@ done
 unset _ue
 
 # Export the OpenAI-API surface required by every Law-5-compliant agent.
-# UNIFIED ENTRYPOINT (operator 2026-06-16 "UNIFY THE MiOS AI PIPELINE"): the
+# UNIFIED ENTRYPOINT ("UNIFY THE MiOS AI PIPELINE"): the
 # canonical surface is the AGENT-PIPE ORCHESTRATOR on :8640 (served model
 # "MiOS-Agent"), NOT Hermes :8642. The pipe runs the full pipeline (refine ->
 # route -> deterministic dispatch / native-loop / council -> SERVER-SIDE broker

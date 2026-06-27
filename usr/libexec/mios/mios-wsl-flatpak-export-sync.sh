@@ -5,7 +5,7 @@
 # /usr/libexec/mios/mios-wsl-flatpak-export-sync.sh
 #
 # Mirror flatpak's `.desktop` + icon exports into the system XDG dirs so
-# WSL2's Start Menu app sync can see them. Operator-flagged 2026-05-11
+# WSL2's Start Menu app sync can see them. Operator-flagged
 # "no icons match and all apps aren't populating in windows NATIVELY".
 #
 # Why WSL2 needs this: the wsl.exe distro launcher scans .desktop files

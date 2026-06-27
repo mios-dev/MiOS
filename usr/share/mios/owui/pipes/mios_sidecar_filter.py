@@ -14,7 +14,7 @@ description: |
   doing work invisibly into /var/lib/mios/*/latest.json and
   journal entries.
 
-  Operator directive 2026-05-16: "OWUI doesn't emit anything from
+  Operator directive "OWUI doesn't emit anything from
   ANY GLOBAL AGENTS as it should" -- this Filter is the bridge.
 
   INLET (before the model sees the prompt): emit a status event

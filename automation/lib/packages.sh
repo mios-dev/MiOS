@@ -12,7 +12,7 @@
 #   /usr/share/mios/mios.toml       vendor defaults
 #   /ctx/usr/share/mios/mios.toml   build context (during OCI build)
 #
-# As of 2026-05-05 the legacy PACKAGES.md fenced-block fallback is REMOVED.
+# As of the legacy PACKAGES.md fenced-block fallback is REMOVED.
 # mios.toml is the only runtime source of truth. PACKAGES.md is retained
 # under usr/share/doc/mios/reference/ as human-readable documentation
 # (the mios.toml [packages.*] tables are the canonical machine-readable
@@ -98,7 +98,7 @@ get_packages_from_toml() {
 
 # get_packages <section>
 # Resolves [packages.<section>].pkgs from mios.toml. TOML-only as of
-# 2026-05-05 (legacy PACKAGES.md fenced-block fallback removed).
+# (legacy PACKAGES.md fenced-block fallback removed).
 get_packages() {
     local category="$1"
     local toml_pkgs

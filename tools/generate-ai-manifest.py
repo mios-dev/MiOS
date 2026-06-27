@@ -46,7 +46,7 @@ def generate_json_manifest(target_dir, output_file, recursive=True, ignore_dirs=
         # Filter out ignored directories. SORT dirs (controls os.walk recursion
         # order) + files (entry order) so the manifest is byte-reproducible across
         # environments -- os.walk does NOT guarantee order, which would otherwise
-        # make the WS-10 regenerate-and-diff gate flap (operator 2026-06-19).
+        # make the WS-10 regenerate-and-diff gate flap.
         dirs[:] = sorted(d for d in dirs if d not in ignore_dirs)
 
         for file in sorted(files):

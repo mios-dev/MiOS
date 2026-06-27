@@ -1,0 +1,200 @@
+#!/usr/bin/env python3
+# AI-hint: Unit-proves the mios-find launch-disambiguation ranker reads its
+# scoring SSOT (tier ordering, category-priority weights, fuzzy bounds) from
+# mios.toml -- defaults preserve historical behaviour, a non-default config
+# flips the winner. Pure in-process exec of the script's embedded ranker; no
+# bash, no mios-apps subprocess.
+# AI-related: /usr/libexec/mios/mios-find, /usr/share/mios/mios.toml
+"""Tests for the mios-find ranker SSOT (mios.toml [mios-find.ranker] +
+[mios-find.category_priority]).
+
+The ranker lives in an embedded python heredoc inside the bash script
+``mios-find``. We extract that block, stub the ``mios-apps --json`` inventory
+call, point ``MIOS_TOML`` at a temp config, exec it in-process, and assert the
+chosen launch command. Defaults must reproduce the historical in-code ranking;
+a non-default config must change it -- proving the weights are read from SSOT,
+not baked.
+"""
+import contextlib
+import io
+import os
+import subprocess
+import sys
+import tempfile
+import textwrap
+import types
+import unittest
+
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_MIOS_FIND = os.path.join(_HERE, "mios-find")
+
+
+def _extract_ranker_source():
+    """Pull the fast-path-B python heredoc (the block that defines rank())."""
+    with open(_MIOS_FIND, "r", encoding="utf-8") as f:
+        lines = f.read().splitlines()
+    blocks = []
+    body = None
+    for line in lines:
+        if body is None:
+            if line.endswith("<<'PYEOF'"):
+                body = []
+            continue
+        if line.strip() == "PYEOF":
+            blocks.append("\n".join(body))
+            body = None
+            continue
+        body.append(line)
+    for b in blocks:
+        if "def rank(" in b:
+            return b
+    raise AssertionError("could not locate the ranker python block in mios-find")
+
+
+_RANKER_SRC = _extract_ranker_source()
+
+
+def run_ranker(query, entries, toml_text):
+    """Exec the extracted ranker with a stubbed inventory + a temp MIOS_TOML.
+
+    entries: list of dicts (mios-apps JSONL shape: name/category/launch/...).
+    Returns (winner_launch_or_None, exit_code, stderr_text).
+    """
+    jsonl = "\n".join(__import__("json").dumps(e) for e in entries)
+
+    fake_proc = types.SimpleNamespace(stdout=jsonl, stderr="", returncode=0)
+
+    def fake_run(*_a, **_kw):
+        return fake_proc
+
+    fd, toml_path = tempfile.mkstemp(suffix=".toml")
+    os.close(fd)
+    with open(toml_path, "w", encoding="utf-8") as f:
+        f.write(textwrap.dedent(toml_text))
+
+    orig_run = subprocess.run
+    orig_argv = sys.argv
+    orig_toml = os.environ.get("MIOS_TOML")
+    out, err = io.StringIO(), io.StringIO()
+    code = 0
+    try:
+        subprocess.run = fake_run
+        sys.argv = ["mios-find", query]
+        os.environ["MIOS_TOML"] = toml_path
+        ns = {"__name__": "__mios_find_ranker__"}
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            try:
+                exec(compile(_RANKER_SRC, "<mios-find-ranker>", "exec"), ns)
+            except SystemExit as e:
+                code = e.code if isinstance(e.code, int) else (0 if not e.code else 1)
+    finally:
+        subprocess.run = orig_run
+        sys.argv = orig_argv
+        if orig_toml is None:
+            os.environ.pop("MIOS_TOML", None)
+        else:
+            os.environ["MIOS_TOML"] = orig_toml
+        os.unlink(toml_path)
+
+    stdout_lines = [ln for ln in out.getvalue().splitlines() if ln.strip()]
+    winner = stdout_lines[0] if (code == 0 and stdout_lines) else None
+    return winner, code, err.getvalue()
+
+
+# Config snippets ---------------------------------------------------------
+# A toml with NO ranker sections -> loader degrades to the baked defaults.
+_NO_RANKER_CFG = """
+    [some-other-section]
+    x = 1
+"""
+
+
+class CategoryPriorityFromSSOT(unittest.TestCase):
+    # Two entries tie at the strongest tier (name_exact); the category-priority
+    # weight is the only tiebreaker, so flipping it in config flips the winner.
+    ENTRIES = [
+        {"name": "foo", "category": "mios-shim", "launch": "SHIM"},
+        {"name": "foo", "category": "windows-app", "launch": "APP"},
+    ]
+
+    def test_default_category_priority_picks_real_app(self):
+        # Historical default: windows-app (1) outranks mios-shim (6) -> APP.
+        winner, code, _ = run_ranker("foo", self.ENTRIES, _NO_RANKER_CFG)
+        self.assertEqual(code, 0)
+        self.assertEqual(winner, "APP")
+
+    def test_override_category_priority_flips_winner(self):
+        # Invert the weights via SSOT -> the shim now wins. If the weights were
+        # baked in code this override would be ignored and APP would still win.
+        cfg = """
+            [mios-find.category_priority]
+            mios-shim = 0
+            windows-app = 9
+        """
+        winner, code, _ = run_ranker("foo", self.ENTRIES, cfg)
+        self.assertEqual(code, 0)
+        self.assertEqual(winner, "SHIM")
+
+
+class TierOrderingFromSSOT(unittest.TestCase):
+    # "foobar" matches query "foo" at name_prefix; "a foo b" matches at
+    # name_word. Default ordering ranks name_prefix above name_word.
+    ENTRIES = [
+        {"name": "foobar", "category": "windows-app", "launch": "PREFIX"},
+        {"name": "a foo b", "category": "windows-app", "launch": "WORD"},
+    ]
+
+    def test_default_tier_order_prefix_beats_word(self):
+        winner, code, _ = run_ranker("foo", self.ENTRIES, _NO_RANKER_CFG)
+        self.assertEqual(code, 0)
+        self.assertEqual(winner, "PREFIX")
+
+    def test_override_tier_order_flips_winner(self):
+        # Reorder so name_word outranks name_prefix -> WORD wins.
+        cfg = """
+            [mios-find.ranker]
+            tiers = ["name_exact", "name_word", "name_prefix", "name_substr",
+                     "desc_word", "desc_substr", "fuzzy"]
+        """
+        winner, code, _ = run_ranker("foo", self.ENTRIES, cfg)
+        self.assertEqual(code, 0)
+        self.assertEqual(winner, "WORD")
+
+
+class FuzzyBoundsFromSSOT(unittest.TestCase):
+    # Query "discrod" is a 2-edit typo of "discord" (token length 7).
+    ENTRIES = [
+        {"name": "discord", "category": "windows-app", "launch": "DISCORD"},
+    ]
+
+    def test_default_fuzzy_resolves_typo(self):
+        winner, code, _ = run_ranker("discrod", self.ENTRIES, _NO_RANKER_CFG)
+        self.assertEqual(code, 0)
+        self.assertEqual(winner, "DISCORD")
+
+    def test_override_min_token_len_disables_fuzzy(self):
+        # Require tokens >= 10 chars -> the 7-char query token is ineligible,
+        # so the typo no longer matches -> no match (exit 1).
+        cfg = """
+            [mios-find.ranker]
+            fuzzy_min_token_len = 10
+            fuzzy_max_edit_distance = 2
+        """
+        winner, code, _ = run_ranker("discrod", self.ENTRIES, cfg)
+        self.assertEqual(code, 1)
+        self.assertIsNone(winner)
+
+    def test_override_max_edit_distance_tightens_match(self):
+        # Tighten to <=1 edit -> the 2-edit typo no longer matches.
+        cfg = """
+            [mios-find.ranker]
+            fuzzy_min_token_len = 4
+            fuzzy_max_edit_distance = 1
+        """
+        winner, code, _ = run_ranker("discrod", self.ENTRIES, cfg)
+        self.assertEqual(code, 1)
+        self.assertIsNone(winner)
+
+
+if __name__ == "__main__":
+    unittest.main(verbosity=2)

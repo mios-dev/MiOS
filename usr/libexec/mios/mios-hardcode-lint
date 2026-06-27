@@ -1,0 +1,178 @@
+#!/usr/bin/env python3
+# AI-hint: Enforcement gate for the NO-HARDCODE law (Architectural Law 7). Read-only repo scan that FAILS on three regression classes the law forbids: (1) a literal date/timestamp or dated attribution in COMMENT or DOCSTRING text (timeless-comment rule -- comments must describe the WHY abstractly, not pin code to a frozen history); (2) a dated attribution baked into a .py STRING LITERAL's prose -- a date inside served CSS/JS-comment text or inside a system-prompt string -- which the #-comment scan never sees; and (3) AI-Hint header crash-risks (a UTF-8 BOM not at byte 0, or a header placed above a shebang) that break the install/CI parse. Comment- and value-aware: .py uses tokenize + AST docstrings + a string-token scan that flags only a whitespace-led (prose) date and EXEMPTS a date used as a VALUE -- a quote-led/standalone protocol-version or config literal, or one glued into a URL/slug/identifier token; other files use quote-aware comment detection, so legitimate date CONFIG VALUES are never flagged -- only doc/comment/attribution text. Mirrors the 38-drift-checks fitness-function pattern (exit 1 on violation, MIOS_HARDCODE_LINT_SOFT=1 for advisory). Pairs with the surface-parity + module-boundary gates as the offline LAW gate.
+# AI-related: ../../../automation/38-drift-checks.sh, ../../share/mios/mios.toml, ./mios-ai-tag, ../../../CLAUDE.md
+# AI-functions: _date_in_comment_py, _date_in_string_py, _date_in_comment_generic, _header_risk, scan, main
+"""NO-HARDCODE law enforcement: forbid date-literals in comments/docstrings + dated attributions in string-literal prose + header crash-risks."""
+
+from __future__ import annotations
+
+import ast
+import io
+import os
+import re
+import sys
+import tokenize
+
+_DATE = re.compile(r'\b20[0-9]{2}-[01][0-9]-[0-3][0-9]\b')
+_BOM = b'\xef\xbb\xbf'
+# Repo-relative path fragments that are exempt (data/snapshots/vendored docs where a
+# date in text is legitimate content, not a code comment). Kept minimal + named.
+_EXEMPT = (
+    '/var/lib/mios/', '/.git/', '/__pycache__/', '/node_modules/',
+    '/usr/share/mios/knowledge/',          # generated knowledge snapshots
+)
+_CODE_EXT = ('.py', '.sh', '.bash', '.toml', '.yml', '.yaml', '.ps1', '.psm1')
+
+
+def _date_in_comment_py(text: str):
+    """Yield (lineno, snippet) for a date inside a .py COMMENT or DOCSTRING only."""
+    try:
+        for t in tokenize.generate_tokens(io.StringIO(text).readline):
+            if t.type == tokenize.COMMENT and _DATE.search(t.string):
+                yield t.start[0], t.string.strip()[:80]
+    except (tokenize.TokenError, IndentationError, SyntaxError):
+        return
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return
+    lines = text.split('\n')
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            continue
+        body = getattr(node, 'body', None) or []
+        if (body and isinstance(body[0], ast.Expr)
+                and isinstance(getattr(body[0], 'value', None), ast.Constant)
+                and isinstance(body[0].value.value, str)):
+            c = body[0].value
+            for ln in range(c.lineno, (c.end_lineno or c.lineno) + 1):
+                if 1 <= ln <= len(lines) and _DATE.search(lines[ln - 1]):
+                    yield ln, lines[ln - 1].strip()[:80]
+
+
+def _date_in_string_py(text: str):
+    """Yield (lineno, snippet) for a dated ATTRIBUTION baked into a .py STRING
+    literal -- the hole that a date inside served CSS/JS-comment text or inside a
+    system-prompt string slips through (the #-comment scan never sees string
+    content). A date used as a VALUE is legitimate and exempt: a standalone or
+    leading literal (a protocol-version id or a date config value is quote-led, so
+    the char before it is the opening quote) or one glued into a URL/slug/identifier
+    (preceded by a non-space joiner). The forbidden pattern is a date sitting in
+    running prose -- structurally, one preceded by WHITESPACE and never the head of
+    its own literal -- which is exactly how an `<attribution> <date>` credit reads.
+    The discriminator is positional, not lexical (no keyword/English gate)."""
+    try:
+        toks = list(tokenize.generate_tokens(io.StringIO(text).readline))
+    except (tokenize.TokenError, IndentationError, SyntaxError):
+        return
+    lines = text.split('\n')
+    str_types = {tokenize.STRING}
+    fmid = getattr(tokenize, 'FSTRING_MIDDLE', None)  # 3.12+ splits f-strings
+    if fmid is not None:
+        str_types.add(fmid)
+    for t in toks:
+        if t.type not in str_types:
+            continue
+        s = t.string
+        for m in _DATE.finditer(s):
+            i = m.start()
+            # Exempt a value date: at the head of the literal, or quote-/joiner-led
+            # (slug/URL/version). Flag only a whitespace-led date -- prose/attribution.
+            if i == 0 or not s[i - 1].isspace():
+                continue
+            ln = t.start[0] + s[:i].count('\n')
+            snip = lines[ln - 1].strip()[:80] if 1 <= ln <= len(lines) else m.group(0)
+            yield ln, snip
+
+
+def _comment_start(line: str) -> int:
+    in_s = in_d = False
+    for i, ch in enumerate(line):
+        if ch == "'" and not in_d:
+            in_s = not in_s
+        elif ch == '"' and not in_s:
+            in_d = not in_d
+        elif not in_s and not in_d and ch == '#':
+            return -1 if line[:2] == '#!' else i
+    return -1
+
+
+def _date_in_comment_generic(text: str):
+    """Yield (lineno, snippet) for a date inside a #-comment (quote-aware)."""
+    for idx, line in enumerate(text.split('\n'), 1):
+        cs = _comment_start(line)
+        if cs >= 0 and _DATE.search(line[cs:]):
+            yield idx, line[cs:].strip()[:80]
+
+
+def _header_risk(raw: bytes, path: str):
+    """A header crash-risk: a STRANDED file-BOM (PS1 byte-0 rule), or a header line
+    ABOVE a shebang the file actually declares. NOT flagged: a U+FEFF inside a string
+    literal (legit, e.g. BOM-stripping code), or a sourced script with no shebang."""
+    # PS1 irm|iex parse needs the BOM (when present) at byte 0; a BOM in the head
+    # bytes but not at offset 0 is the Get-MiOS.ps1 stranding bug. Restrict to .ps1
+    # so a U+FEFF in a .py/.sh string is never misread as a file-BOM.
+    if path.endswith('.ps1') and not raw.startswith(_BOM) and _BOM in raw[:256]:
+        return "UTF-8 BOM stranded in PS1 head (must be byte 0 -- breaks irm|iex parse)"
+    # A shebang, IF the file declares one, must be line 1. A sourced script with no
+    # shebang is fine (header comment first is correct for it).
+    if path.endswith(('.sh', '.bash')):
+        head = raw.decode('utf-8', 'ignore').split('\n')[:40]
+        sb = [i for i, l in enumerate(head) if l.startswith('#!')]
+        if sb and sb[0] != 0:
+            return "shebang not on line 1 (a header/comment is above it)"
+    return None
+
+
+def scan(roots):
+    violations = []
+    for root in roots:
+        for dirpath, dirs, files in os.walk(root):
+            dirs[:] = [d for d in dirs if d not in ('.git', '__pycache__', 'node_modules')]
+            for fn in files:
+                p = os.path.join(dirpath, fn)
+                rel = p.replace('\\', '/')
+                if any(x in rel for x in _EXEMPT) or not fn.endswith(_CODE_EXT):
+                    continue
+                try:
+                    raw = open(p, 'rb').read()
+                except OSError:
+                    continue
+                if not raw:
+                    continue
+                hr = _header_risk(raw, fn)
+                if hr:
+                    violations.append((p, 0, f"HEADER: {hr}"))
+                text = raw.decode('utf-8-sig' if raw[:3] == _BOM else 'utf-8', 'ignore').replace('\r\n', '\n')
+                if fn.endswith('.py'):
+                    for ln, snip in _date_in_comment_py(text):
+                        violations.append((p, ln, f"DATE-IN-COMMENT: {snip}"))
+                    for ln, snip in _date_in_string_py(text):
+                        violations.append((p, ln, f"DATE-IN-STRING: {snip}"))
+                else:
+                    for ln, snip in _date_in_comment_generic(text):
+                        violations.append((p, ln, f"DATE-IN-COMMENT: {snip}"))
+    return violations
+
+
+def main(argv):
+    roots = [a for a in argv[1:] if not a.startswith('--')] or ['.']
+    soft = os.environ.get('MIOS_HARDCODE_LINT_SOFT', '0') == '1'
+    v = scan(roots)
+    if not v:
+        print('[mios-hardcode-lint] PASS: no date-in-comment/string / header crash-risk.')
+        return 0
+    for p, ln, msg in v[:60]:
+        sys.stderr.write(f"    {p}:{ln}: {msg}\n")
+    if len(v) > 60:
+        sys.stderr.write(f"    ... and {len(v) - 60} more\n")
+    sys.stderr.write(f"[mios-hardcode-lint] FAIL: {len(v)} NO-HARDCODE violation(s) "
+                     "(strip the date -> timeless comment/string; move a header below the shebang/BOM).\n")
+    if soft:
+        sys.stderr.write("[mios-hardcode-lint] (MIOS_HARDCODE_LINT_SOFT=1 -> advisory, exit 0)\n")
+        return 0
+    return 1
+
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv))

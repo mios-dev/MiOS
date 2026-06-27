@@ -157,10 +157,11 @@ Numbered automation scripts (`automation/NN-name.sh`) are sub-phases of Phase-2.
 
 ### Architectural laws (non-negotiable; violations fail the build/audit)
 
-These six laws are the contract that lets MiOS be both immutable and agentic at
+These seven laws are the contract that lets MiOS be both immutable and agentic at
 once. Laws 1–4 keep the image deterministic, atomic, and self-contained so bootc
 can upgrade/roll it back; Laws 5–6 keep the AI plane unified and least-privileged
-so the agent stack stays portable and sandboxed.
+so the agent stack stays portable and sandboxed; Law 7 keeps every decision and
+constant SSOT-/model-driven so nothing is frozen into code.
 
 | # | Law |
 |---|---|
@@ -170,6 +171,7 @@ so the agent stack stays portable and sandboxed.
 | 4 | **BOOTC-CONTAINER-LINT** — final `RUN` of `Containerfile`. Fail = fail the build. |
 | 5 | **UNIFIED-AI-REDIRECTS** — every agent/tool targets `MIOS_AI_ENDPOINT` (default `http://localhost:8080/v1`). No vendor-hardcoded URLs. |
 | 6 | **UNPRIVILEGED-QUADLETS** — every Quadlet declares `User=`, `Group=`, `Delegate=yes`. Documented root exceptions (rationale in their headers; kept in sync with `99-postcheck.sh`): `mios-ceph`, `mios-k3s`, `mios-llm-heavy` (no `User=`); `mios-forgejo-runner`, `mios-coderun-sandbox@` (explicit `User=root`). |
+| 7 | **NO-HARDCODE** — nothing hardcoded anywhere, in EITHER repo (`MiOS` + `mios-bootstrap`). Broader than literal keyword/topic maps: a hand-coded scoring/selection heuristic, a magic decision-weight (`score += 2`), a lexical/keyword/English/ASCII matcher that GATES a decision (even one labelled "language-neutral"), an SSOT-restated literal (a model/fleet id, port, repo URL, or install path duplicated in code instead of read from `mios.toml`), and a literal date/timestamp or dated attribution in a `#` comment / docstring / AI-Hint header are ALL hardcodes. Fix order: **model-driven > SSOT > unicode-aware > delete-dead**; comments stay TIMELESS (the WHY, never `operator <date>`); behaviour changes ship flag-gated + degrade-open. Enforced offline by `usr/libexec/mios/mios-hardcode-lint` + `check_no_hardcode` in `automation/38-drift-checks.sh`. |
 
 ### Package management
 

@@ -10,7 +10,7 @@ Pure stdlib -- no server.py import, so it runs on any Python 3.11+ without the
 agent-pipe runtime deps. Mirrors the test_mios_kvfork standalone pattern: a
 reference impl PINS the contract, and the REAL mios.toml
 [routing].launch_filler_phrases SSOT is loaded so a drift in either the list or the
-logic is caught. Regression guard for the 2026-06-07 operator e2e bug where
+logic is caught. Regression guard for the operator e2e bug where
 'open notepad for me' bound name='notepad for me' and 'open spotify on my desktop'
 fell through to the LLM path and mis-routed to discovery.
 

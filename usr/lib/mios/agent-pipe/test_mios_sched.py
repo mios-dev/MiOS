@@ -1,6 +1,6 @@
-# AI-hint: Standalone unit test for mios_sched.PriorityGate to verify concurrency logic, permit capping, and priority-based reordering without requiring the full agent-pipe runtime.
+# AI-hint: Standalone unit test for mios_sched -- PriorityGate concurrency logic (permit capping, priority reordering, anti-starvation) plus the lane/scheduling/priority decision helpers (_lane_tool_cap, _agent_offload_engine, _resolve_autonomous_priority, _sched_priority, _lane_sem_key) exercised via the configure() DI seam with stubbed deps. No full agent-pipe runtime required.
 # AI-related: mios_sched
-# AI-functions: _check, t_basic_bound, third, t_priority_reorder, worker, t_fifo_tiebreak, t_anti_starvation, t_cancel_while_queued, t_cancel_after_grant, t_cap_never_exceeded, main
+# AI-functions: _check, _sched_cfg, t_basic_bound, third, t_priority_reorder, worker, t_fifo_tiebreak, t_anti_starvation, t_cancel_while_queued, t_cancel_after_grant, t_cap_never_exceeded, _configure_helpers, t_lane_tool_cap, t_agent_offload_engine, t_resolve_autonomous_priority, t_sched_priority, t_sched_priority_ssot_override, t_sched_priority_model_hook, t_sched_priority_unicode, t_lane_sem_key, main
 """Standalone unit test for mios_sched.PriorityGate (WS-1).
 
 Pure stdlib + the sibling module only -- no server.py import, so it runs on any
@@ -12,8 +12,11 @@ Run:  python test_mios_sched.py
 """
 
 import asyncio
+import contextlib
+import os
 import sys
 
+import mios_sched as M
 from mios_sched import PriorityGate
 
 _RESULTS: list = []
@@ -22,6 +25,28 @@ _RESULTS: list = []
 def _check(name: str, ok: bool, detail: str = "") -> None:
     _RESULTS.append((name, ok, detail))
     print(f"[{'PASS' if ok else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
+
+
+@contextlib.contextmanager
+def _sched_cfg(cfg: dict, mode_env=None):
+    """Inject a [sched] table (M._SCHED_TOML) + optional MIOS_SCHED_PRIORITY_MODE for
+    the duration of the block, restoring both afterward -- so a test exercises an exact
+    config without touching mios.toml or leaking env between tests."""
+    _saved_toml = M._SCHED_TOML
+    _saved_env = os.environ.get("MIOS_SCHED_PRIORITY_MODE")
+    M._SCHED_TOML = cfg
+    if mode_env is None:
+        os.environ.pop("MIOS_SCHED_PRIORITY_MODE", None)
+    else:
+        os.environ["MIOS_SCHED_PRIORITY_MODE"] = mode_env
+    try:
+        yield
+    finally:
+        M._SCHED_TOML = _saved_toml
+        if _saved_env is None:
+            os.environ.pop("MIOS_SCHED_PRIORITY_MODE", None)
+        else:
+            os.environ["MIOS_SCHED_PRIORITY_MODE"] = _saved_env
 
 
 async def t_basic_bound() -> None:
@@ -182,10 +207,185 @@ async def t_cap_never_exceeded() -> None:
     _check("load: drained to full", g.available == cap, f"avail={g.available}")
 
 
+# ── Lane / scheduling / priority decision helpers (moved from server.py) ─────────
+# Stub the server-owned deps via configure() -- no server import, no DB, no network.
+
+def _configure_helpers(*, offload_cpu: bool = False, slow_cap: int = 12,
+                       default_cap: int = 24, agent_lane=None) -> None:
+    M.configure(
+        _AUTO_PRIO_WORDS={"low": 1.0, "normal": 5.0, "medium": 5.0, "high": 9.0},
+        LANE_TOOL_CAP={"igpu": 15, "mobile": 15},
+        SLOW_LANES={"cpu", "igpu", "mobile", "accelerator"},
+        SLOW_LANE_TOOL_CAP=slow_cap,
+        DEFAULT_TOOL_CAP=default_cap,
+        DISPATCH_OFFLOAD_CPU=offload_cpu,
+        _OFFLOAD_ENGINES=("cpu", "igpu", "accelerator"),
+        _agent_lane=agent_lane if agent_lane is not None else (lambda cfg: "gpu"),
+    )
+
+
+async def t_lane_tool_cap() -> None:
+    """Explicit per-lane entry > slow-lane fallback > DEFAULT_TOOL_CAP; slow_cap=0 opts out."""
+    _configure_helpers(slow_cap=12, default_cap=24)
+    _check("lane_tool_cap: explicit entry", M._lane_tool_cap("igpu") == 15,
+           f"got={M._lane_tool_cap('igpu')}")
+    _check("lane_tool_cap: slow-lane fallback", M._lane_tool_cap("cpu") == 12,
+           f"got={M._lane_tool_cap('cpu')}")
+    _check("lane_tool_cap: default for fast lane", M._lane_tool_cap("gpu") == 24,
+           f"got={M._lane_tool_cap('gpu')}")
+    _check("lane_tool_cap: case/space-insensitive", M._lane_tool_cap("  IGPU ") == 15,
+           f"got={M._lane_tool_cap('  IGPU ')}")
+    _configure_helpers(slow_cap=0, default_cap=24)   # slow_cap=0 => opt out -> default
+    _check("lane_tool_cap: slow_cap=0 -> default", M._lane_tool_cap("cpu") == 24,
+           f"got={M._lane_tool_cap('cpu')}")
+
+
+async def t_agent_offload_engine() -> None:
+    """Off -> None always; on -> first _OFFLOAD_ENGINES member present, else None."""
+    _configure_helpers(offload_cpu=False)
+    _check("offload_engine: off -> None",
+           M._agent_offload_engine({"engines": {"cpu": {}}}) is None)
+    _configure_helpers(offload_cpu=True)
+    _check("offload_engine: first match wins",
+           M._agent_offload_engine({"engines": {"igpu": {}, "accelerator": {}}}) == "igpu",
+           f"got={M._agent_offload_engine({'engines': {'igpu': {}, 'accelerator': {}}})}")
+    _check("offload_engine: cpu preferred when present",
+           M._agent_offload_engine({"engines": {"cpu": {}, "igpu": {}}}) == "cpu")
+    _check("offload_engine: no light engine -> None",
+           M._agent_offload_engine({"engines": {"gpu": {}}}) is None)
+    _check("offload_engine: missing engines key -> None",
+           M._agent_offload_engine({}) is None)
+
+
+async def t_resolve_autonomous_priority() -> None:
+    """Numeric env wins; a word maps via _AUTO_PRIO_WORDS; unknown -> 1.0 floor."""
+    _configure_helpers()
+    _saved = os.environ.get("MIOS_AUTONOMOUS_PRIORITY")
+    try:
+        os.environ["MIOS_AUTONOMOUS_PRIORITY"] = "3.5"
+        _check("auto_prio: numeric env", M._resolve_autonomous_priority() == 3.5,
+               f"got={M._resolve_autonomous_priority()}")
+        os.environ["MIOS_AUTONOMOUS_PRIORITY"] = "high"
+        _check("auto_prio: word -> map", M._resolve_autonomous_priority() == 9.0,
+               f"got={M._resolve_autonomous_priority()}")
+        os.environ["MIOS_AUTONOMOUS_PRIORITY"] = "bogus"
+        _check("auto_prio: unknown word -> 1.0", M._resolve_autonomous_priority() == 1.0,
+               f"got={M._resolve_autonomous_priority()}")
+    finally:
+        if _saved is None:
+            os.environ.pop("MIOS_AUTONOMOUS_PRIORITY", None)
+        else:
+            os.environ["MIOS_AUTONOMOUS_PRIORITY"] = _saved
+
+
+async def t_sched_priority() -> None:
+    """DEFAULT path (empty [sched]) reproduces the historical scoring byte-for-byte.
+    The term inputs are pulled DYNAMICALLY from the SSOT fallback set, so no English
+    example word is the test's source of truth (the asserted NUMBERS lock behaviour)."""
+    with _sched_cfg({}):                       # force the degrade-open fallback path
+        base = M._sched_priority(None)
+        _check("sched_priority: defaults", base == {
+            "score": 3.4, "complexity": 1, "urgency": 5, "intent": "agent"}, f"got={base}")
+        _hi = next(iter(M._SCHED_FALLBACK["urgency_high_terms"]))
+        _lo = next(iter(M._SCHED_FALLBACK["urgency_low_terms"]))
+        urgent = M._sched_priority({"urgency": _hi})
+        _check("sched_priority: urgency high", urgent["urgency"] == 9 and urgent["score"] == 5.8,
+               f"got={urgent}")
+        bg = M._sched_priority({"urgency": _lo})
+        _check("sched_priority: urgency low", bg["urgency"] == 2 and bg["score"] == 1.6,
+               f"got={bg}")
+        disp = M._sched_priority({"intent": "dispatch"})
+        _check("sched_priority: dispatch floors urgency", disp["urgency"] == 8 and disp["intent"] == "dispatch",
+               f"got={disp}")
+        cx = M._sched_priority({"tasks": [1, 2, 3], "hint_tools": [1, 2, 3, 4]})
+        _check("sched_priority: complexity from steps+hints", cx["complexity"] == 6,
+               f"got={cx}")
+
+
+async def t_sched_priority_ssot_override() -> None:
+    """An injected [sched] table changes the tiers + weights as configured (proves the
+    numbers are SSOT, not baked). Synthetic non-dictionary tokens are the urgency terms."""
+    cfg = {
+        "urgency_high": 7, "urgency_low": 3, "urgency_default": 4,
+        "urgency_dispatch_floor": 6,
+        "urgency_high_terms": ["zzurg"], "urgency_low_terms": ["zzdefer"],
+        "complexity_base": 2, "complexity_hints_divisor": 1, "complexity_cap": 5,
+        "score_complexity_weight": 0.5, "score_urgency_weight": 0.5,
+        "score_round_ndigits": 3,
+    }
+    with _sched_cfg(cfg):
+        _check("sched_override: high tier from injected term",
+               M._sched_priority({"urgency": "zzurg"})["urgency"] == 7,
+               f"got={M._sched_priority({'urgency': 'zzurg'})}")
+        _check("sched_override: low tier from injected term",
+               M._sched_priority({"urgency": "zzdefer"})["urgency"] == 3,
+               f"got={M._sched_priority({'urgency': 'zzdefer'})}")
+        _check("sched_override: default urgency",
+               M._sched_priority({"urgency": "nomatch"})["urgency"] == 4,
+               f"got={M._sched_priority({'urgency': 'nomatch'})}")
+        # complexity = min(cap 5, base 2 + 3 tasks + 2 hints // 1) = min(5, 7) = 5
+        cx = M._sched_priority({"tasks": [1, 2, 3], "hint_tools": [1, 2]})
+        _check("sched_override: complexity weights+cap", cx["complexity"] == 5, f"got={cx}")
+        # score = round(complexity 5 * 0.5 + default-urgency 4 * 0.5, 3) = 4.5
+        _check("sched_override: blended score honors weights+ndigits", cx["score"] == 4.5,
+               f"got={cx}")
+        _check("sched_override: dispatch floor from config",
+               M._sched_priority({"intent": "dispatch"})["urgency"] == 6,
+               f"got={M._sched_priority({'intent': 'dispatch'})}")
+
+
+async def t_sched_priority_model_hook() -> None:
+    """priority_mode='model' PREFERS an already-present numeric refined.urgency /
+    refined.complexity over the lexical scan; an absent signal falls back to lexical.
+    The DEFAULT 'ssot' mode must NOT consume a numeric urgency (byte-identical guard)."""
+    with _sched_cfg({}, mode_env="model"):
+        m = M._sched_priority({"urgency": 8, "complexity": 4})
+        _check("sched_model: numeric urgency preferred", m["urgency"] == 8, f"got={m}")
+        _check("sched_model: numeric complexity preferred", m["complexity"] == 4, f"got={m}")
+        ms = M._sched_priority({"urgency": "9"})          # numeric STRING also honored
+        _check("sched_model: numeric-string urgency", ms["urgency"] == 9, f"got={ms}")
+        fb = M._sched_priority({"urgency": "nonnumeric"})  # no model number -> lexical
+        _check("sched_model: absent signal -> lexical fallback", fb["urgency"] == 5, f"got={fb}")
+    with _sched_cfg({}):                                   # default ssot mode
+        ss = M._sched_priority({"urgency": 8})
+        _check("sched_model: ssot mode ignores numeric urgency (byte-identical)",
+               ss["urgency"] == 5, f"got={ss}")
+
+
+async def t_sched_priority_unicode() -> None:
+    """Urgency matching is Unicode-casefold, not ASCII-gated: a non-ASCII SSOT term
+    matches a differently-cased input where a plain .lower() would NOT (casefold folds
+    'ß'->'ss'). Synthetic invented token, set via injected config -- no baked word."""
+    cfg = {"urgency_high_terms": ["zzstraße"], "urgency_low_terms": []}  # 'zzstraße'
+    with _sched_cfg(cfg):
+        hit = M._sched_priority({"urgency": "ZZSTRASSE"})  # casefold == 'zzstrasse' == term
+        _check("sched_unicode: casefold matches non-ASCII SSOT term", hit["urgency"] == 9,
+               f"got={hit}")
+        miss = M._sched_priority({"urgency": "zzother"})
+        _check("sched_unicode: non-member -> default urgency", miss["urgency"] == 5,
+               f"got={miss}")
+
+
+async def t_lane_sem_key() -> None:
+    """sub_lane > custom lane > delegate to _agent_lane for a base category."""
+    _configure_helpers(agent_lane=lambda cfg: "delegated")
+    _check("lane_sem_key: sub_lane wins", M._lane_sem_key({"sub_lane": "gpu0", "lane": "gpu"}) == "gpu0")
+    _check("lane_sem_key: custom lane wins",
+           M._lane_sem_key({"lane": "potato-gpu"}) == "potato-gpu")
+    _check("lane_sem_key: base category delegates to _agent_lane",
+           M._lane_sem_key({"lane": "gpu"}) == "delegated",
+           f"got={M._lane_sem_key({'lane': 'gpu'})}")
+    _check("lane_sem_key: no lane delegates to _agent_lane",
+           M._lane_sem_key({}) == "delegated")
+
+
 async def main() -> int:
     for t in (t_basic_bound, t_priority_reorder, t_fifo_tiebreak,
               t_anti_starvation, t_cancel_while_queued, t_cancel_after_grant,
-              t_cap_never_exceeded):
+              t_cap_never_exceeded, t_lane_tool_cap, t_agent_offload_engine,
+              t_resolve_autonomous_priority, t_sched_priority,
+              t_sched_priority_ssot_override, t_sched_priority_model_hook,
+              t_sched_priority_unicode, t_lane_sem_key):
         await t()
     passed = sum(1 for _, ok, _ in _RESULTS if ok)
     total = len(_RESULTS)

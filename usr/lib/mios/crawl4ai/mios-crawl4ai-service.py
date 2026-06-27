@@ -10,7 +10,7 @@ camoufox WARM so the (slow) import + browser-attach cost is paid ONCE at
 startup, not on every verb call -- same shape as mios-searxng backing the
 web_search verb.
 
-ENGINES (operator directive 2026-05-24 -- container approach SCRAPPED):
+ENGINES (operator directive -- container approach SCRAPPED):
 
   1. PRIMARY: crawl4ai driving the EXISTING local Chrome over CDP.
      MiOS already runs a ChromeDev flatpak with the DevTools Protocol open

@@ -5,7 +5,7 @@ title: MiOS Swarm · Council
 author: MiOS
 version: 1.0.0
 description: |
-  Chat-bar TOGGLE (operator 2026-05-22 "AI SWARM"). When ON, forces the
+  Chat-bar TOGGLE ("AI SWARM"). When ON, forces the
   FULL multi-agent swarm for this chat: every eligible MiOS sub-agent
   (Hermes + opencode + the CPU reasoner) runs CONCURRENTLY on the same
   prompt and the answers are synthesised -- bypassing relevance gating and

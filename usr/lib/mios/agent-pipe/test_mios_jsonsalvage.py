@@ -103,7 +103,7 @@ def t_comments():
 
 
 def t_empty_value():
-    # Empty value after a colon (the operator 2026-06-02 failure) -> null, rest preserved.
+    # Empty value after a colon (the failure) -> null, rest preserved.
     r = js.loads_lenient('{"a": , "b": 2}')
     check("empty: colon-then-comma -> null", r == {"a": None, "b": 2}, repr(r))
     r2 = js.loads_lenient('{"intent": "agent", "inventory_filter": , "news": true}')

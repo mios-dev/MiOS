@@ -134,7 +134,7 @@ _mios_toml_value() {
 _mios_cols=$(_mios_toml_value "terminal" "cols" "80")
 _mios_rmgn=$(_mios_toml_value "terminal" "right_margin" "0")
 _mios_rows=$(_mios_toml_value "terminal" "rows" "20")
-# Operator 2026-05-09: dashboard inside MiOS-DEV (WSL bash) was rendering
+# dashboard inside MiOS-DEV (WSL bash) was rendering
 # 80-wide but visible window only ~75 cells -> right edge cut off. Plus
 # image #22: full ASCII logo overflows window vertically. Operator's
 # benchmark: "full framed dash and 1 line of the prompt visible".
@@ -375,7 +375,7 @@ print_endpoints() {
     #               ollama (dGPU/CUDA), ollama-cpu (in-VM CPU light-lane).
     #   User surface: webui, cockpit, code, forge, search, ttyd-bash,
     #               ttyd-powershell.
-    # 2026-05-18 refresh: added agent-pipe, surrealdb, ollama-cpu,
+    # refresh: added agent-pipe, surrealdb, ollama-cpu,
     # ttyd-bash, ttyd-powershell -- they were live but invisible on
     # the dashboard.
     local _p_forge _p_cockpit _p_ollama _p_ollama_cpu _p_searxng
@@ -417,7 +417,7 @@ print_endpoints() {
     d_guacamole=$(ep_dot  "http://localhost:${_p_guacamole}/guacamole/")
     d_crowdsec=$(ep_dot   "http://localhost:8080/metrics")
 
-    # Mini: count recap + 4 clickable hyperlink rows. Refresh 2026-05-18:
+    # Mini: count recap + 4 clickable hyperlink rows. Refresh
     # the count includes the new AI-surface services (agent-pipe,
     # surrealdb, ollama-cpu, ttyd) and the 4 link rows lead with the
     # agent surface (Agent-Pipe + WebUI) since that's now the operator's
@@ -447,7 +447,7 @@ print_endpoints() {
     fi
 
     # Full dash: every service as "<dot> <Name> <full URL>" in a
-    # 2-column grid grouped into two named tiers per the 2026-05-18
+    # 2-column grid grouped into two named tiers per the
     # refresh.
     #
     # Cell budget: dot(1)+sp(1)+name(11)+sp(1)+:port(6) = 20 cols
@@ -468,7 +468,7 @@ print_endpoints() {
     # argument; with a cell whose visible text starts with t/n/a/b/
     # c/e/f/r/v, the `<ESC>\<letter>` sequence would be parsed as
     # \t (tab) / \n (newline) / ..., mangling the cell.
-    # Operator-flagged 2026-05-18 when the ttyd-bash + ttyd-PS cells
+    # Operator-flagged when the ttyd-bash + ttyd-PS cells
     # rendered as "    yd-bash" -- the leading "t" got consumed by
     # %b's \t TAB interpretation.
     local row_fmt='  %s  %s\n'
@@ -482,7 +482,7 @@ print_endpoints() {
     c_pg=$(   printf "$cell_fmt" "$d_pgvector"   "http://localhost:${_p_pgvector}/"      "pgvector"   "$C_D" "$_p_pgvector"   "$C_R")
     c_dash=$( printf "$cell_fmt" "$d_dash"       "http://localhost:${_p_dash}/"          "Dash-AI"    "$C_D" "$_p_dash"       "$C_R")
     # llama.cpp (mios-llm-light :11450) is the inference engine; ollama is retired
-    # (masked). Show LlamaSwap, not Ollama -- operator 2026-06-06 "not converted
+    # (masked). Show LlamaSwap, not Ollama -- "not converted
     # to llama.cpp STILL" was the dash label lagging the actual cutover.
     c_llama=$(printf "$cell_fmt" "$d_llamaswap" "http://localhost:${_p_llamaswap}/v1"   "LlamaSwap"  "$C_D" "$_p_llamaswap"  "$C_R")
     printf "$row_fmt" "$c_agent" "$c_herm"
@@ -517,7 +517,7 @@ print_endpoints() {
     # Backing services -- no exposed URL but stack-critical (CI runner,
     # cluster, daemon, miner, passport provisioning). Dot-only
     # indicators so the operator sees the full stack at a glance in
-    # `mios dash`. 2026-05-18 refresh: added the C.2 / C.3 / A.2
+    # `mios dash`. refresh: added the C.2 / C.3 / A.2
     # backgrounders + the AI-bucket sysuser-keyed agent surface.
     local d_runner d_ceph d_k3s d_daemon d_miner d_pass d_crowd
     local s_runner s_ceph s_k3s s_daemon s_miner s_pass s_crowd
@@ -554,7 +554,7 @@ print_quadlets() {
     # `systemctl --no-pager list-units 'mios-*' mios-llm-light.service`.
     local svc info name dot color
     local n_active=0 n_starting=0 n_inactive=0 n_failed=0
-    # 2026-05-18 refresh: include Phase 2 / C.x / D.x services that
+    # refresh: include Phase 2 / C.x / D.x services that
     # have shipped since the previous service list -- surrealdb,
     # agent-pipe, ollama-cpu, daemon, ttyd, skills-miner,
     # passport-provision -- so the stack count actually reflects the
@@ -645,7 +645,7 @@ print_fastfetch() {
 }
 
 # ── [dashboard] row-driven renderer (parity with Windows Show-MiosDashboard) ─
-# Per operator 2026-05-09: "the dash is set GLOBALLY to Windows and
+# Per "the dash is set GLOBALLY to Windows and
 # Linux dashboards!! same settings!!!".  Reads mios.toml [dashboard].rows
 # (a list of lists of field-keys) and emits one framed line per row,
 # laying out fields side-by-side with equal column width.  Same field-
@@ -991,7 +991,7 @@ case "$MODE" in
                 # configurator toggled [dashboard].show_services=true.
                 # Bash's `local` only works inside a function -- this
                 # branch is at script scope (case/esac body), so use
-                # a plain assignment instead (operator 2026-05-09 hit
+                # a plain assignment instead (hit
                 # `local: can only be used in a function` here).
                 _show_services="$(_mios_toml_value 'dashboard' 'show_services' 'false')"
                 # mini ALWAYS shows the abbreviated services block --
@@ -1005,7 +1005,7 @@ case "$MODE" in
                 # leave room for the prompt. Reads [dashboard].verb_hint
                 # from mios.toml so operators rebrand the hint line.
                 if [[ "$MODE" != "mini" ]]; then
-                    # Default verb list refreshed 2026-05-18 to match the
+                    # Default verb list refreshed to match the
                     # current /usr/bin/mios KNOWN_VERBS surface. Operator
                     # override via mios.toml [dashboard].verb_hint.
                     _verb_hint="$(_mios_toml_value 'dashboard' 'verb_hint' 'build  config  dash  mini  ai  code  dev  summary  user  pull  update  help')"

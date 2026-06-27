@@ -3,14 +3,14 @@
 # AI-functions: _fetch_one, _crawl_one, name, display_name, is_available, supports_search, supports_extract, extract, class MiosFetchProvider
 """MiOS tiered web-EXTRACT provider for Hermes-Agent.
 
-Why this exists (operator-confirmed 2026-05-31): hermes's bundled `firecrawl`
+Why this exists (operator-confirmed): hermes's bundled `firecrawl`
 web provider pins the firecrawl-py v4 SDK (firecrawl API v2, POST /v2/scrape),
 but MiOS self-hosts an OLDER firecrawl container (mios-firecrawl:v1.0.0, v1
 API) -> every web_extract 404s and research turns can never drill past search-
 result homepages. tavily/exa/parallel are CLOUD providers (need keys; violate
 MiOS full-offline). So this provider grounds extraction in the LOCAL stack only.
 
-Tiering (operator 2026-06-15 "web_search should also use crawl4ai and Chrome
+Tiering ("web_search should also use crawl4ai and Chrome
 CDP, not just firecrawl/searxng"):
   Tier 1 -- fast stdlib urllib fetch + readability HTML->text strip (the proven
             mios-web-extract path). Handles the common static-page case in ~1-2s,

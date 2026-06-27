@@ -35,6 +35,8 @@ import sys
 import time
 from typing import Optional
 
+from mios_config import PORT  # SSOT agent-pipe port (no restated :8640 literal)
+
 
 # ── pure helpers (unit-tested) ───────────────────────────────────────────────
 def percentile(values, p):
@@ -204,7 +206,7 @@ def main(argv=None):
     ap = argparse.ArgumentParser(
         description="MiOS agent-pipe end-to-end direct-chat stress test")
     ap.add_argument("--endpoint", default=os.environ.get(
-        "MIOS_STRESS_ENDPOINT", "http://localhost:8640/v1"))
+        "MIOS_STRESS_ENDPOINT", f"http://localhost:{PORT}/v1"))
     ap.add_argument("--model", default=os.environ.get("MIOS_STRESS_MODEL", "mios-agent"))
     ap.add_argument("--concurrency", type=int, default=8, help="target concurrency")
     ap.add_argument("--count", type=int, default=40, help="total requests")

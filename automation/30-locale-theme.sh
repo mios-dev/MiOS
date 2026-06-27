@@ -41,7 +41,7 @@ echo "[30-locale-theme] Using environment.d from overlay..."
 # mios-flatpak-init re-applies the same envs from mios.toml
 # [appearance] every boot so operator changes propagate without a
 # re-bake. Keep this list IN SYNC with mios-flatpak-init.
-# Operator directive 2026-05-16: "should be the GLOBAL overrides so
+# Operator directive "should be the GLOBAL overrides so
 # that newly installed apps/flatpaks take hold of the configurations
 # as well" -- everything here goes to system-wide (no --app=ID),
 # making every present + future flatpak inherit it.
@@ -58,7 +58,7 @@ flatpak override --system --filesystem=/etc/gtk-3.0:ro 2>/dev/null || true
 flatpak override --system --filesystem=/etc/gtk-4.0:ro 2>/dev/null || true
 # Explicitly REJECT /usr/share/{themes,icons,fonts} -- flatpak refuses
 # with "Path /usr is reserved by Flatpak" + emits F: warnings on every
-# launch (operator-flagged 2026-05-16: ptyxis launch noise). adw-gtk3
+# launch (operator-flagged ptyxis launch noise). adw-gtk3
 # + Bibata reach the sandbox via the Flathub runtime extension
 # (org.gtk.Gtk3theme.adw-gtk3-dark) + the xdg-data mounts above.
 flatpak override --system --nofilesystem=/usr/share/themes 2>/dev/null || true

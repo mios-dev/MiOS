@@ -26,7 +26,7 @@ description: |
     "<one line of shell>\\n"           -> fire-and-forget, "OK\\n" reply
     "CAPTURE: <one line of shell>\\n"  -> sync run, raw stdout+stderr reply
 
-  Operator directive 2026-05-17: "AI-stack native (Hermes
+  Operator directive "AI-stack native (Hermes
   tools???!!)". This is the OWUI-native answer; a parallel follow-up
   could expose the same verbs as a stdio MCP server.
 
@@ -49,7 +49,7 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
-# Phase-3 migration (operator directive 2026-05-18: "What's ALL NATIVE
+# Phase-3 migration (operator directive "What's ALL NATIVE
 # to OpenAI API and industry standards"): typed Literal[...] enums
 # replace SOUL.md prose rules. OWUI's introspector emits these as
 # JSONSchema `enum: [...]` constraints; strict-mode function calling
@@ -57,7 +57,7 @@ from pydantic import BaseModel, Field
 # position value, so the schema teaches the surface instead of a
 # 700-line rule book.
 # Position enum: "default" is the MiOS global launch geometry
-# (operator directive 2026-05-18) -- a 16:10 window sized at
+# (operator directive) -- a 16:10 window sized at
 # screen_width / phi (golden ratio ~0.618) and centered on the
 # primary monitor's WorkingArea. Concretely on 1920x1080:
 #   W = 1920 / 1.618 ~= 1186
@@ -251,7 +251,7 @@ class Tools:
         })
 
     # ─── fs_search ──────────────────────────────────────────────────
-    # Linux-side peer to everything_search. Operator directive 2026-05-18:
+    # Linux-side peer to everything_search. Operator directive
     # "MiOS-Agent(s) can navigate, search, exec--all the same in the Linux
     # Environments as well". everything_search covers Windows NTFS via
     # Voidtools; fs_search covers the Linux FHS (the OS this agent runs
@@ -299,7 +299,7 @@ class Tools:
         })
 
     # ─── web_search ─────────────────────────────────────────────────
-    # The MISSING capability behind the 2026-05-21 fabrication failure:
+    # The MISSING capability behind the fabrication failure:
     # the agent invented a weather/event report (wrong city, °F for a
     # Canadian user, made-up details) because the OWUI tool surface had
     # ONLY filesystem search -- no web tool. SearXNG was already up and
@@ -598,7 +598,7 @@ class Tools:
             })
 
     # ─── PHASE-3 typed window/launch surface (operator directive
-    # 2026-05-18: native OpenAI strict function-calling with enum
+    # native OpenAI strict function-calling with enum
     # positions; replaces SOUL.md prose rules + env-var preludes
     # like `MIOS_LAUNCH_POSITION=top-right mios-find ... | bash`). ──
 

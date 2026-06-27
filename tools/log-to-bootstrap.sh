@@ -63,7 +63,7 @@ if [[ -d "${REPO_ROOT}/specs/ai-integration" ]]; then
     echo "[ok] Wiki AI integration docs copied"
 fi
 
-# Copy core documentation. After the 2026-05-05 FHS-consolidation
+# Copy core documentation. After the FHS-consolidation
 # pass, operator-facing docs live under usr/share/doc/mios/ and the
 # agent contract lives under usr/share/mios/ai/. Root-level
 # SECURITY.md is now a 5-line GitHub Security-tab redirector; the

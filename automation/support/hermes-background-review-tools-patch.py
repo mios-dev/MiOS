@@ -2,7 +2,7 @@
 # AI-hint: Patch script that modifies agent/background_review.py to union the full global tool surface into the review whitelist, preventing tool-denial errors during post-turn self-improvement passes.
 # AI-functions: main
 """Idempotent patch: give Hermes' BACKGROUND REVIEW the full global tool
-surface (operator 2026-06-04: "make sure MiOS-Hermes can use all global
+surface ("make sure MiOS-Hermes can use all global
 tools!! ... and all Global MiOS tools for Hermes too").
 
 Upstream `agent/background_review.py` runs the post-turn self-improvement
@@ -32,8 +32,8 @@ MARKER = "MIOS-PATCH: background-review-global-tools"
 # Anchor: the whitelist-enforcement call. We inject a union line just before it.
 ANCHOR = "            set_thread_tool_whitelist(\n"
 INJECT = (
-    "            # " + MARKER + " (operator 2026-06-04 \"all global tools for\n"
-    "            # Hermes\"): union the parent agent's FULL tool surface into the\n"
+    "            # " + MARKER + " (all global tools for\n"
+    "            # Hermes): union the parent agent's FULL tool surface into the\n"
     "            # review whitelist so the post-turn pass is denied NOTHING.\n"
     "            review_whitelist = set(review_whitelist) | set(\n"
     "                getattr(agent, \"valid_tool_names\", None) or ())\n"

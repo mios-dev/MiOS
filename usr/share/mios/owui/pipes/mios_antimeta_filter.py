@@ -1,5 +1,5 @@
-# AI-hint: Processes the OWUI output stream to wrap meta-narrative and reasoning lines in <think> tags for collapsible UI rendering while stripping hard refusal patterns based on the system's central refusal-patterns.txt.
-# AI-related: /usr/share/mios/ai/, /usr/share/mios/ai/refusal-patterns.txt, mios-agent-nudger, mios-delegation-prefilter
+# AI-hint: Processes the OWUI output stream to wrap meta-narrative and reasoning lines in <think> tags for collapsible UI rendering while stripping hard refusal patterns based on the system's central refusal-patterns.txt (this display-side strip is the sole remaining consumer of that file; the daemon's refusal DETECTION is now model-driven, no pattern gate).
+# AI-related: /usr/share/mios/ai/, /usr/share/mios/ai/refusal-patterns.txt
 # AI-functions: _is_narration_line, __init__, _reload, _strip_refusals, _transform_lines, _flush_narration, _process, stream, outlet, class Filter, class Valves
 """
 title: MiOS Anti-Meta Filter
@@ -12,7 +12,7 @@ description: |
   native collapsible "Thinking" block, OUT of the final answer
   body. Final-answer content passes through untouched.
 
-  Operator directive 2026-05-16: "ALL THESE MIOS-HERMES AGENTS
+  Operator directive "ALL THESE MIOS-HERMES AGENTS
   THINKING PRINTS COULD BE EMMITED AND/OR COLLAPSABLE AS THINKING
   IN OWUI". Previously this filter just stripped meta-speak; now
   it preserves the lines as collapsible thinking so the operator
@@ -24,8 +24,10 @@ description: |
   failures, not thinking).
 
   Reads the canonical refusal pattern list from /usr/share/mios/ai/
-  refusal-patterns.txt (shared with mios-agent-nudger +
-  mios-delegation-prefilter). Single source of truth.
+  refusal-patterns.txt for this DISPLAY-side strip. (Refusal DETECTION
+  in the daemon is model-driven -- the micro-LLM judge is authoritative,
+  with no English-pattern gate -- so this OWUI output sanitiser is the
+  sole remaining consumer of the pattern file.)
 """
 
 from pydantic import BaseModel, Field

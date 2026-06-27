@@ -10,7 +10,7 @@
 # build's /var cleanup doesn't touch /usr/share). The mios-llm-heavy-alt.container mounts
 # that dir read-only at /models.
 #
-# RE-SCOPED 2026-06-01 (Phase 2 = gated vLLM HEAVY TEXT lane). The model is
+# RE-SCOPED (Phase 2 = gated vLLM HEAVY TEXT lane). The model is
 # OPT-IN: MIOS_VLLM_BAKE_MODEL (rendered from mios.toml [ai.vllm].bake_model)
 # defaults EMPTY so no multi-GB model bloats every image -- set it at build time
 # to bake. Recommended text reasoners (Apache-2.0):

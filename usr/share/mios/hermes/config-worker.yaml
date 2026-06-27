@@ -4,7 +4,7 @@
 # by mios-hermes-firstboot (which only re-thins /var/lib/mios/hermes/config.yaml),
 # so this worker config is durable across boots.
 #
-# This is the P1 worker (operator 2026-06-19): a REAL agent that runs its OWN
+# This is the P1 worker: a REAL agent that runs its OWN
 # native browser_*/CDP + terminal + file + skills tool loop, doing its OWN
 # inference on the heavy lane (:11441 mios-heavy, SGLang, --tool-call-parser
 # qwen25 = native OpenAI tool_calls). It serves the OpenAI /v1 surface on :8643

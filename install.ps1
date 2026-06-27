@@ -735,7 +735,7 @@ Start-Phase 11 "Importing WSL2 distro..."
 $ErrorActionPreference = "Continue"
 if (Test-Path $TargetWsl) {
     $WslName = "MiOS"; $WslPath = Join-Path $env:USERPROFILE "WSL\$WslName"
-    # Install-robustness 2026-06-21: `wsl --list` emits UTF-16LE. Decoding it with
+    # Install-robustness `wsl --list` emits UTF-16LE. Decoding it with
     # the default console encoding produces NUL-interleaved strings (+ a BOM on
     # line 1), so a bare `-match "^MiOS"` MISSED an existing distro -> the import
     # below failed with "distribution already exists" on every re-install. Force

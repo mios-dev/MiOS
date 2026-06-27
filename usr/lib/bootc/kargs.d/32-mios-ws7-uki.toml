@@ -6,7 +6,7 @@
 # UKI + fapolicyd observe rollout.
 #
 # ABSOLUTELY CRITICAL: this file ships as a NO-OP by default -- it carries NO
-# active kargs. (Correction 2026-06-04: an earlier version set
+# active kargs. (Correction an earlier version set
 # `fapolicyd.permissive=1` here claiming it forced observe mode "at the kernel
 # level" -- that is FALSE. fapolicyd reads `permissive` from its CONFIG
 # (/etc/fapolicyd/fapolicyd.conf or --permissive), NOT /proc/cmdline; the kernel

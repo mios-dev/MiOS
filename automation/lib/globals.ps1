@@ -97,7 +97,7 @@ $script:MIOS_LLM_LIGHT_URL = if ($env:MIOS_LLM_LIGHT_URL) { $env:MIOS_LLM_LIGHT_
 $script:MIOS_PGVECTOR_URL = if ($env:MIOS_PGVECTOR_URL) { $env:MIOS_PGVECTOR_URL } else { "postgresql://mios:mios@localhost:$($script:MIOS_PORT_PGVECTOR)/mios" }
 $script:MIOS_SEARXNG_URL  = if ($env:MIOS_SEARXNG_URL)  { $env:MIOS_SEARXNG_URL }  else { "http://localhost:$($script:MIOS_PORT_SEARXNG)" }
 # crawl engine = loopback venv service (mios-crawl4ai.service); helper reads
-# MIOS_CRAWL_SERVICE_URL. Renamed 2026-05-24 from MIOS_CRAWL4AI_URL (container scrapped).
+# MIOS_CRAWL_SERVICE_URL. Renamed from MIOS_CRAWL4AI_URL (container scrapped).
 $script:MIOS_CRAWL_SERVICE_URL = if ($env:MIOS_CRAWL_SERVICE_URL) { $env:MIOS_CRAWL_SERVICE_URL } else { "http://127.0.0.1:$($script:MIOS_PORT_CRAWL4AI)" }
 $script:MIOS_HERMES_URL   = if ($env:MIOS_HERMES_URL)   { $env:MIOS_HERMES_URL }   else { "http://localhost:$($script:MIOS_PORT_HERMES)/v1" }
 $script:MIOS_OPEN_WEBUI_URL     = if ($env:MIOS_OPEN_WEBUI_URL)     { $env:MIOS_OPEN_WEBUI_URL }     else { "http://localhost:$($script:MIOS_PORT_OPEN_WEBUI)/" }

@@ -4,7 +4,7 @@ set -euo pipefail
 # Enumerate every visible .desktop entry inside the WSL distro --
 # flatpak apps + every /usr/share/applications/ entry that isn't
 # explicitly hidden -- so Windows Start Menu shows the full Linux
-# app surface. Operator-flagged 2026-05-11: "I want all the Linux
+# app surface. Operator-flagged "I want all the Linux
 # apps icons visible in windows".
 #
 # Filter: only NoDisplay=true entries are skipped (those are explicitly
@@ -12,7 +12,7 @@ set -euo pipefail
 # helpers, OAuth providers, GNOME Settings sub-panels). Terminal=true
 # entries (btop++, nvtop, etc.) ARE included since wslg.exe can launch
 # them in a Linux terminal that surfaces on the Windows side.
-# Operator-flagged 2026-05-12: "not seeing ALL apps in windows sise".
+# Operator-flagged "not seeing ALL apps in windows sise".
 # Everything else is emitted as one pipe-delimited record:
 #   Name|Exec|Icon|NoDisplay|Terminal|Categories|file
 shopt -s nullglob

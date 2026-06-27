@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: HTTP proxy that intercepts Open WebUI requests on port 8641 to force-inject tool_choice requirements for delegate_task, ensuring deterministic fan-out of multi-part prompts to the Hermes-Agent gateway on port 8642.
-# AI-related: /usr/share/mios/ai/refusal-patterns.txt, mios-sys-agent, mios-hermes, mios-agent, mios-sys, mios-find, mios-delegation-prefilter.service
+# AI-related: mios-sys-agent, mios-hermes, mios-agent, mios-sys, mios-find, mios-delegation-prefilter.service
 # AI-functions: main
 """mios-delegation-prefilter -- HTTP forwarder that sits between Open
 WebUI and Hermes-Agent's /v1/chat/completions, force-routing fan-out
@@ -14,16 +14,21 @@ The model has been demonstrating a strong serial-tool bias even with
 the parallel-fanout skill loaded + delegation-default rules in
 SOUL.md + the OWUI prompt. Skill nudges, prompt edits, model swap,
 and a 92% prompt-bloat reduction all helped a little -- none of them
-made the model bite. This prefilter takes a hammer to the choice:
-when the user prompt looks fan-outable (multiple independent items,
-parallel investigation language), inject `tool_choice={"type":
+made the model bite. This prefilter takes a hammer to the choice: on
+every user-initiated turn it injects `tool_choice={"type":
 "function","function":{"name":"delegate_task"}}` into the request so
 Hermes is REQUIRED to call delegate_task on the first turn. After
 that, the model has committed to the delegation pattern and naturally
 fans out the actual work into the tasks=[] array.
 
-Heuristic-driven (NOT model-driven) so it's deterministic + auditable:
-operator can flip the heuristic, see exactly when delegation fires.
+The ONE exception is a pure conversational turn (a greeting / ack /
+smalltalk with no task surface): forcing delegate_task there yields a
+zero-token reply (nothing to delegate, yet tool_choice=required blocks
+a plain-text answer). Which turns those are is decided by the micro-LLM
+chat-vs-act classifier the rest of MiOS uses -- NOT a greeting word
+list or a length cutoff (those are English-only). Degrade-open: when
+the micro lane is unreachable the prefilter force-delegates anyway (the
+safe majority behaviour), never guessing chat from keywords.
 
 Disable by stopping mios-delegation-prefilter.service and pointing
 OWUI back at :8642. Hermes itself is unmodified.
@@ -34,6 +39,7 @@ import re
 import sys
 import time
 import logging
+from pathlib import Path
 from aiohttp import web, ClientSession, ClientTimeout
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -103,54 +109,119 @@ REFINE_SYSTEM = (
     "thinking traces. Output ONLY the labeled handoff."
 )
 
-# Regexes that suggest the user wants parallel investigation. Tuned from
-# operator chat history + common multi-target phrasing. Hits = force
-# delegate_task on the first model turn.
-FANOUT_PATTERNS = [
-    re.compile(r"\b(parallel|in parallel|simultaneously|concurrently)\b", re.I),
-    re.compile(r"\b(all of|each of|every|several|multiple)\b", re.I),
-    re.compile(r"\b(\d+ (independent|things|items|files|services|hosts|tasks))", re.I),
-    re.compile(r"\bstatus snapshot\b|\b(check|inspect|audit) (these|those|all|every|N)\b", re.I),
-    # operator's own phrasing seen in this session
-    re.compile(r"\b(four|three|five|six) (independent|things|tasks|reports|investigations)\b", re.I),
-    re.compile(r"\bfan(?:[ -]out)?\b", re.I),
-]
+# ─── chat-vs-act classification: SSOT config (layered mios.toml) ───
+# The conversational-bypass decision is MODEL-DRIVEN (the micro-LLM the rest
+# of MiOS uses), not a greeting word list. Mode + micro model/endpoint/timeout
+# resolve from the layered mios.toml ([routing].prefilter_conversational_bypass_mode
+# + [ai].micro_model / micro_endpoint), env-overridable for operator-tuned hosts.
+def _toml_layered(section: str, key: str) -> str | None:
+    """Read a scalar key from the highest-priority layered mios.toml that has it
+    (per-user > host > vendor). Tolerant line scanner -- no tomllib dependency so
+    this thin proxy stays stdlib-only."""
+    paths = []
+    home = os.environ.get("HOME", "")
+    if home:
+        paths.append(Path(home) / ".config/mios/mios.toml")
+    paths.append(Path("/etc/mios/mios.toml"))
+    paths.append(Path("/usr/share/mios/mios.toml"))
+    sect_re = re.compile(rf"^\[{re.escape(section)}\]\s*$")
+    key_re = re.compile(rf"^\s*{re.escape(key)}\s*=\s*\"?(?P<v>[^\"#\s]+)\"?\s*(#.*)?$")
+    for p in paths:
+        try:
+            if not p.is_file():
+                continue
+            in_section = False
+            for line in p.read_text(encoding="utf-8", errors="ignore").splitlines():
+                if line.strip().startswith("["):
+                    in_section = bool(sect_re.match(line))
+                    continue
+                if in_section:
+                    m = key_re.match(line)
+                    if m:
+                        return m.group("v")
+        except OSError:
+            continue
+    return None
 
 
-def _looks_fanoutable(user_text: str) -> bool:
-    """Return True when the user prompt strongly suggests parallel work."""
-    for pat in FANOUT_PATTERNS:
-        if pat.search(user_text):
-            return True
-    return False
+# Mode flag (flag-gated behaviour): "model" -> the micro-LLM classifies each turn;
+# anything else disables the classifier (-> degrade-open force-delegate). Default
+# "model" so the classifier runs when the micro lane is up.
+BYPASS_MODE = (os.environ.get("MIOS_PREFILTER_BYPASS_MODE")
+               or _toml_layered("routing", "prefilter_conversational_bypass_mode")
+               or "model").strip().lower()
+# Micro classifier model/endpoint -- the shared MiOS micro lane. Falls back to the
+# sys-agent constants (themselves env/SSOT-derived) when no [ai] micro key is set.
+MICRO_MODEL = (os.environ.get("MIOS_MICRO_MODEL")
+               or _toml_layered("ai", "micro_model")
+               or _toml_layered("ai.host_thresholds", "micro_model")
+               or SYS_AGENT_MODEL)
+MICRO_ENDPOINT = (os.environ.get("MIOS_MICRO_ENDPOINT")
+                  or _toml_layered("ai", "micro_endpoint")
+                  or _toml_layered("ai.host_thresholds", "micro_endpoint")
+                  or SYS_AGENT_ENDPOINT).rstrip("/")
+CLASSIFY_TIMEOUT_S = float(os.environ.get("MIOS_PREFILTER_CLASSIFY_TIMEOUT")
+                           or _toml_layered("routing", "prefilter_classify_timeout_s")
+                           or 6)
 
 
-# Conversational openers that have NO task surface -- forcing
-# delegate_task on these makes the model return zero tokens (it has
-# nothing to delegate, but tool_choice=required means it can't reply
-# in plain text either). OWUI shows a blank reply. Bypass the
-# force-gate for these; the refiner + model can chat normally.
-_CONVERSATIONAL_RES = [
-    re.compile(r"^\s*(hi|hello|hey|yo|hiya|sup|howdy|greetings|gm|gn|good (morning|afternoon|evening|night))[!.\s]*$", re.I),
-    re.compile(r"^\s*(ok|okay|k|kk|thanks|thx|ty|cool|nice|great|got it|understood|sure|yes|no|nope|yep)[!.\s]*$", re.I),
-    re.compile(r"^\s*(bye|cya|goodbye|see ya|later|peace)[!.\s]*$", re.I),
-    re.compile(r"^\s*(what'?s up|how are you|how'?s it going|wyd)[?!.\s]*$", re.I),
-]
+async def _micro_chat(system: str, user: str, *, max_tokens: int) -> str:
+    """One-shot micro-LLM chat-completions call -> the assistant's content string.
+    Raises on transport/non-200 so the caller can degrade-open."""
+    url = MICRO_ENDPOINT
+    url = url + ("" if url.endswith("/chat/completions") else "/chat/completions")
+    body = json.dumps({
+        "model": MICRO_MODEL,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        "temperature": 0,
+        "max_tokens": max_tokens,
+        "stream": False,
+        # llama.cpp emits the whole chain-of-thought when thinking is on; keep it
+        # off for the constrained one-word verdict (sub-second classifier call).
+        "chat_template_kwargs": {"enable_thinking": False},
+    }).encode()
+    timeout = ClientTimeout(total=CLASSIFY_TIMEOUT_S)
+    async with ClientSession(timeout=timeout) as s:
+        async with s.post(url, data=body,
+                          headers={"Content-Type": "application/json"}) as r:
+            if r.status != 200:
+                raise RuntimeError(f"micro classify non-200: {r.status}")
+            j = await r.json()
+    return ((j.get("choices") or [{}])[0].get("message") or {}).get("content", "")
 
 
-def _looks_conversational(user_text: str) -> bool:
-    """Return True for greetings / acknowledgments with no task surface.
+async def _looks_conversational(user_text: str) -> bool:
+    """MODEL-DRIVEN chat-vs-act: True only when this turn is a PURE conversational
+    turn (greeting / ack / smalltalk with NO task surface) that must SKIP the
+    forced delegate_task -- forcing it there collapses the reply to zero tokens.
 
-    Forcing delegate_task on these collapses the response to zero
-    tokens. Detected ones bypass Stage-1 force so the model can
-    answer in plain text.
-    """
-    if len(user_text.strip()) > 60:
+    The micro-LLM classifies each turn; there is NO greeting word list and NO
+    length cutoff (those gate English only). Degrade-open: returns False (NOT
+    conversational -> force-delegate, the safe majority behaviour) whenever the
+    classifier is disabled, the prompt is empty, or the micro lane is
+    unreachable / unparseable -- never a keyword fallback."""
+    text = (user_text or "").strip()
+    if not text or BYPASS_MODE != "model":
         return False
-    for pat in _CONVERSATIONAL_RES:
-        if pat.search(user_text):
-            return True
-    return False
+    sys_prompt = (
+        "You are a fast turn classifier for an agentic OS. Decide whether the "
+        "user's message is a PURE CONVERSATIONAL turn -- a greeting, "
+        "acknowledgment, farewell, or social nicety that requests NO task, "
+        "action, question to answer, or information -- versus an ACT turn that "
+        "asks for something to be done or answered. Reply with ONLY one word: "
+        "CHAT if it is purely conversational with no task, or ACT otherwise. "
+        "When unsure, answer ACT.")
+    try:
+        verdict = await _micro_chat(sys_prompt, text, max_tokens=4)
+    except Exception as e:  # noqa: BLE001 -- best-effort; degrade open to force-delegate
+        log.debug("conversational classify failed (-> force-delegate): %s", e)
+        return False
+    # Parse the model's OWN one-word verdict (a structural read of the classifier
+    # output, not a lexical gate on the user's words): CHAT -> bypass.
+    return verdict.strip().upper().startswith("CHAT")
 
 
 
@@ -374,6 +445,12 @@ async def _proxy_inner(request: web.Request) -> web.StreamResponse:
             messages = payload.get("messages") or []
             user_text = _last_user_message(messages)
 
+            # MODEL-DRIVEN chat-vs-act: is this a pure conversational turn that
+            # must bypass the forced delegate_task? (degrade-open -> force-
+            # delegate). Classified ONCE; reused by the refine-skip + the
+            # Stage-1 force-gate below so we make a single micro-LLM call.
+            _is_chat_turn = await _looks_conversational(user_text)
+
             # ── Stage 2: refinement (DELEGATED TO THE OWUI PIPE) ──
             # Operator architecture 2026-05-17: the OWUI MiOS-Agent
             # pipe itself owns CPU refinement. The pipe calls
@@ -390,8 +467,7 @@ async def _proxy_inner(request: web.Request) -> web.StreamResponse:
             # path is preserved below but defaults to disabled --
             # set MIOS_PREFILTER_REFINE=1 on operator-tuned hosts
             # that need server-side refinement for non-OWUI clients.
-            _skip_refine_short = _looks_conversational(user_text)
-            if user_text and REFINE_ENABLED and not _skip_refine_short:
+            if user_text and REFINE_ENABLED and not _is_chat_turn:
                 refined = await _refine_via_sys_agent(user_text)
                 if refined:
                     # Replace the last user message's content with the
@@ -455,13 +531,12 @@ async def _proxy_inner(request: web.Request) -> web.StreamResponse:
                 payload["messages"][-1].get("role") == "user"
             )
             _existing_choice = payload.get("tool_choice")
-            # Conversational openers (hi / thanks / bye / etc.) have no
-            # task surface. Forcing delegate_task on them yields a
-            # zero-token reply -- OWUI shows blank chat. Detected here
-            # and excluded from the force-gate so the model answers in
-            # plain text. Operator regression observed 2026-05-16:
-            # "hello" returned content="", tokens=0/0/0.
-            _is_conversational = _is_user_turn and _looks_conversational(user_text)
+            # A pure conversational turn (model-classified above) has no task
+            # surface. Forcing delegate_task on it yields a zero-token reply --
+            # OWUI shows blank chat. Excluded from the force-gate so the model
+            # answers in plain text. Regression this guards: "hello" returned
+            # content="", tokens=0/0/0.
+            _is_conversational = _is_user_turn and _is_chat_turn
             if _is_user_turn and not _is_conversational and _existing_choice in (None, "auto", "", {}):
                 payload["tool_choice"] = {
                     "type": "function",
@@ -469,11 +544,9 @@ async def _proxy_inner(request: web.Request) -> web.StreamResponse:
                 }
                 body_bytes = json.dumps(payload).encode("utf-8")
                 rewritten = True
-                _was_fanout = _looks_fanoutable(user_text)
-                log.info("FORCE delegate_task on every user turn (fanout_keywords=%s, prompt_chars=%d)",
-                         _was_fanout, len(user_text))
+                log.info("FORCE delegate_task on user turn (prompt_chars=%d)", len(user_text))
             elif _is_conversational:
-                log.info("BYPASS delegate_task -- conversational opener (prompt=%r)", user_text[:60])
+                log.info("BYPASS delegate_task -- conversational turn (prompt=%r)", user_text[:60])
 
             # ── Stage 2b: rewrite friendly name -> "hermes-agent" ──
             # OWUI uses the model name from /v1/models in its requests.

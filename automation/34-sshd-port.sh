@@ -18,7 +18,7 @@ source "$(dirname "$0")/lib/common.sh"
 # `Include /etc/ssh/sshd_config.d/*.conf` near the top. Without an explicit
 # Port a CLEAN build's sshd binds :22 -- which the firewall does NOT open and
 # which Forgejo occupies -> the admin sshd is unreachable = total SSH lockout
-# (the 2026-05-27 incident). We ship the port as a drop-in so it is reproducible
+# (the incident). We ship the port as a drop-in so it is reproducible
 # and stays the single SSOT value, not an out-of-band edit to the main file.
 #
 # Port values resolve through the layered SSOT (mios.toml [ports] ->

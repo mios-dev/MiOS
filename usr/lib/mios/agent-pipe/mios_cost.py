@@ -5,7 +5,7 @@
 
 The gap audit + completeness critic: MiOS's _budget_admit is a token-count
 rolling-window TRIPWIRE; there is no $-cost and no energy/kWh/VRAM-hour
-accounting -- but CLASSic's Cost axis and 2026 local-GPU serving treat
+accounting -- but CLASSic's Cost axis and modern local-GPU serving treat
 energy-per-token + $-per-task as first-class signals (on a fully-local GPU OS the
 power/thermal envelope is the real constraint, not an API bill).
 

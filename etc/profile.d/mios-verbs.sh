@@ -4,7 +4,7 @@
 # /etc/profile.d/mios-verbs.sh
 #
 # `mios <verb>` dispatcher for interactive bash shells inside MiOS-DEV.
-# Operator 2026-05-09 image #21: typing `mios dash` produced
+# image #21: typing `mios dash` produced
 # "bash: mios: command not found" because /usr/bin/mios is the Python
 # AI agent shell (takes prompts), not a verb dispatcher.
 #
@@ -31,7 +31,7 @@ mios() {
             # interactive shell spawn via /etc/profile.d/zz-mios-motd.sh
             # which dispatches the verb declared in
             # mios.toml [terminal.startup].linux (vendor default = mini).
-            # Operator 2026-05-10: "have launch be the mini-dashboard
+            # "have launch be the mini-dashboard
             # ... NOT PRINT ON LAUNCH" -- the dotfile fires this verb,
             # the verb's command output is what renders.
             local _dash=""
@@ -156,7 +156,7 @@ _mios_complete() {
 complete -F _mios_complete mios
 
 # ── @<query> bash prompt shortcut for Hermes ───────────────────────────────
-# Operator-requested 2026-05-11: type `@how do I X` (no space after @) and
+# Operator-requested type `@how do I X` (no space after @) and
 # it routes to the live MiOS agent (Hermes-Agent on :8642 via /usr/bin/mios).
 # Why `@`: bash leaves it untouched at command-position (no expansion).
 # Why NOT alternatives:

@@ -5,7 +5,7 @@
 "thinking" reactions on the operator's Discord message during agent
 processing.
 
-Operator directive 2026-05-18: "also add more reactions to the
+Operator directive "also add more reactions to the
 MiOS-Hermes Discord bot--Should be using more discord reactions to
 show it's thinking!"
 
@@ -53,8 +53,8 @@ NEW_BLOCK = '''    # MiOS-patch: progressive thinking reactions
     # Replaces the upstream on_processing_start / _complete pair so the
     # operator sees a sequence of emojis on their message that reflect
     # the agent's current phase (received -> thinking -> tools -> done).
-    # Operator directive 2026-05-18 "add more reactions ... to show it's
-    # thinking". Background task drives the progression so the gateway's
+    # Adds more reactions to show it's
+    # thinking. Background task drives the progression so the gateway's
     # main flow isn't blocked.
 
     _MIOS_PHASE_EMOJIS = ("📡", "🧠", "🛠️", "⏳", "👀")

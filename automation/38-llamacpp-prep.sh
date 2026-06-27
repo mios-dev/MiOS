@@ -59,7 +59,7 @@ for entry in "${_entries[@]}"; do
     # Fetch ONE pre-quantized GGUF via a plain curl of the HF resolve URL.
     # NO huggingface_hub / runtime `pip install` (the old path's pip-install
     # failed silently on locked/air-gapped build images -> no GGUFs -> the
-    # llm-light lane skipped; 2026-06-14). --fail (no 200 -> non-zero), -L
+    # llm-light lane skipped;). --fail (no 200 -> non-zero), -L
     # (follow the CDN redirect), -C - (resume a partial .part). Download to a
     # .part + atomic rename so a truncated file never trips the .ready gate.
     _url="https://huggingface.co/${repo}/resolve/main/${file}"

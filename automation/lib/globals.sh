@@ -69,7 +69,7 @@ export MIOS_VERSION
 # template substituted to 818, the container started as UID 818 (searxng's
 # user), and `mkdir /var/lib/ollama/.ollama` failed with "permission
 # denied" because the host bind-mount /var/lib/ollama is chowned to
-# mios-ollama (UID 815). Operator-flagged 2026-05-11.
+# mios-ollama (UID 815). Operator-flagged.
 : "${MIOS_OLLAMA_UID:=815}"
 : "${MIOS_OLLAMA_GID:=815}"
 
@@ -153,7 +153,7 @@ export MIOS_K3S_API_PORT MIOS_GUACAMOLE_PORT MIOS_CEPH_DASHBOARD_PORT MIOS_RDP_P
 : "${MIOS_SEARXNG_URL:=http://localhost:${MIOS_PORT_SEARXNG}}"
 # crawl engine = loopback venv service (mios-crawl4ai.service); the helper +
 # service read MIOS_CRAWL_SERVICE_URL. Bind 127.0.0.1 (never LAN). Renamed
-# 2026-05-24 from MIOS_CRAWL4AI_URL when the container was scrapped.
+# from MIOS_CRAWL4AI_URL when the container was scrapped.
 : "${MIOS_CRAWL_SERVICE_URL:=http://127.0.0.1:${MIOS_PORT_CRAWL4AI}}"
 : "${MIOS_HERMES_URL:=http://localhost:${MIOS_PORT_HERMES}/v1}"
 : "${MIOS_OPEN_WEBUI_URL:=http://localhost:${MIOS_PORT_OPEN_WEBUI}/}"
