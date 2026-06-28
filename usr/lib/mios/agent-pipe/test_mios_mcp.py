@@ -275,6 +275,61 @@ def test_stdio_self_heal():
     assert cli._inited is False, "errored initialize must not mark inited"
 
 
+def test_declared_protocol_version_is_current():
+    # MiOS DECLARES the current MCP revision as the latest it offers. SSOT:
+    # [mcp].protocol_version / env MIOS_MCP_PROTOCOL_VERSION (default = current).
+    assert mc.MCP_PROTOCOL_VERSION == "2025-11-25", mc.MCP_PROTOCOL_VERSION
+
+
+def test_initialize_advertises_current_version():
+    # strict-OUT: the http initialize handshake SENDS the declared current revision
+    # (not a scattered literal) -- read from the one SSOT constant.
+    _reset_registry(tools_dict={})
+    sent = {}
+
+    async def _fake_rpc(url, headers, method, params=None, rid=1, timeout_s=30.0):
+        if method == "initialize":
+            sent["version"] = (params or {}).get("protocolVersion")
+            return {"result": {"protocolVersion": (params or {}).get("protocolVersion"),
+                               "serverInfo": {"name": "s"}}}
+        return {"result": {"tools": []}}
+
+    orig = mc._mcp_http_rpc
+    mc._mcp_http_rpc = _fake_rpc
+    try:
+        _run(mc._mcp_probe_server({"id": "s", "url": "http://s", "transport": "http"}))
+    finally:
+        mc._mcp_http_rpc = orig
+    assert sent["version"] == mc.MCP_PROTOCOL_VERSION == "2025-11-25", sent
+
+
+def test_back_compat_negotiation_accepts_older_revision():
+    # liberal-IN: a server answering with an OLDER revision (the previous stable
+    # one) is accepted as-returned -- status ready, tools registered. MiOS never
+    # rejects/hard-breaks a peer that speaks an older revision.
+    tools = {}
+    _reset_registry(tools_dict=tools)
+
+    async def _fake_rpc(url, headers, method, params=None, rid=1, timeout_s=30.0):
+        if method == "initialize":
+            return {"result": {"protocolVersion": "2025-06-18",
+                               "serverInfo": {"name": "old"}}}
+        if method == "tools/list":
+            return {"result": {"tools": [{"name": "t", "description": "d"}]}}
+        return {"error": {"code": -32000, "message": "x"}}
+
+    orig = mc._mcp_http_rpc
+    mc._mcp_http_rpc = _fake_rpc
+    try:
+        _run(mc._mcp_probe_server({"id": "old", "url": "http://old", "transport": "http"}))
+    finally:
+        mc._mcp_http_rpc = orig
+    st = mc._MCP_CLIENT_SERVERS["old"]
+    assert st["status"] == "ready", st
+    assert st["protocolVersion"] == "2025-06-18", st   # older revision honored
+    assert "mcp.old.t" in tools, tools
+
+
 if __name__ == "__main__":
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for fn in fns:

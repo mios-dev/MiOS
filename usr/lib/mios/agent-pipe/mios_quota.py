@@ -1,5 +1,5 @@
 # AI-hint: WS-6 per-user quota + rate-limit core. Pure-stdlib tracker modelled on the LiteLLM per-key budget + RPM pattern: each user gets a sliding-window request-rate cap (RPM) AND a per-window cost budget, checked before a dispatch so one principal can't exhaust the shared local lanes / a paid remote budget. check() prunes the window, denies on rate or budget, else records + allows. Pure (caller passes `now` -> deterministic); server.py keys it on the WS-A10 verified principal + persists/wires. Per-user isolation; limits<=0 disable a dimension (the single-user default = unlimited = behaviour-preserving).
-# AI-related: ./mios_smartroute.py, ./mios_principal.py, ./server.py, /usr/share/mios/mios.toml, ./test_mios_quota.py
+# AI-related: ./mios_smartroute.py, ./server.py, /usr/share/mios/mios.toml, ./test_mios_quota.py
 # AI-functions: check, spent, reset, class QuotaTracker, class QuotaVerdict
 """mios_quota -- per-user quota + rate limiting (WS-6, the AIOS multi-tenant
 fairness layer).

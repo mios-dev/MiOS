@@ -193,7 +193,7 @@ def _passport_kid() -> str:
 
 
 def _passport_load_public(agent: str):
-    """Resolve an agent's public key. Filesystem first; SurrealDB
+    """Resolve an agent's public key. Filesystem first; the
     agent_keypair row as the offline fallback so a verifier
     without filesystem access can still validate."""
     if agent in _passport_pub_cache:

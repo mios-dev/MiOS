@@ -1,0 +1,104 @@
+#!/usr/bin/env python3
+# AI-hint: SEC-03 CLI that verifies the tamper-evident SHA-256 hash chain over the agent-plane `event` table. Reads every chained row (WHERE chain_hash IS NOT NULL) in chain_seq order via mios-pg-query's parameterized --exec-json transport (pure pg wire protocol -- no psql/psycopg/podman, works for confined users), then recomputes each link with the SSOT algorithm imported from the agent-pipe's mios_audit module (same canonical_core + sha256 used at write time, so there is no second copy of the crypto to drift). Reports {ok, checked, first_broken_seq} as JSON and EXITS NONZERO on a broken chain (1 = tamper detected at first_broken_seq, 2 = read/setup failure) so it drops into a cron/audit gate. A clean or empty chain is exit 0.
+# AI-related: ../../lib/mios/agent-pipe/mios_audit.py, ./mios-pg-query, ./mios-remember, ../../share/mios/postgres/schema-init.sql
+# AI-functions: _agent_pipe_dir, _read_chain_rows, main
+"""mios-chain-verify -- walk the MiOS event hash chain and report the first tamper.
+
+The `event` table is an append-only observability stream; SEC-03 links every row to
+its predecessor with a SHA-256 chain (chain_seq / prev_hash / chain_hash) at the
+agent-pipe persist chokepoint. This tool independently RE-DERIVES the chain from the
+stored rows and reports whether it is intact:
+
+  * reads the chained rows (WHERE chain_hash IS NOT NULL) in chain_seq order via
+    `mios-pg-query --exec-json` -- the pure-stdlib pg wire transport every confined
+    agent-plane reader uses (no psql / psycopg / podman required);
+  * recomputes each link with the SAME canonical_core + sha256 used on write,
+    imported from the agent-pipe `mios_audit` module so the algorithm has ONE source
+    of truth (no second copy of the crypto to drift);
+  * prints `{ok, checked, first_broken_seq}` and EXITS NONZERO on a broken chain.
+
+Exit codes:  0 = chain intact (or empty)   1 = tamper detected (first_broken_seq)
+             2 = read / setup failure (cannot reach pg or import the verifier)
+
+Env:  MIOS_PG_QUERY        (default /usr/libexec/mios/mios-pg-query)
+      MIOS_AGENT_PIPE_DIR  (default: resolved relative to this CLI)
+      plus mios-pg-query's own MIOS_PG_HOST / MIOS_PG_PORT / MIOS_PG_USER / MIOS_PG_DB
+"""
+from __future__ import annotations
+
+import json
+import os
+import subprocess
+import sys
+
+_PG_QUERY = os.environ.get("MIOS_PG_QUERY") or "/usr/libexec/mios/mios-pg-query"
+
+
+def _agent_pipe_dir() -> str:
+    """Locate the agent-pipe package dir holding mios_audit. Env override first, else
+    resolve RELATIVE to this CLI (libexec/mios -> ../../lib/mios/agent-pipe) so no
+    absolute path is baked in and a relocated checkout still works."""
+    env = os.environ.get("MIOS_AGENT_PIPE_DIR")
+    if env:
+        return env
+    here = os.path.dirname(os.path.realpath(__file__))
+    return os.path.normpath(os.path.join(here, "..", "..", "lib", "mios", "agent-pipe"))
+
+
+# Import the SSOT chain algorithm. mios_audit's web-stack import is shimmed, so the
+# pure verifier loads here WITHOUT fastapi installed (confined-user safe).
+sys.path.insert(0, _agent_pipe_dir())
+try:
+    from mios_audit import verify_chain, _VERIFY_COLS
+except Exception as _e:  # noqa: BLE001
+    sys.stderr.write(
+        "mios-chain-verify: cannot import the mios_audit verifier from "
+        f"{_agent_pipe_dir()!r} ({_e}); set MIOS_AGENT_PIPE_DIR or install the "
+        "agent-pipe package.\n")
+    sys.exit(2)
+
+
+def _read_chain_rows():
+    """Return the chained event rows as a list of dicts (chain_seq order), or None on
+    a read failure. Uses mios-pg-query's parameterized transport; the whole result is
+    aggregated server-side into ONE json array so payload jsonb round-trips as a parsed
+    object (matching the write-time dict the hash was computed over)."""
+    cols = ", ".join(_VERIFY_COLS)
+    sql = ("SELECT coalesce(json_agg(row_to_json(t) ORDER BY t.chain_seq), '[]') "
+           f"FROM (SELECT {cols} FROM event WHERE chain_hash IS NOT NULL) t;")
+    try:
+        proc = subprocess.run(
+            [_PG_QUERY, "--exec-json"],
+            input=json.dumps({"sql": sql, "params": []}),
+            capture_output=True, text=True, timeout=60)
+    except Exception as exc:  # noqa: BLE001
+        sys.stderr.write(f"mios-chain-verify: pg query failed to launch: {exc}\n")
+        return None
+    if proc.returncode != 0:
+        sys.stderr.write("mios-chain-verify: pg read failed: "
+                         + (proc.stderr or "").strip() + "\n")
+        return None
+    out = (proc.stdout or "").strip()
+    if not out:
+        return []
+    try:
+        rows = json.loads(out)
+    except Exception as exc:  # noqa: BLE001
+        sys.stderr.write(f"mios-chain-verify: could not parse pg output: {exc}\n")
+        return None
+    return rows if isinstance(rows, list) else []
+
+
+def main() -> int:
+    rows = _read_chain_rows()
+    if rows is None:
+        print(json.dumps({"object": "mios.audit.chain", "ok": False,
+                          "error": "read_failed"}))
+        return 2
+    res = verify_chain(rows)
+    print(json.dumps({"object": "mios.audit.chain", **res}))
+    return 0 if res.get("ok") else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

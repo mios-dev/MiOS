@@ -64,8 +64,56 @@ def t_block_result() -> None:
     _check("block: ref differs per action", r["action_ref"] != r2["action_ref"])
 
 
+def t_decide() -> None:
+    # The SINGLE reconciled HITL verdict that BOTH gates route through (mios_hitl.decide).
+    # Inert: nothing in scope / [ai] off -> proceed (no behaviour when HITL is off).
+    _check("decide: nothing in scope -> proceed", H.decide() == H.PROCEED)
+    _check("decide: tier scope + ai off -> proceed",
+           H.decide(in_tier_scope=True, ai_mode="off") == H.PROCEED)
+    # [ai] risk-tier gate, alone.
+    _check("decide: ai block + in tier scope -> block",
+           H.decide(in_tier_scope=True, ai_mode="block") == H.BLOCK)
+    _check("decide: ai block but OUT of tier scope -> proceed",
+           H.decide(in_tier_scope=False, ai_mode="block") == H.PROCEED)
+    _check("decide: ai audit + in tier scope -> observe",
+           H.decide(in_tier_scope=True, ai_mode="audit") == H.OBSERVE)
+    # [hitl] verb-scope gate, alone.
+    _check("decide: hitl gate + in name scope -> block",
+           H.decide(in_name_scope=True, hitl_enable=True, hitl_mode="gate") == H.BLOCK)
+    _check("decide: hitl log + in name scope -> observe",
+           H.decide(in_name_scope=True, hitl_enable=True, hitl_mode="log") == H.OBSERVE)
+    _check("decide: hitl disabled -> proceed",
+           H.decide(in_name_scope=True, hitl_enable=False, hitl_mode="gate") == H.PROCEED)
+    # STRICTER WINS -- the former two gates can no longer disagree: if EITHER would
+    # block, the unified verdict blocks (fail-safe / err toward blocking).
+    _check("decide: stricter wins (ai audit + hitl gate) -> block",
+           H.decide(in_tier_scope=True, ai_mode="audit",
+                    in_name_scope=True, hitl_enable=True, hitl_mode="gate") == H.BLOCK)
+    _check("decide: stricter wins (ai block + hitl log) -> block",
+           H.decide(in_tier_scope=True, ai_mode="block",
+                    in_name_scope=True, hitl_enable=True, hitl_mode="log") == H.BLOCK)
+    # An explicit approval (ask-to-run / out-of-band) downgrades a block so the
+    # approved action runs.
+    _check("decide: approval downgrades block -> observe",
+           H.decide(in_tier_scope=True, ai_mode="block", approved=True) == H.OBSERVE)
+    # An unknown ai-mode token is treated as inert (off-like), matching the existing
+    # `mode not in (audit, block)` convention -- it never fabricates a spurious block.
+    _check("decide: unknown ai mode in scope -> proceed",
+           H.decide(in_tier_scope=True, ai_mode="bogus") == H.PROCEED)
+    # F2/T-033: the Rule-of-Two gate contributes a THIRD posture (a confirmed all-three
+    # enforce chain) into the same resolver. Inert by default (byte-identical for the
+    # two existing call-sites); BLOCK when set; stricter-wins; approval downgrades.
+    _check("decide: ro2_block default inert -> proceed", H.decide() == H.PROCEED)
+    _check("decide: ro2_block -> block", H.decide(ro2_block=True) == H.BLOCK)
+    _check("decide: ro2_block + approval -> observe",
+           H.decide(ro2_block=True, approved=True) == H.OBSERVE)
+    _check("decide: ro2_block stricter-wins over ai audit -> block",
+           H.decide(ro2_block=True, in_tier_scope=True, ai_mode="audit") == H.BLOCK)
+
+
 def main() -> int:
-    for t in (t_parse_scope, t_requires_approval, t_gate_outcome, t_block_result):
+    for t in (t_parse_scope, t_requires_approval, t_gate_outcome, t_block_result,
+              t_decide):
         t()
     passed = sum(1 for _, ok in _RESULTS if ok)
     total = len(_RESULTS)

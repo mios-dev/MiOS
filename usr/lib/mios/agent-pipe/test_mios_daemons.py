@@ -293,5 +293,233 @@ class KvGcLoopTest(unittest.TestCase):
         self.assertEqual(calls["n"], 1)
 
 
+class SelfImproveActPassTest(unittest.TestCase):
+    """The T-062/T-064 ACT pass: propose -> prove utility -> QUEUE for human approval,
+    never auto-apply. Synthetic non-dictionary surfaces/ids + stubbed solver scores
+    (no live models / DB) -- the structure is what is validated offline."""
+
+    def _restore(self, saved):
+        for k, v in saved.items():
+            setattr(mios_daemons, k, v)
+
+    def test_disabled_is_noop(self):
+        # DEFAULT-OFF: act_enabled false -> a pure no-op; the drafter is never invoked.
+        drafted = {"called": False}
+
+        async def _draft(_f):
+            drafted["called"] = True
+            return {"target_kind": "zq_ok", "target_id": "z", "change": "zc",
+                    "rationale": "zr"}
+
+        saved = {"_toml_section": mios_daemons._toml_section,
+                 "_act_draft_proposal": mios_daemons._act_draft_proposal}
+        mios_daemons._toml_section = lambda _s: {"act_enabled": False}
+        mios_daemons._act_draft_proposal = _draft
+        try:
+            out = _run(mios_daemons._selfimprove_act_pass())
+        finally:
+            self._restore(saved)
+        self.assertEqual(out["acted"], False)
+        self.assertEqual(out["queued"], 0)
+        self.assertFalse(drafted["called"], "a disabled pass must not draft or act")
+
+    def test_queues_non_regressing_proposal(self):
+        # Enabled + a non-regressing proposal -> QUEUED exactly once. The single write
+        # is an append to the event queue with a pending_review status (queue-not-apply:
+        # nothing is dispatched/mutated).
+        captured = []
+
+        async def _report():
+            return {"findings": [{"severity": "high", "kind": "zk", "subject": "zs",
+                                  "detail": "zd", "suggestion": "zfix"}]}
+
+        async def _draft(_f):
+            return {"target_kind": "zq_ok", "target_id": "zt1", "change": "zc",
+                    "rationale": "zr"}
+
+        async def _evaluate(_p):
+            return (0.4, 0.6)              # proposed > baseline -> non-regressing
+
+        async def _execute(sql, params, fetch=False):
+            captured.append((sql, params))
+            return None
+
+        saved = {"_toml_section": mios_daemons._toml_section,
+                 "_selfimprove_report": mios_daemons._selfimprove_report,
+                 "_act_draft_proposal": mios_daemons._act_draft_proposal,
+                 "_act_evaluate_proposal": mios_daemons._act_evaluate_proposal,
+                 "_mios_pg": mios_daemons._mios_pg}
+        mios_daemons._toml_section = lambda _s: {
+            "act_enabled": True, "improvable_targets": ["zq_ok"],
+            "protected_targets": ["zp_no"], "accept_margin": 0.0,
+            "max_proposals_per_pass": 3}
+        mios_daemons._selfimprove_report = _report
+        mios_daemons._act_draft_proposal = _draft
+        mios_daemons._act_evaluate_proposal = _evaluate
+        mios_daemons._mios_pg = _PG(_execute)
+        try:
+            out = _run(mios_daemons._selfimprove_act_pass())
+        finally:
+            self._restore(saved)
+        self.assertEqual(out["queued"], 1)
+        self.assertEqual(out["rejected"], 0)
+        self.assertEqual(len(captured), 1, "exactly one queue write")
+        sql, params = captured[0]
+        self.assertIn("INSERT INTO event", sql)
+        self.assertNotIn("UPDATE", sql.upper())          # nothing applied/mutated
+        self.assertEqual(params["kind"], mios_daemons._PROPOSAL_EVENT_KIND)
+        self.assertIn("pending_review", params["payload"])  # awaits human approval
+
+    def test_rejects_regressing_proposal(self):
+        # A regressing proposal is REJECTED and NEVER queued; the delta is in the result.
+        captured = []
+
+        async def _report():
+            return {"findings": [{"severity": "high", "kind": "zk", "subject": "zs"}]}
+
+        async def _draft(_f):
+            return {"target_kind": "zq_ok", "target_id": "zt1", "change": "zc",
+                    "rationale": "zr"}
+
+        async def _evaluate(_p):
+            return (0.7, 0.5)              # proposed < baseline -> regression
+
+        async def _execute(sql, params, fetch=False):
+            captured.append((sql, params))
+
+        saved = {"_toml_section": mios_daemons._toml_section,
+                 "_selfimprove_report": mios_daemons._selfimprove_report,
+                 "_act_draft_proposal": mios_daemons._act_draft_proposal,
+                 "_act_evaluate_proposal": mios_daemons._act_evaluate_proposal,
+                 "_mios_pg": mios_daemons._mios_pg}
+        mios_daemons._toml_section = lambda _s: {
+            "act_enabled": True, "improvable_targets": ["zq_ok"],
+            "protected_targets": ["zp_no"], "accept_margin": 0.0,
+            "max_proposals_per_pass": 3}
+        mios_daemons._selfimprove_report = _report
+        mios_daemons._act_draft_proposal = _draft
+        mios_daemons._act_evaluate_proposal = _evaluate
+        mios_daemons._mios_pg = _PG(_execute)
+        try:
+            out = _run(mios_daemons._selfimprove_act_pass())
+        finally:
+            self._restore(saved)
+        self.assertEqual(out["queued"], 0)
+        self.assertEqual(out["rejected"], 1)
+        self.assertEqual(len(captured), 0, "a regressing proposal is never queued")
+
+    def test_rejects_isolation_violation_before_scoring(self):
+        # A proposal targeting the PROTECTED surface (the evaluator/eval/lane-config) is
+        # rejected on isolation BEFORE it is scored -- the evaluator is never even run --
+        # and is never queued. This is the anti-reward-hacking structural guarantee.
+        eval_called = {"n": 0}
+        captured = []
+
+        async def _report():
+            return {"findings": [{"severity": "high", "kind": "zk", "subject": "zs"}]}
+
+        async def _draft(_f):
+            return {"target_kind": "zp_no", "target_id": "zt1", "change": "zc",
+                    "rationale": "zr"}    # targets a PROTECTED kind
+
+        async def _evaluate(_p):
+            eval_called["n"] += 1
+            return (0.0, 1.0)             # a perfect "improvement" -- must NOT be reached
+
+        async def _execute(sql, params, fetch=False):
+            captured.append((sql, params))
+
+        saved = {"_toml_section": mios_daemons._toml_section,
+                 "_selfimprove_report": mios_daemons._selfimprove_report,
+                 "_act_draft_proposal": mios_daemons._act_draft_proposal,
+                 "_act_evaluate_proposal": mios_daemons._act_evaluate_proposal,
+                 "_mios_pg": mios_daemons._mios_pg}
+        mios_daemons._toml_section = lambda _s: {
+            "act_enabled": True, "improvable_targets": ["zq_ok"],
+            "protected_targets": ["zp_no"], "accept_margin": 0.0,
+            "max_proposals_per_pass": 3}
+        mios_daemons._selfimprove_report = _report
+        mios_daemons._act_draft_proposal = _draft
+        mios_daemons._act_evaluate_proposal = _evaluate
+        mios_daemons._mios_pg = _PG(_execute)
+        try:
+            out = _run(mios_daemons._selfimprove_act_pass())
+        finally:
+            self._restore(saved)
+        self.assertEqual(out["queued"], 0)
+        self.assertEqual(out["rejected"], 1)
+        self.assertEqual(eval_called["n"], 0,
+                         "an isolation-violating proposal must never be scored")
+        self.assertEqual(len(captured), 0, "never queued")
+
+    def test_loop_runs_act_pass_each_iteration(self):
+        # Wiring proof: the surfacing loop invokes the ACT pass every iteration (the pass
+        # itself self-gates on act_enabled, so this stays default-off in production).
+        calls = {"n": 0}
+
+        async def _report():
+            return {"findings": []}
+
+        async def _act():
+            calls["n"] += 1
+            return {"acted": False}
+
+        sleeper = _CancelAfter(fire_after=2)
+        saved = {"asyncio": mios_daemons.asyncio.sleep,
+                 "_toml_section": mios_daemons._toml_section,
+                 "_selfimprove_report": mios_daemons._selfimprove_report,
+                 "_selfimprove_act_pass": mios_daemons._selfimprove_act_pass}
+        mios_daemons.asyncio.sleep = sleeper
+        mios_daemons._toml_section = lambda _s: {"interval_min": 1}
+        mios_daemons._selfimprove_report = _report
+        mios_daemons._selfimprove_act_pass = _act
+        try:
+            _run(mios_daemons._selfimprove_loop())
+        finally:
+            mios_daemons.asyncio.sleep = saved["asyncio"]
+            mios_daemons._toml_section = saved["_toml_section"]
+            mios_daemons._selfimprove_report = saved["_selfimprove_report"]
+            mios_daemons._selfimprove_act_pass = saved["_selfimprove_act_pass"]
+        self.assertEqual(calls["n"], 1)
+
+
+class SelfImproveProposalsReadTest(unittest.TestCase):
+    def test_degrades_open_when_pg_unreachable(self):
+        # The read-only proposals queue returns the documented empty envelope on a pg
+        # miss so GET /v1/self-improve/proposals stays up.
+        async def _boom(*_a, **_k):
+            raise RuntimeError("pg unreachable")
+
+        saved = mios_daemons._mios_pg
+        mios_daemons._mios_pg = _PG(_boom)
+        try:
+            out = _run(mios_daemons._selfimprove_proposals())
+        finally:
+            mios_daemons._mios_pg = saved
+        self.assertEqual(out["proposals"], [])
+        self.assertEqual(out["count"], 0)
+        self.assertEqual(out["error"], "unavailable")
+
+    def test_reads_queued_proposal_rows(self):
+        # Reads back the queued proposal event rows, bounded + filtered by the proposal
+        # event kind (no apply -- read-only review surface).
+        captured = {}
+
+        async def _rows(_sql, params, fetch=False):
+            captured["kind"] = params["kind"]
+            captured["sql"] = _sql
+            return [{"id": 1, "summary": "zsum", "payload": {"status": "pending_review"}}]
+
+        saved = mios_daemons._mios_pg
+        mios_daemons._mios_pg = _PG(_rows)
+        try:
+            out = _run(mios_daemons._selfimprove_proposals())
+        finally:
+            mios_daemons._mios_pg = saved
+        self.assertEqual(out["count"], 1)
+        self.assertEqual(captured["kind"], mios_daemons._PROPOSAL_EVENT_KIND)
+        self.assertIn("FROM event", captured["sql"])
+
+
 if __name__ == "__main__":
     unittest.main()

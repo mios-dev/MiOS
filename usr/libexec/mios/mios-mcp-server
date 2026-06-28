@@ -18,8 +18,10 @@ providers (Claude Desktop, Cursor, GitHub Copilot, Codex Cloud) MUST
 NOT be in the chain. They CAN consume this server, but the MiOS
 operator does not run them.
 
-Protocol: JSON-RPC 2.0 over stdio. Spec: 2025-06-18.
-  https://modelcontextprotocol.io/specification/2025-06-18/server/tools
+Protocol: JSON-RPC 2.0 over Streamable HTTP (current transport) + stdio. The
+declared revision is the [mcp].protocol_version SSOT (env
+MIOS_MCP_PROTOCOL_VERSION), shared with the agent-pipe consumer.
+  https://modelcontextprotocol.io/specification
 
 Implements:
   initialize          -- handshake; returns serverInfo + capabilities
@@ -57,7 +59,43 @@ import urllib.parse
 AGENT_PIPE_URL = os.environ.get(
     "MIOS_AGENT_PIPE_URL", "http://localhost:8640"
 ).rstrip("/")
-PROTOCOL_VERSION = "2025-06-18"
+
+
+def _ssot_protocol_version() -> str:
+    """MCP revision this server DECLARES -- the [mcp].protocol_version SSOT shared
+    with the agent-pipe consumer (mios_mcp.MCP_PROTOCOL_VERSION), so publish + consume
+    stay in lockstep. env MIOS_MCP_PROTOCOL_VERSION wins; else the layered mios.toml
+    (vendor < /etc < ~/.config), each layer best-effort so a sandbox-blocked path just
+    falls through; else the current revision as a degrade-open default. Declared once
+    here -- never a scattered code literal."""
+    env = os.environ.get("MIOS_MCP_PROTOCOL_VERSION")
+    if env and env.strip():
+        return env.strip()
+    try:
+        try:
+            import tomllib
+        except ImportError:
+            import tomli as tomllib  # type: ignore
+        layers = [os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml"),
+                  "/etc/mios/mios.toml",
+                  os.path.expanduser("~/.config/mios/mios.toml")]
+        val = ""
+        for _p in layers:
+            try:
+                with open(_p, "rb") as _f:
+                    _sec = tomllib.load(_f).get("mcp") or {}
+            except (OSError, tomllib.TOMLDecodeError):
+                continue
+            if isinstance(_sec, dict) and _sec.get("protocol_version"):
+                val = str(_sec["protocol_version"]).strip()
+        if val:
+            return val
+    except Exception:  # noqa: BLE001 -- degrade-open to the default
+        pass
+    return "2025-11-25"
+
+
+PROTOCOL_VERSION = _ssot_protocol_version()
 SERVER_INFO = {"name": "mios-mcp-server", "version": "0.1.0"}
 TIMEOUT_S = 60
 # Streamable-HTTP session id. The relay is stateless (it just dispatches
@@ -117,13 +155,21 @@ def _err(mid, code: int, message: str, data=None) -> dict:
 
 
 def _handle_initialize(mid, params: dict) -> dict:
+    # Version negotiation (MCP lifecycle): this relay is version-agnostic -- it only
+    # lists verbs + dispatches, using no revision-specific features -- so it HONORS the
+    # client's requested protocolVersion when present (liberal-in: an older client
+    # agrees on its own revision and is never forced to abort) and otherwise advertises
+    # the declared current revision (strict-out).
     # tools.listChanged=True: the background refresher pushes
     # notifications/tools/list_changed over the standalone SSE channel when the
     # catalog recovers (SSOT floor / degraded set -> full surface), so clients that
     # honor it (Hermes) re-list mid-session instead of staying degraded for life.
     # resources.listChanged stays False (no resource watcher yet).
+    requested = (params or {}).get("protocolVersion")
+    negotiated = (requested if isinstance(requested, str) and requested.strip()
+                  else PROTOCOL_VERSION)
     return _ok(mid, {
-        "protocolVersion": PROTOCOL_VERSION,
+        "protocolVersion": negotiated,
         "capabilities": {
             "tools": {"listChanged": True},
             "resources": {"subscribe": False, "listChanged": False},

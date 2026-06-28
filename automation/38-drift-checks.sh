@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # AI-hint: Source-tree drift fitness-functions (WS-0A). Read-only static analysis over the repo (== system root) that FAILS on AI-plane SSOT drift no other gate catches: a retired local :11434 lane in active config, a retired model-id (gemma4 / qwen3:1.7b) hardcoded in a CONSUMER unit, a [nodes.local-*] lane pointing at a localhost port no shipped unit serves, an ai/v1/*.json manifest that won't parse or references a missing schema file, (check 5, WS-10) AI-hint header coverage regressing past [ai_tag].max_untagged, and (check 6, WS-3) an agent-pipe sibling module importing the server.py monolith (modular-monolith boundary). Sibling to 38-ssot-lint.sh; runs standalone, as a build sub-phase, and as a CI/PR drift-gate (needs NO built image). bash + grep + (optional) python3 for the toml/json/coverage checks.
 # AI-related: ./automation/38-ssot-lint.sh, ./automation/99-postcheck.sh, ./usr/libexec/mios/mios-ai-hint-coverage, ./usr/share/mios/mios.toml, ./usr/share/mios/ai/v1
-# AI-functions: _violation, check_dead_lane, check_retired_models, check_structured, check_hint_coverage, check_module_boundary, check_rbac_tiers, check_ai_manifest, check_package_registry, check_cli_sql_safety, check_module_test_coverage, check_capability_manifest, check_pod_quadlets, check_egress_firewall, main
+# AI-functions: _violation, check_dead_lane, check_retired_models, check_structured, check_hint_coverage, check_module_boundary, check_rbac_tiers, check_ai_manifest, check_package_registry, check_cli_sql_safety, check_module_test_coverage, check_capability_manifest, check_pod_quadlets, check_egress_firewall, check_unwired_modules, main
 # automation/38-drift-checks.sh
 # ----------------------------------------------------------------------------
 # WHY THIS EXISTS (WS-0A drift-freeze). 99-postcheck.sh enforces the same
@@ -737,6 +737,151 @@ check_no_hardcode() {
     fi
 }
 
+# (17, A1 -- MIOS-GAP-REGISTER) Imported-but-dead substrate gate. The strangler-fig
+# left agent-pipe sibling modules (mios_*.py) that server.py / a sibling IMPORTS but
+# whose names are never REFERENCED from any non-test .py -- dead weight masquerading
+# as wired ("imported WS module with no real caller"). This makes that class
+# unrepresentable: a NEW such module reds the PR. Importer/candidate scope is
+# agent-pipe non-test .py (server.py + siblings); the wired-check reference scope is
+# BROAD (agent-pipe + libexec + tools non-test .py) so a module wired only via a
+# libexec/tools call site is never a false positive. A `from mios_X import ...`
+# re-export for surface parity counts as imported-not-called -- the symbols are bound
+# into server.py's surface but never executed, so the module is still dead. The
+# _UNWIRED_ALLOW set is the documented TRANSITIONAL register of substrate pending
+# wiring; the gate also fails on a STALE allow entry (now wired or removed), so the
+# register self-cleans. Pure ast, read-only.
+check_unwired_modules() {
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "[38-drift-checks]   WARNING: python3 missing -- skipping unwired-module check" >&2
+        return 0
+    fi
+    if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
+import os, sys, ast
+root = os.environ["MIOS_DRIFT_ROOT"]
+pipe = os.path.join(root, "usr/lib/mios/agent-pipe")
+if not os.path.isdir(pipe):
+    sys.exit(0)  # nothing to check on a bare checkout
+
+# DOCUMENTED TRANSITIONAL ALLOWLIST: agent-pipe modules IMPORTED as substrate but
+# PENDING a real call site (imported-but-dead) -- see MIOS-GAP-REGISTER A1. Remove an
+# entry the moment the module gets a non-test caller; the gate fails on a stale entry
+# too, so this register self-cleans.
+ALLOW = {
+    "mios_batch",
+    "mios_compact",
+    "mios_ctxpack",
+    "mios_embed_backfill",
+    "mios_provider_translate",
+    "mios_smartroute",
+}
+
+def is_test(path):
+    b = os.path.basename(path)
+    if b.startswith("test_") or b.endswith("_test.py"):
+        return True
+    segs = path.replace("\\", "/").split("/")
+    return "tests" in segs or "test" in segs
+
+# Candidate IMPORTERS = agent-pipe non-test .py (server.py + mios_*.py siblings).
+pipe_py = [os.path.join(pipe, f) for f in os.listdir(pipe)
+           if f.endswith(".py") and not is_test(os.path.join(pipe, f))]
+# REFERENCE (wired) scope -- BROAD: agent-pipe + libexec + tools non-test .py.
+ref_py = list(pipe_py)
+for sub in ("usr/libexec/mios", "tools"):
+    base = os.path.join(root, sub)
+    if not os.path.isdir(base):
+        continue
+    for dp, _dn, files in os.walk(base):
+        for f in files:
+            if f.endswith(".py") and not is_test(os.path.join(dp, f)):
+                ref_py.append(os.path.join(dp, f))
+
+modules = sorted(f[:-3] for f in os.listdir(pipe)
+                 if f.startswith("mios_") and f.endswith(".py")
+                 and not is_test(os.path.join(pipe, f)))
+
+def parse(p):
+    try:
+        return ast.parse(open(p, encoding="utf-8").read())
+    except Exception:
+        return None
+
+pipe_trees = {p: parse(p) for p in pipe_py}
+ref_trees = {p: parse(p) for p in ref_py}
+
+def binds(tree, mod):
+    """Names this tree binds for `mod`: (import-aliases, from-names, star?)."""
+    al, fr, star = set(), set(), False
+    if tree is None:
+        return al, fr, star
+    for n in ast.walk(tree):
+        if isinstance(n, ast.Import):
+            for a in n.names:
+                if a.name == mod:
+                    al.add(a.asname or a.name)
+        elif isinstance(n, ast.ImportFrom):
+            if n.module == mod and (n.level or 0) == 0:
+                for a in n.names:
+                    if a.name == "*":
+                        star = True
+                    else:
+                        fr.add(a.asname or a.name)
+    return al, fr, star
+
+def uses(tree, names):
+    """True if tree references a bound name. Imports bind via alias nodes, not
+    ast.Name, so any ast.Name match is a genuine (non-import) reference."""
+    if tree is None or not names:
+        return False
+    for n in ast.walk(tree):
+        if isinstance(n, ast.Name) and n.id in names:
+            return True
+    return False
+
+dead = set()
+for mod in modules:
+    mf = os.path.abspath(os.path.join(pipe, mod + ".py"))
+    imported = False
+    for p, t in pipe_trees.items():
+        if os.path.abspath(p) == mf:
+            continue
+        al, fr, star = binds(t, mod)
+        if al or fr or star:
+            imported = True
+            break
+    if not imported:
+        continue  # never imported by the core -> not the imported-but-dead class
+    wired = False
+    for p, t in ref_trees.items():
+        if os.path.abspath(p) == mf:
+            continue
+        al, fr, star = binds(t, mod)
+        if star:
+            wired = True
+            break
+        if (al or fr) and uses(t, al | fr):
+            wired = True
+            break
+    if not wired:
+        dead.add(mod)
+
+new_dead = sorted(dead - ALLOW)   # NEW imported-but-dead module -> fail
+stale = sorted(ALLOW - dead)      # allowlisted but now wired/removed -> fail
+for m in new_dead:
+    sys.stderr.write(f"    {m}: imported by agent-pipe but no real (non-test) call site "
+                     "-- wire it (give it a caller) or add it to _UNWIRED_ALLOW with a register note\n")
+for m in stale:
+    sys.stderr.write(f"    {m}: listed in _UNWIRED_ALLOW but now WIRED or removed "
+                     "-- delete it from the allowlist (A1 register self-cleans)\n")
+sys.exit(1 if (new_dead or stale) else 0)
+PY
+    then
+        echo "[38-drift-checks]   (17) no imported-but-dead agent-pipe module (A1 _UNWIRED_ALLOW current)"
+    else
+        _violation "an agent-pipe module is imported-but-dead (no real non-test caller) OR a _UNWIRED_ALLOW entry is stale -- wire the module (give it a call site) or update the _UNWIRED_ALLOW register (MIOS-GAP-REGISTER A1)"
+    fi
+}
+
 main() {
     check_dead_lane
     check_retired_models
@@ -754,6 +899,7 @@ main() {
     check_no_hardcode
     check_pod_quadlets
     check_egress_firewall
+    check_unwired_modules
 
     echo "[38-drift-checks] ---------------------------------------------------------"
     if [[ "$VIOLATIONS" -eq 0 ]]; then

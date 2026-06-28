@@ -144,7 +144,7 @@ async def classify_intent(user_text: str) -> Optional[dict]:
         return None
     if not isinstance(parsed, dict) or "action" not in parsed:
         return None
-    # Best-effort SurrealDB event row for the router verdict.
+    # Best-effort event row for the router verdict.
     _db_fire(_db_post(_db_create("event", {
         "source": "mios-agent-pipe",
         "kind": "classify",

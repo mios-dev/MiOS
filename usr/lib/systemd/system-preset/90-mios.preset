@@ -47,6 +47,11 @@ enable nvidia-persistenced.service
 enable firewalld.service
 enable chronyd.service
 enable systemd-resolved.service
+# avahi (mDNS/DNS-SD) backs FED-G5 LAN A2A peer discovery + announce. Enabling the
+# daemon is INERT for A2A until the operator opts in via mios.toml [a2a].mdns_discovery
+# / mdns_advertise (both default false); mios-aios-refresh drives the browse/advertise.
+# Package is [packages.network-discovery] (avahi + avahi-tools + nss-mdns).
+enable avahi-daemon.service
 enable pmcd.service
 enable pmlogger.service
 enable pmproxy.service

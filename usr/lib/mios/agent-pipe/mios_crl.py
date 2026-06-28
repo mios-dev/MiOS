@@ -1,5 +1,5 @@
-# AI-hint: WS-A10 certificate/token revocation list (CRL). Pure-stdlib revocation set: load revoked token-ids / principal-ids from a list (or a caller-tokens.json revoked[] block), check is_revoked(tid) at verify time, and revoke()/restore() at runtime. The agent-pipe's principal verifier (mios_principal.verify_token) calls is_revoked as its `revoked` predicate so a compromised/retired credential is refused even before expiry. Pure (no fs/network -- the caller loads the source) so it unit-tests on the host.
-# AI-related: ./mios_principal.py, ./server.py, /usr/share/mios/mios.toml, ./test_mios_principal.py
+# AI-hint: WS-A10 certificate/token revocation list (CRL). Pure-stdlib revocation set: load revoked token-ids / principal-ids from a list (or a caller-tokens.json revoked[] block), check is_revoked(tid) at verify time, and revoke()/restore() at runtime. The agent-pipe's A2A caller-key gate (mios_a2a._caller_key_revoked) consults is_revoked so a compromised/retired credential is refused even before expiry. Pure (no fs/network -- the caller loads the source) so it unit-tests on the host.
+# AI-related: ./mios_a2a.py, ./server.py, /usr/share/mios/mios.toml, ./test_mios_crl.py
 # AI-functions: revoke, restore, is_revoked, load, merge, ids, class CRL
 """mios_crl -- token/cert revocation list (WS-A10, the AIOS edge revocation layer).
 

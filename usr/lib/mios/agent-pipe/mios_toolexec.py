@@ -395,7 +395,15 @@ async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
         # allow_write so the no-launch rule still binds a read-only turn.
         if vname.startswith("mios_recipe__"):
             real = vname[len("mios_recipe__"):]
-            rcfg = _RECIPE_CATALOG.get(real) or {}
+            # _RECIPE_CATALOG is keyed by the mios.toml [recipes.*] names, which are
+            # HYPHENATED (disk-usage, show-network); the OpenAI/MCP tool name mangles
+            # hyphens to underscores (mios_recipe__disk_usage), so normalize back for
+            # the catalog lookup -- the SAME normalization as _effective_perm
+            # (mios_policy) and the mios-os-recipe executor. Without it every
+            # hyphenated READ recipe missed the catalog, was read as non-read, and was
+            # wrongly dropped on a read-only turn (allow_write=False).
+            rkey = real.replace("_", "-")
+            rcfg = _RECIPE_CATALOG.get(rkey) or {}
             r_perm = str(rcfg.get("permission", "")).lower()
             if r_perm != "read" and not allow_write:
                 tmsg["content"] = (
@@ -407,7 +415,7 @@ async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
             try:
                 res = await asyncio.wait_for(
                     dispatch_mios_verb("os_recipe",
-                                       {"name": real, "params": args}),
+                                       {"name": rkey, "params": args}),
                     timeout=READ_TOOL_ENRICH_TIMEOUT * 2)
             except Exception as e:  # noqa: BLE001
                 res = {"error": str(e)}

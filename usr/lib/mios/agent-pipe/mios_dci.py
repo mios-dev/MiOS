@@ -27,7 +27,7 @@ from typing import Optional
 import httpx
 
 from mios_jsonsalvage import loads_lenient as _loads_lenient
-from mios_config import _STACK_MODEL, _LIGHT_BASE
+from mios_config import _STACK_MODEL, _LIGHT_BASE, _toml_section
 
 log = logging.getLogger("mios-agent-pipe")
 
@@ -196,9 +196,16 @@ _DCI_CRITIC_SYSTEM = (
 # deliberation -- e.g. for ambiguous, high-stakes, or
 # operator-flagged turns.
 
-DCI_FLOW_ENABLED = os.environ.get(
-    "MIOS_AGENT_PIPE_DCI_FLOW_ENABLED", "false",
-).lower() not in {"false", "0", "no"}
+# Opt-in gate for the heavy B.2 convergent flow, resolved from the [dci] SSOT
+# (env override wins). DEFAULT-OFF for brick-safety: the 4-persona deliberation
+# changes council behaviour -- it can TAINT a session on unresolved dissent -- so
+# the operator flips [dci].flow_enabled on and live-validates. Same env-or-toml-or-
+# default shape as the audit-chain gate; off keeps every dispatch on the cheap B.1
+# critic audit trail only (which still records typed acts with their act_type).
+DCI_FLOW_ENABLED = str(
+    os.environ.get("MIOS_AGENT_PIPE_DCI_FLOW_ENABLED")
+    or _toml_section("dci").get("flow_enabled", "false")
+).strip().lower() not in {"false", "0", "no"}
 DCI_FLOW_R_MAX = int(os.environ.get("MIOS_AGENT_PIPE_DCI_FLOW_R_MAX", "3"))
 DCI_FLOW_TIMEOUT_S = int(os.environ.get(
     "MIOS_AGENT_PIPE_DCI_FLOW_TIMEOUT_S", "20"))
@@ -217,6 +224,13 @@ _PERSONA_ALLOWED_ACTS: dict[str, set] = {
     "integrator": {"bridge", "synthesize", "recall",
                    "ground", "update", "recommend"},
 }
+
+# The dissent/objection acts -- exactly what the Challenger persona is allowed to
+# emit. Derived from the persona-allowed SSOT so it tracks the vocabulary instead
+# of restating a ("challenge","ask") literal at every site that decides "is this an
+# objection?" -- the B.1 critic's B.2-escalation trigger, run_dci_flow's dissent
+# extraction, and the warn-severity tag all read this ONE set.
+_DCI_DISSENT_ACTS = frozenset(_PERSONA_ALLOWED_ACTS["challenger"])
 
 # Per-persona system prompts. Each is a SPECIALIZATION of the
 # generic critic prompt -- focuses the model on a specific act
@@ -421,13 +435,18 @@ async def run_dci_flow(
             elif family == "decisional":
                 # Final-form recommend -- capture as the decision.
                 decision = act
-            # Per-act SurrealDB event (reuse B.1's tagging).
-            severity = "warn" if act["act"] in ("challenge", "ask") and act["confidence"] >= DCI_FLOW_TRIGGER_CONF else "info"
+            # Per-act event (reuse B.1's tagging).
+            severity = "warn" if act["act"] in _DCI_DISSENT_ACTS and act["confidence"] >= DCI_FLOW_TRIGGER_CONF else "info"
+            # act_type is a first-class event column (T-028) so dissent/act queries
+            # are an indexed scan, not a JSONB extract; the act stays in the payload
+            # too. Degrade-open: a pre-migration DB without the column drops it (the
+            # pg mirror filters to live columns) and the event still logs.
             _db_fire(_db_post(_db_create("event", {
                 "source": "mios-agent-pipe",
                 "kind": "dci_act",
                 "severity": severity,
                 "summary": f"r{r_idx}/{persona_name}/{act['act']} ({act['confidence']:.2f})",
+                "act_type": act["act"],
                 "payload": {
                     "round": r_idx,
                     "persona": persona_name,
@@ -476,6 +495,7 @@ async def run_dci_flow(
             "kind": "dissent",
             "severity": "warn",
             "summary": f"unresolved {d['act']} ({d['confidence']:.2f})",
+            "act_type": d["act"],
             "payload": {
                 "persona": d.get("persona"),
                 "content": (d.get("content") or "")[:500],
@@ -544,8 +564,14 @@ async def critic_then_maybe_flow(
     act = await dci_critic_pass(user_text, envelope, session_id=session_id)
     if not act:
         return
-    # Conditional escalation to B.2.
-    if (act.get("act") in ("challenge", "ask")
+    # Conditional escalation to B.2 -- GATED on DCI_FLOW_ENABLED so the heavy
+    # 4-persona deliberation (and its taint-on-dissent side effect) is operator
+    # opt-in. Default-off runs only the cheap B.1 critic above; flipping
+    # [dci].flow_enabled on makes a high-confidence Challenger objection escalate
+    # to the full convergent flow. The objection set is the persona-allowed SSOT
+    # (_DCI_DISSENT_ACTS), not a restated ("challenge","ask") literal.
+    if (DCI_FLOW_ENABLED
+            and act.get("act") in _DCI_DISSENT_ACTS
             and act.get("confidence", 0.0) >= DCI_FLOW_TRIGGER_CONF):
         # Sentinel raised; fire the B.2 jury. Cap rounds at 2 for
         # the auto-trigger path (operator can still hit /dci/
@@ -607,7 +633,7 @@ async def dci_critic_pass(
     act. Returns the parsed act dict, or None on any error.
 
     Fire-and-forget at the caller's discretion -- the chat reply is
-    already rendered by the time this runs. SurrealDB event row
+    already rendered by the time this runs. Event row
     written automatically (kind=dci_act, source=mios-agent-pipe).
     """
     if not DCI_ENABLED or not user_text:
@@ -681,15 +707,18 @@ async def dci_critic_pass(
     except (TypeError, ValueError):
         parsed["confidence"] = 0.5
     family = _DCI_ACTS[act]["family"]
-    # SurrealDB event row -- tag with the act + family for later
-    # analytics (e.g. SELECT * FROM event WHERE kind='dci_act' AND
-    # payload.act='challenge' to find what the critic challenged).
-    severity = "warn" if act in ("challenge", "ask") and parsed["confidence"] >= DCI_FLOW_TRIGGER_CONF else "info"
+    # Event row -- act_type is the first-class column (T-028) so analytics is a
+    # plain indexed scan (SELECT * FROM event WHERE act_type='challenge') instead
+    # of a JSONB extract; the act + family stay in the payload for the full record.
+    # Degrade-open: a DB without the column drops it (pg mirror filters to live
+    # columns) and the event still logs.
+    severity = "warn" if act in _DCI_DISSENT_ACTS and parsed["confidence"] >= DCI_FLOW_TRIGGER_CONF else "info"
     row = {
         "source":  "mios-agent-pipe",
         "kind":    "dci_act",
         "severity": severity,
         "summary": f"{family}/{act} ({parsed['confidence']:.2f})",
+        "act_type": act,
         "payload": {
             "act":         act,
             "family":      family,

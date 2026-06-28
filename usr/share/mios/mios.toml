@@ -64,6 +64,28 @@ pronouns = ""
 bio = ""
 
 # ----------------------------------------------------------------------------
+# [accounts] -- Multi-tenant account / owner model (FOUNDATION). MiOS is moving
+# multi-tenant: a blade is a machine, a node is a compute unit, and every request
+# is owned by an ACCOUNT (a human user, or a system/service tenant). The agent
+# datastore backs this with the `account` table (postgres/schema-init.sql); the
+# owner-scoped tables (knowledge / agent_memory / scratch) carry `owner_user`.
+#
+# LINKAGE CONVENTION: owner_user == account.name (a soft natural key today). A hard
+# foreign-key rewrite across the owner-scoped tables is a deliberate follow-up -- the
+# table + the convention are established first so nothing existing is rewritten.
+#
+# There is intentionally NO vendor `default_account` key: the account rows are seeded
+# by postgres/schema-init.sql FROM the identities the DB already holds -- the operator
+# singleton (`person`, populated from the host [identity]) plus every distinct
+# owner_user already on an owned row -- so the owner of legacy/unowned (NULL owner_user)
+# rows is the operator [identity] WITHOUT restating it here (NO-HARDCODE). The
+# per-request owner is the principal the surface forwards (reconciled against the
+# token-bound account under [security].principal_bind_mode=enforce). This [accounts]
+# table is the home for FUTURE account-model knobs; it declares none today.
+# ----------------------------------------------------------------------------
+[accounts]
+
+# ----------------------------------------------------------------------------
 # [mios] -- AI Agent Persona. Replaces hardcoded identity strings in the
 # orchestrator system prompt. Layered from ~/.config/mios.
 # ----------------------------------------------------------------------------
@@ -128,37 +150,6 @@ developer = "MiOS"
 max_untagged = 12
 
 # ----------------------------------------------------------------------------
-# [goap] -- #53 OPTIONAL deterministic GOAP planner lane (Embabel-style),
-# alongside the LLM DAG. When a task's steps have KNOWN pre/post-conditions, the
-# order is a search problem with one correct answer -- mios_goap solves it
-# deterministically (reproducible, no LLM). mode "off" (default) leaves the LLM
-# DAG planner unchanged; "available" lets server.py use the GOAP lane for tasks
-# that match this action set. The actions are the SSOT action model: each has a
-# name (a verb), optional pre (preconditions), eff (effects), cost. SEED set =
-# the launch->type->verify sequence (#48/#49); extend per verb. Env: none --
-# read directly from this file.
-# ----------------------------------------------------------------------------
-[goap]
-mode = "off"
-
-[[goap.actions]]
-name = "open_app"
-eff  = { app_open = true }
-cost = 1
-
-[[goap.actions]]
-name = "type_text"
-pre  = { app_open = true }
-eff  = { text_entered = true }
-cost = 1
-
-[[goap.actions]]
-name = "verify_action"
-pre  = { text_entered = true }
-eff  = { verified = true }
-cost = 1
-
-# ----------------------------------------------------------------------------
 # [selfimprove] -- #64 self-improvement ANALYSIS (the safe observe half). The
 # read-only GET /v1/self-improve/report surfaces what to improve from local
 # outcome data (failing/slow tools, unreliable peers) via mios_selfimprove. It
@@ -176,6 +167,42 @@ slow_ms        = 10000   # tools averaging >= this many ms are flagged slow
 # off, no background task (byte-identical hot path). It only SURFACES; auto-
 # remediation (self-modification) is a separate, guardrail-gated step.
 interval_min   = 0
+
+# ── ACT half (T-062) + proof-of-utility (T-064) -- the self-CURATION loop ──
+# When the loop runs (interval_min > 0) AND act_enabled is on, each pass turns the
+# OBSERVE findings into bounded change PROPOSALS, scores each against the current
+# baseline on a discriminative held-out eval, and QUEUES only a non-regressing
+# proposal for HUMAN approval (GET /v1/self-improve/proposals). It NEVER auto-applies
+# a self-modification -- a queued proposal is reviewed + approved out of band, then
+# applied by a separate path. DEFAULT-OFF: act_enabled=false => the loop is a pure
+# no-op (analyze still surfaces as before). Degrade-open: any loop error drops the
+# proposal and never affects live serving. The literals below are the documented
+# degrade-open fallbacks (the daemon reads these keys; missing keys degrade safe).
+act_enabled    = false   # master switch for the ACT (propose->prove->queue) loop
+# Proof-of-utility accept criterion (Autodata accept-if-non-regressing, 126/233):
+# accept iff the proposed variant's pass^k does not regress the baseline by more than
+# accept_margin (0 = strict >=); require_improvement additionally demands a strict
+# improvement (delta > 0) where a discriminative eval applies. passhat_k = the k for
+# the pass^k reliability score (the same worst-case metric the skill gate uses).
+accept_margin       = 0.0   # max tolerated score regression (proposed >= baseline - margin)
+require_improvement = false # also require a strict improvement (proposed > baseline)
+passhat_k           = 2     # k for pass^k over the held-out eval
+# Solver-gap (Autodata discriminative signal): an eval task carries signal ONLY when
+# the strong solver beats the weak one by >= solver_gap_min; trivial (both pass) and
+# impossible (both fail) tasks are dropped. The weak/strong pair is the light/heavy
+# LANE pair, named here by lane key and resolved from the live lane registry at
+# dispatch -- NOT a model id baked in code.
+solver_gap_min  = 0.2      # min strong-weak pass-rate gap for a task to count as eval signal
+weak_solver     = "light"  # lane key of the weak solver (the everyday light lane)
+strong_solver   = "heavy"  # lane key of the strong solver (the heavy/council lane)
+# Anti-reward-hacking isolation (Autodata's lesson: the self-rewriting agent edited
+# the weak solver's prompt to fake a result). A proposal may ONLY target a kind in
+# improvable_targets; the evaluator / eval-data / lane-config kinds in
+# protected_targets are STRUCTURALLY off-limits -- a proposal touching them is rejected
+# before it is ever scored, so the proposer can never edit the thing that judges it.
+improvable_targets = ["prompt", "skill", "config"]
+protected_targets  = ["evaluator", "eval_data", "lane_config", "selfimprove"]
+max_proposals_per_pass = 3   # cap proposals drafted per loop pass (bounded change)
 
 # ----------------------------------------------------------------------------
 # [portal] -- MiOS Portal web app (served by mios-agent-pipe at GET / on
@@ -652,6 +679,32 @@ allowlist_hosts = [
 # (RAG runs every turn -> tainting it would block all OS-control).
 provenance_taint = false
 
+# F2 / T-033 -- the CaMeL-class "Rule of Two" architectural prompt-injection defense
+# (Meta, "Agents Rule of Two"), applied as a DETERMINISTIC (not probabilistic) gate at
+# the single dispatch chokepoint. A verb dispatch may hold AT MOST TWO of three
+# dangerous properties without human review:
+#   A  untrusted-input  -- the session ingested attacker-controllable content (the
+#                          existing provenance-taint chain above);
+#   B  sensitive-access -- the verb READS sensitive/private/cross-tenant data (the
+#                          per-verb `sensitive = true` flag below);
+#   C  state-change     -- the verb mutates state / has side-effects (the verb's
+#                          `permission` tier: write/interactive, derived via the same
+#                          tier->confinement policy the sandbox uses).
+# When ALL THREE hold, the chain is the classic prompt-injection kill-chain (untrusted
+# text -> reads secrets -> exfiltrates/acts) and is gated. Composes the EXISTING taint
+# + permission signals -- no new keyword classifier. Modes:
+#   off     (default) -- the gate is NOT consulted (byte-identical behaviour).
+#   audit             -- on all-three, LOG a structured audit event + proceed
+#                        (observe before you enforce; non-blocking).
+#   enforce           -- on all-three, route to HITL review / BLOCK (fail-safe: a
+#                        3-property chain requires a human; an out-of-band approval
+#                        lets the exact action through). Composes with the firewall +
+#                        HITL gates -- the STRICTER outcome wins.
+# DEFAULT off because a 3-property block reduces autonomous function -- opt in, then
+# validate the `sensitive = true` classification for the deployment. Env override:
+# MIOS_SECURITY_RULE_OF_TWO_MODE.
+rule_of_two_mode = "off"
+
 # FED-G1 INBOUND AUTH GATE. The agent-pipe front door
 # (:8640 /v1/* + /a2a) accepts requests with NO credential today. When ON, an ASGI
 # middleware gates those paths: a request must present the canonical shared key
@@ -665,6 +718,32 @@ provenance_taint = false
 # (FED-G6/G8) enforces per-peer scope once peers are keyed.
 api_require_auth     = false
 api_caller_keys_path = "/etc/mios/ai/v1/caller-keys.json"
+
+# VERIFIED PRINCIPAL BINDING (multi-tenant security FOUNDATION). The owner used for
+# per-owner memory row-scoping (`owner_user`) is derived in _client_env from the
+# request-body `user` field + the forwarded x-openwebui-user-* HEADERS -- both
+# spoofable by a direct :8640 caller (set "user":"victim"). This setting binds that
+# owner to the AUTHENTICATED caller-key instead. Each entry in `api_caller_keys_path`
+# MAY carry an `account` field (alias `owner`) naming the account that key speaks for
+# (an `account` row in postgres/schema-init.sql). The canonical shared / ingress key
+# has NO bound account (it is the full-trust gateway credential) -> the forwarded
+# user is used as-is; that is how the OWUI gateway keeps per-user identity (OWUI
+# authenticates each user and forwards it, so the gateway is trusted to speak for
+# whichever user it forwards).
+#   off     (default) -- NO binding: trust the body/header user exactly as today
+#                        (BYTE-IDENTICAL behaviour). Single-user / trusted callers.
+#   verify            -- observe mode: resolve the caller-key's bound account; if it
+#                        MISMATCHES the body/header user, audit-log it (structured,
+#                        non-blocking) but STILL use the forwarded value (no behaviour
+#                        change -- visibility before enforcement).
+#   enforce           -- the token-bound account IS the owner: a spoofable body/header
+#                        user is overridden by the verified identity for row-scoping.
+# DEGRADE-OPEN everywhere: no token / an unbound key / a missing mapping / any error
+# -> off behaviour, so a turn is never broken and OWUI is never locked out. Pair with
+# api_require_auth = true (which actually REQUIRES a credential) for full multi-tenant
+# isolation -- binding alone identifies the owner; the gate decides who may connect.
+# Env override: MIOS_PRINCIPAL_BIND_MODE.
+principal_bind_mode  = "off"
 
 # Verbs whose dispatch is REFUSED when the session is tainted
 # (Phase A.3 / B.3 Semantic Firewall). These cause visible system
@@ -740,13 +819,15 @@ arbiter_deny       = []        # verbs the arbiter ALWAYS refuses (hard floor)
 arbiter_allow      = ""        # exclusive allow-list when non-empty (CSV); "" = no allow-list
 arbiter_block_tier = ""        # refuse verbs at/above this risk tier (read|write|interactive); "" = no tier ceiling
 arbiter_port       = 8650      # loopback port mios-policy-arbiter listens on
-# WS-A10 verified-caller principal (edge identity). principal_mode gates inbound
-# auth: "off" (default -- trust the surface-claimed user, today's behaviour) |
-# "verify" (require a valid scoped token, mios_principal) | "enforce" (verify +
-# 401 on a missing/invalid token). token_ttl_s = scoped-token lifetime. The
-# mint/verify + revocation cores (mios_principal + mios_crl) ship + are tested;
-# the inbound ASGI middleware + caller-tokens store + mTLS transport are the
-# deeper server.py/VM wiring. Env: MIOS_PRINCIPAL_MODE / MIOS_TOKEN_TTL_S.
+# WS-A10 verified-caller principal (edge identity) -- RESERVED / aspirational.
+# This scoped-token gate ("verify" = require a valid scoped token, "enforce" =
+# verify + 401) was never wired into the inbound path; its token mint/verify core
+# was removed as dead. The IMPLEMENTED inbound-principal handling lives elsewhere:
+# [security].api_require_auth (bearer gate), [security].principal_bind_mode (owner
+# binding -> RLS, in mios_grounding), and [agent_passport].principal_mode (A2A
+# federation, in mios_a2a). Leave "off" unless/until the scoped-token path is
+# built. token_ttl_s = intended scoped-token lifetime. Env: MIOS_PRINCIPAL_MODE /
+# MIOS_TOKEN_TTL_S. Revocation: mios_crl (live, used by mios_a2a key-revoke).
 principal_mode     = "off"
 token_ttl_s        = 3600
 
@@ -1247,6 +1328,40 @@ health_gate = true
 strengths   = ["mobile_local_model", "on_device", "offline_edge"]
 
 # ----------------------------------------------------------------------------
+# [blades.*] -- BLADE (machine) topology + per-blade capacity (V4/V5). A BLADE is a
+# physical MACHINE; a NODE ([nodes.*] below) is a compute unit (CPU/iGPU/dGPU/NPU +
+# engines) that lives ON a blade. This makes "nodes X, Y, Z are one machine"
+# EXPRESSIBLE (set each node's `blade =` to the SAME blade name) and gives the
+# admission gate a per-blade VRAM budget so a REMOTE node's residents are checked
+# against ITS machine's headroom, NOT the single local 24GB scalar (the "remote
+# residents vs one local VRAM scalar" bug).
+#
+# DEFAULT (this empty table + no `blade` on any node): every node belongs to the
+# LOCAL blade, whose name is the [identity].hostname SSOT and whose capacity defaults
+# to the code's VRAM_BUDGET_MB scalar + admit load ceiling -- i.e. EXACTLY today's
+# single-blade behaviour. The per-blade comparison is FLAG-GATED off by
+# [admission].multiblade_enable (operator-live-validated on a real cluster); until
+# then this is pure data.
+#
+# Per-blade fields (declare in your /etc/mios overlay alongside the remote [nodes.*]):
+#   vram_budget_mb -- total VRAM headroom on that machine (MB). Omit to inherit the
+#                     local VRAM_BUDGET_MB (degrade-open). A node co-loads only while
+#                     its blade's measured residents + the new model fit this budget.
+#   load_ceil      -- optional 1-min loadavg ceiling for the blade (the LOCAL blade
+#                     honours it; a remote blade has no local loadavg signal so it is
+#                     degrade-open / not gated until a remote-load probe exists).
+# Example (put real machine names/capacities in /etc/mios, NOT the public vendor file):
+#   [blades.workstation]            # the box this MiOS runs on; name == [identity].hostname
+#   vram_budget_mb = 23000          # OVERRIDE the local default (else inherits VRAM_BUDGET_MB)
+#   [blades.potato]                 # a second machine on the tailnet
+#   vram_budget_mb = 8000           # its smaller GPU's headroom
+#   load_ceil      = 16
+#   [blades.bigbox]
+#   vram_budget_mb = 80000          # an 80GB accelerator box
+# ...then point nodes at their blade:  [nodes.potato-dgpu] ... blade = "potato"
+[blades]
+
+# ----------------------------------------------------------------------------
 # CANONICAL WORKER + NODE POOL ("don't have separate CPU
 # 1,2,3 / dGPU 1,2,3 replicas -- there should just be a MiOS Modelfile dispatched
 # as many times as needed to ANY node(s)"). The model is ONE canonical MiOS
@@ -1366,11 +1481,13 @@ health_gate = true             # inert until mios-llm-heavy is up + reachable
 #   endpoint    = "http://<potato-tailnet>:11434/v1"
 #   model       = "mios-agent"          # the GPU brain on the potato node
 #   lane        = "gpu"
+#   blade       = "potato"              # V4: this node lives on the `potato` MACHINE
 #   health_gate = true                  # auto-join when reachable, drop when gone
 #   [nodes.potato-cpu]
 #   endpoint    = "http://<potato-tailnet>:11435/v1"
 #   model       = "mios-agent-cpu"      # the CPU twin on the potato node
 #   lane        = "cpu"
+#   blade       = "potato"              # SAME machine as potato-dgpu -> one blade budget
 #   health_gate = true
 #   [nodes.phone]
 #   endpoint    = "http://<phone-tailnet>:11434/v1"
@@ -1428,6 +1545,19 @@ gpu_watts           = 350.0     # the dGPU board power used for the energy estim
 usd_per_kwh         = 0.0       # 0 => energy tracked in Wh, local $ stays 0
 remote_usd_per_mtok = 0.0       # $/million-tokens for a remote escalation lane (WS-A16)
 budget_usd          = 0.0       # 0 => no $ ceiling (observe only)
+
+# ----------------------------------------------------------------------------
+# SEC-03 tamper-evident event-bus hash chain (mios_audit). Every `event` row is
+# linked to its predecessor by a SHA-256 chain at the single persist chokepoint, so
+# any later insert/delete/reorder/content-edit is detectable via
+# GET /v1/audit/chain/verify or the mios-chain-verify CLI. ON by default: the
+# per-event cost is a single sha256 over a small JSON string plus an in-memory cache
+# update (the chain columns ride the existing INSERT -- no extra DB round-trip, no
+# per-insert SELECT-max), and it is the integrity substrate record-replay /
+# self-improve-act / DGM build on. Degrade-open: a chaining hiccup never blocks event
+# logging. Override via MIOS_AUDIT_CHAIN_ENABLE.
+[audit]
+chain_enable = true   # link each event into the SHA-256 tamper-evidence chain
 
 # ----------------------------------------------------------------------------
 # WORKER-TOOLS reranker/priority knobs (mios_worker_tools.configure). The BM25
@@ -1499,6 +1629,93 @@ complexity_cap           = 10
 score_complexity_weight = 0.4
 score_urgency_weight    = 0.6
 score_round_ndigits     = 2
+
+# ----------------------------------------------------------------------------
+[scheduler]
+# Turn-boundary PREEMPTION (T-019 / SCHED-01) + the token-time-sliced priority QUEUE
+# (T-020 / SCHED-02) that layers on it. DISTINCT from both [sched] (which only SCORES
+# a turn's priority) and [dispatch].rr_* (which time-slices the DECODE loop WITHIN one
+# generation). This governs the agent-pipe's TURN-boundary preemption seam
+# (mios_preempt.turn_boundary): at each dispatch turn boundary the scheduler may
+# snapshot + yield a running turn to a higher-priority waiter and resume it; and the
+# token-time-sliced queue (mios_preempt.TokenSliceQueue + slice_boundary): turns
+# enqueue with a priority + a per-turn token SLICE budget, the scheduler dispatches the
+# highest-priority ready turn, and at each token-slice boundary it re-evaluates via the
+# same turn_boundary mechanism. It is the substrate later scheduler policies build on.
+# Every key below is ALSO the code's degrade-open fallback
+# (mios_preempt._SCHEDULER_FALLBACK), each EQUAL to the default here, so an
+# absent/malformed [scheduler] reproduces the default behaviour byte-for-byte. Env
+# overrides: MIOS_SCHEDULER_* (highest precedence).
+#
+# preempt_enable -- MASTER FLAG (T-019). false (DEFAULT) => the turn-boundary hook is a
+# pass-through no-op and a turn runs byte-identically (today's behaviour). true =>
+# the hook consults the PreemptScheduler at the boundary. The ON path is operator-
+# live-validated; leave it off unless load-testing preemption.
+preempt_enable = false
+# queue_enable -- MASTER FLAG (T-020) for the token-time-sliced priority queue, SEPARATE
+# from preempt_enable. false (DEFAULT) => slice_boundary is a pass-through no-op (no
+# queue interposition; turns admit/run byte-identically). true => turns are ordered by
+# priority + token-time-sliced, re-evaluating preemption at each slice boundary (which
+# additionally requires preempt_enable for the actual snapshot/yield). The ON path is
+# operator-live-validated; leave it off unless load-testing the queue.
+queue_enable = false
+# max_suspended -- mirrors PreemptScheduler(max_suspended=...): the BOUNDED number of
+# concurrently-snapshotted (preempted) turns. The snapshot-slot free-list IS the cap,
+# so a runaway fan-out can never suspend unboundedly; when full the scheduler refuses
+# to preempt and the turn runs to completion (bounded-suspension safety).
+max_suspended = 4
+# quantum_s -- the turn TIME-SLICE in seconds (the mios_preempt.Quantum limit): the
+# wall-clock bound on how long the boundary will cooperatively yield to a waiter.
+# <= 0 = unbounded (yielding is then bounded only by max_preempt_depth ticks).
+quantum_s = 8.0
+# slice_tokens -- the token-time QUANTUM (T-020): how many TOKENS a dispatched turn may
+# generate before the queue re-evaluates priority at a slice boundary. This is the
+# token-time slice (NOT wall-clock); token counts flow through the mios_tokenize seam.
+# 0 = slicing OFF (the queue degrades to pure priority ordering; no boundary re-eval).
+slice_tokens = 256
+# queue_max_turns -- BOUNDED advisory capacity of the TokenSliceQueue: the cap on
+# concurrently-tracked turns. The bound evicts only STALE ready bookkeeping (never an
+# active turn's coroutine), so the queue can never grow without limit even if a caller
+# misses a remove(). 0 = unbounded.
+queue_max_turns = 64
+# priority_levels -- number of DISCRETE priority buckets a turn's continuous [sched]
+# score may be quantised into (0 = continuous priority, the default -- no bucketing).
+# Advisory substrate knob the richer policies (T-020/T-058) consume.
+priority_levels = 0
+# max_preempt_depth -- bound on cooperative-yield ticks per boundary: how many times
+# the hook yields the event loop to a waiter before resuming (prevents a busy-wait or
+# a pathological preempt/resume cycle). 1 = yield at most once per boundary (default).
+max_preempt_depth = 1
+
+# ----------------------------------------------------------------------------
+# [admission] -- V5 multi-blade + per-tenant admission knobs. Two INDEPENDENT,
+# DEFAULT-OFF flags; each off-path is a pure no-op so admission + the priority gate
+# behave byte-identically to today's single-blade / no-quota path. The ON paths are
+# operator-live-validated (they need a real multi-blade cluster + real tenants).
+[admission]
+# multiblade_enable -- when true, the capacity-aware admission gate (_admit) compares
+# a node's measured residents against ITS [blades.*] VRAM budget (node -> blade ->
+# capacity) instead of the single LOCAL VRAM_BUDGET_MB scalar, and SKIPS the local
+# /proc/loadavg ceiling for a REMOTE blade (the local loadavg says nothing about
+# another machine). false (DEFAULT) -> the local scalar + local ceiling EXACTLY as
+# today. DEGRADE-OPEN: an unknown blade/capacity falls back to the local scalar, so
+# admission is never wedged. Requires [blades.*] + per-node `blade` to do anything
+# useful; with neither, every node is the local blade and on==off.
+multiblade_enable = false
+# tenant_quota_enable -- when true, the global priority gate gains a per-TENANT
+# (verified owner) concurrent-dispatch FAIR-SHARE so one tenant cannot hold every
+# global dispatch slot while another waits. false (DEFAULT) -> no per-tenant cap
+# (today). DISTINCT axis from [users.*] quota (mios_quota = per-user RPM/spend rate
+# budget); this is concurrent in-flight fair-share, the AIOS scheduler dimension. The
+# tenant is the V2 principal-bound owner (reused from owner_user row-scoping); a
+# system/daemon dispatch with no owner is never capped (degrade-open).
+tenant_quota_enable = false
+# tenant_max_concurrency -- max in-flight global dispatch slots ONE tenant may hold
+# while another tenant waits. 0 (DEFAULT) = unlimited (today). The cap BITES only
+# under contention; a single tenant on an idle gate is never throttled, and if every
+# waiter is one over-cap tenant the gate degrades OPEN (serves by priority) so it can
+# never wedge. Only consulted when tenant_quota_enable = true.
+tenant_max_concurrency = 0
 
 # ----------------------------------------------------------------------------
 [dispatch]
@@ -1644,9 +1861,10 @@ rerank_skip_margin   = 0.08  # if the cosine cut at the N-th slot is this separa
 # behind a `rerank_xenc` flag -- needs a downloaded GGUF + a mios-llm-light --reranking lane +
 # VRAM headroom on the shared 4090. Inert until the operator deploys it; the pure-compute
 # RRF+MMR above is the shipping default. See the P2 doc for the wiring.)
-# DEEPEN: after its primary answer a swarm node loops extra web-research + re-
-# answer passes UNTIL the judge is satisfied, hard-bounded by these. A satisfied
-# node exits at once; the deadline only bites a stubborn facet.
+# DEEPEN: after its primary answer a fast swarm node loops extra web-research +
+# re-answer passes to widen coverage, hard-bounded by the barrier + deepen_iters +
+# deepen_deadline_s. By default it runs to that bound; set deepen_early_exit below to
+# ALSO stop once the per-node Definition-of-Done judge marks the answer satisfied.
 deepen_enabled       = true
 # SATURATION SCHEDULER ("nothing in the pipeline is idle until
 # synthesis"). true -> DAG runs as a CONTINUOUS READY-QUEUE (a node dispatches the
@@ -1660,6 +1878,21 @@ deepen_deadline_s    = 60     # HARD per-node deepen cap for DEEP turns (casual 
 deepen_web_timeout_s = 20     # per-iter web-research cap so one pass can't overshoot
 # DETAIL-FILL ("also can loop to gather data in detail-fill passes"): a fast work-stealing node FETCHES new web data each deepen pass (bounded by deepen_web_timeout_s) and appends fresh stories to the shared grounding -> the loop enriches the FACTS, not just re-reasons them. Self-gates to web/news turns (a node carrying a web-capable refined plan). false = reason-only deepen (no new fetches).
 deepen_fetch         = true
+# EARLY-EXIT ON SATISFIED: when true, each deepen pass first asks the per-node DoD
+# judge whether the node's current answer already satisfies its sub-query and STOPS
+# if so -- the heaviest compute isn't spent re-answering an already-good node and the
+# freed lane lets slower nodes finish sooner. DEFAULT false (opt-in): it changes
+# behaviour (fewer deepen passes) and the judge degrades to "satisfied" on its OWN
+# internal error, so it ships operator-gated + degrade-open. When on, the judge is
+# bounded by deepen_judge_timeout_s and any timeout/error falls through to the
+# deadline-bound loop (never under-computes). Read by DEEPEN_EARLY_EXIT (env
+# MIOS_SWARM_DEEPEN_EARLY_EXIT).
+deepen_early_exit    = false
+# Per-call wall-clock cap (seconds) on the deepen DoD judge (a yes/no micro-LLM),
+# kept well under deepen_deadline_s so a slow/hung judge becomes a caught timeout ->
+# the loop continues instead of stalling a coverage pass. Only used when
+# deepen_early_exit = true. Env MIOS_SWARM_DEEPEN_JUDGE_S.
+deepen_judge_timeout_s = 6
 # ── PER-LANE / GLOBAL CONCURRENCY (SSOT'd after "HARDCODES!!!").
 # agent_concurrency = default per-lane cap; lane_concurrency_<lane> overrides ONE
 # lane. The LOCAL gpu/cpu lanes (the single SHARED 4090 + in-VM CPU) are capped
@@ -2055,6 +2288,18 @@ enable = true
 [aci]
 max_lines = 160    # cap lines per tool result (head+tail kept, middle elided); 0 = no line cap
 head_frac = 0.6    # fraction of the char/line budget kept as head; the rest is tail
+
+# ── DCI (Deliberative Collective Intelligence) deliberation flow. The agent-pipe
+# ALWAYS runs the cheap single-persona B.1 critic (post-dispatch audit trail of
+# typed epistemic acts). flow_enabled is the OPT-IN gate for the heavy 4-persona
+# convergent flow (DCI-CF): when on, a high-confidence Challenger objection from
+# the B.1 critic escalates to the full Framer/Explorer/Challenger/Integrator
+# deliberation, which can TAINT the session on unresolved dissent. DEFAULT-OFF
+# (brick-safe): deliberation changes council behaviour, so the operator opts in +
+# live-validates. Env override: MIOS_AGENT_PIPE_DCI_FLOW_ENABLED. Read by the
+# agent-pipe (mios_dci).
+[dci]
+flow_enabled = false
 
 # Anti-fabrication output figure-guard (mios_verity._strip_ungrounded_figures).
 # The guard splits an answer line into sentences so it can drop ONLY the sentence
@@ -2544,6 +2789,11 @@ fanout       = 3    # peers contacted per round (seeded -> coverage rotates)
 min_trust    = 0.0  # reject peer rumors below this reputation score (0 = accept all)
 
 [a2a]
+# A2A protocol version the published AgentCard + JSON-RPC surface conform to. SSOT
+# for mios_a2a.A2A_PROTOCOL_VERSION (env MIOS_A2A_PROTOCOL_VERSION overrides). v1.0
+# moved this into each AgentCard supportedInterfaces[] entry; it is a protocol
+# version token, declared once here, never restated in code.
+protocol_version = "1.0"
 nodes = []          # e.g. in /etc/mios: nodes = ["http://172.20.0.5:8640", "http://192.168.1.40:8640"]
 discover_cidr = ""  # e.g. "192.168.1.0/24" -> auto-sweep a LAN segment (bounded to 256 hosts)
 # SWARM Phase-4: opt discovered A2A peers INTO the concurrent
@@ -2552,6 +2802,36 @@ discover_cidr = ""  # e.g. "192.168.1.0/24" -> auto-sweep a LAN segment (bounded
 # the local pipe's own peer id, ALWAYS excluded from fan-out so it never calls itself.
 council = false
 self_id = "local-mios"
+
+# ── mDNS / Avahi A2A LAN discovery (FED-G5) — find + announce MiOS A2A peers on a
+# local segment with zero static config, complementing the explicit nodes /
+# discover_cidr lists above. Two independent, conservative-default-OFF halves
+# (usr/libexec/mios/mios-a2a-mdns), both degrade-open (no avahi / daemon down = inert):
+#   * mdns_discovery — browse mdns_service_type for peers; the resolved IP:port
+#     candidates are card-probed by mios-a2a-discover before any is trusted/written
+#     to a2a-peers.json, so a non-MiOS responder on the wire is never added blindly.
+#   * mdns_advertise — render usr/lib/mios/avahi/mios-a2a.service.in into
+#     /etc/avahi/services/ so avahi announces THIS node's A2A endpoint; toggling it
+#     off withdraws the file. The advertised port is the agent-pipe surface
+#     ([ports].agent_pipe), substituted from SSOT — never a code literal.
+# mdns_service_type is the ONE service-type SSOT both halves share. mdns_refresh_sec
+# is a FLOOR on live browses (a browse inside the window reuses the last result, so
+# discovery never loses peers); the mios-aios-refresh unit drives the actual cadence.
+mdns_discovery     = false              # browse the LAN for A2A peers (default OFF = inert)
+mdns_service_type  = "_mios-a2a._tcp"   # DNS-SD service type shared by advertise + browse
+mdns_advertise     = false              # announce THIS node's A2A endpoint via avahi (default OFF)
+mdns_refresh_sec   = 300                # minimum seconds between live mDNS browses (throttle floor)
+
+[mcp]
+# MCP (Model Context Protocol) revision MiOS DECLARES as the latest it offers on the
+# `initialize` handshake. ONE SSOT read by BOTH the CONSUMER (agent-pipe
+# mios_mcp.MCP_PROTOCOL_VERSION) and the PUBLISH server (usr/libexec/mios/mios-mcp-server
+# PROTOCOL_VERSION); env MIOS_MCP_PROTOCOL_VERSION overrides. A protocol-revision token,
+# declared once here, never restated in code. Negotiation is back-compatible: a peer or
+# client on an older revision is accepted (liberal-in) while MiOS advertises the current
+# revision out (strict-out). Transport is Streamable HTTP (current) + stdio; the
+# deprecated HTTP+SSE transport is not used.
+protocol_version = "2025-11-25"
 
 # ─── Section: Window / app launch ─────────────────────────────────────
 # ============================================================================
@@ -3065,6 +3345,7 @@ desc       = "Query the OWUI RAG knowledge COLLECTIONS (curated document corpora
 examples   = ["search the RAG knowledge collections for the deployment runbook", "what do the uploaded OWUI documents say about firewall rules", "cite the knowledge base on the SurrealDB migration", "find passages in my knowledge collections about embeddings"]
 tier = "rare"
 permission = "read"
+sensitive  = true   # Rule-of-Two property B: reads private RAG knowledge collections
 cmd        = "mios-knowledge-search --json --top-k {top_k=5} {query}{collection?--collection}"
   [verbs.knowledge_search.params.query]
   type = "string"
@@ -3557,6 +3838,7 @@ model_name = "read_file"
 examples   = ["show me the contents of /etc/hosts", "read lines 20 to 60 of server.py", "what is in my notes.txt file", "list the files in the /home/mios/projects directory"]
 tier       = "core"
 permission = "read"
+sensitive  = true   # Rule-of-Two property B: reads arbitrary on-disk files (incl. secrets/credentials)
 cmd        = "mios-text-edit view {path}{start?--start}{end?--end}"
   [verbs.text_view.params.path]
   type = "string"
@@ -3577,6 +3859,7 @@ model_name = "create_file"
 examples   = ["create a file at /home/mios/notes.txt with my meeting agenda", "make a new python script hello.py that prints hello world", "write out a README.md for this project", "save this text to a new file on disk"]
 tier = "rare"
 permission = "write"
+sandbox_profile = "workspace"   # opt-in sandbox confinement (see [dispatch].sandbox_enforce)
   [verbs.text_create.params.path]
   type = "string"
   aliases = ["file", "filename"]
@@ -3593,6 +3876,7 @@ model_name = "replace_file_text"
 examples   = ["change the port from 8642 to 8765 in config.toml", "rename the function foo to bar in utils.py", "fix the typo 'recieve' to 'receive' in README.md", "update the version string in pyproject.toml to 2.0.0"]
 tier = "rare"
 permission = "write"
+sandbox_profile = "workspace"   # opt-in sandbox confinement (see [dispatch].sandbox_enforce)
   [verbs.text_str_replace.params.path]
   type = "string"
   aliases = ["file", "filename"]
@@ -3612,6 +3896,7 @@ model_name = "insert_file_lines"
 examples   = ["add a new import line at the top of main.py", "insert a TODO comment after line 40 of server.py", "insert a new section after line 12 of notes.md", "put a shebang line at the very start of the script"]
 tier = "rare"
 permission = "write"
+sandbox_profile = "workspace"   # opt-in sandbox confinement (see [dispatch].sandbox_enforce)
   [verbs.text_insert.params.path]
   type = "string"
   aliases = ["file", "filename"]
@@ -3638,6 +3923,7 @@ examples   = ["install firefox with winget", "search flatpak for a video editor"
 # via the per-turn cosine TAIL when a query is actually package-y (install/search pkg).
 tier       = "common"
 permission = "write"
+sandbox_profile = "workspace"   # opt-in sandbox confinement (see [dispatch].sandbox_enforce)
   [verbs.pkg.params.action]
   type = "string"
   enum = ["search", "list", "show", "install", "upgrade", "uninstall", "preflight"]
@@ -3710,6 +3996,7 @@ desc = "[legacy: use pkg(action='install', backend='winget', id=...)]"
 hidden     = true
 tier = "rare"
 permission = "write"
+sandbox_profile = "workspace"   # opt-in sandbox confinement (see [dispatch].sandbox_enforce)
 cmd = "mios-winget install {id}"
   [verbs.winget_install.params.id]
   type = "string"
@@ -3722,6 +4009,7 @@ desc = "[legacy: use pkg(action='upgrade', backend='winget')]"
 hidden     = true
 tier = "rare"
 permission = "write"
+sandbox_profile = "workspace"   # opt-in sandbox confinement (see [dispatch].sandbox_enforce)
 cmd = "mios-winget upgrade{id?}"
   [verbs.winget_upgrade.params.id]
   type = "string"
@@ -3734,6 +4022,7 @@ desc = "[legacy: use pkg(action='uninstall', backend='winget', id=...)]"
 hidden     = true
 tier = "rare"
 permission = "write"
+sandbox_profile = "workspace"   # opt-in sandbox confinement (see [dispatch].sandbox_enforce)
 cmd = "mios-winget uninstall {id}"
   [verbs.winget_uninstall.params.id]
   type = "string"
@@ -3782,6 +4071,7 @@ desc = "[legacy: use pkg(action='install', backend='flatpak', id=...)]"
 hidden     = true
 tier = "rare"
 permission = "write"
+sandbox_profile = "workspace"   # opt-in sandbox confinement (see [dispatch].sandbox_enforce)
 cmd = "mios-flatpak install {id}{scope?}"
   [verbs.flatpak_install.params.id]
   type = "string"
@@ -3798,6 +4088,7 @@ desc = "[legacy: use pkg(action='upgrade', backend='flatpak')]"
 hidden     = true
 tier = "rare"
 permission = "write"
+sandbox_profile = "workspace"   # opt-in sandbox confinement (see [dispatch].sandbox_enforce)
 cmd = "mios-flatpak upgrade{id?}"
   [verbs.flatpak_upgrade.params.id]
   type = "string"
@@ -3810,6 +4101,7 @@ desc = "[legacy: use pkg(action='uninstall', backend='flatpak', id=...)]"
 hidden     = true
 tier = "rare"
 permission = "write"
+sandbox_profile = "workspace"   # opt-in sandbox confinement (see [dispatch].sandbox_enforce)
 cmd = "mios-flatpak uninstall {id}"
   [verbs.flatpak_uninstall.params.id]
   type = "string"
@@ -4106,6 +4398,7 @@ examples   = ["run this bash one-liner safely", "test this python snippet in a s
 # genuinely code-relevant via the cosine tail / a code domain); the prefetch covers math.
 tier = "rare"
 permission = "interactive"
+sandbox_profile = "strict"      # opt-in sandbox confinement, no-net (see [dispatch].sandbox_enforce)
 cmd        = "mios-coderun --code {code!} {lang?--lang} --timeout {timeout=60}"
   [verbs.coderun.params.code]
   type    = "string"
@@ -4135,6 +4428,7 @@ model_name = "run_python_tool_script"
 examples   = ["loop over these URLs and crawl each one", "chain several tools together in one script", "programmatically call web_search then summarize each result", "write code that orchestrates multiple verbs"]
 tier = "rare"
 permission = "interactive"
+sandbox_profile = "strict"      # opt-in sandbox confinement, no-net (see [dispatch].sandbox_enforce)
 cmd        = "mios-coderun-codemode --lang {lang=python} --timeout {timeout=60} --session {session?}"
   [verbs.code_mode.params.code]
   type    = "string"
@@ -4216,6 +4510,7 @@ desc       = "READ back the durable FACTS you previously stored with `remember` 
 examples   = ["what do you remember about my preferences", "recall the facts you stored for this conversation", "read back your durable memory for the global scope", "what stable facts have I told you to keep"]
 tier = "rare"
 permission = "read"
+sensitive  = true   # Rule-of-Two property B: reads durable private agent memory
 cmd        = "mios-remember list {scope?--scope} --limit {limit=30}"
   [verbs.recall.params.scope]
   type    = "string"
@@ -4267,6 +4562,7 @@ model_name = "notes_vault_list"
 examples   = ["list the skills in my notes vault", "show me what's stored in the second brain knowledge namespace", "browse the knowledge vault entries", "what nodes are in my notes vault memory namespace"]
 tier = "rare"
 permission = "read"
+sensitive  = true   # Rule-of-Two property B: reads the private notes vault / second-brain
 cmd        = "mios-viking ls {ns} {query?--query} --limit {limit=20}"
   [verbs.viking_ls.params.ns]
   type    = "string"
@@ -4290,6 +4586,7 @@ model_name = "notes_vault_read"
 examples   = ["read the full content of that notes vault node", "open knowledge/abc123 from my vault at the overview tier", "show me the l2 raw text of that second-brain entry", "give me the l1 summary of the skill node I just found"]
 tier = "rare"
 permission = "read"
+sensitive  = true   # Rule-of-Two property B: reads a private notes-vault node (incl. memory ns)
 cmd        = "mios-viking cat {node} --tier {tier=l0}"
   [verbs.viking_cat.params.node]
   type    = "string"
@@ -4311,6 +4608,7 @@ model_name = "notes_vault_search"
 examples   = ["search my notes vault for what I know about pgvector", "find second-brain entries related to the agent pipeline", "look up stored knowledge about the heavy lane in my vault", "what have I previously learned about WSLg rendering"]
 tier = "rare"
 permission = "read"
+sensitive  = true   # Rule-of-Two property B: semantic-searches the private second-brain
 cmd        = "mios-viking find {query!} {ns?--ns} --limit {limit=20}"
   [verbs.viking_find.params.query]
   type    = "string"
@@ -4355,6 +4653,7 @@ desc       = "Execute a PowerShell script on the WINDOWS side (not the Linux san
 examples   = ["run a powershell command on windows", "set a windows firewall rule via powershell", "query windows services with get-service", "run this .ps1 on the host"]
 tier       = "rare"
 permission = "write"
+sandbox_profile = "workspace"   # opt-in sandbox confinement (see [dispatch].sandbox_enforce)
   [verbs.powershell_run.params.script]
   type = "string"
   aliases = ["cmd", "command", "ps", "code"]
@@ -4778,6 +5077,71 @@ db_backend  = "postgres"
 #                       default-off recall paths) is incremental WS-5 hardening.
 #                       Safe to leave off for single-user; flip on for multi-user.
 rls_mode    = "off"
+# T-068 DB-side native Postgres Row-Level-Security ENFORCEMENT (defense-in-depth,
+# DISTINCT from rls_mode above). rls_mode is the APP-SIDE recall WHERE-filter;
+# rls_enable controls whether the agent-pipe (mios_pg) + the confined mios-pg-query
+# CLI emit a per-request `SET LOCAL mios.owner_user = <verified-principal>` (owner
+# bound as a PARAMETER, never spliced) so the schema-init.sql RLS policies enforce
+# owner isolation IN THE DATABASE -- a caller sees only its OWN rows + shared
+# (owner_user IS NULL) rows even if the app-side filter is bypassed.
+#
+# REQUIRES [security].principal_bind_mode = "enforce" FOR REAL ISOLATION. The owner
+# fed to the GUC derives from the forwarded body/header `user`, which a direct caller
+# can SPOOF; only enforce mode reconciles it against the authenticated caller-key's
+# bound account. So the agent-pipe emits SET LOCAL ONLY when rls_enable is on AND
+# principal_bind_mode = enforce -- with rls_enable on but bind-mode off/verify the
+# owner is UNVERIFIED, so NOTHING is emitted (degrade to permissive = honest, and a
+# loud one-time WARN fires) rather than DB-scoping rows on a spoofable string. Pair
+# with [security].api_require_auth = true so a credential is actually required.
+#   false (default) -- NO SET LOCAL is emitted; the GUC stays unset; the policies
+#                      stay permissive -> every statement is byte-identical to today
+#                      (single-operator behaviour; system/daemon/seeding never scoped).
+#   true            -- emit SET LOCAL ONLY for a request carrying an ENFORCE-VERIFIED
+#                      owner; owner-less internal/system/daemon connections (and any
+#                      unverified owner) emit nothing and stay permissive (degrade-open:
+#                      never locked out). Flip on -- WITH principal_bind_mode=enforce --
+#                      for a multi-tenant deployment (operator-validated against live PG).
+# Bridged to MIOS_DB_RLS_ENABLE by userenv.sh (read by mios_pg.rls_enabled).
+rls_enable  = false
+# ── connection pooling (opt-in; swarm/DAG fan-out connection-storm relief) ────
+# DEFAULT OFF: the agent-pipe (mios_pg) opens a fresh connection per query and
+# closes it -- byte-identical to the historic path. ON: a bounded pool of live
+# connections is REUSED across queries so a swarm/DAG fan-out (N concurrent nodes)
+# does not open N fresh connects. Degrade-open: pool exhaustion/error falls back to
+# a direct connect (a query never fails on the pool); a broken/dirty connection is
+# discarded, never reused, and a transaction-scoped SET LOCAL (the RLS owner GUC) is
+# rolled back on check-in so no per-request owner scope leaks across checkouts.
+#   pool_min -- connections pre-opened on first use (0 = grow purely on demand)
+#   pool_max -- hard ceiling on concurrent live connections (idle + checked-out)
+# Bridged to MIOS_PG_POOL_* by userenv.sh (read by mios_pg.pool_config).
+pool_enable = false
+pool_min    = 0
+pool_max    = 8
+# ── HNSW iterative scan (pgvector 0.8.0+): correctness for FILTERED recall ────
+# Recall fuses an HNSW cosine scan with metadata filters (the owner_user RLS
+# scoping above, emb_version hygiene, tier). A plain HNSW search collects its
+# candidate set FIRST and applies the filter AFTER, so a selective filter can
+# yield FEWER than the requested LIMIT (silent under-retrieval). iterative_scan
+# re-enters the graph and keeps searching until LIMIT is satisfied or the tuple
+# cap is reached -- exactly the RLS-filtered case this complements.
+#   off           -- legacy single search (under-returns under a selective filter)
+#   strict_order  -- iterate while preserving EXACT distance ordering (default:
+#                    recall ranking + the downstream recency re-rank stay correct)
+#   relaxed_order -- iterate with a discarded-candidate heap; marginally higher
+#                    recall at the cost of approximate ordering
+# Rendered into the mios-pgvector Exec -c flags by 15-render-quadlets.sh, so it is
+# the server-wide default every session inherits (incl. the agent-pipe recall
+# connection) with no app-side per-session SET. Env: MIOS_PG_HNSW_ITERATIVE_SCAN.
+hnsw_iterative_scan      = "strict_order"
+# Approximate upper bound on tuples visited during an iterative scan -- the cap
+# that stops a pathologically selective filter from walking the whole index.
+# pgvector default; raise for higher recall on very selective filters. Env:
+# MIOS_PG_HNSW_MAX_SCAN_TUPLES.
+hnsw_max_scan_tuples     = 20000
+# Memory budget for the relaxed_order discarded-candidate heap, as a multiple of
+# work_mem (consulted only under relaxed_order; inert under strict_order).
+# pgvector default. Env: MIOS_PG_HNSW_SCAN_MEM_MULTIPLIER.
+hnsw_scan_mem_multiplier = 1
 # ── WS-MEM-VALIDATE (OWASP ASI08) write-time memory-poisoning guard. A durable
 # knowledge fact is RECALLED later + folded into context, so an embedded
 # prompt-injection imperative / code-exfil payload persisted today can steer a
@@ -5039,11 +5403,29 @@ hitl_arbiter_fail   = "open"
 # also emits a pdp_allow event per permitted dispatch.
 pdp_audit_allow     = false
 # WS-A5 tokenizer seam: selects the token-COUNTING backend (mios_tokenize), used
-# by context-fit sizing, the OpenAI usage estimate, and history/block
-# truncation. "heuristic" (default, ~4 chars/token) is offline + zero-dep and
-# byte-identical to the legacy //4 estimate -- the only backend shipped today.
-# A vendored real tokenizer registers under its own name. Env: MIOS_TOKENIZER_BACKEND.
-tokenizer_backend   = "heuristic"
+# by context-fit sizing, the OpenAI usage object, and history/block truncation.
+#   tiktoken  (default, SHIPPED) -- EXACT OpenAI-BPE counts via the tiktoken dep
+#             installed into the agent venv; the encoding blob is baked offline at
+#             build time (tokenizer_cache_dir) so no network is touched at runtime.
+#   hf        -- a served model's OWN tokenizer.json via the `tokenizers` dep
+#             (set tokenizer_path to a vendored tokenizer.json -- most accurate
+#             per-model count).
+#   heuristic -- the zero-dep ~4-chars/token estimate (the legacy //4); pick this
+#             to drop the tokenizer dependency entirely.
+# DEGRADE-OPEN: if the selected backend's dep/asset is absent (CI, a bare/air-gapped
+# host), the agent-pipe transparently falls back to the heuristic -- the tokenizer is
+# never a hard import dependency. Env: MIOS_TOKENIZER_BACKEND.
+tokenizer_backend   = "tiktoken"
+# tiktoken encoding name (the OpenAI-BPE vocabulary). SSOT so it is never restated
+# in code; cl100k_base is the widely-cached GPT-4/3.5 encoding. Env: MIOS_TOKENIZER_ENCODING.
+tokenizer_encoding  = "cl100k_base"
+# Baked, read-only offline cache for the tiktoken encoding blob -- pre-warmed at
+# build time (38-hermes-agent.sh) so runtime needs no network. mios_tokenize points
+# TIKTOKEN_CACHE_DIR here when the process has not already set it. Env: MIOS_TOKENIZER_CACHE_DIR.
+tokenizer_cache_dir = "/usr/share/mios/tiktoken"
+# Optional path to a vendored HuggingFace tokenizer.json (only used when
+# tokenizer_backend = "hf"). Empty -> unset. Env: MIOS_TOKENIZER_PATH.
+tokenizer_path      = ""
 # WS-A1 SSOT catalog load posture. "warn" (default): the verb/recipe/agent
 # catalog loaders log + degrade to empty/partial on a parse error. "fail":
 # FAIL-LOUD -- a malformed mios.toml RAISES at agent-pipe startup so a broken
@@ -5220,6 +5602,39 @@ bake_models         = "granite4.1:8b,lfm2:700m,nomic-embed-text,mios-agent,mios-
 ram_floor_gb        = 8
 
 # ----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------
+# [ai.kv] -- llama.cpp KV-cache SERVING knobs (init-time launch flags for the
+# inference lanes). DISTINCT from [dispatch].kv_* (the agent-pipe's RUNTIME
+# save/restore/fork/GC behaviour over the /slots API): this table is about HOW a
+# llama-server lane is LAUNCHED so its KV is pageable + correct.
+#
+# RESERVED / NOT AUTO-RENDERED (forward-looking): no render path injects these values
+# into the launch yaml today -- mios-llm-light.yaml carries the --slot-save-path
+# literal DIRECTLY in each lane `cmd`. This table DOCUMENTS the canonical value so the
+# yaml + the tmpfiles dir stay in sync BY HAND, and reserves the keys for a future
+# env-render of the lane cmds; editing a value here does NOT change a running lane
+# until the yaml literal is updated to match.
+#   * slot_save_path -- the canonical --slot-save-path every chat lane should launch
+#     with, so the agent-pipe can checkpoint/restore a conversation's KV to disk (the
+#     AIOS Context Manager). MUST match the tmpfiles-declared dir (mios-llamacpp.conf)
+#     and the literal in the chat lanes of mios-llm-light.yaml (kept in sync by hand).
+#   * swa_full -- when true, append --swa-full to SWA (sliding-window-attention)
+#     model lanes so the FULL window is retained and KV checkpoint/restore stays
+#     correct across a save->restore. RESERVED, default OFF: the current chat
+#     brains (granite4.1:8b, lfm2:700m) are HYBRID/RECURRENT, not SWA, so
+#     --swa-full is MOOT for them and must NOT be added to their cmd. It is for a
+#     FUTURE Gemma / Qwen3-SWA lane that pages KV (an init-time flag). The real
+#     hybrid checkpoint-restore correctness lever is the llama.cpp BUILD VERSION
+#     (recent builds fix hybrid-recurrent restore), so the llama-swap image pin
+#     should track a recent VALIDATED build -- verify the pin; do not change it here.
+# A save->restore round-trip smoke (POST /slots/0?action=save then action=restore,
+# warn-only / degrade-open) belongs in a future llama.cpp verify script; no such
+# offline verify/migration script exists yet to extend.
+# ----------------------------------------------------------------------------
+[ai.kv]
+slot_save_path = "/var/lib/mios/llamacpp/slots"   # --slot-save-path for chat lanes (matches tmpfiles + mios-llm-light.yaml)
+swa_full       = false                            # append --swa-full to SWA lanes ONLY; OFF for the current hybrid/recurrent brains
+
 # [[ai.catalog]] -- array of model entries the mios.html dropdown
 # renders for [ai].model selection. Adding a row here adds an option
 # in the UI; build-mios.ps1's Read-Model + mios-hermes-firstboot's
@@ -6898,9 +7313,12 @@ pxe_hub_version    = "latest"
 pxe_hub            = "quay.io/poseidon/matchbox:latest"
 bib_alpine         = "docker.io/library/alpine:latest"
 # WS-9 unified agent-plane DB. pgvector/pgvector bundles the `vector` extension
-# on upstream postgres (FOSS: PostgreSQL License). pg17 = current stable.
-pgvector_version   = "pg17"
-pgvector           = "docker.io/pgvector/pgvector:pg17"
+# on upstream postgres (FOSS: PostgreSQL License). Pinned to an EXACT pgvector
+# release + PG major (NOT the floating `pgX` tag) for reproducible builds and so
+# hnsw.iterative_scan (pgvector 0.8.0+) is guaranteed present. Bump via Renovate
+# or operator; pair version+image (the tag below carries both).
+pgvector_version   = "0.8.3-pg17"
+pgvector           = "docker.io/pgvector/pgvector:0.8.3-pg17"
 # mios-llm-light lane image. The upstream llama-swap proxy (FOSS, MIT) bundles
 # llama-server + on-demand model swap. Tag carries the CUDA build; verify version.
 llm_light_version  = "cuda"
@@ -7461,6 +7879,26 @@ linux-rpm-gui   = 4
 agent-cli       = 5
 mios-shim       = 6   # shims are a last resort, never load-bearing
 service-url     = 7
+
+# ----------------------------------------------------------------------------
+# [compliance] -- OpenSCAP scan-only build gate (BOOT-02). When enabled, the
+# automation/39-oscap-compliance.sh build step runs `oscap xccdf eval` against an
+# SSG datastream and FAILS the build if any rule at/above severity_gate FAILS.
+# Scan-only: openscap-scanner + scap-security-guide are already in
+# [packages.security] (no new package). DEFAULT OFF + degrade-open: disabled means
+# the build step exits 0 and is a complete no-op. ARF + HTML reports are baked
+# under report_path (in the image, NOT /var). Remediation (oscap-im / --remediate)
+# is intentionally NOT wired: it is operator-opt-in and needs openscap-utils +
+# CentOS-shaped remediation content; leave it to a future, deliberately-enabled step.
+# ----------------------------------------------------------------------------
+[compliance]
+enabled                 = false                        # master switch (DEFAULT OFF; scan inert unless true)
+profile                 = "standard"                   # SSG profile suffix -> xccdf_org.ssgproject.content_profile_<profile>
+datastream              = ""                            # explicit datastream path; "" -> derive ssg-<os-release ID>-ds.xml from installed scap-security-guide
+severity_gate           = "high"                       # fail build on a FAILED rule at/above this severity (high>medium>low; "any" = all fails)
+remediate               = false                        # RESERVED: scan-only today; remediation (oscap-im) is a future operator-opt-in step
+fetch_remote_resources  = false                        # allow oscap to fetch remote SCAP resources (offline-safe default OFF)
+report_path             = "/usr/share/mios/compliance" # ARF + HTML report dir (baked into the image, not /var)
 
 # ----------------------------------------------------------------------------
 # [build] -- build-time tunables consumed by automation/[NN]-*.sh and
@@ -8350,6 +8788,7 @@ sig = "query, store"
 desc = "Search stored information. store='knowledge' (curated OWUI RAG document collections) or 'vault' (the local notes/skills vault)."
 tier = "common"
 permission = "read"
+sensitive = true   # Rule-of-Two property B: reads private knowledge collections / notes vault
 cmd = "if [ '{store}' = 'knowledge' ]; then mios-knowledge-search --json --top-k 5 {query}; else mios-viking search {query}; fi"
   [verbs.search_store.params.query]
   type = "string"
@@ -8363,6 +8802,7 @@ sig = "op, target?, content?"
 desc = "Manage the local second-brain vault. op='list' (ls), 'read' (cat), 'search' (find), or 'ingest' (add local file to vault)."
 tier = "common"
 permission = "read"
+sensitive = true   # Rule-of-Two property B: reads the private second-brain vault
 cmd = "if [ '{op}' = 'list' ]; then mios-viking ls; elif [ '{op}' = 'read' ]; then mios-viking cat {target}; elif [ '{op}' = 'search' ]; then mios-viking find {target}; else mios-viking ingest {target}; fi"
   [verbs.vault.params.op]
   type = "string"
@@ -8378,6 +8818,7 @@ sig = "op, fact?, query?, id?"
 desc = "Manage agent's self-directed memories/facts. op='add' (remember a new fact), 'list' (recall matching memories), 'update', or 'forget'."
 tier = "core"
 permission = "write"
+sensitive = true   # Rule-of-Two property B: op=list reads private agent memory (write-tier -> also property C)
 cmd = "if [ '{op}' = 'add' ]; then mios-memory add '{fact}'; elif [ '{op}' = 'list' ]; then mios-memory search '{query}'; elif [ '{op}' = 'update' ]; then mios-memory update {id} '{fact}'; else mios-memory forget {id}; fi"
   [verbs.memory.params.op]
   type = "string"
@@ -8425,6 +8866,7 @@ sig = "mode, code"
 desc = "Execute Python code. mode='sandbox' (safe isolated run) or 'orchestrate' (run a script that imports mios_tools to coordinate agentic sub-actions)."
 tier = "core"
 permission = "write"
+sandbox_profile = "workspace"   # opt-in sandbox confinement (see [dispatch].sandbox_enforce)
 cmd = "if [ '{mode}' = 'sandbox' ]; then mios-coderun '{code}'; else mios-code-mode '{code}'; fi"
   [verbs.run_code.params.mode]
   type = "string"
@@ -8537,6 +8979,7 @@ sig = "op, path, content?, find?, replace?"
 desc = "Edit text files on disk. op='create' (write new file), 'replace' (replace matching text), 'insert' (insert text at top/bottom)."
 tier = "core"
 permission = "write"
+sandbox_profile = "workspace"   # opt-in sandbox confinement (see [dispatch].sandbox_enforce)
 cmd = "if [ '{op}' = 'create' ]; then mios-file create '{path}' '{content}'; elif [ '{op}' = 'replace' ]; then mios-file replace '{path}' '{find}' '{replace}'; else mios-file insert '{path}' '{content}'; fi"
   [verbs.file_edit.params.op]
   type = "string"

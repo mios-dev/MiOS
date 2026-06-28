@@ -12,7 +12,8 @@
 # EXTENSION vector). Data persists under /var/lib/mios/pgvector (created +
 # chowned by usr/lib/tmpfiles.d/mios-pgvector.conf at boot). SSOT: mios.toml
 # [image.sidecars].pgvector, [ports].pgvector, [services.pgvector].{uid,gid},
-# [pgvector].{user,pass,db,data_dir}.
+# [pgvector].{user,pass,db,data_dir,hnsw_iterative_scan,hnsw_max_scan_tuples,
+# hnsw_scan_mem_multiplier}.
 
 [Unit]
 Description='MiOS' PostgreSQL + pgvector (unified agent-plane datastore, FOSS)
@@ -32,7 +33,7 @@ ConditionVirtualization=|wsl
 Pod=mios-ai-data.pod
 # Image / Port / User placeholders rendered by automation/15-render-quadlets.sh.
 # pgvector/pgvector bundles the `vector` extension on top of upstream postgres.
-Image=${MIOS_PGVECTOR_IMAGE:-docker.io/pgvector/pgvector:pg17}
+Image=${MIOS_PGVECTOR_IMAGE:-docker.io/pgvector/pgvector:0.8.3-pg17}
 ContainerName=mios-pgvector
 # Host networking: reliable localhost:5432 for the pipe
 # + mios-daemon + every MiOS AI surface, sidestepping the podman-WSL port-
@@ -68,7 +69,13 @@ Environment=PGDATA=/var/lib/postgresql/data/pgdata
 # DEGRADE-OPEN: an unrendered/empty value falls back to loopback (the safe bind).
 # Loopback still serves the host-net agent-pipe + mios-pg-query + mios-daemon
 # (all on the box) over 127.0.0.1; nothing off-box reaches it.
-Exec=postgres -c port=${MIOS_PORT_PGVECTOR:-5432} -c listen_addresses=${MIOS_PG_BIND_ADDR:-127.0.0.1}
+# HNSW iterative-scan recall correctness (pgvector 0.8.0+): set the server-wide
+# defaults from the [pgvector].hnsw_* SSOT so every session -- incl. the agent-
+# pipe recall connection -- iterates a filtered HNSW scan up to LIMIT instead of
+# silently under-returning. Custom dotted GUCs are accepted at startup as
+# placeholders and applied when pgvector loads in a session (degrade-open: an
+# unrendered/empty value falls back to the upstream-default knob inline below).
+Exec=postgres -c port=${MIOS_PORT_PGVECTOR:-5432} -c listen_addresses=${MIOS_PG_BIND_ADDR:-127.0.0.1} -c hnsw.iterative_scan=${MIOS_PG_HNSW_ITERATIVE_SCAN:-strict_order} -c hnsw.max_scan_tuples=${MIOS_PG_HNSW_MAX_SCAN_TUPLES:-20000} -c hnsw.scan_mem_multiplier=${MIOS_PG_HNSW_SCAN_MEM_MULTIPLIER:-1}
 
 # OCI labels for Podman Desktop.
 Label=org.opencontainers.image.title=mios-pgvector

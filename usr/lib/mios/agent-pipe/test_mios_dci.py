@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # AI-hint: Standalone assert-script unit test for mios_dci (refactor R6 DCI extraction). Pure stdlib, no server.py/DB/httpx-network/pytest. Pins the DCI epistemic-act vocabulary + structured-output contract the whole deliberation layer rests on: _DCI_ACTS is the 14-act 6-family table, _DCI_ACT_NAMES is its sorted key list and is also the act-enum inside _DCI_ACT_SCHEMA (required = act/content/confidence), the four persona system prompts + _persona_prompt builder are non-empty and list only their allowed acts, _PERSONA_ALLOWED_ACTS partitions the families, and configure() injects the server-side _db_*/auth helpers. One flow-control assertion drives run_dci_flow with a stubbed _dci_call_persona + injected no-op DB helpers (no network) to prove convergence/decision/dissent bookkeeping. Guards the extracted DCI layer against silent vocab/schema/flow drift.
 # AI-related: ./mios_dci.py
-# AI-functions: check, t_acts, t_schema, t_personas, t_persona_prompt, t_configure, t_flow, t_dissent_threshold_ssot, main
+# AI-functions: check, t_acts, t_schema, t_personas, t_persona_prompt, t_configure, t_flow, t_dissent_threshold_ssot, t_dissent_acts_ssot, t_act_type_emitted, t_flow_gate, main
 """Unit tests for mios_dci (refactor R6)."""
 
 import asyncio
@@ -169,6 +169,116 @@ def t_dissent_threshold_ssot():
         e.DCI_FLOW_TRIGGER_CONF = orig_conf
 
 
+def t_dissent_acts_ssot():
+    """T-029 NO-HARDCODE: the dissent/objection act set is DERIVED from the
+    persona-allowed SSOT (the Challenger's acts), not a restated ("challenge",
+    "ask") literal -- so it tracks the vocabulary if the persona changes."""
+    check("dissent-acts: derived from the challenger persona SSOT",
+          set(e._DCI_DISSENT_ACTS) == set(e._PERSONA_ALLOWED_ACTS["challenger"]))
+    check("dissent-acts: every member is a real act",
+          all(a in e._DCI_ACTS for a in e._DCI_DISSENT_ACTS))
+    check("dissent-acts: non-empty", len(e._DCI_DISSENT_ACTS) >= 1)
+
+
+def t_act_type_emitted():
+    """T-028: every DCI act event carries a top-level `act_type` column (not only
+    the JSONB payload), so dissent + per-act analytics are first-class queryable.
+    Capture the event rows _db_create builds while run_dci_flow executes (stubbed
+    persona calls, no network) and assert act_type is set + matches the act on the
+    dci_act rows AND on the unresolved-Challenger dissent row."""
+    canned = {
+        "framer":     {"act": "frame",     "family": "orienting",  "confidence": 0.5},
+        "explorer":   {"act": "propose",   "family": "generative", "confidence": 0.5},
+        "challenger": {"act": "challenge", "family": "critical",   "confidence": 0.9},
+        "integrator": {"act": "recommend", "family": "decisional", "confidence": 0.8},
+    }
+
+    async def stub_call(persona_name, system_prompt, user_text, workspace):
+        base = dict(canned[persona_name])
+        base["persona"] = persona_name
+        base["content"] = f"{persona_name} says hi"
+        return base
+
+    captured = []
+
+    def cap_create(table, fields, now_fields=None):
+        captured.append((table, dict(fields)))
+        return f"SQL:{table}"
+
+    async def cap_post(sql, *, timeout=3.0):
+        return None
+
+    def cap_fire(coro):
+        try:
+            coro.close()
+        except Exception:
+            pass
+
+    orig_call = e._dci_call_persona
+    orig_create, orig_post, orig_fire = e._db_create, e._db_post, e._db_fire
+    e._dci_call_persona = stub_call
+    e._db_create, e._db_post, e._db_fire = cap_create, cap_post, cap_fire
+    try:
+        asyncio.run(e.run_dci_flow("decide X", {}, session_id="sess-test"))
+    finally:
+        e._dci_call_persona = orig_call
+        e._db_create, e._db_post, e._db_fire = orig_create, orig_post, orig_fire
+
+    events = [f for (t, f) in captured if t == "event"]
+    dci_acts = [f for f in events if f.get("kind") == "dci_act"]
+    dissents = [f for f in events if f.get("kind") == "dissent"]
+    check("act_type: dci_act events were emitted", len(dci_acts) >= 1, str(len(dci_acts)))
+    check("act_type: every dci_act row has a top-level act_type",
+          bool(dci_acts) and all(f.get("act_type") for f in dci_acts))
+    check("act_type: top-level act_type mirrors the payload act",
+          all(f.get("act_type") == (f.get("payload") or {}).get("act") for f in dci_acts))
+    check("act_type: the Challenger act surfaced as act_type=challenge",
+          any(f.get("act_type") == "challenge" for f in dci_acts))
+    check("act_type: dissent event recorded (Challenger dissent)",
+          len(dissents) == 1, str(len(dissents)))
+    check("act_type: dissent row carries act_type (first-class dissent)",
+          bool(dissents) and all(f.get("act_type") == "challenge" for f in dissents))
+
+
+def t_flow_gate():
+    """T-029: the heavy B.2 convergent flow is GATED on DCI_FLOW_ENABLED. With a
+    high-confidence Challenger objection from the (stubbed) B.1 critic:
+      - default / disabled -> run_dci_flow is NOT invoked (no-op B.2);
+      - flow enabled       -> run_dci_flow IS invoked.
+    Stubs the critic + the flow so nothing hits the network or the DB."""
+    async def stub_critic(user_text, envelope, *, session_id=None):
+        return {"act": "challenge", "confidence": 0.9, "content": "weak evidence"}
+
+    flow_calls = []
+
+    async def stub_flow(user_text, envelope, *, session_id=None, r_max=None):
+        flow_calls.append(r_max)
+        return {"dissents": [], "rounds_used": 0}
+
+    orig_critic = e.dci_critic_pass
+    orig_flow = e.run_dci_flow
+    orig_enabled = e.DCI_ENABLED
+    orig_flow_enabled = e.DCI_FLOW_ENABLED
+    e.dci_critic_pass = stub_critic
+    e.run_dci_flow = stub_flow
+    e.DCI_ENABLED = True
+    try:
+        # Default / disabled -> the cheap B.1 critic still runs, but no B.2 flow.
+        e.DCI_FLOW_ENABLED = False
+        asyncio.run(e.critic_then_maybe_flow("t", {}, session_id="s1"))
+        check("flow-gate: disabled -> run_dci_flow NOT called (no-op B.2)",
+              flow_calls == [], str(flow_calls))
+        # Enabled -> the high-confidence objection escalates to the 4-persona flow.
+        e.DCI_FLOW_ENABLED = True
+        asyncio.run(e.critic_then_maybe_flow("t", {}, session_id="s1"))
+        check("flow-gate: enabled -> run_dci_flow invoked", len(flow_calls) == 1, str(flow_calls))
+    finally:
+        e.dci_critic_pass = orig_critic
+        e.run_dci_flow = orig_flow
+        e.DCI_ENABLED = orig_enabled
+        e.DCI_FLOW_ENABLED = orig_flow_enabled
+
+
 def main():
     t_acts()
     t_schema()
@@ -177,6 +287,9 @@ def main():
     t_configure()
     t_flow()
     t_dissent_threshold_ssot()
+    t_dissent_acts_ssot()
+    t_act_type_emitted()
+    t_flow_gate()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
 

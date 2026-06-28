@@ -324,6 +324,35 @@
     color: var(--muted); font-size: 10.5px; line-height: 1.35;
     font-family: var(--mono);
   }
+
+  /* ── Tabbed navigation ──────────────────────────────────────────────
+     buildTabs() (script, runs at boot) reparents the existing zones +
+     advanced <details> sections into these panels by id, then hides the
+     original .zones / .admin-wrap shells. Degrade-open: if the script
+     never runs, the original content stays visible and these rules are
+     inert (no .tabpanel elements exist). */
+  .tabbar {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    margin: 4px 0 18px; padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .tabbar button {
+    background: color-mix(in srgb, var(--panel) 55%, transparent);
+    border: 1px solid var(--border); color: var(--muted);
+    padding: 7px 15px; border-radius: 999px; cursor: pointer;
+    font: 600 12.5px var(--sans); letter-spacing: .2px;
+    transition: border-color .15s, color .15s, background .15s;
+  }
+  .tabbar button:hover { border-color: var(--accent); color: var(--accent); }
+  .tabbar button.active {
+    background: var(--accent); color: #0e1116; border-color: var(--accent);
+  }
+  .tabbar button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .tabpanel { display: none; }
+  .tabpanel.active { display: block; animation: tabfade .18s ease; }
+  @keyframes tabfade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  /* In a tab panel the zones sit full-width (their .zones grid is gone). */
+  .tabpanel > .zone { margin-bottom: 16px; }
 </style>
 </head>
 <body>
@@ -339,6 +368,12 @@
   </div>
 </header>
 <div id="path-banner" class="status info" style="display:none"></div>
+
+<!-- Tabbed section navigation. buildTabs() (script, at boot) fills this bar
+     and reparents the zones + advanced sections below into per-tab panels;
+     if the script never runs, the original layout below stays visible. -->
+<nav class="tabbar" id="tabbar" role="tablist" aria-label="Configuration sections"></nav>
+<div id="tabhost"></div>
 
 <!--
   Layout: three top-down zones for non-technical users.
@@ -598,6 +633,8 @@
             <input type="text" id="f-node-dgpu-api" data-key="nodes.local-dgpu.api" placeholder="openai">
             <label for="f-node-dgpu-hg">health_gate (probe + auto-join/drop)</label>
             <input type="text" id="f-node-dgpu-hg" data-key="nodes.local-dgpu.health_gate" data-type="bool" placeholder="true">
+            <label for="f-node-dgpu-blade">blade (machine this node lives on; empty = the local blade = [identity].hostname)</label>
+            <input type="text" id="f-node-dgpu-blade" data-key="nodes.local-dgpu.blade" placeholder="(empty — local blade)">
           </fieldset>
           <fieldset>
             <legend>[nodes.local-cpu] — CPU node</legend>
@@ -611,6 +648,8 @@
             <input type="text" id="f-node-cpu-api" data-key="nodes.local-cpu.api" placeholder="openai">
             <label for="f-node-cpu-hg">health_gate</label>
             <input type="text" id="f-node-cpu-hg" data-key="nodes.local-cpu.health_gate" data-type="bool" placeholder="true">
+            <label for="f-node-cpu-blade">blade (machine this node lives on; empty = the local blade = [identity].hostname)</label>
+            <input type="text" id="f-node-cpu-blade" data-key="nodes.local-cpu.blade" placeholder="(empty — local blade)">
           </fieldset>
           <fieldset>
             <legend>[nodes.local-igpu] — integrated GPU node</legend>
@@ -627,6 +666,8 @@
             <input type="text" id="f-node-igpu-lane" data-key="nodes.local-igpu.lane" placeholder="igpu">
             <label for="f-node-igpu-api">api</label>
             <input type="text" id="f-node-igpu-api" data-key="nodes.local-igpu.api" placeholder="llamacpp">
+            <label for="f-node-igpu-blade">blade (machine this node lives on; empty = the local blade = [identity].hostname)</label>
+            <input type="text" id="f-node-igpu-blade" data-key="nodes.local-igpu.blade" placeholder="(empty — local blade)">
           </fieldset>
           <fieldset>
             <legend>[nodes.local-vllm] — heavy vLLM lane</legend>
@@ -640,6 +681,8 @@
             <input type="text" id="f-node-vllm-api" data-key="nodes.local-vllm.api" placeholder="openai">
             <label for="f-node-vllm-hg">health_gate (inert until the gated lane is enabled + reachable)</label>
             <input type="text" id="f-node-vllm-hg" data-key="nodes.local-vllm.health_gate" data-type="bool" placeholder="true">
+            <label for="f-node-vllm-blade">blade (machine this node lives on; empty = the local blade = [identity].hostname)</label>
+            <input type="text" id="f-node-vllm-blade" data-key="nodes.local-vllm.blade" placeholder="(empty — local blade)">
           </fieldset>
           <fieldset>
             <legend>[nodes.local-sglang] — heavy SGLang lane</legend>
@@ -653,6 +696,8 @@
             <input type="text" id="f-node-sglang-api" data-key="nodes.local-sglang.api" placeholder="openai">
             <label for="f-node-sglang-hg">health_gate</label>
             <input type="text" id="f-node-sglang-hg" data-key="nodes.local-sglang.health_gate" data-type="bool" placeholder="true">
+            <label for="f-node-sglang-blade">blade (machine this node lives on; empty = the local blade = [identity].hostname)</label>
+            <input type="text" id="f-node-sglang-blade" data-key="nodes.local-sglang.blade" placeholder="(empty — local blade)">
           </fieldset>
           <fieldset>
             <legend>[nodes.local-llamaswap] — llama.cpp multi-model lane</legend>
@@ -666,6 +711,8 @@
             <input type="text" id="f-node-ls-api" data-key="nodes.local-llamaswap.api" placeholder="openai">
             <label for="f-node-ls-hg">health_gate</label>
             <input type="text" id="f-node-ls-hg" data-key="nodes.local-llamaswap.health_gate" data-type="bool" placeholder="true">
+            <label for="f-node-ls-blade">blade (machine this node lives on; empty = the local blade = [identity].hostname)</label>
+            <input type="text" id="f-node-ls-blade" data-key="nodes.local-llamaswap.blade" placeholder="(empty — local blade)">
           </fieldset>
         </div>
         <fieldset style="grid-column: 1 / -1; margin-top: 4px;">
@@ -695,6 +742,30 @@
   lane        = "gpu"
   api          = "ollama"         # or openai / vllm / sglang / llamacpp
   health_gate = true</pre>
+        </fieldset>
+        <fieldset style="grid-column: 1 / -1; margin-top: 4px;">
+          <legend>[blades.&lt;name&gt;] — per-machine capacity (overlay template) · [admission] gates</legend>
+          <p style="color: var(--muted); font-size: 11.5px; margin: 0 0 8px;">
+            A <b>blade</b> is a physical machine; the per-node <code>blade =</code>
+            field added to each node above says WHICH machine that node lives on
+            (empty = the local blade, named by <code>[identity].hostname</code>).
+            Declare per-blade capacity in your <code>/etc/mios</code> overlay so a
+            REMOTE node's residents are checked against ITS machine's VRAM headroom,
+            not the single local scalar. The <code>[blades]</code> table ships EMPTY
+            (every node = the local blade = today's single-blade behaviour); the
+            per-blade comparison is flag-gated by <code>multiblade_enable</code> below.
+            Example:
+          </p>
+          <pre class="raw" style="max-height:none">  # per-machine capacity (overlay; real names/capacities stay out of the vendor file)
+  [blades.&lt;name&gt;]
+  vram_budget_mb = 23000   # total VRAM headroom on that machine (MB); omit = inherit local
+  load_ceil      = 16      # optional 1-min loadavg ceiling (the LOCAL blade honours it)</pre>
+          <label for="f-adm-multiblade">[admission].multiblade_enable (compare a node's residents against its blade's VRAM budget; default-off = the single local scalar + local ceiling, byte-identical to today)</label>
+          <input type="text" id="f-adm-multiblade" data-key="admission.multiblade_enable" data-type="bool" placeholder="false">
+          <label for="f-adm-tenant-quota">[admission].tenant_quota_enable (per-tenant concurrent-dispatch fair-share so one tenant cannot hold every global dispatch slot while another waits)</label>
+          <input type="text" id="f-adm-tenant-quota" data-key="admission.tenant_quota_enable" data-type="bool" placeholder="false">
+          <label for="f-adm-tenant-max">[admission].tenant_max_concurrency (max in-flight global slots ONE tenant may hold under contention; 0 = unlimited; only consulted when tenant_quota_enable = true)</label>
+          <input type="text" id="f-adm-tenant-max" data-key="admission.tenant_max_concurrency" data-type="int" placeholder="0">
         </fieldset>
       </div>
     </details>
@@ -743,6 +814,47 @@
   # email        = "guest@example.com"   # also match by forwarded email
   # rpm_limit    = 60               # cap verb dispatches per 60s
   # daily_budget = 5.0              # cap remote-lane spend per 24h</pre>
+          </fieldset>
+          <fieldset>
+            <legend>[portal] — MiOS Portal login (served at GET / on the agent-pipe)</legend>
+            <p style="color: var(--muted); font-size: 11.5px; margin: 0 0 8px;">
+              Login gates the Portal UI + its <code>/portal/*</code> data endpoints; the
+              <code>/v1</code> OpenAI API, <code>/a2a</code> and <code>/health</code> stay
+              open programmatic surfaces. User / password empty = inherit
+              <code>[identity]</code> (the localhost / Linux-native operator).
+            </p>
+            <label for="f-portal-login">require_login (false ONLY behind a reverse proxy that already authenticates)</label>
+            <input type="text" id="f-portal-login" data-key="portal.require_login" data-type="bool" placeholder="true">
+            <label for="f-portal-user">user (empty = inherit [identity].username)</label>
+            <input type="text" id="f-portal-user" data-key="portal.user" placeholder="(inherits mios)">
+            <label for="f-portal-pass">password (empty = inherit [identity].default_password)</label>
+            <input type="text" id="f-portal-pass" data-key="portal.password" placeholder="(inherits mios)">
+            <label for="f-portal-ttl">session_ttl (signed-cookie lifetime, seconds)</label>
+            <input type="text" id="f-portal-ttl" data-key="portal.session_ttl" data-type="int" placeholder="604800">
+            <label for="f-portal-secret">secret (empty = derive the cookie-HMAC key from the password)</label>
+            <input type="text" id="f-portal-secret" data-key="portal.secret" placeholder="(empty — derive from password)">
+          </fieldset>
+          <fieldset>
+            <legend>[accounts.&lt;name&gt;] — DB-backed multi-tenant accounts (overlay template)</legend>
+            <p style="color: var(--muted); font-size: 11.5px; margin: 0 0 8px;">
+              Every request is owned by an ACCOUNT — a human user or a system/service
+              tenant. Account rows live in the PostgreSQL <code>account</code> table
+              (<code>postgres/schema-init.sql</code>); the owner-scoped tables
+              (knowledge / agent_memory / scratch) carry <code>owner_user</code>, linked
+              by the convention <code>owner_user == account.name</code>. Vendor declares
+              NO account here — rows are SEEDED from the host <code>[identity]</code> (the
+              localhost / Linux-native user) PLUS every distinct <code>owner_user</code>
+              already on an owned row, so the operator singleton is never restated. Add a
+              REMOTE / extra tenant in your <code>/etc/mios</code> overlay; the per-request
+              owner is the principal the surface forwards (verified under
+              <code>[security].principal_bind_mode = enforce</code>, DB-isolated by
+              <code>[pgvector].rls_enable</code> — both in the Governance tab):
+            </p>
+            <pre class="raw" style="max-height:none">  # a second tenant (overlay) — also seeded as an `account` row in postgres
+  [accounts.alice]
+  #   owner_user == account.name links the owned rows (knowledge / agent_memory / scratch)
+  #   per-user tool ceilings + rate/spend quotas are the [users.&lt;name&gt;] table above
+  #   FUTURE account-model knobs live under this table; vendor declares none today</pre>
           </fieldset>
         </div>
       </div>
@@ -977,6 +1089,21 @@
   key_id          = "mios-ap-1"
   signing_key_path = "/etc/mios/agent-passport/ed25519.key"</pre>
           </fieldset>
+          <fieldset>
+            <legend>[a2a] mDNS LAN discovery · [mcp] protocol revision</legend>
+            <p style="color: var(--muted); font-size: 11px; margin: 4px 0 8px;">
+              Zero-config peer discovery on a local segment (both halves default OFF +
+              degrade-open: no avahi = inert), and the MCP revision MiOS declares on the
+              <code>initialize</code> handshake (one SSOT for both the consumer and the
+              publish server; negotiation is back-compatible).
+            </p>
+            <label for="f-a2a-mdns-disc">a2a.mdns_discovery (browse the LAN for A2A peers; each candidate is card-probed before it is trusted)</label>
+            <input type="text" id="f-a2a-mdns-disc" data-key="a2a.mdns_discovery" data-type="bool" placeholder="false">
+            <label for="f-a2a-mdns-adv">a2a.mdns_advertise (announce THIS node's A2A endpoint via avahi)</label>
+            <input type="text" id="f-a2a-mdns-adv" data-key="a2a.mdns_advertise" data-type="bool" placeholder="false">
+            <label for="f-mcp-proto">mcp.protocol_version (MCP revision token declared on the initialize handshake)</label>
+            <input type="text" id="f-mcp-proto" data-key="mcp.protocol_version" placeholder="2025-11-25">
+          </fieldset>
         </div>
       </div>
     </details>
@@ -1071,6 +1198,48 @@
           <label for="f-ai-key">api_key (empty for localhost)</label>
           <input type="text" id="f-ai-key" data-key="ai.api_key" placeholder="">
         </fieldset>
+        <fieldset style="grid-column: 1 / -1;">
+          <legend>[ai.kv] — KV checkpoint / restore (AIOS Context Manager)</legend>
+          <p style="color: var(--muted); font-size: 11px; margin: 4px 0 8px;">
+            Canonical values the chat lanes launch with so a conversation's KV-cache can
+            be checkpointed/restored to disk. Documented here as SSOT; the launch yaml
+            carries the matching literal (kept in sync by hand — editing here does not
+            change a running lane until the yaml matches).
+          </p>
+          <label for="f-aikv-path">slot_save_path (--slot-save-path; must match the tmpfiles dir + the lane cmd)</label>
+          <input type="text" id="f-aikv-path" data-key="ai.kv.slot_save_path" placeholder="/var/lib/mios/llamacpp/slots">
+          <label for="f-aikv-swa">swa_full (append --swa-full to SWA lanes ONLY; OFF for the current hybrid/recurrent brains)</label>
+          <input type="text" id="f-aikv-swa" data-key="ai.kv.swa_full" data-type="bool" placeholder="false">
+        </fieldset>
+        <fieldset style="grid-column: 1 / -1;">
+          <legend>[ai] — agent behavior · ask-to-run / clarify · routing</legend>
+          <p style="color: var(--muted); font-size: 11px; margin: 4px 0 8px;">
+            How the orchestrator behaves before it answers: reasoning effort, the
+            ask-before-acting posture (propose a high-tier action / clarify an ambiguous
+            request), and whether it may escalate to a heavier or remote lane. Placeholders
+            are the SSOT defaults.
+          </p>
+          <label for="f-ai-effort">effort (reasoning-effort ceiling; default shown)</label>
+          <input type="text" id="f-ai-effort" data-key="ai.effort" placeholder="max">
+          <label for="f-ai-heavy-engine">heavy_engine (preferred gated heavy lane: sglang | vllm)</label>
+          <input type="text" id="f-ai-heavy-engine" data-key="ai.heavy_engine" placeholder="sglang">
+          <label for="f-ai-ask-run">ask_to_run (propose a high-tier action, then wait for a yes before dispatching)</label>
+          <input type="text" id="f-ai-ask-run" data-key="ai.ask_to_run" data-type="bool" placeholder="true">
+          <label for="f-ai-ask-run-ttl">ask_to_run_ttl_s (per-action approval-bypass window after a yes, seconds)</label>
+          <input type="text" id="f-ai-ask-run-ttl" data-key="ai.ask_to_run_ttl_s" data-type="int" placeholder="1800">
+          <label for="f-ai-ask-clarify">ask_clarify (ask a clarifying question when a request is ambiguous)</label>
+          <input type="text" id="f-ai-ask-clarify" data-key="ai.ask_clarify" data-type="bool" placeholder="true">
+          <label for="f-ai-hitl-mode">hitl_mode (ask/approve posture for high-tier verbs; default shown)</label>
+          <input type="text" id="f-ai-hitl-mode" data-key="ai.hitl_mode" placeholder="block">
+          <label for="f-ai-hitl-thr">hitl_threshold (risk tier at/above which to ask; default shown)</label>
+          <input type="text" id="f-ai-hitl-thr" data-key="ai.hitl_threshold" placeholder="interactive">
+          <label for="f-ai-remote-esc">remote_escalation (allow escalating to a paid / remote lane; default off)</label>
+          <input type="text" id="f-ai-remote-esc" data-key="ai.remote_escalation" placeholder="off">
+          <label for="f-ai-smartroute">smartroute_enable (model-picked lane routing by difficulty / cost)</label>
+          <input type="text" id="f-ai-smartroute" data-key="ai.smartroute_enable" data-type="bool" placeholder="false">
+          <label for="f-ai-tokbackend">tokenizer_backend (token-accounting backend; default shown)</label>
+          <input type="text" id="f-ai-tokbackend" data-key="ai.tokenizer_backend" placeholder="tiktoken">
+        </fieldset>
       </div>
     </details>
 
@@ -1139,6 +1308,59 @@
                aria-label="Preset color palettes">
           </div>
         </fieldset>
+      </div>
+    </details>
+
+    <details class="section" id="adv-personalization">
+      <summary>Personalization · appearance · graphics · branding <span class="phase-badge">Look &amp; feel</span></summary>
+      <div class="section-body">
+        <p style="color: var(--muted); font-size: 12px; margin: 0 0 12px;">
+          Desktop look-and-feel applied globally: the GTK / libadwaita theme + cursor,
+          the WSLg-aware GTK4 render path every flatpak inherits, and the MiOS brand
+          strings + logo assets. Terminal colours + the palette presets live in the
+          Personal tab.
+        </p>
+        <div class="grid">
+          <fieldset>
+            <legend>[appearance] — GTK / libadwaita theme + cursor</legend>
+            <label for="f-app-gtk">gtk_theme (GTK3 + libadwaita color-scheme target)</label>
+            <input type="text" id="f-app-gtk" data-key="appearance.gtk_theme" placeholder="adw-gtk3-dark">
+            <label for="f-app-adw">adw_color_scheme (ADW color-scheme for libadwaita apps)</label>
+            <input type="text" id="f-app-adw" data-key="appearance.adw_color_scheme" placeholder="prefer-dark">
+            <label for="f-app-cursor">cursor_theme (XCURSOR_THEME; matches /usr/share/icons/)</label>
+            <input type="text" id="f-app-cursor" data-key="appearance.cursor_theme" placeholder="Bibata-Modern-Classic">
+            <label for="f-app-cursor-size">cursor_size (XCURSOR_SIZE)</label>
+            <input type="text" id="f-app-cursor-size" data-key="appearance.cursor_size" data-type="int" placeholder="24">
+          </fieldset>
+          <fieldset>
+            <legend>[graphics] — WSLg-aware GTK4 render path (global flatpak overrides)</legend>
+            <p style="color: var(--muted); font-size: 11px; margin: 4px 0 8px;">
+              Forces every flatpak GUI through the render path that works on WSLg. If a
+              GTK4 app misrenders, fall back to <code>gsk_renderer = "cairo"</code>.
+            </p>
+            <label for="f-gfx-renderer">gsk_renderer (modern GTK4 node-GL renderer; cairo = legacy fallback)</label>
+            <input type="text" id="f-gfx-renderer" data-key="graphics.gsk_renderer" placeholder="ngl">
+            <label for="f-gfx-swgl">force_software_gl (false = real hardware GL via /dev/dri)</label>
+            <input type="text" id="f-gfx-swgl" data-key="graphics.force_software_gl" data-type="bool" placeholder="false">
+            <label for="f-gfx-vulkan">disable_vulkan (GDK_VULKAN_DISABLE=1; WSLg Vulkan still flaky)</label>
+            <input type="text" id="f-gfx-vulkan" data-key="graphics.disable_vulkan" data-type="bool" placeholder="true">
+            <label for="f-gfx-backend">gdk_backend (x11 = route flatpak GTK through XWayland)</label>
+            <input type="text" id="f-gfx-backend" data-key="graphics.gdk_backend" placeholder="x11">
+          </fieldset>
+          <fieldset>
+            <legend>[branding] — brand strings + logo assets</legend>
+            <label for="f-brand-tagline">tagline (short brand line)</label>
+            <input type="text" id="f-brand-tagline" data-key="branding.tagline" placeholder="My Personal Operating System">
+            <label for="f-brand-tagline-app">tagline_app (in-app brand line)</label>
+            <input type="text" id="f-brand-tagline-app" data-key="branding.tagline_app" placeholder="My Personal Operating System">
+            <label for="f-brand-logo-ascii">logo_ascii (fastfetch ASCII logo path)</label>
+            <input type="text" id="f-brand-logo-ascii" data-key="branding.logo_ascii" placeholder="fastfetch/mios.txt">
+            <label for="f-brand-logo-image">logo_image (brand logo image path)</label>
+            <input type="text" id="f-brand-logo-image" data-key="branding.logo_image" placeholder="branding/mios-logo.png">
+            <label for="f-brand-icon">icon_ico (Windows icon path)</label>
+            <input type="text" id="f-brand-icon" data-key="branding.icon_ico" placeholder="branding/mios.ico">
+          </fieldset>
+        </div>
       </div>
     </details>
 
@@ -1660,6 +1882,23 @@
         <label for="f-pg-rls">rls_mode (off | enforce)</label>
         <input type="text" id="f-pg-rls" data-key="pgvector.rls_mode" placeholder="off">
       </fieldset>
+      <fieldset>
+        <legend>pgvector — connection pooling + filtered-recall scan</legend>
+        <p style="color: var(--muted); font-size: 11px; margin: 4px 0 8px;">
+          Pooling is opt-in swarm/DAG connection-storm relief (degrade-open: a pool
+          error falls back to a direct connect, so a query never fails on the pool).
+          The HNSW iterative scan keeps a metadata-filtered recall (owner RLS /
+          emb_version / tier) from silently returning fewer than the requested LIMIT.
+          DB-side RLS enforcement lives in the Governance &middot; Security gates above
+          (<code>rls_enable</code>).
+        </p>
+        <label for="f-pg-pool-enable">pool_enable (reuse a bounded pool of live connections across queries)</label>
+        <input type="text" id="f-pg-pool-enable" data-key="pgvector.pool_enable" data-type="bool" placeholder="false">
+        <label for="f-pg-pool-max">pool_max (hard ceiling on concurrent live connections; idle + checked-out)</label>
+        <input type="text" id="f-pg-pool-max" data-key="pgvector.pool_max" data-type="int" placeholder="8">
+        <label for="f-pg-hnsw">hnsw_iterative_scan (off · strict_order = iterate, exact distance order · relaxed_order = higher recall, approximate order)</label>
+        <input type="text" id="f-pg-hnsw" data-key="pgvector.hnsw_iterative_scan" placeholder="strict_order">
+      </fieldset>
     </div>
   </div>
 </details>
@@ -1696,6 +1935,20 @@
         <input type="text" id="f-build-rechunk" data-key="build.rechunk_max_layers" data-type="int" placeholder="67">
         <label for="f-build-ram-floor">ai_ram_floor_gb (informational)</label>
         <input type="text" id="f-build-ram-floor" data-key="build.ai_ram_floor_gb" data-type="int" placeholder="12">
+      </fieldset>
+      <fieldset>
+        <legend>[compliance] — OpenSCAP scan-only build gate (default-OFF)</legend>
+        <p style="color: var(--muted); font-size: 11px; margin: 4px 0 8px;">
+          When enabled, the build step runs <code>oscap xccdf eval</code> against an SSG
+          datastream and FAILS the build on any rule at/above <code>severity_gate</code>.
+          Scan-only + degrade-open: disabled is a complete no-op (the build step exits 0).
+        </p>
+        <label for="f-comp-enabled">enabled (master switch; scan inert unless true)</label>
+        <input type="text" id="f-comp-enabled" data-key="compliance.enabled" data-type="bool" placeholder="false">
+        <label for="f-comp-profile">profile (SSG profile suffix → xccdf_org.ssgproject.content_profile_&lt;profile&gt;)</label>
+        <input type="text" id="f-comp-profile" data-key="compliance.profile" placeholder="standard">
+        <label for="f-comp-sev">severity_gate (fail on a FAILED rule at/above this: high &gt; medium &gt; low; "any" = all fails)</label>
+        <input type="text" id="f-comp-sev" data-key="compliance.severity_gate" placeholder="high">
       </fieldset>
     </div>
   </div>
@@ -2007,6 +2260,82 @@
           The GOAP action model (<code>[[goap.actions]]</code>) is an
           array-of-tables edited in the TOML directly.
         </p>
+      </fieldset>
+      <fieldset>
+        <legend>Security gates — prompt-injection + tenant isolation (all default-OFF)</legend>
+        <p style="color: var(--muted); font-size: 11px; margin: 4px 0 8px;">
+          Deterministic dispatch-chokepoint gates. Each ships OFF (byte-identical,
+          autonomy-preserving) and degrades open on error — turn them on per
+          deployment after validating the posture. Enum modes mirror the SSOT
+          comments in <code>mios.toml</code>.
+        </p>
+        <label for="f-sec-principal-bind">[security].principal_bind_mode — bind the memory owner to the authenticated caller-key (off = trust the forwarded user · verify = audit a mismatch, still trust · enforce = the token-bound account IS the owner)</label>
+        <input type="text" id="f-sec-principal-bind" data-key="security.principal_bind_mode" placeholder="off">
+        <label for="f-sec-rule-of-two">[security].rule_of_two_mode — CaMeL "Rule of Two": gate a dispatch holding ALL THREE of untrusted-input + sensitive-read + state-change (off = not consulted · audit = log + proceed · enforce = route to HITL / block)</label>
+        <input type="text" id="f-sec-rule-of-two" data-key="security.rule_of_two_mode" placeholder="off">
+        <label for="f-pg-rls-enable">[pgvector].rls_enable — emit the DB-side <code>SET LOCAL</code> owner GUC so Postgres RLS policies enforce per-owner isolation. REQUIRES principal_bind_mode = enforce (else nothing is emitted — degrade-permissive on a spoofable owner)</label>
+        <input type="text" id="f-pg-rls-enable" data-key="pgvector.rls_enable" data-type="bool" placeholder="false">
+        <label for="f-disp-sandbox">[dispatch].sandbox_enforce — wrap opted-in verbs (<code>[verbs.&lt;v&gt;].sandbox_profile</code>) in mios-sandbox-exec (bwrap). off = resolve + record the confinement tier only</label>
+        <input type="text" id="f-disp-sandbox" data-key="dispatch.sandbox_enforce" data-type="bool" placeholder="false">
+        <label for="f-audit-chain">[audit].chain_enable — link each event into the SHA-256 tamper-evidence chain</label>
+        <input type="text" id="f-audit-chain" data-key="audit.chain_enable" data-type="bool" placeholder="true">
+        <label for="f-dci-flow">[dci].flow_enabled — escalate a high-confidence critic objection to the 4-persona deliberation (can taint the session on unresolved dissent)</label>
+        <input type="text" id="f-dci-flow" data-key="dci.flow_enabled" data-type="bool" placeholder="false">
+        <p style="color: var(--muted); font-size: 11px; margin: 8px 0 0;">
+          Rule-of-Two property B (sensitive-read) is the per-verb
+          <code>[verbs.&lt;name&gt;].sensitive = true</code> flag. Vendor marks the
+          private-data readers below; add the flag to a new privileged reader in your
+          overlay (it composes with the taint + permission signals — no keyword list):
+        </p>
+        <pre class="raw" style="max-height:none">  # verbs flagged [verbs.&lt;name&gt;].sensitive = true (read private / cross-tenant data)
+  knowledge_search   # private RAG knowledge collections
+  text_view          # arbitrary on-disk files (incl. secrets / credentials)
+  recall             # durable private agent memory
+  viking_ls          # private notes-vault listing
+  viking_cat         # a private notes-vault node (incl. the memory ns)
+  viking_find        # semantic search over the private second-brain
+  search_store       # private knowledge collections / notes vault
+  vault              # the private second-brain vault
+  memory             # op=list reads private agent memory</pre>
+      </fieldset>
+      <fieldset>
+        <legend>[scheduler] · turn-boundary preemption + token-slice queue (default-OFF)</legend>
+        <p style="color: var(--muted); font-size: 11px; margin: 4px 0 8px;">
+          The AIOS preemption substrate. Both master flags ship OFF (each off-path is a
+          pass-through no-op — a turn runs byte-identically); turn them on only to
+          load-test preemption. Distinct from <code>[sched]</code> (turn scoring) and
+          <code>[dispatch].rr_*</code> (within-generation slicing).
+        </p>
+        <label for="f-sched-preempt">scheduler.preempt_enable — consult the PreemptScheduler at each dispatch turn boundary (snapshot + yield to a higher-priority waiter)</label>
+        <input type="text" id="f-sched-preempt" data-key="scheduler.preempt_enable" data-type="bool" placeholder="false">
+        <label for="f-sched-queue">scheduler.queue_enable — token-time-sliced priority queue (orders turns by priority; the snapshot/yield additionally needs preempt_enable)</label>
+        <input type="text" id="f-sched-queue" data-key="scheduler.queue_enable" data-type="bool" placeholder="false">
+        <label for="f-sched-slice">scheduler.slice_tokens — token-time quantum: tokens a turn may generate before the queue re-evaluates priority (0 = slicing off → pure priority ordering)</label>
+        <input type="text" id="f-sched-slice" data-key="scheduler.slice_tokens" data-type="int" placeholder="256">
+        <label for="f-disp-deepen-exit">dispatch.deepen_early_exit — stop a swarm node's extra coverage passes once the per-node Definition-of-Done judge marks its answer satisfied (else run to the deadline bound)</label>
+        <input type="text" id="f-disp-deepen-exit" data-key="dispatch.deepen_early_exit" data-type="bool" placeholder="false">
+      </fieldset>
+      <fieldset>
+        <legend>[selfimprove] · ACT self-curation loop (propose → prove → queue; default-OFF)</legend>
+        <p style="color: var(--muted); font-size: 11px; margin: 4px 0 8px;">
+          When the analyzer loop runs (<code>interval_min &gt; 0</code>) AND act_enabled
+          is on, each pass turns findings into bounded proposals, scores them on a
+          held-out eval, and QUEUES only a non-regressing one for human approval — it
+          NEVER auto-applies a self-modification. Degrade-open: any loop error drops the
+          proposal and never touches live serving.
+        </p>
+        <label for="f-si-act">act_enabled — master switch for the propose→prove→queue loop</label>
+        <input type="text" id="f-si-act" data-key="selfimprove.act_enabled" data-type="bool" placeholder="false">
+        <label for="f-si-margin">accept_margin — max tolerated score regression (proposed ≥ baseline − margin; 0 = strict ≥)</label>
+        <input type="text" id="f-si-margin" data-key="selfimprove.accept_margin" data-type="float" placeholder="0.0">
+        <label for="f-si-passhat">passhat_k — k for the pass^k reliability score over the held-out eval</label>
+        <input type="text" id="f-si-passhat" data-key="selfimprove.passhat_k" data-type="int" placeholder="2">
+        <label for="f-si-gap">solver_gap_min — min strong−weak pass-rate gap for an eval task to carry signal</label>
+        <input type="text" id="f-si-gap" data-key="selfimprove.solver_gap_min" data-type="float" placeholder="0.2">
+        <label for="f-si-weak">weak_solver — lane key of the weak solver (resolved from the live lane registry, never a baked model id)</label>
+        <input type="text" id="f-si-weak" data-key="selfimprove.weak_solver" placeholder="light">
+        <label for="f-si-strong">strong_solver — lane key of the strong solver</label>
+        <input type="text" id="f-si-strong" data-key="selfimprove.strong_solver" placeholder="heavy">
       </fieldset>
     </div>
   </div>
@@ -3766,6 +4095,93 @@ document.querySelectorAll("[data-key]").forEach(el => {
 DATA = parseToml(DEFAULTS_TOML);
 refreshFromData();
 renderPathBanner();
+
+// ── Tabbed navigation ────────────────────────────────────────────
+// Reparent the existing zones + advanced <details> sections into tab
+// panels by id, so the page reads as tabs WITHOUT moving any markup by
+// hand. Every data-key + every render-target id (#colors-named,
+// #palette-presets, #package-grid, #flatpak-grid, #raw, ...) is preserved
+// -- appendChild MOVES a node and keeps its event listeners -- so the
+// serializer (gather/refresh/emit) and the colour/package/flatpak/preset
+// renders are untouched. Degrade-open: any failure leaves the original
+// .zones / .admin-wrap visible (they are hidden only after a successful
+// move), and an unclaimed section always falls through to the System tab,
+// so a section added later is never lost.
+function buildTabs() {
+  const host = document.getElementById("tabhost");
+  const bar  = document.getElementById("tabbar");
+  if (!host || !bar) return;
+
+  // [id, label, [selectors claimed]]. Document order is preserved within
+  // each panel. "system" + "config" are catch-alls filled afterwards.
+  const TABS = [
+    ["personal",        "Personal",        [".zone-personal"]],
+    ["apps",            "Apps",            [".zone-apps", "#adv-enhanced-session"]],
+    ["personalization", "Personalization", ["#adv-color-presets", "#adv-personalization"]],
+    ["users",           "Users",           ["#adv-users-tenancy"]],
+    ["cluster",         "Cluster",         ["#adv-blades-nodes", "#adv-pods", "#adv-agents-federation"]],
+    ["ai",              "AI",              ["#adv-ai", "#adv-ai-pipeline"]],
+    ["governance",      "Governance",      ["#adv-governance"]],
+    ["system",          "System",          []],
+    ["config",          "Config / Raw",    []],
+  ];
+
+  const panels = {}, claimed = new Set();
+  TABS.forEach(([id]) => {
+    const p = document.createElement("section");
+    p.className = "tabpanel";
+    p.id = "tabpanel-" + id;
+    p.setAttribute("role", "tabpanel");
+    host.appendChild(p);
+    panels[id] = p;
+  });
+
+  // Move explicitly-claimed blocks.
+  TABS.forEach(([id, , sels]) => sels.forEach(sel =>
+    document.querySelectorAll(sel).forEach(el => { panels[id].appendChild(el); claimed.add(el); })
+  ));
+
+  // Raw-TOML-preview section -> Config (selected via its #raw child).
+  const rawSec = (document.getElementById("raw") || {}).closest
+    ? document.getElementById("raw").closest("details.section") : null;
+  if (rawSec) { panels.config.appendChild(rawSec); claimed.add(rawSec); }
+
+  // Every remaining advanced section -> System (catch-all, document order).
+  document.querySelectorAll(".admin-body > details.section").forEach(el => {
+    if (!claimed.has(el)) { panels.system.appendChild(el); claimed.add(el); }
+  });
+
+  // Hide the now-empty original shells.
+  document.querySelectorAll(".zones, .admin-wrap").forEach(el => { el.style.display = "none"; });
+
+  function activate(id) {
+    TABS.forEach(([t]) => {
+      panels[t].classList.toggle("active", t === id);
+      const b = document.getElementById("tabbtn-" + t);
+      if (b) { b.classList.toggle("active", t === id); b.setAttribute("aria-selected", t === id ? "true" : "false"); }
+    });
+  }
+  TABS.forEach(([id, label]) => {
+    if (!panels[id].children.length) return;   // skip an empty tab
+    const b = document.createElement("button");
+    b.type = "button"; b.id = "tabbtn-" + id; b.textContent = label;
+    b.setAttribute("role", "tab");
+    b.addEventListener("click", () => activate(id));
+    bar.appendChild(b);
+  });
+  const first = TABS.find(([id]) => panels[id].children.length);
+  if (first) activate(first[0]);
+}
+try {
+  buildTabs();
+} catch (e) {
+  // Degrade-open: never blank. Reveal every panel that already received content
+  // AND the original shells (anything not yet moved); drop the broken tab bar.
+  // appendChild moves (not copies) a node, so nothing is duplicated or lost.
+  document.querySelectorAll(".tabpanel").forEach(el => { el.style.display = "block"; });
+  document.querySelectorAll(".zones, .admin-wrap").forEach(el => { el.style.display = ""; });
+  const tb = document.getElementById("tabbar"); if (tb) tb.style.display = "none";
+}
 </script>
 
 </body>

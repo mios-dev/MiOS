@@ -261,6 +261,36 @@ def _recency_mult(row: dict) -> float:
     except Exception:  # noqa: BLE001
         return 1.0
 
+
+def _blend_rank(row: dict) -> float:
+    """Blended recall score SHARED by every tiered-recall path (knowledge pgvector,
+    knowledge SurrealDB, agent_memory) so the tiers rank CONSISTENTLY instead of each
+    re-deriving the blend. Cosine SIMILARITY (the row's ``score``) stays dominant; the
+    outcome / tier / access signals are each added with their ``[knowledge]`` rank_*
+    SSOT weight, and the whole is scaled by the bounded recency multiplier
+    (``_recency_mult``, driven by ``[knowledge]`` rank_age / recall_halflife_days). A
+    stale-but-relevant hit still wins on cosine; the blend only re-orders near-ties.
+
+    DEGRADE-OPEN: a row missing a signal column reads it as absent via ``.get()`` and
+    that term contributes its NEUTRAL value (no ``satisfied`` -> outcome 0; no ``tier``
+    -> hot 0; no ``access_count`` -> access 0; no ``last_access``/``ts`` -> recency 1.0),
+    so a tier like agent_memory -- which carries only cosine + ts -- ranks on exactly
+    the signals it has and never crashes. Any error falls back to pure cosine."""
+    try:
+        s = float(row.get("score") or 0.0)
+        sat = row.get("satisfied")
+        out = (1.0 if sat is True else (-1.0 if sat is False else 0.0))
+        hot = 1.0 if str(row.get("tier") or "") == "hot" else 0.0
+        ac = float(row.get("access_count") or 0)
+        import math as _m
+        acc = _m.log1p(ac) if ac > 0 else 0.0
+        base = (s + KNOWLEDGE_RANK_OUTCOME * out
+                + KNOWLEDGE_RANK_HOT * hot + KNOWLEDGE_RANK_ACCESS * acc)
+        return base * _recency_mult(row)
+    except Exception:  # noqa: BLE001 -- degrade to pure cosine
+        return float(row.get("score") or 0.0)
+
+
 def _knowledge_sources(tool_history: Optional[list]) -> list:
     """Compact, auditable source list for a stored answer: the verbs the
     turn invoked + any URLs they touched (web_search / web_extract args +
@@ -406,7 +436,11 @@ async def _store_knowledge_task(q: str, a: str,
                 row["emb"] = emb
                 row["emb_model"] = EMB_MODEL       # WS-A2 embedding-version hygiene
                 row["emb_version"] = EMB_VERSION
-        _pg_mirror("knowledge", {**row, "session_id": session_id})  # WS-9c
+        # T-068: scope the mirror write to the SAME owner stamped into owner_user
+        # above (_ou), so FORCE row-level security validates the new row under RLS.
+        # Empty principal -> None -> no SET LOCAL -> permissive (single-user/daemon).
+        _pg_mirror("knowledge", {**row, "session_id": session_id},
+                   rls_owner=(_ou or None))  # WS-9c + T-068 DB-side RLS
         sql = _db_create(KNOWLEDGE_TABLE, row, now_fields=("ts",), _mirror=False)
         if session_id:
             sql = sql.rstrip(";") + f", session = {session_id};"
@@ -430,32 +464,20 @@ async def _recall_knowledge_pg(query: str) -> "Optional[str]":
         rows = await _MEMORY.retrieve(
             qv, table=KNOWLEDGE_TABLE,
             k=max(KNOWLEDGE_RECALL_K, KNOWLEDGE_RECALL_CANDIDATES),
-            owner=_rls_owner())  # WS-A15 seam
+            owner=_rls_owner(),  # WS-A15 seam (app-side WHERE-filter, gated by rls_mode)
+            rls_owner=_request_principal(),  # T-068 DB-side SET LOCAL (gated in mios_pg by rls_enable)
+            emb_version=EMB_VERSION)  # A3: scope recall to the active embedding space
         if rows is None:
             return None
         _floor = _recall_floor(query)
         cands = [r for r in rows if float(r.get("score") or 0.0) >= _floor]
         if not cands:
             return ""
-        # Blended rerank: (cosine + outcome + tier + access) * BOUNDED recency decay,
-        # then take top-K. Cosine stays dominant -- a stale-but-relevant hit still
-        # wins; recency only re-orders near-ties toward fresher rows. NULL-safe;
-        # degrade-open to pure cosine on any per-row error.
-        def _pg_rank(r):
-            try:
-                s = float(r.get("score") or 0.0)
-                sat = r.get("satisfied")
-                out = (1.0 if sat is True else (-1.0 if sat is False else 0.0))
-                hot = 1.0 if str(r.get("tier") or "") == "hot" else 0.0
-                ac = float(r.get("access_count") or 0)
-                import math as _m
-                acc = _m.log1p(ac) if ac > 0 else 0.0
-                base = (s + KNOWLEDGE_RANK_OUTCOME * out
-                        + KNOWLEDGE_RANK_HOT * hot + KNOWLEDGE_RANK_ACCESS * acc)
-                return base * _recency_mult(r)
-            except Exception:  # noqa: BLE001
-                return float(r.get("score") or 0.0)
-        cands.sort(key=_pg_rank, reverse=True)
+        # Blended rerank via the SHARED _blend_rank (same blend the agent_memory +
+        # SurrealDB recall paths use): (cosine + outcome + tier + access) * BOUNDED
+        # recency decay, then take top-K. Cosine stays dominant -- a stale-but-relevant
+        # hit still wins; recency only re-orders near-ties toward fresher rows.
+        cands.sort(key=_blend_rank, reverse=True)
         hits = cands[:KNOWLEDGE_RECALL_K]
         # B2 PAGE-IN BUMP : increment access_count/recall_hits +
         # refresh last_access + promote to tier='hot' on the rows we actually surfaced.
@@ -569,26 +591,11 @@ async def _recall_knowledge(query: str) -> str:
                     and not _shares_anchor(str(r.get("q", "")), _q_anchor):
                 continue
             scored.append((s, r))
-        # P2 blended rank: cosine + outcome + tier + access - age. All weights
-        # default near-zero -> identical to pure -cosine until tuned. NULL-safe.
-        def _blended(item):
-            s, r = item
-            try:
-                sat = r.get("satisfied")
-                out = (1.0 if sat is True else (-1.0 if sat is False else 0.0))
-                hot = 1.0 if str(r.get("tier") or "") == "hot" else 0.0
-                ac = float(r.get("access_count") or 0)
-                import math as _m
-                acc = _m.log1p(ac) if ac > 0 else 0.0
-                base = (s
-                        + KNOWLEDGE_RANK_OUTCOME * out
-                        + KNOWLEDGE_RANK_HOT * hot
-                        + KNOWLEDGE_RANK_ACCESS * acc)
-                # bounded recency decay : fresher rows break ties
-                return -(base * _recency_mult(r))
-            except Exception:  # noqa: BLE001 -- degrade to pure cosine
-                return -s
-        scored.sort(key=_blended)
+        # P2 blended rank via the SHARED _blend_rank (same blend the pgvector +
+        # agent_memory paths use). The SurrealDB rows carry no `score` column -- the
+        # cosine was computed app-side into the tuple's first element -- so inject it
+        # as `score` for the shared ranker; negated for the ascending sort.
+        scored.sort(key=lambda item: -_blend_rank({**item[1], "score": item[0]}))
         top = scored[:KNOWLEDGE_RECALL_K]
         if not top:
             return ""
@@ -775,6 +782,30 @@ def _rls_owner() -> "Optional[str]":
         return None
 
 
+def _request_principal() -> "Optional[str]":
+    """T-068: the owner fed to the DB-side `SET LOCAL mios.owner_user` -- the
+    principal the chat surface forwarded for THIS request. This is the V2 owner only
+    RECONCILED against the token-bound account when [security].principal_bind_mode=
+    enforce; under the default 'off' (or 'verify') it is the raw, SPOOFABLE forwarded
+    body/header `user`. Returns None when no principal was forwarded (single-user /
+    daemon / seeding).
+
+    UNLIKE _rls_owner (the app-side recall WHERE-filter, gated by [pgvector].rls_mode),
+    this is UNGATED here: the DB-side SET LOCAL emission is gated INSIDE mios_pg, which
+    emits it ONLY when [pgvector].rls_enable is on AND the principal is enforce-verified
+    (mios_pg._owner_scope's P2-1 gate -- so an UNVERIFIED owner can never falsely DB-scope
+    rows). Callers pass the best-known owner and mios_pg decides. None -> mios_pg emits
+    no SET LOCAL -> the schema policy stays permissive (degrade-open: a system/daemon
+    path is NEVER locked out)."""
+    try:
+        env = _client_env_var.get()
+        env = env if isinstance(env, dict) else {}
+        owner = str(env.get("user_name") or env.get("user_email") or "").strip()
+        return owner or None
+    except Exception:  # noqa: BLE001 -- degrade-open: never break recall/store
+        return None
+
+
 async def _recall_agent_memory(query: str) -> str:
     """Semantic recall of the agent's SELF-EDITED durable facts (agent_memory:
     fact/scope, written by remember/memory_update with embed-on-write). Embed the
@@ -793,15 +824,28 @@ async def _recall_agent_memory(query: str) -> str:
         qv = await _embed_one(query)
         if not qv:
             return ""
+        # Fetch a CANDIDATE POOL (not just top-K) so the blended rerank below has
+        # near-ties to re-order toward fresher facts -- mirrors _recall_knowledge_pg.
         rows = await _MEMORY.retrieve(qv, table=AGENT_MEMORY_TABLE,
-                                      k=AGENT_MEMORY_RECALL_K,
-                                      owner=_rls_owner())  # WS-A15 seam / WS-5 RLS
+                                      k=max(AGENT_MEMORY_RECALL_K,
+                                            KNOWLEDGE_RECALL_CANDIDATES),
+                                      owner=_rls_owner(),  # WS-A15 seam / WS-5 RLS (app-side filter)
+                                      rls_owner=_request_principal(),  # T-068 DB-side SET LOCAL
+                                      emb_version=EMB_VERSION)  # A3: active emb space
         if not rows:
             return ""
-        hits = [r for r in rows
-                if float(r.get("score") or 0.0) >= AGENT_MEMORY_RECALL_MIN_SCORE]
-        if not hits:
+        cands = [r for r in rows
+                 if float(r.get("score") or 0.0) >= AGENT_MEMORY_RECALL_MIN_SCORE]
+        if not cands:
             return ""
+        # SAME blended rerank as the knowledge tiers (shared _blend_rank): this durable
+        # preference/identity tier deserves equal ranking quality, not flat cosine.
+        # DEGRADE-OPEN: agent_memory carries no access_count/tier/satisfied columns, so
+        # those blend terms read neutral via .get(); `ts` drives the bounded recency
+        # decay (a freshly-saved fact breaks ties over a stale one). Weights come from
+        # the same [knowledge] rank_* SSOT the knowledge ranker reads.
+        cands.sort(key=_blend_rank, reverse=True)
+        hits = cands[:AGENT_MEMORY_RECALL_K]
         lines = []
         for r in hits:
             _sc = round(float(r.get("score") or 0), 2)

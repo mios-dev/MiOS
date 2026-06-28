@@ -92,8 +92,10 @@ CREATE TABLE IF NOT EXISTS event (
     session_id  text,
     passport    jsonb,
     -- WS-A8: per-request trace correlation. An event emitted during a traced
-    -- chat_completions request carries the request trace_id + the active
-    -- span_id/parent so the observability stream stitches to GET /v1/trace.
+    -- chat_completions request carries the request trace_id + the active span_id
+    -- so the observability stream stitches to GET /v1/trace. parent_span_id is
+    -- reserved for a future per-span mirror -- currently only trace_id/span_id are
+    -- written; finished spans live in the agent-pipe in-memory ring, not the DB.
     trace_id        text,
     span_id         text,
     parent_span_id  text,
@@ -108,6 +110,30 @@ ALTER TABLE event ADD COLUMN IF NOT EXISTS trace_id       text;
 ALTER TABLE event ADD COLUMN IF NOT EXISTS span_id        text;
 ALTER TABLE event ADD COLUMN IF NOT EXISTS parent_span_id text;
 CREATE INDEX IF NOT EXISTS event_trace   ON event (trace_id);
+-- SEC-03 (T-034): SHA-256 tamper-evident hash chain over the event stream. Each
+-- chained row carries its position (chain_seq, monotonic in WRITE order -- the
+-- pgvector mirror INSERT is fire-and-forget so the IDENTITY `id` can reorder, hence
+-- a write-order seq), the predecessor's chain_hash (prev_hash), and
+-- chain_hash = sha256(prev_hash || canonical-JSON of the immutable content fields).
+-- A verifier walks chain_seq order, recomputes each link, and flags the first broken
+-- one. Additive + idempotent so an existing event table migrates cleanly; columns are
+-- NULL for pre-chain rows (the verifier walks only chained rows, WHERE chain_hash IS
+-- NOT NULL, starting from genesis).
+ALTER TABLE event ADD COLUMN IF NOT EXISTS chain_seq  bigint;
+ALTER TABLE event ADD COLUMN IF NOT EXISTS prev_hash  text;
+ALTER TABLE event ADD COLUMN IF NOT EXISTS chain_hash text;
+CREATE INDEX IF NOT EXISTS event_chain_seq ON event (chain_seq);
+-- DCI act analytics (T-028 / ORCH-01): the deliberation layer (mios_dci) logs each
+-- typed epistemic act as an event row -- kind='dci_act' for a persona/critic act,
+-- kind='dissent' for an unresolved Challenger objection. The act name lived ONLY in
+-- the JSONB payload, so dissent + per-act analytics needed a JSONB extract on every
+-- query. Promote it to a top-level column so "every Challenger dissent" / the
+-- act-type distribution is a plain indexed scan (WHERE act_type = ...). Additive +
+-- nullable (NULL = a non-DCI event); the drift-tolerant pg insert populates it once
+-- the column exists, so a pre-migration row degrades to NULL rather than failing.
+-- Partial index keeps it to the act-bearing rows, not the whole event stream.
+ALTER TABLE event ADD COLUMN IF NOT EXISTS act_type text;
+CREATE INDEX IF NOT EXISTS event_act_type ON event (act_type) WHERE act_type IS NOT NULL;
 
 -- ── tool_call: every dispatched verb + result + taint ────────────────────────
 CREATE TABLE IF NOT EXISTS tool_call (
@@ -335,6 +361,48 @@ CREATE TABLE IF NOT EXISTS person (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS person_username ON person (username);
 
+-- ── account: the tenant / owner identity model (multi-tenant FOUNDATION) ──────
+--   The agent-plane shipped with NO account/role model: `owner_user` on the
+--   RLS-scoped tables (knowledge/agent_memory/scratch) was a free-text label with
+--   no backing entity. This table makes the owner a FIRST-CLASS row so accounts
+--   (human users + system/service tenants) can be enumerated, displayed, and later
+--   FK-referenced. LINKAGE CONVENTION: owner_user == account.name (a soft natural
+--   key today). A hard foreign-key rewrite across the owner-scoped tables is a
+--   deliberate follow-up -- this migration is ADDITIVE and never rewrites a row.
+--   `kind` distinguishes a human user from a system/service tenant. An account IS
+--   the owner, so it carries no owner_user of its own and is intentionally OUTSIDE
+--   the RLS set below (federation-global, like peer_reputation). Idempotent.
+CREATE TABLE IF NOT EXISTS account (
+    id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    name        text UNIQUE NOT NULL,                -- == owner_user (linkage convention)
+    kind        text DEFAULT 'user',                 -- user | system | service
+    display     text,
+    created_at  timestamptz DEFAULT now(),
+    meta        jsonb
+);
+CREATE INDEX IF NOT EXISTS account_kind ON account (kind);
+-- Seed accounts WITHOUT a hardcoded name (NO-HARDCODE law forbids restating the
+-- SSOT operator identity as a SQL literal). Derive them from the identities the
+-- database ALREADY holds, so every existing owner gains a home:
+--   (1) the PKG operator singleton (person, populated from the host [identity]); and
+--   (2) every distinct owner_user already attached to an owned row.
+-- Both are idempotent (ON CONFLICT (name) DO NOTHING) and harmless no-ops on a
+-- fresh DB (person empty / no owned rows yet). There is no separate runtime-default
+-- account key: the operator [identity] (via `person`) IS the default owner, and the
+-- per-request owner is the principal the chat surface forwards.
+INSERT INTO account (name, display)
+SELECT username, fullname FROM person
+WHERE username IS NOT NULL AND btrim(username) <> ''
+ON CONFLICT (name) DO NOTHING;
+INSERT INTO account (name)
+SELECT DISTINCT owner_user FROM (
+    SELECT owner_user FROM knowledge    WHERE owner_user IS NOT NULL
+    UNION SELECT owner_user FROM agent_memory WHERE owner_user IS NOT NULL
+    UNION SELECT owner_user FROM scratch      WHERE owner_user IS NOT NULL
+) o
+WHERE btrim(owner_user) <> ''
+ON CONFLICT (name) DO NOTHING;
+
 -- ── agent_keypair: Ed25519 agent-passport public-key registry (mios-passport;
 --    R15: was SurrealDB). provision/rotate INSERTs a row + retires prior live
 --    rows; verify reads the live PEM as a filesystem fallback. public_key_pem
@@ -393,6 +461,15 @@ CREATE TABLE IF NOT EXISTS peer_reputation (
 -- is PERMISSIVE when unset -> ALL rows visible exactly as today. Isolation engages
 -- only once the app SETs the var per request (`SET LOCAL mios.owner_user = ...`).
 -- FORCE so the table-owner connection is subject to it too. Idempotent.
+--
+-- T-068 WIRING (who SETs the var): the agent-pipe pg path (mios_pg.recall/insert/
+-- execute) and the confined mios-pg-query CLI emit
+-- `set_config('mios.owner_user', <verified-owner>, true)` -- SET LOCAL semantics,
+-- with the owner BOUND as a parameter (never spliced) -- gated by the SSOT flag
+-- [pgvector].rls_enable (default false -> nothing emitted -> the permissive path
+-- above). The var name set there MUST stay equal to the one read here. Owner-less
+-- internal connections (daemon / seeding / system) emit nothing, so the GUC is
+-- unset and these policies stay permissive for them (never locked out).
 DO $mios_rls$
 DECLARE t text;
 BEGIN

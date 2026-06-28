@@ -46,6 +46,8 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
 import mios_sandbox
+import mios_ruleof2          # the Rule-of-Two architectural gate (pure evaluator)
+import mios_hitl             # the unified HITL verdict resolver (mios_hitl.decide)
 from mios_jsonsalvage import loads_lenient as _loads_lenient
 # Security gates imported DIRECTLY from their sibling modules (NAME-KEYED -- nothing
 # renamed). These modules are themselves DI-configured by server.py; importing the
@@ -88,6 +90,10 @@ NATIVE_LOOP_DATE_IN_QUERY = True
 LAUNCHER_SOCK = "/run/mios-launcher/launcher.sock"
 SANDBOX_ENFORCE = False
 _SANDBOX_SELF_CONFINED: tuple = ()
+# F2/T-033 Rule-of-Two architectural gate mode (SSOT [security].rule_of_two_mode):
+# off (default -- the evaluator is NOT consulted, byte-identical) | audit | enforce.
+# Placeholder default OFF until server injects the SSOT/env-derived value.
+RULE_OF_TWO_MODE = "off"
 
 # mutable catalogs / sets / state / ContextVars / sync primitives (injected BY
 # REFERENCE -- server assigns each exactly once and never rebinds, so the shared
@@ -103,6 +109,9 @@ _conv_key_var = None
 _recency_ctx_var = None
 _proposal_var = None
 _dispatch_agent_var = None
+# Rule-of-Two approval downgrade: the ask-to-run turn var carrying the action_hash the
+# user EXPLICITLY approved this turn (shared with the [ai] gate; None until injected).
+_hitl_approved_var = None
 
 # server-side helpers (injected). _arg_with_synonyms / _validate_enum_args /
 # _dispatch_sandbox_profile / _sandbox_wrap_cmd now LIVE in this module (their sole
@@ -132,14 +141,51 @@ def _emit_dispatch_dedup_event(tool: str, args: dict,
         pass
 
 
+def _record_dispatch_tool_call_row(tool: str, result: dict,
+                                   session_id: "Optional[str]") -> None:
+    """Persist a /v1/dispatch verb execution as a session-linked ``tool_call`` row
+    -- the SAME shape the chat dispatch fast-path and the DAG executor write -- so a
+    verb run through the dispatch HTTP front (mios-mcp-server's ``tools/call`` lands
+    here) is VISIBLE to same-session provenance-taint propagation.
+
+    ``_session_is_tainted`` decides the Semantic Firewall block by reading prior
+    ``tool_call`` rows with ``tainted = true``; the chat + DAG paths each record their
+    executions, but the dispatch path did not -- so a tainting verb dispatched here
+    left no row, the taint was never seen, and a downstream high-privilege verb in the
+    SAME session went un-gated. The taint markers come straight off the verb result
+    (``_classify_verb_taint`` set them inside the dispatch chokepoint): no new schema,
+    no new taint logic, just the missing persistence.
+
+    Best-effort / degrade-open: the verb has ALREADY executed by the time this runs,
+    so an absent DB writer or a write failure is swallowed (the audit row is not
+    load-bearing for the verb's own result)."""
+    try:
+        _row = {
+            "tool": str(result.get("tool") or tool or ""),
+            "args": result.get("args") if isinstance(result.get("args"), dict) else {},
+            "result_preview": (result.get("output") or "")[:500],
+            "success": bool(result.get("success")),
+            "latency_ms": int(result.get("latency_ms", 0) or 0),
+            "tainted": bool(result.get("tainted")),
+            "taint_reason": (result.get("taint_reason") or "") or None,
+        }
+        sql = _db_create("tool_call", _row, now_fields=("ts",))
+        if session_id:
+            sql = sql.rstrip().rstrip(";") + f", session = {session_id};"
+        _db_fire(_db_post(sql))
+    except Exception:  # noqa: BLE001 -- degrade-open: verb already ran; audit is best-effort
+        pass
+
+
 def configure(*, verb_catalog=None, verb_arg_synonyms=None,
               high_privilege_verbs=None, launch_verbs=None,
               web_dispatch_jitter_s=None, dispatch_dedup=None,
               native_loop_date_in_query=None, launcher_sock=None,
               sandbox_enforce=None, sandbox_self_confined=None,
+              rule_of_two_mode=None,
               dispatch_inflight=None, web_sem=None, tool_conflict=None,
               conv_key_var=None, recency_ctx_var=None, proposal_var=None,
-              dispatch_agent_var=None,
+              dispatch_agent_var=None, hitl_approved_var=None,
               resolve_verb_key=None, current_date_str=None,
               emit_dispatch_dedup_event=None,
               trace_span=None, db_fire=None, db_post=None,
@@ -150,10 +196,11 @@ def configure(*, verb_catalog=None, verb_arg_synonyms=None,
     into. Partial injection supported (each guarded by `is not None`) so the
     late-bound native_loop_date_in_query can land in a second call."""
     global WEB_DISPATCH_JITTER_S, DISPATCH_DEDUP, NATIVE_LOOP_DATE_IN_QUERY
-    global LAUNCHER_SOCK, SANDBOX_ENFORCE, _SANDBOX_SELF_CONFINED
+    global LAUNCHER_SOCK, SANDBOX_ENFORCE, _SANDBOX_SELF_CONFINED, RULE_OF_TWO_MODE
     global _VERB_CATALOG, _VERB_ARG_SYNONYMS, _HIGH_PRIVILEGE_VERBS, _LAUNCH_VERBS
     global _dispatch_inflight, _web_sem, _TOOL_CONFLICT
     global _conv_key_var, _recency_ctx_var, _proposal_var, _dispatch_agent_var
+    global _hitl_approved_var
     global _resolve_verb_key, _current_date_str
     global _emit_dispatch_dedup_event, _trace_span, _db_fire, _db_post, _db_create
     if verb_catalog is not None:
@@ -176,6 +223,8 @@ def configure(*, verb_catalog=None, verb_arg_synonyms=None,
         SANDBOX_ENFORCE = sandbox_enforce
     if sandbox_self_confined is not None:
         _SANDBOX_SELF_CONFINED = sandbox_self_confined
+    if rule_of_two_mode is not None:
+        RULE_OF_TWO_MODE = rule_of_two_mode
     if dispatch_inflight is not None:
         _dispatch_inflight = dispatch_inflight
     if web_sem is not None:
@@ -190,6 +239,8 @@ def configure(*, verb_catalog=None, verb_arg_synonyms=None,
         _proposal_var = proposal_var
     if dispatch_agent_var is not None:
         _dispatch_agent_var = dispatch_agent_var
+    if hitl_approved_var is not None:
+        _hitl_approved_var = hitl_approved_var
     if resolve_verb_key is not None:
         _resolve_verb_key = resolve_verb_key
     if current_date_str is not None:
@@ -808,6 +859,98 @@ async def dispatch_mios_verb(
         _dispatch_inflight.pop(key, None)
 
 
+def _emit_ro2_event(tool: str, args: dict, session_id: "Optional[str]",
+                    verdict: "mios_ruleof2.RuleOfTwoVerdict", *, blocked: bool) -> None:
+    """Audit a Rule-of-Two all-three decision -- one structured observability shape for
+    both the audit-mode log line and the enforce-mode block. Carries the property
+    breakdown (which of A/B/C, the count, the mode) so the decision is reconstructable.
+    Best-effort / degrade-open: an absent DB writer or a write failure is swallowed."""
+    try:
+        _db_fire(_db_post(_db_create("event", {
+            "source": "agent-pipe",
+            "kind": "rule_of_two_block" if blocked else "rule_of_two_audit",
+            "severity": "high" if blocked else "warn",
+            "summary": (f"rule-of-two {'BLOCK' if blocked else 'audit'}: {tool} holds "
+                        f"all 3 (untrusted-input + sensitive-access + state-change)"),
+            "payload": {
+                "tool": tool, "args": args,
+                "rule_of_two": verdict.to_dict(),
+                "agent": (_dispatch_agent_var.get() if _dispatch_agent_var else "") or "",
+            },
+        }, now_fields=("ts",))))
+    except Exception:  # noqa: BLE001 -- audit is best-effort; never breaks dispatch
+        pass
+
+
+async def _rule_of_two_gate(tool: str, args: dict, *,
+                            session_id: "Optional[str]" = None) -> "Optional[dict]":
+    """The Rule-of-Two architectural gate (F2/T-033, CaMeL-class), composed at the
+    dispatch chokepoint. Returns a block_result dict to REFUSE the dispatch (enforce
+    mode, a confirmed all-three kill-chain not yet human-approved) or None to PROCEED.
+
+    Composes EXISTING signals -- it re-derives nothing: A (untrusted-input) is the
+    provenance-taint chain (``_session_is_tainted``); B (sensitive-access) + C
+    (state-change) are derived from the SSOT verb metadata INSIDE the pure
+    ``mios_ruleof2.evaluate`` (the [verbs.*].sensitive flag + the permission tier).
+    Placed AFTER the existing taint/HITL gates -- each of those returns early on its
+    own block -- so Rule-of-Two only ADDS a refusal (the stricter gate wins).
+
+      off     -> not consulted (the call-site guards on the mode -> byte-identical).
+      audit   -> structured non-blocking audit line, then proceed (observe before enforce).
+      enforce -> route the all-three posture through the SINGLE ``mios_hitl.decide``
+                 resolver; an explicit same-turn ask-to-run approval downgrades the
+                 block so the human who approved THIS exact action can run it.
+
+    Degrade-open: ANY error -> None (fall back to the existing firewall/HITL behaviour;
+    never crash, never newly block-everything). A CONFIRMED all-three under enforce
+    gates (fail toward safety)."""
+    try:
+        mode = mios_ruleof2.normalize_mode(RULE_OF_TWO_MODE)
+        if mode == mios_ruleof2.MODE_OFF:
+            return None
+        vmeta = _VERB_CATALOG.get(tool) or {}
+        # A: the EXISTING provenance-taint signal (mios_firewall owns it; no re-derive).
+        a_tainted = False
+        if session_id:
+            a_tainted, _chain = await _session_is_tainted(session_id)
+        verdict = mios_ruleof2.evaluate(
+            session_tainted=a_tainted,
+            permission_tier=vmeta.get("permission"),
+            sensitive=vmeta.get("sensitive"),
+            mode=mode)
+        if not verdict.all_three:
+            return None  # <=2 of {A,B,C} -> the invariant holds -> proceed
+        if mode == mios_ruleof2.MODE_AUDIT:
+            _emit_ro2_event(tool, args, session_id, verdict, blocked=False)
+            return None  # non-blocking: observe before enforce
+        # enforce: a 3-property chain. Resolve via the single HITL verdict so it
+        # composes with the other gates' approval semantics; an explicit same-turn
+        # approval (ask-to-run set this action's hash) downgrades the block.
+        approved = False
+        try:
+            if _hitl_approved_var is not None:
+                _appr = _hitl_approved_var.get()
+                approved = bool(_appr) and _appr == _pending_hash(tool, args or {})
+        except Exception:  # noqa: BLE001
+            approved = False
+        if mios_hitl.decide(ro2_block=True, approved=approved) != mios_hitl.BLOCK:
+            return None  # approved -> downgraded -> proceed
+        # fail-safe BLOCK: record a pending_action (approvable out-of-band via
+        # /v1/hitl/approve) + refuse before the broker, in the hitl_pending shape the
+        # agent tool-loop already handles (a failure + a human-readable next step).
+        _ah = _pending_hash(tool, args or {})
+        try:
+            _hitl_record_pending(tool, args or {}, _ah, session_id)
+        except Exception:  # noqa: BLE001 -- recording is best-effort; the block still holds
+            pass
+        _emit_ro2_event(tool, args, session_id, verdict, blocked=True)
+        _res = mios_hitl.block_result(tool, args, _ah)
+        _res["rule_of_two_blocked"] = True
+        return _res
+    except Exception:  # noqa: BLE001 -- degrade-open: any error -> existing gate behaviour
+        return None
+
+
 async def _dispatch_mios_verb_inner(
     tool: str, args: dict, *,
     session_id: Optional[str] = None,
@@ -891,12 +1034,44 @@ async def _dispatch_mios_verb_inner(
                 "taint_reason": f"firewall_block:{chain[:200]}",
             }
 
-    # ── WS-6 runtime HITL approval gate (after the taint firewall, before exec).
-    # log mode -> emits + proceeds (None); gate mode -> blocks unapproved scoped
-    # verbs with a hitl_pending result. Degrade-open: a gate error proceeds.
+    # ── [ai] RISK-TIER HITL gate at the INNER universal chokepoint ──
+    # The public dispatch_mios_verb entry runs this same [ai] gate, but every DIRECT
+    # _dispatch_mios_verb_inner caller (e.g. the computer-use perceive->act loop)
+    # reaches the broker WITHOUT passing it -- a silent bypass of the blocking gate.
+    # Re-applying the SAME reconciled decision here (mios_hitl.decide, via
+    # _hitl_block_reason + the out-of-process arbiter) makes the inner the single
+    # coherent HITL enforcement point: no caller can dispatch a tier-gated verb
+    # un-blocked. Idempotent on the public path (already decided there, incl. the
+    # ask-to-run approval bypass); fail-safe -- refuse on a block reason.
+    _ai_hitl = _hitl_block_reason(tool, args)
+    if _ai_hitl is None and _HITL_ARBITER_URL:
+        _ai_hitl = await _hitl_arbiter_verdict(tool, args)
+    if _ai_hitl is not None:
+        return {
+            "success": False, "tool": tool, "args": args, "output": "",
+            "stderr": _ai_hitl, "exit_code": 126, "latency_ms": 0,
+            "hitl_blocked": True,
+        }
+
+    # ── WS-6 runtime HITL approval gate ([hitl] verb-scope; after the taint
+    # firewall, before exec). log mode -> emits + proceeds (None); gate mode ->
+    # blocks unapproved scoped verbs with a hitl_pending result. Degrade-open: a gate
+    # error proceeds. Shares the mios_hitl.decide resolver with the [ai] gate above.
     _hitl_block = await _hitl_gate(tool, args, session_id)
     if _hitl_block is not None:
         return _hitl_block
+
+    # ── F2/T-033 Rule-of-Two architectural gate (CaMeL-class; after the taint/HITL
+    # gates so it only ADDS a refusal -- stricter-wins). The DETERMINISTIC kill-chain
+    # invariant: a dispatch may hold at most TWO of {untrusted-input (the provenance-
+    # taint chain), sensitive-access (SSOT [verbs.*].sensitive), state-change (SSOT
+    # permission tier)} without human review. INERT unless [security].rule_of_two_mode
+    # is audit/enforce: the mode guard keeps default-off BYTE-IDENTICAL (the evaluator
+    # is not consulted, no taint read, no event). Degrade-open inside the gate. ──
+    if RULE_OF_TWO_MODE != mios_ruleof2.MODE_OFF:
+        _ro2_block = await _rule_of_two_gate(tool, args, session_id=session_id)
+        if _ro2_block is not None:
+            return _ro2_block
 
     # Tool-Manager enum validation (ref AIOS C 3.7): reject out-of-enum
     # args BEFORE the broker. The structured error feeds the planner's
@@ -1063,4 +1238,9 @@ async def dispatch_verb(body: dict) -> JSONResponse:
         args = {}
     session_id = body.get("session_id")
     result = await dispatch_mios_verb(tool, args, session_id=session_id)
+    # A9/F2 security: persist the executed verb as a session-linked tool_call row so
+    # same-session provenance-taint (_session_is_tainted) sees verbs run through this
+    # HTTP front. The chat + DAG paths already record their executions; this closes
+    # the dispatch-path taint-blind hole. Best-effort -- never blocks the reply.
+    _record_dispatch_tool_call_row(tool, result, session_id)
     return JSONResponse(result)

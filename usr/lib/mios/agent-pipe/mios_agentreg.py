@@ -350,6 +350,14 @@ def _load_node_pool(registry: dict[str, dict]) -> int:
             "strengths": list(cfg.get("strengths")
                               or ["research", "web_search", "summarize"]),
             "lane":     lane,
+            # V4 blade (machine) topology: which PHYSICAL MACHINE this compute node
+            # lives on -- so "nodes X, Y, Z are one machine" is EXPRESSIBLE and the
+            # per-blade admission (V5) can compare a node's residents against ITS
+            # blade's VRAM budget, not the single LOCAL scalar. Free-form, matching a
+            # [blades.<name>] key; EMPTY -> the local blade (server resolves the local
+            # name from the [identity] hostname SSOT), so a config with no blade
+            # fields keeps every node on the local blade = byte-identical to today.
+            "blade":     str(cfg.get("blade", "")).strip(),
             # SWARM Phase-0/1 : sub_lane = per-engine
             # semaphore key (e.g. 'gpu0') so N single-model servers on ONE device
             # each get independent concurrency; vram_mb/ram_mb = this worker's

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # AI-hint: A standalone Python-based PostgreSQL wire-protocol client used by the MiOS agent plane to execute SQL directly over a loopback TCP socket when psql or podman access is restricted. Two modes: legacy simple-Query (raw SQL on argv/stdin -- unchanged) AND `--exec-json` parameterized binding (reads a {"sql","params"} or {"statements":[...]} envelope on stdin and uses the v3 EXTENDED query protocol Parse/Bind/Execute/Sync so values are bound out-of-band -> SQL-injection-safe; this is the WS-A3 CLI-safety foundation the python memory tools call).
 # AI-related: mios-ai, mios-daemon, mios-db, mios-remember, mios-kg, mios-rag, socket.socket, test_mios_pgwire.py
-# AI-functions: _cstr, _be16, _be32, _be32s, build_parse, build_bind, build_execute, build_sync, encode_param, parse_envelope, _connect, run_simple, run_extended, main
+# AI-functions: _cstr, _be16, _be32, _be32s, build_parse, build_bind, build_execute, build_sync, encode_param, parse_envelope, _connect, _rls_owner, _apply_owner_scope, run_simple, run_extended, main
 """mios-pg-query -- minimal pure-stdlib PostgreSQL client for the MiOS agent
 plane. No psql binary, no psycopg, no podman needed: it speaks the v3 wire
 protocol directly over a loopback TCP socket.
@@ -33,6 +33,11 @@ Two modes:
 
 Env:    MIOS_PG_HOST (127.0.0.1) MIOS_PG_PORT (5432)
         MIOS_PG_USER (mios)      MIOS_PG_DB (mios)
+        T-068 RLS: MIOS_DB_RLS_ENABLE (off) gates a per-connection owner scope;
+        the owner comes from `--owner <v>` (or `--owner=<v>`) else MIOS_PG_RLS_OWNER.
+        When enabled+owner, an owner-bound `set_config('mios.owner_user', ...)` is
+        SET first so the schema RLS policies scope rows to that owner. Default-off /
+        no owner -> nothing is emitted (byte-identical; no consumer is locked out).
 Output: tab-separated columns, one row per line (psql -At shape) for BOTH modes.
         Multi-row handled; NULLs render as empty. Exit 1 on any backend
         ErrorResponse or unsupported (non-trust) auth.
@@ -49,6 +54,12 @@ HOST = os.environ.get("MIOS_PG_HOST") or "127.0.0.1"
 PORT = int(os.environ.get("MIOS_PG_PORT") or "5432")
 USER = os.environ.get("MIOS_PG_USER") or "mios"
 DB = os.environ.get("MIOS_PG_DB") or "mios"
+
+# T-068 DB-side Row-Level-Security owner binding (the confined-CLI seam). The
+# session var the schema-init.sql RLS policies read (current_setting(
+# 'mios.owner_user', true)); a schema-contract constant that MUST match
+# postgres/schema-init.sql + mios_pg._RLS_OWNER_GUC (NOT an SSOT mios.toml value).
+RLS_OWNER_GUC = "mios.owner_user"
 
 
 # ── wire-format builders (pure; unit-tested by test_mios_pgwire.py) ───────────
@@ -248,13 +259,66 @@ def _terminate(s: socket.socket) -> None:
     s.close()
 
 
+# ── T-068 DB-side RLS owner scoping (the confined-consumer seam) ───────────────
+def _rls_owner(argv) -> "str | None":
+    """The owner to scope THIS invocation's rows to, or None to emit NO scope.
+    Gated by MIOS_DB_RLS_ENABLE (SSOT [pgvector].rls_enable, bridged by userenv.sh),
+    the SAME flag the agent-pipe pg path reads -- default-off => None => no change.
+    The owner comes from `--owner <v>` (or `--owner=<v>`) else MIOS_PG_RLS_OWNER, so
+    the confined consumers (mios-ai / daemon / skills / kg) can scope their reads.
+    None whenever RLS is off OR no owner is supplied -> the GUC stays unset -> the
+    schema policy is permissive (degrade-open: a confined tool / the daemon is NEVER
+    locked out)."""
+    if str(os.environ.get("MIOS_DB_RLS_ENABLE") or "").strip().lower() not in (
+            "1", "true", "yes", "on"):
+        return None
+    owner = ""
+    for i, a in enumerate(argv):
+        if a == "--owner" and i + 1 < len(argv):
+            owner = argv[i + 1]
+            break
+        if a.startswith("--owner="):
+            owner = a.split("=", 1)[1]
+            break
+    if not owner:
+        owner = os.environ.get("MIOS_PG_RLS_OWNER") or ""
+    owner = owner.strip()
+    return owner or None
+
+
+def _apply_owner_scope(s: socket.socket, owner: "str | None") -> None:
+    """Bind this connection's RLS owner GUC. The owner + the GUC name are BOUND via
+    the extended protocol ($1/$2 -> Parse/Bind/Execute/Sync) -- NEVER spliced into
+    SQL. The CLI uses ONE connection per process invocation (no pooling), so the GUC
+    is set SESSION-level (set_config(..., false)) once right after connect and
+    naturally spans every following statement of this invocation -- simple OR
+    extended -- then dies with the process. (The agent-pipe python path uses
+    is_local=true / transaction-local instead, because its connections may be
+    reused.) No-op when owner is None (RLS off / no owner) -> byte-identical to
+    today. Best-effort: a failed set is noted on stderr but does not abort
+    (degrade-open; the schema policy is permissive on an unset GUC)."""
+    if not owner:
+        return
+    try:
+        s.sendall(build_parse("SELECT set_config($1, $2, false)")
+                  + build_bind([RLS_OWNER_GUC, owner])
+                  + build_execute() + build_sync())
+        if _drain_to_ready(s, []) != 0:
+            sys.stderr.write("mios-pg-query: RLS owner scope set failed "
+                             "(continuing unscoped)\n")
+    except Exception as e:  # noqa: BLE001 -- degrade-open
+        sys.stderr.write(f"mios-pg-query: RLS owner scope error: {e}\n")
+
+
 # ── modes ─────────────────────────────────────────────────────────────────────
-def run_simple(sql: str) -> int:
-    """Legacy path: one simple-Query with the verbatim SQL (unchanged)."""
+def run_simple(sql: str, owner: "str | None" = None) -> int:
+    """Legacy path: one simple-Query with the verbatim SQL (unchanged). When an RLS
+    owner is supplied (flag-gated) it is SET on the connection first (param-bound)."""
     s = _connect()
     if s is None:
         return 1
     try:
+        _apply_owner_scope(s, owner)
         out: list = []
         rc = _simple_query(s, sql, out)
         if out:
@@ -264,14 +328,16 @@ def run_simple(sql: str) -> int:
         _terminate(s)
 
 
-def run_extended(stmts, in_txn: bool) -> int:
+def run_extended(stmts, in_txn: bool, owner: "str | None" = None) -> int:
     """Parameterized path: each statement Parse/Bind/Execute/Sync with its params
     bound out-of-band. `in_txn` wraps the batch in BEGIN/COMMIT (atomic upserts);
-    any error rolls back."""
+    any error rolls back. When an RLS owner is supplied (flag-gated) it is SET on the
+    connection first (param-bound), scoping every statement of this invocation."""
     s = _connect()
     if s is None:
         return 1
     try:
+        _apply_owner_scope(s, owner)
         out: list = []
         if in_txn:
             if _simple_query(s, "BEGIN", out) != 0:
@@ -294,6 +360,24 @@ def run_extended(stmts, in_txn: bool) -> int:
 
 def main() -> int:
     argv = sys.argv[1:]
+    # T-068: resolve the optional RLS owner (flag-gated) BEFORE consuming argv, then
+    # drop `--owner [value]` / `--owner=value` so the value is never mistaken for the
+    # SQL positional in the simple path. Default-off / no --owner -> owner is None ->
+    # no scope -> byte-identical.
+    owner = _rls_owner(argv)
+    cleaned: list = []
+    skip = False
+    for a in argv:
+        if skip:
+            skip = False
+            continue
+        if a == "--owner":
+            skip = True
+            continue
+        if a.startswith("--owner="):
+            continue
+        cleaned.append(a)
+    argv = cleaned
     if "--exec-json" in argv:
         try:
             stmts, in_txn = parse_envelope(sys.stdin.read())
@@ -303,12 +387,12 @@ def main() -> int:
             return 2
         if not stmts:
             return 0
-        return run_extended(stmts, in_txn)
+        return run_extended(stmts, in_txn, owner)
     sql_args = [a for a in argv if not a.startswith("-")]
     sql = sql_args[0] if sql_args else sys.stdin.read()
     if not sql.strip():
         return 0
-    return run_simple(sql)
+    return run_simple(sql, owner)
 
 
 if __name__ == "__main__":

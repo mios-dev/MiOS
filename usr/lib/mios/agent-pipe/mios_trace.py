@@ -1,4 +1,4 @@
-# AI-hint: WS-A8 per-request trace/span observability primitive for the agent-pipe. Provides Span + Tracer (a pure-stdlib, bounded in-memory span emitter): a chat_completions request mints a trace_id, each pipeline stage (route/plan/dispatch/synthesize) opens a child Span under the current parent, and finished spans land in a capped per-trace ring buffer that backs GET /v1/trace/{trace_id} with ZERO DB hit. server.py owns the wiring (contextvars, the async span context manager, the inbound/outbound X-MiOS-Trace header, the event-table mirror); this module owns only the reusable mechanism. No tracing backend, no network, no deps.
+# AI-hint: WS-A8 per-request trace/span observability primitive for the agent-pipe. Provides Span + Tracer (a pure-stdlib, bounded in-memory span emitter): a chat_completions request mints a trace_id, each pipeline stage (route/plan/dispatch/synthesize) opens a child Span under the current parent, and finished spans land in a capped per-trace ring buffer that backs GET /v1/trace/{trace_id} with ZERO DB hit. server.py owns the wiring (contextvars, the async span context manager, the inbound/outbound X-MiOS-Trace header, and stamping the active trace_id/span_id onto `event` rows for correlation); this module owns only the reusable mechanism. Finished spans live ONLY in this in-memory ring -- they are NOT mirrored to the DB as their own rows. No tracing backend, no network, no deps.
 # AI-related: ./server.py, ./mios_sched.py, ./test_mios_trace.py, /usr/share/mios/postgres/schema-init.sql
 # AI-functions: new_trace_id, new_span_id, start_span, record, get_trace, recent, stats, finish, to_dict, class Span, class Tracer
 """mios_trace -- per-request trace/span observability for the MiOS agent-pipe
@@ -7,10 +7,16 @@
 Pure stdlib (uuid / time / collections) so it unit-tests in isolation, in the
 sibling-module style of mios_sched / mios_toolconflict. server.py owns the
 wiring (the SSOT enable flag, the trace/span contextvars, the async span
-context manager, the inbound/outbound X-MiOS-Trace header propagation, and the
-optional mirror of finished spans to the pgvector `event` table); this module
-owns only the reusable mechanism: ids, the Span record, and a bounded in-memory
-buffer that serves the trace-read endpoint without touching the DB.
+context manager, the inbound/outbound X-MiOS-Trace header propagation, and
+stamping the active trace_id/span_id onto `event` rows for correlation); this
+module owns only the reusable mechanism: ids, the Span record, and a bounded
+in-memory buffer that serves the trace-read endpoint without touching the DB.
+
+Finished spans are NOT persisted as their own rows -- they live only in the
+in-memory ring. Durable per-span mirroring would require a per-span DB write on
+the hot tracing path, which this seam deliberately avoids; `event` rows emitted
+during a traced request carry the trace_id/span_id so the stream still stitches
+to a trace.
 
 Model
 =====

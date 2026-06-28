@@ -157,8 +157,11 @@ EOF
     # do NOT expand ${...} from sibling env lines, so the ports must exist as
     # their own vars. Without this the agent-pipe read a LITERAL
     # "${MIOS_PORT_HERMES_WORKER}" worker port -> httpx InvalidURL -> :8640 500.
+    # MIOS_PORT_PGVECTOR is bridged too so shell consumers that can't parse TOML
+    # (the greenboot AI-plane health check, datastore probes) read the datastore
+    # port from the SSOT instead of a hardcoded :5432 literal.
     # install-robustness.
-    for _pk in MIOS_PORT_LLM_LIGHT MIOS_PORT_HERMES MIOS_PORT_HERMES_WORKER MIOS_PORT_AGENT_PIPE MIOS_PORT_PREFILTER MIOS_PORT_OPENCODE MIOS_PORT_SGLANG MIOS_PORT_VLLM; do
+    for _pk in MIOS_PORT_LLM_LIGHT MIOS_PORT_HERMES MIOS_PORT_HERMES_WORKER MIOS_PORT_AGENT_PIPE MIOS_PORT_PREFILTER MIOS_PORT_OPENCODE MIOS_PORT_PGVECTOR MIOS_PORT_SGLANG MIOS_PORT_VLLM; do
         _pv="${!_pk:-}"
         if [[ -n "$_pv" ]]; then echo "${_pk}=\"${_pv}\""; fi
     done

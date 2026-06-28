@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Scans and validates A2A peer nodes from mios.toml and CIDR ranges to populate /etc/mios/ai/v1/a2a-peers.json, ensuring the agent-pipe has a verified list of live, reachable peers for delegation.
-# AI-related: /etc/mios/ai/v1/a2a-peers.json, /usr/share/mios/mios.toml, /etc/mios/mios.toml, mios-local
+# AI-related: /etc/mios/ai/v1/a2a-peers.json, /usr/share/mios/mios.toml, /etc/mios/mios.toml, ./mios-a2a-mdns, mios-local
 """mios-a2a-discover -- SSOT-driven A2A peer discovery (no hardcoded endpoints).
 
 Keeps the runtime peer list (/etc/mios/ai/v1/a2a-peers.json -- the file the
@@ -17,17 +17,23 @@ Each candidate is probed for a valid MiOS A2A AgentCard; only responders are
 written. Run on a timer / firstboot so node-spanning tracks the real fleet.
 Every MiOS node ships the A2A server, so a live card == a delegable peer.
 """
+import importlib.util
 import ipaddress
 import json
 import os
 import sys
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
+from importlib.machinery import SourceFileLoader
 
-SELF = os.environ.get("MIOS_A2A_SELF", "http://127.0.0.1:8640")
 PEERS_OUT = os.environ.get("MIOS_A2A_PEERS", "/etc/mios/ai/v1/a2a-peers.json")
 CARD_PATHS = ("/.well-known/agent-card.json", "/.well-known/agent.json")
-PORT = os.environ.get("MIOS_A2A_PORT", "8640")
+# The agent-pipe port comes from the SSOT ([ports].agent_pipe), never a literal:
+# resolved per run in main() (env MIOS_A2A_PORT / MIOS_PORT_AGENT_PIPE override).
+# The mDNS browse helper is a sibling file with a hyphenated (extensionless) name,
+# loaded by path below.
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_MDNS_PATH = os.path.join(_HERE, "mios-a2a-mdns")
 
 
 def _deep_merge(base, over):
@@ -54,6 +60,33 @@ def _load_toml():
     return merged
 
 
+def _resolve_port(cfg):
+    """Agent-pipe port from SSOT (env MIOS_A2A_PORT / MIOS_PORT_AGENT_PIPE override,
+    else [ports].agent_pipe). No literal default -- empty means we cannot honestly
+    build the loopback self-URL, so the self-peer is simply skipped (degrade-open)."""
+    env = os.environ.get("MIOS_A2A_PORT") or os.environ.get("MIOS_PORT_AGENT_PIPE")
+    if env and str(env).strip():
+        return str(env).strip()
+    port = (cfg.get("ports") or {}).get("agent_pipe")
+    return str(port).strip() if port not in (None, "") else ""
+
+
+def _mdns_candidates(cfg):
+    """Load the sibling mios-a2a-mdns module by path (hyphenated, extensionless
+    filename) and return its mDNS browse candidates. Fully degrade-open: missing
+    module / avahi absent / [a2a].mdns_discovery off -> []. Each candidate is
+    card-probed below exactly like an explicit node, so a non-MiOS responder on the
+    wire is never trusted blindly."""
+    try:
+        loader = SourceFileLoader("mios_a2a_mdns", _MDNS_PATH)
+        spec = importlib.util.spec_from_loader("mios_a2a_mdns", loader)
+        mod = importlib.util.module_from_spec(spec)
+        loader.exec_module(mod)
+        return list(mod.browse(cfg))
+    except Exception:  # noqa: BLE001
+        return []
+
+
 def _probe(url):
     """Return (url, card) if url is a live MiOS A2A node, else (url, None)."""
     for cp in CARD_PATHS:
@@ -74,26 +107,37 @@ def _slug(s):
     return out.strip("-") or "peer"
 
 
-def _cidr_hosts(cidr):
+def _cidr_hosts(cidr, port):
+    if not port:
+        return []
     try:
         net = ipaddress.ip_network(cidr, strict=False)
     except ValueError:
         return []
     # bound the sweep so a /16 typo can't scan 65k hosts
-    return [f"http://{ip}:{PORT}" for ip in list(net.hosts())[:256]]
+    return [f"http://{ip}:{port}" for ip in list(net.hosts())[:256]]
 
 
 def main():
     cfg = _load_toml()
     a2a = cfg.get("a2a", {}) or {}
-    cands = [SELF]
+    port = _resolve_port(cfg)
+    self_url = os.environ.get("MIOS_A2A_SELF") or (
+        f"http://127.0.0.1:{port}" if port else "")
+    cands = [self_url] if self_url else []
     for u in (a2a.get("nodes") or []):
         if u and u not in cands:
             cands.append(u)
     if a2a.get("discover_cidr"):
-        for u in _cidr_hosts(a2a["discover_cidr"]):
+        for u in _cidr_hosts(a2a["discover_cidr"], port):
             if u not in cands:
                 cands.append(u)
+    # mDNS-discovered candidates (FED-G5): browse the LAN for the A2A service type
+    # when [a2a].mdns_discovery is on. Each is card-probed below before being
+    # trusted, so this only ever ADDS verified peers (degrade-open when off/absent).
+    for u in _mdns_candidates(cfg):
+        if u and u not in cands:
+            cands.append(u)
 
     peers, seen = [], set()
     with ThreadPoolExecutor(max_workers=32) as ex:
@@ -101,11 +145,11 @@ def main():
             if not card or url in seen:
                 continue
             seen.add(url)
-            pid = "mios-local" if url == SELF else _slug(card.get("name") or url)
+            pid = "mios-local" if url == self_url else _slug(card.get("name") or url)
             peers.append({
                 "id": pid,
                 "url": url,
-                "note": ("loopback self-peer" if url == SELF
+                "note": ("loopback self-peer" if url == self_url
                          else f"discovered A2A node ({card.get('protocolVersion', '?')})"),
             })
             print(f"  live: {url} -> {pid}")

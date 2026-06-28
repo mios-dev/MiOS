@@ -64,6 +64,7 @@ from mios_knowledge import _recall_knowledge, _store_knowledge
 from mios_native_loop import _respond_local_state, _respond_native_loop_direct
 from mios_oscontrol import _respond_os_control
 from mios_planner import decompose_intent
+import mios_preempt   # T-019/SCHED-01: turn-boundary preemption seam (flag-gated, degrade-open)
 from mios_refine import refine_intent
 from mios_routing import _deterministic_action_route
 from mios_sse import _sse_chunk, _sse_status, _stream_answer
@@ -1017,7 +1018,7 @@ async def chat_completions_logic(request: Request) -> Any:
                  len(body.get("tools") or []), _TOOL_BACKEND_MODEL, _TOOL_BACKEND)
         return await _client_tools_complete(body, streaming, chat_id, model)
 
-    # SurrealDB session row -- the record id is captured for
+    # session row -- the record id is captured for
     # downstream tool_call linking + the inline confirmation engine.
     # passport_sign=False: the `session` table is SCHEMAFULL and has
     # NO `passport` field, so attaching the default Ed25519 envelope
@@ -1100,6 +1101,37 @@ async def chat_completions_logic(request: Request) -> Any:
         _turn_priority = min(_turn_priority, AUTONOMOUS_PRIORITY)
         log.info("autonomous turn priority clamped to %.2f (foreground preempts)",
                  _turn_priority)
+
+    # T-019 (SCHED-01) turn-boundary preemption seam. This is THE point a scheduler
+    # decides whether to preempt -- the turn's AIOS priority is now known. DEFAULT-OFF
+    # ([scheduler].preempt_enable=false) -> a pass-through no-op, so the turn runs
+    # byte-identically. When enabled, mios_preempt.turn_boundary may snapshot + yield
+    # this turn to a higher-priority waiter and resume it (per the PreemptScheduler
+    # API; the live "higher-priority-waiting" probe is the global PriorityGate, wired
+    # in server.py). The hook is itself degrade-open; the extra guard here is belt-and-
+    # suspenders so the seam can NEVER drop/corrupt a turn. Substrate for T-020/T-058.
+    try:
+        await mios_preempt.turn_boundary(task_id=str(chat_id), priority=_turn_priority)
+    except Exception:  # noqa: BLE001 -- degrade-open: a seam failure never breaks a turn
+        pass
+
+    # T-020 (SCHED-02) token-time-sliced priority queue. Register this turn so the
+    # scheduler can ORDER it against concurrent turns by priority and account its token
+    # slices; at each token-slice boundary the generation path calls
+    # mios_preempt.slice_boundary, which re-evaluates via the turn_boundary mechanism
+    # (yield the lane to a higher-priority waiter, else continue). FLAG-GATED on
+    # [scheduler].queue_enable (DEFAULT-OFF -> this block is SKIPPED, so turns admit/run
+    # byte-identically -- no queue interposition) and DEGRADE-OPEN (any queue error
+    # never breaks a turn). The queue is bounded + a re-enqueue refreshes in place, so a
+    # follow-up turn on the same chat never duplicates or leaks. The live token feed
+    # (slice_boundary) + the precise gate-relative enqueue/dispatch placement are
+    # operator-live-validated; this is the turn-lifecycle registration.
+    if mios_preempt.QUEUE_ENABLE:
+        try:
+            mios_preempt._TURN_QUEUE.enqueue(str(chat_id), _turn_priority)
+            mios_preempt._TURN_QUEUE.dispatch()
+        except Exception:  # noqa: BLE001 -- degrade-open: the queue never breaks a turn
+            pass
 
     # W0-T3 aggregate budget HARD-HALT (the runaway tripwire). Before dispatching
     # ANY compute for this turn, check the rolling-window token ledgers: the
@@ -2016,7 +2048,7 @@ async def chat_completions_logic(request: Request) -> Any:
                     session_id=session_id,
                 )
                 ok = bool(result.get("success"))
-                # SurrealDB tool_call row -- write fire-and-forget.
+                # tool_call row -- write fire-and-forget.
                 # Phase A.3: include taint state for the firewall.
                 _row = {
                     "tool": tool,
@@ -2122,7 +2154,7 @@ async def chat_completions_logic(request: Request) -> Any:
                     async def _stream_dispatch() -> AsyncGenerator[bytes, None]:
                         # Phase markers: listening -> picking -> doing -> done.
                         # Technical detail (tool args, exit codes, latencies)
-                        # lives in the SurrealDB event_log; the strip stays
+                        # lives in the event_log; the strip stays
                         # readable for non-technical operators.
                         yield _sse_status_phase(chat_id=chat_id, model=model,
                                                 phase="prompt")
@@ -2467,7 +2499,7 @@ async def chat_completions_logic(request: Request) -> Any:
     # Build the proxy body + enrich the system prefix. The FOUR enrich passes
     # are independent (latency) and run CONCURRENTLY (worst
     # case = their MAX not SUM):
-    #   _rag_enrich           SurrealDB vector recall (in-loop for every agent)
+    #   _rag_enrich           vector recall (in-loop for every agent)
     #   _web_research_enrich  full web toolchain: SearXNG + extract + deep crawl
     #   _read_tool_enrich     refine-hinted READ-only no-arg verbs (live state);
     #                         WRITE/launch verbs are NEVER auto-fired (binding)

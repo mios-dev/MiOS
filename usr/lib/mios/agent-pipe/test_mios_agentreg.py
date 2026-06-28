@@ -86,7 +86,7 @@ def t_load_node_pool():
     _saved = reg._toml_section
     nodes = {
         "potato": {"endpoint": "http://10.0.0.9:11435/v1", "lane": "cpu",
-                   "model": "mios-agent-cpu", "vram_mb": "0"},
+                   "model": "mios-agent-cpu", "vram_mb": "0", "blade": "potato"},
         "inert": {"endpoint": "", "lane": "gpu"},   # skipped (no endpoint)
         "phone": {"endpoint": "http://10.0.0.5:11434/v1", "lane": "mobile",
                   "health_gate": True},
@@ -104,6 +104,10 @@ def t_load_node_pool():
     pot = registry["node:potato"]
     check("nodes: canonical model default kept", pot["model"] == "mios-agent-cpu")
     check("nodes: research worker has engines map", isinstance(pot.get("engines"), dict))
+    check("nodes: V4 blade field carried from [nodes.*]", pot.get("blade") == "potato",
+          str(pot.get("blade")))
+    check("nodes: V4 blade defaults to '' (local blade) when absent",
+          registry["node:phone"].get("blade") == "", str(registry["node:phone"].get("blade")))
     check("nodes: remote node health_gated by default", pot["health_gate"] is True)
     check("nodes: research_only honours injected NODES_RESEARCH_ONLY=False",
           pot["research_only"] is False)

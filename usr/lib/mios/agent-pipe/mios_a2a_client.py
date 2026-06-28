@@ -248,7 +248,12 @@ async def _a2a_probe_peer(cfg: dict) -> None:
                     pid, state["error"])
         return
     state["card"] = card
-    state["protocolVersion"] = card.get("protocolVersion")
+    # LIBERAL on input: a v0.3 card carries a top-level protocolVersion; a v1.0
+    # card moved it into supportedInterfaces[].protocolVersion (first = preferred).
+    state["protocolVersion"] = card.get("protocolVersion") or next(
+        (i.get("protocolVersion")
+         for i in (card.get("supportedInterfaces") or [])
+         if isinstance(i, dict) and i.get("protocolVersion")), None)
     state["agent_name"] = card.get("name")
     skills = []
     if isinstance(card.get("skills"), list):
@@ -367,11 +372,11 @@ async def _a2a_send_message_to_peer(peer_id: str, text: str,
     headers = _mcp_render_headers(peer.get("headers_template") or {})
     headers.setdefault("Content-Type", "application/json")
     headers.setdefault("Accept", "application/json")
+    # v1.0 Message: role=ROLE_USER, a text Part by member presence (no `kind` tag).
     msg = {
-        "kind": "message",
-        "role": "user",
+        "role": "ROLE_USER",
         "messageId": uuid.uuid4().hex,
-        "parts": [{"kind": "text", "text": str(text or "")}],
+        "parts": [{"text": str(text or ""), "mediaType": "text/plain"}],
     }
     if context_id:
         msg["contextId"] = context_id
@@ -409,7 +414,15 @@ async def _a2a_send_message_to_peer(peer_id: str, text: str,
                     result = {"error": err.get("message") or "rpc error",
                               "code": err.get("code"), "peer_id": peer_id}
                 else:
-                    result = resp.get("result") or {}
+                    # LIBERAL on input: v1.0 wraps the SendMessage result in a
+                    # SendMessageResponse oneof ({"task"|"message": ...}); v0.3
+                    # returned the bare Task. Unwrap when wrapped, else take as-is,
+                    # so the returned envelope is always the Task/Message itself.
+                    res = resp.get("result")
+                    if isinstance(res, dict):
+                        result = res.get("task") or res.get("message") or res
+                    else:
+                        result = {}
     _A2A_REPUTATION.record(
         peer_id, not (isinstance(result, dict) and result.get("error")))
     return result

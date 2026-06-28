@@ -40,9 +40,11 @@ the importable surface stays byte-identical.
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import time
 import logging
+from typing import Optional
 
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
@@ -50,6 +52,7 @@ from fastapi.responses import JSONResponse
 from mios_config import _toml_section
 import mios_gossip
 import mios_selfimprove   # #64 outcome analyzer (read-only) -- consumed by _selfimprove_report
+import mios_selfimprove_act   # #64 ACT-half decision core (isolation + solver-gap + pass^k non-regression)
 import mios_pg as _mios_pg
 import mios_kvgc
 # The KV slot-file naming has ONE source (the fork plan); the GC sweep matches on
@@ -264,6 +267,153 @@ async def _selfimprove_report() -> dict:
                 "error": "unavailable"}
 
 
+# ── #64 self-improvement ACT half (T-062) + proof-of-utility (T-064) ───────────
+# The OBSERVE half (_selfimprove_report) surfaces WHAT to improve; the ACT half turns
+# a finding into a bounded change PROPOSAL, PROVES it does not regress the baseline,
+# and QUEUES it for HUMAN approval -- it NEVER auto-applies a self-modification. The
+# pure decisions (structural anti-reward-hacking isolation, the Autodata solver-gap
+# curation, the pass^k non-regression gate) live in mios_selfimprove_act; this module
+# owns only the live orchestration (drafting via a model, running the solver lanes,
+# writing the queue) -- all DEFAULT-OFF + degrade-open. The queue is an `event` row
+# (kind below) the operator reviews via GET /v1/self-improve/proposals and approves
+# out of band; applying an approved proposal is a separate path (out of scope here).
+_PROPOSAL_EVENT_KIND = "self_improve_proposal"
+# Result-set bound for the read-only proposals list (a query cap, like hitl_pending's
+# LIMIT -- not a decision weight); the queue is append-only so the list shows the most
+# recent first.
+_PROPOSALS_LIST_LIMIT = 100
+
+
+async def _act_draft_proposal(finding: dict) -> Optional[dict]:
+    """Draft a bounded change PROPOSAL for one finding (the Autodata "implementer").
+
+    A proposal is {target_kind, target_id, change, rationale}: the artifact to change
+    (a prompt / skill / config entry IN the improvable surface), a described tweak,
+    and the rationale. Mapping a finding to a CONCRETE improvable target + a change is
+    a reasoning step that needs a live model -- and must NOT be a hardcoded
+    finding->artifact heuristic (that would be an English gate banned by Law 7) -- so
+    this seam is wired to a model-backed drafter validated by the operator. Until then
+    it returns None: nothing is fabricated, so even a flipped act_enabled never queues
+    a guessed change. Patched in tests to exercise the propose->prove->queue path."""
+    return None
+
+
+async def _act_evaluate_proposal(proposal: dict) -> Optional[tuple]:
+    """Score the current baseline vs the proposed variant on a DISCRIMINATIVE held-out
+    eval (T-064). Returns (baseline_score, proposed_score) as pass^k reliabilities, or
+    None when no eval/solver is available (-> the proposal cannot be proven and is not
+    queued). The live path fetches eval candidates, curates them with the solver-gap
+    (mios_selfimprove_act.curate_eval over the SSOT weak/strong lane pair), runs each
+    variant through the lanes, and scores via mios_selfimprove_act.pass_hat_k_score --
+    a live, operator-validated step, so the offline default is None. Patched in tests
+    to supply synthetic baseline/proposed scores."""
+    return None
+
+
+async def _act_queue_proposal(proposal: dict, verdict: dict) -> bool:
+    """QUEUE a validated, non-regressing proposal for human review (an `event` row).
+    NEVER applies it. Degrade-open: a pg miss logs + drops the proposal and returns
+    False; live serving is never affected. Returns True iff the row was written."""
+    try:
+        payload = {"proposal": proposal, "delta": verdict.get("delta"),
+                   "target_kind": verdict.get("target_kind"),
+                   "target_id": verdict.get("target_id"),
+                   "status": "pending_review"}
+        await _mios_pg.execute(
+            "INSERT INTO event (source, kind, severity, summary, payload) "
+            "VALUES (%(source)s, %(kind)s, %(severity)s, %(summary)s, %(payload)s::jsonb)",
+            {"source": "agent-pipe", "kind": _PROPOSAL_EVENT_KIND, "severity": "info",
+             "summary": (f"self-improve proposal queued: "
+                         f"{verdict.get('target_kind')}:{verdict.get('target_id')} "
+                         f"(delta {verdict.get('delta')})"),
+             "payload": json.dumps(payload)}, fetch=False)
+        return True
+    except Exception as e:  # noqa: BLE001 -- queue is best-effort; never break the loop
+        log.warning("self-improve: proposal queue write skipped: %s", e)
+        return False
+
+
+async def _selfimprove_act_pass() -> dict:
+    """One ACT pass: findings -> proposals -> proof-of-utility -> QUEUE (no apply).
+
+    DEFAULT-OFF: returns a no-op summary unless [selfimprove].act_enabled. For each
+    high/medium finding (bounded by max_proposals_per_pass): draft a proposal, REJECT
+    it up front if it is not in the SSOT improvable surface / is in the protected
+    surface (structural isolation -- it is never even scored), else prove utility
+    (pass^k non-regression) and QUEUE only a non-regressing proposal. Every accept/
+    reject is logged with the score delta (Autodata rejects ~half its own proposals).
+    Degrade-open: any error drops the current proposal, never the loop. Returns a
+    summary {acted, findings, drafted, queued, rejected}."""
+    sect = _toml_section("selfimprove")
+    if not bool(sect.get("act_enabled", False)):
+        return {"acted": False, "reason": "disabled", "queued": 0, "rejected": 0}
+    improvable = sect.get("improvable_targets") or []
+    protected = sect.get("protected_targets") or []
+    margin = float(sect.get("accept_margin", 0.0))
+    require_improvement = bool(sect.get("require_improvement", False))
+    max_props = int(sect.get("max_proposals_per_pass", 3))
+    rep = await _selfimprove_report()
+    findings = [f for f in rep.get("findings", [])
+                if f.get("severity") in ("high", "medium")]
+    queued = rejected = drafted = 0
+    for finding in findings[:max(0, max_props)]:
+        try:
+            proposal = await _act_draft_proposal(finding)
+            if not proposal:
+                continue
+            drafted += 1
+            # Structural isolation FIRST: a proposal that targets the evaluator /
+            # eval-data / lane-config (or anything outside the improvable surface) is
+            # rejected before any solver compute is spent scoring it.
+            ok, why = mios_selfimprove_act.validate_proposal(
+                proposal, improvable=improvable, protected=protected)
+            if not ok:
+                rejected += 1
+                log.warning("self-improve ACT: proposal REJECTED (isolation: %s) "
+                            "target=%s:%s", why, proposal.get("target_kind"),
+                            proposal.get("target_id"))
+                continue
+            scores = await _act_evaluate_proposal(proposal)
+            if not scores:
+                continue  # cannot prove utility -> do not queue
+            verdict = mios_selfimprove_act.decide_proposal(
+                proposal, baseline_score=scores[0], proposed_score=scores[1],
+                improvable=improvable, protected=protected,
+                margin=margin, require_improvement=require_improvement)
+            if verdict.get("accept"):
+                if await _act_queue_proposal(proposal, verdict):
+                    queued += 1
+                    log.info("self-improve ACT: proposal QUEUED (delta %.4f) "
+                             "target=%s:%s -- awaiting human approval",
+                             verdict.get("delta") or 0.0,
+                             verdict.get("target_kind"), verdict.get("target_id"))
+            else:
+                rejected += 1
+                log.info("self-improve ACT: proposal REJECTED (%s, delta %.4f) "
+                         "target=%s:%s", verdict.get("reason"),
+                         verdict.get("delta") or 0.0,
+                         verdict.get("target_kind"), verdict.get("target_id"))
+        except Exception as e:  # noqa: BLE001 -- one bad proposal never breaks the pass
+            log.debug("self-improve ACT: proposal error: %s", e)
+    return {"acted": True, "findings": len(findings), "drafted": drafted,
+            "queued": queued, "rejected": rejected}
+
+
+async def _selfimprove_proposals(limit: int = _PROPOSALS_LIST_LIMIT) -> dict:
+    """The QUEUED self-improvement proposals awaiting human approval (read-only).
+    Degrade-open -> {proposals:[], error} when pg is unreachable so the route stays
+    up. These are validated + non-regressing (T-064) but NEVER auto-applied."""
+    try:
+        rows = await _mios_pg.execute(
+            "SELECT id, severity, summary, payload, ts FROM event "
+            "WHERE kind = %(kind)s ORDER BY ts DESC LIMIT %(lim)s",
+            {"kind": _PROPOSAL_EVENT_KIND, "lim": int(limit)}, fetch=True) or []
+        return {"proposals": rows, "count": len(rows)}
+    except Exception as e:  # noqa: BLE001 -- degrade-open
+        log.warning("self-improve proposals unavailable: %s", e)
+        return {"proposals": [], "count": 0, "error": "unavailable"}
+
+
 async def _selfimprove_loop() -> None:
     try:
         interval = int(_toml_section("selfimprove").get("interval_min", 0))
@@ -290,6 +440,10 @@ async def _selfimprove_loop() -> None:
                             f.get("detail"), f.get("suggestion"))
             if new:
                 log.info("self-improve: surfaced %d new finding(s)", new)
+            # ACT half (T-062/T-064): default-OFF no-op unless [selfimprove].act_enabled;
+            # when on, propose->prove->QUEUE non-regressing changes for human approval
+            # (never auto-applied). Self-gating + degrade-open inside the pass.
+            await _selfimprove_act_pass()
         except asyncio.CancelledError:
             raise
         except Exception as e:  # noqa: BLE001 -- degrade-open; never crash the loop
@@ -366,3 +520,13 @@ async def selfimprove_report_ep() -> JSONResponse:
     the loop) is a separate, gated step."""
     return JSONResponse({"object": "mios.self_improve.report",
                          **(await _selfimprove_report())})
+
+
+@daemons_router.get("/v1/self-improve/proposals")
+async def selfimprove_proposals_ep() -> JSONResponse:
+    """Read-only: the QUEUED self-improvement proposals awaiting human approval -- the
+    ACT half of #64 (T-062). Each was validated for target isolation and proven
+    non-regressing (T-064 proof-of-utility) before queuing, but is NEVER auto-applied:
+    the operator reviews + approves out of band, then a separate path applies it."""
+    return JSONResponse({"object": "mios.self_improve.proposals",
+                         **(await _selfimprove_proposals())})

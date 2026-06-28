@@ -349,7 +349,12 @@ async def _call_agent_complete(name, cfg, body, headers, client,
     # thundering-herd fix.
     _est = _opt_int_mb(cfg.get("vram_mb"))   # Phase-1 per-worker VRAM (0 = unknown)
     try:
-        await _admit(_ep, _adm_model, _engine or _lane_sem_key(cfg), _prio, _est)
+        # foreground=False: this is the fan-out / secondary dispatch -- background
+        # work that IS shed-eligible (best_effort) under contention (the merge
+        # degrades gracefully when a node drops). A genuine foreground turn keeps
+        # the protective default (interactive, never shed).
+        await _admit(_ep, _adm_model, _engine or _lane_sem_key(cfg), _prio, _est,
+                     foreground=False)
     except _SloShed:  # WS-SCHED-SLO: best_effort shed -> drop this node from the merge
         log.info("SLO shed: best_effort fan-out %s dropped under contention", name)
         return name, ""

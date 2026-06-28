@@ -1,9 +1,12 @@
-# AI-hint: Stdlib unit test for the extracted A2A federation publish surface (mios_a2a). Injects lightweight stubs via configure() -- a fake FastAPI app, a one-agent registry, a one-verb catalog, a fake passport signer (no cryptography dependency), and a fake async HTTP client -- then asserts the AgentCard JSON shape + detached-signature presence, the Open Agent Passport + AGNTCY-OASF manifest shapes, the A2A skill-directory projection, and the JSON-RPC 2.0 method dispatch (message/send round-trip, tasks/get not-found, unknown-method error) plus the principal-metadata gate. No network, no DB, no server import.
+# AI-hint: Stdlib unit test for the extracted A2A federation publish surface (mios_a2a). Injects lightweight stubs via configure() -- a fake FastAPI app, a one-agent registry, a one-verb catalog, a fake passport signer (no cryptography dependency), and a fake async HTTP client -- then asserts the AgentCard JSON shape + its A2A v1.0 JWS signature (RFC-7515 detached-JWS shape, and a real Ed25519 sign->verify round-trip with tamper-detection when python3-cryptography is present), the Open Agent Passport + AGNTCY-OASF manifest shapes, the A2A skill-directory projection, and the JSON-RPC 2.0 method dispatch (message/send round-trip, tasks/get not-found, unknown-method error) plus the principal-metadata gate. No network, no DB, no server import.
 # AI-related: ./mios_a2a.py, ./server.py
 """Unit tests for mios_a2a (A2A federation publish surface). Pure stdlib + stubs."""
 import asyncio
 import contextvars
 import json
+import logging
+import os
+import tempfile
 import unittest
 
 import mios_a2a
@@ -72,7 +75,6 @@ class TestAgentCard(unittest.TestCase):
 
     def test_card_shape_and_signature(self):
         card = mios_a2a._build_agent_card()
-        self.assertEqual(card["protocolVersion"], mios_a2a.A2A_PROTOCOL_VERSION)
         self.assertEqual(card["description"], "MiOS test agent")
         self.assertEqual(card["version"], "9.9.9")
         # one [agents.*] entry -> one A2A skill, tags = the strength tokens.
@@ -81,17 +83,57 @@ class TestAgentCard(unittest.TestCase):
         self.assertEqual(sk["id"], "hermes")
         self.assertEqual(sk["tags"], ["reasoning", "tools"])
         self.assertIn("text/plain", sk["inputModes"])
-        # JSONRPC transport is canonical; OpenAI advertised alongside.
-        self.assertEqual(card["preferredTransport"], "JSONRPC")
-        transports = {i["transport"] for i in card["additionalInterfaces"]}
-        self.assertEqual(transports, {"JSONRPC", "OpenAI"})
         # securitySchemes always advertised; hard requirement when gate is on.
         self.assertIn("securitySchemes", card)
         self.assertIn("security", card)   # api_require_auth=True
-        # Ed25519 detached-JWS signature present (fake signer provisioned).
+        # A2A v1.0 JWS signature present (fake signer provisioned). The entry is the
+        # spec detached-JWS shape {protected, signature} (both base64url, no payload);
+        # the protected header decodes to the JOSE-standard {alg: EdDSA, kid} -- alg is
+        # the RFC-8037 JWS name "EdDSA", NOT the raw key-alg "ed25519".
         self.assertIn("signatures", card)
-        self.assertEqual(card["signatures"][0]["header"]["alg"], "ed25519")
-        self.assertEqual(card["signatures"][0]["header"]["kid"], "mios-test-kid")
+        sig = card["signatures"][0]
+        self.assertEqual(set(sig.keys()), {"protected", "signature"})
+        hdr = json.loads(mios_a2a._b64u_decode(sig["protected"]))
+        self.assertEqual(hdr["alg"], "EdDSA")
+        self.assertEqual(hdr["kid"], "mios-test-kid")
+
+    def test_card_is_a2a_v1_schema(self):
+        """The AgentCard emits the A2A v1.0 schema (authoritative spec a2a.proto
+        v1.0.x + spec §8.5): supportedInterfaces[] (no top-level url/
+        preferredTransport/additionalInterfaces/protocolVersion), per-interface
+        protocolVersion = the v1.0 value, the securitySchemes discriminated-union
+        shape, and the card is valid + parseable JSON."""
+        card = mios_a2a._build_agent_card()
+        # The v0.3 top-level discovery fields are GONE in v1.0.
+        for gone in ("protocolVersion", "url", "preferredTransport",
+                     "additionalInterfaces", "supportsAuthenticatedExtendedCard"):
+            self.assertNotIn(gone, card, gone)
+        # supportedInterfaces[] -- ordered, first = preferred (JSONRPC), each entry
+        # {url, protocolBinding, protocolVersion}; OpenAI advertised alongside.
+        ifaces = card["supportedInterfaces"]
+        self.assertIsInstance(ifaces, list)
+        self.assertEqual(ifaces[0]["protocolBinding"], "JSONRPC")
+        self.assertEqual({i["protocolBinding"] for i in ifaces},
+                         {"JSONRPC", "OpenAI"})
+        for i in ifaces:
+            self.assertIn("url", i)
+            # protocolVersion lives on each interface now, == the SSOT constant.
+            self.assertEqual(i["protocolVersion"], mios_a2a.A2A_PROTOCOL_VERSION)
+        # The v1.0 value (spec §8.5 example + a2a.proto: "1.0").
+        self.assertEqual(mios_a2a.A2A_PROTOCOL_VERSION, "1.0")
+        # securitySchemes is the v1.0 discriminated union keyed by scheme type
+        # (e.g. {"bearer": {"httpAuthSecurityScheme": {...}}}), NOT the 0.3
+        # OpenAPI-style {"type": "http", ...}.
+        bearer = card["securitySchemes"]["bearer"]
+        self.assertIn("httpAuthSecurityScheme", bearer)
+        self.assertNotIn("type", bearer)
+        self.assertEqual(bearer["httpAuthSecurityScheme"]["scheme"], "bearer")
+        # capabilities carries only the v1.0-standard flags (the 0.3-only
+        # stateTransitionHistory/contextSharing moved under x-mios).
+        self.assertNotIn("stateTransitionHistory", card["capabilities"])
+        self.assertTrue(card["x-mios"]["contextSharing"])
+        # The card round-trips through JSON unchanged (valid + parseable).
+        self.assertEqual(json.loads(json.dumps(card))["name"], card["name"])
 
     def test_card_unsigned_when_no_key(self):
         mios_a2a.configure(passport_load_priv=lambda: None)
@@ -117,6 +159,101 @@ class TestAgentCard(unittest.TestCase):
         self.assertEqual(proto_names, {"A2A", "MCP", "OpenAI"})
         self.assertEqual(len(man["features"]), 1)   # one agent skill -> one feature
         self.assertTrue(man["capabilities"]["tool_use"])
+
+
+class TestAgentCardJWS(unittest.TestCase):
+    """U3: the AgentCard `signatures[]` is a real A2A v1.0 JWS (RFC-7515 over RFC-8785
+    JCS), proven with a real Ed25519 key -- the spec mandates JWS, so the proof is a
+    cryptographic sign->verify round-trip, not just a shape check. A tampered card or
+    tampered signature FAILS verification; a non-EdDSA alg is rejected; the protected
+    header decodes to the JOSE-standard {alg: EdDSA, kid}. Skipped cleanly where
+    python3-cryptography is absent (the build host), exactly like the passport
+    real-key round-trip in test_mios_a2a_principal."""
+
+    def setUp(self):
+        _configure()
+        try:
+            from cryptography.hazmat.primitives.asymmetric.ed25519 import (
+                Ed25519PrivateKey)
+        except Exception:  # noqa: BLE001 -- crypto lib optional on the build host
+            self.skipTest("cryptography unavailable")
+        self._priv = Ed25519PrivateKey.generate()
+        self._pub = self._priv.public_key()
+        # Swap the fake signer for a REAL Ed25519 key + advertise its public half as
+        # this agent's own key, so verify resolves it by identity for a self-signed card.
+        mios_a2a.configure(
+            passport_load_priv=lambda: self._priv,
+            passport_kid=lambda: "mios-card-test-v1",
+            passport_load_public=lambda agent: self._pub,
+        )
+
+    def _signed_card(self):
+        card = mios_a2a._build_agent_card()
+        self.assertIn("signatures", card)
+        return card
+
+    def test_protected_header_is_jose_eddsa(self):
+        sig = self._signed_card()["signatures"][0]
+        # spec entry shape: protected + signature (both base64url), NO payload member.
+        self.assertEqual(set(sig.keys()), {"protected", "signature"})
+        hdr = json.loads(mios_a2a._b64u_decode(sig["protected"]))
+        self.assertEqual(hdr["alg"], "EdDSA")            # RFC-8037 JWS alg name
+        self.assertEqual(hdr["kid"], "mios-card-test-v1")  # from the key store (SSOT)
+
+    def test_sign_verify_roundtrip(self):
+        card = self._signed_card()
+        # default key resolution (this agent's advertised public key)
+        verdict, reason = mios_a2a._verify_agent_card_signature(card)
+        self.assertTrue(verdict, reason)
+        self.assertEqual(reason, "ok")
+        # explicit public-key path (how a peer's advertised key is supplied)
+        v2, r2 = mios_a2a._verify_agent_card_signature(card, public_key=self._pub)
+        self.assertTrue(v2, r2)
+
+    def test_tampered_card_fails(self):
+        card = self._signed_card()
+        # mutate a signed field AFTER signing -> the JCS payload no longer matches.
+        card["description"] = str(card["description"]) + " (tampered)"
+        verdict, reason = mios_a2a._verify_agent_card_signature(card)
+        self.assertFalse(verdict)
+        self.assertEqual(reason, "invalid_signature")
+
+    def test_tampered_signature_fails(self):
+        card = self._signed_card()
+        good = mios_a2a._b64u_decode(card["signatures"][0]["signature"])
+        flipped = bytes([good[0] ^ 0xFF]) + good[1:]   # any bit flip breaks Ed25519
+        card["signatures"][0]["signature"] = mios_a2a._b64u(flipped)
+        verdict, reason = mios_a2a._verify_agent_card_signature(card)
+        self.assertFalse(verdict)
+        self.assertEqual(reason, "invalid_signature")
+
+    def test_unsupported_alg_rejected(self):
+        card = self._signed_card()
+        # re-encode the protected header with a non-EdDSA alg -> rejected pre-crypto.
+        bad_hdr = json.dumps({"alg": "RS256", "kid": "x"},
+                             sort_keys=True, separators=(",", ":")).encode("utf-8")
+        card["signatures"][0]["protected"] = mios_a2a._b64u(bad_hdr)
+        verdict, reason = mios_a2a._verify_agent_card_signature(card)
+        self.assertFalse(verdict)
+        self.assertTrue(reason.startswith("unsupported_alg"), reason)
+
+    def test_unsigned_card_verdict_none(self):
+        card = self._signed_card()
+        card.pop("signatures", None)
+        verdict, reason = mios_a2a._verify_agent_card_signature(card)
+        self.assertIsNone(verdict)
+        self.assertEqual(reason, "unsigned")
+
+    def test_signing_input_excludes_signatures_field(self):
+        # The detached-JWS payload is the card MINUS `signatures` (a signature cannot
+        # cover itself): adding/removing the signatures field must NOT change the
+        # signing input the verifier reconstructs.
+        card = self._signed_card()
+        prot = card["signatures"][0]["protected"]
+        with_sigs = mios_a2a._agent_card_signing_input(prot, card)
+        bare = {k: v for k, v in card.items() if k != "signatures"}
+        without = mios_a2a._agent_card_signing_input(prot, bare)
+        self.assertEqual(with_sigs, without)
 
 
 class TestSkillDirectory(unittest.TestCase):
@@ -147,27 +284,73 @@ class TestJsonRpc(unittest.TestCase):
             {"id": 2, "method": "tasks/get", "params": {"id": "missing"}}))
         self.assertEqual(out["error"]["code"], mios_a2a._A2A_ERR_TASK_NOT_FOUND)
 
+    def test_error_carries_google_rpc_detail(self):
+        # v1.0 §9.5: error.data is an ARRAY of typed detail objects, each with an
+        # `@type`; an A2A-specific error attaches a google.rpc.ErrorInfo (reason +
+        # domain + metadata). The numeric JSON-RPC code is unchanged.
+        out = asyncio.run(mios_a2a._a2a_jsonrpc_dispatch(
+            {"id": 9, "method": "GetTask", "params": {"id": "nope"}}))
+        data = out["error"]["data"]
+        self.assertIsInstance(data, list)
+        info = data[0]
+        self.assertEqual(info["@type"],
+                         "type.googleapis.com/google.rpc.ErrorInfo")
+        self.assertEqual(info["reason"], "TASK_NOT_FOUND")
+        self.assertEqual(info["domain"], "a2a-protocol.org")
+        self.assertEqual(info["metadata"]["taskId"], "nope")
+
+    def test_pascalcase_methods_accepted(self):
+        # v1.0 §9 method names are PascalCase (GetTask); the 0.3 kebab names are
+        # still accepted (liberal in). Both reach the same handler.
+        for method in ("GetTask", "tasks/get"):
+            out = asyncio.run(mios_a2a._a2a_jsonrpc_dispatch(
+                {"id": 1, "method": method, "params": {"id": "x"}}))
+            self.assertEqual(out["error"]["code"],
+                             mios_a2a._A2A_ERR_TASK_NOT_FOUND, method)
+
+    def test_make_task_uses_v1_state_tokens(self):
+        # The lifecycle stores v1.0 SCREAMING_SNAKE TaskState tokens; the terminal
+        # set is the v1.0 tokens too.
+        task = mios_a2a._a2a_make_task("", {"role": "user", "parts": [
+            {"text": "hi"}]})
+        self.assertEqual(task["status"]["state"], "TASK_STATE_SUBMITTED")
+        self.assertNotIn("kind", task)
+        self.assertEqual(task["history"][0]["role"], "ROLE_USER")
+        self.assertIn("TASK_STATE_COMPLETED", mios_a2a._A2A_TERMINAL)
+
     def test_tasks_get_missing_id(self):
         out = asyncio.run(mios_a2a._a2a_jsonrpc_dispatch(
             {"id": 3, "method": "tasks/get", "params": {}}))
         self.assertEqual(out["error"]["code"], -32602)
 
     def test_message_send_roundtrip(self):
+        # Inbound 0.3-shaped message (role "user", kind-tagged Part) is accepted
+        # (liberal in); the v1.0 result is a SendMessageResponse oneof wrapper.
         msg = {"id": 4, "method": "message/send",
                "params": {"message": {"role": "user",
                           "parts": [{"kind": "text", "text": "hello"}]}}}
         out = asyncio.run(mios_a2a._a2a_jsonrpc_dispatch(msg))
-        task = out["result"]
-        self.assertEqual(task["kind"], "task")
-        self.assertEqual(task["status"]["state"], "completed")
-        # the stub backend answer comes back as an artifact + agent message.
-        self.assertEqual(task["artifacts"][0]["parts"][0]["text"], "stub answer")
+        task = out["result"]["task"]          # v1.0 SendMessageResponse.task
+        self.assertNotIn("kind", task)        # v1.0 Task has no `kind` discriminator
+        self.assertEqual(task["status"]["state"], "TASK_STATE_COMPLETED")
+        # the stub backend answer comes back as an artifact + agent message,
+        # in v1.0 Part shape (text member present, mediaType, no `kind`).
+        part = task["artifacts"][0]["parts"][0]
+        self.assertEqual(part["text"], "stub answer")
+        self.assertEqual(part["mediaType"], "text/plain")
+        self.assertNotIn("kind", part)
+        self.assertEqual(task["history"][-1]["role"], "ROLE_AGENT")
 
-    def test_text_from_message(self):
+    def test_text_from_message_accepts_both_part_shapes(self):
+        # LIBERAL on input: a 0.3 kind-tagged Part, a permissive type-tagged Part,
+        # AND a v1.0 member-presence Part (no discriminator) are all extracted; a
+        # Part that explicitly declares a non-text kind is skipped.
         txt = mios_a2a._a2a_text_from_message(
             {"parts": [{"kind": "text", "text": "a"},
-                       {"type": "text", "text": "b"}]})
-        self.assertEqual(txt, "a\nb")
+                       {"type": "text", "text": "b"},
+                       {"text": "c", "mediaType": "text/plain"},
+                       {"kind": "data", "data": {"x": 1}}]})
+        self.assertEqual(txt, "a\nb\nc")
 
 
 class TestPrincipal(unittest.TestCase):
@@ -237,7 +420,8 @@ class TestJsonRpcRouteLogic(unittest.TestCase):
                             {"kind": "text", "text": "hello"}]}}})
         res = asyncio.run(mios_a2a.a2a_jsonrpc_logic(req))
         body = json.loads(res.body)
-        self.assertEqual(body["result"]["status"]["state"], "completed")
+        self.assertEqual(body["result"]["task"]["status"]["state"],
+                         "TASK_STATE_COMPLETED")
 
     def test_jsonrpc_logic_unknown_method(self):
         req = _FakeReq({"id": 2, "method": "no/such"})
@@ -323,6 +507,183 @@ class TestPassportRouteLogic(unittest.TestCase):
         res = asyncio.run(mios_a2a.passport_public_key_logic("nobody"))
         self.assertEqual(res.status_code, 404)
         self.assertIn("no public key", json.loads(res.body)["error"])
+
+
+# -- FED-G6: principal_mode 'verify' tier (audit-log, non-blocking) --
+
+
+class _FakeAuthReq:
+    """Request stand-in carrying both .headers (for the admin gate) and .json()."""
+    def __init__(self, payload=None, auth="", exc=None):
+        self._payload = payload
+        self._exc = exc
+        self.headers = {"authorization": auth} if auth else {}
+
+    async def json(self):
+        if self._exc is not None:
+            raise self._exc
+        return self._payload
+
+
+class TestPrincipalModeVerify(unittest.TestCase):
+    """T-014 FED-G6: the 'verify' tier runs the SAME check enforce does but, on a
+    failed/absent principal, emits a STRUCTURED audit record and ALLOWS the request
+    through. off/enforce behaviour is unchanged."""
+
+    def setUp(self):
+        _configure()
+        self._mode = mios_a2a._A2A_PRINCIPAL_MODE
+        self._req = mios_a2a._A2A_PRINCIPAL_REQUIRE
+
+    def tearDown(self):
+        mios_a2a._A2A_PRINCIPAL_MODE = self._mode
+        mios_a2a._A2A_PRINCIPAL_REQUIRE = self._req
+
+    def _send(self, metadata=None):
+        msg = {"role": "user", "parts": [{"kind": "text", "text": "hello"}]}
+        if metadata is not None:
+            msg["metadata"] = metadata
+        return asyncio.run(mios_a2a._a2a_jsonrpc_dispatch(
+            {"id": 1, "method": "message/send", "params": {"message": msg}}))
+
+    def test_mode_parsing_tristate(self):
+        # the enum is read from SSOT/env; truthy synonyms collapse onto enforce.
+        for raw, want in (("off", "off"), ("verify", "verify"),
+                          ("enforce", "enforce"), ("require", "enforce"),
+                          ("true", "enforce"), ("", "off"), ("bogus", "off")):
+            os.environ["MIOS_A2A_PRINCIPAL_MODE"] = raw
+            try:
+                self.assertEqual(mios_a2a._principal_mode(), want, raw)
+            finally:
+                os.environ.pop("MIOS_A2A_PRINCIPAL_MODE", None)
+
+    def test_verify_absent_audits_and_passes(self):
+        mios_a2a._A2A_PRINCIPAL_MODE = "verify"
+        mios_a2a._A2A_PRINCIPAL_REQUIRE = False
+        with self.assertLogs("mios-agent-pipe", level="WARNING") as cm:
+            out = self._send(metadata=None)          # no principal block -> _pv is None
+        self.assertEqual(out["result"]["task"]["status"]["state"],
+                         "TASK_STATE_COMPLETED")                           # ALLOWED
+        self.assertTrue(any("a2a-principal-audit" in m and "absent" in m
+                            for m in cm.output))
+
+    def test_verify_failed_audits_and_passes(self):
+        mios_a2a._A2A_PRINCIPAL_MODE = "verify"
+        mios_a2a._A2A_PRINCIPAL_REQUIRE = False
+        # a principal block whose text digest can't match -> verdict False.
+        md = {"mios_principal": {"claims": {"agent": "rogue", "principal": "p",
+                                            "text_sha256": "00"}}}
+        with self.assertLogs("mios-agent-pipe", level="WARNING") as cm:
+            out = self._send(metadata=md)
+        self.assertEqual(out["result"]["task"]["status"]["state"],
+                         "TASK_STATE_COMPLETED")                           # ALLOWED
+        self.assertTrue(any("a2a-principal-audit" in m and "verify_failed" in m
+                            for m in cm.output))
+
+    def test_enforce_absent_rejects(self):
+        mios_a2a._A2A_PRINCIPAL_MODE = "enforce"
+        mios_a2a._A2A_PRINCIPAL_REQUIRE = True
+        out = self._send(metadata=None)
+        self.assertEqual(out["error"]["code"], -32600)                    # REJECTED
+
+    def test_off_absent_passes_without_audit(self):
+        mios_a2a._A2A_PRINCIPAL_MODE = "off"
+        mios_a2a._A2A_PRINCIPAL_REQUIRE = False
+        records = []
+        handler = logging.Handler()
+        handler.emit = lambda r: records.append(r.getMessage())
+        logger = logging.getLogger("mios-agent-pipe")
+        logger.addHandler(handler)
+        try:
+            out = self._send(metadata=None)
+        finally:
+            logger.removeHandler(handler)
+        self.assertEqual(out["result"]["task"]["status"]["state"],
+                         "TASK_STATE_COMPLETED")                           # ALLOWED
+        self.assertFalse(any("a2a-principal-audit" in m for m in records))  # no audit
+
+
+# -- FED-G8: caller-key revoke endpoint + CRL hot-reload --
+
+
+class TestCallerKeyRevoke(unittest.TestCase):
+    """T-052 FED-G8: POST /v1/admin/keys/revoke appends a caller key to the CRL and
+    HOT-RELOADS it so the credential is refused on the very next check, no restart."""
+
+    def setUp(self):
+        _configure()
+        self._dir = tempfile.mkdtemp()
+        self._crl = os.path.join(self._dir, "crl.json")
+        self._orig_path = mios_a2a._CRL_PATH
+        self._orig_cip = mios_a2a._check_inbound_principal
+        mios_a2a._CRL_PATH = self._crl
+        mios_a2a._CRL_CACHE.clear()
+        mios_a2a._CRL_CACHE.update({"mtime": -1.0, "crl": None})
+        # admin gate: only the synthetic admin token resolves to a principal.
+        mios_a2a.configure(check_inbound_principal=lambda tok: (
+            {"principal": "operator", "scope": "full"} if tok == "admin-secret"
+            else None))
+
+    def tearDown(self):
+        mios_a2a._CRL_PATH = self._orig_path
+        mios_a2a._check_inbound_principal = self._orig_cip
+        mios_a2a._CRL_CACHE.clear()
+        mios_a2a._CRL_CACHE.update({"mtime": -1.0, "crl": None})
+        for p in (self._crl, self._crl + ".tmp"):
+            try:
+                os.remove(p)
+            except OSError:
+                pass
+        try:
+            os.rmdir(self._dir)
+        except OSError:
+            pass
+
+    def _seed(self, revoked):
+        with open(self._crl, "w", encoding="utf-8") as fh:
+            json.dump({"revoked": revoked}, fh)
+        mios_a2a._crl_reload()        # load + cache (a CRL already present at startup)
+
+    def test_revoke_appends_and_hot_reloads(self):
+        self._seed(["seed-id"])
+        crl0 = mios_a2a._load_crl()
+        self.assertTrue(crl0.is_revoked("seed-id"))
+        fp = mios_a2a._crl_fingerprint("caller-tok-1")
+        self.assertFalse(crl0.is_revoked(fp))                  # not revoked yet
+        self.assertFalse(mios_a2a._caller_key_revoked("caller-tok-1", {}))
+        res = asyncio.run(mios_a2a.caller_key_revoke_logic(
+            _FakeAuthReq({"token": "caller-tok-1"}, auth="Bearer admin-secret")))
+        self.assertEqual(res.status_code, 200)
+        body = json.loads(res.body)
+        self.assertEqual(body["object"], "mios.crl.revoke")
+        self.assertEqual(body["added"], 1)
+        # HOT-RELOAD: the SAME loader the gate/verify paths call now sees the new id,
+        # with NO manual cache reset -> _crl_persist_revoke cache-busted on write.
+        self.assertTrue(mios_a2a._load_crl().is_revoked(fp))
+        self.assertTrue(mios_a2a._load_crl().is_revoked("seed-id"))    # union, kept
+        # the NEXT inbound check rejects this caller key (raw token -> fingerprint).
+        self.assertTrue(mios_a2a._caller_key_revoked("caller-tok-1", {}))
+        self.assertFalse(mios_a2a._caller_key_revoked("untouched-tok", {}))
+
+    def test_revoke_by_principal_rejected_by_a2a_check(self):
+        res = asyncio.run(mios_a2a.caller_key_revoke_logic(
+            _FakeAuthReq({"principal": "peer-agent-9"}, auth="Bearer admin-secret")))
+        self.assertEqual(res.status_code, 200)
+        # A principal-id on the CRL is what _a2a_verify_principal already rejects, so a
+        # revoked delegating principal is refused on the A2A path too (same CRL).
+        self.assertTrue(mios_a2a._load_crl().is_revoked("peer-agent-9"))
+        self.assertTrue(mios_a2a._caller_key_revoked("", {"principal": "peer-agent-9"}))
+
+    def test_revoke_unauthorized(self):
+        res = asyncio.run(mios_a2a.caller_key_revoke_logic(
+            _FakeAuthReq({"token": "x"}, auth="Bearer wrong")))
+        self.assertEqual(res.status_code, 401)
+        self.assertEqual(len(mios_a2a._load_crl()), 0)         # CRL untouched
+
+    def test_revoke_missing_identifier(self):
+        res = asyncio.run(mios_a2a.caller_key_revoke_logic(
+            _FakeAuthReq({}, auth="Bearer admin-secret")))
+        self.assertEqual(res.status_code, 400)
 
 
 if __name__ == "__main__":

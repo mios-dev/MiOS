@@ -144,6 +144,12 @@ artifact:
     ./automation/ai-bootstrap.sh
     @echo "[OK] Artifacts, UKB, and Wiki refreshed."
 
+# Compile the 50-chapter User Manual and all 152 sub-pages in one shot
+manual:
+    python3 ./tools/generate-manual.py
+    @echo "[OK] User Manual and sub-pages compiled successfully."
+
+
 # Build OCI image on Cloud (using remote context)
 cloud-build:
     @echo "Configure cloud-build with your cloud provider CLI"

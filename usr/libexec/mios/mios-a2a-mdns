@@ -1,0 +1,327 @@
+#!/usr/bin/env python3
+# AI-hint: SSOT-driven avahi/mDNS side of A2A discovery. Renders the LAN-announce avahi service file from the /usr/lib template (port + service-type substituted from mios.toml, never hardcoded) when [a2a].mdns_advertise is set, and browses _mios-a2a._tcp with avahi-browse to surface candidate peer URLs for mios-a2a-discover to card-probe. All behaviour is flag-gated + degrade-open: a missing avahi, daemon, or template never raises.
+# AI-related: /usr/lib/mios/avahi/mios-a2a.service.in, /etc/avahi/services/mios-a2a.service, ./mios-a2a-discover, /usr/share/mios/mios.toml, /etc/mios/mios.toml, avahi-daemon.service, mios-aios-refresh.service
+# AI-functions: _load_toml, _resolve_port, _service_type, advertise, browse, reload_peers, main
+"""mios-a2a-mdns -- avahi/mDNS advertise + browse for A2A peer discovery (FED-G5).
+
+Two SSOT-gated, degrade-open halves that mios-a2a-discover calls (or an operator
+runs standalone):
+
+  * advertise -- when [a2a].mdns_advertise is true, render the static template at
+    /usr/lib/mios/avahi/mios-a2a.service.in into /etc/avahi/services/mios-a2a.service,
+    substituting the agent-pipe port ([ports].agent_pipe) and the service type
+    ([a2a].mdns_service_type) from the layered mios.toml -- never a code literal.
+    avahi-daemon watches that directory and (de)registers the service on file
+    create/remove, so toggling the flag off removes the file = withdraws the
+    announce, no daemon restart needed. Conservative default OFF (operator opts
+    into a LAN announce).
+
+  * browse -- when [a2a].mdns_discovery is true, run a one-shot
+    `avahi-browse -p -r -t <type>` and parse the resolved (`=`-prefixed) records
+    into http://IP:port candidate URLs. These are appended to the candidate set
+    that mios-a2a-discover's EXISTING AgentCard probe validates before writing
+    a2a-peers.json, so a non-MiOS responder on the wire is never trusted blindly.
+
+Every external dependency (avahi-tools present, daemon up, template readable) is
+optional: any miss logs and yields nothing, so discovery degrades to the explicit
+[a2a].nodes / discover_cidr paths.
+"""
+import ipaddress
+import json
+import os
+import subprocess
+import sys
+import time
+import urllib.request
+
+# Output (rendered) avahi service file + the source template. Law 1: the static
+# template ships read-only under /usr/lib; the rendered copy is admin/runtime
+# state under /etc. Both overridable for tests / non-standard layouts.
+_HERE = os.path.dirname(os.path.abspath(__file__))
+AVAHI_SERVICE = os.environ.get(
+    "MIOS_A2A_AVAHI_SERVICE", "/etc/avahi/services/mios-a2a.service")
+AVAHI_TEMPLATE = os.environ.get(
+    "MIOS_A2A_AVAHI_TEMPLATE",
+    os.path.normpath(os.path.join(_HERE, "..", "..", "lib", "mios",
+                                  "avahi", "mios-a2a.service.in")))
+# Browse-result cache backing the [a2a].mdns_refresh_sec throttle FLOOR: a browse
+# within the window reuses this instead of re-hitting avahi, so discovery never
+# loses peers between live scans. /run/mios is the tmpfiles-declared volatile
+# runtime dir (cleared each boot). Overridable for tests / non-standard layouts.
+MDNS_CACHE = os.environ.get(
+    "MIOS_A2A_MDNS_CACHE", "/run/mios/a2a-mdns-candidates.json")
+
+
+def _deep_merge(base, over):
+    for k, v in over.items():
+        if isinstance(v, dict) and isinstance(base.get(k), dict):
+            _deep_merge(base[k], v)
+        else:
+            base[k] = v
+
+
+def _load_toml():
+    """Merge the layered mios.toml (vendor < host < user). Empty on any failure."""
+    try:
+        import tomllib
+    except Exception:  # noqa: BLE001
+        return {}
+    merged = {}
+    for p in ("/usr/share/mios/mios.toml", "/etc/mios/mios.toml",
+              os.path.expanduser("~/.config/mios/mios.toml")):
+        try:
+            with open(p, "rb") as f:
+                _deep_merge(merged, tomllib.load(f))
+        except Exception:  # noqa: BLE001
+            continue
+    return merged
+
+
+def _resolve_port(cfg):
+    """Agent-pipe port from SSOT: env override wins, else [ports].agent_pipe.
+    No literal default here -- a missing port means we cannot honestly advertise,
+    so advertise() skips rather than announce a guessed endpoint."""
+    env = os.environ.get("MIOS_PORT_AGENT_PIPE")
+    if env and str(env).strip():
+        return str(env).strip()
+    port = ((cfg.get("ports") or {}).get("agent_pipe"))
+    return str(port).strip() if port not in (None, "") else ""
+
+
+def _service_type(cfg):
+    """mDNS service type from [a2a].mdns_service_type (one SSOT for advertise +
+    browse). Empty -> both halves no-op (no guessed service type)."""
+    t = ((cfg.get("a2a") or {}).get("mdns_service_type") or "").strip()
+    return t
+
+
+def _truthy(v):
+    return bool(v) is True
+
+
+def advertise(cfg, log=print):
+    """Render or withdraw /etc/avahi/services/mios-a2a.service per
+    [a2a].mdns_advertise. Returns True when the desired state was reached.
+    Degrade-open: any error logs + returns False, never raises."""
+    a2a = cfg.get("a2a") or {}
+    want = _truthy(a2a.get("mdns_advertise"))
+    try:
+        if not want:
+            # Withdraw: remove the rendered file so avahi de-registers. Absent
+            # already = success (idempotent).
+            if os.path.exists(AVAHI_SERVICE):
+                os.remove(AVAHI_SERVICE)
+                log(f"  mdns advertise OFF -> withdrew {AVAHI_SERVICE}")
+            return True
+        port = _resolve_port(cfg)
+        stype = _service_type(cfg)
+        if not port or not stype:
+            log("  mdns advertise: missing port or service_type in SSOT -- "
+                "skipping (no guessed announce)")
+            return False
+        with open(AVAHI_TEMPLATE, "r", encoding="utf-8") as f:
+            tpl = f.read()
+        # Substitute ONLY the two SSOT-driven placeholders; everything else in
+        # the template is an A2A protocol constant.
+        rendered = (tpl.replace("${MIOS_PORT_AGENT_PIPE}", port)
+                       .replace("${MIOS_A2A_MDNS_SERVICE_TYPE}", stype))
+        os.makedirs(os.path.dirname(AVAHI_SERVICE), exist_ok=True)
+        tmp = AVAHI_SERVICE + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            f.write(rendered)
+        os.replace(tmp, AVAHI_SERVICE)  # atomic: avahi never sees a half-file
+        log(f"  mdns advertise ON -> {AVAHI_SERVICE} (type={stype} port={port})")
+        return True
+    except Exception as e:  # noqa: BLE001
+        log(f"  mdns advertise: degraded ({e})")
+        return False
+
+
+def _parse_resolved(line):
+    """Parse one avahi-browse -p resolved (`=`-prefixed) line into a candidate
+    URL, or None.
+
+    avahi-browse -p emits `;`-separated fields; resolved records lead with `=`.
+    The documented field order (1-indexed) is:
+        1 `=`  2 iface  3 proto  4 name  5 type  6 domain
+        7 hostname  8 ADDRESS(IP)  9 PORT  10 txt...
+    so positionally that is fields[7]=IP, fields[8]=port (0-indexed). The EXACT
+    resolved field order can shift between avahi versions and cannot be verified
+    offline, so we read those positions but VALIDATE structurally (IP must parse,
+    port must be 1..65535); if the documented positions don't validate we scan
+    the record for the first parseable IP followed by a valid port. The
+    discriminators are structural (address-parse + integer range), not lexical.
+    Names carry backslash escapes (\\032 = space); we need only IP + port, so no
+    unescaping is required to build the URL."""
+    if not line.startswith("="):
+        return None
+    f = line.rstrip("\n").split(";")
+
+    def _ok(ip_s, port_s):
+        try:
+            ip = ipaddress.ip_address(ip_s.strip())
+        except ValueError:
+            return None
+        try:
+            p = int(port_s.strip())
+        except (TypeError, ValueError):
+            return None
+        if not (0 < p < 65536):
+            return None
+        host = f"[{ip}]" if ip.version == 6 else str(ip)
+        return f"http://{host}:{p}"
+
+    # Primary: documented positions.
+    if len(f) > 8:
+        url = _ok(f[7], f[8])
+        if url:
+            return url
+    # Fallback: first parseable IP, first valid port at/after it (version-drift
+    # robust; purely structural).
+    ip_idx = None
+    for i, val in enumerate(f):
+        try:
+            ipaddress.ip_address(val.strip())
+            ip_idx = i
+            break
+        except ValueError:
+            continue
+    if ip_idx is None:
+        return None
+    for j in range(ip_idx + 1, len(f)):
+        url = _ok(f[ip_idx], f[j])
+        if url:
+            return url
+    return None
+
+
+def _refresh_floor(cfg):
+    """Minimum seconds between live browses, from [a2a].mdns_refresh_sec. Absent /
+    invalid / <=0 -> 0 = no throttle (always browse live). No literal default in
+    code -- the SSOT owns the value; 0 is the structural 'off' sentinel."""
+    v = (cfg.get("a2a") or {}).get("mdns_refresh_sec")
+    try:
+        n = int(v)
+    except (TypeError, ValueError):
+        return 0
+    return n if n > 0 else 0
+
+
+def _cache_read(stype, floor):
+    """Cached candidate URLs iff the cache is younger than `floor` seconds AND was
+    written for the SAME service type, else None. Degrade-open: any error -> None
+    (forces a fresh live browse). Liveness is NOT trusted here -- mios-a2a-discover
+    re-card-probes every candidate, so a stale cache entry is simply re-validated."""
+    if floor <= 0:
+        return None
+    try:
+        if (time.time() - os.path.getmtime(MDNS_CACHE)) >= floor:
+            return None
+        with open(MDNS_CACHE, "r", encoding="utf-8") as f:
+            blob = json.load(f)
+        if blob.get("type") != stype:
+            return None
+        return [u for u in (blob.get("urls") or []) if isinstance(u, str)]
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _cache_write(stype, urls):
+    """Persist a live browse result for the throttle window (atomic, best-effort)."""
+    try:
+        os.makedirs(os.path.dirname(MDNS_CACHE), exist_ok=True)
+        tmp = MDNS_CACHE + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump({"type": stype, "urls": urls}, f)
+        os.replace(tmp, MDNS_CACHE)
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def browse(cfg, log=print):
+    """One-shot mDNS browse for the A2A service type when [a2a].mdns_discovery is
+    set. Returns a list of candidate http://IP:port URLs (deduped, order-stable)
+    for mios-a2a-discover to card-probe. Honours the [a2a].mdns_refresh_sec FLOOR:
+    a browse inside that window reuses the last live result (so discovery never
+    loses peers between scans). Degrade-open: avahi-browse missing / daemon down /
+    timeout -> []."""
+    a2a = cfg.get("a2a") or {}
+    if not _truthy(a2a.get("mdns_discovery")):
+        return []
+    stype = _service_type(cfg)
+    if not stype:
+        log("  mdns browse: [a2a].mdns_service_type empty -- skipping")
+        return []
+    floor = _refresh_floor(cfg)
+    cached = _cache_read(stype, floor)
+    if cached is not None:
+        log(f"  mdns browse: {len(cached)} cached candidate(s) reused "
+            f"(< {floor}s since last live browse)")
+        return cached
+    try:
+        # -p parse-friendly, -r resolve, -t terminate (one-shot). Bounded so a
+        # wedged daemon can't hang the refresh timer.
+        out = subprocess.run(
+            ["avahi-browse", "-p", "-r", "-t", stype],
+            capture_output=True, text=True, timeout=15, check=False).stdout
+    except FileNotFoundError:
+        log("  mdns browse: avahi-browse not installed -- skipping")
+        return []
+    except Exception as e:  # noqa: BLE001
+        log(f"  mdns browse: degraded ({e})")
+        return []
+    urls, seen = [], set()
+    for line in out.splitlines():
+        u = _parse_resolved(line)
+        if u and u not in seen:
+            seen.add(u)
+            urls.append(u)
+    _cache_write(stype, urls)
+    log(f"  mdns browse: {len(urls)} candidate(s) resolved for {stype}")
+    return urls
+
+
+def reload_peers(cfg, log=print):
+    """Best-effort POST to the local agent-pipe /a2a/peers/reload so a freshly
+    written peer list is hot-applied. Degrade-open: never raises."""
+    port = _resolve_port(cfg)
+    if not port:
+        return False
+    url = f"http://127.0.0.1:{port}/a2a/peers/reload"
+    try:
+        req = urllib.request.Request(url, data=b"{}", method="POST",
+                                     headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=5):
+            log(f"  mdns: hot-reloaded peers via {url}")
+        return True
+    except Exception as e:  # noqa: BLE001
+        log(f"  mdns: peer reload skipped ({e})")
+        return False
+
+
+def main(argv):
+    cfg = _load_toml()
+    cmd = argv[1] if len(argv) > 1 else "refresh"
+    if cmd == "advertise":
+        advertise(cfg)
+    elif cmd == "browse":
+        for u in browse(cfg):
+            print(u)
+    elif cmd == "reload":
+        reload_peers(cfg)
+    elif cmd == "refresh":
+        # advertise + browse (print candidates) + reload -- the all-in-one an
+        # operator or a timer can call directly.
+        advertise(cfg)
+        for u in browse(cfg):
+            print(u)
+        reload_peers(cfg)
+    else:
+        sys.stderr.write(
+            "usage: mios-a2a-mdns [advertise|browse|reload|refresh]\n")
+        return 2
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

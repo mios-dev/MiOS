@@ -62,7 +62,22 @@ VENV_ROOT="${MIOS_HERMES_DIR:-${AGENTS_ROOT}/hermes-agent}"   # Hermes vendor co
 VENV_DIR="${MIOS_HERMES_VENV:-${AGENTS_ROOT}/.venv}"          # shared interpreter (sibling)
 BIN_DIR="${VENV_ROOT}/bin"
 
-log "[MiOS AI] direct install: repo=${HERMES_REPO} ref=${HERMES_REF}"
+# Pip CONSTRAINTS for the shared Python ASGI stack (FastAPI/Starlette/pydantic/
+# httpx/uvicorn/anyio). Reproducibility floor + CVE floor (an unbounded Starlette
+# could regress below the patched line for CVE-2026-48710). Shipped read-only via
+# system-files-overlay, so the SAME floors apply at build time AND on a runtime
+# `mios update` re-run. SSOT-overridable via MIOS_HERMES_CONSTRAINTS; degrade-open
+# (install unconstrained) if the file is absent so a bare dev-box re-run never
+# breaks. See MIOS-GAP-REGISTER U2.
+CONSTRAINTS_FILE="${MIOS_HERMES_CONSTRAINTS:-/usr/share/mios/agents/constraints.txt}"
+PIP_CONSTRAINTS_ARG=""
+if [[ -f "$CONSTRAINTS_FILE" ]]; then
+    PIP_CONSTRAINTS_ARG="-c ${CONSTRAINTS_FILE}"
+else
+    warn "[MiOS AI] pip constraints ${CONSTRAINTS_FILE} absent -- installing UNCONSTRAINED (degrade-open)"
+fi
+
+log "[MiOS AI] direct install: repo=${HERMES_REPO} ref=${HERMES_REF} constraints=${PIP_CONSTRAINTS_ARG:-none}"
 
 # Tooling preflight -- python3 + pip + git must all be present. They're
 # pulled by [packages.base] (git) + policycoreutils-python-utils
@@ -150,7 +165,7 @@ fi
 #     mirror was empty until psycopg was added). [binary] = prebuilt wheel, no
 #     libpq headers / compiler needed.
 # --no-input keeps it non-interactive; failure here is non-fatal.
-if "${VENV_DIR}/bin/pip" install --no-input --disable-pip-version-check ${PIP_OFFLINE_ARGS} \
+if "${VENV_DIR}/bin/pip" install --no-input --disable-pip-version-check ${PIP_OFFLINE_ARGS} ${PIP_CONSTRAINTS_ARG} \
         "${INSTALL_TARGET}" aiohttp websockets "discord.py>=2.4,<3" "psycopg[binary]" "firecrawl-py" 2>&1 | tail -5; then
     :
 else
@@ -302,7 +317,7 @@ fi
 # closes 1011 "Chat unavailable: requires POSIX PTY" on every connect.
 # Install all together inline so hermes-dashboard.service can start cold.
 if ! "${VENV_DIR}/bin/python3" -c "import fastapi, uvicorn, ptyprocess" 2>/dev/null; then
-    if "${VENV_DIR}/bin/pip" install --no-input --disable-pip-version-check \
+    if "${VENV_DIR}/bin/pip" install --no-input --disable-pip-version-check ${PIP_CONSTRAINTS_ARG} \
             "fastapi>=0.110" "uvicorn[standard]>=0.30" "python-multipart" "ptyprocess>=0.7" 2>&1 | tail -3; then
         log "[MiOS AI] installed fastapi + uvicorn + ptyprocess into venv (dashboard runtime + /chat PTY)"
     else
@@ -317,10 +332,41 @@ fi
 # Installing it lets Hermes discover + register the COMPLETE MiOS tool surface
 # (verbs + recipes + skills) over stdio, routed through the launcher broker.
 if ! "${VENV_DIR}/bin/python3" -c "import mcp" 2>/dev/null; then
-    if "${VENV_DIR}/bin/pip" install --no-input --disable-pip-version-check "mcp>=1.0" 2>&1 | tail -3; then
+    if "${VENV_DIR}/bin/pip" install --no-input --disable-pip-version-check ${PIP_CONSTRAINTS_ARG} "mcp>=1.0" 2>&1 | tail -3; then
         log "[MiOS AI] installed mcp SDK into venv (Hermes MCP client -> global mios-mcp-server)"
     else
         warn "[MiOS AI] mcp SDK install failed -- Hermes MCP client disabled (mcp_servers config inert)"
+    fi
+fi
+
+# ─── Tokenizer backend (WS-A5): EXACT token counts for the agent-pipe ───
+# mios_tokenize ships an EXACT tokenizer (default tiktoken, SSOT [ai].tokenizer_*)
+# so context-fit sizing + the client-visible usage object measure real tokens, not
+# the ~chars/token heuristic. Install the optional dep into the shared venv AND
+# PRE-WARM the encoding blob into the baked, read-only offline cache so the running
+# agent-pipe needs NO network. All values come from the SSOT (no restated literal);
+# everything is best-effort -- a failure just degrades-open to the heuristic at
+# runtime (mios_tokenize.make_backend returns None -> HeuristicBackend stays).
+TOK_BACKEND="${MIOS_TOKENIZER_BACKEND:-}"
+TOK_ENCODING="${MIOS_TOKENIZER_ENCODING:-}"
+TOK_CACHE_DIR="${MIOS_TOKENIZER_CACHE_DIR:-}"
+if [[ "$TOK_BACKEND" == "tiktoken" ]]; then
+    if ! "${VENV_DIR}/bin/python3" -c "import tiktoken" 2>/dev/null; then
+        if "${VENV_DIR}/bin/pip" install --no-input --disable-pip-version-check ${PIP_CONSTRAINTS_ARG} "tiktoken>=0.7" 2>&1 | tail -3; then
+            log "[MiOS AI] installed tiktoken into the agent venv (WS-A5 exact token counts)"
+        else
+            warn "[MiOS AI] tiktoken install failed -- agent-pipe degrades-open to the ~chars/token heuristic"
+        fi
+    fi
+    # Pre-warm the SSOT encoding into the baked offline cache (no runtime network).
+    if [[ -n "$TOK_ENCODING" && -n "$TOK_CACHE_DIR" ]] && "${VENV_DIR}/bin/python3" -c "import tiktoken" 2>/dev/null; then
+        mkdir -p "$TOK_CACHE_DIR" 2>/dev/null || true
+        if TIKTOKEN_CACHE_DIR="$TOK_CACHE_DIR" "${VENV_DIR}/bin/python3" \
+                -c "import sys, tiktoken; tiktoken.get_encoding(sys.argv[1])" "$TOK_ENCODING" 2>&1 | tail -2; then
+            log "[MiOS AI] pre-warmed tiktoken encoding ${TOK_ENCODING} into ${TOK_CACHE_DIR} (offline-baked)"
+        else
+            warn "[MiOS AI] tiktoken encoding pre-warm failed (${TOK_ENCODING}) -- runtime needs network or degrades-open to heuristic"
+        fi
     fi
 fi
 

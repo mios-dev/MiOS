@@ -76,7 +76,7 @@ no-context-injection rule. The real gap is making it multi-tenant (RLS app-wirin
 | AIOS reference design | MiOS implementation | Status |
 |---|---|---|
 | Dynamic vs deterministic-DAG routing | `mios_router.py`/`mios_dispatcher.py`/`mios_kernel.py` (Stage 1) + inline DAG planner in server.py | DAG/swarm live **inline**; kernel split `built-gated` (Stage 2 — WS-A11/#15) |
-| Deterministic DAG (cf. MS Conductor, zero-token routing) | server.py DAG executor (`swarm_saturate` ready-queue, `deepen_enabled`); deterministic `[routing]` lead/trail-phrase SSOT; `mios_goap.py` GOAP planner lane | DAG wired-live; GOAP `built-gated` ([goap] flag) |
+| Deterministic DAG (cf. MS Conductor, zero-token routing) | server.py DAG executor (`swarm_saturate` ready-queue, `deepen_enabled`); deterministic `[routing]` lead/trail-phrase SSOT | DAG wired-live |
 | OS scheduling (FIFO / RR / preemptive priority) | `mios_sched.py` FIFO+priority (live); `mios_preempt.py` RR time-slice + snapshot/restore (built) | FIFO+priority wired-live; **RR preemption not wired to the engine — WS-A12/#16** |
 | Batch coalescing by (endpoint, model) | `mios_batch.py` window logic (pure) | **built-gated — server-side hold/flush not wired (native engines already continuous-batch) — #19** |
 | Orchestrator-worker hop-budget guard | `mios_hopbudget.py` — via-chain loop detection + `effort_width` swarm sizing | wired-live |
@@ -88,8 +88,8 @@ no-context-injection rule. The real gap is making it multi-tenant (RLS app-wirin
 cron) is live; the higher-order schedulers (RR preemption, batch coalescing,
 remote SmartRouting) and the sleep-time *act* half are built-and-tested but
 flag-gated pending central-path wiring. MiOS already embodies the Conductor
-insight (deterministic, zero-token routing via the `[routing]` SSOT and the GOAP
-lane) alongside dynamic LLM fan-out — a hybrid, not one or the other.
+insight (deterministic, zero-token routing via the `[routing]` SSOT) alongside
+dynamic LLM fan-out — a hybrid, not one or the other.
 
 ---
 

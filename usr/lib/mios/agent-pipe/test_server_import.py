@@ -142,7 +142,10 @@ _EXTRACTED = {
                         "_refresh_app_inventory", "_cosine", "_verb_embed_text",
                         "_verb_embed_fingerprint"],
     "mios_daemons": ["_gossip_loop", "_membership_watch_loop", "_selfimprove_report",
-                     "_selfimprove_loop", "_kv_gc_sweep_once", "_kv_gc_loop"],
+                     "_selfimprove_loop", "_kv_gc_sweep_once", "_kv_gc_loop",
+                     # T-062/T-064 ACT half: the queued-proposals route handler moved
+                     # onto the SAME daemons_router + re-imported by server (parity).
+                     "selfimprove_proposals_ep"],
     "mios_portal": ["_portal_authed", "_portal_token_ok", "_discover_portal_services",
                     "portal_stats_logic", "portal_service_detail_logic",
                     "portal_swarm_logic", "portal_term_ws_logic",
@@ -155,6 +158,9 @@ _EXTRACTED = {
                  # onto a2a_router) and are re-imported by server -- assert their home.
                  "a2a_skill_directory", "a2a_context_get", "a2a_jsonrpc",
                  "a2a_jsonrpc_alias", "a2a_peers_reload",
+                 # FED-G8: the caller-key revoke route handler lives on the SAME
+                 # a2a_router and is re-imported by server -- assert its home.
+                 "caller_key_revoke",
                  # R13 batch 2: the discovery/identity route handlers moved here onto
                  # the SAME a2a_router and are re-imported by server -- assert home.
                  "a2a_agent_card", "a2a_agent_card_legacy", "agent_passport",
@@ -209,7 +215,6 @@ _EXTRACTED = {
     "mios_reflect": ["_inline_satisfaction_check", "reflect_on_step_failure",
                      "_recent_satisfaction_verdicts", "_recent_tool_history",
                      "_judge_answer_satisfied"],
-    "mios_goap": ["_goap_actions", "_goap_enabled", "_goap_plan"],
 }
 
 
@@ -233,6 +238,19 @@ def main():
             ok = obj is not None and (origin in (module, None))
             check(f"{n} provided by server (-> {module})", ok,
                   "" if ok else f"missing or wrong origin: {origin!r}")
+
+    # T-053 FED-G9: loopback-default bind derivation. Pure helper (no socket), so the
+    # posture is asserted here in the import gate: loopback unless the inbound auth gate
+    # is on; an explicit override wins. Both branches + the override are exercised in
+    # one process (the env-read live value is only one branch).
+    bh = getattr(server, "_bind_host", None)
+    check("_bind_host present + callable", callable(bh))
+    if callable(bh):
+        check("_bind_host auth-off -> loopback", bh(False) == "127.0.0.1", bh(False))
+        check("_bind_host auth-on -> all-interfaces", bh(True) == "0.0.0.0", bh(True))
+        check("_bind_host explicit override wins",
+              bh(False, "10.1.2.3") == "10.1.2.3", bh(False, "10.1.2.3"))
+
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
 

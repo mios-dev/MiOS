@@ -69,14 +69,24 @@ from mios_config import _DISPATCH_TOML, _toml_section
 class PriorityGate:
     """Priority-ordered, bounded, cancellation-safe async concurrency gate."""
 
-    def __init__(self, permits: int, starvation_s: float = 0.0) -> None:
+    def __init__(self, permits: int, starvation_s: float = 0.0,
+                 tenant_cap: int = 0) -> None:
         self._cap = max(1, int(permits))
         self._avail = self._cap
         self._starv = max(0.0, float(starvation_s))
-        # seq -> [priority, enqueue_monotonic, future]. Insertion-ordered, and
-        # seq is monotonic, so the first entry is always the oldest waiter.
+        # seq -> [priority, enqueue_monotonic, future, tenant]. Insertion-ordered, and
+        # seq is monotonic, so the first entry is always the oldest waiter. `tenant` is
+        # the V5 per-tenant fair-share key (None = uncapped: a system/daemon dispatch).
         self._waiters: "collections.OrderedDict[int, list]" = collections.OrderedDict()
         self._seq = 0
+        # V5 per-tenant fair-share (DEFAULT-OFF). tenant_cap<=0 -> the tenant-aware
+        # branches below are SKIPPED entirely, so the gate is byte-identical to its
+        # pre-V5 behaviour. >0 -> at most `tenant_cap` permits are held by any one
+        # tenant WHILE another tenant waits (the cap bites only under contention; if
+        # every live waiter is one over-cap tenant the pick degrades OPEN so the gate
+        # never wedges). Counts only non-None tenants.
+        self._tenant_cap = max(0, int(tenant_cap))
+        self._tenant_inflight: "collections.Counter" = collections.Counter()
 
     # ── observability (read-only; never mutates state) ────────────────────
     @property
@@ -109,6 +119,24 @@ class PriorityGate:
             "head_priority": self.head_priority(),
         }
 
+    def tenant_inflight(self, tenant) -> int:
+        """In-flight permits currently held by `tenant` (0 when uncapped/idle).
+        Read-only -- for observability + tests of the V5 fair-share dimension."""
+        return int(self._tenant_inflight.get(tenant, 0)) if tenant is not None else 0
+
+    # ── per-tenant fair-share accounting (V5; no-ops when tenant_cap<=0) ──────
+    def _tenant_inc(self, tenant) -> None:
+        if self._tenant_cap > 0 and tenant is not None:
+            self._tenant_inflight[tenant] += 1
+
+    def _tenant_dec(self, tenant) -> None:
+        if self._tenant_cap > 0 and tenant is not None:
+            c = self._tenant_inflight.get(tenant, 0) - 1
+            if c <= 0:
+                self._tenant_inflight.pop(tenant, None)
+            else:
+                self._tenant_inflight[tenant] = c
+
     # ── core ──────────────────────────────────────────────────────────────
     def _pick(self) -> Optional[int]:
         """Return the seq of the next waiter to serve, or None. Pure (no
@@ -122,6 +150,18 @@ class PriorityGate:
             old_seq, old_w = live[0]  # insertion order -> oldest first
             if (time.monotonic() - old_w[1]) >= self._starv:
                 return old_seq
+        # V5 per-tenant fair-share (DEFAULT-OFF: _tenant_cap<=0 -> this block is
+        # skipped, so the pick is byte-identical). Prefer waiters whose tenant is
+        # UNDER its cap (a None tenant is always eligible); if NONE are eligible
+        # (every live waiter is one over-cap tenant) degrade OPEN to the full set so
+        # the gate never wedges -- the cap throttles a tenant only while ANOTHER can
+        # make progress.
+        if self._tenant_cap > 0:
+            eligible = [(seq, w) for seq, w in live
+                        if w[3] is None
+                        or self._tenant_inflight.get(w[3], 0) < self._tenant_cap]
+            if eligible:
+                live = eligible
         # Otherwise: highest priority wins; older (smaller seq) breaks ties.
         best_seq: Optional[int] = None
         best_key = None
@@ -131,31 +171,39 @@ class PriorityGate:
                 best_key, best_seq = key, seq
         return best_seq
 
-    async def acquire(self, priority: float = 5.0) -> None:
-        """Acquire one permit, blocking in PRIORITY order when contended."""
+    async def acquire(self, priority: float = 5.0, tenant=None) -> None:
+        """Acquire one permit, blocking in PRIORITY order when contended. `tenant`
+        (V5) is the per-tenant fair-share key; None (the default) -> uncapped, and
+        with tenant_cap<=0 the tenant branches are skipped so this is byte-identical
+        to the pre-V5 acquire(priority)."""
         # Fast path: a permit is free. By the invariant this implies the queue is
         # empty, so taking it cannot jump a queued higher-priority dispatch.
         if self._avail > 0 and not self._waiters:
             self._avail -= 1
+            self._tenant_inc(tenant)
             return
         # Contended: enqueue and await our grant.
         self._seq += 1
         seq = self._seq
         fut = asyncio.get_running_loop().create_future()
-        self._waiters[seq] = [float(priority), time.monotonic(), fut]
+        self._waiters[seq] = [float(priority), time.monotonic(), fut, tenant]
         try:
             await fut
         except asyncio.CancelledError:
             # Cancelled while suspended at `await fut`:
-            #   (a) not yet granted (fut not done) -> just drop our queue entry.
-            #   (b) granted then cancelled (fut done) -> a permit was handed to
-            #       us; hand it back so it is not leaked.
+            #   (a) not yet granted (fut not done) -> just drop our queue entry (no
+            #       tenant share was assigned, so nothing to undo).
+            #   (b) granted then cancelled (fut done) -> a permit + a tenant share
+            #       were handed to us; release our tenant share, then hand the permit
+            #       back so it is not leaked.
             self._waiters.pop(seq, None)
             if fut.done() and not fut.cancelled():
+                self._tenant_dec(tenant)
                 self._release()
             raise
         # Granted: the releaser transferred a permit to us without bumping
-        # `available` (direct hand-off), so we already hold it. Proceed.
+        # `available` (direct hand-off) and already counted our tenant share, so we
+        # already hold it. Proceed.
         return
 
     def _release(self) -> None:
@@ -164,14 +212,19 @@ class PriorityGate:
             seq = self._pick()
             if seq is None:
                 break
-            _prio, _ts, fut = self._waiters.pop(seq)
+            _prio, _ts, fut, _tenant = self._waiters.pop(seq)
             if fut.done():
                 continue  # cancelled before we got here -> skip, try the next
+            self._tenant_inc(_tenant)   # count the grantee's tenant share (no-op off)
             fut.set_result(True)  # direct hand-off: the permit stays allocated
             return
         self._avail += 1
 
-    def release(self) -> None:
+    def release(self, tenant=None) -> None:
+        """Return one permit. `tenant` (V5) MUST match the acquire's tenant so the
+        per-tenant in-flight count is decremented; None/tenant_cap<=0 -> byte-identical
+        to the pre-V5 release()."""
+        self._tenant_dec(tenant)
         self._release()
 
 

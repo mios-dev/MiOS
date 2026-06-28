@@ -1,4 +1,4 @@
-<!-- AI-hint: Operator activation playbook for the default-off WS-* subsystems shipped 2026-06-20 (RLS, A2A signed principal, peer reputation, egress firewall, mTLS PKI, GOAP lane, self-improve loop) -- what each does, its mios.toml SSOT flag, how to enable + verify. -->
+<!-- AI-hint: Operator activation playbook for the default-off WS-* subsystems shipped 2026-06-20 (RLS, A2A signed principal, peer reputation, egress firewall, mTLS PKI, self-improve loop) -- what each does, its mios.toml SSOT flag, how to enable + verify. -->
 
 # Activating the WS-* subsystems (shipped 2026-06-20)
 
@@ -53,13 +53,6 @@ Inert until peers are registered in `a2a-peers.json`. The four primitives:
   for an org PKI.
 
 ## Orchestration + ops
-
-### Deterministic GOAP planner lane — `#53`
-- **Does:** plans known multi-step tasks (e.g. launch→type→verify) by search, not
-  LLM — reproducible.
-- **Enable:** `[goap].mode = "available"` (default `"off"`); extend
-  `[[goap.actions]]` (the action model) per verb. Auto-routing GOAP-vs-LLM-DAG is
-  a follow-on; `_goap_plan(goal)` is the entry point.
 
 ### Self-improvement loop — `#64`
 - **Does:** surfaces failing/slow tools + unreliable peers from local outcome

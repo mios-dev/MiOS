@@ -1,6 +1,6 @@
 # AI-hint: Per-turn ENV-GROUNDING subsystem extracted verbatim from server.py (refactor R2 leaf wave). Builds the native system-role <env> grounding block the agent-pipe orchestrator threads into EVERY grounded prompt (refine/synthesis/polish/swarm/council/native-loop): the structured _env_block() <env> key:value view + the prose helpers _identity_guard (non-negotiable local-only identity), _arch_grounding (self-architecture), _temporal_grounding (date/time from the client locale), _client_grounding (location/locale/cwd/surface), _capability_grounding (live tool-surface summary), and _client_env (normalise the OWUI-forwarded metadata.variables into a flat env dict). _env_grounding() composes them. Config (_toml_section) imported from mios_config; the per-request _client_env_var ContextVar and the _current_date_str helper that STAY in server.py are dependency-INJECTED via configure() (one-way boundary -- this module NEVER imports server). server.py re-imports every name verbatim under its original alias (surface-parity zero-diff). NO hardcoded topics/keywords -- capability lines re-derive from the live verb catalog.
 # AI-related: ./server.py, ./mios_config.py, ./test_mios_grounding.py
-# AI-functions: _capability_grounding, _temporal_grounding, _get_os_info, _host_timezone, _client_grounding, _identity_guard, _arch_grounding, _env_block, _env_grounding, _client_env, configure
+# AI-functions: _capability_grounding, _temporal_grounding, _get_os_info, _host_timezone, _client_grounding, _identity_guard, _arch_grounding, _env_block, _env_grounding, _principal_bind_mode, _bound_account, _client_env, configure
 """Per-turn environment-grounding block builders (native <env> system block).
 
 Extracted verbatim from ``server.py``. Assembles the system-role grounding block
@@ -38,15 +38,23 @@ log = logging.getLogger("mios-agent-pipe")
 # standalone ``import mios_grounding`` still succeeds.
 _client_env_var = None
 _current_date_str = None
+# V2 verified-principal binding: server.py's bearer-token -> scoped-principal
+# resolver, injected via configure(). None (default / tests) -> binding degrades
+# open (the owner falls back to the forwarded body/header user). One-way boundary:
+# mios_grounding never imports server.
+_check_inbound_principal = None
 
 
-def configure(*, client_env_var=None, current_date_str=None) -> None:
+def configure(*, client_env_var=None, current_date_str=None,
+              check_inbound_principal=None) -> None:
     """Inject the server.py runtime refs the grounding cluster calls back into."""
-    global _client_env_var, _current_date_str
+    global _client_env_var, _current_date_str, _check_inbound_principal
     if client_env_var is not None:
         _client_env_var = client_env_var
     if current_date_str is not None:
         _current_date_str = current_date_str
+    if check_inbound_principal is not None:
+        _check_inbound_principal = check_inbound_principal
 
 
 NATIVE_LOOP_CAPABILITY_PER_SECTION = int(
@@ -540,6 +548,49 @@ _OWUI_VAR_KEYS = (
 # them so a missing fact never overrides a real one or grounds as junk.
 _ENV_SENTINELS = frozenset({"", "unknown", "none", "null", "n/a", "undefined"})
 
+# The SSOT-defined principal-binding states (validation set, NOT a decision gate);
+# mirrors the sibling rls_mode / principal_mode enums. Anything outside this set
+# degrades to the safe 'off' default. See mios.toml [security].principal_bind_mode.
+_PRINCIPAL_BIND_MODES = frozenset({"off", "verify", "enforce"})
+
+
+def _principal_bind_mode() -> str:
+    """V2 verified-principal binding mode from SSOT [security].principal_bind_mode
+    (env MIOS_PRINCIPAL_BIND_MODE wins). Returns one of off/verify/enforce; an
+    unrecognised value degrades to 'off' (the safe, byte-identical default). Read
+    per call so a live mios.toml edit takes effect, like the sibling rls_mode knob."""
+    try:
+        mode = str(os.environ.get("MIOS_PRINCIPAL_BIND_MODE")
+                   or (_toml_section("security") or {}).get("principal_bind_mode", "off")
+                   ).strip().lower()
+        return mode if mode in _PRINCIPAL_BIND_MODES else "off"
+    except Exception:  # noqa: BLE001 -- degrade-open: never break env assembly
+        return "off"
+
+
+def _bound_account(headers: Optional[Any]) -> "Optional[str]":
+    """Resolve THIS request's bearer token to the account/owner identity BOUND to its
+    caller-key, or None when there is no token / no mapping / the resolver was not
+    injected (degrade-open). The canonical shared + ingress keys resolve to the
+    full-trust operator principal, which carries NO bound account -> None here, so a
+    trusted gateway (OWUI) keeps speaking for its forwarded per-user identity. The
+    per-key binding is the optional `account` (alias `owner`) field on the caller-key
+    entry (see mios.toml [security].principal_bind_mode)."""
+    try:
+        if not (_check_inbound_principal and headers is not None
+                and hasattr(headers, "get")):
+            return None
+        tok = str(headers.get("authorization") or "").removeprefix("Bearer ").strip()
+        if not tok:
+            return None
+        princ = _check_inbound_principal(tok)
+        if not isinstance(princ, dict):
+            return None
+        acct = str(princ.get("account") or princ.get("owner") or "").strip()
+        return acct or None
+    except Exception:  # noqa: BLE001 -- degrade-open: binding must never break a turn
+        return None
+
 
 def _client_env(body: dict, headers: Optional[Any] = None) -> dict:
     """Normalise the per-request client/session context the OWUI pipe forwards.
@@ -698,6 +749,33 @@ def _client_env(body: dict, headers: Optional[Any] = None) -> dict:
                  out.get("location"), out.get("timezone"))
     except Exception:  # noqa: BLE001
         pass
+    # ── V2 verified-principal binding (default OFF -> byte-identical) ──────────
+    # Downstream owner row-scoping (owner_user) derives from user_name/user_email,
+    # both spoofable by a direct caller (body `user` / x-openwebui-user-* headers).
+    # When [security].principal_bind_mode is verify/enforce, reconcile that owner
+    # against the AUTHENTICATED caller-key's bound account. This is the LAST mutation
+    # so it has the final say over the webui.db / OWUI-forwarded values. 'off' (the
+    # default) does NOTHING -> the returned env dict is byte-identical to today.
+    # DEGRADE-OPEN: no token / unbound key / any error -> the forwarded value stands.
+    _bind_mode = _principal_bind_mode()
+    if _bind_mode != "off":
+        try:
+            _claimed = (out.get("user_name") or out.get("user_email") or "").strip()
+            _bound = _bound_account(headers)
+            if _bound:
+                if _bind_mode == "enforce":
+                    # The token-bound account is the sole owner identity; the
+                    # spoofable claim is overridden so display + every owner_user
+                    # derivation (knowledge / agent_memory / a2a / policy) agree.
+                    out["user_name"] = _bound
+                    out["user_email"] = ""
+                elif _bound != _claimed:  # verify: observe + audit, value unchanged
+                    log.warning(
+                        "principal-bind mismatch (mode=verify): claimed=%r "
+                        "token-bound=%r -- using claimed (observe mode)",
+                        _claimed, _bound)
+        except Exception:  # noqa: BLE001 -- degrade-open: never break a turn
+            pass
     return out
 
 

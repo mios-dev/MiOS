@@ -88,7 +88,7 @@ def _sse_reasoning(text: str, *, chat_id: str, model: str) -> bytes:
 # Phase keys -> humanistic casual labels for the SSE status strip.
 # MiOS is for non-technical users; the strip should read like the
 # system is THINKING and DOING, not like a debugger output. Model
-# names, timings, arg JSONs, intent labels stay in the SurrealDB
+# names, timings, arg JSONs, intent labels stay in the
 # event payloads for debug -- they NEVER reach the visible strip.
 #
 # Add a phase key here when wiring a new emit site instead of

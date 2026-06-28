@@ -1,20 +1,26 @@
-# AI-hint: Systemd unit to regenerate AIOS-native role systems from the SSOT and refresh the A2A fleet peer list, providing the agent-pipe with updated verb catalogs and peer discovery.
-# AI-related: /usr/libexec/mios/mios-gen-role-system, /etc/mios/ai/v1/role-systems/, /usr/libexec/mios/mios-a2a-discover, mios-gen-role-system, mios-a2a-discover, mios-agent-pipe, mios-agent-pipe.service, network-online.target, multi-user.target
+# AI-hint: Systemd unit to regenerate AIOS-native role systems from the SSOT and refresh the A2A fleet peer list (explicit nodes + mDNS/avahi discovery), providing the agent-pipe with updated verb catalogs and peer discovery.
+# AI-related: /usr/libexec/mios/mios-gen-role-system, /etc/mios/ai/v1/role-systems/, /usr/libexec/mios/mios-a2a-discover, /usr/libexec/mios/mios-a2a-mdns, /etc/avahi/services/mios-a2a.service, mios-gen-role-system, mios-a2a-discover, mios-a2a-mdns, mios-agent-pipe, mios-agent-pipe.service, avahi-daemon.service, network-online.target, multi-user.target
 [Unit]
 Description='MiOS' AIOS refresh -- regenerate SSOT-driven role SYSTEMs + discover the A2A fleet
 Documentation=file:///usr/libexec/mios/mios-gen-role-system
 # Needs the agent-pipe up: mios-gen-role-system reads the LIVE /v1/verbs catalog
-# and mios-a2a-discover probes A2A AgentCards. Both degrade-open, so a transient
-# miss never wedges anything.
-After=mios-agent-pipe.service network-online.target
-Wants=mios-agent-pipe.service
+# and mios-a2a-discover probes A2A AgentCards. avahi-daemon backs the mDNS browse +
+# advertise (FED-G5). ALL degrade-open, so a transient miss (or no avahi at all)
+# never wedges anything -- hence Wants, never Requires.
+After=mios-agent-pipe.service network-online.target avahi-daemon.service
+Wants=mios-agent-pipe.service avahi-daemon.service
 
 [Service]
 Type=oneshot
 # Render every role's AIOS-native SYSTEM from the SSOT (mios.toml [agents.*] +
 # the live verb/skill/recipe catalog + the A2A fleet) -> /etc/mios/ai/v1/role-systems/
 ExecStart=/usr/libexec/mios/mios-gen-role-system
-# Refresh the runtime A2A peer list from the SSOT ([a2a].nodes / discover_cidr)
+# mDNS/avahi A2A advertise (FED-G5): render /etc/avahi/services/mios-a2a.service from
+# the SSOT when [a2a].mdns_advertise=true (withdraws the file when false). Idempotent;
+# runs at OnBootSec so the announce is in place from first boot + reconciles each pass.
+ExecStart=/usr/libexec/mios/mios-a2a-mdns advertise
+# Refresh the runtime A2A peer list from the SSOT: explicit [a2a].nodes / discover_cidr
+# PLUS mDNS browse candidates ([a2a].mdns_discovery), each card-probed before write.
 ExecStart=/usr/libexec/mios/mios-a2a-discover
 # Config generation, never a workload -- a non-zero from a degrade-open path
 # must not mark the unit failed and spam the journal.

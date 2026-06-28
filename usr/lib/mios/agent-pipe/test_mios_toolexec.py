@@ -202,6 +202,28 @@ async def _run():
     ok(ran2 is False and "skipped" in msgs2[0]["content"],
        "write verb skipped when writes disabled")
 
+    # ── A2: a HYPHENATED read recipe (mios_recipe__disk_usage) must resolve via the
+    # underscore->hyphen normalization and RUN on a read-only turn (it was wrongly
+    # dropped because _RECIPE_CATALOG is keyed hyphenated but the lookup used the
+    # underscored, name-mangled tool name) ──
+    T.configure(recipe_catalog={
+        "disk-usage": {"permission": "read"},
+        "shutdown": {"permission": "write"}})
+    _DISPATCHED.clear()
+    tcs_recipe = [{"id": "r1", "function": {
+        "name": "mios_recipe__disk_usage", "arguments": "{}"}}]
+    msgs3, ran3 = await T._exec_tool_calls(tcs_recipe, _push, allow_write=False)
+    ok(ran3 is True and "skipped" not in msgs3[0]["content"],
+       "A2: hyphenated read recipe runs on a read-only turn (not dropped)")
+    ok(("os_recipe", {"name": "disk-usage", "params": {}}) in _DISPATCHED,
+       "A2: read recipe dispatched via os_recipe with the canonical hyphenated name")
+    # a WRITE recipe stays gated on a read-only turn
+    tcs_wrecipe = [{"id": "r2", "function": {
+        "name": "mios_recipe__shutdown", "arguments": "{}"}}]
+    msgs4, ran4 = await T._exec_tool_calls(tcs_wrecipe, _push, allow_write=False)
+    ok(ran4 is False and "skipped" in msgs4[0]["content"],
+       "A2: write recipe still skipped when writes disabled")
+
 asyncio.run(_run())
 
 print("\nALL %d ASSERTIONS PASSED" % PASS)

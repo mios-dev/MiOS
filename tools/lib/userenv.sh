@@ -152,6 +152,13 @@ slots = [
     ("ai.chat_vision_model",    "MIOS_AGENT_PIPE_VISION_MODEL"),
     ("ai.api_key",              "MIOS_AI_KEY"),
     ("ai.system_prompt_file",   "MIOS_SYSTEM_PROMPT_FILE"),
+    # WS-A5 tokenizer seam (mios_tokenize): backend selector + its SSOT params,
+    # read by server.py to install the real token-counter (degrade-open to the
+    # heuristic if the dep/asset is absent).
+    ("ai.tokenizer_backend",    "MIOS_TOKENIZER_BACKEND"),
+    ("ai.tokenizer_encoding",   "MIOS_TOKENIZER_ENCODING"),
+    ("ai.tokenizer_cache_dir",  "MIOS_TOKENIZER_CACHE_DIR"),
+    ("ai.tokenizer_path",       "MIOS_TOKENIZER_PATH"),
     # Hermes-Agent direct host install (automation/38-hermes-agent.sh).
     ("ai.hermes_agent_repo",    "MIOS_HERMES_AGENT_REPO"),
     ("ai.hermes_agent_ref",     "MIOS_HERMES_AGENT_REF"),
@@ -502,6 +509,10 @@ slots = [
     ("agent_pipe.ingress_key",         "MIOS_AGENT_PIPE_INGRESS_KEY"),
     # ── surrealdb (shared cross-cutting agent state) ──────────────────────
     ("pgvector.db_backend",              "MIOS_DB_BACKEND"),
+    # T-068 DB-side native Postgres RLS enforcement toggle (read by
+    # mios_pg.rls_enabled + the confined mios-pg-query CLI). Default false ->
+    # no SET LOCAL is emitted -> byte-identical single-operator behaviour.
+    ("pgvector.rls_enable",              "MIOS_DB_RLS_ENABLE"),
     # ── pgvector (WS-9 unified agent-plane datastore, FOSS) ───────────────
     ("pgvector.host",                  "MIOS_PG_HOST"),
     ("pgvector.user",                  "MIOS_PG_USER"),
@@ -511,6 +522,17 @@ slots = [
     ("pgvector.schema_init",           "MIOS_PG_SCHEMA_INIT"),
     ("pgvector.embed_model",           "MIOS_PG_EMBED_MODEL"),
     ("pgvector.enable",                "MIOS_PG_ENABLE"),
+    # Opt-in agent-pipe connection pool. Default off -> per-call connect (byte-
+    # identical). Read by mios_pg.pool_config; sizes the bounded reuse pool.
+    ("pgvector.pool_enable",           "MIOS_PG_POOL_ENABLE"),
+    ("pgvector.pool_min",              "MIOS_PG_POOL_MIN"),
+    ("pgvector.pool_max",              "MIOS_PG_POOL_MAX"),
+    # HNSW iterative-scan recall tuning (pgvector 0.8.0+). Rendered into the
+    # mios-pgvector quadlet Exec= -c flags so the server-wide default reaches
+    # every session, incl. the agent-pipe recall connection (no per-session SET).
+    ("pgvector.hnsw_iterative_scan",      "MIOS_PG_HNSW_ITERATIVE_SCAN"),
+    ("pgvector.hnsw_max_scan_tuples",     "MIOS_PG_HNSW_MAX_SCAN_TUPLES"),
+    ("pgvector.hnsw_scan_mem_multiplier", "MIOS_PG_HNSW_SCAN_MEM_MULTIPLIER"),
     # WS-0 pgvector durability + bind hardening (Wave 0). backup_keep is read
     # by the pg_dump retention timer/script; listen_loopback is the raw boolean
     # that the post-load block below derives MIOS_PG_BIND_ADDR from (the value

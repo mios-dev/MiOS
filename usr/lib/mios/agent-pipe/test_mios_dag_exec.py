@@ -199,6 +199,83 @@ def test_reap_cpu_lane_disabled_noop():
     print("[PASS] _reap_cpu_lane disabled no-op")
 
 
+def test_deepen_early_exit():
+    """A8: _deepen_until_barrier early-exits on a SATISFIED node only when the SSOT
+    flag is on; degrade-open -> a judge error/timeout falls through to the
+    deadline-bound loop (never under-computes). Four scenarios, observed via the
+    number of (stubbed) agent coverage passes."""
+    _BOUND = 4
+    calls = {"agent": 0, "judge": 0}
+
+    async def _fake_complete(name, cfg, body, headers, client, *,
+                             prefer_cpu=False, priority=None):
+        calls["agent"] += 1
+        return (name, f"distinct coverage point {calls['agent']}")
+
+    # Deepen with NO web fetch + a small iter bound + fast stubbed passes.
+    M._call_agent_complete = _fake_complete
+    M.configure(
+        deepen_fetch=False,
+        deepen_max_iters=_BOUND,
+        deepen_deadline_s=30.0,
+        deepen_web_timeout_s=1.0,
+        dag_node_max_tokens=64,
+        agent_registry={"facet": {"model": "m"}},
+        deepen_judge_timeout_s=5.0,
+    )
+    node = {"agent": "facet", "_base_query": "what is the status of X", "title": "X"}
+    base_res = {"output": "a concrete primary answer", "success": True}
+
+    def _run():
+        return asyncio.run(M._deepen_until_barrier(
+            dict(node), dict(base_res), asyncio.Event(), "sess", object()))
+
+    # (1) DISABLED (the default): runs to the iter bound -- current behavior.
+    calls["agent"] = 0
+    M.configure(deepen_early_exit=False, judge_answer_satisfied=None)
+    r = _run()
+    assert calls["agent"] == _BOUND, calls
+    assert r.get("deepened") == _BOUND, r
+
+    # (2) ENABLED + judge says SATISFIED: exits before burning any deepen pass.
+    calls["agent"] = 0
+    calls["judge"] = 0
+
+    async def _judge_yes(q, a):
+        calls["judge"] += 1
+        return True
+
+    M.configure(deepen_early_exit=True, judge_answer_satisfied=_judge_yes)
+    r = _run()
+    assert calls["agent"] == 0, calls          # satisfied -> zero extra passes
+    assert calls["judge"] >= 1, calls          # the judge WAS consulted
+
+    # (3) ENABLED + judge says UNSATISFIED: runs to the iter bound (never short-circuits).
+    calls["agent"] = 0
+
+    async def _judge_no(q, a):
+        return False
+
+    M.configure(deepen_early_exit=True, judge_answer_satisfied=_judge_no)
+    r = _run()
+    assert calls["agent"] == _BOUND, calls
+    assert r.get("deepened") == _BOUND, r
+
+    # (4) ENABLED + judge ERRORS: degrade-open -> fall through to the deadline-bound
+    #     loop (never under-computes), so the node still runs its full coverage.
+    calls["agent"] = 0
+
+    async def _judge_boom(q, a):
+        raise RuntimeError("judge backend down")
+
+    M.configure(deepen_early_exit=True, judge_answer_satisfied=_judge_boom)
+    r = _run()
+    assert calls["agent"] == _BOUND, calls
+    assert r.get("deepened") == _BOUND, r
+
+    print("[PASS] deepen early-exit: disabled / satisfied / unsatisfied / judge-error")
+
+
 if __name__ == "__main__":
     test_verb_node_dispatches_via_broker()
     test_agent_node_dispatches_via_agent_call()
@@ -209,4 +286,5 @@ if __name__ == "__main__":
     test_fit_context_degrade_and_slow_pin()
     test_node_deepens_fast_lane_only()
     test_reap_cpu_lane_disabled_noop()
+    test_deepen_early_exit()
     print("\nok")

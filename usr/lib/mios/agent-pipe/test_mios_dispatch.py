@@ -170,4 +170,170 @@ def test_firewall_gate():
 
 test_firewall_gate()
 
+
+# ── 5b. NO SILENT BYPASS: the [ai] risk-tier HITL gate is ALSO enforced at the inner
+#       universal chokepoint, so a DIRECT _dispatch_mios_verb_inner caller (the
+#       computer-use loop bypasses the public dispatch_mios_verb entry) cannot run a
+#       tier-gated verb un-blocked. Synthetic verb; PDP/quota/firewall stubbed to
+#       pass and the [hitl] verb-scope gate stubbed to a no-op so ONLY the [ai] gate
+#       is under test. The two former gates now share the mios_hitl.decide resolver. ─
+async def _aret_none(*a, **k):
+    return None
+
+
+def test_hitl_inner_chokepoint_no_bypass():
+    _base_configure()
+    mios_dispatch._dispatch_pdp_reason = lambda tool: None
+    mios_dispatch._dispatch_quota_reason = lambda tool: None
+    mios_dispatch._validate_enum_args = lambda t, a: None
+    mios_dispatch._HITL_ARBITER_URL = ""
+    mios_dispatch._hitl_gate = _aret_none
+
+    # HITL OFF: the [ai] gate returns None -> the inner does NOT HITL-block (the verb
+    # fails later for a benign reason -- unknown synthetic verb -- never hitl_blocked).
+    mios_dispatch._hitl_block_reason = lambda tool, args: None
+    res_off = asyncio.run(mios_dispatch._dispatch_mios_verb_inner(
+        "zzz_synth_verb", {"a": 1}, session_id="s1"))
+    assert not res_off.get("hitl_blocked"), res_off
+
+    # HITL ENABLED: the [ai] gate refuses -> the inner chokepoint BLOCKS before the
+    # broker, even on this DIRECT-inner (computer-use style) bypass path.
+    mios_dispatch._hitl_block_reason = lambda tool, args: "human approval required"
+    res_on = asyncio.run(mios_dispatch._dispatch_mios_verb_inner(
+        "zzz_synth_verb", {"a": 1}, session_id="s1"))
+    assert res_on.get("hitl_blocked") is True, res_on
+    assert res_on.get("exit_code") == 126 and res_on.get("success") is False, res_on
+    print("[PASS] inner chokepoint enforces the [ai] HITL gate (no silent bypass)")
+
+
+test_hitl_inner_chokepoint_no_bypass()
+
+
+# ── 6. A9/F2: a tainted verb via /v1/dispatch persists a tool_call row that the
+#       Semantic Firewall then sees as a session taint (closes the dispatch-path
+#       taint-blind hole). No broker/network/DB -- the dispatch verb + the DB
+#       writers + the firewall reader are all stubbed. ─────────────────────────
+def test_dispatch_persists_taint_row():
+    _base_configure()
+    captured = {}
+
+    def _cap_create(table, row=None, **kw):
+        captured["table"] = table
+        captured["row"] = row
+        return "INSERT_SQL;"          # representative SQL the splice appends to
+
+    def _cap_post(sql):
+        captured["posted"] = sql
+        return ("POSTED", sql)
+
+    def _cap_fire(x):
+        captured["fired"] = x
+
+    mios_dispatch.configure(db_create=_cap_create, db_post=_cap_post, db_fire=_cap_fire)
+
+    # The verb EXECUTED and its own result is tainted (e.g. external open_url) --
+    # this is exactly the dict the dispatch chokepoint returns after the broker.
+    async def _fake_dispatch(tool, args, *, session_id=None):
+        return {"success": True, "tool": "open_url",
+                "args": {"url": "https://x.test"},
+                "output": "fetched external page", "latency_ms": 7,
+                "tainted": True, "taint_reason": "external_open_url:https://x.test"}
+
+    mios_dispatch.dispatch_mios_verb = _fake_dispatch
+
+    body = {"tool": "open_url", "args": {"url": "https://x.test"}, "session_id": "s9"}
+    asyncio.run(mios_dispatch.dispatch_verb(body))
+
+    # A tool_call row was written for the dispatch-executed verb, carrying its taint.
+    assert captured.get("table") == "tool_call", captured
+    row = captured.get("row") or {}
+    assert row.get("tainted") is True, row
+    assert row.get("taint_reason") == "external_open_url:https://x.test", row
+    assert row.get("tool") == "open_url", row
+    assert captured.get("fired") is not None, "row write must fire"
+    # session-scoped so _session_is_tainted (keyed on session) can find it.
+    assert "session = s9" in str(captured.get("posted") or ""), captured
+
+    # Closing the loop: feed that recorded row back through the firewall's taint-chain
+    # reader -> the session is now seen as tainted (was invisible before A9).
+    import mios_firewall
+
+    async def _fake_read(sql, pg_sql=None, pg_params=None):
+        if row.get("tainted"):
+            return [{"result": [{"ts": "t", "tool": row["tool"],
+                                 "taint_reason": row["taint_reason"]}]}]
+        return [{"result": []}]
+
+    mios_firewall._db_read = _fake_read
+    tainted, chain = asyncio.run(mios_firewall._session_is_tainted("s9"))
+    assert tainted is True and "open_url" in chain, (tainted, chain)
+
+    # Degrade-open: a write failure (writer raises) must NOT break dispatch.
+    def _boom_post(sql):
+        raise RuntimeError("db down")
+    mios_dispatch.configure(db_post=_boom_post)
+    out = asyncio.run(mios_dispatch.dispatch_verb(body))
+    assert out is not None, "dispatch must still return when the audit write fails"
+    print("[PASS] /v1/dispatch persists a tainting tool_call row (A9/F2)")
+
+
+test_dispatch_persists_taint_row()
+
+
+# ── 7. A6: write/exec verbs OPT IN to a real sandbox profile; read verbs don't ──
+# The dead-bwrap gap was that ZERO verbs declared sandbox_profile, so flipping
+# [dispatch].sandbox_enforce confined nothing. This gate drives off each verb's SSOT
+# `permission`/`sandbox_profile` metadata (NOT a runtime verb-name list): it proves
+# the opt-in set is now non-empty, every tagged profile is a REAL confining profile
+# on a non-read verb, and read-only verbs sensibly carry none.
+def test_sandbox_profile_coverage():
+    import os
+    import mios_sandbox
+    try:
+        import tomllib
+    except ImportError:  # py<3.11
+        import tomli as tomllib
+    _here = os.path.dirname(os.path.abspath(__file__))
+    _cands = [os.environ.get("MIOS_TOML"),
+              os.path.join(_here, "..", "..", "..", "share", "mios", "mios.toml"),
+              "/usr/share/mios/mios.toml"]
+    _path = next((p for p in _cands if p and os.path.exists(p)), None)
+    assert _path, f"mios.toml not found (tried {_cands})"
+    with open(_path, "rb") as _f:
+        verbs = (tomllib.load(_f).get("verbs") or {})
+    assert verbs, "no [verbs.*] catalog in mios.toml"
+
+    tagged = {}
+    for name, v in verbs.items():
+        if not isinstance(v, dict):
+            continue
+        prof = v.get("sandbox_profile")
+        perm = str(v.get("permission", "read")).lower()
+        if prof is None:
+            continue
+        tagged[name] = (prof, perm)
+        # (a) names a REAL profile that resolves to CONFINED (catches a typo'd name).
+        assert mios_sandbox.resolve_profile(perm, explicit=prof).confined, \
+            f"{name}: sandbox_profile={prof!r} did not resolve to a confined profile"
+        # (b) only a side-effecting (non-read) verb opts into confinement; a read-only
+        #     verb declaring one would be a classification error.
+        assert perm != "read", \
+            f"{name}: read-only verb must not declare sandbox_profile"
+
+    # (c) the opt-in set is NON-EMPTY (the gap was 0 of N) AND covers the canonical
+    #     arbitrary-code-execution + file-mutation verbs -- exactly what a dead
+    #     sandbox most needs to confine. Derived from catalog presence (a verb absent
+    #     in this build is skipped), so this is coverage, not a re-declared name map.
+    assert tagged, "A6 regression: ZERO verbs declare sandbox_profile (dead bwrap)"
+    _must_confine = [n for n in ("run_code", "coderun", "code_mode",
+                                 "text_create", "text_str_replace", "text_insert",
+                                 "file_edit", "powershell_run") if n in verbs]
+    _missing = [n for n in _must_confine if n not in tagged]
+    assert not _missing, f"A6: code/file-mutation verbs missing sandbox_profile: {_missing}"
+    print(f"[PASS] A6 sandbox_profile coverage: {len(tagged)} verbs opt in, "
+          "all resolve confined + non-read")
+
+
+test_sandbox_profile_coverage()
+
 print("test_mios_dispatch: ALL PASS")

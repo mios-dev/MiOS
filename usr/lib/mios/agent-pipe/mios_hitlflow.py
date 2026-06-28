@@ -34,8 +34,8 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from mios_jsonsalvage import loads_lenient as _loads_lenient
+import mios_hitl   # the shared HITL verdict resolver (mios_hitl.decide) both gates route through
 from mios_hitl import (requires_approval as _hitl_requires,
-                       gate_outcome as _hitl_gate_outcome,
                        block_result as _hitl_block_result)
 from mios_sse import _sse_chunk, _stream_answer, _sse_done
 import mios_pg as _mios_pg
@@ -208,26 +208,33 @@ def _hitl_record_pending(tool: str, args: dict, action_hash: str,
 
 async def _hitl_gate(tool: str, args: dict,
                      session_id: Optional[str]) -> "Optional[dict]":
-    """The runtime HITL gate, called from _dispatch_mios_verb_inner for scoped
-    verbs. Returns a block_result dict to REFUSE the dispatch (gate mode, not
-    yet approved) or None to PROCEED. Always emits an observability event.
-    Never raises -> degrade-open to PROCEED (an agent is never wedged by the
-    gate failing)."""
+    """The runtime HITL gate ([hitl] verb-scope half), called from
+    _dispatch_mios_verb_inner for scoped verbs. Returns a block_result dict to REFUSE
+    the dispatch (gate mode, not yet approved) or None to PROCEED. The block/proceed
+    verdict is computed by the SINGLE shared resolver (``mios_hitl.decide``) that the
+    [ai] risk-tier gate also routes through, so the two HITL gates can no longer
+    disagree. Always emits an observability event. Never raises -> degrade-open to
+    PROCEED (an agent is never wedged by the gate failing)."""
     try:
         if not _hitl_requires(tool, HITL_ENABLE, HITL_SCOPE):
             return None
         ah = _action_hash(tool, args)
         approved = (await _hitl_is_approved(session_id, ah)
                     if HITL_MODE == "gate" else False)
-        outcome = _hitl_gate_outcome(HITL_MODE, approved)
+        # Route the verb-scope decision through the one shared resolver: this verb is
+        # already in scope (the guard above), so feed its scope posture + approval.
+        verdict = mios_hitl.decide(in_name_scope=True, hitl_enable=HITL_ENABLE,
+                                   hitl_mode=HITL_MODE, approved=approved)
+        blocked = verdict == mios_hitl.BLOCK
+        outcome = mios_hitl.BLOCK if blocked else mios_hitl.PROCEED
         _emit_session_event({
             "source": "agent-pipe", "kind": "hitl_request",
-            "severity": "high" if outcome == "block" else "info",
+            "severity": "high" if blocked else "info",
             "summary": f"hitl {HITL_MODE}: {tool} -> {outcome}",
             "payload": {"tool": tool, "args": args, "mode": HITL_MODE,
                         "outcome": outcome, "approved": approved},
         }, session_id)
-        if outcome == "block":
+        if blocked:
             _hitl_record_pending(tool, args, ah, session_id)
             return _hitl_block_result(tool, args, ah)
         return None

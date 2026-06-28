@@ -207,6 +207,121 @@ async def t_cap_never_exceeded() -> None:
     _check("load: drained to full", g.available == cap, f"avail={g.available}")
 
 
+# ── V5 per-tenant fair-share dimension (DEFAULT-OFF: tenant_cap<=0 == today) ──────
+
+async def t_tenant_default_off() -> None:
+    """tenant_cap=0 (the default) -> the tenant arg is inert: pick is PURE priority and
+    nothing is tracked, byte-identical to the pre-V5 gate."""
+    g = PriorityGate(1)                       # tenant_cap defaults to 0
+    await g.acquire(5, tenant="A")            # tenant passed but never tracked
+    order = []
+
+    async def worker(p, label):
+        await g.acquire(p, tenant="A")        # SAME tenant, both queued
+        order.append(label)
+        g.release(tenant="A")
+
+    t_low = asyncio.create_task(worker(2, "low"))
+    await asyncio.sleep(0.01)
+    t_high = asyncio.create_task(worker(8, "high"))
+    await asyncio.sleep(0.01)
+    g.release(tenant="A")                     # cap=0 -> pure priority, tenant ignored
+    await asyncio.gather(t_low, t_high)
+    _check("tenant default-off: pure priority (tenant ignored)", order == ["high", "low"],
+           f"order={order}")
+    _check("tenant default-off: nothing tracked", g.tenant_inflight("A") == 0)
+
+
+async def t_tenant_fair_share() -> None:
+    """Under contention, a freed slot goes to a tenant UNDER its cap even over a
+    HIGHER-priority waiter whose tenant is AT its cap -- one tenant can't starve another.
+    Tenant A holds a slot for the whole test (A pinned AT cap); B1 holds its slot so the
+    fairness moment (B1 served, A2 still queued) is observable, then A2 is served
+    (degrade-open: it becomes the sole waiter)."""
+    g = PriorityGate(2, tenant_cap=1)         # 2 global slots, 1 per tenant
+    await g.acquire(5, tenant="A")            # A holds slot 1 (A in-flight=1, pinned AT cap)
+    await g.acquire(5, tenant="C")            # C holds slot 2 -> gate FULL
+    order = []
+    hold_b = asyncio.Event()
+
+    async def a2():                            # HIGH prio, but tenant A is AT cap
+        await g.acquire(9, tenant="A")
+        order.append("A2")
+        g.release(tenant="A")
+
+    async def b1():                            # LOW prio, tenant B is UNDER cap
+        await g.acquire(2, tenant="B")
+        order.append("B1")
+        await hold_b.wait()                    # HOLD the slot so A2 stays queued
+        g.release(tenant="B")
+
+    tA2 = asyncio.create_task(a2())
+    await asyncio.sleep(0.01)
+    tB1 = asyncio.create_task(b1())
+    await asyncio.sleep(0.01)
+    _check("tenant fair-share: both queued", g.queued == 2, f"queued={g.queued}")
+    g.release(tenant="C")                     # a DIFFERENT tenant frees a slot
+    await asyncio.sleep(0.02)
+    _check("tenant fair-share: under-cap B served before at-cap A despite lower prio",
+           order == ["B1"], f"order={order}")
+    _check("tenant fair-share: at-cap A2 still queued (throttled)", g.queued == 1,
+           f"queued={g.queued}")
+    hold_b.set()                              # B1 releases -> A2 is now the sole waiter
+    await asyncio.gather(tA2, tB1)
+    _check("tenant fair-share: at-cap tenant served once it is the sole waiter (no wedge)",
+           order == ["B1", "A2"], f"order={order}")
+    g.release(tenant="A")                     # release A's original pinned slot
+    _check("tenant fair-share: drained + all tenant counts cleared",
+           g.available == g.cap and g.tenant_inflight("A") == 0
+           and g.tenant_inflight("B") == 0, f"avail={g.available}")
+
+
+async def t_tenant_degrade_open() -> None:
+    """When the ONLY live waiter's tenant is at its cap, the gate degrades OPEN and
+    serves it anyway -- the per-tenant cap must NEVER wedge admission."""
+    g = PriorityGate(2, tenant_cap=1)
+    await g.acquire(5, tenant="A")            # A AT cap (slot 1)
+    await g.acquire(5, tenant="X")            # gate full (slot 2)
+    order = []
+
+    async def worker():
+        await g.acquire(9, tenant="A")        # tenant A is already at cap
+        order.append("A2")
+        g.release(tenant="A")
+
+    t = asyncio.create_task(worker())
+    await asyncio.sleep(0.01)
+    g.release(tenant="X")                     # frees a slot; only an at-cap A waiter exists
+    await asyncio.sleep(0.02)
+    _check("tenant degrade-open: at-cap sole waiter still served (no wedge)",
+           order == ["A2"], f"order={order}")
+    g.release(tenant="A")
+    _check("tenant degrade-open: drained to full", g.available == g.cap, f"avail={g.available}")
+
+
+async def t_tenant_none_uncapped() -> None:
+    """A None tenant (system/daemon, no forwarded owner) is NEVER capped -> pure priority
+    and zero tracking, even with a cap configured."""
+    g = PriorityGate(1, tenant_cap=1)
+    await g.acquire(5, tenant=None)
+    order = []
+
+    async def worker(p, label):
+        await g.acquire(p, tenant=None)
+        order.append(label)
+        g.release(tenant=None)
+
+    t_low = asyncio.create_task(worker(2, "low"))
+    await asyncio.sleep(0.01)
+    t_high = asyncio.create_task(worker(8, "high"))
+    await asyncio.sleep(0.01)
+    g.release(tenant=None)
+    await asyncio.gather(t_low, t_high)
+    _check("tenant none-uncapped: pure priority for None tenant", order == ["high", "low"],
+           f"order={order}")
+    _check("tenant none-uncapped: None never tracked", g.tenant_inflight(None) == 0)
+
+
 # ── Lane / scheduling / priority decision helpers (moved from server.py) ─────────
 # Stub the server-owned deps via configure() -- no server import, no DB, no network.
 
@@ -382,7 +497,9 @@ async def t_lane_sem_key() -> None:
 async def main() -> int:
     for t in (t_basic_bound, t_priority_reorder, t_fifo_tiebreak,
               t_anti_starvation, t_cancel_while_queued, t_cancel_after_grant,
-              t_cap_never_exceeded, t_lane_tool_cap, t_agent_offload_engine,
+              t_cap_never_exceeded, t_tenant_default_off, t_tenant_fair_share,
+              t_tenant_degrade_open, t_tenant_none_uncapped,
+              t_lane_tool_cap, t_agent_offload_engine,
               t_resolve_autonomous_priority, t_sched_priority,
               t_sched_priority_ssot_override, t_sched_priority_model_hook,
               t_sched_priority_unicode, t_lane_sem_key):

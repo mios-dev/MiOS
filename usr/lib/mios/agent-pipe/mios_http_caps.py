@@ -831,7 +831,7 @@ async def list_tools(include_rare: bool = True) -> JSONResponse:
     -> POST /skills/run. Discover here, execute there -- one contract.
 
     Degrade-open: a recipe-load or skill-DB failure drops only THAT section,
-    never the others, so an offline SurrealDB still yields the full verb +
+    never the others, so an offline datastore still yields the full verb +
     recipe surface (operator: tools must stay available even when a subsystem
     is down)."""
     return await list_tools_logic(include_rare)

@@ -11,6 +11,21 @@
 # AIOS Context Manager, fleet-wide (ollama can't). The embed model runs a
 # --embedding llama-server so /v1/embeddings replaces the ollama embed lane.
 #
+# KV-cache SERVING flags are DOCUMENTED canonically in mios.toml [ai.kv] -- distinct
+# from the agent-pipe's runtime [dispatch].kv_* paging knobs. NOTE: this yaml is NOT
+# auto-rendered from [ai.kv]; each lane `cmd` below carries the --slot-save-path
+# literal DIRECTLY and is kept in sync with [ai.kv] + tmpfiles BY HAND:
+#   * [ai.kv].slot_save_path documents the --slot-save-path written into every chat
+#     lane below (keep in sync with usr/lib/tmpfiles.d/mios-llamacpp.conf).
+#   * [ai.kv].swa_full, when true, appends --swa-full to SWA (sliding-window-
+#     attention) lanes ONLY, so the full window is retained for correct KV
+#     checkpoint/restore. The current chat brains (granite4.1:8b, lfm2:700m) are
+#     HYBRID/RECURRENT, NOT SWA -- --swa-full is MOOT for them and is deliberately
+#     ABSENT from their cmd below. Append it only when adding a Gemma/Qwen3-SWA lane.
+#     For hybrid/recurrent KV checkpoint-restore correctness the real lever is the
+#     llama.cpp BUILD VERSION (track a recent validated llama-swap image pin), not
+#     this flag.
+#
 # !! TEMPLATE -- VERIFY before enabling (cannot be validated offline):
 #   * the ${PORT} substitution + `cmd`/`proxy`/`ttl` keys match your llama-swap
 #     version's schema (see github.com/mostlygeek/llama-swap README);

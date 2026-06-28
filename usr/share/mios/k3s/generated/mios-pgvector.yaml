@@ -32,7 +32,7 @@ spec:
       value: mios
     - name: POSTGRES_DB
       value: mios
-    image: docker.io/pgvector/pgvector:pg17
+    image: docker.io/pgvector/pgvector:0.8.3-pg17
     name: mios-pgvector
     securityContext:
       runAsGroup: 826

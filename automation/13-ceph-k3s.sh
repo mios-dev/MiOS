@@ -27,7 +27,15 @@ install_packages "k3s"
 # Note: k3s-selinux policy is compiled from source in 19-k3s-selinux.sh
 
 # ─── K3s Binary & Install Script ─────────────────────────────────────────────
-echo "[13-ceph-k3s] Resolving latest K3s release tag..."
+# Version SSOT: [image.sidecars].k3s_version in mios.toml -> exported as
+# MIOS_K3S_VERSION by tools/lib/userenv.sh (sourced via lib/common.sh above). The
+# HOST BINARY installed here and the rancher/k3s CONTAINER image
+# ([image.sidecars].k3s) now read ONE version key, so they can never drift -- the
+# prior split-brain (binary tracked GitHub `latest`, image was pinned) is closed.
+# The container image tag uses '-k3s1' (Docker tags forbid '+'); the GitHub
+# release + binary-download tag uses '+k3s1', so translate the SSOT image tag to
+# the release tag for the download URLs below.
+echo "[13-ceph-k3s] Resolving K3s release tag from mios.toml SSOT (MIOS_K3S_VERSION)..."
 # Offline check: do we have local k3s files?
 USE_OFFLINE=false
 if [ -f "/usr/share/mios/vendored/k3s" ] && [ -f "/usr/share/mios/vendored/k3s-install.sh" ]; then
@@ -35,23 +43,18 @@ if [ -f "/usr/share/mios/vendored/k3s" ] && [ -f "/usr/share/mios/vendored/k3s-i
     USE_OFFLINE=true
     K3S_TAG="vendored"
 else
-    # Retry 3 times for flaky networks
-    K3S_TAG=""
-    for i in 1 2 3; do
-        # v0.2.0: Wrap in subshell + || true to prevent pipefail from killing the script if API is down
-        K3S_TAG=$( (scurl -sL -o /dev/null -w "%{url_effective}" https://github.com/k3s-io/k3s/releases/latest | grep -oE '[^/]+$') 2>/dev/null || true)
-        if [[ -n "$K3S_TAG" && "$K3S_TAG" != "latest" ]]; then break; fi
-        sleep 2
-    done
+    K3S_TAG="${MIOS_K3S_VERSION:-}"
+    # Docker image tag (...-k3s1) -> GitHub release/download tag (...+k3s1).
+    K3S_TAG="${K3S_TAG/-k3s/+k3s}"
 fi
 
-if [[ -z "$K3S_TAG" || "$K3S_TAG" == "latest" ]]; then
-    echo "[13-ceph-k3s] WARN: Could not resolve latest K3s tag. Skipping K3s binary installation."
+if [[ -z "$K3S_TAG" ]]; then
+    echo "[13-ceph-k3s] WARN: K3s version SSOT empty (MIOS_K3S_VERSION unset). Skipping K3s binary installation."
     K3S_TAG=""
 fi
 
 if [[ -n "$K3S_TAG" ]]; then
-    echo "[13-ceph-k3s] Latest K3s tag: $K3S_TAG"
+    echo "[13-ceph-k3s] K3s tag (from SSOT): $K3S_TAG"
     record_version k3s "$K3S_TAG" "https://github.com/k3s-io/k3s/releases/tag/${K3S_TAG}"
 
     mkdir -p /tmp/k3s-dl

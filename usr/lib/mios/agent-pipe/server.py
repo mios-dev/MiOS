@@ -1,5 +1,5 @@
-# AI-hint: FastAPI gateway service on port 8640 that routes, dispatches, and proxies chat/embedding requests from external interfaces (Discord, Slack) to the hermes-agent backend and SurrealDB.
-# AI-related: mios_jsonsalvage, mios_owui, mios_sched, mios_evict, mios_hitl, mios_aci, mios_kvfork, mios_codemode, mios_pg, mios_lanes, mios_a2a_principal, mios_reputation, mios_goap, mios_selfimprove, /usr/share/mios/mios.toml
+# AI-hint: FastAPI gateway service on port 8640 that routes, dispatches, and proxies chat/embedding requests from external interfaces (Discord, Slack) to the hermes-agent backend and pgvector.
+# AI-related: mios_jsonsalvage, mios_owui, mios_sched, mios_evict, mios_hitl, mios_aci, mios_kvfork, mios_codemode, mios_pg, mios_lanes, mios_a2a_principal, mios_reputation, mios_selfimprove, /usr/share/mios/mios.toml
 # AI-functions: _toml_section, _cfg_num, _is_remote_endpoint, _should_health_probe, _parse_lane_caps, _lane_tool_cap, _dispatch_toml, _dispatch_num, _priority_gate, _parse_lane_priority, _lane_sem
 """'MiOS' Agent Pipe -- standalone FastAPI service.
 
@@ -126,6 +126,7 @@ import mios_dispatcher   # noqa: E402  -- WS-A11/WS-3 pure mode dispatcher
 import mios_kernel   # noqa: E402  -- WS-A11/WS-3 Kernel facade (Router+Dispatcher+managers)
 import mios_memguard   # noqa: E402  -- WS-MEM-VALIDATE write-time memory-poisoning guard (ASI08)
 import mios_slo   # noqa: E402  -- WS-SCHED-SLO deadline/SLO classes + fail-closed shed
+import mios_blades   # noqa: E402  -- V4/V5 blade (machine) topology + per-blade capacity model
 import mios_cost   # noqa: E402  -- WS-RES-GOV cost/energy accounting (CLASSic Cost axis)
 import mios_promptver   # noqa: E402  -- WS-LIFECYCLE-VER versioned hop-prompt registry
 _PROMPT_REGISTRY = mios_promptver.PromptRegistry()
@@ -141,14 +142,6 @@ import mios_capreg   # noqa: E402  -- WS-2 unified RBAC-filtered capability mani
 import mios_crl   # noqa: E402  -- WS-A10 principal/cert revocation list (inert until a CRL file exists)
 import mios_gossip   # noqa: E402  -- WS-A18 epidemic peer discovery (inert until [gossip].interval_min>0)
 _A2A_REPUTATION = mios_reputation.PeerReputation()   # outbound-peer reliability
-import mios_goap   # noqa: E402  -- #53 deterministic GOAP planner lane
-# #53 GOAP lane wrappers relocated to mios_goap (config-bound, server-free);
-# re-imported verbatim so server.py's importable surface is byte-identical.
-from mios_goap import (   # noqa: E402
-    _goap_actions,
-    _goap_enabled,
-    _goap_plan,
-)
 import mios_selfimprove   # noqa: E402,F401  -- #64 analyzer; now consumed via mios_daemons (_selfimprove_report moved there), retained for import-surface parity
 import mios_toolconflict   # noqa: E402  -- WS-A7 per-verb dispatch conflict/parallel-limit gate
 import mios_trace   # noqa: E402  -- WS-A8 per-request trace/span observability
@@ -311,8 +304,11 @@ _web_sem = asyncio.Semaphore(max(1, WEB_CONCURRENCY))
 # (contextvars), and finished spans land in a bounded in-memory buffer
 # (mios_trace.Tracer) that backs GET /v1/trace/{trace_id} with NO DB hit.
 # Degrade-open + cheap: turn off with MIOS_TRACE_ENABLE=0. The trace id is also
-# propagated outbound (X-MiOS-Trace) to the Hermes hop and stamped onto `event`
-# rows (trace_id/span_id/parent_span_id cols) for durable correlation.
+# propagated outbound (X-MiOS-Trace) to the Hermes hop and stamped (with the active
+# span_id) onto `event` rows for durable correlation. Finished spans themselves are
+# NOT mirrored to the DB -- they live only in the bounded in-memory ring above (the
+# trace-read endpoint serves them with no DB hit); the event.parent_span_id column
+# is reserved (not currently written).
 TRACE_ENABLE = os.environ.get("MIOS_TRACE_ENABLE", "1").strip().lower() \
     not in ("0", "false", "no", "off", "")
 TRACE_MAX_TRACES = int(os.environ.get("MIOS_TRACE_MAX_TRACES", "256") or 256)
@@ -386,15 +382,9 @@ CATALOG_FAIL_MODE = str(os.environ.get("MIOS_CATALOG_FAIL_MODE", "warn")).strip(
 # forget + degrade-open; off -> the old in-memory-only behaviour.
 SCRATCHPAD_PERSIST = str(os.environ.get("MIOS_SCRATCHPAD_PERSIST", "1")).strip().lower() \
     not in ("0", "false", "no", "off", "")
-# WS-A5: tokenizer backend selector (SSOT [ai].tokenizer_backend via the env
-# bridge). "heuristic" (default) is the offline ~4-chars/token estimate -- the
-# only backend shipped today; a vendored real tokenizer would register under its
-# own name + be installed via mios_tokenize.set_backend(). Unknown -> heuristic
-# (degrade-open, offline-safe -- never a hard dep on a tokenizer asset).
-_TOKENIZER_BACKEND = str(os.environ.get("MIOS_TOKENIZER_BACKEND", "heuristic")).strip().lower()
-if _TOKENIZER_BACKEND not in ("", "heuristic"):
-    log.info("WS-A5: tokenizer_backend=%r requested but only the heuristic "
-             "backend is shipped -- using heuristic (offline-safe)", _TOKENIZER_BACKEND)
+# WS-A5: the tokenizer backend (SSOT [ai].tokenizer_*) is INSTALLED below, right
+# after the logger is defined (it logs the install/degrade outcome) -- see
+# "_TOKENIZER_BACKEND" near the logger setup.
 
 # Pipeline-side WEB-RESEARCH loop ("the MiOS pipeline
 # ITSELF loops for web use and web tools" + "multi loops for all web tools" +
@@ -661,8 +651,10 @@ DAG_NODE_DEADLINE_SLOW_S = _dispatch_num(
 # node (iGPU/phone) sets the wall-clock and NO fast node sits idle. Bounded by
 # the barrier + DEEPEN_MAX_ITERS so it can never run away.
 # SSOT deepen tunables (resolved via _dispatch_num from mios.toml [dispatch], above).
-# A SATISFIED node exits immediately (see
-# _deepen_until_barrier), so the deadline only ever bites a stubborn facet.
+# With [dispatch].deepen_early_exit enabled a node whose answer the per-node DoD judge
+# marks satisfied exits the loop early (freeing its lane); default off -> it runs to
+# the barrier/deadline. Degrade-open: a judge hiccup falls through to the
+# deadline-bound loop (see _deepen_until_barrier).
 SWARM_DEEPEN_ENABLED = (os.environ.get(
     "MIOS_SWARM_DEEPEN", str(_DISPATCH_TOML.get("deepen_enabled", True)))
     .strip().lower() not in ("0", "false", "no"))
@@ -679,9 +671,11 @@ SWARM_DEEPEN_ENABLED = (os.environ.get(
 SWARM_SATURATE = (os.environ.get(
     "MIOS_SWARM_SATURATE", str(_DISPATCH_TOML.get("swarm_saturate", True)))
     .strip().lower() not in ("0", "false", "no"))
-# UNTIL SATISFIED ("NOT JUST 2 PASSES!!! UNTIL SATISFIED!!!"):
-# the deepen loop runs while the node's answer is NOT satisfied (judge-gated),
-# bounded by the WALL-CLOCK DEADLINE; the iter cap is a high RUNAWAY BACKSTOP.
+# DEEPEN BOUNDS: the deepen loop is hard-bounded by the WALL-CLOCK DEADLINE + the
+# barrier; the iter cap is a high RUNAWAY BACKSTOP. With [dispatch].deepen_early_exit
+# enabled (below) it ALSO stops once the per-node DoD judge marks the answer
+# satisfied, so the heaviest compute is not spent re-answering an already-good node
+# (default off -> runs to the bound; ships flag-gated + degrade-open).
 DEEPEN_MAX_ITERS = _dispatch_num("MIOS_SWARM_DEEPEN_ITERS", "deepen_iters", 12)
 DEEPEN_DEADLINE_S = _dispatch_num(
     "MIOS_SWARM_DEEPEN_DEADLINE_S", "deepen_deadline_s", 120, float)
@@ -697,6 +691,27 @@ DEEPEN_WEB_TIMEOUT_S = _dispatch_num(
 DEEPEN_FETCH = (os.environ.get(
     "MIOS_SWARM_DEEPEN_FETCH", str(_DISPATCH_TOML.get("deepen_fetch", True)))
     .strip().lower() not in ("0", "false", "no"))
+# EARLY-EXIT ON SATISFIED (A8): when ON, each deepen pass first asks the per-node
+# micro-LLM DoD judge (_judge_answer_satisfied) whether the node's CURRENT answer
+# already satisfies its sub-query; if so the node stops deepening -- the heaviest
+# compute is not burned re-answering an already-good node and the freed lane lets
+# slower nodes finish sooner. DEFAULT OFF: it is a behaviour change (fewer deepen
+# iterations) and the judge degrades to "satisfied" on its OWN internal error, so it
+# ships operator-opt-in (Law-7: behaviour changes flag-gated + degrade-open). When on,
+# the call site bounds the judge by DEEPEN_JUDGE_TIMEOUT_S and any timeout/error falls
+# THROUGH to the deadline-bound loop (never under-computes); the loop stays
+# hard-bounded by the barrier + deadline + iter cap regardless. SSOT
+# [dispatch].deepen_early_exit (env MIOS_SWARM_DEEPEN_EARLY_EXIT).
+DEEPEN_EARLY_EXIT = (os.environ.get(
+    "MIOS_SWARM_DEEPEN_EARLY_EXIT",
+    str(_DISPATCH_TOML.get("deepen_early_exit", False)))
+    .strip().lower() not in ("0", "false", "no", ""))
+# Per-call wall-clock cap (s) on the deepen DoD judge (a yes/no micro-LLM), kept well
+# under the deepen deadline so a slow/hung judge becomes a caught timeout -> the loop
+# continues (degrade-open) instead of stalling a coverage pass. Only used when
+# DEEPEN_EARLY_EXIT. SSOT [dispatch].deepen_judge_timeout_s (env MIOS_SWARM_DEEPEN_JUDGE_S).
+DEEPEN_JUDGE_TIMEOUT_S = _dispatch_num(
+    "MIOS_SWARM_DEEPEN_JUDGE_S", "deepen_judge_timeout_s", 6, float)
 
 # Pipeline-side READ-TOOL enrich ("all... skills and
 # recipes fire on ALL endpoints"). Like the web-research loop, the PIPELINE runs
@@ -802,8 +817,43 @@ PRIORITY_QUEUE_ENABLE = str(os.environ.get("MIOS_PRIORITY_QUEUE")
                             ).strip().lower() in {"1", "true", "yes"}
 PRIORITY_STARVATION_S = _dispatch_num("MIOS_PRIORITY_STARVATION_MS",
                                   "priority_starvation_ms", 4000, float) / 1000.0
-_GLOBAL_PRIORITY_GATE = PriorityGate(GLOBAL_DISPATCH_CONCURRENCY,
-                                     PRIORITY_STARVATION_S)
+
+# ── V5 multi-blade + per-tenant admission (SSOT [admission]; DEFAULT-OFF) ─────────
+# Two INDEPENDENT flags, each a pure no-op when off so admission + the priority gate
+# behave byte-identically to today's single-blade / no-quota path:
+#   multiblade_enable   -- _admit compares a node's residents against ITS blade's VRAM
+#                          budget (node->blade->capacity) + skips the LOCAL /proc/
+#                          loadavg ceiling for a REMOTE blade, instead of the single
+#                          local VRAM scalar + local loadavg. OFF -> the local scalar +
+#                          local ceiling EXACTLY as today (the multi-blade capacity
+#                          comparison is operator-live-validated on a real cluster).
+#   tenant_quota_enable -- the global PriorityGate gains a per-tenant (verified owner)
+#                          concurrent-dispatch fair-share so one tenant can't hold all
+#                          global slots. OFF (cap 0) -> the gate is byte-identical.
+#                          DISTINCT AXIS from mios_quota (per-user RPM/spend rate
+#                          budget at the PDP) -- this is concurrent in-flight fair-share,
+#                          the AIOS scheduler dimension.
+# DEGRADE-OPEN everywhere: unknown blade/capacity/owner -> the local-scalar / no-quota
+# path (never wedge admission, never lock a tenant out).
+_ADMISSION_TOML = _toml_section("admission") or {}
+MULTIBLADE_ENABLE = str(os.environ.get("MIOS_MULTIBLADE_ENABLE")
+                        or _ADMISSION_TOML.get("multiblade_enable", "false")
+                        ).strip().lower() in {"1", "true", "yes"}
+TENANT_QUOTA_ENABLE = str(os.environ.get("MIOS_TENANT_QUOTA_ENABLE")
+                          or _ADMISSION_TOML.get("tenant_quota_enable", "false")
+                          ).strip().lower() in {"1", "true", "yes"}
+# Per-tenant concurrent-dispatch fair-share cap (in-flight global slots one tenant may
+# hold). 0 = unlimited (today). The cap BITES only under contention (another tenant
+# waiting); a single tenant on an idle gate is never throttled, and if every live
+# waiter is one over-cap tenant the gate degrades OPEN (serves by priority) so it can
+# never wedge. SSOT [admission].tenant_max_concurrency (env MIOS_TENANT_MAX_CONCURRENCY).
+TENANT_MAX_CONCURRENCY = _cfg_num(_ADMISSION_TOML, "MIOS_TENANT_MAX_CONCURRENCY",
+                                  "tenant_max_concurrency", 0)
+_GLOBAL_PRIORITY_GATE = PriorityGate(
+    GLOBAL_DISPATCH_CONCURRENCY, PRIORITY_STARVATION_S,
+    # tenant_cap stays 0 (the inert default) until the quota is enabled -> the gate's
+    # tenant-aware branches are skipped entirely (byte-identical to today).
+    tenant_cap=(TENANT_MAX_CONCURRENCY if TENANT_QUOTA_ENABLE else 0))
 
 
 @contextlib.asynccontextmanager
@@ -813,9 +863,14 @@ async def _priority_gate(priority: float):
     PRIORITY order; otherwise (or on any acquire error) fall back to the plain
     FIFO semaphore. The gate is never permitted to block a turn."""
     use_gate = PRIORITY_QUEUE_ENABLE
+    # V5 per-tenant fair-share: resolve THIS turn's verified owner ONLY when the
+    # tenant quota is enabled; default-off -> tenant=None -> the gate's tenant_cap is
+    # 0 -> acquire(priority, tenant=None)/release(tenant=None) are byte-identical to
+    # acquire(priority)/release() today. A None owner (system/daemon) is never capped.
+    _tenant = _turn_tenant() if TENANT_QUOTA_ENABLE else None
     if use_gate:
         try:
-            await _GLOBAL_PRIORITY_GATE.acquire(priority)
+            await _GLOBAL_PRIORITY_GATE.acquire(priority, tenant=_tenant)
         except asyncio.CancelledError:
             raise
         except Exception:  # noqa: BLE001 -- degrade-open: fall back to the sem
@@ -826,7 +881,7 @@ async def _priority_gate(priority: float):
             yield
         finally:
             try:
-                _GLOBAL_PRIORITY_GATE.release()
+                _GLOBAL_PRIORITY_GATE.release(tenant=_tenant)
             except Exception:  # noqa: BLE001
                 pass
         return
@@ -1222,7 +1277,7 @@ def _endpoint_sem(ep: str) -> asyncio.Semaphore:
 
 
 async def _admit(ep: str, model: str, lane: str, priority: float = 5.0,
-                 est_mb: int = 0) -> None:
+                 est_mb: int = 0, *, foreground: bool = True) -> None:
     """Capacity-aware admission gate, run BEFORE the endpoint/lane semaphores.
     No-op unless ADMIT_ENABLE. DEGRADE-OPEN: any error -> return (admit). Bounds
     every wait by ADMIT_MAX_WAIT then admits anyway -> never deadlocks a turn.
@@ -1235,17 +1290,29 @@ async def _admit(ep: str, model: str, lane: str, priority: float = 5.0,
     # OR when the host probe failed (empty stats -> healthy=False -> shed). An
     # interactive turn (high priority) is never shed. Default-off.
     if SLO_SHED_ENABLE:
-        _slo = mios_slo.classify(priority=float(priority))
-        if mios_slo.should_shed(_slo, over_ceiling=_over_global_ceiling(),
-                                healthy=bool(_host_stats_cached())):
+        # The SLO class is the FOREGROUND/autonomous axis -- NOT the capacity-gate
+        # scheduling `priority` (3.4-6.8 for normal turns), which never reaches the
+        # interactive floor and so misclassified EVERY turn as best_effort/shed-
+        # eligible. A fan-out / background dispatch passes foreground=False (->
+        # best_effort, shed-eligible under contention); a genuine foreground turn is
+        # protected (-> interactive, never shed). `healthy` degrades OPEN (omitted ->
+        # should_shed's default True) so a missing/cold host-stats probe never sheds --
+        # consistent with _over_global_ceiling() which ALSO degrades open; over_ceiling
+        # is the sole contention trigger.
+        _slo = mios_slo.classify(foreground=foreground)
+        if mios_slo.should_shed(_slo, over_ceiling=_over_global_ceiling()):
             raise _SloShed(_slo)
     if not ADMIT_ENABLE:
         return
     try:
         deadline = time.monotonic() + ADMIT_MAX_WAIT
         # (1) global ceiling: if over, wait (low priority waits longer) up to the
-        # deadline, re-checking; then admit regardless (degrade-open).
-        while _over_global_ceiling() and time.monotonic() < deadline:
+        # deadline, re-checking; then admit regardless (degrade-open). V5: when
+        # multiblade is on, the ceiling is the endpoint's BLADE ceiling (a remote
+        # blade is NOT gated by the local /proc/loadavg); OFF -> _over_global_ceiling()
+        # EXACTLY as today (byte-identical -- the new helper is never consulted).
+        while (_over_blade_ceiling(ep) if MULTIBLADE_ENABLE
+               else _over_global_ceiling()) and time.monotonic() < deadline:
             # higher priority -> shorter back-off; bounded so we always progress
             _backoff = max(0.15, (10.0 - float(priority)) * 0.1)
             await asyncio.sleep(min(_backoff, max(0.0, deadline - time.monotonic())))
@@ -1260,6 +1327,10 @@ async def _admit(ep: str, model: str, lane: str, priority: float = 5.0,
         warm = await _is_warm(ep, model)
         if not warm:
             _reclaimed = False
+            # V5: admit a cold model against the endpoint's BLADE VRAM budget (a remote
+            # node's residents belong to ITS machine, not the local 4090). DEFAULT-OFF
+            # (or any unknown blade) -> the LOCAL VRAM_BUDGET_MB scalar EXACTLY as today.
+            _budget = _blade_vram_budget(ep) if MULTIBLADE_ENABLE else VRAM_BUDGET_MB
             while time.monotonic() < deadline:
                 res = await _resident_cached(ep)
                 # measured resident + Phase-1 pending sibling reservations, so two
@@ -1275,9 +1346,10 @@ async def _admit(ep: str, model: str, lane: str, priority: float = 5.0,
                             for m in res
                             if _norm_model_tag(m.get("name")) == _norm_model_tag(model)),
                            0) or est_mb or VRAM_COLOAD_EST_MB
-                # fits if used + this model + reserve stays under budget
+                # fits if used + this model + reserve stays under budget (the blade's
+                # budget when multiblade is on; the local scalar otherwise -- _budget).
                 if (not VRAM_COLOAD_ENABLE) or \
-                        (used_mb + est + VRAM_COLOAD_RESERVE_MB) <= VRAM_BUDGET_MB:
+                        (used_mb + est + VRAM_COLOAD_RESERVE_MB) <= _budget:
                     break
                 # Doesn't fit: first RECLAIM an idle model's VRAM (clear idle
                 # agents so this one loads now -> 'nothing in the pipeline idle'),
@@ -1322,10 +1394,6 @@ RUNAWAY_REAP_ENABLE = str(os.environ.get("MIOS_RUNAWAY_REAP")
 # needs the bigger context + reasoning headroom. Operator can disable
 # planner via env (DAG-mode falls back to backend proxy).
 # PLANNER_* config -> mios_config (R14 config SSOT); re-imported above.
-
-
-# #53 GOAP planner lane wrappers (_goap_actions/_goap_enabled/_goap_plan) live in
-# mios_goap.py (config-bound, server-free); re-imported below for surface parity.
 
 
 # Decompose substantive single-goal asks into a CONCURRENT multi-agent swarm
@@ -1436,18 +1504,31 @@ def _load_caller_keys() -> dict:
 def _check_inbound_principal(token: str) -> "Optional[dict]":
     """Resolve a bearer token to a scoped principal, or None if unrecognised. The
     canonical shared key + the ingress key map to the full-trust operator principal;
-    a caller-key maps to its stored scoped identity (FED-G6/G8 enforce scope later)."""
+    a caller-key maps to its stored scoped identity. FED-G8: a caller-key that has
+    been REVOKED (POST /v1/admin/keys/revoke -> CRL) resolves to None, so the
+    credential is refused the moment the CRL is hot-reloaded, no restart."""
     t = (token or "").strip()
     if not t:
         return None
     if (_BACKEND_KEY and t == _BACKEND_KEY) or (_INGRESS_KEY and t == _INGRESS_KEY):
         return {"principal": "operator", "scope": "full", "via": "shared-key"}
     ent = _load_caller_keys().get(t)
+    if not ent:
+        return None
+    entry = ent if isinstance(ent, dict) else {"principal": str(ent)}
+    # FED-G8 revocation: refuse a caller key on the CRL (matched by token fingerprint
+    # or stored id/principal). The CRL machinery lives in mios_a2a (already loaded by
+    # request time); referenced lazily so the module name stays out of server's
+    # importable surface. Degrade-open: any CRL fault -> treat as not revoked.
+    try:
+        import mios_a2a
+        if mios_a2a._caller_key_revoked(t, entry):
+            return None
+    except Exception:  # noqa: BLE001 -- a CRL fault must never lock out a valid caller
+        pass
     if isinstance(ent, dict):
         return {"principal": ent.get("principal") or "caller", "via": "caller-key", **ent}
-    if ent:  # a bare {"token": "name"} mapping
-        return {"principal": str(ent), "via": "caller-key"}
-    return None
+    return {"principal": str(ent), "via": "caller-key"}  # a bare {"token": "name"} map
 
 
 def _probe_auth_headers(ep: str) -> dict:
@@ -1481,12 +1562,12 @@ DB_DB = os.environ.get("MIOS_DB_DB", "mios")
 _DB_AUTH = "Basic " + base64.b64encode(f"{DB_USER}:{DB_PASS}".encode()).decode()
 
 # ── Phase C.3 -- Agent Passport (Ed25519 signing) ─────────────────
-# Each agent in the stack signs security-relevant SurrealDB writes
+# Each agent in the stack signs security-relevant agent-state writes
 # with its Ed25519 private key so every tool_call / firewall_block
 # event / skill_invocation row carries a tamper-evident attribution
 # header. Verification is OFFLINE: any agent reads the signer's
 # public key from /var/lib/mios/agent-passports/<agent>/public.key
-# (world-readable) or the SurrealDB agent_keypair table -- no
+# (world-readable) or the agent_keypair table -- no
 # external KMS, no online CA.
 #
 # We import the mios-passport library helpers lazily so a fresh
@@ -1546,6 +1627,32 @@ logging.basicConfig(
 )
 log = logging.getLogger("mios-agent-pipe")
 
+# WS-A5: install the tokenizer backend (SSOT [ai].tokenizer_* via the env bridge).
+# The shipped default is an EXACT tokenizer (tiktoken, OpenAI-BPE) so context-fit
+# sizing + the client-visible usage object measure real tokens, not the ~4-chars/
+# token heuristic. Offline-safe + degrade-open: the encoding blob loads from the
+# baked MIOS_TOKENIZER_CACHE_DIR, and if the optional dep/asset is absent (CI, a
+# bare host) make_backend returns None and the heuristic stays -- never a hard dep.
+# "heuristic" explicitly selects the zero-dep estimate. The encoding/tokenizer path
+# are SSOT-supplied (no restated literal in code); selecting "hf" + a vendored
+# tokenizer.json path uses a served model's own tokenizer instead. Installed HERE
+# (after the logger) so it can log the install/degrade outcome; token counting is
+# request-time, so this runs well before the first count.
+_TOKENIZER_BACKEND = str(os.environ.get("MIOS_TOKENIZER_BACKEND", "tiktoken")).strip().lower()
+if _TOKENIZER_BACKEND not in ("", "heuristic"):
+    _tok_backend = mios_tokenize.make_backend(
+        _TOKENIZER_BACKEND,
+        encoding=(os.environ.get("MIOS_TOKENIZER_ENCODING", "") or None),
+        path=(os.environ.get("MIOS_TOKENIZER_PATH", "") or None),
+        cache_dir=(os.environ.get("MIOS_TOKENIZER_CACHE_DIR", "") or None))
+    if _tok_backend is not None:
+        mios_tokenize.set_backend(_tok_backend)
+        log.info("WS-A5: tokenizer backend %s installed (%s)",
+                 _TOKENIZER_BACKEND, mios_tokenize.backend_name())
+    else:
+        log.warning("WS-A5: tokenizer_backend=%r unavailable (dep/asset missing) -- "
+                    "using the heuristic (offline-safe)", _TOKENIZER_BACKEND)
+
 # ── App ────────────────────────────────────────────────────────────
 # FastAPI lifespan -- the SINGLE modern startup/shutdown context manager that
 # replaces the deprecated FastAPI on_event startup/shutdown hooks formerly
@@ -1576,6 +1683,14 @@ async def lifespan(app):
         except Exception as e:
             log.warning("app inventory warmup failed: %s", e)
     asyncio.create_task(_warm())
+
+    # SEC-03: warm the event hash-chain head from the persisted max(chain_seq) ONCE,
+    # so the per-event stamp links to the prior chain without a SELECT-max on the hot
+    # path. Awaited (a single-row read, cheap); degrade-open -- a DB miss leaves the
+    # chain unseeded (events log unchained until a restart with a healthy DB) rather
+    # than restarting the chain at seq=1 and colliding with existing rows.
+    if AUDIT_CHAIN_ENABLE:
+        await mios_audit.seed_from_db(_mios_pg.execute)
 
     # WS-A4 KV slot-file GC loop. Only when a LOCAL slots dir is configured (else
     # the tmpfiles age-out is the sole, sufficient backstop -> zero overhead).
@@ -1797,6 +1912,22 @@ async def _db_update(surreal_sql: str, *, pg_sql: "Optional[str]" = None,
         await _db_post(surreal_sql)
 
 
+# ── SEC-03 event-bus tamper-evident hash chain (mios_audit) ──────────
+# Every `event` row is linked to its predecessor by a SHA-256 chain at the single
+# persist chokepoint below (_db_create / _emit_session_event) so a later insert,
+# delete, reorder, or content edit is detectable (GET /v1/audit/chain/verify +
+# mios-chain-verify). The chain head is cached in-memory (seeded once at startup),
+# so the hot path adds one sha256 -- never a per-insert SELECT-max; degrade-open --
+# a chaining hiccup NEVER blocks event logging (tamper-evidence is best-effort, the
+# event must always land). The pure algorithm + verify logic + admin route live in
+# mios_audit (one-way boundary). SSOT [audit].chain_enable (env override bridges it).
+import mios_audit   # noqa: E402
+AUDIT_CHAIN_ENABLE = str(
+    os.environ.get("MIOS_AUDIT_CHAIN_ENABLE")
+    or _toml_section("audit").get("chain_enable", "true")).strip().lower() \
+    in {"1", "true", "yes"}
+
+
 def _db_create(table: str, fields: dict, *,
                now_fields: tuple = (),
                extra: str = "",
@@ -1831,6 +1962,13 @@ def _db_create(table: str, fields: dict, *,
             _sid = _span_id_var.get() or ""
             if _sid:
                 fields.setdefault("span_id", _sid)
+        # SEC-03: stamp the tamper-evident chain columns (chain_seq/prev_hash/
+        # chain_hash) at this single event-persist chokepoint. stamp() is idempotent
+        # (the _emit_session_event pre-stamp won't double-advance), self-gated on
+        # [audit].chain_enable, and degrade-open (returns fields unchanged on any
+        # miss) so event logging never fails. The chain columns are added BEFORE the
+        # CREATE string and the pgvector mirror are built, so they ride BOTH sinks.
+        fields = mios_audit.stamp(fields)
     if passport_sign:
         # Snapshot the fields the verifier will see (the time::now()
         # values get the literal sentinel because that's what the
@@ -1897,16 +2035,21 @@ _PG_ENABLED = DB_BACKEND in {"dual", "postgres"}
 _PG_PRIMARY = DB_BACKEND == "postgres"
 
 
-def _pg_mirror(table: str, fields: dict) -> None:
+def _pg_mirror(table: str, fields: dict, *, rls_owner: Optional[str] = None) -> None:
     """Fire-and-forget mirror of an agent-plane write to Postgres+pgvector
     (WS-9c dual-write). No-op unless _PG_ENABLED; drops None values so column
-    defaults (ts, etc.) apply; degrade-open (never raises into the caller)."""
+    defaults (ts, etc.) apply; degrade-open (never raises into the caller).
+
+    ``rls_owner`` (T-068): forwarded to the insert so, with DB-side RLS enabled,
+    the new row's owner is SET LOCAL in the insert transaction (FORCE row-level
+    security validates the written owner_user == this owner). Default None / RLS off
+    emits NO SET LOCAL -> byte-identical; an owner-less write stays permissive."""
     if not _PG_ENABLED:
         return
     try:
         row = {k: v for k, v in fields.items() if v is not None}
         if row:
-            _db_fire(_mios_pg.insert(table, row))
+            _db_fire(_mios_pg.insert(table, row, rls_owner=rls_owner))
     except Exception:  # noqa: BLE001
         pass
 
@@ -2075,9 +2218,12 @@ async def _resident_cached(ep: str, ttl: float = 1.5) -> list:
         return []
 
 
-def _over_global_ceiling() -> bool:
+def _over_global_ceiling(load_ceil: "Optional[float]" = None) -> bool:
     """True when host load or mem is over the admission ceiling. Degrade-open:
-    False (admit) on any error."""
+    False (admit) on any error. `load_ceil` overrides the loadavg ceiling (V5 per-
+    blade: the LOCAL blade may declare its own [blades.<local>].load_ceil); None ->
+    the global ADMIT_LOAD_CEIL EXACTLY as today, so every existing no-arg caller is
+    byte-identical."""
     try:
         s = _host_stats_cached()
         if not s:
@@ -2085,9 +2231,54 @@ def _over_global_ceiling() -> bool:
         load = s.get("load") or []
         l1 = float(load[0]) if load else 0.0
         memp = float(s.get("mem_used_pct") or 0.0)
-        return l1 > ADMIT_LOAD_CEIL or memp > ADMIT_MEM_PCT
+        _ceil = ADMIT_LOAD_CEIL if load_ceil is None else float(load_ceil)
+        return l1 > _ceil or memp > ADMIT_MEM_PCT
     except Exception:  # noqa: BLE001
         return False
+
+
+# ── V5 per-blade admission helpers (DEFAULT-OFF -> the local-scalar path) ─────────
+# _admit historically compared an endpoint's measured residents against the single
+# LOCAL VRAM_BUDGET_MB scalar and gated on the LOCAL /proc/loadavg -- correct for the
+# one local box, WRONG once a node lives on another machine (a remote node's residents
+# vs the local 24GB budget, and the local loadavg says nothing about a remote box).
+# These resolve the endpoint's BLADE (machine) and use ITS capacity. Both are pure
+# no-ops when MULTIBLADE_ENABLE is off (return the exact local-scalar value), so the
+# admission decision is byte-identical to today; the maps they read (_BLADE_POOL /
+# _ENDPOINT_BLADE / _LOCAL_BLADE) are built once after the node pool loads.
+def _blade_vram_budget(ep: str) -> int:
+    """The VRAM budget (MB) to admit a cold model on `ep` against. DEFAULT-OFF (or
+    any unknown blade/capacity) -> the LOCAL VRAM_BUDGET_MB scalar EXACTLY as today;
+    when multiblade is on, the endpoint's blade capacity. Degrade-open."""
+    if not MULTIBLADE_ENABLE:
+        return VRAM_BUDGET_MB
+    try:
+        blade = mios_blades.blade_for_endpoint(
+            _ENDPOINT_BLADE, _endpoint_key, ep, _LOCAL_BLADE)
+        return mios_blades.blade_vram_budget(_BLADE_POOL, blade, VRAM_BUDGET_MB)
+    except Exception:  # noqa: BLE001 -- degrade-open: unknown -> the local scalar
+        return VRAM_BUDGET_MB
+
+
+def _over_blade_ceiling(ep: str) -> bool:
+    """The host-load ceiling check for `ep`'s blade. DEFAULT-OFF -> the LOCAL
+    _over_global_ceiling() EXACTLY as today. When multiblade is on: the LOCAL loadavg
+    gates only LOCAL-blade endpoints (it is meaningful there); a REMOTE-blade endpoint
+    is NOT gated by the local loadavg (we have no remote load signal) -> degrade-open
+    (False), and its per-blade VRAM budget still governs co-load admission."""
+    if not MULTIBLADE_ENABLE:
+        return _over_global_ceiling()
+    try:
+        blade = mios_blades.blade_for_endpoint(
+            _ENDPOINT_BLADE, _endpoint_key, ep, _LOCAL_BLADE)
+        if blade == _LOCAL_BLADE:
+            # Local loadavg is meaningful; honour a per-blade load_ceil when the local
+            # blade declares one (else None -> the global ADMIT_LOAD_CEIL = today).
+            _ceil = (_BLADE_POOL.get(blade) or {}).get("load_ceil")
+            return _over_global_ceiling(_ceil)
+        return False                        # remote blade: local loadavg is irrelevant
+    except Exception:  # noqa: BLE001 -- degrade-open: fall back to the local ceiling
+        return _over_global_ceiling()
 
 
 async def _is_warm(ep: str, model: str) -> bool:
@@ -2443,6 +2634,15 @@ RR_MAX_SUSPENDED = _dispatch_num("MIOS_RR_MAX_SUSPENDED", "rr_max_suspended", 4)
 RR_SLICE_TOKENS = _dispatch_num("MIOS_RR_SLICE_TOKENS", "rr_slice_tokens", 512)
 RR_SLICE_TIMEOUT = _dispatch_num("MIOS_RR_SLICE_TIMEOUT_S", "rr_slice_timeout_s", 120.0, cast=float)
 _PREEMPT = mios_preempt.PreemptScheduler(max_suspended=RR_MAX_SUSPENDED)
+# ── T-019 (SCHED-01) turn-boundary preemption wiring. mios_preempt reads its own
+# [scheduler] SSOT (self-contained + unit-testable), so server only injects the live
+# runtime signal: the "is a higher-priority turn waiting?" probe = the global
+# PriorityGate's head-priority. The hook (mios_preempt.turn_boundary) is called from
+# the chat turn loop AFTER the turn's priority is known; it is DEFAULT-OFF
+# ([scheduler].preempt_enable=false -> the injected probe is never consulted) and
+# degrade-open. Statement-only: adds no module-level name, so the surface is
+# unchanged. SEPARATE instance from _PREEMPT above (the decode-loop RR scheduler).
+mios_preempt.configure(head_priority=_GLOBAL_PRIORITY_GATE.head_priority)
 # ── Batch coalescing (WS-A6). RESEARCHED: vLLM/SGLang/llama.cpp do server-side
 # CONTINUOUS BATCHING, so client-side coalescing BYPASSES those lanes (double-
 # batching only adds head-of-line latency) and applies a small batch_interval
@@ -2587,6 +2787,40 @@ try:
     _load_node_pool(_AGENT_REGISTRY)
 except Exception as _e:  # noqa: BLE001 -- never block startup on the node pool
     log.warning("node pool injection failed: %s", _e)
+
+
+# ── V4/V5 blade (machine) topology, built from the loaded registry + [blades.*] SSOT.
+# _LOCAL_BLADE  : this machine's name from the [identity] hostname SSOT (NOT a literal).
+# _BLADE_POOL   : {blade: {vram_budget_mb, load_ceil}} -- the LOCAL blade defaults to
+#                 VRAM_BUDGET_MB + ADMIT_LOAD_CEIL, so NO [blades.*] = today's single
+#                 budget/ceiling exactly.
+# _ENDPOINT_BLADE: {host:port -> blade} from every node/agent endpoint (a node with no
+#                 `blade` field -> the local blade -> today).
+# Consumed by the V5 admission helpers (_blade_vram_budget / _over_blade_ceiling) ONLY
+# when MULTIBLADE_ENABLE; built-but-unread by default. Rebuilt on a live membership
+# reload so a hot [nodes.*]/[blades.*] edit takes effect. Degrade-open: any failure
+# leaves the maps empty/partial and the helpers fall back to the local scalar/ceiling.
+_LOCAL_BLADE = ""
+_BLADE_POOL: dict = {}
+_ENDPOINT_BLADE: dict = {}
+
+
+def _rebuild_blade_topology() -> None:
+    """(Re)build the V4/V5 blade maps from the current registry + [blades.*] SSOT."""
+    global _LOCAL_BLADE, _BLADE_POOL, _ENDPOINT_BLADE
+    try:
+        _LOCAL_BLADE = mios_blades.local_blade_name()
+        _BLADE_POOL = mios_blades.load_blade_pool(
+            _LOCAL_BLADE, VRAM_BUDGET_MB, ADMIT_LOAD_CEIL)
+        _ENDPOINT_BLADE = mios_blades.endpoint_blade_map(
+            _AGENT_REGISTRY, _endpoint_key, _LOCAL_BLADE)
+    except Exception as _e:  # noqa: BLE001 -- the admission helpers already degrade-open
+        # to the local scalar/ceiling when these maps are empty/partial, so a failed
+        # build is safe (admission keeps today's single-blade behaviour).
+        log.warning("blade topology build failed: %s; local-scalar fallback", _e)
+
+
+_rebuild_blade_topology()
 
 
 def _load_dispatch_cfg() -> dict:
@@ -2868,7 +3102,12 @@ async def _call_agent_stream(name, cfg, body, headers, client, q,
     # loads on ONE ollama daemon), lane cap INNER --.
     _est = _opt_int_mb(cfg.get("vram_mb"))   # Phase-1 per-worker VRAM (0 = unknown)
     try:
-        await _admit(_ep, _adm_model, _engine or _lane_sem_key(cfg), _prio, _est)
+        # foreground=False: this is the fan-out / secondary dispatch -- background
+        # work that IS shed-eligible (best_effort) under contention (the merge
+        # degrades gracefully when a node drops). A genuine foreground turn keeps
+        # the protective default (interactive, never shed).
+        await _admit(_ep, _adm_model, _engine or _lane_sem_key(cfg), _prio, _est,
+                     foreground=False)
     except _SloShed:  # WS-SCHED-SLO: best_effort shed -> drop this node from the merge
         log.info("SLO shed: best_effort fan-out %s dropped under contention", name)
         return name, ""
@@ -3742,6 +3981,24 @@ _conv_key_var: "contextvars.ContextVar" = contextvars.ContextVar(
 _client_env_var: "contextvars.ContextVar" = contextvars.ContextVar(
     "mios_client_env", default=None)
 
+
+def _turn_tenant() -> "Optional[str]":
+    """The verified owner/tenant for THIS turn's dispatch, or None. Reuses the V2
+    principal-binding owner: under [security].principal_bind_mode=enforce the
+    _client_env owner is already RECONCILED to the token-bound account (the spoofable
+    claim overridden), so this returns the verified tenant; otherwise the forwarded
+    owner. None (a system/daemon/seeding dispatch with no forwarded principal) -> the
+    per-tenant gate never caps it. Consulted ONLY when TENANT_QUOTA_ENABLE; degrade-
+    open: any error -> None (no per-tenant cap). Mirrors mios_knowledge._request_
+    principal so the tenant key agrees with owner_user row-scoping."""
+    try:
+        env = _client_env_var.get()
+        env = env if isinstance(env, dict) else {}
+        owner = str(env.get("user_name") or env.get("user_email") or "").strip()
+        return owner or None
+    except Exception:  # noqa: BLE001 -- degrade-open: tenant binding never breaks a turn
+        return None
+
 # WS-A9: the NAME of the agent on whose behalf the current dispatch runs (set at
 # the top of _call_agent_complete_inner / _call_agent_stream_inner -- each agent
 # call is its own task, so this scopes per-call with no leak). Read by the
@@ -4024,7 +4281,7 @@ RAG_K = int(os.environ.get("MIOS_AGENT_PIPE_RAG_K", "4"))
 
 
 async def _rag_enrich(query: str) -> str:
-    """Enrich stage: pull RAG context from the SurrealDB vector store
+    """Enrich stage: pull RAG context from the vector store
     (mios-rag query, nomic-embed + cosine) so EVERY agent/sub-agent turn
  sees relevant MiOS knowledge in-loop ("RAG in
     the loop for all agents every turn"). Returns a formatted context
@@ -4073,6 +4330,10 @@ def _current_date_str() -> str:
 sys.modules["mios_grounding"].configure(   # noqa: E402
     client_env_var=_client_env_var,
     current_date_str=_current_date_str,
+    # V2 verified-principal binding: the bearer-token -> scoped-principal resolver,
+    # so _client_env can bind the spoofable owner to the authenticated caller-key
+    # under [security].principal_bind_mode (default off -> resolver unused).
+    check_inbound_principal=_check_inbound_principal,
 )
 
 
@@ -4659,7 +4920,7 @@ except ValueError as _e:
 
 
 # ── WS-3 knowledge eviction sweep (P2.1,). Pure SQL/parse/plan logic
-# lives in mios_evict (unit-tested); these wrappers do the SurrealDB I/O. The
+# lives in mios_evict (unit-tested); these wrappers do the DB I/O. The
 # sweep removes only STALE, never-recalled, neutral-outcome rows and NEVER a
 # hot / satisfied / pinned / recently-accessed one. DEFAULT OFF (loop doesn't
 # even start); evict_dryrun=true starts it LOG-ONLY; evict_enable=true deletes.
@@ -4727,7 +4988,7 @@ SKILLS_AUTO_PROMOTE_THRESHOLD = float(os.environ.get(
 # ── Phase C.2 -- skill catalog helpers ────────────────────────────
 # Cross-agent skill execution surface. Every other agent in the
 # MiOS stack (MiOS-Hermes, MiOS-OpenCode, future MCP clients) reads
-# skills via the SurrealDB skill table directly OR via this
+# skills via the skill table directly OR via this
 # service's /skills/* endpoints -- they MUST converge on the same
 # dispatch path so a skill run produces the same firewall checks,
 # taint propagation, and tool_call audit rows regardless of which
@@ -4915,6 +5176,20 @@ PROVENANCE_TAINT_ENABLE = str(
     or _toml_section("security").get("provenance_taint", "false")
 ).strip().lower() in {"1", "true", "yes"}
 
+# F2/T-033 CaMeL-class Rule-of-Two architectural gate mode (SSOT
+# [security].rule_of_two_mode | env MIOS_SECURITY_RULE_OF_TWO_MODE): off (default) |
+# audit | enforce. A dispatch may hold at most TWO of {untrusted-input, sensitive-
+# access, state-change} without human review; off -> the deterministic gate is NOT
+# consulted at the dispatch chokepoint (byte-identical). audit -> log the all-three
+# kill-chain + proceed; enforce -> route it to HITL review / block (fail-safe).
+# Normalised in mios_ruleof2 (an unknown token degrades to off). DEFAULT off because
+# a 3-property block reduces autonomous function -- the operator opts in, then
+# validates the sensitive-verb classification ([verbs.*].sensitive) for the deployment.
+RULE_OF_TWO_MODE = str(
+    os.environ.get("MIOS_SECURITY_RULE_OF_TWO_MODE")
+    or _toml_section("security").get("rule_of_two_mode", "off")
+).strip().lower()
+
 
 # ── Planner system prompt + DAG decomposition (Phase A.1) ─────────
 # _PLANNER_SYSTEM extracted verbatim to mios_planner.py (refactor R5). It is
@@ -5042,6 +5317,11 @@ def _emit_session_event(fields: dict, session_id: Optional[str]) -> None:
     """Write an `event` row, linked to the session when known so the
     Reflexion buffer (_recent_reflections) can query it back per-session.
     Mirrors execute_dag's tool_call session-linking convention."""
+    # SEC-03: pre-stamp the hash chain so THIS function's own pgvector mirror (built
+    # below, BEFORE _db_create runs) carries chain_seq/prev_hash/chain_hash. _db_create
+    # then sees chain_hash already present and its stamp() is a no-op (the chain is not
+    # advanced twice for one event). Degrade-open inside stamp().
+    fields = mios_audit.stamp(fields)
     _pg_mirror("event", {**fields, "session_id": session_id})  # WS-9c
     sql = _db_create("event", fields, now_fields=("ts",), _mirror=False)
     if session_id:
@@ -5402,6 +5682,7 @@ sys.modules["mios_dispatch"].configure(
     launcher_sock=LAUNCHER_SOCK,
     sandbox_enforce=SANDBOX_ENFORCE,
     sandbox_self_confined=_SANDBOX_SELF_CONFINED,
+    rule_of_two_mode=RULE_OF_TWO_MODE,
     dispatch_inflight=_dispatch_inflight,
     web_sem=_web_sem,
     tool_conflict=_TOOL_CONFLICT,
@@ -5409,6 +5690,7 @@ sys.modules["mios_dispatch"].configure(
     recency_ctx_var=_recency_ctx_var,
     proposal_var=_proposal_var,
     dispatch_agent_var=_dispatch_agent_var,
+    hitl_approved_var=_hitl_approved_var,
     resolve_verb_key=_resolve_verb_key,
     current_date_str=_current_date_str,
     emit_dispatch_dedup_event=_emit_dispatch_dedup_event,
@@ -5705,6 +5987,11 @@ from mios_a2a import (   # noqa: E402
     a2a_jsonrpc,
     a2a_jsonrpc_alias,
     a2a_peers_reload,
+    # FED-G8: POST /v1/admin/keys/revoke (caller_key_revoke) lives on the SAME
+    # a2a_router (co-located with the CRL machinery it drives). Re-imported here so the
+    # handler NAME stays in server's importable `provided` surface (parity); the route
+    # is served via the existing app.include_router(a2a_router) mount.
+    caller_key_revoke,
     # R13 (batch 2): the discovery/identity routes whose logic homes in mios_a2a --
     # the four well-known surfaces, the consumer /v1/a2a peers+skills feeds, the
     # /v1/a2a/dispatch forward, and the /passport/* verify surface -- moved onto the
@@ -6255,6 +6542,10 @@ async def _reload_membership(reason: str = "manual") -> dict:
         _reg = _load_agent_registry()
         _load_node_pool(_reg)
         _AGENT_REGISTRY = _reg
+        # V4/V5: refresh the blade topology so a live [nodes.*]/[blades.*] edit (a node
+        # moved to another machine, a blade's budget changed) takes effect without a
+        # restart. Degrade-open inside the helper (admission falls back to local scalar).
+        _rebuild_blade_topology()
         # Keep the fan-out selector's injected registry in sync (refactor R3):
         # _pick_fanout_agents lives in mios_fanout and snapshots the registry at
         # configure() time, so a live add/drop must be re-injected here.
@@ -6441,9 +6732,13 @@ sys.modules["mios_daemons"].configure(
 from mios_daemons import _selfimprove_loop, _selfimprove_report   # noqa: E402
 # R13: GET /v1/self-improve/report (selfimprove_report_ep) migrated off @app onto
 # mios_daemons.daemons_router. Import the router (mounted via app.include_router
-# below) + the handler NAME so it stays in server's importable `provided` surface
+# below) + the handler NAMES so they stay in server's importable `provided` surface
 # (parity); the served path/method is unchanged (the live-app route gate proves it).
-from mios_daemons import daemons_router, selfimprove_report_ep   # noqa: E402,F401
+# T-062/T-064: the ACT-half adds GET /v1/self-improve/proposals (selfimprove_proposals_ep)
+# on the SAME daemons_router -- the read-only queue of validated, non-regressing change
+# proposals awaiting human approval (never auto-applied).
+from mios_daemons import (daemons_router, selfimprove_report_ep,   # noqa: E402,F401
+                          selfimprove_proposals_ep)
 # R13: mount the migrated /v1/self-improve/report route. include_router copies the
 # route onto the app at the SAME path/method the @app wrapper served; the body calls
 # the module-resident _selfimprove_report at request time.
@@ -6850,6 +7145,9 @@ sys.modules["mios_dag_exec"].configure(
     deepen_deadline_s=DEEPEN_DEADLINE_S,
     deepen_max_iters=DEEPEN_MAX_ITERS,
     deepen_web_timeout_s=DEEPEN_WEB_TIMEOUT_S,
+    deepen_early_exit=DEEPEN_EARLY_EXIT,
+    deepen_judge_timeout_s=DEEPEN_JUDGE_TIMEOUT_S,
+    judge_answer_satisfied=_judge_answer_satisfied,
     dag_node_max_tokens=DAG_NODE_MAX_TOKENS,
     dag_node_slow_max_tokens=DAG_NODE_SLOW_MAX_TOKENS,
     dag_node_retry=DAG_NODE_RETRY,
@@ -7100,6 +7398,17 @@ sys.modules["mios_http_caps"].configure(
 # request time (configure() above injected every dep they read).
 app.include_router(http_caps_router)
 
+# ── SEC-03 event-bus tamper-evident hash chain (mios_audit) ──
+# Inject the SSOT [audit].chain_enable flag + the mios_pg async reader the startup
+# seed and the verify endpoint use, re-import the co-located audit_router + its
+# handler NAME (chain_verify) so it stays in server's importable `provided` surface
+# (parity), and mount the router once. GET /v1/audit/chain/verify is admin-gated by
+# _inbound_auth_mw exactly like every other /v1/* admin route (no per-route auth is
+# restated). The write-side chain stamp/seed wired in above at _db_create / lifespan.
+from mios_audit import audit_router, chain_verify   # noqa: E402,F401
+mios_audit.configure(chain_enable=AUDIT_CHAIN_ENABLE, pg_execute=_mios_pg.execute)
+app.include_router(audit_router)
+
 
 # R13: ALL 17 portal routes now bind via mios_portal.portal_router (mounted above via
 # app.include_router). The 13 /portal data/asset/auth routes migrated earlier; the four
@@ -7129,7 +7438,7 @@ app.include_router(http_caps_router)
 # Shared surface for every agent in the MiOS stack. MiOS-Hermes
 # pulls /skills/openai-tools at startup so its OpenAI-compat tool
 # schema auto-includes every promoted skill -- no Hermes-side
-# hardcoding. MiOS-OpenCode does the same (or reads SurrealDB
+# hardcoding. MiOS-OpenCode does the same (or reads the skill store
 # directly for offline-only runs). Skill execution always goes
 # through /skills/run so the firewall + taint chain + audit rows
 # are identical regardless of which agent initiated the call.
@@ -7146,7 +7455,7 @@ app.include_router(http_caps_router)
 # Cross-agent verification surface. Any agent in the stack can POST
 # {envelope, payload?} to /passport/verify and get a structured
 # (ok, reason) response without holding the signer's private key.
-# Public keys are filesystem-cached (world-readable) and SurrealDB-
+# Public keys are filesystem-cached (world-readable) and datastore-
 # backed as a fallback.
 # POST /passport/verify (passport_verify) + GET /passport/public-key
 # (passport_public_key) migrated onto mios_a2a.a2a_router (R13 batch 2); re-imported
@@ -8129,14 +8438,29 @@ globals()["portal_page_logic"] = sys.modules["mios_portal"].portal_page_logic
 
 
 # ── Entry point ────────────────────────────────────────────────────
+def _bind_host(require_auth: bool, override: str = "") -> str:
+    """FED-G9 bind posture: bind the front door to LOOPBACK (127.0.0.1) by default,
+    and to ALL interfaces (0.0.0.0) ONLY when the inbound auth gate is on -- so an
+    UNAUTHENTICATED service is never exposed on every interface. An explicit
+    MIOS_BIND_HOST override (e.g. a pinned tailnet IP) wins when set. Pure (args in,
+    host out) so the posture is unit-testable without binding a socket. The literals
+    are the standard all-interfaces / loopback sentinels, not an SSOT-duplicated
+    value."""
+    ov = (override or "").strip()
+    if ov:
+        return ov
+    return "0.0.0.0" if require_auth else "127.0.0.1"
+
+
 def main() -> int:
-    log.info("starting on :%d -> backend=%s model=%s "
+    host = _bind_host(_API_REQUIRE_AUTH, os.environ.get("MIOS_BIND_HOST", ""))
+    log.info("starting on %s:%d -> backend=%s model=%s "
              "router_enabled=%s router_model=%s",
-             PORT, BACKEND, BACKEND_MODEL,
+             host, PORT, BACKEND, BACKEND_MODEL,
              ROUTER_ENABLED, ROUTER_MODEL)
     uvicorn.run(
         app,
-        host="0.0.0.0",
+        host=host,
         port=PORT,
         log_level="info",
         access_log=False,

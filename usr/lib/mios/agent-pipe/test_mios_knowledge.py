@@ -78,7 +78,7 @@ def t_recall_blend():
         return [0.1] * 8
 
     class _Mem:
-        async def retrieve(self, qv, *, table=None, k=None, owner=None):
+        async def retrieve(self, qv, *, table=None, k=None, owner=None, emb_version=None, rls_owner=None):
             # deliberately returned in the WRONG order to prove the rerank sorts.
             return [
                 {"id": 2, "score": 0.70, "q": "COLD question", "answer": "a2",
@@ -128,7 +128,7 @@ def t_recall_blend():
 
     # Below-floor candidates -> clean empty-string miss.
     class _MemLow:
-        async def retrieve(self, qv, *, table=None, k=None, owner=None):
+        async def retrieve(self, qv, *, table=None, k=None, owner=None, emb_version=None, rls_owner=None):
             return [{"id": 9, "score": 0.10, "q": "x", "answer": "y",
                      "ts": time.time()}]
     k.configure(memory=_MemLow())
@@ -177,7 +177,7 @@ def t_recall_agent_memory():
         return [0.2] * 8
 
     class _Mem:
-        async def retrieve(self, qv, *, table=None, k=None, owner=None):
+        async def retrieve(self, qv, *, table=None, k=None, owner=None, emb_version=None, rls_owner=None):
             return [
                 {"fact": "the zqxw codeword is vorpaline", "score": 0.91,
                  "scope": "global"},
@@ -214,6 +214,56 @@ def t_recall_agent_memory():
         k._toml_section = _orig_toml
 
 
+def t_recall_agent_memory_recency():
+    """A7: agent_memory recall applies the SHARED blended rerank (not flat cosine).
+    With rank_age>0 a recently-saved fact OUTRANKS a stale one at EQUAL cosine
+    (recency breaks the tie); at rank_age==0 the blend is inert (pure cosine), so the
+    contrast proves the recency weighting drove the order. DEGRADE-OPEN: agent_memory
+    has no access/tier/outcome columns -> those blend terms read neutral, only cosine
+    + ts contribute, and nothing crashes."""
+    now = time.time()
+
+    async def _embed_one(_q):
+        return [0.3] * 8
+
+    class _Mem:
+        async def retrieve(self, qv, *, table=None, k=None, owner=None, emb_version=None, rls_owner=None):
+            # Equal cosine; returned STALE-first so a reorder is observable.
+            return [
+                {"fact": "STALE fact zqx", "score": 0.80, "scope": "global",
+                 "ts": now - 60 * 86400},
+                {"fact": "FRESH fact zqx", "score": 0.80, "scope": "global",
+                 "ts": now},
+            ]
+
+    _orig_toml = k._toml_section
+    try:
+        k._toml_section = lambda _s: {}  # rls off -> _rls_owner() None (unscoped)
+        k.configure(agent_memory_recall_enabled=True, pg_primary=True,
+                    embed_one=_embed_one, memory=_Mem(),
+                    agent_memory_table="agent_memory", agent_memory_recall_k=3,
+                    agent_memory_recall_min_score=0.45,
+                    knowledge_recall_candidates=60,
+                    knowledge_rank_outcome=0.05, knowledge_rank_hot=0.03,
+                    knowledge_rank_access=0.02,
+                    knowledge_rank_age=0.3, knowledge_recall_halflife_days=7.0)
+        block = asyncio.run(k._recall_agent_memory("anything"))
+        check("agent-memory recency: fresh fact outranks stale at equal cosine",
+              "FRESH fact zqx" in block and "STALE fact zqx" in block
+              and block.index("FRESH fact zqx") < block.index("STALE fact zqx"),
+              repr(block[:120]))
+        # Inert at rank_age==0 -> pure cosine; equal-cosine ties keep input order
+        # (stable sort), so STALE (listed first) leads -> isolates the recency effect.
+        k.configure(knowledge_rank_age=0.0)
+        block0 = asyncio.run(k._recall_agent_memory("anything"))
+        check("agent-memory recency: inert at rank_age==0 (input order kept)",
+              block0.index("STALE fact zqx") < block0.index("FRESH fact zqx"),
+              repr(block0[:120]))
+    finally:
+        k._toml_section = _orig_toml
+        k.configure(knowledge_rank_age=0.0)  # leave inert for any later test
+
+
 def t_kg_lookup():
     """kg_lookup: alias exact-match returns the resolved app_install row; an empty
     phrase short-circuits to None; an all-empty result-set falls through to None."""
@@ -244,6 +294,7 @@ def main():
     t_recall_blend()
     t_rls_owner()
     t_recall_agent_memory()
+    t_recall_agent_memory_recency()
     t_kg_lookup()
     if _fails:
         print(f"\n{_fails} FAILED")

@@ -1,4 +1,4 @@
-# AI-hint: External-MCP CONSUME client extracted VERBATIM from server.py (refactor R-MCP wave). Owns the consumer half that turned MiOS's MCP from publish-only into a federated tool surface: the layered registry read (_mcp_load_registry, vendor /usr < /etc < user), the ${ENV} header expansion (_mcp_render_headers), the single Streamable-HTTP JSON-RPC 2.0 call (_mcp_http_rpc, accepts application/json OR text/event-stream), the long-lived self-healing stdio subprocess client (_McpStdioClient: newline-delimited JSON-RPC over stdin/stdout, respawn+re-initialize on crash, non-blocking reader + stderr surfacing), the per-server probe/initialize/tools-list registration (_mcp_probe_stdio/_mcp_probe_server, fail-open per server), the startup fan-out (_mcp_client_startup), the tools/call forwarder (_mcp_call_tool), and the GET /v1/mcp/clients + GET /v1/mcp/tools + POST /v1/mcp/dispatch route bodies (as *_logic functions; the @app routes stay thin in server.py). Moved byte-identically -- server.py re-imports every moved name under its original alias (surface-parity zero-diff). The shared MCP-tool registry + lock (_MCP_CLIENT_TOOLS/_MCP_CLIENT_LOCK) stay server-resident and are dependency-INJECTED via configure() alongside _get_client, the MCP-tool embedder (_mcp_embed_new_tools, from mios_toolsearch) and the worker-tool-surface cache invalidator (_invalidate_worker_cache -- the probes cannot rebind server's _WORKER_TOOLS_FULL_CACHE global across the one-way boundary). This module NEVER imports server. Follow-up: the 2026-07 stateless-MCP transport change is NOT applied here (verbatim extraction only).
+# AI-hint: External-MCP CONSUME client extracted VERBATIM from server.py (refactor R-MCP wave). Owns the consumer half that turned MiOS's MCP from publish-only into a federated tool surface: the layered registry read (_mcp_load_registry, vendor /usr < /etc < user), the ${ENV} header expansion (_mcp_render_headers), the single Streamable-HTTP JSON-RPC 2.0 call (_mcp_http_rpc, accepts application/json OR text/event-stream), the long-lived self-healing stdio subprocess client (_McpStdioClient: newline-delimited JSON-RPC over stdin/stdout, respawn+re-initialize on crash, non-blocking reader + stderr surfacing), the per-server probe/initialize/tools-list registration (_mcp_probe_stdio/_mcp_probe_server, fail-open per server), the startup fan-out (_mcp_client_startup), the tools/call forwarder (_mcp_call_tool), and the GET /v1/mcp/clients + GET /v1/mcp/tools + POST /v1/mcp/dispatch route bodies (as *_logic functions; the @app routes stay thin in server.py). Moved byte-identically -- server.py re-imports every moved name under its original alias (surface-parity zero-diff). The shared MCP-tool registry + lock (_MCP_CLIENT_TOOLS/_MCP_CLIENT_LOCK) stay server-resident and are dependency-INJECTED via configure() alongside _get_client, the MCP-tool embedder (_mcp_embed_new_tools, from mios_toolsearch) and the worker-tool-surface cache invalidator (_invalidate_worker_cache -- the probes cannot rebind server's _WORKER_TOOLS_FULL_CACHE global across the one-way boundary). This module NEVER imports server. The declared revision is the [mcp].protocol_version SSOT (MCP_PROTOCOL_VERSION); the newer MCP feature set (durable Tasks, elicitation, OAuth resource-server auth, tool icons) + the stateless-transport revision are scoped follow-ups -- this client implements the core initialize / tools-list / tools-call consume path.
 # AI-related: ./server.py, ./mios_config.py, ./mios_jsonsalvage.py, ./mios_toolsearch.py, ./test_mios_mcp.py
 # AI-functions: _mcp_load_registry, _mcp_render_headers, _mcp_http_rpc, _McpStdioClient, _mcp_probe_stdio, _mcp_probe_server, _mcp_client_startup, _mcp_call_tool, mcp_clients_logic, mcp_tools_list_logic, mcp_dispatch_logic, configure
 """External-MCP consume client for the agent-pipe federated tool surface (refactor R-MCP).
@@ -19,8 +19,12 @@ worker-tool-surface cache invalidator. This module never imports ``server``
 (one-way boundary); ``server.py`` re-imports every moved name under its original
 alias so the importable surface is byte-identical.
 
-The 2026-07 stateless-MCP transport change is intentionally NOT applied here --
-this is a verbatim extraction; that change is a separate follow-up.
+The declared revision is the ``[mcp].protocol_version`` SSOT
+(:data:`MCP_PROTOCOL_VERSION`, env ``MIOS_MCP_PROTOCOL_VERSION``). The newer MCP
+feature set (durable Tasks, elicitation, OAuth resource-server auth, tool icons,
+structured tool output) and the upcoming stateless-transport revision are scoped
+follow-ups; this client implements the core initialize / tools-list / tools-call
+consume path over Streamable-HTTP (current) + stdio.
 """
 
 from __future__ import annotations
@@ -38,8 +42,25 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
 from mios_jsonsalvage import loads_lenient as _loads_lenient
+from mios_config import _toml_section
 
 log = logging.getLogger("mios-agent-pipe")
+
+
+# ── MCP protocol-revision SSOT ───────────────────────────────────────────
+# The MCP spec revision MiOS DECLARES as the latest it offers on the
+# `initialize` handshake (over BOTH the Streamable-HTTP and stdio transports).
+# A protocol-revision token (like an HTTP version string) -- declared ONCE here
+# from the [mcp].protocol_version SSOT (env MIOS_MCP_PROTOCOL_VERSION overrides),
+# never restated at a call site. The published server (mios-mcp-server) reads the
+# SAME SSOT key, so consumer + server stay in lockstep. Negotiation is
+# liberal-IN / strict-OUT: MiOS advertises the current revision out, but a server
+# that answers with an older revision is recorded as-returned and proceeds (never
+# rejected on mismatch), so an older peer still registers and stays usable.
+MCP_PROTOCOL_VERSION = str(
+    os.environ.get("MIOS_MCP_PROTOCOL_VERSION")
+    or (_toml_section("mcp") or {}).get("protocol_version")
+    or "2025-11-25").strip()
 
 
 # -- Dependency-injection seam --
@@ -282,7 +303,7 @@ class _McpStdioClient:
                                 self.sid, e)
                     return
             init = await self._await_rpc("initialize", {
-                "protocolVersion": "2025-06-18", "capabilities": {},
+                "protocolVersion": MCP_PROTOCOL_VERSION, "capabilities": {},
                 "clientInfo": {"name": "mios-agent-pipe", "version": "1.0"}},
                 30.0)
             if init.get("error"):
@@ -425,7 +446,7 @@ async def _mcp_probe_server(cfg: dict) -> None:
     headers = _mcp_render_headers(cfg.get("headers") or {})
 
     init = await _mcp_http_rpc(url, headers, "initialize", params={
-        "protocolVersion": "2025-06-18",
+        "protocolVersion": MCP_PROTOCOL_VERSION,
         "capabilities": {},
         "clientInfo": {"name": "mios-agent-pipe", "version": "1.0"}})
     if init.get("error"):

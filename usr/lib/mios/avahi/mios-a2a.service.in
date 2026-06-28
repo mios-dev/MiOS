@@ -1,0 +1,21 @@
+<?xml version="1.0" standalone='no'?>
+<!DOCTYPE service-group SYSTEM "avahi-service.dtd">
+<!-- MiOS A2A LAN announce TEMPLATE (Law 1: USR-OVER-ETC; the static template
+     lives here under /usr/lib, the rendered copy lands in /etc/avahi/services/).
+     mios-a2a-mdns renders this to /etc/avahi/services/mios-a2a.service ONLY when
+     [a2a].mdns_advertise = true, substituting the two ${...} placeholders from the
+     mios.toml SSOT (NEVER hardcoded): the agent-pipe port ([ports].agent_pipe) and
+     the service type ([a2a].mdns_service_type, the SAME key the browse side uses --
+     one SSOT for both ends). proto / the AgentCard well-known path are A2A protocol
+     constants, not operator config, so they stay literal. avahi-daemon watches
+     /etc/avahi/services and (de)registers on file create/remove, so toggling the
+     flag off + removing the file withdraws the announce with no daemon restart. -->
+<service-group>
+  <name replace-wildcards="yes">MiOS A2A on %h</name>
+  <service protocol="any">
+    <type>${MIOS_A2A_MDNS_SERVICE_TYPE}</type>
+    <port>${MIOS_PORT_AGENT_PIPE}</port>
+    <txt-record>proto=a2a</txt-record>
+    <txt-record>card=/.well-known/agent-card.json</txt-record>
+  </service>
+</service-group>

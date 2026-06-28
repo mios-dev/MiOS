@@ -9,7 +9,7 @@ server.py), and -- the missing third -- the A2A AgentCard `skills[]` shape so a
 federated peer discovers MiOS capabilities over the open A2A standard. This
 module renders that A2A shape + a parity view of all three, deterministically.
 
-A2A skill entry (spec 0.3.x AgentCard.skills[]):
+A2A skill entry (AgentCard.skills[], stable across A2A 0.3/1.0):
   {id, name, description, tags[]}  -- id is the canonical capability key.
 """
 

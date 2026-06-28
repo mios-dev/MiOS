@@ -61,6 +61,35 @@ def t_shed():
           slo.should_shed(slo.BEST_EFFORT, over_ceiling=False, healthy=False) is True)
 
 
+def t_admit_foreground_protection():
+    # A5: _admit must classify by the FOREGROUND axis, NOT the capacity-gate
+    # scheduling priority (3.4-6.8 for normal turns, BELOW the 7.0 interactive
+    # floor). The old _admit fed that low priority to classify, so EVERY turn
+    # classified best_effort/shed-eligible. Witness the regression, then the fix.
+    LIVE_PRIO = 5.0  # a typical live foreground scheduling priority (< floor 7.0)
+    buggy = slo.classify(priority=LIVE_PRIO)        # old _admit call site
+    check("A5: (regression witness) priority-only classify -> best_effort",
+          buggy == slo.BEST_EFFORT)
+    check("A5: (regression witness) that turn WOULD be shed under contention",
+          slo.should_shed(buggy, over_ceiling=True) is True)
+    # The FIX: classify a foreground turn by the foreground axis -> interactive,
+    # protected even at a typical live priority and even when health is unknown.
+    fg = slo.classify(foreground=True)              # new _admit call for a fg turn
+    check("A5: foreground turn -> interactive", fg == slo.INTERACTIVE)
+    check("A5: foreground turn NOT shed-eligible (over-ceiling + unhealthy)",
+          slo.should_shed(fg, over_ceiling=True, healthy=False) is False)
+    # A fan-out / background dispatch (foreground=False) stays shed-eligible.
+    bg = slo.classify(foreground=False)             # new _admit call for fan-out
+    check("A5: background fan-out -> best_effort", bg == slo.BEST_EFFORT)
+    check("A5: background fan-out shed under contention",
+          slo.should_shed(bg, over_ceiling=True) is True)
+    # healthy degrades OPEN (should_shed default True): a missing/cold host-stats
+    # probe must NOT shed when there is headroom (over_ceiling False) -- consistent
+    # with _over_global_ceiling()'s own degrade-open posture.
+    check("A5: background NOT shed with headroom (healthy degrades open)",
+          slo.should_shed(bg, over_ceiling=False) is False)
+
+
 def t_ssot_configure():
     # The per-class budgets + the interactive-priority floor are NOT baked: they
     # read from the configure()-injected SSOT ([slo] in mios.toml). Prove behaviour
@@ -101,6 +130,7 @@ def main():
     t_classify()
     t_deadline_edf()
     t_shed()
+    t_admit_foreground_protection()
     t_ssot_configure()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0

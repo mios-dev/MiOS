@@ -144,6 +144,25 @@ class TestProbePeer(_A2AClientBase):
         self.assertEqual(registry["a2a:p1"]["lane"], "remote")
         self.assertGreaterEqual(cache["invalidated"], 1)
 
+    def test_reads_v1_card_protocol_version_from_interfaces(self):
+        # A v1.0 card has NO top-level protocolVersion; the client reads it from
+        # supportedInterfaces[0].protocolVersion (liberal in).
+        peers, peer_skills, registry = {}, {}, {}
+
+        async def _fetch(url, headers, timeout_s=10.0):
+            return {"name": "V1 Peer",
+                    "supportedInterfaces": [
+                        {"url": "http://a:8640/a2a", "protocolBinding": "JSONRPC",
+                         "protocolVersion": "1.0"}],
+                    "skills": [{"id": "plan", "name": "Plan", "tags": []}]}
+
+        _base_configure(peers=peers, peer_skills=peer_skills, registry=registry,
+                        reputation=_FakeReputation(), client=_FakeClient({}),
+                        fetch_card=_fetch)
+        _run(mios_a2a_client._a2a_probe_peer({"id": "v1", "url": "http://a:8640"}))
+        self.assertEqual(peers["v1"]["status"], "ready")
+        self.assertEqual(peers["v1"]["protocolVersion"], "1.0")
+
     def test_card_fetch_failure_marks_state(self):
         peers = {}
         rep = _FakeReputation()
@@ -163,20 +182,37 @@ class TestSendMessageToPeer(_A2AClientBase):
         peers = {"p1": {"id": "p1", "url": "http://a:8640", "status": "ready",
                         "headers_template": {}}}
         rep = _FakeReputation()
-        client = _FakeClient({"result": {"kind": "task", "id": "t1"}})
+        # v1.0 SendMessageResponse wraps the Task under "task"; the client unwraps.
+        client = _FakeClient({"result": {"task": {"id": "t1"}}})
         _base_configure(peers=peers, peer_skills={}, registry={},
                         reputation=rep, client=client)
         out = _run(mios_a2a_client._a2a_send_message_to_peer(
             "p1", "hello peer", context_id="ctx-7"))
-        self.assertEqual(out, {"kind": "task", "id": "t1"})
+        self.assertEqual(out, {"id": "t1"})            # unwrapped from {"task": ...}
         body = client.last["json"]
         self.assertEqual(client.last["url"], "http://a:8640/a2a")
         self.assertEqual(body["method"], "message/send")
         msg = body["params"]["message"]
-        self.assertEqual(msg["kind"], "message")
+        # v1.0 outbound Message: role=ROLE_USER, text Part by member presence
+        # (mediaType, no `kind`), no message-level `kind`.
+        self.assertEqual(msg["role"], "ROLE_USER")
+        self.assertNotIn("kind", msg)
         self.assertEqual(msg["contextId"], "ctx-7")
         self.assertEqual(msg["parts"][0]["text"], "hello peer")
+        self.assertEqual(msg["parts"][0]["mediaType"], "text/plain")
+        self.assertNotIn("kind", msg["parts"][0])
         self.assertEqual(rep.calls, [("p1", True)])
+
+    def test_send_unwraps_bare_task_result(self):
+        # LIBERAL on input: a 0.3 peer that returns the BARE Task as `result`
+        # (no oneof wrapper) is still handled -- the result is taken as-is.
+        peers = {"p1": {"id": "p1", "url": "http://a:8640", "status": "ready",
+                        "headers_template": {}}}
+        client = _FakeClient({"result": {"id": "bare-1", "artifacts": []}})
+        _base_configure(peers=peers, peer_skills={}, registry={},
+                        reputation=_FakeReputation(), client=client)
+        out = _run(mios_a2a_client._a2a_send_message_to_peer("p1", "hi"))
+        self.assertEqual(out["id"], "bare-1")
 
     def test_unknown_peer(self):
         _base_configure(peers={}, peer_skills={}, registry={},

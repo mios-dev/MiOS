@@ -58,6 +58,14 @@ if [ -d /etc/crowdsec ]; then
     echo "[12-virt] CrowdSec configured for sovereign/offline mode"
 fi
 
+# ── mDNS / DNS-SD LAN discovery (avahi) ──────────────────────────────────────
+# Backs FED-G5 A2A peer discovery + announce (mios-a2a-mdns / mios-a2a-discover).
+# avahi-daemon is enabled by preset but stays INERT for A2A until the operator opts
+# in via mios.toml [a2a].mdns_discovery / mdns_advertise. Best-effort install that
+# honors the [packages.network-discovery].enable toggle.
+echo "[12-virt] Installing mDNS/DNS-SD discovery (avahi)..."
+install_packages "network-discovery"
+
 # ── Windows Interop & Remote Desktop ────────────────────────────────────────
 echo "[12-virt] Installing Windows interop tools..."
 install_packages "wintools"

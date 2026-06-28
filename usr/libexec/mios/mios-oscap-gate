@@ -1,0 +1,86 @@
+#!/usr/bin/env python3
+# AI-hint: Severity-gated pass/fail parser for an OpenSCAP results file (ARF or XCCDF results XML), the decision half of the BOOT-02 scan-only build gate. Counts rule-result/result=fail entries whose rule severity is at/above a configured threshold (high>medium>low; "any"=every fail), reading the severity from the rule-result's own @severity when present else the Rule@severity it references. Namespace-agnostic (matches by local tag name) so it works across XCCDF 1.1/1.2 + ARF wrappers. Prints the gating-fail count; exits 1 when >0 (build fails), 0 when clean, 2 on an unparseable/missing report (fail-closed -- it is only ever invoked when [compliance].enabled=true). Pure stdlib.
+# AI-related: ../../../automation/39-oscap-compliance.sh, ../../share/mios/mios.toml, oscap
+"""mios-oscap-gate -- severity-gated verdict over an OpenSCAP results (ARF/XCCDF) file.
+
+Usage: mios-oscap-gate <results.(arf|xml)> [severity_gate]
+  severity_gate: high | medium | low | any   (default: high)
+
+oscap's own exit codes only tell you "some rule failed" (rc=2), not WHICH severity.
+The scan-only gate (39-oscap-compliance.sh) calls this to turn the results into a
+build verdict: it counts FAILED rules at/above the configured severity and fails the
+build iff that count is > 0. Severity ordering is structural (high>medium>low); a
+failed rule with no/unknown severity counts only under the "any" gate.
+"""
+import sys
+import xml.etree.ElementTree as ET
+
+# Structural severity ordering (XCCDF severity vocabulary). Not operator config.
+_RANK = {"low": 1, "medium": 2, "high": 3}
+
+
+def _local(tag):
+    """Local (namespace-stripped) element name -- robust across XCCDF 1.1/1.2/ARF."""
+    return tag.rsplit("}", 1)[-1] if "}" in tag else tag
+
+
+def evaluate(path, gate):
+    """Return (count, total_fails). count = failed rules at/above `gate`. Raises on
+    parse error (the caller turns that into a fail-closed exit)."""
+    root = ET.parse(path).getroot()
+    # Rule id -> severity (fallback when a rule-result omits its own @severity).
+    rule_sev = {}
+    fails = []  # (idref, own_severity)
+    for el in root.iter():
+        ln = _local(el.tag)
+        if ln == "Rule":
+            rid = el.get("id")
+            if rid:
+                rule_sev[rid] = (el.get("severity") or "").strip().lower()
+        elif ln == "rule-result":
+            res = ""
+            for ch in el:
+                if _local(ch.tag) == "result":
+                    res = (ch.text or "").strip().lower()
+                    break
+            if res == "fail":
+                fails.append((el.get("idref") or "",
+                              (el.get("severity") or "").strip().lower()))
+    count = 0
+    for idref, own in fails:
+        if gate == "any":
+            count += 1
+            continue
+        sev = own or rule_sev.get(idref, "")
+        if _RANK.get(sev, 0) >= _RANK[gate]:
+            count += 1
+    return count, len(fails)
+
+
+def main(argv):
+    if len(argv) < 2:
+        sys.stderr.write(
+            "usage: mios-oscap-gate <results.(arf|xml)> [severity_gate]\n")
+        return 2
+    path = argv[1]
+    gate = (argv[2].strip().lower() if len(argv) > 2 and argv[2].strip()
+            else "high")
+    if gate not in _RANK and gate != "any":
+        # Unknown threshold -> strictest meaningful gate (fail-safe, never silently
+        # widen). "any" must be requested explicitly.
+        gate = "high"
+    try:
+        count, total = evaluate(path, gate)
+    except Exception as e:  # noqa: BLE001
+        sys.stderr.write(f"[mios-oscap-gate] ERROR: cannot parse {path}: {e}\n")
+        return 2
+    # The count is the gate verdict; total is context for the log.
+    print(count)
+    sys.stderr.write(
+        f"[mios-oscap-gate] {count} failed rule(s) at/above '{gate}' "
+        f"(of {total} total fail(s)) in {path}\n")
+    return 1 if count > 0 else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

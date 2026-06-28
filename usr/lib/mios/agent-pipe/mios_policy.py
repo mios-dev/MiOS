@@ -30,6 +30,7 @@ from typing import Optional
 
 import mios_pdp as _pdp   # WS-A9 policy decision point (capability gate)
 import mios_quota         # WS-6 per-user quota / rate-limit (inert until configured)
+import mios_hitl          # the shared HITL verdict resolver (mios_hitl.decide) both gates route through
 from mios_config import _toml_section   # layered mios.toml SSOT reader
 
 log = logging.getLogger("mios-agent-pipe")
@@ -161,11 +162,14 @@ def _effective_perm(tool: str, args: "Optional[dict]" = None) -> str:
 
 
 def _hitl_block_reason(tool: str, args: "Optional[dict]" = None) -> "Optional[str]":
-    """#62: in BLOCK mode return a human-readable refusal reason if `tool` is a
-    high-risk (tier >= [ai].hitl_threshold) action requiring approval, else None.
-    AUDIT mode logs the high-risk action and returns None (proceed). OFF returns
-    None immediately. Degrade-open: never raises, never gates on error. For
-    os_recipe the effective tier is the NAMED recipe's, not the umbrella verb's."""
+    """#62: the [ai] RISK-TIER half of the HITL decision. In BLOCK mode return a
+    human-readable refusal reason if `tool`'s effective tier is at/above
+    [ai].hitl_threshold; AUDIT logs + proceeds (None); OFF is inert (None). The
+    block/observe verdict is computed by the SINGLE shared resolver
+    (``mios_hitl.decide``) that the [hitl] verb-scope gate also routes through, so the
+    two HITL gates can no longer disagree (the stricter-wins / fail-safe combine lives
+    in the resolver). Degrade-open: never raises, never gates on error. For os_recipe
+    the effective tier is the NAMED recipe's, not the umbrella verb's."""
     if _HITL_MODE not in ("audit", "block"):
         return None
     try:
@@ -176,12 +180,15 @@ def _hitl_block_reason(tool: str, args: "Optional[dict]" = None) -> "Optional[st
         if _appr and _appr == _pending_hash(tool, args or {}):
             return None
         vperm = _effective_perm(tool, args)
-        if _perm_rank(vperm) < _perm_rank(_HITL_THRESHOLD):
-            return None  # below the gate threshold -> not human-gated
-        if _HITL_MODE == "audit":
+        in_tier = _perm_rank(vperm) >= _perm_rank(_HITL_THRESHOLD)
+        verdict = mios_hitl.decide(in_tier_scope=in_tier, ai_mode=_HITL_MODE)
+        if verdict == mios_hitl.OBSERVE:
+            # audit mode (tier scope): observe-only -- log + proceed, as before.
             log.info("HITL audit: %s (tier=%s >= %s) WOULD require approval -- "
                      "proceeding (audit mode)", tool, vperm, _HITL_THRESHOLD)
             return None
+        if verdict != mios_hitl.BLOCK:
+            return None  # below the gate threshold -> not human-gated
         log.info("HITL block: refused %s (tier=%s) pending human approval", tool, vperm)
         # record the block turn-scoped so the final answer can flag it honestly
         try:

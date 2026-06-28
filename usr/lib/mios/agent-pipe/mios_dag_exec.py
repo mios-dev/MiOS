@@ -62,6 +62,14 @@ DEEPEN_FETCH = False
 DEEPEN_DEADLINE_S = 45.0
 DEEPEN_MAX_ITERS = 12
 DEEPEN_WEB_TIMEOUT_S = 20.0
+# A8 early-exit-on-satisfied (default OFF): when on, the deepen loop asks the per-node
+# Definition-of-Done judge whether the node's current answer already satisfies its
+# sub-query and STOPS deepening if so -- the heaviest compute is not spent re-answering
+# an already-good node, and the freed lane lets slower nodes finish sooner. Default off
+# == no behaviour change (degrade-open: with no judge wired the loop runs to its bound).
+# DEEPEN_JUDGE_TIMEOUT_S bounds the (micro-LLM) judge so a hung judge can't stall a pass.
+DEEPEN_EARLY_EXIT = False
+DEEPEN_JUDGE_TIMEOUT_S = 6.0
 DAG_NODE_MAX_TOKENS = 800
 DAG_NODE_SLOW_MAX_TOKENS = 400
 DAG_NODE_RETRY = 1
@@ -99,6 +107,10 @@ _conv_key_var = None
 dispatch_mios_verb = None
 _call_agent_stream = None
 reflect_on_step_failure = None
+# A8: the micro-LLM per-node Definition-of-Done judge (mios_reflect._judge_answer_satisfied),
+# injected so mios_dag_exec never imports server. None until injected -> the deepen
+# early-exit gate stays inert (degrade-open) even when DEEPEN_EARLY_EXIT is on.
+_judge_answer_satisfied = None
 _sanitize_tool_text = None
 _scratchpad_note = None
 _scratchpad_render = None
@@ -117,7 +129,9 @@ _pg_mirror = None
 
 
 def configure(*, deepen_fetch=None, deepen_deadline_s=None, deepen_max_iters=None,
-              deepen_web_timeout_s=None, dag_node_max_tokens=None,
+              deepen_web_timeout_s=None, deepen_early_exit=None,
+              deepen_judge_timeout_s=None, judge_answer_satisfied=None,
+              dag_node_max_tokens=None,
               dag_node_slow_max_tokens=None, dag_node_retry=None,
               dag_node_deadline_s=None, dag_node_deadline_slow_s=None,
               slow_lanes=None, kv_fork_enable=None, worker_tools_enable=None,
@@ -141,6 +155,7 @@ def configure(*, deepen_fetch=None, deepen_deadline_s=None, deepen_max_iters=Non
     """Inject server.py's config scalars, the live registry / ContextVars and
     the runtime helpers the DAG executors call back into."""
     global DEEPEN_FETCH, DEEPEN_DEADLINE_S, DEEPEN_MAX_ITERS, DEEPEN_WEB_TIMEOUT_S
+    global DEEPEN_EARLY_EXIT, DEEPEN_JUDGE_TIMEOUT_S, _judge_answer_satisfied
     global DAG_NODE_MAX_TOKENS, DAG_NODE_SLOW_MAX_TOKENS, DAG_NODE_RETRY
     global DAG_NODE_DEADLINE_S, DAG_NODE_DEADLINE_SLOW_S, SLOW_LANES
     global KV_FORK_ENABLE, WORKER_TOOLS_ENABLE, WORKER_TOOL_CTX, WORKER_TOOL_CTX_SLOW
@@ -162,6 +177,12 @@ def configure(*, deepen_fetch=None, deepen_deadline_s=None, deepen_max_iters=Non
         DEEPEN_MAX_ITERS = deepen_max_iters
     if deepen_web_timeout_s is not None:
         DEEPEN_WEB_TIMEOUT_S = deepen_web_timeout_s
+    if deepen_early_exit is not None:
+        DEEPEN_EARLY_EXIT = deepen_early_exit
+    if deepen_judge_timeout_s is not None:
+        DEEPEN_JUDGE_TIMEOUT_S = deepen_judge_timeout_s
+    if judge_answer_satisfied is not None:
+        _judge_answer_satisfied = judge_answer_satisfied
     if dag_node_max_tokens is not None:
         DAG_NODE_MAX_TOKENS = dag_node_max_tokens
     if dag_node_slow_max_tokens is not None:
@@ -255,11 +276,19 @@ async def _deepen_until_barrier(node: dict, res: dict, barrier: "asyncio.Event",
     """A fast swarm node that finished its primary BEFORE the global barrier (i.e.
     it computed faster than its peers) keeps producing ADDITIONAL, DISTINCT
     coverage -- new angles / items / facets -- until the barrier fires (every
-    node's primary done). It does NOT idle and does NOT exit on 'satisfied':
- "wait for ALL nodes to complete; dGPU/accelerators that
-    compute faster just do another pass from ANOTHER facet -- everything
-    concurrent, ALL sources every turn". The slowest node trips the barrier and
+    node's primary done): it does NOT idle. The intent is "wait for ALL nodes to
+    complete; the faster lanes just do another pass from ANOTHER facet -- everything
+    concurrent, every source every turn". The slowest node trips the barrier and
     never enters here.
+
+    EARLY-EXIT (A8, SSOT [dispatch].deepen_early_exit, default OFF): when enabled,
+    each pass first asks the per-node Definition-of-Done judge whether the node's
+    CURRENT answer already satisfies its sub-query; if so the node STOPS deepening so
+    the heaviest compute is not spent re-answering an already-good node and the freed
+    lane lets slower nodes finish sooner. Default off -> runs to the bound (no
+    behaviour change). Degrade-open: the judge is bounded by DEEPEN_JUDGE_TIMEOUT_S
+    and ANY timeout / error / absent judge falls THROUGH to the deadline-bound loop
+    -- it can only ever STOP early on a clean 'satisfied', never under-compute.
 
  DETAIL-FILL ("also can loop to gather data in detail-fill
     passes"): when DEEPEN_FETCH is on AND the node carries a web-capable refined
@@ -281,12 +310,33 @@ async def _deepen_until_barrier(node: dict, res: dict, barrier: "asyncio.Event",
     iters = 0
     fetched = 0
     _deadline = time.monotonic() + DEEPEN_DEADLINE_S
-    # Expand COVERAGE until the BARRIER (all nodes' primaries done) -- NOT until
-    # 'satisfied'. A fast node keeps adding NEW facets/angles while slower nodes
-    # finish; detail-fill fetches new stories per pass (when enabled) and APPENDS
-    # only genuinely new content.
+    # Expand COVERAGE until the BARRIER (all nodes' primaries done). A fast node
+    # keeps adding NEW facets/angles while slower nodes finish; detail-fill fetches
+    # new stories per pass (when enabled) and APPENDS only genuinely new content.
+    # When DEEPEN_EARLY_EXIT is enabled the loop ALSO stops once the DoD judge marks
+    # the node satisfied (checked at the top of each pass, below).
     while (iters < DEEPEN_MAX_ITERS and time.monotonic() < _deadline
            and not barrier.is_set()):
+        # A8 EARLY-EXIT: before spending another (heaviest) pass, ask the per-node
+        # DoD judge whether the answer in hand already satisfies the sub-query; if so,
+        # stop -- so an already-good node frees its lane instead of re-answering.
+        # Bounded by DEEPEN_JUDGE_TIMEOUT_S; degrade-open -> any timeout/error/absent
+        # judge falls through and the deadline-bound loop continues (never
+        # under-computes). The judge returning truthy is the ONLY way out here; the
+        # loop stays hard-bounded by the barrier + deadline + iter cap regardless.
+        if (DEEPEN_EARLY_EXIT and _judge_answer_satisfied is not None
+                and base_q and out.strip()):
+            _jbudget = _deadline - time.monotonic()
+            if _jbudget > 0:
+                try:
+                    if await asyncio.wait_for(
+                            _judge_answer_satisfied(base_q, out),
+                            timeout=max(1.0, min(_jbudget, DEEPEN_JUDGE_TIMEOUT_S))):
+                        log.info("deepen: %s satisfied -> early exit after %d pass(es)",
+                                 aname, iters)
+                        break
+                except Exception:  # noqa: BLE001 -- judge hiccup -> deadline-bound loop
+                    pass
         iters += 1
         _budget = _deadline - time.monotonic()
         if _budget <= 0:
@@ -852,14 +902,14 @@ async def execute_dag(dag: dict, *, session_id: Optional[str],
         if event_q is not None:
             for n in level:
                 event_q.put_nowait(("engage", n, None))
-        # BARRIER-DEEPEN (refined #86): every
-        # node runs its PRIMARY pass concurrently; the moment all primaries
-        # finish a barrier fires. A node whose primary finishes BEFORE the
-        # barrier then deepens (deeper web-research + re-answer) UNTIL SATISFIED
-        # -- NOT until the barrier: a satisfied node exits early instead of
-        # spinning re-answers, freeing its lane so the slow node finishes sooner
-        # (see _deepen_until_barrier). The last node (barrier already set) skips
-        # deepen. Only for a multi-node agent level (the swarm); off otherwise.
+        # BARRIER-DEEPEN: every node runs its PRIMARY pass concurrently; the moment
+        # all primaries finish a barrier fires. A node whose primary finishes BEFORE
+        # the barrier then deepens (deeper web-research + re-answer) UNTIL the barrier,
+        # so a fast lane keeps widening coverage instead of idling while the slow node
+        # finishes. When [dispatch].deepen_early_exit is enabled it ALSO stops early
+        # once the DoD judge marks the node satisfied (degrade-open; see
+        # _deepen_until_barrier). The last node (barrier already set) skips deepen.
+        # Only for a multi-node agent level (the swarm); off otherwise.
         _agent_level = [n for n in level if n.get("agent")]
         if deepen_barrier and len(_agent_level) > 1:
             _barrier = asyncio.Event()
