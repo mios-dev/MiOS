@@ -109,6 +109,18 @@ def t_decide() -> None:
            H.decide(ro2_block=True, approved=True) == H.OBSERVE)
     _check("decide: ro2_block stricter-wins over ai audit -> block",
            H.decide(ro2_block=True, in_tier_scope=True, ai_mode="audit") == H.BLOCK)
+    # F2: the CaMeL quarantine gate contributes a FOURTH posture (a confirmed
+    # tainted+privileged enforce bite) into the same resolver. Inert by default
+    # (byte-identical for the existing call-sites); BLOCK when set; stricter-wins;
+    # approval downgrades -- same fail-safe rule as ro2_block.
+    _check("decide: quarantine_block default inert -> proceed", H.decide() == H.PROCEED)
+    _check("decide: quarantine_block -> block", H.decide(quarantine_block=True) == H.BLOCK)
+    _check("decide: quarantine_block + approval -> observe",
+           H.decide(quarantine_block=True, approved=True) == H.OBSERVE)
+    _check("decide: quarantine_block stricter-wins over ai audit -> block",
+           H.decide(quarantine_block=True, in_tier_scope=True, ai_mode="audit") == H.BLOCK)
+    _check("decide: ro2 + quarantine together -> block (both architectural gates compose)",
+           H.decide(ro2_block=True, quarantine_block=True) == H.BLOCK)
 
 
 def main() -> int:

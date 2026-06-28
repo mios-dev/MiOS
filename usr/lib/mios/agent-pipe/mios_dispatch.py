@@ -47,6 +47,7 @@ from fastapi.responses import JSONResponse
 
 import mios_sandbox
 import mios_ruleof2          # the Rule-of-Two architectural gate (pure evaluator)
+import mios_quarantine       # the CaMeL dual-context quarantine gate (stricter superset)
 import mios_hitl             # the unified HITL verdict resolver (mios_hitl.decide)
 from mios_jsonsalvage import loads_lenient as _loads_lenient
 # Security gates imported DIRECTLY from their sibling modules (NAME-KEYED -- nothing
@@ -94,6 +95,11 @@ _SANDBOX_SELF_CONFINED: tuple = ()
 # off (default -- the evaluator is NOT consulted, byte-identical) | audit | enforce.
 # Placeholder default OFF until server injects the SSOT/env-derived value.
 RULE_OF_TWO_MODE = "off"
+# F2 CaMeL dual-context QUARANTINE gate mode (SSOT [security].quarantine_mode):
+# off (default -- the evaluator is NOT consulted, byte-identical) | audit | enforce.
+# The STRICTER superset of Rule-of-Two: gates the tainted + (sensitive OR state-change)
+# case. Placeholder default OFF until server injects the SSOT/env-derived value.
+QUARANTINE_MODE = "off"
 
 # mutable catalogs / sets / state / ContextVars / sync primitives (injected BY
 # REFERENCE -- server assigns each exactly once and never rebinds, so the shared
@@ -182,7 +188,7 @@ def configure(*, verb_catalog=None, verb_arg_synonyms=None,
               web_dispatch_jitter_s=None, dispatch_dedup=None,
               native_loop_date_in_query=None, launcher_sock=None,
               sandbox_enforce=None, sandbox_self_confined=None,
-              rule_of_two_mode=None,
+              rule_of_two_mode=None, quarantine_mode=None,
               dispatch_inflight=None, web_sem=None, tool_conflict=None,
               conv_key_var=None, recency_ctx_var=None, proposal_var=None,
               dispatch_agent_var=None, hitl_approved_var=None,
@@ -197,6 +203,7 @@ def configure(*, verb_catalog=None, verb_arg_synonyms=None,
     late-bound native_loop_date_in_query can land in a second call."""
     global WEB_DISPATCH_JITTER_S, DISPATCH_DEDUP, NATIVE_LOOP_DATE_IN_QUERY
     global LAUNCHER_SOCK, SANDBOX_ENFORCE, _SANDBOX_SELF_CONFINED, RULE_OF_TWO_MODE
+    global QUARANTINE_MODE
     global _VERB_CATALOG, _VERB_ARG_SYNONYMS, _HIGH_PRIVILEGE_VERBS, _LAUNCH_VERBS
     global _dispatch_inflight, _web_sem, _TOOL_CONFLICT
     global _conv_key_var, _recency_ctx_var, _proposal_var, _dispatch_agent_var
@@ -225,6 +232,8 @@ def configure(*, verb_catalog=None, verb_arg_synonyms=None,
         _SANDBOX_SELF_CONFINED = sandbox_self_confined
     if rule_of_two_mode is not None:
         RULE_OF_TWO_MODE = rule_of_two_mode
+    if quarantine_mode is not None:
+        QUARANTINE_MODE = quarantine_mode
     if dispatch_inflight is not None:
         _dispatch_inflight = dispatch_inflight
     if web_sem is not None:
@@ -951,6 +960,107 @@ async def _rule_of_two_gate(tool: str, args: dict, *,
         return None
 
 
+def _emit_quarantine_event(tool: str, args: dict, session_id: "Optional[str]",
+                           verdict: "mios_quarantine.QuarantineVerdict", *,
+                           blocked: bool) -> None:
+    """Audit a CaMeL quarantine decision (the boundary BIT: tainted AND privileged) --
+    one structured observability shape for both the audit-mode log line and the
+    enforce-mode block. Carries the axis breakdown (A + whether B / C, the mode) so the
+    decision is reconstructable. Best-effort / degrade-open: an absent DB writer or a
+    write failure is swallowed."""
+    try:
+        _db_fire(_db_post(_db_create("event", {
+            "source": "agent-pipe",
+            "kind": "quarantine_block" if blocked else "quarantine_audit",
+            "severity": "high" if blocked else "warn",
+            "summary": (f"quarantine {'BLOCK' if blocked else 'audit'}: {tool} -- "
+                        f"untrusted content drives a privileged "
+                        f"(sensitive-read OR state-change) action"),
+            "payload": {
+                "tool": tool, "args": args,
+                "quarantine": verdict.to_dict(),
+                "agent": (_dispatch_agent_var.get() if _dispatch_agent_var else "") or "",
+            },
+        }, now_fields=("ts",))))
+    except Exception:  # noqa: BLE001 -- audit is best-effort; never breaks dispatch
+        pass
+
+
+async def _quarantine_gate(tool: str, args: dict, *,
+                           session_id: "Optional[str]" = None) -> "Optional[dict]":
+    """The CaMeL dual-context QUARANTINE gate (F2, the deeper half of T-033), composed
+    at the dispatch chokepoint AFTER the Rule-of-Two gate so it only ADDS a refusal
+    (stricter-wins). Returns a block_result dict to REFUSE the dispatch (enforce mode, a
+    confirmed tainted+privileged action not yet human-approved) or None to PROCEED.
+
+    Composes EXISTING signals -- it re-derives nothing: A (untrusted-input) is the
+    provenance-taint chain (``_session_is_tainted``); B (sensitive-access) + C
+    (state-change) come from the SSOT verb metadata INSIDE the pure
+    ``mios_quarantine.evaluate`` (the [verbs.*].sensitive flag + the permission tier).
+    The boundary BITES on tainted AND (sensitive OR state-change) -- the STRICTER
+    superset of Rule-of-Two's all-three, for when you want full CaMeL isolation.
+
+      off     -> not consulted (the call-site guards on the mode -> byte-identical).
+      audit   -> structured non-blocking audit line, then proceed (observe before enforce).
+      enforce -> route the bite posture through the SINGLE ``mios_hitl.decide`` resolver
+                 (quarantine_block=True); an explicit same-turn ask-to-run approval
+                 downgrades the block so the human who approved THIS exact action runs it.
+
+    SOUNDNESS: this sits at the SAME single chokepoint as the firewall / HITL /
+    Rule-of-Two gates and only ADDS a refusal -- there is no second action path that
+    bypasses it, and stricter-wins composition means enabling it can only make the
+    posture stricter, never weaker.
+
+    Degrade-open: ANY error -> None (fall back to the existing firewall/HITL/Rule-of-Two
+    behaviour; never crash, never newly block-everything). A CONFIRMED bite under enforce
+    gates (fail toward safety)."""
+    try:
+        mode = mios_quarantine.normalize_mode(QUARANTINE_MODE)
+        if mode == mios_quarantine.MODE_OFF:
+            return None
+        vmeta = _VERB_CATALOG.get(tool) or {}
+        # A: the EXISTING provenance-taint signal (mios_firewall owns it; no re-derive).
+        a_tainted = False
+        if session_id:
+            a_tainted, _chain = await _session_is_tainted(session_id)
+        verdict = mios_quarantine.evaluate(
+            session_tainted=a_tainted,
+            permission_tier=vmeta.get("permission"),
+            sensitive=vmeta.get("sensitive"),
+            mode=mode)
+        if not verdict.bites:
+            return None  # untainted OR non-privileged -> nothing to quarantine -> proceed
+        if mode == mios_quarantine.MODE_AUDIT:
+            _emit_quarantine_event(tool, args, session_id, verdict, blocked=False)
+            return None  # non-blocking: observe before enforce
+        # enforce: untrusted content drives a privileged action. Resolve via the single
+        # HITL verdict so it composes with the other gates' approval semantics; an
+        # explicit same-turn approval (ask-to-run set this action's hash) downgrades it.
+        approved = False
+        try:
+            if _hitl_approved_var is not None:
+                _appr = _hitl_approved_var.get()
+                approved = bool(_appr) and _appr == _pending_hash(tool, args or {})
+        except Exception:  # noqa: BLE001
+            approved = False
+        if mios_hitl.decide(quarantine_block=True, approved=approved) != mios_hitl.BLOCK:
+            return None  # approved -> downgraded -> proceed
+        # fail-safe BLOCK: record a pending_action (approvable out-of-band via
+        # /v1/hitl/approve) + refuse before the broker, in the hitl_pending shape the
+        # agent tool-loop already handles (a failure + a human-readable next step).
+        _ah = _pending_hash(tool, args or {})
+        try:
+            _hitl_record_pending(tool, args or {}, _ah, session_id)
+        except Exception:  # noqa: BLE001 -- recording is best-effort; the block still holds
+            pass
+        _emit_quarantine_event(tool, args, session_id, verdict, blocked=True)
+        _res = mios_hitl.block_result(tool, args, _ah)
+        _res["quarantine_blocked"] = True
+        return _res
+    except Exception:  # noqa: BLE001 -- degrade-open: any error -> existing gate behaviour
+        return None
+
+
 async def _dispatch_mios_verb_inner(
     tool: str, args: dict, *,
     session_id: Optional[str] = None,
@@ -1072,6 +1182,21 @@ async def _dispatch_mios_verb_inner(
         _ro2_block = await _rule_of_two_gate(tool, args, session_id=session_id)
         if _ro2_block is not None:
             return _ro2_block
+
+    # ── F2 CaMeL dual-context QUARANTINE gate (the deeper half of T-033; after the
+    # taint/HITL/Rule-of-Two gates so it only ADDS a refusal -- stricter-wins). The
+    # CaMeL boundary: untrusted/attacker-controllable content (a TAINTED session) must
+    # not autonomously drive a PRIVILEGED action -- one that READS sensitive data (SSOT
+    # [verbs.*].sensitive) OR CHANGES state (SSOT permission tier). Where Rule-of-Two
+    # gates only the all-three chain, quarantine-enforce ADDITIONALLY gates the
+    # tainted + (sensitive OR state-change) case -- the STRICTER posture for full CaMeL
+    # isolation. INERT unless [security].quarantine_mode is audit/enforce: the mode guard
+    # keeps default-off BYTE-IDENTICAL (the evaluator is not consulted, no taint read, no
+    # event). Same single chokepoint -> no bypass. Degrade-open inside the gate. ──
+    if QUARANTINE_MODE != mios_quarantine.MODE_OFF:
+        _q_block = await _quarantine_gate(tool, args, session_id=session_id)
+        if _q_block is not None:
+            return _q_block
 
     # Tool-Manager enum validation (ref AIOS C 3.7): reject out-of-enum
     # args BEFORE the broker. The structured error feeds the planner's

@@ -2,15 +2,15 @@
   "object": "mios.capability.manifest",
   "ceiling": "interactive",
   "summary": {
-    "total": 117,
+    "total": 136,
     "by_kind": {
       "recipe": 19,
       "skill": 11,
-      "verb": 87
+      "verb": 106
     },
     "by_tier": {
-      "read": 60,
-      "write": 54,
+      "read": 68,
+      "write": 65,
       "interactive": 3
     }
   },
@@ -320,10 +320,28 @@
       "description": "Hand a SUB-TASK to another registered agent and GET ITS ANSWER BACK so YOU fold it into your own reasoning (you stay in control; this is NOT a final user reply and NOT a take-over). Pick a peer by id "
     },
     {
+      "name": "agent_route",
+      "kind": "verb",
+      "tier": "write",
+      "description": "Cross-agent routing. mode='handoff' (transfer control entirely, ending your turn) or 'delegate' (sub-task an agent and get the result back)."
+    },
+    {
       "name": "app_search",
       "kind": "verb",
       "tier": "read",
       "description": "SEMANTIC search over the installed-app inventory: given a fuzzy natural-language description ('my note-taking app', 'phone settings'), return the top matching installed apps {name, category, launch, s"
+    },
+    {
+      "name": "apps",
+      "kind": "verb",
+      "tier": "read",
+      "description": "Query applications. mode='list' (inventory of all installed apps), 'semantic' (fuzzy app capability search), or 'resolve' (get exact CLI launch command for an app without launching it)."
+    },
+    {
+      "name": "close_app",
+      "kind": "verb",
+      "tier": "write",
+      "description": "Gracefully CLOSE an open Windows application or window (by title pattern). Use this when the operator asks to close, quit, exit, or kill an application."
     },
     {
       "name": "close_window",
@@ -434,10 +452,34 @@
       "description": "Convert an EXISTING file to another format (.docx->.pdf, .md->.docx, .csv->.xlsx, .pptx->.pdf). Target format inferred from out_path extension. Fully local via Pandoc / LibreOffice headless. Use this "
     },
     {
+      "name": "document",
+      "kind": "verb",
+      "tier": "write",
+      "description": "Generate or convert documents. op='build' (compile markdown to pdf/docx/etc.) or 'convert' (convert office docs/csv to markdown)."
+    },
+    {
       "name": "everything_search",
       "kind": "verb",
       "tier": "read",
       "description": "Search for files on the WINDOWS side of this machine via the Voidtools Everything NTFS index (exhaustive, name/extension match). Finds FILES that already exist on Windows drives (C:, etc.) -- NOT a we"
+    },
+    {
+      "name": "fetch_page",
+      "kind": "verb",
+      "tier": "read",
+      "description": "Fetch ONE web page content. format='text' (lightweight ~4000 char plain text), 'article-md' (clean markdown of a long article via crawl4ai), or 'index-md' (markdown of a news/listing/index page via fi"
+    },
+    {
+      "name": "file_edit",
+      "kind": "verb",
+      "tier": "write",
+      "description": "Edit text files on disk. op='create' (write new file), 'replace' (replace matching text), 'insert' (insert text at top/bottom)."
+    },
+    {
+      "name": "find_file",
+      "kind": "verb",
+      "tier": "read",
+      "description": "Search for files on disk. scope='fast' (cached DB, sub-100ms, use FIRST), 'windows' (NTFS exhaustive search), or 'linux' (exhaustive Linux search). Use 'fast' unless a recent file is missing."
     },
     {
       "name": "flatpak_install",
@@ -512,6 +554,18 @@
       "description": "Query the OWUI RAG knowledge COLLECTIONS (curated document corpora uploaded to Open WebUI) and return citation-ready hits {score, source, snippet}. This is the RAG document store -- distinct from the "
     },
     {
+      "name": "launch_app",
+      "kind": "verb",
+      "tier": "write",
+      "description": "Launch an application or system component. verify=true waits and confirms the launch. position=left/right/fullscreen."
+    },
+    {
+      "name": "linux_input",
+      "kind": "verb",
+      "tier": "write",
+      "description": "Inject input into the LINUX in-VM desktop. action='screenshot', 'ground', 'atspi', 'window-list', 'click', 'type', 'key'."
+    },
+    {
       "name": "list_windows",
       "kind": "verb",
       "tier": "read",
@@ -522,6 +576,12 @@
       "kind": "verb",
       "tier": "write",
       "description": "Maximize an OPEN Windows window to fill its containing monitor. To restore it back to normal size use restore_window; for a specific pixel size use resize_window."
+    },
+    {
+      "name": "memory",
+      "kind": "verb",
+      "tier": "write",
+      "description": "Manage agent's self-directed memories/facts. op='add' (remember a new fact), 'list' (recall matching memories), 'update', or 'forget'."
     },
     {
       "name": "memory_forget",
@@ -620,6 +680,18 @@
       "description": "Type literal text into the focused window on the HOST WINDOWS desktop. Sends keystrokes to the foreground Windows app, NOT the in-VM Linux desktop (use linux_desktop_type_text). For editing FILES, pre"
     },
     {
+      "name": "pc_uia_set_value",
+      "kind": "verb",
+      "tier": "write",
+      "description": "Directly set the text/value of a named UI control (by Name or AutomationId) via Windows UIA without simulating keystrokes. Completely bypasses window focus racing and keystroke drops. Use this for rob"
+    },
+    {
+      "name": "pc_uia_tree",
+      "kind": "verb",
+      "tier": "read",
+      "description": "Extract the FULL UIA accessibility tree of the FOREGROUND window as JSON to deeply understand its structure, hierarchy, and nested components. Returns node types, names, bounds, and parent/child relat"
+    },
+    {
       "name": "pkg",
       "kind": "verb",
       "tier": "write",
@@ -668,6 +740,12 @@
       "description": "Restore an OPEN Windows window from a minimized OR maximized state back to its last normal-size geometry. Use to 'un-minimize' / 'un-maximize' / bring back a window. Pairs with minimize_window and max"
     },
     {
+      "name": "run_code",
+      "kind": "verb",
+      "tier": "write",
+      "description": "Execute Python code. mode='sandbox' (safe isolated run) or 'orchestrate' (run a script that imports mios_tools to coordinate agentic sub-actions)."
+    },
+    {
       "name": "schedule",
       "kind": "verb",
       "tier": "write",
@@ -678,6 +756,12 @@
       "kind": "verb",
       "tier": "read",
       "description": "Report Windows MONITOR geometry: each display's resolution, position, and which is primary. Use BEFORE place_window_at_pixel so you know valid coordinates. This describes the SCREENS/monitors, not the"
+    },
+    {
+      "name": "search_store",
+      "kind": "verb",
+      "tier": "read",
+      "description": "Search stored information. store='knowledge' (curated OWUI RAG document collections) or 'vault' (the local notes/skills vault)."
     },
     {
       "name": "service_restart",
@@ -698,6 +782,12 @@
       "description": "TIERED summarisation of a document/text (the L0/L1/L2 gating primitive): L0 = one-sentence ~100-token abstract, L1 = ~2k-token structured overview (sections + key points), L2 = the raw text (returned "
     },
     {
+      "name": "switch_app_default",
+      "kind": "verb",
+      "tier": "read",
+      "description": "Switch the default application for an abstract app type (e.g. 'browser', 'editor')."
+    },
+    {
       "name": "sys_env",
       "kind": "verb",
       "tier": "read",
@@ -708,6 +798,12 @@
       "kind": "verb",
       "tier": "write",
       "description": "WRITE/UPDATE the cached environment inventory: re-probe apps + services + models + host and overwrite the shared sys_env_snapshot database. Call when you suspect the sys_env_snapshot cache is stale (e"
+    },
+    {
+      "name": "system",
+      "kind": "verb",
+      "tier": "read",
+      "description": "Query system status: query='status' (overall), 'env' (environment variables), 'env-refresh' (reload shell env), 'logs' (system logs for target service), 'service-status' (systemd status), 'processes' "
     },
     {
       "name": "system_logs",
@@ -752,6 +848,12 @@
       "description": "Find VERBS/TOOLS in the catalog by natural-language query when no listed verb obviously fits the user's ask. Returns top-k {name, sig, desc, score} via embedding search over verb name+description. Use"
     },
     {
+      "name": "vault",
+      "kind": "verb",
+      "tier": "read",
+      "description": "Manage the local second-brain vault. op='list' (ls), 'read' (cat), 'search' (find), or 'ingest' (add local file to vault)."
+    },
+    {
       "name": "verify_launch",
       "kind": "verb",
       "tier": "read",
@@ -794,10 +896,22 @@
       "description": "WEB search via the LOCAL self-hosted SearXNG (offline-first metasearch, no cloud dependency). USE THIS for anything from the internet or the current world: weather, news, current events, event dates/t"
     },
     {
+      "name": "window_op",
+      "kind": "verb",
+      "tier": "write",
+      "description": "Perform window operations: op='focus' (bring to front), 'move-region' (snap to left/right/etc via position), 'move-pixel' (set x/y), 'resize' (set width/height), 'min', 'max', 'restore', 'close'."
+    },
+    {
       "name": "window_state",
       "kind": "verb",
       "tier": "write",
       "description": "Change the STATE of an OPEN Windows window (by title): minimize (hide to taskbar), maximize (fill its monitor), restore (back to normal size), or close (graceful WM_CLOSE so the app saves state). Run "
+    },
+    {
+      "name": "windows_input",
+      "kind": "verb",
+      "tier": "write",
+      "description": "Inject input into the HOST WINDOWS desktop. action='type', 'key' (press a key/combo), 'click' (pixel click), 'find' (find UI element), 'click-element' (click named UI element), 'list-element' (list al"
     },
     {
       "name": "winget_install",

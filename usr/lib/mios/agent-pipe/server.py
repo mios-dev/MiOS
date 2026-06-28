@@ -5190,6 +5190,21 @@ RULE_OF_TWO_MODE = str(
     or _toml_section("security").get("rule_of_two_mode", "off")
 ).strip().lower()
 
+# F2 CaMeL dual-context QUARANTINE gate mode (SSOT [security].quarantine_mode | env
+# MIOS_SECURITY_QUARANTINE_MODE): off (default) | audit | enforce. The STRICTER superset
+# of Rule-of-Two: where that gates the all-three kill-chain, quarantine-enforce
+# additionally gates the tainted + (sensitive OR state-change) case -- untrusted content
+# must not autonomously drive a privileged action (the CaMeL dual-context boundary). off
+# -> the deterministic gate is NOT consulted at the dispatch chokepoint (byte-identical).
+# audit -> log the bite + proceed; enforce -> route it through mios_hitl.decide to HITL
+# review / block (fail-safe). Normalised in mios_quarantine (an unknown token degrades to
+# off). DEFAULT off because the stricter block reduces autonomous function -- the operator
+# opts in for full CaMeL isolation, then validates the [verbs.*].sensitive classification.
+QUARANTINE_MODE = str(
+    os.environ.get("MIOS_SECURITY_QUARANTINE_MODE")
+    or _toml_section("security").get("quarantine_mode", "off")
+).strip().lower()
+
 
 # ── Planner system prompt + DAG decomposition (Phase A.1) ─────────
 # _PLANNER_SYSTEM extracted verbatim to mios_planner.py (refactor R5). It is
@@ -5683,6 +5698,7 @@ sys.modules["mios_dispatch"].configure(
     sandbox_enforce=SANDBOX_ENFORCE,
     sandbox_self_confined=_SANDBOX_SELF_CONFINED,
     rule_of_two_mode=RULE_OF_TWO_MODE,
+    quarantine_mode=QUARANTINE_MODE,
     dispatch_inflight=_dispatch_inflight,
     web_sem=_web_sem,
     tool_conflict=_TOOL_CONFLICT,

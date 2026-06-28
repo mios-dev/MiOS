@@ -97,19 +97,23 @@ def scope_gate_posture(enable, mode):
 
 def decide(*, in_tier_scope=False, ai_mode="off",
            in_name_scope=False, hitl_enable=False, hitl_mode="log",
-           ro2_block=False, approved=False):
+           ro2_block=False, quarantine_block=False, approved=False):
     """THE single HITL verdict, reconciling the [ai] risk-tier gate, the [hitl]
-    verb-scope gate AND the Rule-of-Two architectural gate. Each gate is evaluated
-    ONLY within its own scope; the result is the STRICTER of their postures
-    (proceed < observe < block) so that if ANY gate would block this verb, it blocks
-    (fail-safe -- the gates can never disagree on the blocking outcome). The
-    Rule-of-Two gate contributes a BLOCK posture (`ro2_block=True`) when a dispatch
-    holds all three dangerous properties under enforce mode -- the deterministic
-    kill-chain refusal (mios_ruleof2). `approved` downgrades a BLOCK to OBSERVE so an
-    explicitly-approved action runs. Returns PROCEED / OBSERVE / BLOCK. Pure + total:
-    it never raises (call-sites stay degrade-open on their own I/O, but the DECISION
-    itself errs toward blocking, never toward a silent execution). `ro2_block` defaults
-    False -> inert for the two existing call-sites (byte-identical verdict)."""
+    verb-scope gate, the Rule-of-Two architectural gate AND the CaMeL quarantine gate.
+    Each gate is evaluated ONLY within its own scope; the result is the STRICTER of
+    their postures (proceed < observe < block) so that if ANY gate would block this
+    verb, it blocks (fail-safe -- the gates can never disagree on the blocking
+    outcome). The Rule-of-Two gate contributes a BLOCK posture (`ro2_block=True`) when a
+    dispatch holds all three dangerous properties under enforce mode -- the
+    deterministic kill-chain refusal (mios_ruleof2). The CaMeL quarantine gate
+    contributes a BLOCK posture (`quarantine_block=True`) when a TAINTED session would
+    autonomously drive a PRIVILEGED (sensitive-read OR state-change) action under
+    enforce mode -- the stricter dual-context refusal (mios_quarantine). `approved`
+    downgrades a BLOCK to OBSERVE so an explicitly-approved action runs. Returns
+    PROCEED / OBSERVE / BLOCK. Pure + total: it never raises (call-sites stay
+    degrade-open on their own I/O, but the DECISION itself errs toward blocking, never
+    toward a silent execution). `ro2_block` / `quarantine_block` both default False ->
+    inert for the existing call-sites (byte-identical verdict)."""
     rank = _VERDICT_RANK[PROCEED]
     if in_tier_scope:
         rank = max(rank, _VERDICT_RANK[tier_gate_posture(ai_mode)])
@@ -117,6 +121,10 @@ def decide(*, in_tier_scope=False, ai_mode="off",
         rank = max(rank, _VERDICT_RANK[scope_gate_posture(hitl_enable, hitl_mode)])
     if ro2_block:
         # A confirmed all-three Rule-of-Two chain (enforce mode) errs toward blocking.
+        rank = max(rank, _VERDICT_RANK[BLOCK])
+    if quarantine_block:
+        # A confirmed tainted+privileged CaMeL quarantine bite (enforce mode) errs
+        # toward blocking -- the stricter dual-context posture, same fail-safe rule.
         rank = max(rank, _VERDICT_RANK[BLOCK])
     if rank == _VERDICT_RANK[BLOCK]:
         return OBSERVE if approved else BLOCK

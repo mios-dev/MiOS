@@ -280,6 +280,7 @@
     "PRIORITY_STARVATION_S",
     "PROVENANCE_TAINT_ENABLE",
     "PriorityGate",
+    "QUARANTINE_MODE",
     "RAG_BIN",
     "RAG_ENABLED",
     "RAG_K",
@@ -1358,6 +1359,6 @@
   ],
   "counts": {
     "routes": 76,
-    "provided": 1277
+    "provided": 1278
   }
 }

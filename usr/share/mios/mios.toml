@@ -147,7 +147,7 @@ developer = "MiOS"
 # would leak into the model's prompt) and single-value data files (a comment
 # would corrupt the value). Env override: MIOS_AITAG_MAX_UNTAGGED; CLI:
 # --max-untagged. Current intentional remainder = soul prompts + data/plan docs.
-max_untagged = 12
+max_untagged = 16
 
 # ----------------------------------------------------------------------------
 # [selfimprove] -- #64 self-improvement ANALYSIS (the safe observe half). The
@@ -704,6 +704,35 @@ provenance_taint = false
 # validate the `sensitive = true` classification for the deployment. Env override:
 # MIOS_SECURITY_RULE_OF_TWO_MODE.
 rule_of_two_mode = "off"
+
+# F2 -- the CaMeL DUAL-CONTEXT QUARANTINE gate (Debenedetti et al., "Defeating Prompt
+# Injections by Design"), the deeper half of the prompt-injection defense and a STRICTER
+# superset of rule_of_two_mode above. The CaMeL principle: untrusted/attacker-
+# controllable content (web/file/tool output that TAINTS the session, axis A above) must
+# not be able to make the privileged action-planner take a PRIVILEGED action it would not
+# otherwise -- where "privileged" means the verb either READS sensitive data (axis B,
+# `sensitive = true`) OR mutates state / has side-effects (axis C, the write/interactive
+# permission tier). The boundary BITES when the session is TAINTED *and* the verb is
+# privileged (B OR C). Where rule_of_two_mode gates only the all-three chain (A AND B AND
+# C), quarantine-enforce ADDITIONALLY gates the tainted + (B OR C) case -- the posture for
+# full CaMeL isolation: untrusted-content-derived privileged actions cannot fire
+# autonomously; a human (or a non-tainted plan) must authorize them. Composes the SAME
+# EXISTING taint + permission + sensitive signals -- no new keyword classifier. Modes:
+#   off     (default) -- the gate is NOT consulted (byte-identical behaviour).
+#   audit             -- on a bite (tainted + privileged), LOG a structured audit event +
+#                        proceed (observe before you enforce; non-blocking). Use this to
+#                        measure how often untrusted content drives privileged actions.
+#   enforce           -- on a bite, route through mios_hitl.decide to HITL review / BLOCK
+#                        (fail-safe; an out-of-band or same-turn approval lets the exact
+#                        action through). Sits at the SAME single dispatch chokepoint as
+#                        the firewall + HITL + Rule-of-Two gates -- the STRICTER outcome
+#                        wins, so there is no second action path that bypasses it.
+# DEGRADE-OPEN (not-crash) but FAIL-SAFE (security): an error computing the boundary falls
+# back to the existing firewall/HITL/Rule-of-Two behaviour (never crash, never newly-open);
+# a confirmed tainted+privileged under enforce gates (fail toward safety). DEFAULT off
+# because the stricter block reduces autonomous function -- opt in for full CaMeL
+# isolation. Env override: MIOS_SECURITY_QUARANTINE_MODE.
+quarantine_mode = "off"
 
 # FED-G1 INBOUND AUTH GATE. The agent-pipe front door
 # (:8640 /v1/* + /a2a) accepts requests with NO credential today. When ON, an ASGI

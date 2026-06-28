@@ -1,6 +1,6 @@
 <?xml version="1.0" standalone='no'?>
 <!DOCTYPE service-group SYSTEM "avahi-service.dtd">
-<!-- MiOS A2A LAN announce TEMPLATE (Law 1: USR-OVER-ETC; the static template
+<!-- AI-hint: MiOS A2A LAN announce TEMPLATE (Law 1: USR-OVER-ETC; the static template
      lives here under /usr/lib, the rendered copy lands in /etc/avahi/services/).
      mios-a2a-mdns renders this to /etc/avahi/services/mios-a2a.service ONLY when
      [a2a].mdns_advertise = true, substituting the two ${...} placeholders from the
