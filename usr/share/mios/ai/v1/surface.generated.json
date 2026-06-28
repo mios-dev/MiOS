@@ -176,6 +176,7 @@
     "HITL_SCOPE",
     "HTMLResponse",
     "JSONResponse",
+    "JUDGE_EXAMPLES",
     "KERNEL_ROUTE",
     "KNOWLEDGE_ANSWER_MAX",
     "KNOWLEDGE_EVICT_BATCH",
@@ -1359,6 +1360,6 @@
   ],
   "counts": {
     "routes": 76,
-    "provided": 1278
+    "provided": 1279
   }
 }

@@ -181,6 +181,7 @@ from mios_config import (   # noqa: E402
     REFINE_MAX_TOKENS,
     REFINE_BYPASS_CHARS,
     REFINE_KEEP_ALIVE,
+    JUDGE_EXAMPLES,
     POLISH_ENABLED,
     POLISH_MODEL,
     POLISH_ENDPOINT,
@@ -942,7 +943,7 @@ _CHAT_CANCEL: dict = {}
 # agent (returns no extra fan-out) so an agents-as-tools loop can't recurse into
 # an unbounded swarm-of-swarms. Generous default (2) so normal one-level council
 # + its self-fan-out is unaffected. SSOT [dispatch].max_dispatch_depth.
-MAX_DISPATCH_DEPTH = _dispatch_num("MIOS_MAX_DISPATCH_DEPTH", "max_dispatch_depth", 2)
+MAX_DISPATCH_DEPTH = _dispatch_num("MIOS_MAX_DISPATCH_DEPTH", "max_dispatch_depth", int(_DISPATCH_TOML.get("default_hop_budget", 2)))
 _dispatch_depth_var: "contextvars.ContextVar" = contextvars.ContextVar(
     "mios_dispatch_depth", default=0)
 
@@ -7765,6 +7766,7 @@ sys.modules["mios_reflect"].configure(   # noqa: E402
     refine_endpoint=REFINE_ENDPOINT,
     refine_timeout_s=REFINE_TIMEOUT_S,
     reflect_system=_REFLECT_SYSTEM,
+    judge_examples=JUDGE_EXAMPLES,
 )
 
 

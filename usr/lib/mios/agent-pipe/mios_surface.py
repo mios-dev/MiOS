@@ -469,8 +469,34 @@ def _module_file(module: str, search_dir: str) -> str | None:
     """
     if not module:
         return None
-    cand = os.path.join(search_dir, module.split(".")[-1] + ".py")
-    return cand if os.path.isfile(cand) else None
+    
+    # 1. Resolve dotted mios_pipe modules directly
+    if module.startswith("mios_pipe."):
+        rel = module.replace(".", os.sep) + ".py"
+        cand = os.path.join(search_dir, rel)
+        if os.path.isfile(cand):
+            return cand
+            
+    # 2. Try the flat name
+    flat_name = module.split(".")[-1] + ".py"
+    cand = os.path.join(search_dir, flat_name)
+    if os.path.isfile(cand):
+        # 3. Check if it's a shim proxying to mios_pipe
+        try:
+            with open(cand, encoding="utf-8") as f:
+                content = f.read()
+            import re
+            m = re.search(r'sys\.modules\[__name__\]\s*=\s*_ShimModule\(__name__,\s*["\'](mios_pipe\.[^"\']+)["\']\)', content)
+            if m:
+                target = m.group(1)
+                rel = target.replace(".", os.sep) + ".py"
+                target_cand = os.path.join(search_dir, rel)
+                if os.path.isfile(target_cand):
+                    return target_cand
+        except Exception:
+            pass
+        return cand
+    return None
 
 
 def _scan_file(path: str, cache: dict[str, "_Scan | None"]) -> "_Scan | None":

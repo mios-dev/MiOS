@@ -763,17 +763,15 @@ if not os.path.isdir(pipe):
     sys.exit(0)  # nothing to check on a bare checkout
 
 # DOCUMENTED TRANSITIONAL ALLOWLIST: agent-pipe modules IMPORTED as substrate but
-# PENDING a real call site (imported-but-dead) -- see MIOS-GAP-REGISTER A1. Remove an
-# entry the moment the module gets a non-test caller; the gate fails on a stale entry
-# too, so this register self-cleans.
-ALLOW = {
-    "mios_batch",
-    "mios_compact",
-    "mios_ctxpack",
-    "mios_embed_backfill",
-    "mios_provider_translate",
-    "mios_smartroute",
-}
+# PENDING a real call site (imported-but-dead) -- see MIOS-GAP-REGISTER A1. Loaded from
+# mios.toml [drift].denylist.
+try:
+    import tomllib as _toml
+except ImportError:
+    import tomli as _toml
+with open(os.path.join(root, "usr/share/mios/mios.toml"), "rb") as fh:
+    _data = _toml.load(fh)
+ALLOW = set(_data.get("drift", {}).get("denylist", []))
 
 def is_test(path):
     b = os.path.basename(path)
@@ -782,9 +780,12 @@ def is_test(path):
     segs = path.replace("\\", "/").split("/")
     return "tests" in segs or "test" in segs
 
-# Candidate IMPORTERS = agent-pipe non-test .py (server.py + mios_*.py siblings).
-pipe_py = [os.path.join(pipe, f) for f in os.listdir(pipe)
-           if f.endswith(".py") and not is_test(os.path.join(pipe, f))]
+# Candidate IMPORTERS = agent-pipe non-test .py (server.py + mios_*.py siblings + mios_pipe package).
+pipe_py = []
+for dp, _dn, files in os.walk(pipe):
+    for f in files:
+        if f.endswith(".py") and not is_test(os.path.join(dp, f)):
+            pipe_py.append(os.path.join(dp, f))
 # REFERENCE (wired) scope -- BROAD: agent-pipe + libexec + tools non-test .py.
 ref_py = list(pipe_py)
 for sub in ("usr/libexec/mios", "tools"):
