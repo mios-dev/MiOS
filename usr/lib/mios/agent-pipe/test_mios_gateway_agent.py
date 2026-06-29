@@ -80,6 +80,43 @@ class TestGatewayAgent(unittest.TestCase):
         MiOSMCPClient.connect = mock_connect
         MiOSMCPClient.close = AsyncMock()
         
+        # Create a mock catalog.json
+        cls.test_catalog_path = "/tmp/test_catalog.json"
+        mock_catalog = {
+            "tools": [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "mios_skill__test_skill",
+                        "description": "A test skill description",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "input_param": {
+                                    "type": "string",
+                                    "description": "Test parameter"
+                                }
+                            },
+                            "required": ["input_param"]
+                        }
+                    },
+                    "x-mios-skill": "test skill"
+                }
+            ],
+            "count": 1,
+            "generated_at": "2026-06-29T15:20:00Z"
+        }
+        with open(cls.test_catalog_path, "w", encoding="utf-8") as f:
+            json.dump(mock_catalog, f)
+
+        # Patch SkillCatalogLoader init to use test path
+        from skill_catalog import SkillCatalogLoader
+        orig_init = SkillCatalogLoader.__init__
+        def mock_init(self, *args, **kwargs):
+            kwargs["catalog_path"] = cls.test_catalog_path
+            orig_init(self, *args, **kwargs)
+        SkillCatalogLoader.__init__ = mock_init
+
         # Now import the server FastAPI app
         import server
         cls.app = server.app
@@ -89,6 +126,11 @@ class TestGatewayAgent(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         cls.client_ctx.__exit__(None, None, None)
+        if os.path.exists(cls.test_catalog_path):
+            try:
+                os.remove(cls.test_catalog_path)
+            except Exception:
+                pass
 
     def test_health(self):
         r = self.client.get("/health")
@@ -168,6 +210,35 @@ class TestGatewayAgent(unittest.TestCase):
         self.assertEqual(len(tools), 1)
         self.assertEqual(tools[0].name, "test_tool")
         self.assertEqual(tools[0].inputs["param1"]["type"], "string")
+
+    def test_skill_catalog_mapping(self):
+        import server
+        tools = server.skill_catalog_loader.get_tools()
+        self.assertEqual(len(tools), 1)
+        self.assertEqual(tools[0].name, "mios_skill__test_skill")
+        self.assertEqual(tools[0].inputs["input_param"]["type"], "string")
+
+    @patch("httpx.Client.post")
+    def test_skill_execution(self, mock_post):
+        import server
+        tools = server.skill_catalog_loader.get_tools()
+        skill_tool = tools[0]
+        
+        # Mock successful POST response from orchestrator
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "success": True,
+            "steps": [
+                {"verb": "verb_one", "result": "step one result"},
+                {"verb": "verb_two", "result": "step two result"}
+            ]
+        }
+        mock_post.return_value = mock_response
+        
+        res = skill_tool.forward(input_param="test_val")
+        self.assertTrue("executed successfully" in res)
+        self.assertTrue("step one result" in res)
 
 if __name__ == "__main__":
     unittest.main()

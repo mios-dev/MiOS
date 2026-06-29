@@ -14,6 +14,7 @@ import httpx
 from contextlib import asynccontextmanager
 from mcp_client import MiOSMCPClient
 from tool_registry import MiOSToolRegistry
+from skill_catalog import SkillCatalogLoader
 
 import session as session_db
 
@@ -23,12 +24,15 @@ log = logging.getLogger("mios-gateway-agent")
 
 mcp_client = None
 tool_registry = None
+skill_catalog_loader = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global mcp_client, tool_registry
+    global mcp_client, tool_registry, skill_catalog_loader
     gateway_cfg = _toml_section("gateway")
     mcp_refresh = int(gateway_cfg.get("mcp_refresh_seconds") or 300)
+    skill_refresh = int(gateway_cfg.get("skill_refresh_seconds") or 300)
+    catalog_path = gateway_cfg.get("skill_catalog_static_path") or "/var/lib/mios/skills/catalog.json"
     
     mcp_client = MiOSMCPClient(mcp_refresh_seconds=mcp_refresh)
     await mcp_client.connect()
@@ -36,8 +40,13 @@ async def lifespan(app: FastAPI):
     main_loop = asyncio.get_running_loop()
     tool_registry = MiOSToolRegistry(mcp_client, main_loop)
     
+    skill_catalog_loader = SkillCatalogLoader(catalog_path=catalog_path, skill_refresh_seconds=skill_refresh)
+    skill_catalog_loader.start()
+    
     yield
     
+    if skill_catalog_loader:
+        skill_catalog_loader.stop()
     if mcp_client:
         await mcp_client.close()
 
@@ -154,8 +163,12 @@ async def chat_completions(req: ChatCompletionRequest):
         log.error("Failed to initialize OpenAIServerModel: %s", e)
         return JSONResponse(status_code=500, content={"error": f"Model init failed: {e}"})
 
-    # Tool loop engine initialization (T-079)
-    tools = tool_registry.get_tools() if tool_registry else []
+    # Tool loop engine initialization (T-079 & T-081)
+    tools = []
+    if tool_registry:
+        tools.extend(tool_registry.get_tools())
+    if skill_catalog_loader:
+        tools.extend(skill_catalog_loader.get_tools())
     
     try:
         agent = ToolCallingAgent(
