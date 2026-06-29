@@ -599,6 +599,65 @@
          that topology and are placed first so the cluster model reads clearly.
          ═══════════════════════════════════════════════════════════════ -->
 
+    <details class="section" id="adv-storage">
+      <summary>Storage Fabric &middot; CephFS &amp; XDG <span class="phase-badge">Part 9 &middot; storage.cephfs</span></summary>
+      <div class="section-body">
+        <p style="color: var(--muted); font-size: 12px; margin: 0 0 12px;">
+          Configure the distributed CephFS POSIX storage fabric beneath the MiOS user-space.
+          Unifies the XDG Base Directory Specification with network-backed, path-scoped subvolumes.
+        </p>
+        <div class="grid">
+          <fieldset>
+            <legend>[storage.cephfs] — global knobs</legend>
+            <label for="f-cephfs-enable">enable (operator enables after Ceph cluster is active)</label>
+            <input type="text" id="f-cephfs-enable" data-key="storage.cephfs.enable" data-type="bool" placeholder="false">
+            
+            <label for="f-cephfs-cluster-name">cluster_name</label>
+            <input type="text" id="f-cephfs-cluster-name" data-key="storage.cephfs.cluster_name" placeholder="ceph">
+            
+            <label for="f-cephfs-monitors">monitors (MON IP addresses)</label>
+            <input type="text" id="f-cephfs-monitors" data-key="storage.cephfs.monitors" placeholder="127.0.0.1:6789">
+            
+            <label for="f-cephfs-fs-name">fs_name</label>
+            <input type="text" id="f-cephfs-fs-name" data-key="storage.cephfs.fs_name" placeholder="cephfs">
+            
+            <label for="f-cephfs-tenant-id">tenant_id</label>
+            <input type="text" id="f-cephfs-tenant-id" data-key="storage.cephfs.tenant_id" placeholder="mios">
+          </fieldset>
+          
+          <fieldset>
+            <legend>Pools &amp; Cache tuning</legend>
+            <label for="f-cephfs-pool-hot">data_pool_hot (SSD-backed hot data)</label>
+            <input type="text" id="f-cephfs-pool-hot" data-key="storage.cephfs.data_pool_hot" placeholder="cephfs_data_hot">
+            
+            <label for="f-cephfs-pool-bulk">data_pool_bulk (HDD-backed bulk data)</label>
+            <input type="text" id="f-cephfs-pool-bulk" data-key="storage.cephfs.data_pool_bulk" placeholder="cephfs_data_bulk">
+            
+            <label for="f-cephfs-cache-override">xdg_cache_home_override (MUST be local, NEVER CephFS)</label>
+            <input type="text" id="f-cephfs-cache-override" data-key="storage.cephfs.xdg_cache_home_override" placeholder="/run/user/{uid}/.cache">
+            
+            <label for="f-cephfs-subvol-mode">subvolume_mode</label>
+            <input type="text" id="f-cephfs-subvol-mode" data-key="storage.cephfs.subvolume_mode" placeholder="0700">
+          </fieldset>
+          
+          <fieldset>
+            <legend>Provisioning &amp; Mounts</legend>
+            <label for="f-cephfs-keyring-dir">keyring_dir</label>
+            <input type="text" id="f-cephfs-keyring-dir" data-key="storage.cephfs.keyring_dir" placeholder="/etc/ceph/keyring.d">
+            
+            <label for="f-cephfs-provision-script">provision_script</label>
+            <input type="text" id="f-cephfs-provision-script" data-key="storage.cephfs.provision_script" placeholder="/usr/libexec/mios/mios-cephfs-provision">
+            
+            <label for="f-cephfs-automount-enable">automount_enable</label>
+            <input type="text" id="f-cephfs-automount-enable" data-key="storage.cephfs.automount_enable" data-type="bool" placeholder="true">
+            
+            <label for="f-cephfs-automount-timeout">automount_idle_timeout_s (seconds before unmount)</label>
+            <input type="text" id="f-cephfs-automount-timeout" data-key="storage.cephfs.automount_idle_timeout_s" data-type="int" placeholder="600">
+          </fieldset>
+        </div>
+      </div>
+    </details>
+
     <details class="section" id="adv-blades-nodes">
       <summary>Blades &amp; Nodes · cluster topology <span class="phase-badge">Distributed · compute fabric</span></summary>
       <div class="section-body">
@@ -4122,6 +4181,7 @@ function buildTabs() {
     ["cluster",         "Cluster",         ["#adv-blades-nodes", "#adv-pods", "#adv-agents-federation"]],
     ["ai",              "AI",              ["#adv-ai", "#adv-ai-pipeline"]],
     ["governance",      "Governance",      ["#adv-governance"]],
+    ["storage",         "Storage",         ["#adv-storage"]],
     ["system",          "System",          []],
     ["config",          "Config / Raw",    []],
   ];

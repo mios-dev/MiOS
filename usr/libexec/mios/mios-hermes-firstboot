@@ -1902,9 +1902,59 @@ if [[ -x /mnt/c/Program\ Files/Tailscale/tailscale.exe ]]; then
         fi
     ) || true
 fi
+
+# ── CephFS automount setup (Part 9 T-087) ──
+_cephfs_setup=""
+for _c in /var/lib/mios/build/mios-bootstrap/automation/firstboot/mios-cephfs-mount-setup.sh \
+          /opt/mios-bootstrap/automation/firstboot/mios-cephfs-mount-setup.sh \
+          "${MIOS_BOOTSTRAP_REPO:-}/automation/firstboot/mios-cephfs-mount-setup.sh" \
+          /mnt/m/automation/firstboot/mios-cephfs-mount-setup.sh \
+          /usr/share/mios/automation/firstboot/mios-cephfs-mount-setup.sh; do
+    if [[ -x "$_c" ]]; then
+        _cephfs_setup="$_c"
+        break
+    fi
+done
+
+if [[ -n "$_cephfs_setup" ]]; then
+    _log "Running CephFS automount setup: $_cephfs_setup"
+    if bash "$_cephfs_setup" 2>&1 | sed 's/^/  /'; then
+        _log "CephFS automount setup completed successfully"
+    else
+        _log "WARN: CephFS automount setup failed"
+    fi
+else
+    _log "WARN: CephFS automount setup script not found"
+fi
+
+# ── CephFS XDG and User Directories setup (Part 9 T-090, T-091) ──
+_xdg_setup=""
+for _c in /var/lib/mios/build/mios-bootstrap/automation/firstboot/mios-xdg-setup.sh \
+          /opt/mios-bootstrap/automation/firstboot/mios-xdg-setup.sh \
+          "${MIOS_BOOTSTRAP_REPO:-}/automation/firstboot/mios-xdg-setup.sh" \
+          /mnt/m/automation/firstboot/mios-xdg-setup.sh \
+          /usr/share/mios/automation/firstboot/mios-xdg-setup.sh; do
+    if [[ -x "$_c" ]]; then
+        _xdg_setup="$_c"
+        break
+    fi
+done
+
+if [[ -n "$_xdg_setup" ]]; then
+    _log "Running CephFS XDG setup: $_xdg_setup"
+    if bash "$_xdg_setup" 2>&1 | sed 's/^/  /'; then
+        _log "CephFS XDG setup completed successfully"
+    else
+        _log "WARN: CephFS XDG setup failed"
+    fi
+else
+    _log "WARN: CephFS XDG setup script not found"
+fi
+
 # Explicit exit 0 so the script's exit status doesn't depend on the
 # last sub-block's truthiness under set -e (the Tailscale block
 # always reaches here non-failing now, but a future maintainer
 # adding a new tail block shouldn't have to think about set -e
 # arithmetic).
 exit 0
+

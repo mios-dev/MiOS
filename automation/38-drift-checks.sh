@@ -883,6 +883,86 @@ PY
     fi
 }
 
+# --- (18) [storage.cephfs] SSOT validator (T-084 / T-093). -------------------
+# Validates CephFS configuration:
+# (a) monitors is not placeholder ["127.0.0.1:6789"] when enable=true
+# (b) xdg_cache_home_override does not point to a CephFS-backed path (avoid MDS cache storms)
+# (c) data_pool_hot and data_pool_bulk are distinct
+# (d) provision_script path exists in the image (warnings/advisory when offline)
+check_cephfs_ssot() {
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "[38-drift-checks]   WARNING: python3 missing -- skipping cephfs check" >&2
+        return 0
+    fi
+    if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
+import os, sys
+root = os.environ["MIOS_DRIFT_ROOT"]
+viol = []
+
+try:
+    import tomllib as _toml
+except ImportError:
+    try:
+        import tomli as _toml
+    except ImportError:
+        _toml = None
+
+toml_path = os.path.join(root, "usr/share/mios/mios.toml")
+if _toml is None:
+    sys.stderr.write("[38-drift-checks]   WARNING: no tomllib/tomli -- skipping CephFS check\n")
+elif os.path.isfile(toml_path):
+    with open(toml_path, "rb") as fh:
+        data = _toml.load(fh)
+    cephfs = data.get("storage", {}).get("cephfs", {}) or {}
+    enable = cephfs.get("enable", False)
+    
+    if enable:
+        # (a) monitors is not the placeholder
+        monitors = cephfs.get("monitors", [])
+        if not monitors or monitors == ["127.0.0.1:6789"]:
+            viol.append("[storage.cephfs].monitors must be set to actual monitor IPs when enable=true")
+            
+        # (b) cache isolation rule: xdg_cache_home_override does NOT contain CephFS paths
+        cache_override = cephfs.get("xdg_cache_home_override", "")
+        hostnames = [m.split(":")[0] for m in monitors]
+        if ("ceph" in cache_override.lower() or 
+                "/tenants/" in cache_override or 
+                cache_override.startswith("/home/") or 
+                any(h in cache_override for h in hostnames if h)):
+            viol.append("[storage.cephfs].xdg_cache_home_override must be local tmpfs, NEVER CephFS (MDS storm hazard)")
+            
+        # (c) distinct pools
+        hot_pool = cephfs.get("data_pool_hot", "")
+        bulk_pool = cephfs.get("data_pool_bulk", "")
+        if hot_pool and bulk_pool and hot_pool == bulk_pool:
+            viol.append("[storage.cephfs] data_pool_hot and data_pool_bulk must be distinct pools for tiering")
+            
+        # (d) provision_script exists (checked relative to ROOT or absolute on live VM)
+        prov_script = cephfs.get("provision_script", "")
+        if prov_script:
+            # check both repo-relative and absolute (since usr/ is in checkouts)
+            rel_path = prov_script.lstrip("/")
+            repo_path = os.path.join(root, rel_path)
+            if not os.path.exists(repo_path) and not os.path.exists(prov_script):
+                viol.append(f"[storage.cephfs].provision_script path '{prov_script}' does not exist on disk")
+
+        # (e) automount_enable = true but home-@.mount.tmpl absent
+        if cephfs.get("automount_enable", False):
+            mount_tmpl = os.path.join(root, "usr/share/mios/systemd/home-@.mount.tmpl")
+            if not os.path.exists(mount_tmpl):
+                viol.append("home-@.mount.tmpl is missing from usr/share/mios/systemd/ but [storage.cephfs].automount_enable is true")
+
+for v in viol:
+    sys.stderr.write(f"    {v}\n")
+sys.exit(1 if viol else 0)
+PY
+    then
+        echo "[38-drift-checks]   (18) CephFS SSOT configuration is valid (no placeholder/cache conflicts)"
+    else
+        _violation "[storage.cephfs] SSOT validation failed (see lines above)"
+    fi
+}
+
 main() {
     check_dead_lane
     check_retired_models
@@ -901,6 +981,7 @@ main() {
     check_pod_quadlets
     check_egress_firewall
     check_unwired_modules
+    check_cephfs_ssot
 
     echo "[38-drift-checks] ---------------------------------------------------------"
     if [[ "$VIOLATIONS" -eq 0 ]]; then

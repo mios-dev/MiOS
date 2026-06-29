@@ -13,11 +13,7 @@ install -d -m 0755 "${WANTS}"
 log "Enabling Greenboot services..."
 for unit in \
     greenboot-healthcheck.service \
-    greenboot-rpm-ostree-grub2-check-fallback.service \
-    greenboot-grub2-set-counter.service \
-    greenboot-grub2-set-success.service \
-    greenboot-status.service \
-    redboot-auto-reboot.service
+    greenboot-set-rollback-trigger.service
 do
     if [[ -f "/usr/lib/systemd/system/${unit}" ]]; then
         ln -sf "../${unit}" "${WANTS}/${unit}"

@@ -5475,7 +5475,7 @@ package_version     = "0.0.0"
 # Single engine ("sglang" | "vllm") sets the preference; "light" forces light-only; an
 # explicit comma-chain ("sglang,vllm,light") is honoured verbatim. Read directly from this
 # SSOT by the agent-pipe (no quadlet placeholder); env override MIOS_AGENT_PIPE_HEAVY_ENGINE.
-heavy_engine        = "sglang"
+heavy_engine        = "vllm"
 # WS-A16 remote-core escalation: when "on", any REMOTE [nodes.*] endpoint becomes
 # a first-class TRAILING lane in the resolver -- local lanes are still preferred
 # (LiteLLM order-based fallback: local-first), and a remote core is reached only
@@ -6215,21 +6215,16 @@ served_name    = "mios-heavy"   # OpenAI served-model-name the lane advertises (
 gpu_util       = 0.45           # --gpu-memory-utilization: bounded slice; leaves room for ollama + Windows co-tenancy
 max_model_len  = 131072         # global 128k mandate. Heavy reasoner = Mistral Magistral Small 2509 AWQ (~14GB) leaves KV headroom on the 24GB 4090; pair with --kv-cache-dtype fp8 to fit 131072. Serve with --reasoning-parser mistral --quantization awq_marlin.
 prefix_caching = true           # --enable-prefix-caching (APC): reuse the shared swarm prompt prefix across agents
+v1_engine      = true           # --v1: enable modern vLLM V1 engine
 
 # ----------------------------------------------------------------------------
 # [ai.sglang] -- the SGLang heavy lane ("continue with SGLang").
-# Mirror of [ai.vllm]; the mios-llm-heavy Quadlet reads these via MIOS_SGLANG_*.
+# Mirror of [ai.sglang]; the mios-llm-heavy Quadlet reads these via MIOS_SGLANG_*.
 # SGLang's HiCache spills inactive KV to CPU RAM -> a quantized heavy/VLM reasoner
 # fits the partial 4090. Gated/disabled by default; enable ONE heavy lane (vLLM OR
 # SGLang) on a shared GPU.
 [ai.sglang]
 enable             = false          # documents intent; the systemd unit is the real gate (disabled by default)
-# Heavy-lane model: Qwen3-8B-AWQ (live mount /usr/share/mios/sglang/model-q3-8b).
-# Qwen3.5-4B-AWQ was TRIED (the recorded agentic pick, fits ~6GB) but it
-# CRASHES SGLang 0.5.12 under load (the qwen3_5 arch is unstable on this SGLang --
-# lane dies after a few requests regardless of the qwen3_coder parser); the 8B is
-# rock-stable. Weights parked at .../model-q35-4b; revisit after an SGLang upgrade.
-# 27-31B / 14B do NOT fit this shared 4090 (9.4GB+overhead > ~13.9GB free -> OOM).
 bake_model         = ""             # empty = no bake (the 8B is provisioned separately; do NOT bake the unstable q35-4b)
 served_name        = "mios-heavy"   # OpenAI served-model-name (= [nodes.local-sglang].model); shared heavy-lane name with vLLM
 mem_fraction       = 0.45           # --mem-fraction-static: bounded GPU slice; leaves room for ollama + Windows co-tenancy
@@ -6237,6 +6232,7 @@ tool_parser        = "qwen25"       # --tool-call-parser: parse Qwen <tool_call>
 reasoning_parser   = "qwen3"         # --reasoning-parser: split <think> reasoning from the answer (qwen3 fits Qwen3-8B; a Magistral heavy model would use "mistral"). SSOT for MIOS_SGLANG_REASONING_PARSER consumed by mios-llm-heavy.container.
 max_model_len      = 65536          # Wave 0: live-validated ceiling for the 8B + --disable-cuda-graph lane on the shared 4090 (131072 OOMs without KV-cache spill). 131072 requires HiCache CPU KV-offload + --kv-cache-dtype fp8 (Wave 1) -- re-raise once that lands and is verified live.
 hierarchical_cache = true           # --enable-hierarchical-cache (HiCache): spill inactive KV to CPU RAM
+unified_radix_tree = true           # --enable-unified-radix-tree (UnifiedRadixTree): enable radx-tree KV cache optimization
 
 # ----------------------------------------------------------------------------
 # [packages] -- runtime SSOT for every dnf install in MiOS. Each
@@ -7254,8 +7250,8 @@ ttyd_powershell    = 7682     # ttyd browser pty -- Windows-side PowerShell sess
 adguard_dns        = 53       # AdGuard Home DNS resolver (ad/tracker/malware sinkhole; tailnet-wide global nameserver)
 adguard_ui         = 3053     # AdGuard Home web UI + REST API (3000 is forge_http; 3053 is mnemonic for :53)
 opencode_gateway   = 8633     # opencode -> OpenAI /v1 gateway shim (mios-opencode-gateway.service); makes [agents.opencode] a REAL /v1 council peer. LOOPBACK only (127.0.0.1).
-vllm               = 11440    # vLLM heavy dGPU lane (re-scoped mios-llm-heavy-alt Quadlet; OpenAI /v1, PagedAttention+APC). Off the iGPU's :11436 + finetune-serve :11438. GATED/disabled by default (VRAM). [ai.vllm] + [nodes.local-vllm].
-sglang             = 11441    # SGLang heavy dGPU lane (mios-llm-heavy Quadlet; OpenAI /v1, HiCache CPU KV-offload). GATED/disabled by default (VRAM). [ai.sglang] + [nodes.local-sglang].
+vllm               = 11441    # vLLM heavy dGPU lane (re-scoped mios-llm-heavy Quadlet; OpenAI /v1, PagedAttention+APC). Off the iGPU's :11436 + finetune-serve :11438. GATED/disabled by default (VRAM). [ai.vllm] + [nodes.local-vllm].
+sglang             = 11442    # SGLang heavy dGPU lane (OpenAI /v1, HiCache CPU KV-offload). GATED/disabled by default (VRAM). [ai.sglang] + [nodes.local-sglang].
 
 # ----------------------------------------------------------------------------
 # [image.sidecars] -- pinned upstream container references for every
@@ -7461,7 +7457,7 @@ network     = "host"
 after       = ["network-online.target"]
 wants       = ["network-online.target"]
 wanted_by   = ["multi-user.target", "default.target"]
-members     = ["mios-llm-heavy", "mios-llm-heavy-alt"]
+members     = ["mios-llm-heavy"]
 doc = """Heavy inference lane pod."""
 
 [pods.mios-ai-data]
@@ -9033,3 +9029,42 @@ cmd        = "mios-app-default {type} {app}"
   [verbs.switch_app_default.params.app]
   type = "string"
   desc = "The concrete application name or id, e.g. 'zen', 'code'."
+
+# ----------------------------------------------------------------------------
+# [storage.cephfs] -- Part 9: XDG + CephFS Unified Storage Fabric
+# SSOT for mios-cephfs-provision, automount templates, and ceph.conf generation.
+# ----------------------------------------------------------------------------
+[storage.cephfs]
+enable                          = false          # Operator sets true after cluster is live
+cluster_name                    = "ceph"
+monitors                        = ["127.0.0.1:6789"]   # Override with actual MON IPs in /etc/mios/install.env
+fs_name                         = "cephfs"
+tenant_id                       = "mios"                # Subvolume group name prefix
+
+# Pool layout
+metadata_pool                   = "cephfs_metadata"
+data_pool_hot                   = "cephfs_data_hot"
+data_pool_bulk                  = "cephfs_data_bulk"
+
+# MDS tuning
+mds_cache_memory_limit_gib      = 4
+mds_session_cap_max             = 1024
+
+# Client-side mount options (rendered into /etc/fstab / systemd .mount units)
+mount_options                   = "noatime,fsc,_netdev"
+client_cache_size               = 16384
+client_readahead_max_bytes      = 33554432
+client_reconnect_stale_interval = 30
+
+# XDG cache isolation (MUST be local, NEVER CephFS)
+xdg_cache_home_override         = "/run/user/{uid}/.cache"    # {uid} expanded at runtime
+
+# Provisioning
+subvolume_mode                  = "0700"
+keyring_dir                     = "/etc/ceph/keyring.d"
+provision_script                = "/usr/libexec/mios/mios-cephfs-provision"
+
+# Automount
+automount_enable                = true
+automount_idle_timeout_s        = 600    # Unmount idle home dirs after 10 min
+

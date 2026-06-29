@@ -64,6 +64,7 @@ deployed `/` IS a git working tree of `mios.git` (`mios_root_git`).
 │   ├─ usr/share/doc/mios/guides/deploy.md                 deploy-time instructions
 │   ├─ usr/share/doc/mios/guides/install.md                install-time instructions
 │   ├─ usr/share/doc/mios/guides/self-build.md             self-replication-loop docs
+│   ├─ usr/share/doc/mios/guides/cephfs-xdg-storage.md     caching + user subvolume guide
 │   ├─ SECURITY.md               security posture
 │   ├─ LICENSE / usr/share/doc/mios/reference/licenses.md     Apache-2.0 + bundled-component licenses
 │   ├─ usr/share/doc/mios/reference/credits.md                upstream attribution registry
@@ -127,11 +128,10 @@ deployed `/` IS a git working tree of `mios.git` (`mios_root_git`).
 │   │   ├─ 37-selinux.sh                   build-time SELinux policy fixes
 │   │   ├─ 38-hermes-agent.sh              MiOS-Hermes agent gateway install (:8642)
 │   │   ├─ 38-llamacpp-prep.sh             mios-llm-light prep: llama.cpp GGUF bake behind the upstream llama-swap proxy (replaces the retired Ollama model-bake)
-│   │   ├─ 38-vllm-prep.sh                 mios-llm-heavy-alt (vLLM) heavy-lane prep (gated)
+│   │   ├─ 38-vllm-prep.sh                 mios-llm-heavy (vLLM) heavy-lane prep (gated)
 │   │   ├─ 38-oh-my-posh.sh                oh-my-posh install + theme
 │   │   ├─ 38-vm-gating.sh                 VM service gating + Hyper-V Enhanced Session
 │   │   ├─ 39-desktop-polish.sh            desktop entries / Cockpit webapp
-│   │   ├─ 39-opencode.sh                  opencode coder peer + mios-opencode-gateway (:8633) install
 │   │   ├─ 40-composefs-verity.sh          composefs verity setup
 │   │   ├─ 40-flatpak-bake.sh              bake [desktop].flatpaks list into image
 │   │   ├─ 41-gpu-cdi-toolkits.sh          AMD/Intel CDI generators (out-of-Fedora binaries)
@@ -400,10 +400,10 @@ named by *function*, not by upstream tool:
 | Concern | Where it lives | Service / port |
 |---|---|---|
 | **Primary inference + embeddings** | `usr/share/mios/llamacpp/mios-llm-light.yaml`, `mios-llm-light.container` | `mios-llm-light` `:11450` -- `llama.cpp` behind the upstream `mios-llm-light` proxy image; multi-model auto-swap + KV-cache paging; serves everyday models, the `mios-opencode` coder model, and embeddings (`nomic-embed-text`, `/v1/embeddings`) |
-| **Heavy GPU lane** | `mios-llm-heavy.container`, `automation/38-vllm-prep.sh` (alt) | `mios-llm-heavy` `:11441` (SGLang, served-name `mios-heavy`); `mios-llm-heavy-alt` `:11440` (vLLM). Gated off-by-default (VRAM) |
+| **Heavy GPU lane** | `mios-llm-heavy.container`, `automation/38-vllm-prep.sh` | `mios-llm-heavy` `:11441` (vLLM, served-name `mios-heavy`). Gated off-by-default (VRAM) |
 | **Swarm workers** | `mios-llm-worker@.container` | `mios-llm-worker@` -- single-model templated workers for fan-out |
 | **Orchestration** | `usr/lib/mios/agent-pipe/`, `hermes-agent.service`, `mios-delegation-prefilter.service` | agent-pipe `:8640` (router/refine/council/swarm) → MiOS-Hermes `:8642` (tool-loop, sessions, browser/CDP); prefilter `:8641` (fan-out hints) |
-| **Coder peer** | `automation/39-opencode.sh`, `mios-opencode-gateway.service` | `:8633` opencode → `/v1` council member |
+| **Coder peer** | `mios-opencode-gateway.service` | `:8633` opencode → `/v1` council member |
 | **Memory** | `usr/share/mios/postgres/schema-init.sql`, `mios-pgvector.container` | `mios-pgvector` `:5432` -- PostgreSQL + pgvector; the unified agent datastore (accessed via `mios-pg-query` / `mios-db --pg`) |
 | **Tools & federation** | `mios-mcp.service`, `usr/share/mios/ai/v1/mcp.json`, `mios-searxng.container` | MCP (tool surface) + A2A (peer agents); `web_search` backed by SearXNG `:8888` |
 
@@ -705,16 +705,7 @@ artifacts have been renamed or removed in the live tree).
 |  |  |  `- Xwrapper.config
 |  |  +- bootc/
 |  |  |  +- bound-images.d/
-|  |  |  |  +- mios-ceph.container
-|  |  |  |  +- mios-cockpit-link.container
-|  |  |  |  +- mios-crowdsec-dashboard.container
-|  |  |  |  +- mios-forge.container
-|  |  |  |  +- mios-forgejo-runner.container
-|  |  |  |  +- mios-guacamole.container
-|  |  |  |  +- mios-guacamole-postgres.container
-|  |  |  |  +- mios-guacd.container
-|  |  |  |  +- mios-k3s.container
-|  |  |  |  `- mios-pxe-hub.container
+|  |  |  |  `- .gitkeep
 |  |  |  +- install/
 |  |  |  |  `- 00-mios.toml
 |  |  |  `- kargs.d/
@@ -954,7 +945,6 @@ artifacts have been renamed or removed in the live tree).
 |  |  |     +- mios-guacd.container
 |  |  |     +- mios-k3s.container
 |  |  |     +- mios-llm-heavy.container
-|  |  |     +- mios-llm-heavy-alt.container
 |  |  |     +- mios-llm-light.container
 |  |  |     +- mios-llm-worker@.container
 |  |  |     +- mios-open-webui.container
@@ -1101,6 +1091,7 @@ artifacts have been renamed or removed in the live tree).
 +- README.md
 +- SECURITY.md
 +- usr/share/doc/mios/guides/self-build.md
++- usr/share/doc/mios/guides/cephfs-xdg-storage.md
 +- usr/share/doc/mios/reference/sources.md
 +- VERSION
 +- build-mios.ps1

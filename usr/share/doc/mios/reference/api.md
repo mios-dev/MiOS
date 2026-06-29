@@ -59,8 +59,7 @@ answered:
 | Lane / service | Port | Role |
 |---|---|---|
 | **mios-llm-light** (`mios-llm-light.container`) | `:11450` | **Primary** local engine -- llama.cpp behind the `mios-llm-light` proxy image (`ghcr.io/mostlygeek/llama-swap`). On-demand multi-model auto-swap behind one OpenAI `/v1` endpoint, per-conversation KV-cache paging to disk (`--slot-save-path`), **and embeddings** (`nomic-embed-text` via `POST /v1/embeddings`). Also serves the `mios-opencode` coder model. Model map: `usr/share/mios/llamacpp/mios-llm-light.yaml`. |
-| **mios-llm-heavy** (`mios-llm-heavy.container`) | `:11441` | Heavy GPU reasoning lane -- SGLang, served as `mios-heavy`, with continuous batching, RadixAttention prefix reuse, and a Qwen tool-call parser so fan-out agents emit real `tool_calls`. **Gated / off by default** (VRAM); enable only on a dGPU with headroom after baking weights. |
-| **mios-llm-heavy-alt** (`mios-llm-heavy-alt.container`) | `:11440` | Alternate heavy lane -- vLLM (PagedAttention + Automatic Prefix Caching). Mutually exclusive with `mios-llm-heavy` on a shared GPU; **gated / off by default** (VRAM). |
+| **mios-llm-heavy** (`mios-llm-heavy.container`) | `:11441` | Heavy GPU reasoning lane -- vLLM (PagedAttention + APC). Serves `mios-heavy` with continuous batching and automatic prefix caching. **gated / off by default** (VRAM); enable only on a dGPU with headroom after baking weights. |
 | **mios-llm-worker@** (`mios-llm-worker@.container`) | -- | Single-model swarm workers for parallel fan-out. |
 | **MiOS-Hermes gateway** (`hermes-agent.service`) | `:8642` | OpenAI-compatible *agent* gateway -- sessions, tool-calling, skills. Forwards raw inference to the light lane (`http://localhost:11450/v1`). |
 | **MiOS agent-pipe** (`mios-agent-pipe.service`) | `:8640` | The orchestrator that fronts every gateway (OWUI, Discord, future Slack/Telegram): refine -> multi-agent dispatch -> tool-loop -> pgvector recall -> polish. |
@@ -814,7 +813,7 @@ export OPENAI_API_KEY="$MIOS_AI_API_KEY"
 
 - Architectural Law 5 (UNIFIED-AI-REDIRECTS): [`CLAUDE.md`](CLAUDE.md), [`usr/share/mios/ai/INDEX.md`](usr/share/mios/ai/INDEX.md), [`usr/share/doc/mios/guides/engineering.md`](usr/share/doc/mios/guides/engineering.md).
 - Primary inference lane / model map: [`usr/share/mios/llamacpp/mios-llm-light.yaml`](usr/share/mios/llamacpp/mios-llm-light.yaml), [`usr/share/containers/systemd/mios-llm-light.container`](usr/share/containers/systemd/mios-llm-light.container).
-- Heavy lanes (gated): [`usr/share/containers/systemd/mios-llm-heavy.container`](usr/share/containers/systemd/mios-llm-heavy.container) (SGLang), [`usr/share/containers/systemd/mios-llm-heavy-alt.container`](usr/share/containers/systemd/mios-llm-heavy-alt.container) (vLLM).
+- Heavy lane (gated): [`usr/share/containers/systemd/mios-llm-heavy.container`](usr/share/containers/systemd/mios-llm-heavy.container) (vLLM).
 - Agent datastore (pgvector): [`usr/share/containers/systemd/mios-pgvector.container`](usr/share/containers/systemd/mios-pgvector.container), schema [`usr/share/mios/postgres/schema-init.sql`](usr/share/mios/postgres/schema-init.sql).
 - Orchestration pipeline: [`usr/lib/mios/agent-pipe/server.py`](usr/lib/mios/agent-pipe/server.py).
 - Batch input format: [`usr/share/mios/api/batch.requests.jsonl`](usr/share/mios/api/batch.requests.jsonl).
@@ -917,7 +916,7 @@ The full pipeline spans five phases owned by two repos:
 2. **NO-MKDIR-IN-VAR** -- every `/var/` path declared via `usr/lib/tmpfiles.d/*.conf`. **Never write to `/var/` at build time.** bootc forbids it; lint will fail.
 3. **BOUND-IMAGES** -- every Quadlet image symlinked into `/usr/lib/bootc/bound-images.d/`. Binder loop: `automation/08-system-files-overlay.sh`.
 4. **BOOTC-CONTAINER-LINT** -- must be the final `RUN` of `Containerfile`. No `--squash-all` (strips OCI metadata bootc needs).
-5. **UNIFIED-AI-REDIRECTS** -- all agents and tools target `MIOS_AI_ENDPOINT` (default `http://localhost:8080/v1`). Vendor-hardcoded URLs are forbidden. The endpoint is served by the MiOS inference lanes (`mios-llm-light` primary; `mios-llm-heavy`/`mios-llm-heavy-alt` gated) fronted by the MiOS-Hermes gateway (`:8642`) and the agent-pipe (`:8640`) -- see [Where the surface is served](#where-the-surface-is-served).
+5. **UNIFIED-AI-REDIRECTS** -- all agents and tools target `MIOS_AI_ENDPOINT` (default `http://localhost:8080/v1`). Vendor-hardcoded URLs are forbidden. The endpoint is served by the MiOS inference lanes (`mios-llm-light` primary; `mios-llm-heavy` gated) fronted by the MiOS-Hermes gateway (`:8642`) and the agent-pipe (`:8640`) -- see [Where the surface is served](#where-the-surface-is-served).
 6. **UNPRIVILEGED-QUADLETS** -- every Quadlet declares `User=`, `Group=`, `Delegate=yes`. Documented root exceptions: `mios-ceph`, `mios-k3s`, `mios-forgejo-runner` (file headers explain why; heavy-lane images that must run as image-default root, e.g. SGLang's NVIDIA base, are similarly documented in their unit headers).
 
 ## A.5 Package management

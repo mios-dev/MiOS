@@ -33,8 +33,7 @@ log "Enabling NVIDIA CDI units..."
 for unit in \
     nvidia-cdi-refresh.path \
     nvidia-cdi-refresh.service \
-    nvidia-persistenced.service \
-    mios-nvidia-cdi.service
+    nvidia-persistenced.service
 do
     if [[ -f "/usr/lib/systemd/system/${unit}" ]]; then
         ln -sf "../${unit}" "${WANTS}/${unit}"

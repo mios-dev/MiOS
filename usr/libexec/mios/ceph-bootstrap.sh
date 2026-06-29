@@ -59,6 +59,14 @@ if [[ -z "$MON_IP" ]]; then
     exit 0
 fi
 
+# Render a temporary bootstrap config to apply MDS cache tuning limits (4 GiB)
+# to prevent MDS OOM and memory leaks under heavy AI tool loop walks.
+BOOTSTRAP_CONFIG="/tmp/ceph-bootstrap-config.conf"
+cat <<EOF > "$BOOTSTRAP_CONFIG"
+[global]
+mds_cache_memory_limit = 4294967296
+EOF
+
 _log "running 'cephadm bootstrap --single-host-defaults --mon-ip ${MON_IP}'"
 if cephadm bootstrap \
     --single-host-defaults \
@@ -68,6 +76,7 @@ if cephadm bootstrap \
     --allow-fqdn-hostname \
     --output-config /etc/ceph/ceph.conf \
     --output-keyring /etc/ceph/ceph.client.admin.keyring \
+    --config "$BOOTSTRAP_CONFIG" \
     2>&1 | logger -t mios-ceph-bootstrap; then
     _log "cephadm bootstrap completed"
 else

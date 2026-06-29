@@ -52,6 +52,8 @@
     "GET /v1/scheduler -> scheduler_state",
     "GET /v1/self-improve/proposals -> selfimprove_proposals_ep",
     "GET /v1/self-improve/report -> selfimprove_report_ep",
+    "GET /v1/storage/cephfs/health -> cephfs_health",
+    "GET /v1/storage/cephfs/users -> cephfs_users",
     "GET /v1/tool-search -> tool_search",
     "GET /v1/tools -> list_tools",
     "GET /v1/trace -> trace_recent",
@@ -764,6 +766,7 @@
     "_center_windows",
     "_cfg_num",
     "_check_inbound_principal",
+    "_check_user_cephfs",
     "_checkpoint_keep_models",
     "_clarify_question",
     "_classify_approval_reply",
@@ -1222,6 +1225,8 @@
     "audit_router",
     "base64",
     "caller_key_revoke",
+    "cephfs_health",
+    "cephfs_users",
     "chain_verify",
     "chat_completions",
     "chat_router",
@@ -1359,7 +1364,7 @@
     "websockets"
   ],
   "counts": {
-    "routes": 76,
-    "provided": 1279
+    "routes": 78,
+    "provided": 1282
   }
 }

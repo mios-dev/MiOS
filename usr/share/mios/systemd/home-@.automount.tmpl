@@ -1,0 +1,12 @@
+# AI-hint: systemd automount template for demand-mounting CephFS user home subvolumes.
+# AI-related: /etc/systemd/system/home-@.automount, [storage.cephfs]
+
+[Unit]
+Description=CephFS automount for user %i
+
+[Automount]
+Where=/home/%i
+TimeoutIdleSec=${MIOS_CEPHFS_AUTOMOUNT_IDLE_TIMEOUT_S}
+
+[Install]
+WantedBy=multi-user.target

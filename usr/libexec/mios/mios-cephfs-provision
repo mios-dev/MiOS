@@ -1,0 +1,283 @@
+#!/usr/bin/env python3
+# AI-hint: Automated provisioning utility for CephFS user home subvolumes and path-scoped CephX keyrings.
+#          Called by pam_exec.so on session init (validate subcommand) or manually by administrator/automation.
+# AI-related: /usr/lib/pam.d/system-auth, /usr/libexec/mios/mios-pg-query, /usr/share/mios/mios.toml
+# AI-functions: load_cephfs_config, get_user_info, run_cmd, log_event, cmd_validate, cmd_create, cmd_delete, main
+"""mios-cephfs-provision -- CephFS user subvolume + keyring provisioning utility."""
+
+import sys
+import os
+import subprocess
+try:
+    import pwd
+except ImportError:
+    pwd = None
+import json
+
+def load_cephfs_config() -> dict:
+    """Load storage.cephfs table from layered mios.toml configurations."""
+    layers = [
+        os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml"),
+        "/etc/mios/mios.toml",
+        os.path.expanduser("~/.config/mios/mios.toml")
+    ]
+    try:
+        import tomllib
+    except ImportError:
+        try:
+            import tomli as tomllib
+        except ImportError:
+            tomllib = None
+
+    cfg = {
+        "enable": False,
+        "cluster_name": "ceph",
+        "monitors": ["127.0.0.1:6789"],
+        "fs_name": "cephfs",
+        "tenant_id": "mios",
+        "data_pool_hot": "cephfs_data_hot",
+        "data_pool_bulk": "cephfs_data_bulk",
+        "keyring_dir": "/etc/ceph/keyring.d",
+        "subvolume_mode": "0700"
+    }
+
+    if tomllib is None:
+        return cfg
+
+    for p in layers:
+        try:
+            with open(p, "rb") as f:
+                data = tomllib.load(f)
+                cephfs = data.get("storage", {}).get("cephfs", {})
+                if cephfs:
+                    for k, v in cephfs.items():
+                        # Parse string booleans / ints / lists
+                        if k == "enable" and isinstance(v, str):
+                            cfg[k] = v.lower() in ("true", "1", "yes", "on")
+                        else:
+                            cfg[k] = v
+        except Exception:
+            continue
+    return cfg
+
+def get_user_info(uid_str: str):
+    """Retrieve username and gid from uid."""
+    try:
+        uid = int(uid_str)
+        if pwd is not None:
+            pw = pwd.getpwuid(uid)
+            return pw.pw_name, pw.pw_gid
+        else:
+            return f"user_{uid_str}", int(uid_str)
+    except Exception as e:
+        sys.stderr.write(f"Failed to lookup UID {uid_str}: {e}\n")
+        # Degrade-open fallbacks
+        return f"user_{uid_str}", int(uid_str)
+
+def run_cmd(args: list, check=True) -> subprocess.CompletedProcess:
+    """Helper to run a system command safely."""
+    try:
+        return subprocess.run(args, capture_output=True, text=True, check=check)
+    except FileNotFoundError:
+        raise RuntimeError(f"Command not found: {args[0]}")
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError(f"Command '{' '.join(args)}' failed (rc={e.returncode}): {e.stderr.strip() or e.stdout.strip()}")
+
+def log_event(action: str, uid: int, gid: int, tenant_id: str, summary: str):
+    """Log provisioning event to pgvector via mios-pg-query."""
+    try:
+        payload = json.dumps({
+            "uid": uid,
+            "gid": gid,
+            "action": action,
+            "tenant_id": tenant_id
+        })
+        envelope = {
+            "sql": "INSERT INTO event (source, kind, severity, summary, payload) VALUES ($1, $2, $3, $4, $5::jsonb)",
+            "params": ["cephfs", "storage_provision", "info", summary, payload]
+        }
+        # Speaks parameterized JSON on stdin
+        subprocess.run(
+            ["/usr/libexec/mios/mios-pg-query", "--exec-json"],
+            input=json.dumps(envelope),
+            text=True,
+            capture_output=True,
+            check=False
+        )
+    except Exception as e:
+        sys.stderr.write(f"Failed to log storage event to pgvector: {e}\n")
+
+def cmd_validate(uid_str: str, cfg: dict) -> int:
+    """Validate user subvolume and keyring. Create if absent."""
+    username, gid = get_user_info(uid_str)
+    uid = int(uid_str)
+    subvol = f"{uid}-home"
+    group = f"{cfg['tenant_id']}-users"
+    
+    sys.stdout.write(f"Validating storage for user {username} (UID={uid}, GID={gid})\n")
+    
+    # Check if subvolume info can be retrieved
+    subvol_exists = False
+    try:
+        run_cmd(["ceph", "fs", "subvolume", "info", cfg["fs_name"], subvol, "--group_name", group])
+        subvol_exists = True
+        sys.stdout.write(f"CephFS subvolume {group}/{subvol} exists\n")
+    except Exception as e:
+        sys.stderr.write(f"CephFS subvolume info check returned: {e}\n")
+    
+    # Check if keyring exists
+    keyring_path = os.path.join(cfg["keyring_dir"], f"client.{uid}")
+    keyring_exists = os.path.exists(keyring_path)
+    if keyring_exists:
+        sys.stdout.write(f"CephX keyring {keyring_path} exists\n")
+
+    if not subvol_exists or not keyring_exists:
+        sys.stdout.write(f"Provisioning missing storage components for user {username}...\n")
+        cmd_create(uid_str, str(gid), cfg)
+    
+    return 0
+
+def cmd_create(uid_str: str, gid_str: str, cfg: dict) -> int:
+    """Create CephFS subvolume and path-scoped CephX keyring."""
+    username, _ = get_user_info(uid_str)
+    uid, gid = int(uid_str), int(gid_str)
+    subvol = f"{uid}-home"
+    group = f"{cfg['tenant_id']}-users"
+    
+    sys.stdout.write(f"Creating storage subvolume {group}/{subvol} for {username}...\n")
+    
+    # 1. Create subvolume group
+    try:
+        run_cmd(["ceph", "fs", "subvolumegroup", "create", cfg["fs_name"], group], check=False)
+    except Exception as e:
+        sys.stderr.write(f"Warning: subvolumegroup create command failed or group exists: {e}\n")
+
+    # 2. Create subvolume
+    run_cmd([
+        "ceph", "fs", "subvolume", "create", cfg["fs_name"], subvol,
+        "--group_name", group,
+        "--uid", str(uid), "--gid", str(gid),
+        "--mode", cfg["subvolume_mode"]
+    ])
+
+    # 3. CephX per-user keyring creation (T-089 capability requirements)
+    keyring_path = os.path.join(cfg["keyring_dir"], f"client.{uid}")
+    os.makedirs(cfg["keyring_dir"], exist_ok=True)
+    
+    caps_mds = f"allow r, allow rw path=/tenants/{cfg['tenant_id']}/users/{uid}"
+    caps_osd = f"allow rw pool={cfg['data_pool_hot']} tag cephfs data=cephfs, allow rw pool={cfg['data_pool_bulk']} tag cephfs data=cephfs"
+    caps_mon = "allow r"
+    
+    run_cmd([
+        "ceph", "auth", "get-or-create", f"client.{uid}",
+        "mds", caps_mds,
+        "osd", caps_osd,
+        "mon", caps_mon,
+        "-o", keyring_path
+    ])
+    
+    # Set permissions
+    os.chmod(keyring_path, 0o400)
+    os.chown(keyring_path, uid, gid)
+    
+    sys.stdout.write(f"Storage provisioned successfully. Keyring written to {keyring_path}\n")
+    
+    log_event(
+        action="create",
+        uid=uid,
+        gid=gid,
+        tenant_id=cfg["tenant_id"],
+        summary=f"CephFS subvolume and keyring provisioned for user {username} (UID={uid})"
+    )
+    return 0
+
+def cmd_delete(uid_str: str, cfg: dict) -> int:
+    """Delete CephFS subvolume and revoke CephX keyring."""
+    username, gid = get_user_info(uid_str)
+    uid = int(uid_str)
+    subvol = f"{uid}-home"
+    group = f"{cfg['tenant_id']}-users"
+    
+    sys.stdout.write(f"Deleting storage for user {username} (UID={uid})...\n")
+    
+    # 1. Unmount home directory if mounted
+    home_dir = f"/home/{username}"
+    if os.path.ismount(home_dir):
+        sys.stdout.write(f"Unmounting {home_dir}...\n")
+        try:
+            run_cmd(["umount", home_dir])
+        except Exception as e:
+            sys.stderr.write(f"Failed to unmount {home_dir}: {e}\n")
+
+    # 2. Revoke CephX auth
+    try:
+        run_cmd(["ceph", "auth", "del", f"client.{uid}"])
+    except Exception as e:
+        sys.stderr.write(f"Warning: Failed to delete CephX auth: {e}\n")
+        
+    # 3. Remove keyring file
+    keyring_path = os.path.join(cfg["keyring_dir"], f"client.{uid}")
+    if os.path.exists(keyring_path):
+        try:
+            os.remove(keyring_path)
+        except Exception as e:
+            sys.stderr.write(f"Failed to remove keyring {keyring_path}: {e}\n")
+
+    # 4. Remove subvolume
+    run_cmd(["ceph", "fs", "subvolume", "rm", cfg["fs_name"], subvol, "--group_name", group])
+    
+    sys.stdout.write(f"Storage deleted successfully for user {username}\n")
+    
+    log_event(
+        action="delete",
+        uid=uid,
+        gid=gid,
+        tenant_id=cfg["tenant_id"],
+        summary=f"CephFS subvolume and keyring deleted/revoked for user {username} (UID={uid})"
+    )
+    return 0
+
+def main() -> int:
+    # 1. Load config
+    cfg = load_cephfs_config()
+    if not cfg["enable"]:
+        sys.stdout.write("CephFS storage integration is disabled in mios.toml -- exiting as no-op.\n")
+        return 0
+        
+    # 2. Parse arguments
+    args = sys.argv[1:]
+    if not args:
+        sys.stderr.write("Usage: mios-cephfs-provision [validate <uid> | create <uid> <gid> | delete <uid>]\n")
+        return 1
+        
+    cmd = args[0]
+    try:
+        if cmd == "validate":
+            if len(args) < 2:
+                sys.stderr.write("Error: 'validate' subcommand requires a <uid>\n")
+                return 1
+            return cmd_validate(args[1], cfg)
+            
+        elif cmd == "create":
+            if len(args) < 3:
+                sys.stderr.write("Error: 'create' subcommand requires <uid> and <gid>\n")
+                return 1
+            return cmd_create(args[1], args[2], cfg)
+            
+        elif cmd == "delete":
+            if len(args) < 2:
+                sys.stderr.write("Error: 'delete' subcommand requires a <uid>\n")
+                return 1
+            return cmd_delete(args[1], cfg)
+            
+        else:
+            sys.stderr.write(f"Unknown subcommand: {cmd}\n")
+            return 1
+            
+    except Exception as e:
+        # DEGRADE-OPEN: log all errors but exit 0 to prevent blocking logins/PAM
+        sys.stderr.write(f"mios-cephfs-provision: error (degrading open): {e}\n")
+        return 0
+
+if __name__ == "__main__":
+    sys.exit(main())

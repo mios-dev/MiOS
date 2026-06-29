@@ -1,0 +1,12 @@
+# AI-hint: systemd mount template for user home directories backed by CephFS subvolumes.
+# AI-related: /etc/systemd/system/home-@.mount, [storage.cephfs]
+
+[Unit]
+Description=CephFS mount for user %i
+ConditionPathExists=${MIOS_CEPHFS_KEYRING_DIR}/client.%i
+
+[Mount]
+What=${MIOS_CEPHFS_MONITORS}:/tenants/${MIOS_CEPHFS_TENANT_ID}/users/%i
+Where=/home/%i
+Type=ceph
+Options=name=client.%i,secretfile=${MIOS_CEPHFS_KEYRING_DIR}/client.%i,${MIOS_CEPHFS_MOUNT_OPTIONS}

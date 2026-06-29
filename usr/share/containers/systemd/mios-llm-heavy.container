@@ -1,106 +1,36 @@
-# AI-hint: Systemd Quadlet configuration for the SGLang inference server, providing a high-throughput, OpenAI-compatible heavy-lane for Qwen3-8B-AWQ models via host networking and direct GPU passthrough.
-# AI-related: /usr/share/mios/sglang/model, /usr/share/mios/sglang/model/config.json, mios-llm-heavy, mios-llm-heavy-alt, mios-heavy, mios-cdi-detect, mios-ceph, mios-forgejo-runner, mios-coderun-sandbox, mios-llm-heavy.service
-# /etc/containers/systemd/mios-llm-heavy.container
-# 'MiOS' SGLang server -- the GENERIC, gated, OpenAI-compatible /v1 dGPU heavy lane.
+# AI-hint: Systemd container unit defining the unified vLLM heavy-reasoning lane; provides an OpenAI-compatible /v1 API with PagedAttention and APC, gated by weight existence and dGPU availability.
+# AI-related: /usr/share/mios/vllm/model/config.json, /usr/share/mios/vllm/model, mios-llm-heavy, mios-cdi-detect, mios-heavy, mios-llm-heavy.service, mios-cdi-detect.service
+# /usr/share/containers/systemd/mios-llm-heavy.container
+# 'MiOS' vLLM server -- the unified, OpenAI-compatible /v1 dGPU heavy lane.
 #
-# Operator 2026-06-07 ("continue with SGLang"): a SECOND heavy serving lane.
-# Operator 2026-06-11 ("slightly smaller / newest intermediate model"): the heavy
-# reasoner is Qwen3-8B-AWQ (text-only, 4-bit, ~5.5GB) -- it fits the shared 4090
-# cleanly with cuda-graphs ON, leaving room for the light lane (the 14B and the
-# multimodal Qwen3.5-9B both blew the KV pool / OOM-cascaded on the shared GPU).
+# Consolidates SGLang and vLLM heavy lanes into one. vLLM runs on port 11441
+# with PagedAttention and Automatic Prefix Caching (APC).
 #
-# SSOT: tunables come from mios.toml ([ai.sglang] + [ports].sglang), rendered to
-# MIOS_SGLANG_* / MIOS_PORT_SGLANG. CRITICAL: this file MUST be rendered before the
-# unit starts (15-render-quadlets.sh / the deploy render) -- Quadlet/podman does NOT
-# expand the ${VAR:-default} shell-default form, so an UNRENDERED placeholder in
-# PublishPort/Exec yields "invalid port format" / a literal-arg crash (operator
-# 2026-06-11). Weights are an OPT-IN OFFLINE bake (automation/38-sglang-prep.sh from
-# [ai.sglang].bake_model=Qwen/Qwen3-8B-AWQ -> /usr/share/mios/sglang/model). FOSS.
-#
-# VRAM-GATED + DISABLED BY DEFAULT: needs real free VRAM the shared 4090 lacks while
-# gaming. Enable ONLY on a dGPU with headroom, AFTER baking weights:
+# Gated by default: start it manually after baking weights:
 #   systemctl enable --now mios-llm-heavy.service
-# Then [nodes.local-sglang] (health-gated) auto-joins the swarm. Mutually exclusive
-# with mios-llm-heavy-alt at runtime (both serve "mios-heavy"); enable ONE on a shared GPU.
+
 [Unit]
-Description='MiOS' SGLang heavy lane (OpenAI /v1, Qwen3-8B-AWQ; gated)
+Description='MiOS' vLLM heavy lane (OpenAI /v1, PagedAttention + APC; gated)
 After=network-online.target mios-cdi-detect.service
 Wants=network-online.target
-# Mutual exclusion (WS-4): the SGLang (:11441) + vLLM (:11440) heavy lanes BOTH
-# advertise served-name "mios-heavy" and each claims the shared 4090 -- never run
-# both (VRAM OOM + served-name ambiguity). Conflicts= makes it STRUCTURAL: starting
-# this lane stops the alt (and vice versa), so even if both units are enabled only
-# one is ever active. The WS-1 [ai].heavy_engine selector chooses which is preferred.
-Conflicts=mios-llm-heavy-alt.service
-# Guard: only start when the baked weights exist (the bake is opt-in).
-ConditionPathExists=/usr/share/mios/sglang/model/config.json
+# Guard: only start when the baked weights exist (the bake is opt-in)
+ConditionPathExists=/usr/share/mios/vllm/model/config.json
 
 [Container]
 Pod=mios-ai-heavy.pod
-Image=${MIOS_SGLANG_IMAGE:-docker.io/lmsysorg/sglang:latest}
+Image=${MIOS_VLLM_IMAGE:-docker.io/vllm/vllm-openai:latest}
 ContainerName=mios-llm-heavy
-# host networking: the server binds :11441 directly on the host. The custom
-# mios.network + PublishPort form silently failed to expose :11441 (operator
-# 2026-06-11: lane unreachable -> health-monitor cycled it). No PublishPort with
-# Network=host.
-Network=host
-# GPU passthrough -- CDI device resolved by mios-cdi-detect.service (bare-metal
-# nvidia-ctk spec OR the WSL2 /run/cdi/wsl2-nvidia.yaml mapping /dev/dxg + /usr/lib/wsl).
 AddDevice=${MIOS_GPU_DEVICE:-nvidia.com/gpu=all}
-# Law-6 EXCEPTION (UNPRIVILEGED-QUADLETS): the upstream NVIDIA lmsysorg/sglang image
-# MUST run as root -- server_args probes GPU memory via nvidia-smi which the container
-# PATH resolves to a root-only binary (uid 815 -> PermissionError, operator 2026-06-11),
-# and the image has no mios user. Precedent: mios-ceph / mios-forgejo-runner /
-# mios-coderun-sandbox. (Reads only the immutable RO weights mount below.)
-# User= / Group= deliberately omitted (run as image-default root).
-# SGLang scheduler/tokenizer IPC needs a large /dev/shm (default 64m OOMs it).
-ShmSize=4g
-# The lmsysorg/sglang image entrypoint is nvidia_entrypoint.sh (execs CMD), NOT the
-# launcher -- so Exec MUST start with `python3 -m sglang.launch_server` (operator
-# 2026-06-11: args-only Exec -> "exec: --: invalid option"). --mem-fraction-static is
-# a BOUNDED slice so the 8B co-resides with the light lane + leaves headroom for
-# cuda-graph capture + activation. Raise via mios.toml [ai.sglang].mem_fraction.
-# CRITICAL (operator 2026-06-11): --disable-cuda-graph AND --disable-piecewise-cuda-graph
-# are REQUIRED on this WSL2 + RTX 4090 host -- the CUDA-graph capture phase (both the
-# regular and the separate "piecewise" capture) CRASHES/REBOOTS the entire WSL2 VM
-# (confirmed: the prev-boot's last log line was "Capture cuda graph begin", then reboot;
-# a reboot LOOP every ~2-4 min). With both off, SGLang loads in ~32s and the VM is rock-
-# stable. Cost: slightly slower decode (no graph replay) -- acceptable vs a crashing VM.
-# Revisit if a future WSL2/NVIDIA driver fixes the dxgkrnl crash on graph capture.
-# --tool-call-parser (operator 2026-06-13 "ALL AGENTS USE SGLANG" + "DIDN'T USE
-# WEB TOOLS"): WITHOUT this, SGLang emits the Qwen <tool_call>{json}</tool_call>
-# block as plain message CONTENT (no OpenAI tool_calls[]), so every research
-# node's web_search came back as inert NARRATED text -> the pipe never executed
-# it -> the answer was fabricated from training knowledge. qwen25 parses the
-# <tool_call> Hermes/Qwen format (Qwen3 served here uses the same shape) into
-# real tool_calls so the agent-pipe's tool-loop fires web_search. SSOT-tunable.
-# --reasoning-parser (operator 2026-06-15 "no thinking blocks"): WITHOUT this,
-# SGLang emits Qwen3's <think>...</think> INLINE in message content, so a client
-# (Hermes desktop, OWUI) renders raw <think> text instead of a proper thinking
-# block. The qwen3 parser separates it into the OpenAI `reasoning_content` field
-# (and streams reasoning deltas in stream mode) -> real thinking blocks. SSOT-tunable.
-Exec=python3 -m sglang.launch_server --model-path /models --served-model-name ${MIOS_SGLANG_SERVED_NAME:-mios-heavy} --host 0.0.0.0 --port ${MIOS_PORT_SGLANG:-11441} --mem-fraction-static ${MIOS_SGLANG_MEM_FRACTION:-0.5} --context-length ${MIOS_SGLANG_MAX_MODEL_LEN:-16384} --tool-call-parser ${MIOS_SGLANG_TOOL_PARSER:-qwen25} --reasoning-parser ${MIOS_SGLANG_REASONING_PARSER:-qwen3} --disable-cuda-graph --disable-piecewise-cuda-graph
-# Read-only mount of the build-baked weights (immutable composefs seed).
-Volume=/usr/share/mios/sglang/model:/models:ro,Z
-# Air-gapped: never reach out to the HF hub at runtime.
+# User/Group: nonroot identity (815)
+User=${MIOS_VLLM_UID:-815}
+Group=${MIOS_VLLM_GID:-815}
+Exec=--model /models --served-model-name ${MIOS_VLLM_SERVED_NAME:-mios-heavy} --host 0.0.0.0 --port ${MIOS_PORT_VLLM:-11441} --gpu-memory-utilization ${MIOS_VLLM_GPU_UTIL:-0.45} --max-model-len ${MIOS_VLLM_MAX_MODEL_LEN:-16384} --enable-prefix-caching
+Volume=/usr/share/mios/vllm/model:/models:ro,Z
 Environment=HF_HUB_OFFLINE=1
 Environment=TRANSFORMERS_OFFLINE=1
-Environment=SGLANG_DISABLE_USAGE_STATS=1
+Environment=VLLM_NO_USAGE_STATS=1
 Environment=DO_NOT_TRACK=1
-# Qwen3-8B-AWQ's native context is 40960; the configured larger window
-# (--context-length from MIOS_SGLANG_MAX_MODEL_LEN / mios.toml SSOT) exceeds
-# that, so SGLang aborts at load ("longer than the model's native max") unless
-# this override is set (operator 2026-06-14 live fast-chat validation). The
-# --mem-fraction-static slice stays the rendered SSOT value above.
-Environment=SGLANG_ALLOW_OVERWRITE_LONGER_CONTEXT_LEN=1
-# Writable cache dirs: the root container has no writable HOME, so flashinfer/torch/
-# triton JIT caches fall back to the RO image workdir -> PermissionError (operator
-# 2026-06-11). Redirect all caches to the writable tmpfs /tmp.
-Environment=HOME=/tmp
-Environment=XDG_CACHE_HOME=/tmp/.cache
-Environment=FLASHINFER_WORKSPACE_DIR=/tmp/flashinfer
-Environment=TRITON_CACHE_DIR=/tmp/triton
-Environment=TORCHINDUCTOR_CACHE_DIR=/tmp/inductor
+Environment=VLLM_USE_V1=${MIOS_VLLM_USE_V1:-true}
 Label=org.opencontainers.image.title=mios-llm-heavy
 Label=org.opencontainers.image.url=http://localhost:11441/v1/models
 Label=io.podman_desktop.openInBrowser=http://localhost:11441/v1/models
@@ -108,8 +38,8 @@ Label=io.podman_desktop.openInBrowser=http://localhost:11441/v1/models
 [Service]
 Restart=on-failure
 RestartSec=15
-# Model load + CUDA graph capture can take a few minutes on first start.
 TimeoutStartSec=600s
+Delegate=yes
 
 [Install]
 WantedBy=multi-user.target default.target

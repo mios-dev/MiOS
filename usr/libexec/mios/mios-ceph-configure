@@ -1,0 +1,98 @@
+#!/usr/bin/env python3
+# AI-hint: Automated client cache configuration utility for CephFS, rendering performance options into /etc/ceph/ceph.conf.
+#          Called by firstboot mount setups to minimize MDS workload under desktop GUI sessions.
+# AI-related: /etc/ceph/ceph.conf, /usr/share/mios/mios.toml, automation/firstboot/mios-cephfs-mount-setup.sh
+# AI-functions: load_cephfs_config, configure_client, main
+"""mios-ceph-configure -- CephFS client cache config generator."""
+
+import sys
+import os
+import configparser
+
+def load_cephfs_config() -> dict:
+    """Load storage.cephfs table from layered mios.toml configurations."""
+    layers = [
+        os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml"),
+        "/etc/mios/mios.toml",
+        os.path.expanduser("~/.config/mios/mios.toml")
+    ]
+    try:
+        import tomllib
+    except ImportError:
+        try:
+            import tomli as tomllib
+        except ImportError:
+            tomllib = None
+
+    cfg = {
+        "client_cache_size": "16384",
+        "client_cache_after_readdir": "true",
+        "client_readahead_max_bytes": "33554432",
+        "client_reconnect_stale_interval": "30",
+        "fuse_disable_pagecache": "false"
+    }
+
+    if tomllib is None:
+        return cfg
+
+    for p in layers:
+        try:
+            with open(p, "rb") as f:
+                data = tomllib.load(f)
+                cephfs = data.get("storage", {}).get("cephfs", {})
+                if cephfs:
+                    for k in cfg.keys():
+                        if k in cephfs:
+                            v = cephfs[k]
+                            # Convert to string format for INI writing
+                            if isinstance(v, bool):
+                                cfg[k] = "true" if v else "false"
+                            else:
+                                cfg[k] = str(v)
+        except Exception:
+            continue
+    return cfg
+
+def configure_client(cfg: dict, ceph_conf_path: str):
+    """Idempotently configure the [client] block of ceph.conf."""
+    os.makedirs(os.path.dirname(ceph_conf_path), exist_ok=True)
+    
+    config = configparser.ConfigParser(strict=False)
+    config.optionxform = str
+    
+    if os.path.exists(ceph_conf_path):
+        try:
+            config.read(ceph_conf_path)
+        except Exception as e:
+            sys.stderr.write(f"Warning: Failed to parse existing ceph.conf: {e}. Overwriting.\n")
+
+    if not config.has_section("client"):
+        config.add_section("client")
+        
+    for k, v in cfg.items():
+        config.set("client", k, v)
+        
+    try:
+        with open(ceph_conf_path, "w") as f:
+            config.write(f)
+        sys.stdout.write(f"Successfully configured [client] section in {ceph_conf_path}\n")
+    except Exception as e:
+        sys.stderr.write(f"Error: Failed to write to {ceph_conf_path}: {e}\n")
+        raise
+
+def main() -> int:
+    cephfs_enable = os.environ.get("MIOS_CEPHFS_ENABLE", "false").lower() in ("true", "1", "yes", "on")
+    # Also load from TOML layers in case environment variable is not active
+    cfg = load_cephfs_config()
+    
+    ceph_conf_path = os.environ.get("MIOS_CEPH_CONF", "/etc/ceph/ceph.conf")
+    
+    try:
+        configure_client(cfg, ceph_conf_path)
+        return 0
+    except Exception as e:
+        sys.stderr.write(f"mios-ceph-configure: error: {e}\n")
+        return 1
+
+if __name__ == "__main__":
+    sys.exit(main())

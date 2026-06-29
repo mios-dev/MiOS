@@ -208,8 +208,7 @@ Every `Image=` ref is a pinned upstream reference resolved at build time by
 | `quay.io/ceph/ceph:v19` | `usr/share/containers/systemd/mios-ceph.container` |
 | `docker.io/rancher/k3s:<pinned>` | `usr/share/containers/systemd/mios-k3s.container` |
 | `ghcr.io/mostlygeek/llama-swap:cuda` | `usr/share/containers/systemd/mios-llm-light.container` |
-| `docker.io/lmsysorg/sglang:latest` | `usr/share/containers/systemd/mios-llm-heavy.container` |
-| `docker.io/vllm/vllm-openai:latest` | `usr/share/containers/systemd/mios-llm-heavy-alt.container` |
+| `docker.io/vllm/vllm-openai:latest` | `usr/share/containers/systemd/mios-llm-heavy.container` |
 | `docker.io/pgvector/pgvector:pg17` | `usr/share/containers/systemd/mios-pgvector.container` |
 | `docker.io/crowdsecurity/crowdsec:latest` | `usr/share/containers/systemd/mios-crowdsec-dashboard.container` |
 | `docker.io/guacamole/guacamole:latest` | `usr/share/containers/systemd/mios-guacamole.container` |
@@ -555,8 +554,7 @@ the historical `/etc/containers/systemd/` path.
 | Unit | Container | Port | Role |
 |---|---|---|---|
 | `mios-llm-light.container` | `mios-llm-light` | `:11450` | **Primary** lane: `llama.cpp` multi-model server fronted by the `mios-llm-light` proxy image (`ghcr.io/mostlygeek/llama-swap:cuda`). Auto-swaps the everyday chat/reasoning models, KV-pages each conversation to disk, **and** serves embeddings (`nomic-embed-text`, OpenAI-compat `/v1/embeddings`) plus the `mios-opencode` coder model. User/Group `827`/`827`. Config: `usr/share/mios/llamacpp/mios-llm-light.yaml` |
-| `mios-llm-heavy.container` | `mios-llm-heavy` | `:11441` | Heavy GPU lane (SGLang, served-name `mios-heavy`). VRAM-gated, off by default; root exception (upstream image probes `nvidia-smi`) |
-| `mios-llm-heavy-alt.container` | `mios-llm-heavy-alt` | `:11440` | Alternate heavy lane (vLLM, PagedAttention+APC). VRAM-gated, off by default |
+| `mios-llm-heavy.container` | `mios-llm-heavy` | `:11441` | Heavy GPU reasoning lane (vLLM, served-name `mios-heavy`). VRAM-gated, off by default; User/Group `815`/`815` |
 | `mios-llm-worker@.container` | `mios-llm-worker@` | -- | Single-model swarm workers (templated, for the dGPU swarm topology) |
 
 > These lanes speak the OpenAI/Ollama-compatible API -- any OpenAI-API client
@@ -716,10 +714,8 @@ under [`/usr/share/mios/ai/`](../../mios/ai/). The end-to-end shape is:
     per conversation, **and** embeddings (`nomic-embed-text`,
     `/v1/embeddings`) + the `mios-opencode` coder model. Model map:
     `usr/share/mios/llamacpp/mios-llm-light.yaml`.
-  - `mios-llm-heavy.service` -- SGLang heavy lane, `:11441` (served-name
+  - `mios-llm-heavy.service` -- vLLM heavy lane, `:11441` (served-name
     `mios-heavy`), VRAM-gated/off by default.
-  - `mios-llm-heavy-alt.service` -- vLLM alternate heavy lane, `:11440`,
-    VRAM-gated/off by default.
   - `mios-llm-worker@.service` -- single-model swarm workers.
 - **Memory:** PostgreSQL + pgvector (`mios-pgvector`, `:5432`) -- the unified
   agent datastore. Tables (`usr/share/mios/postgres/schema-init.sql`):
@@ -1110,12 +1106,11 @@ The early Ollama / SurrealDB / Qdrant stack is **fully removed**. Current state:
 | Was | Now |
 |---|---|
 | `ollama.service` (`:11434`) / `mios-ollama-cpu.service` (`:11435`) | `mios-llm-light.service` (`:11450`) -- llama.cpp via `mios-llm-light`; also serves embeddings + the coder model |
-| `mios-sglang` Quadlet | `mios-llm-heavy` (`:11441`, SGLang, gated) |
-| `mios-vllm` Quadlet | `mios-llm-heavy-alt` (`:11440`, vLLM, gated) |
+| `mios-sglang` / `mios-vllm` Quadlets | `mios-llm-heavy` (`:11441`, vLLM, gated) |
 | `mios-llama-worker@` | `mios-llm-worker@` |
 | SurrealDB agent store (BSL 1.1) | PostgreSQL + pgvector (`mios-pgvector`, `:5432`; `mios-pg-query` / `mios-db --pg`) |
 | Qdrant vector store | pgvector (the same Postgres engine) |
-| `37-ollama-prep.sh` model bake | removed; `38-sglang-prep.sh` / `38-vllm-prep.sh` (opt-in, gated) |
+| `37-ollama-prep.sh` model bake | removed; `38-vllm-prep.sh` (opt-in, gated) |
 
 Ollama survives only as an *upstream API-compat reference* (the lanes speak the
 OpenAI/Ollama-compatible API, and `mios-llm-light`'s model map uses Ollama-style

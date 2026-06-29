@@ -68,7 +68,7 @@
         "family": "Mistral Magistral Small 2509 AWQ (intended); incumbent Qwen2.5-14B-AWQ is the rollback",
         "context_window": 131072,
         "ssot": "[ai.sglang]/[ai.vllm] in /usr/share/mios/mios.toml",
-        "served_by": "mios-llm-heavy.service (SGLang :11441) or mios-llm-heavy-alt.service (vLLM :11440)",
+        "served_by": "mios-llm-heavy.service (vLLM :11441)",
         "endpoint": "http://localhost:11441/v1",
         "openai_api_compat": ["chat/completions"]
       }

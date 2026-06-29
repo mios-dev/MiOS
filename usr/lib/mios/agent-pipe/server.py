@@ -1811,6 +1811,91 @@ app = FastAPI(
 )
 
 
+def _check_user_cephfs(uid_str: str, tenant_id: str, fs_name: str, keyring_dir: str):
+    import os
+    import subprocess
+    import json
+    keyring_path = f"{keyring_dir}/client.{uid_str}"
+    keyring_present = os.path.exists(keyring_path)
+    
+    subvolume_exists = False
+    subvolume_path = ""
+    
+    try:
+        cmd = ["ceph", "fs", "subvolume", "info", fs_name, f"{uid_str}-home", "--group_name", f"{tenant_id}-users", "--format", "json"]
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+        if proc.returncode == 0:
+            subvolume_exists = True
+            info = json.loads(proc.stdout)
+            subvolume_path = info.get("path", "")
+    except Exception:
+        pass
+        
+    return {
+        "uid": int(uid_str),
+        "keyring_present": keyring_present,
+        "subvolume_exists": subvolume_exists,
+        "subvolume_path": subvolume_path
+    }
+
+
+@app.get("/v1/storage/cephfs/users")
+async def cephfs_users():
+    import os
+    cephfs_enable = os.environ.get("MIOS_CEPHFS_ENABLE", "false").lower() in ("true", "1", "yes", "on")
+    if not cephfs_enable:
+        return {"enabled": False}
+        
+    tenant_id = os.environ.get("MIOS_CEPHFS_TENANT_ID", "mios")
+    fs_name = os.environ.get("MIOS_CEPHFS_FS_NAME", "cephfs")
+    keyring_dir = os.environ.get("MIOS_CEPHFS_KEYRING_DIR", "/etc/ceph/keyring.d")
+    
+    users = []
+    if os.path.exists(keyring_dir):
+        try:
+            for name in os.listdir(keyring_dir):
+                if name.startswith("client."):
+                    uid_str = name.split(".", 1)[1]
+                    if uid_str.isdigit():
+                        info = _check_user_cephfs(uid_str, tenant_id, fs_name, keyring_dir)
+                        users.append(info)
+        except Exception:
+            pass
+    return users
+
+
+@app.get("/v1/storage/cephfs/health")
+async def cephfs_health():
+    import os
+    import subprocess
+    import json
+    cephfs_enable = os.environ.get("MIOS_CEPHFS_ENABLE", "false").lower() in ("true", "1", "yes", "on")
+    if not cephfs_enable:
+        return {"enabled": False}
+        
+    health_data = {"status": "UNKNOWN"}
+    df_data = {}
+    
+    try:
+        proc_h = subprocess.run(["ceph", "health", "--format", "json"], capture_output=True, text=True, timeout=5)
+        if proc_h.returncode == 0:
+            health_data = json.loads(proc_h.stdout)
+    except Exception as e:
+        health_data = {"status": "UNAVAILABLE", "error": str(e)}
+        
+    try:
+        proc_d = subprocess.run(["ceph", "df", "--format", "json"], capture_output=True, text=True, timeout=5)
+        if proc_d.returncode == 0:
+            df_data = json.loads(proc_d.stdout)
+    except Exception:
+        pass
+        
+    return {
+        "health": health_data,
+        "df": df_data
+    }
+
+
 # Startup embed-warmup (verb + app embeddings) consolidated into the FastAPI
 # `lifespan` context manager above (the single modern startup/shutdown hook).
 

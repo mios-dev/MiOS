@@ -340,7 +340,8 @@ def _dispatch_sandbox_profile(tool: str) -> "mios_sandbox.SandboxProfile":
 
 
 def _sandbox_wrap_cmd(tool: str, cmd: str,
-                      profile: "mios_sandbox.SandboxProfile") -> "tuple":
+                      profile: "mios_sandbox.SandboxProfile",
+                      session_id: Optional[str] = None) -> "tuple":
     """Return (cmd, workspace_or_None). When SANDBOX_ENFORCE is on AND `tool` OPTS
     IN to confinement (an explicit [verbs.*].sandbox_profile) AND the resolved
     profile is confined AND the cmd does not already self-confine, prefix it with
@@ -348,6 +349,23 @@ def _sandbox_wrap_cmd(tool: str, cmd: str,
     a fresh per-dispatch workspace. Otherwise the cmd is returned unchanged. The
     OPT-IN gate (explicit override, not tier alone) is what keeps OS-control/launch
     verbs -- which bwrap would break -- from ever being wrapped here."""
+    import subprocess
+    cephfs_enable = os.environ.get("MIOS_CEPHFS_ENABLE", "false").lower() in ("true", "1", "yes", "on")
+    if cephfs_enable:
+        sess_id = session_id or uuid.uuid4().hex[:8]
+        sess_id = "".join(c for c in sess_id if c.isalnum() or c in "-_")[:32]
+        uid = os.getuid() if hasattr(os, "getuid") else 1000
+        runtime_dir = f"/run/user/{uid}/session-{sess_id}"
+        try:
+            subprocess.run(["systemd-run", "--user", "--scope", "-p", f"RuntimeDirectory=session-{sess_id}", "true"], capture_output=True, check=False)
+        except Exception:
+            try:
+                os.makedirs(runtime_dir, exist_ok=True)
+                os.chmod(runtime_dir, 0o700)
+            except Exception:
+                pass
+        cmd = f"XDG_RUNTIME_DIR={runtime_dir} " + cmd
+
     opted_in = bool((_VERB_CATALOG.get(tool) or {}).get("sandbox_profile"))
     if not (SANDBOX_ENFORCE and opted_in and profile.confined):
         return cmd, None
@@ -1253,7 +1271,7 @@ async def _dispatch_mios_verb_inner(
     # resolve error falls back to the strictest profile + the unwrapped cmd).
     try:
         _sbx_profile = _dispatch_sandbox_profile(tool)
-        cmd, _sbx_ws = _sandbox_wrap_cmd(tool, cmd, _sbx_profile)
+        cmd, _sbx_ws = _sandbox_wrap_cmd(tool, cmd, _sbx_profile, session_id=session_id)
     except Exception:  # noqa: BLE001
         _sbx_profile, _sbx_ws = mios_sandbox.resolve_profile(""), None
     t0 = time.time()

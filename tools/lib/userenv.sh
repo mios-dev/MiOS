@@ -275,6 +275,7 @@ slots = [
     ("ai.vllm.gpu_util",               "MIOS_VLLM_GPU_UTIL"),
     ("ai.vllm.max_model_len",          "MIOS_VLLM_MAX_MODEL_LEN"),
     ("ai.vllm.bake_model",             "MIOS_VLLM_BAKE_MODEL"),
+    ("ai.vllm.v1_engine",              "MIOS_VLLM_USE_V1"),
     # ── SGLang heavy lane ([ai.sglang]; mios-llm-heavy Quadlet,) ──
     # Rendered into mios-llm-heavy.container's Exec= by 15-render-quadlets.sh;
     # bake_model is read by automation/38-sglang-prep.sh at build time.
@@ -284,6 +285,7 @@ slots = [
     ("ai.sglang.tool_parser",          "MIOS_SGLANG_TOOL_PARSER"),
     ("ai.sglang.reasoning_parser",     "MIOS_SGLANG_REASONING_PARSER"),
     ("ai.sglang.bake_model",           "MIOS_SGLANG_BAKE_MODEL"),
+    ("ai.sglang.unified_radix_tree",   "MIOS_SGLANG_ENABLE_UNIFIED_RADIX_TREE"),
     ("gpu.device",                     "MIOS_GPU_DEVICE"),
     # legacy aliases for ports
     ("ports.forge_http",               "MIOS_FORGE_HTTP_PORT"),
@@ -306,6 +308,19 @@ slots = [
     ("locale.timezone",                "MIOS_DEFAULT_TIMEZONE"),
     ("locale.language",                "MIOS_DEFAULT_LOCALE"),
     ("locale.keyboard_layout",         "MIOS_DEFAULT_KEYBOARD"),
+    # ── storage.cephfs (Part 9: Unified Storage Fabric) ──────────────────
+    ("storage.cephfs.enable",                  "MIOS_CEPHFS_ENABLE"),
+    ("storage.cephfs.monitors",                "MIOS_CEPHFS_MONITORS"),
+    ("storage.cephfs.fs_name",                 "MIOS_CEPHFS_FS_NAME"),
+    ("storage.cephfs.tenant_id",               "MIOS_CEPHFS_TENANT_ID"),
+    ("storage.cephfs.data_pool_hot",           "MIOS_CEPHFS_DATA_POOL_HOT"),
+    ("storage.cephfs.data_pool_bulk",          "MIOS_CEPHFS_DATA_POOL_BULK"),
+    ("storage.cephfs.xdg_cache_home_override", "MIOS_XDG_CACHE_LOCAL_PATH"),
+    ("storage.cephfs.mount_options",           "MIOS_CEPHFS_MOUNT_OPTIONS"),
+    ("storage.cephfs.keyring_dir",             "MIOS_CEPHFS_KEYRING_DIR"),
+    ("storage.cephfs.automount_enable",        "MIOS_CEPHFS_AUTOMOUNT_ENABLE"),
+    ("storage.cephfs.automount_idle_timeout_s","MIOS_CEPHFS_AUTOMOUNT_IDLE_TIMEOUT_S"),
+
     # ── meta / version ──────────────────────────────────────────────────
     ("meta.mios_version",              "MIOS_VERSION"),
     # ── ai bake list ────────────────────────────────────────────────────
