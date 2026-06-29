@@ -1017,37 +1017,70 @@ check_converge_ssot() {
 
 # --- (20) Hummingbird distroless and Quadlet configuration (CONV-15). -------
 check_hummingbird() {
+    local distroless_enable="${MIOS_CONV_IMAGE_DISTROLESS_ENABLE:-false}"
+    local rechunk_enable="${MIOS_CONV_IMAGE_RECHUNK_ENABLE:-false}"
     local containerfile="Containerfile.hummingbird"
-    if [[ ! -f "$containerfile" ]]; then
-        echo "[38-drift-checks] VIOLATION: $containerfile is missing!" >&2
-        VIOLATIONS=$((VIOLATIONS + 1))
-        return 1
-    fi
-
-    local mios_toml="usr/share/mios/mios.toml"
-    local expected_base
-    expected_base=$(grep -E '^\s*distroless_base\s*=' "$mios_toml" | head -n 1 | cut -d'"' -f2 || echo "gcr.io/distroless/python3-debian13")
-    if [[ -z "$expected_base" ]]; then
-        expected_base="gcr.io/distroless/python3-debian13"
-    fi
-
-    if ! grep -F "FROM $expected_base" "$containerfile" >/dev/null 2>&1; then
-        echo "[38-drift-checks] VIOLATION: Containerfile.hummingbird base image does not match distroless_base ($expected_base)!" >&2
-        VIOLATIONS=$((VIOLATIONS + 1))
-        return 1
-    fi
-
     local quadlet="usr/share/containers/systemd/mios-agent-pipe.container"
-    if [[ ! -f "$quadlet" ]]; then
-        echo "[38-drift-checks] VIOLATION: Quadlet definition $quadlet is missing!" >&2
-        VIOLATIONS=$((VIOLATIONS + 1))
-        return 1
+
+    if [[ "$distroless_enable" == "true" ]]; then
+        if [[ ! -f "$containerfile" ]]; then
+            echo "[38-drift-checks] VIOLATION: distroless_enable=true but $containerfile is missing!" >&2
+            VIOLATIONS=$((VIOLATIONS + 1))
+            return 1
+        fi
+
+        if [[ ! -f "$quadlet" ]]; then
+            echo "[38-drift-checks] VIOLATION: Quadlet definition $quadlet is missing!" >&2
+            VIOLATIONS=$((VIOLATIONS + 1))
+            return 1
+        fi
+
+        if ! grep -q "Environment=MIOS_AI_ENDPOINT=" "$quadlet"; then
+            echo "[38-drift-checks] VIOLATION: Quadlet $quadlet is missing Environment=MIOS_AI_ENDPOINT!" >&2
+            VIOLATIONS=$((VIOLATIONS + 1))
+            return 1
+        fi
     fi
 
-    if ! grep -q "Environment=MIOS_AI_ENDPOINT=" "$quadlet"; then
-        echo "[38-drift-checks] VIOLATION: Quadlet $quadlet is missing Environment=MIOS_AI_ENDPOINT!" >&2
-        VIOLATIONS=$((VIOLATIONS + 1))
-        return 1
+    if [[ -f "$containerfile" ]]; then
+        local mios_toml="usr/share/mios/mios.toml"
+        local expected_base
+        expected_base=$(grep -E '^\s*distroless_base\s*=' "$mios_toml" | head -n 1 | cut -d'"' -f2 || echo "gcr.io/distroless/python3-debian13")
+        if [[ -z "$expected_base" ]]; then
+            expected_base="gcr.io/distroless/python3-debian13"
+        fi
+
+        if ! grep -F "FROM $expected_base" "$containerfile" >/dev/null 2>&1; then
+            echo "[38-drift-checks] VIOLATION: Containerfile.hummingbird base image does not match distroless_base ($expected_base)!" >&2
+            VIOLATIONS=$((VIOLATIONS + 1))
+            return 1
+        fi
+
+        # Extract the final stage (from the last FROM onwards)
+        local final_stage
+        final_stage=$(awk '/^FROM/ { stage="" } { stage=stage "\n" $0 } END { print stage }' "$containerfile")
+
+        if echo "$final_stage" | grep -F "/bin/bash" >/dev/null; then
+            echo "[38-drift-checks] VIOLATION: Containerfile.hummingbird final stage contains /bin/bash!" >&2
+            VIOLATIONS=$((VIOLATIONS + 1))
+            return 1
+        fi
+
+        local user_line
+        user_line=$(echo "$final_stage" | grep -E '^\s*USER\s+' | tail -n 1 | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+        if [[ "$user_line" != "USER 65534" && "$user_line" != "USER 65534:65534" ]]; then
+            echo "[38-drift-checks] VIOLATION: Containerfile.hummingbird final stage USER ($user_line) is not 65534 or 65534:65534!" >&2
+            VIOLATIONS=$((VIOLATIONS + 1))
+            return 1
+        fi
+    fi
+
+    if [[ "$rechunk_enable" == "true" ]]; then
+        if ! command -v rpm-ostree >/dev/null 2>&1; then
+            echo "[38-drift-checks] VIOLATION: rechunk_enable=true but rpm-ostree binary not found in PATH!" >&2
+            VIOLATIONS=$((VIOLATIONS + 1))
+            return 1
+        fi
     fi
 
     echo "[38-drift-checks]   (20) Hummingbird distroless and Quadlet configuration is valid"
