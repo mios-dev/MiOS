@@ -1362,7 +1362,19 @@ strengths   = ["mobile_local_model", "on_device", "offline_edge"]
 endpoint       = "http://localhost:8283"
 role           = "memory_backend"
 health_gate    = true
-memory_backend = false
+[gateway]
+# Native Gateway Sovereign Migration Configuration (T-078)
+model                     = "granite4.1:8b"
+max_tokens                = 4096
+context_length            = 8192
+port                      = 8642
+max_steps                 = 30
+tool_loop_engine          = "smolagents"
+mcp_refresh_seconds       = 300
+skill_refresh_seconds     = 300
+skill_catalog_static_path = "/var/lib/mios/skills/catalog.json"
+searxng_url               = "http://mios-searxng:8080"
+enable                    = false
 
 # ----------------------------------------------------------------------------
 # [blades.*] -- BLADE (machine) topology + per-blade capacity (V4/V5). A BLADE is a
@@ -5377,6 +5389,7 @@ endpoint            = "http://localhost:8640/v1"
 # desktop app, and the `hermes` CLI REPL). SSOT for the agent-surface model name so
 # no front-end hardcodes it (operator "NO HARDCODES"; unify of the REPL).
 agent_model         = "MiOS AI"
+available_models    = ["granite4.1:3b", "granite4.1:30b", "gpt-oss:20b", "nomic-embed-text"]
 # #62 WS-9 human-in-the-loop gate-mode (applied at the dispatch chokepoint).
 #   off   (default) -- no gating, zero overhead/behaviour change.
 #   audit -- LOG every action whose risk tier is >= hitl_threshold, then proceed

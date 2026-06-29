@@ -1,0 +1,18 @@
+[Unit]
+Description=MiOS Gateway Agent Service (FastAPI smolagents Engine)
+After=network-online.target mios-pgvector.service
+Wants=network-online.target mios-pgvector.service
+
+[Service]
+Type=simple
+User=mios-ai
+Group=mios-ai
+WorkingDirectory=/usr/lib/mios/gateway-agent
+Environment=HOME=/var/lib/mios/hermes
+EnvironmentFile=-/etc/mios/install.env
+ExecStart=/usr/lib/mios/agents/.venv/bin/python3 -u server.py
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

@@ -450,6 +450,14 @@ CREATE TABLE IF NOT EXISTS peer_reputation (
     ts         timestamptz DEFAULT now()
 );
 
+-- ── gateway_sessions: conversational history persistence for gateway-agent ──
+CREATE TABLE IF NOT EXISTS gateway_sessions (
+    session_id text PRIMARY KEY,
+    messages   jsonb NOT NULL,
+    updated_at timestamptz DEFAULT now()
+);
+
+
 -- ── WS-5: native Postgres Row-Level Security (defense-in-depth owner scoping) ──
 -- RESEARCHED best practice (AWS / Supabase / Postgres RLS guides): the app sets a
 -- PER-REQUEST session var `mios.owner_user` keyed on the VERIFIED principal
