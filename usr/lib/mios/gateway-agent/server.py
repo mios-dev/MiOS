@@ -11,14 +11,37 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 import httpx
 
+from contextlib import asynccontextmanager
+from mcp_client import MiOSMCPClient
+from tool_registry import MiOSToolRegistry
+
 import session as session_db
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("mios-gateway-agent")
 
-# FastAPI App
-app = FastAPI(title="MiOS Gateway Agent Service")
+mcp_client = None
+tool_registry = None
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global mcp_client, tool_registry
+    gateway_cfg = _toml_section("gateway")
+    mcp_refresh = int(gateway_cfg.get("mcp_refresh_seconds") or 300)
+    
+    mcp_client = MiOSMCPClient(mcp_refresh_seconds=mcp_refresh)
+    await mcp_client.connect()
+    
+    main_loop = asyncio.get_running_loop()
+    tool_registry = MiOSToolRegistry(mcp_client, main_loop)
+    
+    yield
+    
+    if mcp_client:
+        await mcp_client.close()
+
+app = FastAPI(title="MiOS Gateway Agent Service", lifespan=lifespan)
 
 # ── Config Loader ──
 def _toml_section(section: str) -> dict:
@@ -131,9 +154,8 @@ async def chat_completions(req: ChatCompletionRequest):
         log.error("Failed to initialize OpenAIServerModel: %s", e)
         return JSONResponse(status_code=500, content={"error": f"Model init failed: {e}"})
 
-    # Tool loop engine initialization (T-079 registry stub for T-078)
-    # T-078 uses empty tool list since tools are integrated in GWY-04
-    tools = []
+    # Tool loop engine initialization (T-079)
+    tools = tool_registry.get_tools() if tool_registry else []
     
     try:
         agent = ToolCallingAgent(
@@ -181,6 +203,7 @@ async def chat_completions(req: ChatCompletionRequest):
                 from smolagents.memory import ActionStep
                 from smolagents.agents import FinalAnswerStep
                 
+                final_answer = ""
                 for step in steps:
                     if isinstance(step, ActionStep):
                         if step.model_output:
@@ -191,7 +214,12 @@ async def chat_completions(req: ChatCompletionRequest):
                         if step.observations:
                             yield openai_chunk(f"\n[Observation: {step.observations}]\n")
                     elif isinstance(step, FinalAnswerStep):
+                        final_answer = step.output
                         yield openai_chunk(f"\nFinal Answer: {step.output}\n", finish_reason="stop")
+                
+                if final_answer:
+                    history.append({"role": "assistant", "content": str(final_answer)})
+                    await session_db.save_session(session_id, history)
             except Exception as stream_err:
                 log.error("Stream generation error: %s", stream_err)
                 yield openai_chunk(f"\n[Agent Error: {stream_err}]\n", finish_reason="error")
@@ -223,6 +251,8 @@ async def chat_completions(req: ChatCompletionRequest):
                     "total_tokens": 0
                 }
             }
+            history.append({"role": "assistant", "content": str(result)})
+            await session_db.save_session(session_id, history)
             return response
         except Exception as run_err:
             log.error("Agent execution error: %s", run_err)

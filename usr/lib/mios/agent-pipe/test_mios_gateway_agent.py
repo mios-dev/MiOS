@@ -50,10 +50,45 @@ class TestGatewayAgent(unittest.TestCase):
         MockPsycopg.setup_mock()
         sys.modules["psycopg"] = MockPsycopg
         
+        # Override MCP Client connection lifecycle to run offline
+        from mcp_client import MiOSMCPClient
+        
+        class DummyMCPTool:
+            def __init__(self, name, description, inputSchema):
+                self.name = name
+                self.description = description
+                self.inputSchema = inputSchema
+        
+        cls.dummy_tool = DummyMCPTool(
+            name="test_tool",
+            description="A test tool schema",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "param1": {
+                        "type": "string",
+                        "description": "A param"
+                    }
+                },
+                "required": ["param1"]
+            }
+        )
+        
+        async def mock_connect(self):
+            self.cached_tools = [cls.dummy_tool]
+            
+        MiOSMCPClient.connect = mock_connect
+        MiOSMCPClient.close = AsyncMock()
+        
         # Now import the server FastAPI app
         import server
         cls.app = server.app
-        cls.client = TestClient(server.app)
+        cls.client_ctx = TestClient(server.app)
+        cls.client = cls.client_ctx.__enter__()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.client_ctx.__exit__(None, None, None)
 
     def test_health(self):
         r = self.client.get("/health")
@@ -126,6 +161,13 @@ class TestGatewayAgent(unittest.TestCase):
         
         self.assertTrue(len(chunks) > 0)
         self.assertEqual(chunks[-1].get("choices")[0].get("finish_reason"), "stop")
+
+    def test_tool_registry_mapping(self):
+        import server
+        tools = server.tool_registry.get_tools()
+        self.assertEqual(len(tools), 1)
+        self.assertEqual(tools[0].name, "test_tool")
+        self.assertEqual(tools[0].inputs["param1"]["type"], "string")
 
 if __name__ == "__main__":
     unittest.main()
