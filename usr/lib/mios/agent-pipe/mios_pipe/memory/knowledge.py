@@ -723,6 +723,13 @@ async def _evict_knowledge() -> dict:
     tests)."""
     report = {"deleted": 0, "dry_run": not KNOWLEDGE_EVICT_ENABLE}
     try:
+        import json
+        import mios_cold_evict
+        
+        cold_evict_enable = os.environ.get("MIOS_CONV_MEMORY_COLD_EVICT_ENABLE", "false").lower() in ("true", "1", "yes", "on")
+        cold_storage_dir = os.environ.get("MIOS_CONV_MEMORY_COLD_STORAGE_DIR", "/var/lib/mios/history/")
+        cold_zstd_level = int(os.environ.get("MIOS_CONV_MEMORY_COLD_ZSTD_LEVEL", "3"))
+
         ttl_candidates = await _db_count(with_ttl=True)
         total = await _db_count(with_ttl=False)
         plan = _evict_plan_sweep(total, ttl_candidates,
@@ -735,20 +742,93 @@ async def _evict_knowledge() -> dict:
                          "cap-overflow of %d rows (set [knowledge].evict_enable "
                          "to act)", plan["ttl_delete"], plan["cap_delete"], total)
             return report
-        deleted = 0
-        if plan["ttl_delete"]:
-            deleted += await _evict_delete_ids(
-                await _evict_select_ids(with_ttl=True, limit=plan["ttl_delete"]))
-        if plan["cap_delete"]:
-            deleted += await _evict_delete_ids(
-                await _evict_select_ids(with_ttl=False, limit=plan["cap_delete"], cap=True))
-        report["deleted"] = deleted
-        if deleted:
-            log.info("knowledge-evict: removed %d rows (%d total before)",
-                     deleted, total)
+            
+        if cold_evict_enable:
+            sweep_report = await mios_cold_evict.cold_sweep(
+                _mios_pg, plan, KNOWLEDGE_TABLE, cold_storage_dir, cold_zstd_level
+            )
+            deleted = sweep_report.get("exported", 0)
+            report["deleted"] = deleted
+            if deleted:
+                log.info("knowledge-evict (cold): exported and deleted %d rows to %s",
+                         deleted, sweep_report["dest"])
+                try:
+                    sql_evt = (
+                        "INSERT INTO event (source, kind, severity, summary, payload, ts) "
+                        "VALUES ('knowledge_evict', 'cold_evict', 'info', %(summary)s, %(payload)s, now())"
+                    )
+                    await _mios_pg.execute(
+                        sql_evt,
+                        {
+                            "summary": f"Cold evicted {deleted} rows to {sweep_report['dest']}",
+                            "payload": json.dumps({"rows": deleted, "dest": sweep_report["dest"]})
+                        },
+                        fetch=False
+                    )
+                except Exception as ex:
+                    log.warning("Failed to log cold_evict event: %s", ex)
+        else:
+            deleted = 0
+            if plan["ttl_delete"]:
+                deleted += await _evict_delete_ids(
+                    await _evict_select_ids(with_ttl=True, limit=plan["ttl_delete"]))
+            if plan["cap_delete"]:
+                deleted += await _evict_delete_ids(
+                    await _evict_select_ids(with_ttl=False, limit=plan["cap_delete"], cap=True))
+            report["deleted"] = deleted
+            if deleted:
+                log.info("knowledge-evict: removed %d rows (%d total before)",
+                         deleted, total)
     except Exception as e:  # noqa: BLE001 -- eviction must never break a turn
         log.debug("knowledge-evict skipped: %s", e)
     return report
+
+
+async def _cold_retention_sweep(cold_storage_dir: str, retention_days: int) -> None:
+    """Scan cold_storage_dir recursively for .jsonl.zst files older than retention_days, delete them."""
+    import os
+    import time
+    import json
+    from pathlib import Path
+    
+    if not cold_storage_dir or not os.path.exists(cold_storage_dir):
+        return
+        
+    cutoff_s = time.time() - (retention_days * 86400)
+    deleted_count = 0
+    
+    def sync_sweep():
+        nonlocal deleted_count
+        for root, dirs, files in os.walk(cold_storage_dir):
+            for f in files:
+                if f.endswith(".jsonl.zst"):
+                    path = Path(root) / f
+                    try:
+                        mtime = path.stat().st_mtime
+                        if mtime < cutoff_s:
+                            path.unlink()
+                            deleted_count += 1
+                    except Exception:
+                        pass
+                        
+    await asyncio.to_thread(sync_sweep)
+    if deleted_count > 0:
+        log.info("cold-retention-sweep: deleted %d files older than %d days", deleted_count, retention_days)
+        try:
+            sql_evt = (
+                "INSERT INTO event (source, kind, severity, summary, payload, ts) "
+                "VALUES ('knowledge_evict', 'cold_retention_sweep', 'info', %(summary)s, %(payload)s, now())"
+            )
+            await _mios_pg.execute(
+                sql_evt,
+                {
+                    "summary": f"Cold retention sweep deleted {deleted_count} files older than {retention_days} days",
+                    "payload": json.dumps({"deleted": deleted_count, "cutoff_days": retention_days})
+                },
+                fetch=False
+            )
+        except Exception as ex:
+            log.warning("Failed to log cold_retention_sweep event: %s", ex)
 
 
 async def _knowledge_evict_loop() -> None:
@@ -758,6 +838,13 @@ async def _knowledge_evict_loop() -> None:
         try:
             await asyncio.sleep(max(60, KNOWLEDGE_EVICT_INTERVAL_S))
             await _evict_knowledge()
+            
+            cold_evict_enable = os.environ.get("MIOS_CONV_MEMORY_COLD_EVICT_ENABLE", "false").lower() in ("true", "1", "yes", "on")
+            if cold_evict_enable:
+                cold_storage_dir = os.environ.get("MIOS_CONV_MEMORY_COLD_STORAGE_DIR", "/var/lib/mios/history/")
+                cold_retention_days = int(os.environ.get("MIOS_CONV_MEMORY_COLD_RETENTION_DAYS", "30"))
+                await _cold_retention_sweep(cold_storage_dir, cold_retention_days)
+                
         except asyncio.CancelledError:
             raise
         except Exception:  # noqa: BLE001

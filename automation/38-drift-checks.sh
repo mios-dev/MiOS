@@ -976,6 +976,42 @@ check_converge_ssot() {
             fi
         fi
     fi
+
+    # Phase 3 checks
+    local cold_storage_dir="${MIOS_CONV_MEMORY_COLD_STORAGE_DIR:-/var/lib/mios/history/}"
+    if [[ "$cold_storage_dir" == *"/tenants/"* ]]; then
+        echo "[38-drift-checks] VIOLATION: cold_storage_dir ($cold_storage_dir) cannot be inside a CephFS tenants mount path!" >&2
+        VIOLATIONS=$((VIOLATIONS + 1))
+        return 1
+    fi
+
+    local cold_retention_days="${MIOS_CONV_MEMORY_COLD_RETENTION_DAYS:-30}"
+    if [[ "$cold_retention_days" -lt 1 ]]; then
+        echo "[38-drift-checks] VIOLATION: cold_retention_days ($cold_retention_days) must be >= 1!" >&2
+        VIOLATIONS=$((VIOLATIONS + 1))
+        return 1
+    fi
+
+    local cold_zstd_level="${MIOS_CONV_MEMORY_COLD_ZSTD_LEVEL:-3}"
+    if [[ "$cold_zstd_level" -lt 1 || "$cold_zstd_level" -gt 19 ]]; then
+        echo "[38-drift-checks] VIOLATION: cold_zstd_level ($cold_zstd_level) must be between 1 and 19!" >&2
+        VIOLATIONS=$((VIOLATIONS + 1))
+        return 1
+    fi
+
+    local sqlite_vec_enable="${MIOS_CONV_MEMORY_SQLITE_VEC_ENABLE:-false}"
+    if [[ "$sqlite_vec_enable" == "true" ]]; then
+        local py_bin="/usr/lib/mios/agents/.venv/bin/python3"
+        if [[ ! -x "$py_bin" ]]; then
+            py_bin="python3"
+        fi
+        if ! "$py_bin" -c "import sqlite_vec" >/dev/null 2>&1; then
+            echo "[38-drift-checks] VIOLATION: sqlite_vec_enable=true but sqlite_vec python package is not importable!" >&2
+            VIOLATIONS=$((VIOLATIONS + 1))
+            return 1
+        fi
+    fi
+
     echo "[38-drift-checks]   (19) [converge] SSOT configuration is valid (retire_heavy_alt=$retire_alt)"
 }
 

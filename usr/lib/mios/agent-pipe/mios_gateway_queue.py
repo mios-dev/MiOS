@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from typing import Any, Callable, Dict, Optional, List
 
 from smolagents import Tool, ToolCallingAgent, LiteLLMModel
+import mios_scratchpad
 
 log = logging.getLogger("mios-agent-pipe")
 
@@ -211,12 +212,20 @@ class GatewayWorker:
                 continue
 
             try:
-                # Wrap the worker execution inside a single trace span
-                if _trace_span:
-                    async with _trace_span("tool_loop", kind="tool_loop"):
-                        res = await asyncio.to_thread(self._run_agent, req.payload)
-                else:
-                    res = await asyncio.to_thread(self._run_agent, req.payload)
+                meta = req.payload.get("metadata") if isinstance(req.payload.get("metadata"), dict) else {}
+                session_id = str(meta.get("chat_id") or meta.get("session_id") or req.payload.get("chat_id") or uuid.uuid4().hex[:12])
+                scratchpad_dir = os.environ.get("MIOS_CONV_MEMORY_SCRATCHPAD_DIR", "/tmp")
+
+                conn, path = await asyncio.to_thread(mios_scratchpad.create_scratchpad, session_id, scratchpad_dir)
+                try:
+                    # Wrap the worker execution inside a single trace span
+                    if _trace_span:
+                        async with _trace_span("tool_loop", kind="tool_loop"):
+                            res = await asyncio.to_thread(self._run_agent, req.payload, conn)
+                    else:
+                        res = await asyncio.to_thread(self._run_agent, req.payload, conn)
+                finally:
+                    await asyncio.to_thread(mios_scratchpad.destroy_scratchpad, conn, path)
                 
                 if not req.fut.done():
                     req.fut.set_result(res)
@@ -227,7 +236,7 @@ class GatewayWorker:
             finally:
                 queue.task_done()
 
-    def _run_agent(self, payload: dict) -> dict:
+    def _run_agent(self, payload: dict, conn=None) -> dict:
         system_prompt = extract_system_prompt_from_payload(payload)
         prompt = extract_prompt_from_payload(payload)
         
@@ -246,6 +255,26 @@ class GatewayWorker:
             system_prompt=system_prompt
         )
         
+        if conn is not None:
+            original_execute = agent.execute_tool_call
+            
+            def hooked_execute_tool_call(tool_name: str, arguments) -> Any:
+                res = original_execute(tool_name, arguments)
+                try:
+                    output_str = str(res)
+                    endpoint = os.environ.get("MIOS_AI_ENDPOINT", "http://localhost:8640")
+                    url = f"{endpoint}/v1/embeddings"
+                    import httpx
+                    r = httpx.post(url, json={"input": output_str, "model": "google/embedding-gemma-300m"}, timeout=10.0)
+                    if r.status_code == 200:
+                        emb = r.json()["data"][0]["embedding"]
+                        mios_scratchpad.vec_insert(conn, output_str, emb)
+                except Exception as e:
+                    log.warning(f"Failed to record scratchpad embedding for tool {tool_name}: {e}")
+                return res
+                
+            agent.execute_tool_call = hooked_execute_tool_call
+            
         result = agent.run(prompt)
         
         return {
