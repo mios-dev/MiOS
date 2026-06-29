@@ -1356,6 +1356,14 @@ lane        = "mobile"
 health_gate = true
 strengths   = ["mobile_local_model", "on_device", "offline_edge"]
 
+[agents.letta]
+# Letta (Apache 2.0 MemGPT fork) memory server complement (T-076).
+# Off by default (memory_backend = false) to degrade-open.
+endpoint       = "http://localhost:8283"
+role           = "memory_backend"
+health_gate    = true
+memory_backend = false
+
 # ----------------------------------------------------------------------------
 # [blades.*] -- BLADE (machine) topology + per-blade capacity (V4/V5). A BLADE is a
 # physical MACHINE; a NODE ([nodes.*] below) is a compute unit (CPU/iGPU/dGPU/NPU +

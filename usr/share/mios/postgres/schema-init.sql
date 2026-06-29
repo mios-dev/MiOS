@@ -15,6 +15,7 @@
 -- Domain appliances (Forgejo/Ceph/K3s/AdGuard/CrowdSec) keep their own stores.
 
 CREATE EXTENSION IF NOT EXISTS vector;
+CREATE SCHEMA IF NOT EXISTS mios_letta;
 
 -- ── knowledge: every finished Q+A (auto-append) + semantic recall ────────────
 CREATE TABLE IF NOT EXISTS knowledge (

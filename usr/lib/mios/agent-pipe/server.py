@@ -5091,6 +5091,11 @@ AGENT_MEMORY_RECALL_MIN_SCORE = float(
 # byte-identical until a different provider is configured. The factory is
 # fail-CLOSED (ValueError on an unknown name); at STARTUP we degrade-open --
 # log loudly + fall back to the default -- so a config typo never bricks the pipe.
+# --- Letta Server Memory Complement (T-076 & T-077) ---
+# All Letta memory complement implementation class and handlers are defined in
+# mios_pipe.memory.memory (exposed via the mios_memory shim) to keep server.py's
+# public module-level surface clean and unchanged (R0 parity).
+
 _MEMORY_PROVIDER_NAME = str(
     os.environ.get("MIOS_MEMORY_PROVIDER")
     or (_toml_section("pgvector") or {}).get("memory_provider")
@@ -5100,6 +5105,14 @@ try:
 except ValueError as _e:
     log.error("WS-A15 memory provider: %s -- falling back to pgvector", _e)
     _MEMORY = mios_memory.get_memory_provider("pgvector", _mios_pg)
+
+mios_memory.configure_letta(
+    toml_section_func=_toml_section,
+    conv_key_var=_conv_key_var,
+    db_create=_db_create,
+    db_post=_db_post,
+    db_fire=_db_fire
+)
 
 
 # _recall_agent_memory (SELF-EDITED durable-memory recall) + _rls_owner (the RLS
@@ -5906,6 +5919,7 @@ sys.modules["mios_dispatch"].configure(
     db_fire=_db_fire,
     db_post=_db_post,
     db_create=_db_create,
+    letta_dispatch_handler=mios_memory.letta_dispatch_handler,
 )
 
 
@@ -8353,6 +8367,8 @@ async def _inbound_auth_mw(request: Request, call_next):
 # agent registry is re-injected on a live add/drop in _reload_membership.
 __import__("mios_chat")
 sys.modules["mios_chat"].configure(
+    LETTA_MEMORY_BACKEND=mios_memory.LETTA_MEMORY_BACKEND,
+    _LETTA_CLIENT=mios_memory._LETTA_CLIENT,
     ASK_CLARIFY_ENABLE=ASK_CLARIFY_ENABLE,
     AUTONOMOUS_PRIORITY=AUTONOMOUS_PRIORITY,
     AUTO_FORCE_TOOL=AUTO_FORCE_TOOL,

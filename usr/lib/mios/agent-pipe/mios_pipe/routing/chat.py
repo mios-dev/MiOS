@@ -198,9 +198,12 @@ _vram_checkpoint = None
 _worker_tools_surface_async = None
 _write_skill_md_fire = None
 classify_intent = None
+LETTA_MEMORY_BACKEND = False
+_LETTA_CLIENT = None
 
 
 _INJECTED = frozenset((
+    "LETTA_MEMORY_BACKEND", "_LETTA_CLIENT",
     "ASK_CLARIFY_ENABLE", "AUTONOMOUS_PRIORITY", "AUTO_FORCE_TOOL", "BACKEND", "BACKEND_MODEL",
     "GATEWAY_QUEUE",
     "CLIENT_TOOLS_PASSTHROUGH", "COUNCIL_DEFAULT", "DCI_ENABLED", "KERNEL_ROUTE",
@@ -805,6 +808,22 @@ async def chat_completions_logic(request: Request) -> Any:
     # WS-A2: rehydrate this chat's working memory from the durable pg `scratch`
     # table on the first turn after a restart (once per chat key; degrade-open).
     await _scratchpad_rehydrate(_conv_key_var.get())
+    if LETTA_MEMORY_BACKEND and _LETTA_CLIENT:
+        try:
+            import mios_tokenize
+            _tok_count = mios_tokenize.count_messages(messages)
+            _letta_ctx_limit = 8000
+            _fill = _tok_count / _letta_ctx_limit
+            _session_id = _conv_key_var.get() or "default"
+            if _fill >= 1.0:
+                log.info("Letta context fill >= 100%% (%d tokens), triggering oldest context message flush", _tok_count)
+                await _LETTA_CLIENT.sync_to_pg(_session_id, lambda table, fields: _db_fire(_db_post(_db_create(table, fields, now_fields=("ts",)))))
+                await _LETTA_CLIENT.flush_oldest(_session_id)
+            elif _fill >= 0.7:
+                log.info("Letta context fill >= 70%% (%d tokens), triggering native summarization loop", _tok_count)
+                await _LETTA_CLIENT.trigger_compaction(_session_id)
+        except Exception as _letta_err:
+            log.warning("Letta memory context threshold logic failed: %s", _letta_err)
     # ASK-TO-RUN approval round-trip : if a high-tier action was
     # PROPOSED on a prior turn of THIS chat (a pending_action keyed by the conv key) and
     # the user's reply APPROVES it (MODEL-classified, no keyword list), execute it now and

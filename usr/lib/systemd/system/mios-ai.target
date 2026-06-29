@@ -1,0 +1,10 @@
+# AI-hint: systemd target grouping all MiOS AI plane services (T-076).
+# usr/lib/systemd/system/mios-ai.target
+
+[Unit]
+Description=MiOS AI Services Target
+After=multi-user.target
+Wants=mios-letta-server.service
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,25 @@
+# AI-hint: Systemd Quadlet container definition for Letta memory server (T-076).
+# Integrates with the pgvector PostgreSQL instance on the mios-net network.
+# usr/share/containers/systemd/mios-letta-server.container
+
+[Unit]
+Description=Letta Memory Server Complement
+After=network-online.target mios-pgvector.service
+Wants=network-online.target mios-pgvector.service
+
+[Container]
+Image=ghcr.io/letta-ai/letta:latest
+ContainerName=mios-letta-server
+PublishPort=8283:8283
+Network=mios-net
+Environment=LETTA_PG_URI=postgresql://mios:${MIOS_PG_PASS}@mios-pgvector:5432/mios
+Environment=LETTA_LLM_PROVIDER=openai_compatible
+Environment=LETTA_LLM_BASE_URL=http://localhost:11450/v1
+Environment=LETTA_LLM_MODEL=granite4.1:3b
+Environment=LETTA_EMBEDDING_PROVIDER=openai_compatible
+Environment=LETTA_EMBEDDING_BASE_URL=http://localhost:11450/v1
+Environment=LETTA_EMBEDDING_MODEL=nomic-embed-text
+EnvironmentFile=/etc/mios/install.env
+
+[Install]
+WantedBy=multi-user.target

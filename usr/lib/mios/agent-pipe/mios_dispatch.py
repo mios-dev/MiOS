@@ -128,6 +128,7 @@ _trace_span = None
 _db_fire = None
 _db_post = None
 _db_create = None
+_letta_dispatch_handler = None
 
 
 def _emit_dispatch_dedup_event(tool: str, args: dict,
@@ -195,7 +196,7 @@ def configure(*, verb_catalog=None, verb_arg_synonyms=None,
               resolve_verb_key=None, current_date_str=None,
               emit_dispatch_dedup_event=None,
               trace_span=None, db_fire=None, db_post=None,
-              db_create=None) -> None:
+              db_create=None, letta_dispatch_handler=None) -> None:
     """Inject server.py's verb catalog + arg-synonym map, config scalars (incl. the
     sandbox enforce knob + self-confined set), broker socket path, dispatch
     ContextVars + state and the runtime helpers the dispatch chokepoint calls back
@@ -210,8 +211,11 @@ def configure(*, verb_catalog=None, verb_arg_synonyms=None,
     global _hitl_approved_var
     global _resolve_verb_key, _current_date_str
     global _emit_dispatch_dedup_event, _trace_span, _db_fire, _db_post, _db_create
+    global _letta_dispatch_handler
     if verb_catalog is not None:
         _VERB_CATALOG = verb_catalog
+    if letta_dispatch_handler is not None:
+        _letta_dispatch_handler = letta_dispatch_handler
     if verb_arg_synonyms is not None:
         _VERB_ARG_SYNONYMS = verb_arg_synonyms
     if high_privilege_verbs is not None:
@@ -1101,6 +1105,10 @@ async def _dispatch_mios_verb_inner(
     # surrounding whitespace/quotes so the catalog lookup is robust to
     # however a model phrased the name.
     tool = re.sub(r"\(.*?\)\s*$", "", str(tool or "").strip()).strip().strip("`'\"")
+    if _letta_dispatch_handler:
+        _res = await _letta_dispatch_handler(tool, args, session_id)
+        if _res is not None:
+            return _res
     # ── WS-A9 dispatch-time PDP capability gate (before the firewall/HITL/enum
     # checks): re-evaluate the caller's per-agent + per-user policy at the single
     # chokepoint so a verb absent from the filtered surface can't still run. DENY
