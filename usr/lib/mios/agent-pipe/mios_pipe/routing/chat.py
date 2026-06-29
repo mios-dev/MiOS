@@ -2830,17 +2830,21 @@ async def chat_completions_logic(request: Request) -> Any:
                 is_queue_mode = (conv_gw_mode == "queue" and str(target_endpoint).rstrip("/") == str(BACKEND).rstrip("/"))
                 try:
                     if is_queue_mode:
-                        import mios_dispatcher
-                        res = await mios_dispatcher.dispatch_via_queue(stream_body, GATEWAY_QUEUE)
-                        content = ""
-                        if isinstance(res, dict):
-                            choices = res.get("choices") or []
-                            if choices:
-                                msg = choices[0].get("message") or {}
-                                content = msg.get("content") or ""
-                        if content:
-                            _ev_q.put_nowait(("PR", content))
-                    else:
+                        try:
+                            import mios_dispatcher
+                            res = await mios_dispatcher.dispatch_via_queue(stream_body, GATEWAY_QUEUE)
+                            content = ""
+                            if isinstance(res, dict):
+                                choices = res.get("choices") or []
+                                if choices:
+                                    msg = choices[0].get("message") or {}
+                                    content = msg.get("content") or ""
+                            if content:
+                                _ev_q.put_nowait(("PR", content))
+                        except Exception as e:
+                            log.warning("queue stream dispatch failed, falling back to HTTP: %s", e)
+                            is_queue_mode = False
+                    if not is_queue_mode:
                         async with client.stream(
                                 "POST",
                                 f"{target_endpoint}/chat/completions",
@@ -3320,10 +3324,15 @@ async def chat_completions_logic(request: Request) -> Any:
 
     try:
         if is_queue_mode:
-            import mios_dispatcher
-            res = await mios_dispatcher.dispatch_via_queue(proxy_body, GATEWAY_QUEUE)
-            from mios_dispatcher import MockResponse
-            r = MockResponse(res)
+            try:
+                import mios_dispatcher
+                res = await mios_dispatcher.dispatch_via_queue(proxy_body, GATEWAY_QUEUE)
+                from mios_dispatcher import MockResponse
+                r = MockResponse(res)
+            except Exception as e:
+                log.warning("queue dispatch failed, falling back to HTTP: %s", e)
+                import mios_dispatcher
+                r = await mios_dispatcher.dispatch_via_http(proxy_body, target_endpoint, headers=headers)
         else:
             import mios_dispatcher
             r = await mios_dispatcher.dispatch_via_http(proxy_body, target_endpoint, headers=headers)
