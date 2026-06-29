@@ -31,11 +31,14 @@ def _resolve_toml():
 
 
 def _install_stubs():
-    """Insert minimal stand-ins for the heavy 3rd-party deps so server.py imports
-    on a bare checkout. MagicMock covers httpx/websockets/uvicorn; fastapi needs a
-    tiny real-ish App whose route/middleware decorators return the wrapped fn."""
-    for name in ("httpx", "websockets", "uvicorn"):
+    for name in ("websockets", "uvicorn"):
         sys.modules.setdefault(name, mock.MagicMock(name=name))
+
+    # Mock httpx such that HTTPError is a real Exception subclass to avoid MRO conflicts
+    MockHTTPError = type("MockHTTPError", (Exception,), {})
+    httpx_mock = mock.MagicMock(name="httpx")
+    httpx_mock.HTTPError = MockHTTPError
+    sys.modules["httpx"] = httpx_mock
 
     fastapi = types.ModuleType("fastapi")
 

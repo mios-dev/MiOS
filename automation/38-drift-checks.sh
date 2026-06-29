@@ -966,7 +966,17 @@ PY
 # --- (19) [converge] SSOT validator (T-094 / CONV-01). ----------------------
 # Stub validator that currently passes unconditionally (unblocking subsequent work).
 check_converge_ssot() {
-    echo "[38-drift-checks]   (19) [converge] SSOT configuration is valid (stub)"
+    local retire_alt="${MIOS_CONV_INFERENCE_RETIRE_HEAVY_ALT:-false}"
+    if [[ "$retire_alt" == "true" ]]; then
+        if command -v systemctl >/dev/null 2>&1; then
+            if systemctl is-enabled mios-llm-heavy-alt.service >/dev/null 2>&1; then
+                echo "[38-drift-checks] VIOLATION: retire_heavy_alt=true but systemd unit mios-llm-heavy-alt.service is still enabled!" >&2
+                VIOLATIONS=$((VIOLATIONS + 1))
+                return 1
+            fi
+        fi
+    fi
+    echo "[38-drift-checks]   (19) [converge] SSOT configuration is valid (retire_heavy_alt=$retire_alt)"
 }
 
 main() {

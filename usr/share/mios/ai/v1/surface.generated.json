@@ -40,6 +40,7 @@
     "GET /v1/contexts/{context_id} -> a2a_context_get_v1",
     "GET /v1/cost -> cost_ledger",
     "GET /v1/hitl/pending -> hitl_pending",
+    "GET /v1/inference/lora/list -> lora_list",
     "GET /v1/mcp/clients -> mcp_clients",
     "GET /v1/mcp/tools -> mcp_tools_list",
     "GET /v1/models -> list_models",
@@ -74,6 +75,7 @@
     "POST /v1/dispatch -> dispatch_verb",
     "POST /v1/embeddings -> embeddings",
     "POST /v1/hitl/approve -> hitl_approve",
+    "POST /v1/inference/lora/load -> lora_load",
     "POST /v1/mcp/dispatch -> mcp_dispatch",
     "POST /v1/responses -> responses_api",
     "POST /v1/route -> v1_route",
@@ -1276,6 +1278,8 @@
     "list_verbs_openai_tools",
     "log",
     "logging",
+    "lora_list",
+    "lora_load",
     "main",
     "mcp_clients",
     "mcp_dispatch",
@@ -1368,7 +1372,7 @@
     "websockets"
   ],
   "counts": {
-    "routes": 78,
-    "provided": 1286
+    "routes": 80,
+    "provided": 1288
   }
 }

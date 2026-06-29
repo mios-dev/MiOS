@@ -157,6 +157,14 @@ for dir in "${QUADLET_DIRS[@]}"; do
         fi
         local_tmp="$(mktemp)"
         $_renderer "$f" > "$local_tmp"
+        if [[ "$(basename "$f")" == "mios-llm-heavy.container" ]]; then
+            local heavy_mode="${MIOS_CONV_INFERENCE_HEAVY_ENGINE_MODE:-dual}"
+            if [[ "$heavy_mode" == "single" ]]; then
+                echo "[15-render-quadlets] Applying multi-LoRA configuration to mios-llm-heavy.container..."
+                sed -i 's|--enable-prefix-caching|--enable-prefix-caching --enable-lora --max-loras 4 --max-cpu-loras 8 --max-lora-rank 64 --lora-modules coding=/var/lib/mios/lora-adapters/coding reasoning=/var/lib/mios/lora-adapters/reasoning|g' "$local_tmp"
+                sed -i '/ContainerName=mios-llm-heavy/a Environment=VLLM_ALLOW_RUNTIME_LORA_UPDATING=true\nEnvironment=VLLM_PLUGINS=lora_filesystem_resolver\nEnvironment=VLLM_LORA_RESOLVER_CACHE_DIR=/var/lib/mios/lora-adapters/\nVolume=/var/lib/mios/lora-adapters:/var/lib/mios/lora-adapters:Z' "$local_tmp"
+            fi
+        fi
         # Only replace if the rendered content differs (avoids touching
         # the mtime when there's no change, which keeps systemd's
         # daemon-reload no-ops free).

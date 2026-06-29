@@ -1933,6 +1933,61 @@ async def cephfs_health():
     }
 
 
+@app.post("/v1/inference/lora/load")
+async def lora_load(request: Request):
+    heavy_mode = os.environ.get("MIOS_CONV_INFERENCE_HEAVY_ENGINE_MODE", "dual")
+    if heavy_mode != "single":
+        return JSONResponse(
+            status_code=400,
+            content={"error": "LoRA loading is only supported when heavy_engine_mode is 'single'"}
+        )
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse(status_code=400, content={"error": "invalid JSON body"})
+    
+    lora_name = body.get("lora_name")
+    lora_path = body.get("lora_path")
+    if not lora_name or not lora_path:
+        return JSONResponse(status_code=400, content={"error": "lora_name and lora_path are required"})
+        
+    url = f"{_TOOL_BACKEND_HEAVY}/load_lora_adapter"
+    client = await _get_client()
+    try:
+        r = await client.post(url, json={"lora_name": lora_name, "lora_path": lora_path}, timeout=30.0)
+        return Response(content=r.content, status_code=r.status_code, media_type=r.headers.get("content-type"))
+    except Exception as e:
+        log.error("Failed to load LoRA adapter on heavy backend: %s", e)
+        return JSONResponse(status_code=500, content={"error": f"Failed to load LoRA adapter: {e}"})
+
+
+@app.get("/v1/inference/lora/list")
+async def lora_list():
+    heavy_mode = os.environ.get("MIOS_CONV_INFERENCE_HEAVY_ENGINE_MODE", "dual")
+    if heavy_mode != "single":
+        return {"adapters": [], "enabled": False}
+        
+    url = f"{_TOOL_BACKEND_HEAVY}/models"
+    client = await _get_client()
+    try:
+        r = await client.get(url, timeout=5.0)
+        if r.status_code != 200:
+            return {"adapters": [], "enabled": True}
+        
+        models_data = r.json()
+        adapters = []
+        for item in models_data.get("data") or []:
+            if item.get("parent") or item.get("root"):
+                adapters.append({
+                    "id": item.get("id"),
+                    "parent": item.get("parent") or item.get("root") or _TOOL_BACKEND_HEAVY_MODEL
+                })
+        return {"adapters": adapters, "enabled": True}
+    except Exception as e:
+        log.error("Failed to list LoRA adapters on heavy backend: %s", e)
+        return {"adapters": [], "enabled": True}
+
+
 # Startup embed-warmup (verb + app embeddings) consolidated into the FastAPI
 # `lifespan` context manager above (the single modern startup/shutdown hook).
 

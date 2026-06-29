@@ -37,6 +37,7 @@ Pod=mios-ai-inference.pod
 # [services.llamacpp].{uid,gid}, [llamacpp].*.
 Image=${MIOS_LLM_LIGHT_IMAGE:-ghcr.io/mostlygeek/llama-swap:cuda}
 ContainerName=mios-llm-light
+EnvironmentFile=/etc/mios/install.env
 # Host networking (matches mios-surrealdb/pgvector): reliable localhost:<port>
 # for the pipe + a stable endpoint the swarm node points at.
 Network=host
