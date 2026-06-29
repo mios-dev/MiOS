@@ -143,6 +143,7 @@ import mios_gateway_queue
 _GATEWAY_QUEUE = None
 _GATEWAY_WORKER = None
 _GATEWAY_TASK = None
+_MCP_POOL = None
 import mios_crl   # noqa: E402  -- WS-A10 principal/cert revocation list (inert until a CRL file exists)
 import mios_gossip   # noqa: E402  -- WS-A18 epidemic peer discovery (inert until [gossip].interval_min>0)
 _A2A_REPUTATION = mios_reputation.PeerReputation()   # outbound-peer reliability
@@ -1795,7 +1796,16 @@ async def lifespan(app):
     asyncio.create_task(_a2a_client_startup())
 
     # Part 10: Converged-Resource Architecture Gateway Queue
-    global _GATEWAY_QUEUE, _GATEWAY_WORKER, _GATEWAY_TASK
+    global _GATEWAY_QUEUE, _GATEWAY_WORKER, _GATEWAY_TASK, _MCP_POOL
+    mcp_pool_enable = os.environ.get("MIOS_CONV_IMAGE_MCP_POOL_ENABLE", "false").lower() in ("true", "1", "yes", "on")
+    if mcp_pool_enable:
+        tools_cfg = _toml_section("tools") or {}
+        mcp_servers = tools_cfg.get("mcp_servers") or {}
+        from mios_gateway_queue import MCPClientPool
+        _MCP_POOL = MCPClientPool(mcp_servers)
+        await _MCP_POOL.startup()
+        sys.modules["mios_a2a"].configure(mcp_pool=_MCP_POOL)
+
     conv_gw_mode = os.environ.get("MIOS_CONV_GATEWAY_MODE", "http")
     if conv_gw_mode == "queue":
         q_maxsize = int(os.environ.get("MIOS_CONV_GATEWAY_QUEUE_MAXSIZE", "64"))
@@ -1815,7 +1825,7 @@ async def lifespan(app):
         
         _GATEWAY_QUEUE = mios_gateway_queue.GatewayQueue(maxsize=q_maxsize)
         sys.modules["mios_chat"].GATEWAY_QUEUE = _GATEWAY_QUEUE
-        _GATEWAY_WORKER = mios_gateway_queue.GatewayWorker(tools=tools, endpoint=ai_endpoint, model_name=ai_model)
+        _GATEWAY_WORKER = mios_gateway_queue.GatewayWorker(tools=tools, endpoint=ai_endpoint, model_name=ai_model, mcp_pool=_MCP_POOL)
         _GATEWAY_TASK = asyncio.create_task(_GATEWAY_WORKER.run(_GATEWAY_QUEUE, concurrency=w_concurrency))
         log.info("GatewayQueue + GatewayWorker started with maxsize=%d concurrency=%d", q_maxsize, w_concurrency)
 
@@ -1829,6 +1839,10 @@ async def lifespan(app):
             await asyncio.wait_for(_GATEWAY_TASK, timeout=5.0)
         except (asyncio.CancelledError, asyncio.TimeoutError):
             pass
+
+    if _MCP_POOL:
+        log.info("MCP Client Pool shutting down...")
+        await _MCP_POOL.shutdown()
 
     # Cleanly terminate spawned stdio MCP subprocesses on agent-pipe shutdown.
     clients = list(_MCP_STDIO_CLIENTS.values())

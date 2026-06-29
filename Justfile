@@ -448,3 +448,8 @@ forge:
         echo "  Initial pwd:    (already changed, or firstboot not yet run)"; \
     fi
     @echo "  Local push:     git remote add origin http://localhost:${MIOS_FORGE_HTTP_PORT:-3000}/<user>/<repo>.git && git push origin main"
+
+# Run the converged rechunk pipeline (CONV-14)
+rechunk-conv: build
+    @bash automation/build/rechunk.sh
+

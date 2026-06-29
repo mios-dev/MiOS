@@ -1015,6 +1015,44 @@ check_converge_ssot() {
     echo "[38-drift-checks]   (19) [converge] SSOT configuration is valid (retire_heavy_alt=$retire_alt)"
 }
 
+# --- (20) Hummingbird distroless and Quadlet configuration (CONV-15). -------
+check_hummingbird() {
+    local containerfile="Containerfile.hummingbird"
+    if [[ ! -f "$containerfile" ]]; then
+        echo "[38-drift-checks] VIOLATION: $containerfile is missing!" >&2
+        VIOLATIONS=$((VIOLATIONS + 1))
+        return 1
+    fi
+
+    local mios_toml="usr/share/mios/mios.toml"
+    local expected_base
+    expected_base=$(grep -E '^\s*distroless_base\s*=' "$mios_toml" | head -n 1 | cut -d'"' -f2 || echo "gcr.io/distroless/python3-debian13")
+    if [[ -z "$expected_base" ]]; then
+        expected_base="gcr.io/distroless/python3-debian13"
+    fi
+
+    if ! grep -F "FROM $expected_base" "$containerfile" >/dev/null 2>&1; then
+        echo "[38-drift-checks] VIOLATION: Containerfile.hummingbird base image does not match distroless_base ($expected_base)!" >&2
+        VIOLATIONS=$((VIOLATIONS + 1))
+        return 1
+    fi
+
+    local quadlet="usr/share/containers/systemd/mios-agent-pipe.container"
+    if [[ ! -f "$quadlet" ]]; then
+        echo "[38-drift-checks] VIOLATION: Quadlet definition $quadlet is missing!" >&2
+        VIOLATIONS=$((VIOLATIONS + 1))
+        return 1
+    fi
+
+    if ! grep -q "Environment=MIOS_AI_ENDPOINT=" "$quadlet"; then
+        echo "[38-drift-checks] VIOLATION: Quadlet $quadlet is missing Environment=MIOS_AI_ENDPOINT!" >&2
+        VIOLATIONS=$((VIOLATIONS + 1))
+        return 1
+    fi
+
+    echo "[38-drift-checks]   (20) Hummingbird distroless and Quadlet configuration is valid"
+}
+
 main() {
     check_dead_lane
     check_retired_models
@@ -1035,6 +1073,7 @@ main() {
     check_unwired_modules
     check_cephfs_ssot
     check_converge_ssot
+    check_hummingbird
 
     echo "[38-drift-checks] ---------------------------------------------------------"
     if [[ "$VIOLATIONS" -eq 0 ]]; then

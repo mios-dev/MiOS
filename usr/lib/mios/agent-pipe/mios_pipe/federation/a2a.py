@@ -95,6 +95,7 @@ _passport_load_public = None
 # caches server owns. Replaced by configure() before any request runs.
 _check_inbound_principal = None
 _reload_membership = None
+_MCP_POOL = None
 
 
 def configure(*, app=None, agent_registry=None, verb_catalog=None,
@@ -107,13 +108,16 @@ def configure(*, app=None, agent_registry=None, verb_catalog=None,
               passport_agent_name=None, a2a_peers=None, a2a_peer_skills=None,
               a2a_peers_lock=None, a2a_reputation=None,
               a2a_send_message_to_peer=None, passport_load_public=None,
-              check_inbound_principal=None, reload_membership=None) -> None:
+              check_inbound_principal=None, reload_membership=None,
+              mcp_pool=None) -> None:
     """Inject server.py's runtime deps. Mutable registries/catalogs/scratchpad
     (incl. the consumer-side _A2A_PEERS/_A2A_PEER_SKILLS) are injected BY
     REFERENCE so server-side mutation stays visible to the builders + context
     projection + the @app /v1/a2a/* route logic. server.py may call configure()
     more than once (a partial set per call) as each dep becomes defined."""
     g = globals()
+    if mcp_pool is not None:
+        g["_MCP_POOL"] = mcp_pool
     if app is not None:
         g["app"] = app
     if agent_registry is not None:
@@ -694,6 +698,9 @@ async def a2a_skill_directory_logic() -> JSONResponse:
             else:
                 spec = skills.get(nm) or {}
             out.append(mios_interop.to_a2a_skill(nm, spec, kind))
+        if _MCP_POOL is not None:
+            for t in _MCP_POOL.get_tools():
+                out.append(mios_interop.to_a2a_skill(t["name"], t, "mcp"))
         return JSONResponse({"object": "mios.a2a.skill_directory",
                              "ceiling": ceiling, "count": len(out),
                              "skills": out})

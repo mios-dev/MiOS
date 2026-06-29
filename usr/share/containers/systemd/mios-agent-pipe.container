@@ -1,0 +1,18 @@
+# AI-hint: Systemd Quadlet container definition for the distroless mios-agent-pipe (CONV-12).
+# Propagates MIOS_AI_ENDPOINT via explicit Environment, bypassing profile.d.
+# usr/share/containers/systemd/mios-agent-pipe.container
+
+[Unit]
+Description=MiOS Agent Pipe Container (Hummingbird)
+After=network-online.target mios-pgvector.service mios-passport-provision.service
+Wants=network-online.target mios-pgvector.service mios-passport-provision.service
+
+[Container]
+Image=localhost/mios-agent-pipe:hummingbird
+ContainerName=mios-agent-pipe
+PublishPort=8640:8640
+Environment=MIOS_AI_ENDPOINT=http://127.0.0.1:8640
+EnvironmentFile=/etc/mios/install.env
+
+[Install]
+WantedBy=multi-user.target

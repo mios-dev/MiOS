@@ -563,6 +563,7 @@
     "_MCP_CLIENT_TOOLS",
     "_MCP_EMBEDDINGS",
     "_MCP_ENV_RE",
+    "_MCP_POOL",
     "_MCP_REGISTRY_PATHS",
     "_MCP_STDIO_CLIENTS",
     "_MD_IMG_RE",
@@ -1373,6 +1374,6 @@
   ],
   "counts": {
     "routes": 80,
-    "provided": 1288
+    "provided": 1289
   }
 }

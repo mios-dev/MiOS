@@ -1,1 +1,7 @@
 sqlite-vec
+fastapi
+uvicorn
+uvloop
+httpx
+smolagents
+psycopg[binary]

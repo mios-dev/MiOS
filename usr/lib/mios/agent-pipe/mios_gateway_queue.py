@@ -182,10 +182,11 @@ def extract_system_prompt_from_payload(payload: dict) -> Optional[str]:
     return None
 
 class GatewayWorker:
-    def __init__(self, tools: list, endpoint: str, model_name: str):
+    def __init__(self, tools: list, endpoint: str, model_name: str, mcp_pool=None):
         self.tools = tools
         self.endpoint = endpoint
         self.model_name = model_name
+        self.mcp_pool = mcp_pool
         self._tasks: List[asyncio.Task] = []
 
     async def run(self, queue: GatewayQueue, concurrency: int = 4) -> None:
@@ -249,8 +250,25 @@ class GatewayWorker:
             api_key="none"
         )
         
+        agent_tools = list(self.tools)
+        if self.mcp_pool is not None:
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = asyncio.get_event_loop()
+            for sid, client in self.mcp_pool.clients.items():
+                for t in self.mcp_pool.get_tools():
+                    if t["name"].startswith(f"mcp.{sid}."):
+                        agent_tools.append(MCPDispatchTool(
+                            name=t["name"],
+                            description=t.get("description") or "",
+                            inputs=t.get("inputSchema") or {},
+                            client=client,
+                            main_loop=loop
+                        ))
+
         agent = ToolCallingAgent(
-            tools=self.tools,
+            tools=agent_tools,
             model=model,
             system_prompt=system_prompt
         )
@@ -293,3 +311,140 @@ class GatewayWorker:
                 }
             ]
         }
+
+# ── Unified MCPClientPool Seam (CONV-13) ──
+import mcp
+
+class MCPDispatchTool(Tool):
+    def __init__(self, name: str, description: str, inputs: dict, client, main_loop: asyncio.AbstractEventLoop):
+        self.name = name
+        self.raw_name = name.split(".")[-1]
+        self.description = description
+        
+        properties = inputs.get("properties") or {}
+        required = inputs.get("required") or []
+        self.inputs = {}
+        for p_name, p_info in properties.items():
+            self.inputs[p_name] = {
+                "type": p_info.get("type", "string"),
+                "description": p_info.get("description", f"Parameter {p_name}"),
+                "nullable": p_name not in required
+            }
+        self.output_type = "string"
+        self.client = client
+        self.main_loop = main_loop
+        super().__init__()
+
+    def forward(self, **kwargs) -> str:
+        async def call_mcp():
+            if not self.client.session:
+                await self.client.connect()
+            res = await self.client.session.call_tool(self.raw_name, kwargs)
+            out_texts = []
+            for content in getattr(res, "content", []):
+                if getattr(content, "type", "text") == "text":
+                    out_texts.append(getattr(content, "text", ""))
+            return "\n".join(out_texts)
+
+        fut = asyncio.run_coroutine_threadsafe(call_mcp(), self.main_loop)
+        return str(fut.result())
+
+class StdioClient:
+    def __init__(self, config: dict):
+        self.config = config
+        self.session = None
+        from mcp import StdioServerParameters
+        self.server_params = StdioServerParameters(
+            command=config.get("command"),
+            args=config.get("args") or [],
+            env=config.get("env")
+        )
+    async def connect(self):
+        from mcp.client.stdio import stdio_client
+        from mcp import ClientSession
+        self._ctx = stdio_client(self.server_params)
+        read, write = await self._ctx.__aenter__()
+        self.session = ClientSession(read, write)
+        await self.session.__aenter__()
+        await self.session.initialize()
+        return self.session
+    async def close(self):
+        if self.session:
+            try:
+                await self.session.__aexit__(None, None, None)
+            except Exception:
+                pass
+        if hasattr(self, "_ctx"):
+            try:
+                await self._ctx.__aexit__(None, None, None)
+            except Exception:
+                pass
+
+class HTTPClient:
+    def __init__(self, config: dict):
+        self.config = config
+        self.session = None
+        self.url = config.get("url")
+    async def connect(self):
+        from mcp.client.sse import sse_client
+        from mcp import ClientSession
+        self._ctx = sse_client(self.url)
+        read, write = await self._ctx.__aenter__()
+        self.session = ClientSession(read, write)
+        await self.session.__aenter__()
+        await self.session.initialize()
+        return self.session
+    async def close(self):
+        if self.session:
+            try:
+                await self.session.__aexit__(None, None, None)
+            except Exception:
+                pass
+        if hasattr(self, "_ctx"):
+            try:
+                await self._ctx.__aexit__(None, None, None)
+            except Exception:
+                pass
+
+mcp.StdioClient = StdioClient
+mcp.HTTPClient = HTTPClient
+
+class MCPClientPool:
+    def __init__(self, server_configs: dict):
+        self.clients = {}
+        self.tool_cache = []
+        for sid, cfg in (server_configs or {}).items():
+            if not cfg.get("enabled", True):
+                continue
+            transport = cfg.get("transport", "stdio")
+            if transport == "stdio":
+                self.clients[sid] = mcp.StdioClient(cfg)
+            else:
+                self.clients[sid] = mcp.HTTPClient(cfg)
+
+    async def startup(self):
+        self.tool_cache = []
+        for sid, client in self.clients.items():
+            try:
+                session = await client.connect()
+                tools_result = await session.list_tools()
+                for tool in getattr(tools_result, "tools", []):
+                    self.tool_cache.append({
+                        "name": f"mcp.{sid}.{tool.name}",
+                        "description": tool.description,
+                        "inputSchema": getattr(tool, "inputSchema", {})
+                      })
+            except Exception as e:
+                log.error(f"Failed to connect MCP client {sid}: {e}")
+
+    async def shutdown(self):
+        for sid, client in self.clients.items():
+            try:
+                await client.close()
+            except Exception:
+                pass
+        self.clients = {}
+        self.tool_cache = []
+
+    def get_tools(self) -> list:
+        return self.tool_cache
