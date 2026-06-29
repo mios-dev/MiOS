@@ -370,6 +370,18 @@ if [[ "$TOK_BACKEND" == "tiktoken" ]]; then
     fi
 fi
 
+# ─── smolagents + LiteLLM (Part 10: Converged-Resource Architecture) ───
+# The queue-based gateway worker (T-095) runs smolagents.ToolCallingAgent
+# with smolagents.LiteLLMModel.
+if ! "${VENV_DIR}/bin/python3" -c "import smolagents, litellm" 2>/dev/null; then
+    if "${VENV_DIR}/bin/pip" install --no-input --disable-pip-version-check ${PIP_CONSTRAINTS_ARG} \
+            "smolagents>=1.0.0" "litellm>=1.0.0" 2>&1 | tail -3; then
+        log "[MiOS AI] installed smolagents + litellm into the agent venv (queue-based gateway worker)"
+    else
+        warn "[MiOS AI] smolagents + litellm install failed -- queue-based gateway mode will be unavailable"
+    fi
+fi
+
 # ─── Dashboard SPA build (self-hosted, build-time only) ──────────────
 # Build the React UI shell that `hermes dashboard` serves out of
 # `hermes_cli/web_dist`. The upstream pip wheel doesn't ship this dir

@@ -92,6 +92,7 @@ ASK_CLARIFY_ENABLE = None
 AUTONOMOUS_PRIORITY = None
 AUTO_FORCE_TOOL = None
 BACKEND = None
+GATEWAY_QUEUE = None
 BACKEND_MODEL = None
 CLIENT_TOOLS_PASSTHROUGH = None
 COUNCIL_DEFAULT = None
@@ -201,6 +202,7 @@ classify_intent = None
 
 _INJECTED = frozenset((
     "ASK_CLARIFY_ENABLE", "AUTONOMOUS_PRIORITY", "AUTO_FORCE_TOOL", "BACKEND", "BACKEND_MODEL",
+    "GATEWAY_QUEUE",
     "CLIENT_TOOLS_PASSTHROUGH", "COUNCIL_DEFAULT", "DCI_ENABLED", "KERNEL_ROUTE",
     "LOCAL_STATE_FASTPATH", "MAX_DISPATCH_DEPTH", "NATIVE_LOOP_ENABLE",
     "NATIVE_LOOP_MATH_HINT", "PLANNER_ENABLED", "POLISH_ENABLED", "SLOW_LANES",
@@ -2824,38 +2826,52 @@ async def chat_completions_logic(request: Request) -> Any:
                 # Stream the primary (Hermes) in the BACKGROUND, pushing typed
                 # events onto _ev_q; a PD sentinel marks end-of-stream so the
                 # merged drain loop knows the primary is finished.
+                conv_gw_mode = os.environ.get("MIOS_CONV_GATEWAY_MODE", "http")
+                is_queue_mode = (conv_gw_mode == "queue" and str(target_endpoint).rstrip("/") == str(BACKEND).rstrip("/"))
                 try:
-                    async with client.stream(
-                            "POST",
-                            f"{target_endpoint}/chat/completions",
-                            content=json.dumps(stream_body).encode("utf-8"),
-                            headers=headers) as resp:
-                        if resp.status_code != 200:
-                            await resp.aread()
-                            log.warning("streamed backend %s",
-                                        resp.status_code)
-                        else:
-                            async for line in resp.aiter_lines():
-                                if not line or not line.startswith("data:"):
-                                    continue
-                                data = line[5:].strip()
-                                if data == "[DONE]":
-                                    break
-                                try:
-                                    chunk = _loads_lenient(data)
-                                except (json.JSONDecodeError, ValueError):
-                                    continue
-                                ch = chunk.get("choices") or []
-                                if not ch:
-                                    continue
-                                delta = ch[0].get("delta") or {}
-                                piece = delta.get("content") or ""
-                                if piece:
-                                    _ev_q.put_nowait(("PR", piece))
-                                for _tc in (delta.get("tool_calls") or []):
-                                    _fn = (_tc.get("function") or {}).get("name")
-                                    if _fn:
-                                        _ev_q.put_nowait(("PT", _fn))
+                    if is_queue_mode:
+                        import mios_dispatcher
+                        res = await mios_dispatcher.dispatch_via_queue(stream_body, GATEWAY_QUEUE)
+                        content = ""
+                        if isinstance(res, dict):
+                            choices = res.get("choices") or []
+                            if choices:
+                                msg = choices[0].get("message") or {}
+                                content = msg.get("content") or ""
+                        if content:
+                            _ev_q.put_nowait(("PR", content))
+                    else:
+                        async with client.stream(
+                                "POST",
+                                f"{target_endpoint}/chat/completions",
+                                content=json.dumps(stream_body).encode("utf-8"),
+                                headers=headers) as resp:
+                            if resp.status_code != 200:
+                                await resp.aread()
+                                log.warning("streamed backend %s",
+                                            resp.status_code)
+                            else:
+                                async for line in resp.aiter_lines():
+                                    if not line or not line.startswith("data:"):
+                                        continue
+                                    data = line[5:].strip()
+                                    if data == "[DONE]":
+                                        break
+                                    try:
+                                        chunk = _loads_lenient(data)
+                                    except (json.JSONDecodeError, ValueError):
+                                        continue
+                                    ch = chunk.get("choices") or []
+                                    if not ch:
+                                        continue
+                                    delta = ch[0].get("delta") or {}
+                                    piece = delta.get("content") or ""
+                                    if piece:
+                                        _ev_q.put_nowait(("PR", piece))
+                                    for _tc in (delta.get("tool_calls") or []):
+                                        _fn = (_tc.get("function") or {}).get("name")
+                                        if _fn:
+                                            _ev_q.put_nowait(("PT", _fn))
                 except Exception as e:
                     log.warning("streamed backend call failed: %s", e)
                 finally:
@@ -3299,11 +3315,18 @@ async def chat_completions_logic(request: Request) -> Any:
                                  priority=_turn_priority))
         for _n, _c in _fanout
     ]
+    conv_gw_mode = os.environ.get("MIOS_CONV_GATEWAY_MODE", "http")
+    is_queue_mode = (conv_gw_mode == "queue" and str(target_endpoint).rstrip("/") == str(BACKEND).rstrip("/"))
+
     try:
-        r = await client.post(
-            f"{target_endpoint}/chat/completions",
-            content=proxy_bytes, headers=headers,
-        )
+        if is_queue_mode:
+            import mios_dispatcher
+            res = await mios_dispatcher.dispatch_via_queue(proxy_body, GATEWAY_QUEUE)
+            from mios_dispatcher import MockResponse
+            r = MockResponse(res)
+        else:
+            import mios_dispatcher
+            r = await mios_dispatcher.dispatch_via_http(proxy_body, target_endpoint, headers=headers)
         try:
             backend_json = r.json()
         except (json.JSONDecodeError, ValueError):

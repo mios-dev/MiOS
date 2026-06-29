@@ -139,6 +139,10 @@ import mios_a2a_principal as _a2a_pp   # noqa: E402  -- WS-6 signed delegation p
 import mios_reputation   # noqa: E402  -- #54 zero-trust peer reputation
 import mios_quota   # noqa: E402  -- WS-6 per-user quota / rate-limit (inert until configured)
 import mios_capreg   # noqa: E402  -- WS-2 unified RBAC-filtered capability manifest
+import mios_gateway_queue
+_GATEWAY_QUEUE = None
+_GATEWAY_WORKER = None
+_GATEWAY_TASK = None
 import mios_crl   # noqa: E402  -- WS-A10 principal/cert revocation list (inert until a CRL file exists)
 import mios_gossip   # noqa: E402  -- WS-A18 epidemic peer discovery (inert until [gossip].interval_min>0)
 _A2A_REPUTATION = mios_reputation.PeerReputation()   # outbound-peer reliability
@@ -1790,9 +1794,42 @@ async def lifespan(app):
     # unreachable peer doesn't delay the chat path from coming online.
     asyncio.create_task(_a2a_client_startup())
 
+    # Part 10: Converged-Resource Architecture Gateway Queue
+    global _GATEWAY_QUEUE, _GATEWAY_WORKER, _GATEWAY_TASK
+    conv_gw_mode = os.environ.get("MIOS_CONV_GATEWAY_MODE", "http")
+    if conv_gw_mode == "queue":
+        q_maxsize = int(os.environ.get("MIOS_CONV_GATEWAY_QUEUE_MAXSIZE", "64"))
+        w_concurrency = int(os.environ.get("MIOS_CONV_GATEWAY_WORKER_CONCURRENCY", "4"))
+        
+        # Sourced tools from mios_capreg via mios_gateway_queue
+        mios_gateway_queue.configure(
+            verb_catalog=_VERB_CATALOG,
+            recipes=_toml_section("recipes") or {},
+            skills=_cap_skills(),
+            trace_span=_trace_span
+        )
+        
+        ai_endpoint = os.environ.get("MIOS_AI_ENDPOINT", "http://localhost:8080/v1")
+        ai_model = os.environ.get("MIOS_AI_MODEL", "granite4.1:8b")
+        tools = mios_gateway_queue.get_tools(ceiling="interactive")
+        
+        _GATEWAY_QUEUE = mios_gateway_queue.GatewayQueue(maxsize=q_maxsize)
+        sys.modules["mios_chat"].GATEWAY_QUEUE = _GATEWAY_QUEUE
+        _GATEWAY_WORKER = mios_gateway_queue.GatewayWorker(tools=tools, endpoint=ai_endpoint, model_name=ai_model)
+        _GATEWAY_TASK = asyncio.create_task(_GATEWAY_WORKER.run(_GATEWAY_QUEUE, concurrency=w_concurrency))
+        log.info("GatewayQueue + GatewayWorker started with maxsize=%d concurrency=%d", q_maxsize, w_concurrency)
+
     yield
 
     # ---- SHUTDOWN (each block was one on_event shutdown hook) ----
+    if _GATEWAY_TASK:
+        log.info("GatewayQueue shutting down...")
+        _GATEWAY_TASK.cancel()
+        try:
+            await asyncio.wait_for(_GATEWAY_TASK, timeout=5.0)
+        except (asyncio.CancelledError, asyncio.TimeoutError):
+            pass
+
     # Cleanly terminate spawned stdio MCP subprocesses on agent-pipe shutdown.
     clients = list(_MCP_STDIO_CLIENTS.values())
     if clients:

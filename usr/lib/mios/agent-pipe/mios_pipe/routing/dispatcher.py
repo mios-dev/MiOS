@@ -48,3 +48,47 @@ class Dispatcher:
 
     def can_handle(self, mode: str) -> bool:
         return str(mode) in self._handlers or self._default in self._handlers
+
+
+class MockResponse:
+    def __init__(self, data: dict, status_code: int = 200, text: str = ""):
+        self._data = data
+        self.status_code = status_code
+        self._text = text or str(data)
+
+    def json(self) -> dict:
+        return self._data
+
+    @property
+    def text(self) -> str:
+        return self._text
+
+
+async def dispatch_via_http(payload: dict, endpoint: str, headers: dict = None) -> MockResponse:
+    import httpx
+    async with httpx.AsyncClient(timeout=300.0) as client:
+        try:
+            r = await client.post(
+                f"{endpoint}/chat/completions",
+                json=payload,
+                headers=headers
+            )
+            try:
+                return MockResponse(r.json(), status_code=r.status_code, text=r.text)
+            except Exception:
+                return MockResponse({"error": {"message": r.text, "type": "backend_non_json"}}, status_code=r.status_code, text=r.text)
+        except Exception as e:
+            return MockResponse({"error": {"message": str(e), "type": "backend_error"}}, status_code=502)
+
+
+async def dispatch_via_queue(payload: dict, queue: Any) -> dict:
+    if queue is None:
+        raise ValueError("dispatch_via_queue: GatewayQueue is not initialized")
+    import asyncio
+    from mios_gateway_queue import GatewayRequest
+    loop = asyncio.get_running_loop()
+    fut = loop.create_future()
+    req = GatewayRequest(payload=payload, fut=fut)
+    await queue.put(req)
+    return await fut
+
