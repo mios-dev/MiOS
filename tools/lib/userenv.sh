@@ -321,6 +321,26 @@ slots = [
     ("storage.cephfs.automount_enable",        "MIOS_CEPHFS_AUTOMOUNT_ENABLE"),
     ("storage.cephfs.automount_idle_timeout_s","MIOS_CEPHFS_AUTOMOUNT_IDLE_TIMEOUT_S"),
 
+    # ── converge (Part 10: Converged-Resource Architecture) ─────────────────
+    ("converge.gateway.mode",                  "MIOS_CONV_GATEWAY_MODE"),
+    ("converge.gateway.queue_maxsize",         "MIOS_CONV_GATEWAY_QUEUE_MAXSIZE"),
+    ("converge.gateway.worker_concurrency",    "MIOS_CONV_GATEWAY_WORKER_CONCURRENCY"),
+    ("converge.inference.heavy_engine_mode",   "MIOS_CONV_INFERENCE_HEAVY_ENGINE_MODE"),
+    ("converge.inference.vllm_lora_adapters_dir", "MIOS_CONV_INFERENCE_VLLM_LORA_ADAPTERS_DIR"),
+    ("converge.inference.vllm_allow_runtime_lora", "MIOS_CONV_INFERENCE_VLLM_ALLOW_RUNTIME_LORA"),
+    ("converge.inference.llama_cache_reuse_tokens", "MIOS_CONV_INFERENCE_LLAMA_CACHE_REUSE_TOKENS"),
+    ("converge.inference.llama_parallel_slots", "MIOS_CONV_INFERENCE_LLAMA_PARALLEL_SLOTS"),
+    ("converge.inference.retire_heavy_alt",    "MIOS_CONV_INFERENCE_RETIRE_HEAVY_ALT"),
+    ("converge.memory.sqlite_vec_enable",      "MIOS_CONV_MEMORY_SQLITE_VEC_ENABLE"),
+    ("converge.memory.scratchpad_dir",         "MIOS_CONV_MEMORY_SCRATCHPAD_DIR"),
+    ("converge.memory.cold_evict_enable",      "MIOS_CONV_MEMORY_COLD_EVICT_ENABLE"),
+    ("converge.memory.cold_storage_dir",       "MIOS_CONV_MEMORY_COLD_STORAGE_DIR"),
+    ("converge.memory.cold_retention_days",    "MIOS_CONV_MEMORY_COLD_RETENTION_DAYS"),
+    ("converge.memory.cold_zstd_level",        "MIOS_CONV_MEMORY_COLD_ZSTD_LEVEL"),
+    ("converge.image.distroless_enable",       "MIOS_CONV_IMAGE_DISTROLESS_ENABLE"),
+    ("converge.image.rechunk_enable",          "MIOS_CONV_IMAGE_RECHUNK_ENABLE"),
+    ("converge.image.mcp_pool_enable",         "MIOS_CONV_IMAGE_MCP_POOL_ENABLE"),
+
     # ── meta / version ──────────────────────────────────────────────────
     ("meta.mios_version",              "MIOS_VERSION"),
     # ── ai bake list ────────────────────────────────────────────────────

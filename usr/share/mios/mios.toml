@@ -9068,3 +9068,39 @@ provision_script                = "/usr/libexec/mios/mios-cephfs-provision"
 automount_enable                = true
 automount_idle_timeout_s        = 600    # Unmount idle home dirs after 10 min
 
+
+# ============================================================================
+# [converge.*] -- Converged-Resource Architecture (Part 10)
+# Controls the phased rollout of queueing, engine consolidation, memory tiering,
+# and distroless base images. All values default to safe no-ops.
+# ============================================================================
+
+[converge.gateway]
+mode            = "http"          # "queue" = in-process; "http" = legacy :8642 (default)
+queue_maxsize   = 64              # max pending requests in the asyncio.Queue
+worker_concurrency = 4            # parallel GatewayWorker coroutines
+fallback_http   = "http://localhost:8642/v1"   # used when mode="http" or worker fails
+
+[converge.inference]
+heavy_engine_mode = "dual"        # "dual" = SGLang + vLLM; "single" = vLLM multi-LoRA
+vllm_lora_adapters_dir = "/var/lib/mios/lora-adapters/"
+vllm_allow_runtime_lora = false   # set true + VLLM_ALLOW_RUNTIME_LORA_UPDATING=true
+llama_cache_reuse_tokens = 0      # 0 = disabled; 256 = enable shared prefix caching
+llama_parallel_slots     = 1      # increase to 4 with cache-reuse enabled
+retire_heavy_alt         = false  # true = stop mios-llm-heavy-alt.container
+
+[converge.memory]
+sqlite_vec_enable      = false    # true = per-session sqlite-vec scratchpad
+scratchpad_dir         = "/run/user/{uid}"    # {uid} expanded at runtime
+cold_evict_enable      = false    # true = export evicted pg rows to zstd JSONL
+cold_storage_dir       = "/var/lib/mios/history/"
+cold_retention_days    = 90       # delete cold archives older than this
+cold_zstd_level        = 10       # zstd compression level (1-19)
+
+[converge.image]
+distroless_enable      = false    # true = agent-pipe built from distroless base
+distroless_base        = "gcr.io/distroless/python3-debian13"
+rechunk_enable         = false    # true = apply rechunk in CI post-build step
+rechunk_format_version = 1
+mcp_pool_enable        = false    # true = unified MCPClientPool in GatewayWorker
+

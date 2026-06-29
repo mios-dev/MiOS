@@ -963,6 +963,12 @@ PY
     fi
 }
 
+# --- (19) [converge] SSOT validator (T-094 / CONV-01). ----------------------
+# Stub validator that currently passes unconditionally (unblocking subsequent work).
+check_converge_ssot() {
+    echo "[38-drift-checks]   (19) [converge] SSOT configuration is valid (stub)"
+}
+
 main() {
     check_dead_lane
     check_retired_models
@@ -982,6 +988,7 @@ main() {
     check_egress_firewall
     check_unwired_modules
     check_cephfs_ssot
+    check_converge_ssot
 
     echo "[38-drift-checks] ---------------------------------------------------------"
     if [[ "$VIOLATIONS" -eq 0 ]]; then

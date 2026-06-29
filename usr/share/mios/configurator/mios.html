@@ -658,6 +658,92 @@
       </div>
     </details>
 
+    <details class="section" id="adv-converge">
+      <summary>Resource Convergence &middot; queue, LoRA, scratchpad <span class="phase-badge">Part 10 &middot; converge</span></summary>
+      <div class="section-body">
+        <p style="color: var(--muted); font-size: 12px; margin: 0 0 12px;">
+          Configure the converged-resource settings to optimize gateway queues, engine multiplexing (vLLM multi-LoRA), memory tiering, and distroless builds.
+        </p>
+        
+        <div class="form-grid">
+          <fieldset>
+            <legend>[converge.gateway] — Phase 1</legend>
+            <label for="f-conv-gateway-mode">mode ("http" or "queue")</label>
+            <input type="text" id="f-conv-gateway-mode" data-key="converge.gateway.mode" placeholder="http">
+            
+            <label for="f-conv-gateway-queue-maxsize">queue_maxsize</label>
+            <input type="text" id="f-conv-gateway-queue-maxsize" data-key="converge.gateway.queue_maxsize" data-type="int" placeholder="64">
+            
+            <label for="f-conv-gateway-worker-concurrency">worker_concurrency</label>
+            <input type="text" id="f-conv-gateway-worker-concurrency" data-key="converge.gateway.worker_concurrency" data-type="int" placeholder="4">
+            
+            <label for="f-conv-gateway-fallback-http">fallback_http</label>
+            <input type="text" id="f-conv-gateway-fallback-http" data-key="converge.gateway.fallback_http" placeholder="http://localhost:8642/v1">
+          </fieldset>
+
+          <fieldset>
+            <legend>[converge.inference] — Phase 2</legend>
+            <label for="f-conv-inference-heavy-engine-mode">heavy_engine_mode ("dual" or "single")</label>
+            <input type="text" id="f-conv-inference-heavy-engine-mode" data-key="converge.inference.heavy_engine_mode" placeholder="dual">
+            
+            <label for="f-conv-inference-vllm-lora-adapters-dir">vllm_lora_adapters_dir</label>
+            <input type="text" id="f-conv-inference-vllm-lora-adapters-dir" data-key="converge.inference.vllm_lora_adapters_dir" placeholder="/var/lib/mios/lora-adapters/">
+            
+            <label for="f-conv-inference-vllm-allow-runtime-lora">vllm_allow_runtime_lora</label>
+            <input type="text" id="f-conv-inference-vllm-allow-runtime-lora" data-key="converge.inference.vllm_allow_runtime_lora" data-type="bool" placeholder="false">
+            
+            <label for="f-conv-inference-llama-cache-reuse-tokens">llama_cache_reuse_tokens</label>
+            <input type="text" id="f-conv-inference-llama-cache-reuse-tokens" data-key="converge.inference.llama_cache_reuse_tokens" data-type="int" placeholder="0">
+            
+            <label for="f-conv-inference-llama-parallel-slots">llama_parallel_slots</label>
+            <input type="text" id="f-conv-inference-llama-parallel-slots" data-key="converge.inference.llama_parallel_slots" data-type="int" placeholder="1">
+            
+            <label for="f-conv-inference-retire-heavy-alt">retire_heavy_alt</label>
+            <input type="text" id="f-conv-inference-retire-heavy-alt" data-key="converge.inference.retire_heavy_alt" data-type="bool" placeholder="false">
+          </fieldset>
+
+          <fieldset>
+            <legend>[converge.memory] — Phase 3</legend>
+            <label for="f-conv-memory-sqlite-vec-enable">sqlite_vec_enable</label>
+            <input type="text" id="f-conv-memory-sqlite-vec-enable" data-key="converge.memory.sqlite_vec_enable" data-type="bool" placeholder="false">
+            
+            <label for="f-conv-memory-scratchpad-dir">scratchpad_dir</label>
+            <input type="text" id="f-conv-memory-scratchpad-dir" data-key="converge.memory.scratchpad_dir" placeholder="/run/user/{uid}">
+            
+            <label for="f-conv-memory-cold-evict-enable">cold_evict_enable</label>
+            <input type="text" id="f-conv-memory-cold-evict-enable" data-key="converge.memory.cold_evict_enable" data-type="bool" placeholder="false">
+            
+            <label for="f-conv-memory-cold-storage-dir">cold_storage_dir</label>
+            <input type="text" id="f-conv-memory-cold-storage-dir" data-key="converge.memory.cold_storage_dir" placeholder="/var/lib/mios/history/">
+            
+            <label for="f-conv-memory-cold-retention-days">cold_retention_days</label>
+            <input type="text" id="f-conv-memory-cold-retention-days" data-key="converge.memory.cold_retention_days" data-type="int" placeholder="90">
+            
+            <label for="f-conv-memory-cold-zstd-level">cold_zstd_level (1-19)</label>
+            <input type="text" id="f-conv-memory-cold-zstd-level" data-key="converge.memory.cold_zstd_level" data-type="int" placeholder="10">
+          </fieldset>
+
+          <fieldset>
+            <legend>[converge.image] — Phase 4</legend>
+            <label for="f-conv-image-distroless-enable">distroless_enable</label>
+            <input type="text" id="f-conv-image-distroless-enable" data-key="converge.image.distroless_enable" data-type="bool" placeholder="false">
+            
+            <label for="f-conv-image-distroless-base">distroless_base</label>
+            <input type="text" id="f-conv-image-distroless-base" data-key="converge.image.distroless_base" placeholder="gcr.io/distroless/python3-debian13">
+            
+            <label for="f-conv-image-rechunk-enable">rechunk_enable</label>
+            <input type="text" id="f-conv-image-rechunk-enable" data-key="converge.image.rechunk_enable" data-type="bool" placeholder="false">
+            
+            <label for="f-conv-image-rechunk-format-version">rechunk_format_version</label>
+            <input type="text" id="f-conv-image-rechunk-format-version" data-key="converge.image.rechunk_format_version" data-type="int" placeholder="1">
+            
+            <label for="f-conv-image-mcp-pool-enable">mcp_pool_enable</label>
+            <input type="text" id="f-conv-image-mcp-pool-enable" data-key="converge.image.mcp_pool_enable" data-type="bool" placeholder="false">
+          </fieldset>
+        </div>
+      </div>
+    </details>
+
     <details class="section" id="adv-blades-nodes">
       <summary>Blades &amp; Nodes · cluster topology <span class="phase-badge">Distributed · compute fabric</span></summary>
       <div class="section-body">
