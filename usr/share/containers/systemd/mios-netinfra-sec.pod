@@ -1,0 +1,17 @@
+# AI-hint: GENERATED Quadlet pod for the co-resident group 'mios-netinfra-sec' (WS-7 pods-as-SSOT). DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [pods.mios-netinfra-sec] in mios.toml. Members (1): mios-crowdsec-dashboard.
+# AI-related: usr/share/mios/mios.toml, tools/generate-pod-quadlets.py, mios-crowdsec-dashboard.container
+# /usr/share/containers/systemd/mios-netinfra-sec.pod
+# Security dashboard pod.
+# Members (each member .container declares Pod=mios-netinfra-sec.pod):
+#   mios-crowdsec-dashboard
+[Unit]
+Description='MiOS' Network infra security pod
+After=network-online.target
+Wants=network-online.target
+
+[Pod]
+PodName=mios-netinfra-sec
+Network=host
+
+[Install]
+WantedBy=multi-user.target default.target

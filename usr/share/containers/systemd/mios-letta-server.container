@@ -10,8 +10,7 @@ Wants=network-online.target mios-pgvector.service
 [Container]
 Image=ghcr.io/letta-ai/letta:latest
 ContainerName=mios-letta-server
-PublishPort=8283:8283
-Network=mios-net
+Pod=mios-ai-data.pod
 Environment=LETTA_PG_URI=postgresql://mios:${MIOS_PG_PASS}@mios-pgvector:5432/mios
 Environment=LETTA_LLM_PROVIDER=openai_compatible
 Environment=LETTA_LLM_BASE_URL=http://localhost:11450/v1

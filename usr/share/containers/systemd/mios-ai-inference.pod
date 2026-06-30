@@ -1,11 +1,12 @@
-# AI-hint: GENERATED Quadlet pod for the co-resident group 'mios-ai-inference' (WS-7 pods-as-SSOT). DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [pods.mios-ai-inference] in mios.toml. Members (3): mios-llm-light, mios-cpu-node, mios-llm-worker@.
-# AI-related: usr/share/mios/mios.toml, tools/generate-pod-quadlets.py, mios-llm-light.container, mios-cpu-node.container, mios-llm-worker@.container
+# AI-hint: GENERATED Quadlet pod for the co-resident group 'mios-ai-inference' (WS-7 pods-as-SSOT). DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [pods.mios-ai-inference] in mios.toml. Members (4): mios-llm-light, mios-cpu-node, mios-llm-worker@, mios-agent-pipe.
+# AI-related: usr/share/mios/mios.toml, tools/generate-pod-quadlets.py, mios-llm-light.container, mios-cpu-node.container, mios-llm-worker@.container, mios-agent-pipe.container
 # /usr/share/containers/systemd/mios-ai-inference.pod
 # Inference lane pod.
 # Members (each member .container declares Pod=mios-ai-inference.pod):
 #   mios-llm-light
 #   mios-cpu-node
 #   mios-llm-worker@
+#   mios-agent-pipe
 [Unit]
 Description='MiOS' AI inference pod
 After=network-online.target

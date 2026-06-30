@@ -29,13 +29,12 @@ ConditionPathIsDirectory=/etc/mios/searxng
 # at the upstream tag covers amd64 / arm64 / armv7.
 Image=docker.io/searxng/searxng:latest
 ContainerName=mios-searxng
+Pod=mios-search.pod
 # The agent reaches SearXNG via SEARXNG_URL (host/localhost), not container
 # DNS -- one network is enough (ai-net consolidated away 2026-05-23).
-Network=mios.network
 # SearXNG listens on 8080 inside the container.
 # Map to host's loopback (it's consumed only by host hermes)
 EnvironmentFile=/etc/mios/install.env
-PublishPort=127.0.0.1:${MIOS_PORT_SEARXNG:-8888}:8080
 
 # Persistent state: settings.yml + uwsgi.ini live under /etc/searxng;
 # the container expects them at /etc/searxng inside. We bind-mount the

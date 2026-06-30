@@ -7469,7 +7469,7 @@ network     = "host"
 after       = ["network-online.target"]
 wants       = ["network-online.target"]
 wanted_by   = ["multi-user.target", "default.target"]
-members     = ["mios-llm-light", "mios-cpu-node", "mios-llm-worker@"]
+members     = ["mios-llm-light", "mios-cpu-node", "mios-llm-worker@", "mios-agent-pipe"]
 doc = """Inference lane pod."""
 
 [pods.mios-ai-heavy]
@@ -7487,7 +7487,7 @@ network     = "host"
 after       = ["network-online.target"]
 wants       = ["network-online.target"]
 wanted_by   = ["multi-user.target", "default.target"]
-members     = ["mios-pgvector"]
+members     = ["mios-pgvector", "mios-letta-server"]
 doc = """Data layer for AI agent memory."""
 
 [pods.mios-devforge]
@@ -7520,6 +7520,72 @@ doc = """Remote desktop platform."""
 # AdGuard Home DNS resolver / ad-blocker. SYSTEM tier (mios-sys), like CrowdSec
 # -- network infrastructure, not an AI agent. uid owns /etc/mios/adguard (config)
 # + /var/lib/mios/adguard (state/db). Next free UID after mios-crawl4ai (824).
+[pods.mios-ai-ui]
+description = "'MiOS' AI Web UI pod"
+network     = "mios.network"
+after       = ["network-online.target", "hermes-agent.service"]
+wants       = ["network-online.target", "hermes-agent.service"]
+wanted_by   = ["multi-user.target", "default.target"]
+publish_ports = ["${MIOS_PORT_OPEN_WEBUI:-3030}:8080"]
+members     = ["mios-open-webui"]
+doc = """Web interface for the AI stack."""
+
+[pods.mios-search]
+description = "'MiOS' Search proxy pod"
+network     = "mios.network"
+after       = ["network-online.target"]
+wants       = ["network-online.target"]
+wanted_by   = ["multi-user.target", "default.target"]
+publish_ports = ["127.0.0.1:${MIOS_PORT_SEARXNG:-8888}:8080"]
+members     = ["mios-searxng"]
+doc = """SearXNG privacy-respecting search proxy."""
+
+[pods.mios-netinfra-storage]
+description = "'MiOS' Network infra storage pod"
+network     = "mios.network"
+after       = ["network-online.target"]
+wants       = ["network-online.target"]
+wanted_by   = ["multi-user.target", "default.target"]
+members     = ["mios-ceph"]
+doc = """Storage provider pod."""
+
+[pods.mios-netinfra-admin]
+description = "'MiOS' Network infra admin pod"
+network     = "mios.network"
+after       = ["network-online.target"]
+wants       = ["network-online.target"]
+wanted_by   = ["multi-user.target", "default.target"]
+publish_ports = ["0.0.0.0:${MIOS_PORT_COCKPIT_LINK:-19090}:19090"]
+members     = ["mios-cockpit-link"]
+doc = """System administration pod."""
+
+[pods.mios-netinfra-sec]
+description = "'MiOS' Network infra security pod"
+network     = "host"
+after       = ["network-online.target"]
+wants       = ["network-online.target"]
+wanted_by   = ["multi-user.target", "default.target"]
+members     = ["mios-crowdsec-dashboard"]
+doc = """Security dashboard pod."""
+
+[pods.mios-netinfra-pxe]
+description = "'MiOS' Network infra PXE pod"
+network     = "host"
+after       = ["network-online.target"]
+wants       = ["network-online.target"]
+wanted_by   = ["multi-user.target", "default.target"]
+members     = ["mios-pxe-hub"]
+doc = """PXE boot provider pod."""
+
+[pods.mios-netinfra-k3s]
+description = "'MiOS' Network infra Kubernetes pod"
+network     = "host"
+after       = ["network-online.target"]
+wants       = ["network-online.target"]
+wanted_by   = ["multi-user.target", "default.target"]
+members     = ["mios-k3s"]
+doc = """Kubernetes orchestration pod."""
+
 [services.adguard]
 user = "mios-adguard"
 uid  = 825

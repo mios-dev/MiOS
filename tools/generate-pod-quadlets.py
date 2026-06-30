@@ -68,6 +68,7 @@ def render_pod_quadlet(name: str, spec: dict) -> str:
     after = [str(x) for x in (spec.get("after") or [])]
     wants = [str(x) for x in (spec.get("wants") or [])]
     wanted_by = [str(x) for x in (spec.get("wanted_by") or ["multi-user.target"])]
+    publish_ports = [str(x) for x in (spec.get("publish_ports") or [])]
     members = [str(x).split("#", 1)[0].strip() for x in (spec.get("members") or [])]
     members = [m for m in members if m]
 
@@ -98,6 +99,8 @@ def render_pod_quadlet(name: str, spec: dict) -> str:
     lines.append("[Pod]")
     lines.append(f"PodName={name}")
     lines.append(f"Network={network}")
+    for port in publish_ports:
+        lines.append(f"PublishPort={port}")
     lines.append("")
     lines.append("[Install]")
     lines.append("WantedBy=" + " ".join(wanted_by))
@@ -172,6 +175,7 @@ def _selftest() -> int:
         "after": ["network-online.target", "x.service"],
         "wants": ["network-online.target"],
         "wanted_by": ["multi-user.target", "default.target"],
+        "publish_ports": ["8080:8080"],
         "members": ["mios-a", "mios-b  # comment"],
         "doc": "Line one rationale that is reasonably long so wrapping engages across the width boundary deterministically.",
     }
@@ -179,6 +183,7 @@ def _selftest() -> int:
     ck("selftest: has [Pod] section", "[Pod]" in t)
     ck("selftest: PodName from name", "PodName=mios-test" in t)
     ck("selftest: Network rendered", "Network=host" in t)
+    ck("selftest: PublishPort rendered", "PublishPort=8080:8080" in t)
     ck("selftest: After joined", "After=network-online.target x.service" in t)
     ck("selftest: Wants joined", "Wants=network-online.target" in t)
     ck("selftest: WantedBy joined", "WantedBy=multi-user.target default.target" in t)

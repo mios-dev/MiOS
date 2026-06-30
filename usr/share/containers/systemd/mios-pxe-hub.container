@@ -14,7 +14,6 @@ ConditionVirtualization=!container
 # automation/15-render-quadlets.sh from mios.toml
 # [image.sidecars].pxe_hub and [network.quadlet].network.
 Image=quay.io/poseidon/matchbox:latest
-Network=host
 AutoUpdate=registry
 # Run as root (LAW 6 exception) to manage netboot asset permissions
 # and bind to low host ports if needed (though we use 8081/8082 here).

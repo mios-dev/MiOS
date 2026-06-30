@@ -1,0 +1,17 @@
+# AI-hint: GENERATED Quadlet pod for the co-resident group 'mios-netinfra-k3s' (WS-7 pods-as-SSOT). DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [pods.mios-netinfra-k3s] in mios.toml. Members (1): mios-k3s.
+# AI-related: usr/share/mios/mios.toml, tools/generate-pod-quadlets.py, mios-k3s.container
+# /usr/share/containers/systemd/mios-netinfra-k3s.pod
+# Kubernetes orchestration pod.
+# Members (each member .container declares Pod=mios-netinfra-k3s.pod):
+#   mios-k3s
+[Unit]
+Description='MiOS' Network infra Kubernetes pod
+After=network-online.target
+Wants=network-online.target
+
+[Pod]
+PodName=mios-netinfra-k3s
+Network=host
+
+[Install]
+WantedBy=multi-user.target default.target

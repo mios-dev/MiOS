@@ -1,0 +1,17 @@
+# AI-hint: GENERATED Quadlet pod for the co-resident group 'mios-netinfra-pxe' (WS-7 pods-as-SSOT). DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [pods.mios-netinfra-pxe] in mios.toml. Members (1): mios-pxe-hub.
+# AI-related: usr/share/mios/mios.toml, tools/generate-pod-quadlets.py, mios-pxe-hub.container
+# /usr/share/containers/systemd/mios-netinfra-pxe.pod
+# PXE boot provider pod.
+# Members (each member .container declares Pod=mios-netinfra-pxe.pod):
+#   mios-pxe-hub
+[Unit]
+Description='MiOS' Network infra PXE pod
+After=network-online.target
+Wants=network-online.target
+
+[Pod]
+PodName=mios-netinfra-pxe
+Network=host
+
+[Install]
+WantedBy=multi-user.target default.target

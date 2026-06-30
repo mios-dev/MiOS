@@ -1,0 +1,17 @@
+# AI-hint: GENERATED Quadlet pod for the co-resident group 'mios-netinfra-storage' (WS-7 pods-as-SSOT). DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [pods.mios-netinfra-storage] in mios.toml. Members (1): mios-ceph.
+# AI-related: usr/share/mios/mios.toml, tools/generate-pod-quadlets.py, mios-ceph.container
+# /usr/share/containers/systemd/mios-netinfra-storage.pod
+# Storage provider pod.
+# Members (each member .container declares Pod=mios-netinfra-storage.pod):
+#   mios-ceph
+[Unit]
+Description='MiOS' Network infra storage pod
+After=network-online.target
+Wants=network-online.target
+
+[Pod]
+PodName=mios-netinfra-storage
+Network=mios.network
+
+[Install]
+WantedBy=multi-user.target default.target

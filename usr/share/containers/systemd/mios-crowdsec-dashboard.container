@@ -14,7 +14,7 @@ ConditionPathExists=/etc/crowdsec/config.yaml
 # [image.sidecars].crowdsec and [network.quadlet].network.
 Image=docker.io/crowdsecurity/crowdsec:latest
 ContainerName=mios-crowdsec-dashboard
-Network=host
+Pod=mios-netinfra-sec.pod
 AutoUpdate=registry
 # Run as root to allow symlink creation and database management
 # in the shared /var/lib/crowdsec volume.

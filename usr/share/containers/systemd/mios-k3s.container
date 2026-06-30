@@ -30,6 +30,7 @@ ConditionVirtualization=!container
 # automation/15-render-quadlets.sh from mios.toml [image.sidecars].k3s.
 Image=${MIOS_K3S_IMAGE:-docker.io/rancher/k3s:v1.32.1-k3s1}
 ContainerName=mios-k3s
+Pod=mios-netinfra-k3s.pod
 # `Privileged=` requires podman 5.7+; older quadlet-generators (Fedora
 # 43's bundled stack) silently drop the key with a warning, leaving
 # k3s unprivileged and unable to manage cgroups/netfilter. The portable
