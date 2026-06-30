@@ -158,7 +158,7 @@ for dir in "${QUADLET_DIRS[@]}"; do
         local_tmp="$(mktemp)"
         $_renderer "$f" > "$local_tmp"
         if [[ "$(basename "$f")" == "mios-llm-heavy.container" ]]; then
-            local heavy_mode="${MIOS_CONV_INFERENCE_HEAVY_ENGINE_MODE:-dual}"
+            heavy_mode="${MIOS_CONV_INFERENCE_HEAVY_ENGINE_MODE:-dual}"
             if [[ "$heavy_mode" == "single" ]]; then
                 echo "[15-render-quadlets] Applying multi-LoRA configuration to mios-llm-heavy.container..."
                 sed -i 's|--enable-prefix-caching|--enable-prefix-caching --enable-lora --max-loras 4 --max-cpu-loras 8 --max-lora-rank 64 --lora-modules coding=/var/lib/mios/lora-adapters/coding reasoning=/var/lib/mios/lora-adapters/reasoning|g' "$local_tmp"

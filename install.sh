@@ -37,7 +37,7 @@ _repo_root_for_banner="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 unset _repo_root_for_banner
 
 # Refuse to run on bootc-managed hosts.
-if command -v bootc >/dev/null 2>&1 && bootc status --format=json 2>/dev/null | grep -q '"booted"'; then
+if command -v bootc >/dev/null 2>&1 && bootc status --format=json 2>/dev/null | grep -q '"booted": *{'; then
     echo "[FAIL] This host is bootc-managed. install.sh is for non-bootc Fedora hosts." >&2
     echo "       Use 'sudo bootc switch ghcr.io/MiOS-DEV/mios:latest' instead." >&2
     exit 1
@@ -73,7 +73,7 @@ echo "[INFO] Running systemd-sysusers"
 systemd-sysusers
 
 echo "[INFO] Running systemd-tmpfiles"
-systemd-tmpfiles --create
+systemd-tmpfiles --create || true
 
 echo "[INFO] Reloading systemd"
 systemctl daemon-reload

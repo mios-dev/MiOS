@@ -651,6 +651,7 @@
     "_SWARM_SYSTEM",
     "_SWARM_SYSTEM_HEAD",
     "_SloShed",
+    "_StrippedEnviron",
     "_TAIL_KIND_EMOJI",
     "_TAINT_VERBS",
     "_TEMPLATE_PH_RE",
@@ -1374,6 +1375,6 @@
   ],
   "counts": {
     "routes": 80,
-    "provided": 1289
+    "provided": 1290
   }
 }

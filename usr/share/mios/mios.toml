@@ -9124,4 +9124,3 @@ distroless_base        = "gcr.io/distroless/python3-debian13"
 rechunk_enable         = false    # true = apply rechunk in CI post-build step
 rechunk_format_version = 1
 mcp_pool_enable        = false    # true = unified MCPClientPool in GatewayWorker
-

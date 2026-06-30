@@ -90,24 +90,33 @@ def _app_route_pairs(app, websocket_route_cls):
     """``(method, path)`` for every route the LIVE app serves, minus the FastAPI
     built-ins and minus HEAD. A websocket route carries no HTTP ``methods`` and is
     identified by the framework's own websocket route class, then recorded under the
-    normalised _WS_METHOD token. Any object that is neither an HTTP route nor a
-    websocket route (e.g. a sub-application Mount) exposes no method+path and is
-    skipped -- it is never a MiOS served route."""
+    normalised _WS_METHOD token. Replaces flat iteration with recursive routing traversal
+    to handle _IncludedRouter and Mount sub-routes introduced in newer FastAPI/Starlette versions."""
     pairs = set()
-    for route in app.routes:
-        path = getattr(route, "path", None)
-        if path is None or path in _FASTAPI_BUILTIN_PATHS:
-            continue
-        if isinstance(route, websocket_route_cls):
-            pairs.add((_WS_METHOD, path))
-            continue
-        methods = getattr(route, "methods", None)
-        if not methods:
-            continue
-        for method in methods:
-            if method == _HEAD_METHOD:
-                continue
-            pairs.add((method, path))
+
+    def traverse(routes):
+        for route in routes:
+            cls_name = type(route).__name__
+            if cls_name == "_IncludedRouter":
+                traverse(route.original_router.routes)
+            elif cls_name == "Mount" or hasattr(route, "routes"):
+                traverse(route.routes)
+            else:
+                path = getattr(route, "path", None)
+                if path is None or path in _FASTAPI_BUILTIN_PATHS:
+                    continue
+                if isinstance(route, websocket_route_cls):
+                    pairs.add((_WS_METHOD, path))
+                    continue
+                methods = getattr(route, "methods", None)
+                if not methods:
+                    continue
+                for method in methods:
+                    if method == _HEAD_METHOD:
+                        continue
+                    pairs.add((method, path))
+
+    traverse(app.routes)
     return pairs
 
 

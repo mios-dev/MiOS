@@ -61,7 +61,32 @@ import hashlib
 import hmac
 import json
 import logging
+import collections.abc
 import os
+
+class _StrippedEnviron(collections.abc.MutableMapping):
+    def __init__(self, original):
+        self._original = original
+
+    def __getitem__(self, key):
+        val = self._original[key]
+        if isinstance(val, str):
+            return val.strip("'\"")
+        return val
+
+    def __setitem__(self, key, value):
+        self._original[key] = value
+
+    def __delitem__(self, key):
+        del self._original[key]
+
+    def __iter__(self):
+        return iter(self._original)
+
+    def __len__(self):
+        return len(self._original)
+
+os.environ = _StrippedEnviron(os.environ)
 import random
 import re
 import shlex

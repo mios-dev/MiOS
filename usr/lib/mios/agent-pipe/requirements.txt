@@ -5,3 +5,5 @@ uvloop
 httpx
 smolagents
 psycopg[binary]
+websockets
+mcp

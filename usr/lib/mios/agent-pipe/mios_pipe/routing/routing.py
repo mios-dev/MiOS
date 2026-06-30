@@ -92,7 +92,11 @@ def _load_routing_domains() -> tuple[dict, bool]:
                                      "verbs": [str(v) for v in (cfg.get("verbs") or [])]}
         return domains, enable
     except Exception as e:
-        log.warning("routing domains load failed: %s", e)
+        if log is not None:
+            log.warning("routing domains load failed: %s", e)
+        else:
+            import sys
+            print(f"routing domains load failed: {e}", file=sys.stderr)
         return {}, False
 
 
@@ -113,7 +117,11 @@ def _load_routing_phrases(key: str) -> list:
             {str(p).lower().strip() for p in (rt.get(key) or []) if str(p).strip()},
             key=len, reverse=True)
     except Exception as e:
-        log.warning("routing phrases load failed (%s): %s", key, e)
+        if log is not None:
+            log.warning("routing phrases load failed (%s): %s", key, e)
+        else:
+            import sys
+            print(f"routing phrases load failed ({key}): {e}", file=sys.stderr)
         return []
 
 

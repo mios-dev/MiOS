@@ -5,8 +5,27 @@
 """Unit tests for mios_agentreg (R3 strangler-fig wave)."""
 
 import sys
+import builtins
 
 import mios_agentreg as reg
+
+_orig_open = builtins.open
+
+def _set_open_mock(exclude_suffixes=None, fail_all_toml=False):
+    def _mocked_open(file, *args, **kwargs):
+        filepath = str(file).replace("\\", "/")
+        if fail_all_toml and filepath.endswith(".toml"):
+            raise FileNotFoundError()
+        if exclude_suffixes:
+            for suffix in exclude_suffixes:
+                if filepath.endswith(suffix):
+                    raise FileNotFoundError()
+        return _orig_open(file, *args, **kwargs)
+    builtins.open = _mocked_open
+
+def _reset_open_mock():
+    builtins.open = _orig_open
+
 
 _fails = 0
 
@@ -70,9 +89,11 @@ def t_load_agent_registry(monkeypatched_toml):
     import os
     _saved = os.environ.get("MIOS_TOML")
     os.environ["MIOS_TOML"] = "/nonexistent/mios-agentreg-test.toml"
+    _set_open_mock(fail_all_toml=True)
     try:
         r = reg._load_agent_registry()
     finally:
+        _reset_open_mock()
         if _saved is None:
             os.environ.pop("MIOS_TOML", None)
         else:
@@ -139,11 +160,12 @@ def t_health_gate_via_registry():
         f.write(toml)
     _saved = os.environ.get("MIOS_TOML")
     os.environ["MIOS_TOML"] = path
-    # Avoid /etc + ~/.config overlay interference is not possible to fully stub,
-    # but those files normally don't define these synthetic agents.
+    # Avoid /etc + ~/.config overlay interference by mocking open to raise FileNotFoundError for those paths
+    _set_open_mock(exclude_suffixes=["etc/mios/mios.toml", ".config/mios/mios.toml"])
     try:
         r = reg._load_agent_registry()
     finally:
+        _reset_open_mock()
         os.remove(path)
         if _saved is None:
             os.environ.pop("MIOS_TOML", None)
