@@ -15,7 +15,6 @@ Pod=mios-remote-desktop.pod
 # automation/15-render-quadlets.sh from mios.toml [image.sidecars].guacamole
 # and [ports].guacamole_web.
 Image=docker.io/guacamole/guacamole:latest
-Network=mios.network
 AutoUpdate=registry
 Label=org.opencontainers.image.url=http://localhost:8090/guacamole/
 Label=org.opencontainers.image.documentation=https://guacamole.apache.org/doc/

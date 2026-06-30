@@ -12,7 +12,7 @@ Wants=network-online.target
 [Pod]
 PodName=mios-netinfra-admin
 Network=mios.network
-PublishPort=0.0.0.0:${MIOS_PORT_COCKPIT_LINK:-19090}:19090
+PublishPort=0.0.0.0:19090:19090
 
 [Install]
 WantedBy=multi-user.target default.target

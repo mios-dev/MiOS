@@ -34,15 +34,12 @@ Pod=mios-devforge.pod
 # [ports].forge_http, [ports].forge_ssh, [services.forge].uid/.gid.
 Image=codeberg.org/forgejo/forgejo:12
 ContainerName=mios-forge
-Network=mios.network
 # (ai-net consolidated into mios.network 2026-05-23; mios-code-server is on
 # host networking and reaches the forge via localhost, not container DNS.)
 # forge_http = web UI (reverse-proxy via Cockpit/Caddy if desired).
 # forge_ssh  = git+ssh, mapped to container :22; non-22 host port so sshd
 # (also on :22) and the forge's git transport coexist on the same host.
 EnvironmentFile=/etc/mios/install.env
-PublishPort=${MIOS_PORT_FORGE_HTTP:-3000}:3000
-PublishPort=${MIOS_PORT_FORGE_SSH:-2222}:22
 AddCapability=CAP_NET_BIND_SERVICE
 
 # OCI image labels. Values MUST NOT contain whitespace -- Quadlet's

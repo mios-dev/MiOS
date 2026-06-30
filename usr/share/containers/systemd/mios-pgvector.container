@@ -39,7 +39,6 @@ ContainerName=mios-pgvector
 # + mios-daemon + every MiOS AI surface, sidestepping the podman-WSL port-
 # forwarder quirk. Loopback-class infra service. (guacamole-postgres uses the
 # bridge net on its OWN port, so there's no host:5432 collision.)
-Network=host
 
 # Persistent data dir. PGDATA is a SUBDIR of the mounted dir so the postgres
 # entrypoint (running as a non-root uid) can create + own it under the

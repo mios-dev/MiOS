@@ -28,7 +28,6 @@ Pod=mios-ai-inference.pod
 # SSOT-friendly defaults (override via env / mios.toml render if/when added).
 Image=${MIOS_LLM_LIGHT_IMAGE:-ghcr.io/mostlygeek/llama-swap:cuda}
 ContainerName=mios-cpu-node
-Network=host
 
 # Same AI-tier identity as the mios-llm-light lane (uid 827, pinned in sysusers).
 User=${MIOS_LLAMACPP_UID:-827}

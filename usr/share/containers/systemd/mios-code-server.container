@@ -52,7 +52,6 @@ Group=0
 # hits the editor without netavark's port-forwarder (which intermittently
 # times out on WSL2/podman-machine-os 6.0). Forge is reachable as
 # http://localhost:3000/ from code-server's terminal in this mode.
-Network=host
 SecurityLabelDisable=true
 Exec=--bind-addr 0.0.0.0:8800
 

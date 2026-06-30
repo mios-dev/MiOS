@@ -44,7 +44,6 @@ ConditionPathExists=/usr/share/mios/llamacpp/models/.ready
 Pod=mios-ai-inference.pod
 Image=${MIOS_LLM_LIGHT_IMAGE:-ghcr.io/mostlygeek/llama-swap:cuda}
 ContainerName=mios-llm-worker-%i
-Network=host
 AddDevice=${MIOS_GPU_DEVICE:-nvidia.com/gpu=all}
 # Identity from mios.toml [services.llamacpp] (numeric -- the upstream image has
 # no mios user), same as mios-llm-light.

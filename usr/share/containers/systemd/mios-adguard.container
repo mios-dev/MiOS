@@ -35,7 +35,6 @@ Image=${MIOS_ADGUARD_IMAGE:-docker.io/adguard/adguardhome:latest}
 ContainerName=mios-adguard
 # Host networking: bind the real loopback + Tailscale interfaces directly (see
 # header). PublishPort is intentionally absent -- it is a no-op under host net.
-Network=host
 # Run as the dedicated mios-adguard sysuser (uid 825), NOT root. :53 is a
 # privileged port, so grant ONLY the bind capability -- nothing else.
 User=${MIOS_ADGUARD_UID:-825}

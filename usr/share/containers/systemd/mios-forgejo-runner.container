@@ -57,7 +57,6 @@ Pod=mios-devforge.pod
 # [image.sidecars].forge_runner and [network.quadlet].network.
 Image=code.forgejo.org/forgejo/runner:7
 ContainerName=mios-forgejo-runner
-Network=mios.network
 # The upstream image ships CMD=[/bin/forgejo-runner] with an empty
 # entrypoint, so the bare invocation prints CLI help and exits.
 # Force the entrypoint + daemon subcommand so the registration +

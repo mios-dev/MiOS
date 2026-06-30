@@ -40,7 +40,6 @@ ContainerName=mios-llm-light
 EnvironmentFile=/etc/mios/install.env
 # Host networking (matches mios-surrealdb/pgvector): reliable localhost:<port>
 # for the pipe + a stable endpoint the swarm node points at.
-Network=host
 # dGPU passthrough (CDI) -- llama-server offloads to CUDA.
 AddDevice=${MIOS_GPU_DEVICE:-nvidia.com/gpu=all}
 

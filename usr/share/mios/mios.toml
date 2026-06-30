@@ -7526,7 +7526,7 @@ network     = "mios.network"
 after       = ["network-online.target", "hermes-agent.service"]
 wants       = ["network-online.target", "hermes-agent.service"]
 wanted_by   = ["multi-user.target", "default.target"]
-publish_ports = ["${MIOS_PORT_OPEN_WEBUI:-3030}:8080"]
+publish_ports = ["3030:8080"]
 members     = ["mios-open-webui"]
 doc = """Web interface for the AI stack."""
 
@@ -7536,7 +7536,7 @@ network     = "mios.network"
 after       = ["network-online.target"]
 wants       = ["network-online.target"]
 wanted_by   = ["multi-user.target", "default.target"]
-publish_ports = ["127.0.0.1:${MIOS_PORT_SEARXNG:-8888}:8080"]
+publish_ports = ["127.0.0.1:8888:8080"]
 members     = ["mios-searxng"]
 doc = """SearXNG privacy-respecting search proxy."""
 
@@ -7555,7 +7555,7 @@ network     = "mios.network"
 after       = ["network-online.target"]
 wants       = ["network-online.target"]
 wanted_by   = ["multi-user.target", "default.target"]
-publish_ports = ["0.0.0.0:${MIOS_PORT_COCKPIT_LINK:-19090}:19090"]
+publish_ports = ["0.0.0.0:19090:19090"]
 members     = ["mios-cockpit-link"]
 doc = """System administration pod."""
 
