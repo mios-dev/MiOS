@@ -11,7 +11,7 @@ Documentation=https://github.com/MiOS-DEV/MiOS
 # now.
 After=local-fs.target systemd-tmpfiles-setup.service mios-llm-light.service
 Wants=mios-llm-light.service
-Before=hermes-agent.service multi-user.target
+Before=mios-gateway-agent.service multi-user.target
 # NO ConditionPathExists=!/etc/mios/hermes/api.env. The old gate made
 # this unit a true once-ever oneshot -- but the script does TWO jobs:
 # (1) mint api.env (genuinely once), and (2) seed/heal

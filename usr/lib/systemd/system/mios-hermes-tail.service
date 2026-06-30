@@ -17,8 +17,8 @@
 # systemd-journal group) can poll without permission gymnastics.
 
 Description='MiOS' Hermes journal tail (in-flight status -> OWUI emitter)
-After=hermes-agent.service
-Wants=hermes-agent.service
+After=mios-gateway-agent.service
+Wants=mios-gateway-agent.service
 ConditionPathExists=/usr/libexec/mios/mios-hermes-tail
 
 [Service]

@@ -429,7 +429,7 @@ fi
 # it re-pulls + re-installs the package. Operator-confirmed regression
 # 2026-05-15: fresh MiOS install came up with hermes-agent inactive
 # because the build never installed the venv.
-if [[ ! -x /usr/lib/mios/agents/.venv/bin/hermes ]]; then
+if [[ ! -x /usr/lib/mios/agents/.venv/bin/python3 ]]; then
     _hermes_installer=""
     for _c in /var/lib/mios/build/mios-bootstrap/automation/38-hermes-agent.sh \
               /opt/mios-bootstrap/automation/38-hermes-agent.sh \
@@ -438,23 +438,23 @@ if [[ ! -x /usr/lib/mios/agents/.venv/bin/hermes ]]; then
         [[ -n "$_c" && -x "$_c" ]] && { _hermes_installer="$_c"; break; }
     done
     if [[ -n "$_hermes_installer" ]]; then
-        _log "hermes-agent venv missing -- running $_hermes_installer to recover"
+        _log "hermes-agent/gateway venv missing -- running $_hermes_installer to recover"
         bash "$_hermes_installer" 2>&1 | sed 's/^/  /' \
             | while IFS= read -r _line; do _log "$_line"; done || \
             _log "WARN: hermes-agent installer exited non-zero"
-        if [[ -x /usr/lib/mios/agents/.venv/bin/hermes ]]; then
-            _log "hermes-agent venv installed; daemon-reload + start the service"
+        if [[ -x /usr/lib/mios/agents/.venv/bin/python3 ]]; then
+            _log "gateway-agent venv installed; daemon-reload + start the service"
             systemctl daemon-reload || true
-            # --no-block: firstboot must not WAIT on hermes-agent settling
+            # --no-block: firstboot must not WAIT on mios-gateway-agent settling
             # (it has its own readiness deps + can deadlock against this very
             # service in the early-boot ordering -- the ~23min hang, 2026-06-14).
-            systemctl restart --no-block hermes-agent.service 2>&1 | sed 's/^/  /' \
+            systemctl restart --no-block mios-gateway-agent.service 2>&1 | sed 's/^/  /' \
                 | while IFS= read -r _line; do _log "$_line"; done || true
         else
-            _log "WARN: installer ran but venv still absent at /usr/lib/mios/agents/.venv/bin/hermes"
+            _log "WARN: installer ran but venv still absent at /usr/lib/mios/agents/.venv/bin/python3"
         fi
     else
-        _log "WARN: hermes-agent venv missing AND no installer found in any candidate path"
+        _log "WARN: gateway-agent venv missing AND no installer found in any candidate path"
         _log "  candidates checked: /var/lib/mios/build/mios-bootstrap/automation/38-hermes-agent.sh,"
         _log "                       /opt/mios-bootstrap/..., \$MIOS_BOOTSTRAP_REPO/..., /mnt/m/..."
         _log "  manual recovery: run that script as root"
@@ -1521,12 +1521,12 @@ else
     # SKILL.md in $HERMES_HOME/skills, so touching a marker file in the
     # skills dir invalidates the disk snapshot. The simpler hammer: if
     # any skill was actually seeded above, restart the service.
-    if systemctl is-active --quiet hermes-agent.service \
+    if systemctl is-active --quiet mios-gateway-agent.service \
        && find "${HERMES_DATA}/skills" -newer "${HERMES_DATA}/SOUL.md" -name SKILL.md 2>/dev/null | grep -q .; then
-        _log "skill content changed -- restarting hermes-agent.service to refresh skills index"
+        _log "skill content changed -- restarting mios-gateway-agent.service to refresh skills index"
         # --no-block: don't wait on the restart settling (avoids the firstboot
         # <-> hermes-agent start deadlock / ~23min hang, 2026-06-14).
-        systemctl restart --no-block hermes-agent.service || _log "WARN: hermes-agent restart failed"
+        systemctl restart --no-block mios-gateway-agent.service || _log "WARN: mios-gateway-agent restart failed"
     fi
 fi
 

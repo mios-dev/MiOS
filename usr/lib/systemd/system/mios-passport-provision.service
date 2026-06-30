@@ -18,7 +18,7 @@ Documentation=file:///usr/libexec/mios/mios-passport
 ConditionPathExists=/usr/libexec/mios/mios-passport
 After=mios-pgvector.service
 Wants=mios-pgvector.service
-Before=mios-agent-pipe.service hermes-agent.service mios-daemon.service
+Before=mios-agent-pipe.service mios-gateway-agent.service mios-daemon.service
 
 [Service]
 Type=oneshot
@@ -39,7 +39,7 @@ ExecStart=/usr/libexec/mios/mios-passport provision
 # mios-daemon stay on their own sysusers below until their services are likewise
 # cut over to mios-ai.
 ExecStartPost=-/usr/bin/chown -R mios-ai:mios-ai /var/lib/mios/agent-passports/agent-pipe
-ExecStartPost=-/usr/bin/chown -R mios-hermes:mios-hermes /var/lib/mios/agent-passports/hermes
+ExecStartPost=-/usr/bin/chown -R mios-ai:mios-ai /var/lib/mios/agent-passports/hermes
 ExecStartPost=-/usr/bin/chown -R mios:mios /var/lib/mios/agent-passports/mios-daemon
 # Keep private.key 0600 + public.key 0644 even after the chown.
 ExecStartPost=/usr/bin/find /var/lib/mios/agent-passports -type f -name private.key -exec chmod 0600 {} \;
