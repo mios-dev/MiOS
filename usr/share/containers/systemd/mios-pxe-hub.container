@@ -10,6 +10,7 @@ ConditionVirtualization=!wsl
 ConditionVirtualization=!container
 
 [Container]
+Pod=mios-system.pod
 # Image / Network placeholders -- resolved at image build time by
 # automation/15-render-quadlets.sh from mios.toml
 # [image.sidecars].pxe_hub and [network.quadlet].network.

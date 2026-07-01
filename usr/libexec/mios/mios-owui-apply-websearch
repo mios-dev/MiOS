@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-# AI-hint: Configures Open WebUI's web-search feature by updating the webui.db SQLite database to enable search augmentation and point the search engine to the local SearXNG instance on port 8888.
+# AI-hint: Configures Open WebUI's web-search feature by updating the webui.db SQLite database to enable search augmentation and point the search engine to the local SearXNG instance on port 8899.
 # AI-related: mios-searxng, mios-owui-apply-system-prompt
 """mios-owui-apply-websearch -- enable Open WebUI's built-in web-search
 augmentation + point it at the local SearXNG (mios-searxng container
-on :8888).
+on :8899).
 
 OWUI's web-search feature is OFF by default in upstream. When enabled,
 every chat turn can be augmented by retrieving + injecting web results
@@ -26,10 +26,10 @@ from pathlib import Path
 DB = Path(os.environ.get("MIOS_OWUI_DB", "/var/lib/mios/open-webui/webui.db"))
 
 # Inside the OWUI container, localhost = the container itself, not the host.
-# host.containers.internal resolves to the WSL host where SearXNG (8888) runs.
+# host.containers.internal resolves to the WSL host where SearXNG (8899) runs.
 SEARXNG_QUERY = os.environ.get(
     "MIOS_OWUI_SEARXNG_QUERY",
-    "http://host.containers.internal:8888/search?q=<query>",
+    "http://host.containers.internal:8899/search?q=<query>",
 )
 
 DESIRED = {
@@ -53,7 +53,13 @@ def main() -> int:
         return 0
     conn = sqlite3.connect(str(DB))
     try:
-        rows = conn.execute("SELECT id, data FROM config").fetchall()
+        try:
+            rows = conn.execute("SELECT id, data FROM config").fetchall()
+        except sqlite3.OperationalError as e:
+            if "no such column: id" in str(e) or "no such column: data" in str(e):
+                print("config schema likely changed -- no hardcoded websearch to clear")
+                return 0
+            raise e
         if not rows:
             _log("config table empty -- OWUI not initialised yet; skipping")
             return 0

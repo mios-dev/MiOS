@@ -309,7 +309,7 @@ service_status() {
         inactive|deactivating)
             if systemctl status "$svc" 2>/dev/null \
                     | grep -qE '(was not met|Condition.*not met|skipped)'; then
-                printf 'skipped|%s|%s' "$DOT_DOWN" "$C_YLW"
+                printf 'skipped|%s|%s' "$DOT_WAIT" "$C_YLW"
             else
                 printf 'inactive|%s|%s' "$DOT_DOWN" "$C_GRY"
             fi
@@ -341,7 +341,13 @@ tcp_dot() {
 # operator port-edit in mios.toml flows through to every URL on this
 # dashboard without re-baking. Falls back to $2 if no layer matches.
 _mios_port() {
-    local key=$1 default=$2 t v
+    local key=$1 default=$2 t v var_name
+    var_name="MIOS_PORT_$(echo "$key" | tr 'a-z' 'A-Z')"
+    v=$(printenv "$var_name" 2>/dev/null || true)
+    if [[ -n "$v" ]]; then
+        printf '%s' "$v"
+        return
+    fi
     for t in "${HOME:-/root}/.config/mios/mios.toml" /etc/mios/mios.toml /usr/share/mios/mios.toml; do
         [ -r "$t" ] || continue
         v=$(awk -v k="$key" '
@@ -386,11 +392,11 @@ print_endpoints() {
     _p_ollama=$(_mios_port ollama 11434)
     _p_ollama_cpu=$(_mios_port ollama_cpu 11435)
     _p_llamaswap=$(_mios_port llm_light 11450)
-    _p_searxng=$(_mios_port searxng 8888)
+    _p_searxng=$(_mios_port searxng 8899)
     _p_hermes=$(_mios_port hermes 8642)
     _p_dash=$(_mios_port hermes_dashboard 9119)
     _p_code=$(_mios_port code_server 8800)
-    _p_webui=$(_mios_port open_webui 3030)
+    _p_webui=$(_mios_port open_webui 3033)
     _p_agent_pipe=$(_mios_port agent_pipe 8640)
     _p_pgvector=$(_mios_port pgvector 5432)   # SurrealDB retired -> pgvector is the live DB
     _p_guacamole=$(_mios_port guacamole_web 8080)
@@ -412,10 +418,10 @@ print_endpoints() {
     d_webui=$(ep_dot      "http://localhost:${_p_webui}/")
     d_agent_pipe=$(ep_dot "http://localhost:${_p_agent_pipe}/health")
     d_pgvector=$(tcp_dot  localhost "$_p_pgvector")
-    d_ttyd_bash=$(ep_dot  "http://localhost:${_p_ttyd_bash}/")
-    d_ttyd_ps=$(ep_dot    "http://localhost:${_p_ttyd_ps}/")
-    d_guacamole=$(ep_dot  "http://localhost:${_p_guacamole}/guacamole/")
-    d_crowdsec=$(ep_dot   "http://localhost:8080/metrics")
+    d_ttyd_bash=$(tcp_dot "127.0.0.1" "$_p_ttyd_bash")
+    d_ttyd_ps=$(tcp_dot "127.0.0.1" "$_p_ttyd_ps")
+    s_guac=$( service_status mios-guacamole.service); IFS='|' read -r _ d_guacamole _ <<< "$s_guac"
+    s_crowdsec=$( service_status mios-crowdsec.service); IFS='|' read -r _ d_crowdsec _ <<< "$s_crowdsec"
 
     # Mini: count recap + 4 clickable hyperlink rows. Refresh
     # the count includes the new AI-surface services (agent-pipe,
@@ -561,7 +567,7 @@ print_quadlets() {
     # full deployed surface.
     for svc in mios-forge mios-forgejo-runner mios-cockpit-link \
                mios-ceph mios-k3s mios-llm-light mios-searxng \
-               mios-hermes mios-hermes-dashboard mios-open-webui mios-code-server crowdsec-dashboard \
+               mios-gateway-agent mios-hermes-dashboard mios-open-webui mios-code-server crowdsec-dashboard \
                mios-adguard \
                mios-guacamole guacd guacamole-postgres \
                mios-pgvector mios-agent-pipe mios-daemon \

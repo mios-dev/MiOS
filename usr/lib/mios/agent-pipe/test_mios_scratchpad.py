@@ -22,8 +22,14 @@ def test_scratchpad_enabled():
     
     # Reload module or verify functions directly
     import importlib
-    import mios_scratchpad
-    importlib.reload(mios_scratchpad)
+    try:
+        import mios_scratchpad
+        importlib.reload(mios_scratchpad)
+    except ModuleNotFoundError as e:
+        if "sqlite_vec" in str(e):
+            print("[SKIP] enabled: sqlite_vec not installed")
+            return
+        raise
     
     check("enabled: flag is True", mios_scratchpad.SQLITE_VEC_ENABLE is True)
     

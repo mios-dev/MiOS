@@ -1,41 +1,28 @@
-<!-- AI-hint: Concept documentation explaining the MiOS 7-pod architecture, port-minimization strategy, host services constraint, and SSOT-driven generation lifecycle.
+<!-- AI-hint: Concept documentation explaining the MiOS 3-pod architecture, port-minimization strategy, host services constraint, and SSOT-driven generation lifecycle.
      AI-related: ./MIOS-ROADMAP-2026-06-22.md, ../../../mios.toml, ../../../../tools/generate-pod-quadlets.py, ../../../containers/systemd -->
 # MiOS Pod Architecture (2026-06-22)
 
-This document describes the structural transition from disjoint standalone containers to the **7-Pod Capability Architecture**. This refactor minimizes the exposed networking surface and unifies container lifecycle under `podman` pod boundaries.
+This document describes the structural transition from disjoint standalone containers to the **3-Pod Capability Architecture**. This refactor minimizes the exposed networking surface and unifies container lifecycle under `podman` pod boundaries.
 
 See `MIOS-ROADMAP-2026-06-22.md` §WS-C for the historical context and original design goals.
 
-## The 7-Pod Map
+## The 3-Pod Map
 
-The containers are now consolidated into seven core capability pods, defined in the `mios.toml` SSOT (`[pods.*]`):
+The containers are now consolidated into three core capability pods, defined in the `mios.toml` SSOT (`[pods.*]`):
 
-1. **`mios-ai-heavy`**: The dGPU heavy reasoner lanes.
-   - Members: `mios-llm-heavy`, `mios-llm-heavy-alt`
-   - Rationale: Groups mutually-exclusive heavy inference engines.
-2. **`mios-ai-inference`**: The light and CPU lanes.
-   - Members: `mios-llm-light`, `mios-cpu-node`, `mios-llm-worker@`
-   - Rationale: Groups the primary multi-model and fallback CPU inference engines.
-3. **`mios-ai-data`**: The agent-plane memory datastore.
-   - Members: `mios-pgvector`
-   - Rationale: Unified PostgreSQL+pgvector database.
-4. **`mios-webtools`**: The scraping and web-search capability tools.
-   - Members: `mios-webtools-firecrawl-api`, `mios-webtools-firecrawl-worker`, `mios-webtools-redis`, `mios-webtools-crawl4ai`
-   - Rationale: Groups all scraping components behind a single pod network namespace.
-5. **`mios-devforge`**: The developer environment.
-   - Members: `mios-code-server`, `mios-forge`, `mios-forgejo-runner`
-   - Rationale: Consolidates the code editor, git forge, and CI runner.
-6. **`mios-netinfra-dns`**: Network infrastructure.
-   - Members: `mios-adguard`
-   - Rationale: Dedicated pod for the system-wide DNS resolver.
-7. **`mios-remote-desktop`**: Remote graphical access.
-   - Members: `mios-guacamole`, `mios-guacd`, `mios-guacamole-postgres`
-   - Rationale: Groups the Apache Guacamole remote desktop suite.
+1. **`mios-ai`**: The AI plane.
+   - Members: `mios-llm-light`, `mios-cpu-node`, `mios-llm-worker@`, `mios-agent-pipe`, `mios-llm-heavy`, `mios-pgvector`, `mios-letta-server`, `mios-open-webui`
+   - Rationale: Consolidates the inference engines (CPU, dGPU) and the agent-plane memory datastore (PostgreSQL+pgvector) into a single pod network namespace.
+2. **`mios-webtools`**: The scraping, web-search, and developer tools capability.
+   - Members: `mios-webtools-redis`, `mios-webtools-firecrawl-api`, `mios-webtools-firecrawl-worker`, `mios-webtools-crawl4ai`, `mios-searxng`, `mios-forge`, `mios-forgejo-runner`, `mios-code-server`
+   - Rationale: Groups all scraping components, the SearXNG search engine, and developer tools (code editor, git forge, CI runner) behind a single pod network namespace.
+3. **`mios-system`**: Network and system infrastructure.
+   - Members: `mios-adguard`, `mios-ceph`, `mios-cockpit-link`, `mios-crowdsec-dashboard`, `mios-pxe-hub`, `mios-k3s`, `mios-guacamole`, `mios-guacd`, `mios-guacamole-postgres`
+   - Rationale: Consolidated system services pod for the system-wide DNS resolver, storage, admin interfaces, and remote graphical access suite.
 
 ### Standalone Exceptions
 A few critical containers remain explicitly outside the pod structure:
-- **`mios-open-webui`**: Acts as the user-facing front door, deliberately kept separate.
-- **`mios-searxng`**: Standalone instance that now only publishes to the loopback interface, consumed solely by the host agent.
+- **`mios-open-webui`**: Acts as the user-facing front door, deliberately kept separate (although its systemd service can integrate with the AI pod if configured).
 
 ## Port Minimization
 

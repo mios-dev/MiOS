@@ -11,7 +11,7 @@
 # unified tree /usr/lib/mios/agents/ -- hermes-agent/ (Hermes code + bin),
 # opencode/bin/opencode (binary), opencode-gateway/ (the /v1 shim) -- and all
 # three share ONE explicit python venv at /usr/lib/mios/agents/.venv (a SIBLING
-# of the three agent dirs, mios.toml [ai].agent_venv) which hermes-agent.service,
+# of the three agent dirs, mios.toml [ai].agent_venv) which mios-gateway-agent.service,
 # mios-agent-pipe.service, mios-delegation-prefilter.service, AND mios-opencode-
 # gateway.service all exec from. build.sh globs automation/[0-9][0-9]-*.sh, so a
 # second 38-* file would double-run; this single 38- driver is the SoT
@@ -32,7 +32,7 @@
 #
 # CRITICAL: this script MUST NOT fail the OCI build. Network egress,
 # PyPI, and git are best-effort at build time -- if any step fails the
-# script logs a warning and `exit 0`s. hermes-agent.service carries
+# script logs a warning and `exit 0`s. mios-gateway-agent.service carries
 # ConditionPathExists so it cleanly no-ops on hosts where the install
 # didn't land; `mios update` / a firstboot retry can complete it later.
 #
@@ -87,7 +87,7 @@ for tool in python3 git; do
     command -v "$tool" >/dev/null 2>&1 || _missing="${_missing} ${tool}"
 done
 if [[ -n "$_missing" ]]; then
-    warn "[MiOS AI] missing build tools:${_missing} -- skipping direct install (hermes-agent.service will no-op via ConditionPathExists)"
+    warn "[MiOS AI] missing build tools:${_missing} -- skipping direct install (mios-gateway-agent.service will no-op via ConditionPathExists)"
     exit 0
 fi
 
@@ -176,7 +176,7 @@ fi
 
 # The pip install drops a `hermes` entry-point into the venv's bin.
 # Verify it landed; symlink it to a stable vendor path the
-# /usr/bin/hermes wrapper + hermes-agent.service both reference.
+# /usr/bin/hermes wrapper + mios-gateway-agent.service both reference.
 if [[ -x "${VENV_DIR}/bin/hermes" ]]; then
     ln -sf "${VENV_DIR}/bin/hermes" "${BIN_DIR}/hermes"
     log "[MiOS AI] installed: ${VENV_DIR}/bin/hermes -> ${BIN_DIR}/hermes"
@@ -535,7 +535,7 @@ shopt -u nullglob
 # NOT a Hermes ACP subprocess. This phase -- absorbed from the retired
 # automation/39-opencode.sh -- fetches the opencode binary and lands the
 # vendored opencode.json into the gateway's config dir so the gateway has
-# a usable runtime the moment hermes-agent.service's shared venv is built
+# a usable runtime the moment mios-gateway-agent.service's shared venv is built
 # (the gateway reuses THIS venv's python3; see mios-opencode-gateway.
 # service ExecStart + mios.toml [ai].agent_venv).
 #
@@ -653,5 +653,5 @@ else
     fi
 fi
 
-log "[MiOS AI] done -- runtime: hermes-agent.service (:${MIOS_PORT_HERMES:-8642}/v1) + mios-opencode-gateway.service (:${MIOS_PORT_OPENCODE_GATEWAY:-8633}/v1); shared venv = ${VENV_DIR}; backend = mios.toml [ai].hermes_backend_url"
+log "[MiOS AI] done -- runtime: mios-gateway-agent.service (:${MIOS_PORT_HERMES:-8642}/v1) + mios-opencode-gateway.service (:${MIOS_PORT_OPENCODE_GATEWAY:-8633}/v1); shared venv = ${VENV_DIR}; backend = mios.toml [ai].hermes_backend_url"
 exit 0

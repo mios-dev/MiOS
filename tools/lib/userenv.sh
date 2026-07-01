@@ -614,10 +614,26 @@ slots = [
     ("flatpaks.install",        "MIOS_FLATPAKS"),
 ]
 
+stack_id = get(merged, "ports.stack_id")
+try:
+    stack_offset = int(stack_id) * 10000 if stack_id is not None else 0
+except ValueError:
+    stack_offset = 0
+
 for dotted, env in slots:
     v = get(merged, dotted)
     if v is None or v == "":
         continue
+        
+    # Apply 8-Block schema offset to port integers, except adguard_dns (53)
+    if dotted.startswith("ports.") and dotted != "ports.stack_id":
+        try:
+            # Avoid applying offset to port 53 (DNS lookup compat)
+            if int(v) != 53:
+                v = int(v) + stack_offset
+        except (ValueError, TypeError):
+            pass
+            
     if isinstance(v, list):
         v = ",".join(str(x) for x in v)
     print(f"export {env}={shlex.quote(str(v))}")

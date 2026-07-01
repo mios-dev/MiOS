@@ -1,5 +1,5 @@
-# AI-hint: Systemd container unit defining the SearXNG metasearch proxy; provides a privacy-preserving search tool for the LLM via port 8888, abstracting 250+ engines into a single local endpoint.
-# AI-related: /etc/mios/searxng/, /etc/mios/searxng, /etc/mios/searxng/settings.yml, mios-searxng, mios-hermes, mios-services, network-online.target, multi-user.target, default.target, localhost:8888
+# AI-hint: Systemd container unit defining the SearXNG metasearch proxy; provides a privacy-preserving search tool for the LLM via port 8899, abstracting 250+ engines into a single local endpoint.
+# AI-related: /etc/mios/searxng/, /etc/mios/searxng, /etc/mios/searxng/settings.yml, mios-searxng, mios-hermes, mios-services, network-online.target, multi-user.target, default.target, localhost:8899
 # /etc/containers/systemd/mios-searxng.container
 # 'MiOS' privacy-respecting metasearch (SearXNG upstream).
 #
@@ -29,7 +29,7 @@ ConditionPathIsDirectory=/etc/mios/searxng
 # at the upstream tag covers amd64 / arm64 / armv7.
 Image=docker.io/searxng/searxng:latest
 ContainerName=mios-searxng
-Pod=mios-search.pod
+Pod=mios-webtools.pod
 # The agent reaches SearXNG via SEARXNG_URL (host/localhost), not container
 # DNS -- one network is enough (ai-net consolidated away 2026-05-23).
 # SearXNG listens on 8080 inside the container.
@@ -58,15 +58,15 @@ Group=${MIOS_SEARXNG_GID:-818}
 # Public base URL for generated absolute links (RSS, opensearch.xml).
 # Operators fronting SearXNG behind a reverse proxy override this in
 # /etc/mios/searxng/settings.yml -> server.base_url.
-Environment=SEARXNG_BASE_URL=http://localhost:8888/
+Environment=SEARXNG_BASE_URL=http://localhost:${MIOS_PORT_SEARXNG:-8899}/
 # SearXNG's entrypoint runs granian, which reads GRANIAN_HOST/PORT.
-# Pin both to 8888 so host-network and bridge-network deployments
+# Pin both to 8899 so host-network and bridge-network deployments
 # both bind where MiOS expects. BIND_ADDRESS/SEARXNG_BIND_ADDRESS
 # are kept for upstream Helm-chart parity.
-Environment=SEARXNG_BIND_ADDRESS=0.0.0.0:8888
-Environment=BIND_ADDRESS=0.0.0.0:8888
+Environment=SEARXNG_BIND_ADDRESS=0.0.0.0:${MIOS_PORT_SEARXNG:-8899}
+Environment=BIND_ADDRESS=0.0.0.0:${MIOS_PORT_SEARXNG:-8899}
 Environment=GRANIAN_HOST=0.0.0.0
-Environment=GRANIAN_PORT=8888
+Environment=GRANIAN_PORT=8899
 
 # Concurrency (operator 2026-05-22: "SearXNG setup to handle the load").
 # granian defaults to a single worker, which serialises concurrent incoming
@@ -90,9 +90,9 @@ Environment=SEARXNG_LOG_LEVEL=WARNING
 # whitespace -- Quadlet's Label= parser word-splits on spaces and
 # emits each word as a separate --label arg, breaking the run line.
 Label=org.opencontainers.image.title=mios-searxng
-Label=org.opencontainers.image.url=http://localhost:8888/
+Label=org.opencontainers.image.url=http://localhost:${MIOS_PORT_SEARXNG:-8899}/
 Label=org.opencontainers.image.documentation=https://docs.searxng.org/
-Label=io.podman_desktop.openInBrowser=http://localhost:8888/
+Label=io.podman_desktop.openInBrowser=http://localhost:${MIOS_PORT_SEARXNG:-8899}/
 
 [Service]
 Restart=on-failure

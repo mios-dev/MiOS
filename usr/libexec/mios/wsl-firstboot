@@ -41,7 +41,9 @@ _log "Starting WSL2 first-boot bridge (substrate already provisioned at overlay 
 MIOS_HOSTNAME="${MIOS_HOSTNAME:-mios}"
 if [[ -f ${MIOS_ETC_DIR}/install.env ]]; then
     # shellcheck disable=SC1091
+    set +u
     source ${MIOS_ETC_DIR}/install.env 2>/dev/null || true
+    set -u
     MIOS_HOSTNAME="${MIOS_HOSTNAME:-mios}"
 fi
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Python backend for the web_search verb that queries a local SearXNG instance using concurrent fan-out (RAG-Fusion) to provide agents with real-time, grounded data for facts, weather, and news.
-# AI-related: mios-daemon, localhost:8888, localhost:11450
+# AI-related: mios-daemon, localhost:8899, localhost:11450
 """mios-web-search -- native WEB-search verb backend (concurrent fan-out).
 
 Queries the LOCAL, self-hosted SearXNG metasearch (offline-first; NO cloud
@@ -14,7 +14,7 @@ Operator 2026-05-21: the chat agent invented a weather report -- wrong city
 Canadian user), and made-up event details -- because NO web_search verb
 existed; only filesystem search (everything_search / fs_search) did, whose
 own descriptions tell the model to "use a WEB search" that was never wired.
-SearXNG was already up (:8888) and advertised as the web_search backend.
+SearXNG was already up (:8899) and advertised as the web_search backend.
 
 Operator 2026-05-22: "have web tools shoot off more web queries concurrently".
 QUERY FAN-OUT (--fanout K, the industry pattern behind Google AI Mode /
@@ -47,7 +47,7 @@ import urllib.request
 
 # SSOT endpoints (env rendered from mios.toml); localhost fallbacks = the
 # vendor container publish ports.
-SEARXNG_URL = os.environ.get("MIOS_SEARXNG_URL", "http://localhost:8888").rstrip("/")
+SEARXNG_URL = os.environ.get("MIOS_SEARXNG_URL", "http://localhost:8899").rstrip("/")
 # Query-EXPANSION model. Operator 2026-05-24 ("did NOT do multiple passes /
 # differing queries"): the old default (qwen3:0.6b-cpu @ :11434) was loaded
 # NOWHERE -- cold -- so every expansion blew the 6 s budget and SILENTLY fell

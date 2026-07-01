@@ -98,6 +98,7 @@ CLIENT_TOOLS_PASSTHROUGH = None
 COUNCIL_DEFAULT = None
 DCI_ENABLED = None
 KERNEL_ROUTE = None
+KERNEL_DISPATCH = None
 LOCAL_STATE_FASTPATH = None
 MAX_DISPATCH_DEPTH = None
 NATIVE_LOOP_ENABLE = None
@@ -206,7 +207,7 @@ _INJECTED = frozenset((
     "LETTA_MEMORY_BACKEND", "_LETTA_CLIENT",
     "ASK_CLARIFY_ENABLE", "AUTONOMOUS_PRIORITY", "AUTO_FORCE_TOOL", "BACKEND", "BACKEND_MODEL",
     "GATEWAY_QUEUE",
-    "CLIENT_TOOLS_PASSTHROUGH", "COUNCIL_DEFAULT", "DCI_ENABLED", "KERNEL_ROUTE",
+    "CLIENT_TOOLS_PASSTHROUGH", "COUNCIL_DEFAULT", "DCI_ENABLED", "KERNEL_ROUTE", "KERNEL_DISPATCH",
     "LOCAL_STATE_FASTPATH", "MAX_DISPATCH_DEPTH", "NATIVE_LOOP_ENABLE",
     "NATIVE_LOOP_MATH_HINT", "PLANNER_ENABLED", "POLISH_ENABLED", "SLOW_LANES",
     "SLOW_LANE_BLOCK_CHARS", "SWARM_DECOMPOSE_DEFAULT",
@@ -247,6 +248,11 @@ def configure(**deps) -> None:
     keyword equals the module global it sets; unknown keys are ignored.
     """
     g = globals()
+    if "_KERNEL" in deps and deps["_KERNEL"] is not None:
+        deps["_KERNEL"].dispatcher._handlers["chat"] = _kernel_chat_handler
+        deps["_KERNEL"].dispatcher._handlers["dispatch"] = _kernel_dispatch_handler
+        deps["_KERNEL"].dispatcher._handlers["multi_task"] = _kernel_multi_task_handler
+        deps["_KERNEL"].dispatcher._handlers["agent"] = _kernel_agent_handler
     for _k, _v in deps.items():
         if _k in _INJECTED:
             g[_k] = _v
@@ -1209,6 +1215,13 @@ async def chat_completions_logic(request: Request) -> Any:
             log.info("kernel shadow-route: %s", _kdec.to_dict())
         except Exception:  # noqa: BLE001 -- observability must never break a turn
             pass
+
+    if KERNEL_DISPATCH and _KERNEL and refined:
+        _kdec = _KERNEL.router.route(refined)
+        log.info("kernel dispatch: routing mode=%s", _kdec.mode)
+        ctx = locals().copy()
+        # KERNEL.dispatcher.run will execute the injected handlers.
+        return await _KERNEL.dispatcher.run(_kdec, **ctx)
     if (COUNCIL_DEFAULT and refined and not _force_council and not _force_delegate
             and _mflags.get("force_council") is None):
         _ci = str(refined.get("intent") or "")
@@ -3608,3 +3621,205 @@ async def chat_completions(request: Request) -> Any:
     logic function, behaviour-identical.
     """
     return await chat_completions_logic(request)
+
+
+async def _kernel_chat_handler(decision, **ctx):
+    import re, time
+    from fastapi.responses import JSONResponse, StreamingResponse
+    refined = ctx.get("refined")
+    _force_council = ctx.get("_force_council")
+    _force_delegate = ctx.get("_force_delegate")
+    last_user_text = ctx.get("last_user_text")
+    messages = ctx.get("messages")
+    streaming = ctx.get("streaming")
+    chat_id = ctx.get("chat_id")
+    model = ctx.get("model")
+    session_id = ctx.get("session_id")
+    _routed_domain_var = ctx.get("_routed_domain_var")
+    
+    _chat_reply = ""
+    if not _force_council and not _force_delegate:
+        _mem_block = await _recall_agent_memory(last_user_text)
+        _mem_scores = [float(_s) for _s in re.findall(r"\[(\d(?:\.\d+)?)\]", _mem_block or "")]
+        _mem_top = max(_mem_scores) if _mem_scores else 0.0
+        if _mem_block and _mem_block.strip() and _mem_top >= 0.6:
+            _kept = []
+            for _ln in _mem_block.splitlines():
+                _ms = re.search(r"\[(\d(?:\.\d+)?)\]", _ln)
+                if _ms and float(_ms.group(1)) >= 0.6:
+                    _kept.append(_ln)
+            _facts = re.sub(r"\[\d(?:\.\d+)?\]\s*", "", "\n".join(_kept))
+            _seen_f = set()
+            _flines = []
+            for _l in _facts.splitlines():
+                _l = _l.rstrip()
+                _key = _l.strip().lower().lstrip("- ")
+                if _l.strip() and _key not in _seen_f:
+                    _seen_f.add(_key)
+                    _flines.append(_l)
+            _facts = "\n".join(_flines)
+            if _facts.strip():
+                if await _is_memory_question(last_user_text, _facts):
+                    _chat_reply = "From what you've told me before:\n" + _facts
+                    log.info("memory-recall short-circuit: surfaced saved facts deterministically")
+
+    if (not _chat_reply and len((last_user_text or "").split()) < SWARM_DECOMPOSE_MIN_WORDS
+            and not (refined.get("web") or refined.get("news")
+                     or refined.get("domain_type") in ("external", "both")
+                     or _routed_domain_var.get(None) == "web")
+            and not _force_council and not _force_delegate):
+        _chat_reply = str(refined.get("reply") or "").strip()
+        if not _chat_reply:
+            _chat_reply = await _quick_chat_reply(last_user_text, messages)
+
+    if _chat_reply:
+        reply = _chat_reply
+        log.info("refine short-circuit: chat reply (no router/backend)")
+        _store_knowledge(query=last_user_text, answer=reply, session_id=session_id, tool_history=[])
+        _write_skill_md_fire(query=last_user_text, answer=reply, tool_history=[], session_id=session_id)
+        if streaming:
+            async def _stream_refine_chat():
+                yield _sse_status_phase(chat_id=chat_id, model=model, phase="prompt")
+                yield _sse_status_phase(chat_id=chat_id, model=model, phase="refine")
+                yield _sse_chunk("", chat_id=chat_id, model=model, role="assistant")
+                async for _b in _stream_answer(reply, chat_id=chat_id, model=model):
+                    yield _b
+                yield _sse_status_phase(chat_id=chat_id, model=model, phase="chat_done", done=True)
+                yield _sse_chunk("", chat_id=chat_id, model=model, finish_reason="stop")
+                yield _sse_done()
+            return StreamingResponse(_stream_refine_chat(), media_type="text/event-stream")
+        return JSONResponse(content={
+            "id": chat_id, "object": "chat.completion", "created": int(time.time()),
+            "model": model, "choices": [{"index": 0, "message": {"role": "assistant", "content": reply}, "finish_reason": "stop"}],
+        })
+
+    decision.mode = "agent"
+    return await _KERNEL.dispatcher.run(decision, **ctx)
+
+
+
+async def _kernel_dispatch_handler(decision, **ctx):
+    refined = ctx.get("refined")
+    _force_council = ctx.get("_force_council")
+    _force_delegate = ctx.get("_force_delegate")
+    last_user_text = ctx.get("last_user_text")
+    streaming = ctx.get("streaming")
+    chat_id = ctx.get("chat_id")
+    model = ctx.get("model")
+    session_id = ctx.get("session_id")
+    _persona_system = ctx.get("_persona_system")
+
+    _os_tool = str(refined.get("tool") or "").strip()
+    _os_args = refined.get("args") if isinstance(refined.get("args"), dict) else {}
+    if _os_tool in _FASTPATH_VERBS and not _force_council and not _force_delegate:
+        log.info("fast-path dispatch: %s args=%s (deterministic, no fan-out)", _os_tool, _os_args)
+        return await _respond_os_control(
+            _os_tool, _os_args, refined,
+            streaming=streaming, chat_id=chat_id, model=model,
+            session_id=session_id, last_user_text=last_user_text,
+            persona_system=_persona_system)
+    
+    log.info("refine dispatch tool=%r not a fast-path verb -> agent", _os_tool)
+    decision.mode = "agent"
+    return await _KERNEL.dispatcher.run(decision, **ctx)
+
+
+async def _kernel_multi_task_handler(decision, **ctx):
+    refined = ctx.get("refined")
+    last_user_text = ctx.get("last_user_text")
+    messages = ctx.get("messages")
+    streaming = ctx.get("streaming")
+    chat_id = ctx.get("chat_id")
+    model = ctx.get("model")
+    session_id = ctx.get("session_id")
+    _persona_system = ctx.get("_persona_system")
+    _force_council = ctx.get("_force_council")
+    _force_delegate = ctx.get("_force_delegate")
+
+    _swarm_nodes = await _plan_swarm(last_user_text, messages)
+    if not _swarm_nodes:
+        log.info("multi_task decomposition yielded 0 nodes -> falling back to full council")
+        _force_council = True
+        decision.mode = "agent"
+        ctx["_force_council"] = True
+        return await _KERNEL.dispatcher.run(decision, **ctx)
+
+    if not SWARM_TRUST_ATOMIC and len(_swarm_nodes) == 1:
+        log.info("multi_task yielded 1 node (trust_atomic=false) -> running as normal agent turn")
+        refined["intent"] = "agent"
+        refined["deep"] = True
+        decision.mode = "agent"
+        return await _KERNEL.dispatcher.run(decision, **ctx)
+
+    _dag = _agent_dag_from_tasks(_swarm_nodes, last_user_text)
+    return await _respond_agent_dag(
+        _dag, refined,
+        streaming=streaming, chat_id=chat_id, model=model,
+        session_id=session_id, original_query=last_user_text,
+        persona_system=_persona_system)
+
+
+async def _kernel_agent_handler(decision, **ctx):
+    refined = ctx.get("refined")
+    _force_council = ctx.get("_force_council")
+    _force_delegate = ctx.get("_force_delegate")
+    last_user_text = ctx.get("last_user_text")
+    messages = ctx.get("messages")
+    streaming = ctx.get("streaming")
+    chat_id = ctx.get("chat_id")
+    model = ctx.get("model")
+    session_id = ctx.get("session_id")
+    _routed_domain_var = ctx.get("_routed_domain_var")
+    _persona_system = ctx.get("_persona_system")
+    _mflags = ctx.get("_mflags")
+    reply_prefix = ctx.get("reply_prefix", "")
+
+    _domain = _routed_domain_var.get(None)
+    if (not refined.get("web") and not refined.get("news")
+            and _domain != "web"
+            and "local_state" in str(refined.get("domain", ""))
+            and not _force_council and not _force_delegate):
+        if await _needs_external_knowledge(last_user_text, messages):
+            log.info("hybrid promotion: local_state query needs external facts -> web=True")
+            refined["web"] = True
+            refined["domain_type"] = "both"
+            _routed_domain_var.set("both")
+
+    if (LOCAL_STATE_FASTPATH and "local_state" in str(refined.get("domain", ""))
+            and not refined.get("web") and not refined.get("news")
+            and not _force_council and not _force_delegate):
+        log.info("local-state fast-path: routing %r to system_status/local scripts", last_user_text)
+        return await _respond_local_state(
+            refined, streaming=streaming, chat_id=chat_id, model=model,
+            session_id=session_id, last_user_text=last_user_text,
+            persona_system=_persona_system)
+
+    if not _force_council and not _force_delegate and _mflags.get("force_council") is None:
+        _agent_match = _pick_agent(last_user_text)
+        if _agent_match and _agent_match != "MiOS":
+            log.info("legacy explicit route: %r matched -> forcing delegate to %s",
+                     last_user_text, _agent_match)
+            _force_delegate = _agent_match
+
+    if not _force_council and _force_delegate:
+        if _force_delegate == "MiOS":
+            _force_delegate = ""
+        else:
+            log.info("force_delegate: skipping council, 100%% weight to %s", _force_delegate)
+
+    _selected = [_force_delegate] if _force_delegate else []
+    if _force_council or (not _force_delegate and (
+            refined.get("deep") or _routed_domain_var.get(None) in ("web", "local_files")
+            or refined.get("web") or refined.get("news"))):
+        _selected = await _pick_fanout_agents(last_user_text, refined, _force_council)
+        if len(_selected) > 1:
+            log.info("council fan-out (%d): %s", len(_selected), _selected)
+        elif len(_selected) == 1:
+            log.info("council fan-out yielded 1 agent -> delegating to %s", _selected[0])
+            _force_delegate = _selected[0]
+
+    return await _respond_native_loop_direct(
+        refined, force_delegate=_force_delegate, target_agents=_selected,
+        streaming=streaming, chat_id=chat_id, model=model,
+        session_id=session_id, last_user_text=last_user_text,
+        persona_system=_persona_system, reply_prefix=reply_prefix)

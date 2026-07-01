@@ -72,19 +72,21 @@ echo "[10-gnome] Installing Bibata-Modern-Classic cursor (MANDATORY)..."
 # tracks :latest from its source, so no fallback pin -- if api.github.com is
 # unreachable, fail loud rather than silently shipping a stale version.
 BIBATA_VER=$( (scurl -sL --connect-timeout 15 --max-time 30 \
-    -H "Accept: application/vnd.github+json" "https://api.github.com/repos/ful1e5/Bibata_Cursor/releases/latest" \
+    -H "Accept: application/vnd.github+json" "${MIOS_URL_BIBATA_API:-https://api.github.com/repos/ful1e5/Bibata_Cursor/releases/latest}" \
     | grep -m1 '"tag_name"' | sed 's/.*"v\?\([^"]*\)".*/\1/') 2>/dev/null || true)
 
 [[ -n "$BIBATA_VER" ]] || die "Bibata: api.github.com release-latest lookup returned empty"
 record_version bibata "v${BIBATA_VER}" "https://github.com/ful1e5/Bibata_Cursor/releases/tag/v${BIBATA_VER}"
 
-BIBATA_URL="https://github.com/ful1e5/Bibata_Cursor/releases/download/v${BIBATA_VER}/Bibata-Modern-Classic.tar.xz"
+BIBATA_URL="${MIOS_URL_BIBATA_DL:-https://github.com/ful1e5/Bibata_Cursor/releases/download/v{}/Bibata-Modern-Classic.tar.xz}"
+BIBATA_URL="${BIBATA_URL//"{}"/${BIBATA_VER}}"
 BIBATA_DIR="/usr/share/icons/Bibata-Modern-Classic"
 mkdir -p /usr/share/icons
 
 # Download with retries + sha256 verification
 BIBATA_OK=0
-BIBATA_SUM_URL="https://github.com/ful1e5/Bibata_Cursor/releases/download/v${BIBATA_VER}/sha256-${BIBATA_VER}.txt"
+BIBATA_SUM_URL="${MIOS_URL_BIBATA_SUM:-https://github.com/ful1e5/Bibata_Cursor/releases/download/v{}/sha256-{}.txt}"
+BIBATA_SUM_URL="${BIBATA_SUM_URL//"{}"/${BIBATA_VER}}"
 for attempt in 1 2 3; do
     echo "[10-gnome]   Download attempt $attempt/3..."
     if scurl -fSL --connect-timeout 20 --max-time 120 --retry 2 --retry-delay 5 "$BIBATA_URL" -o /tmp/bibata.tar.xz; then

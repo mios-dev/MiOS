@@ -4,7 +4,7 @@
 # 'MiOS' Forgejo Runner -- self-hosted CI for the closed self-replication loop.
 #
 # Closes the loop:
-#   operator edits /  ->  git -C / push http://localhost:3000/<admin>/mios
+#   operator edits /  ->  git -C / push http://localhost:${MIOS_PORT_FORGE_HTTP:-8300}/<admin>/mios
 #   ->  this Runner picks up the push  ->  podman build -f /Containerfile
 #   ->  new OCI image  ->  /var/lib/mios/forge-runner/last-build.txt
 #   ->  mios-bootc-switch.path triggers `bootc switch --transport
@@ -51,7 +51,7 @@ ConditionVirtualization=|!container
 ConditionVirtualization=|wsl
 
 [Container]
-Pod=mios-devforge.pod
+Pod=mios-webtools.pod
 # Image / Network placeholders -- resolved at image build time by
 # automation/15-render-quadlets.sh from mios.toml
 # [image.sidecars].forge_runner and [network.quadlet].network.
@@ -134,7 +134,7 @@ Group=0
 # (which doesn't have the same parser bug).
 Label=org.opencontainers.image.title=mios-forgejo-runner
 Label=org.opencontainers.image.documentation=https://forgejo.org/docs/latest/admin/actions/
-Label=io.podman_desktop.openInBrowser=http://localhost:3000/-/admin/actions/runners
+Label=io.podman_desktop.openInBrowser=http://localhost:${MIOS_PORT_FORGE_HTTP:-8300}/-/admin/actions/runners
 
 [Service]
 Restart=on-failure

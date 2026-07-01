@@ -28,7 +28,7 @@ ConditionVirtualization=!container
 # automation/15-render-quadlets.sh from mios.toml [image.sidecars].ceph.
 Image=quay.io/ceph/ceph:v19
 ContainerName=mios-ceph
-Pod=mios-netinfra-storage.pod
+Pod=mios-system.pod
 Volume=/var/lib/ceph:/var/lib/ceph:Z
 Volume=/etc/ceph:/etc/ceph:Z
 Exec=mon

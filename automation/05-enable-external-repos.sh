@@ -50,7 +50,7 @@ try_fetch() {
 # Patched WINE/Mesa/miscellaneous packages missing from Fedora + RPM Fusion.
 if [[ ! -f "${REPO_DIR}/terra.repo" ]]; then
     log "enabling Terra repo (fyralabs)"
-    try_fetch "https://github.com/terrapkg/subatomic-repos/raw/main/terra.repo" \
+    try_fetch "${MIOS_URL_TERRA_REPO:-https://github.com/terrapkg/subatomic-repos/raw/main/terra.repo}" \
               "${REPO_DIR}/terra.repo" "Terra repo" || true
 else
     log "Terra repo already present -- skipping"
@@ -90,7 +90,7 @@ fi
 # Using Fedora 44 repo endpoint; COPR auto-publishes new packages as they land.
 if [[ ! -f "${REPO_DIR}/ublue-os-packages.repo" ]]; then
     log "enabling ublue-os/packages COPR (uupd + greenboot)"
-    if try_fetch "https://copr.fedorainfracloud.org/coprs/ublue-os/packages/repo/fedora-44/ublue-os-packages-fedora-44.repo" \
+    if try_fetch "${MIOS_URL_UBLUE_REPO:-https://copr.fedorainfracloud.org/coprs/ublue-os/packages/repo/fedora-44/ublue-os-packages-fedora-44.repo}" \
                  "${REPO_DIR}/ublue-os-packages.repo" "ublue-os/packages COPR"; then
         # Lower priority than Fedora base so Fedora wins on conflicting packages.
         if ! grep -q '^priority=' "${REPO_DIR}/ublue-os-packages.repo"; then
@@ -116,7 +116,7 @@ fi
 # Tailscale repo keeps it at the latest stable regardless of ucore cadence.
 if [[ ! -f "${REPO_DIR}/tailscale.repo" ]]; then
     log "enabling Tailscale official repo"
-    try_fetch "https://pkgs.tailscale.com/stable/fedora/tailscale.repo" \
+    try_fetch "${MIOS_URL_TAILSCALE_REPO:-https://pkgs.tailscale.com/stable/fedora/tailscale.repo}" \
               "${REPO_DIR}/tailscale.repo" "Tailscale repo" || true
 else
     log "Tailscale repo already present -- skipping"
@@ -132,7 +132,7 @@ if [[ ! -f "${REPO_DIR}/crowdsec.repo" ]]; then
     # The 'dist' query parameter pins the packagecloud distro release;
     # crowdsec ships a single fedora repo across releases (the value is
     # only used for substituting $releasever in baseurl).
-    try_fetch "https://packagecloud.io/crowdsec/crowdsec/config_file.repo?os=fedora&dist=44&source=script" \
+    try_fetch "${MIOS_URL_CROWDSEC_REPO:-https://packagecloud.io/crowdsec/crowdsec/config_file.repo?os=fedora&dist=44&source=script}" \
               "${REPO_DIR}/crowdsec.repo" "CrowdSec repo" || true
 else
     log "CrowdSec repo already present -- skipping"

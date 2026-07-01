@@ -24,7 +24,7 @@ Wants=network-online.target
 ConditionPathExists=/usr/share/mios/llamacpp/models/granite-4.1-8b.gguf
 
 [Container]
-Pod=mios-ai-inference.pod
+Pod=mios-ai.pod
 # SSOT-friendly defaults (override via env / mios.toml render if/when added).
 Image=${MIOS_LLM_LIGHT_IMAGE:-ghcr.io/mostlygeek/llama-swap:cuda}
 ContainerName=mios-cpu-node

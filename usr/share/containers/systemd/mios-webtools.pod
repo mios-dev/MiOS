@@ -1,23 +1,18 @@
-# AI-hint: GENERATED Quadlet pod for the co-resident group 'mios-webtools' (WS-7 pods-as-SSOT). DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [pods.mios-webtools] in mios.toml. Members (4): mios-webtools-redis, mios-webtools-firecrawl-api, mios-webtools-firecrawl-worker, mios-webtools-crawl4ai.
-# AI-related: usr/share/mios/mios.toml, tools/generate-pod-quadlets.py, mios-webtools-redis.container, mios-webtools-firecrawl-api.container, mios-webtools-firecrawl-worker.container, mios-webtools-crawl4ai.container
+# AI-hint: GENERATED Quadlet pod for the co-resident group 'mios-webtools' (WS-7 pods-as-SSOT). DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [pods.mios-webtools] in mios.toml. Members (8): mios-webtools-redis, mios-webtools-firecrawl-api, mios-webtools-firecrawl-worker, mios-webtools-crawl4ai, mios-searxng, mios-forge, mios-forgejo-runner, mios-code-server.
+# AI-related: usr/share/mios/mios.toml, tools/generate-pod-quadlets.py, mios-webtools-redis.container, mios-webtools-firecrawl-api.container, mios-webtools-firecrawl-worker.container, mios-webtools-crawl4ai.container, mios-searxng.container, mios-forge.container, mios-forgejo-runner.container, mios-code-server.container
 # /usr/share/containers/systemd/mios-webtools.pod
-# FOUR co-located web-service containers in ONE pod (operator 2026-05-24
-# "make it a pod"). Replaces the prior fat single-container supervisord
-# monolith: each web service is its own container, all joined to this pod
-# via `Pod=mios-webtools.pod`. NETWORKING: host networking (Network=host on
-# the POD) because (a) the WSL2 podman PublishPort quirk often fails to bind
-# private-netns pods on the Windows host, (b) host-net lets the crawl4ai
-# member reach the host's ChromeDev CDP at 127.0.0.1:9222, (c) members reach
-# each other on host loopback (redis 6379, firecrawl 3002, crawl4ai 11235).
-# Network=host publishes nothing, so NO PublishPort here (combining the two
-# is a Quadlet/podman error).
+# Consolidated webtools pod.
 # Members (each member .container declares Pod=mios-webtools.pod):
 #   mios-webtools-redis
 #   mios-webtools-firecrawl-api
 #   mios-webtools-firecrawl-worker
 #   mios-webtools-crawl4ai
+#   mios-searxng
+#   mios-forge
+#   mios-forgejo-runner
+#   mios-code-server
 [Unit]
-Description='MiOS' web-tools pod (firecrawl api+worker + crawl4ai + redis)
+Description='MiOS' Webtools pod (webtools, search, devforge)
 After=network-online.target mios-hermes-browser.service
 Wants=network-online.target mios-hermes-browser.service
 

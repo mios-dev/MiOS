@@ -1,0 +1,42 @@
+# AI-hint: GENERATED k3s/k8s manifest for the MiOS mios-system pod (pods-as-SSOT, WS-7). DO NOT EDIT -- regenerate via tools/generate-k3s-manifests.sh. Inert until the [k3s] lane is enabled; host-net/GPU/bind-mount services need k3s adaptation first.
+# AI-related: tools/generate-k3s-manifests.sh, mios-system.container, usr/share/mios/k3s/README.md
+# Save the output of this file and use kubectl create -f to import
+# it into Kubernetes.
+#
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+    io.kubernetes.cri-o.SandboxID/mios-adguard: 58d4e07b71b267949ca23963f5b653e08c1e6f182470ec533391fb506f7c14cc
+    io.podman.annotations.infra.name: mios-system-infra
+  labels:
+    app: mios-system
+  name: mios-system
+spec:
+  containers:
+  - args:
+    - --no-check-update
+    - -c
+    - /opt/adguardhome/conf/AdGuardHome.yaml
+    - -w
+    - /opt/adguardhome/work
+    image: docker.io/adguard/adguardhome:latest
+    name: mios-adguard
+    securityContext:
+      runAsGroup: 825
+      runAsUser: 825
+    volumeMounts:
+    - mountPath: /opt/adguardhome/conf
+      name: etc-mios-adguard-host-0
+    - mountPath: /opt/adguardhome/work
+      name: var-lib-mios-adguard-host-1
+  hostNetwork: true
+  volumes:
+  - hostPath:
+      path: /etc/mios/adguard
+      type: Directory
+    name: etc-mios-adguard-host-0
+  - hostPath:
+      path: /var/lib/mios/adguard
+      type: Directory
+    name: var-lib-mios-adguard-host-1

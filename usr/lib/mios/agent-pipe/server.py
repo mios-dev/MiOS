@@ -6407,6 +6407,11 @@ KERNEL_ROUTE = (
         or _DISPATCH_TOML.get("kernel_route", "false"))
     .strip().lower() not in {"false", "0", "no", "off", ""})
 
+KERNEL_DISPATCH = (
+    str(os.environ.get("MIOS_KERNEL_DISPATCH")
+        or _DISPATCH_TOML.get("kernel_dispatch", "false"))
+    .strip().lower() not in {"false", "0", "no", "off", ""})
+
 
 async def _kernel_dag_handler(decision, *, refined=None, session_id=None, **ctx):
     """Dispatcher 'dag' handler -> the real DAG runner (a genuine Stage-2
@@ -8403,6 +8408,7 @@ sys.modules["mios_chat"].configure(
     COUNCIL_DEFAULT=COUNCIL_DEFAULT,
     DCI_ENABLED=DCI_ENABLED,
     KERNEL_ROUTE=KERNEL_ROUTE,
+    KERNEL_DISPATCH=KERNEL_DISPATCH,
     LOCAL_STATE_FASTPATH=LOCAL_STATE_FASTPATH,
     MAX_DISPATCH_DEPTH=MAX_DISPATCH_DEPTH,
     NATIVE_LOOP_ENABLE=NATIVE_LOOP_ENABLE,
@@ -8653,6 +8659,7 @@ sys.modules["mios_clusterhealth"].configure(
     COST_ACCOUNTING_ENABLE=COST_ACCOUNTING_ENABLE,
     COST_BUDGET_USD=COST_BUDGET_USD,
     KERNEL_ROUTE=KERNEL_ROUTE,
+    KERNEL_DISPATCH=KERNEL_DISPATCH,
     SKILLS_ENABLED=SKILLS_ENABLED,
     SKILLS_MIN_LENGTH=SKILLS_MIN_LENGTH,
     SKILLS_MAX_LENGTH=SKILLS_MAX_LENGTH,

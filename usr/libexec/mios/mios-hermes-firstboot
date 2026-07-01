@@ -17,7 +17,7 @@ set -euo pipefail
 # heredocs that reference ${HERMES_HOME} in their commentary expand
 # cleanly under `set -u`. Hermes-Agent 0.13.x reads
 # ${HERMES_HOME}/config.yaml; the gateway service sets the same value
-# via Environment= in hermes-agent.service.
+# via Environment= in mios-gateway-agent.service.
 HERMES_HOME="/var/lib/mios/hermes"
 
 ENV_FILE="/etc/mios/hermes/api.env"
@@ -300,7 +300,7 @@ fi
 
 # ─── /etc/mios/hermes/discord.env (Discord bot token, operator-managed) ─
 # Empty stub seeded so that:
-#   * hermes-agent.service's EnvironmentFile=- finds a readable file
+#   * mios-gateway-agent.service's EnvironmentFile=- finds a readable file
 #     (no "file not found" warnings in the journal)
 #   * the operator has a known location to drop a token, with inline
 #     instructions on how to obtain one
@@ -324,7 +324,7 @@ if [[ ! -f "$DISCORD_ENV" ]]; then
 #      History, Manage Threads, ...). Open the resulting URL and
 #      authorise the bot into your guild.
 #   4. Paste the token below as DISCORD_BOT_TOKEN=<token>, save, then:
-#        sudo systemctl restart hermes-agent.service
+#        sudo systemctl restart mios-gateway-agent.service
 #
 # Permissions: 0640 root:mios-hermes (root edits, mios-hermes reads).
 DISCORDEOF
@@ -389,7 +389,7 @@ fi
 # ─── /var/lib/mios/hermes/config.yaml (Hermes-Agent main config) ────────
 #
 # Hermes-Agent 0.13.x reads $HERMES_HOME/config.yaml. The direct host
-# install (automation/38-hermes-agent.sh + hermes-agent.service) sets
+# install (automation/38-hermes-agent.sh + mios-gateway-agent.service) sets
 # HERMES_HOME=/var/lib/mios/hermes, so the agent's config lives at
 # /var/lib/mios/hermes/config.yaml. NOTE: 0.13.x ignores the
 # HERMES_CONFIG_PATH env var entirely -- HERMES_HOME is authoritative.
@@ -420,7 +420,7 @@ fi
 #   * stale OCI images pre-2026-05 don't have it baked in
 #   * if the build-time install failed silently (network, PyPI hiccup),
 #     the venv won't be there post-install either
-# In both cases hermes-agent.service silently no-ops at boot via:
+# In both cases mios-gateway-agent.service silently no-ops at boot via:
 #   ConditionPathExists=/usr/lib/mios/agents/.venv/bin/hermes
 # and the operator gets a "Hermes won't work" surprise hours later.
 #
@@ -467,7 +467,7 @@ HERMES_RESEARCH=/var/lib/mios/ai/research
 HERMES_DATA_CFG="${HERMES_DATA}/config.yaml"
 mkdir -p "$HERMES_DATA" "$HERMES_ARTIFACTS" "$HERMES_RESEARCH"
 
-# Ownership: hermes-agent.service runs as the mios-hermes sysuser
+# Ownership: mios-gateway-agent.service runs as the mios-hermes sysuser
 # (uid 820). The pre-2026-05-14 mios-hermes CONTAINER ran with an
 # in-container uid (10000) and bind-mounted this dir, leaving it
 # orphan-owned 10000:10000 mode 0700 -- the direct-install service
@@ -652,7 +652,7 @@ fi
 if [[ "$_should_seed" -eq 1 ]]; then
     # Unquoted heredoc so ${_AI_MODEL_RESOLVED} / ${_AI_MODEL_DEFAULT}
     # expand. No ${API_SERVER_KEY}-style values referenced here (those
-    # live in api.env, loaded separately via hermes-agent.service
+    # live in api.env, loaded separately via mios-gateway-agent.service
     # EnvironmentFile=).
     umask 0077
     cat > "$HERMES_DATA_CFG" <<EOF
@@ -663,7 +663,7 @@ if [[ "$_should_seed" -eq 1 ]]; then
 # AI chain: ollama (:11434, raw inference) -> Hermes-Agent (:8642/v1,
 # OpenAI gateway + agent loop) -> Open WebUI (:3030). The gateway's own
 # API key lives in /etc/mios/hermes/api.env (API_SERVER_KEY), loaded by
-# hermes-agent.service via EnvironmentFile=.
+# mios-gateway-agent.service via EnvironmentFile=.
 #
 # Resolved values:
 #   [ai].model            -> ${_AI_MODEL_DEFAULT}
@@ -1250,7 +1250,7 @@ EOF
     # environment (operator-confirmed 2026-06-14: `hermes` -> setup wizard
     # despite a seeded config.yaml at /var/home/mios/.hermes/config.yaml).
     #
-    # WHY the gateway service didn't hit this: hermes-agent.service loads
+    # WHY the gateway service didn't hit this: mios-gateway-agent.service loads
     # /etc/mios/hermes/api.env via EnvironmentFile=, so API_SERVER_KEY /
     # OPENAI_API_KEY are in the SERVICE's os.environ. The interactive CLI
     # runs as the operator and does NOT read /etc/mios/hermes/api.env --

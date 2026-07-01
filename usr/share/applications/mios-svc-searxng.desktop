@@ -1,12 +1,12 @@
-# AI-hint: Desktop entry for the SearXNG metasearch proxy; used by agents to identify and launch the local search interface at port 8888 via a web browser.
-# AI-related: localhost:8888
+# AI-hint: Desktop entry for the SearXNG metasearch proxy; used by agents to identify and launch the local search interface at port 8899 via a web browser.
+# AI-related: localhost:8899
 [Desktop Entry]
 Type=Application
 Version=1.0
 Name=MiOS Search (SearXNG)
 GenericName=Privacy Metasearch
-Comment=Open the local SearXNG metasearch proxy at http://localhost:8888/
-Exec=xdg-open http://localhost:8888/
+Comment=Open the local SearXNG metasearch proxy at http://localhost:8899/
+Exec=xdg-open http://localhost:8899/
 Icon=system-search-symbolic
 Categories=Network;WebBrowser;
 Keywords=mios;searxng;search;metasearch;privacy;

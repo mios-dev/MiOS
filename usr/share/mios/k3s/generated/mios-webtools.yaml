@@ -7,20 +7,123 @@ apiVersion: v1
 kind: Pod
 metadata:
   annotations:
-    io.containers.autoupdate/mios-webtools-crawl4ai: local
-    io.containers.autoupdate/mios-webtools-firecrawl-api: local
-    io.containers.autoupdate/mios-webtools-firecrawl-worker: local
+    io.containers.autoupdate/mios-code-server: registry
     io.containers.autoupdate/mios-webtools-redis: registry
-    io.kubernetes.cri-o.SandboxID/mios-webtools-crawl4ai: 04eec1cf4499719fdc66e46f63464670531b93729a12cd3d411f365e6d9eff19
-    io.kubernetes.cri-o.SandboxID/mios-webtools-firecrawl-api: 04eec1cf4499719fdc66e46f63464670531b93729a12cd3d411f365e6d9eff19
-    io.kubernetes.cri-o.SandboxID/mios-webtools-firecrawl-worker: 04eec1cf4499719fdc66e46f63464670531b93729a12cd3d411f365e6d9eff19
-    io.kubernetes.cri-o.SandboxID/mios-webtools-redis: 04eec1cf4499719fdc66e46f63464670531b93729a12cd3d411f365e6d9eff19
+    io.kubernetes.cri-o.SandboxID/mios-code-server: 76e0edd86fb5c86414e0370020a998b00464d3d4f3b43790da460e33cabfc5ba
+    io.kubernetes.cri-o.SandboxID/mios-forge: 76e0edd86fb5c86414e0370020a998b00464d3d4f3b43790da460e33cabfc5ba
+    io.kubernetes.cri-o.SandboxID/mios-searxng: 76e0edd86fb5c86414e0370020a998b00464d3d4f3b43790da460e33cabfc5ba
+    io.kubernetes.cri-o.SandboxID/mios-webtools-redis: 76e0edd86fb5c86414e0370020a998b00464d3d4f3b43790da460e33cabfc5ba
     io.podman.annotations.infra.name: mios-webtools-infra
   labels:
     app: mios-webtools
   name: mios-webtools
 spec:
   containers:
+  - args:
+    - /usr/bin/s6-svscan
+    - /etc/s6
+    env:
+    - name: MIOS_PORT_ADGUARD_DNS
+      value: "53"
+    - name: MIOS_PORT_OPENCODE_GATEWAY
+      value: "8633"
+    - name: FORGEJO__security__INSTALL_LOCK
+      value: "true"
+    - name: MIOS_PORT_SEARXNG
+      value: "8899"
+    - name: MIOS_PORT_PGVECTOR
+      value: "8432"
+    - name: FORGEJO__log__LEVEL
+      value: Info
+    - name: GITEA__server__HTTP_ADDR
+      value: 0.0.0.0
+    - name: MIOS_PORT_LLM_LIGHT
+      value: "8450"
+    - name: FORGEJO__server__SSH_LISTEN_PORT
+      value: "49922"
+    - name: MIOS_PORT_HERMES_WORKER
+      value: "8643"
+    - name: FORGEJO__server__SSH_PORT
+      value: "49922"
+    - name: MIOS_PORT_ADGUARD_UI
+      value: "8053"
+    - name: MIOS_PORT_CPU_NODE
+      value: "8458"
+    - name: FORGEJO__server__SSH_LISTEN_HOST
+      value: 0.0.0.0
+    - name: MIOS_PORT_COCKPIT_LINK
+      value: "8091"
+    - name: FORGEJO__log__MODE
+      value: console
+    - name: USER_UID
+      value: "816"
+    - name: MIOS_PORT_VLLM
+      value: "8441"
+    - name: MIOS_PORT_FORGE_SSH
+      value: "8301"
+    - name: MIOS_PORT_RDP
+      value: "8389"
+    - name: FORGEJO__database__PATH
+      value: /data/forgejo.db
+    - name: MIOS_PORT_AGENT_PIPE
+      value: "8640"
+    - name: MIOS_PORT_CEPH_DASHBOARD
+      value: "8444"
+    - name: MIOS_PORT_HERMES_DASHBOARD
+      value: "8119"
+    - name: FORGEJO__server__HTTP_PORT
+      value: "8300"
+    - name: MIOS_PORT_CODE_SERVER
+      value: "8800"
+    - name: MIOS_PORT_SGLANG
+      value: "8442"
+    - name: USER_GID
+      value: "816"
+    - name: MIOS_PORT_FIRECRAWL
+      value: "8302"
+    - name: MIOS_PORT_TTYD_POWERSHELL
+      value: "8682"
+    - name: MIOS_PORT_SSH
+      value: "8222"
+    - name: MIOS_PORT_CRAWL4AI
+      value: "8235"
+    - name: FORGEJO__server__HTTP_ADDR
+      value: 0.0.0.0
+    - name: FORGEJO__database__DB_TYPE
+      value: sqlite3
+    - name: MIOS_PORT_COCKPIT
+      value: "8090"
+    - name: MIOS_PORT_OPEN_WEBUI
+      value: "8033"
+    - name: MIOS_PORT_GUACAMOLE_WEB
+      value: "8080"
+    - name: MIOS_PORT_TTYD_BASH
+      value: "8681"
+    - name: FORGEJO__service__DISABLE_REGISTRATION
+      value: "true"
+    - name: FORGEJO__service__REQUIRE_SIGNIN_VIEW
+      value: "false"
+    - name: MIOS_PORT_HERMES
+      value: "8642"
+    - name: FORGEJO__server__START_SSH_SERVER
+      value: "true"
+    - name: FORGEJO__server__ROOT_URL
+      value: http://localhost:8300/
+    - name: MIOS_PORT_FORGE_HTTP
+      value: "8300"
+    - name: MIOS_PORT_K3S_API
+      value: "8443"
+    image: codeberg.org/forgejo/forgejo:12
+    name: mios-forge
+    securityContext:
+      runAsGroup: 0
+      runAsUser: 0
+    volumeMounts:
+    - mountPath: /data
+      name: srv-mios-forge-host-0
+    - mountPath: /etc/mios/forge
+      name: etc-mios-forge-host-1
+      readOnly: true
   - args:
     - redis-server
     - --bind
@@ -36,89 +139,147 @@ spec:
       runAsUser: 0
     volumeMounts:
     - mountPath: /data
-      name: 795e0dff145ba5290dbceed18dda8b44372781739ec2f8ec9578673742782767-pvc
+      name: 740e61d02e0f02ff994b8ed364d92522f80eb69e3ec5f15c84f86427263079f3-pvc
   - env:
-    - name: MIOS_CRAWL_CAMOUFOX
-      value: "true"
-    - name: MIOS_CRAWL_CDP_URL
-      value: http://127.0.0.1:9222
-    - name: MIOS_CRAWL_MIN_CHARS
-      value: "200"
+    - name: MIOS_PORT_AGENT_PIPE
+      value: "8640"
+    - name: MIOS_PORT_FORGE_HTTP
+      value: "8300"
+    - name: BIND_ADDRESS
+      value: 0.0.0.0:8899
+    - name: MIOS_PORT_K3S_API
+      value: "8443"
+    - name: MIOS_PORT_OPENCODE_GATEWAY
+      value: "8633"
+    - name: GRANIAN_WORKERS
+      value: "2"
+    - name: MIOS_PORT_FIRECRAWL
+      value: "8302"
+    - name: MIOS_PORT_TTYD_BASH
+      value: "8681"
+    - name: MIOS_PORT_GUACAMOLE_WEB
+      value: "8080"
+    - name: GRANIAN_BLOCKING_THREADS
+      value: "8"
+    - name: SEARXNG_BIND_ADDRESS
+      value: 0.0.0.0:8899
+    - name: MIOS_PORT_SEARXNG
+      value: "8899"
+    - name: GRANIAN_PORT
+      value: "8899"
+    - name: MIOS_PORT_CODE_SERVER
+      value: "8800"
+    - name: MIOS_PORT_TTYD_POWERSHELL
+      value: "8682"
+    - name: MIOS_PORT_HERMES
+      value: "8642"
+    - name: MIOS_PORT_RDP
+      value: "8389"
+    - name: MIOS_PORT_VLLM
+      value: "8441"
+    - name: MIOS_PORT_SGLANG
+      value: "8442"
+    - name: MIOS_PORT_HERMES_DASHBOARD
+      value: "8119"
+    - name: MIOS_PORT_PGVECTOR
+      value: "8432"
+    - name: MIOS_PORT_ADGUARD_DNS
+      value: "53"
+    - name: MIOS_PORT_COCKPIT_LINK
+      value: "8091"
     - name: MIOS_PORT_CRAWL4AI
-      value: "11235"
-    - name: MIOS_CRAWL_BIND
-      value: 127.0.0.1
-    image: localhost/mios-crawl4ai-slim:latest
-    name: mios-webtools-crawl4ai
+      value: "8235"
+    - name: SEARXNG_BASE_URL
+      value: http://localhost:8899/
+    - name: SEARXNG_LOG_LEVEL
+      value: WARNING
+    - name: MIOS_PORT_COCKPIT
+      value: "8090"
+    - name: MIOS_PORT_HERMES_WORKER
+      value: "8643"
+    - name: MIOS_PORT_LLM_LIGHT
+      value: "8450"
+    - name: MIOS_PORT_CPU_NODE
+      value: "8458"
+    - name: MIOS_PORT_SSH
+      value: "8222"
+    - name: MIOS_PORT_FORGE_SSH
+      value: "8301"
+    - name: MIOS_PORT_CEPH_DASHBOARD
+      value: "8444"
+    - name: MIOS_PORT_ADGUARD_UI
+      value: "8053"
+    - name: GRANIAN_HOST
+      value: 0.0.0.0
+    - name: MIOS_PORT_OPEN_WEBUI
+      value: "8033"
+    image: docker.io/searxng/searxng:latest
+    name: mios-searxng
     securityContext:
-      runAsGroup: 0
-      runAsUser: 0
+      runAsGroup: 818
+      runAsUser: 818
     volumeMounts:
-    - mountPath: /app/mios-crawl4ai-service.py
-      name: usr-lib-mios-crawl4ai-mios-crawl4ai-service-py-host-0
-      readOnly: true
+    - mountPath: /var/cache/searxng
+      name: var-cache-mios-searxng-host-0
+    - mountPath: /etc/searxng
+      name: etc-mios-searxng-host-1
   - args:
-    - pnpm
-    - run
-    - workers
+    - --bind-addr
+    - 0.0.0.0:8800
     env:
-    - name: BULL_AUTH_KEY
+    - name: PASSWORD
       value: mios
-    - name: NODE_ENV
-      value: production
-    - name: NUM_WORKERS_PER_QUEUE
-      value: "2"
-    - name: PORT
-      value: "3002"
-    - name: HOST
-      value: 127.0.0.1
-    - name: REDIS_URL
-      value: redis://127.0.0.1:6380
-    - name: LOGGING_LEVEL
-      value: INFO
-    - name: REDIS_RATE_LIMIT_URL
-      value: redis://127.0.0.1:6380
-    - name: USE_DB_AUTHENTICATION
-      value: "false"
-    image: localhost/mios-firecrawl:v1.0.0
-    name: mios-webtools-firecrawl-worker
+    - name: BIND_ADDR
+      value: 0.0.0.0:8800
+    - name: DEFAULT_WORKSPACE
+      value: /mnt/mios-root
+    - name: GIT_CONFIG_KEY_0
+      value: safe.directory
+    - name: GIT_CONFIG_VALUE_0
+      value: /mnt/mios-root
+    - name: SUDO_PASSWORD
+      value: mios
+    - name: GIT_CONFIG_COUNT
+      value: "1"
+    image: ghcr.io/coder/code-server:latest
+    name: mios-code-server
     securityContext:
       runAsGroup: 0
+      runAsNonRoot: true
       runAsUser: 0
-  - args:
-    - pnpm
-    - run
-    - start:production
-    env:
-    - name: NUM_WORKERS_PER_QUEUE
-      value: "2"
-    - name: PORT
-      value: "3002"
-    - name: BULL_AUTH_KEY
-      value: mios
-    - name: REDIS_RATE_LIMIT_URL
-      value: redis://127.0.0.1:6380
-    - name: REDIS_URL
-      value: redis://127.0.0.1:6380
-    - name: USE_DB_AUTHENTICATION
-      value: "false"
-    - name: HOST
-      value: 127.0.0.1
-    - name: NODE_ENV
-      value: production
-    - name: LOGGING_LEVEL
-      value: INFO
-    image: localhost/mios-firecrawl:v1.0.0
-    name: mios-webtools-firecrawl-api
-    securityContext:
-      runAsGroup: 0
-      runAsUser: 0
+      seLinuxOptions:
+        type: spc_t
+    volumeMounts:
+    - mountPath: /home/coder
+      name: var-lib-mios-code-server-host-0
+    - mountPath: /mnt/mios-root
+      name: root-host-1
   hostNetwork: true
   volumes:
-  - name: 795e0dff145ba5290dbceed18dda8b44372781739ec2f8ec9578673742782767-pvc
-    persistentVolumeClaim:
-      claimName: 795e0dff145ba5290dbceed18dda8b44372781739ec2f8ec9578673742782767
   - hostPath:
-      path: /usr/lib/mios/crawl4ai/mios-crawl4ai-service.py
-      type: File
-    name: usr-lib-mios-crawl4ai-mios-crawl4ai-service-py-host-0
+      path: /etc/mios/forge
+      type: Directory
+    name: etc-mios-forge-host-1
+  - name: 740e61d02e0f02ff994b8ed364d92522f80eb69e3ec5f15c84f86427263079f3-pvc
+    persistentVolumeClaim:
+      claimName: 740e61d02e0f02ff994b8ed364d92522f80eb69e3ec5f15c84f86427263079f3
+  - hostPath:
+      path: /var/cache/mios/searxng
+      type: Directory
+    name: var-cache-mios-searxng-host-0
+  - hostPath:
+      path: /etc/mios/searxng
+      type: Directory
+    name: etc-mios-searxng-host-1
+  - hostPath:
+      path: /var/lib/mios/code-server
+      type: Directory
+    name: var-lib-mios-code-server-host-0
+  - hostPath:
+      path: /
+      type: Directory
+    name: root-host-1
+  - hostPath:
+      path: /srv/mios/forge
+      type: Directory
+    name: srv-mios-forge-host-0

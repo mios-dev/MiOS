@@ -181,6 +181,7 @@
     "HTMLResponse",
     "JSONResponse",
     "JUDGE_EXAMPLES",
+    "KERNEL_DISPATCH",
     "KERNEL_ROUTE",
     "KNOWLEDGE_ANSWER_MAX",
     "KNOWLEDGE_EVICT_BATCH",
@@ -1375,6 +1376,6 @@
   ],
   "counts": {
     "routes": 80,
-    "provided": 1290
+    "provided": 1291
   }
 }

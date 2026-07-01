@@ -17,7 +17,7 @@ Wants=network-online.target
 ConditionPathExists=/usr/share/mios/vllm/model/config.json
 
 [Container]
-Pod=mios-ai-heavy.pod
+Pod=mios-ai.pod
 Image=${MIOS_VLLM_IMAGE:-docker.io/vllm/vllm-openai:latest}
 ContainerName=mios-llm-heavy
 AddDevice=${MIOS_GPU_DEVICE:-nvidia.com/gpu=all}

@@ -6,7 +6,7 @@
 #
 # Inspect (and optionally enable) LAN-side accessibility of MiOS
 # service ports. Operator-flagged 2026-05-17: "OWUI doesn't appear
-# responsive remotely over LAN/Wifi" -- OWUI binds 0.0.0.0:3030
+# responsive remotely over LAN/Wifi" -- OWUI binds 0.0.0.0:3033
 # inside the WSL2 distro, but Windows-side LAN traffic doesn't reach
 # the WSL bridge without a netsh portproxy + Windows Firewall rule.
 # The Setup-MiOSLanPortProxy.ps1 helper adds both, but it needs to
@@ -29,10 +29,10 @@ SETUP_PS1="${MIOS_LAN_SETUP_PS1:-/usr/libexec/mios/Setup-MiOSLanPortProxy.ps1}"
 
 # (port, name) pairs. Keep aligned with Setup-MiOSLanPortProxy.ps1.
 SERVICES=(
-    "3030 open-webui"
+    "3033 open-webui"
     "8642 hermes-api"
     "11434 ollama"
-    "8888 searxng"
+    "8899 searxng"
     "9119 hermes-dashboard"
     "3000 forge"
     "8080 code-server"

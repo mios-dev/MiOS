@@ -10,7 +10,7 @@ Wants=network-online.target
 ConditionVirtualization=!container
 
 [Container]
-Pod=mios-remote-desktop.pod
+Pod=mios-system.pod
 # Image / Port placeholders -- resolved at image build time by
 # automation/15-render-quadlets.sh from mios.toml [image.sidecars].guacamole
 # and [ports].guacamole_web.

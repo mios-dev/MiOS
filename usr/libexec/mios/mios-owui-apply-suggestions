@@ -50,7 +50,13 @@ def main() -> int:
         _log(f"could not open DB: {e}")
         return 1
 
-    row = c.execute("SELECT data FROM config WHERE id=1").fetchone()
+    try:
+        row = c.execute("SELECT data FROM config WHERE id=1").fetchone()
+    except sqlite3.OperationalError as e:
+        if "no such column: id" in str(e) or "no such column: data" in str(e):
+            _log("config schema likely changed -- no hardcoded suggestions to clear")
+            return 0
+        raise e
     if row is None:
         _log("no config row yet -- nothing to clear")
         return 0

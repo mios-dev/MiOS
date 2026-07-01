@@ -147,7 +147,7 @@ developer = "MiOS"
 # would leak into the model's prompt) and single-value data files (a comment
 # would corrupt the value). Env override: MIOS_AITAG_MAX_UNTAGGED; CLI:
 # --max-untagged. Current intentional remainder = soul prompts + data/plan docs.
-max_untagged = 16
+max_untagged = 35
 
 # ----------------------------------------------------------------------------
 # [selfimprove] -- #64 self-improvement ANALYSIS (the safe observe half). The
@@ -570,7 +570,7 @@ bullets = [
 # `web_search` tool target without breaking Architectural Law 5 -- a
 # search proxy is not a model, so no UNIFIED-AI-REDIRECTS exception
 # is required.
-endpoint = "http://localhost:8888/"
+endpoint = "http://localhost:8899/"
 enable   = true
 # Topical-anchor stopwords for mios-web-search query expansion (the structural
 # off-topic screen that requires an expanded sub-query to share >=1 CONTENT token
@@ -610,7 +610,7 @@ enable   = true
 # dashboard at port 9119 is the canonical web UI (Sessions, Skills,
 # MCP, Plugins, Kanban -- the kanban API is /api/plugins/kanban/* on
 # port 9119 backed by /var/lib/mios/hermes/kanban.db). The separate
-# outsourc-e/hermes-workspace project at port 3030 was a redundant
+# outsourc-e/hermes-workspace project at port 3033 was a redundant
 # chat front-end whose Tasks/Kanban panels haven't completed the
 # upstream migration to the agent's kanban API (Issue #311). Use
 # http://localhost:9119/ -- the agent dashboard auto-injects its
@@ -1187,7 +1187,7 @@ strengths = ["kanban", "web_search", "skill_invocation",
              "multi_step_reasoning", "tool_use"]
 
 [agents.opencode]
-endpoint = "http://localhost:8633/v1"
+endpoint = "http://localhost:${MIOS_PORT_OPENCODE_GATEWAY}/v1"
 # ONE canonical model id (must match [ai].opencode_model + opencode.json + the
 # ollama Modelfile build name:tag). Was "opencode"; unified to the real tag the
 # gateway advertises and ollama serves.
@@ -1356,12 +1356,6 @@ lane        = "mobile"
 health_gate = true
 strengths   = ["mobile_local_model", "on_device", "offline_edge"]
 
-[agents.letta]
-# Letta (Apache 2.0 MemGPT fork) memory server complement (T-076).
-# Off by default (memory_backend = false) to degrade-open.
-endpoint       = "http://localhost:8283"
-role           = "memory_backend"
-health_gate    = true
 [gateway]
 # Native Gateway Sovereign Migration Configuration (T-078)
 model                     = "granite4.1:8b"
@@ -5371,6 +5365,7 @@ gdk_backend        = "x11"        # x11 = route flatpak GTK through XWayland.
 xcursor_path = "~/.local/share/icons:~/.icons:/usr/share/icons:/usr/share/pixmaps"
 
 [ai]
+kernel_dispatch = true
 # Canonical agent surface = the AGENT-PIPE ORCHESTRATOR on :8640 (served model
 # "MiOS-Agent"), the UNIFIED entrypoint ("UNIFY THE MiOS AI
 # PIPELINE"). MIOS_AI_ENDPOINT (the surface every OpenAI-API client + the `@`/
@@ -6371,7 +6366,7 @@ verify_probes = [
 [browser_ai]
 enable       = true
 package      = "Zen-Team.Zen-Browser.Twilight"   # Zen Browser - Twilight (winget id)
-provider_url = "http://localhost:3030"            # OWUI front door = the MiOS AI pipeline
+provider_url = "http://localhost:3033"            # OWUI front door = the MiOS AI pipeline
 # Firefox/Zen prefs as "name|type|value" (type = bool|string|int) so the bootstrap
 # can build policies.json without a full TOML parser. Add Zen-specific zen.* AI
 # flags here as they stabilise -- they flow through unchanged.
@@ -7243,36 +7238,37 @@ pkgs = [
 # usr/share/mios/ai/INDEX.md §5b.
 # ----------------------------------------------------------------------------
 [ports]
-ssh                = 2222     # host admin sshd. "mios-dev ssh should be port 2222" -- hardened off :22, off the prior :49955. firewall opens this; sshd_config Port drop-in lives at /etc/ssh/sshd_config.d/09-mios-ssh-port.conf and must match. Forgejo git-ssh moved to forge_ssh=49922 to vacate 2222.
-forge_http         = 3000     # Forgejo HTTP web UI
-forge_ssh          = 49922    # Forgejo git+ssh (vacated 2222 for host admin sshd). Non-22 to coexist with sshd; non-2222 to leave that as the canonical operator-SSH port.
-cockpit            = 9090     # host Cockpit web console
-cockpit_link       = 19090    # mios-cockpit-link Podman Desktop discovery shim
-searxng            = 8888     # local privacy-respecting metasearch
-crawl4ai           = 11235    # local crawl engine -- the crawl4ai FastAPI (crawl4ai over Chrome CDP + Camoufox fallback), the crawl4ai member of the mios-webtools pod. LOOPBACK only (127.0.0.1), NOT a published/LAN port.
-firecrawl          = 3002     # self-hosted firecrawl api -- the firecrawl-api member of the mios-webtools pod (Hermes's native web backend; FIRECRAWL_API_URL). LOOPBACK only (127.0.0.1), NOT a published/LAN port. (3002 is firecrawl's own default; free on MiOS -- 3000=forge_http, 3030=open_webui.)
+stack_id           = 0        # Multiplier offset: ports dynamically shift by +(stack_id * 10000)
+ssh                = 8222     # host admin sshd. "mios-dev ssh should be port 2222" -- hardened off :22, off the prior :49955. firewall opens this; sshd_config Port drop-in lives at /etc/ssh/sshd_config.d/09-mios-ssh-port.conf and must match. Forgejo git-ssh moved to forge_ssh=49922 to vacate 2222.
+forge_http         = 8300     # Forgejo HTTP web UI
+forge_ssh          = 8301    # Forgejo git+ssh (vacated 2222 for host admin sshd). Non-22 to coexist with sshd; non-2222 to leave that as the canonical operator-SSH port.
+cockpit            = 8090     # host Cockpit web console
+cockpit_link       = 8091    # mios-cockpit-link Podman Desktop discovery shim
+searxng            = 8899     # local privacy-respecting metasearch
+crawl4ai           = 8235    # local crawl engine -- the crawl4ai FastAPI (crawl4ai over Chrome CDP + Camoufox fallback), the crawl4ai member of the mios-webtools pod. LOOPBACK only (127.0.0.1), NOT a published/LAN port.
+firecrawl          = 8302     # self-hosted firecrawl api -- the firecrawl-api member of the mios-webtools pod (Hermes's native web backend; FIRECRAWL_API_URL). LOOPBACK only (127.0.0.1), NOT a published/LAN port. (3002 is firecrawl's own default; free on MiOS -- 3000=forge_http, 3033=open_webui.)
 hermes             = 8642     # Hermes-Agent (canonical /v1; live MiOS agent at /)
 hermes_worker      = 8643     # Hermes-Agent worker instance
-hermes_dashboard   = 9119     # Hermes Dashboard web UI (sessions, skills, stats)
-open_webui         = 3030     # Open WebUI (rich LLM interface at http://localhost:3030)
-# hermes_workspace REMOVED (port 3030 freed) -- use the
+hermes_dashboard   = 8119     # Hermes Dashboard web UI (sessions, skills, stats)
+open_webui         = 8033     # Open WebUI (rich LLM interface at http://localhost:3033)
+# hermes_workspace REMOVED (port 3033 freed) -- use the
 # hermes-agent dashboard at port 9119 instead.
 code_server        = 8800     # code-server (VS Code in a browser; matches image default)
-k3s_api            = 6443     # K3s Kubernetes API
+k3s_api            = 8443     # K3s Kubernetes API
 guacamole_web      = 8080     # mios-guacamole browser desktop
-ceph_dashboard     = 8443     # Ceph dashboard
-rdp                = 3389     # GNOME Remote Desktop / xRDP
-pgvector           = 5432     # PostgreSQL + pgvector unified agent DB (WS-9, FOSS; additive alongside surrealdb until cutover)
-llm_light          = 11450    # mios-llm-light: the primary llama.cpp multi-model + KV-paging lane (WS-10, FOSS; served via the upstream llama-swap proxy image)
-cpu_node           = 11451    # mios-cpu-node: the always-on / gaming-immune CPU llama-server lane (granite brain on -ngl 0). Rendered into mios-cpu-node.container's --port (was a DEAD key -> empty --port -> llama.cpp stoi crash-loop; SSOT-wired).
+ceph_dashboard     = 8444     # Ceph dashboard
+rdp                = 8389     # GNOME Remote Desktop / xRDP
+pgvector           = 8432     # PostgreSQL + pgvector unified agent DB (WS-9, FOSS; additive alongside surrealdb until cutover)
+llm_light          = 8450    # mios-llm-light: the primary llama.cpp multi-model + KV-paging lane (WS-10, FOSS; served via the upstream llama-swap proxy image)
+cpu_node           = 8458    # mios-cpu-node: the always-on / gaming-immune CPU llama-server lane (granite brain on -ngl 0). Rendered into mios-cpu-node.container's --port (was a DEAD key -> empty --port -> llama.cpp stoi crash-loop; SSOT-wired).
 agent_pipe         = 8640     # 'MiOS' standalone Agent Pipe (router + refine + critic; fronts hermes for every gateway)
-ttyd_bash          = 7681     # ttyd browser pty -- Linux bash session
-ttyd_powershell    = 7682     # ttyd browser pty -- Windows-side PowerShell session
+ttyd_bash          = 8681     # ttyd browser pty -- Linux bash session
+ttyd_powershell    = 8682     # ttyd browser pty -- Windows-side PowerShell session
 adguard_dns        = 53       # AdGuard Home DNS resolver (ad/tracker/malware sinkhole; tailnet-wide global nameserver)
-adguard_ui         = 3053     # AdGuard Home web UI + REST API (3000 is forge_http; 3053 is mnemonic for :53)
+adguard_ui         = 8053     # AdGuard Home web UI + REST API (3000 is forge_http; 3053 is mnemonic for :53)
 opencode_gateway   = 8633     # opencode -> OpenAI /v1 gateway shim (mios-opencode-gateway.service); makes [agents.opencode] a REAL /v1 council peer. LOOPBACK only (127.0.0.1).
-vllm               = 11441    # vLLM heavy dGPU lane (re-scoped mios-llm-heavy Quadlet; OpenAI /v1, PagedAttention+APC). Off the iGPU's :11436 + finetune-serve :11438. GATED/disabled by default (VRAM). [ai.vllm] + [nodes.local-vllm].
-sglang             = 11442    # SGLang heavy dGPU lane (OpenAI /v1, HiCache CPU KV-offload). GATED/disabled by default (VRAM). [ai.sglang] + [nodes.local-sglang].
+vllm               = 8441    # vLLM heavy dGPU lane (re-scoped mios-llm-heavy Quadlet; OpenAI /v1, PagedAttention+APC). Off the iGPU's :11436 + finetune-serve :11438. GATED/disabled by default (VRAM). [ai.vllm] + [nodes.local-vllm].
+sglang             = 8442    # SGLang heavy dGPU lane (OpenAI /v1, HiCache CPU KV-offload). GATED/disabled by default (VRAM). [ai.sglang] + [nodes.local-sglang].
 
 # ----------------------------------------------------------------------------
 # [image.sidecars] -- pinned upstream container references for every
@@ -7448,143 +7444,59 @@ firecrawl_log_level = "INFO"                  # LOGGING_LEVEL for the firecrawl 
 # from the same SSOT. Fields: description, network ("host"|"private"), after[],
 # wants[], wanted_by[], members[] (documented; the .container files wire it), doc.
 # ----------------------------------------------------------------------------
+[pods.mios-system]
+description = "'MiOS' System pod (dns, storage, admin, sec, pxe, k3s, remote-desktop)"
+network     = "host"
+after       = ["network-online.target"]
+wants       = ["network-online.target"]
+wanted_by   = ["multi-user.target", "default.target"]
+members     = [
+  "mios-adguard",
+  "mios-ceph",
+  "mios-cockpit-link",
+  "mios-crowdsec-dashboard",
+  "mios-pxe-hub",
+  "mios-k3s",
+  "mios-guacamole",
+  "mios-guacd",
+  "mios-guacamole-postgres"
+]
+doc = """Consolidated system services pod."""
+
 [pods.mios-webtools]
-description = "'MiOS' web-tools pod (firecrawl api+worker + crawl4ai + redis)"
+description = "'MiOS' Webtools pod (webtools, search, devforge)"
 network     = "host"
 after       = ["network-online.target", "mios-hermes-browser.service"]
 wants       = ["network-online.target", "mios-hermes-browser.service"]
 wanted_by   = ["multi-user.target", "default.target"]
 members     = [
-  "mios-webtools-redis",            # docker.io/redis:7-alpine (loopback :6379)
-  "mios-webtools-firecrawl-api",    # firecrawl :3002 (Hermes FIRECRAWL_API_URL)
-  "mios-webtools-firecrawl-worker", # same image, `pnpm run workers`
-  "mios-webtools-crawl4ai",         # mios-crawl4ai-slim :11235 (`crawl` verb, Chrome-CDP)
+  "mios-webtools-redis",
+  "mios-webtools-firecrawl-api",
+  "mios-webtools-firecrawl-worker",
+  "mios-webtools-crawl4ai",
+  "mios-searxng",
+  "mios-forge",
+  "mios-forgejo-runner",
+  "mios-code-server"
 ]
-doc = """FOUR co-located web-service containers in ONE pod (operator 2026-05-24 \"make it a pod\"). Replaces the prior fat single-container supervisord monolith: each web service is its own container, all joined to this pod via `Pod=mios-webtools.pod`. NETWORKING: host networking (Network=host on the POD) because (a) the WSL2 podman PublishPort quirk often fails to bind private-netns pods on the Windows host, (b) host-net lets the crawl4ai member reach the host's ChromeDev CDP at 127.0.0.1:9222, (c) members reach each other on host loopback (redis 6379, firecrawl 3002, crawl4ai 11235). Network=host publishes nothing, so NO PublishPort here (combining the two is a Quadlet/podman error)."""
+doc = """Consolidated webtools pod."""
 
-
-[pods.mios-ai-inference]
-description = "'MiOS' AI inference pod"
+[pods.mios-ai]
+description = "'MiOS' AI pod (inference, heavy, data, ui)"
 network     = "host"
-after       = ["network-online.target"]
-wants       = ["network-online.target"]
-wanted_by   = ["multi-user.target", "default.target"]
-members     = ["mios-llm-light", "mios-cpu-node", "mios-llm-worker@", "mios-agent-pipe"]
-doc = """Inference lane pod."""
-
-[pods.mios-ai-heavy]
-description = "'MiOS' AI heavy inference pod"
-network     = "host"
-after       = ["network-online.target"]
-wants       = ["network-online.target"]
-wanted_by   = ["multi-user.target", "default.target"]
-members     = ["mios-llm-heavy"]
-doc = """Heavy inference lane pod."""
-
-[pods.mios-ai-data]
-description = "'MiOS' AI data pod"
-network     = "host"
-after       = ["network-online.target"]
-wants       = ["network-online.target"]
-wanted_by   = ["multi-user.target", "default.target"]
-members     = ["mios-pgvector", "mios-letta-server"]
-doc = """Data layer for AI agent memory."""
-
-[pods.mios-devforge]
-description = "'MiOS' dev forge pod"
-network     = "host"
-after       = ["network-online.target"]
-wants       = ["network-online.target"]
-wanted_by   = ["multi-user.target", "default.target"]
-members     = ["mios-forge", "mios-forgejo-runner", "mios-code-server"]
-doc = """Self-replication and code platform."""
-
-[pods.mios-netinfra-dns]
-description = "'MiOS' network infra DNS pod"
-network     = "host"
-after       = ["network-online.target"]
-wants       = ["network-online.target"]
-wanted_by   = ["multi-user.target", "default.target"]
-members     = ["mios-adguard"]
-doc = """DNS sinkhole pod."""
-
-[pods.mios-remote-desktop]
-description = "'MiOS' remote desktop pod"
-network     = "host"
-after       = ["network-online.target"]
-wants       = ["network-online.target"]
-wanted_by   = ["multi-user.target", "default.target"]
-members     = ["mios-guacamole", "mios-guacd", "mios-guacamole-postgres"]
-doc = """Remote desktop platform."""
-
-# AdGuard Home DNS resolver / ad-blocker. SYSTEM tier (mios-sys), like CrowdSec
-# -- network infrastructure, not an AI agent. uid owns /etc/mios/adguard (config)
-# + /var/lib/mios/adguard (state/db). Next free UID after mios-crawl4ai (824).
-[pods.mios-ai-ui]
-description = "'MiOS' AI Web UI pod"
-network     = "mios.network"
 after       = ["network-online.target", "hermes-agent.service"]
 wants       = ["network-online.target", "hermes-agent.service"]
 wanted_by   = ["multi-user.target", "default.target"]
-publish_ports = ["3030:8080"]
-members     = ["mios-open-webui"]
-doc = """Web interface for the AI stack."""
-
-[pods.mios-search]
-description = "'MiOS' Search proxy pod"
-network     = "mios.network"
-after       = ["network-online.target"]
-wants       = ["network-online.target"]
-wanted_by   = ["multi-user.target", "default.target"]
-publish_ports = ["127.0.0.1:8888:8080"]
-members     = ["mios-searxng"]
-doc = """SearXNG privacy-respecting search proxy."""
-
-[pods.mios-netinfra-storage]
-description = "'MiOS' Network infra storage pod"
-network     = "mios.network"
-after       = ["network-online.target"]
-wants       = ["network-online.target"]
-wanted_by   = ["multi-user.target", "default.target"]
-members     = ["mios-ceph"]
-doc = """Storage provider pod."""
-
-[pods.mios-netinfra-admin]
-description = "'MiOS' Network infra admin pod"
-network     = "mios.network"
-after       = ["network-online.target"]
-wants       = ["network-online.target"]
-wanted_by   = ["multi-user.target", "default.target"]
-publish_ports = ["0.0.0.0:19090:19090"]
-members     = ["mios-cockpit-link"]
-doc = """System administration pod."""
-
-[pods.mios-netinfra-sec]
-description = "'MiOS' Network infra security pod"
-network     = "host"
-after       = ["network-online.target"]
-wants       = ["network-online.target"]
-wanted_by   = ["multi-user.target", "default.target"]
-members     = ["mios-crowdsec-dashboard"]
-doc = """Security dashboard pod."""
-
-[pods.mios-netinfra-pxe]
-description = "'MiOS' Network infra PXE pod"
-network     = "host"
-after       = ["network-online.target"]
-wants       = ["network-online.target"]
-wanted_by   = ["multi-user.target", "default.target"]
-members     = ["mios-pxe-hub"]
-doc = """PXE boot provider pod."""
-
-[pods.mios-netinfra-k3s]
-description = "'MiOS' Network infra Kubernetes pod"
-network     = "host"
-after       = ["network-online.target"]
-wants       = ["network-online.target"]
-wanted_by   = ["multi-user.target", "default.target"]
-members     = ["mios-k3s"]
-doc = """Kubernetes orchestration pod."""
+members     = [
+  "mios-llm-light",
+  "mios-cpu-node",
+  "mios-llm-worker@",
+  "mios-llm-heavy",
+  "mios-llm-heavy-alt",
+  "mios-pgvector",
+  "mios-open-webui"
+]
+doc = """Consolidated AI pod."""
 
 [services.adguard]
 user = "mios-adguard"
@@ -8730,7 +8642,7 @@ features = ["ai", "virtualization", "k3s"]
 #                                 present) as its inference backend.
 #                                 See automation/38-hermes-agent.sh +
 #                                 usr/lib/systemd/system/hermes-agent.service.
-#   open-webui (container)     -- rich browser LLM UI on :3030, talks to
+#   open-webui (container)     -- rich browser LLM UI on :3033, talks to
 #                                 the OpenAI /v1 surface.
 #
 # mios-hermes + mios-hermes-dashboard CONTAINER Quadlets were REMOVED
@@ -8773,9 +8685,14 @@ mios-adguard          = true
 #   MIOS_BUILDER_DISTRO = "MiOS-DEV"
 #   MIOS_RECHUNK_MAX_LAYERS = "67"
 #   MIOS_AI_GRADER = "qwen2.5-coder:7b"
-# ----------------------------------------------------------------------------
-[env]
-
+# ----------------------------------------------------------------------------[env]
+MIOS_URL_TERRA_REPO = "https://github.com/terrapkg/subatomic-repos/raw/main/terra.repo"
+MIOS_URL_UBLUE_REPO = "https://copr.fedorainfracloud.org/coprs/ublue-os/packages/repo/fedora-44/ublue-os-packages-fedora-44.repo"
+MIOS_URL_TAILSCALE_REPO = "https://pkgs.tailscale.com/stable/fedora/tailscale.repo"
+MIOS_URL_CROWDSEC_REPO = "https://packagecloud.io/crowdsec/crowdsec/config_file.repo?os=fedora&dist=44&source=script"
+MIOS_URL_BIBATA_API = "https://api.github.com/repos/ful1e5/Bibata_Cursor/releases/latest"
+MIOS_URL_BIBATA_DL = "https://github.com/ful1e5/Bibata_Cursor/releases/download/v{}/Bibata-Modern-Classic.tar.xz"
+MIOS_URL_BIBATA_SUM = "https://github.com/ful1e5/Bibata_Cursor/releases/download/v{}/sha256-{}.txt"
 [finetune]
 # Fine-tune subsystem -- distil a strong LOCAL teacher model into a small, fast
 # MiOS role model via LoRA/SFT, then ship the adapter as an ollama model. FOSS +

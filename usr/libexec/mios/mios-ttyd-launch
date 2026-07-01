@@ -11,6 +11,10 @@ set -euo pipefail
 # keeps the unit declarative + lets the operator override pieces
 # via mios.toml [ttyd] without editing the unit.
 #
+# Load environment configurations explicitly
+if [[ -r /etc/mios/userenv.sh ]]; then source /etc/mios/userenv.sh; fi
+if [[ -r /etc/mios/install.env ]]; then source /etc/mios/install.env; fi
+#
 # Variant arg picks WHICH ttyd instance to start:
 #   bash       -> port MIOS_PORT_TTYD_BASH (default 7681), runs
 #                 MIOS_TTYD_BASH_SHELL or /bin/bash.

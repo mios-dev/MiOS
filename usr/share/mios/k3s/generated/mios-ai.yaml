@@ -1,0 +1,392 @@
+# AI-hint: GENERATED k3s/k8s manifest for the MiOS mios-ai pod (pods-as-SSOT, WS-7). DO NOT EDIT -- regenerate via tools/generate-k3s-manifests.sh. Inert until the [k3s] lane is enabled; host-net/GPU/bind-mount services need k3s adaptation first.
+# AI-related: tools/generate-k3s-manifests.sh, mios-ai.container, usr/share/mios/k3s/README.md
+# Save the output of this file and use kubectl create -f to import
+# it into Kubernetes.
+#
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+    io.containers.autoupdate/mios-open-webui: registry
+    io.kubernetes.cri-o.SandboxID/mios-cpu-node: 011247bf68c192e44e092a989a9b7b77d0bbd3e2538f241301ebf8504e981248
+    io.kubernetes.cri-o.SandboxID/mios-llm-light: 011247bf68c192e44e092a989a9b7b77d0bbd3e2538f241301ebf8504e981248
+    io.kubernetes.cri-o.SandboxID/mios-open-webui: 011247bf68c192e44e092a989a9b7b77d0bbd3e2538f241301ebf8504e981248
+    io.kubernetes.cri-o.SandboxID/mios-pgvector: 011247bf68c192e44e092a989a9b7b77d0bbd3e2538f241301ebf8504e981248
+    io.podman.annotations.infra.name: mios-ai-infra
+  labels:
+    app: mios-ai
+  name: mios-ai
+spec:
+  containers:
+  - env:
+    - name: OPENAI_API_KEY
+      value: dbe5c9153c12336e2bd30ae6c93d964ce70161997cd6a69034b60318623e77ed
+    - name: RAG_TOP_K
+      value: "5"
+    - name: ENABLE_CODE_INTERPRETER
+      value: "True"
+    - name: ENABLE_FORWARD_USER_INFO_HEADERS
+      value: "True"
+    - name: WEBUI_NAME
+      value: MiOS AI
+    - name: HERMES_API_TOKEN
+      value: dbe5c9153c12336e2bd30ae6c93d964ce70161997cd6a69034b60318623e77ed
+    - name: DEFAULT_MODELS
+      value: MiOS
+    - name: OLLAMA_BASE_URL
+      value: http://host.containers.internal:8450
+    - name: ENABLE_API_KEYS_ENDPOINT_RESTRICTIONS
+      value: "False"
+    - name: RAG_EMBEDDING_MODEL
+      value: nomic-embed-text
+    - name: API_SERVER_ENABLED
+      value: "true"
+    - name: RAG_EMBEDDING_ENGINE
+      value: openai
+    - name: RAG_RELEVANCE_THRESHOLD
+      value: "0.5"
+    - name: ENABLE_OLLAMA
+      value: "False"
+    - name: OPENAI_API_BASE_URL
+      value: http://host.containers.internal:8640/v1
+    - name: DEFAULT_USER_ROLE
+      value: admin
+    - name: ENABLE_RAG_HYBRID_SEARCH
+      value: "True"
+    - name: CLAUDE_DASHBOARD_TOKEN
+      value: dbe5c9153c12336e2bd30ae6c93d964ce70161997cd6a69034b60318623e77ed
+    - name: FOLLOW_UP_GENERATION_PROMPT_TEMPLATE
+      value: |-
+        Suggest 3 short follow up actions the user might want next, grounded in the CURRENT chat content and the operator's CURRENT system state. Each is a single phrase or short imperative the user could click, in the same language and tone the chat used. JSON only: {"follow_ups":["","",""]}. Chat:
+        {{MESSAGES:END:6}}
+    - name: ENABLE_TITLE_GENERATION
+      value: "True"
+    - name: ENABLE_API_KEYS
+      value: "True"
+    - name: TITLE_GENERATION_PROMPT_TEMPLATE
+      value: |-
+        Output a 3 to 6 word title for this chat, in the same language the chat used. Title only, no quotes, no preamble, no thinking. Chat:
+        {{MESSAGES:END:2}}
+    - name: ENABLE_FOLLOW_UP_GENERATION
+      value: "True"
+    - name: RAG_OPENAI_API_BASE_URL
+      value: http://host.containers.internal:8450/v1
+    - name: AUTOCOMPLETE_GENERATION_PROMPT_TEMPLATE
+      value: 'Continue the user partial input naturally, in their language. Output
+        ONLY the completion text, no quotes, no preamble. Input so far: {{PROMPT}}'
+    - name: GATEWAY_ALLOW_ALL_USERS
+      value: "true"
+    - name: ENABLE_WEB_SEARCH
+      value: "True"
+    - name: ENABLE_IMAGE_GENERATION
+      value: "True"
+    - name: API_SERVER_KEY
+      value: dbe5c9153c12336e2bd30ae6c93d964ce70161997cd6a69034b60318623e77ed
+    - name: API_SERVER_CORS_ORIGINS
+      value: '*'
+    - name: RAG_OPENAI_API_KEY
+      value: sk-noop
+    - name: ENABLE_SIGNUP
+      value: "False"
+    - name: ENABLE_TAGS_GENERATION
+      value: "True"
+    - name: TAGS_GENERATION_PROMPT_TEMPLATE
+      value: |-
+        Output 1 to 3 short topic tags for this chat (single words or hyphenated, in the chat language). JSON only: {"tags":["",""]}. Chat:
+        {{MESSAGES:END:4}}
+    - name: TASK_MODEL_EXTERNAL
+      value: hermes-agent
+    - name: ENABLE_AUTOCOMPLETE_GENERATION
+      value: "True"
+    - name: API_SERVER_HOST
+      value: 0.0.0.0
+    - name: WEBUI_SECRET_KEY
+      value: mios-stable-secret-change-me
+    - name: PORT
+      value: "8033"
+    image: ghcr.io/open-webui/open-webui:main
+    name: mios-open-webui
+    securityContext: {}
+    volumeMounts:
+    - mountPath: /run/mios-launcher
+      name: run-mios-launcher-host-0
+    - mountPath: /var/lib/mios/hermes-tail
+      name: var-lib-mios-hermes-tail-host-1
+      readOnly: true
+    - mountPath: /var/lib/mios/delegation-prefilter
+      name: var-lib-mios-delegation-prefilter-host-2
+      readOnly: true
+    - mountPath: /var/lib/mios/log-watcher
+      name: var-lib-mios-log-watcher-host-3
+      readOnly: true
+    - mountPath: /etc/mios
+      name: etc-mios-host-4
+      readOnly: true
+    - mountPath: /var/lib/mios/agent-nudger
+      name: var-lib-mios-agent-nudger-host-5
+      readOnly: true
+    - mountPath: /var/lib/mios/cron-director
+      name: var-lib-mios-cron-director-host-6
+      readOnly: true
+    - mountPath: /usr/local/sbin
+      name: usr-local-sbin-host-7
+      readOnly: true
+    - mountPath: /var/lib/mios/agent-env
+      name: var-lib-mios-agent-env-host-8
+      readOnly: true
+    - mountPath: /mnt/c
+      name: mnt-c-host-9
+      readOnly: true
+    - mountPath: /mnt/m
+      name: mnt-m-host-10
+      readOnly: true
+    - mountPath: /app/backend/data
+      name: var-lib-mios-open-webui-host-11
+    - mountPath: /usr/share/mios
+      name: usr-share-mios-host-12
+      readOnly: true
+    - mountPath: /usr/libexec/mios
+      name: usr-libexec-mios-host-13
+      readOnly: true
+  - args:
+    - --config
+    - /app/config.yaml
+    - --listen
+    - 0.0.0.0:8450
+    command:
+    - /app/llama-swap
+    env:
+    - name: HOME
+      value: /var/lib/mios/llamacpp
+    - name: MIOS_PORT_COCKPIT
+      value: "8090"
+    - name: MIOS_PORT_FORGE_SSH
+      value: "8301"
+    - name: MIOS_PORT_OPENCODE_GATEWAY
+      value: "8633"
+    - name: MIOS_PORT_PGVECTOR
+      value: "8432"
+    - name: MIOS_PORT_TTYD_POWERSHELL
+      value: "8682"
+    - name: LD_LIBRARY_PATH
+      value: /usr/lib/wsl/lib:/usr/local/cuda/lib64
+    - name: MIOS_PORT_TTYD_BASH
+      value: "8681"
+    - name: MIOS_PORT_GUACAMOLE_WEB
+      value: "8080"
+    - name: MIOS_PORT_SGLANG
+      value: "8442"
+    - name: MIOS_PORT_CODE_SERVER
+      value: "8800"
+    - name: MIOS_PORT_AGENT_PIPE
+      value: "8640"
+    - name: MIOS_PORT_SSH
+      value: "8222"
+    - name: MIOS_PORT_FORGE_HTTP
+      value: "8300"
+    - name: MIOS_PORT_FIRECRAWL
+      value: "8302"
+    - name: MIOS_PORT_CPU_NODE
+      value: "8458"
+    - name: MIOS_PORT_VLLM
+      value: "8441"
+    - name: MIOS_PORT_HERMES
+      value: "8642"
+    - name: MIOS_PORT_HERMES_DASHBOARD
+      value: "8119"
+    - name: MIOS_PORT_CRAWL4AI
+      value: "8235"
+    - name: MIOS_PORT_K3S_API
+      value: "8443"
+    - name: MIOS_PORT_HERMES_WORKER
+      value: "8643"
+    - name: MIOS_PORT_LLM_LIGHT
+      value: "8450"
+    - name: MIOS_PORT_OPEN_WEBUI
+      value: "8033"
+    - name: MIOS_PORT_COCKPIT_LINK
+      value: "8091"
+    - name: MIOS_PORT_RDP
+      value: "8389"
+    - name: MIOS_PORT_ADGUARD_UI
+      value: "8053"
+    - name: MIOS_PORT_SEARXNG
+      value: "8899"
+    - name: MIOS_PORT_CEPH_DASHBOARD
+      value: "8444"
+    - name: MIOS_PORT_ADGUARD_DNS
+      value: "53"
+    image: ghcr.io/mostlygeek/llama-swap:cuda
+    name: mios-llm-light
+    securityContext:
+      runAsGroup: 827
+      runAsUser: 827
+    volumeMounts:
+    - mountPath: /models
+      name: usr-share-mios-llamacpp-models-host-0
+      readOnly: true
+    - mountPath: /app/config.yaml
+      name: usr-share-mios-llamacpp-mios-llm-light-yaml-host-1
+      readOnly: true
+    - mountPath: /var/lib/mios/llamacpp/slots
+      name: var-lib-mios-llamacpp-slots-host-2
+  - args:
+    - postgres
+    - -c
+    - port=8432
+    - -c
+    - listen_addresses=127.0.0.1
+    - -c
+    - hnsw.iterative_scan=strict_order
+    - -c
+    - hnsw.max_scan_tuples=20000
+    - -c
+    - hnsw.scan_mem_multiplier=1
+    env:
+    - name: POSTGRES_PASSWORD
+      value: mios
+    - name: POSTGRES_USER
+      value: mios
+    - name: PGDATA
+      value: /var/lib/postgresql/data/pgdata
+    - name: POSTGRES_DB
+      value: mios
+    image: docker.io/pgvector/pgvector:0.8.3-pg17
+    name: mios-pgvector
+    securityContext:
+      runAsGroup: 826
+      runAsUser: 826
+    volumeMounts:
+    - mountPath: /var/lib/postgresql/data
+      name: var-lib-mios-pgvector-host-0
+    - mountPath: /docker-entrypoint-initdb.d/10-mios-schema.sql
+      name: usr-share-mios-postgres-schema-init-sql-host-1
+      readOnly: true
+  - args:
+    - --model
+    - /models/granite-4.1-8b.gguf
+    - --host
+    - 0.0.0.0
+    - --port
+    - "8458"
+    - --ctx-size
+    - "131072"
+    - --flash-attn
+    - "on"
+    - --cache-type-k
+    - q4_0
+    - --cache-type-v
+    - q4_0
+    - --parallel
+    - "1"
+    - --threads
+    - "14"
+    - --n-gpu-layers
+    - "0"
+    - --jinja
+    - --alias
+    - mios-cpu
+    - --slot-save-path
+    - /var/lib/mios/llamacpp/slots
+    command:
+    - /app/llama-server
+    env:
+    - name: HOME
+      value: /var/lib/mios/llamacpp
+    image: ghcr.io/mostlygeek/llama-swap:cuda
+    name: mios-cpu-node
+    securityContext:
+      runAsGroup: 827
+      runAsUser: 827
+    volumeMounts:
+    - mountPath: /var/lib/mios/llamacpp/slots
+      name: var-lib-mios-llamacpp-slots-host-0
+    - mountPath: /models
+      name: usr-share-mios-llamacpp-models-host-1
+      readOnly: true
+  hostNetwork: true
+  volumes:
+  - hostPath:
+      path: /usr/share/mios
+      type: Directory
+    name: usr-share-mios-host-12
+  - hostPath:
+      path: /var/lib/mios/hermes-tail
+      type: Directory
+    name: var-lib-mios-hermes-tail-host-1
+  - hostPath:
+      path: /var/lib/mios/delegation-prefilter
+      type: Directory
+    name: var-lib-mios-delegation-prefilter-host-2
+  - hostPath:
+      path: /etc/mios
+      type: Directory
+    name: etc-mios-host-4
+  - hostPath:
+      path: /usr/local/sbin
+      type: Directory
+    name: usr-local-sbin-host-7
+  - hostPath:
+      path: /mnt/m
+      type: Directory
+    name: mnt-m-host-10
+  - hostPath:
+      path: /var/lib/mios/open-webui
+      type: Directory
+    name: var-lib-mios-open-webui-host-11
+  - hostPath:
+      path: /usr/share/mios/postgres/schema-init.sql
+      type: File
+    name: usr-share-mios-postgres-schema-init-sql-host-1
+  - hostPath:
+      path: /usr/share/mios/llamacpp/models
+      type: Directory
+    name: usr-share-mios-llamacpp-models-host-1
+  - hostPath:
+      path: /usr/libexec/mios
+      type: Directory
+    name: usr-libexec-mios-host-13
+  - hostPath:
+      path: /var/lib/mios/cron-director
+      type: Directory
+    name: var-lib-mios-cron-director-host-6
+  - hostPath:
+      path: /mnt/c
+      type: Directory
+    name: mnt-c-host-9
+  - hostPath:
+      path: /usr/share/mios/llamacpp/models
+      type: Directory
+    name: usr-share-mios-llamacpp-models-host-0
+  - hostPath:
+      path: /usr/share/mios/llamacpp/mios-llm-light.yaml
+      type: File
+    name: usr-share-mios-llamacpp-mios-llm-light-yaml-host-1
+  - hostPath:
+      path: /var/lib/mios/llamacpp/slots
+      type: Directory
+    name: var-lib-mios-llamacpp-slots-host-2
+  - hostPath:
+      path: /var/lib/mios/llamacpp/slots
+      type: Directory
+    name: var-lib-mios-llamacpp-slots-host-0
+  - hostPath:
+      path: /run/mios-launcher
+      type: Directory
+    name: run-mios-launcher-host-0
+  - hostPath:
+      path: /var/lib/mios/log-watcher
+      type: Directory
+    name: var-lib-mios-log-watcher-host-3
+  - hostPath:
+      path: /var/lib/mios/agent-nudger
+      type: Directory
+    name: var-lib-mios-agent-nudger-host-5
+  - hostPath:
+      path: /var/lib/mios/agent-env
+      type: Directory
+    name: var-lib-mios-agent-env-host-8
+  - hostPath:
+      path: /var/lib/mios/pgvector
+      type: Directory
+    name: var-lib-mios-pgvector-host-0

@@ -1,5 +1,5 @@
-# AI-hint: A Quadlet configuration for a socat-based container that maps local port 19090 to host port 9090 to provide Podman Desktop with a clickable link to the host's Cockpit web console.
-# AI-related: /etc/mios/profile.toml, mios-cockpit-link, cockpit.socket, network-online.target, multi-user.target, default.target, localhost:19090, localhost:9090
+# AI-hint: A Quadlet configuration for a socat-based container that maps local port ${MIOS_PORT_COCKPIT_LINK:-8091} to host port 9090 to provide Podman Desktop with a clickable link to the host's Cockpit web console.
+# AI-related: /etc/mios/profile.toml, mios-cockpit-link, cockpit.socket, network-online.target, multi-user.target, default.target, localhost:${MIOS_PORT_COCKPIT_LINK:-8091}, localhost:9090
 # /etc/containers/systemd/mios-cockpit-link.container
 # Podman Desktop UI surfacing for the host-side Cockpit web console.
 #
@@ -8,11 +8,11 @@
 # normally has no way to render a clickable link to it. This Quadlet is
 # a discovery shim: a tiny socat forwarder that publishes
 #
-#   localhost:19090   ->   host:9090   (Cockpit web console)
+#   localhost:${MIOS_PORT_COCKPIT_LINK:-8091}   ->   host:9090   (Cockpit web console)
 #
 # When Podman Desktop scans running containers it sees the published
 # port and the OCI labels below, and renders a clickable "open" link
-# straight into Cockpit. The alternate port (19090) is required because
+# straight into Cockpit. The alternate port (${MIOS_PORT_COCKPIT_LINK:-8091}) is required because
 # the host's :9090 is already bound by cockpit-ws and a second bind
 # would collide.
 #
@@ -45,20 +45,20 @@ ConditionVirtualization=!container
 [Container]
 Image=docker.io/alpine/socat:latest@sha256:44e7b87dfeddb0f999ce75eedfa140dc97ea5bf7decbd04b2cef6adb5cc331fe
 ContainerName=mios-cockpit-link
-Pod=mios-netinfra-admin.pod
+Pod=mios-system.pod
 # Single MiOS internal network -- KISS, every Quadlet on the same
 # bridge so sibling lookups by container name work without host-
 # loopback gymnastics. The host.containers.internal hop below is
 # still needed because cockpit-ws runs as a HOST service, not a
 # Quadlet -- it doesn't have a sibling-name on this bridge.
-# Forward 19090 (container, bound 0.0.0.0) -> host:9090 (cockpit).
+# Forward ${MIOS_PORT_COCKPIT_LINK:-8091} (container, bound 0.0.0.0) -> host:9090 (cockpit).
 # host.containers.internal is Podman's documented loopback-to-host
 # alias (mirrors Docker's host.docker.internal); falls back to the
 # well-known 10.88.0.1 gateway if the alias isn't resolvable.
 # bind=0.0.0.0 makes the listener reachable from the host LAN,
 # sibling containers, and the loopback alike (matches the access
 # surface contract every other MiOS service holds to).
-Exec=tcp-listen:19090,bind=0.0.0.0,fork,reuseaddr tcp:host.containers.internal:9090
+Exec=tcp-listen:${MIOS_PORT_COCKPIT_LINK:-8091},bind=0.0.0.0,fork,reuseaddr tcp:host.containers.internal:9090
 EnvironmentFile=/etc/mios/install.env
 
 # OCI labels Podman Desktop renders. Values MUST NOT contain spaces --
@@ -74,7 +74,7 @@ Label=io.podman_desktop.openInBrowser=https://localhost:9090/
 # Architectural Law 6: unprivileged Quadlet with explicit User/Group.
 # Use the `nobody` uid/gid (65534). alpine/socat doesn't need any
 # host-side file access; the discovery shim is a pure TCP relay between
-# container :19090 and host :9090. Numeric resolution avoids depending
+# container :${MIOS_PORT_COCKPIT_LINK:-8091} and host :9090. Numeric resolution avoids depending
 # on a username that doesn't exist in alpine's /etc/passwd.
 User=65534
 Group=65534
