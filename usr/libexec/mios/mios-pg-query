@@ -51,7 +51,7 @@ import struct
 import sys
 
 HOST = os.environ.get("MIOS_PG_HOST") or "127.0.0.1"
-PORT = int(os.environ.get("MIOS_PG_PORT") or "5432")
+PORT = int(os.environ.get("MIOS_PG_PORT") or os.environ.get("MIOS_PORT_PGVECTOR") or "5432")
 USER = os.environ.get("MIOS_PG_USER") or "mios"
 DB = os.environ.get("MIOS_PG_DB") or "mios"
 

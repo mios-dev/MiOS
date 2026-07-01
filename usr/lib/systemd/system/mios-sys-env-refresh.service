@@ -14,6 +14,7 @@ Type=oneshot
 # and the daemon's directory_entry cache. Read-only probe; the only write is the
 # SurrealDB cache row. operator 2026-05-23: "probe systems/environment live +
 # store/update a mios-sys-env database".
+Environment=MIOS_PG_PORT=${MIOS_PORT_PGVECTOR:-5432}
 ExecStart=/usr/libexec/mios/mios-sys-env refresh
 
 [Install]
