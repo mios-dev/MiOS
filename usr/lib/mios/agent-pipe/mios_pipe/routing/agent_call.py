@@ -29,7 +29,10 @@ import logging
 import time
 from typing import Optional
 
-from mios_config import _AUTH_HOSTPORTS
+from mios_config import _AUTH_HOSTPORTS, _DISPATCH_TOML
+import os
+KV_SLOTS_DIR = (os.environ.get("MIOS_KV_SLOTS_DIR", "")
+                or str(_DISPATCH_TOML.get("kv_slots_dir", "") or "")).strip()
 from mios_endpoints import _endpoint_is_ollama, _endpoint_is_llamacpp
 from mios_jsonsalvage import loads_lenient as _loads_lenient
 from mios_kvfork import (validate_fork as _kvfork_validate,
@@ -62,6 +65,7 @@ _SRC_TURN_HEADER = "X-MiOS-Turn"
 KV_PAGING_ENABLE = False
 KV_PAGING_SLOT = 0
 KV_PAGING_TIMEOUT = 12.0
+KV_SLOT_PERSIST = True
 RR_ENABLE = False
 PRIORITY_QUEUE_ENABLE = False
 RR_SLICE_TOKENS = 512
@@ -151,6 +155,7 @@ def configure(*, healthgate_connect_timeout=None, healthgate_read_timeout=None,
               src_turn_key=None, strip_agent_chrome=None, strip_think_tags=None,
               v1_secondary_tool_loop=None,
               kv_paging_enable=None, kv_paging_slot=None, kv_paging_timeout=None,
+              kv_slot_persist=None,
               rr_enable=None, priority_queue_enable=None, rr_slice_tokens=None,
               rr_slice_timeout=None, rr_quantum_s=None, kv_locks=None,
               kv_resident=None, backend_key=None, global_priority_gate=None,
@@ -174,6 +179,7 @@ def configure(*, healthgate_connect_timeout=None, healthgate_read_timeout=None,
     global KV_PAGING_ENABLE, KV_PAGING_SLOT, KV_PAGING_TIMEOUT, RR_ENABLE
     global PRIORITY_QUEUE_ENABLE, RR_SLICE_TOKENS, RR_SLICE_TIMEOUT, RR_QUANTUM_S
     global _KV_LOCKS, _KV_RESIDENT, _BACKEND_KEY, _GLOBAL_PRIORITY_GATE, _PREEMPT
+    global KV_SLOT_PERSIST
     global _otel_tracer
     if otel_tracer is not None:
         _otel_tracer = otel_tracer
@@ -261,6 +267,9 @@ def configure(*, healthgate_connect_timeout=None, healthgate_read_timeout=None,
         KV_PAGING_SLOT = kv_paging_slot
     if kv_paging_timeout is not None:
         KV_PAGING_TIMEOUT = kv_paging_timeout
+    if kv_slot_persist is not None:
+        KV_SLOT_PERSIST = kv_slot_persist
+    KV_PAGING_ENABLE = KV_PAGING_ENABLE and KV_SLOT_PERSIST
     if rr_enable is not None:
         RR_ENABLE = rr_enable
     if priority_queue_enable is not None:
@@ -927,28 +936,108 @@ def _kv_lock(key: str) -> "asyncio.Lock":
     return lk
 
 
+_SAVED_CONVS: set = set()
+_LLM_LIGHT_YAML_CACHE: dict = {}
+_ENDPOINT_SLOTS_CACHE: dict = {}
+
+def _stable_hash(s: str) -> int:
+    import hashlib
+    return int(hashlib.md5(s.encode("utf-8")).hexdigest(), 16)
+
+def _get_llm_light_config() -> dict:
+    global _LLM_LIGHT_YAML_CACHE
+    if _LLM_LIGHT_YAML_CACHE:
+        return _LLM_LIGHT_YAML_CACHE
+    yaml_path = os.environ.get("MIOS_LLM_LIGHT_YAML", "/usr/share/mios/llamacpp/mios-llm-light.yaml")
+    if not os.path.exists(yaml_path):
+        return {}
+    try:
+        import yaml
+        with open(yaml_path, "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+            if isinstance(data, dict):
+                _LLM_LIGHT_YAML_CACHE = data
+                return data
+    except Exception as e:
+        log.warning("Failed to parse mios-llm-light.yaml: %s", e)
+    return {}
+
+def _is_gemma_or_qwen(model: str) -> bool:
+    if not model:
+        return False
+    model_lower = model.lower()
+    if "gemma" in model_lower or "qwen" in model_lower:
+        return True
+    try:
+        cfg = _get_llm_light_config()
+        models = cfg.get("models", {})
+        for key, entry in models.items():
+            aliases = [a.lower() for a in entry.get("aliases", [])]
+            if key.lower() == model_lower or model_lower in aliases:
+                if "gemma" in key.lower() or "qwen" in key.lower():
+                    return True
+                cmd = str(entry.get("cmd", "")).lower()
+                if "gemma" in cmd or "qwen" in cmd:
+                    return True
+    except Exception as e:
+        log.debug("Error in _is_gemma_or_qwen: %s", e)
+    return False
+
+async def _get_slot_count(client, ep: str, model: Optional[str] = None) -> int:
+    base = _kv_base(ep)
+    cache_key = f"{base}#{model or ''}"
+    if cache_key in _ENDPOINT_SLOTS_CACHE:
+        return _ENDPOINT_SLOTS_CACHE[cache_key]
+    urls = []
+    if model:
+        urls.append(f"{base}/upstream/{model}/slots")
+    urls.append(f"{base}/slots")
+    for url in urls:
+        try:
+            r = await client.get(url, timeout=KV_PAGING_TIMEOUT)
+            if r.status_code == 200:
+                data = r.json()
+                if isinstance(data, list):
+                    n = len(data)
+                    if n > 0:
+                        _ENDPOINT_SLOTS_CACHE[cache_key] = n
+                        return n
+        except Exception as e:
+            log.debug("Failed to get slots count from %s: %s", url, e)
+    return 1
+
 async def _kv_slot_action(client, ep: str, action: str, conv: str,
-                          model: "Optional[str]" = None) -> bool:
+                          model: "Optional[str]" = None,
+                          slot_id: Optional[int] = None) -> bool:
     """POST one llama.cpp slot save|restore for conversation `conv`. Best-effort:
     returns False (never raises) on any failure.
 
-    G6: mios-llm-light does NOT proxy /slots at its root -- it exposes each model's
-    native endpoints under /upstream/<model>/ -- so the bare /slots POST always
-    404'd (empty slot dir). Try the model-routed upstream path first when the
-    model is known, then fall back to the bare /slots path (a direct llama.cpp
-    server, e.g. the iGPU lane, serves /slots at the root)."""
+    Passes swa_full=true / --swa-full=true for Gemma/Qwen family models on restore."""
+    sid = slot_id if slot_id is not None else KV_PAGING_SLOT
     base = _kv_base(ep)
     urls = []
     if model:
-        urls.append(f"{base}/upstream/{model}/slots/{KV_PAGING_SLOT}")
-    urls.append(f"{base}/slots/{KV_PAGING_SLOT}")
+        urls.append(f"{base}/upstream/{model}/slots/{sid}")
+    urls.append(f"{base}/slots/{sid}")
+    
+    is_swa = (action == "restore" and _is_gemma_or_qwen(model))
+    
+    params = {"action": action}
+    if is_swa:
+        params["swa_full"] = "true"
+        params["--swa-full"] = "true"
+        
+    body = {"filename": _kv_filename(conv)}
+    if is_swa:
+        body["swa_full"] = True
+        body["--swa-full"] = True
+        
     for url in urls:
         try:
             r = await client.post(
                 url,
-                params={"action": action},
-                content=json.dumps(
-                    {"filename": _kv_filename(conv)}).encode("utf-8"),
+                params=params,
+                content=json.dumps(body).encode("utf-8"),
                 headers={"Content-Type": "application/json"},
                 timeout=KV_PAGING_TIMEOUT)
             if r.status_code == 200:
@@ -971,16 +1060,36 @@ async def _kv_paging(client, ep: str, cfg: dict, engine):
         yield
         return
     conv = _conv_key_var.get()
-    model = (cfg or {}).get("model")
-    key = f"{_kv_base(ep)}#{KV_PAGING_SLOT}"
-    async with _kv_lock(key):
-        if _KV_RESIDENT.get(key) != conv:
-            resident = _KV_RESIDENT.get(key)
-            if resident is not None:                       # page OUT (unload)
-                await _kv_slot_action(client, ep, "save", resident, model)
-            await _kv_slot_action(client, ep, "restore", conv, model)  # page IN
-            _KV_RESIDENT[key] = conv
+    if not conv:
         yield
+        return
+    model = (cfg or {}).get("model")
+    
+    n_slots = await _get_slot_count(client, ep, model)
+    slot_id = _stable_hash(conv) % n_slots
+    key = f"{_kv_base(ep)}#{slot_id}"
+    
+    async with _kv_lock(key):
+        resident = _KV_RESIDENT.get(key)
+        if resident != conv:
+            if resident is not None:                       # page OUT (unload)
+                await _kv_slot_action(client, ep, "save", resident, model, slot_id)
+                _SAVED_CONVS.add(resident)
+                _KV_RESIDENT[key] = None
+            
+            has_snapshot = (conv in _SAVED_CONVS)
+            if not has_snapshot and KV_SLOTS_DIR:
+                import os
+                has_snapshot = os.path.exists(os.path.join(KV_SLOTS_DIR, _kv_filename(conv)))
+                
+            if has_snapshot:
+                await _kv_slot_action(client, ep, "restore", conv, model, slot_id)  # page IN
+            _KV_RESIDENT[key] = conv
+        try:
+            yield
+        finally:
+            await _kv_slot_action(client, ep, "save", conv, model, slot_id)
+            _SAVED_CONVS.add(conv)
 
 
 async def _kv_fork(client, ep: str, cfg: dict, engine, src_conv: str,
@@ -1001,12 +1110,23 @@ async def _kv_fork(client, ep: str, cfg: dict, engine, src_conv: str,
     ok, reason = _kvfork_validate(src_conv, dst_conv)
     if not ok:
         return {"forked": False, "reason": reason}
-    key = f"{_kv_base(ep)}#{KV_PAGING_SLOT}"
+    
+    model = (cfg or {}).get("model")
+    n_slots = await _get_slot_count(client, ep, model)
+    slot_id = _stable_hash(dst_conv) % n_slots
+    key = f"{_kv_base(ep)}#{slot_id}"
+    
     async with _kv_lock(key):
+        resident = _KV_RESIDENT.get(key)
+        if resident is not None and resident != dst_conv:
+            await _kv_slot_action(client, ep, "save", resident, model, slot_id)
+            _SAVED_CONVS.add(resident)
+            _KV_RESIDENT[key] = None
+            
         restore_ok = False
         save_ok = False
         for action, conv, _fname in _kvfork_plan(src_conv, dst_conv):
-            res = await _kv_slot_action(client, ep, action, conv)
+            res = await _kv_slot_action(client, ep, action, conv, model, slot_id)
             if action == "restore":
                 restore_ok = res
             else:
@@ -1014,6 +1134,7 @@ async def _kv_fork(client, ep: str, cfg: dict, engine, src_conv: str,
         forked, reason = _kvfork_outcome(restore_ok, save_ok)
         if forked:
             _KV_RESIDENT[key] = dst_conv  # the slot now holds the child's KV
+            _SAVED_CONVS.add(dst_conv)
     return {"forked": forked, "reason": reason}
 
 
@@ -1035,15 +1156,16 @@ def _rr_eligible(body: dict, ep: str, cfg: dict, engine) -> bool:
                 and ep and _endpoint_is_llamacpp(ep, cfg, engine))
 
 
-async def _rr_slice(client, ep: str, model, messages, max_tokens, headers):
+async def _rr_slice(client, ep: str, model, messages, max_tokens, headers, slot_id: Optional[int] = None):
     """One bounded completion slice on a llama.cpp /v1 lane. cache_prompt + a
     pinned id_slot reuse the warm (or just-restored) KV so only the new suffix is
     decoded. Returns (text, finished); `finished` is True on a real stop/EOS
     (finish_reason not in {length, ''}) -- else the slice hit the token budget and
     more remains."""
+    sid = slot_id if slot_id is not None else KV_PAGING_SLOT
     payload = {"model": model, "messages": messages,
                "max_tokens": int(max_tokens), "stream": False,
-               "cache_prompt": True, "id_slot": KV_PAGING_SLOT,
+               "cache_prompt": True, "id_slot": sid,
                "chat_template_kwargs": {"enable_thinking": False}}
     hdrs = {"Content-Type": "application/json", **(headers or {})}
     if _BACKEND_KEY and ep.split("://")[-1].split("/")[0] in _AUTH_HOSTPORTS:
@@ -1051,8 +1173,8 @@ async def _rr_slice(client, ep: str, model, messages, max_tokens, headers):
             hdrs.pop(_k)
         hdrs["Authorization"] = f"Bearer {_BACKEND_KEY}"
     r = await client.post(ep.rstrip("/") + "/chat/completions",
-                          content=json.dumps(payload).encode("utf-8"),
-                          headers=hdrs, timeout=RR_SLICE_TIMEOUT)
+                           content=json.dumps(payload).encode("utf-8"),
+                           headers=hdrs, timeout=RR_SLICE_TIMEOUT)
     r.raise_for_status()
     j = r.json()
     ch = (j.get("choices") or [{}])[0]
@@ -1072,6 +1194,8 @@ async def _rr_run(client, ep: str, model, messages, *, conv: str,
     partial, produced = "", 0
     total = int(max_tokens or RR_SLICE_TOKENS)
     try:
+        n_slots = await _get_slot_count(client, ep, model)
+        slot_id = _stable_hash(conv) % n_slots
         await _GLOBAL_PRIORITY_GATE.acquire(priority)
         held = True
         q = mios_preempt.Quantum(time.monotonic(), RR_QUANTUM_S)
@@ -1080,7 +1204,7 @@ async def _rr_run(client, ep: str, model, messages, *, conv: str,
             if partial:                       # continue the assistant turn
                 msgs.append({"role": "assistant", "content": partial})
             want = min(RR_SLICE_TOKENS, total - produced)
-            text, finished = await _rr_slice(client, ep, model, msgs, want, headers)
+            text, finished = await _rr_slice(client, ep, model, msgs, want, headers, slot_id)
             partial += text
             produced += want
             if finished or not text:
@@ -1100,7 +1224,7 @@ async def _rr_run(client, ep: str, model, messages, *, conv: str,
             if slot is None:                  # lost the slot race -> keep running
                 continue
             # Snapshot KV, record the suspension, hand the lane to the waiter.
-            await _kv_slot_action(client, ep, "save", conv, model)
+            await _kv_slot_action(client, ep, "save", conv, model, slot_id)
             _PREEMPT.suspend(mios_preempt.Snapshot(conv, priority, produced, partial, slot))
             _GLOBAL_PRIORITY_GATE.release()
             held = False
@@ -1109,7 +1233,7 @@ async def _rr_run(client, ep: str, model, messages, *, conv: str,
                 held = True
             finally:
                 _PREEMPT.discharge(conv)      # free our snapshot slot
-            await _kv_slot_action(client, ep, "restore", conv, model)
+            await _kv_slot_action(client, ep, "restore", conv, model, slot_id)
             q = mios_preempt.Quantum(time.monotonic(), RR_QUANTUM_S)  # fresh quantum
         return partial
     except asyncio.CancelledError:
@@ -1126,7 +1250,9 @@ async def _rr_run(client, ep: str, model, messages, *, conv: str,
             except Exception:  # noqa: BLE001
                 pass
         try:
-            text, _ = await _rr_slice(client, ep, model, list(messages), total, headers)
+            n_slots = await _get_slot_count(client, ep, model)
+            slot_id = _stable_hash(conv) % n_slots
+            text, _ = await _rr_slice(client, ep, model, list(messages), total, headers, slot_id)
             return (partial + text) if partial else text
         except Exception:  # noqa: BLE001
             return partial

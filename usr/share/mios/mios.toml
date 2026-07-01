@@ -2361,6 +2361,7 @@ n_ctx = 8000
 compaction_interval = 20
 tool_result_ttl_turns = 5
 compaction_threshold_pct = 80
+kv_slot_persist = true
 
 # ── WS-6 replayable DAG run-templates. Capture every planned DAG to
 # the run_template table (GET /v1/run-templates) keyed by a structural class hash

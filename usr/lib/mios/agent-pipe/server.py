@@ -241,6 +241,7 @@ from mios_config import (   # noqa: E402
     _dispatch_toml,
     _DISPATCH_TOML,
     _dispatch_num,
+    KV_SLOT_PERSIST,
 )
 # ── Phase B DCI subsystem (vocab + B.1 critic + B.2 convergent flow + B.3
 # escalation) -- extracted verbatim to mios_dci.py (refactor R6). Re-imported
@@ -7407,6 +7408,7 @@ sys.modules["mios_agent_call"].configure(
     kv_paging_enable=KV_PAGING_ENABLE,
     kv_paging_slot=KV_PAGING_SLOT,
     kv_paging_timeout=KV_PAGING_TIMEOUT,
+    kv_slot_persist=KV_SLOT_PERSIST,
     rr_enable=RR_ENABLE,
     priority_queue_enable=PRIORITY_QUEUE_ENABLE,
     rr_slice_tokens=RR_SLICE_TOKENS,

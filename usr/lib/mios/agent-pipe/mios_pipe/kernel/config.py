@@ -383,3 +383,11 @@ POLISH_ENDPOINT = os.environ.get(
 ).rstrip("/")
 POLISH_TIMEOUT_S = int(os.environ.get("MIOS_POLISH_TIMEOUT_S", "15"))
 POLISH_MAX_TOKENS = int(os.environ.get("MIOS_POLISH_MAX_TOKENS", "800"))
+
+# Memory / KV Paging Slot Persistence (T-021)
+_MEMORY_TOML = _toml_section("memory") or {}
+KV_SLOT_PERSIST = (
+    os.environ.get("MIOS_KV_SLOT_PERSIST", "").strip().lower() in {"1", "true", "yes"}
+    or str(_MEMORY_TOML.get("kv_slot_persist", "true")).strip().lower() in {"1", "true", "yes", "on"}
+)
+

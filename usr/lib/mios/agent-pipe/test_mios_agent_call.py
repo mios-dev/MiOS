@@ -455,14 +455,16 @@ asyncio.run(_slot_action_status())
 
 
 async def _kv_paging_active():
-    # cold slot -> page THIS conversation in (one restore), resident updated.
+    # cold slot with prior snapshot -> page THIS conversation in (one restore), resident updated.
     T._KV_RESIDENT.clear()
+    T._SAVED_CONVS.clear()
+    T._SAVED_CONVS.add("convA")
     _conv.set("convA")
     client = _SlotClient(200)
     async with T._kv_paging(client, "http://h/v1", {"model": "m"}, None):
         pass
     ok(any(c["params"] == {"action": "restore"} for c in client.calls),
-       "_kv_paging pages the conversation IN on a cold slot")
+       "_kv_paging pages the conversation IN on a cold slot when snapshot exists")
     key = T._kv_base("http://h/v1") + "#0"
     ok(T._KV_RESIDENT.get(key) == "convA",
        "_kv_paging records the resident conversation for the slot")
@@ -521,6 +523,35 @@ T.configure(cost_accounting_enable=False)
 T._record_cost({"endpoint": "ep"}, "http://ep/v1", _time.time(), _cbody, _ctext)
 ok(_ledger.snapshot()["dispatches"] == 1,
    "_record_cost is a no-op when cost_accounting_enable is off")
+
+
+print("[T-021: KV Slot-Save/Restore + --swa-full Guard]")
+ok(T._stable_hash("conv1") == T._stable_hash("conv1"), "_stable_hash is deterministic")
+ok(T._stable_hash("conv1") != T._stable_hash("conv2"), "_stable_hash produces different values for different strings")
+
+ok(T._is_gemma_or_qwen("gemma:7b") is True, "gemma model matches directly")
+ok(T._is_gemma_or_qwen("qwen2.5:7b") is True, "qwen model matches directly")
+ok(T._is_gemma_or_qwen("granite4.1:8b") is False, "granite model does not match directly")
+
+class _SwaClient:
+    def __init__(self):
+        self.calls = []
+    async def post(self, url, params=None, content=None, headers=None, timeout=None):
+        self.calls.append({"url": url, "params": params, "content": json.loads(content.decode("utf-8") if content else "{}")})
+        class R:
+            status_code = 200
+        return R()
+
+client_swa = _SwaClient()
+async def test_swa_slot_action():
+    await T._kv_slot_action(client_swa, "http://h/v1", "restore", "convA", "granite4.1:8b")
+    await T._kv_slot_action(client_swa, "http://h/v1", "restore", "convB", "gemma:2b")
+    
+    ok("swa_full" not in (client_swa.calls[0]["params"] or {}), "non-SWA model restore has no swa_full query param")
+    ok(client_swa.calls[1]["params"].get("swa_full") == "true", "SWA model restore has swa_full query param")
+    ok(client_swa.calls[1]["content"].get("swa_full") is True, "SWA model restore has swa_full body param")
+
+asyncio.run(test_swa_slot_action())
 
 
 print("\nALL %d ASSERTIONS PASSED" % PASS)
