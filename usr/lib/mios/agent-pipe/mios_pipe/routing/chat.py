@@ -201,10 +201,18 @@ _write_skill_md_fire = None
 classify_intent = None
 LETTA_MEMORY_BACKEND = False
 _LETTA_CLIENT = None
+_db_write = None
+_embed_one = None
+_scratchpad_for = None
+EMB_MODEL = None
+EMB_VERSION = None
+_turn_tenant = None
+SCRATCHPAD_PERSIST = False
 
 
 _INJECTED = frozenset((
     "LETTA_MEMORY_BACKEND", "_LETTA_CLIENT",
+    "_db_write", "_embed_one", "_scratchpad_for", "EMB_MODEL", "EMB_VERSION", "_turn_tenant", "SCRATCHPAD_PERSIST",
     "ASK_CLARIFY_ENABLE", "AUTONOMOUS_PRIORITY", "AUTO_FORCE_TOOL", "BACKEND", "BACKEND_MODEL",
     "GATEWAY_QUEUE",
     "CLIENT_TOOLS_PASSTHROUGH", "COUNCIL_DEFAULT", "DCI_ENABLED", "KERNEL_ROUTE", "KERNEL_DISPATCH",
@@ -312,6 +320,37 @@ def _trim_sys_prefix(sys_prefix: list, lane: str) -> list:
 # REFINE_* from mios_config) and degrades open (returns ''/False/a plain
 # fallback) on any miss -- never blocks or crashes a turn. One-way boundary:
 # this module never imports server.
+async def _summarize_evicted_messages(evicted_messages: list) -> str:
+    """Precise summarization helper using the planner/model endpoint."""
+    history_str = ""
+    for m in evicted_messages:
+        role = str(m.get("role") or "").upper()
+        content = str(m.get("content") or "").strip()
+        history_str += f"{role}: {content}\n"
+        
+    payload = {
+        "model": ROUTER_MODEL,
+        "messages": [
+            {"role": "system", "content": "You are a precise summarization assistant. Summarize the key facts, tasks, preferences, and details from the following conversation history in a concise, bulleted format. Keep the summary under 200 words. Focus strictly on facts and decisions made, omitting conversational filler."},
+            {"role": "user", "content": history_str}
+        ],
+        "temperature": 0.0,
+        "max_tokens": 300,
+        "stream": False
+    }
+    try:
+        async with httpx.AsyncClient(timeout=PLANNER_TIMEOUT_S) as s:
+            r = await s.post(f"{PLANNER_ENDPOINT}/v1/chat/completions", json=payload,
+                             headers={"Content-Type": "application/json"})
+            if r.status_code == 200:
+                res = r.json()
+                summary = (res.get("choices") or [{}])[0].get("message", {}).get("content") or ""
+                return summary.strip()
+    except Exception as e:
+        log.warning("Failed to summarize evicted messages: %s", e)
+    return "Archive of oldest conversation history turns."
+
+
 async def _quick_chat_reply(user_text: str, history: list = None) -> str:
     """Generate the conversational reply for an intent=chat turn.
 
@@ -830,6 +869,122 @@ async def chat_completions_logic(request: Request) -> Any:
                 await _LETTA_CLIENT.trigger_compaction(_session_id)
         except Exception as _letta_err:
             log.warning("Letta memory context threshold logic failed: %s", _letta_err)
+    else:
+        # T-035: Native context warning and eviction logic
+        try:
+            import mios_tokenize
+            import os
+            # Read context limits from the [memory] config block (SSOT)
+            memory_cfg = _toml_section("memory") or {}
+            n_ctx = int(os.environ.get("MIOS_MEMORY_N_CTX") or memory_cfg.get("n_ctx", 8000))
+            
+            # Count tokens in the incoming messages
+            tok_count = mios_tokenize.count_messages(messages)
+            fill = tok_count / n_ctx
+            session_id = _conv_key_var.get() or "default"
+            
+            if fill >= 1.0:
+                log.info("Native context fill >= 100%% (%d/%d tokens). Evicting oldest turns and summarizing.", tok_count, n_ctx)
+                
+                # Evict oldest FIFO turns (excluding system messages)
+                import mios_compact
+                budget = int(n_ctx * 0.5)
+                plan = mios_compact.plan_compaction(messages, budget=budget, keep_recent=4, keep_system=True)
+                
+                if plan.needed and plan.to_summarize:
+                    # Summarize the evicted messages
+                    summary = await _summarize_evicted_messages(plan.to_summarize)
+                    
+                    # Write summary to scratchpad head (deque left)
+                    if _scratchpad_for is not None:
+                        _scratchpad_for(session_id).appendleft({
+                            "ts": time.time(),
+                            "agent": "system-summary",
+                            "lane": "",
+                            "phase": "",
+                            "note": f"Recursive summary of evicted conversation history: {summary}",
+                        })
+                    
+                    # Also durably write to pg `scratch` table so it persists across restarts
+                    if SCRATCHPAD_PERSIST and _db_write is not None:
+                        try:
+                            _db_write("scratch", {
+                                "chat_id": session_id,
+                                "agent": "system-summary",
+                                "lane": "",
+                                "phase": "",
+                                "note": f"Recursive summary of evicted conversation history: {summary}",
+                            }, now_fields=("ts",))
+                        except Exception:
+                            pass
+                    
+                    # Wire to pgvector agent_memory archival (T-035)
+                    emb_val = None
+                    try:
+                        if _embed_one is not None:
+                            emb_val = await _embed_one(f"Summary of evicted conversation history: {summary}")
+                    except Exception:
+                        pass
+                    
+                    fields = {
+                        "fact": f"Summary of evicted conversation history: {summary}",
+                        "scope": f"conversation:{session_id}",
+                        "mem_key": f"archived-{time.time()}",
+                        "source": "system",
+                        "owner_user": _turn_tenant() if _turn_tenant else None,
+                    }
+                    if emb_val:
+                        fields["emb"] = emb_val
+                        fields["emb_model"] = EMB_MODEL
+                        fields["emb_version"] = EMB_VERSION
+                    
+                    if _db_write is not None:
+                        try:
+                            _db_write("agent_memory", fields)
+                        except Exception:
+                            pass
+                    
+                    # Replace the evicted messages with a single system message containing the summary
+                    new_messages = []
+                    system_msgs = [m for m in plan.to_keep if m.get("role") == "system"]
+                    other_msgs = [m for m in plan.to_keep if m.get("role") != "system"]
+                    
+                    new_messages.extend(system_msgs)
+                    new_messages.append({
+                        "role": "system",
+                        "content": f"System checkpoint -- recursive summary of evicted conversation history:\n{summary}"
+                    })
+                    new_messages.extend(other_msgs)
+                    
+                    messages = new_messages
+                    body["messages"] = messages
+                    
+            elif fill >= 0.7:
+                log.info("Native context fill >= 70%% (%d/%d tokens). Warning agent.", tok_count, n_ctx)
+                # Emit warning event to pgvector event table
+                if _db_write is not None:
+                    try:
+                        _db_write("event", {
+                            "source": "agent-pipe",
+                            "kind": "context_warning",
+                            "severity": "medium",
+                            "summary": f"Context fill warning: {tok_count} tokens is >= 70% of budget {n_ctx}",
+                            "payload": {
+                                "tokens": tok_count,
+                                "budget": n_ctx,
+                                "session_id": session_id
+                            }
+                        }, now_fields=("ts",))
+                    except Exception:
+                        pass
+                
+                # Warn agent by appending warning message
+                messages.append({
+                    "role": "system",
+                    "content": f"WARNING: Conversation context is at {int(fill*100)}% capacity ({tok_count}/{n_ctx} tokens). Please use memory_append or memory_replace to save important information before it is evicted."
+                })
+        except Exception as _mem_err:
+            log.warning("Native memory context threshold logic failed: %s", _mem_err)
     # ASK-TO-RUN approval round-trip : if a high-tier action was
     # PROPOSED on a prior turn of THIS chat (a pending_action keyed by the conv key) and
     # the user's reply APPROVES it (MODEL-classified, no keyword list), execute it now and

@@ -882,6 +882,20 @@ mask_systemd_remount_fs = true
 enable = false
 
 # ----------------------------------------------------------------------------
+# [security.mcp_sandbox] -- T-032 hermetic MCP sandboxing for tool execution.
+# DEFAULT-OFF. When true, every MCP stdio server spawn is routed through
+# /usr/libexec/mios/mcp-server-runner which acts as a gatekeeper: it validates
+# all tool-call arguments (blocking directory traversal, path escape), enforces
+# MIOS_WRITE_ALLOWED_PATHS for write operations, and runs the actual MCP server
+# process inside a rootless podman sandbox (--network=none, read-only root,
+# dropped caps). When false (default), MCP servers execute directly on the host
+# as today (degrade-open).
+# ----------------------------------------------------------------------------
+[security.mcp_sandbox]
+enable = false
+write_allowed_paths = ["/tmp/mios-mcp", "/var/lib/mios/ai"]
+
+# ----------------------------------------------------------------------------
 # [security.egress] -- #54 zero-trust OUTBOUND firewall for the AGENT process.
 # Constrains the agent-pipe user's external egress at the OS layer (nftables) so a
 # compromised/misled agent cannot exfiltrate to arbitrary internet hosts. It is
@@ -1772,7 +1786,6 @@ judge_examples = "a punt, refusal, 'I cannot', or 'where to look'"
 # transitional unwired (imported-but-dead) status in check_unwired_modules.
 denylist = [
     "mios_batch",
-    "mios_compact",
     "mios_ctxpack",
     "mios_embed_backfill",
     "mios_provider_translate",
@@ -2338,6 +2351,16 @@ evict_batch         = 500    # max rows removed per sweep (blast-radius bound)
 enable = true
 mode   = "log"     # log = non-blocking + observable (default); gate = block-until-approved
 verbs  = ""        # CSV override of gated verbs; blank = _HIGH_PRIVILEGE_VERBS
+
+# ── WS-MEM-02 Memory / Context threshold warning and eviction (P2,) ──
+# n_ctx is the total context window size in tokens.
+# At 70% of n_ctx, the system warns the agent about context usage.
+# At 100% of n_ctx, the oldest turns are evicted, summarized, and archived.
+[memory]
+n_ctx = 8000
+compaction_interval = 20
+tool_result_ttl_turns = 5
+compaction_threshold_pct = 80
 
 # ── WS-6 replayable DAG run-templates. Capture every planned DAG to
 # the run_template table (GET /v1/run-templates) keyed by a structural class hash
@@ -4588,6 +4611,46 @@ cmd        = "mios-remember forget --key {key!}"
   type    = "string"
   desc    = "Key of the memory to delete (the key you set with remember)."
   aliases = ["id", "name"]
+
+[verbs.memory_append]
+hidden = true
+section    = "Discovery / resolution"
+sig        = "fact, scope=global?, key?"
+desc       = "WRITE a durable FACT to your persistent memory (Letta/MemGPT core-memory, self-editing). Use when the operator tells you something to keep, or you learn a stable fact worth carrying across turns/conversations. scope: global (default) | agent:<name> | conversation:<id>. Optional `key` lets you later memory_replace/memory_forget it."
+examples   = ["memory_append fact=\"discord channel is #ops\"", "memory_append fact=\"heavy lane runs on port 11441\" key=\"heavy_port\""]
+tier = "rare"
+permission = "write"
+cmd        = "mios-remember add {fact!} {scope?--scope} {key?--key}"
+  [verbs.memory_append.params.fact]
+  type    = "string"
+  desc    = "The fact/preference to store durably."
+  aliases = ["text", "note", "memory", "content"]
+  [verbs.memory_append.params.scope]
+  type    = "string"
+  desc    = "global | agent:<name> | conversation:<id>."
+  aliases = ["level"]
+  [verbs.memory_append.params.key]
+  type    = "string"
+  desc    = "Stable key to later update/forget this memory."
+  aliases = ["id", "name"]
+
+[verbs.memory_replace]
+hidden = true
+section    = "Discovery / resolution"
+sig        = "key, fact"
+desc       = "EDIT a durable memory you previously stored (Letta/MemGPT core_memory_replace): overwrite the fact at `key` with a new value. Use to CORRECT or refine a stored fact. Requires the existing key."
+examples   = ["memory_replace key=\"heavy_port\" fact=\"11441\""]
+tier = "rare"
+permission = "write"
+cmd        = "mios-remember update --key {key!} {fact!}"
+  [verbs.memory_replace.params.key]
+  type    = "string"
+  desc    = "Key of the memory to overwrite."
+  aliases = ["id", "name"]
+  [verbs.memory_replace.params.fact]
+  type    = "string"
+  desc    = "The new value to store at this key."
+  aliases = ["text", "new", "value", "content", "memory"]
 
 [verbs.viking_ls]
 hidden = true

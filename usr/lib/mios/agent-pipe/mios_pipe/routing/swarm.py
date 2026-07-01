@@ -97,6 +97,10 @@ _sources_metadata = None
 _src_collected = None
 _src_record_from_text = None
 _usage_estimate = None
+_db_read = None
+_db_fire = None
+_db_post = None
+_db_create = None
 
 
 def configure(*, swarm_max_width=None, swarm_max_cpu_nodes=None,
@@ -113,7 +117,8 @@ def configure(*, swarm_max_width=None, swarm_max_cpu_nodes=None,
               strip_think_tags=None, filter_relevant_sources=None,
               sources_markdown=None, sources_annotations=None,
               sources_metadata=None, src_collected=None,
-              src_record_from_text=None, usage_estimate=None) -> None:
+              src_record_from_text=None, usage_estimate=None,
+              db_read=None, db_fire=None, db_post=None, db_create=None) -> None:
     """Inject server.py's config scalars, the live registry / verb catalog /
     ContextVar and the runtime helpers the swarm brain calls back into."""
     global SWARM_MAX_WIDTH, SWARM_MAX_CPU_NODES, SWARM_DEEPEN_ENABLED
@@ -128,6 +133,15 @@ def configure(*, swarm_max_width=None, swarm_max_cpu_nodes=None,
     global _filter_relevant_sources, _sources_markdown, _sources_annotations
     global _sources_metadata, _src_collected, _src_record_from_text
     global _usage_estimate
+    global _db_read, _db_fire, _db_post, _db_create
+    if db_read is not None:
+        _db_read = db_read
+    if db_fire is not None:
+        _db_fire = db_fire
+    if db_post is not None:
+        _db_post = db_post
+    if db_create is not None:
+        _db_create = db_create
     if swarm_max_width is not None:
         SWARM_MAX_WIDTH = swarm_max_width
     if swarm_max_cpu_nodes is not None:
@@ -376,6 +390,15 @@ def _agent_dag_from_tasks(tasks: list, live_agents: Optional[set] = None,
                           "web": src.get("web"),
                           "inventory_filter": src.get("inventory_filter")})
             used.append(a)
+    # multi_task "both" intent: research facet completes first, exports typed findings; action facet depends on those findings
+    has_web = any(n.get("web") for n in nodes)
+    has_local = any(n.get("local_state") for n in nodes)
+    if has_web and has_local:
+        web_ids = [n["id"] for n in nodes if n.get("web")]
+        for n in nodes:
+            if n.get("local_state"):
+                n["deps"] = list(web_ids)
+
     summary = "; ".join(str(t.get("title") or "")[:60]
                         for t in tasks if isinstance(t, dict))[:200]
     return {"summary": summary, "nodes": nodes}
@@ -423,10 +446,32 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
             _replans = 0
             _unfulfilled = [_n for _n in dag_result.get("node_results", [])
                             if isinstance(_n, dict) and _n.get("satisfied") is False]
-            while _unfulfilled and _replans < DAG_REPLAN_MAX:
+            _stalls = 0
+            if session_id and _db_read:
+                try:
+                    stall_sql = f"SELECT count(*) as c FROM progress_ledger WHERE session_id = '{session_id}' AND state = 'stalled'"
+                    stall_rows = await _db_read(stall_sql, pg_sql=stall_sql)
+                    if stall_rows:
+                        _stalls = int(stall_rows[0].get("c") or 0)
+                except Exception as _se:
+                    log.warning("Failed to query progress_ledger stalls: %s", _se)
+
+            while (_unfulfilled or _stalls > 2) and _replans < DAG_REPLAN_MAX:
                 _replans += 1
-                log.info("DAG CLOSED-LOOP replan #%d/%d: %d unfulfilled facet(s) -> "
-                         "re-dispatch", _replans, DAG_REPLAN_MAX, len(_unfulfilled))
+                log.info("DAG CLOSED-LOOP replan #%d/%d: %d unfulfilled facet(s), %d stalls -> "
+                         "re-dispatch", _replans, DAG_REPLAN_MAX, len(_unfulfilled), _stalls)
+                if _stalls > 2 and _db_fire and _db_post and _db_create:
+                    try:
+                        event_sql = _db_create("event", {
+                            "source": "mios-agent-pipe",
+                            "kind": "replan",
+                            "severity": "warning",
+                            "summary": f"Progress Ledger stall count is {_stalls} > 2 -> triggering re-plan event",
+                            "session_id": session_id
+                        }, now_fields=("ts",))
+                        _db_fire(_db_post(event_sql))
+                    except Exception:
+                        pass
                 _fresh = await _execute_dag_bounded(
                     dag, session_id=session_id, request=request)
                 if _nsat(_fresh) > _nsat(dag_result):
@@ -435,6 +480,14 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
                     dag_result = _fresh
                 _unfulfilled = [_n for _n in dag_result.get("node_results", [])
                                 if isinstance(_n, dict) and _n.get("satisfied") is False]
+                _stalls = 0
+                if session_id and _db_read:
+                    try:
+                        stall_rows = await _db_read(stall_sql, pg_sql=stall_sql)
+                        if stall_rows:
+                            _stalls = int(stall_rows[0].get("c") or 0)
+                    except Exception:
+                        pass
         except Exception as _re_err:  # noqa: BLE001 -- degrade-open, never break synth
             log.warning("DAG closed-loop replan skipped: %s", _re_err)
         # Drop punting nodes from the polish input : a
@@ -470,10 +523,34 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
                        if n.get("satisfied") is not False
                        and not _is_punt(n.get("output"))]
         _use_nodes = _good_nodes if _good_nodes else _all_nodes
-        merged = "\n\n".join(
-            f"[{n.get('tool', 'agent')}]:\n{(n.get('output') or '').strip()}"
-            for n in _use_nodes
-            if (n.get("output") or "").strip())
+        node_lookup = {gn.get("id"): gn for gn in (dag.get("nodes") or [])}
+        formatted_nodes = []
+        for n in _use_nodes:
+            nid = n.get("node_id")
+            orig_node = node_lookup.get(nid) or {}
+            is_research = bool(orig_node.get("web") or orig_node.get("news"))
+            label = n.get("tool") or "agent"
+            if is_research:
+                fact_lines = []
+                if session_id and _db_read:
+                    try:
+                        fact_sql = f"SELECT claim, source FROM fact_ledger WHERE session_id = '{session_id}'"
+                        fact_rows = await _db_read(fact_sql, pg_sql=fact_sql)
+                        if fact_rows:
+                            for row in fact_rows:
+                                claim = row.get("claim")
+                                source = row.get("source") or "unknown"
+                                fact_lines.append(f"  * Claim: {claim} [Source: {source}]")
+                    except Exception:
+                        pass
+                if fact_lines:
+                    out_val = "Claims & Sources:\n" + "\n".join(fact_lines)
+                else:
+                    out_val = (n.get("output") or "").strip()
+            else:
+                out_val = f"Verb-Output Schema: {(n.get('output') or '').strip()}"
+            formatted_nodes.append(f"[{label}]:\n{out_val}")
+        merged = "\n\n".join(formatted_nodes)
         # RAW research grounding ("still lacking ACTUAL
         # contents"): the union of the fetched web content across facets, so the
         # synthesis works from the real FACTS/titles/scores even when an agent

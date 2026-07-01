@@ -78,8 +78,13 @@ if [[ -r "$HTML" ]]; then
     cp "$HTML" "$DL_DIR/mios-configurator.html"
 fi
 
-URL="file://$DL_DIR/mios-configurator.html"
-[[ ! -f "$DL_DIR/mios-configurator.html" ]] && URL="file://$HTML"
+CODE=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 1 "http://localhost:8640/configure" || echo "000")
+if [[ "$CODE" == "303" || "$CODE" == "200" ]]; then
+    URL="http://localhost:8640/configure"
+else
+    URL="file://$DL_DIR/mios-configurator.html"
+    [[ ! -f "$DL_DIR/mios-configurator.html" ]] && URL="file://$HTML"
+fi
 
 # Route via mios-open-url which resolves the default browser from
 # mios.toml [[desktop.apps]] role=browser default=true. No hardcoded

@@ -39,21 +39,30 @@ def test_scratchpad_enabled():
     
     # Insert vectors of size 768
     v1 = [0.1] * 768
-    mios_scratchpad.vec_insert(conn, "observation 1", v1)
+    mios_scratchpad.vec_insert(conn, "observation 1", v1, tainted=True)
     
     v2 = [0.5] * 768
-    mios_scratchpad.vec_insert(conn, "observation 2", v2)
+    mios_scratchpad.vec_insert(conn, "observation 2", v2, tainted=False)
     
     # Search closest to [0.1] * 768
     res = mios_scratchpad.vec_search(conn, [0.12] * 768, k=1)
     check("enabled: returned 1 search result", len(res) == 1)
     print("DEBUG res:", res)
     check("enabled: correct item returned", res[0]["content"] == "observation 1")
+    check("enabled: correct item is tainted", res[0]["tainted"] is True)
     check("enabled: distance is small", res[0]["distance"] < 1.0)
+    
+    # Verify has_tainted returns True for this session
+    check("enabled: has_tainted is True for tainted session",
+          mios_scratchpad.has_tainted("test-sess", "/tmp") is True)
+    check("enabled: has_tainted is False for clean session",
+          mios_scratchpad.has_tainted("test-sess-clean-nonexistent", "/tmp") is False)
     
     # Destroy
     mios_scratchpad.destroy_scratchpad(conn, path)
     check("enabled: file is deleted", not path.exists())
+    check("enabled: has_tainted is False after destroy",
+          mios_scratchpad.has_tainted("test-sess", "/tmp") is False)
 
 def test_scratchpad_disabled():
     os.environ["MIOS_CONV_MEMORY_SQLITE_VEC_ENABLE"] = "false"

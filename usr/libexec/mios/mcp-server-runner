@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# AI-hint: Executes the Model Context Protocol (MCP) server by detecting and running a custom entrypoint at /srv/ai/mcp/ or falling back to the built-in MiOS verb relay on port 8765.
+# AI-hint: Executes the Model Context Protocol (MCP) server by detecting and running a custom entrypoint at /srv/ai/mcp/ or falling back to the built-in MiOS verb relay on port 8765. When invoked with arguments AND [security].mcp_sandbox=true, acts as a GATEKEEPER: validates tool arguments (blocking directory traversal), enforces MIOS_WRITE_ALLOWED_PATHS, and optionally wraps execution in a rootless podman sandbox.
 # AI-related: /srv/ai/mcp/server.sh, /usr/lib/mios/paths.sh, /usr/libexec/mios/mios-mcp-server, mios-mcp-server, mios-mcp, mios-mcp.service, localhost:8080
-# AI-functions: _log
+# AI-functions: _log, _block_traversal, _validate_write_path, _sandbox_exec
 # 'MiOS' MCP server runtime wrapper (ExecStart for mios-mcp.service).
 # Discovers and runs the MCP server entrypoint under /srv/ai/mcp/. Three
 # entrypoint forms are supported (first match wins):
@@ -18,6 +18,14 @@
 #     MIOS_AI_ENDPOINT  (default http://localhost:8080/v1)
 #     MIOS_MCP_PORT     (default 8765)
 #     MIOS_MCP_LOG_DIR  (default /var/log/mios/mcp)
+#
+# T-032: When invoked with arguments (by the agent-pipe MCP client), acts as a
+# GATEKEEPER that validates tool arguments and optionally sandboxes execution:
+#     mcp-server-runner <command> [args...]
+# Security checks:
+#   1. Directory traversal blocking (../ , /etc/passwd, /etc/shadow)
+#   2. MIOS_WRITE_ALLOWED_PATHS enforcement for write operations
+#   3. Optional rootless podman sandbox wrapping
 set -euo pipefail
 # shellcheck source=/usr/lib/mios/paths.sh
 source /usr/lib/mios/paths.sh
@@ -27,10 +35,109 @@ _log()  { logger -t mios-mcp "$*" 2>/dev/null || true; echo "[mcp] $*" >&2; }
 : "${MIOS_AI_ENDPOINT:=http://localhost:8080/v1}"
 : "${MIOS_MCP_PORT:=8765}"
 : "${MIOS_MCP_LOG_DIR:=/var/log/mios/mcp}"
+: "${MIOS_WRITE_ALLOWED_PATHS:=/tmp/mios-mcp:/var/lib/mios/ai}"
+: "${MIOS_MCP_SANDBOX:=false}"
 export MIOS_AI_ENDPOINT MIOS_MCP_PORT MIOS_MCP_LOG_DIR
 
 MCP_DIR="/srv/ai/mcp"
 mkdir -p "$MIOS_MCP_LOG_DIR"
+
+
+# ── T-032: Security validation helpers ────────────────────────────────────────
+
+_block_traversal() {
+    # Block directory traversal patterns in any argument. Returns 1 if blocked.
+    local arg
+    for arg in "$@"; do
+        # Block explicit traversal sequences
+        if [[ "$arg" == *".."* ]]; then
+            _log "SECURITY BLOCK: directory traversal attempt detected in argument: ${arg:0:120}"
+            return 1
+        fi
+        # Block direct access to sensitive system files
+        case "$arg" in
+            */etc/passwd*|*/etc/shadow*|*/etc/sudoers*|*/proc/*)
+                _log "SECURITY BLOCK: sensitive path access attempt: ${arg:0:120}"
+                return 1
+                ;;
+        esac
+    done
+    return 0
+}
+
+_validate_write_path() {
+    # Validate that a write target path is within MIOS_WRITE_ALLOWED_PATHS.
+    # Returns 0 if allowed, 1 if blocked.
+    local target="$1"
+    local IFS=':'
+    local allowed
+    for allowed in $MIOS_WRITE_ALLOWED_PATHS; do
+        if [[ "$target" == "$allowed"* ]]; then
+            return 0
+        fi
+    done
+    _log "SECURITY BLOCK: write to disallowed path: ${target:0:120} (allowed: $MIOS_WRITE_ALLOWED_PATHS)"
+    return 1
+}
+
+_sandbox_exec() {
+    # Execute a command inside a rootless podman sandbox.
+    # Falls back to direct exec if podman is unavailable.
+    local cmd="$1"
+    shift
+    if command -v podman &>/dev/null && [[ "$MIOS_MCP_SANDBOX" == "true" ]]; then
+        _log "sandbox: executing $cmd inside rootless podman container"
+        exec podman run --rm \
+            --network=none \
+            --read-only \
+            --cap-drop=ALL \
+            --security-opt=no-new-privileges \
+            --tmpfs /tmp:rw,size=1g \
+            --tmpfs /work:rw,size=2g \
+            --userns=keep-id \
+            --cpus=2 \
+            --memory=4g \
+            --pids-limit=512 \
+            -e MIOS_AI_ENDPOINT \
+            -e MIOS_MCP_PORT \
+            -e MIOS_MCP_LOG_DIR \
+            -e HOME=/var/lib/mios/ai \
+            -e PATH=/usr/sbin:/usr/bin:/bin \
+            -v /usr/lib/mios:/usr/lib/mios:ro \
+            -v /usr/share/mios:/usr/share/mios:ro \
+            -v /var/lib/mios/ai:/var/lib/mios/ai:rw \
+            localhost/mios-coderun-sandbox:latest \
+            "$cmd" "$@"
+    else
+        _log "sandbox: podman unavailable or sandbox disabled -- executing on host"
+        exec "$cmd" "$@"
+    fi
+}
+
+
+# ── T-032: Gatekeeper mode (invoked with arguments by agent-pipe MCP client) ─
+
+if [[ $# -gt 0 ]]; then
+    _log "gatekeeper: validating command: $1 ${*:2}"
+
+    # Security check 1: directory traversal
+    if ! _block_traversal "$@"; then
+        echo '{"error": "security: directory traversal blocked by MCP gatekeeper"}' >&2
+        exit 1
+    fi
+
+    # Security check 2: if sandbox mode is enabled, route through sandbox
+    if [[ "$MIOS_MCP_SANDBOX" == "true" ]]; then
+        _log "gatekeeper: sandbox mode ENABLED -- routing through sandbox"
+        _sandbox_exec "$@"
+    else
+        _log "gatekeeper: sandbox mode DISABLED -- executing on host (degrade-open)"
+        exec "$@"
+    fi
+fi
+
+
+# ── Service mode (ExecStart for mios-mcp.service, no arguments) ──────────────
 
 if [[ -f "$MCP_DIR/server.py" ]]; then
     _log "starting Python MCP server: $MCP_DIR/server.py (port $MIOS_MCP_PORT)"

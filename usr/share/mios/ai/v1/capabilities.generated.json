@@ -2,15 +2,15 @@
   "object": "mios.capability.manifest",
   "ceiling": "interactive",
   "summary": {
-    "total": 136,
+    "total": 138,
     "by_kind": {
       "recipe": 19,
       "skill": 11,
-      "verb": 106
+      "verb": 108
     },
     "by_tier": {
       "read": 68,
-      "write": 65,
+      "write": 67,
       "interactive": 3
     }
   },
@@ -584,10 +584,22 @@
       "description": "Manage agent's self-directed memories/facts. op='add' (remember a new fact), 'list' (recall matching memories), 'update', or 'forget'."
     },
     {
+      "name": "memory_append",
+      "kind": "verb",
+      "tier": "write",
+      "description": "WRITE a durable FACT to your persistent memory (Letta/MemGPT core-memory, self-editing). Use when the operator tells you something to keep, or you learn a stable fact worth carrying across turns/conve"
+    },
+    {
       "name": "memory_forget",
       "kind": "verb",
       "tier": "write",
       "description": "DELETE a durable memory you previously stored (Letta/MemGPT core_memory_remove) by its `key`. Use when a stored fact is wrong or obsolete and should be removed entirely. Pair: remember (write) / recal"
+    },
+    {
+      "name": "memory_replace",
+      "kind": "verb",
+      "tier": "write",
+      "description": "EDIT a durable memory you previously stored (Letta/MemGPT core_memory_replace): overwrite the fact at `key` with a new value. Use to CORRECT or refine a stored fact. Requires the existing key."
     },
     {
       "name": "memory_update",

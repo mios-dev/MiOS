@@ -11,6 +11,7 @@ import time
 import mios_quarantine as Q
 import mios_hitl
 import mios_dispatch
+import mios_scratchpad
 
 _RESULTS: list = []
 
@@ -337,13 +338,63 @@ def t_soundness_no_bypass() -> None:
         mios_dispatch._build_dispatch_cmd = _ORIG_BUILD
 
 
+def t_semantic_firewall_t33() -> None:
+    # Test T-033 specific features:
+    # 1. Taint propagation from scratchpad: has_tainted returns True -> gates!
+    # 2. Log: event(kind="firewall_decision", verdict=allow|block|hitl)
+    # 3. open_url to external host is side-effecting/privileged -> gates when tainted
+    
+    orig_vec_enable = mios_scratchpad.SQLITE_VEC_ENABLE
+    orig_has_tainted = mios_scratchpad.has_tainted
+    
+    events = []
+    
+    def _spy_db_create(table, row=None, **k):
+        if table == "event" and row:
+            events.append(row)
+        return (table, row)
+        
+    try:
+        mios_scratchpad.SQLITE_VEC_ENABLE = True
+        mios_scratchpad.has_tainted = lambda sid, sdir: True
+        
+        _configure("enforce", tainted=False)
+        mios_dispatch._db_create = _spy_db_create
+        
+        # zq_senwrite is sensitive write -> should gate due to scratchpad taint!
+        res = _run_inner("zq_senwrite", {"k": "v"})
+        _check("T-033: scratchpad taint propagation gates execution", res.get("quarantine_blocked") is True, str(res))
+        
+        fd_events = [e for e in events if e.get("kind") == "firewall_decision"]
+        _check("T-033: firewall_decision event emitted", len(fd_events) > 0)
+        if fd_events:
+            _check("T-033: firewall_decision verdict is hitl", fd_events[0]["payload"]["verdict"] == "hitl", str(fd_events[0]))
+            
+        events.clear()
+        
+        # Let's test allow path: untainted session + safe verb (zq_roplain)
+        mios_scratchpad.has_tainted = lambda sid, sdir: False
+        res_allow = _run_inner("zq_roplain", {"k": "v"})
+        _check("T-033: clean session allows safe execution", not res_allow.get("quarantine_blocked"))
+        
+        fd_events_allow = [e for e in events if e.get("kind") == "firewall_decision"]
+        _check("T-033: firewall_decision allow verdict emitted", len(fd_events_allow) > 0)
+        if fd_events_allow:
+            _check("T-033: firewall_decision verdict is allow", fd_events_allow[0]["payload"]["verdict"] == "allow", str(fd_events_allow[0]))
+            
+    finally:
+        mios_scratchpad.SQLITE_VEC_ENABLE = orig_vec_enable
+        mios_scratchpad.has_tainted = orig_has_tainted
+
+
 def main() -> int:
     for t in (t_normalize_mode, t_evaluate_bite_matrix, t_evaluate_privileged,
               t_evaluate_action_matrix, t_evaluate_total, t_to_dict, t_seam_stub,
               t_decide_quarantine,
               t_enforce_blocks_tainted_sensitive, t_enforce_blocks_tainted_write,
               t_enforce_proceeds_non_bite, t_audit_non_blocking, t_off_byte_identical,
-              t_approval_downgrade, t_degrade_open, t_soundness_no_bypass):
+              t_approval_downgrade, t_degrade_open, t_soundness_no_bypass,
+              t_semantic_firewall_t33):
         t()
     passed = sum(1 for _, ok in _RESULTS if ok)
     total = len(_RESULTS)

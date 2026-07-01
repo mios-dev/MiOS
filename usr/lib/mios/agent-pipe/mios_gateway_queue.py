@@ -220,11 +220,12 @@ class GatewayWorker:
                 conn, path = await asyncio.to_thread(mios_scratchpad.create_scratchpad, session_id, scratchpad_dir)
                 try:
                     # Wrap the worker execution inside a single trace span
+                    loop = asyncio.get_running_loop()
                     if _trace_span:
                         async with _trace_span("tool_loop", kind="tool_loop"):
-                            res = await asyncio.to_thread(self._run_agent, req.payload, conn)
+                            res = await asyncio.to_thread(self._run_agent, req.payload, conn, session_id, loop)
                     else:
-                        res = await asyncio.to_thread(self._run_agent, req.payload, conn)
+                        res = await asyncio.to_thread(self._run_agent, req.payload, conn, session_id, loop)
                 finally:
                     await asyncio.to_thread(mios_scratchpad.destroy_scratchpad, conn, path)
                 
@@ -237,7 +238,7 @@ class GatewayWorker:
             finally:
                 queue.task_done()
 
-    def _run_agent(self, payload: dict, conn=None) -> dict:
+    def _run_agent(self, payload: dict, conn=None, session_id: str = None, main_loop: asyncio.AbstractEventLoop = None) -> dict:
         system_prompt = extract_system_prompt_from_payload(payload)
         prompt = extract_prompt_from_payload(payload)
         
@@ -286,7 +287,20 @@ class GatewayWorker:
                     r = httpx.post(url, json={"input": output_str, "model": "google/embedding-gemma-300m"}, timeout=10.0)
                     if r.status_code == 200:
                         emb = r.json()["data"][0]["embedding"]
-                        mios_scratchpad.vec_insert(conn, output_str, emb)
+                        
+                        # T-033: Semantic Firewall Taint Propagation
+                        from mios_firewall import _classify_verb_taint, _session_is_tainted
+                        args_dict = arguments if isinstance(arguments, dict) else {}
+                        t_tainted, _ = _classify_verb_taint(tool_name, args_dict)
+                        
+                        if not t_tainted and session_id and main_loop:
+                            try:
+                                coro = _session_is_tainted(session_id)
+                                t_tainted, _ = asyncio.run_coroutine_threadsafe(coro, main_loop).result()
+                            except Exception as e:
+                                log.warning(f"Failed to check session taint state: {e}")
+                        
+                        mios_scratchpad.vec_insert(conn, output_str, emb, tainted=t_tainted)
                 except Exception as e:
                     log.warning(f"Failed to record scratchpad embedding for tool {tool_name}: {e}")
                 return res

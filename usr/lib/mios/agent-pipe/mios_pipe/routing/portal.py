@@ -588,6 +588,7 @@ transform:translateZ(0)}
   <div class="spacer"></div>
   <button class="btn primary" id="installBtn">&#11015; Install</button>
   <button class="btn" id="chatToggle">&#128172; Chat</button>
+  <a class="btn" href="/configure" id="settingsBtn">&#9881;&#65039; Settings</a>
   <div class="menu">
     <button class="btn" id="menuBtn">&#9776; Menu</button>
     <div class="drop" id="menu">
@@ -1325,6 +1326,28 @@ async def portal_page_logic(request: Request):
         headers={"Cache-Control": "no-store, must-revalidate"})
 
 
+async def portal_configure_page_logic(request: Request):
+    """Serve the MiOS Configurator as a unified portal sub-page (auth-gated).
+    Reads mios.html from disk at request time so live edits are reflected
+    immediately without a process restart. Injects the SSOT palette so the
+    configurator tracks the operator's theme just like the dashboard does."""
+    if not _portal_authed(request):
+        return RedirectResponse("/login", status_code=303)
+    html_path = os.environ.get(
+        "MIOS_CONFIGURATOR_HTML",
+        "/usr/share/mios/configurator/mios.html")
+    try:
+        with open(html_path, "r", encoding="utf-8") as fh:
+            html = fh.read()
+    except OSError:
+        log.warning("portal configure: configurator not found at %s", html_path)
+        return HTMLResponse(
+            "<h1 style='font-family:sans-serif;padding:40px'>Configurator not found</h1>",
+            status_code=404)
+    html = html.replace("</head>", _portal_theme_css() + "</head>", 1)
+    return HTMLResponse(html, headers={"Cache-Control": "no-store, must-revalidate"})
+
+
 # -- @app -> APIRouter migration (refactor R13): the /portal HTTP routes --------
 # The 13 /portal routes (the data/asset/auth surface, incl. the
 # /portal/term/{port} WebSocket bridge) moved off server.py's @app onto this
@@ -1454,6 +1477,14 @@ async def iostest_page():
     # must bypass the service-worker cache so it always renders the latest test.
     return HTMLResponse(_IOSTEST_HTML,
                         headers={"Cache-Control": "no-store, must-revalidate"})
+
+
+@portal_router.get("/configure", response_class=HTMLResponse)
+async def portal_configure_page(request: Request):
+    """MiOS Settings — the configurator as a unified portal sub-page.
+    Auth-gated (same session cookie as the dashboard). Reads
+    mios.html from disk so live edits land without a restart."""
+    return await portal_configure_page_logic(request)
 
 
 @portal_router.get("/", response_class=HTMLResponse)

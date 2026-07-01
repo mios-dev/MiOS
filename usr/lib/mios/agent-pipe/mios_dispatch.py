@@ -50,10 +50,11 @@ import mios_ruleof2          # the Rule-of-Two architectural gate (pure evaluato
 import mios_quarantine       # the CaMeL dual-context quarantine gate (stricter superset)
 import mios_hitl             # the unified HITL verdict resolver (mios_hitl.decide)
 from mios_jsonsalvage import loads_lenient as _loads_lenient
+import mios_scratchpad
 # Security gates imported DIRECTLY from their sibling modules (NAME-KEYED -- nothing
 # renamed). These modules are themselves DI-configured by server.py; importing the
 # function objects here binds the SAME configured callables server.py uses.
-from mios_firewall import _classify_verb_taint, _session_is_tainted
+from mios_firewall import _classify_verb_taint, _session_is_tainted, _is_external_url
 from mios_policy import (
     _hitl_block_reason,
     _HITL_ARBITER_URL,
@@ -1045,10 +1046,24 @@ async def _quarantine_gate(tool: str, args: dict, *,
         a_tainted = False
         if session_id:
             a_tainted, _chain = await _session_is_tainted(session_id)
+            # T-033: Also check if tainted content is in the scratchpad (current context)
+            if not a_tainted and mios_scratchpad.SQLITE_VEC_ENABLE:
+                scratchpad_dir = os.environ.get("MIOS_CONV_MEMORY_SCRATCHPAD_DIR", "/tmp")
+                if mios_scratchpad.has_tainted(session_id, scratchpad_dir):
+                    a_tainted = True
+        
+        # T-033: Determine if the verb is privileged/side-effecting:
+        # It reads sensitive data (sensitive=True) OR changes state (is_state_change=True)
+        # OR is open_url to non-allowlisted domain.
+        sensitive = bool(vmeta.get("sensitive"))
+        is_side_effecting = mios_ruleof2.is_state_change(vmeta.get("permission"))
+        if tool == "open_url" and _is_external_url(str((args or {}).get("url", ""))):
+            is_side_effecting = True
+            
         verdict = mios_quarantine.evaluate(
             session_tainted=a_tainted,
-            permission_tier=vmeta.get("permission"),
-            sensitive=vmeta.get("sensitive"),
+            permission_tier="write" if is_side_effecting else vmeta.get("permission"),
+            sensitive=sensitive,
             mode=mode)
         if not verdict.bites:
             return None  # untainted OR non-privileged -> nothing to quarantine -> proceed
@@ -1084,6 +1099,39 @@ async def _quarantine_gate(tool: str, args: dict, *,
 
 
 async def _dispatch_mios_verb_inner(
+    tool: str, args: dict, *,
+    session_id: Optional[str] = None,
+) -> dict:
+    res = await _dispatch_mios_verb_inner_raw(tool, args, session_id=session_id)
+    # T-033: Log: event(kind="firewall_decision", verdict=allow|block|hitl)
+    try:
+        verdict = "allow"
+        if res.get("firewall_blocked") or "firewall_block" in str(res.get("stderr") or ""):
+            verdict = "block"
+        elif res.get("hitl_blocked") or res.get("quarantine_blocked") or "hitl" in str(res.get("stderr") or "") or "quarantine" in str(res.get("stderr") or ""):
+            verdict = "hitl"
+        elif "quota_block" in str(res.get("stderr") or "") or "pdp_block" in str(res.get("stderr") or ""):
+            verdict = "block"
+            
+        if _db_fire is not None and _db_post is not None and _db_create is not None:
+            _db_fire(_db_post(_db_create("event", {
+                "source": "agent-pipe",
+                "kind": "firewall_decision",
+                "severity": "high" if verdict != "allow" else "info",
+                "summary": f"firewall decision: {tool} -> {verdict}",
+                "payload": {
+                    "tool": tool,
+                    "args": args,
+                    "verdict": verdict,
+                    "session_id": session_id,
+                }
+            }, now_fields=("ts",))))
+    except Exception:
+        pass
+    return res
+
+
+async def _dispatch_mios_verb_inner_raw(
     tool: str, args: dict, *,
     session_id: Optional[str] = None,
 ) -> dict:

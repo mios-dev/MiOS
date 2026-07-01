@@ -494,3 +494,26 @@ END
 $mios_rls$;
 
 
+-- ── ORCH-03 (T-030): Fact Ledger & Progress Ledger tables ────────────────────
+CREATE TABLE IF NOT EXISTS fact_ledger (
+    id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    session_id  text NOT NULL,
+    claim       text NOT NULL,
+    source      text,
+    ts          timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS fact_ledger_session ON fact_ledger (session_id);
+
+CREATE TABLE IF NOT EXISTS progress_ledger (
+    id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    session_id    text NOT NULL,
+    agent         text NOT NULL,
+    task          text,
+    state         text DEFAULT 'assigned', -- assigned | completed | stalled
+    assigned_at   timestamptz DEFAULT now(),
+    completed_at  timestamptz
+);
+CREATE INDEX IF NOT EXISTS progress_ledger_session ON progress_ledger (session_id);
+
+
+

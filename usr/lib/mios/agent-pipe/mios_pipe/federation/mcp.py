@@ -63,6 +63,21 @@ MCP_PROTOCOL_VERSION = str(
     or "2025-11-25").strip()
 
 
+# ── T-032: MCP sandbox gate ──────────────────────────────────────────────
+# When [security.mcp_sandbox].enable is true, every stdio MCP server spawn is
+# routed through /usr/libexec/mios/mcp-server-runner which acts as a gatekeeper
+# (directory traversal blocking, write-path enforcement, optional rootless podman
+# sandbox). Default false (degrade-open: MCP servers execute directly on host).
+_MCP_SANDBOX_CFG = (_toml_section("security") or {}).get("mcp_sandbox") or {}
+if isinstance(_MCP_SANDBOX_CFG, str):
+    _MCP_SANDBOX_CFG = {}
+MCP_SANDBOX_ENABLE = (
+    str(os.environ.get("MIOS_MCP_SANDBOX")
+        or _MCP_SANDBOX_CFG.get("enable", "false"))
+    .strip().lower() not in {"false", "0", "no", "off", ""})
+MCP_SANDBOX_GATEKEEPER = "/usr/libexec/mios/mcp-server-runner"
+
+
 # -- Dependency-injection seam --
 # The consume client calls back into server.py's HTTP client factory, the shared
 # MCP-tool registry + lock (server-resident -- also DI'd into the worker /
@@ -212,8 +227,21 @@ class _McpStdioClient:
     async def _spawn(self) -> None:
         child_env = dict(os.environ)
         child_env.update(_mcp_render_headers(self.env))   # reuse ${ENV} expansion
+        # T-032: when MCP sandbox is enabled, route through the gatekeeper
+        _cmd = self.command
+        _args = list(self.args)
+        if MCP_SANDBOX_ENABLE and os.path.isfile(MCP_SANDBOX_GATEKEEPER):
+            log.info("mcp sandbox: routing %s through gatekeeper %s",
+                     self.sid, MCP_SANDBOX_GATEKEEPER)
+            child_env["MIOS_MCP_SANDBOX"] = "true"
+            # Write-allowed paths from TOML config
+            _wap = _MCP_SANDBOX_CFG.get("write_allowed_paths") or []
+            if isinstance(_wap, list):
+                child_env["MIOS_WRITE_ALLOWED_PATHS"] = ":".join(str(p) for p in _wap)
+            _args = [_cmd] + _args
+            _cmd = MCP_SANDBOX_GATEKEEPER
         self.proc = await asyncio.create_subprocess_exec(
-            self.command, *self.args,
+            _cmd, *_args,
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,               # P4: capture (was DEVNULL) so

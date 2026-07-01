@@ -3557,7 +3557,7 @@ _SCHEDULE_VERBS = frozenset(
 # the fast-path so "remember X" / "recall Y" FIRE the verb instead of falling to the
 # council ("remember X" ran mios_apps under unify-on because
 # remember wasn't a fast-path verb -> the dispatch intent fell back to the agent).
-_MEMORY_VERBS = {"remember", "recall", "memory"}
+_MEMORY_VERBS = {"remember", "recall", "memory", "memory_append", "memory_replace", "memory_update", "memory_forget"}
 # Raw PC-input verbs (type / key / click / keycombo) are deterministic
 # single-actions too -- a standalone "type 'X' into it" must FIRE pc_type and
 # stop, NOT fall to the research agent (multi-turn trace:
@@ -7343,6 +7343,10 @@ sys.modules["mios_secondary_loop"].configure(
     daemon_diagnose_enable=_DAEMON_DIAGNOSE_ENABLE,
     apply_outbound_auth=_apply_outbound_auth,
     endpoint_supports_parallel_tools=_endpoint_supports_parallel_tools,
+    db_read=_db_read,
+    db_create=_db_create,
+    db_fire=_db_fire,
+    db_post=_db_post,
 )
 
 
@@ -7471,6 +7475,7 @@ sys.modules["mios_dag_exec"].configure(
     db_fire=_db_fire,
     db_post=_db_post,
     db_create=_db_create,
+    db_read=_db_read,
     pg_mirror=_pg_mirror,
 )
 
@@ -8332,6 +8337,10 @@ sys.modules["mios_swarm"].configure(
     src_collected=_src_collected,
     src_record_from_text=_src_record_from_text,
     usage_estimate=_usage_estimate,
+    db_read=_db_read,
+    db_fire=_db_fire,
+    db_post=_db_post,
+    db_create=_db_create,
 )
 
 
@@ -8428,6 +8437,13 @@ async def _inbound_auth_mw(request: Request, call_next):
 # agent registry is re-injected on a live add/drop in _reload_membership.
 __import__("mios_chat")
 sys.modules["mios_chat"].configure(
+    _db_write=_db_write,
+    _embed_one=_embed_one,
+    _scratchpad_for=_scratchpad_for,
+    EMB_MODEL=EMB_MODEL,
+    EMB_VERSION=EMB_VERSION,
+    _turn_tenant=_turn_tenant,
+    SCRATCHPAD_PERSIST=SCRATCHPAD_PERSIST,
     LETTA_MEMORY_BACKEND=mios_memory.LETTA_MEMORY_BACKEND,
     _LETTA_CLIENT=mios_memory._LETTA_CLIENT,
     ASK_CLARIFY_ENABLE=ASK_CLARIFY_ENABLE,

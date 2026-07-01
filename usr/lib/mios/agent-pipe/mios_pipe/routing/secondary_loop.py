@@ -125,19 +125,25 @@ _DAEMON_DIAGNOSE_ENABLE = True
 # so only these two remain dependency-injected.
 _apply_outbound_auth = None
 _endpoint_supports_parallel_tools = None
+_db_read = None
+_db_create = None
+_db_fire = None
+_db_post = None
 
 
 def configure(*, secondary_tool_max_iters=None, secondary_replan_max=None,
               daemon_diagnose_model=None, daemon_diagnose_endpoint=None,
               daemon_diagnose_enable=None,
               apply_outbound_auth=None,
-              endpoint_supports_parallel_tools=None) -> None:
+              endpoint_supports_parallel_tools=None,
+              db_read=None, db_create=None, db_fire=None, db_post=None) -> None:
     """Inject server.py's config scalars, the _DAEMON_DIAGNOSE_* constants and
     the runtime helpers the tool-loops + their guards call back into."""
     global SECONDARY_TOOL_MAX_ITERS, SECONDARY_REPLAN_MAX
     global _DAEMON_DIAGNOSE_MODEL, _DAEMON_DIAGNOSE_ENDPOINT
     global _DAEMON_DIAGNOSE_ENABLE
     global _apply_outbound_auth, _endpoint_supports_parallel_tools
+    global _db_read, _db_create, _db_fire, _db_post
     if secondary_tool_max_iters is not None:
         SECONDARY_TOOL_MAX_ITERS = secondary_tool_max_iters
     if secondary_replan_max is not None:
@@ -152,6 +158,14 @@ def configure(*, secondary_tool_max_iters=None, secondary_replan_max=None,
         _apply_outbound_auth = apply_outbound_auth
     if endpoint_supports_parallel_tools is not None:
         _endpoint_supports_parallel_tools = endpoint_supports_parallel_tools
+    if db_read is not None:
+        _db_read = db_read
+    if db_create is not None:
+        _db_create = db_create
+    if db_fire is not None:
+        _db_fire = db_fire
+    if db_post is not None:
+        _db_post = db_post
 
 
 _TOOL_NUDGE = (
@@ -204,7 +218,8 @@ async def _daemon_diagnose(client, failed_summary: str, goal: str) -> str:
 
 async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
                                   messages: list, tools: list, timeout,
-                                  push, allow_write: bool = False, tool_choice=None) -> list:
+                                  push, allow_write: bool = False, tool_choice=None,
+                                  session_id: Optional[str] = None) -> list:
     """Pipe-side READ-ONLY OpenAI tool-loop for a /v1 sub-agent (opencode :8633,
     hermes, daemon-agent, any node bound to a /v1 endpoint). Symmetric sibling of
     _ollama_secondary_tool_loop for the OpenAI /chat/completions shape: POST
@@ -217,7 +232,34 @@ async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
     Endpoint-agnostic: `ep` comes from the agent's binding map, no port literals
  here ('any agent/model on any node/endpoint, no
     hardcodes')."""
+    import sys
     msgs = list(messages)
+    
+    # Check reflexion gate
+    agent_cfg = {}
+    if "mios_config" in sys.modules:
+        try:
+            agent_cfg = sys.modules["mios_config"]._toml_section("agent") or {}
+        except Exception:
+            pass
+    reflexion_enable = str(agent_cfg.get("reflexion_enable", "true")).strip().lower() not in {"false", "0", "no", "off"}
+
+    # Load superstep checkpoint
+    start_iter = 0
+    if session_id and _db_read:
+        try:
+            ckpt_sql = f"SELECT id, meta FROM session WHERE owui_chat_id = '{session_id}' AND kind = 'checkpoint' ORDER BY ts DESC LIMIT 1"
+            ckpt_rows = await _db_read(ckpt_sql, pg_sql=ckpt_sql)
+            if ckpt_rows and ckpt_rows[0].get("meta"):
+                meta = ckpt_rows[0]["meta"]
+                if isinstance(meta, str):
+                    meta = json.loads(meta)
+                msgs = meta.get("messages") or msgs
+                start_iter = int(meta.get("superstep_idx") or 0) + 1
+                log.info("Resuming ReAct loop from superstep %d (checkpoint %s)", start_iter, ckpt_rows[0]["id"])
+        except Exception as _ckpt_err:
+            log.warning("Failed to load ReAct checkpoint: %s", _ckpt_err)
+
     _seen: set = set()   # tool-call signatures already made -> loop guard
     _nudged = False      # one-shot anti-disclaimer nudge already injected?
     _replan = 0          # supervisory closed-loop re-engages used (bounded)
@@ -235,7 +277,7 @@ async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
     # or this agent's OWN per-endpoint header for a remote/federated /v1 endpoint
     # (a forwarded client bearer would 401 the node, so set the right one here).
     _apply_outbound_auth(_hdrs, ep)
-    for _ in range(max(1, SECONDARY_TOOL_MAX_ITERS)):
+    for _ in range(start_iter, max(1, SECONDARY_TOOL_MAX_ITERS)):
         # parallel_tool_calls (OpenAI default True): a SMALL local model handed a
         # multi-step request ("open notepad AND type hello") emits MALFORMED parallel
         # tool calls (the fn name/wrapper drops, leaving raw "arguments": {...} in
@@ -323,6 +365,53 @@ async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
         _tmsgs, ran_read = await _exec_tool_calls(tcs, push, allow_write=allow_write)
         msgs.extend(_tmsgs)
         _last_failed = _tmsgs_indicate_failure(_tmsgs)
+        
+        # On tool error: add Reflexion step
+        if _last_failed and reflexion_enable:
+            reflection_prompt = (
+                "SYSTEM REFLEXION: One or more tool calls failed. "
+                "Analyze the error, reflect on why it failed, and provide a revised tool call "
+                "or correct the approach in your next response."
+            )
+            msgs.append({"role": "user", "content": reflection_prompt})
+            
+            # Log the reflexion event in DB
+            if _db_create and _db_fire and _db_post:
+                try:
+                    sql = _db_create("event", {
+                        "source": "mios-agent-pipe",
+                        "kind": "reflexion_retry",
+                        "severity": "warning",
+                        "summary": f"Tool call failed -> triggering Reflexion step for model {model}",
+                        "session_id": session_id,
+                        "act_type": "challenge"
+                    }, now_fields=("ts",))
+                    _db_fire(_db_post(sql))
+                except Exception as _ev_err:
+                    log.warning("Failed to log reflexion event: %s", _ev_err)
+
+        # Save superstep checkpoint
+        if session_id and _db_create and _db_fire and _db_post:
+            superstep_id = f"superstep_{_}"
+            checkpoint_key = f"{session_id}:{superstep_id}"
+            try:
+                ckpt_meta = {
+                    "messages": msgs,
+                    "superstep_idx": _,
+                }
+                del_sql = f"DELETE FROM session WHERE id = '{checkpoint_key}'"
+                _db_fire(_db_post(del_sql))
+                ins_sql = _db_create("session", {
+                    "id": checkpoint_key,
+                    "kind": "checkpoint",
+                    "owui_chat_id": session_id,
+                    "meta": ckpt_meta
+                }, now_fields=("ts",))
+                _db_fire(_db_post(ins_sql))
+                log.info("Saved ReAct superstep checkpoint %s", checkpoint_key)
+            except Exception as _ckpt_save_err:
+                log.warning("Failed to save ReAct checkpoint %s: %s", checkpoint_key, _ckpt_save_err)
+
         if not ran_read:
             break
     else:

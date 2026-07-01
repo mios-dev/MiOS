@@ -1,5 +1,5 @@
 {
-  "count": 106,
+  "count": 108,
   "data": [
     {
       "description": "Hand a SUB-TASK to another registered agent and GET ITS ANSWER BACK so YOU fold it into your own reasoning (you stay in control; this is NOT a final user reply and NOT a take-over). Pick a peer by id (mios-a2a-delegate --list-peers) or by skill name (--list-skills). Use when you want a second agent's result; to PASS THE SESSION to another agent use transfer_session_to_agent.",
@@ -453,6 +453,16 @@
       "tier": "core"
     },
     {
+      "description": "WRITE a durable FACT to your persistent memory (Letta/MemGPT core-memory, self-editing). Use when the operator tells you something to keep, or you learn a stable fact worth carrying across turns/conversations. scope: global (default) | agent:<name> | conversation:<id>. Optional `key` lets you later memory_replace/memory_forget it.",
+      "hidden": true,
+      "model_name": "",
+      "name": "memory_append",
+      "permission": "write",
+      "section": "Discovery / resolution",
+      "sig": "fact, scope=global?, key?",
+      "tier": "rare"
+    },
+    {
       "description": "DELETE a durable memory you previously stored (Letta/MemGPT core_memory_remove) by its `key`. Use when a stored fact is wrong or obsolete and should be removed entirely. Pair: remember (write) / recall (read) / memory_update (edit). Returns {ok, op, key}.",
       "hidden": true,
       "model_name": "",
@@ -460,6 +470,16 @@
       "permission": "write",
       "section": "Discovery / resolution",
       "sig": "key",
+      "tier": "rare"
+    },
+    {
+      "description": "EDIT a durable memory you previously stored (Letta/MemGPT core_memory_replace): overwrite the fact at `key` with a new value. Use to CORRECT or refine a stored fact. Requires the existing key.",
+      "hidden": true,
+      "model_name": "",
+      "name": "memory_replace",
+      "permission": "write",
+      "section": "Discovery / resolution",
+      "sig": "key, fact",
       "tier": "rare"
     },
     {

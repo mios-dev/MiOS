@@ -7,6 +7,7 @@
     "GET /.well-known/agntcy-manifest.json -> agntcy_manifest_wellknown",
     "GET /a2a/contexts/{context_id} -> a2a_context_get",
     "GET /a2a/skills -> a2a_skill_directory",
+    "GET /configure -> portal_configure_page",
     "GET /dci/schema -> dci_schema",
     "GET /health -> health",
     "GET /iostest -> iostest_page",
@@ -1379,7 +1380,7 @@
     "websockets"
   ],
   "counts": {
-    "routes": 80,
+    "routes": 81,
     "provided": 1295
   }
 }

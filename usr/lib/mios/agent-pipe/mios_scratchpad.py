@@ -20,7 +20,7 @@ if SQLITE_VEC_ENABLE:
         conn.enable_load_extension(True)
         sqlite_vec.load(conn)
         
-        conn.execute("CREATE VIRTUAL TABLE IF NOT EXISTS vec_scratch USING vec0(content TEXT, embedding float[768])")
+        conn.execute("CREATE VIRTUAL TABLE IF NOT EXISTS vec_scratch USING vec0(content TEXT, tainted INTEGER, embedding float[768])")
         conn.commit()
         return conn, path
 
@@ -36,11 +36,11 @@ if SQLITE_VEC_ENABLE:
             except Exception:
                 pass
 
-    def vec_insert(conn, content: str, embedding: list[float]) -> None:
+    def vec_insert(conn, content: str, embedding: list[float], tainted: bool = False) -> None:
         if not conn:
             return
         serialized = sqlite_vec.serialize_float32(embedding)
-        conn.execute("INSERT INTO vec_scratch(content, embedding) VALUES (?, ?)", (content, serialized))
+        conn.execute("INSERT INTO vec_scratch(content, tainted, embedding) VALUES (?, ?, ?)", (content, int(tainted), serialized))
         conn.commit()
 
     def vec_search(conn, query_embedding: list[float], k: int = 5) -> list[dict]:
@@ -48,10 +48,26 @@ if SQLITE_VEC_ENABLE:
             return []
         serialized = sqlite_vec.serialize_float32(query_embedding)
         cursor = conn.execute(
-            "SELECT content, distance FROM vec_scratch WHERE embedding MATCH ? ORDER BY distance LIMIT ?",
+            "SELECT content, tainted, distance FROM vec_scratch WHERE embedding MATCH ? ORDER BY distance LIMIT ?",
             (serialized, k)
         )
-        return [{"content": row[0], "distance": row[1]} for row in cursor.fetchall()]
+        return [{"content": row[0], "tainted": bool(row[1]), "distance": row[2]} for row in cursor.fetchall()]
+
+    def has_tainted(session_id: str, scratchpad_dir: str) -> bool:
+        db_dir = Path(scratchpad_dir or "/tmp")
+        path = db_dir / f"mios-session-{session_id}.sqlite"
+        if not path.exists():
+            return False
+        try:
+            conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+            conn.enable_load_extension(True)
+            sqlite_vec.load(conn)
+            cursor = conn.execute("SELECT 1 FROM vec_scratch WHERE tainted = 1 LIMIT 1")
+            res = cursor.fetchone()
+            conn.close()
+            return res is not None
+        except Exception:
+            return False
 
 else:
     # Stubs when disabled: no sqlite3/sqlite_vec imports, empty returns
@@ -61,8 +77,13 @@ else:
     def destroy_scratchpad(conn, path) -> None:
         pass
 
-    def vec_insert(conn, content: str, embedding: list[float]) -> None:
+    def vec_insert(conn, content: str, embedding: list[float], tainted: bool = False) -> None:
         pass
 
     def vec_search(conn, query_embedding: list[float], k: int = 5) -> list[dict]:
         return []
+
+    def has_tainted(session_id: str, scratchpad_dir: str) -> bool:
+        return False
+
+

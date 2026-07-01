@@ -125,6 +125,7 @@ _get_client = None
 _db_fire = None
 _db_post = None
 _db_create = None
+_db_read = None
 _pg_mirror = None
 
 
@@ -151,6 +152,7 @@ def configure(*, deepen_fetch=None, deepen_deadline_s=None, deepen_max_iters=Non
               a2a_send_message_to_peer=None,
               a2a_extract_text=None, get_client=None,
               db_fire=None, db_post=None, db_create=None,
+              db_read=None,
               pg_mirror=None) -> None:
     """Inject server.py's config scalars, the live registry / ContextVars and
     the runtime helpers the DAG executors call back into."""
@@ -168,7 +170,9 @@ def configure(*, deepen_fetch=None, deepen_deadline_s=None, deepen_max_iters=Non
     global _agent_contract, _role_system, _agent_lane
     global _worker_tools_surface_async, _lane_tool_cap
     global _a2a_send_message_to_peer, _a2a_extract_text
-    global _get_client, _db_fire, _db_post, _db_create, _pg_mirror
+    global _get_client, _db_fire, _db_post, _db_create, _pg_mirror, _db_read
+    if db_read is not None:
+        _db_read = db_read
     if deepen_fetch is not None:
         DEEPEN_FETCH = deepen_fetch
     if deepen_deadline_s is not None:
@@ -393,10 +397,158 @@ async def _deepen_until_barrier(node: dict, res: dict, barrier: "asyncio.Event",
         node["_grounding"] = grounding   # ENRICHED grounding -> final synthesis
     return res
 
+
 async def _execute_dag_node(node: dict, results_by_id: dict,
                             seen_actions: dict, dag_summary: str,
                             session_id: Optional[str], client,
                             frag_q: "Optional[asyncio.Queue]" = None) -> dict:
+    nid = str(node.get("id", "?"))
+    tool = str(node.get("tool", "")).strip()
+    aname = str(node.get("agent", ""))
+    agent_label = f"agent:{aname}" if aname else f"tool:{tool}"
+    task_desc = str(node.get("prompt") or tool)
+
+    # 1. Log Progress Ledger assignment
+    if session_id and _db_create and _db_fire and _db_post:
+        try:
+            sql = _db_create("progress_ledger", {
+                "session_id": session_id,
+                "agent": agent_label,
+                "task": task_desc,
+                "state": "assigned"
+            }, now_fields=("assigned_at",))
+            _db_fire(_db_post(sql))
+        except Exception as _pl_err:
+            log.warning("Failed to log progress_ledger assignment: %s", _pl_err)
+
+    # 2. Check if this is a research vs action node
+    is_research = bool(node.get("web") or node.get("news"))
+    is_action = bool(node.get("local_state") or not is_research)
+
+    # 3. Derive action node input from Fact Ledger
+    if is_action and session_id and _db_read:
+        try:
+            fact_sql = f"SELECT claim, source FROM fact_ledger WHERE session_id = '{session_id}'"
+            fact_rows = await _db_read(fact_sql, pg_sql=fact_sql)
+            if fact_rows:
+                fact_lines = []
+                for row in fact_rows:
+                    claim = row.get("claim")
+                    source = row.get("source") or "unknown"
+                    fact_lines.append(f"- Claim: {claim} (Source: {source})")
+                fact_context = "\n[Grounded Facts from Research]:\n" + "\n".join(fact_lines) + "\n"
+                
+                # Append to agent node prompt
+                if node.get("prompt"):
+                    node["prompt"] = str(node.get("prompt")) + "\n" + fact_context
+                # Or append to tool node query/args
+                if node.get("args"):
+                    args = node.get("args")
+                    for key in ("prompt", "text", "query"):
+                        if key in args and isinstance(args[key], str):
+                            args[key] = args[key] + "\n" + fact_context
+        except Exception as _fl_err:
+            log.warning("Failed to read fact_ledger: %s", _fl_err)
+
+    # 4. Execute the actual node core
+    res = await _execute_dag_node_core(node, results_by_id, seen_actions,
+                                       dag_summary, session_id, client, frag_q)
+
+    # 5. Log Progress Ledger completion
+    success = bool(res.get("success"))
+    state_val = "completed" if success else "stalled"
+    if session_id and _db_create and _db_fire and _db_post:
+        try:
+            sql = _db_create("progress_ledger", {
+                "session_id": session_id,
+                "agent": agent_label,
+                "task": task_desc,
+                "state": state_val
+            }, now_fields=("completed_at",))
+            _db_fire(_db_post(sql))
+        except Exception as _pl_err:
+            log.warning("Failed to log progress_ledger completion: %s", _pl_err)
+
+    # 6. Parse and write claims to Fact Ledger if this is a successful research node
+    if is_research and success and session_id and _db_create and _db_fire and _db_post:
+        output_txt = str(res.get("output") or "")
+        claims = parse_research_claims(output_txt)
+        for c in claims:
+            try:
+                sql = _db_create("fact_ledger", {
+                    "session_id": session_id,
+                    "claim": c["claim"],
+                    "source": c["source"] or "web_search"
+                }, now_fields=("ts",))
+                _db_fire(_db_post(sql))
+            except Exception as _fact_err:
+                log.warning("Failed to log fact_ledger: %s", _fact_err)
+
+    return res
+
+
+def parse_research_claims(output_str: str) -> list[dict]:
+    output_str = (output_str or "").strip()
+    if not output_str:
+        return []
+    
+    # 1. Try JSON
+    import json
+    try:
+        start_idx = min(output_str.find('['), output_str.find('{'))
+        end_idx = max(output_str.rfind(']'), output_str.rfind('}'))
+        if start_idx != -1 and end_idx != -1 and start_idx < end_idx:
+            json_candidate = output_str[start_idx:end_idx+1]
+            data = json.loads(json_candidate)
+            claims = []
+            if isinstance(data, dict):
+                if "claim" in data:
+                    claims.append({"claim": data.get("claim"), "source": data.get("source")})
+                elif "claims" in data and isinstance(data["claims"], list):
+                    for c in data["claims"]:
+                        if isinstance(c, dict) and "claim" in c:
+                            claims.append({"claim": c.get("claim"), "source": c.get("source")})
+            elif isinstance(data, list):
+                for item in data:
+                    if isinstance(item, dict) and "claim" in item:
+                        claims.append({"claim": item.get("claim"), "source": item.get("source")})
+            if claims:
+                return [c for c in claims if c.get("claim")]
+    except Exception:
+        pass
+    
+    # 2. Fallback: Parse plain text lines
+    claims = []
+    lines = output_str.split("\n")
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        if "claim" in line.lower() or "fact" in line.lower() or "source" in line.lower():
+            parts = line.split("Source:")
+            if len(parts) == 2:
+                c = parts[0].replace("Claim:", "").replace("claim:", "").strip()
+                s = parts[1].strip()
+                claims.append({"claim": c, "source": s})
+                continue
+        if "[" in line and "]" in line:
+            cites = re.findall(r"\[([^\]]+)\]", line)
+            if cites:
+                clean_claim = re.sub(r"\[[^\]]+\]", "", line).strip()
+                claims.append({"claim": clean_claim, "source": ", ".join(cites)})
+    
+    if not claims:
+        for line in lines[:5]:
+            if len(line) > 20 and re.search(r"\b\d{3,}\b|http", line):
+                claims.append({"claim": line, "source": "web_search"})
+                
+    return [c for c in claims if c.get("claim")]
+
+
+async def _execute_dag_node_core(node: dict, results_by_id: dict,
+                                 seen_actions: dict, dag_summary: str,
+                                 session_id: Optional[str], client,
+                                 frag_q: "Optional[asyncio.Queue]" = None) -> dict:
     """Execute ONE DAG node -- an `agent` delegation OR a `tool` verb --
     and return its node_result (standard tool_call shape + node_id + _act).
     READS the shared maps (a snapshot of completed levels) but does NOT
@@ -894,7 +1046,39 @@ async def execute_dag(dag: dict, *, session_id: Optional[str],
     seen_actions: dict[str, dict] = {}
     all_ok = True
     client = await _get_client()
-    for level in levels:
+    for level_idx, level in enumerate(levels, start=1):
+        superstep_id = f"superstep_{level_idx}"
+        checkpoint_key = f"{session_id}:{superstep_id}"
+        loaded_from_checkpoint = False
+        if session_id and _db_read:
+            try:
+                ckpt_sql = f"SELECT meta FROM session WHERE id = '{checkpoint_key}' AND kind = 'checkpoint'"
+                ckpt_rows = await _db_read(ckpt_sql, pg_sql=ckpt_sql)
+                if ckpt_rows and ckpt_rows[0].get("meta"):
+                    meta = ckpt_rows[0]["meta"]
+                    if isinstance(meta, str):
+                        meta = json.loads(meta)
+                    log.info("Resuming DAG level %d from checkpoint %s", level_idx, checkpoint_key)
+                    level_res = meta.get("level_res") or []
+                    for res in level_res:
+                        results.append(res)
+                        nid = res.get("node_id")
+                        if nid:
+                            results_by_id[nid] = res
+                        _act = res.get("_act")
+                        if _act:
+                            seen_actions[_act] = res
+                        # Re-post scratchpad notes so subsequent levels have them
+                        _scratchpad_note(
+                            res.get("tool") or "agent",
+                            str(res.get("output") or ""), phase="dag")
+                    loaded_from_checkpoint = True
+            except Exception as _ckpt_err:
+                log.warning("Failed to load checkpoint %s: %s", checkpoint_key, _ckpt_err)
+
+        if loaded_from_checkpoint:
+            continue
+
         # Endpoint emitters: announce each node in this level as it ENGAGES
         # (a level's nodes run concurrently). The streaming wrapper turns
         # these queue items into live per-node SSE statuses (operator
@@ -966,6 +1150,26 @@ async def execute_dag(dag: dict, *, session_id: Optional[str],
                     seen_actions[res["_act"]] = res
             else:
                 all_ok = False
+
+        # Save checkpoint
+        if session_id and _db_create and _db_fire and _db_post:
+            try:
+                ckpt_meta = {
+                    "level_res": level_res,
+                }
+                del_sql = f"DELETE FROM session WHERE id = '{checkpoint_key}'"
+                _db_fire(_db_post(del_sql))
+                ins_sql = _db_create("session", {
+                    "id": checkpoint_key,
+                    "kind": "checkpoint",
+                    "owui_chat_id": session_id,
+                    "meta": ckpt_meta
+                }, now_fields=("ts",))
+                _db_fire(_db_post(ins_sql))
+                log.info("Saved superstep checkpoint %s to database", checkpoint_key)
+            except Exception as _ckpt_save_err:
+                log.warning("Failed to save checkpoint %s: %s", checkpoint_key, _ckpt_save_err)
+
         # Fail-fast: don't launch a level that depends on a failed one.
         if not all_ok:
             break

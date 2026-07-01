@@ -634,10 +634,11 @@ async def _call_agent_complete_inner_orig(name: str, cfg: dict, body: dict,
             # rescuing a narrated call -- before the final non-streaming answer.
             # No-op when the agent self-loops or offers no tools.
             if SECONDARY_TOOL_LOOP and body.get("tools"):
+                sess_id = (_conv_key_var.get() if _conv_key_var else None) or None
                 nb["messages"] = await _v1_secondary_tool_loop(
                     client, ep, nb.get("model") or cfg.get("model"),
                     headers, nb.get("messages") or [], body["tools"], _to,
-                    lambda _s: None)
+                    lambda _s: None, session_id=sess_id)
             r = await client.post(
                 f"{ep}/chat/completions",
                 content=json.dumps(nb).encode("utf-8"), headers=_hdrs,
@@ -818,9 +819,11 @@ async def _call_agent_stream_inner_orig(name: str, cfg: dict, body: dict,
         # branch above. No-op when the agent self-loops (returns no tool_calls)
         # or offers no tools, so a correctly-looping Hermes is unaffected.
         if SECONDARY_TOOL_LOOP and body.get("tools"):
+            sess_id = (_conv_key_var.get() if _conv_key_var else None) or None
             nb["messages"] = await _v1_secondary_tool_loop(
                 client, ep, nb.get("model") or cfg.get("model"),
-                headers, nb.get("messages") or [], body["tools"], _to, _push)
+                headers, nb.get("messages") or [], body["tools"], _to, _push,
+                session_id=sess_id)
         # Attach the backend key when streaming from the Hermes backend (it
         # enforces Bearer auth; see _call_agent_complete_inner). Scoped to the
         # backend netloc so a non-backend node never receives the key.

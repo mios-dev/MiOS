@@ -353,15 +353,84 @@
   @keyframes tabfade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
   /* In a tab panel the zones sit full-width (their .zones grid is gone). */
   .tabpanel > .zone { margin-bottom: 16px; }
+
+  /* ── Unified Portal nav bar ────────────────────────────────────────────────
+     Sticky header matching the MiOS Portal dashboard bar so the configurator
+     reads as a Settings page of the portal, not a standalone tool.
+     Negative margins break out of body's horizontal padding (full-bleed),
+     then internal padding re-applies consistent side spacing. */
+  header.pbar {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    padding: 13px 22px;
+    margin: -28px calc(-1 * max(24px, calc((100vw - 1280px) / 2))) 24px;
+    background: color-mix(in srgb, var(--bg) 94%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 30%, transparent);
+    position: sticky; top: 0; z-index: 100;
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  }
+  header.pbar .pbar-logo {
+    font-size: 22px; font-weight: 700; letter-spacing: .4px;
+    color: var(--fg); text-decoration: none; white-space: nowrap;
+  }
+  header.pbar .pbar-logo b { color: var(--accent); }
+  header.pbar .pbar-sep { color: var(--muted); font-size: 15px; font-weight: 300; }
+  header.pbar .pbar-page { font-size: 14px; font-weight: 600; color: var(--fg); }
+  header.pbar .pbar-ver {
+    font-size: 11px; color: var(--muted); font-weight: 400;
+    font-family: var(--mono); white-space: nowrap;
+  }
+  header.pbar .pbar-space { flex: 1; min-width: 0; }
+  header.pbar .toolbar { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  /* ── Toggle switches for boolean config fields ─────────────────────────────
+     upgradeBoolToggles() (runs before event-listener wiring) replaces every
+     input[type="text"][data-type="bool"] with this pill-style toggle at boot.
+     refreshFromData() and gatherFromForm() already handle type=checkbox, so
+     no serialisation code changes are needed. */
+  .toggle-wrap {
+    display: inline-flex; align-items: center; gap: 10px;
+    cursor: pointer; margin: 6px 0; user-select: none; width: auto;
+  }
+  .toggle-chk {
+    position: absolute; width: 1px; height: 1px;
+    opacity: 0; pointer-events: none;
+  }
+  .toggle-track {
+    width: 40px; height: 22px; border-radius: 11px; flex-shrink: 0;
+    background: color-mix(in srgb, var(--muted) 22%, var(--panel));
+    border: 1px solid var(--border); position: relative;
+    transition: background .2s, border-color .2s;
+  }
+  .toggle-thumb {
+    position: absolute; top: 3px; left: 3px;
+    width: 14px; height: 14px; border-radius: 50%;
+    background: var(--muted); transition: left .18s ease, background .18s;
+  }
+  .toggle-chk:checked + .toggle-track {
+    background: color-mix(in srgb, var(--ok) 55%, var(--panel));
+    border-color: var(--ok);
+  }
+  .toggle-chk:checked + .toggle-track .toggle-thumb {
+    left: 21px; background: var(--fg);
+  }
+  .toggle-wrap:hover .toggle-track { border-color: var(--accent); }
+  .toggle-wrap:has(.toggle-chk:focus-visible) .toggle-track {
+    outline: 2px solid var(--accent); outline-offset: 2px;
+  }
 </style>
 </head>
 <body>
 
-<header>
-  <h1>MiOS configurator <span class="v" id="v-meta">schema 1.1.0 / mios 0.2.4</span></h1>
+<header class="pbar">
+  <!-- Back link to Portal (works when served via /configure; safe no-op from file://) -->
+  <a href="/" class="pbar-logo" title="Back to MiOS Portal">Mi<b>OS</b></a>
+  <span class="pbar-sep">›</span>
+  <span class="pbar-page">Settings</span>
+  <span class="pbar-ver" id="v-meta">schema 1.1.0 / mios 0.2.4</span>
+  <div class="pbar-space"></div>
   <div class="toolbar">
-    <button id="btn-pick" type="button" title="Pick the file to edit (uses File System Access API where available; remembers the handle so subsequent saves are one-click no-prompt overwrites with no (1) suffix)">Pick file</button>
-    <label class="btn-label" for="file-open" id="file-open-label" title="Fallback: open via standard file picker; saves go through Downloads">Open (fallback)</label>
+    <button id="btn-pick" type="button" title="Pick the file to edit (File System Access API — remembers handle, subsequent saves overwrite in place)">Pick file</button>
+    <label class="btn-label" for="file-open" id="file-open-label" title="Fallback: open via standard file picker — saves go through Downloads">Open</label>
     <input type="file" id="file-open" accept=".toml,text/plain">
     <button id="btn-defaults" type="button">Defaults</button>
     <button id="btn-save" class="primary" type="button">Save</button>
@@ -4230,6 +4299,33 @@ document.getElementById("btn-save").addEventListener("click", async () => {
   showStatus("Downloaded mios.toml -- drop it at one of the paths above.", "ok");
 });
 
+// ── Auto-upgrade data-type="bool" text inputs to pill-style toggle switches ──
+// Runs once before event listeners are wired so refreshFromData() finds
+// <input type="checkbox"> (which it already handles) instead of text inputs.
+// The original preceding <label for="id"> still points at the hidden checkbox
+// by id, so clicking label text also toggles the switch.
+function upgradeBoolToggles() {
+  document.querySelectorAll('input[type="text"][data-type="bool"]').forEach(orig => {
+    const defaultOn = (orig.placeholder || '').trim().toLowerCase() === 'true';
+    const wrap  = document.createElement('label');
+    wrap.className = 'toggle-wrap';
+    const chk   = document.createElement('input');
+    chk.type = 'checkbox'; chk.id = orig.id;
+    chk.dataset.key  = orig.dataset.key;
+    chk.dataset.type = 'bool';
+    chk.className = 'toggle-chk';
+    chk.checked   = defaultOn;
+    const track = document.createElement('span'); track.className = 'toggle-track';
+    const thumb = document.createElement('span'); thumb.className = 'toggle-thumb';
+    track.appendChild(thumb);
+    wrap.appendChild(chk);
+    wrap.appendChild(track);
+    orig.parentNode.insertBefore(wrap, orig);
+    orig.remove();
+  });
+}
+upgradeBoolToggles();
+
 // Live form -> DATA -> raw preview
 document.querySelectorAll("[data-key]").forEach(el => {
   el.addEventListener("input", () => { gatherFromForm(); renderRaw(); });
@@ -4260,16 +4356,11 @@ function buildTabs() {
   // [id, label, [selectors claimed]]. Document order is preserved within
   // each panel. "system" + "config" are catch-alls filled afterwards.
   const TABS = [
-    ["personal",        "Personal",        [".zone-personal"]],
-    ["apps",            "Apps",            [".zone-apps", "#adv-enhanced-session"]],
-    ["personalization", "Personalization", ["#adv-color-presets", "#adv-personalization"]],
-    ["users",           "Users",           ["#adv-users-tenancy"]],
-    ["cluster",         "Cluster",         ["#adv-blades-nodes", "#adv-pods", "#adv-agents-federation"]],
-    ["ai",              "AI",              ["#adv-ai", "#adv-ai-pipeline"]],
-    ["governance",      "Governance",      ["#adv-governance"]],
-    ["storage",         "Storage",         ["#adv-storage"]],
-    ["system",          "System",          []],
-    ["config",          "Config / Raw",    []],
+    ["personal",        "Personal",         [".zone-personal", "#adv-color-presets", "#adv-personalization"]],
+    ["apps",            "Apps & Shortcuts", [".zone-apps", "#adv-enhanced-session"]],
+    ["cluster",         "AI & Cluster",     ["#adv-ai", "#adv-ai-pipeline", "#adv-blades-nodes", "#adv-pods", "#adv-agents-federation"]],
+    ["system",          "System & Storage", ["#adv-storage", "#adv-governance"]],
+    ["config",          "Raw Config",       []],
   ];
 
   const panels = {}, claimed = new Set();
