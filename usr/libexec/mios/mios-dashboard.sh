@@ -255,17 +255,19 @@ print_ascii_header() {
     # Find max width of art lines to center it as a block.
     local maxw=0 line
     while IFS= read -r line; do
+        [[ "$line" =~ ^# ]] && continue
         local stripped="$line"
+        stripped="${stripped%"${stripped##*[![:space:]]}"}"
         # No ANSI in the art file, so length is direct.
         (( ${#stripped} > maxw )) && maxw=${#stripped}
     done < "$ART_FILE"
     local pad=$(( (INNER - maxw) / 2 ))
     (( pad < 0 )) && pad=0
-    local pad_str
-    pad_str="$(hr_repeat ' ' "$pad")"
+    local pad_str="$(hr_repeat ' ' "$pad")"
     while IFS= read -r line; do
+        [[ "$line" =~ ^# ]] && continue
         printf '%s%s%s%s\n' "$C_CYN" "$pad_str" "$line" "$C_R"
-    done < "$ART_FILE"
+    done < "$ART_FILE" 
 }
 
 # ── Title row + version ──────────────────────────────────────────────────────
@@ -283,7 +285,8 @@ print_title() {
 # budget on an 80x20 terminal -- each section header now costs 1 row
 # instead of 2.
 section_header() {
-    printf '  %s%s%s%s\n' "$C_B" "$C_CYN" "$1" "$C_R"
+    local pad="${2:-  }"
+    printf '%s%s%s%s%s\n' "$pad" "$C_B" "$C_CYN" "$1" "$C_R"
 }
 
 # ── Service status helpers ───────────────────────────────────────────────────
@@ -440,11 +443,24 @@ print_endpoints() {
                 *)           n_down=$((n_down + 1)) ;;
             esac
         done
-        printf '  %s%s%s %s%d up%s    %s%s%s %s%d down%s    %sagent:%s  hermes:%s  llama:%s%s\n' \
-            "$C_GRN" "$DOT_UP" "$C_R"   "$C_B"   "$n_up"   "$C_R" \
-            "$C_GRY" "$DOT_DOWN" "$C_R" "$C_GRY" "$n_down" "$C_R" \
-            "$C_GRY" "$_p_agent_pipe" "$_p_hermes" "$_p_llamaswap" "$C_R"
-        local link_fmt='  %s %-10s %s%s%s\n'
+        local up_str="${n_up} up    " down_str="${n_down} down    "
+        local ep_str="agent:${_p_agent_pipe}  hermes:${_p_hermes}  llama:${_p_llamaswap}"
+        local total_len=$(( 6 + ${#up_str} + ${#down_str} + ${#ep_str} ))
+        local pad=$(( (INNER - total_len) / 2 ))
+        (( pad < 0 )) && pad=0
+        local padstr="$(hr_repeat ' ' "$pad")"
+        
+        printf '%s%s%s%s %s%s%s%s%s %s%s%s%s\n' \
+            "$padstr" \
+            "$C_GRN" "$DOT_UP" "$C_R" "$C_B" "$up_str" \
+            "$C_GRY" "$DOT_DOWN" "$C_R" "$C_GRY" "$down_str" \
+            "$C_GRY" "$ep_str" "$C_R"
+            
+        local link_len=$(( 2 + 10 + 1 + 22 + 4 )) # rough width of link string
+        local link_pad=$(( (INNER - link_len) / 2 ))
+        (( link_pad < 0 )) && link_pad=0
+        local link_padstr="$(hr_repeat ' ' "$link_pad")"
+        local link_fmt="${link_padstr}%s %-10s %s%s%s\n"
         printf "$link_fmt" "$d_agent_pipe" "Agent-Pipe" "$C_D" "http://localhost:${_p_agent_pipe}/v1"  "$C_R"
         printf "$link_fmt" "$d_webui"      "WebUI"      "$C_D" "http://localhost:${_p_webui}/"        "$C_R"
         printf "$link_fmt" "$d_cockpit"    "Cockpit"    "$C_D" "https://localhost:${_p_cockpit}/"     "$C_R"
@@ -481,7 +497,9 @@ print_endpoints() {
 
     # AI surface -- agent stack the operator interacts with through
     # OWUI / Discord / programmatic clients.
-    section_header "AI surface"
+    local pad45=$(( (INNER - 45) / 2 )); (( pad45 < 0 )) && pad45=0; local padstr45="$(hr_repeat ' ' "$pad45")"
+    local row_fmt_centered="${padstr45}%s  %s\n"
+    section_header "AI surface" "$padstr45"
     local c_agent c_herm c_pg c_dash c_oll c_olli
     c_agent=$(printf "$cell_fmt" "$d_agent_pipe" "http://localhost:${_p_agent_pipe}/v1"  "Agent-Pipe" "$C_D" "$_p_agent_pipe" "$C_R")
     c_herm=$( printf "$cell_fmt" "$d_hermes"     "http://localhost:${_p_hermes}/v1"      "Hermes"     "$C_D" "$_p_hermes"     "$C_R")
@@ -491,9 +509,10 @@ print_endpoints() {
     # (masked). Show LlamaSwap, not Ollama -- "not converted
     # to llama.cpp STILL" was the dash label lagging the actual cutover.
     c_llama=$(printf "$cell_fmt" "$d_llamaswap" "http://localhost:${_p_llamaswap}/v1"   "LlamaSwap"  "$C_D" "$_p_llamaswap"  "$C_R")
-    printf "$row_fmt" "$c_agent" "$c_herm"
-    printf "$row_fmt" "$c_pg"    "$c_dash"
-    printf "$row_fmt" "$c_llama" ""
+
+    printf "$row_fmt_centered" "$c_agent" "$c_herm"
+    printf "$row_fmt_centered" "$c_pg"    "$c_dash"
+    printf "$row_fmt_centered" "$c_llama" ""
 
     # Micro-LLM status row -- observability layer health
     local micro_info micro_model micro_latency
@@ -505,7 +524,7 @@ print_endpoints() {
     fi
 
     # User surface -- browser/desktop tools the operator uses directly.
-    section_header "User surface"
+    section_header "User surface" "$padstr45"
     local c_webui c_cock c_code c_forge c_srch c_ttyb c_ttyp c_guac
     c_webui=$(printf "$cell_fmt" "$d_webui"     "http://localhost:${_p_webui}/"     "WebUI"      "$C_D" "$_p_webui"     "$C_R")
     c_cock=$( printf "$cell_fmt" "$d_cockpit"   "https://localhost:${_p_cockpit}/"  "Cockpit"    "$C_D" "$_p_cockpit"   "$C_R")
@@ -515,10 +534,10 @@ print_endpoints() {
     c_ttyb=$( printf "$cell_fmt" "$d_ttyd_bash" "http://localhost:${_p_ttyd_bash}/" "ttyd-bash"  "$C_D" "$_p_ttyd_bash" "$C_R")
     c_ttyp=$( printf "$cell_fmt" "$d_ttyd_ps"   "http://localhost:${_p_ttyd_ps}/"   "ttyd-PS"    "$C_D" "$_p_ttyd_ps"   "$C_R")
     c_guac=$( printf "$cell_fmt" "$d_guacamole" "http://localhost:${_p_guacamole}/guacamole/"  "Guacamole"  "$C_D" "$_p_guacamole" "$C_R")
-    printf "$row_fmt" "$c_webui" "$c_cock"
-    printf "$row_fmt" "$c_code"  "$c_forge"
-    printf "$row_fmt" "$c_srch"  "$c_guac"
-    printf "$row_fmt" "$c_ttyb"  "$c_ttyp"
+    printf "$row_fmt_centered" "$c_webui" "$c_cock"
+    printf "$row_fmt_centered" "$c_code"  "$c_forge"
+    printf "$row_fmt_centered" "$c_srch"  "$c_guac"
+    printf "$row_fmt_centered" "$c_ttyb"  "$c_ttyp"
 
     # Backing services -- no exposed URL but stack-critical (CI runner,
     # cluster, daemon, miner, passport provisioning). Dot-only
@@ -541,18 +560,22 @@ print_endpoints() {
     [[ -z "$d_miner"  ]] && d_miner="$DOT_DOWN"
     [[ -z "$d_pass"   ]] && d_pass="$DOT_DOWN"
     [[ -z "$d_crowd"  ]] && d_crowd="$DOT_DOWN"
-    printf '  %s%s %s Runner%s   %s%s %s Ceph%s   %s%s %s K3s%s   %s%s %s Daemon%s\n' \
-        "$C_R" "$d_runner" "$C_D" "$C_R" \
+    local pad36=$(( (INNER - 36) / 2 )); (( pad36 < 0 )) && pad36=0; local padstr36="$(hr_repeat ' ' "$pad36")"
+    local pad40=$(( (INNER - 40) / 2 )); (( pad40 < 0 )) && pad40=0; local padstr40="$(hr_repeat ' ' "$pad40")"
+    printf '%s%s%s %s Runner%s   %s%s %s Ceph%s   %s%s %s K3s%s   %s%s %s Daemon%s\n' \
+        "$padstr36" "$C_R" "$d_runner" "$C_D" "$C_R" \
         "$C_R" "$d_ceph"   "$C_D" "$C_R" \
         "$C_R" "$d_k3s"    "$C_D" "$C_R" \
         "$C_R" "$d_daemon" "$C_D" "$C_R"
-    printf '  %s%s %s Skills-Miner%s   %s%s %s Passport%s   %s%s %s CrowdSec%s\n' \
-        "$C_R" "$d_miner" "$C_D" "$C_R" \
+    printf '%s%s%s %s Skills-Miner%s   %s%s %s Passport%s   %s%s %s CrowdSec%s\n' \
+        "$padstr40" "$C_R" "$d_miner" "$C_D" "$C_R" \
         "$C_R" "$d_pass"  "$C_D" "$C_R" \
         "$C_R" "$d_crowd" "$C_D" "$C_R"
     # Credentials row (global MiOS password unless per-service override).
-    printf '  %slogin %s/%s   forge %s/%s%s\n' \
-        "$C_GRY" "$_user" "$_pw" "$_user" "$_fpw" "$C_R"
+    local clen=$(( 18 + ${#_user} + ${#_pw} + ${#_user} + ${#_fpw} ))
+    local pad_cred=$(( (INNER - clen) / 2 )); (( pad_cred < 0 )) && pad_cred=0; local padstr_cred="$(hr_repeat ' ' "$pad_cred")"
+    printf '%s%slogin %s/%s   forge %s/%s%s\n' \
+        "$padstr_cred" "$C_GRY" "$_user" "$_pw" "$_user" "$_fpw" "$C_R"
 }
 
 print_quadlets() {
@@ -583,9 +606,12 @@ print_quadlets() {
             *)                   n_inactive=$((n_inactive + 1)) ;;
         esac
     done
-    section_header "Stack"
-    printf '    %s  %s%d active%s   %s%d starting%s   %s%d inactive%s   %s%d failed%s\n' \
-        "$GLYPH_QUADLETS" \
+    local running="active: ${n_active}" starting="starting: ${n_starting}" inactive="inactive: ${n_inactive}" failed="failed: ${n_failed}"
+    local qlen=$(( 15 + ${#running} + ${#starting} + ${#inactive} + ${#failed} ))
+    local pad=$(( (INNER - qlen) / 2 )); (( pad < 0 )) && pad=0; local padstr="$(hr_repeat ' ' "$pad")"
+    section_header "Stack" "$padstr"
+    printf '%s%s  %s%d active%s   %s%d starting%s   %s%d inactive%s   %s%d failed%s\n' \
+        "$padstr" "$GLYPH_QUADLETS" \
         "$C_GRN" "$n_active"   "$C_R" \
         "$C_YLW" "$n_starting" "$C_R" \
         "$C_GRY" "$n_inactive" "$C_R" \
@@ -593,8 +619,8 @@ print_quadlets() {
 }
 
 print_git_state() {
-    section_header "Tree"
     if [[ ! -d /.git ]]; then
+        section_header "Tree"
         printf '    %s  %s(/ is not yet a git working tree)%s\n' "$GLYPH_GIT" "$C_GRY" "$C_R"
         return
     fi
@@ -613,15 +639,21 @@ print_git_state() {
     modified="${modified%%[!0-9]*}";   modified="${modified:-0}"
     staged="${staged%%[!0-9]*}";       staged="${staged:-0}"
     untracked="${untracked%%[!0-9]*}"; untracked="${untracked:-0}"
-    printf '    %s  %s%s%s  +%s/-%s   %s%d staged  %d modified  %d untracked%s\n' \
-        "$GLYPH_GIT" "$C_B" "$branch" "$C_R" "$ahead" "$behind" \
+    local str="    ${GLYPH_GIT}  ${branch}  +${ahead}/-${behind}   ${staged} staged  ${modified} modified  ${untracked} untracked"
+    local pad=$(( (INNER - ${#str}) / 2 )); (( pad < 0 )) && pad=0; local padstr="$(hr_repeat ' ' "$pad")"
+    section_header "Tree" "$padstr"
+    printf '%s%s  %s%s%s  +%s/-%s   %s%d staged  %d modified  %d untracked%s\n' \
+        "$padstr" "$GLYPH_GIT" "$C_B" "$branch" "$C_R" "$ahead" "$behind" \
         "$C_GRY" "$staged" "$modified" "$untracked" "$C_R"
 }
 
 print_loop_hint() {
-    printf '\n  %sEdit /  ->  git commit  ->  git push  ->  Forgejo Runner  ->  bootc switch%s\n' "$C_D" "$C_R"
-    printf '  %sRebuild now: git -C / push http://%s@localhost:3000/%s/mios.git%s\n' \
-        "$C_GRY" "$MIOS_LINUX_USER" "$MIOS_LINUX_USER" "$C_R"
+    local pad=$(( (INNER - 74) / 2 )); (( pad < 0 )) && pad=0; local padstr="$(hr_repeat ' ' "$pad")"
+    printf '\n%s%sEdit /  ->  git commit  ->  git push  ->  Forgejo Runner  ->  bootc switch%s\n' "$padstr" "$C_D" "$C_R"
+    local rh_len=$(( 56 + ${#MIOS_LINUX_USER} * 2 ))
+    local rh_pad=$(( (INNER - rh_len) / 2 )); (( rh_pad < 0 )) && rh_pad=0; local rh_padstr="$(hr_repeat ' ' "$rh_pad")"
+    printf '%s%sRebuild now: git -C / push http://%s@localhost:3000/%s/mios.git%s\n' \
+        "$rh_padstr" "$C_GRY" "$MIOS_LINUX_USER" "$MIOS_LINUX_USER" "$C_R"
 }
 
 print_services_block() {
@@ -894,20 +926,18 @@ _dashboard_rows_render() {
     local rows
     rows="$(_dashboard_rows_parse 2>/dev/null)"
     if [[ -z "$rows" ]]; then
-        # Vendor default (matches mios.toml [dashboard].rows default)
-        rows='"host_os"
-"cpu", "gpu_discrete"
+        rows='"cpu", "gpu_discrete"
 "ram", "swap"
-"disk_root", "disk_home"
-"kernel", "shell", "font"'
+"disk_root", "disk_home"'
     fi
 
-    local row n colW cells field val
+    local parsed_rows=()
+    local max_c1=0 max_c2=0
+    local row n field val v1 v2
+    
     while IFS= read -r row; do
         [[ -z "$row" ]] && continue
-        # Strip surrounding "..." per token, comma-split.
         IFS=',' read -ra fields <<< "$row"
-        # Trim + dequote each token.
         local trimmed=()
         for field in "${fields[@]}"; do
             field="${field#"${field%%[![:space:]]*}"}"
@@ -917,29 +947,54 @@ _dashboard_rows_render() {
         done
         n=${#trimmed[@]}
         (( n == 0 )) && continue
-        colW=$(( (INNER - (n - 1) * 2) / n ))
-        (( colW < 8 )) && colW=8
-
-        local line="" pad
-        local i=0
-        for field in "${trimmed[@]}"; do
-            val="$(_dash_field "$field")"
-            # Truncate -- code-point safe via awk (mawk uses bytes; gawk does code points).
-            if (( ${#val} > colW )); then
-                val="${val:0:$((colW - 1))}…"
-            fi
-            # Pad to exact colW.
-            pad=$((colW - ${#val}))
-            (( pad < 0 )) && pad=0
-            local padstr; padstr="$(hr_repeat ' ' "$pad")"
-            if (( i == 0 )); then line="${val}${padstr}"
-            else                  line="${line}  ${val}${padstr}"; fi
-            i=$((i + 1))
-        done
-        # Trim trailing whitespace -- frame_filter will pad to INNER.
-        line="${line%"${line##*[![:space:]]}"}"
-        printf '%s\n' "$line"
+        
+        v1="$(_dash_field "${trimmed[0]}")"
+        v2=""
+        if (( n > 1 )); then
+            v2="$(_dash_field "${trimmed[1]}")"
+        fi
+        
+        (( ${#v1} > max_c1 )) && max_c1=${#v1}
+        (( ${#v2} > max_c2 )) && max_c2=${#v2}
+        
+        parsed_rows+=("${v1}|${v2}")
     done <<< "$rows"
+    
+    local total_w=$(( max_c1 + 4 + max_c2 ))
+    if (( total_w > INNER )); then
+        if (( max_c1 + 4 + max_c2 > INNER )); then
+            max_c1=$(( INNER - 4 - max_c2 ))
+            if (( max_c1 < 15 )); then
+                max_c1=$(( (INNER - 4) / 2 ))
+                max_c2=$(( INNER - 4 - max_c1 ))
+            fi
+        fi
+        total_w=$(( max_c1 + 4 + max_c2 ))
+    fi
+
+    local row_pad=$(( (INNER - total_w) / 2 ))
+    (( row_pad < 0 )) && row_pad=0
+    local row_padstr="$(hr_repeat ' ' "$row_pad")"
+    
+    for r in "${parsed_rows[@]}"; do
+        IFS='|' read -r v1 v2 <<< "$r"
+        if (( ${#v1} > max_c1 )); then
+            v1="${v1:0:$((max_c1 - 1))}…"
+        fi
+        if (( ${#v2} > max_c2 )); then
+            v2="${v2:0:$((max_c2 - 1))}…"
+        fi
+        
+        local pad1=$(( max_c1 - ${#v1} ))
+        (( pad1 < 0 )) && pad1=0
+        local pad1str="$(hr_repeat ' ' "$pad1")"
+        
+        if [[ -n "$v2" ]]; then
+            printf '%s%s%s    %s\n' "$row_padstr" "$v1" "$pad1str" "$v2"
+        else
+            printf '%s%s\n' "$row_padstr" "$v1"
+        fi
+    done
 }
 
 # ── Main ─────────────────────────────────────────────────────────────────────
@@ -975,15 +1030,8 @@ case "$MODE" in
                 print_ascii_header | frame_filter
                 frame_divide
             fi
-            # The MiOS banner is part of the ASCII header. In mini mode
-            # (no ASCII header) the host/version/date row at the top of
-            # [dashboard].rows carries the identity, so we skip the
-            # standalone print_title banner -- otherwise mini would
-            # show "MiOS v0.2.4" twice (banner + version row).
-            if [[ "$MODE" != "mini" ]]; then
-                { print_title; } | frame_filter
-                frame_divide
-            fi
+            { print_title; } | frame_filter
+            frame_divide
             if [[ "${MIOS_DASH_LEGACY:-0}" == "1" ]]; then
                 print_fastfetch     | frame_filter
                 frame_divide
@@ -1017,7 +1065,11 @@ case "$MODE" in
                     _verb_hint="$(_mios_toml_value 'dashboard' 'verb_hint' 'build  config  dash  mini  ai  code  dev  summary  user  pull  update  help')"
                     if [[ -n "$_verb_hint" ]]; then
                         frame_divide
-                        printf '  %s mios %s%s\n' "$C_GRY" "$_verb_hint" "$C_R" | frame_filter
+                        hint_str=" mios ${_verb_hint} "
+                        hint_pad=$(( (INNER - ${#hint_str}) / 2 ))
+                        (( hint_pad < 0 )) && hint_pad=0
+                        hint_padstr="$(hr_repeat ' ' "$hint_pad")"
+                        printf '%s%s%s%s\n' "$hint_padstr" "$C_GRY" "$hint_str" "$C_R" | frame_filter
                     fi
                 fi
             fi
