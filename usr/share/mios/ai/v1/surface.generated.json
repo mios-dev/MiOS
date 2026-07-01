@@ -218,6 +218,7 @@
     "KV_PAGING_SLOT",
     "KV_PAGING_TIMEOUT",
     "KV_SLOTS_DIR",
+    "KV_SLOT_PERSIST",
     "LANE_TOOL_CAP",
     "LAUNCHER_SOCK",
     "LOCAL_STATE_FASTPATH",
@@ -1381,6 +1382,6 @@
   ],
   "counts": {
     "routes": 81,
-    "provided": 1295
+    "provided": 1296
   }
 }
