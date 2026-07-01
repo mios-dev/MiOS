@@ -1,28 +1,24 @@
-# AI-hint: Systemd Quadlet configuration for the guacd container, defining the image, network, and lifecycle for the Apache Guacamole proxy service to provide remote desktop access.
-# AI-related: mios-guacd, network-online.target, multi-user.target, default.target
+# AI-hint: GENERATED Quadlet container 'mios-guacd' (WS-7 pods-as-SSOT). DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [containers.mios-guacd] in mios.toml.
+# /usr/share/containers/systemd/mios-guacd.container
+
 [Unit]
-Description='MiOS' Apache Guacamole Daemon
 After=network-online.target
-Wants=network-online.target
-# Defaults policy: enabled by default; auto-skips inside nested
-# containers (guacd needs raw VNC/RDP socket access).
 ConditionVirtualization=!container
+Description='MiOS' Apache Guacamole Daemon
+Wants=network-online.target
 
 [Container]
-Pod=mios-system.pod
-# Image / Network placeholders -- resolved at image build time by
-# automation/15-render-quadlets.sh from mios.toml
-# [image.sidecars].guacd and [network.quadlet].network.
-Image=docker.io/guacamole/guacd:latest
-ContainerName=mios-guacd
 AutoUpdate=registry
-User=mios-guacd
+ContainerName=mios-guacd
 Group=mios-guacd
-
-[Service]
-Restart=on-failure
-RestartSec=10
-Delegate=yes
+Image=docker.io/guacamole/guacd:latest
+Pod=mios-system.pod
+User=mios-guacd
 
 [Install]
 WantedBy=multi-user.target default.target
+
+[Service]
+Delegate=yes
+Restart=on-failure
+RestartSec=10

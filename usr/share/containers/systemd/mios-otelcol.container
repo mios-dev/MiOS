@@ -1,0 +1,25 @@
+# AI-hint: GENERATED Quadlet container 'mios-otelcol' (WS-7 pods-as-SSOT). DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [containers.mios-otelcol] in mios.toml.
+# /usr/share/containers/systemd/mios-otelcol.container
+
+[Unit]
+After=network-online.target
+Description='MiOS' OpenTelemetry Collector and Jaeger Trace Viewer
+Wants=network-online.target
+
+[Container]
+ContainerName=mios-otelcol
+Environment=COLLECTOR_OTLP_ENABLED=true
+Image=docker.io/jaegertracing/all-in-one:latest
+Label=org.opencontainers.image.title=mios-otelcol
+Label=org.opencontainers.image.url=http://localhost:16686/
+Label=io.podman_desktop.openInBrowser=http://localhost:16686/
+Pod=mios-webtools.pod
+
+[Install]
+WantedBy=multi-user.target default.target
+
+[Service]
+Delegate=yes
+Restart=on-failure
+RestartSec=10s
+TimeoutStartSec=300s

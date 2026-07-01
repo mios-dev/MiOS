@@ -1,146 +1,42 @@
-# AI-hint: A Quadlet configuration for the Forgejo Runner container that executes the self-replication loop by building OCI images from local git pushes and triggering A/B-swap reboots via bootc.
-# AI-related: /etc/mios/forge/runner-token, /etc/mios/forge, mios-forgejo-runner, mios-bootc-switch, mios-forge-firstboot, mios-ceph, mios-k3s, mios-forge, mios-forgejo-runner-firstboot, mios-self-hosted
-# /etc/containers/systemd/mios-forgejo-runner.container
-# 'MiOS' Forgejo Runner -- self-hosted CI for the closed self-replication loop.
-#
-# Closes the loop:
-#   operator edits /  ->  git -C / push http://localhost:${MIOS_PORT_FORGE_HTTP:-8300}/<admin>/mios
-#   ->  this Runner picks up the push  ->  podman build -f /Containerfile
-#   ->  new OCI image  ->  /var/lib/mios/forge-runner/last-build.txt
-#   ->  mios-bootc-switch.path triggers `bootc switch --transport
-#       containers-storage localhost/mios:latest`  ->  reboot to A/B-swap.
-#
-# Registration: mios-forge-firstboot.sh mints a token via the admin API
-# (or the in-container `forgejo actions generate-runner-token` CLI),
-# writes it to /etc/mios/forge/runner-token (mode 0600, root-only),
-# and triggers this unit. The Runner image's entrypoint reads the
-# FORGEJO_RUNNER_REGISTRATION_TOKEN env var on first start, registers
-# itself, and persists /data/.runner so subsequent starts skip
-# registration.
-#
-# Defaults policy: enabled by default. ConditionPathExists guards the
-# token file -- if firstboot hasn't minted it yet (or has been deleted
-# for re-bootstrap), the unit no-ops at pre-boot rather than crash-
-# looping with "registration token missing".
-#
-# LAW 6 (UNPRIVILEGED-QUADLETS) exception: this Quadlet runs `User=0`
-# / `Group=0` because the build step in the self-replication loop
-# (`podman build -f /Containerfile`) needs write access to rootful
-# `/var/lib/containers/storage/` and the resulting image must be
-# usable by `bootc switch --transport containers-storage`. Rootless
-# podman would require subuid/subgid mappings against /var/lib/mios/
-# forge-runner with allowed write into the rootful storage path,
-# which the bootc immutable-/usr model does not currently support.
-# Documented in usr/share/mios/ai/INDEX.md sec 3 row 6 alongside mios-ceph / mios-k3s.
+# AI-hint: GENERATED Quadlet container 'mios-forgejo-runner' (WS-7 pods-as-SSOT). DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [containers.mios-forgejo-runner] in mios.toml.
+# /usr/share/containers/systemd/mios-forgejo-runner.container
 
 [Unit]
-Description='MiOS' Forgejo Runner (self-hosted CI for /=git working tree)
-Documentation=https://forgejo.org/docs/latest/admin/actions/
 After=network-online.target mios-forge.service mios-forgejo-runner-firstboot.service
-Wants=network-online.target mios-forgejo-runner-firstboot.service
-Requires=mios-forge.service
-# v7+ daemon requires /srv/mios/forge-runner/.runner on disk -- the
-# firstboot service creates it from the registration token. Gate the
-# daemon on its presence so we don't restart-loop with "registration
-# file not found" before firstboot has had a chance to run.
 ConditionPathExists=/srv/mios/forge-runner/.runner
-# Runner closes the push -> CI -> bootc-switch loop on every shape
-# including WSL. WSL = `container` virt to systemd, so `!container` would
-# silently skip WSL and break self-replication on Windows hosts.
 ConditionVirtualization=|!container
 ConditionVirtualization=|wsl
+Description='MiOS' Forgejo Runner (self-hosted CI for /=git working tree)
+Documentation=https://forgejo.org/docs/latest/admin/actions/
+Requires=mios-forge.service
+Wants=network-online.target mios-forgejo-runner-firstboot.service
 
 [Container]
-Pod=mios-webtools.pod
-# Image / Network placeholders -- resolved at image build time by
-# automation/15-render-quadlets.sh from mios.toml
-# [image.sidecars].forge_runner and [network.quadlet].network.
-Image=code.forgejo.org/forgejo/runner:7
 ContainerName=mios-forgejo-runner
-# The upstream image ships CMD=[/bin/forgejo-runner] with an empty
-# entrypoint, so the bare invocation prints CLI help and exits.
-# Force the entrypoint + daemon subcommand so the registration +
-# job-fetch loop runs.
 Entrypoint=/bin/forgejo-runner
-Exec=daemon
-
-# DOCUMENTED ARCHITECTURAL EXCEPTION (UNPRIVILEGED-EXECUTION):
-# Forgejo Runner needs to run `podman build` against /Containerfile
-# in checked-out worktrees, which requires user-namespace manipulation
-# and full container-storage access. Running unprivileged would force
-# Docker-in-Docker / nested-podman patterns that are demonstrably
-# slower and have their own security tradeoffs.
-#
-# The runner's *job sandbox* is what protects the host -- each workflow
-# run executes in an ephemeral container started by the runner with
-# its own image, env, and FS view. The runner container itself is
-# privileged so it can act as the namespace orchestrator.
-#
-# Joins the existing exception list: mios-ceph (Ceph requires uid 0)
-# and mios-k3s (full kernel namespaces + eBPF). See usr/share/doc/mios/concepts/architecture.md.
-#
-# Quadlet's `Privileged=` key is only honoured by podman 5.7+; on
-# older stacks (Fedora 43 ships an earlier quadlet-generator) the key
-# is silently dropped with an "unsupported key" warning, leaving the
-# runner unprivileged and `podman build` failing inside the runner.
-# `PodmanArgs=--privileged` is the portable form -- quadlet has emitted
-# `--podman-args` verbatim into the generated unit since 4.4, so this
-# works on every release that supports Quadlet at all.
-PodmanArgs=--privileged
-
-# Shared container storage with the host. This is what makes
-# `bootc switch --transport containers-storage localhost/mios:latest`
-# work after a build: the image lands in /var/lib/containers/storage
-# which the host's bootc reads from directly. No registry required.
-Volume=/var/lib/containers/storage:/var/lib/containers/storage:Z
-
-# Runner state (persistent registration, workflow caches, job logs).
-# The .runner file inside /data is what the entrypoint checks to decide
-# whether to register or just start.
-Volume=/srv/mios/forge-runner:/data:Z
-
-# Read-only access to the token bundle so the entrypoint can register
-# without writing through to the host filesystem.
-Volume=/etc/mios/forge:/etc/mios/forge:Z,ro
-
-# Build-output sentinel directory: workflows write
-# /var/lib/mios/forge-runner/last-build.txt with the freshly-built
-# image ref; the host's mios-bootc-switch.path watches it.
-Volume=/var/lib/mios/forge-runner:/var/lib/mios/forge-runner:Z
-
-# Registration credentials live in /etc/mios/forge/runner-token,
-# written by mios-forge-firstboot.sh as a shell-style env file
-# (FORGEJO_RUNNER_REGISTRATION_TOKEN=, FORGEJO_INSTANCE_URL=).
-EnvironmentFile=/etc/mios/forge/runner-token
-
 Environment=FORGEJO_RUNNER_NAME=mios-self-hosted
 Environment=FORGEJO_RUNNER_LABELS=mios-self-hosted,podman,bootc,fedora-44
-# Use podman for jobs (not Docker). The runner's "host" mode runs
-# steps directly in the runner container; for OCI builds we use
-# the podman socket via the shared containers/storage volume above.
 Environment=FORGEJO_RUNNER_DEFAULT_LABELS=mios-self-hosted
-
-# Documented architectural exception (alongside Ceph + K3s): runner
-# runs as numeric uid 0 inside the container so it can manipulate
-# /var/lib/containers/storage during `podman build`. The runner
-# container's job sandbox is what protects the host, not the runner
-# itself.
-User=0
+EnvironmentFile=/etc/mios/forge/runner-token
+Exec=daemon
 Group=0
-
-# Quadlet Label= parser word-splits on spaces -- values MUST NOT contain
-# whitespace or the generated podman-run command breaks. Title kept
-# single-word; long descriptions go in the unit's [Unit] Description=
-# (which doesn't have the same parser bug).
+Image=code.forgejo.org/forgejo/runner:7
 Label=org.opencontainers.image.title=mios-forgejo-runner
 Label=org.opencontainers.image.documentation=https://forgejo.org/docs/latest/admin/actions/
 Label=io.podman_desktop.openInBrowser=http://localhost:${MIOS_PORT_FORGE_HTTP:-8300}/-/admin/actions/runners
-
-[Service]
-Restart=on-failure
-RestartSec=15s
-TimeoutStartSec=300s
-Delegate=yes
+Pod=mios-webtools.pod
+PodmanArgs=--privileged
+User=0
+Volume=/var/lib/containers/storage:/var/lib/containers/storage:Z
+Volume=/srv/mios/forge-runner:/data:Z
+Volume=/etc/mios/forge:/etc/mios/forge:Z,ro
+Volume=/var/lib/mios/forge-runner:/var/lib/mios/forge-runner:Z
 
 [Install]
 WantedBy=multi-user.target default.target
+
+[Service]
+Delegate=yes
+Restart=on-failure
+RestartSec=15s
+TimeoutStartSec=300s

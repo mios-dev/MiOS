@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: Configures and enables systemd units for NVIDIA CDI (Container Device Interface) auto-refresh, removes legacy oci-nvidia-hook.json to prevent conflicts, and ensures the GPU runtime environment is correctly wired for container orchestration.
-# AI-related: mios-gpu, mios-nvidia-cdi, nvidia-cdi-refresh.service, nvidia-persistenced.service, mios-nvidia-cdi.service, multi-user.target
+# AI-related: mios-gpu, mios-nvidia-cdi, nvidia-cdi-refresh.service, nvidia-persistenced.service, multi-user.target
 # 45-nvidia-cdi-refresh.sh - wire up NVIDIA CDI auto-refresh services.
 # Package installs live in mios.toml [packages.gpu-nvidia].
 #

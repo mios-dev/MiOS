@@ -1,48 +1,24 @@
-# AI-hint: Quadlet configuration for the mios-webtools-redis container, providing a loopback-only (127.0.0.1:6380) Redis instance for Firecrawl's queue and ratelimit storage within the mios-webtools pod.
-# AI-related: mios-webtools-redis, mios-webtools, multi-user.target, default.target
+# AI-hint: GENERATED Quadlet container 'mios-webtools-redis' (WS-7 pods-as-SSOT). DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [containers.mios-webtools-redis] in mios.toml.
 # /usr/share/containers/systemd/mios-webtools-redis.container
-# 'MiOS' web-tools POD member 1/4 -- redis (firecrawl's queue + ratelimit store).
-#
-# Operator directive 2026-05-24 "make it a pod": the redis that firecrawl's
-# api + worker share is now its own container in the mios-webtools pod (was a
-# supervisord program in the abandoned monolith). Official image, NO build.
-#
-# Network: inherited from the pod (Network=host). redis binds the HOST loopback
-# 127.0.0.1:6379, so the firecrawl api/worker reach it at redis://127.0.0.1:6379
-# and it is NEVER exposed to the LAN (no auth, intentionally local-only). The
-# port is NOT published (host-net publishes nothing; combining PublishPort with
-# the pod's Network=host is an error).
+
 [Unit]
 Description='MiOS' web-tools redis (firecrawl queue + ratelimit store)
 
 [Container]
-Pod=mios-webtools.pod
-Image=docker.io/redis:7-alpine
-ContainerName=mios-webtools-redis
-# Loopback-only, ephemeral queue. --appendonly no = no AOF. (We do NOT pass
-# --save "" to disable RDB: Quadlet's Exec= parser drops the empty-string arg,
-# leaving a bare `--save` that makes redis exit 1. Default RDB snapshots to a
-# volumeless /data are harmless for an ephemeral queue.) --bind 127.0.0.1
-# keeps it off the LAN (host-net).
-# Port 6380 (NOT 6379): the host already runs keydb-server on :6379 (and with
-# the pod's Network=host, :6379 would collide -> redis exits "Address in use").
-# 6380 is dedicated to firecrawl's queue, isolated from keydb's eviction policy.
-Exec=redis-server --bind 127.0.0.1 --port 6380 --appendonly no
 AutoUpdate=registry
-Label=org.opencontainers.image.title=mios-webtools-redis
-# LAW 6 (UNPRIVILEGED-QUADLETS) compliance: every Quadlet must declare User=
-# (99-postcheck.sh fails the build otherwise). The official redis:7-alpine
-# image default-runs as root; this is an ephemeral, volumeless, loopback-only
-# queue (no host-writable mounts), so uid 0 inside the container's namespace
-# is harmless. Documented root member, as allowed by Law 6.
-User=0
+ContainerName=mios-webtools-redis
+Exec=redis-server --bind 127.0.0.1 --port 6380 --appendonly no
 Group=0
+Image=docker.io/redis:7-alpine
+Label=org.opencontainers.image.title=mios-webtools-redis
+Pod=mios-webtools.pod
+User=0
+
+[Install]
+WantedBy=multi-user.target default.target
 
 [Service]
 Delegate=yes
 Restart=on-failure
 RestartSec=10s
 TimeoutStartSec=60s
-
-[Install]
-WantedBy=multi-user.target default.target

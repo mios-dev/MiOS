@@ -681,9 +681,9 @@ check_pod_quadlets() {
         return 0
     fi
     if MIOS_ROOT="$ROOT" python3 "$gen" --check; then
-        echo "[38-drift-checks]   (13) .pod Quadlets in sync with mios.toml [pods.*] SSOT"
+        echo "[38-drift-checks]   (13) Quadlet units (.pod, .container, .network, .volume) in sync with mios.toml SSOT"
     else
-        _violation ".pod Quadlet(s) STALE vs mios.toml [pods.*] -- regenerate with tools/generate-pod-quadlets.py (WS-7/WS-10)"
+        _violation "Quadlet unit(s) (.pod, .container, .network, .volume) STALE vs mios.toml SSOT -- regenerate with tools/generate-pod-quadlets.py"
     fi
 }
 

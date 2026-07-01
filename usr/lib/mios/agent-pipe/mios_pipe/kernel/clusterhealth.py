@@ -534,8 +534,7 @@ async def scheduler_state_logic() -> JSONResponse:
             "manager_detail": _kernel_managers_detail(),
             "modes": _KERNEL.dispatcher.modes(),
             "shadow_route": KERNEL_ROUTE,
-            "stage": "2a (live+introspectable; dag delegates to execute_dag; "
-                     "other mode bodies = Stage 2b, still inline)",
+            "stage": "2b (live kernel; all traffic routed through dispatcher)",
         },
         "ts": int(time.time()),
     })

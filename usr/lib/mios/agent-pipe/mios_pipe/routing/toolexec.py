@@ -91,7 +91,8 @@ def configure(*, read_tool_enrich_chars=None, read_tool_enrich_timeout=None,
               resolve_verb_key=None, session_is_tainted=None, db_fire=None,
               db_post=None, db_create=None, src_record=None,
               classify_verb_taint=None,
-              sanitize_tool_text=None) -> None:
+              sanitize_tool_text=None,
+              otel_tracer=None) -> None:
     """Inject server.py's config scalars, catalogs, ContextVar and runtime
     helpers the executor + rescue corpus call back into."""
     global READ_TOOL_ENRICH_CHARS, READ_TOOL_ENRICH_TIMEOUT
@@ -105,6 +106,9 @@ def configure(*, read_tool_enrich_chars=None, read_tool_enrich_timeout=None,
     global _enter_dispatch_hop, _resolve_verb_key, _session_is_tainted
     global _db_fire, _db_post, _db_create, _src_record
     global _classify_verb_taint, _sanitize_tool_text
+    global _otel_tracer
+    if otel_tracer is not None:
+        _otel_tracer = otel_tracer
     if read_tool_enrich_chars is not None:
         READ_TOOL_ENRICH_CHARS = read_tool_enrich_chars
     if read_tool_enrich_timeout is not None:
@@ -326,6 +330,26 @@ def _format_tool_error(res: Any) -> Optional[dict]:
     return None
 
 
+def _tool_span(vname: str, session_id: str):
+    import contextlib
+    @contextlib.contextmanager
+    def _ctx():
+        if _otel_tracer and vname:
+            from opentelemetry.trace import SpanKind
+            with _otel_tracer.start_as_current_span(
+                "execute_tool",
+                kind=SpanKind.INTERNAL,
+                attributes={
+                    "gen_ai.tool.name": vname,
+                    "session_id": session_id or "",
+                }
+            ) as span:
+                yield span
+        else:
+            yield None
+    return _ctx()
+
+
 async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
     """Execute the verbs in an OpenAI tool_calls[] list via the broker and return
     (tool_result_messages, ran_any). Shared by every pipe-side sub-agent tool-loop
@@ -378,9 +402,10 @@ async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
             ran_read = True
             push(f" 🔧 skill:{real}")
             try:
-                res = await asyncio.wait_for(
-                    execute_skill(real, args),
-                    timeout=READ_TOOL_ENRICH_TIMEOUT * 2)
+                with _tool_span(vname, _sess):
+                    res = await asyncio.wait_for(
+                        execute_skill(real, args),
+                        timeout=READ_TOOL_ENRICH_TIMEOUT * 2)
             except Exception as e:  # noqa: BLE001
                 res = {"error": str(e)}
             out = (json.dumps(res, ensure_ascii=False)
@@ -413,10 +438,11 @@ async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
             ran_read = True
             push(f" 🔧 recipe:{real}")
             try:
-                res = await asyncio.wait_for(
-                    dispatch_mios_verb("os_recipe",
-                                       {"name": rkey, "params": args}),
-                    timeout=READ_TOOL_ENRICH_TIMEOUT * 2)
+                with _tool_span(vname, _sess):
+                    res = await asyncio.wait_for(
+                        dispatch_mios_verb("os_recipe",
+                                           {"name": rkey, "params": args}),
+                        timeout=READ_TOOL_ENRICH_TIMEOUT * 2)
             except Exception as e:  # noqa: BLE001
                 res = {"error": str(e)}
             out = (json.dumps(res, ensure_ascii=False)
@@ -436,9 +462,10 @@ async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
             ran_read = True
             push(f" 🔧 {vname}")
             try:
-                res = await asyncio.wait_for(
-                    _mcp_call_tool(vname, args),
-                    timeout=READ_TOOL_ENRICH_TIMEOUT * 2)
+                with _tool_span(vname, _sess):
+                    res = await asyncio.wait_for(
+                        _mcp_call_tool(vname, args),
+                        timeout=READ_TOOL_ENRICH_TIMEOUT * 2)
             except Exception as e:  # noqa: BLE001
                 res = {"error": str(e)}
             out = (json.dumps(res, ensure_ascii=False)
@@ -481,9 +508,10 @@ async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
             ran_read = True
             push(" 🧮 code_mode")
             try:
-                res = await asyncio.wait_for(
-                    dispatch_mios_verb(vname, args),
-                    timeout=READ_TOOL_ENRICH_TIMEOUT * 4)
+                with _tool_span(vname, _sess):
+                    res = await asyncio.wait_for(
+                        dispatch_mios_verb(vname, args),
+                        timeout=READ_TOOL_ENRICH_TIMEOUT * 4)
             except Exception as e:  # noqa: BLE001
                 res = {"error": str(e)}
             out = (json.dumps(res, ensure_ascii=False)
@@ -553,14 +581,15 @@ async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
                 _live = await _live_agent_names()
                 _dag = _agent_dag_from_tasks(_norm, live_agents=_live,
                                              include_research=True)
-                _sresp = await _respond_agent_dag(
-                    _dag, _octx.get("refined"), streaming=False,
-                    chat_id=str(_octx.get("chat_id") or ""),
-                    model=str(_octx.get("model") or ""),
-                    session_id=_octx.get("session_id"),
-                    last_user_text=str(_octx.get("last_user_text") or ""),
-                    persona_system=str(_octx.get("persona_system") or ""),
-                    request=_octx.get("request"))
+                with _tool_span(vname, _sess):
+                    _sresp = await _respond_agent_dag(
+                        _dag, _octx.get("refined"), streaming=False,
+                        chat_id=str(_octx.get("chat_id") or ""),
+                        model=str(_octx.get("model") or ""),
+                        session_id=_octx.get("session_id"),
+                        last_user_text=str(_octx.get("last_user_text") or ""),
+                        persona_system=str(_octx.get("persona_system") or ""),
+                        request=_octx.get("request"))
                 _stext = ""
                 if _sresp is not None:
                     try:
@@ -611,9 +640,10 @@ async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
         ran_read = True
         push(f" 🔧 {vname}")
         try:
-            res = await asyncio.wait_for(
-                dispatch_mios_verb(_key, args),
-                timeout=READ_TOOL_ENRICH_TIMEOUT * 2)
+            with _tool_span(vname, _sess):
+                res = await asyncio.wait_for(
+                    dispatch_mios_verb(_key, args),
+                    timeout=READ_TOOL_ENRICH_TIMEOUT * 2)
         except Exception as e:  # noqa: BLE001
             res = {"error": str(e)}
         # CENTRAL SOURCE CAPTURE : this is the ONE chokepoint
@@ -658,6 +688,7 @@ async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
 # + the text scrubber. server-side fns, one-way boundary (no import of server).
 _classify_verb_taint = None
 _sanitize_tool_text = None
+_otel_tracer = None
 
 
 def _record_mcp_tool_call(tool: str, args: dict, success: bool, output: str,

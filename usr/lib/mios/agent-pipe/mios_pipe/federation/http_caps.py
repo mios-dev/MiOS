@@ -83,6 +83,8 @@ _offline_posture = None
 _PROMPT_REGISTRY = None
 _db_read = None
 RUN_TEMPLATE_ENABLE = False
+_MCP_CLIENT_TOOLS = None
+_MCP_CLIENT_LOCK = None
 
 
 def configure(*, verb_catalog=None, a2a_peers=None, a2a_peers_lock=None,
@@ -93,7 +95,8 @@ def configure(*, verb_catalog=None, a2a_peers=None, a2a_peers_lock=None,
               skill_fetch=None, user_rbac_filter=None, match_user_cfg=None,
               toml_section=None, cap_skills=None, get_client=None, kg_lookup=None,
               execute_skill=None, run_dci_flow=None, offline_posture=None,
-              prompt_registry=None, db_read=None, run_template_enable=None) -> None:
+              prompt_registry=None, db_read=None, run_template_enable=None,
+              mcp_client_tools=None, mcp_client_lock=None) -> None:
     """Inject server.py's runtime deps under their EXACT original names. Objects
     (catalog/peers/ledger/tracer/kernel) are passed BY REFERENCE so server-side
     mutation stays visible; the moved logic is byte-identical."""
@@ -154,6 +157,10 @@ def configure(*, verb_catalog=None, a2a_peers=None, a2a_peers_lock=None,
         g["_db_read"] = db_read
     if run_template_enable is not None:
         g["RUN_TEMPLATE_ENABLE"] = run_template_enable
+    if mcp_client_tools is not None:
+        g["_MCP_CLIENT_TOOLS"] = mcp_client_tools
+    if mcp_client_lock is not None:
+        g["_MCP_CLIENT_LOCK"] = mcp_client_lock
 
 
 # ── /v1/verbs + /v1/tools projections ─────────────────────────────────────
@@ -203,6 +210,15 @@ async def list_verbs_openai_tools_logic(include_rare: bool = True) -> JSONRespon
         for vname, vcfg in _VERB_CATALOG.items()
         if include_rare or vcfg.get("tier") != "rare"
     ]
+    if globals().get("_MCP_CLIENT_TOOLS"):
+        try:
+            from mios_skills import _mcp_tool_to_openai_tool
+            async with globals().get("_MCP_CLIENT_LOCK"):
+                _mcp_items = list(globals()["_MCP_CLIENT_TOOLS"].items())
+            for _k, _info in _mcp_items:
+                tools.append(_mcp_tool_to_openai_tool(_k, _info))
+        except Exception:  # noqa: BLE001
+            pass
     return JSONResponse({"tools": tools, "count": len(tools)})
 
 

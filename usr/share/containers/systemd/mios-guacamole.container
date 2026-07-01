@@ -1,29 +1,24 @@
-# AI-hint: A Quadlet container unit defining the Apache Guacamole web interface, mapping host port 8090 to container port 8080 to provide remote desktop access via the mios.network bridge.
-# AI-related: mios-guacamole, mios-ai, mios-guacamole-postgres.service, network-online.target, multi-user.target, default.target, localhost:8090
+# AI-hint: GENERATED Quadlet container 'mios-guacamole' (WS-7 pods-as-SSOT). DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [containers.mios-guacamole] in mios.toml.
+# /usr/share/containers/systemd/mios-guacamole.container
+
 [Unit]
-Description='MiOS' Apache Guacamole Web
 After=network-online.target mios-guacamole-postgres.service
-Wants=network-online.target
-# Defaults policy: enabled by default; auto-skips when nested in another
-# container (no working network namespacing for the bridge backend).
-# guacamole-postgres must be reachable, hence After= on the DB unit.
 ConditionVirtualization=!container
+Description='MiOS' Apache Guacamole Web
+Wants=network-online.target
 
 [Container]
-Pod=mios-system.pod
-# Image / Port placeholders -- resolved at image build time by
-# automation/15-render-quadlets.sh from mios.toml [image.sidecars].guacamole
-# and [ports].guacamole_web.
-Image=docker.io/guacamole/guacamole:latest
 AutoUpdate=registry
+Image=docker.io/guacamole/guacamole:latest
 Label=org.opencontainers.image.url=http://localhost:${MIOS_PORT_GUACAMOLE_WEB:-8080}/guacamole/
 Label=org.opencontainers.image.documentation=https://guacamole.apache.org/doc/
 Label=io.podman_desktop.openInBrowser=http://localhost:${MIOS_PORT_GUACAMOLE_WEB:-8080}/guacamole/
-
-[Service]
-Restart=on-failure
-RestartSec=10
-Delegate=yes
+Pod=mios-system.pod
 
 [Install]
 WantedBy=multi-user.target default.target
+
+[Service]
+Delegate=yes
+Restart=on-failure
+RestartSec=10

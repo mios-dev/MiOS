@@ -137,26 +137,90 @@ def load_ports(toml_path: str) -> dict:
     return d.get("ports") or {}
 
 
+def load_containers(toml_path: str) -> dict:
+    with open(toml_path, "rb") as f:
+        d = tomllib.load(f)
+    return d.get("containers") or {}
+
+
+def load_networks(toml_path: str) -> dict:
+    with open(toml_path, "rb") as f:
+        d = tomllib.load(f)
+    return d.get("networks") or d.get("network") or {}
+
+
+def load_volumes(toml_path: str) -> dict:
+    with open(toml_path, "rb") as f:
+        d = tomllib.load(f)
+    return d.get("volumes") or d.get("volume") or {}
+
+
+def render_nested_quadlet(name: str, spec: dict, unit_type: str) -> str:
+    lines: list[str] = []
+    lines.append(
+        f"# AI-hint: GENERATED Quadlet {unit_type} '{name}' "
+        f"(WS-7 pods-as-SSOT). DO NOT EDIT -- regenerate via "
+        f"tools/generate-pod-quadlets.py from [{unit_type}s.{name}] in mios.toml."
+    )
+    lines.append(f"# /usr/share/containers/systemd/{name}.{unit_type}")
+    
+    main_section = unit_type.capitalize()
+    
+    def section_key(sec_name: str):
+        if sec_name.lower() == "unit":
+            return (0, sec_name)
+        elif sec_name.lower() == main_section.lower():
+            return (1, sec_name)
+        elif sec_name.lower() == "install":
+            return (2, sec_name)
+        else:
+            return (3, sec_name)
+            
+    for sec in sorted(spec.keys(), key=section_key):
+        sec_data = spec[sec]
+        if not isinstance(sec_data, dict):
+            continue
+        lines.append("")
+        lines.append(f"[{sec}]")
+        for k in sorted(sec_data.keys()):
+            val = sec_data[k]
+            if isinstance(val, list):
+                for item in val:
+                    lines.append(f"{k}={item}")
+            elif isinstance(val, bool):
+                lines.append(f"{k}={'true' if val else 'false'}")
+            else:
+                lines.append(f"{k}={val}")
+                
+    return "\n".join(lines).strip() + "\n"
+
+
 def main(argv: "list[str]") -> int:
     if "--selftest" in argv:
         return _selftest()
     check = "--check" in argv
     pods = load_pods(TOML)
     ports = load_ports(TOML)
-    if not pods:
-        print("[pod-gen] no [pods.*] in SSOT -- nothing to do")
+    containers = load_containers(TOML)
+    networks = load_networks(TOML)
+    volumes = load_volumes(TOML)
+
+    if not pods and not containers and not networks and not volumes:
+        print("[pod-gen] no Quadlets in SSOT -- nothing to do")
         return 0
+
     os.makedirs(OUT_DIR, exist_ok=True)
     drift = 0
     wrote = 0
     member_miss = 0
+
+    # Process pods
     for name in sorted(pods):
         spec = pods[name]
         if not isinstance(spec, dict):
             continue
         text = render_pod_quadlet(name, spec, ports)
         out = os.path.join(OUT_DIR, f"{name}.pod")
-        # Drift gate: every declared member must exist as a .container file.
         for m in [str(x).split("#", 1)[0].strip() for x in (spec.get("members") or [])]:
             if m and not os.path.exists(os.path.join(OUT_DIR, f"{m}.container")):
                 print(f"[pod-gen] WARN {name}: member {m}.container missing", file=sys.stderr)
@@ -175,13 +239,45 @@ def main(argv: "list[str]") -> int:
             f.write(text)
         wrote += 1
         print(f"[pod-gen]   wrote {out}")
+
+    # Process containers, networks, volumes
+    categories = [
+        (containers, "container"),
+        (networks, "network"),
+        (volumes, "volume")
+    ]
+
+    for specs, unit_type in categories:
+        for name in sorted(specs):
+            spec = specs[name]
+            if not isinstance(spec, dict):
+                continue
+            text = render_nested_quadlet(name, spec, unit_type)
+            out = os.path.join(OUT_DIR, f"{name}.{unit_type}")
+            if check:
+                cur = ""
+                if os.path.exists(out):
+                    with open(out, encoding="utf-8") as f:
+                        cur = f.read()
+                if cur != text:
+                    print(f"[pod-gen] DRIFT {out} (regenerate via tools/generate-pod-quadlets.py)",
+                          file=sys.stderr)
+                    drift += 1
+                continue
+            with open(out, "w", encoding="utf-8", newline="\n") as f:
+                f.write(text)
+            wrote += 1
+            print(f"[pod-gen]   wrote {out}")
+
     if check:
         if drift:
-            print(f"[pod-gen] {drift} pod Quadlet(s) DRIFTED from SSOT", file=sys.stderr)
+            print(f"[pod-gen] {drift} Quadlet unit(s) DRIFTED from SSOT", file=sys.stderr)
             return 1
-        print(f"[pod-gen] all {len(pods)} pod Quadlet(s) match SSOT")
+        total_units = len(pods) + len(containers) + len(networks) + len(volumes)
+        print(f"[pod-gen] all {total_units} Quadlet unit(s) match SSOT")
         return 1 if member_miss else 0
-    print(f"[pod-gen] wrote {wrote} pod Quadlet(s) to {OUT_DIR}")
+
+    print(f"[pod-gen] wrote {wrote} Quadlet unit(s) to {OUT_DIR}")
     return 0
 
 
@@ -219,8 +315,29 @@ def _selftest() -> int:
     ck("selftest: doc wrapped as comments", "# Line one rationale" in t)
     ck("selftest: deterministic", render_pod_quadlet("mios-test", spec, mock_ports) == t)
     ck("selftest: trailing newline", t.endswith("\n"))
+
+    # Selftest for nested quadlets
+    container_spec = {
+        "Unit": {
+            "Description": "Test container unit",
+            "After": "network-online.target"
+        },
+        "Container": {
+            "Image": "docker.io/library/alpine:latest",
+            "ContainerName": "test-alpine",
+            "Environment": ["A=1", "B=2"]
+        }
+    }
+    tc = render_nested_quadlet("test", container_spec, "container")
+    ck("selftest nested: has [Unit] section", "[Unit]" in tc)
+    ck("selftest nested: has [Container] section", "[Container]" in tc)
+    ck("selftest nested: has Environment entries", "Environment=A=1" in tc and "Environment=B=2" in tc)
+    ck("selftest nested: Unit section before Container", tc.index("[Unit]") < tc.index("[Container]"))
+    ck("selftest nested: trailing newline", tc.endswith("\n"))
+
     print(f"\n{'ok' if fails == 0 else str(fails) + ' FAILED'}")
     return 1 if fails else 0
+
 
 
 if __name__ == "__main__":

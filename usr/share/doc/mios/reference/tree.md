@@ -291,7 +291,7 @@ deployed `/` IS a git working tree of `mios.git` (`mios_root_git`).
 │   │       └─ manifest.json             AI knowledge-base manifest (OpenAI-compat declarations)
 │   │
 │   ├─ lib/systemd/system/           hand-written units + drop-ins
-│   │   ├─ mios-*.service                MiOS-authored systemd services (agent-pipe, hermes-agent, prefilter, opencode-gateway, mcp, …)
+│   │   ├─ mios-*.service                MiOS-authored systemd services (agent-pipe, mios-gateway-agent, prefilter, opencode-gateway, mcp, …)
 │   │   ├─ mios-*.target                 MiOS targets (firstboot, etc.)
 │   │   ├─ mios-*.path                   path-watch units (e.g. mios-bootc-switch.path)
 │   │   ├─ mios-*.timer                  scheduled jobs
@@ -349,7 +349,7 @@ deployed `/` IS a git working tree of `mios.git` (`mios_root_git`).
 │   ├─ lib/greenboot/check/          greenboot health checks (composefs-verity, etc.)
 │   ├─ lib/repart.d/                 repartition rules
 │   ├─ lib/mios/cloud-init/          cloud-init config files
-│   └─ share/containers/systemd/     vendor Quadlets (mios-llm-light/heavy/heavy-alt/worker@, mios-pgvector, mios-open-webui, mios-searxng, mios-forge, mios-pxe-hub, …)
+│   └─ share/containers/systemd/     vendor Quadlets (mios-llm-light/heavy/worker@, mios-pgvector, mios-open-webui, mios-searxng, mios-forge, mios-pxe-hub, …)
 │
 ├─ etc/                          admin-override surface (3-way merge on bootc upgrade)
 │   ├─ mios/
@@ -402,7 +402,7 @@ named by *function*, not by upstream tool:
 | **Primary inference + embeddings** | `usr/share/mios/llamacpp/mios-llm-light.yaml`, `mios-llm-light.container` | `mios-llm-light` `:11450` -- `llama.cpp` behind the upstream `mios-llm-light` proxy image; multi-model auto-swap + KV-cache paging; serves everyday models, the `mios-opencode` coder model, and embeddings (`nomic-embed-text`, `/v1/embeddings`) |
 | **Heavy GPU lane** | `mios-llm-heavy.container`, `automation/38-vllm-prep.sh` | `mios-llm-heavy` `:11441` (vLLM, served-name `mios-heavy`). Gated off-by-default (VRAM) |
 | **Swarm workers** | `mios-llm-worker@.container` | `mios-llm-worker@` -- single-model templated workers for fan-out |
-| **Orchestration** | `usr/lib/mios/agent-pipe/`, `hermes-agent.service`, `mios-delegation-prefilter.service` | agent-pipe `:8640` (router/refine/council/swarm) → MiOS-Hermes `:8642` (tool-loop, sessions, browser/CDP); prefilter `:8641` (fan-out hints) |
+| **Orchestration** | `usr/lib/mios/agent-pipe/`, `mios-gateway-agent.service`, `mios-delegation-prefilter.service` | agent-pipe `:8640` (router/refine/council/swarm) → MiOS-Hermes `:8642` (tool-loop, sessions, browser/CDP); prefilter `:8641` (fan-out hints) |
 | **Coder peer** | `mios-opencode-gateway.service` | `:8633` opencode → `/v1` council member |
 | **Memory** | `usr/share/mios/postgres/schema-init.sql`, `mios-pgvector.container` | `mios-pgvector` `:5432` -- PostgreSQL + pgvector; the unified agent datastore (accessed via `mios-pg-query` / `mios-db --pg`) |
 | **Tools & federation** | `mios-mcp.service`, `usr/share/mios/ai/v1/mcp.json`, `mios-searxng.container` | MCP (tool surface) + A2A (peer agents); `web_search` backed by SearXNG `:8888` |
@@ -547,7 +547,6 @@ artifacts have been renamed or removed in the live tree).
 |  +- 38-vllm-prep.sh
 |  +- 38-vm-gating.sh
 |  +- 39-desktop-polish.sh
-|  +- 39-opencode.sh
 |  +- 40-composefs-verity.sh
 |  +- 40-flatpak-bake.sh
 |  +- 41-gpu-cdi-toolkits.sh
@@ -841,7 +840,7 @@ artifacts have been renamed or removed in the live tree).
 |  |  |  +- 90-mios-overlayfs.conf
 |  |  |  +- 99-mios-hardening.conf
 |  |  |  `- 99-mios-vmhost.conf
-|  |  +- systemd/                          (mios-* units + per-upstream-unit drop-ins: agent-pipe, hermes-agent, prefilter, opencode-gateway, mcp, gpu/virt/cluster gates, bootc-switch.path, …)
+|  |  +- systemd/                          (mios-* units + per-upstream-unit drop-ins: agent-pipe, mios-gateway-agent, prefilter, opencode-gateway, mcp, gpu/virt/cluster gates, bootc-switch.path, …)
 |  |  +- sysupdate.d/
 |  |  |  `- 50-mios.conf
 |  |  +- sysusers.d/

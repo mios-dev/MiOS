@@ -142,6 +142,21 @@ def _apply(**deps):
             setattr(mios_chat, k, v)
 
 
+class FakeKernel:
+    def __init__(self):
+        import mios_router
+        import mios_dispatcher
+        self.router = mios_router.Router()
+        self.dispatcher = mios_dispatcher.Dispatcher({
+            "chat": mios_chat._kernel_chat_handler,
+            "dispatch": mios_chat._kernel_dispatch_handler,
+            "multi_task": mios_chat._kernel_multi_task_handler,
+            "agent": mios_chat._kernel_agent_handler,
+        })
+    def managers(self):
+        return {"scheduler": True, "memory": True}
+
+
 # Sentinels returned by the stubbed responders -- identity proves WHICH one fired.
 S_VISION, S_CLIENT, S_OS, S_NATIVE, S_LOCAL, S_DAG = (object() for _ in range(6))
 
@@ -157,7 +172,7 @@ def _wire_common(**over):
         _SRC_TURN_HEADER="x-mios-src-turn",
         _TOOL_BACKEND="tb", _TOOL_BACKEND_MODEL="tbm",
         _FASTPATH_VERBS={"open_app"}, _VERB_CATALOG={},
-        KERNEL_ROUTE=False, COUNCIL_DEFAULT=False, _KERNEL=None,
+        KERNEL_ROUTE=False, COUNCIL_DEFAULT=False, _KERNEL=FakeKernel(),
         SWARM_DECOMPOSE_MIN_WORDS=6, AUTONOMOUS_PRIORITY=1.0,
         LOCAL_STATE_FASTPATH=True, NATIVE_LOOP_ENABLE=True, NATIVE_LOOP_MATH_HINT=False,
         # request-scoped ContextVars (fresh objects each case)

@@ -1,40 +1,14 @@
-# AI-hint: Systemd container unit defining the firecrawl worker pod member; it processes Bull queue jobs for web scraping via the firecrawl image, connecting to Redis at 127.0.0.1:6380 without exposing an HTTP port.
-# AI-related: mios-webtools-firecrawl-worker, mios-webtools-redis, mios-webtools, mios-firecrawl, mios-webtools-redis.service, multi-user.target, default.target
+# AI-hint: GENERATED Quadlet container 'mios-webtools-firecrawl-worker' (WS-7 pods-as-SSOT). DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [containers.mios-webtools-firecrawl-worker] in mios.toml.
 # /usr/share/containers/systemd/mios-webtools-firecrawl-worker.container
-# 'MiOS' web-tools POD member 3/4 -- firecrawl WORKER (the Bull queue job
-# processor; no HTTP port).
-#
-# Operator directive 2026-05-24 "make it a pod": runs the SAME locally-built
-# firecrawl v1.0.0 image as the api member, but with the WORKER command. Per
-# the upstream v1.0.0 docker-compose.yaml the worker runs `pnpm run workers`
-# (= "nodemon --exec ts-node src/services/queue-worker.ts"). nodemon is a
-# dev-watcher but it is the COMMAND firecrawl v1.0.0 ships for the worker in
-# its own compose, so we use it verbatim for image fidelity; supervisord is
-# gone, systemd owns the restart policy via [Service] below.
-#
-# Network: inherited from the pod (Network=host). The worker reaches redis on
-# the host loopback (redis://127.0.0.1:6379). It binds no port.
+
 [Unit]
-Description='MiOS' web-tools firecrawl worker (Bull queue processor)
-# The worker only needs redis (it is independent of the api's HTTP surface).
 After=mios-webtools-redis.service
+Description='MiOS' web-tools firecrawl worker (Bull queue processor)
 Wants=mios-webtools-redis.service
 
 [Container]
-Pod=mios-webtools.pod
-Image=${MIOS_FIRECRAWL_IMAGE:-localhost/mios-firecrawl:v1.0.0}
+AutoUpdate=local
 ContainerName=mios-webtools-firecrawl-worker
-WorkingDir=/app
-# Worker command (v1.0.0 compose `worker` service): pnpm run workers.
-Exec=pnpm run workers
-# LAW 6 (UNPRIVILEGED-QUADLETS): User= is mandatory (99-postcheck.sh). Same
-# locally-built firecrawl v1.0.0 image as the api member -- ships no USER and
-# runs as root. Documented root member, as allowed by Law 6.
-User=0
-Group=0
-
-# Same firecrawl self-host env as the api member (the worker reads REDIS_URL,
-# USE_DB_AUTHENTICATION, NUM_WORKERS_PER_QUEUE, BULL_AUTH_KEY, etc.).
 Environment=REDIS_URL=redis://127.0.0.1:6380
 Environment=REDIS_RATE_LIMIT_URL=redis://127.0.0.1:6380
 Environment=HOST=127.0.0.1
@@ -46,15 +20,19 @@ Environment=PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 Environment=BULL_AUTH_KEY=${MIOS_FIRECRAWL_BULL_KEY:-mios}
 Environment=LOGGING_LEVEL=${MIOS_FIRECRAWL_LOG_LEVEL:-INFO}
 Environment=NODE_ENV=production
-
-AutoUpdate=local
+Exec=pnpm run workers
+Group=0
+Image=${MIOS_FIRECRAWL_IMAGE:-localhost/mios-firecrawl:v1.0.0}
 Label=org.opencontainers.image.title=mios-webtools-firecrawl-worker
+Pod=mios-webtools.pod
+User=0
+WorkingDir=/app
+
+[Install]
+WantedBy=multi-user.target default.target
 
 [Service]
 Delegate=yes
 Restart=on-failure
 RestartSec=10s
 TimeoutStartSec=180s
-
-[Install]
-WantedBy=multi-user.target default.target

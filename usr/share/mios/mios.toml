@@ -2834,6 +2834,13 @@ docgen_max_bytes   = 20000000    # refuse inputs/content larger than this (DoS g
   endpoint = ""    # e.g. in /etc/mios: endpoint = "http://100.x.y.z:11438"
   desc     = "A second MiOS/Linux desktop -- screenshot + click + type + verify on its own Wayland session over the tailnet."
 
+# ─── Observability (OpenTelemetry GenAI Spans, T-023) ──────────────────
+# Gates OpenTelemetry instrumentation in the agent-pipe. When enabled,
+# traces and spans are exported to the OTLP collector.
+[observability]
+otel_enable   = false
+otel_endpoint = "http://localhost:4317"
+
 # ─── A2A fleet discovery (cross-node delegation) ──────────────────────
 # mios-a2a-discover probes these candidates + the local self for a live MiOS
 # AgentCard and writes the responders to /etc/mios/ai/v1/a2a-peers.json -- the
@@ -7478,22 +7485,22 @@ members     = [
   "mios-searxng",
   "mios-forge",
   "mios-forgejo-runner",
-  "mios-code-server"
+  "mios-code-server",
+  "mios-otelcol"
 ]
 doc = """Consolidated webtools pod."""
 
 [pods.mios-ai]
 description = "'MiOS' AI pod (inference, heavy, data, ui)"
 network     = "host"
-after       = ["network-online.target", "hermes-agent.service"]
-wants       = ["network-online.target", "hermes-agent.service"]
+after       = ["network-online.target", "mios-gateway-agent.service"]
+wants       = ["network-online.target", "mios-gateway-agent.service"]
 wanted_by   = ["multi-user.target", "default.target"]
 members     = [
   "mios-llm-light",
   "mios-cpu-node",
   "mios-llm-worker@",
   "mios-llm-heavy",
-  "mios-llm-heavy-alt",
   "mios-pgvector",
   "mios-open-webui"
 ]
@@ -9093,7 +9100,7 @@ vllm_lora_adapters_dir = "/var/lib/mios/lora-adapters/"
 vllm_allow_runtime_lora = false   # set true + VLLM_ALLOW_RUNTIME_LORA_UPDATING=true
 llama_cache_reuse_tokens = 0      # 0 = disabled; 256 = enable shared prefix caching
 llama_parallel_slots     = 1      # increase to 4 with cache-reuse enabled
-retire_heavy_alt         = false  # true = stop mios-llm-heavy-alt.container
+retire_heavy_alt         = true  # true = stop mios-llm-heavy-alt.container
 
 [converge.memory]
 sqlite_vec_enable      = false    # true = per-session sqlite-vec scratchpad
@@ -9109,3 +9116,878 @@ distroless_base        = "gcr.io/distroless/python3-debian13"
 rechunk_enable         = false    # true = apply rechunk in CI post-build step
 rechunk_format_version = 1
 mcp_pool_enable        = false    # true = unified MCPClientPool in GatewayWorker
+# ============================================================================
+# [networks.*] -- auto-generated from static units
+# ============================================================================
+
+[networks.mios.Network]
+Gateway = "${MIOS_CORE_NET_GATEWAY:-10.89.0.1}"
+Label = "io.mios.network=core"
+Subnet = "${MIOS_CORE_NET_SUBNET:-10.89.0.0/24}"
+
+# ============================================================================
+# [containers.*] -- auto-generated from static units
+# ============================================================================
+
+[containers.mios-adguard.Container]
+AddCapability = "CAP_NET_BIND_SERVICE"
+ContainerName = "mios-adguard"
+Group = "${MIOS_ADGUARD_GID:-825}"
+Image = "${MIOS_ADGUARD_IMAGE:-docker.io/adguard/adguardhome:latest}"
+Label = [
+  "org.opencontainers.image.title=mios-adguard",
+  "org.opencontainers.image.url=https://github.com/AdguardTeam/AdGuardHome",
+  "io.podman_desktop.openInBrowser=http://localhost:${MIOS_PORT_ADGUARD_UI:-3053}/"
+]
+Pod = "mios-system.pod"
+User = "${MIOS_ADGUARD_UID:-825}"
+Volume = [
+  "/etc/mios/adguard:/opt/adguardhome/conf:Z",
+  "/var/lib/mios/adguard:/opt/adguardhome/work:Z"
+]
+
+[containers.mios-adguard.Install]
+WantedBy = "multi-user.target default.target"
+
+[containers.mios-adguard.Service]
+Delegate = "yes"
+Restart = "on-failure"
+RestartSec = "10s"
+TimeoutStartSec = "300s"
+
+[containers.mios-adguard.Unit]
+After = "network-online.target mios-adguard-firstboot.service"
+ConditionPathExists = "/etc/mios/adguard/AdGuardHome.yaml"
+Description = "'MiOS' AdGuard Home (DNS ad/tracker/malware sinkhole + resolver)"
+Requires = "mios-adguard-firstboot.service"
+Wants = "network-online.target"
+
+[containers.mios-ceph.Container]
+ContainerName = "mios-ceph"
+Exec = "mon"
+Group = "root"
+Image = "quay.io/ceph/ceph:v19"
+Pod = "mios-system.pod"
+User = "root"
+Volume = [
+  "/var/lib/ceph:/var/lib/ceph:Z",
+  "/etc/ceph:/etc/ceph:Z"
+]
+
+[containers.mios-ceph.Install]
+WantedBy = "multi-user.target"
+
+[containers.mios-ceph.Service]
+Delegate = "yes"
+Restart = "always"
+
+[containers.mios-ceph.Unit]
+After = "network-online.target"
+ConditionPathExists = "/etc/ceph/ceph.conf"
+ConditionVirtualization = "!container"
+Description = "'MiOS' Ceph Monitor (Podman-native)"
+Wants = "network-online.target"
+
+[containers.mios-cockpit-link.Container]
+ContainerName = "mios-cockpit-link"
+EnvironmentFile = "/etc/mios/install.env"
+Exec = "tcp-listen:${MIOS_PORT_COCKPIT_LINK:-8091},bind=0.0.0.0,fork,reuseaddr tcp:host.containers.internal:9090"
+Group = "65534"
+Image = "docker.io/alpine/socat:latest@sha256:44e7b87dfeddb0f999ce75eedfa140dc97ea5bf7decbd04b2cef6adb5cc331fe"
+Label = [
+  "org.opencontainers.image.title=mios-cockpit-link",
+  "org.opencontainers.image.url=https://localhost:9090/",
+  "org.opencontainers.image.documentation=https://cockpit-project.org/documentation.html",
+  "io.podman_desktop.openInBrowser=https://localhost:9090/"
+]
+Pod = "mios-system.pod"
+User = "65534"
+
+[containers.mios-cockpit-link.Install]
+WantedBy = "multi-user.target default.target"
+
+[containers.mios-cockpit-link.Service]
+Delegate = "yes"
+Restart = "on-failure"
+RestartSec = "15s"
+TimeoutStartSec = "60s"
+
+[containers.mios-cockpit-link.Unit]
+After = "network-online.target cockpit.socket"
+ConditionPathExists = "/usr/lib/systemd/system/cockpit.socket"
+ConditionVirtualization = [
+  "!wsl",
+  "!container"
+]
+Description = "'MiOS' Cockpit web-console discovery shim (Podman Desktop link)"
+Documentation = "https://cockpit-project.org/"
+Wants = "network-online.target"
+
+[containers.mios-code-server.Container]
+AutoUpdate = "registry"
+ContainerName = "mios-code-server"
+Environment = [
+  "PASSWORD=mios",
+  "SUDO_PASSWORD=mios",
+  "DEFAULT_WORKSPACE=/mnt/mios-root",
+  "BIND_ADDR=0.0.0.0:${MIOS_PORT_CODE_SERVER:-8800}",
+  "GIT_CONFIG_COUNT=1",
+  "GIT_CONFIG_KEY_0=safe.directory",
+  "GIT_CONFIG_VALUE_0=/mnt/mios-root"
+]
+EnvironmentFile = "/etc/mios/install.env"
+Exec = "--bind-addr 0.0.0.0:${MIOS_PORT_CODE_SERVER:-8800}"
+Group = "0"
+Image = "ghcr.io/coder/code-server:latest"
+Label = [
+  "org.opencontainers.image.title=mios-code-server",
+  "org.opencontainers.image.url=http://localhost:${MIOS_PORT_CODE_SERVER:-8800}/",
+  "org.opencontainers.image.documentation=https://github.com/coder/code-server",
+  "io.podman_desktop.openInBrowser=http://localhost:${MIOS_PORT_CODE_SERVER:-8800}/"
+]
+Pod = "mios-webtools.pod"
+SecurityLabelDisable = "true"
+User = "0"
+Volume = [
+  "/var/lib/mios/code-server:/home/coder",
+  "/:/mnt/mios-root:rw,rslave"
+]
+
+[containers.mios-code-server.Install]
+WantedBy = "multi-user.target default.target"
+
+[containers.mios-code-server.Service]
+Delegate = "yes"
+Restart = "on-failure"
+RestartSec = "10s"
+TimeoutStartSec = "600s"
+
+[containers.mios-code-server.Unit]
+After = "network-online.target mios-forge.service"
+Description = "'MiOS' code-server (VS Code in a browser)"
+Documentation = "https://github.com/coder/code-server"
+Wants = "network-online.target"
+
+[containers.mios-cpu-node.Container]
+ContainerName = "mios-cpu-node"
+Entrypoint = "/app/llama-server"
+Environment = "HOME=/var/lib/mios/llamacpp"
+Exec = "--model /models/granite-4.1-8b.gguf --host 0.0.0.0 --port ${MIOS_PORT_CPU_NODE:-11451} --ctx-size 131072 --flash-attn on --cache-type-k q4_0 --cache-type-v q4_0 --parallel 1 --threads ${MIOS_CPU_NODE_THREADS:-14} --n-gpu-layers 0 --jinja --alias mios-cpu --slot-save-path ${MIOS_LLAMACPP_SLOT_DIR:-/var/lib/mios/llamacpp/slots}"
+Group = "${MIOS_LLAMACPP_GID:-827}"
+Image = "${MIOS_LLM_LIGHT_IMAGE:-ghcr.io/mostlygeek/llama-swap:cuda}"
+Label = "org.opencontainers.image.title=mios-cpu-node"
+Pod = "mios-ai.pod"
+User = "${MIOS_LLAMACPP_UID:-827}"
+Volume = [
+  "/usr/share/mios/llamacpp/models:/models:ro,Z",
+  "${MIOS_LLAMACPP_SLOT_DIR:-/var/lib/mios/llamacpp/slots}:${MIOS_LLAMACPP_SLOT_DIR:-/var/lib/mios/llamacpp/slots}:Z"
+]
+
+[containers.mios-cpu-node.Install]
+WantedBy = "multi-user.target default.target"
+
+[containers.mios-cpu-node.Service]
+Delegate = "yes"
+Restart = "on-failure"
+RestartSec = "10s"
+TimeoutStartSec = "300s"
+
+[containers.mios-cpu-node.Unit]
+After = "network-online.target"
+ConditionPathExists = "/usr/share/mios/llamacpp/models/granite-4.1-8b.gguf"
+Description = "'MiOS' CPU inference node (always-on / gaming-immune last-resort lane)"
+Wants = "network-online.target"
+
+[containers.mios-crowdsec-dashboard.Container]
+AutoUpdate = "registry"
+ContainerName = "mios-crowdsec-dashboard"
+Group = "0"
+Image = "docker.io/crowdsecurity/crowdsec:latest"
+Pod = "mios-system.pod"
+User = "0"
+Volume = "/var/lib/crowdsec:/var/lib/crowdsec:Z"
+
+[containers.mios-crowdsec-dashboard.Install]
+WantedBy = "multi-user.target default.target"
+
+[containers.mios-crowdsec-dashboard.Service]
+Delegate = "yes"
+Restart = "on-failure"
+RestartSec = "10"
+
+[containers.mios-crowdsec-dashboard.Unit]
+After = "network-online.target crowdsec.service"
+ConditionPathExists = "/etc/crowdsec/config.yaml"
+Description = "'MiOS' CrowdSec Dashboard"
+Wants = "network-online.target"
+
+[containers.mios-forge.Container]
+AddCapability = "CAP_NET_BIND_SERVICE"
+ContainerName = "mios-forge"
+Environment = [
+  "USER=git",
+  "USER_UID=816",
+  "USER_GID=816",
+  "FORGEJO__server__ROOT_URL=http://localhost:${MIOS_PORT_FORGE_HTTP:-8300}/",
+  "FORGEJO__server__HTTP_ADDR=0.0.0.0",
+  "GITEA__server__HTTP_ADDR=0.0.0.0",
+  "FORGEJO__server__HTTP_PORT=${MIOS_PORT_FORGE_HTTP:-8300}",
+  "FORGEJO__server__START_SSH_SERVER=true",
+  "FORGEJO__server__SSH_PORT=49922",
+  "FORGEJO__server__SSH_LISTEN_HOST=0.0.0.0",
+  "FORGEJO__server__SSH_LISTEN_PORT=49922",
+  "FORGEJO__database__DB_TYPE=sqlite3",
+  "FORGEJO__database__PATH=/data/forgejo.db",
+  "FORGEJO__service__DISABLE_REGISTRATION=true",
+  "FORGEJO__service__REQUIRE_SIGNIN_VIEW=false",
+  "FORGEJO__security__INSTALL_LOCK=true",
+  "FORGEJO__log__LEVEL=Info",
+  "FORGEJO__log__MODE=console"
+]
+EnvironmentFile = "/etc/mios/install.env"
+Group = "0"
+Image = "codeberg.org/forgejo/forgejo:12"
+Label = [
+  "org.opencontainers.image.title=mios-forge",
+  "org.opencontainers.image.url=http://localhost:${MIOS_PORT_FORGE_HTTP:-8300}/",
+  "org.opencontainers.image.documentation=https://forgejo.org/docs/latest/",
+  "io.podman_desktop.openInBrowser=http://localhost:${MIOS_PORT_FORGE_HTTP:-8300}/"
+]
+Pod = "mios-webtools.pod"
+User = "0"
+Volume = [
+  "/srv/mios/forge:/data:Z",
+  "/etc/mios/forge:/etc/mios/forge:Z,ro"
+]
+
+[containers.mios-forge.Install]
+WantedBy = "multi-user.target default.target"
+
+[containers.mios-forge.Service]
+Delegate = "yes"
+Restart = "on-failure"
+RestartSec = "10s"
+TimeoutStartSec = "300s"
+
+[containers.mios-forge.Unit]
+After = "network-online.target"
+ConditionPathIsDirectory = "/etc/mios/forge"
+ConditionVirtualization = [
+  "|!container",
+  "|wsl"
+]
+Description = "'MiOS' Git forge (Forgejo)"
+Wants = "network-online.target"
+
+[containers.mios-forgejo-runner.Container]
+ContainerName = "mios-forgejo-runner"
+Entrypoint = "/bin/forgejo-runner"
+Environment = [
+  "FORGEJO_RUNNER_NAME=mios-self-hosted",
+  "FORGEJO_RUNNER_LABELS=mios-self-hosted,podman,bootc,fedora-44",
+  "FORGEJO_RUNNER_DEFAULT_LABELS=mios-self-hosted"
+]
+EnvironmentFile = "/etc/mios/forge/runner-token"
+Exec = "daemon"
+Group = "0"
+Image = "code.forgejo.org/forgejo/runner:7"
+Label = [
+  "org.opencontainers.image.title=mios-forgejo-runner",
+  "org.opencontainers.image.documentation=https://forgejo.org/docs/latest/admin/actions/",
+  "io.podman_desktop.openInBrowser=http://localhost:${MIOS_PORT_FORGE_HTTP:-8300}/-/admin/actions/runners"
+]
+Pod = "mios-webtools.pod"
+PodmanArgs = "--privileged"
+User = "0"
+Volume = [
+  "/var/lib/containers/storage:/var/lib/containers/storage:Z",
+  "/srv/mios/forge-runner:/data:Z",
+  "/etc/mios/forge:/etc/mios/forge:Z,ro",
+  "/var/lib/mios/forge-runner:/var/lib/mios/forge-runner:Z"
+]
+
+[containers.mios-forgejo-runner.Install]
+WantedBy = "multi-user.target default.target"
+
+[containers.mios-forgejo-runner.Service]
+Delegate = "yes"
+Restart = "on-failure"
+RestartSec = "15s"
+TimeoutStartSec = "300s"
+
+[containers.mios-forgejo-runner.Unit]
+After = "network-online.target mios-forge.service mios-forgejo-runner-firstboot.service"
+ConditionPathExists = "/srv/mios/forge-runner/.runner"
+ConditionVirtualization = [
+  "|!container",
+  "|wsl"
+]
+Description = "'MiOS' Forgejo Runner (self-hosted CI for /=git working tree)"
+Documentation = "https://forgejo.org/docs/latest/admin/actions/"
+Requires = "mios-forge.service"
+Wants = "network-online.target mios-forgejo-runner-firstboot.service"
+
+[containers.mios-guacamole-postgres.Container]
+AutoUpdate = "registry"
+ContainerName = "mios-guacamole-postgres"
+Group = "mios-postgres"
+Image = "docker.io/library/postgres:latest"
+Pod = "mios-system.pod"
+User = "mios-postgres"
+
+[containers.mios-guacamole-postgres.Install]
+WantedBy = "multi-user.target default.target"
+
+[containers.mios-guacamole-postgres.Service]
+Delegate = "yes"
+Restart = "on-failure"
+RestartSec = "10"
+
+[containers.mios-guacamole-postgres.Unit]
+After = "network-online.target"
+ConditionVirtualization = "!container"
+Description = "'MiOS' Guacamole PostgreSQL"
+Wants = "network-online.target"
+
+[containers.mios-guacamole.Container]
+AutoUpdate = "registry"
+Image = "docker.io/guacamole/guacamole:latest"
+Label = [
+  "org.opencontainers.image.url=http://localhost:${MIOS_PORT_GUACAMOLE_WEB:-8080}/guacamole/",
+  "org.opencontainers.image.documentation=https://guacamole.apache.org/doc/",
+  "io.podman_desktop.openInBrowser=http://localhost:${MIOS_PORT_GUACAMOLE_WEB:-8080}/guacamole/"
+]
+Pod = "mios-system.pod"
+
+[containers.mios-guacamole.Install]
+WantedBy = "multi-user.target default.target"
+
+[containers.mios-guacamole.Service]
+Delegate = "yes"
+Restart = "on-failure"
+RestartSec = "10"
+
+[containers.mios-guacamole.Unit]
+After = "network-online.target mios-guacamole-postgres.service"
+ConditionVirtualization = "!container"
+Description = "'MiOS' Apache Guacamole Web"
+Wants = "network-online.target"
+
+[containers.mios-guacd.Container]
+AutoUpdate = "registry"
+ContainerName = "mios-guacd"
+Group = "mios-guacd"
+Image = "docker.io/guacamole/guacd:latest"
+Pod = "mios-system.pod"
+User = "mios-guacd"
+
+[containers.mios-guacd.Install]
+WantedBy = "multi-user.target default.target"
+
+[containers.mios-guacd.Service]
+Delegate = "yes"
+Restart = "on-failure"
+RestartSec = "10"
+
+[containers.mios-guacd.Unit]
+After = "network-online.target"
+ConditionVirtualization = "!container"
+Description = "'MiOS' Apache Guacamole Daemon"
+Wants = "network-online.target"
+
+[containers.mios-k3s.Container]
+ContainerName = "mios-k3s"
+Environment = "K3S_TOKEN=mios-cluster-secret"
+Exec = "server --disable=traefik"
+Group = "root"
+Image = "${MIOS_K3S_IMAGE:-docker.io/rancher/k3s:v1.32.1-k3s1}"
+Pod = "mios-system.pod"
+PodmanArgs = "--privileged"
+User = "root"
+Volume = [
+  "/var/lib/rancher/k3s:/var/lib/rancher/k3s:Z",
+  "/usr/share/mios/k3s-manifests:/var/lib/rancher/k3s/server/manifests:ro"
+]
+
+[containers.mios-k3s.Install]
+WantedBy = "multi-user.target"
+
+[containers.mios-k3s.Service]
+Delegate = "yes"
+Restart = "always"
+
+[containers.mios-k3s.Unit]
+After = "network-online.target"
+ConditionVirtualization = [
+  "!wsl",
+  "!container"
+]
+Description = "'MiOS' K3s Service (Podman-native)"
+Wants = "network-online.target"
+
+[containers.mios-llm-heavy.Container]
+AddDevice = "${MIOS_GPU_DEVICE:-nvidia.com/gpu=all}"
+ContainerName = "mios-llm-heavy"
+Environment = [
+  "HF_HUB_OFFLINE=1",
+  "TRANSFORMERS_OFFLINE=1",
+  "VLLM_NO_USAGE_STATS=1",
+  "DO_NOT_TRACK=1",
+  "VLLM_USE_V1=${MIOS_VLLM_USE_V1:-true}"
+]
+Exec = "--model /models --served-model-name ${MIOS_VLLM_SERVED_NAME:-mios-heavy} --host 0.0.0.0 --port ${MIOS_PORT_VLLM:-11441} --gpu-memory-utilization ${MIOS_VLLM_GPU_UTIL:-0.45} --max-model-len ${MIOS_VLLM_MAX_MODEL_LEN:-16384} --enable-prefix-caching"
+Group = "${MIOS_VLLM_GID:-815}"
+Image = "${MIOS_VLLM_IMAGE:-docker.io/vllm/vllm-openai:latest}"
+Label = [
+  "org.opencontainers.image.title=mios-llm-heavy",
+  "org.opencontainers.image.url=http://localhost:11441/v1/models",
+  "io.podman_desktop.openInBrowser=http://localhost:11441/v1/models"
+]
+Pod = "mios-ai.pod"
+User = "${MIOS_VLLM_UID:-815}"
+Volume = "/usr/share/mios/vllm/model:/models:ro,Z"
+
+[containers.mios-llm-heavy.Install]
+WantedBy = "multi-user.target default.target"
+
+[containers.mios-llm-heavy.Service]
+Delegate = "yes"
+Restart = "on-failure"
+RestartSec = "15"
+TimeoutStartSec = "600s"
+
+[containers.mios-llm-heavy.Unit]
+After = "network-online.target mios-cdi-detect.service"
+ConditionPathExists = "/usr/share/mios/vllm/model/config.json"
+Description = "'MiOS' vLLM heavy lane (OpenAI /v1, PagedAttention + APC; gated)"
+Wants = "network-online.target"
+
+[containers.mios-llm-light.Container]
+AddDevice = "${MIOS_GPU_DEVICE:-nvidia.com/gpu=all}"
+ContainerName = "mios-llm-light"
+Entrypoint = "/app/llama-swap"
+Environment = [
+  "HOME=/var/lib/mios/llamacpp",
+  "LD_LIBRARY_PATH=/usr/lib/wsl/lib:/usr/local/cuda/lib64"
+]
+EnvironmentFile = "/etc/mios/install.env"
+Exec = "--config /app/config.yaml --listen 0.0.0.0:${MIOS_PORT_LLM_LIGHT:-11450}"
+Group = "${MIOS_LLAMACPP_GID:-827}"
+Image = "${MIOS_LLM_LIGHT_IMAGE:-ghcr.io/mostlygeek/llama-swap:cuda}"
+Label = [
+  "org.opencontainers.image.title=mios-llm-light",
+  "org.opencontainers.image.documentation=https://github.com/mostlygeek/llama-swap"
+]
+Pod = "mios-ai.pod"
+User = "${MIOS_LLAMACPP_UID:-827}"
+Volume = [
+  "/usr/share/mios/llamacpp/models:/models:ro,Z",
+  "/usr/share/mios/llamacpp/mios-llm-light.yaml:/app/config.yaml:ro,Z",
+  "${MIOS_LLAMACPP_SLOT_DIR:-/var/lib/mios/llamacpp/slots}:${MIOS_LLAMACPP_SLOT_DIR:-/var/lib/mios/llamacpp/slots}:Z"
+]
+
+[containers.mios-llm-light.Install]
+WantedBy = "multi-user.target default.target"
+
+[containers.mios-llm-light.Service]
+Delegate = "yes"
+Restart = "on-failure"
+RestartSec = "10s"
+TimeoutStartSec = "180s"
+
+[containers.mios-llm-light.Unit]
+After = "network-online.target"
+ConditionPathExists = "/usr/share/mios/llamacpp/models/.ready"
+Description = "'MiOS' LLM-Light (llama.cpp multi-model + KV-paging lane, served via the upstream llama-swap proxy, FOSS)"
+Wants = "network-online.target"
+
+[containers."mios-llm-worker@".Container]
+AddDevice = "${MIOS_GPU_DEVICE:-nvidia.com/gpu=all}"
+ContainerName = "mios-llm-worker-%i"
+Entrypoint = "/app/llama-server"
+Environment = [
+  "HOME=/var/lib/mios/llamacpp",
+  "LD_LIBRARY_PATH=/usr/lib/wsl/lib:/usr/local/cuda/lib64"
+]
+EnvironmentFile = "-/run/mios/swarm/%i.env"
+Exec = "--model /models/${WORKER_MODEL} --host 0.0.0.0 --port ${WORKER_PORT} --n-gpu-layers ${WORKER_NGL:-99} --ctx-size ${WORKER_CTX:-8192} --slot-save-path ${MIOS_LLAMACPP_SLOT_DIR:-/var/lib/mios/llamacpp/slots}/%i --parallel 1 --cont-batching --jinja --alias ${WORKER_MODEL}"
+Group = "${MIOS_LLAMACPP_GID:-827}"
+Image = "${MIOS_LLM_LIGHT_IMAGE:-ghcr.io/mostlygeek/llama-swap:cuda}"
+Label = "org.opencontainers.image.title=mios-llm-worker-%i"
+Pod = "mios-ai.pod"
+User = "${MIOS_LLAMACPP_UID:-827}"
+Volume = [
+  "/usr/share/mios/llamacpp/models:/models:ro,Z",
+  "${MIOS_LLAMACPP_SLOT_DIR:-/var/lib/mios/llamacpp/slots}/%i:${MIOS_LLAMACPP_SLOT_DIR:-/var/lib/mios/llamacpp/slots}/%i:Z"
+]
+
+[containers."mios-llm-worker@".Install]
+WantedBy = "multi-user.target default.target"
+
+[containers."mios-llm-worker@".Service]
+Delegate = "yes"
+Restart = "on-failure"
+RestartSec = "10s"
+TimeoutStartSec = "180s"
+
+[containers."mios-llm-worker@".Unit]
+After = "network-online.target mios-cdi-detect.service"
+ConditionPathExists = [
+  "/run/mios/swarm/%i.env",
+  "/usr/share/mios/llamacpp/models/.ready"
+]
+Description = "'MiOS' swarm worker %i (single-model llama-server, FOSS)"
+Wants = "network-online.target"
+
+[containers.mios-open-webui.Container]
+AutoUpdate = "registry"
+ContainerName = "mios-open-webui"
+Environment = [
+  "OPENAI_API_BASE_URL=http://host.containers.internal:${MIOS_PORT_AGENT_PIPE:-8640}/v1",
+  "ENABLE_OLLAMA=False",
+  "OLLAMA_BASE_URL=http://host.containers.internal:${MIOS_PORT_LLM_LIGHT:-8450}",
+  "WEBUI_NAME=\"MiOS AI\"",
+  "WEBUI_SECRET_KEY=mios-stable-secret-change-me",
+  "ENABLE_SIGNUP=False",
+  "DEFAULT_USER_ROLE=admin",
+  "DEFAULT_MODELS=MiOS AI",
+  "PORT=${MIOS_PORT_OPEN_WEBUI:-8033}",
+  "ENABLE_WEB_SEARCH=True",
+  "ENABLE_IMAGE_GENERATION=True",
+  "ENABLE_CODE_INTERPRETER=True",
+  "ENABLE_API_KEYS=True",
+  "ENABLE_API_KEYS_ENDPOINT_RESTRICTIONS=False",
+  "ENABLE_FORWARD_USER_INFO_HEADERS=True",
+  "RAG_TOP_K=5",
+  "RAG_RELEVANCE_THRESHOLD=0.5",
+  "ENABLE_RAG_HYBRID_SEARCH=True",
+  "RAG_EMBEDDING_ENGINE=openai",
+  "RAG_EMBEDDING_MODEL=nomic-embed-text",
+  "RAG_OPENAI_API_BASE_URL=http://host.containers.internal:${MIOS_PORT_LLM_LIGHT:-8450}/v1",
+  "RAG_OPENAI_API_KEY=sk-noop",
+  "TASK_MODEL_EXTERNAL=hermes-agent",
+  "ENABLE_TITLE_GENERATION=True",
+  "ENABLE_TAGS_GENERATION=True",
+  "ENABLE_FOLLOW_UP_GENERATION=True",
+  "ENABLE_AUTOCOMPLETE_GENERATION=True",
+  "\"TITLE_GENERATION_PROMPT_TEMPLATE=Output a 3 to 6 word title for this chat, in the same language the chat used. Title only, no quotes, no preamble, no thinking. Chat:\\n{{MESSAGES:END:2}}\"",
+  "\"TAGS_GENERATION_PROMPT_TEMPLATE=Output 1 to 3 short topic tags for this chat (single words or hyphenated, in the chat language). JSON only: {\\\"tags\\\":[\\\"\\\",\\\"\\\"]}. Chat:\\n{{MESSAGES:END:4}}\"",
+  "\"FOLLOW_UP_GENERATION_PROMPT_TEMPLATE=Suggest 3 short follow up actions the user might want next, grounded in the CURRENT chat content and the operator's CURRENT system state. Each is a single phrase or short imperative the user could click, in the same language and tone the chat used. JSON only: {\\\"follow_ups\\\":[\\\"\\\",\\\"\\\",\\\"\\\"]}. Chat:\\n{{MESSAGES:END:6}}\"",
+  "\"AUTOCOMPLETE_GENERATION_PROMPT_TEMPLATE=Continue the user partial input naturally, in their language. Output ONLY the completion text, no quotes, no preamble. Input so far: {{PROMPT}}\""
+]
+EnvironmentFile = [
+  "/etc/mios/hermes/api.env",
+  "/etc/mios/install.env"
+]
+Image = "ghcr.io/open-webui/open-webui:main"
+Label = [
+  "org.opencontainers.image.title=mios-open-webui",
+  "org.opencontainers.image.url=http://localhost:${MIOS_PORT_OPEN_WEBUI:-8033}/",
+  "io.podman_desktop.openInBrowser=http://localhost:${MIOS_PORT_OPEN_WEBUI:-8033}/"
+]
+Pod = "mios-ai.pod"
+Volume = [
+  "/var/lib/mios/open-webui:/app/backend/data:Z",
+  "/usr/share/mios:/usr/share/mios:ro",
+  "/etc/mios:/etc/mios:ro",
+  "/var/lib/mios/hermes-tail:/var/lib/mios/hermes-tail:ro",
+  "/var/lib/mios/delegation-prefilter:/var/lib/mios/delegation-prefilter:ro",
+  "/var/lib/mios/agent-nudger:/var/lib/mios/agent-nudger:ro",
+  "/var/lib/mios/log-watcher:/var/lib/mios/log-watcher:ro",
+  "/var/lib/mios/cron-director:/var/lib/mios/cron-director:ro",
+  "/usr/local/sbin:/usr/local/sbin:ro",
+  "/usr/libexec/mios:/usr/libexec/mios:ro",
+  "/var/lib/mios/agent-env:/var/lib/mios/agent-env:ro",
+  "/run/mios-launcher:/run/mios-launcher",
+  "/mnt/c:/mnt/c:ro",
+  "/mnt/m:/mnt/m:ro"
+]
+
+[containers.mios-open-webui.Install]
+WantedBy = "multi-user.target"
+
+[containers.mios-open-webui.Service]
+Delegate = "yes"
+Restart = "on-failure"
+RestartSec = "10s"
+TimeoutStartSec = "300s"
+
+[containers.mios-open-webui.Unit]
+After = "network-online.target hermes-agent.service"
+ConditionPathExists = "/etc/mios/hermes/api.env"
+Description = "'MiOS' Open WebUI"
+Wants = "network-online.target hermes-agent.service"
+
+[containers.mios-pgvector.Container]
+ContainerName = "mios-pgvector"
+Environment = [
+  "POSTGRES_USER=${MIOS_PG_USER:-mios}",
+  "POSTGRES_PASSWORD=${MIOS_PG_PASS:-mios}",
+  "POSTGRES_DB=${MIOS_PG_DB:-mios}",
+  "PGDATA=/var/lib/postgresql/data/pgdata"
+]
+Exec = "postgres -c port=${MIOS_PORT_PGVECTOR:-5432} -c listen_addresses=${MIOS_PG_BIND_ADDR:-127.0.0.1} -c hnsw.iterative_scan=${MIOS_PG_HNSW_ITERATIVE_SCAN:-strict_order} -c hnsw.max_scan_tuples=${MIOS_PG_HNSW_MAX_SCAN_TUPLES:-20000} -c hnsw.scan_mem_multiplier=${MIOS_PG_HNSW_SCAN_MEM_MULTIPLIER:-1}"
+Group = "${MIOS_PGVECTOR_GID:-826}"
+Image = "${MIOS_PGVECTOR_IMAGE:-docker.io/pgvector/pgvector:0.8.3-pg17}"
+Label = [
+  "org.opencontainers.image.title=mios-pgvector",
+  "org.opencontainers.image.documentation=https://github.com/pgvector/pgvector"
+]
+Pod = "mios-ai.pod"
+User = "${MIOS_PGVECTOR_UID:-826}"
+Volume = [
+  "${MIOS_PG_DATA_DIR:-/var/lib/mios/pgvector}:/var/lib/postgresql/data:Z",
+  "/usr/share/mios/postgres/schema-init.sql:/docker-entrypoint-initdb.d/10-mios-schema.sql:ro"
+]
+
+[containers.mios-pgvector.Install]
+WantedBy = "multi-user.target default.target"
+
+[containers.mios-pgvector.Service]
+Delegate = "yes"
+ExecStartPost = "/usr/bin/bash -c 'for i in $(seq 1 45); do /usr/bin/podman exec mios-pgvector pg_isready -U ${MIOS_PG_USER:-mios} -d ${MIOS_PG_DB:-mios} -q && break; sleep 2; done; /usr/bin/podman exec mios-pgvector psql -v ON_ERROR_STOP=0 -U ${MIOS_PG_USER:-mios} -d ${MIOS_PG_DB:-mios} -f /docker-entrypoint-initdb.d/10-mios-schema.sql || true'"
+Restart = "on-failure"
+RestartSec = "10s"
+TimeoutStartSec = "180s"
+
+[containers.mios-pgvector.Unit]
+After = "network-online.target"
+ConditionVirtualization = [
+  "|!container",
+  "|wsl"
+]
+Description = "'MiOS' PostgreSQL + pgvector (unified agent-plane datastore, FOSS)"
+Wants = "network-online.target"
+
+[containers.mios-pxe-hub.Container]
+AutoUpdate = "registry"
+Exec = "/matchbox -address 0.0.0.0:8081 -data-path /var/lib/matchbox/data -assets-path /var/lib/matchbox/assets"
+Group = "0"
+Image = "quay.io/poseidon/matchbox:latest"
+Pod = "mios-system.pod"
+User = "0"
+Volume = [
+  "/var/lib/mios/pxe/config:/var/lib/matchbox/data:Z",
+  "/var/lib/mios/pxe/assets:/var/lib/matchbox/assets:Z"
+]
+
+[containers.mios-pxe-hub.Install]
+WantedBy = "multi-user.target default.target"
+
+[containers.mios-pxe-hub.Service]
+Delegate = "yes"
+Restart = "on-failure"
+RestartSec = "10"
+
+[containers.mios-pxe-hub.Unit]
+After = "network-online.target"
+ConditionVirtualization = [
+  "!wsl",
+  "!container"
+]
+Description = "'MiOS' PXE Boot Hub"
+Wants = "network-online.target"
+
+[containers.mios-searxng.Container]
+ContainerName = "mios-searxng"
+Environment = [
+  "SEARXNG_BASE_URL=http://localhost:${MIOS_PORT_SEARXNG:-8899}/",
+  "SEARXNG_BIND_ADDRESS=127.0.0.1:${MIOS_PORT_SEARXNG:-8899}",
+  "BIND_ADDRESS=127.0.0.1:${MIOS_PORT_SEARXNG:-8899}",
+  "GRANIAN_HOST=127.0.0.1",
+  "GRANIAN_PORT=${MIOS_PORT_SEARXNG:-8899}",
+  "GRANIAN_WORKERS=2",
+  "GRANIAN_BLOCKING_THREADS=8",
+  "SEARXNG_LOG_LEVEL=WARNING"
+]
+EnvironmentFile = "/etc/mios/install.env"
+Group = "${MIOS_SEARXNG_GID:-818}"
+Image = "docker.io/searxng/searxng:latest"
+Label = [
+  "org.opencontainers.image.title=mios-searxng",
+  "org.opencontainers.image.url=http://localhost:${MIOS_PORT_SEARXNG:-8899}/",
+  "org.opencontainers.image.documentation=https://docs.searxng.org/",
+  "io.podman_desktop.openInBrowser=http://localhost:${MIOS_PORT_SEARXNG:-8899}/"
+]
+Pod = "mios-webtools.pod"
+User = "${MIOS_SEARXNG_UID:-818}"
+Volume = [
+  "/etc/mios/searxng:/etc/searxng:Z",
+  "/var/cache/mios/searxng:/var/cache/searxng:Z"
+]
+
+[containers.mios-searxng.Install]
+WantedBy = "multi-user.target default.target"
+
+[containers.mios-searxng.Service]
+Delegate = "yes"
+Restart = "on-failure"
+RestartSec = "10s"
+TimeoutStartSec = "300s"
+
+[containers.mios-searxng.Unit]
+After = "network-online.target"
+ConditionPathIsDirectory = "/etc/mios/searxng"
+Description = "'MiOS' SearXNG metasearch (privacy-respecting search proxy)"
+Wants = "network-online.target"
+
+[containers.mios-webtools-crawl4ai.Container]
+AutoUpdate = "local"
+ContainerName = "mios-webtools-crawl4ai"
+Environment = [
+  "MIOS_CRAWL_CDP_URL=${MIOS_CRAWL_CDP_URL:-http://127.0.0.1:9222}",
+  "MIOS_PORT_CRAWL4AI=${MIOS_PORT_CRAWL4AI:-11235}",
+  "MIOS_CRAWL_BIND=127.0.0.1",
+  "MIOS_CRAWL_CAMOUFOX=${MIOS_CRAWL_CAMOUFOX:-true}",
+  "MIOS_CRAWL_MIN_CHARS=${MIOS_CRAWL_MIN_CHARS:-200}"
+]
+Group = "0"
+Image = "${MIOS_CRAWL4AI_IMAGE:-localhost/mios-crawl4ai-slim:latest}"
+Label = [
+  "org.opencontainers.image.title=mios-webtools-crawl4ai",
+  "io.podman_desktop.openInBrowser=http://localhost:11235/healthz"
+]
+Pod = "mios-webtools.pod"
+User = "0"
+Volume = "/usr/lib/mios/crawl4ai/mios-crawl4ai-service.py:/app/mios-crawl4ai-service.py:ro"
+
+[containers.mios-webtools-crawl4ai.Install]
+WantedBy = "multi-user.target default.target"
+
+[containers.mios-webtools-crawl4ai.Service]
+Delegate = "yes"
+Restart = "on-failure"
+RestartSec = "10s"
+TimeoutStartSec = "120s"
+
+[containers.mios-webtools-crawl4ai.Unit]
+Description = "'MiOS' web-tools crawl4ai slim engine (Chrome-CDP primary + camoufox fallback)"
+
+[containers.mios-webtools-firecrawl-api.Container]
+AutoUpdate = "local"
+ContainerName = "mios-webtools-firecrawl-api"
+Environment = [
+  "REDIS_URL=redis://127.0.0.1:6380",
+  "REDIS_RATE_LIMIT_URL=redis://127.0.0.1:6380",
+  "HOST=127.0.0.1",
+  "PORT=${MIOS_PORT_FIRECRAWL:-3002}",
+  "USE_DB_AUTHENTICATION=false",
+  "NUM_WORKERS_PER_QUEUE=${MIOS_FIRECRAWL_WORKERS:-2}",
+  "PLAYWRIGHT_MICROSERVICE_URL=",
+  "PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium",
+  "BULL_AUTH_KEY=${MIOS_FIRECRAWL_BULL_KEY:-mios}",
+  "LOGGING_LEVEL=${MIOS_FIRECRAWL_LOG_LEVEL:-INFO}",
+  "NODE_ENV=production"
+]
+Exec = "pnpm run start:production"
+Group = "0"
+Image = "${MIOS_FIRECRAWL_IMAGE:-localhost/mios-firecrawl:v1.0.0}"
+Label = [
+  "org.opencontainers.image.title=mios-webtools-firecrawl-api",
+  "io.podman_desktop.openInBrowser=http://localhost:3002/"
+]
+Pod = "mios-webtools.pod"
+User = "0"
+WorkingDir = "/app"
+
+[containers.mios-webtools-firecrawl-api.Install]
+WantedBy = "multi-user.target default.target"
+
+[containers.mios-webtools-firecrawl-api.Service]
+Delegate = "yes"
+Restart = "on-failure"
+RestartSec = "10s"
+TimeoutStartSec = "180s"
+
+[containers.mios-webtools-firecrawl-api.Unit]
+After = "mios-webtools-redis.service"
+Description = "'MiOS' web-tools firecrawl API (v1.0.0, self-host no-auth)"
+Wants = "mios-webtools-redis.service"
+
+[containers.mios-webtools-firecrawl-worker.Container]
+AutoUpdate = "local"
+ContainerName = "mios-webtools-firecrawl-worker"
+Environment = [
+  "REDIS_URL=redis://127.0.0.1:6380",
+  "REDIS_RATE_LIMIT_URL=redis://127.0.0.1:6380",
+  "HOST=127.0.0.1",
+  "PORT=${MIOS_PORT_FIRECRAWL:-3002}",
+  "USE_DB_AUTHENTICATION=false",
+  "NUM_WORKERS_PER_QUEUE=${MIOS_FIRECRAWL_WORKERS:-2}",
+  "PLAYWRIGHT_MICROSERVICE_URL=",
+  "PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium",
+  "BULL_AUTH_KEY=${MIOS_FIRECRAWL_BULL_KEY:-mios}",
+  "LOGGING_LEVEL=${MIOS_FIRECRAWL_LOG_LEVEL:-INFO}",
+  "NODE_ENV=production"
+]
+Exec = "pnpm run workers"
+Group = "0"
+Image = "${MIOS_FIRECRAWL_IMAGE:-localhost/mios-firecrawl:v1.0.0}"
+Label = "org.opencontainers.image.title=mios-webtools-firecrawl-worker"
+Pod = "mios-webtools.pod"
+User = "0"
+WorkingDir = "/app"
+
+[containers.mios-webtools-firecrawl-worker.Install]
+WantedBy = "multi-user.target default.target"
+
+[containers.mios-webtools-firecrawl-worker.Service]
+Delegate = "yes"
+Restart = "on-failure"
+RestartSec = "10s"
+TimeoutStartSec = "180s"
+
+[containers.mios-webtools-firecrawl-worker.Unit]
+After = "mios-webtools-redis.service"
+Description = "'MiOS' web-tools firecrawl worker (Bull queue processor)"
+Wants = "mios-webtools-redis.service"
+
+[containers.mios-webtools-redis.Container]
+AutoUpdate = "registry"
+ContainerName = "mios-webtools-redis"
+Exec = "redis-server --bind 127.0.0.1 --port 6380 --appendonly no"
+Group = "0"
+Image = "docker.io/redis:7-alpine"
+Label = "org.opencontainers.image.title=mios-webtools-redis"
+Pod = "mios-webtools.pod"
+User = "0"
+
+[containers.mios-webtools-redis.Install]
+WantedBy = "multi-user.target default.target"
+
+[containers.mios-webtools-redis.Service]
+Delegate = "yes"
+Restart = "on-failure"
+RestartSec = "10s"
+TimeoutStartSec = "60s"
+
+[containers.mios-webtools-redis.Unit]
+Description = "'MiOS' web-tools redis (firecrawl queue + ratelimit store)"
+
+[containers.mios-otelcol.Container]
+ContainerName = "mios-otelcol"
+Image = "docker.io/jaegertracing/all-in-one:latest"
+Environment = [
+  "COLLECTOR_OTLP_ENABLED=true"
+]
+Label = [
+  "org.opencontainers.image.title=mios-otelcol",
+  "org.opencontainers.image.url=http://localhost:16686/",
+  "io.podman_desktop.openInBrowser=http://localhost:16686/"
+]
+Pod = "mios-webtools.pod"
+
+[containers.mios-otelcol.Install]
+WantedBy = "multi-user.target default.target"
+
+[containers.mios-otelcol.Service]
+Delegate = "yes"
+Restart = "on-failure"
+RestartSec = "10s"
+TimeoutStartSec = "300s"
+
+[containers.mios-otelcol.Unit]
+After = "network-online.target"
+Description = "'MiOS' OpenTelemetry Collector and Jaeger Trace Viewer"
+Wants = "network-online.target"
+

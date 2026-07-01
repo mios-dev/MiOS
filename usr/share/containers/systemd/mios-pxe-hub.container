@@ -1,45 +1,27 @@
-# AI-hint: A systemd container unit that runs the Matchbox PXE hub to serve network boot configurations and assets over HTTP on port 8081 for iPXE/PXE clients.
-# AI-related: network-online.target, multi-user.target, default.target
+# AI-hint: GENERATED Quadlet container 'mios-pxe-hub' (WS-7 pods-as-SSOT). DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [containers.mios-pxe-hub] in mios.toml.
+# /usr/share/containers/systemd/mios-pxe-hub.container
+
 [Unit]
-Description='MiOS' PXE Boot Hub
 After=network-online.target
-Wants=network-online.target
-# Defaults policy: enabled by default; auto-skips on virtualized hosts
-# without a routable LAN (PXE requires raw DHCP/TFTP on the host network).
 ConditionVirtualization=!wsl
 ConditionVirtualization=!container
+Description='MiOS' PXE Boot Hub
+Wants=network-online.target
 
 [Container]
-Pod=mios-system.pod
-# Image / Network placeholders -- resolved at image build time by
-# automation/15-render-quadlets.sh from mios.toml
-# [image.sidecars].pxe_hub and [network.quadlet].network.
-Image=quay.io/poseidon/matchbox:latest
 AutoUpdate=registry
-# Run as root (LAW 6 exception) to manage netboot asset permissions
-# and bind to low host ports if needed (though we use 8081/8082 here).
-User=0
+Exec=/matchbox -address 0.0.0.0:8081 -data-path /var/lib/matchbox/data -assets-path /var/lib/matchbox/assets
 Group=0
-
-# Data and assets volumes. matchbox expects data/ and assets/ subdirs.
+Image=quay.io/poseidon/matchbox:latest
+Pod=mios-system.pod
+User=0
 Volume=/var/lib/mios/pxe/config:/var/lib/matchbox/data:Z
 Volume=/var/lib/mios/pxe/assets:/var/lib/matchbox/assets:Z
 
-# HTTP-only on :8081. The gRPC RPC server (-rpc-address) is DELIBERATELY
-# omitted: matchbox's gRPC API mandates TLS client-cert auth and dies
-# fatal without /etc/matchbox/ca.crt ("Provide a valid TLS certificate
-# authority..."), which was crash-looping this unit (operator-flagged
-# 2026-05-21; a prior audit CLAIMED to disable RPC but left it on). PXE/
-# iPXE only needs matchbox's HTTP endpoints (boot configs + assets); the
-# gRPC API is just for the matchbox CLI to push configs and is not needed
-# to SERVE netboot. Re-enable with a CA + server cert only if you script
-# config pushes over gRPC.
-Exec=/matchbox -address 0.0.0.0:8081 -data-path /var/lib/matchbox/data -assets-path /var/lib/matchbox/assets
-
-[Service]
-Restart=on-failure
-RestartSec=10
-Delegate=yes
-
 [Install]
 WantedBy=multi-user.target default.target
+
+[Service]
+Delegate=yes
+Restart=on-failure
+RestartSec=10

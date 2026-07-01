@@ -55,7 +55,7 @@ SYSTEMD_SYSTEM_DIR="/usr/lib/systemd/system"
 # UNITs include the explicit suffix (.service, .socket, .mount, .target).
 # The drop-in lands at ${SYSTEMD_SYSTEM_DIR}/${UNIT}.d/10-${GATE_NAME}.conf
 GATES=(
-    "virt-gate:mios-cdi-detect.service,mios-ceph-bootstrap.service,mios-flatpak-install.service,mios-gpu-amd.service,mios-gpu-intel.service,mios-gpu-nvidia.service,mios-gpu-status.service,mios-grd-setup.service,mios-k3s-init.service,mios-libvirtd-setup.service,mios-nvidia-cdi.service,mios-role.service,mios-selinux-init.service,mios-waydroid-init.service"
+    "virt-gate:mios-cdi-detect.service,mios-ceph-bootstrap.service,mios-flatpak-install.service,mios-gpu-amd.service,mios-gpu-intel.service,mios-gpu-nvidia.service,mios-gpu-status.service,mios-grd-setup.service,mios-k3s-init.service,mios-libvirtd-setup.service,mios-role.service,mios-selinux-init.service,mios-waydroid-init.service"
 
     "bare-metal-only:corosync.service,crowdsec.service,crowdsec-firewall-bouncer.service,mios-ha-bootstrap.service,multipathd.service,nfs-server.service,nmb.service,nvidia-powerd.service,osbuild-composer.service,osbuild-worker@1.service,pacemaker.service,pcsd.service,smb.service"
 

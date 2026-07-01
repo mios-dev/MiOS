@@ -49,6 +49,7 @@ MODE="default"
 NO_COLOR=0
 NO_FRAME=0
 TICKER=0
+MONITOR=0
 for arg in "$@"; do
     case "$arg" in
         --services-only) MODE="services-only"; NO_FRAME=1 ;;
@@ -56,6 +57,7 @@ for arg in "$@"; do
         --no-color)      NO_COLOR=1 ;;
         --no-frame)      NO_FRAME=1 ;;
         --ticker)        TICKER=1 ;;
+        --monitor)       MONITOR=1 ;;
         --help|-h)
             sed -n '/^# /,/^$/{s/^# \?//;p}' "$0" | head -40
             exit 0
@@ -310,8 +312,9 @@ service_status() {
         failed)
             printf 'failed|%s|%s' "$DOT_FAIL" "$C_RED" ;;
         inactive|deactivating)
-            if systemctl status "$svc" 2>/dev/null \
-                    | grep -qE '(was not met|Condition.*not met|skipped)'; then
+            local status_out
+            status_out=$(systemctl status "$svc" 2>/dev/null || true)
+            if printf '%s' "$status_out" | grep -qE '(was not met|Condition.*not met|skipped)'; then
                 printf 'skipped|%s|%s' "$DOT_WAIT" "$C_YLW"
             else
                 printf 'inactive|%s|%s' "$DOT_DOWN" "$C_GRY"
@@ -379,14 +382,6 @@ print_endpoints() {
     _fpw="$(cat /etc/mios/forge/admin-password 2>/dev/null)"
     [[ -z "$_fpw" ]]    && _fpw="$_pw"
 
-    # Port resolution -- two tiers:
-    #   AI surface: agent-pipe, hermes, surrealdb, hermes-dashboard,
-    #               ollama (dGPU/CUDA), ollama-cpu (in-VM CPU light-lane).
-    #   User surface: webui, cockpit, code, forge, search, ttyd-bash,
-    #               ttyd-powershell.
-    # refresh: added agent-pipe, surrealdb, ollama-cpu,
-    # ttyd-bash, ttyd-powershell -- they were live but invisible on
-    # the dashboard.
     local _p_forge _p_cockpit _p_ollama _p_ollama_cpu _p_searxng
     local _p_hermes _p_dash _p_code _p_webui _p_agent_pipe _p_pgvector _p_guacamole
     local _p_ttyd_bash _p_ttyd_ps
@@ -401,7 +396,7 @@ print_endpoints() {
     _p_code=$(_mios_port code_server 8800)
     _p_webui=$(_mios_port open_webui 3033)
     _p_agent_pipe=$(_mios_port agent_pipe 8640)
-    _p_pgvector=$(_mios_port pgvector 5432)   # SurrealDB retired -> pgvector is the live DB
+    _p_pgvector=$(_mios_port pgvector 5432)
     _p_guacamole=$(_mios_port guacamole_web 8080)
     _p_ttyd_bash=$(_mios_port ttyd_bash 7681)
     _p_ttyd_ps=$(_mios_port ttyd_powershell 7682)
@@ -424,198 +419,350 @@ print_endpoints() {
     d_ttyd_bash=$(tcp_dot "127.0.0.1" "$_p_ttyd_bash")
     d_ttyd_ps=$(tcp_dot "127.0.0.1" "$_p_ttyd_ps")
     s_guac=$( service_status mios-guacamole.service); IFS='|' read -r _ d_guacamole _ <<< "$s_guac"
-    s_crowdsec=$( service_status mios-crowdsec.service); IFS='|' read -r _ d_crowdsec _ <<< "$s_crowdsec"
+    s_crowdsec=$( service_status mios-crowdsec-dashboard.service); IFS='|' read -r _ d_crowdsec _ <<< "$s_crowdsec"
 
-    # Mini: count recap + 4 clickable hyperlink rows. Refresh
-    # the count includes the new AI-surface services (agent-pipe,
-    # surrealdb, ollama-cpu, ttyd) and the 4 link rows lead with the
-    # agent surface (Agent-Pipe + WebUI) since that's now the operator's
-    # primary entry point, with Cockpit + ttyd-PowerShell rounding out
-    # the row budget.
-    if [[ "$MODE" == "mini" ]]; then
-        local n_up=0 n_down=0
-        for _d in "$d_agent_pipe" "$d_hermes" "$d_pgvector" \
-                  "$d_llamaswap" "$d_webui" \
-                  "$d_cockpit" "$d_forge" "$d_searxng" \
-                  "$d_code" "$d_ttyd_bash" "$d_ttyd_ps"; do
-            case "$_d" in
-                *"$DOT_UP"*) n_up=$((n_up + 1)) ;;
-                *)           n_down=$((n_down + 1)) ;;
-            esac
-        done
-        local up_str="${n_up} up    " down_str="${n_down} down    "
-        local ep_str="agent:${_p_agent_pipe}  hermes:${_p_hermes}  llama:${_p_llamaswap}"
-        local total_len=$(( 6 + ${#up_str} + ${#down_str} + ${#ep_str} ))
-        local pad=$(( (INNER - total_len) / 2 ))
-        (( pad < 0 )) && pad=0
-        local padstr="$(hr_repeat ' ' "$pad")"
-        
-        printf '%s%s%s%s %s%s%s%s%s %s%s%s%s\n' \
-            "$padstr" \
-            "$C_GRN" "$DOT_UP" "$C_R" "$C_B" "$up_str" \
-            "$C_GRY" "$DOT_DOWN" "$C_R" "$C_GRY" "$down_str" \
-            "$C_GRY" "$ep_str" "$C_R"
-            
-        local link_len=$(( 2 + 10 + 1 + 22 + 4 )) # rough width of link string
-        local link_pad=$(( (INNER - link_len) / 2 ))
-        (( link_pad < 0 )) && link_pad=0
-        local link_padstr="$(hr_repeat ' ' "$link_pad")"
-        local link_fmt="${link_padstr}%s %-10s %s%s%s\n"
-        printf "$link_fmt" "$d_agent_pipe" "Agent-Pipe" "$C_D" "http://localhost:${_p_agent_pipe}/v1"  "$C_R"
-        printf "$link_fmt" "$d_webui"      "WebUI"      "$C_D" "http://localhost:${_p_webui}/"        "$C_R"
-        printf "$link_fmt" "$d_cockpit"    "Cockpit"    "$C_D" "https://localhost:${_p_cockpit}/"     "$C_R"
-        printf "$link_fmt" "$d_ttyd_ps"    "PS-Term"    "$C_D" "http://localhost:${_p_ttyd_ps}/"      "$C_R"
-        return
-    fi
-
-    # Full dash: every service as "<dot> <Name> <full URL>" in a
-    # 2-column grid grouped into two named tiers per the
-    # refresh.
-    #
-    # Cell budget: dot(1)+sp(1)+name(11)+sp(1)+:port(6) = 20 cols
-    # visible. Two cells + 2-space indent + 2-space row sep = 44 cols,
-    # ~36 cols of slack inside the canonical 80-col frame.
-    #
-    # OSC 8 escape: \e]8;;URL\e\\TEXT\e]8;;\e\\ -- bash $'...' ANSI-C
-    # quoting on $_esc converts \e to literal ESC at parse time, so
-    # printf %s passes it through unchanged. Modern terminals (WT,
-    # Ptyxis, Konsole, kitty, WezTerm, Alacritty, GNOME Terminal)
-    # render the anchor text as a clickable link.
-    local _esc=$'\e'
-    local osc_lnk="${_esc}]8;;%s${_esc}\\%-11s${_esc}]8;;${_esc}\\"
-    local cell_fmt="%s ${osc_lnk} %s:%-5s%s"
-    # %s (not %b) for the row format -- the cell content already
-    # contains literal ESC + literal backslash for the OSC 8 string
-    # terminator. printf %b interprets backslash escapes in the
-    # argument; with a cell whose visible text starts with t/n/a/b/
-    # c/e/f/r/v, the `<ESC>\<letter>` sequence would be parsed as
-    # \t (tab) / \n (newline) / ..., mangling the cell.
-    # Operator-flagged when the ttyd-bash + ttyd-PS cells
-    # rendered as "    yd-bash" -- the leading "t" got consumed by
-    # %b's \t TAB interpretation.
-    local row_fmt='  %s  %s\n'
-
-    # AI surface -- agent stack the operator interacts with through
-    # OWUI / Discord / programmatic clients.
-    local pad45=$(( (INNER - 45) / 2 )); (( pad45 < 0 )) && pad45=0; local padstr45="$(hr_repeat ' ' "$pad45")"
-    local row_fmt_centered="${padstr45}%s  %s\n"
-    section_header "AI surface" "$padstr45"
-    local c_agent c_herm c_pg c_dash c_oll c_olli
-    c_agent=$(printf "$cell_fmt" "$d_agent_pipe" "http://localhost:${_p_agent_pipe}/v1"  "Agent-Pipe" "$C_D" "$_p_agent_pipe" "$C_R")
-    c_herm=$( printf "$cell_fmt" "$d_hermes"     "http://localhost:${_p_hermes}/v1"      "Hermes"     "$C_D" "$_p_hermes"     "$C_R")
-    c_pg=$(   printf "$cell_fmt" "$d_pgvector"   "http://localhost:${_p_pgvector}/"      "pgvector"   "$C_D" "$_p_pgvector"   "$C_R")
-    c_dash=$( printf "$cell_fmt" "$d_dash"       "http://localhost:${_p_dash}/"          "Dash-AI"    "$C_D" "$_p_dash"       "$C_R")
-    # llama.cpp (mios-llm-light :11450) is the inference engine; ollama is retired
-    # (masked). Show LlamaSwap, not Ollama -- "not converted
-    # to llama.cpp STILL" was the dash label lagging the actual cutover.
-    c_llama=$(printf "$cell_fmt" "$d_llamaswap" "http://localhost:${_p_llamaswap}/v1"   "LlamaSwap"  "$C_D" "$_p_llamaswap"  "$C_R")
-
-    printf "$row_fmt_centered" "$c_agent" "$c_herm"
-    printf "$row_fmt_centered" "$c_pg"    "$c_dash"
-    printf "$row_fmt_centered" "$c_llama" ""
-
-    # Micro-LLM status row -- observability layer health
-    local micro_info micro_model micro_latency
-    micro_info=$(/usr/local/sbin/mios-micro-llm status 2>/dev/null)
-    if [[ $? -eq 0 ]]; then
-        micro_model=$(echo "$micro_info" | grep '"model"' | cut -d'"' -f4)
-        micro_latency=$(echo "$micro_info" | grep '"latency_ms"' | cut -d: -f2 | tr -d ' ,')
-        printf '  %sMicro-LLM: %s%s%s  (%s ms)%s\n' "$C_GRY" "$C_B$C_CYN" "$micro_model" "$C_R$C_GRY" "$micro_latency" "$C_R"
-    fi
-
-    # User surface -- browser/desktop tools the operator uses directly.
-    section_header "User surface" "$padstr45"
-    local c_webui c_cock c_code c_forge c_srch c_ttyb c_ttyp c_guac
-    c_webui=$(printf "$cell_fmt" "$d_webui"     "http://localhost:${_p_webui}/"     "WebUI"      "$C_D" "$_p_webui"     "$C_R")
-    c_cock=$( printf "$cell_fmt" "$d_cockpit"   "https://localhost:${_p_cockpit}/"  "Cockpit"    "$C_D" "$_p_cockpit"   "$C_R")
-    c_code=$( printf "$cell_fmt" "$d_code"      "http://localhost:${_p_code}/"      "Code"       "$C_D" "$_p_code"      "$C_R")
-    c_forge=$(printf "$cell_fmt" "$d_forge"     "http://localhost:${_p_forge}/"     "Forge"      "$C_D" "$_p_forge"     "$C_R")
-    c_srch=$( printf "$cell_fmt" "$d_searxng"   "http://localhost:${_p_searxng}/"   "Search"     "$C_D" "$_p_searxng"   "$C_R")
-    c_ttyb=$( printf "$cell_fmt" "$d_ttyd_bash" "http://localhost:${_p_ttyd_bash}/" "ttyd-bash"  "$C_D" "$_p_ttyd_bash" "$C_R")
-    c_ttyp=$( printf "$cell_fmt" "$d_ttyd_ps"   "http://localhost:${_p_ttyd_ps}/"   "ttyd-PS"    "$C_D" "$_p_ttyd_ps"   "$C_R")
-    c_guac=$( printf "$cell_fmt" "$d_guacamole" "http://localhost:${_p_guacamole}/guacamole/"  "Guacamole"  "$C_D" "$_p_guacamole" "$C_R")
-    printf "$row_fmt_centered" "$c_webui" "$c_cock"
-    printf "$row_fmt_centered" "$c_code"  "$c_forge"
-    printf "$row_fmt_centered" "$c_srch"  "$c_guac"
-    printf "$row_fmt_centered" "$c_ttyb"  "$c_ttyp"
-
-    # Backing services -- no exposed URL but stack-critical (CI runner,
-    # cluster, daemon, miner, passport provisioning). Dot-only
-    # indicators so the operator sees the full stack at a glance in
-    # `mios dash`. refresh: added the C.2 / C.3 / A.2
-    # backgrounders + the AI-bucket sysuser-keyed agent surface.
-    local d_runner d_ceph d_k3s d_daemon d_miner d_pass d_crowd
-    local s_runner s_ceph s_k3s s_daemon s_miner s_pass s_crowd
-    s_runner=$(service_status mios-forgejo-runner.service); IFS='|' read -r _ d_runner _ <<< "$s_runner"
-    s_ceph=$(  service_status mios-ceph.service);            IFS='|' read -r _ d_ceph   _ <<< "$s_ceph"
-    s_k3s=$(   service_status mios-k3s.service);             IFS='|' read -r _ d_k3s    _ <<< "$s_k3s"
-    s_daemon=$(service_status mios-daemon.service);          IFS='|' read -r _ d_daemon _ <<< "$s_daemon"
-    s_miner=$( service_status mios-skills-miner.timer);      IFS='|' read -r _ d_miner  _ <<< "$s_miner"
-    s_pass=$(  service_status mios-passport-provision.service); IFS='|' read -r _ d_pass _ <<< "$s_pass"
-    s_crowd=$( service_status mios-crowdsec-dashboard.service);   IFS='|' read -r _ d_crowd  _ <<< "$s_crowd"
-    [[ -z "$d_runner" ]] && d_runner="$DOT_DOWN"
-    [[ -z "$d_ceph"   ]] && d_ceph="$DOT_DOWN"
-    [[ -z "$d_k3s"    ]] && d_k3s="$DOT_DOWN"
-    [[ -z "$d_daemon" ]] && d_daemon="$DOT_DOWN"
-    [[ -z "$d_miner"  ]] && d_miner="$DOT_DOWN"
-    [[ -z "$d_pass"   ]] && d_pass="$DOT_DOWN"
-    [[ -z "$d_crowd"  ]] && d_crowd="$DOT_DOWN"
-    local pad36=$(( (INNER - 36) / 2 )); (( pad36 < 0 )) && pad36=0; local padstr36="$(hr_repeat ' ' "$pad36")"
-    local pad40=$(( (INNER - 40) / 2 )); (( pad40 < 0 )) && pad40=0; local padstr40="$(hr_repeat ' ' "$pad40")"
-    printf '%s%s%s %s Runner%s   %s%s %s Ceph%s   %s%s %s K3s%s   %s%s %s Daemon%s\n' \
-        "$padstr36" "$C_R" "$d_runner" "$C_D" "$C_R" \
-        "$C_R" "$d_ceph"   "$C_D" "$C_R" \
-        "$C_R" "$d_k3s"    "$C_D" "$C_R" \
-        "$C_R" "$d_daemon" "$C_D" "$C_R"
-    printf '%s%s%s %s Skills-Miner%s   %s%s %s Passport%s   %s%s %s CrowdSec%s\n' \
-        "$padstr40" "$C_R" "$d_miner" "$C_D" "$C_R" \
-        "$C_R" "$d_pass"  "$C_D" "$C_R" \
-        "$C_R" "$d_crowd" "$C_D" "$C_R"
-    # Credentials row (global MiOS password unless per-service override).
-    local clen=$(( 18 + ${#_user} + ${#_pw} + ${#_user} + ${#_fpw} ))
-    local pad_cred=$(( (INNER - clen) / 2 )); (( pad_cred < 0 )) && pad_cred=0; local padstr_cred="$(hr_repeat ' ' "$pad_cred")"
-    printf '%s%slogin %s/%s   forge %s/%s%s\n' \
-        "$padstr_cred" "$C_GRY" "$_user" "$_pw" "$_user" "$_fpw" "$C_R"
-}
-
-print_quadlets() {
-    # Count-only summary instead of a 14-row listing. Full state:
-    # `systemctl --no-pager list-units 'mios-*' mios-llm-light.service`.
-    local svc info name dot color
-    local n_active=0 n_starting=0 n_inactive=0 n_failed=0
-    # refresh: include Phase 2 / C.x / D.x services that
-    # have shipped since the previous service list -- surrealdb,
-    # agent-pipe, ollama-cpu, daemon, ttyd, skills-miner,
-    # passport-provision -- so the stack count actually reflects the
-    # full deployed surface.
-    for svc in mios-forge mios-forgejo-runner mios-cockpit-link \
-               mios-ceph mios-k3s mios-llm-light mios-searxng \
-               mios-gateway-agent mios-hermes-dashboard mios-open-webui mios-code-server crowdsec-dashboard \
-               mios-adguard \
-               mios-guacamole guacd guacamole-postgres \
-               mios-pgvector mios-agent-pipe mios-daemon \
-               mios-ttyd-bash mios-ttyd-powershell \
-               mios-skills-miner mios-passport-provision; do
-
-        info="$(service_status "${svc}.service")"
-        IFS='|' read -r name dot color <<< "$info"
-        case "$name" in
-            active|running)      n_active=$((n_active + 1)) ;;
-            activating|starting) n_starting=$((n_starting + 1)) ;;
-            failed)              n_failed=$((n_failed + 1)) ;;
-            *)                   n_inactive=$((n_inactive + 1)) ;;
+    local n_up=0 n_down=0
+    for _d in "$d_agent_pipe" "$d_hermes" "$d_pgvector" \
+              "$d_llamaswap" "$d_webui" \
+              "$d_cockpit" "$d_forge" "$d_searxng" \
+              "$d_code" "$d_ttyd_bash" "$d_ttyd_ps"; do
+        case "$_d" in
+            *"$DOT_UP"*) n_up=$((n_up + 1)) ;;
+            *)           n_down=$((n_down + 1)) ;;
         esac
     done
-    local running="active: ${n_active}" starting="starting: ${n_starting}" inactive="inactive: ${n_inactive}" failed="failed: ${n_failed}"
-    local qlen=$(( 15 + ${#running} + ${#starting} + ${#inactive} + ${#failed} ))
-    local pad=$(( (INNER - qlen) / 2 )); (( pad < 0 )) && pad=0; local padstr="$(hr_repeat ' ' "$pad")"
-    section_header "Stack" "$padstr"
-    printf '%s%s  %s%d active%s   %s%d starting%s   %s%d inactive%s   %s%d failed%s\n' \
-        "$padstr" "$GLYPH_QUADLETS" \
-        "$C_GRN" "$n_active"   "$C_R" \
-        "$C_YLW" "$n_starting" "$C_R" \
-        "$C_GRY" "$n_inactive" "$C_R" \
-        "$C_RED" "$n_failed"   "$C_R"
+    local up_str="${n_up} up    " down_str="${n_down} down    "
+    local ep_str="agent:${_p_agent_pipe}  hermes:${_p_hermes}  llama:${_p_llamaswap}"
+    local total_len=$(( 6 + ${#up_str} + ${#down_str} + ${#ep_str} ))
+    local pad=$(( (INNER - total_len) / 2 ))
+    (( pad < 0 )) && pad=0
+    local padstr="$(hr_repeat ' ' "$pad")"
+    
+    printf '%s%s%s%s %s%s%s%s%s %s%s%s%s\n' \
+        "$padstr" \
+        "$C_GRN" "$DOT_UP" "$C_R" "$C_B" "$up_str" \
+        "$C_GRY" "$DOT_DOWN" "$C_R" "$C_GRY" "$down_str" \
+        "$C_GRY" "$ep_str" "$C_R"
+        
+    local l_name1="Agent-Pipe" l_link1="http://localhost:${_p_agent_pipe}/v1"
+    local r_name1="WebUI"      r_link1="http://localhost:${_p_webui}/"
+    local l_name2="Cockpit"    l_link2="https://localhost:${_p_cockpit}/"
+    local r_name2="PS-Term"    r_link2="http://localhost:${_p_ttyd_ps}/"
+
+    local col_sep=" │ "
+    [[ "$NO_COLOR" -eq 1 ]] && col_sep=" | "
+
+    # Left cell width: 1 (dot) + 1 (sp) + 10 (name) + 1 (sp) + 24 (link) = 37 chars.
+    # Separator: 3 chars.
+    # Right cell width: 1 (dot) + 1 (sp) + 7 (name) + 1 (sp) + 22 (link) = 32 chars.
+    # Total width = 37 + 3 + 32 = 72 chars.
+    local table_w=72
+    local t_pad=$(( (INNER - table_w) / 2 ))
+    (( t_pad < 0 )) && t_pad=0
+    local t_padstr="$(hr_repeat ' ' "$t_pad")"
+
+    # Row 1
+    printf "${t_padstr}%s %-10s %s%-24s%s${col_sep}%s %-7s %s%s%s\n" \
+        "$d_agent_pipe" "$l_name1" "$C_D" "$l_link1" "$C_R" \
+        "$d_webui" "$r_name1" "$C_D" "$r_link1" "$C_R"
+
+    # Row 2
+    printf "${t_padstr}%s %-10s %s%-24s%s${col_sep}%s %-7s %s%s%s\n" \
+        "$d_cockpit" "$l_name2" "$C_D" "$l_link2" "$C_R" \
+        "$d_ttyd_ps" "$r_name2" "$C_D" "$r_link2" "$C_R"
+}
+
+print_unified_table() {
+    INNER="${INNER:-76}" NO_COLOR="${NO_COLOR:-0}" MONITOR="${MONITOR:-0}" MIOS_LINUX_USER="${MIOS_LINUX_USER:-}" MIOS_DEFAULT_PASSWORD="${MIOS_DEFAULT_PASSWORD:-}" python3 -c '
+import os, glob, subprocess, math, time, shutil
+
+no_color = int(os.environ.get("NO_COLOR", "0"))
+inner = int(os.environ.get("INNER", "76"))
+monitor = int(os.environ.get("MONITOR", "0"))
+
+if no_color == 0:
+    C_GRN = "\033[32m"
+    C_RED = "\033[31m"
+    C_YLW = "\033[33m"
+    C_GRY = "\033[90m"
+    C_R = "\033[0m"
+    C_CYN = "\033[36m"
+    C_B = "\033[1m"
+    DOT_UP = "●"
+    DOT_DOWN = "○"
+    DOT_FAIL = "✗"
+    DOT_WAIT = "◌"
+else:
+    C_GRN = C_RED = C_YLW = C_GRY = C_R = C_CYN = C_B = ""
+    DOT_UP = "*"
+    DOT_DOWN = "-"
+    DOT_FAIL = "x"
+    DOT_WAIT = "."
+
+# 1. Resource Monitor Header
+if monitor == 1:
+    def get_cpu_usage():
+        try:
+            with open("/proc/stat") as f:
+                fields = [float(column) for column in f.readline().strip().split()[1:]]
+            return fields[3], sum(fields)
+        except Exception:
+            return 0, 0
+
+    def get_mem_usage():
+        try:
+            mem = {}
+            with open("/proc/meminfo") as f:
+                for line in f:
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        mem[parts[0].rstrip(":")] = int(parts[1])
+            total = mem.get("MemTotal", 0) / 1024 / 1024
+            free = mem.get("MemFree", 0) / 1024 / 1024
+            buffers = mem.get("Buffers", 0) / 1024 / 1024
+            cached = mem.get("Cached", 0) / 1024 / 1024
+            used = total - free - buffers - cached
+            pct = (used / total) * 100 if total > 0 else 0
+            return used, total, pct
+        except Exception:
+            return 0, 0, 0
+
+    def get_disk_usage():
+        try:
+            total, used, free = shutil.disk_usage("/")
+            total_gb = total / (1024**3)
+            used_gb = used / (1024**3)
+            pct = (used / total) * 100 if total > 0 else 0
+            return used_gb, total_gb, pct
+        except Exception:
+            return 0, 0, 0
+
+    def draw_bar(pct, width=10):
+        filled = int(round(pct / 100 * width))
+        return "█" * filled + "░" * (width - filled)
+
+    id1, tot1 = get_cpu_usage()
+    time.sleep(0.1)
+    id2, tot2 = get_cpu_usage()
+    diff_tot = tot2 - tot1
+    cpu_pct = (1.0 - (id2 - id1) / diff_tot) * 100.0 if diff_tot > 0 else 0.0
+
+    mem_used, mem_tot, mem_pct = get_mem_usage()
+    disk_used, disk_tot, disk_pct = get_disk_usage()
+    
+    try:
+        load1, load5, load15 = os.getloadavg()
+    except Exception:
+        load1 = load5 = load15 = 0.0
+
+    cpu_bar = draw_bar(cpu_pct)
+    mem_bar = draw_bar(mem_pct)
+    disk_bar = draw_bar(disk_pct)
+
+    r1 = f"CPU  [{C_CYN}{cpu_bar}{C_R}] {cpu_pct:>5.1f}%  │  Mem  [{C_CYN}{mem_bar}{C_R}] {mem_pct:>5.1f}% ({mem_used:.1f}/{mem_tot:.1f} GB)"
+    r2 = f"Disk [{C_CYN}{disk_bar}{C_R}] {disk_pct:>5.1f}%  │  Load [{C_CYN}{load1:.2f} {load5:.2f} {load15:.2f}{C_R}]"
+
+    visible_r1 = 66
+    visible_r2 = 54
+    pad_r1 = max(0, (inner - visible_r1) // 2)
+    pad_r2 = max(0, (inner - visible_r2) // 2)
+    pad_r1_str = " " * pad_r1
+    pad_r2_str = " " * pad_r2
+    print(f"{pad_r1_str}{r1}")
+    print(f"{pad_r2_str}{r2}")
+    print()
+
+# 2. Unified Status Table
+ports = {}
+for path in ["/root/.config/mios/mios.toml", "/etc/mios/mios.toml", "/usr/share/mios/mios.toml"]:
+    if os.path.isfile(path):
+        try:
+            with open(path, "rb") as f:
+                import tomllib
+                data = tomllib.load(f)
+                if "ports" in data:
+                    ports = data["ports"]
+                    break
+        except Exception:
+            pass
+
+port_keys = {
+    "agent-pipe": "agent_pipe",
+    "hermes-worker": "hermes",
+    "hermes-dashboard": "hermes_dashboard",
+    "open-webui": "open_webui",
+    "code-server": "code_server",
+    "searxng": "searxng",
+    "adguard": "adguard_ui",
+    "forge": "forge_http",
+    "guacamole": "guacamole_web",
+    "cockpit-link": "cockpit_link",
+    "llm-light": "llm_light",
+    "cpu-node": "cpu_node",
+    "pgvector": "pgvector",
+    "webtools-crawl4ai": "crawl4ai",
+    "webtools-firecrawl-api": "firecrawl",
+    "opencode-gateway": "opencode_gateway",
+    "gateway-agent": "gateway_agent",
+    "ttyd-bash": "ttyd_bash",
+    "ttyd-powershell": "ttyd_powershell",
+}
+default_ports = {
+    "webtools-redis": "6380",
+    "cockpit": "8090",
+}
+
+pods = set()
+for d in ["/usr/share/containers/systemd", "/etc/containers/systemd"]:
+    if os.path.isdir(d):
+        for f in os.listdir(d):
+            if f.endswith(".pod"):
+                pods.add(f[:-4])
+
+containers = set()
+for d in ["/usr/share/containers/systemd", "/etc/containers/systemd"]:
+    if os.path.isdir(d):
+        for f in os.listdir(d):
+            if f.endswith(".container"):
+                containers.add(f[:-10])
+
+host_svcs = [
+    ("agent-pipe", "mios-agent-pipe.service"),
+    ("hermes-worker", "hermes-worker.service"),
+    ("hermes-dashboard", "hermes-dashboard.service"),
+    ("daemon", "mios-daemon.service"),
+    ("skills-miner", "mios-skills-miner.timer"),
+    ("passport", "mios-passport-provision.service"),
+    ("opencode-gateway", "mios-opencode-gateway.service"),
+    ("gateway-agent", "mios-gateway-agent.service"),
+    ("cockpit", "cockpit.socket"),
+]
+
+items = []
+for p in sorted(pods):
+    svc = f"{p}-pod.service" if p.startswith("mios-") else f"mios-{p}-pod.service"
+    display_name = p[5:] if p.startswith("mios-") else p
+    items.append(("Pod", display_name, svc))
+
+for c in sorted(containers):
+    svc = f"{c}.service" if c.startswith("mios-") else f"mios-{c}.service"
+    display_name = c[5:] if c.startswith("mios-") else c
+    items.append(("Cont", display_name, svc))
+
+for name, svc in sorted(host_svcs):
+    items.append(("Svc", name, svc))
+
+rendered_items = []
+for type_label, name, svc in items:
+    try:
+        res = subprocess.run(
+            ["systemctl", "show", svc, "--property=ActiveState", "--property=ConditionResult"],
+            capture_output=True, text=True, check=True
+        )
+        data = {}
+        for line in res.stdout.splitlines():
+            if "=" in line:
+                k, v = line.split("=", 1)
+                data[k.strip()] = v.strip()
+        active_state = data.get("ActiveState", "unknown")
+        cond_result = data.get("ConditionResult", "yes")
+    except Exception:
+        active_state = "unknown"
+        cond_result = "yes"
+
+    if active_state == "active":
+        dot = f"{C_GRN}{DOT_UP}{C_R}"
+    elif active_state in ("activating", "reloading"):
+        dot = f"{C_YLW}{DOT_WAIT}{C_R}"
+    elif active_state == "failed":
+        dot = f"{C_RED}{DOT_FAIL}{C_R}"
+    elif cond_result == "no":
+        dot = f"{C_YLW}{DOT_WAIT}{C_R}"
+    else:
+        dot = f"{C_GRY}{DOT_DOWN}{C_R}"
+
+    port_val = ""
+    key = port_keys.get(name)
+    if key and key in ports:
+        port_val = f":{ports[key]}"
+    elif name in default_ports:
+        port_val = f":{default_ports[name]}"
+
+    rendered_items.append((type_label, name, port_val, dot))
+
+num_items = len(rendered_items)
+num_rows = math.ceil(num_items / 2)
+left_col = rendered_items[:num_rows]
+right_col = rendered_items[num_rows:]
+
+max_l_name = max(len(x[1]) for x in left_col) if left_col else 0
+max_l_port = max(len(x[2]) for x in left_col) if left_col else 0
+max_r_name = max(len(x[1]) for x in right_col) if right_col else 0
+max_r_port = max(len(x[2]) for x in right_col) if right_col else 0
+
+sep = " │ " if no_color == 0 else " | "
+
+table_rows = []
+for i in range(num_rows):
+    l_type, l_name, l_port, l_dot = left_col[i]
+    l_cell = f"{C_GRY}{l_type:<4}{C_R} {C_B}{l_name:<{max_l_name}}{C_R} {C_CYN}{l_port:<{max_l_port}}{C_R} {l_dot}"
+    
+    if i < len(right_col):
+        r_type, r_name, r_port, r_dot = right_col[i]
+        r_cell = f"{C_GRY}{r_type:<4}{C_R} {C_B}{r_name:<{max_r_name}}{C_R} {C_CYN}{r_port:<{max_r_port}}{C_R} {r_dot}"
+        row_str = f"{l_cell}{sep}{r_cell}"
+    else:
+        row_str = l_cell
+    table_rows.append(row_str)
+
+visible_width = 19 + max_l_name + max_l_port + max_r_name + max_r_port
+
+if visible_width > inner or inner < 70:
+    num_rows = num_items
+    left_col = rendered_items
+    max_l_name = max(len(x[1]) for x in left_col) if left_col else 0
+    max_l_port = max(len(x[2]) for x in left_col) if left_col else 0
+    visible_width = 8 + max_l_name + max_l_port
+    table_rows = []
+    for i in range(num_rows):
+        l_type, l_name, l_port, l_dot = left_col[i]
+        l_cell = f"{C_GRY}{l_type:<4}{C_R} {C_B}{l_name:<{max_l_name}}{C_R} {C_CYN}{l_port:<{max_l_port}}{C_R} {l_dot}"
+        table_rows.append(l_cell)
+
+pad_len = max(0, (inner - visible_width) // 2)
+padding = " " * pad_len
+
+header_title = "UNIFIED SYSTEM STACK & SERVICES"
+header_pad = max(0, (inner - len(header_title)) // 2)
+head_pad_str = " " * header_pad
+print(f"{head_pad_str}{C_B}{C_CYN}{header_title}{C_R}")
+
+border_char = "─" if no_color == 0 else "-"
+border_line = padding + border_char * visible_width
+
+print(border_line)
+for row in table_rows:
+    print(f"{padding}{row}")
+print(border_line)
+
+# 3. Credentials Row
+user = os.environ.get("MIOS_LINUX_USER", os.environ.get("MIOS_USER", "mios"))
+pw = os.environ.get("MIOS_DEFAULT_PASSWORD", "mios")
+fpw = ""
+if os.path.isfile("/etc/mios/forge/admin-password"):
+    try:
+        with open("/etc/mios/forge/admin-password") as f:
+            fpw = f.read().strip()
+    except Exception:
+        pass
+if not fpw:
+    fpw = pw
+
+cred_str = f"login {user}/{pw}   forge {user}/{fpw}"
+cred_pad = max(0, (inner - len(cred_str)) // 2)
+cred_pad_str = " " * cred_pad
+print(f"{cred_pad_str}{C_GRY}{cred_str}{C_R}")
+'
 }
 
 print_git_state() {
@@ -657,12 +804,10 @@ print_loop_hint() {
 }
 
 print_services_block() {
-    print_endpoints
-    # Mini mode: only the endpoints (dots + names + ports). Skip the
-    # credential row + Stack count + Tree git-state to leave shell-
-    # rows free for the prompt. Default mode shows everything.
-    if [[ "$MODE" != "mini" ]]; then
-        print_quadlets
+    if [[ "$MODE" == "mini" ]]; then
+        print_endpoints
+    else
+        print_unified_table
         print_git_state
     fi
 }
@@ -997,85 +1142,99 @@ _dashboard_rows_render() {
     done
 }
 
-# ── Main ─────────────────────────────────────────────────────────────────────
-case "$MODE" in
-    services-only)
-        # Used by fastfetch as a custom command-module embedded inside its
-        # column layout. Frame would collide with fastfetch's borders, so
-        # we render UNFRAMED here regardless of --no-frame.
-        print_services_block
-        ;;
-    *)
-        if [[ $NO_FRAME -eq 1 ]]; then
-            print_ascii_header
-            print_title
-            _dashboard_rows_render
+render_dashboard() {
+    case "$MODE" in
+        services-only)
+            # Used by fastfetch as a custom command-module embedded inside its
+            # column layout. Frame would collide with fastfetch's borders, so
+            # we render UNFRAMED here regardless of --no-frame.
             print_services_block
-            print_loop_hint
-        else
-            # Capture each section, pipe through frame_filter so each
-            # line is wrapped and truncated to fit INNER chars exactly.
-            # The metric block uses [dashboard].rows from mios.toml --
-            # matches the Windows-side Show-MiosDashboard exactly so
-            # the operator sees the same compact side-by-side layout
-            # on both hosts.  Set MIOS_DASH_LEGACY=1 to fall back to
-            # the verbose fastfetch + services + loop-hint render
-            # (one metric per row, no [dashboard].rows).
-            frame_top
-            # Full `mios dash` (MODE=default) shows the ASCII banner +
-            # every section + verb hints regardless of terminal height
-            # -- operator may scroll. `mios mini` (MODE=mini) drops the
-            # logo to fit in 18 rows on an 80x20 terminal.
-            if [[ "$MODE" != "mini" ]]; then
-                print_ascii_header | frame_filter
-                frame_divide
-            fi
-            { print_title; } | frame_filter
-            frame_divide
-            if [[ "${MIOS_DASH_LEGACY:-0}" == "1" ]]; then
-                print_fastfetch     | frame_filter
-                frame_divide
-                print_services_block | frame_filter
-                frame_divide
-                print_loop_hint     | frame_filter
+            ;;
+        *)
+            if [[ $NO_FRAME -eq 1 ]]; then
+                print_ascii_header
+                print_title
+                _dashboard_rows_render
+                print_services_block
+                print_loop_hint
             else
-                _dashboard_rows_render | frame_filter
-                # Keep the Linux-only services block when explicitly
-                # requested via MIOS_DASH_SERVICES=1 OR when the
-                # configurator toggled [dashboard].show_services=true.
-                # Bash's `local` only works inside a function -- this
-                # branch is at script scope (case/esac body), so use
-                # a plain assignment instead (hit
-                # `local: can only be used in a function` here).
-                _show_services="$(_mios_toml_value 'dashboard' 'show_services' 'false')"
-                # mini ALWAYS shows the abbreviated services block --
-                # that's the whole point of mini (hardware + a few
-                # services, no Stack/Tree/credentials).
-                if [[ "$MODE" == "mini" ]] || [[ "${MIOS_DASH_SERVICES:-0}" == "1" ]] || [[ "$_show_services" == "true" ]]; then
+                # Capture each section, pipe through frame_filter so each
+                # line is wrapped and truncated to fit INNER chars exactly.
+                # The metric block uses [dashboard].rows from mios.toml --
+                # matches the Windows-side Show-MiosDashboard exactly so
+                # the operator sees the same compact side-by-side layout
+                # on both hosts.  Set MIOS_DASH_LEGACY=1 to fall back to
+                # the verbose fastfetch + services + loop-hint render
+                # (one metric per row, no [dashboard].rows).
+                frame_top
+                # Full `mios dash` (MODE=default) shows the ASCII banner +
+                # every section + verb hints regardless of terminal height
+                # -- operator may scroll. `mios mini` (MODE=mini) drops the
+                # logo to fit in 18 rows on an 80x20 terminal.
+                if [[ "$MODE" != "mini" ]]; then
+                    print_ascii_header | frame_filter
+                    frame_divide
+                fi
+                { print_title; } | frame_filter
+                frame_divide
+                if [[ "${MIOS_DASH_LEGACY:-0}" == "1" ]]; then
+                    print_fastfetch     | frame_filter
                     frame_divide
                     print_services_block | frame_filter
-                fi
-                # Verb hints -- full dash only. Mini drops them to
-                # leave room for the prompt. Reads [dashboard].verb_hint
-                # from mios.toml so operators rebrand the hint line.
-                if [[ "$MODE" != "mini" ]]; then
-                    # Default verb list refreshed to match the
-                    # current /usr/bin/mios KNOWN_VERBS surface. Operator
-                    # override via mios.toml [dashboard].verb_hint.
-                    _verb_hint="$(_mios_toml_value 'dashboard' 'verb_hint' 'build  config  dash  mini  ai  code  dev  summary  user  pull  update  help')"
-                    if [[ -n "$_verb_hint" ]]; then
+                    frame_divide
+                    print_loop_hint     | frame_filter
+                else
+                    _dashboard_rows_render | frame_filter
+                    # Keep the Linux-only services block when explicitly
+                    # requested via MIOS_DASH_SERVICES=1 OR when the
+                    # configurator toggled [dashboard].show_services=true.
+                    # Bash's `local` only works inside a function -- this
+                    # branch is at script scope (case/esac body), so use
+                    # a plain assignment instead (hit
+                    # `local: can only be used in a function` here).
+                    _show_services="$(_mios_toml_value 'dashboard' 'show_services' 'false')"
+                    # mini ALWAYS shows the abbreviated services block --
+                    # that's the whole point of mini (hardware + a few
+                    # services, no Stack/Tree/credentials).
+                    if [[ "$MODE" == "mini" ]] || [[ "${MIOS_DASH_SERVICES:-0}" == "1" ]] || [[ "$_show_services" == "true" ]]; then
                         frame_divide
-                        hint_str=" mios ${_verb_hint} "
-                        hint_pad=$(( (INNER - ${#hint_str}) / 2 ))
-                        (( hint_pad < 0 )) && hint_pad=0
-                        hint_padstr="$(hr_repeat ' ' "$hint_pad")"
-                        printf '%s%s%s%s\n' "$hint_padstr" "$C_GRY" "$hint_str" "$C_R" | frame_filter
+                        print_services_block | frame_filter
+                    fi
+                    # Verb hints -- full dash only. Mini drops them to
+                    # leave room for the prompt. Reads [dashboard].verb_hint
+                    # from mios.toml so operators rebrand the hint line.
+                    if [[ "$MODE" != "mini" ]]; then
+                        # Default verb list refreshed to match the
+                        # current /usr/bin/mios KNOWN_VERBS surface. Operator
+                        # override via mios.toml [dashboard].verb_hint.
+                        _verb_hint="$(_mios_toml_value 'dashboard' 'verb_hint' 'build  config  dash  mini  ai  code  dev  summary  user  pull  update  help')"
+                        if [[ -n "$_verb_hint" ]]; then
+                            frame_divide
+                            hint_str=" mios ${_verb_hint} "
+                            hint_pad=$(( (INNER - ${#hint_str}) / 2 ))
+                            (( hint_pad < 0 )) && hint_pad=0
+                            hint_padstr="$(hr_repeat ' ' "$hint_pad")"
+                            printf '%s%s%s%s\n' "$hint_padstr" "$C_GRY" "$hint_str" "$C_R" | frame_filter
+                        fi
                     fi
                 fi
+                frame_bot
             fi
-            frame_bot
-        fi
-        ;;
-esac
+            ;;
+    esac
+}
+
+# ── Main ─────────────────────────────────────────────────────────────────────
+if [[ $MONITOR -eq 1 ]]; then
+    trap "clear; exit 0" INT TERM
+    while true; do
+        printf '\033[H\033[J'
+        render_dashboard
+        [[ "${MIOS_MONITOR_ONCE:-0}" == "1" ]] && exit 0
+        sleep 5
+    done
+else
+    render_dashboard
+fi
 
 exit 0

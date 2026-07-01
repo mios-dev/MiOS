@@ -1,4 +1,4 @@
-<!-- AI-hint: Comprehensive architectural reference for MiOS as a whole system -- an immutable bootc/OCI Fedora workstation that is also a local, self-replicating agentic AI OS. Maps the build pipeline, repository topology, supply-chain artifacts, inference lanes (mios-llm-light/-heavy/-heavy-alt), the agent stack (agent-pipe -> Hermes -> pgvector memory -> MCP/A2A), and the operational laws to specific file paths for engineering and automation tasks.
+<!-- AI-hint: Comprehensive architectural reference for MiOS as a whole system -- an immutable bootc/OCI Fedora workstation that is also a local, self-replicating agentic AI OS. Maps the build pipeline, repository topology, supply-chain artifacts, inference lanes (mios-llm-light/-heavy), the agent stack (agent-pipe -> Hermes -> pgvector memory -> MCP/A2A), and the operational laws to specific file paths for engineering and automation tasks.
      AI-related: 99-postcheck.sh, /usr/lib/mios/env.d/flatpaks.env, /etc/mios/hermes/api.env, /usr/share/mios/mios.toml, /usr/share/mios/llamacpp/mios-llm-light.yaml, /usr/share/mios/postgres/schema-init.sql, /usr/share/mios/ai/v1/agents.json, /usr/share/mios/ai/system.md, /usr/share/mios/ai/hermes-soul.md, /usr/share/mios/ai/hermes-soul-full.md, /etc/mios/ai/system-prompt.md, /usr/share/mios/ai/v1/mcp.json -->
 # 'MiOS' Engineering Reference
 
@@ -595,7 +595,7 @@ and containerized where isolation is cheap (the lanes + datastore). Grouped:
   refine + council/swarm fan-out + critic/polish. The front door every gateway
   (OWUI, Discord, the `mios` CLI) talks to; it fans out and dispatches tools,
   then fronts Hermes. Code at `usr/lib/mios/agent-pipe/server.py`.
-- `hermes-agent.service` (`:8642`) -- the OpenAI-compatible agent gateway:
+- `mios-gateway-agent.service` (`:8642`) -- the OpenAI-compatible agent gateway:
   sessions, the tool-loop, skills, browser/CDP control. The default sub-agent.
 - `mios-delegation-prefilter.service` (`:8641`) -- injects
   `tool_choice=delegate_task` on fan-outable prompts and forwards to Hermes
@@ -704,7 +704,7 @@ under [`/usr/share/mios/ai/`](../../mios/ai/). The end-to-end shape is:
   (OpenAI-compatible). It refines the prompt, decomposes/fans out across a
   council/swarm, dispatches tool/verb calls, and polishes the reply. Every
   agent and tool resolves the endpoint from `MIOS_AI_ENDPOINT` (LAW 5).
-- **Agent gateway:** `hermes-agent.service` at `:8642/v1` -- the default
+- **Agent gateway:** `mios-gateway-agent.service` at `:8642/v1` -- the default
   sub-agent; owns sessions, the tool-loop, skills, and browser/CDP control.
 - **Sub-agent registry:** `[agents.*]` in `/usr/share/mios/mios.toml` (SSOT);
   manifest mirror at `/usr/share/mios/ai/v1/agents.json`.

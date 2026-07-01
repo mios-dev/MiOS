@@ -497,7 +497,7 @@ chmod 0750 "$HERMES_DATA" "$HERMES_ARTIFACTS" "$HERMES_RESEARCH" 2>/dev/null || 
 # the chosen tier is missing, prefer the SMALLER safer option first so the
 # host stays responsive; only escalate if nothing smaller is available.
 _served_ids="$(curl -fsS --max-time 5 "${_AI_BACKEND}/v1/models" 2>/dev/null \
-    | grep -oE '"id":"[^"]+"' | sed 's/"id":"//;s/"$//')"
+    | grep -oE '"id":"[^"]+"' | sed 's/"id":"//;s/"$//' || true)"
 if [[ -n "$_served_ids" ]]; then
     if ! grep -qxF "$_AI_MODEL_RESOLVED" <<< "$_served_ids"; then
         _picked=""
@@ -1642,11 +1642,19 @@ fi
 # 90s with 2s polls. Operator-flagged 2026-05-17 regression after the
 # full reboot test.
 _wait_for_owui() {
+    local port=8033
+    if [[ -f /etc/mios/install.env ]]; then
+        local env_port
+        env_port="$(grep '^MIOS_PORT_OPEN_WEBUI=' /etc/mios/install.env | cut -d= -f2 | tr -d '\r\n ')"
+        if [[ -n "$env_port" ]]; then
+            port="$env_port"
+        fi
+    fi
     local i
     for i in $(seq 1 45); do
-        if curl -fsS --max-time 2 http://host.containers.internal:3030/health \
+        if curl -fsS --max-time 2 "http://host.containers.internal:${port}/health" \
                 >/dev/null 2>&1 \
-           || curl -fsS --max-time 2 http://127.0.0.1:3030/api/version \
+           || curl -fsS --max-time 2 "http://127.0.0.1:${port}/api/version" \
                 >/dev/null 2>&1; then
             return 0
         fi

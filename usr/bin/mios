@@ -381,6 +381,7 @@ KNOWN_VERBS = {
     "build":  ["/usr/libexec/mios/mios-build-driver"],
     "dash":   ["/usr/libexec/mios/mios-dashboard.sh"],
     "mini":   ["/usr/libexec/mios/mios-dashboard.sh", "--mini"],
+    "monitor":["/usr/libexec/mios/mios-dashboard.sh", "--monitor"],
     "config": ["/usr/libexec/mios/mios-configurator-launch"],
     "code":   ["xdg-open", "http://localhost:8080/"],
     "ai":     ["xdg-open", "http://localhost:3030/"],

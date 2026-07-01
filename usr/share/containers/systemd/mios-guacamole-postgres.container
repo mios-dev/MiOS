@@ -1,28 +1,24 @@
-# AI-hint: Systemd Quadlet configuration for the Guacamole PostgreSQL database container, defining the image, network, and lifecycle policies for the database backend in the MiOS environment.
-# AI-related: mios-postgres, network-online.target, multi-user.target, default.target
+# AI-hint: GENERATED Quadlet container 'mios-guacamole-postgres' (WS-7 pods-as-SSOT). DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [containers.mios-guacamole-postgres] in mios.toml.
+# /usr/share/containers/systemd/mios-guacamole-postgres.container
+
 [Unit]
-Description='MiOS' Guacamole PostgreSQL
 After=network-online.target
-Wants=network-online.target
-# Defaults policy: enabled by default; auto-skips inside another
-# container (postgres datadir on overlayfs-on-overlayfs is unreliable).
 ConditionVirtualization=!container
+Description='MiOS' Guacamole PostgreSQL
+Wants=network-online.target
 
 [Container]
-Pod=mios-system.pod
-# Image / Network placeholders -- resolved at image build time by
-# automation/15-render-quadlets.sh from mios.toml
-# [image.sidecars].postgres and [network.quadlet].network.
-Image=docker.io/library/postgres:latest
-ContainerName=mios-guacamole-postgres
 AutoUpdate=registry
-User=mios-postgres
+ContainerName=mios-guacamole-postgres
 Group=mios-postgres
-
-[Service]
-Restart=on-failure
-RestartSec=10
-Delegate=yes
+Image=docker.io/library/postgres:latest
+Pod=mios-system.pod
+User=mios-postgres
 
 [Install]
 WantedBy=multi-user.target default.target
+
+[Service]
+Delegate=yes
+Restart=on-failure
+RestartSec=10

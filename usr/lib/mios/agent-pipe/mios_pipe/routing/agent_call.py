@@ -131,6 +131,8 @@ _COST_LEDGER = None
 _COST_MODEL = None
 _is_remote_endpoint = None
 
+_otel_tracer = None
+
 
 def configure(*, healthgate_connect_timeout=None, healthgate_read_timeout=None,
               secondary_tool_loop=None, kv_fork_enable=None, src_turn_header=None,
@@ -152,7 +154,7 @@ def configure(*, healthgate_connect_timeout=None, healthgate_read_timeout=None,
               rr_enable=None, priority_queue_enable=None, rr_slice_tokens=None,
               rr_slice_timeout=None, rr_quantum_s=None, kv_locks=None,
               kv_resident=None, backend_key=None, global_priority_gate=None,
-              preempt=None) -> None:
+              preempt=None, otel_tracer=None) -> None:
     """Inject server.py's config scalars, the agent registry, the lane/admission
     gates, the binding/priority helpers, the secondary tool-loops, the KV helpers
     and the header/trace helpers the two dispatch functions call back into."""
@@ -172,6 +174,9 @@ def configure(*, healthgate_connect_timeout=None, healthgate_read_timeout=None,
     global KV_PAGING_ENABLE, KV_PAGING_SLOT, KV_PAGING_TIMEOUT, RR_ENABLE
     global PRIORITY_QUEUE_ENABLE, RR_SLICE_TOKENS, RR_SLICE_TIMEOUT, RR_QUANTUM_S
     global _KV_LOCKS, _KV_RESIDENT, _BACKEND_KEY, _GLOBAL_PRIORITY_GATE, _PREEMPT
+    global _otel_tracer
+    if otel_tracer is not None:
+        _otel_tracer = otel_tracer
     if healthgate_connect_timeout is not None:
         HEALTHGATE_CONNECT_TIMEOUT = healthgate_connect_timeout
     if healthgate_read_timeout is not None:
@@ -397,6 +402,39 @@ async def _call_agent_complete(name, cfg, body, headers, client,
 
 
 async def _call_agent_complete_inner(name: str, cfg: dict, body: dict,
+                               headers: dict, client,
+                               *, prefer_cpu: bool = True,
+                               _failover_depth: int = 0) -> tuple:
+    if _otel_tracer:
+        from opentelemetry.trace import SpanKind
+        req_model = body.get("model") or cfg.get("model") or ""
+        with _otel_tracer.start_as_current_span(
+            "invoke_agent",
+            kind=SpanKind.CLIENT,
+            attributes={
+                "gen_ai.system": "mios",
+                "gen_ai.request.model": req_model,
+                "session_id": (_conv_key_var.get() if _conv_key_var else "") or "",
+            }
+        ) as span:
+            res_name, res_text = await _call_agent_complete_inner_orig(
+                name, cfg, body, headers, client,
+                prefer_cpu=prefer_cpu, _failover_depth=_failover_depth
+            )
+            _eng = _agent_offload_engine(cfg) if prefer_cpu else None
+            _, _mdl = _agent_binding(cfg, _eng)
+            actual_model = _mdl or cfg.get("model") or ""
+            if actual_model:
+                span.set_attribute("gen_ai.response.model", actual_model)
+            return res_name, res_text
+    else:
+        return await _call_agent_complete_inner_orig(
+            name, cfg, body, headers, client,
+            prefer_cpu=prefer_cpu, _failover_depth=_failover_depth
+        )
+
+
+async def _call_agent_complete_inner_orig(name: str, cfg: dict, body: dict,
                                headers: dict, client,
                                *, prefer_cpu: bool = True,
                                _failover_depth: int = 0) -> tuple:
@@ -632,6 +670,38 @@ async def _call_agent_complete_inner(name: str, cfg: dict, body: dict,
 
 # ── Streaming sibling moved verbatim from server.py (refactor dispatch-substrate) ──
 async def _call_agent_stream_inner(name: str, cfg: dict, body: dict,
+                                   headers: dict, client, q,
+                                   *, prefer_cpu: bool = True) -> tuple:
+    if _otel_tracer:
+        from opentelemetry.trace import SpanKind
+        req_model = body.get("model") or cfg.get("model") or ""
+        with _otel_tracer.start_as_current_span(
+            "invoke_agent",
+            kind=SpanKind.CLIENT,
+            attributes={
+                "gen_ai.system": "mios",
+                "gen_ai.request.model": req_model,
+                "session_id": (_conv_key_var.get() if _conv_key_var else "") or "",
+            }
+        ) as span:
+            res_name, res_text = await _call_agent_stream_inner_orig(
+                name, cfg, body, headers, client, q,
+                prefer_cpu=prefer_cpu
+            )
+            _eng = _agent_offload_engine(cfg) if prefer_cpu else None
+            _, _mdl = _agent_binding(cfg, _eng)
+            actual_model = _mdl or cfg.get("model") or ""
+            if actual_model:
+                span.set_attribute("gen_ai.response.model", actual_model)
+            return res_name, res_text
+    else:
+        return await _call_agent_stream_inner_orig(
+            name, cfg, body, headers, client, q,
+            prefer_cpu=prefer_cpu
+        )
+
+
+async def _call_agent_stream_inner_orig(name: str, cfg: dict, body: dict,
                                    headers: dict, client, q,
                                    *, prefer_cpu: bool = True) -> tuple:
     _dispatch_agent_var.set(name)  # WS-A9: scope the dispatching agent for the PDP gate

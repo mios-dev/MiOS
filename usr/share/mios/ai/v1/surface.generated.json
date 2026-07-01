@@ -592,6 +592,8 @@
     "_OS_CONTROL_SECTION",
     "_OS_CONTROL_VERBS",
     "_OS_CONTROL_VERBS_RENDERED",
+    "_OTEL_ENABLE",
+    "_OTEL_ENDPOINT",
     "_OWUI_TEMPLATE_MARKERS",
     "_OWUI_VAR_KEYS",
     "_PARALLEL_TOOLS_HINTS",
@@ -1007,6 +1009,8 @@
     "_opt_int_mb",
     "_orch_ctx_var",
     "_os_target",
+    "_otel_toml",
+    "_otel_tracer",
     "_over_blade_ceiling",
     "_over_global_ceiling",
     "_parse_lane_caps",
@@ -1376,6 +1380,6 @@
   ],
   "counts": {
     "routes": 80,
-    "provided": 1291
+    "provided": 1295
   }
 }

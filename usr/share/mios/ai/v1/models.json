@@ -83,7 +83,7 @@
       "parent": null,
       "x-mios": {
         "role": "general-orchestration-sub-agent",
-        "served_by": "hermes-agent.service",
+        "served_by": "mios-gateway-agent.service",
         "endpoint": "http://localhost:8642/v1",
         "registered_as_sub_agent_of": "mios-agent-pipe",
         "registry": "/usr/share/mios/ai/v1/agents.json"

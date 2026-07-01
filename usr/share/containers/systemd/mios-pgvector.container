@@ -1,99 +1,35 @@
-# AI-hint: Systemd container unit defining the pgvector-enabled PostgreSQL instance as the primary FOSS-compliant unified agent-plane datastore for relational, JSONB, and vector memory storage.
-# AI-related: /usr/share/mios/postgres/schema-init.sql, /etc/mios/mios.toml, mios-pgvector, mios-daemon, mios-schema, mios-services, network-online.target, multi-user.target, default.target
+# AI-hint: GENERATED Quadlet container 'mios-pgvector' (WS-7 pods-as-SSOT). DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [containers.mios-pgvector] in mios.toml.
 # /usr/share/containers/systemd/mios-pgvector.container
-# 'MiOS' unified agent-plane datastore -- PostgreSQL + pgvector (WS-9, 2026-06-04).
-# FOSS-pure (PostgreSQL License + pgvector) replacement for the SurrealDB
-# (BSL 1.1) agent store. One engine for relational + JSONB (document) + vector (pgvector
-# HNSW) -- the standard "back to SQL" agent-memory stack (Letta/MemGPT/Memori/
-# OWUI all converge here). OWUI + Guacamole fold onto this at cutover.
-#
-# Schema initialised from /usr/share/mios/postgres/schema-init.sql on FIRST init
-# (mounted into /docker-entrypoint-initdb.d; idempotent DDL incl. CREATE
-# EXTENSION vector). Data persists under /var/lib/mios/pgvector (created +
-# chowned by usr/lib/tmpfiles.d/mios-pgvector.conf at boot). SSOT: mios.toml
-# [image.sidecars].pgvector, [ports].pgvector, [services.pgvector].{uid,gid},
-# [pgvector].{user,pass,db,data_dir,hnsw_iterative_scan,hnsw_max_scan_tuples,
-# hnsw_scan_mem_multiplier}.
 
 [Unit]
-Description='MiOS' PostgreSQL + pgvector (unified agent-plane datastore, FOSS)
 After=network-online.target
-Wants=network-online.target
-# postgres PGDATA on overlayfs-on-overlayfs is unreliable -> skip inside a nested
-# container (mirrors the guacamole-postgres policy). systemd classifies WSL2 as
-# container-class, so add an OR (repeated ConditionVirtualization = OR semantics)
-# to still RUN on the WSL dev VM -- its /var is real ext4, not overlay-on-overlay.
-# The `|` prefix makes these TRIGGERING (OR) conditions (plain repeats AND); the
-# unit runs if EITHER holds -> bare-metal (not container) OR wsl; skips only a
-# true nested container (podman/docker), the original overlay-on-overlay guard.
 ConditionVirtualization=|!container
 ConditionVirtualization=|wsl
+Description='MiOS' PostgreSQL + pgvector (unified agent-plane datastore, FOSS)
+Wants=network-online.target
 
 [Container]
-Pod=mios-ai.pod
-# Image / Port / User placeholders rendered by automation/15-render-quadlets.sh.
-# pgvector/pgvector bundles the `vector` extension on top of upstream postgres.
-Image=${MIOS_PGVECTOR_IMAGE:-docker.io/pgvector/pgvector:0.8.3-pg17}
 ContainerName=mios-pgvector
-# Host networking: reliable localhost:5432 for the pipe
-# + mios-daemon + every MiOS AI surface, sidestepping the podman-WSL port-
-# forwarder quirk. Loopback-class infra service. (guacamole-postgres uses the
-# bridge net on its OWN port, so there's no host:5432 collision.)
-
-# Persistent data dir. PGDATA is a SUBDIR of the mounted dir so the postgres
-# entrypoint (running as a non-root uid) can create + own it under the
-# tmpfiles-chowned parent. Path from [pgvector].data_dir.
-Volume=${MIOS_PG_DATA_DIR:-/var/lib/mios/pgvector}:/var/lib/postgresql/data:Z
-# Schema init: postgres runs /docker-entrypoint-initdb.d/*.sql on FIRST init only
-# (empty PGDATA). Idempotent DDL (CREATE ... IF NOT EXISTS + the vector ext).
-Volume=/usr/share/mios/postgres/schema-init.sql:/docker-entrypoint-initdb.d/10-mios-schema.sql:ro
-
-# Identity from mios.toml [services.pgvector] (uid 826, AI tier so agents read
-# it; pinned in usr/lib/sysusers.d/50-mios-services.conf). Matches the tmpfiles
-# chown of the data dir.
-User=${MIOS_PGVECTOR_UID:-826}
-Group=${MIOS_PGVECTOR_GID:-826}
-
-# LOCAL-ONLY default credentials (host-net loopback). Operator overrides via
-# [pgvector].user/pass in /etc/mios/mios.toml or a Quadlet drop-in.
 Environment=POSTGRES_USER=${MIOS_PG_USER:-mios}
 Environment=POSTGRES_PASSWORD=${MIOS_PG_PASS:-mios}
 Environment=POSTGRES_DB=${MIOS_PG_DB:-mios}
 Environment=PGDATA=/var/lib/postgresql/data/pgdata
-
-# Bind address from mios.toml [pgvector].listen_loopback (WS-0 hardening):
-# userenv derives MIOS_PG_BIND_ADDR = 127.0.0.1 (loopback, DEFAULT -- the store
-# is NOT network-reachable on its local-only default creds) or 0.0.0.0 (off-box,
-# only for a deliberately federated deployment). Port from [ports].pgvector.
-# DEGRADE-OPEN: an unrendered/empty value falls back to loopback (the safe bind).
-# Loopback still serves the host-net agent-pipe + mios-pg-query + mios-daemon
-# (all on the box) over 127.0.0.1; nothing off-box reaches it.
-# HNSW iterative-scan recall correctness (pgvector 0.8.0+): set the server-wide
-# defaults from the [pgvector].hnsw_* SSOT so every session -- incl. the agent-
-# pipe recall connection -- iterates a filtered HNSW scan up to LIMIT instead of
-# silently under-returning. Custom dotted GUCs are accepted at startup as
-# placeholders and applied when pgvector loads in a session (degrade-open: an
-# unrendered/empty value falls back to the upstream-default knob inline below).
 Exec=postgres -c port=${MIOS_PORT_PGVECTOR:-5432} -c listen_addresses=${MIOS_PG_BIND_ADDR:-127.0.0.1} -c hnsw.iterative_scan=${MIOS_PG_HNSW_ITERATIVE_SCAN:-strict_order} -c hnsw.max_scan_tuples=${MIOS_PG_HNSW_MAX_SCAN_TUPLES:-20000} -c hnsw.scan_mem_multiplier=${MIOS_PG_HNSW_SCAN_MEM_MULTIPLIER:-1}
-
-# OCI labels for Podman Desktop.
+Group=${MIOS_PGVECTOR_GID:-826}
+Image=${MIOS_PGVECTOR_IMAGE:-docker.io/pgvector/pgvector:0.8.3-pg17}
 Label=org.opencontainers.image.title=mios-pgvector
 Label=org.opencontainers.image.documentation=https://github.com/pgvector/pgvector
-
-[Service]
-Restart=on-failure
-RestartSec=10s
-TimeoutStartSec=180s
-Delegate=yes
-# Re-apply schema-init.sql on EVERY start, not just first-init. The postgres
-# entrypoint runs /docker-entrypoint-initdb.d/*.sql ONLY when PGDATA is empty, so
-# any table/column ADDED to schema-init.sql after the DB was first created never
-# reached an already-initialized DB -> schema drift (missing mios_rag, missing
-# scratch.source/topic/body broke RAG recall + daemon nudges; 2026-06-18 audit).
-# The whole schema is CREATE/ALTER ... IF NOT EXISTS, so re-running every boot is
-# idempotent + self-healing. Best-effort (ON_ERROR_STOP=0 + || true): a reconcile
-# hiccup must never fail the DB unit. Uses the already-mounted RO copy in-container.
-ExecStartPost=/usr/bin/bash -c 'for i in $(seq 1 45); do /usr/bin/podman exec mios-pgvector pg_isready -U ${MIOS_PG_USER:-mios} -d ${MIOS_PG_DB:-mios} -q && break; sleep 2; done; /usr/bin/podman exec mios-pgvector psql -v ON_ERROR_STOP=0 -U ${MIOS_PG_USER:-mios} -d ${MIOS_PG_DB:-mios} -f /docker-entrypoint-initdb.d/10-mios-schema.sql || true'
+Pod=mios-ai.pod
+User=${MIOS_PGVECTOR_UID:-826}
+Volume=${MIOS_PG_DATA_DIR:-/var/lib/mios/pgvector}:/var/lib/postgresql/data:Z
+Volume=/usr/share/mios/postgres/schema-init.sql:/docker-entrypoint-initdb.d/10-mios-schema.sql:ro
 
 [Install]
 WantedBy=multi-user.target default.target
+
+[Service]
+Delegate=yes
+ExecStartPost=/usr/bin/bash -c 'for i in $(seq 1 45); do /usr/bin/podman exec mios-pgvector pg_isready -U ${MIOS_PG_USER:-mios} -d ${MIOS_PG_DB:-mios} -q && break; sleep 2; done; /usr/bin/podman exec mios-pgvector psql -v ON_ERROR_STOP=0 -U ${MIOS_PG_USER:-mios} -d ${MIOS_PG_DB:-mios} -f /docker-entrypoint-initdb.d/10-mios-schema.sql || true'
+Restart=on-failure
+RestartSec=10s
+TimeoutStartSec=180s

@@ -1,5 +1,7 @@
-# AI-hint: Systemd network configuration file defining the core network interface parameters, including subnet, gateway, and identification label for the MiOS internal networking stack.
+# AI-hint: GENERATED Quadlet network 'mios' (WS-7 pods-as-SSOT). DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [networks.mios] in mios.toml.
+# /usr/share/containers/systemd/mios.network
+
 [Network]
-Subnet=${MIOS_CORE_NET_SUBNET:-10.89.0.0/24}
 Gateway=${MIOS_CORE_NET_GATEWAY:-10.89.0.1}
 Label=io.mios.network=core
+Subnet=${MIOS_CORE_NET_SUBNET:-10.89.0.0/24}

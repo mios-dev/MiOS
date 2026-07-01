@@ -1,82 +1,39 @@
-# AI-hint: Systemd container unit defining the firecrawl API service within the mios-webtools pod, providing the scraping/crawling HTTP surface at 127.0.0.1:3002 for the Hermes agent.
-# AI-related: mios-webtools, mios-webtools-firecrawl-api, mios-firecrawl, mios-webtools-redis, hermes-agent.service, mios-webtools-redis.service, multi-user.target, default.target, localhost:3002
+# AI-hint: GENERATED Quadlet container 'mios-webtools-firecrawl-api' (WS-7 pods-as-SSOT). DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [containers.mios-webtools-firecrawl-api] in mios.toml.
 # /usr/share/containers/systemd/mios-webtools-firecrawl-api.container
-# 'MiOS' web-tools POD member 2/4 -- firecrawl API (the scrape/crawl HTTP
-# surface Hermes points FIRECRAWL_API_URL at; see hermes-agent.service).
-#
-# Operator directive 2026-05-24 "make it a pod": firecrawl is now its OWN
-# container built from firecrawl's OWN apps/api/Dockerfile, pinned v1.0.0 (their
-# tested image), NOT a hand-rolled multi-runtime monolith. Built locally to
-# localhost/mios-firecrawl:v1.0.0 from usr/share/mios/webtools/firecrawl.Containerfile.
-#
-# api vs worker: the firecrawl v1.0.0 image carries NO CMD ("Start the server
-# by default, this can be overwritten at runtime" -- but the v1.0.0 image has
-# no default CMD, so each container MUST set its command). Per the upstream
-# v1.0.0 docker-compose.yaml, the api runs `pnpm run start:production`
-# (= "tsc && node dist/src/index.js") and the worker runs `pnpm run workers`.
-# We run the SAME image with the api command here.
-#
-# Network: inherited from the pod (Network=host). The api binds HOST loopback
-# 127.0.0.1:3002 (HOST=127.0.0.1 + PORT below), reaches redis on the host
-# loopback, and Hermes reaches it at http://127.0.0.1:3002. Not published
-# (host-net + the pod's Network=host).
+
 [Unit]
-Description='MiOS' web-tools firecrawl API (v1.0.0, self-host no-auth)
-# The api needs redis up first; the worker is independent of the api.
 After=mios-webtools-redis.service
+Description='MiOS' web-tools firecrawl API (v1.0.0, self-host no-auth)
 Wants=mios-webtools-redis.service
 
 [Container]
-Pod=mios-webtools.pod
-# Locally-built firecrawl v1.0.0 image (firecrawl's own apps/api/Dockerfile).
-Image=${MIOS_FIRECRAWL_IMAGE:-localhost/mios-firecrawl:v1.0.0}
+AutoUpdate=local
 ContainerName=mios-webtools-firecrawl-api
-# The image has WORKDIR /app (firecrawl's apps/api); pnpm + the built dist/
-# live there. Run the api production entrypoint.
-WorkingDir=/app
-Exec=pnpm run start:production
-# LAW 6 (UNPRIVILEGED-QUADLETS): User= is mandatory (99-postcheck.sh). The
-# upstream firecrawl v1.0.0 image (apps/api/Dockerfile) ships no USER and runs
-# as root -- pnpm/tsc/node and the baked /usr/bin/chromium (puppeteer) all
-# expect uid 0. Documented root member, as allowed by Law 6.
-User=0
-Group=0
-
-# ── firecrawl env (self-host, no-auth, fetch+puppeteer, NO playwright-svc) ──
-# REDIS_URL / REDIS_RATE_LIMIT_URL -> the pod's loopback redis member.
 Environment=REDIS_URL=redis://127.0.0.1:6380
 Environment=REDIS_RATE_LIMIT_URL=redis://127.0.0.1:6380
-# api bind: 127.0.0.1 keeps firecrawl loopback-only (Hermes reaches it on the
-# host loopback via the pod's Network=host); PORT from mios.toml [ports].firecrawl.
 Environment=HOST=127.0.0.1
 Environment=PORT=${MIOS_PORT_FIRECRAWL:-3002}
-# No Supabase in self-host -> turn DB auth OFF (else every request 401s).
 Environment=USE_DB_AUTHENTICATION=false
-# Worker concurrency (read by the api + worker). 2 keeps the box light.
 Environment=NUM_WORKERS_PER_QUEUE=${MIOS_FIRECRAWL_WORKERS:-2}
-# EMPTY playwright microservice URL -> firecrawl uses its in-process fetch +
-# puppeteer(chromium baked in firecrawl's own image at /usr/bin/chromium) path
-# ONLY. We deliberately do NOT run firecrawl's separate playwright-service.
 Environment=PLAYWRIGHT_MICROSERVICE_URL=
-# firecrawl's puppeteer -> the chromium firecrawl's apps/api/Dockerfile installs
-# (it sets PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium in the image ENV; repeated
-# here for quadlet-level discoverability).
 Environment=PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 Environment=BULL_AUTH_KEY=${MIOS_FIRECRAWL_BULL_KEY:-mios}
 Environment=LOGGING_LEVEL=${MIOS_FIRECRAWL_LOG_LEVEL:-INFO}
 Environment=NODE_ENV=production
-
-AutoUpdate=local
+Exec=pnpm run start:production
+Group=0
+Image=${MIOS_FIRECRAWL_IMAGE:-localhost/mios-firecrawl:v1.0.0}
 Label=org.opencontainers.image.title=mios-webtools-firecrawl-api
 Label=io.podman_desktop.openInBrowser=http://localhost:3002/
+Pod=mios-webtools.pod
+User=0
+WorkingDir=/app
+
+[Install]
+WantedBy=multi-user.target default.target
 
 [Service]
 Delegate=yes
 Restart=on-failure
 RestartSec=10s
-# firecrawl's api re-runs `tsc` on start (start:production = tsc && node ...)
-# before binding, so give it generous warm-up headroom.
 TimeoutStartSec=180s
-
-[Install]
-WantedBy=multi-user.target default.target

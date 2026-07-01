@@ -1,32 +1,25 @@
-# AI-hint: Systemd unit file defining the CrowdSec dashboard container deployment, managing the LAPI scraping service, volume mounts, and auto-update logic for the MiOS security monitoring stack.
-# AI-related: crowdsec.service, network-online.target, multi-user.target, default.target
+# AI-hint: GENERATED Quadlet container 'mios-crowdsec-dashboard' (WS-7 pods-as-SSOT). DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [containers.mios-crowdsec-dashboard] in mios.toml.
+# /usr/share/containers/systemd/mios-crowdsec-dashboard.container
+
 [Unit]
-Description='MiOS' CrowdSec Dashboard
 After=network-online.target crowdsec.service
-Wants=network-online.target
-# Defaults policy: enabled by default; auto-skips when CrowdSec isn't
-# configured (no /etc/crowdsec/config.yaml = no LAPI to scrape).
 ConditionPathExists=/etc/crowdsec/config.yaml
+Description='MiOS' CrowdSec Dashboard
+Wants=network-online.target
 
 [Container]
-# Image / Network placeholders -- resolved at image build time by
-# automation/15-render-quadlets.sh from mios.toml
-# [image.sidecars].crowdsec and [network.quadlet].network.
-Image=docker.io/crowdsecurity/crowdsec:latest
-ContainerName=mios-crowdsec-dashboard
-Pod=mios-system.pod
 AutoUpdate=registry
-# Run as root to allow symlink creation and database management
-# in the shared /var/lib/crowdsec volume.
-User=0
+ContainerName=mios-crowdsec-dashboard
 Group=0
-
+Image=docker.io/crowdsecurity/crowdsec:latest
+Pod=mios-system.pod
+User=0
 Volume=/var/lib/crowdsec:/var/lib/crowdsec:Z
-
-[Service]
-Restart=on-failure
-RestartSec=10
-Delegate=yes
 
 [Install]
 WantedBy=multi-user.target default.target
+
+[Service]
+Delegate=yes
+Restart=on-failure
+RestartSec=10

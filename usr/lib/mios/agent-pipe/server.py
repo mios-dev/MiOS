@@ -349,6 +349,35 @@ _TRACER = mios_trace.Tracer(enabled=TRACE_ENABLE, max_traces=TRACE_MAX_TRACES,
 _trace_id_var: "contextvars.ContextVar" = contextvars.ContextVar("mios_trace_id", default="")
 _span_id_var: "contextvars.ContextVar" = contextvars.ContextVar("mios_span_id", default="")
 
+# OpenTelemetry GenAI Spans (T-023)
+_otel_toml = _toml_section("observability") or {}
+_OTEL_ENABLE = (
+    str(os.environ.get("MIOS_OTEL_ENABLE") or _otel_toml.get("otel_enable", "false"))
+    .strip().lower() not in {"false", "0", "no", "off", ""}
+)
+_OTEL_ENDPOINT = (
+    str(os.environ.get("MIOS_OTEL_ENDPOINT") or _otel_toml.get("otel_endpoint", "http://localhost:4317"))
+    .strip()
+)
+
+_otel_tracer = None
+if _OTEL_ENABLE:
+    try:
+        from opentelemetry import trace as otel_trace
+        from opentelemetry.sdk.trace import TracerProvider
+        from opentelemetry.sdk.trace.export import BatchSpanProcessor
+        from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+        from opentelemetry.sdk.resources import Resource
+
+        provider = TracerProvider(resource=Resource.create({"service.name": "mios-agent-pipe"}))
+        processor = BatchSpanProcessor(OTLPSpanExporter(endpoint=_OTEL_ENDPOINT))
+        provider.add_span_processor(processor)
+        otel_trace.set_tracer_provider(provider)
+        _otel_tracer = otel_trace.get_tracer("mios-agent-pipe")
+        logging.getLogger("mios-agent-pipe").info("OpenTelemetry trace provider initialized (endpoint: %s)", _OTEL_ENDPOINT)
+    except Exception as otel_err:
+        logging.getLogger("mios-agent-pipe").warning("Failed to initialize OpenTelemetry trace provider: %s", otel_err)
+
 
 def _current_trace_id() -> str:
     """The active request's trace id ('' when untraced)."""
@@ -6422,9 +6451,7 @@ async def _kernel_dag_handler(decision, *, refined=None, session_id=None, **ctx)
 def _kernel_stage2b(mode: str):
     async def _handler(decision, **ctx):
         raise NotImplementedError(
-            f"kernel execution for mode {mode!r} is Stage 2b -- its body is still "
-            f"inline in chat_completions; only classification (router.route) + the "
-            f"'dag' delegation are live. Shadow-route only.")
+            f"kernel execution for mode {mode!r} has no registered dispatcher handler in chat.py.")
     return _handler
 
 
@@ -7247,6 +7274,7 @@ sys.modules["mios_toolexec"].configure(
     db_post=_db_post,
     db_create=_db_create,
     src_record=_src_record,
+    otel_tracer=_otel_tracer,
 )
 
 
@@ -7385,6 +7413,7 @@ sys.modules["mios_agent_call"].configure(
     backend_key=_BACKEND_KEY,
     global_priority_gate=_GLOBAL_PRIORITY_GATE,
     preempt=_PREEMPT,
+    otel_tracer=_otel_tracer,
 )
 
 # Inject mios_dag_exec's deps (refactor R8: DAG execution entrypoints). Placed
@@ -7643,7 +7672,9 @@ sys.modules["mios_http_caps"].configure(
     offline_posture=_offline_posture,
     # R13 batch 3: the read-only prompt-registry + run-template observability routes.
     prompt_registry=_PROMPT_REGISTRY, db_read=_db_read,
-    run_template_enable=RUN_TEMPLATE_ENABLE)
+    run_template_enable=RUN_TEMPLATE_ENABLE,
+    mcp_client_tools=_MCP_CLIENT_TOOLS,
+    mcp_client_lock=_MCP_CLIENT_LOCK)
 # R13: mount the migrated /v1/peers + /v1/resources[/read] routes. include_router
 # copies the router's routes onto the app at the SAME paths/methods the @app
 # wrappers used to serve; the bodies resolve their module-resident *_logic at
