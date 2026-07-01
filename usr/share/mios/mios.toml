@@ -1198,7 +1198,7 @@ model    = "mios-opencode:latest"
 # never a DAG sink) even if the explicit flag below were ever removed.
 kind     = "cli"
 transport = "cli"
-enabled  = false
+enabled  = true
 timeout_s = 90
 role     = "coding"
 job      = "Software engineering -- read, edit, review, test and commit code, configs, scripts, systemd units, Containerfiles and TOML in this repo/system."
@@ -1217,7 +1217,7 @@ default  = false
 # @ num_ctx=32768 holds ~23GB = MONOPOLISES the shared 4090, blocking co-loading
 # so real work spills to CPU. Exclude it from automatic fan-out; it engages only
 # when a turn is explicitly code-routed. Re-enable once `opencode run` is fixed.
-fanout   = false
+fanout   = true
 # health_gate (- root cause of the "all nodes succeed=false,
 # output=0 / merged_chars=0" multi-agent failure): the opencode gateway (:8633) is
 # default-OFF (the `run` hang documented above), but WITHOUT this flag the

@@ -16,9 +16,9 @@ Pod=mios-system.pod
 # and [ports].guacamole_web.
 Image=docker.io/guacamole/guacamole:latest
 AutoUpdate=registry
-Label=org.opencontainers.image.url=http://localhost:8090/guacamole/
+Label=org.opencontainers.image.url=http://localhost:${MIOS_PORT_GUACAMOLE_WEB:-8080}/guacamole/
 Label=org.opencontainers.image.documentation=https://guacamole.apache.org/doc/
-Label=io.podman_desktop.openInBrowser=http://localhost:8090/guacamole/
+Label=io.podman_desktop.openInBrowser=http://localhost:${MIOS_PORT_GUACAMOLE_WEB:-8080}/guacamole/
 
 [Service]
 Restart=on-failure

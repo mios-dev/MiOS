@@ -37,7 +37,7 @@ Environment=PYTHONUNBUFFERED=1
 #   Environment=MIOS_DAEMON_CRON_TOML=/etc/mios/daemon/cron.toml
 #   Environment=MIOS_DAEMON_CLASSIFY_S=30
 #   Environment=MIOS_DAEMON_CRON_TICK_S=60
-#   Environment=MIOS_DAEMON_WATCH_UNITS=hermes-agent.service,mios-delegation-prefilter.service,mios-open-webui.service
+#   Environment=MIOS_DAEMON_WATCH_UNITS=mios-gateway-agent.service,mios-delegation-prefilter.service,mios-open-webui.service
 
 # Hardening (kept loose enough to allow journalctl subscription +
 # subprocess.Popen for cron actions).

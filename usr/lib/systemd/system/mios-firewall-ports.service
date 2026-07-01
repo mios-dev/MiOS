@@ -18,7 +18,7 @@
 Description='MiOS': ensure firewalld has the MiOS service ports open
 After=firewalld.service network-online.target
 Wants=firewalld.service network-online.target
-Before=hermes-agent.service mios-open-webui.service mios-searxng.service
+Before=mios-gateway-agent.service mios-open-webui.service mios-searxng.service
 ConditionPathExists=/usr/bin/firewall-cmd
 
 [Service]

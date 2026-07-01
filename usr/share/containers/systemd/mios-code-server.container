@@ -76,6 +76,7 @@ Volume=/var/lib/mios/code-server:/home/coder
 # rslave propagation so host mounts (the overlay, sub-fs) stay visible
 # without the container pinning them.
 Volume=/:/mnt/mios-root:rw,rslave
+EnvironmentFile=/etc/mios/install.env
 
 # Auth: MIOS_DEFAULT_PASSWORD baked at image-build time from
 # mios.toml [identity].default_password via 15-render-quadlets.sh.

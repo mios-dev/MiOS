@@ -103,6 +103,7 @@ Volume=/mnt/m:/mnt/m:ro
 # gateway then rejects. Operator-confirmed 2026-05-14 ("Invalid API
 # key" / "You do not have permission" on every Open WebUI call).
 EnvironmentFile=/etc/mios/hermes/api.env
+EnvironmentFile=/etc/mios/install.env
 
 # Wiring to the MiOS AI stack -- point at Hermes-Agent (Law 5).
 # Hermes-Agent is a DIRECT HOST service now, not a container, so the

@@ -1086,6 +1086,84 @@ check_hummingbird() {
     echo "[38-drift-checks]   (20) Hummingbird distroless and Quadlet configuration is valid"
 }
 
+check_container_ports() {
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "[38-drift-checks]   WARNING: python3 missing -- skipping container port check" >&2
+        return 0
+    fi
+    local tmp; tmp="$(mktemp)"
+    if MIOS_DRIFT_ROOT="$ROOT" python3 - >"$tmp" 2>&1 <<'PY'
+import os, sys, re
+root = os.environ.get("MIOS_DRIFT_ROOT", ".")
+try:
+    import tomllib as _toml
+except ImportError:
+    try:
+        import tomli as _toml
+    except ImportError:
+        sys.exit(0)
+
+p = os.path.join(root, "usr/share/mios/mios.toml")
+if not os.path.isfile(p):
+    sys.exit(0)
+
+with open(p, "rb") as fh:
+    d = _toml.load(fh)
+ports = d.get("ports") or {}
+
+# Get all port numbers (excluding stack_id which is 0)
+port_vals = {name: val for name, val in ports.items() if name != "stack_id" and isinstance(val, int)}
+
+viol = []
+quadlet_dirs = ["usr/share/containers/systemd", "etc/containers/systemd"]
+for qd in quadlet_dirs:
+    dir_path = os.path.join(root, qd)
+    if not os.path.isdir(dir_path):
+        continue
+    for dp, _dn, files in os.walk(dir_path):
+        for fn in files:
+            if not fn.endswith(".container"):
+                continue
+            path = os.path.join(dp, fn)
+            try:
+                lines = open(path, encoding="utf-8", errors="ignore").readlines()
+            except OSError:
+                continue
+            for idx, line in enumerate(lines, 1):
+                # Strip comments
+                active = re.sub(r'#.*', '', line).strip()
+                if not active:
+                    continue
+                # For each port value, check if it appears as a word boundary
+                for name, val in port_vals.items():
+                    # Strip placeholder defaults first
+                    # e.g. ${MIOS_PORT_OPEN_WEBUI:-8033}
+                    cleaned = re.sub(r'\$\{MIOS_PORT_[A-Z_]+:-' + str(val) + r'\}', '', active)
+                    if re.search(rf'\b{val}\b', cleaned):
+                        # Verify it's not an internal port like guacamole:8080 or firecrawl:3002
+                        # Let's skip 8080 or 3002 if it is the target port in a PublishPort (like PublishPort=xxx:8080)
+                        # or container-internal binds. Since they are permitted as container ports, we can
+                        # just skip them if they match.
+                        if val in (8080, 3002) and (":" + str(val) in cleaned or "=" + str(val) in cleaned and not cleaned.startswith("PublishPort=")):
+                            continue
+                        viol.append(f"{fn}:{idx}: manual port literal {val} for '{name}' used in active line: {line.strip()}")
+
+for v in viol:
+    print(v)
+sys.exit(1 if viol else 0)
+PY
+    then
+        echo "[38-drift-checks]   (21) no manual port literals in container definitions"
+        rm -f "$tmp"
+    else
+        echo "[38-drift-checks] VIOLATION: manual port literal(s) found in container Quadlets -- use the \${MIOS_PORT_*} placeholder from the [ports] SSOT (T-042):" >&2
+        cat "$tmp" >&2
+        rm -f "$tmp"
+        VIOLATIONS=$((VIOLATIONS + 1))
+        return 1
+    fi
+}
+
 main() {
     check_dead_lane
     check_retired_models
@@ -1107,6 +1185,7 @@ main() {
     check_cephfs_ssot
     check_converge_ssot
     check_hummingbird
+    check_container_ports
 
     echo "[38-drift-checks] ---------------------------------------------------------"
     if [[ "$VIOLATIONS" -eq 0 ]]; then

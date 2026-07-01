@@ -58,7 +58,23 @@ def _wrap_doc(doc: str, width: int = 76) -> "list[str]":
     return out
 
 
-def render_pod_quadlet(name: str, spec: dict) -> str:
+def _resolve_port(port_str: str, ports: dict) -> str:
+    parts = port_str.split(":")
+    resolved_parts = []
+    for p in parts:
+        p_clean = p.strip()
+        if p_clean.startswith("${") and p_clean.endswith("}"):
+            p_clean = p_clean[2:-1]
+            if p_clean.startswith("ports."):
+                p_clean = p_clean[6:]
+        if p_clean in ports:
+            resolved_parts.append(str(ports[p_clean]))
+        else:
+            resolved_parts.append(p)
+    return ":".join(resolved_parts)
+
+
+def render_pod_quadlet(name: str, spec: dict, ports: dict | None = None) -> str:
     """Render the .pod Quadlet text for one [pods.<name>] spec. Deterministic:
     sorted nothing (preserve declared order), fixed section order. PodName is the
     pod `name` with any leading 'mios-' kept (the unit is <name>.pod -> Quadlet
@@ -69,6 +85,8 @@ def render_pod_quadlet(name: str, spec: dict) -> str:
     wants = [str(x) for x in (spec.get("wants") or [])]
     wanted_by = [str(x) for x in (spec.get("wanted_by") or ["multi-user.target"])]
     publish_ports = [str(x) for x in (spec.get("publish_ports") or [])]
+    if ports:
+        publish_ports = [_resolve_port(p, ports) for p in publish_ports]
     members = [str(x).split("#", 1)[0].strip() for x in (spec.get("members") or [])]
     members = [m for m in members if m]
 
@@ -113,11 +131,18 @@ def load_pods(toml_path: str) -> dict:
     return d.get("pods") or {}
 
 
+def load_ports(toml_path: str) -> dict:
+    with open(toml_path, "rb") as f:
+        d = tomllib.load(f)
+    return d.get("ports") or {}
+
+
 def main(argv: "list[str]") -> int:
     if "--selftest" in argv:
         return _selftest()
     check = "--check" in argv
     pods = load_pods(TOML)
+    ports = load_ports(TOML)
     if not pods:
         print("[pod-gen] no [pods.*] in SSOT -- nothing to do")
         return 0
@@ -129,7 +154,7 @@ def main(argv: "list[str]") -> int:
         spec = pods[name]
         if not isinstance(spec, dict):
             continue
-        text = render_pod_quadlet(name, spec)
+        text = render_pod_quadlet(name, spec, ports)
         out = os.path.join(OUT_DIR, f"{name}.pod")
         # Drift gate: every declared member must exist as a .container file.
         for m in [str(x).split("#", 1)[0].strip() for x in (spec.get("members") or [])]:
@@ -175,21 +200,24 @@ def _selftest() -> int:
         "after": ["network-online.target", "x.service"],
         "wants": ["network-online.target"],
         "wanted_by": ["multi-user.target", "default.target"],
-        "publish_ports": ["8080:8080"],
+        "publish_ports": ["8080:8080", "${ports.open_webui}:8080", "searxng:80"],
         "members": ["mios-a", "mios-b  # comment"],
         "doc": "Line one rationale that is reasonably long so wrapping engages across the width boundary deterministically.",
     }
-    t = render_pod_quadlet("mios-test", spec)
+    mock_ports = {"open_webui": 8033, "searxng": 8899}
+    t = render_pod_quadlet("mios-test", spec, mock_ports)
     ck("selftest: has [Pod] section", "[Pod]" in t)
     ck("selftest: PodName from name", "PodName=mios-test" in t)
     ck("selftest: Network rendered", "Network=host" in t)
-    ck("selftest: PublishPort rendered", "PublishPort=8080:8080" in t)
+    ck("selftest: PublishPort literal rendered", "PublishPort=8080:8080" in t)
+    ck("selftest: PublishPort resolved placeholder", "PublishPort=8033:8080" in t)
+    ck("selftest: PublishPort resolved raw name", "PublishPort=8899:80" in t)
     ck("selftest: After joined", "After=network-online.target x.service" in t)
     ck("selftest: Wants joined", "Wants=network-online.target" in t)
     ck("selftest: WantedBy joined", "WantedBy=multi-user.target default.target" in t)
     ck("selftest: member comment stripped", "mios-b.container" in t and "# comment" not in t.split("AI-related")[1].split("\n")[0])
     ck("selftest: doc wrapped as comments", "# Line one rationale" in t)
-    ck("selftest: deterministic", render_pod_quadlet("mios-test", spec) == t)
+    ck("selftest: deterministic", render_pod_quadlet("mios-test", spec, mock_ports) == t)
     ck("selftest: trailing newline", t.endswith("\n"))
     print(f"\n{'ok' if fails == 0 else str(fails) + ' FAILED'}")
     return 1 if fails else 0

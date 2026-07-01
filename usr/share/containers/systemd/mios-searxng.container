@@ -63,10 +63,10 @@ Environment=SEARXNG_BASE_URL=http://localhost:${MIOS_PORT_SEARXNG:-8899}/
 # Pin both to 8899 so host-network and bridge-network deployments
 # both bind where MiOS expects. BIND_ADDRESS/SEARXNG_BIND_ADDRESS
 # are kept for upstream Helm-chart parity.
-Environment=SEARXNG_BIND_ADDRESS=0.0.0.0:${MIOS_PORT_SEARXNG:-8899}
-Environment=BIND_ADDRESS=0.0.0.0:${MIOS_PORT_SEARXNG:-8899}
-Environment=GRANIAN_HOST=0.0.0.0
-Environment=GRANIAN_PORT=8899
+Environment=SEARXNG_BIND_ADDRESS=127.0.0.1:${MIOS_PORT_SEARXNG:-8899}
+Environment=BIND_ADDRESS=127.0.0.1:${MIOS_PORT_SEARXNG:-8899}
+Environment=GRANIAN_HOST=127.0.0.1
+Environment=GRANIAN_PORT=${MIOS_PORT_SEARXNG:-8899}
 
 # Concurrency (operator 2026-05-22: "SearXNG setup to handle the load").
 # granian defaults to a single worker, which serialises concurrent incoming

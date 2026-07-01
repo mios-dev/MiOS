@@ -11,6 +11,10 @@ from unittest import mock
 
 import mios_cold_evict
 
+# Use user-specific directory to avoid permission collision on shared dev hosts
+uid = os.getuid() if hasattr(os, "getuid") else 1000
+TEST_DIR = f"/tmp/cold-test-{uid}"
+
 _fails = 0
 
 def check(name, cond, detail=""):
@@ -38,7 +42,7 @@ async def test_export_to_cold_success():
     with mock.patch("subprocess.run") as mock_run:
         # Run export
         res_path = await mios_cold_evict.export_to_cold(
-            pg, row_ids=[123], table="knowledge", dest_dir="/tmp/cold-test", zstd_level=3
+            pg, row_ids=[123], table="knowledge", dest_dir=TEST_DIR, zstd_level=3
         )
         
         check("export: returns zst file path", res_path is not None)
@@ -59,7 +63,7 @@ async def test_export_to_cold_error_cleanup():
     with mock.patch("subprocess.run", side_effect=Exception("zstd error")):
         try:
             await mios_cold_evict.export_to_cold(
-                pg, row_ids=[123], table="knowledge", dest_dir="/tmp/cold-test", zstd_level=3
+                pg, row_ids=[123], table="knowledge", dest_dir=TEST_DIR, zstd_level=3
             )
             check("cleanup: raised exception", False, "should have failed")
         except Exception:
@@ -88,7 +92,7 @@ async def test_cold_sweep():
     with mock.patch("subprocess.run"):
         plan = {"ttl_delete": 2, "cap_delete": 0}
         report = await mios_cold_evict.cold_sweep(
-            pg, plan, table="knowledge", dest_dir="/tmp/cold-test", zstd_level=3
+            pg, plan, table="knowledge", dest_dir=TEST_DIR, zstd_level=3
         )
         
         check("sweep: correct number exported", report["exported"] == 2)
