@@ -111,6 +111,16 @@ RUN --mount=type=bind,from=ctx,source=/ctx,target=/ctx,ro \
     find /run -mindepth 1 -maxdepth 1 ! -name "secrets" -exec rm -rf {} + 2>/dev/null || true
 
 RUN bootc completion bash > /etc/bash_completion.d/bootc
+
+# OpenSCAP Image Hardening & Compliance Scan (BOOT-02)
+# Runs dynamically using oscap-im only if [compliance].enabled is true in mios.toml.
+# Requires --network=host to dynamically install SCE scanning/remediation dependencies at build time.
+RUN --network=host set -ex; \
+    if python3 -c "import tomllib; print(tomllib.load(open('/usr/share/mios/mios.toml', 'rb')).get('compliance', {}).get('enabled', False))" | grep -iq "true"; then \
+        chmod +x /usr/libexec/mios/oscap-scan.py; \
+        /usr/libexec/mios/oscap-scan.py; \
+    fi
+
 # System-extension pack step: intentionally a no-op when no sysext source
 # trees are staged in the image. The pack tool at tools/mios-sysext-pack.sh
 # consolidates one-or-more `/usr/lib/extensions/source-*` trees into a single

@@ -6847,6 +6847,7 @@ pkgs = [
     "aide",
     "openscap-scanner",
     "scap-security-guide",
+    "openscap-utils",
     "libpwquality",
     "nftables",
     "policycoreutils",
@@ -7906,6 +7907,7 @@ severity_gate           = "high"                       # fail build on a FAILED 
 remediate               = false                        # RESERVED: scan-only today; remediation (oscap-im) is a future operator-opt-in step
 fetch_remote_resources  = false                        # allow oscap to fetch remote SCAP resources (offline-safe default OFF)
 report_path             = "/usr/share/mios/compliance" # ARF + HTML report dir (baked into the image, not /var)
+oscap_skip_rules        = []                           # list of rule IDs (e.g. xccdf_org.ssgproject.content_rule_...) to exclude/disable via XCCDF tailoring
 
 # ----------------------------------------------------------------------------
 # [build] -- build-time tunables consumed by automation/[NN]-*.sh and
