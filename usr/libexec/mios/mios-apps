@@ -111,6 +111,40 @@ _is_wsl() {
     fi
     echo 0
 }
+# Wine-free Steam library scan. The Windows-side PowerShell pass reaches the
+# real host only through WSL-interop, which is silently hijacked when a Wine
+# binfmt handler intercepts .exe (games then invisible). Steam's library is
+# plain-text VDF readable straight off the drvfs /mnt mount -- parse it there,
+# with ZERO .exe execution, and emit "<name>|steam://rungameid/<appid>" lines.
+# The registry SteamPath is the true SSOT but is unreadable from bash; the
+# default install root only BOOTSTRAPS us to libraryfolders.vdf, which then
+# enumerates every real library on any drive (so non-default installs are
+# still covered).
+_steam_scan_native() {
+    local def="/mnt/c/Program Files (x86)/Steam/steamapps"
+    local -a roots=()
+    [ -d "$def" ] && roots+=("$def")
+    local vdf="$def/libraryfolders.vdf"
+    if [ -f "$vdf" ]; then
+        local p drive rest mnt
+        while IFS= read -r p; do
+            drive="$(printf '%s' "${p:0:1}" | tr '[:upper:]' '[:lower:]')"
+            rest="${p:2}"; rest="${rest//\\//}"
+            mnt="/mnt/${drive}${rest}/steamapps"
+            [ -d "$mnt" ] && roots+=("$mnt")
+        done < <(sed -nE 's/.*"path"[[:space:]]+"([^"]+)".*/\1/p' "$vdf")
+    fi
+    local root f name appid
+    printf '%s\n' "${roots[@]}" | sort -u | while IFS= read -r root; do
+        [ -d "$root" ] || continue
+        for f in "$root"/appmanifest_*.acf; do
+            [ -f "$f" ] || continue
+            name=$(sed -nE 's/.*"name"[[:space:]]+"([^"]+)".*/\1/p' "$f" | head -1)
+            appid=$(sed -nE 's/.*"appid"[[:space:]]+"([0-9]+)".*/\1/p' "$f" | head -1)
+            [ -n "$name" ] && [ -n "$appid" ] && printf '%s|steam://rungameid/%s\n' "$name" "$appid"
+        done
+    done
+}
 header() {
     [ "$JSON" = "1" ] && return
     [ "$NAMES" = "1" ] && return
@@ -174,7 +208,9 @@ PSEOF
         | tr -d '\r' | while IFS= read -r _name; do
             [ -n "$_name" ] || continue
             emit windows-gui "$_name" "Windows app (Start Menu)" "mios-windows launch $_name"
-        done
+        done || true
+    # `|| true`: pwsh.exe returns non-zero when interop is down / hijacked by
+    # Wine; under `set -o pipefail` + `set -e` that aborts mios-apps entirely.
 fi
 
 # ─── 3a. windows-app (every Start-menu app on the Windows host) ──────
@@ -281,7 +317,10 @@ PSEOF
         _bdesc="Windows browser"
         [ "$(printf '%s' "$_bdef" | tr -d ' ')" = "1" ] && _bdesc="Windows DEFAULT browser"
         emit windows-browser "$_bn" "$_bdesc" "mios-windows launch $_bn"
-    done
+    done || true
+    # `|| true`: under `set -o pipefail` a non-zero exit from the Windows-side
+    # PowerShell (interop down / hijacked by Wine) would fail the whole pipe and,
+    # under `set -e`, abort mios-apps entirely before the games section runs.
 fi
 
 # ─── 3b. windows-game (Steam + Epic + GOG library scan) ──────────────
@@ -410,7 +449,15 @@ Get-StartApps -ErrorAction SilentlyContinue | Where-Object { $_.AppID -match "!"
 # in different letter-case, scanning it twice; collapse identical entries.
 $out = @($out | Select-Object -Unique)
 $out | ForEach-Object { Write-Output $_ }
-' 2>/dev/null > "$GAME_CACHE.tmp"
+' 2>/dev/null > "$GAME_CACHE.tmp" || true
+        # `|| true`: the PowerShell pass exits non-zero when WSL-interop is
+        # unavailable or hijacked by Wine; under `set -e` that would abort the
+        # ENTIRE mios-apps (losing games AND every later category). Best-effort.
+        # Merge the Wine-free native Steam scan so Steam games are found even
+        # when .exe interop is broken (the PowerShell pass then yields nothing).
+        # Dedup by line so a game seen by both passes appears once.
+        _steam_scan_native >> "$GAME_CACHE.tmp" 2>/dev/null || true
+        sort -u "$GAME_CACHE.tmp" -o "$GAME_CACHE.tmp" 2>/dev/null || true
         # Only cache output with REAL game lines ("name|target"). A garbage/error
         # pass (e.g. an interop "powershell.exe: Invalid argument" that lands on
         # stdout with exit 0) has no "|" -> discard so the next call re-scans
