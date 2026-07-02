@@ -615,28 +615,61 @@ function Get-UIATree {
 
 function Invoke-UIASetValue($name, $text) {
     if (-not $script:UIA_OK) { return @{ ok = $false; error = 'UIA unavailable on this host' } }
+    # Build the search roots: the foreground window FIRST (fast path), then
+    # EVERY top-level window on the desktop. A just-launched app (e.g. Notepad)
+    # is frequently not yet the foreground window by the time this call runs, so
+    # relying on GetForegroundWindow alone returned "no foreground window" and
+    # the type never landed. Searching all windows for the editable control --
+    # then activating its window -- makes set-value land regardless of focus.
+    $roots = New-Object System.Collections.Generic.List[object]
     $fg = [OSCW32]::GetForegroundWindow()
-    $root = $null
-    try { if ($fg -ne [IntPtr]::Zero) { $root = [System.Windows.Automation.AutomationElement]::FromHandle($fg) } } catch {}
-    if (-not $root) { return @{ ok = $false; error = "no foreground window" } }
-    
-    $target = $null
+    if ($fg -ne [IntPtr]::Zero) {
+        try { $r = [System.Windows.Automation.AutomationElement]::FromHandle($fg); if ($r) { $roots.Add($r) } } catch {}
+    }
     try {
-        $all = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)
-        foreach ($el in $all) {
-            $nm = ''; $aid = ''
-            try { $nm = [string]$el.Current.Name } catch {}
-            try { $aid = [string]$el.Current.AutomationId } catch {}
-            if (($name -and ($nm -like "*$name*")) -or ($name -and ($aid -eq $name))) {
-                $target = $el
-                break
-            }
-        }
+        $wins = [System.Windows.Automation.AutomationElement]::RootElement.FindAll(
+            [System.Windows.Automation.TreeScope]::Children,
+            [System.Windows.Automation.Condition]::TrueCondition)
+        foreach ($w in $wins) { $roots.Add($w) }
     } catch {}
+    if ($roots.Count -eq 0) { return @{ ok = $false; error = "no windows found on desktop" } }
+
+    $target = $null; $targetRoot = $null
+    foreach ($root in $roots) {
+        try {
+            $all = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)
+            foreach ($el in $all) {
+                $nm = ''; $aid = ''
+                try { $nm = [string]$el.Current.Name } catch {}
+                try { $aid = [string]$el.Current.AutomationId } catch {}
+                if (($name -and ($nm -like "*$name*")) -or ($name -and ($aid -eq $name))) {
+                    # Require an editable ValuePattern so we skip labels/read-only
+                    # matches and only accept a control we can actually set.
+                    $vpc = $null
+                    if ($el.TryGetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern, [ref]$vpc) `
+                            -and -not $vpc.Current.IsReadOnly) {
+                        $target = $el; $targetRoot = $root; break
+                    }
+                }
+            }
+        } catch {}
+        if ($target) { break }
+    }
 
     if (-not $target) {
-        return @{ ok = $false; error = "no UIA element matching '$name'" }
+        return @{ ok = $false; error = "no editable UIA element matching '$name'" }
     }
+
+    # Bring the target's window to the foreground so the input lands and the
+    # operator SEES it (satisfy the foreground lock via AllowSetForegroundWindow).
+    try {
+        $h = [IntPtr]$targetRoot.Current.NativeWindowHandle
+        if ($h -ne [IntPtr]::Zero) {
+            [void][OSCW32]::ShowWindow($h, 9)                 # SW_RESTORE
+            [void][OSCW32]::AllowSetForegroundWindow(-1)      # ASFW_ANY
+            [void][OSCW32]::SetForegroundWindow($h)
+        }
+    } catch {}
 
     $vp = $null
     if ($target.TryGetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern, [ref]$vp)) {
