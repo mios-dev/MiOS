@@ -118,9 +118,9 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Deps:** T-002 (greenboot).
 
 **Done When:**
-- [ ] `ostree admin status` confirms composefs active on fresh boot
-- [ ] Tampering `/usr` causes verification error on next boot
-- [ ] greenboot check passes on unmodified image
+- [x] `ostree admin status` confirms composefs active on fresh boot
+- [x] Tampering `/usr` causes verification error on next boot
+- [x] greenboot check passes on unmodified image
 
 ---
 
@@ -161,10 +161,10 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Deps:** None.
 
 **Done When:**
-- [ ] Absent `_defaults` -> byte-identical behavior to today
-- [ ] With `_defaults`, `opencode` resolves `health_gate=true`
-- [ ] `/v1/cluster/health` unchanged for live agents
-- [ ] Unit test: 1-field overlay inherits all remaining fields from `_defaults`
+- [x] Absent `_defaults` -> byte-identical behavior to today
+- [x] With `_defaults`, `opencode` resolves `health_gate=true`
+- [x] `/v1/cluster/health` unchanged for live agents
+- [x] Unit test: 1-field overlay inherits all remaining fields from `_defaults`
 
 ---
 
@@ -181,9 +181,9 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Deps:** T-006 (A1).
 
 **Done When:**
-- [ ] `just drift-gate` fails when a test agent omits `health_gate`
-- [ ] Passes on the cleaned config
-- [ ] Runs in CI with no built image required
+- [x] `just drift-gate` fails when a test agent omits `health_gate`
+- [x] Passes on the cleaned config
+- [x] Runs in CI with no built image required
 
 ---
 
@@ -224,9 +224,9 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Deps:** T-006 (A1).
 
 **Done When:**
-- [ ] After fresh boot + venv build, `systemctl is-active hermes-worker` = `active`
-- [ ] `/v1/cluster/health` shows >= 1 peer `effective_up: true`
-- [ ] A fan-out request uses hermes-worker as a council peer
+- [x] After fresh boot + venv build, `systemctl is-active hermes-worker` = `active`
+- [x] `/v1/cluster/health` shows >= 1 peer `effective_up: true`
+- [x] A fan-out request uses hermes-worker as a council peer
 
 ---
 
@@ -245,8 +245,8 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Deps:** T-006 (A1).
 
 **Done When:**
-- [ ] All 4 sites attach the correct header for their endpoint's `auth` config
-- [ ] Local (no-auth) agents still work with empty headers
+- [x] All 4 sites attach the correct header for their endpoint's `auth` config
+- [x] Local (no-auth) agents still work with empty headers
 
 ---
 
@@ -264,9 +264,9 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Deps:** T-001 (FED-G1 for reload endpoint auth), T-006 (A1).
 
 **Done When:**
-- [ ] Adding a peer to `a2a-peers.json` -> peer appears in `/v1/cluster/health` within 5s without restart
-- [ ] Removing a peer drops it within 5s
-- [ ] `POST /a2a/peers/reload` triggers the same path
+- [x] Adding a peer to `a2a-peers.json` -> peer appears in `/v1/cluster/health` within 5s without restart
+- [x] Removing a peer drops it within 5s
+- [x] `POST /a2a/peers/reload` triggers the same path
 
 ---
 
@@ -284,9 +284,9 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Deps:** T-006 (A1).
 
 **Done When:**
-- [ ] `curl /.well-known/agent-card.json` includes `securitySchemes` and `signatures[]`
-- [ ] A peer can verify the JWS signature using the public key from `GET /passport/public-key`
-- [ ] Card is identical across two consecutive restarts
+- [x] `curl /.well-known/agent-card.json` includes `securitySchemes` and `signatures[]`
+- [x] A peer can verify the JWS signature using the public key from `GET /passport/public-key`
+- [x] Card is identical across two consecutive restarts
 
 ---
 
@@ -346,8 +346,8 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Deps:** None.
 
 **Done When:**
-- [ ] `ss -ltnp | grep 8800` shows binding; `:8080` is free
-- [ ] Code Server UI reachable at `http://localhost:8800`
+- [x] `ss -ltnp | grep 8800` shows binding; `:8080` is free
+- [x] Code Server UI reachable at `http://localhost:8800`
 
 ---
 
@@ -364,8 +364,8 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Deps:** T-015 (C0).
 
 **Done When:**
-- [ ] `generate-pod-quadlets.py --check` lists all 7 pods with no drift warning
-- [ ] `just drift-gate` passes
+- [x] `generate-pod-quadlets.py --check` lists all 7 pods with no drift warning
+- [x] `just drift-gate` passes
 
 ---
 
@@ -382,9 +382,9 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Deps:** T-016 (C1).
 
 **Done When:**
-- [ ] `podman pod ls` shows all 7 pods in `Running` state
-- [ ] Each member container is listed under its pod
-- [ ] All health checks pass
+- [x] `podman pod ls` shows all 7 pods in `Running` state
+- [x] Each member container is listed under its pod
+- [x] All health checks pass
 
 ---
 
@@ -403,9 +403,9 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Deps:** None.
 
 **Done When:**
-- [ ] After re-running firstboot on empty model table, `MiOS AI` row exists with `{{USER_LOCATION}}`
-- [ ] Row survives a full reinstall
-- [ ] Secure-context requirement documented in firstboot output
+- [x] After re-running firstboot on empty model table, `MiOS AI` row exists with `{{USER_LOCATION}}`
+- [x] Row survives a full reinstall
+- [x] Secure-context requirement documented in firstboot output
 
 ---
 
@@ -540,9 +540,9 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Deps:** None.
 
 **Done When:**
-- [ ] All peers down: `/v1/cluster/health` contains single-agent mode string
-- [ ] Chat response metadata reflects single-agent mode
-- [ ] >= 1 peer up: mode reports `"council"` normally
+- [x] All peers down: `/v1/cluster/health` contains single-agent mode string
+- [x] Chat response metadata reflects single-agent mode
+- [x] >= 1 peer up: mode reports `"council"` normally
 
 ---
 
@@ -927,9 +927,9 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Deps:** T-006 (A1), T-010 (FED-G2 auth).
 
 **Done When:**
-- [ ] Loopback "remote" node in `/etc` overlay appears in `/v1/cluster/health` when reachable
-- [ ] When endpoint goes down, node auto-drops within 30s
-- [ ] Node auto-rejoins without restart when it comes back
+- [x] Loopback "remote" node in `/etc` overlay appears in `/v1/cluster/health` when reachable
+- [x] When endpoint goes down, node auto-drops within 30s
+- [x] Node auto-rejoins without restart when it comes back
 
 ---
 
@@ -1008,10 +1008,10 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Deps:** T-006 (A1), T-021 (MEM-01 -- embeddings from llm-light).
 
 **Done When:**
-- [ ] Two semantically identical council responses -> second replaced with next most-orthogonal
-- [ ] `/v1/cluster/health` includes `diversity_gate_active: true` when enabled
-- [ ] Zero extra model calls (reuses existing embeddings)
-- [ ] Gate off -> byte-identical to today
+- [x] Two semantically identical council responses -> second replaced with next most-orthogonal
+- [x] `/v1/cluster/health` includes `diversity_gate_active: true` when enabled
+- [x] Zero extra model calls (reuses existing embeddings)
+- [x] Gate off -> byte-identical to today
 
 ---
 
@@ -1031,9 +1031,9 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Deps:** T-047 (GAP-1 -- shares embedding computation), T-039 (OBS-02 bench for tuning).
 
 **Done When:**
-- [ ] Three identical council responses above threshold -> aggregator LLM not called; event logged
-- [ ] `/v1/cluster/health` reports `aggregator_calls_bypassed_pct`
-- [ ] Gate off -> byte-identical to today
+- [x] Three identical council responses above threshold -> aggregator LLM not called; event logged
+- [x] `/v1/cluster/health` reports `aggregator_calls_bypassed_pct`
+- [x] Gate off -> byte-identical to today
 
 ---
 
@@ -1054,9 +1054,9 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Deps:** T-039 (OBS-02).
 
 **Done When:**
-- [ ] Skill that fails 1-of-3 replay runs is rejected with veto message
-- [ ] Skill passing 3-of-3 promotes normally
-- [ ] `mios-bench` output includes `pass^k` column
+- [x] Skill that fails 1-of-3 replay runs is rejected with veto message
+- [x] Skill passing 3-of-3 promotes normally
+- [x] `mios-bench` output includes `pass^k` column
 
 ---
 
@@ -1092,7 +1092,7 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Deps:** T-012 (FED-G4).
 
 **Done When:**
-- [ ] Task tagged `code-review` routes to agent whose card lists `code-review` as a skill, overriding strength-token proximity if they conflict
+- [x] Task tagged `code-review` routes to agent whose card lists `code-review` as a skill, overriding strength-token proximity if they conflict
 
 ---
 
@@ -1148,11 +1148,11 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Deps:** T-003 (C0 pod consolidation), T-028 (B1 pgvector schema). Needs egress [NET] for initial image pull.
 
 **Done When:**
-- [ ] `curl http://localhost:8283/v1/health` returns `{"status":"ok"}`
-- [ ] `curl http://localhost:8283/v1/agents` returns an agent list (empty or seeded)
-- [ ] Letta PostgreSQL schema visible: `psql mios -c "\dn" | grep mios_letta`
-- [ ] Container uses `http://localhost:11450/v1` only -- no cloud LLM call (Law 5)
-- [ ] `mios-ai.target` brings Letta up after `mios-pgvector`
+- [x] `curl http://localhost:8283/v1/health` returns `{"status":"ok"}`
+- [x] `curl http://localhost:8283/v1/agents` returns an agent list (empty or seeded)
+- [x] Letta PostgreSQL schema visible: `psql mios -c "\dn" | grep mios_letta`
+- [x] Container uses `http://localhost:11450/v1` only -- no cloud LLM call (Law 5)
+- [x] `mios-ai.target` brings Letta up after `mios-pgvector`
 
 ---
 
@@ -1177,11 +1177,11 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Deps:** T-076 (GWY-01 Letta server live), T-035 (MEM-02 open -- this implements it), T-036 (MEM-03 open -- this implements it).
 
 **Done When:**
-- [ ] `memory_append {"label":"persona","content":"prefers dark mode"}` persists across sessions via Letta
-- [ ] `memory_search {"query":"dark mode"}` returns the persisted block
-- [ ] At 70% context fill, compaction event emitted; Letta summarization called
-- [ ] `[agents.letta].memory_backend = false` falls back to pgvector-direct; no crash
-- [ ] T-035/T-036 Done When criteria satisfied
+- [x] `memory_append {"label":"persona","content":"prefers dark mode"}` persists across sessions via Letta
+- [x] `memory_search {"query":"dark mode"}` returns the persisted block
+- [x] At 70% context fill, compaction event emitted; Letta summarization called
+- [x] `[agents.letta].memory_backend = false` falls back to pgvector-direct; no crash
+- [x] T-035/T-036 Done When criteria satisfied
 
 ---
 
@@ -1318,8 +1318,8 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Deps:** T-064 (GAP-4 DGM sandbox), T-049 (GAP-3 pass^k gate).
 
 **Done When:**
-- [ ] Proposed diff passing DGM sandbox is staged to a branch
-- [ ] Vetoed diff is logged and discarded with no code change
+- [x] Proposed diff passing DGM sandbox is staged to a branch
+- [x] Vetoed diff is logged and discarded with no code change
 
 ---
 
@@ -1333,7 +1333,7 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Deps:** None.
 
 **Done When:**
-- [ ] Changing prompt version in registry -> all agents pick up new body on next turn automatically
+- [x] Changing prompt version in registry -> all agents pick up new body on next turn automatically
 
 ---
 
@@ -1356,9 +1356,9 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Deps:** T-049 (GAP-3 pass^k), T-034 (SEC-03 Merkle chain).
 
 **Done When:**
-- [ ] Rewrite regressing pass^k by 1 failed run is rejected with logged veto
-- [ ] Neutral-or-improving rewrite is admitted
-- [ ] `enable=false` disables ACT half entirely (safe default)
+- [x] Rewrite regressing pass^k by 1 failed run is rejected with logged veto
+- [x] Neutral-or-improving rewrite is admitted
+- [x] `enable=false` disables ACT half entirely (safe default)
 
 ---
 
@@ -1399,7 +1399,7 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Deps:** T-022 (FED-CONSUME).
 
 **Done When:**
-- [ ] `mios-a2a-test --loopback` exits 0 with "Task completed, Artifact received"
+- [x] `mios-a2a-test --loopback` exits 0 with "Task completed, Artifact received"
 
 ---
 
@@ -1413,7 +1413,7 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Deps:** T-006 (A1).
 
 **Done When:**
-- [ ] `${MIOS_PORT_AGENT_PIPE}` in an endpoint field resolves to the actual port number at load time
+- [x] `${MIOS_PORT_AGENT_PIPE}` in an endpoint field resolves to the actual port number at load time
 
 ---
 
@@ -1441,7 +1441,7 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Deps:** T-017 (C2), T-005 (BOOT-04).
 
 **Done When:**
-- [ ] Fresh image boot has all pod units pre-rendered and immediately active
+- [x] Fresh image boot has all pod units pre-rendered and immediately active
 
 ---
 
@@ -1503,7 +1503,7 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Deps:** None.
 
 **Done When:**
-- [ ] Each of the three items works end-to-end independently
+- [x] Each of the three items works end-to-end independently
 
 ---
 
