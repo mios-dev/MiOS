@@ -1,7 +1,7 @@
-# AI-hint: Systemd unit that executes /usr/libexec/mios/mios-sys-env to probe and UPSERT the current system state (apps, services, models, hardware) into the SurrealDB sys_env:current row for global agent synchronization.
-# AI-related: /usr/libexec/mios/mios-sys-env, mios-sys-env, mios-surrealdb, mios-podman-ps, mios-pgvector.service, multi-user.target
+# AI-hint: Systemd unit that executes /usr/libexec/mios/mios-sys-env to probe and UPSERT the current system state (apps, services, models, hardware) into the pgvector sys_env:current row for global agent synchronization.
+# AI-related: /usr/libexec/mios/mios-sys-env, mios-sys-env, mios-pg-query, mios-podman-ps, mios-pgvector.service, multi-user.target
 [Unit]
-Description='MiOS' refresh the live system/environment cache (sys_env) in SurrealDB
+Description='MiOS' refresh the live system/environment cache (sys_env) in pgvector
 Documentation=file:///usr/libexec/mios/mios-sys-env
 After=mios-pgvector.service
 Wants=mios-pgvector.service
@@ -14,7 +14,12 @@ Type=oneshot
 # and the daemon's directory_entry cache. Read-only probe; the only write is the
 # SurrealDB cache row. operator 2026-05-23: "probe systems/environment live +
 # store/update a mios-sys-env database".
-Environment=MIOS_PG_PORT=${MIOS_PORT_PGVECTOR:-5432}
+# systemd does NOT expand bash ${VAR:-default} in Environment= -- it passes the
+# LITERAL string "${MIOS_PORT_PGVECTOR:-5432}", which mios-pg-query then int()s ->
+# ValueError -> "pgvector upsert failed" on every run. Source install.env instead
+# so MIOS_PORT_PGVECTOR holds the real port; mios-pg-query reads it directly
+# (its own fallback is MIOS_PG_PORT or MIOS_PORT_PGVECTOR or 5432).
+EnvironmentFile=-/etc/mios/install.env
 ExecStart=/usr/libexec/mios/mios-sys-env refresh
 
 [Install]

@@ -396,11 +396,17 @@ echo ""
 _row " POST-BUILD: Agent-pipe unit tests (test_mios_*.py)"
 _hline '-' '+' '+'
 _agent_pipe_dir="$(cd "${SCRIPT_DIR}/.." && pwd)/usr/lib/mios/agent-pipe"
-if [[ -d "$_agent_pipe_dir" ]] && command -v python3 >/dev/null 2>&1; then
+# Prefer the agent-plane venv python (built by 38-hermes-agent.sh): the sibling
+# mios_*.py modules transitively import fastapi/pydantic via the federation
+# routers, so the bare system python3 raises ModuleNotFoundError before any
+# assertion runs. Fall back to system python3 when the venv is absent.
+_test_py="/usr/lib/mios/agents/.venv/bin/python3"
+[[ -x "$_test_py" ]] || _test_py="$(command -v python3 2>/dev/null || true)"
+if [[ -d "$_agent_pipe_dir" ]] && [[ -n "$_test_py" ]]; then
     _test_fails=0
     shopt -s nullglob
     for _t in "$_agent_pipe_dir"/test_mios_*.py; do
-        if ( cd "$_agent_pipe_dir" && python3 "$(basename "$_t")" >/dev/null 2>&1 ); then
+        if ( cd "$_agent_pipe_dir" && "$_test_py" "$(basename "$_t")" >/dev/null 2>&1 ); then
             _row "  [ OK ] $(basename "$_t")"
         else
             _row "  [FAIL] $(basename "$_t")"

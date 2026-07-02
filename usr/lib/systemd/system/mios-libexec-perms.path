@@ -1,0 +1,16 @@
+# AI-hint: Path-watcher companion to mios-libexec-perms.service -- re-runs the go+rX chmod whenever /usr/libexec/mios changes (e.g. a git checkout of / restages the scripts without exec bits), so exec perms self-heal within seconds instead of leaving services crash-looping on 203/EXEC.
+# AI-related: mios-libexec-perms.service, mios-additionalimagestores-perms.path, multi-user.target
+[Unit]
+# Path-watcher companion to mios-libexec-perms.service. Any way the exec bits
+# get reset on /usr/libexec/mios (most commonly a `git checkout` of the deployed
+# root /), this snaps them back to go+rX within seconds so no service is left
+# crash-looping on 203/"Permission denied".
+Description='MiOS': watch /usr/libexec/mios for perm changes; retrigger chmod
+ConditionPathIsDirectory=/usr/libexec/mios
+
+[Path]
+PathChanged=/usr/libexec/mios
+Unit=mios-libexec-perms.service
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,48 @@
+# mios-agents (A2O super-container) — ONE image containing:
+#   * code-server  : browser IDE (the "glass wall")
+#   * tmux         : the A2O war room
+#   * Claude Code  : Linux-native architect/operator engine
+#   * agy          : Antigravity CLI = Gemini 3.x operator engine
+#   * mios-a2o     : the Architect->Operator muxer harness
+# Credentials are MOUNTED/entered at runtime (podman -v / secrets), NEVER baked.
+# Base = code-server so the same container serves the IDE AND hosts the war room,
+# sharing one filesystem + one tmux socket (native glass wall).
+#
+# IMPORTANT: agy + mios-a2o live in /usr/local/bin (a SYSTEM path), NOT in
+# /home/coder/.local/bin -- mios-agents.service bind-mounts a persistent
+# /var/lib/mios/agents over /home/coder (to keep agy/claude logins across
+# restarts), which would otherwise SHADOW binaries placed under /home/coder.
+FROM ghcr.io/coder/code-server:latest
+
+USER root
+RUN apt-get -o Acquire::ForceIPv4=true update \
+ && apt-get -o Acquire::ForceIPv4=true install -y --no-install-recommends \
+      tmux git curl ca-certificates jq ripgrep \
+      nodejs npm python3 python3-pip python3-venv \
+      build-essential less procps openssh-client tar gzip \
+ && rm -rf /var/lib/apt/lists/*
+
+# Claude Code CLI (architect + Linux-native operator engine) -> /usr/local/bin/claude
+RUN npm install -g @anthropic-ai/claude-code
+
+# agy -- Antigravity CLI (Gemini operator), native Linux build. Installed as coder
+# (its installer targets ~/.local/bin), then copied to /usr/local/bin so the
+# persistent /home/coder mount does not shadow it.
+USER coder
+WORKDIR /home/coder
+RUN curl -fsSL https://antigravity.google/cli/install.sh | bash
+USER root
+RUN install -m0755 /home/coder/.local/bin/agy /usr/local/bin/agy
+
+# the A2O muxer harness (engine-aware: agy|claude|gemini) + the mios-frontier
+# launcher -- system path, mount-safe.
+COPY mios-a2o /usr/local/bin/mios-a2o
+COPY mios-frontier /usr/local/bin/mios-frontier
+RUN chmod 0755 /usr/local/bin/mios-a2o /usr/local/bin/mios-frontier
+
+USER coder
+ENV PATH=/usr/local/bin:/home/coder/.local/bin:$PATH \
+    MIOS_A2O_ENGINE=agy \
+    MIOS_A2O_WORK=/mnt/mios-root
+# code-server's default entrypoint keeps serving the browser IDE; the tmux war
+# room is created on-demand by `mios-a2o` from the IDE terminal.

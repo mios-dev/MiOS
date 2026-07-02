@@ -1,0 +1,41 @@
+# AI-hint: Runs the mios-agents A2O super-container (code-server IDE + tmux war room + Claude CLI + agy/Gemini + the mios-a2o muxer) as a systemd-managed container. ExecStartPre builds the local image if absent; ExecStart runs it every boot on the code-server port MIOS_PORT_CODE_SERVER (mios-agents REPLACES the retired mios-code-server -- one IDE, no duplicate service). Persistent /home/coder (agy/claude logins) lives in /var/lib/mios/agents; the deployed root / is the workspace at /mnt/mios-root, so agents develop MiOS from within itself.
+# AI-related: /usr/share/mios/agents/Containerfile, /usr/share/mios/agents/mios-a2o, /usr/libexec/mios/mios-agents-firstboot.sh, /etc/mios/install.env, /var/lib/mios/agents, mios-code-server.service, mios-agents-firstboot
+# /usr/lib/systemd/system/mios-agents.service
+[Unit]
+Description='MiOS' A2O agents super-container (Claude + agy/Gemini + tmux war room + code-server)
+Documentation=https://github.com/mios-dev/MiOS/blob/main/usr/share/mios/agents/ACTIVATION.md
+After=network-online.target podman.socket
+Wants=network-online.target
+ConditionPathExists=/usr/share/mios/agents/Containerfile
+
+[Service]
+Type=simple
+# systemd does NOT expand bash ${VAR:-default} in ExecStart -- it resolves to
+# empty (code-server then dies "Invalid URL"). Set the defaults here; install.env
+# (the mios.toml -> env SSOT bridge) overrides them when present. ExecStart uses
+# plain ${VAR}.
+Environment=MIOS_PORT_CODE_SERVER=8800
+Environment=MIOS_DEFAULT_PASSWORD=mios
+EnvironmentFile=-/etc/mios/install.env
+TimeoutStartSec=1200s
+# Build the local super-container image on first deploy (idempotent no-op after).
+ExecStartPre=/usr/libexec/mios/mios-agents-firstboot.sh
+# Run it in the foreground under systemd (auto-restart + auto-start every boot).
+# --network=host + MIOS_PORT_CODE_SERVER mirrors the MiOS host-net service convention;
+# / is bind-mounted as the workspace; /var/lib/mios/agents persists /home/coder
+# (agy/claude credentials + war-room state) across restarts.
+ExecStart=/usr/sbin/podman run --replace --name mios-agents \
+  --network=host \
+  --env PASSWORD=${MIOS_DEFAULT_PASSWORD} \
+  --env MIOS_A2O_ENGINE=agy \
+  --env MIOS_A2O_WORK=/mnt/mios-root \
+  --volume /:/mnt/mios-root:rw,rslave \
+  --volume /var/lib/mios/agents:/home/coder:rw \
+  localhost/mios-agents:latest \
+  --bind-addr 0.0.0.0:${MIOS_PORT_CODE_SERVER} /mnt/mios-root
+ExecStop=/usr/sbin/podman stop -t 10 mios-agents
+Restart=on-failure
+RestartSec=10s
+
+[Install]
+WantedBy=multi-user.target default.target

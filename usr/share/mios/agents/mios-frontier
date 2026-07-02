@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# mios-frontier -- launch the MiOS Frontier: Claude || Gemini(agy) CONCURRENT
+# tmux profile (Control | Claude-lane / Gemini-lane / Monitor). Claude's
+# dispatched workflows and agy's tasks run in parallel, at the same time.
+# Thin shim over `mios-a2o frontier`.
+exec mios-a2o frontier "$@"

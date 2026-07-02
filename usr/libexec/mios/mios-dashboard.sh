@@ -586,109 +586,108 @@ for path in ["/root/.config/mios/mios.toml", "/etc/mios/mios.toml", "/usr/share/
         except Exception:
             pass
 
-port_keys = {
-    "agent-pipe": "agent_pipe",
-    "hermes-worker": "hermes",
-    "hermes-dashboard": "hermes_dashboard",
-    "open-webui": "open_webui",
-    "code-server": "code_server",
-    "searxng": "searxng",
-    "adguard": "adguard_ui",
-    "forge": "forge_http",
-    "guacamole": "guacamole_web",
-    "cockpit-link": "cockpit_link",
-    "llm-light": "llm_light",
-    "cpu-node": "cpu_node",
-    "pgvector": "pgvector",
-    "webtools-crawl4ai": "crawl4ai",
-    "webtools-firecrawl-api": "firecrawl",
-    "opencode-gateway": "opencode_gateway",
-    "gateway-agent": "gateway_agent",
-    "ttyd-bash": "ttyd_bash",
-    "ttyd-powershell": "ttyd_powershell",
-}
-default_ports = {
-    "webtools-redis": "6380",
-    "cockpit": "8090",
-}
+import re
 
-pods = set()
-for d in ["/usr/share/containers/systemd", "/etc/containers/systemd"]:
-    if os.path.isdir(d):
-        for f in os.listdir(d):
-            if f.endswith(".pod"):
-                pods.add(f[:-4])
+# LIVE enumeration -- NO hardcoded name/port lists. Pods + containers come from
+# `podman (pod) ps` (real running state + real published port); host services
+# from `systemctl list-units` (minus container-backed units). Ports for host-net
+# containers and for services resolve from the mios.toml [ports] SSOT by name.
+def _run(cmd):
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=6).stdout
+    except Exception:
+        return ""
 
-containers = set()
-for d in ["/usr/share/containers/systemd", "/etc/containers/systemd"]:
-    if os.path.isdir(d):
-        for f in os.listdir(d):
-            if f.endswith(".container") and not f.endswith("@.container"):
-                containers.add(f[:-10])
+have_podman = shutil.which("podman") is not None
 
-host_svcs = [
-    ("agent-pipe", "mios-agent-pipe.service"),
-    ("hermes-worker", "hermes-worker.service"),
-    ("hermes-dashboard", "hermes-dashboard.service"),
-    ("daemon", "mios-daemon.service"),
-    ("skills-miner", "mios-skills-miner.timer"),
-    ("passport", "mios-passport-provision.service"),
-    ("opencode-gateway", "mios-opencode-gateway.service"),
-    ("gateway-agent", "mios-gateway-agent.service"),
-    ("cockpit", "cockpit.socket"),
-]
+def short_name(n):
+    return n[5:] if n.startswith("mios-") else n
 
-items = []
-for p in sorted(pods):
-    svc = f"{p}-pod.service" if p.startswith("mios-") else f"mios-{p}-pod.service"
-    display_name = p[5:] if p.startswith("mios-") else p
-    items.append(("Pod", display_name, svc))
+def svc_port(short):
+    key = short.replace("-", "_")
+    if key in ports:
+        return str(ports[key])
+    for suf in ("_http", "_ui", "_web"):
+        if key + suf in ports:
+            return str(ports[key + suf])
+    return ""
 
-for c in sorted(containers):
-    svc = f"{c}.service" if c.startswith("mios-") else f"mios-{c}.service"
-    display_name = c[5:] if c.startswith("mios-") else c
-    items.append(("Cont", display_name, svc))
+def live_port(ports_field):
+    m = re.search(r":(\d+)->", ports_field or "")
+    return m.group(1) if m else ""
 
-for name, svc in sorted(host_svcs):
-    items.append(("Svc", name, svc))
+def up_dot():   return f"{C_GRN}{DOT_UP}{C_R}"
+def wait_dot(): return f"{C_YLW}{DOT_WAIT}{C_R}"
+def fail_dot(): return f"{C_RED}{DOT_FAIL}{C_R}"
+def down_dot(): return f"{C_GRY}{DOT_DOWN}{C_R}"
 
 rendered_items = []
-for type_label, name, svc in items:
-    try:
-        res = subprocess.run(
-            ["systemctl", "show", svc, "--property=ActiveState", "--property=ConditionResult"],
-            capture_output=True, text=True, check=True
-        )
-        data = {}
-        for line in res.stdout.splitlines():
-            if "=" in line:
-                k, v = line.split("=", 1)
-                data[k.strip()] = v.strip()
-        active_state = data.get("ActiveState", "unknown")
-        cond_result = data.get("ConditionResult", "yes")
-    except Exception:
-        active_state = "unknown"
-        cond_result = "yes"
+container_units = set()
 
-    if active_state == "active":
-        dot = f"{C_GRN}{DOT_UP}{C_R}"
-    elif active_state in ("activating", "reloading"):
-        dot = f"{C_YLW}{DOT_WAIT}{C_R}"
-    elif active_state == "failed":
-        dot = f"{C_RED}{DOT_FAIL}{C_R}"
-    elif cond_result == "no":
-        dot = f"{C_YLW}{DOT_WAIT}{C_R}"
+# Pods (live)
+if have_podman:
+    for line in _run(["podman", "pod", "ps", "--format", "{{.Name}}|{{.Status}}"]).splitlines():
+        if not line.strip():
+            continue
+        parts = line.split("|")
+        name = parts[0]
+        status = (parts[1] if len(parts) > 1 else "").lower()
+        dot = up_dot() if "running" in status else (wait_dot() if "degraded" in status else down_dot())
+        rendered_items.append(("Pod", short_name(name), "", dot))
+
+# Containers (live: real state + real published port)
+if have_podman:
+    for line in _run(["podman", "ps", "-a", "--format", "{{.Names}}|{{.State}}|{{.Ports}}"]).splitlines():
+        if not line.strip():
+            continue
+        parts = line.split("|")
+        name = parts[0]
+        state = (parts[1] if len(parts) > 1 else "").lower()
+        pf = parts[2] if len(parts) > 2 else ""
+        container_units.add(name)
+        short = short_name(name)
+        # Skip podman pod-infra (pause) containers -- the pod itself is shown above.
+        if short.endswith("-infra"):
+            continue
+        if state == "running":
+            dot = up_dot()
+        elif state in ("created", "restarting", "paused"):
+            dot = wait_dot()
+        else:
+            dot = down_dot()
+        pv = live_port(pf) or svc_port(short)
+        rendered_items.append(("Cont", short, f":{pv}" if pv else "", dot))
+
+# MiOS host services (live), excluding container-backed units (already shown above)
+svc_state = {}
+for line in _run(["systemctl", "list-units", "--type=service", "--all", "--no-legend",
+                  "--plain", "mios-*.service", "hermes*.service"]).splitlines():
+    cols = line.split()
+    if len(cols) < 4 or not cols[0].endswith(".service"):
+        continue
+    base = cols[0][:-len(".service")]
+    # Skip container-backed units (shown as Cont) and pod units (shown as Pod).
+    if base in container_units or base.endswith("-pod"):
+        continue
+    svc_state[base] = (cols[2], cols[3])   # (ActiveState, SubState)
+
+# Show only genuinely-live and genuinely-broken services: real running daemons
+# (ACTIVE=active + SUB=running) and hard failures (ACTIVE=failed). Everything
+# else is hidden -- RemainAfterExit boot one-shots (active/exited), dormant units,
+# and ConditionResult=no services gated off on this host (no Chrome flatpak,
+# unbuilt optional images, etc.) which flap through "activating" and would
+# otherwise read as false outages. State-driven, no name list.
+for base in sorted(svc_state):
+    active, sub = svc_state[base]
+    if active == "active" and sub == "running":
+        dot = up_dot()
+    elif active == "failed":
+        dot = fail_dot()
     else:
-        dot = f"{C_GRY}{DOT_DOWN}{C_R}"
-
-    port_val = ""
-    key = port_keys.get(name)
-    if key and key in ports:
-        port_val = f":{ports[key]}"
-    elif name in default_ports:
-        port_val = f":{default_ports[name]}"
-
-    rendered_items.append((type_label, name, port_val, dot))
+        continue
+    short = short_name(base)
+    pv = svc_port(short)
+    rendered_items.append(("Svc", short, f":{pv}" if pv else "", dot))
 
 num_items = len(rendered_items)
 num_rows = math.ceil(num_items / 2)

@@ -18,6 +18,13 @@ enable mios-additionalimagestores-perms.service
 # .path companion -- self-heals if perms get reset between boots
 # (e.g. operator runs `podman system reset` or pulls into the store).
 enable mios-additionalimagestores-perms.path
+# Same self-healing pattern for /usr/libexec/mios exec bits: a checkout of the
+# deployed root / (git working tree of mios.git) without core.fileMode strips
+# go+x from the libexec scripts, crash-looping every service that execs them as
+# a non-owner user (203/EXEC). The .service snaps go+rX back at boot; the .path
+# re-triggers within seconds if a checkout resets them again.
+enable mios-libexec-perms.service
+enable mios-libexec-perms.path
 # Boot-time `firewall-cmd --add-port` for every MiOS service port.
 # Belt-and-suspenders against stale OCI images / failed install-time
 # 25-firewall-ports.sh runs that leave firewalld without the ports
@@ -142,7 +149,15 @@ enable mios-agent-nudger.service
 # X"). Ships disabled-by-default in systemd; this preset turns it on.
 enable mios-sys-env-refresh.timer
 enable mios-open-webui.service
-enable mios-code-server.service
+# mios-code-server RETIRED: superseded by mios-agents (code-server + Claude + agy +
+# tmux + mios-a2o) on the SAME MIOS_PORT_CODE_SERVER. Disabled so no duplicate IDE
+# service runs. The [containers.mios-code-server.*] def remains inert in mios.toml.
+disable mios-code-server.service
+# A2O agents super-container = the single code-server IDE (Claude CLI + agy/Gemini +
+# tmux war room), on MIOS_PORT_CODE_SERVER. ExecStartPre builds localhost/mios-agents:latest
+# from /usr/share/mios/agents/Containerfile on first deploy; the deployed root / is the
+# workspace so agents develop MiOS from within itself.
+enable mios-agents.service
 # Forge bootstrap: admin user + initial repo + runner registration token
 # all minted on first boot. mios-forgejo-runner reads the token and
 # self-registers; without firstboot enabled the runner stays inactive

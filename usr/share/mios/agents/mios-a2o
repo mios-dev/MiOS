@@ -1,0 +1,242 @@
+#!/usr/bin/env bash
+# mios-a2o — Architect->Operator terminal-muxer harness for MiOS.
+# A persistent tmux "war room" (inside the MiOS host / agents container) into which
+# Claude (architect) delegates build/debug tasks to operator engines — agy (Antigravity
+# / Gemini 3.x), claude (Claude Code), or gemini (Gemini CLI) — each in its own tmux
+# window, tee'd to a log, with status tracking. Humans watch/steer via `tmux attach`
+# or the code-server browser terminal attached to the same socket.
+set -uo pipefail
+export PATH="${HOME:-/var/home/mios}/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
+
+SESSION="${MIOS_A2O_SESSION:-mios-a2o}"
+ROOT="${MIOS_A2O_ROOT:-${HOME:-/var/home/mios}/.mios-a2o}"
+LOGS="$ROOT/logs"; STATUS="$ROOT/status"; PROMPTS="$ROOT/prompts"; RUND="$ROOT/run"
+WORK_DEFAULT="${MIOS_A2O_WORK:-$ROOT/work}"
+ENGINE_DEFAULT="${MIOS_A2O_ENGINE:-agy}"     # agy | claude | gemini
+AUTO="${MIOS_A2O_AUTO:-0}"                    # 1 => auto-approve tools (skip-permissions / yolo)
+SANDBOX="${MIOS_A2O_SANDBOX:-0}"             # 1 => --sandbox (agy/gemini)
+AGY_BIN="${MIOS_A2O_AGY_BIN:-agy}"
+CLAUDE_BIN="${MIOS_A2O_CLAUDE_BIN:-claude}"
+GEMINI_BIN="${MIOS_A2O_GEMINI_BIN:-gemini}"
+AGY_MODEL="${MIOS_A2O_AGY_MODEL:-}"
+CLAUDE_MODEL="${MIOS_A2O_CLAUDE_MODEL:-}"
+GEMINI_MODEL="${MIOS_A2O_GEMINI_MODEL:-}"
+mkdir -p "$LOGS" "$STATUS" "$PROMPTS" "$RUND" "$WORK_DEFAULT"
+
+die(){ echo "mios-a2o: $*" >&2; exit 1; }
+have(){ command -v "$1" >/dev/null 2>&1; }
+have tmux || die "tmux not found on PATH"
+
+engine_bin(){ case "$1" in agy) echo "$AGY_BIN";; claude) echo "$CLAUDE_BIN";; gemini) echo "$GEMINI_BIN";; *) return 1;; esac; }
+
+ensure_server(){
+  if ! tmux has-session -t "$SESSION" 2>/dev/null; then
+    tmux new-session -d -s "$SESSION" -n home -c "$WORK_DEFAULT"
+    tmux set-option -g -t "$SESSION" history-limit 500000        >/dev/null 2>&1 || true
+    tmux set-option -g -t "$SESSION" remain-on-exit on            >/dev/null 2>&1 || true
+    tmux set-option -g -t "$SESSION" status-left "#[bold] A2O:#S #[default]" >/dev/null 2>&1 || true
+    tmux send-keys -t "$SESSION:home" \
+      "clear; echo 'MiOS A2O war room. Operator tasks open as windows (Ctrl-b n/p to cycle, Ctrl-b d to detach).'" C-m
+  fi
+}
+
+# Build the runtime exec line for an engine. $PROMPT is a RUNTIME variable (kept literal here).
+exec_line(){
+  local eng="$1" work="$2" mdl="" auto="" sb=""
+  case "$eng" in
+    agy)
+      [ -n "$AGY_MODEL" ] && mdl="--model '$AGY_MODEL'"
+      [ "$AUTO" = 1 ] && auto="--dangerously-skip-permissions"
+      [ "$SANDBOX" = 1 ] && sb="--sandbox"
+      echo "$AGY_BIN $mdl --add-dir '$work' $auto $sb -p \"\$PROMPT\" < /dev/null"
+      ;;
+    claude)
+      [ -n "$CLAUDE_MODEL" ] && mdl="--model '$CLAUDE_MODEL'"
+      [ "$AUTO" = 1 ] && auto="--dangerously-skip-permissions"
+      echo "$CLAUDE_BIN $mdl $auto -p \"\$PROMPT\" < /dev/null"
+      ;;
+    gemini)
+      [ -n "$GEMINI_MODEL" ] && mdl="-m '$GEMINI_MODEL'"
+      [ "$AUTO" = 1 ] && auto="--approval-mode yolo" || auto="--approval-mode default"
+      [ "$SANDBOX" = 1 ] && sb="--sandbox"
+      echo "$GEMINI_BIN $mdl $auto --skip-trust $sb -p \"\$PROMPT\" < /dev/null"
+      ;;
+    *) return 1;;
+  esac
+}
+
+cmd_dispatch(){
+  local name="${1:-}" eng="${2:-$ENGINE_DEFAULT}" work="${3:-$WORK_DEFAULT}"
+  [ -n "$name" ] || die "usage: dispatch <name> [engine] [workdir]   (prompt on stdin)"
+  case "$name" in *[!A-Za-z0-9._-]*) die "task name must be slug [A-Za-z0-9._-]";; esac
+  engine_bin "$eng" >/dev/null || die "unknown engine '$eng' (agy|claude|gemini)"
+  have "$(engine_bin "$eng")" || die "engine binary not found: $(engine_bin "$eng")"
+  ensure_server; mkdir -p "$work"
+  cat > "$PROMPTS/$name.txt"                          # prompt from stdin
+  [ -s "$PROMPTS/$name.txt" ] || die "empty prompt on stdin"
+  : > "$LOGS/$name.log"; rm -f "$STATUS/$name.status" "$STATUS/$name.running"; echo "$eng" > "$STATUS/$name.engine"
+  local EXEC; EXEC="$(exec_line "$eng" "$work")"
+  cat > "$RUND/$name.sh" <<RUNNER
+#!/usr/bin/env bash
+export PATH="$PATH"
+cd "$work" 2>/dev/null || cd "$WORK_DEFAULT"
+echo "\$(date -Is) start [$eng]" > "$STATUS/$name.running"
+PROMPT="\$(cat "$PROMPTS/$name.txt")"
+set -o pipefail
+$EXEC 2>&1 | tee -a "$LOGS/$name.log"
+rc=\${PIPESTATUS[0]}
+rm -f "$STATUS/$name.running"
+echo "\$rc" > "$STATUS/$name.status"
+echo "" | tee -a "$LOGS/$name.log"
+echo "=== [mios-a2o] task '$name' ($eng) finished rc=\$rc (window kept open) ===" | tee -a "$LOGS/$name.log"
+RUNNER
+  chmod +x "$RUND/$name.sh"
+  tmux kill-window -t "$SESSION:$name" 2>/dev/null || true
+  tmux new-window -t "$SESSION" -n "$name" -c "$work" "bash '$RUND/$name.sh'"
+  echo "dispatched: task='$name' engine='$eng' work='$work' auto=$AUTO sandbox=$SANDBOX"
+  echo "monitor: mios-a2o tail $name | window: $SESSION:$name | attach: tmux attach -t $SESSION"
+}
+
+cmd_status(){
+  local only="${1:-}" f name eng state rc win; shopt -s nullglob; local any=0
+  printf "%-24s %-9s %-9s %-5s %-6s\n" TASK ENGINE STATE RC WINDOW
+  for f in "$LOGS"/*.log; do
+    any=1; name="$(basename "$f" .log)"
+    [ -n "$only" ] && [ "$only" != "$name" ] && continue
+    eng="$(cat "$STATUS/$name.engine" 2>/dev/null)"; [ -z "$eng" ] && eng="?"
+    if tmux list-windows -t "$SESSION" -F '#W' 2>/dev/null | grep -qx "$name"; then win=yes; else win=no; fi
+    if [ -f "$STATUS/$name.running" ]; then state=RUNNING; rc="-"
+    elif [ -f "$STATUS/$name.status" ]; then rc="$(cat "$STATUS/$name.status")"; [ "$rc" = 0 ] && state=DONE || state=FAILED
+    else state=PENDING; rc="-"; fi
+    printf "%-24s %-9s %-9s %-5s %-6s\n" "$name" "$eng" "$state" "$rc" "$win"
+  done
+  if [ "$any" = 0 ]; then echo "(no tasks yet)"; fi
+  return 0
+}
+
+cmd_tail(){ local n="${1:?usage: tail <name> [n]}"; tail -n "${2:-40}" "$LOGS/$n.log" 2>/dev/null || die "no log for '$n'"; }
+cmd_capture(){ local n="${1:?usage: capture <name> [n]}"; tmux capture-pane -pt "$SESSION:$n" -S "-${2:-60}" 2>/dev/null || die "no window '$n'"; }
+cmd_send(){ local n="${1:?usage: send <name> <keys...>}"; shift; tmux send-keys -t "$SESSION:$n" -- "$*" C-m; echo "sent to '$n': $*"; }
+cmd_repl(){ local eng="${1:-$ENGINE_DEFAULT}" name="${2:-repl-$eng}" work="${3:-$WORK_DEFAULT}"
+  have "$(engine_bin "$eng")" || die "engine binary not found: $(engine_bin "$eng")"
+  ensure_server; tmux kill-window -t "$SESSION:$name" 2>/dev/null || true
+  tmux new-window -t "$SESSION" -n "$name" -c "$work" "$(engine_bin "$eng")"
+  echo "interactive $eng in $SESSION:$name — attach: tmux attach -t $SESSION"; }
+cmd_attach(){ echo "tmux attach -t $SESSION"; echo "(from Windows) wsl -d podman-MiOS-DEV -- env TERM=xterm-256color tmux attach -t $SESSION"; }
+cmd_list(){ tmux list-windows -t "$SESSION" 2>/dev/null || echo "war room not running (dispatch a task first)"; }
+cmd_kill(){ local a="${1:?usage: kill <name>|--all}"
+  if [ "$a" = --all ]; then tmux kill-session -t "$SESSION" 2>/dev/null; echo "war room killed"
+  else tmux kill-window -t "$SESSION:$a" 2>/dev/null; echo "killed window '$a'"; fi; }
+cmd_doctor(){
+  echo "session=$SESSION root=$ROOT work=$WORK_DEFAULT engine_default=$ENGINE_DEFAULT auto=$AUTO sandbox=$SANDBOX"
+  echo -n "tmux:   "; tmux -V
+  for e in agy claude gemini; do b="$(engine_bin "$e")"; printf "%-7s " "$e:"; if have "$b"; then "$b" --version 2>/dev/null | head -1; else echo "not installed ($b)"; fi; done
+  echo -n "server: "; tmux has-session -t "$SESSION" 2>/dev/null && echo up || echo down
+  if [ "$AUTO" = 1 ]; then echo "WARN: AUTO=1 auto-approves ALL tools — keep confined to this host/container"; fi
+  return 0
+}
+cmd_selftest(){  # engine-free proof that dispatch->window->log->status->capture all work
+  ensure_server; local name="selftest"
+  : > "$LOGS/$name.log"; rm -f "$STATUS/$name.status" "$STATUS/$name.running"; echo "selftest" > "$STATUS/$name.engine"
+  cat > "$RUND/$name.sh" <<RUNNER
+#!/usr/bin/env bash
+echo "\$(date -Is) start [selftest]" > "$STATUS/$name.running"
+{ echo "A2O_SELFTEST: window live in session '$SESSION' on \$(hostname)"; sleep 1; echo "A2O_SELFTEST_OK: dispatch->window->log->capture verified"; } 2>&1 | tee -a "$LOGS/$name.log"
+rc=\${PIPESTATUS[0]}; rm -f "$STATUS/$name.running"; echo "\$rc" > "$STATUS/$name.status"
+echo "=== [mios-a2o] selftest finished rc=\$rc ===" | tee -a "$LOGS/$name.log"
+RUNNER
+  chmod +x "$RUND/$name.sh"
+  tmux kill-window -t "$SESSION:$name" 2>/dev/null || true
+  tmux new-window -t "$SESSION" -n "$name" -c "$WORK_DEFAULT" "bash '$RUND/$name.sh'"
+  echo "selftest dispatched to $SESSION:selftest — verify: mios-a2o status ; mios-a2o tail selftest"
+}
+
+newest_task(){  # echo newest task name, optionally filtered by engine (.engine marker)
+  local eng="${1:-}" f name
+  for f in $(ls -t "$LOGS"/*.log 2>/dev/null); do
+    name="$(basename "$f" .log)"
+    [ -z "$eng" ] && { echo "$name"; return 0; }
+    [ "$(cat "$STATUS/$name.engine" 2>/dev/null)" = "$eng" ] && { echo "$name"; return 0; }
+  done
+  return 1
+}
+cmd_follow(){  # live-tail newest task log; --engine <eng> filters that lane; waits if none yet
+  local n="" eng=""
+  while [ $# -gt 0 ]; do case "$1" in --engine) eng="${2:-}"; shift 2;; *) n="$1"; shift;; esac; done
+  if [ -z "$n" ]; then
+    echo ">>> ${eng:-any} lane -- waiting for the newest ${eng:+$eng }task (dispatch it; it streams here)..."
+    while :; do n="$(newest_task "$eng")"; [ -n "$n" ] && break; sleep 2; done
+  fi
+  [ -f "$LOGS/$n.log" ] || die "no log for '$n'"
+  echo ">>> following '$n'${eng:+ [$eng]} -- Ctrl-C to stop"
+  exec tail -n +1 -F "$LOGS/$n.log"
+}
+
+cmd_frontier_help(){
+  cat <<EOF
+  MiOS Frontier -- Claude || Gemini(agy) run CONCURRENTLY (parallel lanes)
+  ----------------------------------------------------------------------
+  dispatch is NON-BLOCKING: fire BOTH engines and they run AT THE SAME TIME,
+  each streaming into its own lane. Claude's workflow + agy's tasks proceed
+  in parallel -- NOT 80%-then-20%, but both together.
+
+  Fire them concurrently (Claude controls agy):
+    echo 'Scaffold the X module: interfaces + wiring + // TODO: GEMINI stubs.' \\
+      | mios-a2o dispatch scaffold claude $WORK_DEFAULT
+    echo 'Finish every // TODO: GEMINI: compile, install deps, run until green.' \\
+      | MIOS_A2O_AUTO=1 mios-a2o dispatch finish agy $WORK_DEFAULT
+    # -> CLAUDE lane + GEMINI lane update SIMULTANEOUSLY; MONITOR shows both.
+
+  Fan MORE parallel agy tasks any time:
+    echo '...task 2...' | MIOS_A2O_AUTO=1 mios-a2o dispatch finish2 agy $WORK_DEFAULT
+  Steer a lane:  mios-a2o send <name> <keys>   |   run Claude here:  claude
+  ----------------------------------------------------------------------
+EOF
+}
+
+cmd_frontier(){  # CONCURRENT tmux PROFILE: CONTROL | CLAUDE-lane / GEMINI-lane / MONITOR
+  local S="${MIOS_A2O_FRONTIER:-mios-frontier}" self
+  self="$(command -v mios-a2o 2>/dev/null || readlink -f "$0" 2>/dev/null || echo "$0")"
+  if tmux has-session -t "$S" 2>/dev/null; then
+    if [ -t 1 ] && [ -z "${MIOS_A2O_NOATTACH:-}" ]; then exec tmux attach -t "$S"; else echo "frontier '$S' already up"; return 0; fi
+  fi
+  ensure_server
+  tmux new-session -d -s "$S" -n frontier -c "$WORK_DEFAULT"
+  tmux set-option -t "$S" -g mouse on             >/dev/null 2>&1 || true
+  tmux set-option -t "$S" -g history-limit 500000 >/dev/null 2>&1 || true
+  tmux set-option -t "$S" -g pane-border-status top          >/dev/null 2>&1 || true
+  tmux set-option -t "$S" -g pane-border-format " #{pane_title} " >/dev/null 2>&1 || true
+  # pane0 = CONTROL (left). Right column = 3 stacked lanes: CLAUDE / GEMINI / MONITOR.
+  tmux split-window -h -t "$S:frontier.0" -c "$WORK_DEFAULT" -p 52
+  tmux split-window -v -t "$S:frontier.1" -c "$WORK_DEFAULT" -p 66
+  tmux split-window -v -t "$S:frontier.2" -c "$WORK_DEFAULT" -p 50
+  tmux select-pane -t "$S:frontier.0" -T "CONTROL - dispatch Claude || agy CONCURRENTLY"
+  tmux select-pane -t "$S:frontier.1" -T "CLAUDE lane (live)"
+  tmux select-pane -t "$S:frontier.2" -T "GEMINI/agy lane (live)"
+  tmux select-pane -t "$S:frontier.3" -T "MONITOR - all tasks (both engines)"
+  tmux send-keys -t "$S:frontier.1" "'$self' follow --engine claude" C-m
+  tmux send-keys -t "$S:frontier.2" "'$self' follow --engine agy" C-m
+  tmux send-keys -t "$S:frontier.3" "while :; do clear; '$self' status; sleep 3; done" C-m
+  tmux send-keys -t "$S:frontier.0" "clear; '$self' frontier-help" C-m
+  tmux select-pane -t "$S:frontier.0"
+  if [ -t 1 ] && [ -z "${MIOS_A2O_NOATTACH:-}" ]; then exec tmux attach -t "$S"
+  else echo "frontier '$S' ready -- attach: tmux attach -t $S"; tmux list-panes -t "$S:frontier" -F '  pane #{pane_index}: #{pane_title}'; fi
+}
+
+sub="${1:-help}"; shift 2>/dev/null || true
+case "$sub" in
+  dispatch) cmd_dispatch "$@";; status) cmd_status "$@";; tail) cmd_tail "$@";;
+  capture) cmd_capture "$@";; send) cmd_send "$@";; repl) cmd_repl "$@";;
+  attach) cmd_attach "$@";; list) cmd_list "$@";; kill) cmd_kill "$@";; doctor) cmd_doctor "$@";; selftest) cmd_selftest "$@";;
+  follow) cmd_follow "$@";; frontier) cmd_frontier "$@";; frontier-help) cmd_frontier_help "$@";; warroom) cmd_frontier "$@";;
+  help|-h|--help)
+    echo "mios-a2o — Claude(architect) || operator(agy/claude/gemini) CONCURRENT tmux frontier"
+    echo "  frontier                             launch the concurrent profile (Control | Claude-lane / Gemini-lane / Monitor)"
+    echo "  dispatch <name> [engine] [workdir]   run a task (prompt on stdin) in its own window (non-blocking -> parallel)"
+    echo "  follow [name] [--engine agy|claude]  live-tail a lane (default: newest)"
+    echo "  status [name] | tail <name> [n] | capture <name> [n] | send <name> <keys...>"
+    echo "  repl [engine] [name] [workdir] | attach | list | kill <name>|--all | doctor"
+    echo "engines: agy (Antigravity/Gemini), claude (Claude Code), gemini (Gemini CLI)"
+    echo "env: MIOS_A2O_ENGINE MIOS_A2O_AUTO=1 MIOS_A2O_SANDBOX=1 MIOS_A2O_FRONTIER MIOS_A2O_*_MODEL";;
+  *) die "unknown command: $sub (try: mios-a2o help)";;
+esac
