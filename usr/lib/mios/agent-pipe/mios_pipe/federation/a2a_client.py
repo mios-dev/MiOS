@@ -64,6 +64,12 @@ _AGENT_REGISTRY: dict = {}
 _A2A_PEER_REGISTRY_PATHS: list = []
 A2A_COUNCIL = False
 A2A_SELF_ID = "local-mios"
+# FED-G7 (T-051): when set, a discovered peer's FULL published AgentCard skills[]
+# (name/description/tags) is attached to its synthetic registry entry as
+# ``card_skills`` so the fan-out relevance model (mios_fanout) can route on the
+# advertised skill, not just the collapsed strength-token ids. SSOT
+# [a2a].route_on_card_skills; default OFF -> the peer entry is byte-identical.
+ROUTE_ON_CARD_SKILLS = False
 _get_client = None
 
 
@@ -75,7 +81,7 @@ def _invalidate_worker_cache() -> None:
 def configure(*, a2a_peers=None, a2a_peer_skills=None, a2a_peers_lock=None,
               a2a_reputation=None, agent_registry=None,
               a2a_peer_registry_paths=None, a2a_council=None, a2a_self_id=None,
-              get_client=None,
+              get_client=None, route_on_card_skills=None,
               invalidate_worker_cache=None) -> None:
     """Inject server.py's runtime deps. Mutable registries (_A2A_PEERS/
     _A2A_PEER_SKILLS/_AGENT_REGISTRY) are injected BY REFERENCE so server-side
@@ -99,6 +105,8 @@ def configure(*, a2a_peers=None, a2a_peer_skills=None, a2a_peers_lock=None,
         g["A2A_SELF_ID"] = a2a_self_id
     if get_client is not None:
         g["_get_client"] = get_client
+    if route_on_card_skills is not None:
+        g["ROUTE_ON_CARD_SKILLS"] = route_on_card_skills
     if invalidate_worker_cache is not None:
         g["_invalidate_worker_cache"] = invalidate_worker_cache
 
@@ -289,12 +297,18 @@ async def _a2a_probe_peer(cfg: dict) -> None:
         # concurrent fan-out as a remote worker (the "spread across all nodes"
         # vision) -- the self is still excluded so the self-loop never returns.
         _a2a_fanout = bool(A2A_COUNCIL and (pid or "").strip().lower() != A2A_SELF_ID)
-        _AGENT_REGISTRY[f"a2a:{pid}"] = {
+        _peer_cfg = {
             "endpoint": "", "model": pid, "role": "general",
             "default": False, "lane": "remote", "fanout": _a2a_fanout,
             "a2a_peer_id": pid, "research_only": False, "engines": {},
             "strengths": [str(s.get("id") or "") for s in (skills or [])],
         }
+        # FED-G7 (T-051, flag-gated): keep the peer's FULL published skills[] so the
+        # fan-out relevance model can route on the advertised name/description/tags,
+        # not just the strength-token ids above. OFF -> entry is byte-identical.
+        if ROUTE_ON_CARD_SKILLS and skills:
+            _peer_cfg["card_skills"] = skills
+        _AGENT_REGISTRY[f"a2a:{pid}"] = _peer_cfg
         _invalidate_worker_cache()
     except Exception:  # noqa: BLE001
         pass

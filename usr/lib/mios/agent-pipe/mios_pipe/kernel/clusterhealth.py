@@ -34,11 +34,13 @@ from fastapi.responses import JSONResponse
 
 import mios_secset
 import mios_slo
+import mios_council_diversity
 from mios_config import (
     BACKEND, BACKEND_MODEL, ROUTER_ENABLED, ROUTER_MODEL, ROUTER_ENDPOINT,
     PLANNER_ENABLED, PLANNER_MODEL, PLANNER_ENDPOINT, PLANNER_MAX_NODES,
     PLANNER_REFLEXION_CAP, REFINE_ENABLED, REFINE_MODEL, REFINE_ENDPOINT,
     REFINE_BYPASS_CHARS, POLISH_ENABLED, POLISH_MODEL, POLISH_ENDPOINT, PORT,
+    COUNCIL_DIVERSITY_GATE, COUNCIL_AGGREGATOR_BYPASS,
 )
 from mios_dci import (
     DCI_ENABLED, DCI_MODEL, DCI_ENDPOINT, DCI_FLOW_ENABLED, DCI_FLOW_R_MAX,
@@ -425,6 +427,14 @@ async def cluster_health_logic() -> JSONResponse:
             "mode": _mode,
             "council_peers_up": _peers_up,
             "council_distinct_up": _distinct_up,
+            # T-047 RouteMoA input-diversity gate posture + T-048 MOSAIC
+            # aggregation-bypass posture/rate. diversity_gate_active reflects the
+            # [council].diversity_gate flag; aggregator_calls_bypassed_pct is the
+            # running share of aggregation opportunities that skipped the
+            # aggregator LLM (0.0 until the bypass gate fires).
+            "diversity_gate_active": bool(COUNCIL_DIVERSITY_GATE),
+            "aggregator_bypass_active": bool(COUNCIL_AGGREGATOR_BYPASS),
+            "aggregator_calls_bypassed_pct": mios_council_diversity.bypassed_pct(),
             "agents": agents_out,
             "agents_up": up,
             "agents_total": len(agents_out),

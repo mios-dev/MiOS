@@ -2281,6 +2281,30 @@ trace_max_spans_per_trace = 128  # cap on stored spans per trace (further spans 
 #   MIOS_LAST_WINDOW_CAP  = 256 -- bound on the per-CONVERSATION last-opened-window
 #       map that lets a standalone "type X into it" focus the right window first.
 
+# ── COUNCIL input-diversity gate (T-047 RouteMoA GAP-1) + confidence-aware
+# aggregation bypass (T-048 MOSAIC GAP-2). Both ride the council responses'
+# ALREADY-computed 768-d nomic embeddings (embedded ONCE, reused by both gates --
+# zero extra model calls, no per-pair calls). agent-pipe reads these via
+# _toml_section("council"); runtime override via the matching MIOS_COUNCIL_* env.
+# Both gates DEFAULT-OFF and degrade-open: OFF => the council synthesis path is
+# byte-identical to today (nothing is embedded, no gate runs).
+[council]
+# diversity_gate: before the aggregator, prune near-duplicate council responses to
+# a semantically diverse subset -- a lowest-mean-similarity seed then minimax-
+# orthogonal expansion; any input whose cosine similarity to the selected set
+# exceeds diversity_threshold is redundant and is replaced by the next most-
+# orthogonal candidate (dropped when even the most-orthogonal one is over threshold).
+# Kills the echo-chamber failure mode (a correlated ensemble degrades synthesis).
+diversity_gate      = false
+diversity_threshold = 0.92
+# aggregator_bypass: when the WHOLE council converges (every pairwise cosine
+# similarity exceeds aggregator_bypass_threshold) the expensive final aggregator
+# LLM adds nothing -> skip it and ship the highest-confidence (medoid / consensus)
+# individual response. Conservative threshold (MOSAIC ref: ~45.7% bypass at
+# +0.24pp accuracy). An aggregator_bypass event is logged per bypass.
+aggregator_bypass           = false
+aggregator_bypass_threshold = 0.95
+
 # ── WEB-RESEARCH loop bounds (SSOT'd). The pipeline's per-facet
 # web-research loop (search -> fetch/extract -> judge -> re-search) is the
 # dominant research-turn LATENCY driver. MODERATE-cut values (operator
@@ -2758,6 +2782,12 @@ default_position    = "center"   # placement for position="default" launches
 default_monitor     = 0          # 0 = primary monitor
 tile_gap_px         = 8          # gap between tiled / side-by-side windows
 edge_margin_px      = 0          # inset from screen edges for edge placements
+# Named half-screen snap regions (left-half / right-half / top-half /
+# bottom-half) for move_window. Their rectangles are derived live from the
+# monitor work area by mios-window (no pixel constants). Degrade-open: the
+# actuator treats these names as enabled when this key is absent; set false to
+# restrict move_window to the historical region vocabulary.
+region_snap_halves  = true
 restore_if_running  = true       # preflight: focus an existing instance instead of relaunching
 focus_after_launch  = true       # raise + foreground a window after a successful launch
 # Resolution priority (best -> worst) when a launch name matches apps in MORE than
@@ -2909,6 +2939,15 @@ discover_cidr = ""  # e.g. "192.168.1.0/24" -> auto-sweep a LAN segment (bounded
 # the local pipe's own peer id, ALWAYS excluded from fan-out so it never calls itself.
 council = false
 self_id = "local-mios"
+# FED-G7: route the concurrent fan-out on a federated peer's FULL published
+# AgentCard skills[] -- each skill's name/description/tags -- not just the collapsed
+# strength-token ids the peer registration keeps. When true, a discovered peer's
+# skills[] are attached to its synthetic registry entry and folded into the
+# model-driven relevance corpus (mios_fanout), and the routing decision is written
+# to the event table. Default false = selection is byte-identical to strength-token
+# routing (the published skill name/description/tags are ignored). env override:
+# MIOS_A2A_ROUTE_ON_CARD_SKILLS.
+route_on_card_skills = false
 
 # ── mDNS / Avahi A2A LAN discovery (FED-G5) — find + announce MiOS A2A peers on a
 # local segment with zero static config, complementing the explicit nodes /
@@ -3188,9 +3227,9 @@ cmd        = "mios-window close {title}"
 hidden = true
 section    = "Window / app launch"
 sig        = "title, position, monitor=0?"
-desc       = "Move an OPEN Windows window to a SEMANTIC region: center / left / right / top-left / top-right / etc., optionally on a chosen monitor. Use when the operator names a place ('to the left', 'center it') rather than exact coordinates. For literal pixel (x,y) use place_window_at_pixel; to change size use resize_window."
+desc       = "Move an OPEN Windows window to a SEMANTIC region: center, a half of the screen (left-half / right-half / top-half / bottom-half), a corner (top-left / ...), or maximize -- optionally on a chosen monitor. Half/corner rectangles are derived live from the monitor's work area. Use when the operator names a place ('to the left half', 'center it', 'snap it right') rather than exact coordinates. For literal pixel (x,y) use place_window_at_pixel; to change size use resize_window."
 model_name = "move_window_to_region"
-examples   = ["move Firefox to the right half of the screen", "center the Spotify window", "put Notepad in the top-left corner", "snap Discord to the left on monitor 2"]
+examples   = ["move Firefox to the right half of the screen", "center the Spotify window", "put Notepad in the top-left corner", "snap Discord to the left half on monitor 2"]
 tier = "rare"
 permission = "write"
 cmd        = "mios-window {position=center} {title} {monitor?--monitor}"
@@ -3199,7 +3238,8 @@ cmd        = "mios-window {position=center} {title} {monitor?--monitor}"
   aliases = ["name", "window"]
   [verbs.move_window.params.position]
   type = "string"
-  enum = ["center", "left", "right", "top", "bottom", "top-left", "top-right", "bottom-left", "bottom-right"]
+  aliases = ["region", "snap"]
+  enum = ["center", "maximize", "left-half", "right-half", "top-half", "bottom-half", "left", "right", "top", "bottom", "top-left", "top-right", "bottom-left", "bottom-right"]
   [verbs.move_window.params.monitor]
   type = "integer"
   default = 0
@@ -5118,6 +5158,30 @@ local_catalog_dir       = "/var/lib/mios/skills"
 # reads the matching MIOS_SKILLS_* env (SSOT-routed via userenv.sh).
 min_success_rate    = 0.7   # P2: a mined skill auto-promotes only if its skill_invocation success rate >= this
 min_success_samples = 3     # ...and it has at least this many recorded invocations (else not blocked)
+
+[reliability]
+# T-049 (GAP-3) -- the HARD pass^k skill-promotion gate. Promoting a skill
+# MUTATES the runnable surface every agent in the stack shares, so the DGM /
+# tau-bench lesson applies: a candidate must PROVE reliability, not merely have
+# passed once. When the gate is ON, `mios-skills promote <name>` REPLAYS the
+# skill through the same /skills/run firewall+taint+audit chokepoint
+# pass_and_k_count times (a DGM-class self-rewrite, run with `--dgm`, uses the
+# stricter pass_and_k_dgm_count) and flips status to promoted ONLY IF EVERY replay
+# succeeds -- success = the run succeeded AND no firewall_block fired AND no HITL
+# escalation. ONE failure vetoes ("pass^k gate: FAIL (n/k succeeded, required
+# k/k)"). pass^k is tau-bench's worst-case reliability metric ("ALL k repeats must
+# succeed") -- the SAME metric [selfimprove].passhat_k scores proposals against.
+#
+# gate_enabled defaults OFF so an env without a reachable agent-pipe promotes
+# exactly as before (degrade-open: without this block the code is byte-identical
+# to legacy promote). When ON the gate is FAIL-CLOSED -- an unreachable/erroring
+# replay counts as a failed replay, because a promotion must be PROVEN, not
+# assumed. mios-bench also reports a suite-wide pass^k_rate column (the fraction of
+# eval tasks that would clear this all-or-nothing gate). SSOT-routed to
+# MIOS_RELIABILITY_* via userenv.sh; the code's numeric fallbacks mirror these.
+gate_enabled         = false   # master switch for the pass^k promotion gate (off = legacy promote)
+pass_and_k_count     = 3       # k replays an ordinary skill promotion must ALL pass
+pass_and_k_dgm_count = 5       # stricter k for a DGM-class self-rewrite (promote --dgm)
 
 [agent_pipe]
 # 'MiOS' standalone Agent Pipe -- the router / refine / critic chain
@@ -7671,6 +7735,13 @@ everything_cli = [
     "/mnt/c/Tools/Everything/es.exe",
     "/mnt/c/Users/mios/AppData/Local/Programs/Everything/es.exe",
 ]
+# Recommended Everything command-line (ES / es.exe) release. es.exe is a
+# WINDOWS-HOST tool the operator installs (voidtools.com/downloads#cli) -- it is
+# NOT built or shipped by this image -- so this pin is the SSOT the runtime hint
+# surfaces when Everything is unreachable (an es.exe too old for the running
+# Everything's IPC returns "Error 8: IPC window not found"). Newer ES builds add
+# Everything 1.5 + Journal support and stay compatible with 1.4.x. Bump here.
+everything_cli_version = "1.1.0.37"
 
 # Windows PowerShell full path -- systemd user services have stripped
 # PATH that excludes /mnt/c/Windows/System32 (operator-confirmed
@@ -8004,6 +8075,12 @@ oscap_skip_rules        = []                           # list of rule IDs (e.g. 
 [build]
 rechunk_max_layers = 67   # hhd-dev/rechunk: max OCI layer count post-rechunk
 ai_ram_floor_gb    = 12   # informational; logged by postcheck
+# mios-build-driver fallback: when the local `podman build` trigger is
+# unavailable (podman missing), trigger the Forgejo CI build over HTTP via curl
+# (workflow_dispatch on build-mios.yml). Endpoints resolve from install.env
+# (MIOS_HOSTNAME + MIOS_PORT_FORGE_HTTP). Degrade-open: the driver treats the
+# fallback as enabled when this key is absent; set false to hard-fail instead.
+curl_trigger_fallback = true
 
 # ----------------------------------------------------------------------------
 # [network.quadlet] -- internal podman bridge for sidecar containers.

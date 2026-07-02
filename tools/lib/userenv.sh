@@ -533,6 +533,10 @@ slots = [
     ("skills.local_catalog_dir",       "MIOS_SKILLS_LOCAL_CATALOG_DIR"),
     ("skills.min_success_rate",        "MIOS_SKILLS_MIN_SUCCESS_RATE"),
     ("skills.min_success_samples",     "MIOS_SKILLS_MIN_SUCCESS_SAMPLES"),
+    # ── reliability (T-049 -- hard pass^k skill-promotion gate) ──────────
+    ("reliability.gate_enabled",           "MIOS_RELIABILITY_GATE_ENABLED"),
+    ("reliability.pass_and_k_count",       "MIOS_RELIABILITY_PASS_AND_K_COUNT"),
+    ("reliability.pass_and_k_dgm_count",   "MIOS_RELIABILITY_PASS_AND_K_DGM_COUNT"),
     # ── agent_pipe (standalone router + refine + critic FastAPI) ─────────
     ("agent_pipe.endpoint",            "MIOS_AGENT_PIPE_ENDPOINT"),
     ("agent_pipe.backend",             "MIOS_AGENT_PIPE_BACKEND"),

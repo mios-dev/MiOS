@@ -5,6 +5,7 @@
 """Unit tests for mios_fanout (model-driven selection + deterministic bounds)."""
 
 import asyncio
+import json
 import sys
 import types
 
@@ -136,6 +137,139 @@ def t_model_select():
         f.httpx = orig
 
 
+# ── FED-G7 (T-051): route on the FULL published AgentCard skills[], flag-gated. ──
+# A federated peer publishes rich skills (name/description/tags); the peer
+# registration collapses them to strength-token ids. With ROUTE_ON_CARD_SKILLS the
+# full skills[] (stored as cfg["card_skills"]) is folded into the relevance corpus
+# so the model routes on the ADVERTISED skill, not just token proximity.
+_CARD_SKILL = {"id": "cr", "name": "Code Review",
+               "description": "reviews source code for correctness and bugs",
+               "tags": ["code-review"]}
+
+
+def t_card_skills_corpus():
+    # OFF -> byte-identical (published skill text absent); ON -> name+desc+tags folded in.
+    setup({"enable": True, "fanout_max": 3})
+    cfg = {"role": "general", "strengths": ["chat"], "skill_tags": ["chat"],
+           "card_skills": [_CARD_SKILL]}
+    f.ROUTE_ON_CARD_SKILLS = False
+    off = f._agent_card("peer", cfg)
+    check("card OFF: byte-identical (no published-skill text)",
+          "code-review" not in off and "reviews source code" not in off, off)
+    f.ROUTE_ON_CARD_SKILLS = True
+    on = f._agent_card("peer", cfg)
+    check("card ON: full published skill name/description/tags folded into corpus",
+          ("code-review" in on and "Code Review" in on
+           and "reviews source code" in on), on)
+    check("card ON: OFF card is a strict prefix (purely additive)", on.startswith(off), on)
+    f.ROUTE_ON_CARD_SKILLS = False
+
+
+def _fake_httpx_cardpick(phrase):
+    """A body-inspecting httpx stand-in that simulates a SEMANTIC selector: it reads
+    the agent cards from the request and returns the names whose card ADVERTISES the
+    phrase. So the winner is decided by what each card actually says -- proving the
+    published skill (only in the corpus when ROUTE_ON_CARD_SKILLS is on) is decisive."""
+    class _Resp:
+        status_code = 200
+        def __init__(self, names): self._names = names
+        def json(self):
+            return {"choices": [{"message": {"content": json.dumps(self._names)}}]}
+    class _Client:
+        def __init__(self, *a, **k): pass
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+        async def post(self, url, json=None, **k):
+            user = ((json or {}).get("messages") or [{}, {}])[1].get("content", "")
+            picked = []
+            for line in user.splitlines():
+                s = line.strip()
+                if s.startswith("- ") and phrase in s.lower():
+                    picked.append(s[2:].split(" -- ", 1)[0].strip())
+            return _Resp(picked)
+    return types.SimpleNamespace(AsyncClient=_Client)
+
+
+# tokenmatch: strengths lexically overlap the task ("code", "review") but it does NOT
+# publish a code-review skill. skillcard: strengths are unrelated ("chat") but it
+# publishes the code-review skill. They CONFLICT -- a strength-token scorer favours
+# tokenmatch; card-skills routing must pick skillcard.
+_CS_REG = {
+    "primary":    {"lane": "gpu", "role": "general", "endpoint": "e0", "skill_tags": ["chat"]},
+    "tokenmatch": {"lane": "gpu", "role": "general", "endpoint": "e1",
+                   "strengths": ["code", "review"], "skill_tags": ["code", "review"]},
+    "skillcard":  {"lane": "gpu", "role": "general", "endpoint": "e2",
+                   "strengths": ["chat"], "skill_tags": ["chat"],
+                   "card_skills": [_CARD_SKILL]},
+}
+
+
+def _cs_setup(*, db=None):
+    f.configure(
+        agent_registry=_CS_REG,
+        dispatch_cfg={"enable": True, "fanout_max": 3, "mode": "relevance",
+                      "fanout_select_mode": "model"},
+        depth_exhausted=lambda: False, dispatch_depth=lambda: 0,
+        lane_sem_key=lambda cfg: (cfg or {}).get("lane", "gpu"),
+        dedup_pool_by_target=lambda names: names,
+        over_global_ceiling=lambda: False,
+        agent_lane=lambda cfg: (cfg or {}).get("lane", "gpu"),
+        agent_skill_tags=lambda cfg: (cfg or {}).get("skill_tags", []),
+        max_dispatch_depth=2, council_max_default=4, admit_enable=False,
+        route_on_card_skills=True,
+        **(db or {}))
+
+
+def t_card_skills_route():
+    _cs_setup()
+    f.ROUTE_ON_CARD_SKILLS = True
+    orig = f.httpx
+    f.httpx = _fake_httpx_cardpick("code-review")
+    try:
+        sel = asyncio.run(f._pick_fanout_agents(
+            "primary", {"refined_text": "please code-review this pull request"}))
+        names = [n for n, _ in sel]
+        check("card-skills ON: published-skill agent wins over strength-token proximity",
+              names == ["skillcard"], str(names))
+        # Same conflict, gate OFF: skillcard no longer advertises the skill in its
+        # card, so the semantic selector no longer prefers it -> the skill-card no
+        # longer beats the token-match agent (the corpus, hence the routing, differs).
+        f.ROUTE_ON_CARD_SKILLS = False
+        sel_off = asyncio.run(f._pick_fanout_agents(
+            "primary", {"refined_text": "please code-review this pull request"}))
+        check("card-skills OFF: no code-review edge -> skillcard does NOT win",
+              [n for n, _ in sel_off] != ["skillcard"], str(sel_off))
+    finally:
+        f.httpx = orig
+        f.ROUTE_ON_CARD_SKILLS = False
+
+
+def t_route_event():
+    captured = []
+    _cs_setup(db={
+        "db_create": lambda table, fields, now_fields=None: {"table": table, "fields": fields},
+        "db_post": lambda row: row,
+        "db_fire": lambda row: captured.append(row)})
+    f.ROUTE_ON_CARD_SKILLS = True
+    orig = f.httpx
+    f.httpx = _fake_httpx_cardpick("code-review")
+    try:
+        asyncio.run(f._pick_fanout_agents(
+            "primary", {"refined_text": "please code-review this pull request"}))
+        rows = [r for r in captured
+                if (r.get("fields") or {}).get("kind") == "fanout_route"]
+        check("route event: fan-out routing decision written to the event table", len(rows) == 1,
+              str(captured))
+        if rows:
+            payload = (rows[0]["fields"].get("payload") or {})
+            check("route event: payload carries the chosen secondaries",
+                  payload.get("secondaries") == ["skillcard"], str(payload))
+    finally:
+        f.httpx = orig
+        f.ROUTE_ON_CARD_SKILLS = False
+        f._db_create = f._db_post = f._db_fire = None
+
+
 def main():
     t_eligible()
     t_council_fallback()
@@ -144,6 +278,9 @@ def main():
     t_default_model()
     t_default_degrade()
     t_model_select()
+    t_card_skills_corpus()
+    t_card_skills_route()
+    t_route_event()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
 

@@ -41,13 +41,17 @@ set -u
 _resolve_hwnd() {
     local pat="$1"
     [[ -z "$pat" ]] && { echo "(empty pattern)" >&2; return 1; }
-    # Use python to parse mios-pc-control window-list output (column-aligned).
-    mios-pc-control window-list 2>/dev/null | python3 - "$pat" <<'PYEOF'
-import re, sys
+    # Parse mios-pc-control window-list output (column-aligned). The window list
+    # is passed via the MIOS_WL env var, NOT a pipe: `python3 - <<HEREDOC` reads
+    # its PROGRAM from stdin, so a pipe on the same fd would be shadowed by the
+    # heredoc and sys.stdin would arrive empty (every lookup then "no match").
+    # Same env-var-carries-the-data idiom mios-everything uses for RAW_LINES.
+    MIOS_WL="$(mios-pc-control window-list 2>/dev/null)" python3 - "$pat" <<'PYEOF'
+import re, sys, os
 
 pat = sys.argv[1].lower()
 hits = []
-for line in sys.stdin:
+for line in os.environ.get("MIOS_WL", "").splitlines():
     line = line.rstrip()
     # Header / divider / blank
     if not line.strip(): continue
@@ -99,6 +103,9 @@ usage: mios-window <subcommand> [args...]
   maximize <title-pattern>
   restore  <title-pattern>
   close    <title-pattern>           (graceful WM_CLOSE; not a kill)
+  left-half | right-half | top-half | bottom-half <title-pattern>
+                                      (snap to half the monitor work area;
+                                       rectangle derived live from screen geometry)
 
 Title pattern is a case-insensitive substring match against window
 titles. Ambiguous matches pick the first one and list alternatives
@@ -119,6 +126,39 @@ USAGE
 if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
     return 0 2>/dev/null || true
 fi
+
+# Directory this script lives in -- so the half-screen region actuator can find
+# its sibling pure-geometry helper (mios_window_region.py) whether invoked by
+# absolute path, PATH lookup, or symlink.
+_SELF="$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")"
+SCRIPT_DIR="$(cd "$(dirname "$_SELF")" 2>/dev/null && pwd || echo /usr/libexec/mios)"
+
+# [os_control].region_snap_halves gate. The half-screen snap regions
+# (left-half / right-half / top-half / bottom-half) are ADDITIVE region names;
+# degrade-open -> enabled when the key is ABSENT so they work without a
+# mios.toml edit. Set false to restrict to the historical region vocabulary
+# (the new names then behave exactly like any other unknown subcommand).
+_region_snap_enabled() {
+    python3 - <<'PYEOF' 2>/dev/null
+import sys
+try:
+    import tomllib
+except ImportError:
+    sys.exit(0)  # no toml reader -> degrade-open (enabled)
+val = True
+for p in ("/etc/mios/mios.toml", "/usr/share/mios/mios.toml"):
+    try:
+        with open(p, "rb") as f:
+            d = tomllib.load(f)
+    except (OSError, tomllib.TOMLDecodeError):
+        continue
+    oc = d.get("os_control")
+    if isinstance(oc, dict) and "region_snap_halves" in oc:
+        val = bool(oc["region_snap_halves"])
+        break
+sys.exit(0 if val else 1)
+PYEOF
+}
 
 sub="${1:-}"
 [[ -z "$sub" ]] && { usage; exit 64; }
@@ -378,6 +418,26 @@ print(f"mios-pc-control window-move {hwnd} {x} {y} >/dev/null;")
 print(f"mios-pc-control window-resize {hwnd} {w} {h} >/dev/null;")
 PYEOF
 )"
+        ;;
+    left-half|right-half|top-half|bottom-half)
+        # Half-screen snap regions. The rectangle is derived LIVE from the
+        # monitor work area (queried via `mios-pc-control screen-layout`) by the
+        # sibling pure-geometry helper -- no pixel constants (Law 7). window-move
+        # + window-resize route through mios-pc-control, so this works whether an
+        # OS-control executor is present or not.
+        if ! _region_snap_enabled; then
+            echo "mios-window: unknown subcommand: $sub" >&2
+            usage
+            exit 64
+        fi
+        pat="${1:-}"; [[ -z "$pat" ]] && { echo "mios-window $sub: missing <title-pattern>" >&2; exit 64; }
+        hwnd="$(_resolve_hwnd "$pat")" || exit 1
+        _rect="$(mios-pc-control screen-layout 2>/dev/null | python3 "$SCRIPT_DIR/mios_window_region.py" "$sub")" \
+            || { echo "mios-window $sub: could not resolve region geometry from screen-layout" >&2; exit 1; }
+        read -r _rx _ry _rw _rh <<<"$_rect"
+        [[ -z "${_rw:-}" || -z "${_rh:-}" ]] && { echo "mios-window $sub: empty region rectangle" >&2; exit 1; }
+        mios-pc-control window-move "$hwnd" "$_rx" "$_ry" >/dev/null
+        mios-pc-control window-resize "$hwnd" "$_rw" "$_rh"
         ;;
     close|quit|x)
         # Graceful close via WM_CLOSE -- the same as the operator

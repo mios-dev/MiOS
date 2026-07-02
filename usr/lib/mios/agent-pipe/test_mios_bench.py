@@ -67,6 +67,25 @@ def t_aggregate():
     check("agg all-too-small -> 0", b.aggregate_pass_hat_k([(1, 1)], 3) == 0.0)
 
 
+def t_pass_and_k_rate():
+    # T-049: fraction of tasks whose pass^k is a PERFECT 1.0 (every trial passed).
+    # (4,4) -> clears; (4,2) -> does not; (1,1) -> n<k, skipped at k=2.
+    tasks = [(4, 4), (4, 2), (1, 1)]
+    check("pass^k_rate = fraction all-pass (1 of 2 qualifying)",
+          _close(b.aggregate_pass_and_k_rate(tasks, 2), 0.5))
+    check("pass^k_rate all-perfect -> 1",
+          _close(b.aggregate_pass_and_k_rate([(3, 3), (5, 5)], 2), 1.0))
+    check("pass^k_rate none-perfect -> 0",
+          _close(b.aggregate_pass_and_k_rate([(4, 3), (4, 2)], 2), 0.0))
+    check("pass^k_rate empty -> 0", b.aggregate_pass_and_k_rate([], 2) == 0.0)
+    check("pass^k_rate all-too-small -> 0",
+          b.aggregate_pass_and_k_rate([(1, 1)], 3) == 0.0)
+    # distinct from the MEAN pass^k: [(4,4),(4,2)] -> rate=0.5 but mean<0.5+ ...
+    check("pass^k_rate differs from mean pass^k",
+          b.aggregate_pass_and_k_rate([(4, 4), (4, 2)], 2)
+          != b.aggregate_pass_hat_k([(4, 4), (4, 2)], 2))
+
+
 def t_percentile():
     check("pctl p50 interp [100,200,300]=200", _close(b.percentile([100, 200, 300], 50), 200.0))
     check("pctl p95 [100,200,300]=290", _close(b.percentile([100, 200, 300], 95), 290.0))
@@ -101,6 +120,7 @@ def main():
     t_pass_hat_k()
     t_iid()
     t_aggregate()
+    t_pass_and_k_rate()
     t_percentile()
     t_classic_rollup()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")

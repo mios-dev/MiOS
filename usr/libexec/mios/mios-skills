@@ -170,6 +170,33 @@ LOCAL_CATALOG_DIR = os.environ.get(
     "MIOS_SKILLS_LOCAL_CATALOG_DIR", "/var/lib/mios/skills")
 
 
+# ── T-049 (GAP-3): hard pass^k skill-promotion gate ───────────────
+# Promoting a skill MUTATES the runnable surface every agent in the stack shares,
+# so the DGM/tau-bench lesson applies: a candidate must PROVE reliability, not
+# merely have passed once. When the gate is ON, `promote` REPLAYS the skill
+# through the same /skills/run firewall+taint+audit chokepoint PASS_AND_K_COUNT
+# times (a DGM-class self-rewrite, run with --dgm, uses the stricter
+# PASS_AND_K_DGM_COUNT) and flips status ONLY IF EVERY replay succeeds; ONE
+# failure vetoes. pass^k is tau-bench's worst-case reliability metric ("ALL k
+# repeats must succeed"). DEFAULT-OFF -> promote behaves exactly as before, so an
+# env with no reachable agent-pipe is unaffected (degrade-open, byte-identical
+# without the mios.toml [reliability] edit). When ON the gate is FAIL-CLOSED: an
+# unreachable/erroring replay counts as a failed replay (a promotion must be
+# PROVEN, not assumed). All knobs SSOT-routed through mios.toml [reliability] via
+# userenv.sh (MIOS_RELIABILITY_*); the numeric defaults mirror those TOML values.
+def _env_bool(name: str, default: bool) -> bool:
+    v = os.environ.get(name)
+    if v is None:
+        return default
+    return str(v).strip().lower() not in ("0", "false", "no", "off", "")
+
+
+PASS_AND_K_GATE_ENABLED = _env_bool("MIOS_RELIABILITY_GATE_ENABLED", False)
+PASS_AND_K_COUNT = int(os.environ.get("MIOS_RELIABILITY_PASS_AND_K_COUNT", "3") or 3)
+PASS_AND_K_DGM_COUNT = int(
+    os.environ.get("MIOS_RELIABILITY_PASS_AND_K_DGM_COUNT", "5") or 5)
+
+
 # ─── miner: sequence extraction over tool_call ────────────────────
 def _args_shape(args: dict) -> dict:
     """Normalize verb args to a shape signature -- keys + arg types
@@ -516,7 +543,105 @@ def _update_status(name: str, status: str) -> int:
     return 0
 
 
+def _parse_params(param_list) -> dict:
+    """Turn a repeatable ``--param key=value`` list into a params dict. Malformed
+    entries are skipped with a warning (shared by `run` + the promote gate)."""
+    params: dict = {}
+    for kv in param_list or []:
+        if "=" not in kv:
+            sys.stderr.write(
+                f"mios-skills: skipping malformed --param {kv!r} "
+                f"(expected key=value)\n")
+            continue
+        k, v = kv.split("=", 1)
+        params[k.strip()] = v
+    return params
+
+
+def _post_skill_run(name: str, params: dict, session: str | None) -> dict:
+    """POST one skill run to agent-pipe /skills/run and return the parsed result
+    envelope (same shape execute_dag/execute_skill return: success, steps[], ...).
+    A failed run comes back as HTTP 422 carrying that SAME envelope -> parse it as
+    the result, not a transport error. A genuine transport failure (agent-pipe
+    unreachable) propagates so the pass^k gate can treat it as a failed replay."""
+    payload: dict = {"name": name, "params": params or {}}
+    if session:
+        payload["session_id"] = session
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        f"{AGENT_PIPE_ROOT}/skills/run",
+        data=data, method="POST",
+        headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            return json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        # 422 (and any 4xx that carries a JSON body) IS the run-result envelope.
+        try:
+            return json.loads(e.read())
+        except Exception:  # noqa: BLE001 -- no parseable body -> a real failure
+            raise
+
+
+def _passk_run_ok(run: dict) -> bool:
+    """A single replay PASSES iff the skill run SUCCEEDED and neither the Semantic
+    Firewall nor the HITL gate intervened. The top-level success=false already
+    captures a FATAL block (a blocked step fails the run); the per-step block flags
+    additionally catch a NON-fatal block in a try-each skill that recovered on a
+    later step -- a firewall/HITL trip is a reliability red flag even when the skill
+    still produced an answer. Reads ONLY structured result fields (no text/keyword
+    matching): success + the dispatch-emitted firewall_blocked/hitl_blocked markers."""
+    if not isinstance(run, dict) or run.get("success") is not True:
+        return False
+    for step in run.get("steps") or []:
+        if isinstance(step, dict) and (
+                step.get("firewall_blocked") or step.get("hitl_blocked")):
+            return False
+    return True
+
+
+def _passk_gate(run_once, k: int) -> tuple[bool, int, str]:
+    """Replay a skill k times via ``run_once()`` (a 0-arg callable returning the
+    /skills/run envelope, or raising when the replay is unreachable). The gate
+    PASSES iff EVERY one of the k replays passes _passk_run_ok -- ONE failure vetoes
+    (pass^k: ALL k repeats must succeed). Fail-closed: a replay that raises counts
+    as a failed replay. All k are attempted so the message can report the true
+    success count. Returns (passed, n_ok, human_message)."""
+    k = max(1, int(k))
+    n_ok = 0
+    for _ in range(k):
+        try:
+            run = run_once()
+        except Exception:  # noqa: BLE001 -- unreachable replay = failed replay
+            run = None
+        if _passk_run_ok(run):
+            n_ok += 1
+    passed = n_ok >= k
+    msg = (f"pass^k gate: {'PASS' if passed else 'FAIL'} "
+           f"({n_ok}/{k} succeeded, required {k}/{k})")
+    return passed, n_ok, msg
+
+
 def cmd_promote(args: argparse.Namespace) -> int:
+    # T-049 (GAP-3) HARD pass^k gate: when enabled, a promotion must PROVE
+    # reliability by replaying the skill k times through the live /skills/run
+    # chokepoint -- ALL must succeed or the promotion is vetoed. A DGM-class
+    # self-rewrite (--dgm) uses the stricter DGM count. Default-OFF -> the gate is
+    # skipped entirely and promote behaves exactly as it always did.
+    if PASS_AND_K_GATE_ENABLED:
+        k = PASS_AND_K_DGM_COUNT if getattr(args, "dgm", False) else PASS_AND_K_COUNT
+        params = _parse_params(getattr(args, "param", None))
+        session = getattr(args, "session", None)
+
+        def _run_once() -> dict:
+            return _post_skill_run(args.name, params, session)
+
+        passed, _n_ok, msg = _passk_gate(_run_once, k)
+        sys.stderr.write(f"mios-skills: {msg}\n")
+        if not passed:
+            sys.stderr.write(
+                f"mios-skills: {args.name} NOT promoted -- pass^k gate vetoed\n")
+            return 1
     return _update_status(args.name, "promoted")
 
 
@@ -562,15 +687,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     Going through agent-pipe ensures the firewall + taint chain +
     skill_invocation audit row + tool_call rows all happen the same
     way they do for direct verb dispatch."""
-    params: dict = {}
-    for kv in args.param or []:
-        if "=" not in kv:
-            sys.stderr.write(
-                f"mios-skills: skipping malformed --param {kv!r} "
-                f"(expected key=value)\n")
-            continue
-        k, v = kv.split("=", 1)
-        params[k.strip()] = v
+    params = _parse_params(args.param)
     payload = {
         "name": args.name,
         "params": params,
@@ -811,6 +928,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     pp = sub.add_parser("promote", help="mark skill runnable")
     pp.add_argument("name")
+    # T-049 pass^k gate replay inputs (used only when the gate is enabled):
+    pp.add_argument("--param", action="append",
+                    help="key=value replay param (repeatable; needed to replay a "
+                         "parameterized skill when the pass^k gate is enabled)")
+    pp.add_argument("--session", help="session_id for the replay taint chain")
+    pp.add_argument("--dgm", action="store_true",
+                    help="DGM-class self-rewrite: use the stricter pass_and_k_dgm_count")
     pp.set_defaults(func=cmd_promote)
 
     pr = sub.add_parser("retire", help="hide skill from runners")

@@ -6007,6 +6007,17 @@ sys.modules["mios_skills"].configure(
     skills_episodic_enabled=SKILLS_EPISODIC_ENABLED,
 )
 
+# FED-G7 (T-051): route fan-out on the FULL published AgentCard skills[] (skill
+# name/description/tags), not just the collapsed strength-token ids. SSOT
+# [a2a].route_on_card_skills (env MIOS_A2A_ROUTE_ON_CARD_SKILLS overrides); default
+# OFF -> the card corpus + selection stay byte-identical. Resolved here (shared by
+# the fan-out selector below and the A2A peer client, which attaches the skills[] to
+# each peer's synthetic registry entry only when this is on).
+_ROUTE_ON_CARD_SKILLS = os.environ.get(
+    "MIOS_A2A_ROUTE_ON_CARD_SKILLS",
+    str((_toml_section("a2a") or {}).get("route_on_card_skills", "false"))
+).strip().lower() in ("1", "true", "yes", "on")
+
 # Inject the council/swarm fan-out selector's runtime deps (refactor R3). Placed
 # here -- after the registry/config + every depth/lane/dedup/admission helper and
 # the COUNCIL_MAX/ADMIT/MAX_DISPATCH_DEPTH constants are defined (e.g.
@@ -6025,6 +6036,10 @@ sys.modules["mios_fanout"].configure(
     max_dispatch_depth=MAX_DISPATCH_DEPTH,
     council_max_default=COUNCIL_MAX_DEFAULT,
     admit_enable=ADMIT_ENABLE,
+    route_on_card_skills=_ROUTE_ON_CARD_SKILLS,
+    db_create=_db_create,
+    db_post=_db_post,
+    db_fire=_db_fire,
 )
 
 # Inject the REFINE classifier's runtime deps (refactor R5 -> mios_refine). Placed
@@ -6776,6 +6791,7 @@ sys.modules["mios_a2a_client"].configure(
     a2a_council=A2A_COUNCIL,
     a2a_self_id=A2A_SELF_ID,
     get_client=_get_client,
+    route_on_card_skills=_ROUTE_ON_CARD_SKILLS,
     invalidate_worker_cache=lambda: globals().__setitem__(
         "_WORKER_TOOLS_FULL_CACHE", None),
 )
@@ -8362,6 +8378,10 @@ sys.modules["mios_swarm"].configure(
     db_fire=_db_fire,
     db_post=_db_post,
     db_create=_db_create,
+    # T-047/T-048: the single-vector embed lane for the council diversity /
+    # aggregation-bypass gates (reuses the pipeline's nomic embed path; gates
+    # degrade-open to a no-op when unavailable).
+    embed_one=_embed_one,
 )
 
 

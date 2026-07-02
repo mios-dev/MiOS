@@ -384,6 +384,39 @@ POLISH_ENDPOINT = os.environ.get(
 POLISH_TIMEOUT_S = int(os.environ.get("MIOS_POLISH_TIMEOUT_S", "15"))
 POLISH_MAX_TOKENS = int(os.environ.get("MIOS_POLISH_MAX_TOKENS", "800"))
 
+# ── COUNCIL input-diversity gate (T-047 RouteMoA GAP-1) + confidence-aware
+# aggregation bypass (T-048 MOSAIC GAP-2). Both ride the ALREADY-computed 768-d
+# nomic council-response embeddings (no extra model calls). Read from [council]
+# in mios.toml (env override MIOS_COUNCIL_*); thresholds are cosine cut points.
+# DEFAULT-OFF (degrade-open): both off => the council synthesis path is
+# byte-identical, so the defaults below are the SAFE values applied when the
+# [council] keys are ABSENT.
+_COUNCIL_TOML = _toml_section("council") or {}
+
+
+def _cfg_bool(table: dict, env: str, key: str, default: bool) -> bool:
+    """Resolve a boolean tunable: env override -> table[key] -> literal default.
+    Truthy set matches the rest of the config layer (1/true/yes/on)."""
+    v = os.environ.get(env)
+    if v not in (None, ""):
+        return v.strip().lower() in {"1", "true", "yes", "on"}
+    v = table.get(key)
+    if v is not None:
+        return str(v).strip().lower() in {"1", "true", "yes", "on"}
+    return default
+
+
+COUNCIL_DIVERSITY_GATE = _cfg_bool(
+    _COUNCIL_TOML, "MIOS_COUNCIL_DIVERSITY_GATE", "diversity_gate", False)
+COUNCIL_DIVERSITY_THRESHOLD = _cfg_num(
+    _COUNCIL_TOML, "MIOS_COUNCIL_DIVERSITY_THRESHOLD", "diversity_threshold",
+    0.92, cast=float)
+COUNCIL_AGGREGATOR_BYPASS = _cfg_bool(
+    _COUNCIL_TOML, "MIOS_COUNCIL_AGGREGATOR_BYPASS", "aggregator_bypass", False)
+COUNCIL_AGGREGATOR_BYPASS_THRESHOLD = _cfg_num(
+    _COUNCIL_TOML, "MIOS_COUNCIL_AGGREGATOR_BYPASS_THRESHOLD",
+    "aggregator_bypass_threshold", 0.95, cast=float)
+
 # Memory / KV Paging Slot Persistence (T-021)
 _MEMORY_TOML = _toml_section("memory") or {}
 KV_SLOT_PERSIST = (

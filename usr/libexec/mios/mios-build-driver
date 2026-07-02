@@ -76,6 +76,96 @@ echo "[mios-build-driver] logging to $LOG_FILE"
 _log() { echo "[mios-build-driver] $*" | tee -a "$LOG_FILE"; }
 _fail() { _log "FATAL: $*"; exit 1; }
 
+# ── curl fallback build-trigger ──────────────────────────────────────────────
+# The PRIMARY build trigger is the local `sudo podman build` further down. When
+# podman is unavailable the OCI image cannot be built here; rather than dead-end,
+# TRIGGER the Forgejo CI build over HTTP with curl -- the same self-replication
+# loop `git push` drives, reached through the workflow's own workflow_dispatch
+# entrypoint (.forgejo/workflows/build-mios.yml). Endpoints resolve from the SSOT
+# bridge install.env (MIOS_HOSTNAME + MIOS_PORT_FORGE_HTTP, sourced via
+# userenv.sh) -- never a literal host:port. Gated by [build].curl_trigger_fallback:
+# degrade-open (enabled when the key is ABSENT so a runtime with no podman still
+# self-heals via CI); set false to keep the historical hard-fail.
+_build_curl_fallback_enabled() {
+    python3 - <<'PYEOF' 2>/dev/null
+import sys
+try:
+    import tomllib
+except ImportError:
+    sys.exit(0)  # no toml reader -> degrade-open (enabled)
+val = True
+for p in ("/etc/mios/mios.toml", "/usr/share/mios/mios.toml"):
+    try:
+        with open(p, "rb") as f:
+            d = tomllib.load(f)
+    except (OSError, tomllib.TOMLDecodeError):
+        continue
+    b = d.get("build")
+    if isinstance(b, dict) and "curl_trigger_fallback" in b:
+        val = bool(b["curl_trigger_fallback"])
+        break
+sys.exit(0 if val else 1)
+PYEOF
+}
+
+_curl_build_trigger() {
+    local host port base ref url owner repo token
+    command -v curl >/dev/null 2>&1 || { _log "curl fallback: curl not installed"; return 1; }
+    host="${MIOS_FORGE_HOST:-${MIOS_HOSTNAME:-localhost}}"
+    port="${MIOS_PORT_FORGE_HTTP:-}"     # from install.env / userenv.sh -- no literal
+    if [[ -z "$port" ]]; then
+        _log "curl fallback: MIOS_PORT_FORGE_HTTP unset (run mios-sync-env) -- cannot resolve forge endpoint"
+        return 1
+    fi
+    base="http://${host}:${port}"
+    if ! curl -fsS --max-time 5 -o /dev/null "${base}/api/v1/version"; then
+        _log "curl fallback: Forgejo at ${base} not reachable -- cannot trigger CI build"
+        return 1
+    fi
+    ref="$(git -C "${MIOS_REPO:-/}" rev-parse --abbrev-ref HEAD 2>/dev/null || echo main)"
+    url="$(git -C "${MIOS_REPO:-/}" remote get-url origin 2>/dev/null || echo '')"
+    # Derive <owner>/<repo> from the origin URL (http or scp-like), .git-stripped.
+    # URL passed as argv (NOT piped stdin): `python3 - <<HEREDOC` reads its program
+    # from stdin, which would shadow a pipe and leave the parse empty.
+    read -r owner repo < <(python3 - "$url" <<'PYEOF'
+import re, sys
+u = re.sub(r'\.git$', '', sys.argv[1].strip())
+u = re.sub(r'^[a-zA-Z][a-zA-Z0-9+.-]*://', '', u)   # drop scheme
+u = re.sub(r'^[^/@]*@', '', u)                       # drop userinfo
+head = u.split('/', 1)[0]                            # host[:port] or host:owner (scp)
+if ':' in head and not head.rsplit(':', 1)[1].isdigit():
+    u = u.replace(':', '/', 1)                       # scp-like host:owner -> host/owner
+parts = [p for p in u.split('/') if p]
+print(parts[-2], parts[-1]) if len(parts) >= 2 else print('', '')
+PYEOF
+)
+    if [[ -z "$owner" || -z "$repo" ]]; then
+        _log "curl fallback: could not derive owner/repo from origin ('$url')"
+        return 1
+    fi
+    # Workflow-dispatch needs an API token; read from env or the secrets bridge.
+    token="${MIOS_FORGE_TOKEN:-}"
+    if [[ -z "$token" && -r /etc/mios/secrets.env ]]; then
+        token="$(grep -E '^MIOS_FORGE_TOKEN=' /etc/mios/secrets.env 2>/dev/null | head -1 | cut -d= -f2- | tr -d '"'\''')"
+    fi
+    if [[ -z "$token" ]]; then
+        _log "curl fallback: no MIOS_FORGE_TOKEN (env or /etc/mios/secrets.env) -- cannot workflow_dispatch."
+        _log "  Set MIOS_FORGE_TOKEN, or push to trigger the runner: mios-rebuild"
+        return 1
+    fi
+    _log "curl fallback: dispatching build-mios.yml on ${base}/${owner}/${repo} (ref=${ref})"
+    if curl -fsS --max-time 15 -X POST \
+            -H "Authorization: token ${token}" \
+            -H 'Content-Type: application/json' \
+            -d "{\"ref\":\"${ref}\"}" \
+            "${base}/api/v1/repos/${owner}/${repo}/actions/workflows/build-mios.yml/dispatches" \
+            2>&1 | tee -a "$LOG_FILE"; then
+        return 0
+    fi
+    _log "curl fallback: workflow_dispatch POST failed"
+    return 1
+}
+
 # ── Privilege preflight ──────────────────────────────────────────────────────
 # The build pipeline writes /etc, overlays /, sets up accounts, persists
 # /etc/mios/secrets.env, and runs rootful `podman build` -- it MUST run
@@ -637,6 +727,20 @@ if [[ "$MIOS_REPO" = "/" ]]; then
         _fail "git archive | tar -x to $BUILD_CTX failed -- see $LOG_FILE"
     fi
     _log "build context staged: $(find "$BUILD_CTX" -type f | wc -l) files"
+fi
+
+# Primary build trigger = local podman build (below). If podman is missing, the
+# curl fallback triggers the Forgejo CI build instead (SSOT endpoints, no literal
+# host:port). Only intercepts when podman is ABSENT and the fallback is enabled
+# (default), so a podman-present host or an explicitly-disabled gate is unchanged.
+if ! command -v podman >/dev/null 2>&1 && _build_curl_fallback_enabled; then
+    _log "podman not found -- primary local build trigger unavailable; attempting curl CI fallback"
+    if _curl_build_trigger; then
+        _log "curl fallback: CI build triggered on the Forgejo runner -- watch it with:"
+        _log "    journalctl -fu mios-forgejo-runner.service"
+        exit 0
+    fi
+    _log "WARN: curl build-trigger fallback did not fire -- falling through to the local build"
 fi
 
 _log "starting podman build at $BUILD_CTX"

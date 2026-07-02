@@ -54,13 +54,25 @@ _agent_skill_tags = None
 MAX_DISPATCH_DEPTH = 2
 COUNCIL_MAX_DEFAULT = 4
 ADMIT_ENABLE = False
+# FED-G7 (T-051): fold a federated peer's FULL published AgentCard skills[] (each
+# skill's name + description + tags) into the relevance corpus, not just the
+# collapsed strength-token ids the peer registration keeps. SSOT
+# [a2a].route_on_card_skills; default OFF -> the card corpus AND the selection stay
+# byte-identical to strength-token-only routing. The event-table writers are
+# injected so the routing decision can be recorded; they stay None (emit is a no-op)
+# for a standalone ``import mios_fanout`` and the offline unit tests.
+ROUTE_ON_CARD_SKILLS = False
+_db_create = None
+_db_post = None
+_db_fire = None
 
 
 def configure(*, agent_registry=None, dispatch_cfg=None, depth_exhausted=None,
               dispatch_depth=None, lane_sem_key=None, dedup_pool_by_target=None,
               over_global_ceiling=None, agent_lane=None, agent_skill_tags=None,
               max_dispatch_depth=None, council_max_default=None,
-              admit_enable=None) -> None:
+              admit_enable=None, route_on_card_skills=None,
+              db_create=None, db_post=None, db_fire=None) -> None:
     """Inject the server.py registry/config + helpers/constants the selector uses.
 
     Unchanged signature from the pre-de-hardcode version -- the model-driven
@@ -71,7 +83,8 @@ def configure(*, agent_registry=None, dispatch_cfg=None, depth_exhausted=None,
     global _AGENT_REGISTRY, _DISPATCH_CFG, _depth_exhausted, _dispatch_depth
     global _lane_sem_key, _dedup_pool_by_target, _over_global_ceiling
     global _agent_lane, _agent_skill_tags, MAX_DISPATCH_DEPTH
-    global COUNCIL_MAX_DEFAULT, ADMIT_ENABLE
+    global COUNCIL_MAX_DEFAULT, ADMIT_ENABLE, ROUTE_ON_CARD_SKILLS
+    global _db_create, _db_post, _db_fire
     if agent_registry is not None:
         _AGENT_REGISTRY = agent_registry
     if dispatch_cfg is not None:
@@ -96,6 +109,14 @@ def configure(*, agent_registry=None, dispatch_cfg=None, depth_exhausted=None,
         COUNCIL_MAX_DEFAULT = council_max_default
     if admit_enable is not None:
         ADMIT_ENABLE = admit_enable
+    if route_on_card_skills is not None:
+        ROUTE_ON_CARD_SKILLS = route_on_card_skills
+    if db_create is not None:
+        _db_create = db_create
+    if db_post is not None:
+        _db_post = db_post
+    if db_fire is not None:
+        _db_fire = db_fire
 
 
 def _opted_out(c: dict) -> bool:
@@ -140,11 +161,48 @@ def _council_fallback(primary_name: str, candidates: list, want: int) -> list:
     return pool if want <= 0 else pool[:want]
 
 
+def _published_skill_lines(cfg: dict) -> list:
+    """A federated peer's FULL published AgentCard ``skills[]`` rendered as compact
+    capability lines -- each skill's own ``name`` + ``description`` + ``tags``. This
+    is the RICH advertised surface an A2A peer publishes (stored on the synthetic
+    peer registry entry as ``card_skills``), NOT the collapsed strength-token id list
+    the peer registration also keeps; routing on it lets the model reason over what
+    the peer actually claims to do. Empty for a local ``[agents.*]`` agent (no
+    published card_skills) -- purely additive to the existing card corpus."""
+    out: list = []
+    skills = cfg.get("card_skills")
+    if not isinstance(skills, (list, tuple)):
+        return out
+    for s in skills:
+        if not isinstance(s, dict):
+            continue
+        bits = []
+        nm = str(s.get("name") or s.get("id") or "").strip()
+        if nm:
+            bits.append(nm)
+        desc = str(s.get("description") or "").strip()
+        if desc:
+            bits.append(desc)
+        tags = s.get("tags")
+        if isinstance(tags, (list, tuple)):
+            tg = ", ".join(str(t).strip() for t in tags if str(t).strip())
+            if tg:
+                bits.append(tg)
+        if bits:
+            out.append(": ".join(bits))
+    return out
+
+
 def _agent_card(name: str, cfg: dict) -> str:
     """A compact, SSOT-sourced card for the relevance model: the agent's OWN
     declared role / strengths / A2A skill-tags ([agents.*] in mios.toml + the
     AgentCard the peer publishes). No hardcoded topic text -- the card IS the
-    capability surface the model reasons over."""
+    capability surface the model reasons over.
+
+    FED-G7 (T-051, flag-gated): when ROUTE_ON_CARD_SKILLS is set, a federated peer's
+    FULL published skills[] (name/description/tags) are folded in alongside the
+    strength tokens so the model routes on the advertised skill, not just the token
+    proximity. OFF -> byte-identical to the strength-token-only card."""
     role = str(cfg.get("role") or cfg.get("job") or "").strip()
     strengths = cfg.get("strengths")
     if isinstance(strengths, (list, tuple)):
@@ -155,7 +213,31 @@ def _agent_card(name: str, cfg: dict) -> str:
     except Exception:  # noqa: BLE001 -- card is best-effort
         pass
     parts = [p for p in (role, str(strengths or "").strip(), tags) if p]
+    if ROUTE_ON_CARD_SKILLS:
+        parts.extend(_published_skill_lines(cfg))
     return f"{name} -- {' | '.join(parts)}" if parts else name
+
+
+def _emit_route_event(primary_name: str, secondaries: list) -> None:
+    """Best-effort: record the fan-out routing DECISION in the event table when
+    card-skills routing is active (FED-G7 / T-051). No-op when the feature is off or
+    the DB writers are not injected (standalone import / unit tests) -- so the
+    default byte-identical path writes nothing new."""
+    if not ROUTE_ON_CARD_SKILLS or _db_create is None:
+        return
+    try:
+        summary = (primary_name + " + " + ", ".join(secondaries)) if secondaries \
+            else (primary_name + " (solo)")
+        _db_fire(_db_post(_db_create("event", {
+            "source": "mios-agent-pipe",
+            "kind": "fanout_route",
+            "severity": "info",
+            "summary": summary[:120],
+            "payload": {"primary": primary_name, "secondaries": secondaries,
+                        "route_on_card_skills": True},
+        }, now_fields=("ts",))))
+    except Exception as e:  # noqa: BLE001 -- telemetry is best-effort; never block routing
+        log.debug("fanout route-event emit failed: %s", e)
 
 
 async def _model_select(corpus: str, candidates: list, want: int) -> Optional[list]:
@@ -294,6 +376,10 @@ async def _pick_fanout_agents(primary_name: str,
     if chosen_names is None:
         # Degrade-open: model selection off/unreachable -> council-equal-weight
         # (engages secondaries, bounded). Never primary-only, never unbounded.
-        return _council_fallback(primary_name, candidates, want)
+        sel = _council_fallback(primary_name, candidates, want)
+        _emit_route_event(primary_name, [n for n, _c in sel])
+        return sel
     by_name = dict(candidates)
-    return [(n, by_name[n]) for n in chosen_names if n in by_name]
+    sel = [(n, by_name[n]) for n in chosen_names if n in by_name]
+    _emit_route_event(primary_name, [n for n, _c in sel])
+    return sel

@@ -148,7 +148,31 @@ if [ -z "$RAW" ]; then
     # v1.1.0.30 vs Everything v1.4.x IPC mismatch returned "Error 8: IPC window
     # not found" which the old code swallowed as "no match".
     if printf '%s' "$_ES_STDERR" | grep -qiE 'IPC window not found|make sure Everything is running|Error 8'; then
-        _MSG="Everything UNREACHABLE -- es.exe could not connect ($_ES_STDERR). Install an es.exe whose version matches the running Everything, point EVERYTHING_CLI or mios.toml [paths].everything_cli at it, and ensure Everything is running."
+        # Surface the SSOT-recommended ES release ([paths].everything_cli_version)
+        # so the actionable hint names WHICH es.exe to install (a stale es.exe vs
+        # the running Everything is the usual cause of this IPC error). Degrade-open:
+        # if the key is absent the hint just omits the version.
+        _ES_VER="$(python3 - <<'PYEOF' 2>/dev/null
+try:
+    import tomllib
+except ImportError:
+    tomllib = None
+if tomllib:
+    for p in ("/etc/mios/mios.toml", "/usr/share/mios/mios.toml"):
+        try:
+            with open(p, "rb") as f:
+                d = tomllib.load(f)
+        except (OSError, tomllib.TOMLDecodeError):
+            continue
+        v = d.get("paths", {}).get("everything_cli_version")
+        if v:
+            print(v)
+            break
+PYEOF
+)"
+        _REC=""
+        [ -n "$_ES_VER" ] && _REC=" (recommended: es.exe $_ES_VER)"
+        _MSG="Everything UNREACHABLE -- es.exe could not connect ($_ES_STDERR). Install an es.exe whose version matches the running Everything${_REC}, point EVERYTHING_CLI or mios.toml [paths].everything_cli at it, and ensure Everything is running."
         if [ "$JSON" -eq 1 ]; then
             printf '{"ok":false,"verb":"everything_search","query":%s,"error":"everything_unreachable","detail":%s,"results":[]}\n' \
                 "$(printf '%s' "$QUERY" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')" \

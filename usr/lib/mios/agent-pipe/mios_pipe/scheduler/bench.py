@@ -1,6 +1,6 @@
 # AI-hint: Pure, DB-free scoring core for the MiOS agentic-capability benchmark harness (the blueprint's one MISSING piece -- there was no SWE-bench/OSWorld/tau-bench runner). Implements the research-grounded reliability metrics -- pass@k (unbiased "at least one of k succeeds", the OpenAI/Codex estimator) and tau-bench's pass^k ("all k succeed", the worst-case reliability metric) -- plus the CLASSic rollup (Cost/Latency/Accuracy/Stability/Security) over a list of trial records. Stdlib-only so it unit-tests in isolation (sibling-module pattern); the libexec mios-bench CLI owns the live :8640 trial execution + reads results through these functions.
 # AI-related: ./mios_quota.py, ./mios_trace.py, ./mios_stress.py, /usr/libexec/mios/mios-bench, ./test_mios_bench.py, ../../../share/doc/mios/concepts/aios-engineering-blueprint.md
-# AI-functions: comb_ratio, pass_at_k, pass_hat_k, iid_pass_hat_k, aggregate_pass_at_k, aggregate_pass_hat_k, percentile, classic_rollup
+# AI-functions: comb_ratio, pass_at_k, pass_hat_k, iid_pass_hat_k, aggregate_pass_at_k, aggregate_pass_hat_k, aggregate_pass_and_k_rate, percentile, classic_rollup
 """mios_bench -- pure scoring core for the MiOS capability-benchmark harness.
 
 The AIOS engineering blueprint flagged the single clearest external-validation
@@ -77,6 +77,19 @@ def aggregate_pass_hat_k(tasks: "Sequence[Tuple[int, int]]", k: int) -> float:
     """Mean pass^k across tasks (the headline tau-bench reliability number).
     Tasks with fewer than k trials are skipped. 0.0 if none qualify."""
     vals = [pass_hat_k(n, c, k) for (n, c) in tasks if n >= k and n > 0]
+    return sum(vals) / len(vals) if vals else 0.0
+
+
+def aggregate_pass_and_k_rate(tasks: "Sequence[Tuple[int, int]]", k: int) -> float:
+    """Fraction of tasks that CLEAR the HARD pass^k gate -- the suite-wide analogue
+    of the mios-skills promotion gate. That gate demands ALL k repeats succeed, so
+    a task clears iff its pass^k reliability is a perfect 1.0 (every trial passed ->
+    any k-subset all-succeeds; pass_hat_k(n,c,k)==1 iff c==n). This is DISTINCT from
+    the MEAN pass^k (aggregate_pass_hat_k): the mean averages partial reliabilities,
+    this counts how many tasks would survive the all-or-nothing gate. Reuses
+    pass_hat_k. Tasks with fewer than k trials are skipped. 0.0 if none qualify."""
+    vals = [1.0 if pass_hat_k(n, c, k) >= 1.0 else 0.0
+            for (n, c) in tasks if n >= k and n > 0]
     return sum(vals) / len(vals) if vals else 0.0
 
 

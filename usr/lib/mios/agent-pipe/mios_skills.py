@@ -260,6 +260,13 @@ async def execute_skill(name: str, params: dict, *,
             "stderr": r.get("stderr", "")[:400],
             "tainted": r.get("tainted", False),
             "taint_reason": r.get("taint_reason", ""),
+            # T-049: surface the dispatch-emitted Semantic-Firewall / HITL block
+            # markers (parallel to `tainted`) so the pass^k promotion gate can veto
+            # on a firewall_block or HITL escalation EVEN when a try-each skill
+            # recovered on a later step. Structured booleans, not text.
+            "firewall_blocked": bool(r.get("firewall_blocked", False)),
+            "hitl_blocked": bool(
+                r.get("hitl_blocked", False) or r.get("hitl_pending", False)),
         })
         # Attribute the tool_call to this invocation. The
         # dispatch_mios_verb path emits the tool_call row itself;

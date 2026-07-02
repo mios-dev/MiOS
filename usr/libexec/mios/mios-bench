@@ -79,6 +79,9 @@ def _report(records: list, k: int, total_duration: float = None) -> dict:
         "pass_at_1": round(mb.aggregate_pass_at_k(tasks, 1), 4),
         "pass_at_k": round(mb.aggregate_pass_at_k(tasks, k), 4),
         "pass_hat_k": round(mb.aggregate_pass_hat_k(tasks, k), 4),
+        # T-049: fraction of tasks that would CLEAR the hard pass^k promotion gate
+        # (every trial passed) -- the suite-wide read of the mios-skills all-k gate.
+        "pass_and_k_rate": round(mb.aggregate_pass_and_k_rate(tasks, k), 4),
         "throughput": round(throughput, 4),
         "avg_wait": round(avg_wait, 4),
         "classic": classic,
@@ -97,6 +100,7 @@ def _print_table(rep: dict):
         f"  pass@1:     {rep['pass_at_1']:.4f}",
         f"  pass@k:     {rep['pass_at_k']:.4f}",
         f"  pass^k:     {rep['pass_hat_k']:.4f}",
+        f"  pass^k_rate: {rep.get('pass_and_k_rate', 0.0):.4f}",
         f"  throughput: {rep['throughput']:.4f} trials/s",
         f"  avg_wait:   {rep['avg_wait']:.4f} s",
         "=========================================="

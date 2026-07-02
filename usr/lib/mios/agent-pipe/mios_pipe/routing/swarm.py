@@ -30,6 +30,8 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 from mios_config import (
     PLANNER_ENABLED, PLANNER_ENDPOINT, PLANNER_TIMEOUT_S, PLANNER_MAX_TOKENS,
+    COUNCIL_DIVERSITY_GATE, COUNCIL_DIVERSITY_THRESHOLD,
+    COUNCIL_AGGREGATOR_BYPASS, COUNCIL_AGGREGATOR_BYPASS_THRESHOLD,
 )
 from mios_jsonsalvage import loads_lenient as _loads_lenient
 from mios_grounding import _env_grounding
@@ -40,6 +42,7 @@ from mios_sse import (
     _stream_answer,
 )
 from mios_verity import polish_response
+from mios_council_diversity import apply_council_gates, note_aggregator
 
 log = logging.getLogger("mios-agent-pipe")
 
@@ -101,6 +104,11 @@ _db_read = None
 _db_fire = None
 _db_post = None
 _db_create = None
+# T-047/T-048: the server-resident single-vector embed lane (mios-llm-light nomic),
+# injected so the council-diversity / aggregation-bypass gates reuse the SAME
+# embedding path as the rest of the pipeline (no duplicated endpoint literal). Stays
+# None until configure(); the gates degrade-open (no-op) when it is unavailable.
+_embed_one = None
 
 
 def configure(*, swarm_max_width=None, swarm_max_cpu_nodes=None,
@@ -118,7 +126,8 @@ def configure(*, swarm_max_width=None, swarm_max_cpu_nodes=None,
               sources_markdown=None, sources_annotations=None,
               sources_metadata=None, src_collected=None,
               src_record_from_text=None, usage_estimate=None,
-              db_read=None, db_fire=None, db_post=None, db_create=None) -> None:
+              db_read=None, db_fire=None, db_post=None, db_create=None,
+              embed_one=None) -> None:
     """Inject server.py's config scalars, the live registry / verb catalog /
     ContextVar and the runtime helpers the swarm brain calls back into."""
     global SWARM_MAX_WIDTH, SWARM_MAX_CPU_NODES, SWARM_DEEPEN_ENABLED
@@ -133,7 +142,9 @@ def configure(*, swarm_max_width=None, swarm_max_cpu_nodes=None,
     global _filter_relevant_sources, _sources_markdown, _sources_annotations
     global _sources_metadata, _src_collected, _src_record_from_text
     global _usage_estimate
-    global _db_read, _db_fire, _db_post, _db_create
+    global _db_read, _db_fire, _db_post, _db_create, _embed_one
+    if embed_one is not None:
+        _embed_one = embed_one
     if db_read is not None:
         _db_read = db_read
     if db_fire is not None:
@@ -523,6 +534,49 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
                        if n.get("satisfied") is not False
                        and not _is_punt(n.get("output"))]
         _use_nodes = _good_nodes if _good_nodes else _all_nodes
+        # ── COUNCIL DIVERSITY GATE (T-047) + AGGREGATION BYPASS (T-048) ──────
+        # Score the k council responses' semantic diversity on their 768-d nomic
+        # embeddings (computed ONCE here, reused by both gates -- zero per-pair
+        # model calls). T-047 prunes near-duplicate inputs so the aggregator sees
+        # a diverse set; T-048 skips the aggregator LLM entirely when the whole
+        # council converged and ships the highest-confidence individual response.
+        # Both gates DEFAULT-OFF -> when off nothing here runs (no embed calls, no
+        # stats) and the synthesis path below is byte-identical to today.
+        _bypass_main = None
+        if COUNCIL_DIVERSITY_GATE or COUNCIL_AGGREGATOR_BYPASS:
+            def _log_bypass_event(*, kind, council_size, mean_similarity):
+                # Emit the aggregator_bypass event via the same event-log helper the
+                # closed-loop replan uses above (metadata folded into the summary --
+                # no event-schema change). Best-effort; never breaks synthesis.
+                if not (_db_fire and _db_post and _db_create):
+                    return
+                _ev = _db_create("event", {
+                    "source": "mios-agent-pipe",
+                    "kind": kind,
+                    "severity": "info",
+                    "summary": (f"aggregator bypassed: council_size={council_size} "
+                                f"mean_similarity={mean_similarity:.4f}"),
+                    "session_id": session_id,
+                }, now_fields=("ts",))
+                _db_fire(_db_post(_ev))
+            _selected, _bypass = await apply_council_gates(
+                _use_nodes, embed_one=_embed_one,
+                diversity_gate=COUNCIL_DIVERSITY_GATE,
+                diversity_threshold=COUNCIL_DIVERSITY_THRESHOLD,
+                aggregator_bypass=COUNCIL_AGGREGATOR_BYPASS,
+                aggregator_bypass_threshold=COUNCIL_AGGREGATOR_BYPASS_THRESHOLD,
+                log_event=_log_bypass_event)
+            if _bypass is not None:
+                _bypass_main = _strip_think_tags(
+                    str((_bypass.get("node") or {}).get("output") or "")).strip()
+                log.info("council: aggregator BYPASSED (T-048) -- council_size=%d "
+                         "mean_similarity=%.4f -> shipping medoid response",
+                         _bypass.get("council_size", 0),
+                         _bypass.get("mean_similarity", 0.0))
+            elif COUNCIL_DIVERSITY_GATE and len(_selected) < len(_use_nodes):
+                log.info("council: diversity gate (T-047) pruned %d -> %d input(s)",
+                         len(_use_nodes), len(_selected))
+                _use_nodes = _selected
         node_lookup = {gn.get("id"): gn for gn in (dag.get("nodes") or [])}
         formatted_nodes = []
         for n in _use_nodes:
@@ -668,14 +722,29 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
             if _nr.get("success") and _nt not in _dag_invoked:
                 _dag_invoked.append(_nt)
         polished = ""
-        if _synth_in.strip():
+        if _bypass_main is not None:
+            # T-048 aggregation bypass: the council converged (all pairwise cosine
+            # > threshold), so the aggregator LLM adds nothing -> ship the highest-
+            # confidence (medoid) individual response WITHOUT the aggregator call.
+            # `main` still flows through the punt/fallback guard below, so the
+            # anti-fabrication safety net is preserved.
+            main = _bypass_main or _strip_think_tags(merged)
+        elif _synth_in.strip():
             polished_raw = await polish_response(
                 _synth_in, refined, session_id=session_id,
                 original_user_text=last_user_text,
                 persona_system=persona_system,
                 agent_tools=_dag_invoked)
             polished = _strip_think_tags(polished_raw) if polished_raw else ""
-        main = polished.strip() or _strip_think_tags(merged)
+            main = polished.strip() or _strip_think_tags(merged)
+        else:
+            main = polished.strip() or _strip_think_tags(merged)
+        # T-048 bypass-rate telemetry (surfaced as aggregator_calls_bypassed_pct in
+        # /v1/cluster/health). Counted ONLY when the bypass gate is enabled and there
+        # was a real aggregation opportunity, so the metric stays honest and the
+        # gate-off path touches no counters.
+        if COUNCIL_AGGREGATOR_BYPASS and (_bypass_main is not None or _synth_in.strip()):
+            note_aggregator(bypassed=_bypass_main is not None)
         # If polish itself PUNTED despite grounded findings (
         # the 18-min turn shipped "I don't have access..." while a sibling node
         # held the real Lebanon/World-Cup news), don't ship the punt -- fall back
