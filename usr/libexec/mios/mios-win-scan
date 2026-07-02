@@ -1,0 +1,226 @@
+#!/usr/bin/env python3
+# AI-hint: Wine-free native enumerator of the REAL Windows host's installed apps + games, read straight off the drvfs /mnt mount (NO .exe execution) so the inventory is correct even when WSL-interop is hijacked by a Wine binfmt handler. Covers Steam (appmanifest .acf -> steam://rungameid), Epic (.item JSON -> com.epicgames.launcher URI), GOG, Store/UWP (WindowsApps AppxManifest -> shell:AppsFolder\<PFN>!<AppId>), and Start Menu shortcuts (.lnk -> launched by path). Emits one "<name>|<launch-target>|<category>" line per app; mios-apps consumes it as the Windows scan, and mios-windows launch resolves each target on the real host via the in-session executor.
+# AI-related: /usr/libexec/mios/mios-apps, /usr/libexec/mios/mios-windows, /usr/libexec/mios/mios-find
+# AI-functions: _win_root, _scan_steam, _scan_epic, _scan_gog, _scan_uwp, _scan_startmenu, main
+"""mios-win-scan -- Wine-free native Windows app/game enumeration off /mnt.
+
+The Windows-side PowerShell scans (Get-StartApps / Get-AppxPackage / Steam
+registry walk) only reach the real host through WSL-interop, which is silently
+hijacked when a Wine binfmt handler intercepts .exe -- so they run in Wine's
+fake Windows and see none of the host's real software. Every source below is a
+plain file on the drvfs mount, read directly with ZERO .exe execution.
+
+Output (stdout), one line per app:  <name>|<launch-target>|<category>
+  launch-target is whatever `mios-windows launch` resolves on the real host:
+  a steam:// / com.epicgames.launcher:// URI, a shell:AppsFolder AUMID, or a
+  filesystem path (.lnk / .exe) that the executor Start-Process'es.
+"""
+from __future__ import annotations
+import glob
+import os
+import re
+import sys
+import xml.etree.ElementTree as ET
+
+
+def _win_root() -> str:
+    # The Windows system drive as mounted in WSL. Honour a non-default mount
+    # (wsl.conf `root=`), falling back to the drvfs default.
+    for cand in (os.environ.get("MIOS_WIN_C"), "/mnt/c", "/c"):
+        if cand and os.path.isdir(os.path.join(cand, "Windows")):
+            return cand
+    return "/mnt/c"
+
+
+def _win_to_mnt(winpath: str, root: str) -> str:
+    """C:\\Foo\\Bar -> /mnt/c/Foo/Bar (drive letter -> /mnt/<letter>)."""
+    m = re.match(r'^([A-Za-z]):[\\/](.*)$', winpath)
+    if not m:
+        return winpath
+    drive = m.group(1).lower()
+    rest = m.group(2).replace('\\', '/')
+    base = root if drive == os.path.basename(root.rstrip('/')) else f"/mnt/{drive}"
+    return f"{base}/{rest}"
+
+
+def _mnt_to_win(mntpath: str) -> str:
+    """/mnt/c/Foo/Bar -> C:\\Foo\\Bar so the real-host executor can Start-Process
+    a filesystem target. Non-/mnt paths pass through unchanged."""
+    m = re.match(r'^/mnt/([a-zA-Z])/(.*)$', mntpath)
+    if not m:
+        return mntpath
+    return f"{m.group(1).upper()}:\\" + m.group(2).replace('/', '\\')
+
+
+_SEEN: set = set()
+
+
+def _emit(name: str, target: str, cat: str) -> None:
+    name = (name or "").strip()
+    target = (target or "").strip()
+    if not (name and target) or "|" in name:
+        return
+    # Dedup by name (Store packages ship several versions with the same AUMID;
+    # a game may also have both a store entry and a Start-Menu shortcut). First
+    # source wins -- sources are ordered store/game-authoritative before the
+    # generic Start-Menu sweep.
+    key = name.lower()
+    if key in _SEEN:
+        return
+    _SEEN.add(key)
+    print(f"{name}|{target}|{cat}")
+
+
+# ── Steam ──────────────────────────────────────────────────────────
+def _scan_steam(root: str) -> None:
+    default = f"{root}/Program Files (x86)/Steam/steamapps"
+    roots = [default] if os.path.isdir(default) else []
+    vdf = f"{default}/libraryfolders.vdf"
+    if os.path.isfile(vdf):
+        try:
+            txt = open(vdf, encoding="utf-8", errors="replace").read()
+            for p in re.findall(r'"path"\s+"([^"]+)"', txt):
+                sa = _win_to_mnt(p.replace('\\\\', '\\'), root) + "/steamapps"
+                if os.path.isdir(sa):
+                    roots.append(sa)
+        except Exception:
+            pass
+    seen = set()
+    for r in roots:
+        if r in seen:
+            continue
+        seen.add(r)
+        for acf in glob.glob(f"{r}/appmanifest_*.acf"):
+            try:
+                t = open(acf, encoding="utf-8", errors="replace").read()
+            except Exception:
+                continue
+            nm = re.search(r'"name"\s+"([^"]+)"', t)
+            aid = re.search(r'"appid"\s+"([0-9]+)"', t)
+            if nm and aid:
+                _emit(nm.group(1), f"steam://rungameid/{aid.group(1)}", "windows-game")
+
+
+# ── Epic ───────────────────────────────────────────────────────────
+def _scan_epic(root: str) -> None:
+    import json
+    d = f"{root}/ProgramData/Epic/EpicGamesLauncher/Data/Manifests"
+    for item in glob.glob(f"{d}/*.item"):
+        try:
+            j = json.load(open(item, encoding="utf-8", errors="replace"))
+        except Exception:
+            continue
+        name = j.get("DisplayName")
+        app = j.get("AppName")
+        if name and app:
+            _emit(name, f"com.epicgames.launcher://apps/{app}?action=launch", "windows-game")
+
+
+# ── GOG ────────────────────────────────────────────────────────────
+def _scan_gog(root: str) -> None:
+    for d in glob.glob(f"{root}/Program Files (x86)/GOG Galaxy/Games/*/"):
+        name = os.path.basename(d.rstrip("/"))
+        exes = glob.glob(f"{d}*.exe")
+        # Prefer the largest .exe (the game, not an updater/redistributable).
+        exes = [e for e in exes if not re.search(r'(?i)unins|redist|setup|crash|launcher', os.path.basename(e))]
+        if name and exes:
+            best = max(exes, key=lambda e: os.path.getsize(e) if os.path.exists(e) else 0)
+            _emit(name, _mnt_to_win(best), "windows-game")
+
+
+# ── Store / UWP / Game Pass ────────────────────────────────────────
+def _pfn_from_folder(folder: str):
+    # <Name>_<version>_<arch>__<PublisherHash>  ->  <Name>_<PublisherHash>
+    m = re.match(r'^(.+?)_[0-9][^_]*_[^_]+__([a-z0-9]+)$', folder)
+    return f"{m.group(1)}_{m.group(2)}" if m else None
+
+
+def _manifest_app_and_name(mani: str):
+    """Return (app_id, display_name) for the FIRST launchable <Application>, or
+    (None, None) when the package declares no launchable app (DLC/framework)."""
+    try:
+        # Namespace-agnostic parse (AppxManifest uses several xmlns).
+        root = ET.parse(mani).getroot()
+    except Exception:
+        return None, None
+    def local(tag):
+        return tag.rsplit('}', 1)[-1]
+    app_id = disp = None
+    for el in root.iter():
+        if local(el.tag) == 'Application' and el.get('Id'):
+            app_id = el.get('Id')
+            for sub in el.iter():
+                if local(sub.tag) == 'VisualElements':
+                    d = sub.get('DisplayName')
+                    if d and not d.startswith('ms-resource'):
+                        disp = d
+                    break
+            break
+    if disp is None:
+        for el in root.iter():
+            if local(el.tag) == 'DisplayName' and el.text and not el.text.startswith('ms-resource'):
+                disp = el.text.strip()
+                break
+    return app_id, disp
+
+
+def _scan_uwp(root: str) -> None:
+    wa = f"{root}/Program Files/WindowsApps"
+    try:
+        folders = os.listdir(wa)
+    except Exception:
+        return
+    for folder in folders:
+        # Skip obvious non-user frameworks/runtimes/DLC-trackers early.
+        if re.search(r'(?i)\.DLC|GameStub|LaunchTracker|VCLibs|\.NET|Framework|Runtime|Redist|WebView', folder):
+            continue
+        mani = f"{wa}/{folder}/AppxManifest.xml"
+        if not os.path.isfile(mani):
+            continue
+        pfn = _pfn_from_folder(folder)
+        app_id, disp = _manifest_app_and_name(mani)
+        if not (pfn and app_id):
+            continue  # no launchable Application -> not a user-launchable app
+        if not disp:
+            # Fallback name: the Identity Name's last dotted segment, spaced.
+            disp = re.sub(r'(?<=[a-z])(?=[A-Z])', ' ', folder.split('_')[0].split('.')[-1])
+        _emit(disp, f"shell:AppsFolder\\{pfn}!{app_id}", "windows-app")
+
+
+# ── Start Menu shortcuts ───────────────────────────────────────────
+def _scan_startmenu(root: str) -> None:
+    bases = [
+        f"{root}/ProgramData/Microsoft/Windows/Start Menu/Programs",
+        f"{root}/Users/{os.environ.get('MIOS_WIN_USER', 'mios')}/AppData/Roaming/Microsoft/Windows/Start Menu/Programs",
+    ]
+    seen = set()
+    for base in bases:
+        for lnk in glob.glob(f"{base}/**/*.lnk", recursive=True):
+            name = os.path.basename(lnk)[:-4]
+            key = name.lower()
+            if key in seen:
+                continue
+            # Skip uninstallers / docs / update shims -- not launch targets.
+            if re.search(r'(?i)uninstall|readme|setup|website|help|documentation|license|update', name):
+                continue
+            seen.add(key)
+            # Launch by the .lnk's WINDOWS path: the real-host executor
+            # Start-Process'es it, resolving whatever the shortcut points at
+            # (exe / UWP / URI).
+            _emit(name, _mnt_to_win(lnk), "windows-gui")
+
+
+def main() -> int:
+    root = _win_root()
+    if not os.path.isdir(os.path.join(root, "Windows")):
+        return 0  # not a WSL/Windows host -- nothing to scan
+    for fn in (_scan_steam, _scan_epic, _scan_gog, _scan_uwp, _scan_startmenu):
+        try:
+            fn(root)
+        except Exception as e:  # noqa: BLE001 -- best-effort per source
+            sys.stderr.write(f"mios-win-scan: {fn.__name__} failed: {e}\n")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

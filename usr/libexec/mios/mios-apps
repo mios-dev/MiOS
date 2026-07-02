@@ -195,8 +195,39 @@ fi
 # de-duplicated; best-effort (empty if PowerShell isn't exec-able from this uid
 # -- the launch-time fallback still discovers any named app generatively).
 header windows-gui
+# ── Wine-free native enumeration (PRIMARY) ──────────────────────────
+# mios-win-scan reads the REAL host off the /mnt drvfs mount directly
+# (Steam/Epic/GOG/Store-UWP/Start-Menu), so the inventory is correct even when
+# .exe interop is hijacked by a Wine binfmt handler -- the single failure mode
+# that made every Windows game/app invisible. When it yields results, the
+# Wine-dependent PowerShell scans below are SKIPPED (set -e-safe, degrade-open).
+_WIN_NATIVE=""
+if command -v mios-win-scan >/dev/null 2>&1 && [ -d /mnt/c/Windows ]; then
+    _WS_CACHE=/var/lib/mios/agent-env/windows-native.cache
+    mkdir -p /var/lib/mios/agent-env 2>/dev/null
+    _wsm=$(stat -c %Y "$_WS_CACHE" 2>/dev/null || echo 0)
+    if [ ! -f "$_WS_CACHE" ] || [ "$(( $(date +%s) - _wsm ))" -ge 600 ]; then
+        mios-win-scan > "$_WS_CACHE.tmp" 2>/dev/null || true
+        if grep -q '|' "$_WS_CACHE.tmp" 2>/dev/null; then mv "$_WS_CACHE.tmp" "$_WS_CACHE"; else rm -f "$_WS_CACHE.tmp"; fi
+    fi
+    if [ -s "$_WS_CACHE" ]; then
+        _WIN_NATIVE=1
+        while IFS='|' read -r _wn _wt _wc; do
+            _wn="$(printf '%s' "$_wn" | tr -d '\r')"
+            _wt="$(printf '%s' "$_wt" | tr -d '\r')"
+            _wc="$(printf '%s' "$_wc" | tr -d '\r')"
+            [ -n "$_wn" ] && [ -n "$_wt" ] || continue
+            case "$_wc" in
+                windows-game) _wdesc="Windows game" ;;
+                windows-app)  _wdesc="Windows Store app" ;;
+                *)            _wc="windows-gui"; _wdesc="Windows app" ;;
+            esac
+            emit "$_wc" "$_wn" "$_wdesc" "mios-windows launch \"$_wt\""
+        done < "$_WS_CACHE"
+    fi
+fi
 _PWSH="${WINDOWS_POWERSHELL:-/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe}"
-if [ -d /mnt/c/Windows ] && [ -x "$_PWSH" ]; then
+if [ -z "$_WIN_NATIVE" ] && [ -d /mnt/c/Windows ] && [ -x "$_PWSH" ]; then
     _PS_ENUM=$(cat <<'PSEOF'
 $d = @($env:ProgramData, $env:APPDATA) | ForEach-Object { Join-Path $_ 'Microsoft\Windows\Start Menu\Programs' }
 Get-ChildItem -Path $d -Recurse -Filter *.lnk -ErrorAction SilentlyContinue |
@@ -222,7 +253,7 @@ fi
 # under /tmp/mios-windows-apps.cache to avoid the ~1s round-trip cost
 # on every mios-apps call.
 header windows-app
-if [ "$(_is_wsl)" = "1" ] && command -v mios-windows >/dev/null 2>&1; then
+if [ -z "$_WIN_NATIVE" ] && [ "$(_is_wsl)" = "1" ] && command -v mios-windows >/dev/null 2>&1; then
     # Cache under /var/lib/mios/agent-env (shared dir already used for
     # the games cache; world-writable via tmpfiles.d). Previous path
     # /tmp/<file> stuck to whichever uid wrote it first, leaving the
@@ -292,7 +323,7 @@ fi
 # to its real exe basename (browsers register App Paths, so `mios-windows launch
 # <name>` opens it); the OS default is marked so the agent can prefer it.
 header windows-browser
-if [ "$(_is_wsl)" = "1" ] && command -v mios-windows >/dev/null 2>&1; then
+if [ -z "$_WIN_NATIVE" ] && [ "$(_is_wsl)" = "1" ] && command -v mios-windows >/dev/null 2>&1; then
     _BR_PS="$(cat <<'PSEOF'
 function Get-Exe($c){ if($c -match '"([^"]+\.exe)"'){return $Matches[1]} elseif($c -match '([A-Za-z]:\\[^"]+?\.exe)'){return $Matches[1]} else {return ''} }
 $prog=''
@@ -335,7 +366,7 @@ fi
 # EpicGamesLauncher\Data\Manifests) and GOG (Games subdirs under
 # C:\Program Files (x86)\GOG Galaxy\Games\).
 header windows-game
-if [ "$(_is_wsl)" = "1" ] && command -v mios-windows >/dev/null 2>&1; then
+if [ -z "$_WIN_NATIVE" ] && [ "$(_is_wsl)" = "1" ] && command -v mios-windows >/dev/null 2>&1; then
     GAME_CACHE=/var/lib/mios/agent-env/windows-games.cache
     mkdir -p /var/lib/mios/agent-env 2>/dev/null
     _mtime=$(python3 -c "import os, sys; print(int(os.path.getmtime(sys.argv[1])))" "$GAME_CACHE" 2>/dev/null || stat -c %Y "$GAME_CACHE" 2>/dev/null || stat -f %m "$GAME_CACHE" 2>/dev/null || echo 0)
