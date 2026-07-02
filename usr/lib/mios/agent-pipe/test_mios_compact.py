@@ -59,11 +59,31 @@ def t_order_preserved():
     check("order: kept messages in original order", idx == sorted(idx), f"{idx}")
 
 
+def t_drop_stale_tool_results():
+    from mios_pipe.routing.chat import _drop_stale_tool_results
+    msgs = [
+        m("user", "turn 1"),
+        m("assistant", "response 1"),
+        m("user", "turn 2"),
+        m("assistant", "call tool"),
+        m("tool", "result 2"),
+        m("assistant", "response 2"),
+        m("user", "turn 3"),
+        m("assistant", "response 3")
+    ]
+    res = _drop_stale_tool_results(msgs, ttl_turns=1)
+    check("drop_tool: drops old tool message", not any(x.get("role") == "tool" for x in res))
+    
+    res2 = _drop_stale_tool_results(msgs, ttl_turns=2)
+    check("drop_tool: keeps recent tool message", any(x.get("role") == "tool" for x in res2))
+
+
 def main():
     t_noop()
     t_summarize_oldest()
     t_keep_system()
     t_order_preserved()
+    t_drop_stale_tool_results()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
 

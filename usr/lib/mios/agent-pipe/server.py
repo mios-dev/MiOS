@@ -5975,6 +5975,7 @@ sys.modules["mios_dispatch"].configure(
     db_post=_db_post,
     db_create=_db_create,
     letta_dispatch_handler=mios_memory.letta_dispatch_handler,
+    agent_registry=_AGENT_REGISTRY,
 )
 
 
@@ -6845,6 +6846,7 @@ async def _reload_membership(reason: str = "manual") -> dict:
         # _dispatch_pdp_reason resolve per-agent capability policy from the
         # injected registry, so a live add/drop must be re-injected here too.
         sys.modules["mios_policy"].configure(agent_registry=_AGENT_REGISTRY)
+        sys.modules["mios_dispatch"].configure(agent_registry=_AGENT_REGISTRY)
         # Same for the DAG executors (refactor R8): _execute_dag_node reads
         # _AGENT_REGISTRY for per-node agent cfg/lane, so a live add/drop must be
         # re-injected here too.
@@ -7852,6 +7854,10 @@ sys.modules["mios_cua"].configure(
     vision_model=VISION_MODEL,
     vision_endpoint=VISION_ENDPOINT,
     cua_max_steps=CUA_MAX_STEPS,
+    hidpi_scale_factor=float(
+        os.environ.get("MIOS_HIDPI_SCALE_FACTOR")
+        or _toml_section("computer_use").get("hidpi_scale_factor", 1.0)
+    ),
 )
 # R13: mount the migrated /v1/computer-use route. include_router copies the router's
 # route onto the app at the SAME path/method the @app wrapper served; the body resolves

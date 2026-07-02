@@ -66,11 +66,12 @@ _BACKEND_KEY = None
 VISION_MODEL = None
 VISION_ENDPOINT = None
 CUA_MAX_STEPS = None
+_HIDPI_SCALE_FACTOR = 1.0
 
 
 def configure(*, cua_enable=None, dispatch_mios_verb_inner=None, get_client=None,
               vision_backend_failed=None, backend_key=None, vision_model=None,
-              vision_endpoint=None, cua_max_steps=None) -> None:
+              vision_endpoint=None, cua_max_steps=None, hidpi_scale_factor=None) -> None:
     """Inject the computer-use route + I/O-loop deps under their EXACT original
     names: the CUA_ENABLE gate flag, the verb-dispatch chokepoint
     (_dispatch_mios_verb_inner), the shared httpx client (_get_client), the vision
@@ -80,7 +81,7 @@ def configure(*, cua_enable=None, dispatch_mios_verb_inner=None, get_client=None
     a legitimate value), so an unset keyword leaves the prior binding. The loop
     (_cua_loop) is module-local now, so it is NOT injected back."""
     global CUA_ENABLE, _dispatch_mios_verb_inner, _get_client, _vision_backend_failed
-    global _BACKEND_KEY, VISION_MODEL, VISION_ENDPOINT, CUA_MAX_STEPS
+    global _BACKEND_KEY, VISION_MODEL, VISION_ENDPOINT, CUA_MAX_STEPS, _HIDPI_SCALE_FACTOR
     if cua_enable is not None:
         CUA_ENABLE = cua_enable
     if dispatch_mios_verb_inner is not None:
@@ -97,6 +98,15 @@ def configure(*, cua_enable=None, dispatch_mios_verb_inner=None, get_client=None
         VISION_ENDPOINT = vision_endpoint
     if cua_max_steps is not None:
         CUA_MAX_STEPS = cua_max_steps
+    if hidpi_scale_factor is not None:
+        _HIDPI_SCALE_FACTOR = hidpi_scale_factor
+
+
+_W_TENSOR = 1000
+_H_TENSOR = 1000
+_W_ORIG = 1920
+_H_ORIG = 1080
+_LAST_SCREENSHOT_PATH = None
 
 
 PLATFORMS = ("windows", "linux")
@@ -294,8 +304,36 @@ async def _cua_screenshot_uri(platform: str, session_id: "Optional[str]") -> "tu
         return None, str((res or {}).get("output") or "")
     try:
         import base64
+        import subprocess
+        import struct
         with open(path, "rb") as fh:
             raw = fh.read()
+            
+        global _LAST_SCREENSHOT_PATH, _W_TENSOR, _H_TENSOR, _W_ORIG, _H_ORIG
+        _LAST_SCREENSHOT_PATH = path
+        
+        try:
+            # Call mios-smart-resize CLI via subprocess
+            p = subprocess.Popen(
+                ["/usr/libexec/mios/mios-smart-resize"],
+                stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            )
+            out_bytes, err_bytes = p.communicate(input=raw)
+            if p.returncode == 0:
+                raw = out_bytes
+                meta = json.loads(err_bytes.decode("utf-8").strip())
+                _W_TENSOR = meta.get("W_tensor", _W_TENSOR)
+                _H_TENSOR = meta.get("H_tensor", _H_TENSOR)
+                _W_ORIG = meta.get("W_orig", _W_ORIG)
+                _H_ORIG = meta.get("H_orig", _H_ORIG)
+        except Exception:
+            # Fallback to direct struct PNG header parsing
+            try:
+                if len(raw) >= 24 and raw[12:16] == b"IHDR":
+                    _W_ORIG, _H_ORIG = struct.unpack(">II", raw[16:24])
+            except Exception:
+                pass
+                
         return "data:image/png;base64," + base64.b64encode(raw).decode(), \
             mios_cua.observation_digest(raw)
     except Exception:  # noqa: BLE001 -- degrade-open: no image -> VLM stop
@@ -330,6 +368,101 @@ async def _cua_vlm_json(system: str, user_text: str,
         return json.loads(m.group(0)) if m else {}
     except Exception:  # noqa: BLE001 -- degrade-open
         return {}
+
+
+def bounds_contain(bounds, x, y):
+    if not bounds:
+        return False
+    if isinstance(bounds, (list, tuple)) and len(bounds) == 4:
+        b0, b1, b2, b3 = bounds
+        if b2 > b0 and b3 > b1:
+            return b0 <= x <= b2 and b1 <= y <= b3
+        else:
+            return b0 <= x <= (b0 + b2) and b1 <= y <= (b1 + b3)
+    if isinstance(bounds, dict):
+        left = bounds.get("left") or bounds.get("x")
+        top = bounds.get("top") or bounds.get("y")
+        right = bounds.get("right")
+        bottom = bounds.get("bottom")
+        width = bounds.get("width") or bounds.get("w")
+        height = bounds.get("height") or bounds.get("h")
+        if left is not None and top is not None:
+            if right is not None and bottom is not None:
+                return left <= x <= right and top <= y <= bottom
+            if width is not None and height is not None:
+                return left <= x <= (left + width) and top <= y <= (top + height)
+    return False
+
+
+async def wait_for_stable_element(platform: str, session_id: Optional[str] = None):
+    prev_digest = None
+    verb = mios_cua.resolve_verb("list_windows", platform)
+    if not verb:
+        return
+    for _ in range(10):
+        res = await _dispatch_mios_verb_inner(verb, {}, session_id=session_id)
+        out = res.get("output", "")
+        cur_digest = hashlib.sha256(out.encode("utf-8", "replace")).hexdigest()
+        if prev_digest and cur_digest == prev_digest:
+            break
+        prev_digest = cur_digest
+        await asyncio.sleep(0.3)
+
+
+async def _execute_click_hierarchy(verb: str, args: dict, platform: str, session_id: Optional[str] = None) -> dict:
+    # Scale coordinates
+    x_raw = float(args.get("x", 0))
+    y_raw = float(args.get("y", 0))
+    
+    scale_factor = _HIDPI_SCALE_FACTOR or 1.0
+    model_name = (VISION_MODEL or "").lower()
+    is_qwen3 = "qwen3" in model_name or "qwen-3" in model_name
+    
+    if is_qwen3:
+        x_scaled = round((x_raw / 1000.0) * _W_ORIG * scale_factor)
+        y_scaled = round((y_raw / 1000.0) * _H_ORIG * scale_factor)
+    else:
+        x_scaled = round((x_raw / _W_TENSOR) * _W_ORIG * scale_factor)
+        y_scaled = round((y_raw / _H_TENSOR) * _H_ORIG * scale_factor)
+        
+    args_scaled = dict(args)
+    args_scaled["x"] = x_scaled
+    args_scaled["y"] = y_scaled
+    
+    # Try Tier 2: Accessibility Tree (UIA/AT-SPI) click
+    list_verb = mios_cua.resolve_verb("list_windows", platform)
+    if list_verb:
+        res_list = await _dispatch_mios_verb_inner(list_verb, {}, session_id=session_id)
+        elements = []
+        try:
+            data = json.loads(res_list.get("output", ""))
+            if isinstance(data, dict):
+                elements = data.get("elements") or data.get("data") or []
+            elif isinstance(data, list):
+                elements = data
+        except Exception:
+            pass
+            
+        matching_elements = []
+        for el in elements:
+            if isinstance(el, dict):
+                bounds = el.get("bounds")
+                if bounds_contain(bounds, x_scaled, y_scaled):
+                    matching_elements.append(el)
+                    
+        if matching_elements:
+            target_el = matching_elements[-1]
+            el_name = target_el.get("name") or target_el.get("automation_id")
+            if el_name:
+                click_el_verb = mios_cua.resolve_verb("click_element", platform)
+                if click_el_verb:
+                    res_click = await _dispatch_mios_verb_inner(
+                        click_el_verb, {"name": el_name}, session_id=session_id)
+                    if res_click.get("success"):
+                        return res_click
+                        
+    # Tier 3: Vision grounding coordinate click fallback
+    return await _dispatch_mios_verb_inner(verb, args_scaled, session_id=session_id)
 
 
 async def _cua_loop(goal: str, platform: str = "windows",
@@ -374,6 +507,49 @@ async def _cua_loop(goal: str, platform: str = "windows",
         verb = mios_cua.resolve_verb(action, platform)
         if not verb:                            # no plan / bad action
             stall += 1
+        elif action == "click":
+            # Retry logic up to 3 times
+            retries = 0
+            click_success = False
+            res = {}
+            obs2 = obs
+            uri2 = uri
+            changed = False
+            
+            while retries < 3:
+                res = await _execute_click_hierarchy(verb, dict(plan.get("args") or {}), platform, session_id)
+                
+                # Wait-for-stable-element polling
+                await wait_for_stable_element(platform, session_id)
+                
+                # Capture screenshot to verify change
+                uri2, obs2 = await _cua_screenshot_uri(platform, session_id)
+                changed = mios_cua.observation_changed(obs, obs2)
+                
+                if res.get("success") and changed:
+                    click_success = True
+                    break
+                    
+                # Click failed or no state change -> retry with re-grounding!
+                retries += 1
+                if retries < 3:
+                    plan = await _cua_vlm_json(plan_sys, f"GOAL: {goal}", uri2 or uri)
+                    if plan.get("done") or str(plan.get("action") or "").strip().lower() != "click":
+                        break
+                        
+            if not click_success and retries >= 3:
+                raise RuntimeError("HITL escalation: 3 click retries exhausted without state change")
+                
+            stall = 0 if changed else stall + 1
+            trace.record(action, verb, bool((res or {}).get("success")), changed)
+            v = mios_cua.parse_verify_verdict(json.dumps(
+                await _cua_vlm_json(verify_sys, f"GOAL: {goal}", uri2 or uri)))
+            status = mios_cua.loop_status(step=step, max_steps=budget,
+                                          goal_done=v["done"], stall_count=stall)
+            if status != mios_cua.RUNNING:
+                return trace.finish(status).to_dict()
+            prev_obs = obs2
+            continue
         else:
             res = await _dispatch_mios_verb_inner(
                 verb, dict(plan.get("args") or {}), session_id=session_id)

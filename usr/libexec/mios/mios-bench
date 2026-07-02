@@ -55,7 +55,7 @@ def _records_of(doc) -> list:
     return doc if isinstance(doc, list) else []
 
 
-def _report(records: list, k: int) -> dict:
+def _report(records: list, k: int, total_duration: float = None) -> dict:
     """Group flat records by task -> (n, c) and roll up everything."""
     by_task: dict = {}
     for r in records:
@@ -67,6 +67,11 @@ def _report(records: list, k: int) -> dict:
             slot[1] += 1
     tasks = [(v[0], v[1]) for v in by_task.values()]
     classic = mb.classic_rollup(records, k=k)
+    
+    n = len(records)
+    avg_wait = sum(r.get("latency_ms", 0.0) for r in records) / max(1, n) / 1000.0
+    throughput = n / max(0.001, total_duration) if total_duration else 0.0
+
     return {
         "k": k,
         "tasks": len(tasks),
@@ -74,8 +79,30 @@ def _report(records: list, k: int) -> dict:
         "pass_at_1": round(mb.aggregate_pass_at_k(tasks, 1), 4),
         "pass_at_k": round(mb.aggregate_pass_at_k(tasks, k), 4),
         "pass_hat_k": round(mb.aggregate_pass_hat_k(tasks, k), 4),
+        "throughput": round(throughput, 4),
+        "avg_wait": round(avg_wait, 4),
         "classic": classic,
     }
+
+
+def _print_table(rep: dict):
+    lines = [
+        "==========================================",
+        "  MiOS Agent-Pipe Benchmark Results",
+        "==========================================",
+        f"  k:          {rep['k']}",
+        f"  Tasks:      {rep['tasks']}",
+        f"  Trials:     {rep['trials']}",
+        "------------------------------------------",
+        f"  pass@1:     {rep['pass_at_1']:.4f}",
+        f"  pass@k:     {rep['pass_at_k']:.4f}",
+        f"  pass^k:     {rep['pass_hat_k']:.4f}",
+        f"  throughput: {rep['throughput']:.4f} trials/s",
+        f"  avg_wait:   {rep['avg_wait']:.4f} s",
+        "=========================================="
+    ]
+    for l in lines:
+        print(l)
 
 
 def cmd_score(args: argparse.Namespace) -> int:
@@ -83,7 +110,8 @@ def cmd_score(args: argparse.Namespace) -> int:
     if not records:
         sys.stderr.write("mios-bench: no trial records found\n")
         return 1
-    print(json.dumps(_report(records, max(1, int(args.k))), indent=2))
+    rep = _report(records, max(1, int(args.k)))
+    _print_table(rep)
     return 0
 
 
@@ -96,7 +124,23 @@ def _expect_ok(answer: str, expect) -> bool:
 
 def cmd_run(args: argparse.Namespace) -> int:
     import urllib.request
-    suite = _load_json(args.suite)
+    
+    suite_path = args.suite or getattr(args, "suite_opt", None)
+    if not suite_path:
+        sys.stderr.write("mios-bench: suite file or --suite name is required\n")
+        return 1
+        
+    if not os.path.exists(suite_path):
+        resolved = f"/usr/share/mios/bench/{suite_path}.json"
+        if os.path.exists(resolved):
+            suite_path = resolved
+            
+    try:
+        suite = _load_json(suite_path)
+    except Exception as e:
+        sys.stderr.write(f"mios-bench: failed to load suite from {suite_path}: {e}\n")
+        return 1
+        
     if not isinstance(suite, list) or not suite:
         sys.stderr.write("mios-bench: suite must be a non-empty JSON list\n")
         return 1
@@ -106,6 +150,8 @@ def cmd_run(args: argparse.Namespace) -> int:
     if _KEY:
         headers["Authorization"] = f"Bearer {_KEY}"
     records: list = []
+    
+    t_start = time.time()
     for spec in suite:
         if not isinstance(spec, dict):
             continue
@@ -130,10 +176,13 @@ def cmd_run(args: argparse.Namespace) -> int:
             records.append({"task": task, "ok": ok, "error": err,
                             "cost": 0.0, "latency_ms": round((time.time() - t0) * 1000, 1),
                             "security_violation": False})
+    t_end = time.time()
+    
+    rep = _report(records, k, t_end - t_start)
     if args.out:
         with open(args.out, "w", encoding="utf-8") as fh:
             json.dump({"results": records}, fh, indent=2)
-    print(json.dumps(_report(records, k), indent=2))
+    _print_table(rep)
     return 0
 
 
@@ -145,7 +194,8 @@ def main() -> int:
     ps.add_argument("--k", type=int, default=8)
     ps.set_defaults(func=cmd_score)
     pr = sub.add_parser("run", help="run a suite against the agent-pipe endpoint")
-    pr.add_argument("suite")
+    pr.add_argument("suite", nargs="?", default=None)
+    pr.add_argument("--suite", dest="suite_opt", default=None)
     pr.add_argument("--k", type=int, default=8)
     pr.add_argument("--endpoint", default="")
     pr.add_argument("--out", default="")

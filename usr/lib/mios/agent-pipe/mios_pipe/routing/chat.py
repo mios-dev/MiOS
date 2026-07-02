@@ -284,6 +284,21 @@ def _pretty_name(n: str) -> str:
     return s
 
 
+def _drop_stale_tool_results(messages: list, ttl_turns: int) -> list:
+    """Drop tool result messages older than ttl_turns turns ago."""
+    new_msgs = []
+    assistant_count = 0
+    for msg in reversed(messages):
+        role = msg.get("role")
+        if role == "assistant":
+            assistant_count += 1
+        if role in ("tool", "function"):
+            if assistant_count > ttl_turns:
+                continue
+        new_msgs.append(msg)
+    return list(reversed(new_msgs))
+
+
 def _trim_sys_prefix(sys_prefix: list, lane: str) -> list:
     """Cap each system-prefix block for a SLOW lane ("add
     per-lane context trimming") so a slow-prefill node (iGPU / phone / remote
@@ -870,21 +885,29 @@ async def chat_completions_logic(request: Request) -> Any:
         except Exception as _letta_err:
             log.warning("Letta memory context threshold logic failed: %s", _letta_err)
     else:
-        # T-035: Native context warning and eviction logic
+        # T-035/T-036: Native context warning and eviction logic
         try:
             import mios_tokenize
             import os
             # Read context limits from the [memory] config block (SSOT)
             memory_cfg = _toml_section("memory") or {}
             n_ctx = int(os.environ.get("MIOS_MEMORY_N_CTX") or memory_cfg.get("n_ctx", 8000))
+            compaction_interval = int(os.environ.get("MIOS_MEMORY_COMPACTION_INTERVAL") or memory_cfg.get("compaction_interval", 20))
+            tool_result_ttl_turns = int(os.environ.get("MIOS_MEMORY_TOOL_RESULT_TTL_TURNS") or memory_cfg.get("tool_result_ttl_turns", 5))
+            compaction_threshold_pct = float(os.environ.get("MIOS_MEMORY_COMPACTION_THRESHOLD_PCT") or memory_cfg.get("compaction_threshold_pct", 80)) / 100.0
             
+            session_id = _conv_key_var.get() or "default"
+            total_turns = sum(1 for m in messages if m.get("role") == "assistant")
+            if total_turns >= compaction_interval:
+                messages = _drop_stale_tool_results(messages, tool_result_ttl_turns)
+                body["messages"] = messages
+
             # Count tokens in the incoming messages
             tok_count = mios_tokenize.count_messages(messages)
             fill = tok_count / n_ctx
-            session_id = _conv_key_var.get() or "default"
             
-            if fill >= 1.0:
-                log.info("Native context fill >= 100%% (%d/%d tokens). Evicting oldest turns and summarizing.", tok_count, n_ctx)
+            if fill >= compaction_threshold_pct:
+                log.info("Native context fill >= %d%% (%d/%d tokens). Evicting oldest turns and summarizing.", int(compaction_threshold_pct * 100), tok_count, n_ctx)
                 
                 # Evict oldest FIFO turns (excluding system messages)
                 import mios_compact
@@ -956,8 +979,27 @@ async def chat_completions_logic(request: Request) -> Any:
                     })
                     new_messages.extend(other_msgs)
                     
+                    tokens_before = tok_count
                     messages = new_messages
                     body["messages"] = messages
+                    tokens_after = mios_tokenize.count_messages(messages)
+
+                    # Log context_compaction event
+                    if _db_write is not None:
+                        try:
+                            _db_write("event", {
+                                "source": "agent-pipe",
+                                "kind": "context_compaction",
+                                "severity": "info",
+                                "summary": f"Context compacted: {tokens_before} -> {tokens_after} tokens",
+                                "payload": {
+                                    "tokens_before": tokens_before,
+                                    "tokens_after": tokens_after,
+                                    "session_id": session_id
+                                }
+                            }, now_fields=("ts",))
+                        except Exception:
+                            pass
                     
             elif fill >= 0.7:
                 log.info("Native context fill >= 70%% (%d/%d tokens). Warning agent.", tok_count, n_ctx)

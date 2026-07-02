@@ -112,6 +112,11 @@ async def test_dispatch_handler_remember():
     check("dispatch: remember updates local pg snapshot", len(stored_db) > 0)
     check("dispatch: remember local pg scope correct", stored_db[0][1].get("scope") == "conversation:test-session")
 
+    # Call letta_dispatch_handler for memory_append verb with label and content
+    args_append = {"content": "I prefer dark mode", "label": "persona"}
+    res_append = await mios_memory.letta_dispatch_handler("memory_append", args_append, "test-session")
+    check("dispatch: memory_append with label/content succeeds", res_append.get("success") is True)
+
 def main():
     asyncio.run(test_letta_client_flow())
     asyncio.run(test_dispatch_handler_remember())

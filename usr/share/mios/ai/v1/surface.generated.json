@@ -15,6 +15,7 @@
     "GET /login -> portal_login_page",
     "GET /passport/public-key -> passport_public_key",
     "GET /portal/addon-fit.js -> portal_addon_fit",
+    "GET /portal/configurator -> portal_configurator_iframe",
     "GET /portal/icon-192.png -> portal_icon_192",
     "GET /portal/icon-512.png -> portal_icon_512",
     "GET /portal/icon.svg -> portal_icon",
@@ -1381,7 +1382,7 @@
     "websockets"
   ],
   "counts": {
-    "routes": 81,
+    "routes": 82,
     "provided": 1296
   }
 }

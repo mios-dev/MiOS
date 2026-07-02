@@ -436,7 +436,8 @@ h1{margin:0;font-size:24px;letter-spacing:.5px}h1 b{color:var(--accent)}
 .menu{position:relative}
 .btn{background:var(--card2);border:1px solid var(--line);color:var(--fg);
 border-radius:9px;padding:7px 12px;font-size:13px;cursor:pointer;transition:.15s}
-.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn:hover,.btn.active{border-color:var(--accent);color:var(--accent)}
+.btn.active{background:color-mix(in srgb,var(--accent) 15%,var(--card2))}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:#1a1230;font-weight:700}
 .btn.primary:hover{background:color-mix(in srgb,var(--accent) 84%,#fff);color:#1a1230}
 .drop{position:absolute;right:0;top:110%;background:var(--card);border:1px solid var(--line);
@@ -584,11 +585,11 @@ transform:translateZ(0)}
 .card.term.exp .embed-box{height:360px}
 </style></head><body>
 <div class="bar">
-  <h1>Mi<b>OS</b> <sup style="font-size:10px;color:var(--warn);font-weight:400">build18</sup></h1>
+  <a href="/" id="logoLink" style="color:inherit;text-decoration:none;display:flex;align-items:center;"><h1>Mi<b>OS</b> <sup style="font-size:10px;color:var(--warn);font-weight:400">build18</sup></h1></a>
   <div class="spacer"></div>
   <button class="btn primary" id="installBtn">&#11015; Install</button>
   <button class="btn" id="chatToggle">&#128172; Chat</button>
-  <a class="btn" href="/configure" id="settingsBtn">&#9881;&#65039; Settings</a>
+  <button class="btn" id="settingsToggle">&#9881;&#65039; Settings</button>
   <div class="menu">
     <button class="btn" id="menuBtn">&#9776; Menu</button>
     <div class="drop" id="menu">
@@ -606,6 +607,7 @@ transform:translateZ(0)}
   </div>
 </div>
 
+<div id="dashboard-view">
 <div class="top">
   <form class="websearch" id="wsform">
     <input id="wsq" placeholder="Search the web with SearXNG&hellip;" autocomplete="off">
@@ -640,6 +642,11 @@ transform:translateZ(0)}
   </div>
   <div class="grid" id="apps"></div>
 </section>
+</div>
+
+<div id="settings-view" style="display:none; width:100%; height:calc(100vh - 65px); margin:0; padding:0; overflow:hidden;">
+  <iframe id="settings-iframe" style="width:100%; height:100%; border:0; background:transparent;" src="about:blank"></iframe>
+</div>
 
 <div class="modal" id="modal"><div class="sheet" id="sheet"></div></div>
 <div class="toast" id="toast"></div>
@@ -861,6 +868,48 @@ $("installBtn").onclick=function(){
   if(deferredPrompt){deferredPrompt.prompt();
     deferredPrompt.userChoice.then(function(){deferredPrompt=null;});}
   else{toast("Browser menu → Install app / Add to Home Screen");}};
+
+function showView(view, push) {
+  if (view === "settings") {
+    $("dashboard-view").style.display = "none";
+    $("settings-view").style.display = "block";
+    $("settingsToggle").classList.add("active");
+    var iframe = $("settings-iframe");
+    if (!iframe.dataset.loaded) {
+      iframe.src = "/portal/configurator";
+      iframe.dataset.loaded = "1";
+    }
+    if (push) history.pushState({view: "settings"}, "", "/configure");
+  } else {
+    $("settings-view").style.display = "none";
+    $("dashboard-view").style.display = "block";
+    $("settingsToggle").classList.remove("active");
+    if (push) history.pushState({view: "dashboard"}, "", "/");
+  }
+}
+$("settingsToggle").onclick = function(e) {
+  e.preventDefault();
+  var isSettings = $("settings-view").style.display === "block";
+  showView(isSettings ? "dashboard" : "settings", true);
+};
+$("logoLink").onclick = function(e) {
+  e.preventDefault();
+  showView("dashboard", true);
+};
+window.onpopstate = function(e) {
+  if (location.pathname === "/configure") {
+    showView("settings", false);
+  } else {
+    showView("dashboard", false);
+  }
+};
+var initPath = location.pathname;
+if (initPath === "/configure") {
+  showView("settings", false);
+} else {
+  showView("dashboard", false);
+}
+
 tick();arm();
 </script></body></html>"""
 
@@ -1479,12 +1528,17 @@ async def iostest_page():
                         headers={"Cache-Control": "no-store, must-revalidate"})
 
 
+@portal_router.get("/portal/configurator", response_class=HTMLResponse)
+async def portal_configurator_iframe(request: Request):
+    """Serve the raw mios.html from disk to be loaded inside the portal iframe."""
+    return await portal_configure_page_logic(request)
+
+
 @portal_router.get("/configure", response_class=HTMLResponse)
 async def portal_configure_page(request: Request):
     """MiOS Settings — the configurator as a unified portal sub-page.
-    Auth-gated (same session cookie as the dashboard). Reads
-    mios.html from disk so live edits land without a restart."""
-    return await portal_configure_page_logic(request)
+    Serves the unified Portal shell HTML so it boots as settings view client-side."""
+    return await portal_page_logic(request)
 
 
 @portal_router.get("/", response_class=HTMLResponse)

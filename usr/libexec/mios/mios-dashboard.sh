@@ -623,7 +623,7 @@ containers = set()
 for d in ["/usr/share/containers/systemd", "/etc/containers/systemd"]:
     if os.path.isdir(d):
         for f in os.listdir(d):
-            if f.endswith(".container"):
+            if f.endswith(".container") and not f.endswith("@.container"):
                 containers.add(f[:-10])
 
 host_svcs = [

@@ -225,9 +225,9 @@ async def letta_dispatch_handler(tool: str, args: dict, session_id: Optional[str
     sid = session_id or (_conv_key_var.get() if _conv_key_var else None) or "default"
     
     if tool in ("remember", "memory_append"):
-        fact = args.get("fact") or args.get("text") or args.get("memory") or ""
+        fact = args.get("fact") or args.get("text") or args.get("memory") or args.get("content") or ""
         scope = args.get("scope") or "global"
-        key = args.get("key") or args.get("id") or args.get("name") or f"m{abs(hash(fact)) % (10**10)}"
+        key = args.get("key") or args.get("id") or args.get("name") or args.get("label") or f"m{abs(hash(fact)) % (10**10)}"
         res = await _LETTA_CLIENT.append_memory(sid, key, fact)
         if res.get("ok"):
             if _LETTA_CLIENT and _db_fire and _db_post and _db_create:
@@ -237,8 +237,8 @@ async def letta_dispatch_handler(tool: str, args: dict, session_id: Optional[str
             return {"success": False, "tool": tool, "args": args, "output": "", "stderr": res.get("error", "letta error"), "exit_code": 1}
 
     if tool in ("memory_update", "memory_replace"):
-        fact = args.get("fact") or args.get("text") or args.get("memory") or ""
-        key = args.get("key") or args.get("id") or args.get("name") or ""
+        fact = args.get("fact") or args.get("text") or args.get("memory") or args.get("content") or ""
+        key = args.get("key") or args.get("id") or args.get("name") or args.get("label") or ""
         res = await _LETTA_CLIENT.append_memory(sid, key, fact)
         if res.get("ok"):
             if _LETTA_CLIENT and _db_fire and _db_post and _db_create:

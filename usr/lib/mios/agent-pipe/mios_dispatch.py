@@ -119,6 +119,7 @@ _dispatch_agent_var = None
 # Rule-of-Two approval downgrade: the ask-to-run turn var carrying the action_hash the
 # user EXPLICITLY approved this turn (shared with the [ai] gate; None until injected).
 _hitl_approved_var = None
+_AGENT_REGISTRY: dict = {}
 
 # server-side helpers (injected). _arg_with_synonyms / _validate_enum_args /
 # _dispatch_sandbox_profile / _sandbox_wrap_cmd now LIVE in this module (their sole
@@ -197,7 +198,8 @@ def configure(*, verb_catalog=None, verb_arg_synonyms=None,
               resolve_verb_key=None, current_date_str=None,
               emit_dispatch_dedup_event=None,
               trace_span=None, db_fire=None, db_post=None,
-              db_create=None, letta_dispatch_handler=None) -> None:
+              db_create=None, letta_dispatch_handler=None,
+              agent_registry=None) -> None:
     """Inject server.py's verb catalog + arg-synonym map, config scalars (incl. the
     sandbox enforce knob + self-confined set), broker socket path, dispatch
     ContextVars + state and the runtime helpers the dispatch chokepoint calls back
@@ -209,10 +211,12 @@ def configure(*, verb_catalog=None, verb_arg_synonyms=None,
     global _VERB_CATALOG, _VERB_ARG_SYNONYMS, _HIGH_PRIVILEGE_VERBS, _LAUNCH_VERBS
     global _dispatch_inflight, _web_sem, _TOOL_CONFLICT
     global _conv_key_var, _recency_ctx_var, _proposal_var, _dispatch_agent_var
-    global _hitl_approved_var
+    global _hitl_approved_var, _AGENT_REGISTRY
     global _resolve_verb_key, _current_date_str
     global _emit_dispatch_dedup_event, _trace_span, _db_fire, _db_post, _db_create
     global _letta_dispatch_handler
+    if agent_registry is not None:
+        _AGENT_REGISTRY = agent_registry
     if verb_catalog is not None:
         _VERB_CATALOG = verb_catalog
     if letta_dispatch_handler is not None:
@@ -795,6 +799,65 @@ async def dispatch_mios_verb(
     # null through as a real value. No-op for non-strict callers (no nulls present).
     if isinstance(args, dict):
         args = {k: v for k, v in args.items() if v is not None}
+
+    # T-037: Per-Agent Access Control check
+    aname = (_dispatch_agent_var.get() or "").strip() if _dispatch_agent_var else ""
+    if aname:
+        acfg = _AGENT_REGISTRY.get(aname) or {} if _AGENT_REGISTRY else {}
+        privilege_group = acfg.get("privilege_group") or "routine"
+        
+        vcfg = _VERB_CATALOG.get(tool) or {} if _VERB_CATALOG else {}
+        verb_tier = vcfg.get("tier") or "routine"
+        
+        if verb_tier == "destructive" and privilege_group == "routine":
+            verdict = "hitl"
+            _acl_hitl_reason = f"ACL block: agent '{aname}' lacks privilege to run destructive verb '{tool}' without HITL approval."
+            
+            if _db_fire is not None and _db_post is not None and _db_create is not None:
+                try:
+                    _db_fire(_db_post(_db_create("event", {
+                        "source": "agent-pipe",
+                        "kind": "acl_decision",
+                        "severity": "info",
+                        "summary": f"ACL decision for {aname} calling {tool}: hitl",
+                        "payload": {
+                            "agent": aname,
+                            "verb": tool,
+                            "verdict": "hitl"
+                        }
+                    }, now_fields=("ts",))))
+                except Exception:
+                    pass
+
+            try:
+                _ah = _pending_hash(tool, args or {})
+                _scope = _conv_key_var.get() or session_id
+                _hitl_record_pending(tool, args or {}, _ah, _scope)
+                if not isinstance(_proposal_var.get(), dict):
+                    _proposal_var.set({"tool": tool, "args": args or {},
+                                       "action_hash": _ah, "reason": _acl_hitl_reason})
+            except Exception:
+                pass
+                
+            return {"success": False, "output": "", "stderr": _acl_hitl_reason,
+                    "exit_code": 126, "hitl_blocked": True}
+        else:
+            if _db_fire is not None and _db_post is not None and _db_create is not None:
+                try:
+                    _db_fire(_db_post(_db_create("event", {
+                        "source": "agent-pipe",
+                        "kind": "acl_decision",
+                        "severity": "info",
+                        "summary": f"ACL decision for {aname} calling {tool}: allow",
+                        "payload": {
+                            "agent": aname,
+                            "verb": tool,
+                            "verdict": "allow"
+                        }
+                    }, now_fields=("ts",))))
+                except Exception:
+                    pass
+
     # #62 HITL gate (off by default -> the helper early-returns, ~zero overhead).
     # In block mode a high-risk verb is REFUSED here (never executed) pending human
     # approval; audit mode logs + proceeds. Keys off the resolved verb above.

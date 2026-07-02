@@ -89,7 +89,7 @@
       "permission": "write",
       "section": "System",
       "sig": "name",
-      "tier": "common"
+      "tier": "destructive"
     },
     {
       "description": "Check podman/quadlet CONTAINER status. Empty name = all containers. For podman CONTAINERS -- NOT systemd services (use service_status) and NOT whole-machine health (system_status). Read-only.",

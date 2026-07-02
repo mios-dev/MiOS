@@ -91,7 +91,7 @@ async def test_warning_and_eviction():
     
     # Mock _toml_section to return a custom n_ctx (e.g. 50 tokens)
     # Mock _toml_section to return a custom n_ctx (e.g. 100 tokens)
-    chat._toml_section = lambda sect: {"n_ctx": 100} if sect == "memory" else {}
+    chat._toml_section = lambda sect: {"n_ctx": 100, "compaction_threshold_pct": 100} if sect == "memory" else {}
     
     # Mock other required dependencies to pass-through
     chat._conv_key_var.set("test-session")
@@ -144,7 +144,7 @@ async def test_warning_and_eviction():
             
     # 2. Test 100% threshold eviction
     # Set n_ctx to 40 tokens so that the messages exceed 100%
-    chat._toml_section = lambda sect: {"n_ctx": 40} if sect == "memory" else {}
+    chat._toml_section = lambda sect: {"n_ctx": 40, "compaction_threshold_pct": 100} if sect == "memory" else {}
     
     msgs_over = [
         m("system", "You are an assistant."),

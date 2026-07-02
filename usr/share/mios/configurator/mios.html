@@ -4,6 +4,11 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<script>
+  if (window.self !== window.top) {
+    document.documentElement.classList.add("in-iframe");
+  }
+</script>
 <meta charset="utf-8">
 <title>MiOS configurator</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -416,6 +421,31 @@
   .toggle-wrap:hover .toggle-track { border-color: var(--accent); }
   .toggle-wrap:has(.toggle-chk:focus-visible) .toggle-track {
     outline: 2px solid var(--accent); outline-offset: 2px;
+  }
+  /* in-iframe overrides to integrate seamlessly inside portal */
+  .in-iframe body {
+    padding-top: 10px;
+    padding-bottom: 20px;
+  }
+  .in-iframe header.pbar {
+    background: transparent;
+    border-bottom: none;
+    backdrop-filter: none;
+    margin-top: 0;
+    margin-bottom: 0px;
+    padding-left: 0;
+    padding-right: 0;
+    border-top: none;
+  }
+  .in-iframe header.pbar .pbar-logo,
+  .in-iframe header.pbar .pbar-sep,
+  .in-iframe header.pbar .pbar-page,
+  .in-iframe header.pbar .pbar-ver,
+  .in-iframe header.pbar .pbar-space {
+    display: none !important;
+  }
+  .in-iframe header.pbar .toolbar {
+    margin-left: auto;
   }
 </style>
 </head>

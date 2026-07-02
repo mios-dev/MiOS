@@ -1091,6 +1091,7 @@ require_signed_principal = false # require a verified Ed25519 principal on inbou
 mtls                     = false # require mTLS for this peer
 
 [agents.hermes]
+privilege_group = "privileged"
 # WS-10b: the Hermes SERVICE now runs ON llama.cpp (its
 # config repointed :11434->:11450, model granite4.1:3b aliased to gemma4). Route
 # BACK to the real Hermes service (:8642) so it keeps its native browser_*/CDP +
@@ -1201,6 +1202,7 @@ strengths = ["kanban", "web_search", "skill_invocation",
              "multi_step_reasoning", "tool_use"]
 
 [agents.opencode]
+privilege_group = "routine"
 endpoint = "http://localhost:${MIOS_PORT_OPENCODE_GATEWAY}/v1"
 # ONE canonical model id (must match [ai].opencode_model + opencode.json + the
 # ollama Modelfile build name:tag). Was "opencode"; unified to the real tag the
@@ -4326,6 +4328,7 @@ sig        = "name"
 desc       = "RESTART ONE podman/quadlet CONTAINER by name. For podman CONTAINERS -- NOT systemd services (use service_restart). Write-class."
 examples   = ["restart the searxng container", "bounce the adguard podman container", "restart my open-webui container", "recycle the firecrawl container"]
 permission = "write"
+tier       = "destructive"
 cmd        = "mios-sysview container-restart --name {name}"
   [verbs.container_restart.params.name]
   type = "string"
@@ -4561,7 +4564,7 @@ cmd        = "mios-remember add {fact!} {scope?--scope} {key?--key}"
   [verbs.remember.params.key]
   type    = "string"
   desc    = "Stable key to later update/forget this memory."
-  aliases = ["id", "name"]
+  aliases = ["id", "name", "label"]
 
 [verbs.recall]
 hidden = true
@@ -4611,7 +4614,7 @@ cmd        = "mios-remember forget --key {key!}"
   [verbs.memory_forget.params.key]
   type    = "string"
   desc    = "Key of the memory to delete (the key you set with remember)."
-  aliases = ["id", "name"]
+  aliases = ["id", "name", "label"]
 
 [verbs.memory_append]
 hidden = true
@@ -4633,7 +4636,7 @@ cmd        = "mios-remember add {fact!} {scope?--scope} {key?--key}"
   [verbs.memory_append.params.key]
   type    = "string"
   desc    = "Stable key to later update/forget this memory."
-  aliases = ["id", "name"]
+  aliases = ["id", "name", "label"]
 
 [verbs.memory_replace]
 hidden = true
@@ -4647,7 +4650,7 @@ cmd        = "mios-remember update --key {key!} {fact!}"
   [verbs.memory_replace.params.key]
   type    = "string"
   desc    = "Key of the memory to overwrite."
-  aliases = ["id", "name"]
+  aliases = ["id", "name", "label"]
   [verbs.memory_replace.params.fact]
   type    = "string"
   desc    = "The new value to store at this key."
@@ -6297,12 +6300,12 @@ native_rebuild = false
 # The mios-llm-heavy-alt Quadlet reads these via MIOS_VLLM_* (rendered from here).
 [ai.vllm]
 enable         = false          # documents intent; the systemd unit is the real gate (disabled by default)
-bake_model     = ""             # HF repo to bake OFFLINE at build (empty = skip the bake; opt-in, no image bloat)
+bake_model     = "Qwen/Qwen2.5-0.5B-Instruct"             # HF repo to bake OFFLINE at build (empty = skip the bake; opt-in, no image bloat)
 served_name    = "mios-heavy"   # OpenAI served-model-name the lane advertises (= [nodes.local-vllm].model)
 gpu_util       = 0.45           # --gpu-memory-utilization: bounded slice; leaves room for ollama + Windows co-tenancy
-max_model_len  = 131072         # global 128k mandate. Heavy reasoner = Mistral Magistral Small 2509 AWQ (~14GB) leaves KV headroom on the 24GB 4090; pair with --kv-cache-dtype fp8 to fit 131072. Serve with --reasoning-parser mistral --quantization awq_marlin.
+max_model_len  = 32768         # global 128k mandate. Heavy reasoner = Mistral Magistral Small 2509 AWQ (~14GB) leaves KV headroom on the 24GB 4090; pair with --kv-cache-dtype fp8 to fit 131072. Serve with --reasoning-parser mistral --quantization awq_marlin.
 prefix_caching = true           # --enable-prefix-caching (APC): reuse the shared swarm prompt prefix across agents
-v1_engine      = true           # --v1: enable modern vLLM V1 engine
+v1_engine      = false           # --v1: enable modern vLLM V1 engine
 
 # ----------------------------------------------------------------------------
 # [ai.sglang] -- the SGLang heavy lane ("continue with SGLang").
@@ -9597,9 +9600,18 @@ Environment = [
   "TRANSFORMERS_OFFLINE=1",
   "VLLM_NO_USAGE_STATS=1",
   "DO_NOT_TRACK=1",
-  "VLLM_USE_V1=${MIOS_VLLM_USE_V1:-true}"
+  "VLLM_USE_V1=0",
+  "HF_HOME=/tmp/.cache",
+  "XDG_CACHE_HOME=/tmp/.cache",
+  "VLLM_CACHE_DIR=/tmp/.cache",
+  "FLASHINFER_WORKSPACE_DIR=/tmp/.cache",
+  "TRITON_CACHE_DIR=/tmp/.cache",
+  "VLLM_HOST_IP=127.0.0.1",
+  "GLOO_SOCKET_IFNAME=lo",
+  "NCCL_SOCKET_IFNAME=lo",
+  "HOME=/tmp"
 ]
-Exec = "--model /models --served-model-name ${MIOS_VLLM_SERVED_NAME:-mios-heavy} --host 0.0.0.0 --port ${MIOS_PORT_VLLM:-11441} --gpu-memory-utilization ${MIOS_VLLM_GPU_UTIL:-0.45} --max-model-len ${MIOS_VLLM_MAX_MODEL_LEN:-16384} --enable-prefix-caching"
+Exec = "--model /models --served-model-name ${MIOS_VLLM_SERVED_NAME:-mios-heavy} --host 0.0.0.0 --port ${MIOS_PORT_VLLM:-11441} --gpu-memory-utilization ${MIOS_VLLM_GPU_UTIL:-0.45} --max-model-len ${MIOS_VLLM_MAX_MODEL_LEN:-16384} --enable-prefix-caching --enforce-eager"
 Group = "${MIOS_VLLM_GID:-815}"
 Image = "${MIOS_VLLM_IMAGE:-docker.io/vllm/vllm-openai:latest}"
 Label = [

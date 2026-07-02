@@ -239,42 +239,46 @@ def test_dispatch_persists_taint_row():
                 "output": "fetched external page", "latency_ms": 7,
                 "tainted": True, "taint_reason": "external_open_url:https://x.test"}
 
-    mios_dispatch.dispatch_mios_verb = _fake_dispatch
+    orig_dispatch = mios_dispatch.dispatch_mios_verb
+    try:
+        mios_dispatch.dispatch_mios_verb = _fake_dispatch
 
-    body = {"tool": "open_url", "args": {"url": "https://x.test"}, "session_id": "s9"}
-    asyncio.run(mios_dispatch.dispatch_verb(body))
+        body = {"tool": "open_url", "args": {"url": "https://x.test"}, "session_id": "s9"}
+        asyncio.run(mios_dispatch.dispatch_verb(body))
 
-    # A tool_call row was written for the dispatch-executed verb, carrying its taint.
-    assert captured.get("table") == "tool_call", captured
-    row = captured.get("row") or {}
-    assert row.get("tainted") is True, row
-    assert row.get("taint_reason") == "external_open_url:https://x.test", row
-    assert row.get("tool") == "open_url", row
-    assert captured.get("fired") is not None, "row write must fire"
-    # session-scoped so _session_is_tainted (keyed on session) can find it.
-    assert "session = s9" in str(captured.get("posted") or ""), captured
+        # A tool_call row was written for the dispatch-executed verb, carrying its taint.
+        assert captured.get("table") == "tool_call", captured
+        row = captured.get("row") or {}
+        assert row.get("tainted") is True, row
+        assert row.get("taint_reason") == "external_open_url:https://x.test", row
+        assert row.get("tool") == "open_url", row
+        assert captured.get("fired") is not None, "row write must fire"
+        # session-scoped so _session_is_tainted (keyed on session) can find it.
+        assert "session = s9" in str(captured.get("posted") or ""), captured
 
-    # Closing the loop: feed that recorded row back through the firewall's taint-chain
-    # reader -> the session is now seen as tainted (was invisible before A9).
-    import mios_firewall
+        # Closing the loop: feed that recorded row back through the firewall's taint-chain
+        # reader -> the session is now seen as tainted (was invisible before A9).
+        import mios_firewall
 
-    async def _fake_read(sql, pg_sql=None, pg_params=None):
-        if row.get("tainted"):
-            return [{"result": [{"ts": "t", "tool": row["tool"],
-                                 "taint_reason": row["taint_reason"]}]}]
-        return [{"result": []}]
+        async def _fake_read(sql, pg_sql=None, pg_params=None):
+            if row.get("tainted"):
+                return [{"result": [{"ts": "t", "tool": row["tool"],
+                                     "taint_reason": row["taint_reason"]}]}]
+            return [{"result": []}]
 
-    mios_firewall._db_read = _fake_read
-    tainted, chain = asyncio.run(mios_firewall._session_is_tainted("s9"))
-    assert tainted is True and "open_url" in chain, (tainted, chain)
+        mios_firewall._db_read = _fake_read
+        tainted, chain = asyncio.run(mios_firewall._session_is_tainted("s9"))
+        assert tainted is True and "open_url" in chain, (tainted, chain)
 
-    # Degrade-open: a write failure (writer raises) must NOT break dispatch.
-    def _boom_post(sql):
-        raise RuntimeError("db down")
-    mios_dispatch.configure(db_post=_boom_post)
-    out = asyncio.run(mios_dispatch.dispatch_verb(body))
-    assert out is not None, "dispatch must still return when the audit write fails"
-    print("[PASS] /v1/dispatch persists a tainting tool_call row (A9/F2)")
+        # Degrade-open: a write failure (writer raises) must NOT break dispatch.
+        def _boom_post(sql):
+            raise RuntimeError("db down")
+        mios_dispatch.configure(db_post=_boom_post)
+        out = asyncio.run(mios_dispatch.dispatch_verb(body))
+        assert out is not None, "dispatch must still return when the audit write fails"
+        print("[PASS] /v1/dispatch persists a tainting tool_call row (A9/F2)")
+    finally:
+        mios_dispatch.dispatch_mios_verb = orig_dispatch
 
 
 test_dispatch_persists_taint_row()
@@ -335,5 +339,88 @@ def test_sandbox_profile_coverage():
 
 
 test_sandbox_profile_coverage()
+
+
+def test_agent_access_control():
+    # Configure mios_dispatch with a mock catalog and agent registry
+    _test_catalog = {
+        "container_restart": {"cmd": "echo restarting", "tier": "destructive"},
+        "safe_verb": {"cmd": "echo safe", "tier": "routine"},
+    }
+    _test_agents = {
+        "routine_agent": {"privilege_group": "routine"},
+        "privileged_agent": {"privilege_group": "privileged"},
+    }
+    
+    # Save original mocks
+    orig_hitl_block_reason = mios_dispatch._hitl_block_reason
+    orig_pdp = mios_dispatch._dispatch_pdp_reason
+    orig_quota = mios_dispatch._dispatch_quota_reason
+    orig_enum = mios_dispatch._validate_enum_args
+    orig_gate = mios_dispatch._hitl_gate
+    orig_arbiter = mios_dispatch._HITL_ARBITER_URL
+    orig_bounded = mios_dispatch._dispatch_bounded
+
+    mios_dispatch._hitl_block_reason = lambda tool, args: None
+    mios_dispatch._dispatch_pdp_reason = lambda tool: None
+    mios_dispatch._dispatch_quota_reason = lambda tool: None
+    mios_dispatch._validate_enum_args = lambda t, a: None
+    async def _mock_void(*a, **k): return None
+    mios_dispatch._hitl_gate = _mock_void
+    mios_dispatch._HITL_ARBITER_URL = ""
+    async def _mock_bounded(tool, args, *, session_id=None):
+        return {"success": True, "output": f"ok-{tool}"}
+    mios_dispatch._dispatch_bounded = _mock_bounded
+
+    # Configure variables
+    mios_dispatch.configure(
+        verb_catalog=_test_catalog,
+        agent_registry=_test_agents,
+        db_fire=lambda *a, **k: None,
+        db_post=lambda *a, **k: None,
+        db_create=lambda *a, **k: {},
+    )
+    
+    try:
+        # Run calling as routine_agent
+        ctx1 = contextvars.copy_context()
+        def _run_routine():
+            _agent.set("routine_agent")
+            # should fail/route to HITL
+            res = asyncio.run(mios_dispatch.dispatch_mios_verb("container_restart", {}))
+            assert res.get("hitl_blocked") is True, f"routine_agent calling destructive verb should be HITL blocked: {res}"
+            
+            # calling safe verb should succeed
+            res2 = asyncio.run(mios_dispatch.dispatch_mios_verb("safe_verb", {}))
+            assert res2.get("hitl_blocked") is not True, f"routine_agent calling safe verb should NOT be blocked: {res2}"
+            assert res2.get("output") == "ok-safe_verb", res2
+            
+        ctx1.run(_run_routine)
+        
+        # Run calling as privileged_agent
+        ctx2 = contextvars.copy_context()
+        def _run_privileged():
+            _agent.set("privileged_agent")
+            # should proceed (fail on socket since launcher is /nonexistent, but NOT HITL blocked)
+            res = asyncio.run(mios_dispatch.dispatch_mios_verb("container_restart", {}))
+            assert res.get("hitl_blocked") is not True, f"privileged_agent calling destructive verb should not be HITL blocked: {res}"
+            assert res.get("output") == "ok-container_restart", res
+            
+        ctx2.run(_run_privileged)
+    finally:
+        # Restore original mocks
+        mios_dispatch._hitl_block_reason = orig_hitl_block_reason
+        mios_dispatch._dispatch_pdp_reason = orig_pdp
+        mios_dispatch._dispatch_quota_reason = orig_quota
+        mios_dispatch._validate_enum_args = orig_enum
+        mios_dispatch._hitl_gate = orig_gate
+        mios_dispatch._HITL_ARBITER_URL = orig_arbiter
+        mios_dispatch._dispatch_bounded = orig_bounded
+        _base_configure()
+        
+    print("[PASS] agent access control: routine blocked on destructive, privileged allowed")
+
+
+test_agent_access_control()
 
 print("test_mios_dispatch: ALL PASS")

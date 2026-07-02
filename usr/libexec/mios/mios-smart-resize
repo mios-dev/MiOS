@@ -1,0 +1,116 @@
+#!/usr/bin/env /usr/lib/mios/agents/.venv/bin/python3
+# AI-hint: Performs 3-constraint spatial normalization for VLM input image resizing and records output dimensions.
+# AI-related: /usr/libexec/mios/mios-smart-resize, /usr/libexec/mios/mios-pc-control, /usr/lib/mios/agent-pipe/mios_pipe/routing/vision.py
+
+import sys
+import io
+import json
+import argparse
+import math
+from PIL import Image
+from PIL.PngImagePlugin import PngInfo
+
+def main():
+    parser = argparse.ArgumentParser(description="MiOS Smart Resize CLI")
+    parser.add_argument("--width", type=int, default=None)
+    parser.add_argument("--height", type=int, default=None)
+    parser.add_argument("--image-factor", type=int, default=28)
+    parser.add_argument("--min-pixels", type=int, default=3136)
+    parser.add_argument("--max-pixels", type=int, default=1000000)
+    parser.add_argument("--max-ratio", type=int, default=200)
+    args = parser.parse_args()
+
+    try:
+        input_data = sys.stdin.buffer.read()
+        if not input_data:
+            sys.stderr.write("Error: no input image data received on stdin\n")
+            sys.exit(1)
+        img = Image.open(io.BytesIO(input_data))
+    except Exception as e:
+        sys.stderr.write(f"Error opening image: {e}\n")
+        sys.exit(1)
+
+    W_orig, H_orig = img.size
+
+    # Math scaling logic
+    W_target = args.width
+    H_target = args.height
+    factor = args.image_factor
+    min_pix = args.min_pixels
+    max_pix = args.max_pixels
+    max_ratio = args.max_ratio
+
+    if W_target and H_target:
+        scale = min(W_target / W_orig, H_target / H_orig)
+    elif W_target:
+        scale = W_target / W_orig
+    elif H_target:
+        scale = H_target / H_orig
+    else:
+        scale = 1.0
+
+    w = W_orig * scale
+    h = H_orig * scale
+
+    if max(h/w, w/h) > max_ratio:
+        sys.stderr.write(f"Constraint Violation: Aspect ratio {max(h/w, w/h)} exceeds limit {max_ratio}\n")
+        sys.exit(1)
+
+    pixels = w * h
+    if pixels < min_pix:
+        scale_adj = math.sqrt(min_pix / pixels)
+        w *= scale_adj
+        h *= scale_adj
+    elif pixels > max_pix:
+        scale_adj = math.sqrt(max_pix / pixels)
+        w *= scale_adj
+        h *= scale_adj
+
+    W_tensor = max(factor, round(w / factor) * factor)
+    H_tensor = max(factor, round(h / factor) * factor)
+
+    if W_tensor * H_tensor < min_pix:
+        while W_tensor * H_tensor < min_pix:
+            if W_tensor / W_orig < H_tensor / H_orig:
+                W_tensor += factor
+            else:
+                H_tensor += factor
+    elif W_tensor * H_tensor > max_pix:
+        while W_tensor * H_tensor > max_pix:
+            if W_tensor / W_orig > H_tensor / H_orig:
+                W_tensor = max(factor, W_tensor - factor)
+            else:
+                H_tensor = max(factor, H_tensor - factor)
+
+    if max(H_tensor/W_tensor, W_tensor/H_tensor) > max_ratio:
+        sys.stderr.write(f"Constraint Violation: Aspect ratio {max(H_tensor/W_tensor, W_tensor/H_tensor)} exceeds limit {max_ratio} after rounding\n")
+        sys.exit(1)
+
+    try:
+        resized_img = img.resize((W_tensor, H_tensor), Image.Resampling.LANCZOS)
+        
+        # Save metadata to PNG text chunk
+        metadata = PngInfo()
+        metadata.add_text("W_tensor", str(W_tensor))
+        metadata.add_text("H_tensor", str(H_tensor))
+        metadata.add_text("W_orig", str(W_orig))
+        metadata.add_text("H_orig", str(H_orig))
+
+        # Output PNG to stdout
+        resized_img.save(sys.stdout.buffer, "PNG", pnginfo=metadata)
+        
+        # Output JSON metadata to stderr
+        meta_json = json.dumps({
+            "W_tensor": W_tensor,
+            "H_tensor": H_tensor,
+            "W_orig": W_orig,
+            "H_orig": H_orig
+        })
+        sys.stderr.write(meta_json + "\n")
+        sys.exit(0)
+    except Exception as e:
+        sys.stderr.write(f"Error resizing/saving image: {e}\n")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
