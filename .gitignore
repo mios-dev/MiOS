@@ -176,27 +176,46 @@ etc/fapolicyd/*
 # tracked configs. portals.conf with [preferred] default=gnome ensures
 # the portal frontend can find a backend even when XDG_CURRENT_DESKTOP
 # isn't propagated to the activating shell (WSL2 logind bypass).
+# etc/xdg ships base autostart/, Xwayland-session.d/ entries. Track ONLY
+# the MiOS portal backend selection.
 !/etc/xdg/
-!/etc/xdg/**
+etc/xdg/*
+!/etc/xdg/xdg-desktop-portal/
+etc/xdg/xdg-desktop-portal/*
+!/etc/xdg/xdg-desktop-portal/portals.conf
 
 # /etc/systemd/user/<upstream-unit>.service.d/ -- drop-in overrides for
 # upstream-shipped systemd user units (localsearch-3 et al.). Drop-in
 # files MUST be named with the mios- prefix so they're distinguishable
 # from operator-authored overrides at /etc/systemd/user/<unit>.d/.
+# CASCADE: /etc/systemd is admin territory. The base OS + `systemctl enable`
+# populate it with distro units, .service.d drop-ins, and *.target.wants/
+# enablement symlinks -- ALL per-deployment runtime state that MUST NOT
+# bleed in. MiOS units ship from /usr/lib/systemd/system (Law 1 USR-OVER-ETC);
+# the ONLY tracked /etc units are the mios drop-ins under user/*.service.d/.
 !/etc/systemd/
+etc/systemd/*
 !/etc/systemd/user/
-!/etc/systemd/user/**/
-!/etc/systemd/user/**/10-mios-*.conf
+etc/systemd/user/*
+!/etc/systemd/user/*.service.d/
+etc/systemd/user/*.service.d/*
+!/etc/systemd/user/*.service.d/10-mios-*.conf
 
 # /etc/dconf/ -- system-wide GNOME / GTK defaults (color scheme,
 # gtk-theme, icon-theme, fonts). Cascade applied to every user-bus
 # at login; operator overrides per-user via gsettings / Tweaks.
+# CASCADE: dconf ships compiled distro/gdm/ibus dbs + distro.d/ locks
+# (base + runtime). Track ONLY the MiOS theme profile.
 !/etc/dconf/
+etc/dconf/*
 !/etc/dconf/db/
+etc/dconf/db/*
 !/etc/dconf/db/local.d/
-!/etc/dconf/db/local.d/*
+etc/dconf/db/local.d/*
+!/etc/dconf/db/local.d/00-mios-theme
 !/etc/dconf/profile/
-!/etc/dconf/profile/*
+etc/dconf/profile/*
+!/etc/dconf/profile/user
 
 # /etc/skel/ -- default home contents copied to every new user.
 # GTK3/GTK4 settings.ini under .config/ ensures fresh accounts boot
@@ -364,8 +383,11 @@ usr/share/mios/user-preferences.md
 usr/share/containers/*
 !/usr/share/containers/systemd/
 !/usr/share/containers/systemd/**
+# containers.conf.d ships base vendor drop-ins (00-vendor.conf,
+# 999-podman-machine.conf). Track ONLY MiOS-authored *mios* drop-ins.
 !/usr/share/containers/containers.conf.d/
-!/usr/share/containers/containers.conf.d/**
+usr/share/containers/containers.conf.d/*
+!/usr/share/containers/containers.conf.d/*mios*
 # Vendor-default containers/storage.conf -- shipped at the lowest precedence
 # layer so /etc and ~/.config layers can override. Switches the rootless
 # default driver from fuse-overlayfs (broken inside WSL2/nested-container
@@ -388,8 +410,12 @@ usr/share/containers/*
 # MiOS-managed fontconfig drop-ins (Geist Mono primary monospace,
 # Symbols-Only Nerd Font icon-glyph fallback). Symlinked into
 # /etc/fonts/conf.d/ at boot via usr/lib/tmpfiles.d/mios-fontconfig.conf.
+# conf.avail/ ships 80+ base fontconfig presets -- track ONLY MiOS files.
 !/usr/share/fontconfig/
-!/usr/share/fontconfig/**
+usr/share/fontconfig/*
+!/usr/share/fontconfig/conf.avail/
+usr/share/fontconfig/conf.avail/*
+!/usr/share/fontconfig/conf.avail/*mios*
 
 # usr/libexec -- mios/ subdir and mios-* top-level stubs
 usr/libexec/*
@@ -411,13 +437,38 @@ usr/lib/*
 # the os-release(5) spec requires.
 !/usr/lib/os-release
 
-# Directories containing exclusively MiOS content -- allow all via **
+# NetworkManager is a base-package dir (dispatcher.d/, VPN/ ship upstream
+# scripts). Track ONLY the MiOS-authored conf.d, dispatcher, and connection.
 !/usr/lib/NetworkManager/
-!/usr/lib/NetworkManager/**
+usr/lib/NetworkManager/*
+!/usr/lib/NetworkManager/conf.d/
+usr/lib/NetworkManager/conf.d/*
+!/usr/lib/NetworkManager/conf.d/22-wifi-mac-addr.conf
+!/usr/lib/NetworkManager/conf.d/99-nvme-nbft-no-ignore-carrier.conf
+!/usr/lib/NetworkManager/conf.d/rand_mac.conf
+!/usr/lib/NetworkManager/dispatcher.d/
+usr/lib/NetworkManager/dispatcher.d/*
+!/usr/lib/NetworkManager/dispatcher.d/20-chrony-dhcp
+!/usr/lib/NetworkManager/dispatcher.d/20-chrony-onoffline
+!/usr/lib/NetworkManager/dispatcher.d/99-nvme-nbft-connect.sh
+!/usr/lib/NetworkManager/system-connections/
+usr/lib/NetworkManager/system-connections/*
+!/usr/lib/NetworkManager/system-connections/mios-bridge.nmconnection
+
+# Directories containing exclusively MiOS content -- allow all via **
 !/usr/lib/X11/
 !/usr/lib/X11/**
+# bootc ships base helper binaries (initramfs-setup, storage,
+# fedora-bootc-destructive-cleanup) at the top level. Track ONLY the
+# MiOS-owned declarative subdirs (kargs.d/, install/, bound-images.d/).
 !/usr/lib/bootc/
-!/usr/lib/bootc/**
+usr/lib/bootc/*
+!/usr/lib/bootc/kargs.d/
+!/usr/lib/bootc/kargs.d/**
+!/usr/lib/bootc/install/
+!/usr/lib/bootc/install/**
+!/usr/lib/bootc/bound-images.d/
+!/usr/lib/bootc/bound-images.d/**
 !/usr/lib/cloud/
 !/usr/lib/cloud/**
 !/usr/lib/cockpit/
@@ -438,16 +489,49 @@ usr/lib/dracut/*
 !/usr/lib/dracut/dracut.conf.d/
 usr/lib/dracut/dracut.conf.d/*
 !/usr/lib/dracut/dracut.conf.d/*-mios-*.conf
+# firewalld is a base-package dir (helpers/, services/, zones/, icmptypes/
+# ship 350+ upstream XMLs). Track ONLY the MiOS-authored service + zone.
 !/usr/lib/firewalld/
-!/usr/lib/firewalld/**
+usr/lib/firewalld/*
+!/usr/lib/firewalld/services/
+usr/lib/firewalld/services/*
+!/usr/lib/firewalld/services/mios-*.xml
+!/usr/lib/firewalld/zones/
+usr/lib/firewalld/zones/*
+!/usr/lib/firewalld/zones/nm-shared.xml
+# greenboot ships base check scripts (01_repository_dns_check.sh,
+# 02_watchdog.sh, ...). Track ONLY MiOS-authored checks + config.
 !/usr/lib/greenboot/
-!/usr/lib/greenboot/**
+usr/lib/greenboot/*
+!/usr/lib/greenboot/greenboot.conf
+!/usr/lib/greenboot/check/
+usr/lib/greenboot/check/*
+!/usr/lib/greenboot/check/required.d/
+usr/lib/greenboot/check/required.d/*
+!/usr/lib/greenboot/check/required.d/10-mios-composefs.sh
+!/usr/lib/greenboot/check/required.d/10-mios-role.sh
+!/usr/lib/greenboot/check/required.d/15-composefs-verity.sh
+!/usr/lib/greenboot/check/required.d/20-podman.sh
+!/usr/lib/greenboot/check/required.d/30-network.sh
+!/usr/lib/greenboot/check/required.d/40-mios-ai-plane.sh
+!/usr/lib/greenboot/check/wanted.d/
+usr/lib/greenboot/check/wanted.d/*
+!/usr/lib/greenboot/check/wanted.d/30-nvidia-cdi.sh
+!/usr/lib/greenboot/check/wanted.d/40-role-target.sh
+!/usr/lib/greenboot/check/wanted.d/50-mios-ha-cluster.sh
+!/usr/lib/greenboot/check/wanted.d/60-k3s.sh
+!/usr/lib/greenboot/fail.d/
+usr/lib/greenboot/fail.d/*
+!/usr/lib/greenboot/fail.d/00-log-fail.sh
 !/usr/lib/libvirt/
 !/usr/lib/libvirt/**
 !/usr/lib/locale.conf
 !/usr/lib/multipath.conf
+# ostree ships base binaries (ostree-prepare-root, ostree-remount).
+# Track ONLY the MiOS composefs prepare-root.conf.
 !/usr/lib/ostree/
-!/usr/lib/ostree/**
+usr/lib/ostree/*
+!/usr/lib/ostree/prepare-root.conf
 !/usr/lib/rancher/
 !/usr/lib/rancher/**
 !/usr/lib/repart.d/
@@ -464,8 +548,11 @@ usr/lib/dracut/dracut.conf.d/*
 !/usr/lib/usbguard/**
 !/usr/lib/uupd/
 !/usr/lib/uupd/**
+# waydroid ships 130+ base data/ configs (apparmor profiles, gbinder,
+# init.rc). Track ONLY the MiOS waydroid.cfg.
 !/usr/lib/waydroid/
-!/usr/lib/waydroid/**
+usr/lib/waydroid/*
+!/usr/lib/waydroid/waydroid.cfg
 !/usr/lib/wsl-distribution.conf
 !/usr/lib/wsl.conf
 !/usr/lib/xrdp/
@@ -602,15 +689,33 @@ usr/lib/udev/rules.d/*
 var/*
 !/var/lib/
 var/lib/*
+# /var/lib/mios is mostly RUNTIME state seeded by mios-bootstrap at first
+# boot (agents/.claude caches + plugins, git/mios.git self-replication
+# mirror, agent-env/, scratch/, daemon/, firstboot sentinels) -- all
+# per-deployment and MUST NOT bleed in. Track ONLY the vendor-seeded data
+# corpora (embeddings / evals / training) that ship with the image.
 !/var/lib/mios/
-!/var/lib/mios/**
+var/lib/mios/*
+!/var/lib/mios/embeddings/
+!/var/lib/mios/embeddings/**
+!/var/lib/mios/evals/
+!/var/lib/mios/evals/**
+!/var/lib/mios/training/
+!/var/lib/mios/training/**
 
 # /var/lib/flatpak/overrides/ -- per-app environment overrides that
 # get applied INSIDE the flatpak sandbox. Tracked here so software-
 # rendering defaults survive operator deletions + re-install.
+# CASCADE: un-ignore the flatpak dir ONLY as a traversable parent, then
+# immediately re-ignore its entire contents (the app/, runtime/, repo/,
+# .refs/ OSTree object store is 180k+ per-deployment runtime files that
+# MUST NOT bleed into the image) before whitelisting overrides/ alone.
 !/var/lib/flatpak/
+var/lib/flatpak/*
 !/var/lib/flatpak/overrides/
-!/var/lib/flatpak/overrides/*
+var/lib/flatpak/overrides/*
+!/var/lib/flatpak/overrides/global
+!/var/lib/flatpak/overrides/com.google.ChromeDev
 # Cookbooks (was /usr/local/share/mios/cookbooks/), prompt templates
 # (was /opt/mios/prompts/), and API examples (was /srv/mios/api/) all
 # moved to /usr/share/mios/{cookbooks,prompts,api}/ as of v0.2.3 path-
@@ -653,6 +758,41 @@ usr/lib/node_modules/
 /artifacts/
 logs/
 *.log
+# RPM transaction backups -- created on the running host by dnf/rpm when a
+# config file diverges from the package default. Per-deployment, never source.
+**/*.rpmnew
+**/*.rpmorig
+**/*.rpmsave
+# Editor / tooling backups + timestamped save copies (e.g. *.py.bak-1782895145,
+# mios.toml.bak2). Agents and edit passes drop these into the source tree on a
+# running host; they are never image source.
+**/*.bak
+**/*.bak[0-9]
+**/*.bak-*
+**/*.orig
+**/*.old
+**/*~
+**/*.swp
+**/*.swo
+
+# Baked/downloaded model weights + tokenizer caches. Emitted at BUILD time by
+# automation (like usr/share/ollama/models) or fetched at runtime -- multi-GB,
+# never git source. llamacpp/models is 5.8G, vllm/model 954M on a live host.
+**/*.gguf
+**/*.safetensors
+usr/share/mios/vllm/model/
+usr/share/mios/llamacpp/models/
+usr/share/mios/tiktoken/
+# Installed agent CLIs (opencode/bin is 160M) -- fetched by firstboot, not source.
+# opencode-gateway/server.py and other agent SOURCE stays tracked (only */bin/).
+usr/lib/mios/agents/*/bin/
+# oscap compliance scan reports (40M) -- generated by usr/libexec/mios/oscap-scan.py
+# on the running host; the scan is reproducible, the report is per-run state.
+usr/share/mios/compliance/oscap-*
+# Base systemd login-shell drop-ins (not MiOS). MiOS profile.d scripts are
+# tracked by name above; these upstream ones must not bleed from a host.
+etc/profile.d/70-systemd-shell-extra.sh
+etc/profile.d/80-systemd-osc-context.sh
 
 # Operator-authorized passwordless sudo for the mios-hermes agent
 # (the user the local Hermes-Agent runs as). Default MiOS posture
