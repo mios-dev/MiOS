@@ -269,6 +269,7 @@ _DEFAULT_CAT_PRIORITY = {
 }
 _DEFAULT_FUZZY_MIN_TOKEN_LEN = 4
 _DEFAULT_FUZZY_MAX_EDIT_DISTANCE = 2
+_DEFAULT_FUZZY_MAX_EDIT_RATIO = 0.34
 
 
 def _load_ranker_cfg():
@@ -276,6 +277,7 @@ def _load_ranker_cfg():
     cat_priority = None
     fuzzy_min = None
     fuzzy_cap = None
+    fuzzy_ratio = None
     # Config layers, highest priority first: MIOS_TOML override (when set) then
     # admin (/etc) then vendor (/usr/share). First file that defines a key wins.
     # Honouring MIOS_TOML matches every other MiOS config reader; when it is
@@ -303,6 +305,9 @@ def _load_ranker_cfg():
             if (fuzzy_cap is None
                     and isinstance(r.get("fuzzy_max_edit_distance"), int)):
                 fuzzy_cap = r["fuzzy_max_edit_distance"]
+            if (fuzzy_ratio is None
+                    and isinstance(r.get("fuzzy_max_edit_ratio"), (int, float))):
+                fuzzy_ratio = float(r["fuzzy_max_edit_ratio"])
         cp = mf.get("category_priority", {})
         if cat_priority is None and isinstance(cp, dict) and cp:
             try:
@@ -314,10 +319,11 @@ def _load_ranker_cfg():
         cat_priority if cat_priority is not None else dict(_DEFAULT_CAT_PRIORITY),
         fuzzy_min if fuzzy_min is not None else _DEFAULT_FUZZY_MIN_TOKEN_LEN,
         fuzzy_cap if fuzzy_cap is not None else _DEFAULT_FUZZY_MAX_EDIT_DISTANCE,
+        fuzzy_ratio if fuzzy_ratio is not None else _DEFAULT_FUZZY_MAX_EDIT_RATIO,
     )
 
 
-TIERS, CAT_PRIORITY, FUZZY_MIN_TOKEN_LEN, FUZZY_MAX_EDIT_DISTANCE = _load_ranker_cfg()
+TIERS, CAT_PRIORITY, FUZZY_MIN_TOKEN_LEN, FUZZY_MAX_EDIT_DISTANCE, FUZZY_MAX_EDIT_RATIO = _load_ranker_cfg()
 # Tier name -> rank index (position in the SSOT ordering). A check whose tier
 # name is absent from the configured list is disabled (returns None below).
 _TIER_RANK = {name: i for i, name in enumerate(TIERS)}
@@ -437,7 +443,12 @@ def rank(e):
             for qt in q_tokens:
                 dists = [_lev(qt, nt, cap=FUZZY_MAX_EDIT_DISTANCE) for nt in n_tokens]
                 best_for_token = min(dists, default=99)
-                if best_for_token <= FUZZY_MAX_EDIT_DISTANCE:
+                # Proportional bound: allow at most a token-length fraction of
+                # edits (SSOT ratio), capped by the flat max -- so a short query
+                # can't match a different app at the flat cap ("forza"/"forge").
+                allowed = min(FUZZY_MAX_EDIT_DISTANCE,
+                              int(len(qt) * FUZZY_MAX_EDIT_RATIO))
+                if best_for_token <= allowed:
                     matches.append(best_for_token)
             if len(matches) == len(q_tokens):
                 best = max(matches)

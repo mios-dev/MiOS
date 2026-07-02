@@ -7953,6 +7953,11 @@ tiers = [
 # fuzzy_max_edit_distance: max Levenshtein distance counted as a match.
 fuzzy_min_token_len     = 4
 fuzzy_max_edit_distance = 2
+# fuzzy_max_edit_ratio: cap edits as a FRACTION of the query-token length, so a
+# short query cannot fuzzy-match a semantically different app at the flat cap
+# (e.g. "forza" vs "forge" is 2 edits = 40% of a 5-char word -> rejected at
+# 0.34, while long-name typos still get up to fuzzy_max_edit_distance edits).
+fuzzy_max_edit_ratio    = 0.34
 
 # [mios-find.category_priority] -- category -> priority weight (LOWER wins).
 # Tie-breaks candidates that match at the SAME tier: a REGISTERED browser or
@@ -8857,7 +8862,10 @@ section = "Discovery / resolution"
 sig = "mode, query?"
 desc = "Query applications. mode='list' (inventory of all installed apps), 'semantic' (fuzzy app capability search), or 'resolve' (get exact CLI launch command for an app without launching it)."
 tier = "core"
-cmd = "if [ '{mode}' = 'list' ]; then mios-apps --json; elif [ '{mode}' = 'semantic' ]; then mios-app-search {query}; else mios-find --json {query}; fi"
+# mios-apps exits non-zero when a sub-scanner is degraded (e.g. the Windows
+# es.exe side on WSL) yet still emits a valid inventory on stdout -- tolerate
+# that exit (|| true) so a degraded scanner does not fail the whole verb.
+cmd = "if [ {mode} = list ]; then mios-apps --json || true; elif [ {mode} = semantic ]; then mios-app-search {query}; else mios-find --json {query}; fi"
   [verbs.apps.params.mode]
   type = "string"
   enum = ["list", "semantic", "resolve"]
@@ -8950,17 +8958,23 @@ cmd = "if [ '{mode}' = 'handoff' ]; then mios-agent handoff {agent} '{task}'; el
 
 [verbs.run_code]
 section = "Code / shell"
-sig = "mode, code"
-desc = "Execute Python code. mode='sandbox' (safe isolated run) or 'orchestrate' (run a script that imports mios_tools to coordinate agentic sub-actions)."
+sig = "mode, code, language?"
+desc = "Execute code. mode='sandbox' (safe isolated run) or 'orchestrate' (run a script that imports mios_tools to coordinate agentic sub-actions). language defaults to python; set 'bash' for shell."
 tier = "core"
 permission = "write"
 sandbox_profile = "workspace"   # opt-in sandbox confinement (see [dispatch].sandbox_enforce)
-cmd = "if [ '{mode}' = 'sandbox' ]; then mios-coderun '{code}'; else mios-code-mode '{code}'; fi"
+# Placeholders are shlex-quoted by the renderer -- do NOT wrap them in literal
+# quotes (that double-quotes the value and breaks any code with parens/quotes/
+# newlines). Pass code via --code and select the interpreter (default python).
+cmd = "if [ {mode} = sandbox ]; then mios-coderun --code {code} --lang {language=python}; else mios-code-mode {code}; fi"
   [verbs.run_code.params.mode]
   type = "string"
   enum = ["sandbox", "orchestrate"]
   [verbs.run_code.params.code]
   type = "string"
+  [verbs.run_code.params.language]
+  type = "string"
+  enum = ["python", "bash"]
 
 # ─── WS-F Tool Consolidation (Phase 2) Merged Verbs ─────────────────────
 
@@ -9013,7 +9027,7 @@ section = "System"
 sig = "query, target?"
 desc = "Query system status: query='status' (overall), 'env' (environment variables), 'env-refresh' (reload shell env), 'logs' (system logs for target service), 'service-status' (systemd status), 'processes' (top), 'containers' (podman ps)."
 tier = "core"
-cmd = "if [ '{query}' = 'status' ]; then mios-system status; elif [ '{query}' = 'logs' ]; then journalctl -u {target} -n 50 --no-pager; elif [ '{query}' = 'service-status' ]; then systemctl status {target} --no-pager; elif [ '{query}' = 'processes' ]; then ps aux --sort=-%cpu | head -n 20; else mios-system {query} {target}; fi"
+cmd = "if [ {query} = status ]; then mios-system-status; elif [ {query} = logs ]; then journalctl -u {target} -n 50 --no-pager; elif [ {query} = service-status ]; then systemctl status {target} --no-pager; elif [ {query} = processes ]; then ps aux --sort=-%cpu | head -n 20; elif [ {query} = containers ]; then podman ps; else mios-system-status; fi"
   [verbs.system.params.query]
   type = "string"
   enum = ["status", "env", "env-refresh", "logs", "service-status", "processes", "containers"]
@@ -9060,12 +9074,16 @@ cmd = "if [ '{action}' = 'screenshot' ]; then mios-computer-use screenshot /tmp/
 
 [verbs.file_edit]
 section = "File edits"
-sig = "op, path, content?, find?, replace?"
-desc = "Edit text files on disk. op='create' (write new file), 'replace' (replace matching text), 'insert' (insert text at top/bottom)."
+sig = "op, path, content?, find?, replace?, line?"
+desc = "Edit text files on disk. op='create' (write new file), 'replace' (replace matching text), 'insert' (insert text at line N, default prepend)."
 tier = "core"
 permission = "write"
 sandbox_profile = "workspace"   # opt-in sandbox confinement (see [dispatch].sandbox_enforce)
-cmd = "if [ '{op}' = 'create' ]; then mios-file create '{path}' '{content}'; elif [ '{op}' = 'replace' ]; then mios-file replace '{path}' '{find}' '{replace}'; else mios-file insert '{path}' '{content}'; fi"
+# Backed by the real mios-text-edit primitive (create/str_replace/insert).
+# Placeholders are shlex-quoted by the renderer -- do NOT wrap them in literal
+# quotes. For large/multi-line content prefer the dedicated create_file /
+# replace_file_text / insert_file_lines verbs (they stream content via stdin).
+cmd = "if [ {op} = create ]; then mios-text-edit create {path} --content {content}; elif [ {op} = replace ]; then mios-text-edit str_replace {path} --old {find} --new {replace}; else mios-text-edit insert {path} --line {line=0} --content {content}; fi"
   [verbs.file_edit.params.op]
   type = "string"
   enum = ["create", "replace", "insert"]
@@ -9077,6 +9095,8 @@ cmd = "if [ '{op}' = 'create' ]; then mios-file create '{path}' '{content}'; eli
   type = "string"
   [verbs.file_edit.params.replace]
   type = "string"
+  [verbs.file_edit.params.line]
+  type = "integer"
 
 # ----------------------------------------------------------------------------
 # [desktop.app_types] -- WS-D: App-type aliases & default resolution SSOT.
