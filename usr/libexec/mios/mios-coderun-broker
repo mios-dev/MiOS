@@ -1,0 +1,112 @@
+#!/usr/bin/env python3
+# AI-hint: Lightweight per-session Code Mode Unix socket broker listening on %t/mios-coderun-%i.sock and forwarding tool RPC requests to the host-side agent-pipe (/v1/dispatch) HTTP endpoint.
+import os
+import sys
+import json
+import socket
+import threading
+import argparse
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--session", required=True)
+    args = parser.parse_args()
+    
+    session_id = args.session
+    uid = os.getuid()
+    runtime_dir = os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{uid}")
+    os.makedirs(runtime_dir, exist_ok=True)
+    
+    socket_path = os.path.join(runtime_dir, f"mios-coderun-{session_id}.sock")
+    pid_path = os.path.join(runtime_dir, f"mios-coderun-{session_id}.pid")
+    
+    # Write PID file
+    with open(pid_path, "w") as f:
+        f.write(str(os.getpid()))
+        
+    if os.path.exists(socket_path):
+        try:
+            os.unlink(socket_path)
+        except OSError:
+            pass
+            
+    server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    server.bind(socket_path)
+    server.listen(10)
+    
+    def handle_client(conn):
+        try:
+            # Read request (the protocol is a single JSON object request)
+            data = b""
+            while True:
+                chunk = conn.recv(65536)
+                if not chunk:
+                    break
+                data += chunk
+                
+            if not data:
+                return
+                
+            req = json.loads(data.decode("utf-8"))
+            verb = req.get("verb")
+            verb_args = req.get("args", {})
+            
+            # Forward to agent-pipe HTTP endpoint
+            payload = {
+                "tool": verb,
+                "args": verb_args,
+                "session_id": session_id
+            }
+            
+            import urllib.request
+            import urllib.error
+            
+            req_http = urllib.request.Request(
+                "http://127.0.0.1:8640/v1/dispatch",
+                data=json.dumps(payload).encode("utf-8"),
+                headers={"Content-Type": "application/json", "Accept": "application/json"}
+            )
+            
+            try:
+                with urllib.request.urlopen(req_http, timeout=120) as response:
+                    resp_data = response.read()
+                    conn.sendall(resp_data)
+            except urllib.error.HTTPError as he:
+                err_msg = he.read().decode("utf-8", "replace")
+                conn.sendall(json.dumps({"error": f"HTTP {he.code}: {err_msg}"}).encode("utf-8"))
+            except Exception as e:
+                conn.sendall(json.dumps({"error": f"HTTP request failed: {e}"}).encode("utf-8"))
+                
+        except Exception as e:
+            try:
+                conn.sendall(json.dumps({"error": f"Broker error: {e}"}).encode("utf-8"))
+            except Exception:
+                pass
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+                
+    try:
+        while True:
+            conn, addr = server.accept()
+            t = threading.Thread(target=handle_client, args=(conn,), daemon=True)
+            t.start()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        server.close()
+        if os.path.exists(socket_path):
+            try:
+                os.unlink(socket_path)
+            except OSError:
+                pass
+        if os.path.exists(pid_path):
+            try:
+                os.unlink(pid_path)
+            except OSError:
+                pass
+
+if __name__ == "__main__":
+    main()

@@ -634,8 +634,12 @@ def _client_env(body: dict, headers: Optional[Any] = None) -> dict:
         if sv.lower() in _ENV_SENTINELS:
             continue
         norm.setdefault(kk, sv)
+    loc = norm.get("user_location") or norm.get("location") or ""
+    if loc:
+        # Strip trailing (lat, long) coordinates, e.g., "Paris, France (48.8566, 2.3522)"
+        loc = re.sub(r"\s*\([-+]?\d+(?:\.\d+)?,\s*[-+]?\d+(?:\.\d+)?\)$", "", loc).strip()
     out = {
-        "location":  norm.get("user_location") or norm.get("location") or "",
+        "location":  loc,
         "timezone":  norm.get("current_timezone") or norm.get("timezone") or "",
         "date":      norm.get("current_date") or "",
         "time":      norm.get("current_time") or "",

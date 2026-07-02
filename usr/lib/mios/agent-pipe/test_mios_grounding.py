@@ -75,6 +75,17 @@ def t_client_env():
     # 'Unknown' is an env sentinel -> dropped, so the OpenAI `user` field fills in.
     check("client_env: sentinel dropped, user fallback", out.get("user_name") == "fallback-name")
     check("client_env: non-dict body -> {}", g._client_env(None) == {})
+    
+    # Test stripping coordinates: E2 (T-071)
+    body_with_coords = {
+        "metadata": {
+            "variables": {
+                "{{USER_LOCATION}}": "New York, USA (40.7128, -74.0060)",
+            }
+        }
+    }
+    out_with_coords = g._client_env(body_with_coords)
+    check("client_env: coordinates stripped", out_with_coords.get("location") == "New York, USA")
 
 
 def t_env_block():

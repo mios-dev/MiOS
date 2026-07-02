@@ -321,5 +321,41 @@ class TestDiscoveryHelpers(_A2AClientBase):
         self.assertEqual(len(out), len(set(out)))
 
 
+class TestCardlessJoin(_A2AClientBase):
+    def test_cardless_v1_models_probe_success(self):
+        peers, peer_skills, registry = {}, {}, {}
+        class _CardlessClient:
+            async def get(self, url, headers=None, timeout=None):
+                if url.endswith("/v1/models"):
+                    return _FakeResp({
+                        "object": "list",
+                        "data": [
+                            {"id": "llama-3-8b", "object": "model"},
+                            {"id": "bge-large-en", "object": "model"}
+                        ]
+                    })
+                return _FakeResp({"error": "not found"}, status_code=404)
+                
+        _base_configure(peers=peers, peer_skills=peer_skills,
+                        registry=registry, reputation=_FakeReputation(),
+                        client=_CardlessClient())
+                        
+        _run(mios_a2a_client._a2a_probe_peer(
+            {"id": "cardless-peer", "url": "http://cardless:8640"}))
+            
+        self.assertEqual(peers["cardless-peer"]["status"], "ready")
+        self.assertEqual(peers["cardless-peer"]["agent_name"], "cardless")
+        self.assertTrue(peers["cardless-peer"]["card"]["_cardless"])
+        
+        # Verify inferred skills
+        skills = peers["cardless-peer"]["skills"]
+        skill_ids = {s["id"] for s in skills}
+        self.assertEqual(skill_ids, {"text-generation", "embeddings"})
+        
+        # Verify agent registry mapping
+        self.assertIn("a2a:cardless-peer", registry)
+        self.assertEqual(set(registry["a2a:cardless-peer"]["strengths"]), {"text-generation", "embeddings"})
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -6387,13 +6387,39 @@ async def v1_agents_directory(request: Request) -> JSONResponse:
         cfg = cfg if isinstance(cfg, dict) else {}
         ep = str(cfg.get("endpoint", "")).rstrip("/")
         is_remote = str(cfg.get("kind", "")).lower() in _remote_kinds and bool(ep)
+        
+        # Check if the peer is cardless
+        peer_id = cfg.get("a2a_peer_id")
+        cardless = False
+        if peer_id:
+            try:
+                import sys
+                a2a_peers = getattr(sys.modules.get("mios_pipe.federation.a2a_client"), "_A2A_PEERS", {})
+                peer_state = a2a_peers.get(peer_id)
+                if peer_state and isinstance(peer_state.get("card"), dict) and peer_state["card"].get("_cardless"):
+                    cardless = True
+            except Exception:
+                pass
+                
+        card_url = node_card
+        if is_remote:
+            if cardless:
+                card_url = f"{ep}/v1/models"
+            else:
+                card_url = f"{ep}/.well-known/agent-card.json"
+                
+        caps = cfg.get("strengths") or []
+        if not isinstance(caps, list):
+            caps = [caps] if caps else []
+
         roster.append({
             "author": author,
             "name": name,
             "version": node_version,
             "role": str(cfg.get("role", "general")),
             "kind": str(cfg.get("kind", "")),
-            "card": f"{ep}/.well-known/agent-card.json" if is_remote else node_card,
+            "capabilities": [str(c) for c in caps],
+            "card": card_url,
             "a2a": f"{ep}/a2a" if is_remote else f"{base}/a2a",
         })
     return JSONResponse({

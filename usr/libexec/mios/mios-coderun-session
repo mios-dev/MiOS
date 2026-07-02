@@ -110,6 +110,7 @@ SNAPSHOTS_ROOT="$(_resolve_snapshots_root)"
 
 _require_session() {
     [ -z "$SESSION" ] && { echo "mios-coderun-session: missing <session-id>" >&2; usage >&2; exit 64; }
+    return 0
 }
 
 # Detect whether the project root is on btrfs (enables snapshot path).
@@ -156,6 +157,27 @@ do_start() {
     else
         _snap_git_stash "$project" "start-$(date +%s)"
     fi
+
+    # Start the per-session host-side broker
+    local runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+    local socket_file="$runtime_dir/mios-coderun-${SESSION}.sock"
+    local pid_file="$runtime_dir/mios-coderun-${SESSION}.pid"
+    
+    echo "  starting broker for session '$SESSION'"
+    python3 /usr/libexec/mios/mios-coderun-broker --session "$SESSION" &
+    
+    # Wait for the broker to create the socket
+    local timeout=50
+    while [ ! -S "$socket_file" ] && [ "$timeout" -gt 0 ]; do
+        sleep 0.1
+        timeout=$((timeout - 1))
+    done
+    if [ ! -S "$socket_file" ]; then
+        echo "  ✗ failed to start broker or socket not created" >&2
+        exit 1
+    fi
+    echo "  ✓ broker started, socket available: $socket_file"
+
     systemctl --user start "mios-coderun-sandbox@${SESSION}.service"
     echo "  ✓ sandbox unit started: mios-coderun-sandbox@${SESSION}.service"
 }
@@ -165,6 +187,21 @@ do_stop() {
     echo "[mios-coderun-session] stopping sandbox for session '$SESSION'"
     systemctl --user stop "mios-coderun-sandbox@${SESSION}.service" || true
     echo "  ✓ sandbox unit stopped"
+
+    # Stop the per-session host-side broker
+    local runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+    local socket_file="$runtime_dir/mios-coderun-${SESSION}.sock"
+    local pid_file="$runtime_dir/mios-coderun-${SESSION}.pid"
+    
+    if [ -f "$pid_file" ]; then
+        local pid
+        pid=$(cat "$pid_file")
+        kill "$pid" 2>/dev/null || true
+        rm -f "$pid_file"
+    fi
+    rm -f "$socket_file"
+    echo "  ✓ broker stopped and socket removed"
+
     # Snapshot GC -- bound retention per the guide's pitfall list.
     local sdir="$SNAPSHOTS_ROOT/$SESSION"
     if [ -d "$sdir" ]; then

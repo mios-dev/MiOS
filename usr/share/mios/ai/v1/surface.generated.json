@@ -33,6 +33,7 @@
     "GET /v1/a2a/peers -> a2a_peers_list",
     "GET /v1/a2a/skills -> a2a_skills_list",
     "GET /v1/agent-card -> a2a_agent_card_alias",
+    "GET /v1/agents -> v1_agents_directory",
     "GET /v1/agntcy/manifest -> agntcy_manifest_v1",
     "GET /v1/app-search -> app_search",
     "GET /v1/audit/chain/verify -> chain_verify",
@@ -1376,6 +1377,7 @@
     "trace_recent",
     "uuid",
     "uvicorn",
+    "v1_agents_directory",
     "v1_capabilities",
     "v1_capabilities_dag",
     "v1_computer_use",
@@ -1384,7 +1386,7 @@
     "websockets"
   ],
   "counts": {
-    "routes": 82,
-    "provided": 1298
+    "routes": 83,
+    "provided": 1299
   }
 }

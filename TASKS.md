@@ -953,7 +953,7 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 ---
 
 ## T-045: F2 -- Build the coderun-sandbox Image [NET]
-> **Priority:** P2 | **Status:** open | **Effort:** M | **Domain:** Sandboxing | **Source:** WS-F2
+> **Priority:** P2 | **Status:** done | **Effort:** M | **Domain:** Sandboxing | **Source:** WS-F2
 
 **Instructions:**
 1. Build `mios-coderun-sandbox` image with egress [NET]: Python 3.12+, Node 22, basic utils. No GPU.
@@ -965,9 +965,9 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Deps:** T-032 (SEC-01 isolation pattern). Needs egress [NET].
 
 **Done When:**
-- [ ] `run_sandboxed_code {"language":"python","code":"print(1+1)"}` returns `{"output":"2"}`
-- [ ] Container has no access to host filesystem beyond tmpfs
-- [ ] Container restarts cleanly after crash
+- [x] `run_sandboxed_code {"language":"python","code":"print(1+1)"}` returns `{"output":"2"}`
+- [x] Container has no access to host filesystem beyond tmpfs
+- [x] Container restarts cleanly after crash
 
 ---
 
@@ -1260,7 +1260,7 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 ---
 
 ## T-059: DATA-01 -- Declarative Agent Specs + A2A-Discoverable Directory
-> **Priority:** P3 | **Status:** open | **Effort:** M | **Domain:** Federation | **Source:** Part 6 P3#9
+> **Priority:** P3 | **Status:** done | **Effort:** M | **Domain:** Federation | **Source:** Part 6 P3#9
 
 **Instructions:** Give each agent an `(author, name, version)` card (reuse A2A card schema) and expose roster as an A2A-discoverable directory. Discovering peer queries directory instead of reading static file.
 
@@ -1269,7 +1269,7 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Deps:** T-012 (FED-G4), T-022 (FED-CONSUME).
 
 **Done When:**
-- [ ] `GET /v1/agents` returns directory of all registered agents with (author, name, version) tuples and A2A card links
+- [x] `GET /v1/agents` returns directory of all registered agents with (author, name, version) tuples and A2A card links
 
 ---
 
@@ -1446,7 +1446,7 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 ---
 
 ## T-070: D2 -- Pi/Edge Join Documentation
-> **Priority:** P3 | **Status:** open | **Effort:** S | **Domain:** Documentation/Federation | **Source:** WS-D2
+> **Priority:** P3 | **Status:** done | **Effort:** S | **Domain:** Documentation/Federation | **Source:** WS-D2
 
 **Instructions:** Write the one-port (`:8640`) outbound-dial join flow for Pi and edge nodes. Document optional federated pgvector via `[pgvector].listen_loopback=false` (off by default). Include the TOML overlay pattern.
 
@@ -1455,12 +1455,12 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Deps:** T-043 (D1).
 
 **Done When:**
-- [ ] A Pi node can join the council by following the doc alone (no source reading required)
+- [x] A Pi node can join the council by following the doc alone (no source reading required)
 
 ---
 
 ## T-071: E2/E3 -- OWUI Cosmetic Fixes
-> **Priority:** P3 | **Status:** open | **Effort:** S | **Domain:** UX | **Source:** WS-E2, WS-E3
+> **Priority:** P3 | **Status:** done | **Effort:** S | **Domain:** UX | **Source:** WS-E2, WS-E3
 
 **Instructions:**
 - E2: Strip trailing `(lat, long)` suffix in `_client_env` location string before it reaches the model.
@@ -1471,13 +1471,13 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Deps:** None.
 
 **Done When:**
-- [ ] Location in OWUI shows city/timezone only, no coordinates
-- [ ] `agent.json` description references pgvector, not SurrealDB
+- [x] Location in OWUI shows city/timezone only, no coordinates
+- [x] `agent.json` description references pgvector, not SurrealDB
 
 ---
 
 ## T-072: F3 -- Code Mode `/run/coderun.sock` Per-Session Broker
-> **Priority:** P3 | **Status:** open | **Effort:** M | **Domain:** Sandboxing | **Source:** WS-F3
+> **Priority:** P3 | **Status:** done | **Effort:** M | **Domain:** Sandboxing | **Source:** WS-F3
 
 **Instructions:** Build host-side Code Mode per-session Unix socket broker at `/run/coderun.sock`. Each session gets isolated socket -> isolated `mios-coderun-sandbox` container instance. Sessions cleaned up on disconnect.
 
@@ -1486,7 +1486,7 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Deps:** T-045 (F2 coderun-sandbox).
 
 **Done When:**
-- [ ] Two concurrent code-execution sessions run in isolated containers; neither can read the other's output
+- [x] Two concurrent code-execution sessions run in isolated containers; neither can read the other's output
 
 ---
 
@@ -1508,7 +1508,7 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 ---
 
 ## T-074: FED-G10/G11 -- Cardless Join + `/v1/agents` Registry
-> **Priority:** P3 | **Status:** open | **Effort:** M | **Domain:** Federation | **Source:** WS-FED
+> **Priority:** P3 | **Status:** done | **Effort:** M | **Domain:** Federation | **Source:** WS-FED
 
 **Instructions:**
 - G10: Support generic `/v1/models`-only endpoint join for cardless agents (Claude, Gemini, vLLM). Probe `/v1/models`, infer capabilities from model names, auto-register as council peer.
@@ -1519,8 +1519,8 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Deps:** T-013 (FED-G5), T-059 (DATA-01).
 
 **Done When:**
-- [ ] Raw vLLM endpoint (no AgentCard) joins council via `/v1/models` probe
-- [ ] `/v1/agents` lists all agents including cardless ones
+- [x] Raw vLLM endpoint (no AgentCard) joins council via `/v1/models` probe
+- [x] `/v1/agents` lists all agents including cardless ones
 
 ---
 

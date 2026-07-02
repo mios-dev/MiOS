@@ -161,6 +161,72 @@ async def _a2a_fetch_card(url: str, headers: dict,
     return {"error": last_err or "no card endpoint responded"}
 
 
+async def _a2a_fetch_models_card(url: str, headers: dict, timeout_s: float = 10.0) -> dict:
+    """Probe /v1/models as a fallback for cardless agents (Claude, Gemini, vLLM).
+    Infers capabilities from model names and returns a synthetic agent card."""
+    h = _mcp_render_headers(headers or {})
+    h.setdefault("Accept", "application/json")
+    client = await _get_client()
+    models_url = url.rstrip("/") + "/v1/models"
+    try:
+        r = await client.get(models_url, headers=h, timeout=timeout_s)
+        if r.status_code == 200:
+            res = r.json()
+            if isinstance(res, dict) and "data" in res:
+                data = res["data"]
+                model_ids = []
+                if isinstance(data, list):
+                    for m in data:
+                        if isinstance(m, dict) and m.get("id"):
+                            model_ids.append(str(m["id"]))
+                
+                # Infer capabilities
+                skills = []
+                has_text = False
+                has_embed = False
+                has_image = False
+                for mid in model_ids:
+                    mid_lower = mid.lower()
+                    if any(x in mid_lower for x in ("embed", "bert", "text-embedding", "bge")):
+                        has_embed = True
+                    elif any(x in mid_lower for x in ("diffuse", "flux", "dall", "midjourney", "sd")):
+                        has_image = True
+                    else:
+                        has_text = True
+                        
+                if has_text or not model_ids:
+                    skills.append({
+                        "id": "text-generation",
+                        "name": "Text Generation",
+                        "description": "Generative text generation and reasoning capabilities",
+                    })
+                if has_embed:
+                    skills.append({
+                        "id": "embeddings",
+                        "name": "Embeddings",
+                        "description": "Vector embedding generation",
+                    })
+                if has_image:
+                    skills.append({
+                        "id": "image-generation",
+                        "name": "Image Generation",
+                        "description": "Image generation and styling capabilities",
+                    })
+                
+                return {
+                    "name": url.split("//", 1)[-1].split(":", 1)[0],
+                    "provider": {"organization": "Cardless"},
+                    "version": "1.0.0",
+                    "protocolVersion": "0.3.0",
+                    "skills": skills,
+                    "_cardless": True,
+                    "_fetched_from": models_url
+                }
+    except Exception as e:
+        return {"error": f"models probe failed: {e}"}
+    return {"error": "no models endpoint responded or invalid response"}
+
+
 async def _a2a_tailnet_candidates() -> list:
     """Candidate base-URLs to probe for an A2A agent-card: every ONLINE tailnet
     peer at the agent-pipe port (`tailscale status --json`) + any explicit
@@ -250,11 +316,14 @@ async def _a2a_probe_peer(cfg: dict) -> None:
 
     card = await _a2a_fetch_card(url, cfg.get("headers") or {})
     if card.get("error"):
-        state["status"] = "card-fetch-failed"
-        state["error"] = card["error"]
-        log.warning("a2a client: card fetch failed for %s: %s",
-                    pid, state["error"])
-        return
+        cardless_card = await _a2a_fetch_models_card(url, cfg.get("headers") or {})
+        if cardless_card.get("error"):
+            state["status"] = "card-fetch-failed"
+            state["error"] = card["error"]
+            log.warning("a2a client: card fetch and models probe failed for %s: %s",
+                        pid, state["error"])
+            return
+        card = cardless_card
     state["card"] = card
     # LIBERAL on input: a v0.3 card carries a top-level protocolVersion; a v1.0
     # card moved it into supportedInterfaces[].protocolVersion (first = preferred).
