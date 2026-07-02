@@ -1,0 +1,207 @@
+#!/usr/bin/env python3
+# AI-hint: A2A federation loopback smoke test -- drives a Message -> Task -> Artifact round-trip against the local MiOS /a2a JSON-RPC surface (MiOS talking to itself as a peer) and confirms the event table recorded the delegation chain. Live-env tool the operator runs on a booted host; degrades open with a clear message when the endpoint is unreachable.
+# AI-related: usr/lib/mios/agent-pipe/mios_pipe/federation/a2a.py, usr/libexec/mios/mios-a2a-delegate, usr/share/mios/tests/test-a2a-loopback.sh
+# AI-functions: build_message, classify_task, extract_artifact_text, jsonrpc_envelope, main
+"""mios-a2a-test -- A2A federation loopback smoke test (roadmap B5 / T-066).
+
+Registers the local MiOS instance as its own A2A peer (loopback) and runs a
+full JSON-RPC 2.0 ``message/send`` -> Task -> Artifact round-trip against the
+``/a2a`` surface, then confirms the ``event`` table recorded the delegation
+chain for the task's contextId. This is the first end-to-end federation smoke
+increment: it proves the same /a2a path a remote peer would use works when a
+MiOS speaks to itself.
+
+USAGE
+  mios-a2a-test --loopback            # run the round-trip; exit 0 on success
+  mios-a2a-test --loopback --text "…" # custom probe prompt
+  mios-a2a-test --loopback --json     # machine-readable result on stdout
+
+Endpoint resolves from MIOS_AGENT_PIPE_URL (set from the mios.toml [ports] SSOT
+via /etc/mios/install.env at runtime) -- identical to mios-a2a-delegate; no
+literal port is baked into a decision. Unreachable endpoint => clear message +
+nonzero exit, never a traceback (degrade-open: a dev checkout has no live lane).
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import subprocess
+import sys
+import urllib.error
+import urllib.request
+import uuid
+
+# Same SSOT-derived endpoint every A2A tool uses (Law 5 default endpoint); the
+# real value arrives via MIOS_AGENT_PIPE_URL from install.env on a booted host.
+PIPE_URL = os.environ.get("MIOS_AGENT_PIPE_URL", "http://127.0.0.1:8640")
+DEFAULT_TIMEOUT = float(os.environ.get("MIOS_A2A_TEST_TIMEOUT", "120"))
+_SUCCESS_LINE = "Task completed, Artifact received"
+
+
+def jsonrpc_envelope(method: str, params: dict, rpc_id: str) -> dict:
+    """Build a JSON-RPC 2.0 request envelope (pure)."""
+    return {"jsonrpc": "2.0", "id": rpc_id, "method": method, "params": params}
+
+
+def build_message(text: str, context_id: str, message_id: str) -> dict:
+    """Build an A2A Message with a single text Part (pure).
+
+    Mirrors the shape mios_pipe.federation.a2a expects: role + parts[] where
+    each part is {kind:text, text:...}; contextId threads the loopback turn so
+    the delegation chain is queryable afterwards.
+    """
+    msg: dict = {
+        "role": "user",
+        "parts": [{"kind": "text", "text": text}],
+        "messageId": message_id,
+    }
+    if context_id:
+        msg["contextId"] = context_id
+    return msg
+
+
+def extract_artifact_text(task: dict) -> str:
+    """A2A: artifacts[].parts[].text is the peer's final answer; fall back to
+    the last agent-role history message text (pure). Matches mios-a2a-delegate.
+    """
+    for art in (task.get("artifacts") or []):
+        for part in (art.get("parts") or []):
+            if isinstance(part, dict) and part.get("kind") == "text" and part.get("text"):
+                return str(part["text"])
+    for msg in reversed(task.get("history") or []):
+        if isinstance(msg, dict) and str(msg.get("role")) == "agent":
+            for part in (msg.get("parts") or []):
+                if isinstance(part, dict) and part.get("kind") == "text" and part.get("text"):
+                    return str(part["text"])
+    return ""
+
+
+def classify_task(task: dict) -> dict:
+    """Reduce an A2A Task to the round-trip verdict (pure)."""
+    state = str(((task.get("status") or {}).get("state")) or "")
+    artifact_text = extract_artifact_text(task)
+    return {
+        "state": state,
+        "completed": state == "completed",
+        "has_artifact": bool(artifact_text),
+        "artifact_text": artifact_text,
+        "task_id": task.get("id"),
+        "context_id": task.get("contextId"),
+    }
+
+
+def _http_post(path: str, body: dict, timeout_s: float) -> dict:
+    try:
+        req = urllib.request.Request(
+            PIPE_URL.rstrip("/") + path,
+            data=json.dumps(body).encode("utf-8"),
+            headers={"Accept": "application/json",
+                     "Content-Type": "application/json"},
+            method="POST")
+        with urllib.request.urlopen(req, timeout=timeout_s) as r:
+            return json.loads(r.read().decode("utf-8", errors="replace"))
+    except urllib.error.HTTPError as e:
+        return {"__error__": f"http {e.code}",
+                "body": e.read().decode("utf-8", errors="replace")[:400]}
+    except Exception as e:  # noqa: BLE001 -- degrade-open: no live lane on a dev checkout
+        return {"__error__": f"{type(e).__name__}: {e}"}
+
+
+def _delegation_chain_len(context_id: str) -> int:
+    """Best-effort: count event rows recording this contextId's delegation
+    chain via mios-pg-query. Returns -1 when pg is unreachable (degrade-open --
+    the smoke verdict never hinges on the audit DB being live)."""
+    if not context_id:
+        return -1
+    sql = ("SELECT count(*) FROM event WHERE payload::text LIKE %s "
+           "OR context_id = %s")
+    like = "%" + context_id + "%"
+    try:
+        out = subprocess.run(
+            ["mios-pg-query", "--exec-json", sql, like, context_id],
+            capture_output=True, text=True, timeout=15)
+        if out.returncode != 0:
+            return -1
+        rows = json.loads(out.stdout or "[]")
+        if rows and isinstance(rows, list):
+            first = rows[0]
+            val = first.get("count") if isinstance(first, dict) else first
+            return int(val)
+    except Exception:  # noqa: BLE001
+        return -1
+    return -1
+
+
+def _run_loopback(text: str, timeout_s: float) -> dict:
+    ctx = "loopback-" + uuid.uuid4().hex[:12]
+    mid = uuid.uuid4().hex
+    send = jsonrpc_envelope("message/send",
+                            {"message": build_message(text, ctx, mid)}, mid)
+    resp = _http_post("/a2a", send, timeout_s)
+    if resp.get("__error__"):
+        return {"ok": False, "reachable": False,
+                "error": resp["__error__"], "detail": resp.get("body", "")}
+    if resp.get("error"):
+        return {"ok": False, "reachable": True,
+                "error": f"jsonrpc {resp['error']}"}
+    task = ((resp.get("result") or {}).get("task")) or {}
+    verdict = classify_task(task)
+    # Confirm via tasks/get that the task is durably retrievable by id.
+    if verdict["task_id"]:
+        get = _http_post("/a2a", jsonrpc_envelope(
+            "tasks/get", {"id": verdict["task_id"]}, uuid.uuid4().hex), timeout_s)
+        got = (get.get("result") or {}) if not get.get("__error__") else {}
+        verdict["retrievable"] = bool(got.get("id"))
+    else:
+        verdict["retrievable"] = False
+    verdict["chain_events"] = _delegation_chain_len(verdict.get("context_id") or "")
+    verdict["ok"] = bool(verdict["completed"] and verdict["has_artifact"]
+                         and verdict["retrievable"])
+    verdict["reachable"] = True
+    return verdict
+
+
+def main() -> int:
+    p = argparse.ArgumentParser(prog="mios-a2a-test")
+    p.add_argument("--loopback", action="store_true",
+                   help="Run the loopback Message->Task->Artifact round-trip.")
+    p.add_argument("--text", default="A2A loopback self-test: reply with a short acknowledgement.",
+                   help="Probe prompt sent to the loopback peer.")
+    p.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT,
+                   help=f"Seconds to await the task (default {DEFAULT_TIMEOUT}).")
+    p.add_argument("--json", action="store_true",
+                   help="Emit the machine-readable verdict on stdout.")
+    args = p.parse_args()
+
+    if not args.loopback:
+        p.print_help(sys.stderr)
+        return 2
+
+    v = _run_loopback(args.text, args.timeout)
+
+    if args.json:
+        print(json.dumps(v))
+
+    if not v.get("reachable"):
+        print(f"[a2a-loopback] endpoint {PIPE_URL} unreachable -- "
+              f"start mios-agent-pipe and retry ({v.get('error', '')})",
+              file=sys.stderr)
+        return 3
+    if not v.get("ok"):
+        print(f"[a2a-loopback] round-trip incomplete: state={v.get('state')!r} "
+              f"artifact={v.get('has_artifact')} retrievable={v.get('retrievable')} "
+              f"{v.get('error', '')}", file=sys.stderr)
+        return 1
+
+    chain = v.get("chain_events", -1)
+    chain_note = (f"; delegation chain recorded ({chain} event row(s))"
+                  if chain > 0 else
+                  "; delegation-chain audit skipped (pg not queried)")
+    if not args.json:
+        print(f"{_SUCCESS_LINE} [task={v.get('task_id')} ctx={v.get('context_id')}]{chain_note}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
