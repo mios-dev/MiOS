@@ -1543,7 +1543,11 @@ _AUTH_GATED_PREFIXES = ("/v1/", "/a2a")
 _AUTH_OPEN_PATHS = frozenset({
     "/v1/models", "/.well-known/agent-card.json", "/.well-known/agent.json",
     "/.well-known/agent-passport.json", "/a2a/card", "/health",
-    "/v1/cluster/health"})
+    "/v1/cluster/health",
+    # DATA-01 (T-059): the agent directory is a DISCOVERY surface -- a peer
+    # queries it to learn the roster, exactly like /v1/models + the well-known
+    # AgentCard, so it stays open even when [security].require_auth gates /v1/*.
+    "/v1/agents"})
 _CALLER_KEYS_CACHE: dict = {"mtime": -1.0, "keys": {}}
 
 
@@ -6349,6 +6353,57 @@ sys.modules["mios_a2a"].configure(
 # top-level include with a from-imported router name is what the whole-package
 # surface gate composes back cross-file (project_package), so the move is parity-clean.
 app.include_router(a2a_router)
+
+
+@app.get("/v1/agents")
+async def v1_agents_directory(request: Request) -> JSONResponse:
+    """A2A-discoverable agent directory (roadmap DATA-01 / T-059).
+
+    Returns the roster of every registered ``[agents.*]`` entry as an
+    ``(author, name, version)`` tuple plus its A2A card link, so a discovering
+    peer QUERIES this endpoint instead of reading a static file. Reuses the
+    A2A AgentCard as the SSOT: ``author`` = the card provider organization,
+    node ``version`` = the card version, and each entry links back to the
+    node's well-known AgentCard -- a REMOTE peer (kind in
+    remote-http/a2a/edge/node/mobile) advertises its OWN card + a2a base,
+    while a local sub-agent is a skill of THIS node's single card. Open
+    discovery surface (see _AUTH_OPEN_PATHS). Degrade-open: an unreadable
+    registry or card yields an empty roster, never a 500.
+    """
+    try:
+        _card = _build_agent_card()
+    except Exception:  # noqa: BLE001 -- discovery must never 500 on a card slip
+        _card = {}
+    _prov = (_card.get("provider") or {}) if isinstance(_card, dict) else {}
+    author = _prov.get("organization") or os.environ.get(
+        "MIOS_A2A_AGENT_NAME", "MiOS")
+    node_version = (_card.get("version") if isinstance(_card, dict) else None) \
+        or app.version
+    base = str(request.base_url).rstrip("/")
+    node_card = f"{base}/.well-known/agent-card.json"
+    _remote_kinds = ("remote-http", "a2a", "edge", "node", "mobile")
+    roster: list[dict] = []
+    for name, cfg in (_AGENT_REGISTRY or {}).items():
+        cfg = cfg if isinstance(cfg, dict) else {}
+        ep = str(cfg.get("endpoint", "")).rstrip("/")
+        is_remote = str(cfg.get("kind", "")).lower() in _remote_kinds and bool(ep)
+        roster.append({
+            "author": author,
+            "name": name,
+            "version": node_version,
+            "role": str(cfg.get("role", "general")),
+            "kind": str(cfg.get("kind", "")),
+            "card": f"{ep}/.well-known/agent-card.json" if is_remote else node_card,
+            "a2a": f"{ep}/a2a" if is_remote else f"{base}/a2a",
+        })
+    return JSONResponse({
+        "object": "list",
+        "provider": {"organization": author},
+        "version": node_version,
+        "count": len(roster),
+        "card": node_card,
+        "data": sorted(roster, key=lambda a: a["name"]),
+    })
 
 
 # GET /.well-known/agent-card.json (a2a_agent_card) + GET /.well-known/agent.json
