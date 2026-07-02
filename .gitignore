@@ -27,6 +27,8 @@
 !/.env.mios
 !/.github/
 !/.github/**
+!/images/
+!/images/**
 # Forgejo Actions workflows (consumed by mios-forgejo-runner Quadlet
 # inside the closed self-replication loop). Forgejo Runner accepts
 # both .forgejo/workflows/ and .github/workflows/; the .forgejo/ path

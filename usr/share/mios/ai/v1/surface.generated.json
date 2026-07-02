@@ -641,6 +641,7 @@
     "_RESIDENT_CACHE",
     "_ROLE_SYSTEM_DIR",
     "_ROUTER_SYSTEM",
+    "_ROUTE_ON_CARD_SKILLS",
     "_ROUTING_DOMAINS",
     "_ROUTING_ENABLE",
     "_SANDBOX_SELF_CONFINED",
@@ -1384,6 +1385,6 @@
   ],
   "counts": {
     "routes": 82,
-    "provided": 1297
+    "provided": 1298
   }
 }

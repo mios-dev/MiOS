@@ -262,13 +262,13 @@
       "tier": "core"
     },
     {
-      "description": "Edit text files on disk. op='create' (write new file), 'replace' (replace matching text), 'insert' (insert text at top/bottom).",
+      "description": "Edit text files on disk. op='create' (write new file), 'replace' (replace matching text), 'insert' (insert text at line N, default prepend).",
       "hidden": false,
       "model_name": "",
       "name": "file_edit",
       "permission": "write",
       "section": "File edits",
-      "sig": "op, path, content?, find?, replace?",
+      "sig": "op, path, content?, find?, replace?, line?",
       "tier": "core"
     },
     {
@@ -523,7 +523,7 @@
       "tier": "rare"
     },
     {
-      "description": "Move an OPEN Windows window to a SEMANTIC region: center / left / right / top-left / top-right / etc., optionally on a chosen monitor. Use when the operator names a place ('to the left', 'center it') rather than exact coordinates. For literal pixel (x,y) use place_window_at_pixel; to change size use resize_window.",
+      "description": "Move an OPEN Windows window to a SEMANTIC region: center, a half of the screen (left-half / right-half / top-half / bottom-half), a corner (top-left / ...), or maximize -- optionally on a chosen monitor. Half/corner rectangles are derived live from the monitor's work area. Use when the operator names a place ('to the left half', 'center it', 'snap it right') rather than exact coordinates. For literal pixel (x,y) use place_window_at_pixel; to change size use resize_window.",
       "hidden": true,
       "model_name": "move_window_to_region",
       "name": "move_window",
@@ -735,13 +735,13 @@
       "tier": "rare"
     },
     {
-      "description": "Execute Python code. mode='sandbox' (safe isolated run) or 'orchestrate' (run a script that imports mios_tools to coordinate agentic sub-actions).",
+      "description": "Execute code. mode='sandbox' (safe isolated run) or 'orchestrate' (run a script that imports mios_tools to coordinate agentic sub-actions). language defaults to python; set 'bash' for shell.",
       "hidden": false,
       "model_name": "",
       "name": "run_code",
       "permission": "write",
       "section": "Code / shell",
-      "sig": "mode, code",
+      "sig": "mode, code, language?",
       "tier": "core"
     },
     {

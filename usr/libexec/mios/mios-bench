@@ -30,7 +30,13 @@ import os
 import sys
 import time
 
-sys.path.insert(0, "/usr/lib/mios/agent-pipe")
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_REL = os.path.abspath(os.path.join(_HERE, "..", "..", "lib", "mios", "agent-pipe"))
+if os.path.isdir(_REL):
+    sys.path.insert(0, _REL)
+else:
+    sys.path.insert(0, "/usr/lib/mios/agent-pipe")
+
 try:
     import mios_bench as mb
 except Exception as e:  # noqa: BLE001 -- module must ship alongside the agent-pipe

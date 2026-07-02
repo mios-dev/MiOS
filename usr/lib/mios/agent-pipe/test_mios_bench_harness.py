@@ -42,6 +42,10 @@ def test_offline_score_table():
         )
         out, err = p.communicate()
         
+        if p.returncode != 0:
+            print(f"DEBUG score exit code: {p.returncode}")
+            print(f"DEBUG score stdout: {out.decode('utf-8')}")
+            print(f"DEBUG score stderr: {err.decode('utf-8')}")
         check("score command exit code is 0", p.returncode == 0)
         output_str = out.decode("utf-8")
         
