@@ -44,6 +44,11 @@
 #     usr/share/mios/ai/{INDEX.md,audit-prompt.md}
 #   - GitHub-convention files (README, LICENSE, CONTRIBUTING, SECURITY,
 #     AGREEMENTS) and agent-tool discovery redirectors stay at root.
+# Operator directive: ROADMAP.md + TASKS.md are tracked at the repo root (and
+# copied into the deployed / so they're retrievable from the code-server
+# workspace at /mnt/mios-root).
+!/ROADMAP.md
+!/TASKS.md
 !/AGENTS.md
 !/AGREEMENTS.md
 !/CLAUDE.md
