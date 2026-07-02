@@ -352,6 +352,10 @@ _span_id_var: "contextvars.ContextVar" = contextvars.ContextVar("mios_span_id", 
 
 # OpenTelemetry GenAI Spans (T-023)
 _otel_toml = _toml_section("observability") or {}
+_DEBUG_ENABLE = (
+    str(os.environ.get("MIOS_DEBUG_ENABLE") or _otel_toml.get("debug", "true"))
+    .strip().lower() not in {"false", "0", "no", "off", ""}
+)
 _OTEL_ENABLE = (
     str(os.environ.get("MIOS_OTEL_ENABLE") or _otel_toml.get("otel_enable", "false"))
     .strip().lower() not in {"false", "0", "no", "off", ""}
@@ -823,10 +827,12 @@ _WEB_ENRICH_VERBS = {"web_search", "web_extract", "crawl"}
 # calls across the fan-out; the per-lane semaphore is the concurrency cap.
 SECONDARY_TOOL_LOOP = os.environ.get(
     "MIOS_SECONDARY_TOOL_LOOP", "true").lower() not in {"false", "0", "no"}
-# 2 -> 3 ("not enough loops"): each fan-out secondary now
-# gets one more search->read->refine cycle in its own /v1 tool loop before it
-# answers, so a council member doesn't stop after a single shallow search.
-SECONDARY_TOOL_MAX_ITERS = int(os.environ.get("MIOS_SECONDARY_TOOL_ITERS", "3"))
+# Per-secondary tool-loop budget: how many search->read->refine cycles each
+# fan-out council member may run in its own /v1 tool loop before it must answer,
+# so a member doesn't stop after a single shallow search but also can't loop
+# unbounded. Generous by default for deep multi-step turns; override via
+# MIOS_SECONDARY_TOOL_ITERS to trade thoroughness against per-node cost.
+SECONDARY_TOOL_MAX_ITERS = int(os.environ.get("MIOS_SECONDARY_TOOL_ITERS", "15"))
 # Forced-call chokepoint (universal-loop item #1 slice 3,):
 # when refine hints a state-changing (non-read) verb, set tool_choice=required so
 # the executor MUST emit a real tool_call instead of NARRATING the action (the
@@ -1752,6 +1758,7 @@ async def lifespan(app):
     # than restarting the chain at seq=1 and colliding with existing rows.
     if AUDIT_CHAIN_ENABLE:
         await mios_audit.seed_from_db(_mios_pg.execute)
+        await mios_audit.seed_session_from_db(_mios_pg.execute)
 
     # WS-A4 KV slot-file GC loop. Only when a LOCAL slots dir is configured (else
     # the tmpfiles age-out is the sole, sufficient backstop -> zero overhead).
@@ -2216,6 +2223,8 @@ def _db_create(table: str, fields: dict, *,
         # miss) so event logging never fails. The chain columns are added BEFORE the
         # CREATE string and the pgvector mirror are built, so they ride BOTH sinks.
         fields = mios_audit.stamp(fields)
+    elif table == "session":
+        fields = mios_audit.stamp_session(fields)
     if passport_sign:
         # Snapshot the fields the verifier will see (the time::now()
         # values get the literal sentinel because that's what the
@@ -3298,7 +3307,7 @@ from mios_secondary_loop import _ollama_secondary_tool_loop  # noqa: E402
 # failed step (or report honestly), BOUNDED so it can never loop forever. The verdict is
 # the broker's own result (success=False / read-back marker), NOT a hardcoded rule, so it
 # generalises across ALL verbs/facets and all agents that share this loop.
-SECONDARY_REPLAN_MAX = int(os.environ.get("MIOS_SECONDARY_REPLAN_MAX", "1") or 1)
+SECONDARY_REPLAN_MAX = int(os.environ.get("MIOS_SECONDARY_REPLAN_MAX", "5") or 5)
 # Multi-facet DAG closed loop (operator "loop anything not fully fulfilled" ACROSS the
 # fan-out): how many times to RE-DISPATCH the DAG when a facet's verdict is UNFULFILLED
 # (satisfied is False). Bounded; 0 disables. The re-run is adopt-ONLY-if-strictly-better
@@ -4681,7 +4690,7 @@ async def _read_tool_enrich(refined: Optional[dict],
             _core = ["list_windows", "process_list", "container_status",
                      "system_status"]
         elif _scope == "inventory":
-            _core = ["mios_apps", "system_status"]
+            _core = ["mios_apps"]
         else:
             _core = ["system_status", "mios_apps", "process_list",
                      "container_status", "list_windows"]
@@ -6122,6 +6131,9 @@ from mios_sse import (  # noqa: E402
 from mios_turn import (  # noqa: E402
     _extract_last_user_text, _pick_agent, _casual_agent_label, _live_agent_names,
     _split_think_tags, _strip_think_tags,
+)
+sys.modules["mios_sse"].configure(
+    debug_enable=_DEBUG_ENABLE
 )
 sys.modules["mios_turn"].configure(
     _AGENT_REGISTRY=_AGENT_REGISTRY,
@@ -8297,6 +8309,7 @@ sys.modules["mios_native_loop"].configure(
     _iter_answer_chunks=_iter_answer_chunks,
     _write_skill_md_fire=_write_skill_md_fire,
     _worker_tools_core_cache=(lambda: _WORKER_TOOLS_CORE_CACHE),
+    _DEBUG_ENABLE=_DEBUG_ENABLE,
 )
 
 
@@ -8564,6 +8577,7 @@ sys.modules["mios_chat"].configure(
     _worker_tools_surface_async=_worker_tools_surface_async,
     _write_skill_md_fire=_write_skill_md_fire,
     classify_intent=classify_intent,
+    _DEBUG_ENABLE=_DEBUG_ENABLE,
 )
 # Surface-parity re-import: the W0-T3 aggregate-budget admission cluster now lives
 # in mios_chat (its sole consumer is the chat-completions handler). Re-imported

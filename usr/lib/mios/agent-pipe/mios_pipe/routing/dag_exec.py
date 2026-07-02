@@ -1364,17 +1364,17 @@ async def _execute_dag_emitting(dag: dict, *, session_id: Optional[str],
                 # now, ONCE -- the `_sec_hdr` guard skips nodes that already streamed
                 # live via "SF" fragments, so there is NO duplication either way.
                 if name not in _sec_hdr:
-                    _nout = (str(res.get("output") or "").strip()
-                             if isinstance(res, dict) else "")
-                    if not _nout:                       # stream-only node: fall back
-                        _nout = (_sec_bufs.get(name) or "").strip()  # to its tokens
+                    _nout = (_sec_bufs.get(name) or "").strip()
+                    if not _nout:
+                        _nout = (str(res.get("output") or "").strip()
+                                 if isinstance(res, dict) else "")
                     if _nout:
                         _sec_hdr.add(name)
                         if name not in _func_by_name:
                             _func_by_name[name] = (_node_context(node)
                                                    or str((cfg or {}).get("role") or ""))
                         yield ("event", _sse_reasoning(
-                            _sanitize_tool_text(f"\n\n🤝 {_disp(name)}: {_nout}\n"),
+                            _sanitize_tool_text(f"\n\n🤝 {_disp(name)}:\n{_nout}\n"),
                             chat_id=chat_id, model=model))
                 # Carry the sub-job into the FINISH emit too (
                 # "per-node sub-job in emits") so ✅/💤 still names WHAT the node

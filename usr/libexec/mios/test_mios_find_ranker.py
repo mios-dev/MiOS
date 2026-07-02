@@ -196,5 +196,26 @@ class FuzzyBoundsFromSSOT(unittest.TestCase):
         self.assertIsNone(winner)
 
 
+class MultiTokenFuzzyMatching(unittest.TestCase):
+    ENTRIES = [
+        {"name": "mios-svc-forge", "category": "linux-flatpak", "launch": "FORGE"},
+    ]
+
+    def test_multi_token_query_requires_all_tokens_to_match(self):
+        # "forza horizon" contains two tokens >=4 chars: "forza" and "horizon".
+        # "forza" matches "forge" (edit dist 2), but "horizon" matches nothing.
+        # It must NOT match because not all query tokens have a match.
+        winner, code, _ = run_ranker("forza horizon", self.ENTRIES, _NO_RANKER_CFG)
+        self.assertEqual(code, 1)
+        self.assertIsNone(winner)
+
+    def test_multi_token_typo_matches_when_all_tokens_match(self):
+        # "wallpapr engine" contains "wallpapr" (matches "wallpaper" dist 1) and
+        # "engine" (matches "engine" dist 0). Both match, so it must succeed.
+        entries = [{"name": "wallpaper engine", "category": "windows-app", "launch": "WP"}]
+        winner, code, _ = run_ranker("wallpapr engine", entries, _NO_RANKER_CFG)
+        self.assertEqual(code, 0)
+        self.assertEqual(winner, "WP")
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

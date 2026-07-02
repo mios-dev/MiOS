@@ -139,9 +139,11 @@ NATIVE_LOOP_STREAM_TOKENS = True
 NATIVE_LOOP_STREAM_CHUNK = 0
 NATIVE_LOOP_STREAM_DELAY_MS = 0
 _ROUTING_DOMAINS = {}
+_DEBUG_ENABLE = False
 
 
 _INJECTED = frozenset((
+    "_DEBUG_ENABLE",
     "dispatch_mios_verb", "_usage_estimate", "_identity_answer", "_agent_contract",
     "_capability_grounding", "_env_grounding", "_recall_agent_memory", "_recall_knowledge",
     "_rag_enrich", "_tool_pref_block", "_current_date_str", "_worker_tools_surface_async",
@@ -182,6 +184,7 @@ async def _respond_native_loop_direct(
     refined: Optional[dict], *, streaming: bool, chat_id: str, model: str,
     session_id: Optional[str], last_user_text: str, persona_system: str,
     messages: list, request=None, emit=None, tool_choice=None,
+    force_delegate=None, target_agents=None, **kwargs
 ) -> Any:
     """Native agentic tool-loop: mios-heavy + the full MiOS tool surface, one
     standard call->tool_calls->execute->repeat loop, then polish. The model routes
@@ -601,7 +604,10 @@ async def _respond_native_loop_direct(
         # status fragments (tool names, glyphs, rescue/nudge markers) as the loop
         # runs -- surface them as reasoning_content so the think dropdown shows the
         # agent working LIVE. No emit (non-streaming, no pump) -> the old no-op.
-        _push = (lambda s: emit({"reasoning": str(s)})) if emit else (lambda s: None)
+        if _DEBUG_ENABLE:
+            _push = (lambda s: emit({"content": str(s)})) if emit else (lambda s: None)
+        else:
+            _push = (lambda s: emit({"reasoning": str(s)})) if emit else (lambda s: None)
         # Research turns (refine flagged web/news): a small local model often ANSWERS
         # FROM MEMORY instead of calling web_search -> fabricated "trending news"
         #, and the light lane REJECTS tool_choice forcing so we
@@ -1092,9 +1098,12 @@ async def _respond_local_state(
         return None
     if emit:
         try:
-            emit({"reasoning": grounding[:6000]})
+            if _DEBUG_ENABLE:
+                emit({"content": grounding[:6000]})
+            else:
+                emit({"reasoning": grounding[:6000]})
         except Exception:  # noqa: BLE001
-            log.warning("Failed to emit reasoning", exc_info=True)
+            log.warning("Failed to emit reasoning/content", exc_info=True)
     _emit("✍️", "writing the answer")
     answer = await _format_local_state(last_user_text, grounding, persona_system)
     if not answer:

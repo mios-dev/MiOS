@@ -26,6 +26,7 @@ the flag-gating; this is the deterministic, unit-testable policy.
 """
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import logging

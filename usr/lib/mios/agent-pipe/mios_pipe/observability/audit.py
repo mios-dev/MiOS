@@ -97,6 +97,9 @@ CORE_FIELDS = ("source", "kind", "severity", "summary", "payload")
 # Columns the verify read pulls back (content + chain), ordered by chain_seq.
 _VERIFY_COLS = ("chain_seq", "prev_hash", "chain_hash") + CORE_FIELDS
 
+SESSION_CORE_FIELDS = ("id", "kind", "owui_chat_id", "meta")
+_SESSION_VERIFY_COLS = ("chain_seq", "prev_hash", "chain_hash") + SESSION_CORE_FIELDS
+
 
 # ── pure chain primitives (stdlib only; reused by server, CLI and tests) ──────
 def canonical_core(row: dict) -> str:
@@ -124,6 +127,19 @@ def canonical_core(row: dict) -> str:
             core["payload"] = json.loads(pl)
         except (ValueError, TypeError):
             pass  # genuine free-text (non-JSON) payload -> hash the string as-is
+    return json.dumps(core, sort_keys=True, ensure_ascii=False,
+                      separators=(",", ":"), default=str)
+
+
+def canonical_core_session(row: dict) -> str:
+    core = {k: row[k] for k in SESSION_CORE_FIELDS
+            if isinstance(row, dict) and row.get(k) is not None}
+    meta = core.get("meta")
+    if isinstance(meta, str):
+        try:
+            core["meta"] = json.loads(meta)
+        except (ValueError, TypeError):
+            pass
     return json.dumps(core, sort_keys=True, ensure_ascii=False,
                       separators=(",", ":"), default=str)
 
@@ -197,14 +213,7 @@ def stamp(fields: dict) -> dict:
 
 
 def verify_chain(rows: Iterable[dict]) -> dict:
-    """Walk events in chain_seq order, recomputing each link from its predecessor.
-
-    ``rows`` MUST already be ordered by ``chain_seq`` (the reader SELECTs ORDER BY
-    chain_seq). Returns ``{ok, checked, first_broken_seq}``. A link is broken when the
-    stored ``chain_hash`` does not equal ``sha256(prev || canonical_core(row))`` OR the
-    stored ``prev_hash`` does not point at the predecessor's hash -- i.e. an inserted,
-    deleted, reordered, or content-edited row. ``first_broken_seq`` is the chain_seq of
-    the first failing row (``None`` when the whole chain verifies)."""
+    """Walk events in chain_seq order, recomputing each link from its predecessor."""
     prev = GENESIS
     checked = 0
     for r in rows:
@@ -225,13 +234,80 @@ def verify_chain(rows: Iterable[dict]) -> dict:
     return {"ok": True, "checked": checked, "first_broken_seq": None}
 
 
+class SessionChainer:
+    """In-memory chain head for the session table."""
+
+    def __init__(self) -> None:
+        self._prev: Optional[str] = None
+        self._seq: int = 0
+        self._seeded: bool = False
+
+    @property
+    def seeded(self) -> bool:
+        return self._seeded
+
+    def seed(self, seq, prev) -> None:
+        try:
+            self._seq = int(seq or 0)
+        except (TypeError, ValueError):
+            self._seq = 0
+        self._prev = prev or GENESIS
+        self._seeded = True
+
+    def stamp(self, fields: dict) -> dict:
+        if not CHAIN_ENABLE or not isinstance(fields, dict):
+            return fields
+        if "chain_hash" in fields:
+            return fields
+        if not self._seeded:
+            return fields
+        try:
+            prev = self._prev if self._prev is not None else GENESIS
+            chash = link_hash(prev, canonical_core_session(fields))
+            seq = self._seq + 1
+            out = dict(fields)
+            out["chain_seq"] = seq
+            out["prev_hash"] = prev
+            out["chain_hash"] = chash
+            self._prev = chash
+            self._seq = seq
+            return out
+        except Exception:
+            log.warning("session chain stamp failed (degrade-open)", exc_info=True)
+            return fields
+
+
+_SESSION_CHAINER = SessionChainer()
+
+
+def stamp_session(fields: dict) -> dict:
+    return _SESSION_CHAINER.stamp(fields)
+
+
+def verify_session_chain(rows: Iterable[dict]) -> dict:
+    """Walk session rows in chain_seq order, recomputing each link from its predecessor."""
+    prev = GENESIS
+    checked = 0
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        expect = link_hash(prev, canonical_core_session(r))
+        stored = r.get("chain_hash")
+        stored_prev = r.get("prev_hash")
+        if stored != expect or (stored_prev is not None and stored_prev != prev):
+            seq = r.get("chain_seq")
+            try:
+                broken = int(seq) if seq is not None else None
+            except (TypeError, ValueError):
+                broken = None
+            return {"ok": False, "checked": checked, "first_broken_seq": broken}
+        prev = stored
+        checked += 1
+    return {"ok": True, "checked": checked, "first_broken_seq": None}
+
+
 # ── startup seed + endpoint read (async; pg access injected) ──────────────────
 async def seed_from_db(pg_execute=None) -> None:
-    """Warm the in-memory chain head from the persisted ``max(chain_seq)`` ONCE at
-    startup, so the hot path never does a SELECT-max per insert. Best-effort: on a DB
-    miss (rows is None) the chainer stays UNSEEDED -- ``stamp`` then degrades to
-    unchained rather than restarting at seq=1 and colliding with existing rows. An
-    empty table seeds genesis (chain starts active)."""
     if not CHAIN_ENABLE:
         return
     ex = pg_execute or _pg_execute
@@ -242,22 +318,44 @@ async def seed_from_db(pg_execute=None) -> None:
             "SELECT chain_seq, chain_hash FROM event "
             "WHERE chain_hash IS NOT NULL ORDER BY chain_seq DESC LIMIT 1",
             fetch=True)
-    except Exception:  # noqa: BLE001 -- degrade-open: chain stays off this session
+    except Exception:  # noqa: BLE001
         log.warning("event chain seed query failed (chain stays off until restart)",
                     exc_info=True)
         return
-    if rows is None:                 # DB down/absent -> stay unseeded (no dup-seq restart)
+    if rows is None:
         return
     if rows:
         head = rows[0] or {}
         _CHAINER.seed(head.get("chain_seq") or 0, head.get("chain_hash") or GENESIS)
     else:
-        _CHAINER.seed(0, GENESIS)    # fresh table -> genesis, chain active
+        _CHAINER.seed(0, GENESIS)
+
+
+async def seed_session_from_db(pg_execute=None) -> None:
+    if not CHAIN_ENABLE:
+        return
+    ex = pg_execute or _pg_execute
+    if ex is None:
+        return
+    try:
+        rows = await ex(
+            "SELECT chain_seq, chain_hash FROM session "
+            "WHERE chain_hash IS NOT NULL ORDER BY chain_seq DESC LIMIT 1",
+            fetch=True)
+    except Exception:  # noqa: BLE001
+        log.warning("session chain seed query failed (chain stays off until restart)",
+                    exc_info=True)
+        return
+    if rows is None:
+        return
+    if rows:
+        head = rows[0] or {}
+        _SESSION_CHAINER.seed(head.get("chain_seq") or 0, head.get("chain_hash") or GENESIS)
+    else:
+        _SESSION_CHAINER.seed(0, GENESIS)
 
 
 async def _read_chain_rows(pg_execute=None) -> Optional[list]:
-    """Read all chained event rows in chain_seq order for verification. Degrade-open
-    -> None on any error (the endpoint then reports an empty, trivially-OK chain)."""
     ex = pg_execute or _pg_execute
     if ex is None:
         return None
@@ -266,26 +364,36 @@ async def _read_chain_rows(pg_execute=None) -> Optional[list]:
             "SELECT " + ", ".join(_VERIFY_COLS) + " FROM event "
             "WHERE chain_hash IS NOT NULL ORDER BY chain_seq",
             fetch=True)
-    except Exception:  # noqa: BLE001 -- degrade-open
-        log.warning("event chain verify read failed (degrade-open)", exc_info=True)
+    except Exception:  # noqa: BLE001
         return None
 
 
-async def chain_verify_logic(pg_execute=None):
-    """Verify the persisted event chain end-to-end. Reads every chained row via the
-    injected pg access path, walks it with :func:`verify_chain`, and returns the
-    JSON verdict ``{ok, checked, first_broken_seq, enabled}``."""
-    rows = await _read_chain_rows(pg_execute)
-    res = verify_chain(rows or [])
-    return JSONResponse({"object": "mios.audit.chain", "enabled": bool(CHAIN_ENABLE),
+async def _read_session_chain_rows(pg_execute=None) -> Optional[list]:
+    ex = pg_execute or _pg_execute
+    if ex is None:
+        return None
+    try:
+        return await ex(
+            "SELECT " + ", ".join(_SESSION_VERIFY_COLS) + " FROM session "
+            "WHERE chain_hash IS NOT NULL ORDER BY chain_seq",
+            fetch=True)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+async def chain_verify_logic(table: str = "event", pg_execute=None):
+    if table == "session":
+        rows = await _read_session_chain_rows(pg_execute)
+        res = verify_session_chain(rows or [])
+    else:
+        rows = await _read_chain_rows(pg_execute)
+        res = verify_chain(rows or [])
+    return JSONResponse({"object": f"mios.audit.{table}.chain", "enabled": bool(CHAIN_ENABLE),
                          **res})
 
 
 # ── DI seam (server injects the pg reader + the SSOT enable flag) ─────────────
 def configure(*, chain_enable=None, pg_execute=None) -> None:
-    """Inject server.py's ``[audit].chain_enable`` SSOT flag + the mios_pg async
-    execute callable the seed/verify reads use (one-way boundary: this module never
-    imports server)."""
     global CHAIN_ENABLE, _pg_execute
     if chain_enable is not None:
         CHAIN_ENABLE = chain_enable
@@ -294,15 +402,9 @@ def configure(*, chain_enable=None, pg_execute=None) -> None:
 
 
 # ── admin route (co-located router; mounted once via app.include_router) ───────
-# Gated like every other /v1/* admin route by server's _inbound_auth_mw (credential
-# required when [security].api_require_auth is on) -- mounting under /v1/audit puts it
-# behind the SAME gate; no per-route auth code is restated here.
 audit_router = APIRouter()
 
 
 @audit_router.get("/v1/audit/chain/verify")
-async def chain_verify():
-    """SEC-03: walk the event hash chain and report integrity. Returns
-    ``{ok, checked, first_broken_seq, enabled}`` -- ``first_broken_seq`` names the
-    first tampered (inserted/deleted/reordered/edited) event, or is null when clean."""
-    return await chain_verify_logic()
+async def chain_verify(table: str = "event"):
+    return await chain_verify_logic(table=table)

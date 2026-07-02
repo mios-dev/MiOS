@@ -8,6 +8,13 @@ import json
 import subprocess
 import time
 
+# Resolve the mios-bench CLI relative to this test's location so the suite runs
+# unchanged on the built image (/usr/...), a WSL checkout, or a Windows checkout
+# -- no dev-host absolute path (Law 7: no SSOT-restated install-path literals).
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_REPO = os.path.abspath(os.path.join(_HERE, "..", "..", "..", ".."))
+MIOS_BENCH = os.path.join(_REPO, "usr", "libexec", "mios", "mios-bench")
+
 _fails = 0
 
 def check(name, cond, detail=""):
@@ -30,7 +37,7 @@ def test_offline_score_table():
     try:
         # Run mios-bench score in a subprocess
         p = subprocess.Popen(
-            ["/mnt/c/MiOS/usr/libexec/mios/mios-bench", "score", tmp_path, "--k", "2"],
+            [MIOS_BENCH, "score", tmp_path, "--k", "2"],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
         out, err = p.communicate()
@@ -79,7 +86,7 @@ def test_run_command_suite_routing():
     try:
         # Run run command
         p = subprocess.Popen(
-            ["/mnt/c/MiOS/usr/libexec/mios/mios-bench", "run", tmp_suite, "--endpoint", "http://127.0.0.1:8699/v1", "--k", "1"],
+            [MIOS_BENCH, "run", tmp_suite, "--endpoint", "http://127.0.0.1:8699/v1", "--k", "1"],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
         out, err = p.communicate()

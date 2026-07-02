@@ -782,6 +782,64 @@ async def dispatch_mios_verb(
     tool: str, args: dict, *,
     session_id: Optional[str] = None,
 ) -> dict:
+    try:
+        from mios_pipe.routing.chat import _replay_active, _replay_tool_queue, _record_active, _in_exec_tool_calls, _conv_key_var
+        in_exec = _in_exec_tool_calls.get() if (_in_exec_tool_calls is not None and hasattr(_in_exec_tool_calls, "get")) else False
+    except ImportError:
+        in_exec = False
+        _replay_active = None
+        _record_active = None
+        _conv_key_var = None
+
+    tool_resolved = _resolve_verb_key(str(tool))
+
+    if not in_exec and _replay_active is not None and _replay_active.get():
+        q = _replay_tool_queue.get()
+        if q:
+            row = q.pop(0)
+            meta = row.get("meta") or {}
+            out = meta.get("output") or ""
+            success = bool(meta.get("success", True))
+            log.info("Replayed tool call (direct dispatch): %s -> %s", tool_resolved, str(out)[:200])
+            return {"success": success, "output": out}
+        else:
+            log.warning("No recorded tool response in queue for direct dispatch: %s", tool_resolved)
+            return {"success": False, "output": f"(error: no recorded tool response found in replay log for {tool_resolved})"}
+
+    res = await _dispatch_mios_verb_live(tool, args, session_id=session_id)
+
+    if not in_exec and _record_active is not None and _record_active.get():
+        try:
+            sess_id = session_id or (_conv_key_var.get() if (_conv_key_var is not None and hasattr(_conv_key_var, "get")) else "default")
+            import uuid
+            out_content = res.get("output") or res.get("result") or ""
+            success = bool(res.get("success", True))
+            
+            row = {
+                "id": f"session:tool:{uuid.uuid4().hex[:24]}",
+                "kind": "tool_io",
+                "owui_chat_id": sess_id,
+                "meta": {
+                    "tool": tool_resolved,
+                    "args": args if isinstance(args, dict) else {},
+                    "output": str(out_content),
+                    "success": success
+                }
+            }
+            if _db_create is not None:
+                sql = _db_create("session", row, now_fields=("ts",), passport_sign=False)
+                if _db_fire is not None and _db_post is not None:
+                    _db_fire(_db_post(sql))
+            log.info("Recorded tool call (direct dispatch) in session: %s", tool_resolved)
+        except Exception as e:
+            log.warning("Failed to record tool call (direct dispatch) in session: %s", e)
+
+    return res
+
+async def _dispatch_mios_verb_live(
+    tool: str, args: dict, *,
+    session_id: Optional[str] = None,
+) -> dict:
     """Public dispatch entry point, wrapping the bulkhead with a conversation-
     scoped concurrent SINGLE-FLIGHT guard (anti-swarm-duplication; see
     _dispatch_inflight). Concurrent identical (verb, resolved-args) dispatches

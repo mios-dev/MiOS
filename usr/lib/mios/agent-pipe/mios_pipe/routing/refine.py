@@ -12,10 +12,11 @@ behind via :func:`configure` and re-imports the names verbatim.
 
 import asyncio
 import json
+import inspect
 import os
 import re
 import time
-from typing import Optional
+from typing import Optional, Callable, Any
 
 import httpx
 
@@ -380,6 +381,12 @@ def _build_refine_system() -> str:
     "If the right value can't be known without first running other\n"
     "tools, pick intent=dag with the lookup as step 0 and the\n"
     "dispatch as a downstream node using #E0 substitution.\n"
+    "\n"
+    "Strict version grounding rule: Do NOT guess, assume, or append specific version numbers,\n"
+    "release versions, or hardware specifications (e.g. '4', '5', '6', '2026') unless they\n"
+    "are explicitly requested by the user or present in the chat history/context. Keep generic brand\n"
+    "or product names (e.g. 'forza horizon' or 'photoshop') EXACTLY as requested in the refined query\n"
+    "so that downstream search/resolver tools can check the actual installed system inventory.\n"
     )
 
 
@@ -411,6 +418,11 @@ _REFINE_SYSTEM_LITE = (
     "    search engine would mis-match to a brand / product / unrelated term\n"
     "    (e.g. a bare 'current' or 'trending' that hits an app or a\n"
     "    dictionary). This is the string the web search actually runs.\n"
+    "    Do NOT guess, assume, or append specific version numbers, release\n"
+    "    versions, or hardware specifications (e.g. '4', '5', '6', '2026') unless\n"
+    "    explicitly requested or present in the context. Keep generic brand or\n"
+    "    product names (e.g. 'forza horizon' or 'photoshop') EXACTLY as requested\n"
+    "    so downstream resolver/search tools can match local system inventory.\n"
     '  "news": recency-anchored / current-events / "latest" asks (a NEWS index\n'
     "    beats a general web search).\n"
     '  "web": ANY external-knowledge gap -- a fact about the outside world you are\n'
@@ -633,7 +645,8 @@ def _salvage_refine_dispatch(content: str) -> dict | None:
 
 
 async def refine_intent(user_text: str,
-                        history: list = None) -> Optional[dict]:
+                        history: list = None,
+                        on_token: Optional[Callable[[str, bool], Any]] = None) -> Optional[dict]:
     """Quick-refine pass. Returns the parsed plan dict or None on
     bypass / error (caller falls through to the legacy router path).
 
@@ -718,16 +731,20 @@ async def refine_intent(user_text: str,
     # parse failure still degrades to the lenient path below (fail-open).
     _refine_structured = os.environ.get(
         "MIOS_REFINE_STRUCTURED", "true").strip().lower() not in {"0", "false", "no", "off"}
-    # /no_think only matters when NOT structured -- enable_thinking=False is the
-    # structured equivalent and is what makes the grammar actually attach.
-    msgs.append({"role": "user",
-                 "content": user_text[-1500:] + ("" if _refine_structured else " /no_think")})
+    if on_token:
+        _refine_structured = False
+    
+    _u_content = user_text[-1500:]
+    if not _refine_structured and not on_token:
+        _u_content += " /no_think"
+    msgs.append({"role": "user", "content": _u_content})
+    
     payload = {
         "model": REFINE_MODEL,
         "messages": msgs,
         "temperature": 0.0,
         "max_tokens": REFINE_MAX_TOKENS,
-        "stream": False,
+        "stream": bool(on_token),
     }
     if _refine_structured:
         _rv = sorted(_VERB_CATALOG.keys())
@@ -779,17 +796,99 @@ async def refine_intent(user_text: str,
     # refine miss. The retry runs warm (the failed attempt left the model
     # resident) so a clear OS-action routes to dispatch consistently for EVERY
     # app. Model-decides, no hardcoded verb/app list. Tunable MIOS_REFINE_ATTEMPTS.
+    async def _call_on_token(token_val: str, is_re: bool):
+        if on_token:
+            try:
+                if inspect.iscoroutinefunction(on_token):
+                    await on_token(token_val, is_re)
+                else:
+                    on_token(token_val, is_re)
+            except Exception as _cb_err:
+                log.warning("Error in on_token: %s", _cb_err)
+
     body = None
     for _attempt in range(REFINE_ATTEMPTS):
         try:
-            async with httpx.AsyncClient(timeout=REFINE_TIMEOUT_S) as s:
-                r = await s.post(url, json=payload,
-                                 headers={"Content-Type": "application/json"})
-                if r.status_code != 200:
-                    log.warning("refine: backend %s in %.1fs: %s", r.status_code, time.time() - t0, r.text[:200])
-                    return None
-                body = r.json()
-                break
+            if on_token:
+                async with httpx.AsyncClient(timeout=REFINE_TIMEOUT_S) as s:
+                    async with s.stream("POST", url, json=payload, headers={"Content-Type": "application/json"}) as r:
+                        if r.status_code != 200:
+                            err_txt = await r.aread()
+                            log.warning("refine stream: backend %s in %.1fs: %s", r.status_code, time.time() - t0, err_txt[:200])
+                            return None
+                        content_chunks = []
+                        in_think = False
+                        buffer = ""
+                        async for chunk in r.aiter_text():
+                            buffer += chunk
+                            while "\n" in buffer:
+                                line, buffer = buffer.split("\n", 1)
+                                line = line.strip()
+                                if not line:
+                                    continue
+                                if line.startswith("data:"):
+                                    data_str = line[5:].strip()
+                                    if data_str == "[DONE]":
+                                        continue
+                                    try:
+                                        data = json.loads(data_str)
+                                        choices = data.get("choices") or []
+                                        if not choices:
+                                            continue
+                                        delta = choices[0].get("delta") or {}
+                                        
+                                        r_val = delta.get("reasoning_content") or delta.get("reasoning")
+                                        if r_val:
+                                            await _call_on_token(r_val, True)
+                                            continue
+                                            
+                                        c_val = delta.get("content") or ""
+                                        if c_val:
+                                            temp = c_val
+                                            if "<think>" in temp:
+                                                in_think = True
+                                                parts = temp.split("<think>", 1)
+                                                if parts[0]:
+                                                    await _call_on_token(parts[0], False)
+                                                if parts[1]:
+                                                    await _call_on_token(parts[1], True)
+                                                continue
+                                            if "</think>" in temp:
+                                                in_think = False
+                                                parts = temp.split("</think>", 1)
+                                                if parts[0]:
+                                                    await _call_on_token(parts[0], True)
+                                                if parts[1]:
+                                                    content_chunks.append(parts[1])
+                                                    await _call_on_token(parts[1], False)
+                                                continue
+                                                
+                                            if in_think:
+                                                await _call_on_token(c_val, True)
+                                            else:
+                                                content_chunks.append(c_val)
+                                                await _call_on_token(c_val, False)
+                                    except Exception as e:
+                                        pass
+                        full_content = "".join(content_chunks)
+                        body = {
+                            "choices": [{
+                                "message": {
+                                    "role": "assistant",
+                                    "content": full_content
+                                }
+                            }]
+                        }
+                        break
+            else:
+                async with httpx.AsyncClient(timeout=REFINE_TIMEOUT_S) as s:
+                    r = await s.post(url, json=payload,
+                                     headers={"Content-Type": "application/json"})
+                    if r.status_code != 200:
+                        log.warning("refine: backend %s in %.1fs: %s", r.status_code, time.time() - t0, r.text[:200])
+                        return None
+                    body = r.json()
+                    break
         except (httpx.HTTPError, asyncio.TimeoutError) as e:
             log.warning("refine: timeout/http error after %.1fs (attempt %d/%d): %s",
                         time.time() - t0, _attempt + 1, REFINE_ATTEMPTS, e)

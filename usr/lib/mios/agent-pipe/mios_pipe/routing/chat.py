@@ -43,8 +43,67 @@ import uuid
 from typing import Any, AsyncGenerator, Optional
 
 import httpx
+import contextvars
+import hashlib
+import random
+
+_record_active = contextvars.ContextVar("_record_active", default=False)
+_replay_active = contextvars.ContextVar("_replay_active", default=False)
+_replay_llm_queue = contextvars.ContextVar("_replay_llm_queue", default=[])
+_replay_tool_queue = contextvars.ContextVar("_replay_tool_queue", default=[])
+_in_exec_tool_calls = contextvars.ContextVar("_in_exec_tool_calls", default=False)
+
+
+_orig_post = httpx.AsyncClient.post
+
+async def _patched_post(self, url, *args, **kwargs):
+    url_str = str(url)
+    is_llm = "/chat/completions" in url_str
+    
+    if is_llm and _replay_active.get():
+        q = _replay_llm_queue.get()
+        if q:
+            row = q.pop(0)
+            meta = row.get("meta") or {}
+            completion = meta.get("completion") or {}
+            log.info("Replayed LLM call for URL: %s", url_str)
+            return httpx.Response(status_code=200, json=completion)
+        else:
+            log.warning("No recorded LLM response in queue for: %s", url_str)
+            return httpx.Response(status_code=200, json={"choices": [{"message": {"role": "assistant", "content": "(error: no recorded LLM response found)"}}]})
+            
+    resp = await _orig_post(self, url, *args, **kwargs)
+    
+    if is_llm and _record_active.get():
+        try:
+            session_id = _conv_key_var.get() if (_conv_key_var is not None and hasattr(_conv_key_var, "get")) else "default"
+            json_body = kwargs.get("json") or {}
+            resp_body = resp.json()
+            
+            db_w = globals().get("_db_write")
+            if db_w is not None:
+                import uuid
+                row = {
+                    "id": f"session:llm:{uuid.uuid4().hex[:24]}",
+                    "kind": "llm_io",
+                    "owui_chat_id": session_id,
+                    "meta": {
+                        "prompt": json_body.get("messages") or [],
+                        "completion": resp_body
+                    }
+                }
+                db_w("session", row, now_fields=("ts",), passport_sign=False)
+                log.info("Recorded LLM call in session: %s", session_id)
+        except Exception as e:
+            log.warning("Failed to record LLM call in session: %s", e)
+            
+    return resp
+
+httpx.AsyncClient.post = _patched_post
+
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse
+
 
 import mios_trace
 import mios_pg as _mios_pg   # WS-9 Postgres client (canonical kanban upsert)
@@ -208,10 +267,11 @@ EMB_MODEL = None
 EMB_VERSION = None
 _turn_tenant = None
 SCRATCHPAD_PERSIST = False
+_DEBUG_ENABLE = True
 
 
 _INJECTED = frozenset((
-    "LETTA_MEMORY_BACKEND", "_LETTA_CLIENT",
+    "LETTA_MEMORY_BACKEND", "_LETTA_CLIENT", "_DEBUG_ENABLE",
     "_db_write", "_embed_one", "_scratchpad_for", "EMB_MODEL", "EMB_VERSION", "_turn_tenant", "SCRATCHPAD_PERSIST",
     "ASK_CLARIFY_ENABLE", "AUTONOMOUS_PRIORITY", "AUTO_FORCE_TOOL", "BACKEND", "BACKEND_MODEL",
     "GATEWAY_QUEUE",
@@ -868,6 +928,51 @@ async def chat_completions_logic(request: Request) -> Any:
     # WS-A2: rehydrate this chat's working memory from the durable pg `scratch`
     # table on the first turn after a restart (once per chat key; degrade-open).
     await _scratchpad_rehydrate(_conv_key_var.get())
+
+    # T-040 Record-and-Replay Determinism Setup
+    _record_active.set(False)
+    _replay_active.set(False)
+    _replay_llm_queue.set([])
+    _replay_tool_queue.set([])
+    
+    obs_cfg = _toml_section("observability") or {}
+    record_mode = bool(obs_cfg.get("record_mode", False))
+    replay_mode = bool(obs_cfg.get("replay_mode", False)) or bool(request.headers.get("x-mios-replay"))
+    replay_sess_id = request.headers.get("x-mios-replay-session") or _conv_key_var.get()
+    
+    if replay_mode:
+        try:
+            from mios_pg import execute as pg_execute
+            rows = await pg_execute(
+                "SELECT kind, meta FROM session "
+                "WHERE owui_chat_id = %s AND (kind = 'llm_io' OR kind = 'tool_io') "
+                "ORDER BY chain_seq ASC",
+                (replay_sess_id,),
+                fetch=True
+            )
+            llm_q = [r for r in (rows or []) if r.get("kind") == "llm_io"]
+            tool_q = [r for r in (rows or []) if r.get("kind") == "tool_io"]
+            _replay_llm_queue.set(llm_q)
+            _replay_tool_queue.set(tool_q)
+            _replay_active.set(True)
+            log.info("Replay mode active: loaded %d LLM responses, %d tool responses for session %s",
+                     len(llm_q), len(tool_q), replay_sess_id)
+            
+            h = hashlib.md5(replay_sess_id.encode("utf-8")).hexdigest()
+            seed = int(h, 16) % (2**32)
+            random.seed(seed)
+            try:
+                import numpy as np
+                np.random.seed(seed)
+            except ImportError:
+                pass
+            log.info("Deterministic stochasticity seeded: %d", seed)
+        except Exception as e:
+            log.warning("Failed to initialize replay mode: %s", e)
+    elif record_mode:
+        _record_active.set(True)
+        log.info("Record mode active for session: %s", _conv_key_var.get())
+
     if LETTA_MEMORY_BACKEND and _LETTA_CLIENT:
         try:
             import mios_tokenize
@@ -1291,8 +1396,162 @@ async def chat_completions_logic(request: Request) -> Any:
     # Turn checkpoint : clear VRAM as needed so the
     # pipeline-critical refine+polish models stay warm instead of thrashing
     # against a squatting transient (e.g. the 7B coder). No-op with headroom.
+    if streaming:
+        outer_ctx = locals().copy()
+        async def _stream_refine_and_dispatch() -> AsyncGenerator[bytes, None]:
+            nonlocal last_user_text, messages
+            yield _sse_status_phase(chat_id=chat_id, model=model, phase="refine")
+            yield _sse_status(chat_id=chat_id, model=model, emoji="🧠", label="Refining intent & decomposing plan...")
+            
+            await _vram_checkpoint()
+            
+            queue = asyncio.Queue()
+            async def _on_refine_token(token_val: str, is_re: bool):
+                await queue.put((token_val, is_re))
+            
+            refine_task = asyncio.create_task(
+                refine_intent(last_user_text, messages, on_token=_on_refine_token)
+            )
+            
+            while not refine_task.done() or not queue.empty():
+                try:
+                    token_val, is_re = await asyncio.wait_for(queue.get(), timeout=0.05)
+                    # Surface the refine hop working LIVE: forward BOTH its
+                    # reasoning tokens AND its content tokens (the refined
+                    # query/plan being written) on the reasoning channel, so the
+                    # decomposition is visible token-by-token -- inlined as
+                    # content under debug, folded into the Thinking pane
+                    # otherwise. (Previously non-reasoning tokens were dropped.)
+                    if token_val:
+                        yield _sse_reasoning(token_val, chat_id=chat_id, model=model)
+                    queue.task_done()
+                except asyncio.TimeoutError:
+                    continue
+            
+            refined = await refine_task
+            if refined and refined.get("refined_text"):
+                _refined_q = str(refined["refined_text"]).strip()
+                if _refined_q:
+                    last_user_text = _refined_q
+                    for _i in range(len(messages) - 1, -1, -1):
+                        _m = messages[_i]
+                        if isinstance(_m, dict) and _m.get("role") == "user" \
+                                and isinstance(_m.get("content"), str):
+                            messages[_i] = {**_m, "content": _refined_q}
+                            break
+            
+            try:
+                _turn_volatile_var.set(bool(refined and (
+                    refined.get("local_state") or refined.get("news")
+                    or refined.get("needs_location"))))
+            except Exception:
+                pass
+            
+            try:
+                _turn_priority = float(_sched_priority(refined).get("score", 5.0))
+            except Exception:
+                _turn_priority = 5.0
+            
+            if _autonomous:
+                _turn_priority = min(_turn_priority, AUTONOMOUS_PRIORITY)
+                
+            try:
+                await mios_preempt.turn_boundary(task_id=str(chat_id), priority=_turn_priority)
+            except Exception:
+                pass
+                
+            if mios_preempt.QUEUE_ENABLE:
+                try:
+                    mios_preempt._TURN_QUEUE.enqueue(str(chat_id), _turn_priority)
+                    mios_preempt._TURN_QUEUE.dispatch()
+                except Exception:
+                    pass
+            
+            if refined:
+                _intent = refined.get("intent")
+                _text = refined.get("refined_text")
+                _tasks = refined.get("tasks") or []
+                _label = f"Refined intent: {_intent}"
+                if _text:
+                    _label += f" | Plan: {_text}"
+                if _tasks:
+                    _label += f" ({len(_tasks)} tasks planned)"
+                yield _sse_status(chat_id=chat_id, model=model, emoji="📋", label=_label)
+                
+                # Format reasoning content delta
+                _refine_reasoning = f"💭 [refine] classified intent as '{_intent}'\n"
+                if _text:
+                    _refine_reasoning += f"🎯 refined query: '{_text}'\n"
+                if refined.get("intended_outcome"):
+                    _refine_reasoning += f"🏁 intended outcome: '{refined.get('intended_outcome')}'\n"
+                if _tasks:
+                    _refine_reasoning += "📋 planned tasks:\n"
+                    for _t in _tasks:
+                        _refine_reasoning += f"  - {_t.get('title')}: {_t.get('refined_text')} (web={_t.get('web')}, local={_t.get('local_state')})\n"
+                
+                if _DEBUG_ENABLE:
+                    yield _sse_chunk(_refine_reasoning, chat_id=chat_id, model=model)
+                else:
+                    yield _sse_reasoning(_refine_reasoning, chat_id=chat_id, model=model)
+            
+            _budget_turn_token = (chat_id if (_autonomous and _autonomous_source) else None)
+            _budget_ok, _budget_reason = await _budget_admit(
+                _scratchpad_key(body, chat_id), _autonomous_source, _budget_turn_token)
+            if not _budget_ok:
+                log.warning("budget HARD-HALT: %s", _budget_reason)
+                _halt_msg = (
+                    "I'm pausing here: this conversation has reached its aggregate "
+                    "compute budget for now (" + _budget_reason + "). Please try again "
+                    "shortly, or rephrase as a single focused request.")
+                async for _ab in _stream_answer(_halt_msg, chat_id=chat_id, model=model):
+                    yield _ab
+                yield _sse_chunk("", chat_id=chat_id, model=model, finish_reason="stop")
+                yield _sse_done()
+                return
+            
+            if _KERNEL:
+                _kdec = _KERNEL.router.route(refined)
+                log.info("kernel dispatch (stream): routing mode=%s", _kdec.mode)
+                
+                ctx_copy = outer_ctx.copy()
+                ctx_copy.update({
+                    "refined": refined,
+                    "_turn_priority": _turn_priority,
+                    "_budget_turn_token": _budget_turn_token,
+                })
+                try:
+                    res = await _KERNEL.dispatcher.run(_kdec, **ctx_copy)
+                    if isinstance(res, StreamingResponse):
+                        async for chunk in res.body_iterator:
+                            yield chunk
+                    else:
+                        try:
+                            _content = json.loads(bytes(res.body).decode("utf-8"))["choices"][0]["message"]["content"]
+                            yield _sse_chunk(_content, chat_id=chat_id, model=model)
+                        except Exception:
+                            pass
+                except Exception as _run_err:
+                    log.warning("streaming dispatcher execution failed: %s", _run_err)
+                finally:
+                    await _budget_release_inflight(_budget_turn_token)
+            else:
+                yield _sse_chunk("Error: Kernel not configured", chat_id=chat_id, model=model)
+                yield _sse_done()
+                
+        return StreamingResponse(_stream_refine_and_dispatch(), media_type="text/event-stream")
+
     await _vram_checkpoint()
     refined = await refine_intent(last_user_text, messages)
+    if refined and refined.get("refined_text"):
+        _refined_q = str(refined["refined_text"]).strip()
+        if _refined_q:
+            last_user_text = _refined_q
+            for _i in range(len(messages) - 1, -1, -1):
+                _m = messages[_i]
+                if isinstance(_m, dict) and _m.get("role") == "user" \
+                        and isinstance(_m.get("content"), str):
+                    messages[_i] = {**_m, "content": _refined_q}
+                    break
     # Anti-stale-recall ("data/time of requests should be weighed
     # appropriately in an AIOS environment"): flag this turn VOLATILE when the model
     # classified it as live local-state / current-events / location-bound -- its answer
@@ -1378,15 +1637,6 @@ async def chat_completions_logic(request: Request) -> Any:
             "I'm pausing here: this conversation has reached its aggregate "
             "compute budget for now (" + _budget_reason + "). Please try again "
             "shortly, or rephrase as a single focused request.")
-        if streaming:
-            async def _budget_halt_stream():
-                yield _sse_chunk("", chat_id=chat_id, model=model, role="assistant")
-                async for _ab in _stream_answer(_halt_msg, chat_id=chat_id, model=model):
-                    yield _ab
-                yield _sse_chunk("", chat_id=chat_id, model=model, finish_reason="stop")
-                yield _sse_done()
-            return StreamingResponse(_budget_halt_stream(),
-                                     media_type="text/event-stream")
         return JSONResponse(content={
             "id": chat_id, "object": "chat.completion",
             "created": int(time.time()), "model": model,
@@ -1494,7 +1744,7 @@ async def chat_completions(request: Request) -> Any:
 async def _kernel_chat_handler(decision, **ctx):
     import re, time
     from fastapi.responses import JSONResponse, StreamingResponse
-    refined = ctx.get("refined")
+    refined = ctx.get("refined") or {}
     _force_council = ctx.get("_force_council")
     _force_delegate = ctx.get("_force_delegate")
     last_user_text = ctx.get("last_user_text")
@@ -1567,7 +1817,7 @@ async def _kernel_chat_handler(decision, **ctx):
 
 
 async def _kernel_dispatch_handler(decision, **ctx):
-    refined = ctx.get("refined")
+    refined = ctx.get("refined") or {}
     _force_council = ctx.get("_force_council")
     _force_delegate = ctx.get("_force_delegate")
     last_user_text = ctx.get("last_user_text")
@@ -1593,7 +1843,7 @@ async def _kernel_dispatch_handler(decision, **ctx):
 
 
 async def _kernel_multi_task_handler(decision, **ctx):
-    refined = ctx.get("refined")
+    refined = ctx.get("refined") or {}
     last_user_text = ctx.get("last_user_text")
     messages = ctx.get("messages")
     streaming = ctx.get("streaming")
@@ -1684,7 +1934,7 @@ async def _kernel_multi_task_handler(decision, **ctx):
 
 
 async def _kernel_agent_handler(decision, **ctx):
-    refined = ctx.get("refined")
+    refined = ctx.get("refined") or {}
     _force_council = ctx.get("_force_council")
     _force_delegate = ctx.get("_force_delegate")
     last_user_text = ctx.get("last_user_text")
@@ -1746,4 +1996,5 @@ async def _kernel_agent_handler(decision, **ctx):
         refined, force_delegate=_force_delegate, target_agents=_selected,
         streaming=streaming, chat_id=chat_id, model=model,
         session_id=session_id, last_user_text=last_user_text,
-        persona_system=_persona_system, reply_prefix=reply_prefix)
+        persona_system=_persona_system, reply_prefix=reply_prefix,
+        messages=messages)

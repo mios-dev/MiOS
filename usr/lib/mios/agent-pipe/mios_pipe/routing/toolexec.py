@@ -218,7 +218,10 @@ def _allowed_tool_names(tools: "Optional[list]") -> set:
             n = str((fn or {}).get("name") or "").strip()
             if n:
                 names.add(n)
-    return names or set(_VERB_CATALOG.keys())
+    
+    import mios_verbcatalog
+    model_names = getattr(mios_verbcatalog, "_MODEL_NAME_TO_VERB", {})
+    return names | set(_VERB_CATALOG.keys()) | set(model_names.keys())
 
 
 def _rescue_tool_calls(content: str, tools: "Optional[list]" = None) -> list:
@@ -238,7 +241,7 @@ def _rescue_tool_calls(content: str, tools: "Optional[list]" = None) -> list:
     # (a) Qwen XML function markup.
     for m in _RESCUE_XML_RE.finditer(text):
         name = m.group(1).strip()
-        if name in allowed:
+        if name in allowed or name.startswith(("mios_recipe__", "mios_skill__", "mcp.")):
             args = {k: v.strip()
                     for k, v in _RESCUE_PARAM_RE.findall(m.group(2) or "")}
             out.append(_norm_tool_call(name, args, len(out)))
@@ -269,7 +272,7 @@ def _rescue_tool_calls(content: str, tools: "Optional[list]" = None) -> list:
                            or item.get("tool_name") or "").strip()
                 args = next((item[k] for k in ("arguments", "args", "parameters", "input")
                              if item.get(k) is not None), None)
-            if name and name in allowed:
+            if name and (name in allowed or name.startswith(("mios_recipe__", "mios_skill__", "mcp."))):
                 out.append(_norm_tool_call(name, args, len(out)))
         if out:
             return out
@@ -363,11 +366,47 @@ async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
     agents ACT -- the no-live-launch binding is CLAUDE's alone, not the agents'
 . The broker's conversation-scoped single-flight dedup
     collapses duplicate actions across the parallel swarm, so a write fires once."""
-    tool_msgs: list = []
-    ran_read = False
+    from mios_pipe.routing.chat import _record_active, _replay_active, _replay_tool_queue, _conv_key_var, _in_exec_tool_calls
+    
     # P6: the orchestrator turn context carries session_id -- used to (a) persist MCP
     # taint rows and (b) firewall-gate high-privilege verbs once the session is tainted.
     _sess = (_orch_ctx_var.get() or {}).get("session_id")
+    if not _sess and _conv_key_var is not None:
+        try:
+            _sess = _conv_key_var.get()
+        except Exception:
+            pass
+
+    # T-040 Replay Interception
+    if _replay_active.get():
+        tool_msgs: list = []
+        q = _replay_tool_queue.get()
+        for tc in tcs:
+            fn = tc.get("function") or {}
+            vname = str(fn.get("name") or "").strip()
+            tmsg = {"role": "tool"}
+            if tc.get("id"):
+                tmsg["tool_call_id"] = tc["id"]
+            if vname:
+                tmsg["name"] = vname
+            
+            if q:
+                row = q.pop(0)
+                meta = row.get("meta") or {}
+                tmsg["content"] = str(meta.get("output") or "")
+                log.info("Replayed tool call: %s -> %s", vname, tmsg["content"][:200])
+            else:
+                tmsg["content"] = f"(error: no recorded tool call found in replay log for {vname})"
+            tool_msgs.append(tmsg)
+        return tool_msgs, True
+
+    tool_msgs: list = []
+    ran_read = False
+    # Mark that we are inside the exec loop so dispatch_mios_verb does NOT also
+    # record tool_io rows (toolexec is the single recorder). Reset on return via
+    # the token so a later DIRECT dispatch in the same context still records --
+    # otherwise the flag stays True and every post-exec dispatch is dropped.
+    _iec_token = _in_exec_tool_calls.set(True)
     for tc in tcs:
         fn = tc.get("function") or {}
         vname = str(fn.get("name") or "").strip()
@@ -400,7 +439,8 @@ async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
                 tool_msgs.append(tmsg)
                 continue
             ran_read = True
-            push(f" 🔧 skill:{real}")
+            _args_str = f" {json.dumps(args, ensure_ascii=False)}" if args else ""
+            push(f" 🔧 skill:{real}{_args_str}")
             try:
                 with _tool_span(vname, _sess):
                     res = await asyncio.wait_for(
@@ -411,6 +451,7 @@ async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
             out = (json.dumps(res, ensure_ascii=False)
                    if isinstance(res, (dict, list)) else str(res))
             tmsg["content"] = out[:READ_TOOL_ENRICH_CHARS]
+            push(f"\n\n🤝 skill:{real} output:\n{tmsg['content']}\n")
             tool_msgs.append(tmsg)
             continue
         # ── (b) RECIPE tool: mios_recipe__<name> -> os_recipe verb ──
@@ -436,7 +477,8 @@ async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
                 tool_msgs.append(tmsg)
                 continue
             ran_read = True
-            push(f" 🔧 recipe:{real}")
+            _args_str = f" {json.dumps(args, ensure_ascii=False)}" if args else ""
+            push(f" 🔧 recipe:{real}{_args_str}")
             try:
                 with _tool_span(vname, _sess):
                     res = await asyncio.wait_for(
@@ -448,6 +490,7 @@ async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
             out = (json.dumps(res, ensure_ascii=False)
                    if isinstance(res, (dict, list)) else str(res))
             tmsg["content"] = _cap_verb_result("os_recipe", out)
+            push(f"\n\n🤝 recipe:{real} output:\n{tmsg['content']}\n")
             tool_msgs.append(tmsg)
             continue
         # ── (b2) MCP tool: mcp.<server>.<tool> -> external MCP server ──
@@ -460,7 +503,8 @@ async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
                 tool_msgs.append(tmsg)
                 continue
             ran_read = True
-            push(f" 🔧 {vname}")
+            _args_str = f" {json.dumps(args, ensure_ascii=False)}" if args else ""
+            push(f" 🔧 {vname}{_args_str}")
             try:
                 with _tool_span(vname, _sess):
                     res = await asyncio.wait_for(
@@ -476,6 +520,7 @@ async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
             # non-taint server (the helper only writes taint sources).
             _ok = not (isinstance(res, dict) and res.get("error"))
             _record_mcp_tool_call(vname, args, _ok, out, _sess)
+            push(f"\n\n🤝 {vname} output:\n{tmsg['content']}\n")
             tool_msgs.append(tmsg)
             continue
 
@@ -506,7 +551,8 @@ async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
                 tool_msgs.append(tmsg)
                 continue
             ran_read = True
-            push(" 🧮 code_mode")
+            _args_str = f" {json.dumps(args, ensure_ascii=False)}" if args else ""
+            push(f" 🧮 code_mode{_args_str}")
             try:
                 with _tool_span(vname, _sess):
                     res = await asyncio.wait_for(
@@ -517,6 +563,7 @@ async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
             out = (json.dumps(res, ensure_ascii=False)
                    if isinstance(res, (dict, list)) else str(res))
             tmsg["content"] = _cap_verb_result("code_mode", out)
+            push(f"\n\n🤝 code_mode output:\n{tmsg['content']}\n")
             tool_msgs.append(tmsg)
             continue
         # ── (b4) FAN-OUT: dispatch_to_nodes -> the multi-node SWARM behind a tool
@@ -570,7 +617,8 @@ async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
                                    "reached; continue with the current agent)")
                 tool_msgs.append(tmsg)
                 continue
-            push(f" 🛰️ dispatch_to_nodes ({len(_norm)})")
+            _args_str = f" {json.dumps(args, ensure_ascii=False)}" if args else ""
+            push(f" 🛰️ dispatch_to_nodes ({len(_norm)}){_args_str}")
             try:
                 # Enter a fan-out hop: child tasks (the swarm nodes spawned below)
                 # inherit this incremented depth, so any node that tries to fan out
@@ -600,6 +648,7 @@ async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
                 tmsg["content"] = _stext or "(the node swarm returned no result)"
             except Exception as _e:  # noqa: BLE001
                 tmsg["content"] = f"(dispatch_to_nodes failed: {str(_e)[:160]})"
+            push(f"\n\n🤝 dispatch_to_nodes output:\n{tmsg['content']}\n")
             tool_msgs.append(tmsg)
             continue
         # ── (c) VERB tool: bare verb name OR P1 model_name alias -> dispatch ──
@@ -638,7 +687,8 @@ async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
                 tool_msgs.append(tmsg)
                 continue
         ran_read = True
-        push(f" 🔧 {vname}")
+        _args_str = f" {json.dumps(args, ensure_ascii=False)}" if args else ""
+        push(f" 🔧 {vname}{_args_str}")
         try:
             with _tool_span(vname, _sess):
                 res = await asyncio.wait_for(
@@ -680,8 +730,49 @@ async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
         out = (json.dumps(res, ensure_ascii=False)
                if isinstance(res, (dict, list)) else str(res))
         tmsg["content"] = _cap_verb_result(_key, out)
+        push(f"\n\n🤝 {vname} output:\n{tmsg['content']}\n")
         tool_msgs.append(tmsg)
+
+    # T-040 Record Interception
+    if _record_active.get() and _sess:
+        try:
+            import uuid
+            for i, tc in enumerate(tcs):
+                if i >= len(tool_msgs):
+                    break
+                fn = tc.get("function") or {}
+                vname = str(fn.get("name") or "").strip()
+                args = fn.get("arguments")
+                if isinstance(args, str):
+                    try:
+                        args = _loads_lenient(args)
+                    except Exception:
+                        args = {}
+                out_content = tool_msgs[i].get("content") or ""
+                success = not out_content.startswith("(skipped") and not out_content.startswith("(firewall_block")
+                
+                row = {
+                    "id": f"session:tool:{uuid.uuid4().hex[:24]}",
+                    "kind": "tool_io",
+                    "owui_chat_id": _sess,
+                    "meta": {
+                        "tool": vname,
+                        "args": args if isinstance(args, dict) else {},
+                        "output": out_content,
+                        "success": success
+                    }
+                }
+                if _db_create is not None:
+                    sql = _db_create("session", row, now_fields=("ts",), passport_sign=False)
+                    if _db_fire is not None and _db_post is not None:
+                        _db_fire(_db_post(sql))
+                log.info("Recorded tool call in session: %s", vname)
+        except Exception as e:
+            log.warning("Failed to record tool calls in session: %s", e)
+
+    _in_exec_tool_calls.reset(_iec_token)
     return tool_msgs, ran_read
+
 
 
 # MCP taint-recorder deps (injected via configure()): the firewall taint classifier

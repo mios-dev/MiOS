@@ -2866,6 +2866,15 @@ docgen_max_bytes   = 20000000    # refuse inputs/content larger than this (DoS g
 [observability]
 otel_enable   = false
 otel_endpoint = "http://localhost:4317"
+record_mode   = false
+replay_mode   = false
+# Full-visibility debug surface (operator posture): stream internal reasoning,
+# thinking, tool calls + tool output/args, and status emits as VISIBLE content
+# to EVERY chat surface (OWUI / Discord / CLI). ON by design -- the operator
+# wants the whole pipeline observable live. Set false for a clean answer-only
+# reply (reasoning then rides delta.reasoning_content for OWUI's Thinking pane).
+debug         = true
+
 
 # ─── A2A fleet discovery (cross-node delegation) ──────────────────────
 # mios-a2a-discover probes these candidates + the local self for a live MiOS
@@ -9821,7 +9830,7 @@ WantedBy = "multi-user.target default.target"
 
 [containers.mios-pgvector.Service]
 Delegate = "yes"
-ExecStartPost = "/usr/bin/bash -c 'for i in $(seq 1 45); do /usr/bin/podman exec mios-pgvector pg_isready -U ${MIOS_PG_USER:-mios} -d ${MIOS_PG_DB:-mios} -q && break; sleep 2; done; /usr/bin/podman exec mios-pgvector psql -v ON_ERROR_STOP=0 -U ${MIOS_PG_USER:-mios} -d ${MIOS_PG_DB:-mios} -f /docker-entrypoint-initdb.d/10-mios-schema.sql || true'"
+ExecStartPost = "/usr/bin/bash -c 'for i in $(seq 1 45); do /usr/bin/podman exec mios-pgvector pg_isready -p ${MIOS_PORT_PGVECTOR:-5432} -U ${MIOS_PG_USER:-mios} -d ${MIOS_PG_DB:-mios} -q && break; sleep 2; done; /usr/bin/podman exec mios-pgvector psql -p ${MIOS_PORT_PGVECTOR:-5432} -v ON_ERROR_STOP=0 -U ${MIOS_PG_USER:-mios} -d ${MIOS_PG_DB:-mios} -f /docker-entrypoint-initdb.d/10-mios-schema.sql || true'"
 Restart = "on-failure"
 RestartSec = "10s"
 TimeoutStartSec = "180s"

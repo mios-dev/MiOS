@@ -49,7 +49,7 @@ def _agent_pipe_dir() -> str:
 # pure verifier loads here WITHOUT fastapi installed (confined-user safe).
 sys.path.insert(0, _agent_pipe_dir())
 try:
-    from mios_audit import verify_chain, _VERIFY_COLS
+    from mios_audit import verify_chain, _VERIFY_COLS, verify_session_chain, _SESSION_VERIFY_COLS
 except Exception as _e:  # noqa: BLE001
     sys.stderr.write(
         "mios-chain-verify: cannot import the mios_audit verifier from "
@@ -58,14 +58,15 @@ except Exception as _e:  # noqa: BLE001
     sys.exit(2)
 
 
-def _read_chain_rows():
-    """Return the chained event rows as a list of dicts (chain_seq order), or None on
-    a read failure. Uses mios-pg-query's parameterized transport; the whole result is
-    aggregated server-side into ONE json array so payload jsonb round-trips as a parsed
-    object (matching the write-time dict the hash was computed over)."""
-    cols = ", ".join(_VERIFY_COLS)
+def _read_chain_rows(table: str = "event"):
+    """Return the chained rows as a list of dicts (chain_seq order), or None on
+    a read failure."""
+    if table == "session":
+        cols = ", ".join(_SESSION_VERIFY_COLS)
+    else:
+        cols = ", ".join(_VERIFY_COLS)
     sql = ("SELECT coalesce(json_agg(row_to_json(t) ORDER BY t.chain_seq), '[]') "
-           f"FROM (SELECT {cols} FROM event WHERE chain_hash IS NOT NULL) t;")
+           f"FROM (SELECT {cols} FROM {table} WHERE chain_hash IS NOT NULL) t;")
     try:
         proc = subprocess.run(
             [_PG_QUERY, "--exec-json"],
@@ -90,13 +91,22 @@ def _read_chain_rows():
 
 
 def main() -> int:
-    rows = _read_chain_rows()
+    import argparse
+    parser = argparse.ArgumentParser(description="Walk MiOS hash chains")
+    parser.add_argument("--table", choices=["event", "session"], default="event",
+                        help="The database table to verify (event or session)")
+    args, unknown = parser.parse_known_args()
+    
+    rows = _read_chain_rows(args.table)
     if rows is None:
-        print(json.dumps({"object": "mios.audit.chain", "ok": False,
+        print(json.dumps({"object": f"mios.audit.{args.table}.chain", "ok": False,
                           "error": "read_failed"}))
         return 2
-    res = verify_chain(rows)
-    print(json.dumps({"object": "mios.audit.chain", **res}))
+    if args.table == "session":
+        res = verify_session_chain(rows)
+    else:
+        res = verify_chain(rows)
+    print(json.dumps({"object": f"mios.audit.{args.table}.chain", **res}))
     return 0 if res.get("ok") else 1
 
 

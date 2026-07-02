@@ -500,6 +500,7 @@
     "_DCI_FRAMER_SYSTEM",
     "_DCI_INTEGRATOR_SYSTEM",
     "_DCI_PERSONAS",
+    "_DEBUG_ENABLE",
     "_DEFAULT_ALLOWLIST_HOSTS",
     "_DISCLAIM_MARKERS",
     "_DISPATCH_CFG",
@@ -1383,6 +1384,6 @@
   ],
   "counts": {
     "routes": 82,
-    "provided": 1296
+    "provided": 1297
   }
 }

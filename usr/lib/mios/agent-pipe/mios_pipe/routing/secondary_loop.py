@@ -93,12 +93,15 @@ def _tmsgs_indicate_failure(tmsgs: list) -> bool:
             continue
         try:
             _d = _loads_lenient(_c)
-            if isinstance(_d, dict) and _d.get("success") is False:
-                return True
+            if isinstance(_d, dict):
+                if _d.get("success") is False:
+                    return True
+                if "error" in _d:
+                    return True
         except Exception:  # noqa: BLE001 -- not JSON, fall through to text markers
             pass
         if re.search(r'"success"\s*:\s*false|not[ _]verified|text_not_delivered'
-                     r'|text_mismatch|dispatch error|no_verifiable_target', _c, re.I):
+                     r'|text_mismatch|dispatch error|no_verifiable_target|tool_execution_failed', _c, re.I):
             return True
     return False
 
@@ -112,8 +115,8 @@ def _tmsgs_indicate_failure(tmsgs: list) -> bool:
 # succeeds; every consumer is async/runtime so nothing fires before configure().
 
 # config scalars (server SSOT/env-derived; injected at import-completion)
-SECONDARY_TOOL_MAX_ITERS = 3
-SECONDARY_REPLAN_MAX = 1
+SECONDARY_TOOL_MAX_ITERS = 15
+SECONDARY_REPLAN_MAX = 5
 
 # _daemon_diagnose constants (server SSOT/env-derived; injected)
 _DAEMON_DIAGNOSE_MODEL = ""
@@ -166,6 +169,23 @@ def configure(*, secondary_tool_max_iters=None, secondary_replan_max=None,
         _db_fire = db_fire
     if db_post is not None:
         _db_post = db_post
+
+
+def _batch_has_write_verb(tcs: list) -> bool:
+    """True if any call in the batch targets a state-changing verb, judged by
+    the SSOT verb-catalog permission tier (write/interactive) -- NOT a hardcoded
+    lexical read-only allowlist (Law 7). Unknown/read-tier verbs are read-only.
+    Same permission classification reflect.py and the risk-tier sandbox use, so
+    the write/failure gate generalises across every verb and stays SSOT-driven."""
+    import mios_toolexec
+    catalog = getattr(mios_toolexec, "_VERB_CATALOG", {}) or {}
+    for tc in tcs:
+        fn = tc.get("function") or {}
+        vname = str(fn.get("name") or "").strip()
+        perm = str((catalog.get(vname) or {}).get("permission", "")).lower()
+        if perm in ("write", "interactive"):
+            return True
+    return False
 
 
 _TOOL_NUDGE = (
@@ -301,6 +321,13 @@ async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
                 break
             ch = (r.json().get("choices") or [])
             msg = (ch[0].get("message") if ch else {}) or {}
+            _rc = msg.get("reasoning_content") or ""
+            if not _rc and msg.get("content"):
+                _m = re.search(r"<think>(.*?)</think>", msg["content"], re.DOTALL | re.IGNORECASE)
+                if _m:
+                    _rc = _m.group(1).strip()
+            if _rc:
+                push(f"\n\n🤖 {model} thinking:\n{_rc}\n")
         except Exception as e:  # noqa: BLE001 -- best-effort
             log.debug("v1 secondary tool-loop call failed: %s", e)
             break
@@ -364,8 +391,13 @@ async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
                      "content": msg.get("content") or "", "tool_calls": tcs})
         _tmsgs, ran_read = await _exec_tool_calls(tcs, push, allow_write=allow_write)
         msgs.extend(_tmsgs)
-        _last_failed = _tmsgs_indicate_failure(_tmsgs)
-        
+        batch_failed = _tmsgs_indicate_failure(_tmsgs)
+        if batch_failed:
+            _last_failed = True
+        else:
+            if _batch_has_write_verb(tcs) or not _last_failed:
+                _last_failed = False
+
         # On tool error: add Reflexion step
         if _last_failed and reflexion_enable:
             reflection_prompt = (
@@ -457,6 +489,13 @@ async def _ollama_secondary_tool_loop(client, base: str, model: str,
                 break
             choices = r.json().get("choices") or []
             msg = (choices[0].get("message") if choices else {}) or {}
+            _rc = msg.get("reasoning_content") or ""
+            if not _rc and msg.get("content"):
+                _m = re.search(r"<think>(.*?)</think>", msg["content"], re.DOTALL | re.IGNORECASE)
+                if _m:
+                    _rc = _m.group(1).strip()
+            if _rc:
+                push(f"\n\n🤖 {model} thinking:\n{_rc}\n")
         except Exception as e:  # noqa: BLE001 -- best-effort
             log.debug("secondary tool-loop call failed: %s", e)
             break
@@ -524,7 +563,12 @@ async def _ollama_secondary_tool_loop(client, base: str, model: str,
                      "content": msg.get("content") or "", "tool_calls": tcs})
         _tmsgs, ran_read = await _exec_tool_calls(tcs, push, allow_write=allow_write)
         msgs.extend(_tmsgs)
-        _last_failed = _tmsgs_indicate_failure(_tmsgs)
+        batch_failed = _tmsgs_indicate_failure(_tmsgs)
+        if batch_failed:
+            _last_failed = True
+        else:
+            if _batch_has_write_verb(tcs) or not _last_failed:
+                _last_failed = False
         if not ran_read:
             break
     else:

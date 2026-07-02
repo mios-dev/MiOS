@@ -528,7 +528,12 @@ def _env_grounding() -> str:
         "WARNING: Avoid stale information! If the query asks about current events, "
         "today's topics, this week, or recent occurrences, do NOT rely on your training "
         "data. You MUST execute active web search queries to verify and pull live, "
-        "accurate facts. Strictly prevent any stale grounding or assumptions."
+        "accurate facts. Strictly prevent any stale grounding or assumptions.\n"
+        "STRICT VERSION GROUNDING RULE: Do NOT guess, assume, or append specific version numbers, "
+        "release versions, or hardware specifications (e.g. '4', '5', '6', '2026') unless they "
+        "are explicitly requested by the user or present in the chat history. Keep generic brand "
+        "or product names (e.g. 'forza horizon' or 'photoshop') EXACTLY as requested so the "
+        "system's local resolver can match against the actual installed local inventory."
     )
     return (e + "\n" if e else "") + g + "\n" + a + "\n" + t + "\n" + anti_stale + ("\n" + c if c else "")
 

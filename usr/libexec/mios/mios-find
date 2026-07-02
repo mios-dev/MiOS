@@ -433,12 +433,14 @@ def rank(e):
                     if len(tok) >= FUZZY_MIN_TOKEN_LEN]
         n_tokens = n.split() + d.split()
         if q_tokens and n_tokens:
-            best = min(
-                (_lev(qt, nt, cap=FUZZY_MAX_EDIT_DISTANCE)
-                 for qt in q_tokens for nt in n_tokens),
-                default=99,
-            )
-            if best <= FUZZY_MAX_EDIT_DISTANCE:
+            matches = []
+            for qt in q_tokens:
+                dists = [_lev(qt, nt, cap=FUZZY_MAX_EDIT_DISTANCE) for nt in n_tokens]
+                best_for_token = min(dists, default=99)
+                if best_for_token <= FUZZY_MAX_EDIT_DISTANCE:
+                    matches.append(best_for_token)
+            if len(matches) == len(q_tokens):
+                best = max(matches)
                 return (t, cat_w, best * 100 + len(n))
     return None
 

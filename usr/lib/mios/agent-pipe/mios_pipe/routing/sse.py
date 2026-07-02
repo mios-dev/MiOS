@@ -24,6 +24,8 @@ from typing import Any, Optional
 STATUS_AS_REASONING = os.environ.get(
     "MIOS_STATUS_AS_REASONING", "true").lower() not in {"false", "0", "no"}
 
+_DEBUG_ENABLE = False
+
 
 # ── SSE chunk builders ─────────────────────────────────────────────
 # Encode chat completion deltas in the OpenAI streaming protocol so
@@ -77,11 +79,19 @@ def _sse_chunk(content: Optional[str], *, chat_id: str, model: str,
 
 
 def _sse_reasoning(text: str, *, chat_id: str, model: str) -> bytes:
-    """Stream a reasoning delta via the standard delta.reasoning_content
-    field (no `<details>`-in-content hack). OWUI shows it as a native
-    Thinking dropdown; strict OpenAI clients (Firefox Smart Window) ignore
-    it and render only the final `content` answer -- which is what makes
-    the visible reply clean + generative and kills <think> leaks."""
+    """Stream a reasoning delta.
+
+    Default (debug OFF): via the standard ``delta.reasoning_content`` field
+    (no ``<details>``-in-content hack). OWUI shows it as a native Thinking
+    dropdown; strict OpenAI clients (Firefox Smart Window) ignore it and render
+    only the final ``content`` answer -- which is what keeps the visible reply
+    clean + generative and kills ``<think>`` leaks.
+
+    Debug ON: inline the reasoning as visible content for local debugging.
+    Opt-in only ([observability].debug) -- never the default, since it leaks
+    internals to every client."""
+    if _DEBUG_ENABLE:
+        return _sse_chunk(text, chat_id=chat_id, model=model)
     return _sse_chunk(None, chat_id=chat_id, model=model, reasoning=text)
 
 
@@ -182,10 +192,15 @@ def _sse_status(*, chat_id: str, model: str, emoji: str, label: str,
     # test is purely "does this emit say anything".
     _has_content = bool((label and str(label).strip())
                         or (detail and str(detail).strip()))
-    _reason = (_desc + "\n") if (
-        STATUS_AS_REASONING and _has_content and not done) else None
+    _content = None
+    _reason = None
+    if STATUS_AS_REASONING and _has_content and not done:
+        if _DEBUG_ENABLE:
+            _content = (_desc + "\n")
+        else:
+            _reason = (_desc + "\n")
     return _sse_chunk(
-        "", chat_id=chat_id, model=model,
+        _content, chat_id=chat_id, model=model,
         mios_status=payload, reasoning=_reason,
     )
 
@@ -350,3 +365,12 @@ def _iter_answer_chunks(text: str, size: int):
         buf += tok
     if buf:
         yield buf
+
+
+def configure(*, debug_enable: bool = True, **kwargs) -> None:
+    # Full-visibility posture: server.py resolves [observability].debug (default
+    # on) and passes it here; when on, reasoning/thinking/tool-io/status stream
+    # as visible content to every chat surface. Set debug=false in mios.toml for
+    # answer-only replies (reasoning then rides delta.reasoning_content instead).
+    global _DEBUG_ENABLE
+    _DEBUG_ENABLE = bool(debug_enable)

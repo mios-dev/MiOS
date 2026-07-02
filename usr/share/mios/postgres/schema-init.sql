@@ -516,4 +516,11 @@ CREATE TABLE IF NOT EXISTS progress_ledger (
 CREATE INDEX IF NOT EXISTS progress_ledger_session ON progress_ledger (session_id);
 
 
+-- ── T-040 (OBS-03): Session Hash Chain Migrations ─────────────────────────────
+ALTER TABLE session ADD COLUMN IF NOT EXISTS chain_seq bigint;
+ALTER TABLE session ADD COLUMN IF NOT EXISTS prev_hash text;
+ALTER TABLE session ADD COLUMN IF NOT EXISTS chain_hash text;
+
+
+
 
