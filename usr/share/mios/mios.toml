@@ -4859,6 +4859,11 @@ sandbox_profile = "workspace"   # opt-in sandbox confinement (see [dispatch].san
   [verbs.powershell_run.params.work_dir]
   type = "string"
   aliases = ["cwd", "directory"]
+  [verbs.powershell_run.params.elevate]
+  type = "boolean"
+  default = false
+  desc = "Prompt for UAC elevation to execute the script as Administrator on the Windows host."
+
 
 # ─── Section: Doc-gen (WS-4 P0; FOSS offline Pandoc + LibreOffice) ─────
 # Author/convert office artifacts WITHOUT a GUI -- the computer-use "Worker"

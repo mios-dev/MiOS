@@ -50,7 +50,7 @@ MAX_OUTPUT_BYTES="${MIOS_POWERSHELL_MAX_OUTPUT_BYTES:-262144}"  # 256 KiB
 
 usage() {
     cat <<'USAGE'
-usage: mios-powershell [--timeout N] [--work-dir PATH] [--json] <script>
+usage: mios-powershell [--timeout N] [--work-dir PATH] [--json] [--elevate] <script>
        mios-powershell [...] -c <script>
        echo '<script>' | mios-powershell [...] -
 
@@ -71,6 +71,7 @@ WORK_DIR=""
 EMIT_JSON=0
 SCRIPT=""
 SHELL_MODE=0
+ELEVATE=0
 
 # Parse leading flags. Positional script can come as bare arg, -c
 # <script>, '-' meaning stdin, or --shell for an interactive
@@ -82,6 +83,7 @@ while [[ "$#" -gt 0 ]]; do
         --work-dir) WORK_DIR="$2"; shift 2 ;;
         --json) EMIT_JSON=1; shift ;;
         --shell) SHELL_MODE=1; shift ;;
+        -e|--elevate) ELEVATE=1; shift ;;
         -c)
             SCRIPT="$2"
             shift 2
@@ -201,9 +203,26 @@ if mkdir -p "$WIN_STAGE_DIR" 2>/dev/null && [[ -w "$WIN_STAGE_DIR" ]]; then
     trap 'rm -f "$TMPFILE" "$WIN_STAGE_DIR/$(basename "$TMPFILE")"' EXIT
 fi
 
+# If elevation is requested but we have no Windows-side staging path, fail early.
+if [[ "$ELEVATE" -eq 1 ]] && [[ -z "$WIN_PATH" ]]; then
+    if [[ "$EMIT_JSON" -eq 1 ]]; then
+        printf '{"ok":false,"verb":"powershell_run","error":"elevation_requires_win_path"}\n'
+    else
+        echo "mios-powershell: UAC elevation requires a Windows-side staging path (C:\Users\Public\Documents\mios-ps)." >&2
+    fi
+    exit 1
+fi
+
 OUT_FILE="$(mktemp -t mios-ps-out-XXXXXX)"
 ERR_FILE="$(mktemp -t mios-ps-err-XXXXXX)"
-trap 'rm -f "$TMPFILE" "$OUT_FILE" "$ERR_FILE" "${WIN_STAGE_DIR}/$(basename "$TMPFILE")" 2>/dev/null' EXIT
+if [[ "$ELEVATE" -eq 1 ]]; then
+    touch "$OUT_FILE" "$ERR_FILE"
+    cp "$OUT_FILE" "$WIN_STAGE_DIR/$(basename "$OUT_FILE")"
+    cp "$ERR_FILE" "$WIN_STAGE_DIR/$(basename "$ERR_FILE")"
+    trap 'rm -f "$TMPFILE" "$OUT_FILE" "$ERR_FILE" "${WIN_STAGE_DIR}/$(basename "$TMPFILE")" "${WIN_STAGE_DIR}/$(basename "$OUT_FILE")" "${WIN_STAGE_DIR}/$(basename "$ERR_FILE")" 2>/dev/null' EXIT
+else
+    trap 'rm -f "$TMPFILE" "$OUT_FILE" "$ERR_FILE" "${WIN_STAGE_DIR}/$(basename "$TMPFILE")" 2>/dev/null' EXIT
+fi
 
 # Build the powershell.exe argv. -NoProfile makes invocation
 # deterministic; -NonInteractive prevents prompts from hanging.
@@ -230,12 +249,32 @@ if [[ -n "$WORK_DIR" ]]; then
 fi
 
 EXIT_CODE=0
-if [[ -n "$WIN_PATH" ]]; then
-    timeout --preserve-status "$TIMEOUT" "$PWSH" "${PWSH_ARGS[@]}" \
-        >"$OUT_FILE" 2>"$ERR_FILE" || EXIT_CODE=$?
+if [[ "$ELEVATE" -eq 1 ]]; then
+    WIN_OUT_FILE="C:\\Users\\Public\\Documents\\mios-ps\\$(basename "$OUT_FILE")"
+    WIN_ERR_FILE="C:\\Users\\Public\\Documents\\mios-ps\\$(basename "$ERR_FILE")"
+    
+    # Escape paths for PowerShell Start-Process string arguments
+    WIN_PATH_ESC="${WIN_PATH//\\/\\\\}"
+    WIN_OUT_ESC="${WIN_OUT_FILE//\\/\\\\}"
+    WIN_ERR_ESC="${WIN_ERR_FILE//\\/\\\\}"
+    PWSH_ESC="${PWSH//\\/\\\\}"
+    
+    ELEVATE_CMD="try { \$p = Start-Process '$PWSH_ESC' -Verb RunAs -Wait -PassThru -WindowStyle Hidden -ArgumentList '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', \"& { & '$WIN_PATH_ESC' > '$WIN_OUT_ESC' 2> '$WIN_ERR_ESC'; exit \$LASTEXITCODE }\"; exit \$p.ExitCode } catch { [Console]::Error.WriteLine('UAC elevation failed: ' + \$_.Exception.Message); exit 1223 }"
+    
+    timeout --preserve-status "$TIMEOUT" "$PWSH" -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$ELEVATE_CMD" >/dev/null 2>"$ERR_FILE" || EXIT_CODE=$?
+    
+    if [[ "$EXIT_CODE" -ne 1223 ]]; then
+        cat "/mnt/c/Users/Public/Documents/mios-ps/$(basename "$OUT_FILE")" >> "$OUT_FILE"
+        cat "/mnt/c/Users/Public/Documents/mios-ps/$(basename "$ERR_FILE")" >> "$ERR_FILE"
+    fi
 else
-    timeout --preserve-status "$TIMEOUT" "$PWSH" "${PWSH_ARGS[@]}" \
-        <"$TMPFILE" >"$OUT_FILE" 2>"$ERR_FILE" || EXIT_CODE=$?
+    if [[ -n "$WIN_PATH" ]]; then
+        timeout --preserve-status "$TIMEOUT" "$PWSH" "${PWSH_ARGS[@]}" \
+            >"$OUT_FILE" 2>"$ERR_FILE" || EXIT_CODE=$?
+    else
+        timeout --preserve-status "$TIMEOUT" "$PWSH" "${PWSH_ARGS[@]}" \
+            <"$TMPFILE" >"$OUT_FILE" 2>"$ERR_FILE" || EXIT_CODE=$?
+    fi
 fi
 
 # Strip trailing CRLF so the consumer doesn't see literal \r in

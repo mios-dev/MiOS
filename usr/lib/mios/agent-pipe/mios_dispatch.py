@@ -736,6 +736,7 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
             return None
         timeout = int(args.get("timeout", 30))
         work_dir = str(args.get("work_dir", "")).strip()
+        elevate = bool(args.get("elevate", False))
         script_b64 = base64.b64encode(script.encode("utf-8")).decode()
         cmd = (
             f"echo {shlex.quote(script_b64)} | base64 -d "
@@ -743,6 +744,8 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
         )
         if work_dir:
             cmd += f" --work-dir {shlex.quote(work_dir)}"
+        if elevate:
+            cmd += " --elevate"
         cmd += " -"
         return cmd
     return None
