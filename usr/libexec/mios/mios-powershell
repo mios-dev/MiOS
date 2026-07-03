@@ -253,11 +253,21 @@ if [[ "$ELEVATE" -eq 1 ]]; then
     WIN_OUT_FILE="C:\\Users\\Public\\Documents\\mios-ps\\$(basename "$OUT_FILE")"
     WIN_ERR_FILE="C:\\Users\\Public\\Documents\\mios-ps\\$(basename "$ERR_FILE")"
     
+    # Resolve native Windows path for Start-Process to execute correctly on host
+    WIN_PWSH=""
+    if [[ "$PWSH" == "/mnt/c/Program Files/PowerShell/7/pwsh.exe" ]]; then
+        WIN_PWSH="C:\\Program Files\\PowerShell\\7\\pwsh.exe"
+    elif [[ "$PWSH" == "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe" ]]; then
+        WIN_PWSH="C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
+    else
+        WIN_PWSH="$(basename "$PWSH")"
+    fi
+    
     # Escape paths for PowerShell Start-Process string arguments
     WIN_PATH_ESC="${WIN_PATH//\\/\\\\}"
     WIN_OUT_ESC="${WIN_OUT_FILE//\\/\\\\}"
     WIN_ERR_ESC="${WIN_ERR_FILE//\\/\\\\}"
-    PWSH_ESC="${PWSH//\\/\\\\}"
+    PWSH_ESC="${WIN_PWSH//\\/\\\\}"
     
     ELEVATE_CMD="try { \$p = Start-Process '$PWSH_ESC' -Verb RunAs -Wait -PassThru -WindowStyle Hidden -ArgumentList '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', \"& { & '$WIN_PATH_ESC' > '$WIN_OUT_ESC' 2> '$WIN_ERR_ESC'; exit \$LASTEXITCODE }\"; exit \$p.ExitCode } catch { [Console]::Error.WriteLine('UAC elevation failed: ' + \$_.Exception.Message); exit 1223 }"
     
