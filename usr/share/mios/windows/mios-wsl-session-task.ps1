@@ -28,32 +28,27 @@ param(
     [string]$TaskName = 'MiOS-WSL-Session'
 )
 
-$me = "$env:COMPUTERNAME\$env:USERNAME"
-Write-Host "Registering '$TaskName' (run as $me, Interactive/Session 1, at logon) -> start WSL distro '$Distro'"
+$me = "SYSTEM"
+Write-Host "Registering '$TaskName' (run as SYSTEM, AtStartup) -> start WSL distro '$Distro'"
 
 # Action: booting the distro starts systemd (boot=systemd) + all enabled MiOS
-# services and brings up WSLg in THIS (interactive) session. /bin/true returns
-# immediately; the distro keeps running because systemd + services persist.
+# services. /bin/true returns immediately; the distro keeps running because systemd + services persist.
 #
 # Launched through a HIDDEN powershell host so no Windows Terminal / conhost
-# window flashes onto the operator's desktop at logon (operator report
-#). The hidden powershell still runs in the interactive Session 1, so
-# starting the VM here keeps WSLg/msrdc bound to the operator's session -- the
-# whole point of this task is preserved; only the visible window is removed. Same
-# proven `-WindowStyle Hidden` pattern as the iGPU / OSControl server tasks.
+# window flashes onto the operator's desktop. Same proven `-WindowStyle Hidden`
+# pattern as the iGPU / OSControl server tasks.
 $wslExe    = Join-Path $env:SystemRoot 'System32\wsl.exe'
 $psExe     = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
 $inner     = "& '$wslExe' -d $Distro -- /bin/true"
 $action    = New-ScheduledTaskAction -Execute $psExe `
     -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command `"$inner`""
-$trigger   = New-ScheduledTaskTrigger -AtLogOn -User $me
-# LogonType Interactive == "run only when user is logged on" -> runs in the
-# operator's interactive session (Session 1). Do NOT use S4U (session-less).
-$principal = New-ScheduledTaskPrincipal -UserId $me -LogonType Interactive -RunLevel Limited
+$trigger   = New-ScheduledTaskTrigger -AtStartup
+# SYSTEM + ServiceAccount: starts the WSL VM pre-graphical logon
+$principal = New-ScheduledTaskPrincipal -UserId "NT AUTHORITY\SYSTEM" -LogonType ServiceAccount -RunLevel Highest
 $settings  = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries `
                 -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Minutes 5) `
                 -MultipleInstances IgnoreNew
-$desc      = "Starts the MiOS WSL VM from the operator's INTERACTIVE (Session 1) logon so WSLg/msrdc projects Linux GUI windows onto the operator's desktop, not the invisible Session 0."
+$desc      = "Starts the MiOS WSL VM at system startup as SYSTEM pre-graphical logon so backend VM services are active immediately."
 
 Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger `
     -Principal $principal -Settings $settings -Description $desc -Force | Out-Null
