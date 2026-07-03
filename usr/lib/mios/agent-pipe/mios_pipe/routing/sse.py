@@ -78,18 +78,31 @@ def _sse_chunk(content: Optional[str], *, chat_id: str, model: str,
     return ("data: " + json.dumps(chunk) + "\n\n").encode("utf-8")
 
 
-def _sse_reasoning(text: str, *, chat_id: str, model: str) -> bytes:
-    """Stream a reasoning delta.
+def _sse_reasoning(text: str, *, chat_id: str, model: str,
+                   reasoning_ok: Optional[bool] = None) -> bytes:
+    """Stream a reasoning/trace delta on the correct channel for the surface.
 
-    Default (debug OFF): via the standard ``delta.reasoning_content`` field
-    (no ``<details>``-in-content hack). OWUI shows it as a native Thinking
-    dropdown; strict OpenAI clients (Firefox Smart Window) ignore it and render
-    only the final ``content`` answer -- which is what keeps the visible reply
-    clean + generative and kills ``<think>`` leaks.
+    ``reasoning_ok`` carries the consuming surface's capability (set per-request
+    from the ``x-mios-reasoning-ok`` hint the OWUI pipe advertises; ``None`` when
+    unknown):
 
-    Debug ON: inline the reasoning as visible content for local debugging.
-    Opt-in only ([observability].debug) -- never the default, since it leaks
-    internals to every client."""
+    * ``True``  -- reasoning-aware surface (OWUI / Hermes desktop): pin the trace
+      to ``delta.reasoning_content`` REGARDLESS of ``[observability].debug`` so it
+      renders live in the native Thinking pane and never pollutes the answer
+      ``content`` (final answer stays the only thing in ``content`` -- KV-safe,
+      OWUI #21815). Full visibility, replay-safe.
+    * ``False`` -- a surface that DECLARED itself content-only: fold the trace
+      inline as ``content`` so strict clients (which ignore ``reasoning_content``)
+      still render it. Visibility preserved; MiOS owns the replay-strip.
+    * ``None``  -- unknown surface: legacy routing, ``[observability].debug``
+      decides (byte-identical to before the hint existed -- degrade-open).
+
+    The mandate is full visibility on EVERY surface; this only routes WHICH
+    channel carries the trace, never suppresses it."""
+    if reasoning_ok is True:
+        return _sse_chunk(None, chat_id=chat_id, model=model, reasoning=text)
+    if reasoning_ok is False:
+        return _sse_chunk(text, chat_id=chat_id, model=model)
     if _DEBUG_ENABLE:
         return _sse_chunk(text, chat_id=chat_id, model=model)
     return _sse_chunk(None, chat_id=chat_id, model=model, reasoning=text)

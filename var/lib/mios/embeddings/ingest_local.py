@@ -67,7 +67,7 @@ def embed_batch(client: httpx.Client, endpoint: str, key: str, model: str,
 
 
 def stable_id(chunk_id: str) -> int:
-    """Deterministic 64-bit id from the chunk's string id (Qdrant requires int or UUID)."""
+    """Deterministic 64-bit id from the chunk's string id."""
     return int(hashlib.sha1(chunk_id.encode()).hexdigest()[:16], 16)
 
 
@@ -88,7 +88,7 @@ def main(chunks_path: str = "chunks.jsonl") -> int:
     pg_pass = os.environ.get("MIOS_PG_PASS", "mios")
     pg_db   = os.environ.get("MIOS_PG_DB", "mios")
     
-    collection = os.environ.get("QDRANT_COLLECTION", "mios-kb")
+    collection = os.environ.get("MIOS_KB_COLLECTION", "mios-kb")
     table_name = collection.replace("-", "_")
 
     path = Path(chunks_path)

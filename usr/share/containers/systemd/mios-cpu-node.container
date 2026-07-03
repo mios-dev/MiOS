@@ -11,20 +11,21 @@ Wants=network-online.target
 ContainerName=mios-cpu-node
 Entrypoint=/app/llama-server
 Environment=HOME=/var/lib/mios/llamacpp
-Exec=--model /models/granite-4.1-8b.gguf --host 0.0.0.0 --port ${MIOS_PORT_CPU_NODE:-11451} --ctx-size 131072 --flash-attn on --cache-type-k q4_0 --cache-type-v q4_0 --parallel 1 --threads ${MIOS_CPU_NODE_THREADS:-14} --n-gpu-layers 0 --jinja --alias mios-cpu --slot-save-path ${MIOS_LLAMACPP_SLOT_DIR:-/var/lib/mios/llamacpp/slots}
-Group=${MIOS_LLAMACPP_GID:-827}
-Image=${MIOS_LLM_LIGHT_IMAGE:-ghcr.io/mostlygeek/llama-swap:cuda}
+Exec=--model /models/granite-4.1-8b.gguf --host 0.0.0.0 --port ${MIOS_PORT_CPU_NODE} --ctx-size 131072 --flash-attn on --cache-type-k q4_0 --cache-type-v q4_0 --parallel 1 --threads 14 --n-gpu-layers 0 --jinja --alias mios-cpu --slot-save-path /var/lib/mios/llamacpp/slots
+Group=827
+Image=ghcr.io/mostlygeek/llama-swap:cuda
 Label=org.opencontainers.image.title=mios-cpu-node
 Pod=mios-ai.pod
-User=${MIOS_LLAMACPP_UID:-827}
+User=827
 Volume=/usr/share/mios/llamacpp/models:/models:ro,Z
-Volume=${MIOS_LLAMACPP_SLOT_DIR:-/var/lib/mios/llamacpp/slots}:${MIOS_LLAMACPP_SLOT_DIR:-/var/lib/mios/llamacpp/slots}:Z
+Volume=/var/lib/mios/llamacpp/slots:/var/lib/mios/llamacpp/slots:Z
 
 [Install]
 WantedBy=multi-user.target default.target
 
 [Service]
 Delegate=yes
+EnvironmentFile=/etc/mios/install.env
 Restart=on-failure
 RestartSec=10s
 TimeoutStartSec=300s

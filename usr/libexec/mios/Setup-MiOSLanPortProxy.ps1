@@ -23,9 +23,9 @@ if (-not $isAdmin) {
 }
 
 $portMap = @(
-    @{ Port = 3000;  Name = 'forge'            }
-    @{ Port = 3033;  Name = 'open-webui'       }
-    @{ Port = 8080;  Name = 'code-server'      }
+    @{ Port = 8300;  Name = 'forge'            }
+    @{ Port = 8033;  Name = 'open-webui'       }
+    @{ Port = 8800;  Name = 'code-server'      }
     @{ Port = 9090;  Name = 'cockpit'          }
     @{ Port = 11450; Name = 'llm-light'        }
     @{ Port = 8899;  Name = 'searxng'          }

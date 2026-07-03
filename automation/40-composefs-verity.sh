@@ -77,8 +77,10 @@ fi
 
 conf=/usr/lib/ostree/prepare-root.conf
 if [[ -f "$conf" ]]; then
-    log "[40-composefs-verity] backing up existing $conf -> ${conf}.orig"
-    cp -a "$conf" "${conf}.orig"
+    if [[ ! -f "${conf}.orig" ]]; then
+        log "[40-composefs-verity] backing up existing $conf -> ${conf}.orig"
+        cp -a "$conf" "${conf}.orig"
+    fi
 fi
 
 # Render the table according to the requested mode. The [root] / [etc]

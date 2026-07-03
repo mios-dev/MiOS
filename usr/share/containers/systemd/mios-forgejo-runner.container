@@ -23,7 +23,7 @@ Group=0
 Image=code.forgejo.org/forgejo/runner:7
 Label=org.opencontainers.image.title=mios-forgejo-runner
 Label=org.opencontainers.image.documentation=https://forgejo.org/docs/latest/admin/actions/
-Label=io.podman_desktop.openInBrowser=http://localhost:${MIOS_PORT_FORGE_HTTP:-8300}/-/admin/actions/runners
+Label=io.podman_desktop.openInBrowser=http://localhost:${MIOS_PORT_FORGE_HTTP}/-/admin/actions/runners
 Pod=mios-webtools.pod
 PodmanArgs=--privileged
 User=0

@@ -197,6 +197,34 @@ elif os.path.isfile(toml_path):
             viol.append(f"[nodes.{name}] endpoint {ep} -> localhost:{port} is served by NO shipped unit "
                         f"(dangling lane; served ports: {sorted(served)})")
 
+    # -- (3b) validate new SSOT fields for observability, lanes, and agent_pipe --
+    obs = data.get("observability", {}) or {}
+    if "surface_default" not in obs:
+        viol.append("[observability] surface_default is missing")
+    elif obs.get("surface_default") not in ("clean", "inline"):
+        viol.append(f"[observability] surface_default '{obs.get('surface_default')}' must be 'clean' or 'inline'")
+    
+    channels = obs.get("channels", {}) or {}
+    req_channels = {"thinking", "plan", "tool_call", "tool_result", "source", "content"}
+    for rc in req_channels:
+        if rc not in channels:
+            viol.append(f"[observability.channels] key '{rc}' is missing")
+            
+    lanes = data.get("lanes", {}) or {}
+    for lname in ("light", "sglang", "vllm"):
+        if lname not in lanes:
+            viol.append(f"[lanes.{lname}] section is missing")
+        else:
+            lcfg = lanes[lname] or {}
+            for k in ("stream_thinking", "tool_call_parser", "reasoning_parser", "constrained_tools"):
+                if k not in lcfg:
+                    viol.append(f"[lanes.{lname}].{k} is missing")
+                    
+    ap = data.get("agent_pipe", {}) or {}
+    for k in ("tool_loop_limit", "reflexion_limit", "reflexion_enable"):
+        if k not in ap:
+            viol.append(f"[agent_pipe].{k} is missing")
+
 # -- (4) ai/v1/*.json: must parse; tools.json schema refs must exist on disk --
 v1 = os.path.join(root, "usr/share/mios/ai/v1")
 if os.path.isdir(v1):

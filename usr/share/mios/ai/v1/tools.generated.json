@@ -242,7 +242,7 @@
       "tier": "common"
     },
     {
-      "description": "Search for files on the WINDOWS side of this machine via the Voidtools Everything NTFS index (exhaustive, name/extension match). Finds FILES that already exist on Windows drives (C:, etc.) -- NOT a web or knowledge search, and NOT the Linux filesystem (use linux_file_search for that). Good for 'where is X.exe' on Windows; use find_file_fast first for a quick cached hit.",
+      "description": "Search for files on the WINDOWS side of this machine via the Voidtools Everything NTFS index (exhaustive, name/extension match). Finds FILES that already exist on Windows drives (C:, etc.) -- NOT a web or knowledge search, and NOT the Linux filesystem. Good for 'where is X.exe' on Windows.",
       "hidden": true,
       "model_name": "windows_file_search",
       "name": "everything_search",
@@ -363,7 +363,7 @@
       "tier": "rare"
     },
     {
-      "description": "Search for files on the LINUX side of this machine (plocate -> locate -> find; exhaustive name/extension/path match). Finds FILES on the Linux filesystem -- NOT a web or knowledge search, and NOT Windows drives (use windows_file_search for C:/Windows paths). Use find_file_fast first for a quick cached hit; fall back here for a full disk scan.",
+      "description": "Search for files on the LINUX side of this machine via substring locate (plocate) — does NOT enumerate a directory; use list_dir for that.",
       "hidden": true,
       "model_name": "linux_file_search",
       "name": "fs_search",
@@ -403,16 +403,6 @@
       "tier": "rare"
     },
     {
-      "description": "Launch an application or system component. verify=true waits and confirms the launch. position=left/right/fullscreen.",
-      "hidden": false,
-      "model_name": "",
-      "name": "launch_app",
-      "permission": "write",
-      "section": "Window / app launch",
-      "sig": "name, verify=false, args?, position?",
-      "tier": "core"
-    },
-    {
       "description": "Inject input into the LINUX in-VM desktop. action='screenshot', 'ground', 'atspi', 'window-list', 'click', 'type', 'key'.",
       "hidden": false,
       "model_name": "",
@@ -421,6 +411,16 @@
       "section": "Computer-use",
       "sig": "action, text?, key?, x?, y?",
       "tier": "common"
+    },
+    {
+      "description": "LIST the immediate entries of a directory, like `ls <path>`; defaults to the current working directory. Use this to list a directory's files and subdirectories.",
+      "hidden": false,
+      "model_name": "list_directory",
+      "name": "list_dir",
+      "permission": "read",
+      "section": "Discovery / resolution",
+      "sig": "path?, depth=1?",
+      "tier": "core"
     },
     {
       "description": "Enumerate the currently OPEN Windows-desktop windows (titles). Run this BEFORE focus/move/close to confirm the target window exists. NOT the installed-app inventory (use list_installed_apps) and NOT the Linux/Wayland desktop (that is linux_desktop_window_list).",
@@ -513,7 +513,7 @@
       "tier": "rare"
     },
     {
-      "description": "Resolve an app/program NAME to the exact runnable launch command WITHOUT launching it -- returns the cmd line only; the agent then decides whether to run it (e.g. via launch_windows_app/launch_app). This is NOT a file search (use find_file_fast / windows_file_search / linux_file_search to locate files) and does NOT open anything. Use it to get the precise command before launching, or to check how something would be started.",
+      "description": "Resolve an app/program NAME to the exact runnable launch command WITHOUT launching it -- returns the cmd line only; the agent then decides whether to run it (e.g. via launch_windows_app/launch_app). This is NOT a file search and does NOT open anything. Use it to get the precise command before launching, or to check how something would be started.",
       "hidden": true,
       "model_name": "resolve_launch_command",
       "name": "mios_find",
@@ -895,7 +895,7 @@
       "tier": "rare"
     },
     {
-      "description": "READ the contents of a local file (returns text with 1-indexed line numbers, optional start/end range) OR list the entries of a local directory if path is a folder. This is for files/folders ALREADY on disk -- it does NOT search the web and does NOT find files by name (use windows_file_search on Windows or linux_file_search on Linux first to locate a path). For Windows paths, resolve via windows_file_search FIRST.",
+      "description": "READ the contents of a local file (returns text with 1-indexed line numbers, optional start/end range). This is for files ALREADY on disk -- it does NOT search the web and does NOT find files by name. To list the contents of a directory, use list_directory instead.",
       "hidden": false,
       "model_name": "read_file",
       "name": "text_view",
@@ -905,7 +905,7 @@
       "tier": "core"
     },
     {
-      "description": "Find VERBS/TOOLS in the catalog by natural-language query when no listed verb obviously fits the user's ask. Returns top-k {name, sig, desc, score} via embedding search over verb name+description. Use to DISCOVER a capability you don't see; not for searching the web (web_search), files (windows_file_search/linux_file_search), or knowledge (knowledge_search).",
+      "description": "Find VERBS/TOOLS in the catalog by natural-language query when no listed verb obviously fits the user's ask. Returns top-k {name, sig, desc, score} via embedding search over verb name+description. Use to DISCOVER a capability you don't see; not for searching the web (web_search) or local files (windows_file_search).",
       "hidden": false,
       "model_name": "",
       "name": "tool_search",

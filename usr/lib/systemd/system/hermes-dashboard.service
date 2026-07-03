@@ -49,7 +49,7 @@ ExecStart=/usr/lib/mios/agents/.venv/bin/hermes dashboard \
     --skip-build \
     --no-open \
     --host 127.0.0.1 \
-    --port ${MIOS_PORT_HERMES_DASHBOARD:-8119} \
+    --port ${MIOS_PORT_HERMES_DASHBOARD} \
     --tui
 
 # Localhost bind by default. The operator's browser (Windows side) hits

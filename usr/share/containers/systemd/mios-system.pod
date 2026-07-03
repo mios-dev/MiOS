@@ -1,12 +1,11 @@
-# AI-hint: GENERATED Quadlet pod for the co-resident group 'mios-system' (WS-7 pods-as-SSOT). DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [pods.mios-system] in mios.toml. Members (9): mios-adguard, mios-ceph, mios-cockpit-link, mios-crowdsec-dashboard, mios-pxe-hub, mios-k3s, mios-guacamole, mios-guacd, mios-guacamole-postgres.
-# AI-related: usr/share/mios/mios.toml, tools/generate-pod-quadlets.py, mios-adguard.container, mios-ceph.container, mios-cockpit-link.container, mios-crowdsec-dashboard.container, mios-pxe-hub.container, mios-k3s.container, mios-guacamole.container, mios-guacd.container, mios-guacamole-postgres.container
+# AI-hint: GENERATED Quadlet pod for the co-resident group 'mios-system' (WS-7 pods-as-SSOT). DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [pods.mios-system] in mios.toml. Members (8): mios-adguard, mios-ceph, mios-cockpit-link, mios-pxe-hub, mios-k3s, mios-guacamole, mios-guacd, mios-guacamole-postgres.
+# AI-related: usr/share/mios/mios.toml, tools/generate-pod-quadlets.py, mios-adguard.container, mios-ceph.container, mios-cockpit-link.container, mios-pxe-hub.container, mios-k3s.container, mios-guacamole.container, mios-guacd.container, mios-guacamole-postgres.container
 # /usr/share/containers/systemd/mios-system.pod
 # Consolidated system services pod.
 # Members (each member .container declares Pod=mios-system.pod):
 #   mios-adguard
 #   mios-ceph
 #   mios-cockpit-link
-#   mios-crowdsec-dashboard
 #   mios-pxe-hub
 #   mios-k3s
 #   mios-guacamole

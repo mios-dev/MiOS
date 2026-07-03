@@ -15,10 +15,10 @@ ContainerName=mios-forge
 Environment=USER=git
 Environment=USER_UID=816
 Environment=USER_GID=816
-Environment=FORGEJO__server__ROOT_URL=http://localhost:${MIOS_PORT_FORGE_HTTP:-8300}/
+Environment=FORGEJO__server__ROOT_URL=http://localhost:${MIOS_PORT_FORGE_HTTP}/
 Environment=FORGEJO__server__HTTP_ADDR=0.0.0.0
 Environment=GITEA__server__HTTP_ADDR=0.0.0.0
-Environment=FORGEJO__server__HTTP_PORT=${MIOS_PORT_FORGE_HTTP:-8300}
+Environment=FORGEJO__server__HTTP_PORT=${MIOS_PORT_FORGE_HTTP}
 Environment=FORGEJO__server__START_SSH_SERVER=true
 Environment=FORGEJO__server__SSH_PORT=49922
 Environment=FORGEJO__server__SSH_LISTEN_HOST=0.0.0.0
@@ -34,9 +34,9 @@ EnvironmentFile=/etc/mios/install.env
 Group=0
 Image=codeberg.org/forgejo/forgejo:12
 Label=org.opencontainers.image.title=mios-forge
-Label=org.opencontainers.image.url=http://localhost:${MIOS_PORT_FORGE_HTTP:-8300}/
+Label=org.opencontainers.image.url=http://localhost:${MIOS_PORT_FORGE_HTTP}/
 Label=org.opencontainers.image.documentation=https://forgejo.org/docs/latest/
-Label=io.podman_desktop.openInBrowser=http://localhost:${MIOS_PORT_FORGE_HTTP:-8300}/
+Label=io.podman_desktop.openInBrowser=http://localhost:${MIOS_PORT_FORGE_HTTP}/
 Pod=mios-webtools.pod
 User=0
 Volume=/srv/mios/forge:/data:Z

@@ -30,7 +30,7 @@ _config_version: 1
 model:
   provider: custom:mios-heavy
   default: mios-heavy
-  base_url: http://localhost:11441/v1
+  base_url: http://localhost:8441/v1
   api_key: ""
   # mios-heavy max_model_len is 65536; Hermes v0.15+ refuses tool use under 64k.
   ollama_num_ctx: 65536
@@ -44,10 +44,10 @@ model:
 # Heavy lane (main) + light lane (aux/delegation/fallback) providers.
 custom_providers:
   - name: mios-heavy
-    base_url: http://localhost:11441/v1
+    base_url: http://localhost:8441/v1
     api_key: ""
   - name: local-ollama
-    base_url: http://localhost:11450/v1
+    base_url: http://localhost:8450/v1
     api_key: ""
 
 # Auxiliary lanes stay on the LIGHT lane (granite4.1:8b @ :11450): they don't
@@ -56,61 +56,61 @@ custom_providers:
 auxiliary:
   compression:
     provider: custom:local-ollama
-    base_url: http://localhost:11450/v1
+    base_url: http://localhost:8450/v1
     model: granite4.1:8b
     ollama_num_ctx: 65536
     context_length: 65536
   session_search:
     provider: custom:local-ollama
-    base_url: http://localhost:11450/v1
+    base_url: http://localhost:8450/v1
     model: granite4.1:8b
     ollama_num_ctx: 65536
     context_length: 65536
   title_generation:
     provider: custom:local-ollama
-    base_url: http://localhost:11450/v1
+    base_url: http://localhost:8450/v1
     model: granite4.1:8b
     ollama_num_ctx: 65536
     context_length: 65536
   triage_specifier:
     provider: custom:local-ollama
-    base_url: http://localhost:11450/v1
+    base_url: http://localhost:8450/v1
     model: granite4.1:8b
     ollama_num_ctx: 65536
     context_length: 65536
   curator:
     provider: custom:local-ollama
-    base_url: http://localhost:11450/v1
+    base_url: http://localhost:8450/v1
     model: granite4.1:8b
     ollama_num_ctx: 65536
     context_length: 65536
   mcp:
     provider: custom:local-ollama
-    base_url: http://localhost:11450/v1
+    base_url: http://localhost:8450/v1
     model: granite4.1:8b
     ollama_num_ctx: 65536
     context_length: 65536
   web_extract:
     provider: custom:local-ollama
-    base_url: http://localhost:11450/v1
+    base_url: http://localhost:8450/v1
     model: granite4.1:8b
     ollama_num_ctx: 65536
     context_length: 65536
   approval:
     provider: custom:local-ollama
-    base_url: http://localhost:11450/v1
+    base_url: http://localhost:8450/v1
     model: granite4.1:8b
     ollama_num_ctx: 65536
     context_length: 65536
   skills_hub:
     provider: custom:local-ollama
-    base_url: http://localhost:11450/v1
+    base_url: http://localhost:8450/v1
     model: granite4.1:8b
     ollama_num_ctx: 65536
     context_length: 65536
   vision_grounding:
     provider: custom:local-ollama
-    base_url: http://localhost:11450/v1
+    base_url: http://localhost:8450/v1
     model: qwen3-vl:4b
 
 # Web SEARCH -> on-box SearXNG; web EXTRACT -> miosfetch (offline direct-fetch).
@@ -180,7 +180,7 @@ browser:
 # serialize against the worker's own heavy-lane tool loop.
 delegation:
   provider: custom:local-ollama
-  base_url: http://localhost:11450/v1
+  base_url: http://localhost:8450/v1
   model: granite4.1:8b
   ollama_num_ctx: 65536
   context_length: 65536

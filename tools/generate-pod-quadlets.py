@@ -25,6 +25,34 @@ from __future__ import annotations
 
 import os
 import sys
+import re
+
+def resolve_env_vars(val: str | bool | list | dict) -> str | bool | list | dict:
+    if isinstance(val, list):
+        return [resolve_env_vars(x) for x in val]
+    if isinstance(val, dict):
+        return {k: resolve_env_vars(v) for k, v in val.items()}
+    if not isinstance(val, str):
+        return val
+    
+    # 1. Resolve ${VAR:-default}
+    def repl_fallback(m):
+        var_name = m.group(1)
+        fallback = m.group(2)
+        if var_name.startswith("MIOS_PORT_"):
+            return f"${{{var_name}}}"
+        return os.environ.get(var_name, fallback)
+    val = re.sub(r'\$\{([A-Za-z0-9_]+):-([^}]*)\}', repl_fallback, val)
+    
+    # 2. Resolve ${VAR}
+    def repl_var(m):
+        var_name = m.group(1)
+        if var_name.startswith("MIOS_PORT_"):
+            return m.group(0)
+        return os.environ.get(var_name, m.group(0))
+    val = re.sub(r'\$\{([A-Za-z0-9_]+)\}', repl_var, val)
+    
+    return val
 
 try:
     import tomllib
@@ -79,12 +107,12 @@ def render_pod_quadlet(name: str, spec: dict, ports: dict | None = None) -> str:
     sorted nothing (preserve declared order), fixed section order. PodName is the
     pod `name` with any leading 'mios-' kept (the unit is <name>.pod -> Quadlet
     derives <name>-pod.service)."""
-    desc = str(spec.get("description") or f"MiOS {name} pod")
-    network = str(spec.get("network") or "host")
-    after = [str(x) for x in (spec.get("after") or [])]
-    wants = [str(x) for x in (spec.get("wants") or [])]
-    wanted_by = [str(x) for x in (spec.get("wanted_by") or ["multi-user.target"])]
-    publish_ports = [str(x) for x in (spec.get("publish_ports") or [])]
+    desc = resolve_env_vars(str(spec.get("description") or f"MiOS {name} pod"))
+    network = resolve_env_vars(str(spec.get("network") or "host"))
+    after = [resolve_env_vars(str(x)) for x in (spec.get("after") or [])]
+    wants = [resolve_env_vars(str(x)) for x in (spec.get("wants") or [])]
+    wanted_by = [resolve_env_vars(str(x)) for x in (spec.get("wanted_by") or ["multi-user.target"])]
+    publish_ports = [resolve_env_vars(str(x)) for x in (spec.get("publish_ports") or [])]
     if ports:
         publish_ports = [_resolve_port(p, ports) for p in publish_ports]
     members = [str(x).split("#", 1)[0].strip() for x in (spec.get("members") or [])]
@@ -155,6 +183,12 @@ def load_volumes(toml_path: str) -> dict:
     return d.get("volumes") or d.get("volume") or {}
 
 
+def load_enabled_quadlets(toml_path: str) -> dict:
+    with open(toml_path, "rb") as f:
+        d = tomllib.load(f)
+    return d.get("quadlets", {}).get("enable", {})
+
+
 def render_nested_quadlet(name: str, spec: dict, unit_type: str) -> str:
     lines: list[str] = []
     lines.append(
@@ -186,11 +220,14 @@ def render_nested_quadlet(name: str, spec: dict, unit_type: str) -> str:
             val = sec_data[k]
             if isinstance(val, list):
                 for item in val:
-                    lines.append(f"{k}={item}")
+                    resolved_item = resolve_env_vars(item)
+                    lines.append(f"{k}={resolved_item}")
             elif isinstance(val, bool):
                 lines.append(f"{k}={'true' if val else 'false'}")
             else:
-                lines.append(f"{k}={val}")
+                resolved_val = resolve_env_vars(val)
+                lines.append(f"{k}={resolved_val}")
+
                 
     return "\n".join(lines).strip() + "\n"
 
@@ -199,6 +236,7 @@ def main(argv: "list[str]") -> int:
     if "--selftest" in argv:
         return _selftest()
     check = "--check" in argv
+    enabled_map = load_enabled_quadlets(TOML)
     pods = load_pods(TOML)
     ports = load_ports(TOML)
     containers = load_containers(TOML)
@@ -209,10 +247,21 @@ def main(argv: "list[str]") -> int:
         print("[pod-gen] no Quadlets in SSOT -- nothing to do")
         return 0
 
+    # Filter members in each pod spec based on enablement
+    for pod_name, pod_spec in pods.items():
+        if "members" in pod_spec:
+            filtered_members = []
+            for m in pod_spec["members"]:
+                m_name = str(m).split("#", 1)[0].strip()
+                if enabled_map.get(m_name) is not False:
+                    filtered_members.append(m)
+            pod_spec["members"] = filtered_members
+
     os.makedirs(OUT_DIR, exist_ok=True)
     drift = 0
     wrote = 0
     member_miss = 0
+    active_units = 0
 
     # Process pods
     for name in sorted(pods):
@@ -225,6 +274,7 @@ def main(argv: "list[str]") -> int:
             if m and not os.path.exists(os.path.join(OUT_DIR, f"{m}.container")):
                 print(f"[pod-gen] WARN {name}: member {m}.container missing", file=sys.stderr)
                 member_miss += 1
+        active_units += 1
         if check:
             cur = ""
             if os.path.exists(out):
@@ -252,8 +302,24 @@ def main(argv: "list[str]") -> int:
             spec = specs[name]
             if not isinstance(spec, dict):
                 continue
+
+            if unit_type == "container" and enabled_map.get(name) is False:
+                # If checking drift, the file MUST NOT exist.
+                # If not checking drift, delete it if it exists.
+                out = os.path.join(OUT_DIR, f"{name}.{unit_type}")
+                if check:
+                    if os.path.exists(out):
+                        print(f"[pod-gen] DRIFT {out} should not exist (disabled in SSOT)", file=sys.stderr)
+                        drift += 1
+                else:
+                    if os.path.exists(out):
+                        os.remove(out)
+                        print(f"[pod-gen]   removed disabled {out}")
+                continue
+
             text = render_nested_quadlet(name, spec, unit_type)
             out = os.path.join(OUT_DIR, f"{name}.{unit_type}")
+            active_units += 1
             if check:
                 cur = ""
                 if os.path.exists(out):
@@ -273,8 +339,7 @@ def main(argv: "list[str]") -> int:
         if drift:
             print(f"[pod-gen] {drift} Quadlet unit(s) DRIFTED from SSOT", file=sys.stderr)
             return 1
-        total_units = len(pods) + len(containers) + len(networks) + len(volumes)
-        print(f"[pod-gen] all {total_units} Quadlet unit(s) match SSOT")
+        print(f"[pod-gen] all {active_units} Quadlet unit(s) match SSOT")
         return 1 if member_miss else 0
 
     print(f"[pod-gen] wrote {wrote} Quadlet unit(s) to {OUT_DIR}")

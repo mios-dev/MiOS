@@ -22,7 +22,7 @@ metadata:
 > /usr/share/mios/hermes/skills/mios-skill-catalog/SKILL.md._
 
 The MiOS agent stack mines repeating tool-call sequences out of
-SurrealDB and codifies them as `skill` rows. A promoted skill is a
+the agent datastore and codifies them as `skill` rows. A promoted skill is a
 parameterized DAG of MiOS verbs -- the same verbs you already call
 directly. Every agent in the stack reads the same catalog so a
 skill promoted from MiOS-OpenCode is callable from Hermes and vice

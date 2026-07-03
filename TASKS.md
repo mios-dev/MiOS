@@ -2557,6 +2557,89 @@ T-084 (STRG-01 SSOT)
 
 ---
 
+## Chat-Quality + Full-Visibility Tasks (live `@`-session audit)
+
+> Detail SSOT = `MIOS-CHATQ-FV-WORKPLAN.md` (dual-track Claude/AGY) +
+> `research/mios-chat-quality-full-visibility-gaps-2026-07-03.md` (root causes).
+> These close CQ1-4 + FV-A-F, none of which had a live task owner. Law 7 +
+> everything-streams mandate: fixes route channels + de-dup, never suppress
+> visibility; final answer is the only thing in `delta.content`.
+
+## T-031: ORCH-04 -- ReAct+Reflexion Durable Loop  (RE-OPEN -- done-by-code was NOT live)
+> **Priority:** P1 | **Status:** reopened | **Effort:** M | **Domain:** Orchestration | **Source:** CQ4 -- the `done-by-code` claim is falsified: `[agent].reflexion_enable` reads a phantom TOML section (only `[agents]` plural exists) so it is always-true; `max_iter`/`max_retry`/`no_progress` are absent from `mios.toml`; the structured reflector is wired only into the DAG path; the exact-match repeat guard is evaded by one-token arg variation; no wall-clock/no-progress/failed-call bound. Live result = the non-terminating "Reflexion essay" loop.
+
+**Instructions:** Execute Wave 4 of `MIOS-CHATQ-FV-WORKPLAN.md`: move `reflexion_enable` + loop budgets into a real `[agent_pipe]` SSOT block; replace the `server.py:835/3314` literals with SSOT reads; add a normalized no-progress signature + per-turn failed-`(tool,args)` blacklist + `max_consecutive_failures` escalation off the failure signal (not the give-up branch); enforce `wall_clock_budget_s`; wire the structured `reflect_on_step_failure` into the native/`@` path (emit-or-terminate, kept internal). Drift-gate every budget key has a code consumer.
+
+**Files:** `usr/share/mios/mios.toml [agent_pipe]`; `.../agent-pipe/mios_pipe/routing/secondary_loop.py` (44-60, 265, 345-408); `.../server.py` (835, 3314); `.../routing/native_loop.py`; `.../routing/reflect.py`; `automation/38-drift-checks.sh`.
+
+**Done When:**
+- [ ] `reflexion_enable` + budgets read from `[agent_pipe]`; no `[agent]`/literal fallbacks remain (drift-gate green)
+- [ ] identical failing `(tool,args)` is never retried; loop terminates/escalates within `wall_clock_budget_s`
+- [ ] failure path uses the structured reflector (corrective action or terminate), no free-text essay in `content`
+- [ ] live-fired in `podman-MiOS-DEV`: a deliberately-failing tool call does not loop
+
+---
+
+## T-109: CHATQ-01 -- Refine/plan trace to reasoning channel + one-answer-in-content (CQ1)
+> **Priority:** P1 | **Status:** pending | **Effort:** M | **Domain:** Observability/Orchestration | **Source:** CQ1 -- refine's `{Refined Query/Intent/Reply}` scaffold streams into `delta.content` (`chat.py:1425-1426` -> `sse.py:93-94` under `_DEBUG_ENABLE`) and the answer is restated 3x (refine `reply` + local-state + polish all reach content).
+
+**Instructions:** Wave 1 (Claude C1-C3). Route the refine pump + `_refine_reasoning` summary through a channel-pinned emitter (reasoning channel regardless of `_DEBUG_ENABLE`); extend the `_live_streamed` guard (`native_loop.py:858`) so exactly one generation reaches `content`. Refine `reply` is trace, not answer. Visibility preserved; only the channel + dedup change.
+
+**Files:** `.../agent-pipe/mios_pipe/routing/sse.py`, `.../routing/chat.py` (1425-1426, 1482-1495, 1789-1803), `.../routing/native_loop.py` (858, 1061, 1101-1102).
+
+**Done When:**
+- [ ] refine trace renders in the Thinking pane, never in `delta.content`
+- [ ] `@ what directory are we in right now` returns exactly one clean answer (no `Refined Query/...` block, no 3x restate)
+- [ ] byte-identical when `[observability]` flags off (degrade-open)
+
+---
+
+## T-110: FV-01 -- Canonical typed-event schema + per-surface routing + sub-agent visibility (FV-A/B/E/F)
+> **Priority:** P1 | **Status:** pending | **Effort:** L | **Domain:** Observability | **Source:** FV -- full-visibility mandate is untracked; "visibility" today is faked by content-inlining under `[observability].debug=ON`; leaf thinking is turned OFF at source (`agent_call.py:820-821`; `swarm.py:1237`); fan-out `_push` has no channel discriminator; strict clients can't see the reasoning channel.
+
+**Instructions:** Wave 1. One schema `thinking|plan|tool_call|tool_result|source|content` every stage + sub-agent emits into; per-lane `[lanes.*].stream_thinking` replaces the blanket `enable_thinking:False`; channel tag on the `_push` merged event; retire content-inline as the mechanism (`debug` gates only content-mirroring for strict surfaces); per-surface routing via `X-MiOS-Surface`/`reasoning_ok` with MiOS-owned replay-strip; OWUI pipe translates `mios_status`->status + refs->source events. AGY owns SSOT + OWUI pipe; Claude owns emitter + `agent_call`.
+
+**Files:** SSOT `[observability]`/`[observability.channels]`/`[lanes.*]`; `usr/share/mios/owui/pipes/mios_agent_pipe.py`; `.../agent-pipe/mios_pipe/routing/sse.py`, `.../routing/agent_call.py` (738-746, 797-885, 820-821), `.../server.py`, `swarm.py`.
+
+**Done When:**
+- [ ] every sub-agent's thinking + tool calls + sources stream live on OWUI/Hermes; strict clients get a folded inline trace; final answer only in `content`
+- [ ] KV cache intact across turns (persisted history = clean answer only)
+- [ ] per-lane `stream_thinking=false` cleanly downgrades that lane (degrade-open)
+
+---
+
+## T-111: CHATQ-02 -- Constrained tool-calling + tools-on-final + verb-catalog repair (CQ2)
+> **Priority:** P1 | **Status:** pending | **Effort:** L | **Domain:** Tool-calling | **Source:** CQ2 -- the final answer-shaping completion fires with NO `tools[]` (`native_loop.py:780-782`) so residual tool intent leaks as literal `<tool_call>`/```json``` text; `linux_file_search` is `hidden` but name-dropped in visible descriptions -> model wraps it into `launch_app`; no constrained decoding on any lane; rescue returns after the first block and is gated on empty `tool_calls`.
+
+**Instructions:** Wave 2. AGY: engine `--tool-call-parser`/`--reasoning-parser` + `constrained_tools` per lane; consolidate duplicate `launch_app`; correct `fs_search` desc; stop advertising uncallable names; fix `[routing.domains.files].verbs`. Claude: give `_pb` the `tools[]`; streaming-aware salvage that RE-EMITS as typed events (visible) + diverts off `content` + executes; remove first-block early-return; surface routed-domain verbs even when hidden (key Stage-2 filter on canonical verb).
+
+**Files:** SSOT `[lanes.*]`, `[verbs.launch_app]` (9084/3157), `fs_search` (3465-3473), `[routing.domains.files]` (3103-3110); `.../routing/native_loop.py` (780), `.../routing/secondary_loop.py` (309, 334-344), `.../routing/toolexec.py` (210-279), `.../server.py` (3956, 4028-4034), `.../verbcatalog.py`, `.../mios_endpoints.py`.
+
+**Done When:**
+- [ ] a narrated tool call renders as a native/typed tool pill, never as text in `delta.content`
+- [ ] a files turn always carries a callable `linux_file_search`; no `launch_app` misroute
+- [ ] live-fired: `@ what's here?` fires a real typed file/`list_dir` call
+
+**Deps:** T-112 (list_dir gives the correct files-turn verb), T-110 (typed tool_call channel).
+
+---
+
+## T-112: CHATQ-03 -- First-class list_dir verb + cwd act-before-answer grounding (CQ3)
+> **Priority:** P1 | **Status:** pending | **Effort:** M | **Domain:** Tool-calling/Grounding | **Source:** CQ3 -- no `list_dir` verb exists (`linux_file_search`=`mios-locate` substring, not `ls`); `read_file`/`text_view` can list a dir but is depth-2/500-capped and framed as "read a file"; cwd string is injected but no snapshot + no lister auto-fires -> model hallucinates a generic FHS table. Also unblocks T-032's phantom `list_directory` op assumption.
+
+**Instructions:** Wave 3. AGY: add `--depth 1` immediate-children mode to `mios-text-edit`; add `[verbs.list_dir]` (`model_name=list_directory`, `path` default cwd, accurate desc + examples); redirect `read_file`/`fs_search` descriptions. Claude: fire `list_dir(path=cwd)` in `_read_tool_enrich` when cwd present (keyed off SSOT `_client_env` cwd); add a model-chosen filesystem/`state_scope` signal to refine so dir-content queries set `tool_choice:required`.
+
+**Files:** `usr/libexec/mios/mios-text-edit` (83-84, 219-241); SSOT `[verbs.list_dir]` + `fs_search`/`read_file` descs; `.../server.py` `_read_tool_enrich` (4648, 4685-4701, 4734-4745); `.../routing/refine.py`, `.../routing/chat.py` (1193-1198).
+
+**Done When:**
+- [ ] `list_dir` with no arg lists cwd immediate children (true `ls` semantics)
+- [ ] `@ what's here?` returns the real directory, never a generic FHS table
+- [ ] selection is model-driven (classifier), not a keyword/English match
+
+**Unblocks:** T-032 (its allow-listed `list_directory` op now exists).
+
+---
+
 ## Appendix A: Dependency Graph (Critical Path â€” CONV additions)
 
 ```

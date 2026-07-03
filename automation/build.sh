@@ -217,6 +217,9 @@ NON_FATAL_SCRIPTS="
   44-podman-machine-compat.sh
   50-enable-log-copy-service.sh
   91-strip-build-toolchain.sh
+  54-bake-hyprland.sh
+  55-bake-quickshell.sh
+  56-bake-surfer.sh
 "
 
 # Count total runnable scripts

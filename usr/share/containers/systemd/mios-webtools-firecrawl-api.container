@@ -12,17 +12,17 @@ ContainerName=mios-webtools-firecrawl-api
 Environment=REDIS_URL=redis://127.0.0.1:6380
 Environment=REDIS_RATE_LIMIT_URL=redis://127.0.0.1:6380
 Environment=HOST=127.0.0.1
-Environment=PORT=${MIOS_PORT_FIRECRAWL:-3002}
+Environment=PORT=${MIOS_PORT_FIRECRAWL}
 Environment=USE_DB_AUTHENTICATION=false
-Environment=NUM_WORKERS_PER_QUEUE=${MIOS_FIRECRAWL_WORKERS:-2}
+Environment=NUM_WORKERS_PER_QUEUE=2
 Environment=PLAYWRIGHT_MICROSERVICE_URL=
 Environment=PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
-Environment=BULL_AUTH_KEY=${MIOS_FIRECRAWL_BULL_KEY:-mios}
-Environment=LOGGING_LEVEL=${MIOS_FIRECRAWL_LOG_LEVEL:-INFO}
+Environment=BULL_AUTH_KEY=mios
+Environment=LOGGING_LEVEL=INFO
 Environment=NODE_ENV=production
 Exec=pnpm run start:production
 Group=0
-Image=${MIOS_FIRECRAWL_IMAGE:-localhost/mios-firecrawl:v1.0.0}
+Image=localhost/mios-firecrawl:v1.0.0
 Label=org.opencontainers.image.title=mios-webtools-firecrawl-api
 Label=io.podman_desktop.openInBrowser=http://localhost:3002/
 Pod=mios-webtools.pod

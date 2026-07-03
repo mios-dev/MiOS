@@ -9,7 +9,7 @@ backend:
   provider: ollama
   # localhost: dev-VM with Network=host hits ollama in the same netns.
   # Bare-metal bridge deployments override to http://mios-ollama:11434.
-  base_url: http://localhost:11450
+  base_url: http://localhost:8450
   # Default reflects mios.toml [ai].model (the small low-RAM default).
   # mios-hermes-firstboot re-templates this YAML at first boot to pick
   # up the resolved value from the layered overlay
@@ -26,7 +26,7 @@ backend:
 # unauthenticated requests.
 auxiliary:
   provider: local/custom
-  base_url: http://localhost:11450/v1
+  base_url: http://localhost:8450/v1
   model: granite4.1:3b
   api_key: ""
 
@@ -59,7 +59,7 @@ tools:
 # these on the dev VM with the Network=host loopback URLs.
 custom_providers:
   - name: local-ollama
-    base_url: http://localhost:11450/v1
+    base_url: http://localhost:8450/v1
     api_key: ""
     models:
       - id: granite4.1:3b
@@ -72,7 +72,7 @@ custom_providers:
   # Qwen3-8B-AWQ). Health-gated/off-by-default at the lane; when enabled the
   # OpenAI /v1 surface is keyless on loopback so api_key is a placeholder.
   - name: local-sglang
-    base_url: http://localhost:11441/v1
+    base_url: http://localhost:8441/v1
     api_key: sk-local
     models:
       - id: mios-heavy

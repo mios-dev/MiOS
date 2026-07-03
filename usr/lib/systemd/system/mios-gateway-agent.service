@@ -1,5 +1,5 @@
 [Unit]
-Description=MiOS Gateway Agent Service (FastAPI smolagents Engine)
+Description='MiOS' Gateway Agent Service (FastAPI smolagents Engine)
 After=network-online.target mios-pgvector.service
 Wants=network-online.target mios-pgvector.service
 

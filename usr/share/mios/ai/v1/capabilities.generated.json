@@ -9,8 +9,8 @@
       "verb": 108
     },
     "by_tier": {
-      "read": 68,
-      "write": 67,
+      "read": 69,
+      "write": 66,
       "interactive": 3
     }
   },
@@ -473,7 +473,7 @@
       "name": "file_edit",
       "kind": "verb",
       "tier": "write",
-      "description": "Edit text files on disk. op='create' (write new file), 'replace' (replace matching text), 'insert' (insert text at top/bottom)."
+      "description": "Edit text files on disk. op='create' (write new file), 'replace' (replace matching text), 'insert' (insert text at line N, default prepend)."
     },
     {
       "name": "find_file",
@@ -533,7 +533,7 @@
       "name": "fs_search",
       "kind": "verb",
       "tier": "read",
-      "description": "Search for files on the LINUX side of this machine (plocate -> locate -> find; exhaustive name/extension/path match). Finds FILES on the Linux filesystem -- NOT a web or knowledge search, and NOT Wind"
+      "description": "Search for files on the LINUX side of this machine via substring locate (plocate) — does NOT enumerate a directory; use list_dir for that."
     },
     {
       "name": "handoff",
@@ -554,16 +554,16 @@
       "description": "Query the OWUI RAG knowledge COLLECTIONS (curated document corpora uploaded to Open WebUI) and return citation-ready hits {score, source, snippet}. This is the RAG document store -- distinct from the "
     },
     {
-      "name": "launch_app",
-      "kind": "verb",
-      "tier": "write",
-      "description": "Launch an application or system component. verify=true waits and confirms the launch. position=left/right/fullscreen."
-    },
-    {
       "name": "linux_input",
       "kind": "verb",
       "tier": "write",
       "description": "Inject input into the LINUX in-VM desktop. action='screenshot', 'ground', 'atspi', 'window-list', 'click', 'type', 'key'."
+    },
+    {
+      "name": "list_dir",
+      "kind": "verb",
+      "tier": "read",
+      "description": "LIST the immediate entries of a directory, like `ls <path>`; defaults to the current working directory. Use this to list a directory's files and subdirectories."
     },
     {
       "name": "list_windows",
@@ -629,7 +629,7 @@
       "name": "move_window",
       "kind": "verb",
       "tier": "write",
-      "description": "Move an OPEN Windows window to a SEMANTIC region: center / left / right / top-left / top-right / etc., optionally on a chosen monitor. Use when the operator names a place ('to the left', 'center it') "
+      "description": "Move an OPEN Windows window to a SEMANTIC region: center, a half of the screen (left-half / right-half / top-half / bottom-half), a corner (top-left / ...), or maximize -- optionally on a chosen monit"
     },
     {
       "name": "open_app",
@@ -755,7 +755,7 @@
       "name": "run_code",
       "kind": "verb",
       "tier": "write",
-      "description": "Execute Python code. mode='sandbox' (safe isolated run) or 'orchestrate' (run a script that imports mios_tools to coordinate agentic sub-actions)."
+      "description": "Execute code. mode='sandbox' (safe isolated run) or 'orchestrate' (run a script that imports mios_tools to coordinate agentic sub-actions). language defaults to python; set 'bash' for shell."
     },
     {
       "name": "schedule",
@@ -851,7 +851,7 @@
       "name": "text_view",
       "kind": "verb",
       "tier": "read",
-      "description": "READ the contents of a local file (returns text with 1-indexed line numbers, optional start/end range) OR list the entries of a local directory if path is a folder. This is for files/folders ALREADY o"
+      "description": "READ the contents of a local file (returns text with 1-indexed line numbers, optional start/end range). This is for files ALREADY on disk -- it does NOT search the web and does NOT find files by name."
     },
     {
       "name": "tool_search",

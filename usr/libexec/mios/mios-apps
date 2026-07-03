@@ -235,7 +235,7 @@ Get-ChildItem -Path $d -Recurse -Filter *.lnk -ErrorAction SilentlyContinue |
   Select-Object -ExpandProperty BaseName -Unique | Sort-Object | Select-Object -First 150
 PSEOF
 )
-    "$_PWSH" -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$_PS_ENUM" 2>/dev/null \
+    timeout 15 "$_PWSH" -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$_PS_ENUM" 2>/dev/null \
         | tr -d '\r' | while IFS= read -r _name; do
             [ -n "$_name" ] || continue
             emit windows-gui "$_name" "Windows app (Start Menu)" "mios-windows launch $_name"

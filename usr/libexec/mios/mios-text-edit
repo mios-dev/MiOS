@@ -218,21 +218,27 @@ def cmd_view(args: argparse.Namespace) -> int:
                                   "use --start/--end to slice"})
     if os.path.isdir(path):
         entries: list[str] = []
+        max_depth = int(args.depth) if args.depth is not None else MAX_LIST_DEPTH
+        norm_path = os.path.abspath(path)
+        path_parts = [p for p in norm_path.split(os.sep) if p]
         for root, dirs, files in os.walk(path):
-            depth = root[len(path):].count(os.sep)
-            if depth >= MAX_LIST_DEPTH:
+            norm_root = os.path.abspath(root)
+            root_parts = [p for p in norm_root.split(os.sep) if p]
+            depth = len(root_parts) - len(path_parts)
+            if depth >= max_depth:
                 dirs[:] = []
-            # Skip hidden dirs in-place so the walk doesn't recurse.
-            dirs[:] = [d for d in dirs if not d.startswith(".")]
-            rel = os.path.relpath(root, path)
-            if rel == ".":
-                rel = ""
-            for d in dirs:
-                entries.append(os.path.join(rel, d) + "/")
-            for f in files:
-                if f.startswith("."):
-                    continue
-                entries.append(os.path.join(rel, f))
+            if depth < max_depth:
+                # Skip hidden dirs in-place so the walk doesn't recurse.
+                dirs[:] = [d for d in dirs if not d.startswith(".")]
+                rel = os.path.relpath(root, path)
+                if rel == ".":
+                    rel = ""
+                for d in dirs:
+                    entries.append(os.path.join(rel, d) + "/")
+                for f in files:
+                    if f.startswith("."):
+                        continue
+                    entries.append(os.path.join(rel, f))
             if len(entries) > MAX_LIST_ENTRIES:
                 entries = entries[:MAX_LIST_ENTRIES]
                 entries.append(f"... truncated at {MAX_LIST_ENTRIES} entries")
@@ -393,6 +399,7 @@ def build_parser() -> argparse.ArgumentParser:
     pv.add_argument("path")
     pv.add_argument("--start", help="1-indexed first line")
     pv.add_argument("--end", help="1-indexed last line (inclusive)")
+    pv.add_argument("--depth", type=int, help="directory listing depth (default 2)")
     pv.set_defaults(func=cmd_view)
 
     pc = sub.add_parser("create", help="create a new file (fails if exists)")

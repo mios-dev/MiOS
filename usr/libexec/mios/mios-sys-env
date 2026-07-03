@@ -74,7 +74,7 @@ def _pg(sql: str, timeout: float = 30.0) -> list | None:
                            timeout=timeout)
         if p.returncode != 0:
             sys.stderr.write(
-                f"mios-sys-env: db error: {(p.stderr or '').strip()[:200]}\n")
+                f"mios-sys-env: db error: {(p.stderr or '').strip()}\n")
             return None
         return [ln.split("\t") for ln in p.stdout.splitlines() if ln]
     except Exception as e:

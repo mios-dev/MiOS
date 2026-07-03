@@ -523,7 +523,7 @@ fi
 # Network=none + ReadOnly). Group= + Delegate=yes are SHOULD-have. (SHOULD-have
 # follow-up: also flag an UNDOCUMENTED User=root Quadlet, not just a missing User=.)
 log "Validating UNPRIVILEGED-QUADLETS (Law 6): every Quadlet declares User=..."
-_law6_exceptions='^(mios-ceph|mios-k3s|mios-llm-heavy|mios-forgejo-runner|mios-coderun-sandbox.*|mios-guacamole|mios-open-webui|mios-otelcol)\.container$'
+_law6_exceptions='^(mios-ceph|mios-k3s|mios-llm-heavy|mios-forgejo-runner|mios-coderun-sandbox.*)\.container$'
 _law6_missing=""
 for d in /etc/containers/systemd /usr/share/containers/systemd; do
     [[ -d "$d" ]] || continue

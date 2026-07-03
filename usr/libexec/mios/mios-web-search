@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Python backend for the web_search verb that queries a local SearXNG instance using concurrent fan-out (RAG-Fusion) to provide agents with real-time, grounded data for facts, weather, and news.
-# AI-related: mios-daemon, localhost:8899, localhost:11450
+# AI-related: mios-daemon, localhost:8899, localhost:8450
 """mios-web-search -- native WEB-search verb backend (concurrent fan-out).
 
 Queries the LOCAL, self-hosted SearXNG metasearch (offline-first; NO cloud
@@ -45,9 +45,36 @@ import time
 import urllib.parse
 import urllib.request
 
+def _ssot_val(env: str, section: str, key: str, default: str) -> str:
+    """Resolve a scalar tunable from SSOT: an env override -> the layered
+    mios.toml [section].key -> the fallback default."""
+    val = os.environ.get(env)
+    if val not in (None, ""):
+        return val
+    try:
+        try:
+            import tomllib
+        except ImportError:  # py<3.11
+            import tomli as tomllib  # type: ignore
+        for _p in (os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml"),
+                   "/etc/mios/mios.toml",
+                   os.path.expanduser("~/.config/mios/mios.toml")):
+            try:
+                with open(_p, "rb") as _f:
+                    _v = (tomllib.load(_f).get(section) or {}).get(key)
+            except (OSError, tomllib.TOMLDecodeError):
+                continue
+            if _v is not None:
+                return str(_v)
+    except Exception:
+        pass
+    return default
+
+
 # SSOT endpoints (env rendered from mios.toml); localhost fallbacks = the
 # vendor container publish ports.
-SEARXNG_URL = os.environ.get("MIOS_SEARXNG_URL", "http://localhost:8899").rstrip("/")
+SEARXNG_PORT = _ssot_val("MIOS_PORT_SEARXNG", "ports", "searxng", "8899")
+SEARXNG_URL = os.environ.get("MIOS_SEARXNG_URL", f"http://localhost:{SEARXNG_PORT}").rstrip("/")
 # Query-EXPANSION model. Operator 2026-05-24 ("did NOT do multiple passes /
 # differing queries"): the old default (qwen3:0.6b-cpu @ :11434) was loaded
 # NOWHERE -- cold -- so every expansion blew the 6 s budget and SILENTLY fell
@@ -55,12 +82,13 @@ SEARXNG_URL = os.environ.get("MIOS_SEARXNG_URL", "http://localhost:8899").rstrip
 # model the mios-daemon pins ALWAYS-WARM on the CPU lane (qwen3:1.7b @ :11435,
 # keep_alive=-1): expansion is then sub-second, never cold-fails, and is more
 # capable than the weak 0.6b. Override via MIOS_WEB_EXPAND_MODEL / _ENDPOINT.
+_EXPAND_PORT = _ssot_val("MIOS_PORT_LLM_LIGHT", "ports", "llm_light", "8450")
 _EXPAND_MODEL = os.environ.get(
     "MIOS_WEB_EXPAND_MODEL",
     os.environ.get("MIOS_DAEMON_MODEL", "granite4.1:8b"))  # qwen3:1.7b retired -> 404 on :11450 (2026-06-18)
 _EXPAND_ENDPOINT = os.environ.get(
     "MIOS_WEB_EXPAND_ENDPOINT",
-    os.environ.get("MIOS_DAEMON_ENDPOINT", "http://localhost:11450/v1")).rstrip("/")
+    os.environ.get("MIOS_DAEMON_ENDPOINT", f"http://localhost:{_EXPAND_PORT}/v1")).rstrip("/")
 # Native /api/chat lives at the base (strip a trailing /v1 like agent-pipe).
 _EXPAND_BASE = (_EXPAND_ENDPOINT[:-3].rstrip("/")
                 if _EXPAND_ENDPOINT.endswith("/v1") else _EXPAND_ENDPOINT)

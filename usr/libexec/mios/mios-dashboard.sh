@@ -384,7 +384,7 @@ print_endpoints() {
 
     local _p_forge _p_cockpit _p_ollama _p_ollama_cpu _p_searxng
     local _p_hermes _p_dash _p_code _p_webui _p_agent_pipe _p_pgvector _p_guacamole
-    local _p_ttyd_bash _p_ttyd_ps
+    local _p_ttyd_bash _p_ttyd_ps _p_ssh
     _p_forge=$(_mios_port forge_http 3000)
     _p_cockpit=$(_mios_port cockpit 9090)
     _p_ollama=$(_mios_port ollama 11434)
@@ -400,10 +400,11 @@ print_endpoints() {
     _p_guacamole=$(_mios_port guacamole_web 8080)
     _p_ttyd_bash=$(_mios_port ttyd_bash 7681)
     _p_ttyd_ps=$(_mios_port ttyd_powershell 7682)
+    _p_ssh=$(_mios_port ssh 22)
 
     local d_forge d_ollama d_ollama_cpu d_cockpit d_searxng
     local d_hermes d_dash d_code d_webui d_agent_pipe d_pgvector
-    local d_ttyd_bash d_ttyd_ps d_guacamole
+    local d_ttyd_bash d_ttyd_ps d_guacamole d_ssh
     d_forge=$(ep_dot      "http://localhost:${_p_forge}/api/v1/version")
     d_ollama=$(ep_dot     "http://localhost:${_p_ollama}/")
     d_ollama_cpu=$(ep_dot "http://localhost:${_p_ollama_cpu}/")
@@ -418,6 +419,7 @@ print_endpoints() {
     d_pgvector=$(tcp_dot  localhost "$_p_pgvector")
     d_ttyd_bash=$(tcp_dot "127.0.0.1" "$_p_ttyd_bash")
     d_ttyd_ps=$(tcp_dot "127.0.0.1" "$_p_ttyd_ps")
+    d_ssh=$(tcp_dot       localhost "$_p_ssh")
     s_guac=$( service_status mios-guacamole.service); IFS='|' read -r _ d_guacamole _ <<< "$s_guac"
     s_crowdsec=$( service_status mios-crowdsec-dashboard.service); IFS='|' read -r _ d_crowdsec _ <<< "$s_crowdsec"
 
@@ -425,7 +427,7 @@ print_endpoints() {
     for _d in "$d_agent_pipe" "$d_hermes" "$d_pgvector" \
               "$d_llamaswap" "$d_webui" \
               "$d_cockpit" "$d_forge" "$d_searxng" \
-              "$d_code" "$d_ttyd_bash" "$d_ttyd_ps"; do
+              "$d_code" "$d_ttyd_bash" "$d_ttyd_ps" "$d_ssh"; do
         case "$_d" in
             *"$DOT_UP"*) n_up=$((n_up + 1)) ;;
             *)           n_down=$((n_down + 1)) ;;
@@ -448,6 +450,14 @@ print_endpoints() {
     local r_name1="WebUI"      r_link1="http://localhost:${_p_webui}/"
     local l_name2="Cockpit"    l_link2="https://localhost:${_p_cockpit}/"
     local r_name2="PS-Term"    r_link2="http://localhost:${_p_ttyd_ps}/"
+    local l_name3="IDE / Code"  l_link3="http://localhost:${_p_code}/"
+    local r_name3="SSH"
+    local r_link3
+    if [[ "$_p_ssh" == "22" ]]; then
+        r_link3="ssh ${_user}@localhost"
+    else
+        r_link3="ssh -p ${_p_ssh} ${_user}@localhost"
+    fi
 
     local col_sep=" │ "
     [[ "$NO_COLOR" -eq 1 ]] && col_sep=" | "
@@ -470,6 +480,11 @@ print_endpoints() {
     printf "${t_padstr}%s %-10s %s%-24s%s${col_sep}%s %-7s %s%s%s\n" \
         "$d_cockpit" "$l_name2" "$C_D" "$l_link2" "$C_R" \
         "$d_ttyd_ps" "$r_name2" "$C_D" "$r_link2" "$C_R"
+
+    # Row 3
+    printf "${t_padstr}%s %-10s %s%-24s%s${col_sep}%s %-7s %s%s%s\n" \
+        "$d_code" "$l_name3" "$C_D" "$l_link3" "$C_R" \
+        "$d_ssh" "$r_name3" "$C_D" "$r_link3" "$C_R"
 }
 
 print_unified_table() {
@@ -604,6 +619,8 @@ def short_name(n):
     return n[5:] if n.startswith("mios-") else n
 
 def svc_port(short):
+    if short == "agents":
+        return str(ports.get("code_server", "8800"))
     key = short.replace("-", "_")
     if key in ports:
         return str(ports[key])
@@ -757,7 +774,9 @@ if os.path.isfile("/etc/mios/forge/admin-password"):
 if not fpw:
     fpw = pw
 
-cred_str = f"login {user}/{pw}   forge {user}/{fpw}"
+ssh_port = ports.get("ssh", "22")
+ssh_cmd = f"ssh -p {ssh_port} {user}@localhost" if str(ssh_port) != "22" else f"ssh {user}@localhost"
+cred_str = f"login {user}/{pw}   forge {user}/{fpw}   {ssh_cmd}"
 cred_pad = max(0, (inner - len(cred_str)) // 2)
 cred_pad_str = " " * cred_pad
 print(f"{cred_pad_str}{C_GRY}{cred_str}{C_R}")

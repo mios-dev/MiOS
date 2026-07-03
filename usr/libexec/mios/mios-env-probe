@@ -104,7 +104,7 @@ SVC_CROND=$(_svc_active crond.service)
 SVC_ATD=$(_svc_active atd.service)
 
 # Models loaded in Ollama
-OLLAMA_MODELS="$(curl -sS --max-time 2 http://127.0.0.1:11450/api/tags 2>/dev/null \
+OLLAMA_MODELS="$((curl -sS --max-time 2 http://127.0.0.1:${MIOS_PORT_LLM_LIGHT:-8450}/api/tags 2>/dev/null || true) \
     | python3 -c 'import sys, json
 try:
   d = json.load(sys.stdin)

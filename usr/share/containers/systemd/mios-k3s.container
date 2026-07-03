@@ -13,7 +13,7 @@ ContainerName=mios-k3s
 Environment=K3S_TOKEN=mios-cluster-secret
 Exec=server --disable=traefik
 Group=root
-Image=${MIOS_K3S_IMAGE:-docker.io/rancher/k3s:v1.32.1-k3s1}
+Image=docker.io/rancher/k3s:v1.32.1-k3s1
 Pod=mios-system.pod
 PodmanArgs=--privileged
 User=root

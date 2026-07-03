@@ -1532,6 +1532,25 @@ model       = "mios-heavy"     # SGLang heavy lane (Qwen3-8B-AWQ, continuous bat
 lane        = "gpu"            # shares the dGPU lane semaphore
 api         = "openai"         # SGLang speaks /v1 natively + honours tool_choice=required
 health_gate = true             # inert until mios-llm-heavy is up + reachable
+
+# ─── Inference Lanes (WS-1 / WS-2) ────────────────────────────────────
+[lanes.light]
+stream_thinking  = true
+tool_call_parser = "hermes"
+reasoning_parser = "qwen3"
+constrained_tools = true
+
+[lanes.sglang]
+stream_thinking  = true
+tool_call_parser = "qwen25"
+reasoning_parser = "qwen3"
+constrained_tools = true
+
+[lanes.vllm]
+stream_thinking  = true
+tool_call_parser = "hermes"
+reasoning_parser = "qwen3"
+constrained_tools = true
 # REMOTE nodes (operator overlay only -- keep tailnet names/IPs out of the public
 # repo). Each is the SAME consolidation: one canonical MiOS Modelfile tag served
 # on that node, dispatched by capacity -- NOT a hand-numbered replica. Example
@@ -2904,6 +2923,15 @@ replay_mode   = false
 # wants the whole pipeline observable live. Set false for a clean answer-only
 # reply (reasoning then rides delta.reasoning_content for OWUI's Thinking pane).
 debug         = true
+surface_default = "clean"   # clean = reasoning-channel; "inline" only via per-surface opt-in
+
+[observability.channels]                 # which schema event → which SSE channel
+  thinking = "reasoning"
+  plan = "reasoning"
+  tool_call = "status+reasoning"
+  tool_result = "reasoning"
+  source = "source"
+  content = "content"
 
 
 # ─── A2A fleet discovery (cross-node delegation) ──────────────────────
@@ -3107,7 +3135,7 @@ desc  = "find, read, or edit LOCAL files on this machine"
 # search (it resolves an app NAME to a launch command), and leading the hint with it
 # made a live "find the mios.toml file on this system" answer a guessed path from
 # memory instead of searching; moved to apps_windows where app-resolution belongs.
-verbs = ["everything_search", "fs_search", "directory_lookup", "viking_find", "viking_ls", "viking_cat", "text_view", "text_create", "text_str_replace", "text_insert"]
+verbs = ["everything_search", "text_view", "list_dir"]
 
 [routing.domains.system]
 desc  = "this machine's OS / version / kernel / whether WSL2 / the Windows host, plus state, services, processes, containers, logs, environment"
@@ -3415,7 +3443,7 @@ cmd        = "mios-cron-schedule add --prompt {prompt} --every {every}"
 hidden = true
 section    = "Discovery / resolution"
 sig        = "name"
-desc       = "Resolve an app/program NAME to the exact runnable launch command WITHOUT launching it -- returns the cmd line only; the agent then decides whether to run it (e.g. via launch_windows_app/launch_app). This is NOT a file search (use find_file_fast / windows_file_search / linux_file_search to locate files) and does NOT open anything. Use it to get the precise command before launching, or to check how something would be started."
+desc       = "Resolve an app/program NAME to the exact runnable launch command WITHOUT launching it -- returns the cmd line only; the agent then decides whether to run it (e.g. via launch_windows_app/launch_app). This is NOT a file search and does NOT open anything. Use it to get the precise command before launching, or to check how something would be started."
 model_name = "resolve_launch_command"
 examples   = ["what's the exact command to launch Blender", "how would I start Discord from the command line", "give me the launch command for VS Code without opening it", "resolve the run command for steam but don't launch it"]
 tier = "rare"
@@ -3447,7 +3475,7 @@ max_result_chars = 30000
 hidden = true
 section    = "Discovery / resolution"
 sig        = "query, limit=10?, ext?"
-desc       = "Search for files on the WINDOWS side of this machine via the Voidtools Everything NTFS index (exhaustive, name/extension match). Finds FILES that already exist on Windows drives (C:, etc.) -- NOT a web or knowledge search, and NOT the Linux filesystem (use linux_file_search for that). Good for 'where is X.exe' on Windows; use find_file_fast first for a quick cached hit."
+desc       = "Search for files on the WINDOWS side of this machine via the Voidtools Everything NTFS index (exhaustive, name/extension match). Finds FILES that already exist on Windows drives (C:, etc.) -- NOT a web or knowledge search, and NOT the Linux filesystem. Good for 'where is X.exe' on Windows."
 model_name = "windows_file_search"
 examples   = ["find game.exe on my Windows drive", "where is the installer .msi on C drive", "search Windows for all my .pdf invoices", "locate steam.exe on Windows"]
 tier = "rare"
@@ -3466,7 +3494,7 @@ cmd        = "mios-everything --json -n {limit=10} {query}{ext?-ext}"
 hidden = true
 section    = "Discovery / resolution"
 sig        = "query, limit=20?, ext?, path?, type?"
-desc       = "Search for files on the LINUX side of this machine (plocate -> locate -> find; exhaustive name/extension/path match). Finds FILES on the Linux filesystem -- NOT a web or knowledge search, and NOT Windows drives (use windows_file_search for C:/Windows paths). Use find_file_fast first for a quick cached hit; fall back here for a full disk scan."
+desc       = "Search for files on the LINUX side of this machine via substring locate (plocate) — does NOT enumerate a directory; use list_dir for that."
 model_name = "linux_file_search"
 examples   = ["find nginx.conf on the Linux side", "where is the systemd unit file for mios-agent-pipe", "search Linux for all .py files under /usr/lib/mios", "locate the log file on the Linux filesystem"]
 tier = "rare"
@@ -3485,6 +3513,24 @@ cmd        = "mios-locate --json -n {limit=20} {query}{ext?-ext}{path?-path}{typ
   [verbs.fs_search.params.type]
   type = "string"
   enum = ["f", "d", "l"]
+
+[verbs.list_dir]
+section    = "Discovery / resolution"
+sig        = "path?, depth=1?"
+desc       = "LIST the immediate entries of a directory, like `ls <path>`; defaults to the current working directory. Use this to list a directory's files and subdirectories."
+model_name = "list_directory"
+examples   = ["what's here", "what's in this folder", "list the current directory", "list the files in /etc"]
+tier       = "core"
+max_result_chars = 6000
+cmd        = "mios-text-edit view '{path=.}' --depth {depth=1}"
+  [verbs.list_dir.params.path]
+  type    = "string"
+  default = "."
+  desc    = "Path to the directory to list (defaults to current directory '.')."
+  [verbs.list_dir.params.depth]
+  type    = "integer"
+  default = 1
+  desc    = "Recursion depth: 1 for immediate children (ls), higher for recursive tree."
 
 [verbs.knowledge_search]
 hidden = true
@@ -3536,6 +3582,7 @@ sig        = "query, limit=5?"
 desc       = "WEB search via the LOCAL self-hosted SearXNG (offline-first metasearch, no cloud dependency). USE THIS for anything from the internet or the current world: weather, news, current events, event dates/times/locations, prices, products, people, places, scores, facts, general knowledge -- ANY question whose answer is not a file on this machine. Returns real fetched {title, url, content} plus instant answers/infoboxes for citation. This is NOT file search: windows_file_search/linux_file_search/find_file_fast ONLY find files on disk and return nothing useful for a knowledge/current-events question. When a question needs a live fact you don't already have, call THIS and ground on the result -- never invent the answer, never default to remembered facts. RECENCY: when the answer must be CURRENT (today/latest/trending/breaking/recent/this week/this month), set time_range='day' (or 'week'/'month') so SearXNG returns fresh dated results instead of evergreen encyclopedia or year-overview pages; you may also set category='news' for breaking headlines. Leave time_range and category empty (null) for timeless facts."
 examples   = ["what's the weather in Seattle tomorrow", "latest news about the Mars sample return mission", "who won the F1 race this weekend", "current price of an RTX 5090", "what's trending globally today (time_range=day)"]
 tier       = "core"
+max_result_chars = 15000
 cmd        = "mios-web-search -n {limit=5} --fanout {fanout=$MIOS_WEB_FANOUT:2}{time_range?--time-range}{category?--category} {query}"
   [verbs.web_search.params.query]
   type    = "string"
@@ -3968,7 +4015,7 @@ cmd        = "mios-computer-use key-combo {combo}"
 [verbs.text_view]
 section    = "Text editor"
 sig        = "path, start?, end?"
-desc       = "READ the contents of a local file (returns text with 1-indexed line numbers, optional start/end range) OR list the entries of a local directory if path is a folder. This is for files/folders ALREADY on disk -- it does NOT search the web and does NOT find files by name (use windows_file_search on Windows or linux_file_search on Linux first to locate a path). For Windows paths, resolve via windows_file_search FIRST."
+desc       = "READ the contents of a local file (returns text with 1-indexed line numbers, optional start/end range). This is for files ALREADY on disk -- it does NOT search the web and does NOT find files by name. To list the contents of a directory, use list_directory instead."
 model_name = "read_file"
 examples   = ["show me the contents of /etc/hosts", "read lines 20 to 60 of server.py", "what is in my notes.txt file", "list the files in the /home/mios/projects directory"]
 tier       = "core"
@@ -4406,7 +4453,7 @@ cmd        = "mios-app-search --json --limit {limit=5} {query!}"
 [verbs.tool_search]
 section    = "Verb discovery"
 sig        = "query, limit=5?"
-desc       = "Find VERBS/TOOLS in the catalog by natural-language query when no listed verb obviously fits the user's ask. Returns top-k {name, sig, desc, score} via embedding search over verb name+description. Use to DISCOVER a capability you don't see; not for searching the web (web_search), files (windows_file_search/linux_file_search), or knowledge (knowledge_search)."
+desc       = "Find VERBS/TOOLS in the catalog by natural-language query when no listed verb obviously fits the user's ask. Returns top-k {name, sig, desc, score} via embedding search over verb name+description. Use to DISCOVER a capability you don't see; not for searching the web (web_search) or local files (windows_file_search)."
 examples   = ["is there a verb for resizing images", "find a tool that can do screen capture", "what tool handles pdf conversion", "search the verb catalog for a calendar capability"]
 tier       = "core"
 cmd        = "mios-tool-search --json --limit {limit=5} {query!}"
@@ -5184,6 +5231,9 @@ pass_and_k_count     = 3       # k replays an ordinary skill promotion must ALL 
 pass_and_k_dgm_count = 5       # stricter k for a DGM-class self-rewrite (promote --dgm)
 
 [agent_pipe]
+tool_loop_limit = 20
+reflexion_limit = 2
+reflexion_enable = true
 # 'MiOS' standalone Agent Pipe -- the router / refine / critic chain
 # extracted out of the OWUI pipe class into a gateway-agnostic FastAPI
 # service. Every gateway (OWUI, Hermes Discord, future Slack/Telegram/
@@ -7102,6 +7152,28 @@ pkgs = [
     "libibverbs",
 ]
 
+[packages.hyprland]
+enable = true
+pkgs = [
+    "hyprland",
+    "xorg-x11-server-Xwayland",
+    "wayland-protocols-devel",
+    "grim",
+    "slurp",
+    "wl-clipboard",
+    "python3-evdev",
+    "python3-gobject"
+]
+
+[packages.quickshell-build]
+enable = true
+pkgs = [
+    "qt6-qtbase-devel",
+    "qt6-qtdeclarative-devel",
+    "qt6-qtwayland-devel",
+    "libpipewire-devel"
+]
+
 [packages.utils]
 enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
 pkgs = [
@@ -7437,9 +7509,9 @@ k3s                = "docker.io/rancher/k3s:v1.32.1-k3s1"
 ceph_version       = "v19"
 ceph               = "quay.io/ceph/ceph:v19"
 forge_version      = "12"
-forge              = "codeberg.org/forgejo/forgejo:12"
+forge              = "codeberg.org/forgejo/forgejo:12@sha256:dbb0f88677f0c65cd1b66fb83504225aa5a04c4bc4a5ffdf9fc9a3a6d5bb1c68"
 searxng_version    = "latest"
-searxng            = "docker.io/searxng/searxng:latest"
+searxng            = "docker.io/searxng/searxng:latest@sha256:c6d6af406d214a24edee971b98b92d05a83ee9707ff9a59a56471f9cfce5eee2"
 # web-tools POD ("consolidate containers to share similar
 # services together" + "co-locate the real firecrawl stack" + "make it a pod").
 # mios-webtools is now a podman POD (usr/share/containers/systemd/
@@ -7467,15 +7539,15 @@ searxng            = "docker.io/searxng/searxng:latest"
 hermes_version     = "latest"
 hermes             = "docker.io/nousresearch/hermes-agent:latest"
 open_webui_version = "latest"
-open_webui         = "ghcr.io/open-webui/open-webui:main"
+open_webui         = "ghcr.io/open-webui/open-webui:main@sha256:a26effeb220e132482bf7e0560b3404843e7bc40d23051144e062960df8df6b0"
 # hermes_workspace sidecar REMOVED -- replaced by the
 # hermes-agent's built-in dashboard at port 9119.
 code_server_version = "latest"
-code_server        = "ghcr.io/coder/code-server:latest"
+code_server        = "ghcr.io/coder/code-server:latest@sha256:e1f03b5faaefd63ba6c7173a5290c6ec0526ac907f23acfe6bc949dd965279e4"
 guacamole_version  = "latest"
 guacamole          = "docker.io/guacamole/guacamole:latest"
 forge_runner_version = "7"
-forge_runner      = "code.forgejo.org/forgejo/runner:7"
+forge_runner      = "code.forgejo.org/forgejo/runner:7@sha256:f66c6bed9e8ff5a886cf5b302a52317d8e05c392ddcc8d9f34398142ee2a5822"
 crowdsec_version   = "latest"
 crowdsec           = "docker.io/crowdsecurity/crowdsec:latest"
 postgres_version   = "latest"
@@ -7484,22 +7556,22 @@ guacd_version      = "latest"
 guacd              = "docker.io/guacamole/guacd:latest"
 pxe_hub_version    = "latest"
 pxe_hub            = "quay.io/poseidon/matchbox:latest"
-bib_alpine         = "docker.io/library/alpine:latest"
+bib_alpine         = "docker.io/library/alpine:latest@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b"
 # WS-9 unified agent-plane DB. pgvector/pgvector bundles the `vector` extension
 # on upstream postgres (FOSS: PostgreSQL License). Pinned to an EXACT pgvector
 # release + PG major (NOT the floating `pgX` tag) for reproducible builds and so
 # hnsw.iterative_scan (pgvector 0.8.0+) is guaranteed present. Bump via Renovate
 # or operator; pair version+image (the tag below carries both).
 pgvector_version   = "0.8.3-pg17"
-pgvector           = "docker.io/pgvector/pgvector:0.8.3-pg17"
+pgvector           = "docker.io/pgvector/pgvector:0.8.3-pg17@sha256:be400b50812ab2cc908ed78593fda2e51e3b45fe774fa637f1c7b16e68531d95"
 # mios-llm-light lane image. The upstream llama-swap proxy (FOSS, MIT) bundles
 # llama-server + on-demand model swap. Tag carries the CUDA build; verify version.
 llm_light_version  = "cuda"
-llm_light          = "ghcr.io/mostlygeek/llama-swap:cuda"
+llm_light          = "ghcr.io/mostlygeek/llama-swap:cuda@sha256:1fd71f3766de94413616f264bb5c01d741829d7bb40d2cec663e3344bcdddd56"
 adguard_version    = "latest"
 # AdGuard Home -- open-source (GPLv3) DNS sinkhole + recursive resolver. Single
 # Go binary container; serves DNS on :53 and the web UI/API on :3053.
-adguard            = "docker.io/adguard/adguardhome:latest"
+adguard            = "docker.io/adguard/adguardhome:latest@sha256:e6f2b8bcda06064ab055b44933a4f0e983c35558b9cdb8d2e7ab1efcee36d890"
 
 # ----------------------------------------------------------------------------
 # [services.<svc>] -- per-service identity (UID / GID / username) baked
@@ -8822,7 +8894,7 @@ mios-k3s              = true
 mios-forge            = true
 mios-cockpit-link     = true
 mios-open-webui       = true
-mios-code-server      = true
+mios-code-server      = false
 # crowdsec-dashboard: FORCE-DISABLED. This sidecar runs the FULL
 # crowdsecurity/crowdsec image against the SHARED host /var/lib/crowdsec volume.
 # Its docker_start.sh, on EVERY start, (a) unconditionally plants dangling
@@ -9079,24 +9151,6 @@ cmd_resize = "mios-window {op} '{title}' {width} {height}"
   [verbs.window_op.params.y]
   type = "integer"
   [verbs.window_op.params.position]
-  type = "string"
-
-[verbs.launch_app]
-section = "Window / app launch"
-sig = "name, verify=false, args?, position?"
-desc = "Launch an application or system component. verify=true waits and confirms the launch. position=left/right/fullscreen."
-tier = "core"
-permission = "write"
-cmd = "mios-launch '{name}'"
-cmd_args = "mios-launch '{name}' {args}"
-  [verbs.launch_app.params.name]
-  type = "string"
-  [verbs.launch_app.params.verify]
-  type = "boolean"
-  default = false
-  [verbs.launch_app.params.args]
-  type = "string"
-  [verbs.launch_app.params.position]
   type = "string"
 
 [verbs.system]
@@ -9461,6 +9515,7 @@ WantedBy = "multi-user.target default.target"
 
 [containers.mios-cpu-node.Service]
 Delegate = "yes"
+EnvironmentFile = "/etc/mios/install.env"
 Restart = "on-failure"
 RestartSec = "10s"
 TimeoutStartSec = "300s"
@@ -9624,6 +9679,7 @@ Wants = "network-online.target"
 
 [containers.mios-guacamole.Container]
 AutoUpdate = "registry"
+Group = "${MIOS_GUACAMOLE_GID:-810}"
 Image = "docker.io/guacamole/guacamole:latest"
 Label = [
   "org.opencontainers.image.url=http://localhost:${MIOS_PORT_GUACAMOLE_WEB:-8080}/guacamole/",
@@ -9631,6 +9687,7 @@ Label = [
   "io.podman_desktop.openInBrowser=http://localhost:${MIOS_PORT_GUACAMOLE_WEB:-8080}/guacamole/"
 ]
 Pod = "mios-system.pod"
+User = "${MIOS_GUACAMOLE_UID:-810}"
 
 [containers.mios-guacamole.Install]
 WantedBy = "multi-user.target default.target"
@@ -9717,7 +9774,7 @@ Environment = [
   "NCCL_SOCKET_IFNAME=lo",
   "HOME=/tmp"
 ]
-Exec = "--model /models --served-model-name ${MIOS_VLLM_SERVED_NAME:-mios-heavy} --host 0.0.0.0 --port ${MIOS_PORT_VLLM:-11441} --gpu-memory-utilization ${MIOS_VLLM_GPU_UTIL:-0.45} --max-model-len ${MIOS_VLLM_MAX_MODEL_LEN:-16384} --enable-prefix-caching --enforce-eager"
+Exec = "--model /models --served-model-name ${MIOS_VLLM_SERVED_NAME:-mios-heavy} --host 0.0.0.0 --port ${MIOS_PORT_VLLM:-11441} --gpu-memory-utilization ${MIOS_VLLM_GPU_UTIL:-0.45} --max-model-len ${MIOS_VLLM_MAX_MODEL_LEN:-16384} --enable-prefix-caching --enforce-eager --enable-auto-tool-choice --tool-call-parser hermes"
 Group = "${MIOS_VLLM_GID:-815}"
 Image = "${MIOS_VLLM_IMAGE:-docker.io/vllm/vllm-openai:latest}"
 Label = [
@@ -9734,6 +9791,7 @@ WantedBy = "multi-user.target default.target"
 
 [containers.mios-llm-heavy.Service]
 Delegate = "yes"
+EnvironmentFile = "/etc/mios/install.env"
 Restart = "on-failure"
 RestartSec = "15"
 TimeoutStartSec = "600s"
@@ -9773,6 +9831,7 @@ WantedBy = "multi-user.target default.target"
 
 [containers.mios-llm-light.Service]
 Delegate = "yes"
+EnvironmentFile = "/etc/mios/install.env"
 Restart = "on-failure"
 RestartSec = "10s"
 TimeoutStartSec = "180s"
@@ -9861,13 +9920,15 @@ EnvironmentFile = [
   "/etc/mios/hermes/api.env",
   "/etc/mios/install.env"
 ]
-Image = "ghcr.io/open-webui/open-webui:main"
+Image = "ghcr.io/open-webui/open-webui:main@sha256:a26effeb220e132482bf7e0560b3404843e7bc40d23051144e062960df8df6b0"
+Group = "${MIOS_OPEN_WEBUI_GID:-817}"
 Label = [
   "org.opencontainers.image.title=mios-open-webui",
   "org.opencontainers.image.url=http://localhost:${MIOS_PORT_OPEN_WEBUI:-8033}/",
   "io.podman_desktop.openInBrowser=http://localhost:${MIOS_PORT_OPEN_WEBUI:-8033}/"
 ]
 Pod = "mios-ai.pod"
+User = "${MIOS_OPEN_WEBUI_UID:-817}"
 Volume = [
   "/var/lib/mios/open-webui:/app/backend/data:Z",
   "/usr/share/mios:/usr/share/mios:ro",
@@ -9921,12 +9982,14 @@ Volume = [
   "${MIOS_PG_DATA_DIR:-/var/lib/mios/pgvector}:/var/lib/postgresql/data:Z",
   "/usr/share/mios/postgres/schema-init.sql:/docker-entrypoint-initdb.d/10-mios-schema.sql:ro"
 ]
+EnvironmentFile = "/etc/mios/install.env"
 
 [containers.mios-pgvector.Install]
 WantedBy = "multi-user.target default.target"
 
 [containers.mios-pgvector.Service]
 Delegate = "yes"
+EnvironmentFile = "/etc/mios/install.env"
 ExecStartPost = "/usr/bin/bash -c 'for i in $(seq 1 45); do /usr/bin/podman exec mios-pgvector pg_isready -p ${MIOS_PORT_PGVECTOR:-5432} -U ${MIOS_PG_USER:-mios} -d ${MIOS_PG_DB:-mios} -q && break; sleep 2; done; /usr/bin/podman exec mios-pgvector psql -p ${MIOS_PORT_PGVECTOR:-5432} -v ON_ERROR_STOP=0 -U ${MIOS_PG_USER:-mios} -d ${MIOS_PG_DB:-mios} -f /docker-entrypoint-initdb.d/10-mios-schema.sql || true'"
 Restart = "on-failure"
 RestartSec = "10s"
@@ -10148,7 +10211,8 @@ Description = "'MiOS' web-tools redis (firecrawl queue + ratelimit store)"
 
 [containers.mios-otelcol.Container]
 ContainerName = "mios-otelcol"
-Image = "docker.io/jaegertracing/all-in-one:latest"
+Group = "${MIOS_OTELCOL_GID:-829}"
+Image = "docker.io/jaegertracing/all-in-one:latest@sha256:ab6f1a1f0fb49ea08bcd19f6b84f6081d0d44b364b6de148e1798eb5816bacac"
 Environment = [
   "COLLECTOR_OTLP_ENABLED=true"
 ]
@@ -10158,6 +10222,7 @@ Label = [
   "io.podman_desktop.openInBrowser=http://localhost:16686/"
 ]
 Pod = "mios-webtools.pod"
+User = "${MIOS_OTELCOL_UID:-829}"
 
 [containers.mios-otelcol.Install]
 WantedBy = "multi-user.target default.target"

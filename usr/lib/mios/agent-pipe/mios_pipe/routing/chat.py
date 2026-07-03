@@ -1179,6 +1179,14 @@ async def chat_completions_logic(request: Request) -> Any:
     # grounded prompt via _env_grounding so "near me" resolves + "today"/
     # "tomorrow" use the USER's wall clock.
     _client_env_var.set(_client_env(body, request.headers))
+    # Per-surface trace-channel capability (FV / visibility-doc Move A): the OWUI
+    # pipe advertises a reasoning-aware surface via `x-mios-reasoning-ok`; anything
+    # hitting /v1 directly (CLI / strict clients) leaves it unset -> None -> legacy
+    # [observability].debug routing (byte-identical, degrade-open). Threaded into the
+    # refine hop's trace emits so full visibility rides the reasoning channel on
+    # capable surfaces while the final answer stays the only thing in delta.content.
+    _rok_hdr = (request.headers.get("x-mios-reasoning-ok") or "").strip().lower()
+    _reasoning_ok = None if not _rok_hdr else (_rok_hdr not in {"false", "0", "no"})
     # Stage-1 domain router: classify ONCE per request (thinking-off enum); all
     # paths (planner + tool-loop + swarm) read _routed_domain_var to shrink the
     # verb surface to this domain. None (router off / unsure) -> full surface.
@@ -1423,7 +1431,8 @@ async def chat_completions_logic(request: Request) -> Any:
                     # content under debug, folded into the Thinking pane
                     # otherwise. (Previously non-reasoning tokens were dropped.)
                     if token_val:
-                        yield _sse_reasoning(token_val, chat_id=chat_id, model=model)
+                        yield _sse_reasoning(token_val, chat_id=chat_id, model=model,
+                                             reasoning_ok=_reasoning_ok)
                     queue.task_done()
                 except asyncio.TimeoutError:
                     continue
@@ -1489,10 +1498,12 @@ async def chat_completions_logic(request: Request) -> Any:
                     for _t in _tasks:
                         _refine_reasoning += f"  - {_t.get('title')}: {_t.get('refined_text')} (web={_t.get('web')}, local={_t.get('local_state')})\n"
                 
-                if _DEBUG_ENABLE:
-                    yield _sse_chunk(_refine_reasoning, chat_id=chat_id, model=model)
-                else:
-                    yield _sse_reasoning(_refine_reasoning, chat_id=chat_id, model=model)
+                # Refine summary is trace, not the answer -> route by surface
+                # capability (reasoning channel on capable surfaces, inline on a
+                # declared content-only surface, legacy when unknown). Never the
+                # answer's delta.content on a reasoning-aware surface.
+                yield _sse_reasoning(_refine_reasoning, chat_id=chat_id, model=model,
+                                     reasoning_ok=_reasoning_ok)
             
             _budget_turn_token = (chat_id if (_autonomous and _autonomous_source) else None)
             _budget_ok, _budget_reason = await _budget_admit(

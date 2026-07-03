@@ -9,11 +9,13 @@ Wants=network-online.target
 
 [Container]
 AutoUpdate=registry
+Group=810
 Image=docker.io/guacamole/guacamole:latest
-Label=org.opencontainers.image.url=http://localhost:${MIOS_PORT_GUACAMOLE_WEB:-8080}/guacamole/
+Label=org.opencontainers.image.url=http://localhost:${MIOS_PORT_GUACAMOLE_WEB}/guacamole/
 Label=org.opencontainers.image.documentation=https://guacamole.apache.org/doc/
-Label=io.podman_desktop.openInBrowser=http://localhost:${MIOS_PORT_GUACAMOLE_WEB:-8080}/guacamole/
+Label=io.podman_desktop.openInBrowser=http://localhost:${MIOS_PORT_GUACAMOLE_WEB}/guacamole/
 Pod=mios-system.pod
+User=810
 
 [Install]
 WantedBy=multi-user.target default.target

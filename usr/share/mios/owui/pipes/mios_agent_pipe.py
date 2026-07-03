@@ -2737,6 +2737,27 @@ class Pipe:
                             if description:
                                 await self._emit(__event_emitter__,
                                                  description, done=done)
+                        _sources = chunk.get("mios_sources")
+                        if isinstance(_sources, list) and _sources:
+                            documents = []
+                            metadata = []
+                            for src in _sources:
+                                title = src.get("title", "") or src.get("url", "")
+                                url = src.get("url", "")
+                                documents.append(title)
+                                metadata.append({
+                                    "source": url,
+                                    "name": title,
+                                    "url": url
+                                })
+                            if __event_emitter__:
+                                await __event_emitter__({
+                                    "type": "source",
+                                    "data": {
+                                        "document": documents,
+                                        "metadata": metadata
+                                    }
+                                })
                         choices = chunk.get("choices") or []
                         if not choices:
                             continue
@@ -2749,7 +2770,7 @@ class Pipe:
                         # agent-pipe directly (Firefox Smart Window) ignore
                         # reasoning_content and get only the clean answer.
                         _rc = delta.get("reasoning_content") or ""
-                        if _rc and not _answer_started:
+                        if _rc:
                             # Stream reasoning LIVE inside a <think> block.
                             # Open it on the first fragment; OWUI routes the
                             # interior to the Thinking dropdown as it arrives.
@@ -2765,9 +2786,9 @@ class Pipe:
                         # OWUI collapses it, then stream the clean answer.
                         if not _answer_started:
                             _answer_started = True
-                            _close = _think_close()
-                            if _close:
-                                yield _close
+                        _close = _think_close()
+                        if _close:
+                            yield _close
                         any_text = True
                         raw_buffer += text_piece
                         yield text_piece

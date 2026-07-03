@@ -260,6 +260,7 @@ def _discover_portal_services() -> list[dict]:
     # portal pins them to the top + renders an inline ~80x20 terminal embed
     # (matches the MiOS dashboards; also serves btop/console access).
     host_svcs = {"cockpit": ("Cockpit", "https", ""),
+                 "code_server": ("Code Server", "http", ""),
                  "ttyd_bash": ("Terminal · Bash", "http", "terminal"),
                  "ttyd_powershell": ("Terminal · PowerShell", "http", "terminal")}
     try:
