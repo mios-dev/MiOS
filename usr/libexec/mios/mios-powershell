@@ -275,7 +275,7 @@ if [[ "$ELEVATE" -eq 1 ]]; then
     
     ELEVATE_CMD="try { \$p = Start-Process '$PWSH_ESC' -Verb RunAs -Wait -PassThru -WindowStyle Hidden -ArgumentList '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', '$ENCODED_CMD'; exit \$p.ExitCode } catch { [Console]::Error.WriteLine('UAC elevation failed: ' + \$_.Exception.Message); exit 1223 }"
     
-    timeout --preserve-status "$TIMEOUT" "$PWSH" -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$ELEVATE_CMD" >/dev/null 2>"$ERR_FILE" || EXIT_CODE=$?
+    timeout --preserve-status "$TIMEOUT" "$PWSH" -NoProfile -ExecutionPolicy Bypass -Command "$ELEVATE_CMD" >/dev/null 2>"$ERR_FILE" || EXIT_CODE=$?
     
     if [[ "$EXIT_CODE" -ne 1223 ]]; then
         cat "/mnt/c/Users/Public/Documents/mios-ps/$(basename "$OUT_FILE")" >> "$OUT_FILE"
