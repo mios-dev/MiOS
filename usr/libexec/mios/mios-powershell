@@ -269,7 +269,11 @@ if [[ "$ELEVATE" -eq 1 ]]; then
     WIN_ERR_ESC="${WIN_ERR_FILE//\\/\\\\}"
     PWSH_ESC="${WIN_PWSH//\\/\\\\}"
     
-    ELEVATE_CMD="try { \$p = Start-Process '$PWSH_ESC' -Verb RunAs -Wait -PassThru -WindowStyle Hidden -ArgumentList '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', \"& { & '$WIN_PATH_ESC' > '$WIN_OUT_ESC' 2> '$WIN_ERR_ESC'; exit \$LASTEXITCODE }\"; exit \$p.ExitCode } catch { [Console]::Error.WriteLine('UAC elevation failed: ' + \$_.Exception.Message); exit 1223 }"
+    # Encode the elevated command to Base64 (UTF-16LE) to avoid nested quote mangling
+    ELEVATED_SCRIPT="& '$WIN_PATH_ESC' > '$WIN_OUT_ESC' 2> '$WIN_ERR_ESC'; exit \$LASTEXITCODE"
+    ENCODED_CMD=$(printf '%s' "$ELEVATED_SCRIPT" | iconv -f UTF-8 -t UTF-16LE | base64 | tr -d '\n')
+    
+    ELEVATE_CMD="try { \$p = Start-Process '$PWSH_ESC' -Verb RunAs -Wait -PassThru -WindowStyle Hidden -ArgumentList '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', '$ENCODED_CMD'; exit \$p.ExitCode } catch { [Console]::Error.WriteLine('UAC elevation failed: ' + \$_.Exception.Message); exit 1223 }"
     
     timeout --preserve-status "$TIMEOUT" "$PWSH" -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$ELEVATE_CMD" >/dev/null 2>"$ERR_FILE" || EXIT_CODE=$?
     
