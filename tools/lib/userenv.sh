@@ -482,6 +482,10 @@ slots = [
     # ── WS-7 immutable-host hardening (UKI + fapolicyd, DEFAULT-OFF) ─────
     ("security.fapolicyd_observe.enable", "MIOS_FAPOLICYD_OBSERVE_ENABLE"),
     ("uki.verity_uki_build",             "MIOS_UKI_VERITY_BUILD"),
+    # ── verity (anti-fabrication guards) ─────────────────────────────────
+    ("verity.antifab_enable",            "MIOS_ANTIFAB_ENABLE"),
+    ("verity.antifab_min_entities",      "MIOS_ANTIFAB_MIN_ENTITIES"),
+    ("verity.antifab_ground_min",        "MIOS_ANTIFAB_GROUND_MIN"),
     # ── fs_watcher (Phase A.2 -- inotify event bus) ──────────────────────
     ("fs_watcher.watch_dirs",          "MIOS_FS_WATCHER_DIRS"),
     # ── pkg (Phase C.1 -- Personal Knowledge Graph) ──────────────────────
@@ -610,6 +614,31 @@ slots = [
     ("network.quadlet.subnet",         "MIOS_QUADLET_SUBNET"),
     ("network.quadlet.core_subnet",    "MIOS_CORE_NET_SUBNET"),
     ("network.quadlet.core_gateway",   "MIOS_CORE_NET_GATEWAY"),
+    # ── frontier (A2O war-room roles -> the MIOS_A2O_* names the mios-a2o harness
+    #    reads; the mios-agents.service forwards these into the container). Empty
+    #    effort-flag templates are skipped by the emit loop = degrade-open. ──
+    ("frontier.orch_engine",        "MIOS_A2O_ORCH_ENGINE"),
+    ("frontier.orch_model",         "MIOS_A2O_ORCH_MODEL"),
+    ("frontier.orch_effort",        "MIOS_A2O_ORCH_EFFORT"),
+    ("frontier.lane_a_engine",      "MIOS_A2O_LANE_A_ENGINE"),
+    ("frontier.lane_a_model",       "MIOS_A2O_LANE_A_MODEL"),
+    ("frontier.lane_a_effort",      "MIOS_A2O_LANE_A_EFFORT"),
+    ("frontier.lane_a_role",        "MIOS_A2O_LANE_A_ROLE"),
+    ("frontier.lane_b_engine",      "MIOS_A2O_LANE_B_ENGINE"),
+    ("frontier.lane_b_model",       "MIOS_A2O_LANE_B_MODEL"),
+    ("frontier.lane_b_effort",      "MIOS_A2O_LANE_B_EFFORT"),
+    ("frontier.lane_b_role",        "MIOS_A2O_LANE_B_ROLE"),
+    # Lane B degrade-open fallback (agy quota-blocked -> a Claude engine finalizes).
+    ("frontier.lane_b_fallback_engine", "MIOS_A2O_LANE_B_FALLBACK_ENGINE"),
+    ("frontier.lane_b_fallback_model",  "MIOS_A2O_LANE_B_FALLBACK_MODEL"),
+    ("frontier.lane_b_fallback_effort", "MIOS_A2O_LANE_B_FALLBACK_EFFORT"),
+    ("frontier.lane_b_prefer_fallback", "MIOS_A2O_LANE_B_PREFER_FALLBACK"),
+    ("frontier.claude_effort_flag", "MIOS_A2O_CLAUDE_EFFORT_FLAG"),
+    ("frontier.agy_effort_flag",    "MIOS_A2O_AGY_EFFORT_FLAG"),
+    ("frontier.gemini_effort_flag", "MIOS_A2O_GEMINI_EFFORT_FLAG"),
+    # F-011: war-room activity -> reasoning channel (off by default; degrade-open).
+    ("frontier.stream_to_reasoning", "MIOS_A2O_STREAM_REASONING"),
+    ("frontier.stream_path",         "MIOS_A2O_STREAM_PATH"),
     # legacy/lightweight aliases (keep older mios.toml drafts working)
     ("user.name",               "MIOS_USER"),
     ("user.hostname",           "MIOS_HOSTNAME"),

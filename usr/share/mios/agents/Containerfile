@@ -64,11 +64,14 @@ RUN printf '%s\n' \
   && cat /etc/profile.d/mios-agents-path.sh >> /etc/bash.bashrc
 
 USER coder
+<<<<<<< HEAD
 # Default git identity + safe.directory so the war-room can commit the native
 # workspace out-of-box (the operator overrides in-container if they want).
 RUN git config --global user.name "MiOS Frontier" \
  && git config --global user.email "a2o@mios.local" \
  && git config --global --add safe.directory /mnt/mios-root
+=======
+>>>>>>> a62e333e1f0f5251c7b0951b89fd09292fce428c
 ENV PATH=/mnt/mios-root/usr/share/mios/agents:/mnt/mios-root/usr/bin:/mnt/mios-root/usr/libexec/mios:/usr/local/bin:/home/coder/.local/bin:$PATH \
     MIOS_A2O_ENGINE=agy \
     MIOS_A2O_WORK=/mnt/mios-root

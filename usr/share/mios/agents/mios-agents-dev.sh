@@ -13,12 +13,21 @@ cd "$(dirname "$0")"                              # usr/share/mios/agents
 REPO_SRC="$(cd ../../../.. && pwd)"               # repo root
 IMG=localhost/mios-agents:dev
 NAME=mios-agents-dev
+<<<<<<< HEAD
 PORT="${MIOS_AGENTS_PORT:-8800}"                  # IDE port (takes over the mios-agents endpoint)
 PASS="${MIOS_AGENTS_PASSWORD:-mios}"
 WORK="${MIOS_FRONTIER_WORKSPACE:-$HOME/MiOS}"     # NATIVE ext4 workspace (container-writable)
 
 echo ">> build $IMG from the repo (rootful storage -- the run is rootful --network=host)"
 sudo podman build --network=host -t "$IMG" -f Containerfile .
+=======
+PORT="${MIOS_AGENTS_PORT:-8801}"                  # IDE port (8801 avoids mios-agents:8800)
+PASS="${MIOS_AGENTS_PASSWORD:-mios}"
+WORK="${MIOS_FRONTIER_WORKSPACE:-$HOME/MiOS}"     # NATIVE ext4 workspace (container-writable)
+
+echo ">> build $IMG from the repo"
+podman build --network=host -t "$IMG" -f Containerfile .
+>>>>>>> a62e333e1f0f5251c7b0951b89fd09292fce428c
 
 if [ ! -e "$WORK/.git" ]; then
   echo ">> seed native workspace $WORK from $REPO_SRC (one-time; includes uncommitted edits + git origin)"
@@ -35,6 +44,7 @@ fi
 # make the native workspace writable by any container uid (dev workspace).
 chmod -R a+rwX "$WORK"
 
+<<<<<<< HEAD
 # Serve the IDE via ROOTFUL --network=host (rootless -p forwarding is unreliable
 # under WSL, and --network=host conflicts with --userns=keep-id). Root also writes
 # the native workspace cleanly. Stop the stale systemd service so it frees the port.
@@ -42,21 +52,39 @@ echo ">> (re)start $NAME on :$PORT (rootful --network=host)"
 sudo systemctl stop mios-agents 2>/dev/null || true
 sudo podman rm -f "$NAME" 2>/dev/null || true; podman rm -f "$NAME" 2>/dev/null || true
 sudo chmod -R a+rwX "$WORK"
+=======
+echo ">> (re)start $NAME on :$PORT (native workspace mounted rw)"
+podman rm -f "$NAME" 2>/dev/null || true
+>>>>>>> a62e333e1f0f5251c7b0951b89fd09292fce428c
 mounts=(-v "$WORK":/mnt/mios-root:rw)
 [ -d "$HOME/.gemini" ]      && mounts+=(-v "$HOME/.gemini":/home/coder/.gemini:rw)
 [ -d "$HOME/.claude" ]      && mounts+=(-v "$HOME/.claude":/home/coder/.claude:rw)
 [ -f "$HOME/.claude.json" ] && mounts+=(-v "$HOME/.claude.json":/home/coder/.claude.json:rw)
+<<<<<<< HEAD
 sudo podman run -d --name "$NAME" --network=host -e PASSWORD="$PASS" \
   "${mounts[@]}" "$IMG" --bind-addr "0.0.0.0:$PORT" /mnt/mios-root
+=======
+podman run -d --name "$NAME" --userns=keep-id:uid=1000,gid=1000 \
+  -e PASSWORD="$PASS" -p "$PORT:8080" "${mounts[@]}" \
+  "$IMG" --bind-addr 0.0.0.0:8080 /mnt/mios-root
+>>>>>>> a62e333e1f0f5251c7b0951b89fd09292fce428c
 
 cat <<EOF
 
 mios-agents-dev up -- war-room on a NATIVE writable workspace synced to GitHub.
   IDE:          http://localhost:$PORT   (password: $PASS)
   Workspace:    $WORK   (origin: $(git -C "$WORK" remote get-url origin 2>/dev/null || echo '?'))
+<<<<<<< HEAD
   Gemini login: sudo podman exec -it $NAME agy
   Claude login: sudo podman exec -it $NAME claude
   Doctor:       sudo podman exec -it $NAME mios-a2o doctor
   WAR ROOM:     sudo podman exec -it $NAME mios-frontier
   Sync:         sudo podman exec -it $NAME mios-frontier-sync push|pull   (<-> GitHub origin)
+=======
+  Gemini login: podman exec -it $NAME agy
+  Claude login: podman exec -it $NAME claude
+  Doctor:       podman exec -it $NAME mios-a2o doctor
+  WAR ROOM:     podman exec -it $NAME mios-frontier
+  Sync:         podman exec -it $NAME mios-frontier-sync push|pull   (<-> GitHub origin)
+>>>>>>> a62e333e1f0f5251c7b0951b89fd09292fce428c
 EOF

@@ -26,7 +26,11 @@ GEMINI_MODEL="${MIOS_A2O_GEMINI_MODEL:-}"
 # ── FRONTIER ROLES ── main panel = ORCHESTRATOR; two sub-agent lanes A/B. Each role
 # = engine + model + reasoning effort. These defaults are the single documented
 # baseline (operator spec); the SSOT that overrides them is mios.toml
+<<<<<<< HEAD
 # [agents.frontier], bridged to MIOS_A2O_* env via install.env -- NO-HARDCODE.
+=======
+# [frontier], bridged to MIOS_A2O_* env via install.env -- NO-HARDCODE.
+>>>>>>> a62e333e1f0f5251c7b0951b89fd09292fce428c
 ORCH_ENGINE="${MIOS_A2O_ORCH_ENGINE:-claude}"
 ORCH_MODEL="${MIOS_A2O_ORCH_MODEL:-claude-sonnet-5}"
 ORCH_EFFORT="${MIOS_A2O_ORCH_EFFORT:-high}"
@@ -34,10 +38,26 @@ LANE_A_ENGINE="${MIOS_A2O_LANE_A_ENGINE:-claude}"        # Claude Opus 4.8
 LANE_A_MODEL="${MIOS_A2O_LANE_A_MODEL:-claude-opus-4-8}"
 LANE_A_EFFORT="${MIOS_A2O_LANE_A_EFFORT:-xhigh}"
 LANE_A_ROLE="${MIOS_A2O_LANE_A_ROLE:-framework + ~80%}"
+<<<<<<< HEAD
 LANE_B_ENGINE="${MIOS_A2O_LANE_B_ENGINE:-agy}"           # Gemini Flash 3.5 via Antigravity
 LANE_B_MODEL="${MIOS_A2O_LANE_B_MODEL:-gemini-3.5-flash}"
 LANE_B_EFFORT="${MIOS_A2O_LANE_B_EFFORT:-high}"
 LANE_B_ROLE="${MIOS_A2O_LANE_B_ROLE:-finalize (last ~20%)}"
+=======
+LANE_B_ENGINE="${MIOS_A2O_LANE_B_ENGINE:-agy}"           # Gemini 3.5 Flash (High) via Antigravity
+LANE_B_MODEL="${MIOS_A2O_LANE_B_MODEL:-Gemini 3.5 Flash (High)}"
+LANE_B_EFFORT="${MIOS_A2O_LANE_B_EFFORT:-high}"
+LANE_B_ROLE="${MIOS_A2O_LANE_B_ROLE:-finalize (last ~20%)}"
+# Lane B degrade-open FALLBACK. When agy's Gemini account is quota-blocked (429) its
+# generation returns empty and finalize work stalls; PREFER_FALLBACK routes Lane B to
+# a Claude engine instead so the last ~20% still ships. Baselines EQUAL mios.toml
+# [frontier].lane_b_fallback_* (SSOT, bridged via install.env) -- NO-HARDCODE. Empty
+# engine/model degrade-open (see cmd_lane): unknown fallback => behave as agy today.
+LANE_B_FALLBACK_ENGINE="${MIOS_A2O_LANE_B_FALLBACK_ENGINE:-claude}"
+LANE_B_FALLBACK_MODEL="${MIOS_A2O_LANE_B_FALLBACK_MODEL:-claude-sonnet-5}"
+LANE_B_FALLBACK_EFFORT="${MIOS_A2O_LANE_B_FALLBACK_EFFORT:-high}"
+LANE_B_PREFER_FALLBACK="${MIOS_A2O_LANE_B_PREFER_FALLBACK:-true}"
+>>>>>>> a62e333e1f0f5251c7b0951b89fd09292fce428c
 # Per-engine reasoning-effort flag TEMPLATE ({e} -> effort). EMPTY = omit the flag
 # (degrade-open: never break an engine whose effort flag is unverified). Set the real
 # flag for your installed CLI once confirmed in-container, e.g.
@@ -62,6 +82,12 @@ have tmux || die "tmux not found on PATH"
 
 engine_bin(){ case "$1" in agy) echo "$AGY_BIN";; claude) echo "$CLAUDE_BIN";; gemini) echo "$GEMINI_BIN";; *) return 1;; esac; }
 
+<<<<<<< HEAD
+=======
+# True when the Lane-B prefer-fallback switch is set truthy (1/true/yes/on, any case).
+lane_b_fallback_on(){ case "${LANE_B_PREFER_FALLBACK,,}" in 1|true|yes|on) return 0;; *) return 1;; esac; }
+
+>>>>>>> a62e333e1f0f5251c7b0951b89fd09292fce428c
 # Render the reasoning-effort flag for an engine (empty template or effort -> none).
 effort_flag(){
   local eng="$1" e="${2:-}" tpl=""
@@ -86,14 +112,26 @@ ensure_server(){
 # literal here). model/effort override the per-engine defaults (frontier roles pass
 # them; plain dispatch leaves them empty -> legacy per-engine model, no effort).
 exec_line(){
+<<<<<<< HEAD
   local eng="$1" work="$2" model_in="${3:-}" effort_in="${4:-}" mdl="" auto="" sb="" eff=""
+=======
+  local eng="$1" work="$2" model_in="${3:-}" effort_in="${4:-}" agy_log="${5:-}" mdl="" auto="" sb="" eff="" lf=""
+>>>>>>> a62e333e1f0f5251c7b0951b89fd09292fce428c
   eff="$(effort_flag "$eng" "$effort_in")"
   case "$eng" in
     agy)
       mdl="${model_in:-$AGY_MODEL}"; [ -n "$mdl" ] && mdl="--model '$mdl'" || mdl=""
       [ "$AUTO" = 1 ] && auto="--dangerously-skip-permissions"
       [ "$SANDBOX" = 1 ] && sb="--sandbox"
+<<<<<<< HEAD
       echo "$AGY_BIN $mdl $eff --add-dir '$work' $auto $sb -p \"\$PROMPT\" < /dev/null"
+=======
+      # F-023: agy --print ALWAYS exits 0 and prints NOTHING to stdout on failure;
+      # its trace (incl. quota/RESOURCE_EXHAUSTED lines) goes only to --log-file.
+      # Route it to a per-task debug log so the runner can detect silent failures.
+      [ -n "$agy_log" ] && lf="--log-file '$agy_log'"
+      echo "$AGY_BIN $mdl $eff --add-dir '$work' $auto $sb $lf -p \"\$PROMPT\" < /dev/null"
+>>>>>>> a62e333e1f0f5251c7b0951b89fd09292fce428c
       ;;
     claude)
       mdl="${model_in:-$CLAUDE_MODEL}"; [ -n "$mdl" ] && mdl="--model '$mdl'" || mdl=""
@@ -119,19 +157,103 @@ cmd_dispatch(){
   ensure_server; mkdir -p "$work"
   cat > "$PROMPTS/$name.txt"                          # prompt from stdin
   [ -s "$PROMPTS/$name.txt" ] || die "empty prompt on stdin"
+<<<<<<< HEAD
   : > "$LOGS/$name.log"; rm -f "$STATUS/$name.status" "$STATUS/$name.running"; echo "$eng" > "$STATUS/$name.engine"
   local EXEC; EXEC="$(exec_line "$eng" "$work" "$model" "$effort")"
+=======
+  # F-023: per-task agy debug/trace sink (agy exits 0 even on hard failure and hides
+  # its errors here). Lives under RUND, NOT LOGS, so it never matches the "$LOGS"/*.log
+  # glob that status/capture/follow scan (else it would show as a phantom task).
+  # Cleared alongside the task log so a re-dispatch can't match a stale error line.
+  local AGY_DEBUG_LOG="$RUND/$name.agy-debug.log"
+  : > "$LOGS/$name.log"; rm -f "$STATUS/$name.status" "$STATUS/$name.running" "$AGY_DEBUG_LOG"; echo "$eng" > "$STATUS/$name.engine"
+  local EXEC; EXEC="$(exec_line "$eng" "$work" "$model" "$effort" "$AGY_DEBUG_LOG")"
+  # F-011 "everything streams": resolve the reasoning-stream flag + sink ONCE here
+  # (the parent holds the SSOT-bridged env; a tmux server snapshots its env at
+  # first-start, so a child runner can't rely on inheriting it) and BAKE the
+  # resolved values into the runner. Off by default -> _stream_on=0 -> the emit
+  # function is a no-op and the runner is byte-identical to before.
+  local _sr="${MIOS_A2O_STREAM_REASONING:-0}"; _sr="${_sr,,}"
+  local _stream_on=0; case "$_sr" in 1|true|yes|on) _stream_on=1;; esac
+  # F-023 anti-fabrication (AGY ONLY): agy --print returns 0 and empty stdout even on
+  # hard failure, so PIPESTATUS is a lie for agy. Bake a post-run detector that turns
+  # "empty response" OR a known error in the debug log into a real non-zero rc and
+  # surfaces a concise reason. For claude/gemini this variable is EMPTY, so the
+  # runner line below is byte-identical to before (the ${_agy_post} prefix vanishes).
+  local _agy_post=""
+  if [ "$eng" = agy ]; then
+    _agy_post="$(cat <<AGYCHK
+if [ "\$rc" = 0 ]; then
+  _a2o_fail=0
+  [ -s "$LOGS/$name.log" ] || _a2o_fail=1
+  if [ -f "$AGY_DEBUG_LOG" ] && grep -qE 'RESOURCE_EXHAUSTED|INVALID_ARGUMENT|Failed to resolve model flag|agent executor error|model unreachable' "$AGY_DEBUG_LOG"; then _a2o_fail=1; fi
+  if [ "\$_a2o_fail" = 1 ]; then
+    rc=1
+    _a2o_reason=""
+    if [ -f "$AGY_DEBUG_LOG" ]; then
+      if grep -qiE 'RESOURCE_EXHAUSTED|quota reached' "$AGY_DEBUG_LOG"; then
+        _a2o_resets="\$(grep -oE 'Resets in [^.:]*' "$AGY_DEBUG_LOG" | head -1)"
+        if [ -n "\$_a2o_resets" ]; then _a2o_reason="agy: quota exhausted (429), \${_a2o_resets,,}"; else _a2o_reason="agy: quota exhausted (429)"; fi
+      fi
+      [ -n "\$_a2o_reason" ] || _a2o_reason="\$(grep -oiE 'INVALID_ARGUMENT[^:]*|Failed to resolve model flag[^:]*|agent executor error[^:]*|model unreachable[^:]*|RESOURCE_EXHAUSTED[^:]*' "$AGY_DEBUG_LOG" | head -1)"
+    fi
+    [ -n "\$_a2o_reason" ] || _a2o_reason="agy: no response (empty output; agy exited 0; see $AGY_DEBUG_LOG)"
+    printf '%s\n' "=== [mios-a2o] agy failure detected (exited 0 but produced no valid response) ===" "\$_a2o_reason" | tee -a "$LOGS/$name.log"
+  fi
+fi
+AGYCHK
+)"
+    _agy_post="$_agy_post
+"
+  fi
+>>>>>>> a62e333e1f0f5251c7b0951b89fd09292fce428c
   cat > "$RUND/$name.sh" <<RUNNER
 #!/usr/bin/env bash
 export PATH="$PATH"
 cd "$work" 2>/dev/null || cd "$WORK_DEFAULT"
+A2O_STREAM_ON="$_stream_on"
+A2O_STREAM_PATH="${MIOS_A2O_STREAM_PATH:-}"
+A2O_MOUNT_ROOT="${MIOS_A2O_WORK:-}"
+_a2o_stream(){  # \$1 = transition detail -> best-effort JSONL append to the frontier
+  # tail, which the agent-pipe folds into the mios_status reasoning channel it
+  # already publishes (OWUI/CLI/Discord subscribe to it). EVERY failure is
+  # swallowed: streaming must never break a dispatch (degrade-open).
+  [ "\$A2O_STREAM_ON" = 1 ] || return 0
+  [ -n "\$A2O_STREAM_PATH" ] || return 0
+  local sp="\$A2O_STREAM_PATH"
+  # The war room runs inside the mios-agents container with host / mounted at
+  # \$A2O_MOUNT_ROOT; re-anchor the host-absolute sink under that mount when its
+  # raw parent dir is absent (running directly on the host uses the path as-is).
+  if [ ! -d "\$(dirname "\$sp")" ] && [ -n "\$A2O_MOUNT_ROOT" ] && [ -d "\$(dirname "\$A2O_MOUNT_ROOT\$sp")" ]; then
+    sp="\$A2O_MOUNT_ROOT\$sp"
+  fi
+  local d; d="\$(dirname "\$sp")"
+  [ -d "\$d" ] || mkdir -p "\$d" 2>/dev/null || return 0
+  # name/engine are slug-constrained ([A-Za-z0-9._-] / a fixed engine set) and the
+  # transition text is digits+letters+space+'=', so the detail carries no JSON
+  # metacharacters -- safe to interpolate without escaping. TODO(finalize): to
+  # stream arbitrary LOG LINES (not just start/finish transitions) this needs a
+  # real JSON string-escape; transitions are the safe MVP the mandate asks for.
+  printf '{"ts":%s,"kind":"frontier","detail":"war-room: %s %s [%s]"}\n' \
+    "\$(date +%s)" "$name" "\$1" "$eng" >> "\$sp" 2>/dev/null || return 0
+  # Race-tolerant bound on the append-only sink. A lost trim just trims on a later
+  # append (the consumer reads only the tail + filters by ts, so a transient
+  # over-length file is harmless).
+  local n; n="\$(wc -l < "\$sp" 2>/dev/null || echo 0)"
+  if [ "\${n:-0}" -gt 400 ] 2>/dev/null; then
+    tail -n 200 "\$sp" > "\$sp.tmp" 2>/dev/null && mv "\$sp.tmp" "\$sp" 2>/dev/null || true
+  fi
+}
 echo "\$(date -Is) start [$eng]" > "$STATUS/$name.running"
+_a2o_stream start
 PROMPT="\$(cat "$PROMPTS/$name.txt")"
 set -o pipefail
 $EXEC 2>&1 | tee -a "$LOGS/$name.log"
 rc=\${PIPESTATUS[0]}
-rm -f "$STATUS/$name.running"
+${_agy_post}rm -f "$STATUS/$name.running"
 echo "\$rc" > "$STATUS/$name.status"
+st=done; [ "\$rc" = 0 ] || st=failed
+_a2o_stream "\$st rc=\$rc"
 echo "" | tee -a "$LOGS/$name.log"
 echo "=== [mios-a2o] task '$name' ($eng) finished rc=\$rc (window kept open) ===" | tee -a "$LOGS/$name.log"
 RUNNER
@@ -149,7 +271,20 @@ cmd_lane(){
   local eng mdl eff
   case "$lane" in
     a|A) eng="$LANE_A_ENGINE"; mdl="$LANE_A_MODEL"; eff="$LANE_A_EFFORT";;
+<<<<<<< HEAD
     b|B) eng="$LANE_B_ENGINE"; mdl="$LANE_B_MODEL"; eff="$LANE_B_EFFORT";;
+=======
+    b|B)
+      eng="$LANE_B_ENGINE"; mdl="$LANE_B_MODEL"; eff="$LANE_B_EFFORT"
+      # agy quota workaround: when prefer_fallback is on AND a fallback engine is
+      # actually set, route Lane B to the Claude fallback instead of agy so finalize
+      # work never stalls on a 429. Degrade-open: empty fallback engine => agy as
+      # today. Lane A and plain `dispatch` are untouched.
+      if lane_b_fallback_on && [ -n "$LANE_B_FALLBACK_ENGINE" ]; then
+        eng="$LANE_B_FALLBACK_ENGINE"; mdl="$LANE_B_FALLBACK_MODEL"; eff="$LANE_B_FALLBACK_EFFORT"
+      fi
+      ;;
+>>>>>>> a62e333e1f0f5251c7b0951b89fd09292fce428c
     *) die "lane must be a|b";;
   esac
   cmd_dispatch "$name" "$eng" "$WORK_DEFAULT" "$mdl" "$eff"
@@ -191,6 +326,11 @@ cmd_doctor(){
   printf "  %-13s %-7s %-22s effort=%-6s flag=%s\n" "orchestrator" "$ORCH_ENGINE" "$ORCH_MODEL" "$ORCH_EFFORT" "${CLAUDE_EFFORT_FLAG:-<none>}"
   printf "  %-13s %-7s %-22s effort=%-6s role=%s\n" "lane A" "$LANE_A_ENGINE" "$LANE_A_MODEL" "$LANE_A_EFFORT" "$LANE_A_ROLE"
   printf "  %-13s %-7s %-22s effort=%-6s role=%s\n" "lane B" "$LANE_B_ENGINE" "$LANE_B_MODEL" "$LANE_B_EFFORT" "$LANE_B_ROLE"
+<<<<<<< HEAD
+=======
+  if lane_b_fallback_on && [ -n "$LANE_B_FALLBACK_ENGINE" ]; then _fb_state="ACTIVE (Lane B routes here now)"; else _fb_state="inactive (Lane B uses agy)"; fi
+  printf "  %-13s %-7s %-22s effort=%-6s %s\n" "lane B fallback" "$LANE_B_FALLBACK_ENGINE" "$LANE_B_FALLBACK_MODEL" "$LANE_B_FALLBACK_EFFORT" "$_fb_state"
+>>>>>>> a62e333e1f0f5251c7b0951b89fd09292fce428c
   echo "orchestrator_brief=${ORCH_BRIEF:-<none found>}"
   echo -n "tmux:   "; tmux -V
   for e in agy claude gemini; do b="$(engine_bin "$e")"; printf "%-7s " "$e:"; if have "$b"; then "$b" --version 2>/dev/null | head -1; else echo "not installed ($b)"; fi; done
@@ -215,6 +355,33 @@ RUNNER
   echo "selftest dispatched to $SESSION:selftest — verify: mios-a2o status ; mios-a2o tail selftest"
   echo "roles configured:"
   echo "  orchestrator=$ORCH_ENGINE:$ORCH_MODEL(effort=$ORCH_EFFORT)  laneA=$LANE_A_ENGINE:$LANE_A_MODEL(effort=$LANE_A_EFFORT)  laneB=$LANE_B_ENGINE:$LANE_B_MODEL(effort=$LANE_B_EFFORT)"
+<<<<<<< HEAD
+=======
+
+  # ── frontier-layout assertion (ENGINE-FREE) ── prove `frontier` lays out exactly
+  # 4 titled panes with the resolved role model ids. Launched headless into a
+  # throwaway session (MIOS_A2O_NOATTACH=1 so it never attaches). Degrade-open: a
+  # missing/unauthed engine still yields 4 panes — the orchestrator pane falls back
+  # to a shell, it does NOT vanish — so this passes with no claude/agy auth.
+  local FS="${SESSION}-frontier-selftest" lay_ok=1 lay_msg="" panes npanes role mdl expect
+  tmux kill-session -t "$FS" 2>/dev/null || true
+  ( export MIOS_A2O_NOATTACH=1 MIOS_A2O_FRONTIER="$FS"; cmd_frontier ) >/dev/null 2>&1 || true
+  panes="$(tmux list-panes -t "$FS:frontier" -F '#{pane_title}' 2>/dev/null || true)"
+  npanes="$(printf '%s\n' "$panes" | grep -c . || true)"
+  for expect in "ORCHESTRATOR|$ORCH_MODEL" "LANE A|$LANE_A_MODEL" "LANE B|$LANE_B_MODEL" "MONITOR|"; do
+    role="${expect%%|*}"; mdl="${expect#*|}"
+    printf '%s\n' "$panes" | grep -q -- "$role" || { lay_ok=0; lay_msg="$lay_msg missing-pane:$role"; }
+    [ -n "$mdl" ] && { printf '%s\n' "$panes" | grep -qF -- "$mdl" || { lay_ok=0; lay_msg="$lay_msg missing-model:$mdl"; }; }
+  done
+  [ "$npanes" = 4 ] || { lay_ok=0; lay_msg="$lay_msg pane-count=$npanes(want 4)"; }
+  tmux kill-session -t "$FS" 2>/dev/null || true
+  if [ "$lay_ok" = 1 ]; then
+    echo "FRONTIER-LAYOUT: PASS — 4 panes [ORCHESTRATOR/LANE A/LANE B/MONITOR] carry resolved role models ($ORCH_MODEL, $LANE_A_MODEL, $LANE_B_MODEL)"
+  else
+    echo "FRONTIER-LAYOUT: FAIL —$lay_msg"
+    return 1
+  fi
+>>>>>>> a62e333e1f0f5251c7b0951b89fd09292fce428c
 }
 
 newest_task(){  # echo newest task name, optionally filtered by engine (.engine marker)

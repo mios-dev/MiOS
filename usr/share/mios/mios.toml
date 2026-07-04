@@ -2450,6 +2450,24 @@ sentence_abbreviations = [
     "approx.", "Approx.", "e.g.", "i.e.", "vs.", "etc.", "U.S.", "U.K.",
     "a.m.", "p.m.", "No.", "Inc.", "Co.", "Ltd.", "St.", "Mt.",
 ]
+# Anti-fabricated-EXECUTION guard (operator's #1 value: NEVER claim a tool ran
+# when it did not). Master gate for the routing-layer guards that drop a chat/
+# synthesis reply narrating an unexecuted '🤝 <verb> output' / {"success":true,
+# "tool":...} block (chat.py short-circuit + native_loop.py unfired-verb strip).
+# Bridged to MIOS_ANTIFAB_ENABLE (read by mios_pipe.routing). Degrade-OPEN: set
+# false to restore the pre-guard passthrough behaviour.
+antifab_enable = true
+# Anti-fabricated-CITATION (per-section grounding) thresholds. A web/news answer
+# is split into sections; a section is dropped only when it carries at least
+# antifab_min_entities candidate entity tokens (proper nouns / years / domains --
+# structural, unicode-aware, no keyword list) AND its grounded fraction (entities
+# present in the actually-fetched source text) is below antifab_ground_min. Higher
+# min_entities = less aggressive (needs more signal before judging); higher
+# ground_min = stricter (demands more of a section be grounded). Bridged to
+# MIOS_ANTIFAB_MIN_ENTITIES / MIOS_ANTIFAB_GROUND_MIN. Degrade-OPEN on empty corpus
+# / caseless script / too-few entities.
+antifab_min_entities = 3
+antifab_ground_min = 0.34
 
 # ── WS-2 Code Mode. The agent writes CODE that calls a local tool
 # API inside the rootless podman coderun-sandbox instead of loading ~71 function
@@ -3175,6 +3193,26 @@ permission       = "read"
 max_result_chars = 0
 parallel_limit   = 0
 hidden           = false
+
+# MiOS-DEV self-development: apply the war-room / code-server workspace edits
+# DIRECTLY onto the deployed dev root so they go live for testing without a GitHub
+# round-trip. GATED to a MUTABLE MiOS-DEV root (an immutable bootc root is refused;
+# ship those via bootc upgrade). Syncs only git-visible files, never deletes. The
+# executable enforces every gate -- see usr/libexec/mios/mios-sync-to-root.
+[verbs.sync_to_root]
+section    = "MiOS-DEV / self-development"
+sig        = 'mode="apply"?'
+desc       = "Apply the code-server/war-room workspace edits DIRECTLY onto the deployed MiOS-DEV root so they go LIVE for testing (no GitHub round-trip). Only works on a mutable MiOS-DEV deploy; an immutable bootc root is refused. Use mode=check (or dry-run) to preview what would change without touching anything, then mode=apply to make it live."
+examples   = ["apply my code-server changes to the dev root", "sync the war-room workspace live for testing", "push these edits into MiOS-DEV so I can test them", "dry-run what a sync-to-root would change"]
+tier       = "rare"
+permission = "write"
+cmd        = "mios-sync-to-root {mode=apply}"
+  [verbs.sync_to_root.params.mode]
+  type    = "string"
+  desc    = "apply = make the workspace edits live on the dev root; check/dry-run = preview only, touch nothing."
+  enum    = ["apply", "check", "dry-run"]
+  default = "apply"
+  aliases = ["action", "op"]
 
 [verbs.open_app]
 hidden = true
@@ -5299,6 +5337,7 @@ orch_effort = "high"
 lane_a_engine = "claude"
 lane_a_model  = "claude-opus-4-8"
 lane_a_effort = "xhigh"
+<<<<<<< HEAD
 # Lane B sub-agent = finalize (last ~20%).
 lane_b_engine = "agy"
 lane_b_model  = "gemini-3.5-flash"    # VERIFY: the model id the installed agy/gemini CLI accepts
@@ -5309,6 +5348,55 @@ lane_b_effort = "high"
 claude_effort_flag = ""
 agy_effort_flag    = ""
 gemini_effort_flag = ""
+=======
+lane_a_role   = "framework + ~80%"
+# Lane B sub-agent = finalize (last ~20%).
+lane_b_engine = "agy"
+lane_b_model  = "Gemini 3.5 Flash (High)"    # LOG-VERIFIED (F-008): confirmed via agy --log-file resolution trace -
+                                              # `agy models` display string is the only accepted --model value; bare
+                                              # slugs (gemini-3.5-flash, gemini-3.5-flash-high, gemini-flash-3.5) all
+                                              # fail model_config_manager resolution and silently fall back to the
+                                              # (Medium) effort tier. Effort is baked into the model name itself, so
+                                              # agy_effort_flag stays empty (no separate effort flag exists for agy).
+lane_b_effort = "high"
+lane_b_role   = "finalize (last ~20%)"
+# Lane B degrade-open FALLBACK. The real Lane B engine is agy (Gemini); when that
+# account is quota-blocked (429 RESOURCE_EXHAUSTED) agy generation returns empty and
+# finalize work stalls. These keys let Lane B fall back to a Claude engine so the
+# last ~20% never dead-ends. prefer_fallback is the switch: ON => Lane B routes to
+# the fallback engine/model/effort below instead of the agy ones; OFF => Lane B uses
+# agy as normal. Unknown/empty fallback keys degrade-open to today's agy behaviour.
+lane_b_fallback_engine = "claude"
+lane_b_fallback_model  = "claude-sonnet-5"
+lane_b_fallback_effort = "high"
+# ON now: agy Gemini quota-blocked => Lane B degrades to the Claude engine above so
+# finalize work never stalls. Flip to false when the Gemini quota returns.
+lane_b_prefer_fallback = true
+# Per-engine reasoning-effort flag TEMPLATE ({e} -> effort value). Empty = omit
+# (degrade-open: never break a CLI whose effort flag is unverified). claude is
+# CONFIRMED in-container: `--effort {e}`, levels low|medium|high|xhigh|max. agy and
+# gemini have NO confirmed effort flag -> left empty so their CLIs are never broken.
+claude_effort_flag = "--effort {e}"
+agy_effort_flag    = ""
+gemini_effort_flag = ""
+# Stream the war-room's per-task activity to the MiOS reasoning channel so
+# OWUI/CLI/Discord can watch the frontier without `tmux attach` ("everything
+# streams"). OFF by default: when on, mios-a2o appends each task's start/finish
+# transitions to the frontier sibling of the hermes-tail file (stream_path), and
+# the agent-pipe folds them into the same mios_status reasoning-channel emission
+# it already publishes. Degrade-open: a target that can't be written never fails a
+# dispatch; when off, the file is never created and the pipe path is byte-identical.
+stream_to_reasoning = false
+# Frontier activity sink -- JSONL under a dedicated group-writable child of the
+# hermes-tail transport dir the front-ends already read. Its own dir (not the
+# hermes-tail root) because the WRITER is the mios-agents container (host uid 1000)
+# and the READER is mios-agent-pipe (mios-ai): the dir is owned uid 1000 + group
+# mios-ai + setgid (see usr/lib/tmpfiles.d/mios.conf) so the container can create
+# the file AND its trim .tmp sibling while mios-ai still reads every line. The
+# war-room re-anchors this host-absolute path under MIOS_A2O_WORK when it runs
+# inside the container (host / mounted there).
+stream_path = "/var/lib/mios/hermes-tail/frontier/frontier.jsonl"
+>>>>>>> a62e333e1f0f5251c7b0951b89fd09292fce428c
 
 [agent_pipe]
 tool_loop_limit = 20
