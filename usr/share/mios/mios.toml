@@ -5337,18 +5337,6 @@ orch_effort = "high"
 lane_a_engine = "claude"
 lane_a_model  = "claude-opus-4-8"
 lane_a_effort = "xhigh"
-<<<<<<< HEAD
-# Lane B sub-agent = finalize (last ~20%).
-lane_b_engine = "agy"
-lane_b_model  = "gemini-3.5-flash"    # VERIFY: the model id the installed agy/gemini CLI accepts
-lane_b_effort = "high"
-# Per-engine reasoning-effort flag TEMPLATE ({e} -> effort value). Empty = omit
-# (degrade-open: never break a CLI whose effort flag is unverified). Set once
-# confirmed in-container, e.g. claude_effort_flag = "--reasoning-effort {e}".
-claude_effort_flag = ""
-agy_effort_flag    = ""
-gemini_effort_flag = ""
-=======
 lane_a_role   = "framework + ~80%"
 # Lane B sub-agent = finalize (last ~20%).
 lane_b_engine = "agy"
@@ -5396,7 +5384,6 @@ stream_to_reasoning = false
 # war-room re-anchors this host-absolute path under MIOS_A2O_WORK when it runs
 # inside the container (host / mounted there).
 stream_path = "/var/lib/mios/hermes-tail/frontier/frontier.jsonl"
->>>>>>> a62e333e1f0f5251c7b0951b89fd09292fce428c
 
 [agent_pipe]
 tool_loop_limit = 20

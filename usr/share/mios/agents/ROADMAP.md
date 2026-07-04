@@ -12,11 +12,7 @@
 > shipped-but-inert is a gap, tracked as such.
 >
 > **Binding laws:** NO-HARDCODE (models / efforts / panes / ports flow from
-<<<<<<< HEAD
-> `mios.toml [agents.frontier]`, never literals in the harness) · everything
-=======
 > `mios.toml [frontier]`, never literals in the harness) · everything
->>>>>>> a62e333e1f0f5251c7b0951b89fd09292fce428c
 > streams natively to every surface · credentials mounted at runtime, **never
 > baked** · Law 6 (Quadlet `User=/Group=/Delegate`) · Claude-the-builder never
 > live-launches — it extends the code paths; the operator opens the war-room.
@@ -71,14 +67,9 @@ not just engine.
 
 - **Role-based config, SSOT.** Each role = `{engine, model, effort}`, read from
   `MIOS_A2O_*` env, whose single documented baseline is the operator spec above,
-<<<<<<< HEAD
-  and whose real source of truth is `mios.toml [agents.frontier]` bridged into
-  the container `Environment=`. No model/effort literal ever lives in the harness.
-=======
   and whose real source of truth is `mios.toml [frontier]` bridged into the
   container env via `install.env`/`mios-sync-env`. No model/effort literal ever
   lives in the harness.
->>>>>>> a62e333e1f0f5251c7b0951b89fd09292fce428c
 - **Reasoning effort is degrade-open.** Effort is passed via a per-engine flag
   *template* (`{e}` → the effort value); an empty template omits the flag, so an
   engine/CLI whose exact effort flag is unverified never breaks. Activation is a
@@ -106,40 +97,6 @@ bound-images symlink, `mios-agents.service` enabled (replacing `mios-code-server
 *Status: assets present + service enabled; confirm the image builds and the
 container serves the IDE + a working `mios-a2o doctor` in-container.*
 
-<<<<<<< HEAD
-**Phase 1 — Role-based harness (F-001, F-003).** Replace the per-engine-only model
-vars with `{orchestrator, lane_a, lane_b}` roles each carrying engine+model+effort;
-refactor `exec_line` to accept model+effort; add the degrade-open effort-flag
-template. *Status: designed; not yet coded.*
-
-**Phase 2 — Frontier profile = orchestrator + sub-agent lanes (F-002, F-005).**
-Rework `cmd_frontier`: main pane runs the orchestrator engine interactively
-(model+effort pinned, degrade to shell if missing); lanes A/B follow the two
-sub-agent roles; monitor unchanged. Add `lane-a`/`lane-b` convenience dispatch that
-resolves to the sub-agent role config. Pane titles show `engine:model (effort=…)`.
-*Status: designed; not yet coded.*
-
-**Phase 3 — SSOT + env-bridge (F-004, F-008).** Add `[agents.frontier]` to
-`mios.toml`; bridge the keys into `[containers.mios-agents].Environment` via
-`install.env` / `mios-sync-env`; SSOT the canonical model ids. *Status: not built.*
-
-**Phase 4 — Reasoning-effort activation (F-010).** Confirm each engine CLI's real
-effort flag in-container and set the SSOT template; verify Opus 4.8 = xhigh,
-Gemini Flash 3.5 = high actually take effect. *Status: blocked on live verify.*
-
-**Phase 5 — Full-surface streaming (F-011).** Surface the war-room's live activity
-beyond the tmux panes: mirror lane status/thinking to the MiOS reasoning channel
-so OWUI/CLI/Discord can watch the frontier (ties into the everything-streams
-mandate). *Status: not built.*
-
-**Phase 6 — Identity, security, hardening (F-007, F-009, F-012).** `mios-agents`
-in the security allowlist ✅; credential-mount flow; `MIOS_A2O_AUTO` confinement;
-Law-6 posture; selftest/CI. *Status: allowlist done; rest partial.*
-
-**Phase 7 — Advanced orchestration (F-013+).** Parallel fan-out beyond two lanes,
-per-task checkpointing/resume, orchestrator↔sub-agent structured hand-off (A2A),
-cost/turn budgets, and a "completeness critic" lane. *Status: future.*
-=======
 **Phase 1 — Role-based harness (F-001, F-003). Built.** Replaced the per-engine-only
 model vars with `{orchestrator, lane_a, lane_b}` roles each carrying
 engine+model+effort; `exec_line` accepts model+effort; the degrade-open
@@ -196,7 +153,6 @@ fallback while the Gemini account quota is exhausted, in-progress) and the
 now-resolved dispatch-vs-nested-tool-loop question (dispatch is the shipped
 and preferred shape; nested tool-loop recorded as the Phase-7 alternative).
 *Status: future — designs ready to pick up.*
->>>>>>> a62e333e1f0f5251c7b0951b89fd09292fce428c
 
 ## 5. Relationship to the MiOS roadmap
 
@@ -208,15 +164,6 @@ own verbs. This file decomposes the war-room into shippable frontier tasks.
 
 ## 6. Open questions / verify points (do NOT guess — confirm in-container)
 
-<<<<<<< HEAD
-- **Gemini Flash 3.5 model id** for the `agy`/`gemini` engine (`--model` value).
-- **Per-CLI reasoning-effort flag** for `claude`, `agy`, `gemini` (the F-010
-  blocker; kept degrade-open until confirmed).
-- **Port**: `MIOS_PORT_AGENTS` — ACTIVATION cites `8801`, the live dashboard shows
-  `8800`; reconcile the SSOT.
-- Whether the orchestrator should **dispatch** to lanes or run a nested tool-loop
-  that spawns them (Phase 2 vs Phase 7 shape).
-=======
 All prior open questions in this section are now resolved; kept here (struck
 through) as the historical record per the honesty rule.
 
@@ -245,4 +192,3 @@ through) as the historical record per the honesty rule.
   tool-loop is recorded as the Phase-7 alternative in `TASKS.md`'s "Phase-7
   design sketches" section, worth revisiting only if the three engines gain a
   uniform structured tool-calling protocol.
->>>>>>> a62e333e1f0f5251c7b0951b89fd09292fce428c

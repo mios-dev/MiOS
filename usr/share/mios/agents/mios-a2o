@@ -26,11 +26,7 @@ GEMINI_MODEL="${MIOS_A2O_GEMINI_MODEL:-}"
 # ── FRONTIER ROLES ── main panel = ORCHESTRATOR; two sub-agent lanes A/B. Each role
 # = engine + model + reasoning effort. These defaults are the single documented
 # baseline (operator spec); the SSOT that overrides them is mios.toml
-<<<<<<< HEAD
-# [agents.frontier], bridged to MIOS_A2O_* env via install.env -- NO-HARDCODE.
-=======
 # [frontier], bridged to MIOS_A2O_* env via install.env -- NO-HARDCODE.
->>>>>>> a62e333e1f0f5251c7b0951b89fd09292fce428c
 ORCH_ENGINE="${MIOS_A2O_ORCH_ENGINE:-claude}"
 ORCH_MODEL="${MIOS_A2O_ORCH_MODEL:-claude-sonnet-5}"
 ORCH_EFFORT="${MIOS_A2O_ORCH_EFFORT:-high}"
@@ -38,12 +34,6 @@ LANE_A_ENGINE="${MIOS_A2O_LANE_A_ENGINE:-claude}"        # Claude Opus 4.8
 LANE_A_MODEL="${MIOS_A2O_LANE_A_MODEL:-claude-opus-4-8}"
 LANE_A_EFFORT="${MIOS_A2O_LANE_A_EFFORT:-xhigh}"
 LANE_A_ROLE="${MIOS_A2O_LANE_A_ROLE:-framework + ~80%}"
-<<<<<<< HEAD
-LANE_B_ENGINE="${MIOS_A2O_LANE_B_ENGINE:-agy}"           # Gemini Flash 3.5 via Antigravity
-LANE_B_MODEL="${MIOS_A2O_LANE_B_MODEL:-gemini-3.5-flash}"
-LANE_B_EFFORT="${MIOS_A2O_LANE_B_EFFORT:-high}"
-LANE_B_ROLE="${MIOS_A2O_LANE_B_ROLE:-finalize (last ~20%)}"
-=======
 LANE_B_ENGINE="${MIOS_A2O_LANE_B_ENGINE:-agy}"           # Gemini 3.5 Flash (High) via Antigravity
 LANE_B_MODEL="${MIOS_A2O_LANE_B_MODEL:-Gemini 3.5 Flash (High)}"
 LANE_B_EFFORT="${MIOS_A2O_LANE_B_EFFORT:-high}"
@@ -57,7 +47,6 @@ LANE_B_FALLBACK_ENGINE="${MIOS_A2O_LANE_B_FALLBACK_ENGINE:-claude}"
 LANE_B_FALLBACK_MODEL="${MIOS_A2O_LANE_B_FALLBACK_MODEL:-claude-sonnet-5}"
 LANE_B_FALLBACK_EFFORT="${MIOS_A2O_LANE_B_FALLBACK_EFFORT:-high}"
 LANE_B_PREFER_FALLBACK="${MIOS_A2O_LANE_B_PREFER_FALLBACK:-true}"
->>>>>>> a62e333e1f0f5251c7b0951b89fd09292fce428c
 # Per-engine reasoning-effort flag TEMPLATE ({e} -> effort). EMPTY = omit the flag
 # (degrade-open: never break an engine whose effort flag is unverified). Set the real
 # flag for your installed CLI once confirmed in-container, e.g.
@@ -82,12 +71,9 @@ have tmux || die "tmux not found on PATH"
 
 engine_bin(){ case "$1" in agy) echo "$AGY_BIN";; claude) echo "$CLAUDE_BIN";; gemini) echo "$GEMINI_BIN";; *) return 1;; esac; }
 
-<<<<<<< HEAD
-=======
 # True when the Lane-B prefer-fallback switch is set truthy (1/true/yes/on, any case).
 lane_b_fallback_on(){ case "${LANE_B_PREFER_FALLBACK,,}" in 1|true|yes|on) return 0;; *) return 1;; esac; }
 
->>>>>>> a62e333e1f0f5251c7b0951b89fd09292fce428c
 # Render the reasoning-effort flag for an engine (empty template or effort -> none).
 effort_flag(){
   local eng="$1" e="${2:-}" tpl=""
@@ -112,26 +98,18 @@ ensure_server(){
 # literal here). model/effort override the per-engine defaults (frontier roles pass
 # them; plain dispatch leaves them empty -> legacy per-engine model, no effort).
 exec_line(){
-<<<<<<< HEAD
-  local eng="$1" work="$2" model_in="${3:-}" effort_in="${4:-}" mdl="" auto="" sb="" eff=""
-=======
   local eng="$1" work="$2" model_in="${3:-}" effort_in="${4:-}" agy_log="${5:-}" mdl="" auto="" sb="" eff="" lf=""
->>>>>>> a62e333e1f0f5251c7b0951b89fd09292fce428c
   eff="$(effort_flag "$eng" "$effort_in")"
   case "$eng" in
     agy)
       mdl="${model_in:-$AGY_MODEL}"; [ -n "$mdl" ] && mdl="--model '$mdl'" || mdl=""
       [ "$AUTO" = 1 ] && auto="--dangerously-skip-permissions"
       [ "$SANDBOX" = 1 ] && sb="--sandbox"
-<<<<<<< HEAD
-      echo "$AGY_BIN $mdl $eff --add-dir '$work' $auto $sb -p \"\$PROMPT\" < /dev/null"
-=======
       # F-023: agy --print ALWAYS exits 0 and prints NOTHING to stdout on failure;
       # its trace (incl. quota/RESOURCE_EXHAUSTED lines) goes only to --log-file.
       # Route it to a per-task debug log so the runner can detect silent failures.
       [ -n "$agy_log" ] && lf="--log-file '$agy_log'"
       echo "$AGY_BIN $mdl $eff --add-dir '$work' $auto $sb $lf -p \"\$PROMPT\" < /dev/null"
->>>>>>> a62e333e1f0f5251c7b0951b89fd09292fce428c
       ;;
     claude)
       mdl="${model_in:-$CLAUDE_MODEL}"; [ -n "$mdl" ] && mdl="--model '$mdl'" || mdl=""
@@ -157,10 +135,6 @@ cmd_dispatch(){
   ensure_server; mkdir -p "$work"
   cat > "$PROMPTS/$name.txt"                          # prompt from stdin
   [ -s "$PROMPTS/$name.txt" ] || die "empty prompt on stdin"
-<<<<<<< HEAD
-  : > "$LOGS/$name.log"; rm -f "$STATUS/$name.status" "$STATUS/$name.running"; echo "$eng" > "$STATUS/$name.engine"
-  local EXEC; EXEC="$(exec_line "$eng" "$work" "$model" "$effort")"
-=======
   # F-023: per-task agy debug/trace sink (agy exits 0 even on hard failure and hides
   # its errors here). Lives under RUND, NOT LOGS, so it never matches the "$LOGS"/*.log
   # glob that status/capture/follow scan (else it would show as a phantom task).
@@ -206,7 +180,6 @@ AGYCHK
     _agy_post="$_agy_post
 "
   fi
->>>>>>> a62e333e1f0f5251c7b0951b89fd09292fce428c
   cat > "$RUND/$name.sh" <<RUNNER
 #!/usr/bin/env bash
 export PATH="$PATH"
@@ -271,9 +244,6 @@ cmd_lane(){
   local eng mdl eff
   case "$lane" in
     a|A) eng="$LANE_A_ENGINE"; mdl="$LANE_A_MODEL"; eff="$LANE_A_EFFORT";;
-<<<<<<< HEAD
-    b|B) eng="$LANE_B_ENGINE"; mdl="$LANE_B_MODEL"; eff="$LANE_B_EFFORT";;
-=======
     b|B)
       eng="$LANE_B_ENGINE"; mdl="$LANE_B_MODEL"; eff="$LANE_B_EFFORT"
       # agy quota workaround: when prefer_fallback is on AND a fallback engine is
@@ -284,7 +254,6 @@ cmd_lane(){
         eng="$LANE_B_FALLBACK_ENGINE"; mdl="$LANE_B_FALLBACK_MODEL"; eff="$LANE_B_FALLBACK_EFFORT"
       fi
       ;;
->>>>>>> a62e333e1f0f5251c7b0951b89fd09292fce428c
     *) die "lane must be a|b";;
   esac
   cmd_dispatch "$name" "$eng" "$WORK_DEFAULT" "$mdl" "$eff"
@@ -326,11 +295,8 @@ cmd_doctor(){
   printf "  %-13s %-7s %-22s effort=%-6s flag=%s\n" "orchestrator" "$ORCH_ENGINE" "$ORCH_MODEL" "$ORCH_EFFORT" "${CLAUDE_EFFORT_FLAG:-<none>}"
   printf "  %-13s %-7s %-22s effort=%-6s role=%s\n" "lane A" "$LANE_A_ENGINE" "$LANE_A_MODEL" "$LANE_A_EFFORT" "$LANE_A_ROLE"
   printf "  %-13s %-7s %-22s effort=%-6s role=%s\n" "lane B" "$LANE_B_ENGINE" "$LANE_B_MODEL" "$LANE_B_EFFORT" "$LANE_B_ROLE"
-<<<<<<< HEAD
-=======
   if lane_b_fallback_on && [ -n "$LANE_B_FALLBACK_ENGINE" ]; then _fb_state="ACTIVE (Lane B routes here now)"; else _fb_state="inactive (Lane B uses agy)"; fi
   printf "  %-13s %-7s %-22s effort=%-6s %s\n" "lane B fallback" "$LANE_B_FALLBACK_ENGINE" "$LANE_B_FALLBACK_MODEL" "$LANE_B_FALLBACK_EFFORT" "$_fb_state"
->>>>>>> a62e333e1f0f5251c7b0951b89fd09292fce428c
   echo "orchestrator_brief=${ORCH_BRIEF:-<none found>}"
   echo -n "tmux:   "; tmux -V
   for e in agy claude gemini; do b="$(engine_bin "$e")"; printf "%-7s " "$e:"; if have "$b"; then "$b" --version 2>/dev/null | head -1; else echo "not installed ($b)"; fi; done
@@ -355,8 +321,6 @@ RUNNER
   echo "selftest dispatched to $SESSION:selftest — verify: mios-a2o status ; mios-a2o tail selftest"
   echo "roles configured:"
   echo "  orchestrator=$ORCH_ENGINE:$ORCH_MODEL(effort=$ORCH_EFFORT)  laneA=$LANE_A_ENGINE:$LANE_A_MODEL(effort=$LANE_A_EFFORT)  laneB=$LANE_B_ENGINE:$LANE_B_MODEL(effort=$LANE_B_EFFORT)"
-<<<<<<< HEAD
-=======
 
   # ── frontier-layout assertion (ENGINE-FREE) ── prove `frontier` lays out exactly
   # 4 titled panes with the resolved role model ids. Launched headless into a
@@ -381,7 +345,6 @@ RUNNER
     echo "FRONTIER-LAYOUT: FAIL —$lay_msg"
     return 1
   fi
->>>>>>> a62e333e1f0f5251c7b0951b89fd09292fce428c
 }
 
 newest_task(){  # echo newest task name, optionally filtered by engine (.engine marker)
