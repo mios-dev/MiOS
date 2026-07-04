@@ -11,7 +11,7 @@ orchestrator, MiOS-Hermes, and the PostgreSQL+pgvector memory behind one
 OpenAI-compatible endpoint. The **MiOS Portal** is that system's web front door —
 a dashboard + chat UI **served by `mios-agent-pipe` itself** (`GET /`, with its
 `/portal/*` data endpoints for stats, services, and the swarm view), reachable
-over the box's Tailscale tailnet at `https://mios.taildd86d0.ts.net/`. Login
+over the box's Tailscale tailnet at `https://mios.your-tailnet.ts.net/`. Login
 gates the portal UI; the `/v1`, `/a2a`, and `/health` surfaces stay open as
 programmatic endpoints.
 
@@ -35,7 +35,7 @@ its own; it simply renders the Portal that the agent-pipe already serves.
    wrapper jar if missing).
 2. Edit the target URL if your tailnet name differs:
    `app/src/main/res/values/strings.xml` → `portal_url`
-   (default `https://mios.taildd86d0.ts.net/`).
+   (default `https://mios.your-tailnet.ts.net/`).
 3. **Build → Generate Signed Bundle / APK → APK** → create/select a keystore
    → **release** → finish. The signed `app-release.apk` is under
    `app/build/outputs/apk/release/`.
@@ -55,7 +55,7 @@ gradle wrapper --gradle-version 8.7
 `node`/`npm` are present in the MiOS VM. With a build host that has internet
 once (Bubblewrap fetches JDK + Android SDK on first run):
 ```bash
-npx @bubblewrap/cli init --manifest https://mios.taildd86d0.ts.net/portal/manifest.webmanifest
+npx @bubblewrap/cli init --manifest https://mios.your-tailnet.ts.net/portal/manifest.webmanifest
 npx @bubblewrap/cli build
 ```
 This produces a Trusted Web Activity APK from the Portal's web manifest (served

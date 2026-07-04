@@ -2,5 +2,5 @@
 <resources>
     <string name="app_name">MiOS</string>
     <!-- The MiOS Portal URL the app loads. Edit if your tailnet name changes. -->
-    <string name="portal_url">https://mios.taildd86d0.ts.net/</string>
+    <string name="portal_url">https://mios.your-tailnet.ts.net/</string>
 </resources>
