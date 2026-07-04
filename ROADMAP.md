@@ -13,6 +13,8 @@ This document is the lossless consolidation of all historical and active MiOS ro
 - [Part 8: Hermes Sovereignty Migration (2026-06-24)](#part-8-hermes-sovereignty-migration-2026-06-24)
 - [Part 9: XDG + CephFS Unified User Storage Fabric (2026-06-25)](#part-9-xdg--cephfs-unified-user-storage-fabric-2026-06-25)
 - [Part 10: Converged-Resource Architecture — AI Pipeline Simplification (2026-06-25)](#part-10-converged-resource-architecture--ai-pipeline-simplification-2026-06-25)
+- [Part 11: Windows-11-Minimal Install Completeness + NO-HARDCODE Sweep (2026-07-04)](#part-11-windows-11-minimal-install-completeness--no-hardcode-sweep-2026-07-04)
+- [Part 12: MiOS Custom Windows Editions — UUP + NTLite/DISM + autounattend ISO Program (2026-07-04)](#part-12-mios-custom-windows-editions--uup--ntlitedism--autounattend-iso-program-2026-07-04)
 
 ---
 
@@ -2420,3 +2422,41 @@ unblocker for "install on ANY minimal Win11". NOHC and WIN streams are otherwise
 parallelizable. Each ships flag-gated + degrade-open; comments stay timeless; behaviour verified live.
 
 *Research evidence: 4-agent read-only audit 2026-07-04 -- (a) hardcoded ports/IPs sweep of `usr/libexec/mios` + `usr/lib/mios/agent-pipe` + `C:\mios-bootstrap`, cross-checked vs `mios.toml [ports]` and live `install.env`; (b) English keyword-gate sweep of agent-pipe (~79K LOC) confirming the router/`classify.py`/`mios_routing` are model-driven+SSOT with only 4 residual gates; (c) `Get-MiOS.ps1`/`build-mios.ps1`/`preflight.ps1` fresh-Win11 flow trace; (d) `mios.toml` (10,424 lines) x `configurator/mios.html` (4,455 lines) x `tools/lib/userenv.sh` SSOT-coverage cross-reference. Enforcement precedent: `usr/libexec/mios/mios-hardcode-lint`, `check_container_ports`/`check_no_hardcode` in `automation/38-drift-checks.sh`. Fix-order law: model-driven > SSOT > unicode-aware > delete-dead.*
+
+---
+
+
+# Part 12: MiOS Custom Windows Editions — UUP + NTLite/DISM + autounattend ISO Program (2026-07-04)
+*Source: operator direction to ship fresh MiOS-derived Windows install ISOs (incl. MiOS-XBOX) with FEATURE PARITY to the `irm|iex` installer. Extends Part 11 / WIN-05 (T-131) from "seed" to a delivered pipeline. Reference targets: operator-provided Xbox-Minimal NTLite presets + a Schneegans ExtractScript autounattend + `driver-extract.ps1`.*
+
+The MiOS-XBOX.iso and the `irm|iex` installer are the SAME installer: both run `Get-MiOS.ps1` (the ISO nests it in FirstLogon; existing Windows runs it directly), and both apply ONE shared install-time provisioning core so they reach identical state — parity by construction. Delivered under `C:\mios-bootstrap\src\autounattend\` (commits `a034894..997ee2f`).
+
+## WS-WISO — Custom Windows ISO pipeline (UUP Dump → customize → autounattend → ISO)
+- **WISO-01 (T-132) shared provisioning core [P2] [DONE]** — `MiOS-Provision.lib.ps1`: single source of install-time provisioning (SSOT reader, hostname-gen, credentialed accounts, global branding/theme, strip-and-rebuild Linux-like layout, prefs) emitting plain `reg`/`mkdir` strings. Dot-sourced by all three generators so ISO + irm|iex never drift.
+- **WISO-02 (T-133) NTLite preset sanitizer [P2] [DONE]** — `ConvertTo-MiOSPreset.ps1`: namespace-aware transform of an operator NTLite preset → MiOS-conformant (`MiOS-Xbox.xml`): MiOS naming/GUID/ISO label, SSOT hostname + accounts + AutoLogon, shared provisioning as `FirstLogonCommands` + nested `irm Get-MiOS.ps1 | iex`, **Posture B** (re-preserve WSL2/VMP/Hyper-V), 0 legacy identity refs, 280/282 debloat entries + all drivers preserved.
+- **WISO-03 (T-134) Schneegans autounattend generator [P2] [DONE]** — `New-MiOSAutounattend.ps1`: SSOT → autounattend.xml; disk carve **C: = `[autounattend].c_partition_gb` (96 GB) + M:=remainder (MIOS-DEV)**; **pre-OOBE strip-and-rebuild** in the specialize pass (Schneegans DefaultUser default-hive context); TPM/SecureBoot/RAM bypass; oscdimg ISO inject; winutil `tools\` drop.
+- **WISO-04 (T-135) existing-Windows parity path [P2] [DONE]** — `Invoke-MiOSProvision.ps1`: creates SSOT accounts + LIVE-applies the same global branding/layout/prefs the ISO bakes + long-paths, then chains the nested bootstrap. "During install" and "post install" converge.
+- **WISO-05 (T-136) OEM driver export [P3] [DONE]** — `Export-MiOSDrivers.ps1` (`Export-WindowsDriver -Online` → SSOT dest) feeds NTLite Drivers / DISM `Add-WindowsDriver`.
+- **WISO-06 (T-137) UUP-Dump source-ISO automation (`mios-uup-fetch`) [P2]** — wrap `rgl/uup-dump-get-windows-iso` (or `uup-dump/converter` + aria2 + `ConvertConfig.ini` from SSOT) to fetch a pinned, checksummed **25H2 x64** source ISO (26H1 is ARM64-only, see WEDITION-03).
+- **WISO-07 (T-138) DISM-native debloat + oscdimg assembly + CI [P2]** — **[OPERATOR DECISION]** DISM-native (appx/capability/feature removal + LabConfig; free/reproducible) as the canonical path vs an NTLite-licensed CLI accelerator; then oscdimg dual BIOS/UEFI build → `MiOS-Win11.iso` / `MiOS-XBOX.iso`; GitHub-Actions: fetch → customize → assemble → VM smoke-boot.
+- **WISO-08 (T-139) stage branding assets into the image [P2]** — place `mios-wallpaper.jpg`, `mios-logo.bmp`, Bibata `.cur/.ani`, Geist fonts at the referenced `C:\Windows\Web\MiOS\` / `%SystemRoot%\Cursors\Bibata-Modern-Classic\` paths so branding applies at first paint.
+
+## WS-XBOX — MiOS-XBOX gaming edition (Xbox Mode out of the box)
+- **XBOX-01 (T-140) Xbox Full Screen Experience out of the box [P2]** — enable Xbox Mode via `vivetool /enable /id:58989070,59765208` (2026 IDs; needs 24H2 26100.7019+ + Xbox app signed in, FSE = home launcher) + auto-launch. The operator reference's `unattend-01.ps1` used the WRONG (Copilot/taskbar) IDs — fix to the FSE IDs. Win+F11 launches it.
+- **XBOX-02 (T-141) gaming loadout + Xbox tuning [P3]** — Xbox services Manual, Teredo/IPv6, Game Mode, Delivery Optimization, FSE regs; winget gaming apps (Steam/Vesktop/Zen) — adopt the reference `unattend-02/03.ps1`, sanitized (branding → MiOS OEM, not "Kabu").
+- **XBOX-03 (T-142) posture decision [P2]** — MiOS-XBOX gaming = Posture A (WSL purged, no local brain, remote/cloud MiOS) OR Posture B (keep WSL2 → local brain). Reference is Posture A; MiOS default = Posture B (keep the brain). Windows-side MiOS layer runs either way.
+
+## WS-WBRAND — OS-wide MiOS branding/theme parity (Windows + Linux)
+- **WBRAND-01 (T-143) global Windows branding [P2] [DONE]** — from SSOT (`[branding]`/`[colors].accent`/`[theme]`) to Default hive + HKLM + first HKCU: accent (#1A407F → AABBGGRR), dark theme + transparency, wallpaper + lockscreen (PersonalizationCSP), OEM info, **Dynamic Lighting RGB** (accent-tracking), **Geist** UI font (Segoe UI substitute), **Bibata** cursor scheme.
+- **WBRAND-02 (T-144) Linux desktop palette parity via matugen [P2]** — generate GTK/Qt/Flatpak/base16 palettes from the SAME SSOT accent + wallpaper (matugen); Flatpak theming (`org.gtk.Gtk3theme` + `flatpak override`); Geist + Bibata system-wide on Linux; OpenRGB profile from the accent (Linux Dynamic-Lighting analog). Lives in mios.git / the deployed image, bridged to `mios.toml` SSOT.
+- **WBRAND-03 (T-145) stage + re-assert [P3]** — Windows Dynamic Lighting reverts on some CU/feature updates → `mios update` re-asserts `Software\Microsoft\Lighting` + branding.
+
+## WS-WEDITION — MiOS-derived Windows editions matrix
+- **WEDITION-01 (T-146) editions SSOT [P2]** — an `[editions]` matrix (name / channel / arch / posture / debloat-profile / accent) so ONE pipeline emits MiOS (full, Posture B) + MiOS-XBOX (gaming) from SSOT.
+- **WEDITION-02 (T-147) SSOT keys + configurator [P1]** — add `[autounattend]` (computer_name, c_partition_gb=96, bootstrap_url, iso_out/label, `[[accounts]]`), `[autounattend.layout]` (strip_defaults, strip_folders, linux_tree, lowercase_userfolders, strip_thispc), `[branding]` (oem_*, wallpaper, lockscreen, ui_font, cursor*, font_substitute) to mios.toml + expose in `configurator/mios.html`. Generators degrade-open to MiOS defaults until added.
+- **WEDITION-03 (T-148) ARM64 / 26H1 handheld edition [P3]** — 26H1 is a Snapdragon-X2 ARM64 platform update (~Apr 2026), NOT x64. A `MiOS-XBOX-ARM` handheld edition (native Xbox FSE home) = separate ARM64 UUP source + ARM64 drivers/packages; the x64 gaming build stays on 25H2.
+- **WEDITION-04 (T-149) fold reverting generated-file changes into the generator source [P2]** — `Get-MiOS.ps1`/`build-mios.ps1`/`mios.toml` regenerate ~every 12 min from upstream, wiping direct edits; fold podman-CLI-only + multi-user `MiOS-Autostart` + `[autounattend]`/`[branding]` SSOT keys into that generator source so they persist.
+
+**Critical path:** T-132..T-136 DONE. T-147 (SSOT keys + configurator) unblocks operator tuning; T-137 (`mios-uup-fetch`) + T-138 (DISM/oscdimg + CI) unblock a reproducible end-to-end ISO build; T-142 (posture) + T-140 (Xbox Mode IDs) gate MiOS-XBOX behaviour. All degrade-open; provisioning is one shared core so ISO and irm|iex never diverge.
+
+*Research evidence (2026-07-04): Schneegans generator (partitions "Size of system partition" + custom-diskpart data partition; folder provisions = Start/Desktop visibility + DefaultUser default-hive context, no native known-folder redirect; OneDrive under bloatware); UUP Dump 26H1 = ARM64-only Snapdragon platform update, x64 gaming → 25H2; Xbox Full Screen Experience ViVeTool IDs `58989070,59765208` (KB5083631, 24H2 26100.7019+); matugen cross-platform Material You (GTK/Qt/base16); Windows Dynamic Lighting `HKCU\Software\Microsoft\Lighting`. NTLite CLI is paid-only → DISM-native canonical. Delivered: `src/autounattend/` {MiOS-Provision.lib.ps1, ConvertTo-MiOSPreset.ps1, New-MiOSAutounattend.ps1, Invoke-MiOSProvision.ps1, Export-MiOSDrivers.ps1, autounattend.xml, MiOS-Xbox.xml}.*
