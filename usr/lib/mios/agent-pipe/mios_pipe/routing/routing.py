@@ -39,6 +39,7 @@ from typing import Optional
 # request time, well after configure() has injected them.
 log = None
 _COMPOUND_ACTION_ALT = ""
+_COMPOUND_CONNECTIVE_ALT = ""
 _FASTPATH_VERBS = frozenset()
 _LAUNCH_TRIGGERS = frozenset()
 _LAUNCH_FILLERS = []
@@ -46,17 +47,20 @@ _LAUNCH_LEAD_WORDS = frozenset()
 _LAUNCH_TRAIL_WORDS = frozenset()
 
 
-def configure(*, logger=None, compound_action_alt=None, fastpath_verbs=None,
+def configure(*, logger=None, compound_action_alt=None, compound_connective_alt=None,
+              fastpath_verbs=None,
               launch_triggers=None, launch_fillers=None, launch_lead_words=None,
               launch_trail_words=None) -> None:
     """Inject the server.py logger + the _VERB_CATALOG-derived fast-path verb
     sets / launch phrase frozensets the routing layer reads."""
-    global log, _COMPOUND_ACTION_ALT, _FASTPATH_VERBS, _LAUNCH_TRIGGERS
+    global log, _COMPOUND_ACTION_ALT, _COMPOUND_CONNECTIVE_ALT, _FASTPATH_VERBS, _LAUNCH_TRIGGERS
     global _LAUNCH_FILLERS, _LAUNCH_LEAD_WORDS, _LAUNCH_TRAIL_WORDS
     if logger is not None:
         log = logger
     if compound_action_alt is not None:
         _COMPOUND_ACTION_ALT = compound_action_alt
+    if compound_connective_alt is not None:
+        _COMPOUND_CONNECTIVE_ALT = compound_connective_alt
     if fastpath_verbs is not None:
         _FASTPATH_VERBS = fastpath_verbs
     if launch_triggers is not None:
@@ -230,7 +234,11 @@ def _deterministic_action_route(user_text: str) -> Optional[dict]:
     # True compound forms (url / 'in <app>' / conjunctions = two targets) -> let
     # the LLM router split content from target; the deterministic path only takes
     # the unambiguous bare 'launch <app>' (after filler + determiners stripped).
-    if "://" in rest or re.search(r"\b(in|and|then|with|on|to)\b", _low):
+    # The two-target connective vocab is SSOT (_COMPOUND_CONNECTIVE_ALT <-
+    # mios.toml [routing].compound_connectives) -- NO inline English keyword gate.
+    # Degrades open: empty list -> only the structural '://' guard remains.
+    if "://" in rest or (_COMPOUND_CONNECTIVE_ALT
+                         and re.search(r"\b(?:" + _COMPOUND_CONNECTIVE_ALT + r")\b", _low)):
         return None
     return {"intent": "dispatch", "tool": "open_app",
             "args": {"name": rest}, "_deterministic": True}

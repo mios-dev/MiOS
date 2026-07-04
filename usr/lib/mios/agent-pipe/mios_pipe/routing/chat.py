@@ -1298,10 +1298,13 @@ async def chat_completions_logic(request: Request) -> Any:
                 _refined = await refine_intent(_ct_user)
                 if not _refined or _refined.get("intent") != "chat":
                     _search_q = str((_refined or {}).get("refined_text") or "").strip() or _ct_user
-                    _time_sensitive = bool((_refined or {}).get("news")) or any(
-                        re.search(r"\b" + re.escape(w) + r"\b", _search_q.lower())
-                        for w in ["today", "todays", "recent", "recently", "latest", "now", "current", "this week", "this month", "yesterday", "breaking", "trending"]
-                    )
+                    # TIME-SENSITIVE detection: the MODEL-emitted refine flags are the
+                    # SOLE authority (no hardcoded keyword law) -- refine.news +
+                    # refine.needs_recency. Parity with web_research.py: an English/ASCII
+                    # temporal-word list here GATED this decision and silently missed every
+                    # paraphrased / non-English temporal ask while claiming "no hardcoded
+                    # keyword" -- deleted. Degrade-open: an absent flag => not time-sensitive.
+                    _time_sensitive = bool((_refined or {}).get("news") or (_refined or {}).get("needs_recency"))
                     if _time_sensitive and not re.search(r"\b(?:19|20)\d{2}\b", _search_q):
                         _search_q = f"{_search_q} {_current_year()}".strip()
                         if isinstance(_refined, dict):

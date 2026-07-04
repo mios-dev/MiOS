@@ -3534,8 +3534,10 @@ _BROWSER_ACTION_ALT = "|".join(re.escape(p) for p in _BROWSER_ACTION_VERBS)
 # empty list -> the fast-lane declines the compound -> the LLM planner decomposes it.
 _COMPOUND_CONJUNCTIONS = _load_routing_phrases("compound_conjunctions")
 _COMPOUND_ACTIONS = _load_routing_phrases("compound_actions")
+_COMPOUND_CONNECTIVES = _load_routing_phrases("compound_connectives")
 _COMPOUND_CONJ_ALT = "|".join(re.escape(p) for p in _COMPOUND_CONJUNCTIONS)
 _COMPOUND_ACTION_ALT = "|".join(re.escape(p) for p in _COMPOUND_ACTIONS)
+_COMPOUND_CONNECTIVE_ALT = "|".join(re.escape(p) for p in _COMPOUND_CONNECTIVES)
 
 # OS-control / window-action verb set, derived from the verb catalog SSOT
 # (mios.toml `section`). A request that maps to ONE of these is a single
@@ -3643,6 +3645,7 @@ _LAUNCH_TRIGGERS = frozenset(
 sys.modules["mios_routing"].configure(
     logger=log,
     compound_action_alt=_COMPOUND_ACTION_ALT,
+    compound_connective_alt=_COMPOUND_CONNECTIVE_ALT,
     fastpath_verbs=_FASTPATH_VERBS,
     launch_triggers=_LAUNCH_TRIGGERS,
     launch_fillers=_LAUNCH_FILLERS,

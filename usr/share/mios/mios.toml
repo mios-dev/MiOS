@@ -3092,6 +3092,12 @@ browser_action_verbs = ["quote", "read", "tell", "summarise", "summarize", "what
 # LLM planner decomposes the compound (degrade-open; the planner is the authority).
 compound_conjunctions = ["and", "then"]
 compound_actions = ["type", "write", "enter", "input", "paste", "put"]
+# Two-target connectives: a bare 'launch <app>' that still carries one of these
+# (a preposition/conjunction joining a SECOND target, e.g. 'open X in Y') is a
+# COMPOUND phrase the deterministic open_app fast-path must DECLINE, so the LLM
+# router splits content from target. SSOT (was an inline English regex in
+# routing.py -- NO hardcoded keyword gate in code). Empty => guard degrades open.
+compound_connectives = ["in", "and", "then", "with", "on", "to"]
 
 # Conversational-bypass classifier for mios-delegation-prefilter: decides which
 # user turns are PURE chat (greeting / ack / smalltalk, no task surface) and must
