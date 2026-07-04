@@ -46,8 +46,13 @@ literals, not the brand palette (fixed in §8/§13).
 
 The canonical brand palette lives in exactly one place conceptually —
 `mios.toml [colors]` — and is mirrored (correctly) in the Configurator's
-`:root` block and the Android app's theme resource. This is the **only**
-palette that should be called "the MiOS brand":
+`:root` block and the Android app's theme resource. `tools/lib/userenv.sh`'s
+own header comment names it: the **"Hokusai" palette** (the `success`/`fg`
+tokens are literally commented `# wave green` / `# foam` in `mios.toml` —
+a Great Wave off Kanagawa reference), paired with "operator-neutrals" for
+the grey/silver/earth tones. Use "Hokusai" as the palette's real name going
+forward instead of an invented one. This is the **only** palette that should
+be called "the MiOS brand":
 
 | Token | Hex | Role |
 |---|---|---|
@@ -264,7 +269,84 @@ that shell/systemd consumers already have via `install.env`.
   `MIOS_COLOR_ACCENT`/`MIOS_COLOR_INFO`/`MIOS_COLOR_MUTED` via a placeholder
   + `sed` substitution (the heredoc stays single-quoted on purpose — it also
   contains literal `$mainMod` Hyprland variable references that must **not**
-  be shell-expanded); added a Cockpit quick-launch keybind.
+  be shell-expanded); added a Cockpit quick-launch keybind + a
+  `layerrule = blur, quickshell` for the Quickshell surfaces.
+- `usr/lib/mios/agent-pipe/mios_pipe/routing/portal.py` — `_portal_authed()` /
+  `portal_login_logic()` now also accept an `Authorization: Bearer <token>`
+  native-client credential alongside the existing browser cookie (see §12b,
+  phase 2). Additive only; the browser login flow is byte-identical.
+- `usr/share/mios/quickshell/PortalData.qml` — native QML client for the
+  Portal's `/portal/stats` + `/portal/swarm` JSON APIs; `Sidebar.qml`'s
+  agent-status pill binds to it (see §12b, phase 2).
+
+## 12b. Native unification roadmap (why this isn't just a re-skin)
+
+To be explicit about intent, since it matters for how the rest of this repo
+should evolve: the Portal, the Hermes Dashboard, and Cockpit are not being
+proposed here as-is, permanently, behind a browser tab. They're today's real
+implementation of "MiOS's dashboard" on the way to the stated roadmap of a
+**full native Hyprland + Quickshell OS environment** — i.e. the browser/PWA
+hosting is the *current* transport, not the *target* one. This section is
+the concrete, phased path from here to there, grounded in what actually
+exists (§1) rather than a rewrite fantasy.
+
+**Phase 1 — done in this pass: shared visual language.** `Theme.qml` +
+`mios-sync-theme` + `mios-app-shell.css` mean the native shell (Quickshell)
+and the web surfaces (Portal, Configurator, eventually the Hermes SPA) now
+read the *same* SSOT palette. Necessary precondition for "native" and "web"
+to look like one OS instead of two.
+
+**Phase 2 — done in this pass: native data path, no webview.** The Portal's
+`/portal/stats` and `/portal/swarm` are plain JSON, generated server-side by
+`portal.py` from live Quadlet/podman/host state — there was no reason a
+native client needed to render the Portal's *HTML* to get that data. Added:
+- `_portal_authed()` / `portal_login_logic()` in `portal.py` now also accept
+  an `Authorization: Bearer <token>` header (same signed token as the
+  existing browser cookie; returned in the JSON body when the client sends
+  `Accept: application/json`, since neither browsers nor QML's XHR can
+  reliably read a `Set-Cookie` response header). This is the one piece of
+  *backend* work this phase needed, and it's additive — the existing
+  cookie/redirect flow for real browsers is untouched.
+- `usr/share/mios/quickshell/PortalData.qml` — a native QML client that logs
+  in once (`portalData.login(password)`, never persisted) and polls
+  `/portal/stats` + `/portal/swarm` on a timer, exposing plain QML
+  properties. `Sidebar.qml`'s agent-status pill already binds to it (shows a
+  live `up/total` service count once something calls `login()`; shows the
+  static placeholder until then — no fabricated data, no auto-login).
+- **Not done yet, deliberately:** an actual login prompt UI (a small QML
+  text field + button, likely living in a Quickshell popup off the pill) so
+  an operator can call `login()` without editing QML by hand. That's a
+  UI-only addition on top of the now-real `PortalData.qml` plumbing — small,
+  but out of scope for this pass to keep the auth change reviewable on its
+  own.
+
+**Phase 3 — next: native Services/Swarm/Terminals views.** Once login UX
+exists, replace the "open the web Portal" fallback for the Services grid and
+Swarm Nodes view with native QML list views bound to `PortalData`'s
+properties (the data's already there from Phase 2). Terminals are the
+hardest of the three to go fully native: the web Portal's terminal tiles are
+xterm.js over a WebSocket to `portal_term_ws_logic` (a real PTY bridge) —
+Quickshell doesn't have a first-party terminal-emulator widget, so "native"
+here most likely means launching the operator's actual terminal emulator
+(already true today via the `$mainMod, R` rofi / terminal-trigger patterns)
+rather than reimplementing a VT100 emulator in QML. Worth deciding
+explicitly rather than defaulting to "embed xterm.js in a WebView," which
+would just re-introduce the thing this phase is trying to remove.
+
+**Phase 4 — open question, not started: Cockpit.** Cockpit is a full
+upstream web application (bundled JS UI + its own `cockpit-ws` backend); the
+options are (a) keep it web-hosted permanently and treat the Quickshell tile
+as "one click to open it," which is honest and low-effort and may simply be
+the right call — not everything needs to be native; (b) reimplement the
+handful of Cockpit views MiOS operators actually use (services, containers,
+logs) as native QML panels talking directly to systemd/podman (via D-Bus or
+their CLI JSON output), which is real engineering effort and duplicates
+upstream Cockpit's maintenance forever; (c) embed a Wayland-native web
+renderer *inside* a Quickshell surface (not a separate browser window) if/
+when such a component exists for Quickshell. This spec deliberately does not
+pick one — it's a real trade-off (native purity vs. reinventing Cockpit)
+that belongs to whoever owns the roadmap's timeline, not something to
+resolve by fiat here.
 
 ## 13. Remaining gaps / follow-ups (not done in this pass)
 

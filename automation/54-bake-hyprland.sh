@@ -33,8 +33,8 @@ general {
     gaps_in = 5
     gaps_out = 10
     border_size = 2
-    col.active_border = rgba(33ccffee) rgba(00ff99ee) 45deg
-    col.inactive_border = rgba(595959aa)
+    col.active_border = rgba(@@MIOS_COLOR_ACCENT@@ee) rgba(@@MIOS_COLOR_INFO@@ee) 45deg
+    col.inactive_border = rgba(@@MIOS_COLOR_MUTED@@aa)
     layout = dwindle
     allow_tearing = false
 }
@@ -75,6 +75,20 @@ windowrulev2 = suppressevent maximize, class:.*
 windowrulev2 = float, class:^(mios-webshell)$
 windowrulev2 = size 1200 800, class:^(mios-webshell)$
 
+# Cockpit (real, already wired -- usr/lib/systemd/system/cockpit.socket.d/
+# listen.conf + usr/share/containers/systemd/mios-cockpit-link.container),
+# opened via the $mainMod, C keybind below or the Quickshell Sidebar.qml tile.
+windowrulev2 = float, class:^(cockpit)$
+windowrulev2 = size 1400 900, class:^(cockpit)$
+
+# Layer-shell blur for the Quickshell top bar + vertical rail (Config.qml /
+# PanelWindow.qml / Sidebar.qml already render themselves semi-transparent
+# via Theme.qml's panelOpacity; this makes that translucency read as real
+# frosted glass instead of a flat tint, matching decoration.blur above and
+# the operator's standing acrylic/frameless directive in mios.toml [theme]).
+layerrule = blur, quickshell
+layerrule = ignorezero, quickshell
+
 # Startup applications (Quickshell Status Bar)
 exec-once = quickshell --config /usr/share/mios/quickshell/Config.qml
 
@@ -93,6 +107,7 @@ bind = $mainMod, V, togglefloating,
 bind = $mainMod, R, exec, rofi -show drun
 bind = $mainMod, P, pseudo, # dwindle
 bind = $mainMod, J, togglesplit, # dwindle
+bind = $mainMod, C, exec, xdg-open http://localhost:9090 # Cockpit -- real, see mios-cockpit-link.container
 
 # Focus movements
 bind = $mainMod, left, movefocus, l
@@ -114,5 +129,25 @@ bind = $mainMod SHIFT, 3, movetoworkspace, 3
 bind = $mainMod SHIFT, 4, movetoworkspace, 4
 bind = $mainMod SHIFT, 5, movetoworkspace, 5
 EOF
+
+# SSOT color substitution (Law 7): tools/lib/userenv.sh (sourced above via
+# lib/packages.sh -> lib/common.sh, the same convention every other
+# automation/*.sh script uses) already exports MIOS_COLOR_* from mios.toml
+# [colors]. The heredoc above stays single-quoted on purpose -- it also
+# contains literal Hyprland variable references ($mainMod) that must NOT be
+# shell-expanded -- so the brand palette is substituted here via placeholder
+# tokens instead of inline interpolation. Previously this file hardcoded a
+# neon cyan/green gradient (rgba(33ccffee)/rgba(00ff99ee)) with no
+# relationship to the rest of the OS; see design spec
+# usr/share/doc/mios/concepts/mios-app-browser-portal-dashboard-design-2026-07-03.md §7/§12.
+: "${MIOS_COLOR_ACCENT:=#1A407F}"
+: "${MIOS_COLOR_INFO:=#1A407F}"
+: "${MIOS_COLOR_MUTED:=#948E8E}"
+sed -i \
+    -e "s/@@MIOS_COLOR_ACCENT@@/${MIOS_COLOR_ACCENT#\#}/g" \
+    -e "s/@@MIOS_COLOR_INFO@@/${MIOS_COLOR_INFO#\#}/g" \
+    -e "s/@@MIOS_COLOR_MUTED@@/${MIOS_COLOR_MUTED#\#}/g" \
+    /usr/share/mios/hyprland/hyprland.conf
+
 chmod 0644 /usr/share/mios/hyprland/hyprland.conf
 echo "[54-bake-hyprland] Baseline configuration written successfully."

@@ -12,13 +12,29 @@ CF="$CTX/Containerfile"
 
 log() { logger -t mios-agents-firstboot "$*" 2>/dev/null || true; echo "[mios-agents-firstboot] $*" >&2; }
 
-if podman image exists "$IMG"; then
-    log "image $IMG already present; nothing to build"
-    exit 0
-fi
 [ -f "$CF" ] || { log "ERROR: $CF missing -- cannot build $IMG"; exit 1; }
 
-log "building $IMG from $CF (first deploy) ..."
+# Rebuild when the image is MISSING or the Containerfile is NEWER than the image.
+# Build-if-missing alone pins a stale image forever after a Containerfile change
+# (operator-flagged: mios-frontier missing inside a stale mios-agents container).
+# The mios-a2o / mios-frontier SCRIPTS do NOT force a rebuild -- they are read LIVE
+# from the bind-mounted /mnt/mios-root via the image's profile.d PATH self-heal, so
+# only dependency / Containerfile changes need an image refresh.
+NEED_BUILD=0
+if ! podman image exists "$IMG"; then
+    NEED_BUILD=1; log "image $IMG missing -> build (first deploy)"
+else
+    _img_epoch="$(date -d "$(podman image inspect -f '{{.Created}}' "$IMG" 2>/dev/null)" +%s 2>/dev/null || echo 0)"
+    _cf_epoch="$(stat -c %Y "$CF" 2>/dev/null || echo 0)"
+    if [ "$_img_epoch" -gt 0 ] && [ "$_cf_epoch" -gt "$_img_epoch" ]; then
+        NEED_BUILD=1; log "Containerfile newer than image ($_cf_epoch > $_img_epoch) -> rebuild"
+    else
+        log "image $IMG current; nothing to build"
+    fi
+fi
+[ "$NEED_BUILD" = 1 ] || exit 0
+
+log "building $IMG from $CF ..."
 # --network=host: the build's apt/npm/agy fetches need working egress; the podman
 # build netns otherwise attempts unroutable IPv6 on some substrates (WSL testbed).
 podman build --network=host -t "$IMG" -f "$CF" "$CTX"

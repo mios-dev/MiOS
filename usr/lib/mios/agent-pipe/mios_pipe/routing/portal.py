@@ -179,10 +179,23 @@ def _portal_token_ok(tok: Optional[str]) -> bool:
 
 
 def _portal_authed(request: Request) -> bool:
-    """True when login is disabled or the request carries a valid session."""
+    """True when login is disabled or the request carries a valid session --
+    either the browser's httponly cookie, OR an 'Authorization: Bearer
+    <token>' header. Same signed token either way (_portal_token_ok); the
+    header form exists for NATIVE (non-browser) local clients -- e.g. the
+    Quickshell PortalData.qml widget (design spec: mios-app-browser-portal-
+    dashboard-design-2026-07-03.md, native-unification roadmap addendum) --
+    that call portal_login_logic once and reuse a Bearer token instead of
+    implementing cookie-jar + redirect handling for a login flow that was
+    designed for browsers."""
     if not PORTAL_REQUIRE_LOGIN:
         return True
-    return _portal_token_ok(request.cookies.get(PORTAL_COOKIE))
+    if _portal_token_ok(request.cookies.get(PORTAL_COOKIE)):
+        return True
+    auth = request.headers.get("authorization", "")
+    if auth.lower().startswith("bearer "):
+        return _portal_token_ok(auth[7:].strip())
+    return False
 
 
 def _portal_unit_hidden(quadlet_file: str) -> bool:
@@ -1356,10 +1369,25 @@ async def portal_login_logic(request: Request):
     from urllib.parse import parse_qs
     body = (await request.body()).decode("utf-8", "replace")
     pw = (parse_qs(body).get("password") or [""])[0]
+    # Native/API clients (Quickshell's PortalData.qml, scripts, curl) ask for
+    # JSON explicitly; browsers don't send this Accept value for a plain
+    # <form> POST, so the existing redirect+cookie flow is untouched below.
+    wants_json = "application/json" in request.headers.get("accept", "")
     if PORTAL_REQUIRE_LOGIN and not hmac.compare_digest(pw, PORTAL_PASSWORD):
+        if wants_json:
+            return JSONResponse({"error": "incorrect password"}, status_code=401)
         return RedirectResponse("/login?e=1", status_code=303)
+    token = _portal_make_token(PORTAL_USER)
+    if wants_json:
+        # Same signed token as the cookie below, just returned in the body --
+        # QML/CLI clients can't read Set-Cookie (forbidden response header
+        # in browsers; not reliably exposed in QML's XMLHttpRequest either),
+        # so a native client carries this as 'Authorization: Bearer <token>'
+        # instead (_portal_authed accepts both forms).
+        return JSONResponse({"token": token, "user": PORTAL_USER,
+                              "expires_in": PORTAL_SESSION_TTL})
     resp = RedirectResponse("/", status_code=303)
-    resp.set_cookie(PORTAL_COOKIE, _portal_make_token(PORTAL_USER),
+    resp.set_cookie(PORTAL_COOKIE, token,
                     max_age=PORTAL_SESSION_TTL, httponly=True,
                     samesite="lax", path="/")
     return resp

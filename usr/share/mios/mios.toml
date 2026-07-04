@@ -5285,6 +5285,31 @@ gate_enabled         = false   # master switch for the pass^k promotion gate (of
 pass_and_k_count     = 3       # k replays an ordinary skill promotion must ALL pass
 pass_and_k_dgm_count = 5       # stricter k for a DGM-class self-rewrite (promote --dgm)
 
+# ─── mios-frontier / A2O war-room roles ─── SSOT for the tmux war-room composition.
+# Bridged to MIOS_A2O_* env for the mios-agents container via the service ExecStart
+# passthrough (install.env overrides). Empty/unset -> the mios-a2o harness's
+# documented baseline, which EQUALS these values -> the war-room works out-of-box;
+# edit here to retune. NO-HARDCODE: operator-tunable role composition + effort.
+[frontier]
+# Orchestrator (main panel): decomposes, dispatches, monitors, keeps both lanes fed.
+orch_engine = "claude"
+orch_model  = "claude-sonnet-5"
+orch_effort = "high"
+# Lane A sub-agent = broad framework + ~80% of the work.
+lane_a_engine = "claude"
+lane_a_model  = "claude-opus-4-8"
+lane_a_effort = "xhigh"
+# Lane B sub-agent = finalize (last ~20%).
+lane_b_engine = "agy"
+lane_b_model  = "gemini-3.5-flash"    # VERIFY: the model id the installed agy/gemini CLI accepts
+lane_b_effort = "high"
+# Per-engine reasoning-effort flag TEMPLATE ({e} -> effort value). Empty = omit
+# (degrade-open: never break a CLI whose effort flag is unverified). Set once
+# confirmed in-container, e.g. claude_effort_flag = "--reasoning-effort {e}".
+claude_effort_flag = ""
+agy_effort_flag    = ""
+gemini_effort_flag = ""
+
 [agent_pipe]
 tool_loop_limit = 20
 reflexion_limit = 2
@@ -9554,7 +9579,10 @@ Wants = "network-online.target"
 ContainerName = "mios-cpu-node"
 Entrypoint = "/app/llama-server"
 Environment = "HOME=/var/lib/mios/llamacpp"
-Exec = "--model /models/granite-4.1-8b.gguf --host 0.0.0.0 --port ${MIOS_PORT_CPU_NODE:-11451} --ctx-size 131072 --flash-attn on --cache-type-k q4_0 --cache-type-v q4_0 --parallel 1 --threads ${MIOS_CPU_NODE_THREADS:-14} --n-gpu-layers 0 --jinja --alias mios-cpu --slot-save-path ${MIOS_LLAMACPP_SLOT_DIR:-/var/lib/mios/llamacpp/slots}"
+# ctx-size: 32768 (was 131072). CPU-only (n-gpu-layers 0) granite-8b with a 128k KV
+# ring is the Unhealthy-on-boot bloat (huge RAM KV even at q4_0); 32768 matches the
+# light lane + the VRAM/KV co-fit finding. Raise once CPU RAM headroom is proven.
+Exec = "--model /models/granite-4.1-8b.gguf --host 0.0.0.0 --port ${MIOS_PORT_CPU_NODE:-11451} --ctx-size 32768 --flash-attn on --cache-type-k q4_0 --cache-type-v q4_0 --parallel 1 --threads ${MIOS_CPU_NODE_THREADS:-14} --n-gpu-layers 0 --jinja --alias mios-cpu --slot-save-path ${MIOS_LLAMACPP_SLOT_DIR:-/var/lib/mios/llamacpp/slots}"
 Group = "${MIOS_LLAMACPP_GID:-827}"
 Image = "${MIOS_LLM_LIGHT_IMAGE:-ghcr.io/mostlygeek/llama-swap:cuda}"
 Label = "org.opencontainers.image.title=mios-cpu-node"

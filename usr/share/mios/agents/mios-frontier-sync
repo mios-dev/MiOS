@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# mios-frontier-sync -- sync the mios-frontier NATIVE workspace <-> GitHub (origin).
+# The war-room works on an ext4 replica of the repo (WSL /mnt/c is not
+# container-writable); this is the git bridge back to the shared GitHub remote so
+# the Windows checkout (C:\MiOS) and the war-room converge.
+set -euo pipefail
+WORK="${MIOS_FRONTIER_WORKSPACE:-/mnt/mios-root}"
+[ -d "$WORK/.git" ] || WORK="${MIOS_FRONTIER_WORKSPACE:-$HOME/MiOS}"
+cd "$WORK" || { echo "mios-frontier-sync: no workspace at $WORK" >&2; exit 1; }
+git config --global --add safe.directory "$WORK" 2>/dev/null || true
+BR="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo main)"
+
+case "${1:-status}" in
+  push)   git add -A && git commit -m "${2:-mios-frontier: war-room changes}" && git push origin "HEAD:$BR"
+          echo "pushed $WORK -> origin/$BR (on Windows: git -C C:\\MiOS pull)";;
+  pull)   git pull --rebase origin "$BR";;
+  status) git status --short --branch;;
+  *)      echo "usage: mios-frontier-sync push [msg] | pull | status";;
+esac

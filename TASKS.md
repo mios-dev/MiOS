@@ -2647,6 +2647,16 @@ T-084 (STRG-01 SSOT)
 > direct) fail DIFFERENTLY: `@` FABRICATES tool execution; `hermes` executes for
 > real but mis-targets. Anti-fabrication is the operator's core value → T-113 is
 > P0. Detail SSOT for the chat-channel items = `MIOS-CHATQ-FV-WORKPLAN.md`.
+>
+> **SHIPPED this session (code-complete; live-verify pending):** T-113 (anti-fab
+> guard on the chat short-circuit `chat.py` AND the native-loop synthesis
+> `native_loop.py` — strip any `🤝 <verb> output`/`{"success":true,"tool":...}`
+> block for a verb NOT actually fired; chat path routes to the real executor) ·
+> T-114 (web/news: honest-note when a web turn cites off-list URLs OR produces a
+> report-table with ZERO fetched sources) · T-116 (browser tab native-args) ·
+> T-118 (mios-cpu-node ctx 131072->32768). **Remaining:** T-115 (deploy T-109),
+> T-117 (Hermes container-exec — model-behavioral skill fix), T-119 (native-arg
+> standard doc), and the deterministic-launch-route widening (defense-in-depth).
 
 ## T-113: FAB-01 -- @ agent-pipe FABRICATES tool execution + results (no real dispatch)  [P0]
 > **Priority:** P0 | **Status:** pending | **Effort:** L | **Domain:** Anti-Fabrication/Orchestration | **Source:** live `@` session -- `@ launch forza` emitted a fake `🤝 open_app output: {"success":true,"pid":8421,"window":{"handle":0x7f12345678,...}}` with IDENTICAL fake pid/handle across every launch AND an invented app ("Forza Horizon 6"), while NOTHING launched (operator: "doing NOTHING for me"). The parallel `hermes` path ran a REAL `mios-windows launch`. So the agent-pipe narrates/hallucinates a tool call AND its output instead of dispatching to the real executor.

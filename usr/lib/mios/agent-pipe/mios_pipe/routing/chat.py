@@ -1800,6 +1800,16 @@ async def _kernel_chat_handler(decision, **ctx):
         _chat_reply = str(refined.get("reply") or "").strip()
         if not _chat_reply:
             _chat_reply = await _quick_chat_reply(last_user_text, messages)
+        # Anti-fabrication (operator P0): the chat short-circuit runs NO tools, so a
+        # tool-result block in the reply is the weak refine micro NARRATING an
+        # unexecuted action (a fake '🤝 <verb> output' / {"success":true,"tool":...}
+        # with an invented pid/handle). NEVER ship a fabricated execution: drop the
+        # chat reply so the turn falls through to the real executor (decision.mode=
+        # 'agent') and the action runs for real -- or honestly fails. Flag-gated,
+        # degrade-open.
+        if _chat_reply and _ANTIFAB_ENABLE and _contains_tool_result_block(_chat_reply):
+            log.warning("anti-fab: chat reply narrated an unexecuted tool result; routing to real executor instead of shipping it")
+            _chat_reply = ""
 
     if _chat_reply:
         reply = _chat_reply
@@ -1825,6 +1835,29 @@ async def _kernel_chat_handler(decision, **ctx):
     decision.mode = "agent"
     return await _KERNEL.dispatcher.run(decision, **ctx)
 
+
+# Anti-fabrication guard (operator's #1 value: NEVER claim a tool ran when it did
+# not). Detects a tool-EXECUTION-shaped block in model content: the real emitter's
+# '🤝 <verb> output:' sentinel (toolexec.py) or a JSON object asserting
+# {"success": true, "tool": "<verb>", ...}. A model hop that WRITES one of these as
+# prose -- rather than a real tool_call the executor actually ran -- is fabricating.
+# SSOT flag; degrade-open (unset/false -> unchanged behaviour).
+_ANTIFAB_ENABLE = os.environ.get("MIOS_ANTIFAB_ENABLE", "true").lower() not in {"false", "0", "no", "off"}
+
+
+def _contains_tool_result_block(text) -> bool:
+    """True when `text` narrates a tool EXECUTION result (real-emitter sentinel or a
+    success-claim JSON). Used to reject fabricated executions before they stream."""
+    if not text:
+        return False
+    import re
+    if re.search(r"🤝\s+\S+\s+output\s*:", text):
+        return True
+    if re.search(r'"success"\s*:\s*true[^{}]{0,400}?"tool"\s*:\s*"[^"]+"', text, re.DOTALL):
+        return True
+    if re.search(r'"tool"\s*:\s*"[^"]+"[^{}]{0,400}?"success"\s*:\s*true', text, re.DOTALL):
+        return True
+    return False
 
 
 async def _kernel_dispatch_handler(decision, **ctx):

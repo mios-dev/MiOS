@@ -915,6 +915,26 @@ async def _respond_native_loop_direct(
             else:
                 log.info("native-loop: %s", "surfaced tool evidence (raw+polish empty)"
                          if _ans else "no answer/raw/evidence (empty)")
+    # ANTI-FABRICATED-EXECUTION guard (operator P0; sibling of the chat short-circuit
+    # guard): a synthesis hop that WRITES a tool-execution block ('🤝 <verb> output:'
+    # or {"success":true,"tool":...}) for a verb NOT in the turn's actually-fired set
+    # (_fired = the tool_calls the loop really dispatched) is narrating an execution
+    # that never happened -> strip that block. Degrade-open: no block / verb WAS fired.
+    if _ans:  # anti-fabrication is always-on (operator's #1 value); degrade-open below
+        try:
+            _fired_set = {str(_f) for _f in (_fired or [])}
+            def _drop_unfired(_m):
+                _blk = _m.group(0)
+                _mv = re.search(r'🤝\s+(\S+)\s+output|"tool"\s*:\s*"([^"]+)"', _blk)
+                _vn = ((_mv.group(1) or _mv.group(2)) if _mv else "") or ""
+                return "" if (_vn and _vn not in _fired_set) else _blk
+            _san = re.sub(r'🤝[^\n]*output\s*:.*?(?=\n\n|\Z)', _drop_unfired, _ans, flags=re.DOTALL)
+            _san = re.sub(r'\{[^{}]*"success"\s*:\s*true[^{}]*"tool"\s*:\s*"[^"]+"[^{}]*\}', _drop_unfired, _san, flags=re.DOTALL)
+            if _san != _ans:
+                log.warning("native-loop: stripped fabricated tool-result block(s) for unfired verb(s)")
+                _ans = _san.strip()
+        except Exception:  # noqa: BLE001 -- degrade-open
+            pass
     # ANTI-FABRICATED-CITATION guard (operator no-farce): on a web/news turn, a
     # cited URL that is NOT among the sources actually FETCHED this turn was invented --
     # granite confidently emits e.g. "ai.googleblog.com/2024/..." as "this week's news"
@@ -931,9 +951,14 @@ async def _respond_native_loop_direct(
             _ans_urls = re.findall(r"https?://[^\s)\]\"'<>]+", _ans or "")
             _fab = [_u for _u in _ans_urls
                     if re.sub(r"[/\s.]+$", "", _u) not in _real_norm]
-            if _fab and _real_norm:
-                log.warning("native-loop: web answer cited %d fabricated URL(s) not in %d "
-                            "fetched source(s) -> honest source list", len(_fab), len(_real_norm))
+            # Also catch prose-only fabrication: a web/news turn that fetched ZERO
+            # sources yet produced a sourced-looking REPORT (a markdown table of
+            # "articles") -- e.g. gibberish misrouted to news -> invented outlets. No
+            # ground truth exists, so it is fabricated. Structural (table), not keyword.
+            _has_report_table = bool(re.search(r"(?m)^\s*\|.*\|.*\|", _ans or ""))
+            if (_fab and _real_norm) or (not _real_norm and _has_report_table):
+                log.warning("native-loop: web answer fabricated (%d off-list URL(s), %d fetched "
+                            "source(s), report_table=%s) -> honest note", len(_fab), len(_real_norm), _has_report_table)
                 _ans = ("I couldn't extract a specific, verified story from this week's live "
                         "sources (several major news sites block automated reading). Here are "
                         "the current sources I found -- open one for the latest:")

@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # mios-a2o — Architect->Operator terminal-muxer harness for MiOS.
 # A persistent tmux "war room" (inside the MiOS host / agents container) into which
-# Claude (architect) delegates build/debug tasks to operator engines — agy (Antigravity
-# / Gemini 3.x), claude (Claude Code), or gemini (Gemini CLI) — each in its own tmux
-# window, tee'd to a log, with status tracking. Humans watch/steer via `tmux attach`
-# or the code-server browser terminal attached to the same socket.
+# an ORCHESTRATOR (Claude Sonnet 5, main panel) dispatches build/debug tasks to two
+# operator sub-agents — LANE A = Claude Opus 4.8 (framework + ~80%), LANE B = Gemini
+# Flash 3.5 (finalize, last ~20%) — each in its own tmux window, tee'd to a log,
+# with status tracking. Humans watch/steer via `tmux attach` or the code-server
+# browser terminal attached to the same socket.
 set -uo pipefail
 export PATH="${HOME:-/var/home/mios}/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
 
@@ -21,6 +22,38 @@ GEMINI_BIN="${MIOS_A2O_GEMINI_BIN:-gemini}"
 AGY_MODEL="${MIOS_A2O_AGY_MODEL:-}"
 CLAUDE_MODEL="${MIOS_A2O_CLAUDE_MODEL:-}"
 GEMINI_MODEL="${MIOS_A2O_GEMINI_MODEL:-}"
+
+# ── FRONTIER ROLES ── main panel = ORCHESTRATOR; two sub-agent lanes A/B. Each role
+# = engine + model + reasoning effort. These defaults are the single documented
+# baseline (operator spec); the SSOT that overrides them is mios.toml
+# [agents.frontier], bridged to MIOS_A2O_* env via install.env -- NO-HARDCODE.
+ORCH_ENGINE="${MIOS_A2O_ORCH_ENGINE:-claude}"
+ORCH_MODEL="${MIOS_A2O_ORCH_MODEL:-claude-sonnet-5}"
+ORCH_EFFORT="${MIOS_A2O_ORCH_EFFORT:-high}"
+LANE_A_ENGINE="${MIOS_A2O_LANE_A_ENGINE:-claude}"        # Claude Opus 4.8
+LANE_A_MODEL="${MIOS_A2O_LANE_A_MODEL:-claude-opus-4-8}"
+LANE_A_EFFORT="${MIOS_A2O_LANE_A_EFFORT:-xhigh}"
+LANE_A_ROLE="${MIOS_A2O_LANE_A_ROLE:-framework + ~80%}"
+LANE_B_ENGINE="${MIOS_A2O_LANE_B_ENGINE:-agy}"           # Gemini Flash 3.5 via Antigravity
+LANE_B_MODEL="${MIOS_A2O_LANE_B_MODEL:-gemini-3.5-flash}"
+LANE_B_EFFORT="${MIOS_A2O_LANE_B_EFFORT:-high}"
+LANE_B_ROLE="${MIOS_A2O_LANE_B_ROLE:-finalize (last ~20%)}"
+# Per-engine reasoning-effort flag TEMPLATE ({e} -> effort). EMPTY = omit the flag
+# (degrade-open: never break an engine whose effort flag is unverified). Set the real
+# flag for your installed CLI once confirmed in-container, e.g.
+#   MIOS_A2O_CLAUDE_EFFORT_FLAG='--reasoning-effort {e}'
+CLAUDE_EFFORT_FLAG="${MIOS_A2O_CLAUDE_EFFORT_FLAG:-}"
+AGY_EFFORT_FLAG="${MIOS_A2O_AGY_EFFORT_FLAG:-}"
+GEMINI_EFFORT_FLAG="${MIOS_A2O_GEMINI_EFFORT_FLAG:-}"
+# Orchestrator doctrine the Sonnet-5 main panel is seeded with (SSOT file; operator-
+# editable). Resolved from the harness dir / the live root / the vendor path.
+_a2o_self_dir="$(dirname "$(readlink -f "$0" 2>/dev/null || echo "$0")")"
+_default_brief=""
+for _d in "$_a2o_self_dir" /mnt/mios-root/usr/share/mios/agents /usr/share/mios/agents /usr/local/share/mios-agents; do
+    [ -f "$_d/orchestrator-brief.md" ] && { _default_brief="$_d/orchestrator-brief.md"; break; }
+done
+ORCH_BRIEF="${MIOS_A2O_ORCH_BRIEF:-$_default_brief}"
+
 mkdir -p "$LOGS" "$STATUS" "$PROMPTS" "$RUND" "$WORK_DEFAULT"
 
 die(){ echo "mios-a2o: $*" >&2; exit 1; }
@@ -28,6 +61,15 @@ have(){ command -v "$1" >/dev/null 2>&1; }
 have tmux || die "tmux not found on PATH"
 
 engine_bin(){ case "$1" in agy) echo "$AGY_BIN";; claude) echo "$CLAUDE_BIN";; gemini) echo "$GEMINI_BIN";; *) return 1;; esac; }
+
+# Render the reasoning-effort flag for an engine (empty template or effort -> none).
+effort_flag(){
+  local eng="$1" e="${2:-}" tpl=""
+  [ -n "$e" ] || return 0
+  case "$eng" in claude) tpl="$CLAUDE_EFFORT_FLAG";; agy) tpl="$AGY_EFFORT_FLAG";; gemini) tpl="$GEMINI_EFFORT_FLAG";; esac
+  [ -n "$tpl" ] || return 0
+  printf '%s' "${tpl//\{e\}/$e}"
+}
 
 ensure_server(){
   if ! tmux has-session -t "$SESSION" 2>/dev/null; then
@@ -40,34 +82,37 @@ ensure_server(){
   fi
 }
 
-# Build the runtime exec line for an engine. $PROMPT is a RUNTIME variable (kept literal here).
+# Build the runtime exec line for an engine. $PROMPT is a RUNTIME variable (kept
+# literal here). model/effort override the per-engine defaults (frontier roles pass
+# them; plain dispatch leaves them empty -> legacy per-engine model, no effort).
 exec_line(){
-  local eng="$1" work="$2" mdl="" auto="" sb=""
+  local eng="$1" work="$2" model_in="${3:-}" effort_in="${4:-}" mdl="" auto="" sb="" eff=""
+  eff="$(effort_flag "$eng" "$effort_in")"
   case "$eng" in
     agy)
-      [ -n "$AGY_MODEL" ] && mdl="--model '$AGY_MODEL'"
+      mdl="${model_in:-$AGY_MODEL}"; [ -n "$mdl" ] && mdl="--model '$mdl'" || mdl=""
       [ "$AUTO" = 1 ] && auto="--dangerously-skip-permissions"
       [ "$SANDBOX" = 1 ] && sb="--sandbox"
-      echo "$AGY_BIN $mdl --add-dir '$work' $auto $sb -p \"\$PROMPT\" < /dev/null"
+      echo "$AGY_BIN $mdl $eff --add-dir '$work' $auto $sb -p \"\$PROMPT\" < /dev/null"
       ;;
     claude)
-      [ -n "$CLAUDE_MODEL" ] && mdl="--model '$CLAUDE_MODEL'"
+      mdl="${model_in:-$CLAUDE_MODEL}"; [ -n "$mdl" ] && mdl="--model '$mdl'" || mdl=""
       [ "$AUTO" = 1 ] && auto="--dangerously-skip-permissions"
-      echo "$CLAUDE_BIN $mdl $auto -p \"\$PROMPT\" < /dev/null"
+      echo "$CLAUDE_BIN $mdl $eff $auto -p \"\$PROMPT\" < /dev/null"
       ;;
     gemini)
-      [ -n "$GEMINI_MODEL" ] && mdl="-m '$GEMINI_MODEL'"
+      mdl="${model_in:-$GEMINI_MODEL}"; [ -n "$mdl" ] && mdl="-m '$mdl'" || mdl=""
       [ "$AUTO" = 1 ] && auto="--approval-mode yolo" || auto="--approval-mode default"
       [ "$SANDBOX" = 1 ] && sb="--sandbox"
-      echo "$GEMINI_BIN $mdl $auto --skip-trust $sb -p \"\$PROMPT\" < /dev/null"
+      echo "$GEMINI_BIN $mdl $eff $auto --skip-trust $sb -p \"\$PROMPT\" < /dev/null"
       ;;
     *) return 1;;
   esac
 }
 
 cmd_dispatch(){
-  local name="${1:-}" eng="${2:-$ENGINE_DEFAULT}" work="${3:-$WORK_DEFAULT}"
-  [ -n "$name" ] || die "usage: dispatch <name> [engine] [workdir]   (prompt on stdin)"
+  local name="${1:-}" eng="${2:-$ENGINE_DEFAULT}" work="${3:-$WORK_DEFAULT}" model="${4:-}" effort="${5:-}"
+  [ -n "$name" ] || die "usage: dispatch <name> [engine] [workdir] [model] [effort]   (prompt on stdin)"
   case "$name" in *[!A-Za-z0-9._-]*) die "task name must be slug [A-Za-z0-9._-]";; esac
   engine_bin "$eng" >/dev/null || die "unknown engine '$eng' (agy|claude|gemini)"
   have "$(engine_bin "$eng")" || die "engine binary not found: $(engine_bin "$eng")"
@@ -75,7 +120,7 @@ cmd_dispatch(){
   cat > "$PROMPTS/$name.txt"                          # prompt from stdin
   [ -s "$PROMPTS/$name.txt" ] || die "empty prompt on stdin"
   : > "$LOGS/$name.log"; rm -f "$STATUS/$name.status" "$STATUS/$name.running"; echo "$eng" > "$STATUS/$name.engine"
-  local EXEC; EXEC="$(exec_line "$eng" "$work")"
+  local EXEC; EXEC="$(exec_line "$eng" "$work" "$model" "$effort")"
   cat > "$RUND/$name.sh" <<RUNNER
 #!/usr/bin/env bash
 export PATH="$PATH"
@@ -93,8 +138,21 @@ RUNNER
   chmod +x "$RUND/$name.sh"
   tmux kill-window -t "$SESSION:$name" 2>/dev/null || true
   tmux new-window -t "$SESSION" -n "$name" -c "$work" "bash '$RUND/$name.sh'"
-  echo "dispatched: task='$name' engine='$eng' work='$work' auto=$AUTO sandbox=$SANDBOX"
+  echo "dispatched: task='$name' engine='$eng'${model:+ model='$model'}${effort:+ effort='$effort'} work='$work' auto=$AUTO sandbox=$SANDBOX"
   echo "monitor: mios-a2o tail $name | window: $SESSION:$name | attach: tmux attach -t $SESSION"
+}
+
+# Dispatch to a configured sub-agent role lane (engine+model+effort). Prompt on stdin.
+cmd_lane(){
+  local lane="${1:-}" name="${2:-}"
+  [ -n "$lane" ] && [ -n "$name" ] || die "usage: lane <a|b> <name>   (prompt on stdin)"
+  local eng mdl eff
+  case "$lane" in
+    a|A) eng="$LANE_A_ENGINE"; mdl="$LANE_A_MODEL"; eff="$LANE_A_EFFORT";;
+    b|B) eng="$LANE_B_ENGINE"; mdl="$LANE_B_MODEL"; eff="$LANE_B_EFFORT";;
+    *) die "lane must be a|b";;
+  esac
+  cmd_dispatch "$name" "$eng" "$WORK_DEFAULT" "$mdl" "$eff"
 }
 
 cmd_status(){
@@ -129,10 +187,16 @@ cmd_kill(){ local a="${1:?usage: kill <name>|--all}"
   else tmux kill-window -t "$SESSION:$a" 2>/dev/null; echo "killed window '$a'"; fi; }
 cmd_doctor(){
   echo "session=$SESSION root=$ROOT work=$WORK_DEFAULT engine_default=$ENGINE_DEFAULT auto=$AUTO sandbox=$SANDBOX"
+  echo "roles:"
+  printf "  %-13s %-7s %-22s effort=%-6s flag=%s\n" "orchestrator" "$ORCH_ENGINE" "$ORCH_MODEL" "$ORCH_EFFORT" "${CLAUDE_EFFORT_FLAG:-<none>}"
+  printf "  %-13s %-7s %-22s effort=%-6s role=%s\n" "lane A" "$LANE_A_ENGINE" "$LANE_A_MODEL" "$LANE_A_EFFORT" "$LANE_A_ROLE"
+  printf "  %-13s %-7s %-22s effort=%-6s role=%s\n" "lane B" "$LANE_B_ENGINE" "$LANE_B_MODEL" "$LANE_B_EFFORT" "$LANE_B_ROLE"
+  echo "orchestrator_brief=${ORCH_BRIEF:-<none found>}"
   echo -n "tmux:   "; tmux -V
   for e in agy claude gemini; do b="$(engine_bin "$e")"; printf "%-7s " "$e:"; if have "$b"; then "$b" --version 2>/dev/null | head -1; else echo "not installed ($b)"; fi; done
   echo -n "server: "; tmux has-session -t "$SESSION" 2>/dev/null && echo up || echo down
   if [ "$AUTO" = 1 ]; then echo "WARN: AUTO=1 auto-approves ALL tools — keep confined to this host/container"; fi
+  [ -n "$ORCH_BRIEF" ] || echo "WARN: orchestrator-brief.md not found -- the orchestrator will launch WITHOUT its doctrine"
   return 0
 }
 cmd_selftest(){  # engine-free proof that dispatch->window->log->status->capture all work
@@ -149,6 +213,8 @@ RUNNER
   tmux kill-window -t "$SESSION:$name" 2>/dev/null || true
   tmux new-window -t "$SESSION" -n "$name" -c "$WORK_DEFAULT" "bash '$RUND/$name.sh'"
   echo "selftest dispatched to $SESSION:selftest — verify: mios-a2o status ; mios-a2o tail selftest"
+  echo "roles configured:"
+  echo "  orchestrator=$ORCH_ENGINE:$ORCH_MODEL(effort=$ORCH_EFFORT)  laneA=$LANE_A_ENGINE:$LANE_A_MODEL(effort=$LANE_A_EFFORT)  laneB=$LANE_B_ENGINE:$LANE_B_MODEL(effort=$LANE_B_EFFORT)"
 }
 
 newest_task(){  # echo newest task name, optionally filtered by engine (.engine marker)
@@ -174,50 +240,76 @@ cmd_follow(){  # live-tail newest task log; --engine <eng> filters that lane; wa
 
 cmd_frontier_help(){
   cat <<EOF
-  MiOS Frontier -- Claude || Gemini(agy) run CONCURRENTLY (parallel lanes)
+  MiOS Frontier -- ORCHESTRATOR (Sonnet 5) drives two sub-agent lanes in parallel
   ----------------------------------------------------------------------
-  dispatch is NON-BLOCKING: fire BOTH engines and they run AT THE SAME TIME,
-  each streaming into its own lane. Claude's workflow + agy's tasks proceed
-  in parallel -- NOT 80%-then-20%, but both together.
+  ORCHESTRATOR (this pane): decomposes your goal, then DISPATCHES:
+    LANE A = ${LANE_A_MODEL} (${LANE_A_ROLE})
+    LANE B = ${LANE_B_MODEL} (${LANE_B_ROLE})
+  and keeps BOTH lanes live + fed until the job is complete (see the doctrine it
+  was briefed with: ${ORCH_BRIEF:-<brief missing>}).
 
-  Fire them concurrently (Claude controls agy):
-    echo 'Scaffold the X module: interfaces + wiring + // TODO: GEMINI stubs.' \\
-      | mios-a2o dispatch scaffold claude $WORK_DEFAULT
-    echo 'Finish every // TODO: GEMINI: compile, install deps, run until green.' \\
-      | MIOS_A2O_AUTO=1 mios-a2o dispatch finish agy $WORK_DEFAULT
-    # -> CLAUDE lane + GEMINI lane update SIMULTANEOUSLY; MONITOR shows both.
-
-  Fan MORE parallel agy tasks any time:
-    echo '...task 2...' | MIOS_A2O_AUTO=1 mios-a2o dispatch finish2 agy $WORK_DEFAULT
-  Steer a lane:  mios-a2o send <name> <keys>   |   run Claude here:  claude
+  Dispatch (the orchestrator runs these; you can too):
+    echo 'Broad framework + 80%: scaffold module X ...' | mios-a2o lane a scaffold
+    echo 'Finalize: finish TODOs, build, test to green' | MIOS_A2O_AUTO=1 mios-a2o lane b finish
+  Monitor: mios-a2o status | tail <name> | follow --engine claude|agy
+  Steer:   mios-a2o send <name> <keys>
   ----------------------------------------------------------------------
 EOF
 }
 
-cmd_frontier(){  # CONCURRENT tmux PROFILE: CONTROL | CLAUDE-lane / GEMINI-lane / MONITOR
+cmd_frontier(){  # ORCHESTRATOR (main) + LANE A / LANE B / MONITOR
   local S="${MIOS_A2O_FRONTIER:-mios-frontier}" self
   self="$(command -v mios-a2o 2>/dev/null || readlink -f "$0" 2>/dev/null || echo "$0")"
   if tmux has-session -t "$S" 2>/dev/null; then
     if [ -t 1 ] && [ -z "${MIOS_A2O_NOATTACH:-}" ]; then exec tmux attach -t "$S"; else echo "frontier '$S' already up"; return 0; fi
   fi
   ensure_server
+  # Orchestrator launcher script (avoids tmux send-keys quoting hell). Sonnet-5
+  # interactive, model+effort pinned, seeded with the A2O doctrine via
+  # --append-system-prompt; degrade to a shell+help if the engine is missing.
+  local orch_bin orch_eff
+  orch_bin="$(engine_bin "$ORCH_ENGINE" 2>/dev/null || echo "$ORCH_ENGINE")"
+  orch_eff="$(effort_flag "$ORCH_ENGINE" "$ORCH_EFFORT")"
+  mkdir -p "$RUND"
+  cat > "$RUND/orchestrator.sh" <<ORUN
+#!/usr/bin/env bash
+export PATH="$PATH"
+cd "$WORK_DEFAULT" 2>/dev/null || true
+BRIEF="\$(cat "$ORCH_BRIEF" 2>/dev/null || true)"
+if ! command -v "$orch_bin" >/dev/null 2>&1; then
+  echo "[frontier] orchestrator engine '$ORCH_ENGINE' ($orch_bin) not installed -- run: mios-a2o doctor"; echo
+  "$self" frontier-help; exec bash
+fi
+echo "[frontier] ORCHESTRATOR=$ORCH_ENGINE:$ORCH_MODEL(effort=$ORCH_EFFORT)  LANE A=$LANE_A_MODEL($LANE_A_ROLE)  LANE B=$LANE_B_MODEL($LANE_B_ROLE)"
+[ -n "\$BRIEF" ] || echo "[frontier] WARN: no orchestrator-brief -- launching without the doctrine"
+case "$ORCH_ENGINE" in
+  claude)
+    if [ -n "\$BRIEF" ]; then exec "$orch_bin" --model "$ORCH_MODEL" $orch_eff --append-system-prompt "\$BRIEF"
+    else exec "$orch_bin" --model "$ORCH_MODEL" $orch_eff; fi ;;
+  agy)    exec "$orch_bin" --model "$ORCH_MODEL" $orch_eff --add-dir "$WORK_DEFAULT" ;;
+  gemini) exec "$orch_bin" -m "$ORCH_MODEL" $orch_eff ;;
+  *)      exec "$orch_bin" ;;
+esac
+ORUN
+  chmod +x "$RUND/orchestrator.sh"
+
   tmux new-session -d -s "$S" -n frontier -c "$WORK_DEFAULT"
   tmux set-option -t "$S" -g mouse on             >/dev/null 2>&1 || true
   tmux set-option -t "$S" -g history-limit 500000 >/dev/null 2>&1 || true
   tmux set-option -t "$S" -g pane-border-status top          >/dev/null 2>&1 || true
   tmux set-option -t "$S" -g pane-border-format " #{pane_title} " >/dev/null 2>&1 || true
-  # pane0 = CONTROL (left). Right column = 3 stacked lanes: CLAUDE / GEMINI / MONITOR.
+  # pane0 = ORCHESTRATOR (left). Right column = LANE A / LANE B / MONITOR.
   tmux split-window -h -t "$S:frontier.0" -c "$WORK_DEFAULT" -p 52
   tmux split-window -v -t "$S:frontier.1" -c "$WORK_DEFAULT" -p 66
   tmux split-window -v -t "$S:frontier.2" -c "$WORK_DEFAULT" -p 50
-  tmux select-pane -t "$S:frontier.0" -T "CONTROL - dispatch Claude || agy CONCURRENTLY"
-  tmux select-pane -t "$S:frontier.1" -T "CLAUDE lane (live)"
-  tmux select-pane -t "$S:frontier.2" -T "GEMINI/agy lane (live)"
-  tmux select-pane -t "$S:frontier.3" -T "MONITOR - all tasks (both engines)"
-  tmux send-keys -t "$S:frontier.1" "'$self' follow --engine claude" C-m
-  tmux send-keys -t "$S:frontier.2" "'$self' follow --engine agy" C-m
+  tmux select-pane -t "$S:frontier.0" -T "ORCHESTRATOR $ORCH_ENGINE:$ORCH_MODEL (effort=$ORCH_EFFORT) - dispatches + monitors + keeps both lanes fed"
+  tmux select-pane -t "$S:frontier.1" -T "LANE A $LANE_A_ENGINE:$LANE_A_MODEL (effort=$LANE_A_EFFORT) - $LANE_A_ROLE"
+  tmux select-pane -t "$S:frontier.2" -T "LANE B $LANE_B_ENGINE:$LANE_B_MODEL (effort=$LANE_B_EFFORT) - $LANE_B_ROLE"
+  tmux select-pane -t "$S:frontier.3" -T "MONITOR - all tasks (both lanes)"
+  tmux send-keys -t "$S:frontier.1" "'$self' follow --engine $LANE_A_ENGINE" C-m
+  tmux send-keys -t "$S:frontier.2" "'$self' follow --engine $LANE_B_ENGINE" C-m
   tmux send-keys -t "$S:frontier.3" "while :; do clear; '$self' status; sleep 3; done" C-m
-  tmux send-keys -t "$S:frontier.0" "clear; '$self' frontier-help" C-m
+  tmux send-keys -t "$S:frontier.0" "bash '$RUND/orchestrator.sh'" C-m
   tmux select-pane -t "$S:frontier.0"
   if [ -t 1 ] && [ -z "${MIOS_A2O_NOATTACH:-}" ]; then exec tmux attach -t "$S"
   else echo "frontier '$S' ready -- attach: tmux attach -t $S"; tmux list-panes -t "$S:frontier" -F '  pane #{pane_index}: #{pane_title}'; fi
@@ -225,18 +317,19 @@ cmd_frontier(){  # CONCURRENT tmux PROFILE: CONTROL | CLAUDE-lane / GEMINI-lane 
 
 sub="${1:-help}"; shift 2>/dev/null || true
 case "$sub" in
-  dispatch) cmd_dispatch "$@";; status) cmd_status "$@";; tail) cmd_tail "$@";;
+  dispatch) cmd_dispatch "$@";; lane) cmd_lane "$@";; status) cmd_status "$@";; tail) cmd_tail "$@";;
   capture) cmd_capture "$@";; send) cmd_send "$@";; repl) cmd_repl "$@";;
   attach) cmd_attach "$@";; list) cmd_list "$@";; kill) cmd_kill "$@";; doctor) cmd_doctor "$@";; selftest) cmd_selftest "$@";;
   follow) cmd_follow "$@";; frontier) cmd_frontier "$@";; frontier-help) cmd_frontier_help "$@";; warroom) cmd_frontier "$@";;
   help|-h|--help)
-    echo "mios-a2o — Claude(architect) || operator(agy/claude/gemini) CONCURRENT tmux frontier"
-    echo "  frontier                             launch the concurrent profile (Control | Claude-lane / Gemini-lane / Monitor)"
-    echo "  dispatch <name> [engine] [workdir]   run a task (prompt on stdin) in its own window (non-blocking -> parallel)"
+    echo "mios-a2o — ORCHESTRATOR (Sonnet 5) || sub-agents (Opus 4.8 framework / Gemini Flash 3.5 finalize) tmux frontier"
+    echo "  frontier                             launch the war-room (Orchestrator | Lane A / Lane B / Monitor)"
+    echo "  lane <a|b> <name>                    dispatch to a sub-agent role (a=framework/Opus, b=finalize/Gemini); prompt on stdin"
+    echo "  dispatch <name> [engine] [workdir] [model] [effort]   run a task (prompt on stdin) in its own window (non-blocking)"
     echo "  follow [name] [--engine agy|claude]  live-tail a lane (default: newest)"
     echo "  status [name] | tail <name> [n] | capture <name> [n] | send <name> <keys...>"
-    echo "  repl [engine] [name] [workdir] | attach | list | kill <name>|--all | doctor"
-    echo "engines: agy (Antigravity/Gemini), claude (Claude Code), gemini (Gemini CLI)"
-    echo "env: MIOS_A2O_ENGINE MIOS_A2O_AUTO=1 MIOS_A2O_SANDBOX=1 MIOS_A2O_FRONTIER MIOS_A2O_*_MODEL";;
+    echo "  repl [engine] [name] [workdir] | attach | list | kill <name>|--all | doctor | selftest"
+    echo "roles: orchestrator=$ORCH_ENGINE:$ORCH_MODEL  laneA=$LANE_A_ENGINE:$LANE_A_MODEL  laneB=$LANE_B_ENGINE:$LANE_B_MODEL"
+    echo "env: MIOS_A2O_{ORCH,LANE_A,LANE_B}_{ENGINE,MODEL,EFFORT} MIOS_A2O_AUTO=1 MIOS_A2O_*_EFFORT_FLAG MIOS_A2O_ORCH_BRIEF";;
   *) die "unknown command: $sub (try: mios-a2o help)";;
 esac
