@@ -20,85 +20,101 @@ podman exec -it mios-agents-dev agy                    # sign in the Gemini oper
 # IDE: http://localhost:8801 (pw = mios) → terminal runs `mios-a2o`
 ```
 
-## Phase B — bake into the immutable image
+## Phase B — what shipped
 
-> Follows the existing local-image precedent (`localhost/mios-crawl4ai-slim`,
-> `localhost/mios-firecrawl`, `localhost/mios-coderun-sandbox`). Everything below
-> is SSOT/Law-compliant; run `just build` to bake, then deploy via bootc.
+> Not a Quadlet — `mios-agents` is a hand-written systemd unit (like
+> `mios-code-server` before it), not `[containers.*]` SSOT + generated Quadlet.
+> This section describes the ACTUAL wiring, not a proposal.
 
-**1. Port registry** — add to the `MIOS_PORT_*` block in `usr/share/mios/mios.toml`
-(don't hardcode 8801 elsewhere; Law 7):
-```toml
-MIOS_PORT_AGENTS = 8801
+**1. Port — reuses the retired `mios-code-server` port.** `mios-agents` replaces
+`mios-code-server` (one IDE, no duplicate service), so it binds the SAME port
+rather than registering a new one. SSOT is `[ports].code_server = 8800` in
+`usr/share/mios/mios.toml`; the unit's `Exec` uses `${MIOS_PORT_CODE_SERVER}`
+(in-unit default `Environment=MIOS_PORT_CODE_SERVER=8800`, since systemd does
+NOT expand bash `${VAR:-default}` in `ExecStart`). There is no
+`MIOS_PORT_AGENTS` — that name is retired.
+
+**2. The unit** — `usr/lib/systemd/system/mios-agents.service`:
+```ini
+[Service]
+Type=simple
+Environment=MIOS_PORT_CODE_SERVER=8800
+Environment=MIOS_DEFAULT_PASSWORD=mios
+EnvironmentFile=-/etc/mios/install.env
+ExecStartPre=/usr/libexec/mios/mios-agents-firstboot.sh
+ExecStart=/usr/sbin/podman run --replace --name mios-agents \
+  --network=host \
+  --env PASSWORD=${MIOS_DEFAULT_PASSWORD} \
+  --env MIOS_A2O_ENGINE=agy \
+  --env MIOS_A2O_WORK=/mnt/mios-root \
+  --env MIOS_A2O_ORCH_ENGINE=${MIOS_A2O_ORCH_ENGINE} \
+  --env MIOS_A2O_ORCH_MODEL=${MIOS_A2O_ORCH_MODEL} \
+  --env MIOS_A2O_ORCH_EFFORT=${MIOS_A2O_ORCH_EFFORT} \
+  --env MIOS_A2O_LANE_A_ENGINE=${MIOS_A2O_LANE_A_ENGINE} \
+  --env MIOS_A2O_LANE_A_MODEL=${MIOS_A2O_LANE_A_MODEL} \
+  --env MIOS_A2O_LANE_A_EFFORT=${MIOS_A2O_LANE_A_EFFORT} \
+  --env MIOS_A2O_LANE_B_ENGINE=${MIOS_A2O_LANE_B_ENGINE} \
+  --env MIOS_A2O_LANE_B_MODEL=${MIOS_A2O_LANE_B_MODEL} \
+  --env MIOS_A2O_LANE_B_EFFORT=${MIOS_A2O_LANE_B_EFFORT} \
+  --env MIOS_A2O_CLAUDE_EFFORT_FLAG=${MIOS_A2O_CLAUDE_EFFORT_FLAG} \
+  --env MIOS_A2O_AGY_EFFORT_FLAG=${MIOS_A2O_AGY_EFFORT_FLAG} \
+  --env MIOS_A2O_GEMINI_EFFORT_FLAG=${MIOS_A2O_GEMINI_EFFORT_FLAG} \
+  --volume /:/mnt/mios-root:rw,rslave \
+  --volume /var/lib/mios/agents:/home/coder:rw \
+  localhost/mios-agents:latest \
+  --bind-addr 0.0.0.0:${MIOS_PORT_CODE_SERVER} /mnt/mios-root
 ```
+`EnvironmentFile=-/etc/mios/install.env` (the `mios-sync-env`-written
+mios.toml→env bridge) overrides the in-unit defaults when present and supplies
+every `MIOS_A2O_*` role var, which the `--env` flags forward straight into the
+container.
 
-**2. Container SSOT** — add to `usr/share/mios/mios.toml` (schema mirrors
-`[containers.mios-code-server.*]`; Law 6 → `User/Group/Delegate`; NO-HARDCODE →
-registry port, SSOT password, no literal user/URL):
-```toml
-[containers.mios-agents.Container]
-ContainerName = "mios-agents"
-Image = "localhost/mios-agents:latest"
-Pod = "mios-webtools.pod"
-EnvironmentFile = "/etc/mios/install.env"
-Environment = [
-  "MIOS_A2O_ENGINE=agy",
-  "MIOS_A2O_WORK=/mnt/mios-root",
-  "PASSWORD=${MIOS_DEFAULT_PASSWORD:-mios}",
-]
-Exec = "--bind-addr 0.0.0.0:${MIOS_PORT_AGENTS:-8801} /mnt/mios-root"
-User = "0"
-Group = "0"
-SecurityLabelDisable = "true"
-Volume = [
-  "/var/lib/mios/agents:/home/coder",
-  "/:/mnt/mios-root:rw,rslave",
-]
-Label = [
-  "org.opencontainers.image.title=mios-agents",
-  "io.podman_desktop.openInBrowser=http://localhost:${MIOS_PORT_AGENTS:-8801}/",
-]
+**3. Image build** — `ExecStartPre=/usr/libexec/mios/mios-agents-firstboot.sh`
+builds `localhost/mios-agents:latest` from
+`usr/share/mios/agents/Containerfile`. Idempotent: no-op if the image exists and
+is newer than the Containerfile; rebuilds when the image is missing OR the
+Containerfile's mtime is newer than the image's `Created` timestamp (so a
+Containerfile edit doesn't pin a stale image forever).
 
-[containers.mios-agents.Install]
-WantedBy = "multi-user.target default.target"
-
-[containers.mios-agents.Service]
-Delegate = "yes"
-Restart = "on-failure"
-RestartSec = "10s"
-TimeoutStartSec = "600s"
-
-[containers.mios-agents.Unit]
-After = "network-online.target mios-code-server.service"
-Description = "'MiOS' A2O agents (Claude CLI + agy/Gemini + tmux war room)"
-Wants = "network-online.target"
+**4. Preset** — `usr/lib/systemd/system-preset/90-mios.preset`:
 ```
+enable mios-agents.service
+disable mios-code-server.service
+```
+`mios-agents` is the one running IDE; `mios-code-server`'s `[containers.*]`
+definition stays in `mios.toml` but inert (no duplicate service).
 
-**3. Pod membership** — add `"mios-agents"` to `[pods.mios-webtools].members`.
+**5. Persistence** — `/var/lib/mios/agents:/home/coder:rw` keeps `agy`/`claude`
+logins and war-room state across container restarts; the `/:/mnt/mios-root`
+bind-mount is the live deployed root, so the agents develop MiOS from within
+itself.
 
-**4. `/var` path** (Law 2 — no build-time mkdir) — declare in
-`usr/lib/tmpfiles.d/mios.conf`:
-```
-d /var/lib/mios/agents 0750 1000 1000 -
-```
-
-**5. Image build + bound-images** (Law 3) — build `localhost/mios-agents:latest`
-from `usr/share/mios/agents/Containerfile` in the same pipeline step that builds
-the other `localhost/mios-*` images (see `automation/build-mios.sh`), and add the
-bound-images symlink so it's baked into `/usr/lib/containers/storage`:
-```
-usr/lib/bootc/bound-images.d/mios-agents.image -> /usr/share/mios/agents/Containerfile-built ref
-```
-(Mirror exactly how `mios-crawl4ai-slim` / `mios-firecrawl` are wired — same
-build hook, same symlink convention.)
-
-**6. Regenerate + build:**
-```bash
-python tools/generate-pod-quadlets.py       # emits usr/share/containers/systemd/mios-agents.container
-just build                                  # bakes the image; runs bootc container lint (Law 4)
-```
+**6. Role SSOT** — `[frontier]` in `usr/share/mios/mios.toml` is the single
+source of truth for orchestrator/lane-A/lane-B engine+model+effort. `mios-sync-env`
+(`usr/libexec/mios/system-sync-env.sh`) bridges `frontier.*` keys to the
+`MIOS_A2O_*` names (via `tools/lib/userenv.sh`'s slot table) and writes them into
+`/etc/mios/install.env`, which the unit's `EnvironmentFile=-` picks up and the
+`ExecStart` `--env` flags forward into the container. Editing `[frontier]` +
+running `mios-sync-env` + restarting the service changes the war-room roles —
+no code change needed.
 
 ## Credentials (runtime, never baked)
 - **agy (Gemini):** `podman exec -it mios-agents agy` → interactive OAuth (you reserve this).
-- **Claude:** mount `~/.claude/.credentials.json` as a podman secret, or `podman exec -it mios-agents claude` → `/login`.
-- **Auto-approve operator:** dispatch with `MIOS_A2O_AUTO=1` (adds `--dangerously-skip-permissions`) — safe *because* it's confined to this container. Requires your explicit authorization.
+- **Claude:** either a mounted `~/.claude` (see `mios-agents-dev.sh`, which bind-mounts the host's
+  `~/.claude` and `~/.claude.json` into the container's `/home/coder`), or
+  `podman exec -it mios-agents claude` → `/login` inside the container.
+- **Persistence:** both agy and claude logins land under `/home/coder` in the container, which the
+  unit mounts from `/var/lib/mios/agents:/home/coder:rw` (declared via tmpfiles, `d /var/lib/mios/agents`
+  in `usr/lib/tmpfiles.d/mios-agents.conf`) — so logins survive container restarts.
+- **Auto-approve operator:** dispatch with `MIOS_A2O_AUTO=1` (adds `--dangerously-skip-permissions`) — confined
+  to this container. Requires your explicit authorization.
+
+## Lane B status (live)
+The real Gemini lane (`agy`) is currently **account-quota-blocked** — `agy`
+authenticates fine and `agy models` lists models, but `agy --print`/`-p` returns
+empty stdout because the backing Gemini account has hit its quota (HTTP 429
+`RESOURCE_EXHAUSTED`, "Individual quota reached"; resets ~2026-07-07). Operator
+options: wait for the reset, or upgrade the `agy`/Gemini subscription. Until
+resolved, Lane-B finalize work runs on the `claude` fallback engine. See
+`TASKS.md` F-022 (root cause) and F-023 (hardening the `mios-a2o` dispatch so a
+silent agy failure is never reported as DONE).

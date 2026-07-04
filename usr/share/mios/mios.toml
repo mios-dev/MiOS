@@ -2450,6 +2450,13 @@ sentence_abbreviations = [
     "approx.", "Approx.", "e.g.", "i.e.", "vs.", "etc.", "U.S.", "U.K.",
     "a.m.", "p.m.", "No.", "Inc.", "Co.", "Ltd.", "St.", "Mt.",
 ]
+# Anti-fabricated-EXECUTION guard (operator's #1 value: NEVER claim a tool ran
+# when it did not). Master gate for the routing-layer guards that drop a chat/
+# synthesis reply narrating an unexecuted '🤝 <verb> output' / {"success":true,
+# "tool":...} block (chat.py short-circuit + native_loop.py unfired-verb strip).
+# Bridged to MIOS_ANTIFAB_ENABLE (read by mios_pipe.routing). Degrade-OPEN: set
+# false to restore the pre-guard passthrough behaviour.
+antifab_enable = true
 
 # ── WS-2 Code Mode. The agent writes CODE that calls a local tool
 # API inside the rootless podman coderun-sandbox instead of loading ~71 function
@@ -5284,6 +5291,68 @@ min_success_samples = 3     # ...and it has at least this many recorded invocati
 gate_enabled         = false   # master switch for the pass^k promotion gate (off = legacy promote)
 pass_and_k_count     = 3       # k replays an ordinary skill promotion must ALL pass
 pass_and_k_dgm_count = 5       # stricter k for a DGM-class self-rewrite (promote --dgm)
+
+# ─── mios-frontier / A2O war-room roles ─── SSOT for the tmux war-room composition.
+# Bridged to MIOS_A2O_* env for the mios-agents container via the service ExecStart
+# passthrough (install.env overrides). Empty/unset -> the mios-a2o harness's
+# documented baseline, which EQUALS these values -> the war-room works out-of-box;
+# edit here to retune. NO-HARDCODE: operator-tunable role composition + effort.
+[frontier]
+# Orchestrator (main panel): decomposes, dispatches, monitors, keeps both lanes fed.
+orch_engine = "claude"
+orch_model  = "claude-sonnet-5"
+orch_effort = "high"
+# Lane A sub-agent = broad framework + ~80% of the work.
+lane_a_engine = "claude"
+lane_a_model  = "claude-opus-4-8"
+lane_a_effort = "xhigh"
+lane_a_role   = "framework + ~80%"
+# Lane B sub-agent = finalize (last ~20%).
+lane_b_engine = "agy"
+lane_b_model  = "Gemini 3.5 Flash (High)"    # LOG-VERIFIED (F-008): confirmed via agy --log-file resolution trace -
+                                              # `agy models` display string is the only accepted --model value; bare
+                                              # slugs (gemini-3.5-flash, gemini-3.5-flash-high, gemini-flash-3.5) all
+                                              # fail model_config_manager resolution and silently fall back to the
+                                              # (Medium) effort tier. Effort is baked into the model name itself, so
+                                              # agy_effort_flag stays empty (no separate effort flag exists for agy).
+lane_b_effort = "high"
+lane_b_role   = "finalize (last ~20%)"
+# Lane B degrade-open FALLBACK. The real Lane B engine is agy (Gemini); when that
+# account is quota-blocked (429 RESOURCE_EXHAUSTED) agy generation returns empty and
+# finalize work stalls. These keys let Lane B fall back to a Claude engine so the
+# last ~20% never dead-ends. prefer_fallback is the switch: ON => Lane B routes to
+# the fallback engine/model/effort below instead of the agy ones; OFF => Lane B uses
+# agy as normal. Unknown/empty fallback keys degrade-open to today's agy behaviour.
+lane_b_fallback_engine = "claude"
+lane_b_fallback_model  = "claude-sonnet-5"
+lane_b_fallback_effort = "high"
+# ON now: agy Gemini quota-blocked => Lane B degrades to the Claude engine above so
+# finalize work never stalls. Flip to false when the Gemini quota returns.
+lane_b_prefer_fallback = true
+# Per-engine reasoning-effort flag TEMPLATE ({e} -> effort value). Empty = omit
+# (degrade-open: never break a CLI whose effort flag is unverified). claude is
+# CONFIRMED in-container: `--effort {e}`, levels low|medium|high|xhigh|max. agy and
+# gemini have NO confirmed effort flag -> left empty so their CLIs are never broken.
+claude_effort_flag = "--effort {e}"
+agy_effort_flag    = ""
+gemini_effort_flag = ""
+# Stream the war-room's per-task activity to the MiOS reasoning channel so
+# OWUI/CLI/Discord can watch the frontier without `tmux attach` ("everything
+# streams"). OFF by default: when on, mios-a2o appends each task's start/finish
+# transitions to the frontier sibling of the hermes-tail file (stream_path), and
+# the agent-pipe folds them into the same mios_status reasoning-channel emission
+# it already publishes. Degrade-open: a target that can't be written never fails a
+# dispatch; when off, the file is never created and the pipe path is byte-identical.
+stream_to_reasoning = false
+# Frontier activity sink -- JSONL under a dedicated group-writable child of the
+# hermes-tail transport dir the front-ends already read. Its own dir (not the
+# hermes-tail root) because the WRITER is the mios-agents container (host uid 1000)
+# and the READER is mios-agent-pipe (mios-ai): the dir is owned uid 1000 + group
+# mios-ai + setgid (see usr/lib/tmpfiles.d/mios.conf) so the container can create
+# the file AND its trim .tmp sibling while mios-ai still reads every line. The
+# war-room re-anchors this host-absolute path under MIOS_A2O_WORK when it runs
+# inside the container (host / mounted there).
+stream_path = "/var/lib/mios/hermes-tail/frontier/frontier.jsonl"
 
 [agent_pipe]
 tool_loop_limit = 20
@@ -9554,7 +9623,10 @@ Wants = "network-online.target"
 ContainerName = "mios-cpu-node"
 Entrypoint = "/app/llama-server"
 Environment = "HOME=/var/lib/mios/llamacpp"
-Exec = "--model /models/granite-4.1-8b.gguf --host 0.0.0.0 --port ${MIOS_PORT_CPU_NODE:-11451} --ctx-size 131072 --flash-attn on --cache-type-k q4_0 --cache-type-v q4_0 --parallel 1 --threads ${MIOS_CPU_NODE_THREADS:-14} --n-gpu-layers 0 --jinja --alias mios-cpu --slot-save-path ${MIOS_LLAMACPP_SLOT_DIR:-/var/lib/mios/llamacpp/slots}"
+# ctx-size: 32768 (was 131072). CPU-only (n-gpu-layers 0) granite-8b with a 128k KV
+# ring is the Unhealthy-on-boot bloat (huge RAM KV even at q4_0); 32768 matches the
+# light lane + the VRAM/KV co-fit finding. Raise once CPU RAM headroom is proven.
+Exec = "--model /models/granite-4.1-8b.gguf --host 0.0.0.0 --port ${MIOS_PORT_CPU_NODE:-11451} --ctx-size 32768 --flash-attn on --cache-type-k q4_0 --cache-type-v q4_0 --parallel 1 --threads ${MIOS_CPU_NODE_THREADS:-14} --n-gpu-layers 0 --jinja --alias mios-cpu --slot-save-path ${MIOS_LLAMACPP_SLOT_DIR:-/var/lib/mios/llamacpp/slots}"
 Group = "${MIOS_LLAMACPP_GID:-827}"
 Image = "${MIOS_LLM_LIGHT_IMAGE:-ghcr.io/mostlygeek/llama-swap:cuda}"
 Label = "org.opencontainers.image.title=mios-cpu-node"

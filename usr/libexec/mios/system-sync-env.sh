@@ -163,6 +163,26 @@ EOF
     [[ -n "${MIOS_CONV_IMAGE_RECHUNK_ENABLE:-}" ]]          && echo "MIOS_CONV_IMAGE_RECHUNK_ENABLE=\"${MIOS_CONV_IMAGE_RECHUNK_ENABLE}\""
     [[ -n "${MIOS_CONV_IMAGE_MCP_POOL_ENABLE:-}" ]]         && echo "MIOS_CONV_IMAGE_MCP_POOL_ENABLE=\"${MIOS_CONV_IMAGE_MCP_POOL_ENABLE}\""
 
+    # Anti-fabricated-execution guard ([verity].antifab_enable -> the agent-pipe
+    # routing layer, which reads MIOS_ANTIFAB_ENABLE from this EnvironmentFile).
+    # Resolver-populated; emit only what resolved so an unset SSOT key leaves the
+    # Python default (guard ON) intact -- degrade-open.
+    [[ -n "${MIOS_ANTIFAB_ENABLE:-}" ]] && echo "MIOS_ANTIFAB_ENABLE=\"${MIOS_ANTIFAB_ENABLE}\""
+
+
+    # Frontier / A2O war-room roles (mios.toml [frontier] -> MIOS_A2O_* that the
+    # mios-agents container's mios-a2o harness reads). Resolver-populated; emit only
+    # what resolved (empty effort-flag templates stay unset = degrade-open).
+    for _fk in MIOS_A2O_ORCH_ENGINE MIOS_A2O_ORCH_MODEL MIOS_A2O_ORCH_EFFORT \
+               MIOS_A2O_LANE_A_ENGINE MIOS_A2O_LANE_A_MODEL MIOS_A2O_LANE_A_EFFORT MIOS_A2O_LANE_A_ROLE \
+               MIOS_A2O_LANE_B_ENGINE MIOS_A2O_LANE_B_MODEL MIOS_A2O_LANE_B_EFFORT MIOS_A2O_LANE_B_ROLE \
+               MIOS_A2O_LANE_B_FALLBACK_ENGINE MIOS_A2O_LANE_B_FALLBACK_MODEL MIOS_A2O_LANE_B_FALLBACK_EFFORT MIOS_A2O_LANE_B_PREFER_FALLBACK \
+               MIOS_A2O_CLAUDE_EFFORT_FLAG MIOS_A2O_AGY_EFFORT_FLAG MIOS_A2O_GEMINI_EFFORT_FLAG \
+               MIOS_A2O_STREAM_REASONING MIOS_A2O_STREAM_PATH; do
+        _fv="${!_fk:-}"
+        if [[ -n "$_fv" ]]; then echo "${_fk}=\"${_fv}\""; fi
+    done
+
 
     # Heavy GPU lanes (gated/off-by-default; resolver-populated served names +
     # ports). Endpoints assembled from the lane ports so the value tracks the

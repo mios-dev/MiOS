@@ -1,41 +1,58 @@
 #!/usr/bin/env bash
-# Build + run the mios-agents DEV super-container in MiOS-DEV (rootless podman).
-# YOU run this — Claude does not live-launch. Creds are mounted from your host so
-# agy/claude logins persist and are shared with the host.
+# Build + run the mios-agents DEV war-room from THIS repo and bring mios-frontier
+# online on :8801 in the target composition (Sonnet-5 orchestrator + Opus-4.8 /
+# Gemini-Flash-3.5 lanes). YOU run this.
+#
+# WSL fact this encodes: a /mnt/c (drvfs/9p) bind-mount is NOT writable from inside
+# a podman container (rootless OR rootful) -- the agents could read but never EDIT
+# the repo. So the war-room works on a NATIVE ext4 replica (writable) synced to
+# GitHub (origin). Seed once from the repo (captures uncommitted edits), then it is
+# git-managed -- re-runs rebuild+restart WITHOUT clobbering the workspace.
 set -euo pipefail
-cd "$(dirname "$0")"
+cd "$(dirname "$0")"                              # usr/share/mios/agents
+REPO_SRC="$(cd ../../../.. && pwd)"               # repo root
 IMG=localhost/mios-agents:dev
 NAME=mios-agents-dev
-PORT="${MIOS_AGENTS_PORT:-8801}"          # browser IDE (8801 avoids mios-code-server:8800)
+PORT="${MIOS_AGENTS_PORT:-8801}"                  # IDE port (8801 avoids mios-agents:8800)
 PASS="${MIOS_AGENTS_PASSWORD:-mios}"
+WORK="${MIOS_FRONTIER_WORKSPACE:-$HOME/MiOS}"     # NATIVE ext4 workspace (container-writable)
 
-echo ">> building $IMG"
+echo ">> build $IMG from the repo"
 podman build --network=host -t "$IMG" -f Containerfile .
 
-echo ">> (re)starting $NAME on :$PORT"
-podman rm -f "$NAME" 2>/dev/null || true
+if [ ! -e "$WORK/.git" ]; then
+  echo ">> seed native workspace $WORK from $REPO_SRC (one-time; includes uncommitted edits + git origin)"
+  mkdir -p "$WORK"
+  rsync -a \
+    --exclude="__pycache__" --exclude="*.pyc" --exclude="node_modules" --exclude=".venv" \
+    --exclude="output/" --exclude="*.tar" --exclude="*.tar.gz" --exclude="*.qcow2" \
+    --exclude="*.iso" --exclude="*.vhdx" --exclude="*.raw" --exclude="*.wsl" \
+    "$REPO_SRC"/ "$WORK"/
+else
+  echo ">> native workspace $WORK exists (git-managed) -- leaving its contents. Sync via mios-frontier-sync."
+fi
+# The container's coder maps to a uid != the workspace owner (WSL userns quirk);
+# make the native workspace writable by any container uid (dev workspace).
+chmod -R a+rwX "$WORK"
 
-mounts=(-v /:/mnt/mios-root:rw,rslave)
+echo ">> (re)start $NAME on :$PORT (native workspace mounted rw)"
+podman rm -f "$NAME" 2>/dev/null || true
+mounts=(-v "$WORK":/mnt/mios-root:rw)
 [ -d "$HOME/.gemini" ]      && mounts+=(-v "$HOME/.gemini":/home/coder/.gemini:rw)
 [ -d "$HOME/.claude" ]      && mounts+=(-v "$HOME/.claude":/home/coder/.claude:rw)
 [ -f "$HOME/.claude.json" ] && mounts+=(-v "$HOME/.claude.json":/home/coder/.claude.json:rw)
-
-podman run -d --name "$NAME" --userns=keep-id \
-  -e PASSWORD="$PASS" \
-  -p "$PORT:8080" \
-  "${mounts[@]}" \
-  -w /mnt/mios-root \
-  "$IMG" \
-  --bind-addr 0.0.0.0:8080 /mnt/mios-root
+podman run -d --name "$NAME" --userns=keep-id:uid=1000,gid=1000 \
+  -e PASSWORD="$PASS" -p "$PORT:8080" "${mounts[@]}" \
+  "$IMG" --bind-addr 0.0.0.0:8080 /mnt/mios-root
 
 cat <<EOF
 
-mios-agents-dev up.
+mios-agents-dev up -- war-room on a NATIVE writable workspace synced to GitHub.
   IDE:          http://localhost:$PORT   (password: $PASS)
-  Gemini login: podman exec -it $NAME agy       # sign in to Antigravity/Gemini
-  Claude login: podman exec -it $NAME claude    # sign in to Claude (if needed)
+  Workspace:    $WORK   (origin: $(git -C "$WORK" remote get-url origin 2>/dev/null || echo '?'))
+  Gemini login: podman exec -it $NAME agy
+  Claude login: podman exec -it $NAME claude
   Doctor:       podman exec -it $NAME mios-a2o doctor
-  War room:     podman exec -it $NAME tmux attach -t mios-a2o
-  Dispatch:     echo 'PROMPT' | podman exec -i $NAME mios-a2o dispatch demo agy
-  Monitor:      podman exec -it $NAME mios-a2o status
+  WAR ROOM:     podman exec -it $NAME mios-frontier
+  Sync:         podman exec -it $NAME mios-frontier-sync push|pull   (<-> GitHub origin)
 EOF

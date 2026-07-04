@@ -332,9 +332,41 @@ _TAIL_KIND_EMOJI = {
     "synthesis":      "🔀",
     "subagent_done":  "✅",
     "tool_call":      "🛠️",
+    # F-011: war-room (A2O frontier) per-task transitions -- same live-status
+    # transport, so OWUI/CLI/Discord watch the frontier without `tmux attach`.
+    "frontier":       "🛰️",
 }
 _HERMES_TAIL_PATH = os.environ.get(
     "MIOS_HERMES_TAIL_PATH", "/var/lib/mios/hermes-tail/latest.json")
+
+
+def _frontier_stream_events(seen_ts: float) -> list:
+    """Best-effort read of the war-room activity sink (F-011): a JSONL sibling of
+    the hermes-tail state file into which mios-a2o appends per-task start/finish
+    transitions when `[frontier].stream_to_reasoning` is on. Returns event dicts
+    newer than seen_ts (may be empty). Degrade-open: when the flag is off the file
+    is never created, so this returns [] and `_tail_latest_status` is byte-
+    identical to before. Path from MIOS_A2O_STREAM_PATH (SSOT), else derived as a
+    sibling of the hermes-tail path so no transport constant is restated."""
+    path = os.environ.get("MIOS_A2O_STREAM_PATH") or os.path.join(
+        os.path.dirname(_HERMES_TAIL_PATH), "frontier.jsonl")
+    out: list = []
+    try:
+        with open(path) as f:
+            lines = f.readlines()[-50:]   # only the tail matters (newest wins)
+    except (OSError, ValueError):
+        return out
+    for ln in lines:
+        ln = ln.strip()
+        if not ln:
+            continue
+        try:
+            ev = json.loads(ln)
+        except (json.JSONDecodeError, ValueError):
+            continue
+        if isinstance(ev, dict) and ev.get("ts", 0) > seen_ts:
+            out.append(ev)
+    return out
 
 
 def _tail_latest_status(seen_ts: float, *, chat_id: str,
@@ -347,10 +379,21 @@ def _tail_latest_status(seen_ts: float, *, chat_id: str,
         with open(_HERMES_TAIL_PATH) as f:
             data = json.load(f)
     except (OSError, json.JSONDecodeError, ValueError):
-        return None, seen_ts
+        # Absent/unreadable hermes-tail is not fatal: the war-room sink (F-011) may
+        # still hold newer events, so degrade to an empty primary set rather than
+        # returning early -- the frontier fold below still runs.
+        data = {}
     newest = None
     new_ts = seen_ts
     for ev in data.get("events", []):
+        ts = ev.get("ts", 0)
+        if ts > new_ts:
+            new_ts = ts
+            newest = ev
+    # F-011: fold in the war-room activity sink on the SAME newest-wins clock, so a
+    # frontier task transition surfaces on the mios_status reasoning channel exactly
+    # like a hermes tool step. Best-effort + off-by-default -> normally a no-op.
+    for ev in _frontier_stream_events(seen_ts):
         ts = ev.get("ts", 0)
         if ts > new_ts:
             new_ts = ts

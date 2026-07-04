@@ -38,10 +38,33 @@ RUN install -m0755 /home/coder/.local/bin/agy /usr/local/bin/agy
 # launcher -- system path, mount-safe.
 COPY mios-a2o /usr/local/bin/mios-a2o
 COPY mios-frontier /usr/local/bin/mios-frontier
-RUN chmod 0755 /usr/local/bin/mios-a2o /usr/local/bin/mios-frontier
+COPY mios-frontier-sync /usr/local/bin/mios-frontier-sync
+RUN chmod 0755 /usr/local/bin/mios-a2o /usr/local/bin/mios-frontier /usr/local/bin/mios-frontier-sync
+# Baked fallback for the orchestrator doctrine (mios-a2o also finds the LIVE copy
+# under /mnt/mios-root via the PATH self-heal, so edits to the brief take effect
+# without a rebuild).
+COPY orchestrator-brief.md /usr/local/share/mios-agents/orchestrator-brief.md
+
+# Self-heal PATH from the LIVE deployed root. /mnt/mios-root (the whole MiOS root)
+# is bind-mounted RW into this container, so prefer the live mios / mios-a2o /
+# mios-frontier + the mios-* toolset from there -- always CURRENT, never a
+# baked-stale copy (operator-flagged: mios-frontier "command not found" inside a
+# stale image). The baked /usr/local/bin copies remain the fallback when the root
+# is not mounted. Applied to login (/etc/profile.d) AND interactive non-login
+# (/etc/bash.bashrc) shells so the code-server terminal always resolves them.
+RUN printf '%s\n' \
+  '# MiOS: prefer the live tools from the bind-mounted deployed root.' \
+  'if [ -d /mnt/mios-root/usr/share/mios/agents ]; then' \
+  '  case ":$PATH:" in' \
+  '    *:/mnt/mios-root/usr/share/mios/agents:*) : ;;' \
+  '    *) PATH="/mnt/mios-root/usr/share/mios/agents:/mnt/mios-root/usr/bin:/mnt/mios-root/usr/libexec/mios:$PATH"; export PATH ;;' \
+  '  esac' \
+  'fi' \
+  > /etc/profile.d/mios-agents-path.sh \
+  && cat /etc/profile.d/mios-agents-path.sh >> /etc/bash.bashrc
 
 USER coder
-ENV PATH=/usr/local/bin:/home/coder/.local/bin:$PATH \
+ENV PATH=/mnt/mios-root/usr/share/mios/agents:/mnt/mios-root/usr/bin:/mnt/mios-root/usr/libexec/mios:/usr/local/bin:/home/coder/.local/bin:$PATH \
     MIOS_A2O_ENGINE=agy \
     MIOS_A2O_WORK=/mnt/mios-root
 # code-server's default entrypoint keeps serving the browser IDE; the tmux war

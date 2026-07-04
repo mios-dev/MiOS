@@ -162,6 +162,43 @@ print("\n".join(chain))
 PYEOF
 }
 
+# Resolve the native tab/window flag(s) for a browser target + mode from the SSOT
+# [browser.*] map. Empty when unknown (degrade-open: the running instance opens a
+# tab by default when the binary is invoked with the URL). NO-HARDCODE.
+_browser_flag() {
+    python3 - "$1" "$2" <<'PYEOF' 2>/dev/null || true
+import sys
+try:
+    import tomllib
+except ImportError:
+    try:
+        import tomli as tomllib
+    except ImportError:
+        sys.exit(0)
+target = (sys.argv[1] or "").lower()
+mode = sys.argv[2] or "tab"
+for p in ("/etc/mios/mios.toml", "/usr/share/mios/mios.toml"):
+    try:
+        with open(p, "rb") as f:
+            d = tomllib.load(f)
+    except Exception:
+        continue
+    br = d.get("browser", {}) or {}
+    fam_map = br.get("family", {}) or {}
+    flags = br.get("flags", {}) or {}
+    if not fam_map and not flags:
+        continue
+    fam = ""
+    for name, subs in fam_map.items():
+        if isinstance(subs, list) and any(isinstance(s, str) and s.lower() in target for s in subs):
+            fam = name
+            break
+    if fam and isinstance(flags.get(fam), dict):
+        print((flags[fam].get(mode) or "").strip())
+    break
+PYEOF
+}
+
 if [ -n "$OVERRIDE" ]; then
     CHAIN="$OVERRIDE"
 else
@@ -236,14 +273,19 @@ while IFS= read -r TARGET; do
     [ -z "$TARGET" ] && continue
     echo "[mios-open-url] trying browser: $TARGET" >&2
     _verify_pattern="$(_derive_verify_pattern "$TARGET")"
+    # Native disposition flag (tab reuses the running instance; SSOT [browser.*]).
+    _FLAG="$(_browser_flag "$TARGET" "$EFF_MODE")"
 
         if [ "$TARGET" = "cmd.exe" ] || [ "$TARGET" = "explorer.exe" ]; then
             WIN_URL=$(wslpath -w "$URL" 2>/dev/null || echo "$URL")
+            # cmd.exe start delegates to the Windows default browser's protocol
+            # handler, which reuses the running instance -> opens a TAB already.
             echo "[mios-open-url] trying Windows handler: $TARGET '$WIN_URL'" >&2
             cmd.exe /c start "" "$WIN_URL"
             _launch_rc=$?
         else
-            mios-gui "$TARGET" "$URL"
+            # shellcheck disable=SC2086  # $_FLAG deliberately word-splits into flag tokens
+            mios-gui "$TARGET" $_FLAG "$URL"
             _launch_rc=$?
         fi
 
@@ -325,7 +367,8 @@ while IFS= read -r TARGET; do
         # Re-try the SAME browser one more time after heal before
         # moving down the chain (give the heal a chance on the
         # operator's preferred default).
-        mios-gui "$TARGET" "$URL" >/dev/null 2>&1
+        # shellcheck disable=SC2086
+        mios-gui "$TARGET" $_FLAG "$URL" >/dev/null 2>&1
         _verify=$(mios-window-active --present "$_verify_pattern" 2>/dev/null)
         _summary=$(_parse_summary "$_verify")
         if [ "$_summary" = "presented" ]; then

@@ -5407,7 +5407,7 @@ _DEFAULT_ALLOWLIST_HOSTS = {
     "localhost", "127.0.0.1", "::1",
     "host.containers.internal",
     "mios-llm-light", "mios-open-webui", "mios-hermes", "mios-pgvector",
-    "mios-forge", "mios-searxng", "mios-code-server",
+    "mios-forge", "mios-searxng", "mios-agents",
 }
 _env_allowlist = os.environ.get("MIOS_SECURITY_ALLOWLIST_HOSTS", "").strip()
 if _env_allowlist:
