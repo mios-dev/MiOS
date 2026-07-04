@@ -17,6 +17,14 @@ set -euo pipefail
 
 set -u
 
+# Resolve service ports from SSOT: install.env bridges mios.toml [ports] ->
+# MIOS_PORT_*. Hardcoded literals here silently broke when [ports] was
+# renumbered -- probing a dead :${LLM_LIGHT_PORT} while the lane serves :8450 reported a
+# false "unreachable" (T-120/T-121). Read the SSOT; defaults track [ports].
+[ -r /etc/mios/install.env ] && . /etc/mios/install.env || true
+LLM_LIGHT_PORT="${MIOS_PORT_LLM_LIGHT:-8450}"
+OWUI_PORT="${MIOS_PORT_OPEN_WEBUI:-8033}"
+
 # Run subcommands as a specified user without a TTY trap.
 _run_as() { sudo -u "$1" -- "${@:2}"; }
 
@@ -59,13 +67,13 @@ else warn "NoNewPrivileges=$nnp (sudo from agent will fail)"; fi
 
 echo
 echo "── ── ──  llm-light + main models"
-if curl -sf --max-time 3 http://localhost:11450/api/tags >/dev/null 2>&1; then
-    ok "llm-light (dGPU/main) API reachable on :11450"
-    models=$(curl -s --max-time 3 http://localhost:11450/api/tags 2>/dev/null | \
+if curl -sf --max-time 3 http://localhost:${LLM_LIGHT_PORT}/api/tags >/dev/null 2>&1; then
+    ok "llm-light (dGPU/main) API reachable on :${LLM_LIGHT_PORT}"
+    models=$(curl -s --max-time 3 http://localhost:${LLM_LIGHT_PORT}/api/tags 2>/dev/null | \
         python3 -c 'import sys,json; print(",".join(m["name"] for m in json.load(sys.stdin).get("models",[])))' 2>/dev/null)
     info "models: ${models:-(none)}"
 else
-    fail "llm-light (dGPU/main) not reachable on :11450"
+    fail "llm-light (dGPU/main) not reachable on :${LLM_LIGHT_PORT}"
 fi
 
 echo
@@ -79,9 +87,9 @@ _vis_model=$(grep -E '^vision_grounding_model' /usr/share/mios/mios.toml 2>/dev/
     | head -1 | sed -E 's/.*=[[:space:]]*"?([^"#]*)"?.*/\1/' | tr -d '[:space:]')
 _vis_probe="${_vis_model:-qwen3-vl:4b}"
 if printf '%s' "${models:-}" | grep -qiE "${_vis_probe%%:*}|qwen3-vl|holo"; then
-    ok "vision-grounding VLM ($_vis_probe) served on :11450 -- cu_ground/pc_ground/cu_act hybrid ACTIVE"
+    ok "vision-grounding VLM ($_vis_probe) served on :${LLM_LIGHT_PORT} -- cu_ground/pc_ground/cu_act hybrid ACTIVE"
 else
-    warn "vision-grounding VLM not served on :11450 -- the accessibility-tree->vision fallback is INERT"
+    warn "vision-grounding VLM not served on :${LLM_LIGHT_PORT} -- the accessibility-tree->vision fallback is INERT"
     info "activate WS-8 hybrid: place the Holo1.5 GGUF + mmproj under /models (the qwen3-vl:4b"
     info "  slot in usr/share/mios/llamacpp/mios-llm-light.yaml), then restart mios-llm-light"
 fi
@@ -95,10 +103,10 @@ if podman ps --filter name=mios-open-webui --format '{{.Status}}' 2>/dev/null | 
 else
     fail "mios-open-webui container not Up (run as sudo if container is rootful)"
 fi
-if curl -sf --max-time 3 http://localhost:3030/api/version >/dev/null 2>&1; then
-    ok "owui API on :3030 reachable"
+if curl -sf --max-time 3 http://localhost:${OWUI_PORT}/api/version >/dev/null 2>&1; then
+    ok "owui API on :${OWUI_PORT} reachable"
 else
-    warn "owui API on :3030 not reachable"
+    warn "owui API on :${OWUI_PORT} not reachable"
 fi
 
 echo
@@ -168,7 +176,7 @@ micro_model=$(grep -hE '^\s*micro_model\s*=' \
     /etc/mios/mios.toml /usr/share/mios/mios.toml 2>/dev/null | \
     head -1 | sed -E 's/.*=\s*"([^"]+)".*/\1/')
 [ -z "$micro_model" ] && micro_model="granite4.1:8b"
-if curl -sf --max-time 3 "http://localhost:11450/api/tags" 2>/dev/null | \
+if curl -sf --max-time 3 "http://localhost:${LLM_LIGHT_PORT}/api/tags" 2>/dev/null | \
    grep -qF "\"$micro_model\""; then
     ok "micro-LLM ($micro_model) available in llm-light (observability+gating ready)"
 else
