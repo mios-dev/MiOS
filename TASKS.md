@@ -2987,6 +2987,8 @@ T-094 (CONV-01 SSOT)
 
 ## T-138: WISO-07 -- DISM-native debloat + oscdimg assembly + CI  [P2]
 > **Priority:** P2 | **Status:** pending | **Effort:** L | **Domain:** Windows/Install | **Source:** Part 12 WS-WISO. **[OPERATOR DECISION]** DISM-native vs NTLite-licensed CLI.
+>
+> **Research (2026-07-04, verified + cited):** see `usr/share/doc/mios/concepts/dism-native-windows-iso-2026-07-04.md`. Verdicts: WSL2 is FULLY offline-bakeable (GitHub WSL MSI + distro rootfs `.tar` + `podman machine init --image <local>`; kernel bundled since WSL 1.0.0 GA); tiny11 standard maker = the reference DISM sequence (keep serviceability, avoid Core); OEM/branding/fonts/cursors bake via the offline `Users\Default\NTUSER.DAT` hive (accent needs a RunOnce backstop; `Segoe UI`->Geist only reskins legacy GDI, NOT WinUI3); local accounts + the scheduled task + a real `M:\` + `podman machine init` are FIRST-LOGON only; LabConfig bypass keys bake offline (Setup-only); pipeline runs headless on GitHub Actions `windows-2025` (install oscdimg, manage ~14 GB disk). Validation gap: air-gapped `podman --image` + 24H2/25H2 Setup UI.
 
 **Instructions:** Canonical = DISM-native debloat (appx/capability/feature removal + LabConfig) generated from the same SSOT remove-list (NTLite CLI is paid-only; keep as optional accelerator). Then oscdimg dual BIOS/UEFI build -> `MiOS-Win11.iso` / `MiOS-XBOX.iso`. GitHub-Actions: fetch -> customize -> assemble -> VM smoke-boot.
 **Done When:**
