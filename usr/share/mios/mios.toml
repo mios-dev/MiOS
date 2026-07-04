@@ -212,6 +212,11 @@ max_proposals_per_pass = 3   # cap proposals drafted per loop pass (bounded chan
 # these directly from mios.toml so they apply without a userenv re-render.
 # ----------------------------------------------------------------------------
 [portal]
+# Externally-reachable name for the portal's service tiles (e.g. a Tailscale
+# MagicDNS name whose HTTPS cert `tailscale serve` binds to). EMPTY by default:
+# the vendor image bakes NO specific host -> agent-pipe degrades to this
+# machine's own hostname. Set to YOUR public name to link tiles to it.
+public_host = ""
 require_login = true     # false ONLY if a reverse proxy already authenticates
 user          = ""       # empty = inherits [identity].username
 password      = ""       # empty = inherits [identity].default_password

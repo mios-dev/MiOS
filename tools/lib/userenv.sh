@@ -300,6 +300,7 @@ slots = [
     ("identity.shell",                 "MIOS_DEFAULT_SHELL"),
     ("identity.groups",                "MIOS_DEFAULT_GROUPS"),
     ("identity.default_password",      "MIOS_DEFAULT_PASSWORD"),
+    ("portal.public_host",             "MIOS_PUBLIC_HOST"),
     ("portal.require_login",           "MIOS_PORTAL_REQUIRE_LOGIN"),
     ("portal.user",                    "MIOS_PORTAL_USER"),
     ("portal.password",                "MIOS_PORTAL_PASSWORD"),

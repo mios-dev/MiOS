@@ -25,6 +25,7 @@ import json
 import logging
 import os
 import re
+import socket
 import sys
 import time
 from typing import Any, Optional
@@ -94,7 +95,11 @@ def configure(*, probe_auth_headers=None, agent_lane=None,
 # https://<name>:<port> -- valid HTTPS provided by `tailscale serve
 # --tls-terminated-tcp=<port>` per service (the cert is bound to this name,
 # so the NAME, not the IP, is used; clients need MagicDNS).
-PORTAL_PUBLIC_HOST = os.environ.get("MIOS_PUBLIC_HOST", "mios.taildd86d0.ts.net")
+# SSOT [portal].public_host -> MIOS_PUBLIC_HOST. EMPTY by default -- the vendor
+# image bakes NO specific operator's tailnet name. Degrade-open: unset -> this
+# host's own name (tiles stay reachable), never a hardcoded operator identity.
+PORTAL_PUBLIC_HOST = (os.environ.get("MIOS_PUBLIC_HOST", "").strip()
+                      or socket.gethostname() or "localhost")
 
 
 # ── Portal authentication ("since this is a webapp and a
