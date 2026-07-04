@@ -484,6 +484,8 @@ slots = [
     ("uki.verity_uki_build",             "MIOS_UKI_VERITY_BUILD"),
     # ── verity (anti-fabrication guards) ─────────────────────────────────
     ("verity.antifab_enable",            "MIOS_ANTIFAB_ENABLE"),
+    ("verity.antifab_min_entities",      "MIOS_ANTIFAB_MIN_ENTITIES"),
+    ("verity.antifab_ground_min",        "MIOS_ANTIFAB_GROUND_MIN"),
     # ── fs_watcher (Phase A.2 -- inotify event bus) ──────────────────────
     ("fs_watcher.watch_dirs",          "MIOS_FS_WATCHER_DIRS"),
     # ── pkg (Phase C.1 -- Personal Knowledge Graph) ──────────────────────

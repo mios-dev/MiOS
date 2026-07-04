@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+# AI-hint: Applies the code-server / war-room workspace (an ext4 replica of the MiOS
+# repo) DIRECTLY onto the deployed MiOS system root so agent edits go LIVE without a
+# GitHub round-trip. GATED to MUTABLE MiOS-DEV roots only -- an immutable bootc/ostree
+# root (read-only /usr) is REFUSED (use `bootc upgrade` / `mios-deploy`). Syncs ONLY
+# git-visible files (tracked + new, minus .gitignore), never deletes by default, never
+# touches untracked system dirs (/home, /var runtime, /proc...). Agent-triggerable via
+# the `sync_to_root` verb / the sync-to-root skill.
+# AI-related: /usr/share/mios/agents/mios-frontier-sync, /usr/libexec/mios/verify-root.sh,
+#   /usr/bin/mios-deploy, /etc/mios/install.env, mios.toml [verbs.sync_to_root]
+# AI-functions: log, die, resolve_src, mutability_gate, build_fileset, do_sync
+#
+# WHY (timeless): the war-room develops MiOS on a writable ext4 REPLICA because WSL
+# /mnt/c (drvfs) is not container-writable; the deployed dev root and the replica only
+# converged via git push->pull, which is slow/error-prone. This closes the last mile
+# with a DIRECT, gated, git-visible-only sync. On an immutable production image the OS
+# tree is read-only by design, so this MUST refuse there -- image changes ship via bootc.
+#
+# Usage: mios-sync-to-root [apply|check|dry-run]   (default: apply)
+#   check | dry-run  -- show what WOULD change, touch nothing (rsync --dry-run)
+#   apply            -- perform the sync
+# Env (all SSOT / degrade-open; nothing hardcoded that lives in mios.toml):
+#   MIOS_FRONTIER_WORKSPACE / MIOS_A2O_WORK  -- the replica repo (SRC). Auto-detected
+#                                               if unset (first dir with a .git below).
+#   MIOS_SYNC_ROOT_DEST      -- target root (default /). Must be a MiOS root.
+#   MIOS_SYNC_ROOT_PRUNE=1   -- ALSO delete files removed from SRC (off by default; the
+#                               safe default never removes anything from the live root).
+set -uo pipefail
+
+ENV_FILE=/etc/mios/install.env
+[ -r "$ENV_FILE" ] && { set -a; . "$ENV_FILE"; set +a; }
+
+MODE="${1:-apply}"
+DEST="${MIOS_SYNC_ROOT_DEST:-/}"
+PRUNE="${MIOS_SYNC_ROOT_PRUNE:-0}"
+
+log(){ printf '[sync-to-root] %s\n' "$*" >&2; }
+die(){ printf '[sync-to-root] REFUSED: %s\n' "$*" >&2; exit 2; }
+
+case "$MODE" in apply|check|dry-run) ;; *) die "unknown mode '$MODE' (apply|check|dry-run)";; esac
+command -v rsync >/dev/null 2>&1 || die "rsync not found on PATH"
+command -v git   >/dev/null 2>&1 || die "git not found on PATH"
+
+# --- resolve the replica (SRC) from SSOT, else auto-detect a repo checkout ---
+SRC="${MIOS_FRONTIER_WORKSPACE:-${MIOS_A2O_WORK:-}}"
+if [ -z "$SRC" ] || [ ! -d "$SRC/.git" ]; then
+    SRC=""
+    for _c in /mnt/mios-root "${HOME:-/root}/MiOS" /var/lib/mios/agents/MiOS; do
+        [ -d "$_c/.git" ] && { SRC="$_c"; break; }
+    done
+fi
+[ -n "$SRC" ] && [ -d "$SRC/.git" ] || die "no code-server workspace repo found (set MIOS_FRONTIER_WORKSPACE)"
+SRC="$(cd "$SRC" && pwd -P)"
+DEST_ABS="$(cd "$DEST" 2>/dev/null && pwd -P)" || die "target root '$DEST' does not exist"
+[ "$SRC" != "$DEST_ABS" ] || die "SRC and DEST are the same path ($SRC) -- already live, nothing to sync"
+
+# --- target must be an actual MiOS root (prevents syncing onto a wrong / -- e.g. the
+#     code-server container's own image, whose os-release is NOT MiOS) ---
+if [ -r "$DEST_ABS/usr/lib/os-release" ]; then _osr="$DEST_ABS/usr/lib/os-release";
+elif [ -r "$DEST_ABS/etc/os-release" ]; then _osr="$DEST_ABS/etc/os-release"; else _osr=""; fi
+[ -n "$_osr" ] && grep -qiE '^(VARIANT_ID=mios|NAME="?MiOS)' "$_osr" \
+    || die "target root '$DEST_ABS' is not a MiOS deploy (os-release check) -- refusing to overwrite a foreign root"
+
+# --- MUTABILITY GATE: only mutable MiOS-DEV roots (immutable bootc is read-only) ---
+# Per verify-root.sh: an immutable production image is ostree-booted with a read-only
+# /usr. The definitive operational test is whether we can write the OS tree at DEST.
+if [ -e /run/ostree-booted ] && [ ! -w "$DEST_ABS/usr" ]; then
+    die "immutable bootc/ostree root (read-only $DEST_ABS/usr) -- ship changes via 'bootc upgrade' / mios-deploy, not a live sync"
+fi
+[ -w "$DEST_ABS/usr" ] || die "$DEST_ABS/usr is not writable -- not a mutable MiOS-DEV deploy"
+
+# --- build the git-visible fileset: tracked + new untracked, honoring .gitignore
+#     (so build artifacts output/, *.qcow2/iso/vhdx, node_modules, .venv are excluded).
+#     NUL-delimited to survive spaces/newlines in paths. ---
+git config --global --add safe.directory "$SRC" 2>/dev/null || true
+mapfile -d '' -t FILES < <(git -C "$SRC" ls-files -z -c -o --exclude-standard)
+[ "${#FILES[@]}" -gt 0 ] || die "git ls-files produced no files in $SRC (empty/broken repo?)"
+
+# --- sync (rsync, NUL file list, NEVER --delete unless PRUNE explicitly set) ---
+RSYNC=(rsync -a --from0 --files-from=- )
+[ "$MODE" = apply ] || RSYNC+=(--dry-run --itemize-changes)
+if [ "$PRUNE" = 1 ]; then
+    # Deletion is intentionally NOT the default: a stray SRC state could otherwise
+    # remove live files. PRUNE only prunes files git no longer tracks, still scoped
+    # to the git-visible set via --delete-missing-args semantics of --files-from.
+    RSYNC+=(--delete-missing-args)
+    log "PRUNE=1: files absent from SRC's git-visible set will be removed from DEST"
+fi
+
+log "mode=$MODE  src=$SRC  dest=$DEST_ABS  files=${#FILES[@]}  prune=$PRUNE"
+printf '%s\0' "${FILES[@]}" | "${RSYNC[@]}" "$SRC"/ "$DEST_ABS"/ 2>&1 | sed 's/^/[sync-to-root] /'
+rc="${PIPESTATUS[1]}"
+
+if [ "$rc" -eq 0 ]; then
+    if [ "$MODE" = apply ]; then
+        log "OK: applied ${#FILES[@]} git-visible file(s) to $DEST_ABS (live). Restart affected services / mios-sync-env if config changed."
+    else
+        log "OK: dry-run complete (nothing changed). Re-run 'mios-sync-to-root apply' to make it live."
+    fi
+else
+    log "rsync exited rc=$rc -- partial or failed sync; the live root may be inconsistent, inspect above."
+fi
+exit "$rc"

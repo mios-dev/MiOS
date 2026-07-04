@@ -2457,6 +2457,17 @@ sentence_abbreviations = [
 # Bridged to MIOS_ANTIFAB_ENABLE (read by mios_pipe.routing). Degrade-OPEN: set
 # false to restore the pre-guard passthrough behaviour.
 antifab_enable = true
+# Anti-fabricated-CITATION (per-section grounding) thresholds. A web/news answer
+# is split into sections; a section is dropped only when it carries at least
+# antifab_min_entities candidate entity tokens (proper nouns / years / domains --
+# structural, unicode-aware, no keyword list) AND its grounded fraction (entities
+# present in the actually-fetched source text) is below antifab_ground_min. Higher
+# min_entities = less aggressive (needs more signal before judging); higher
+# ground_min = stricter (demands more of a section be grounded). Bridged to
+# MIOS_ANTIFAB_MIN_ENTITIES / MIOS_ANTIFAB_GROUND_MIN. Degrade-OPEN on empty corpus
+# / caseless script / too-few entities.
+antifab_min_entities = 3
+antifab_ground_min = 0.34
 
 # ── WS-2 Code Mode. The agent writes CODE that calls a local tool
 # API inside the rootless podman coderun-sandbox instead of loading ~71 function
@@ -3182,6 +3193,26 @@ permission       = "read"
 max_result_chars = 0
 parallel_limit   = 0
 hidden           = false
+
+# MiOS-DEV self-development: apply the war-room / code-server workspace edits
+# DIRECTLY onto the deployed dev root so they go live for testing without a GitHub
+# round-trip. GATED to a MUTABLE MiOS-DEV root (an immutable bootc root is refused;
+# ship those via bootc upgrade). Syncs only git-visible files, never deletes. The
+# executable enforces every gate -- see usr/libexec/mios/mios-sync-to-root.
+[verbs.sync_to_root]
+section    = "MiOS-DEV / self-development"
+sig        = 'mode="apply"?'
+desc       = "Apply the code-server/war-room workspace edits DIRECTLY onto the deployed MiOS-DEV root so they go LIVE for testing (no GitHub round-trip). Only works on a mutable MiOS-DEV deploy; an immutable bootc root is refused. Use mode=check (or dry-run) to preview what would change without touching anything, then mode=apply to make it live."
+examples   = ["apply my code-server changes to the dev root", "sync the war-room workspace live for testing", "push these edits into MiOS-DEV so I can test them", "dry-run what a sync-to-root would change"]
+tier       = "rare"
+permission = "write"
+cmd        = "mios-sync-to-root {mode=apply}"
+  [verbs.sync_to_root.params.mode]
+  type    = "string"
+  desc    = "apply = make the workspace edits live on the dev root; check/dry-run = preview only, touch nothing."
+  enum    = ["apply", "check", "dry-run"]
+  default = "apply"
+  aliases = ["action", "op"]
 
 [verbs.open_app]
 hidden = true

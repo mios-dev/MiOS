@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import re
 import time
 import logging
@@ -58,8 +59,188 @@ from mios_config import (
 # directly for _format_local_state's final clean-up (no cycle -- mios_turn imports
 # no siblings).
 from mios_turn import _strip_think_tags
+# The web-enrich verb SET (which role:"tool" outputs count as fetched ground
+# truth) lives in toolexec's SSOT; referenced through the module so a runtime
+# reconfigure() is reflected (no duplicated literal set -- Law 7).
+from mios_pipe.routing import toolexec as _toolexec
 
 log = logging.getLogger("mios-agent-pipe")
+
+
+# ── Anti-fabrication guards (FAB-01 fabricated execution / FAB-02 fabricated
+# grounding). Extracted to module scope so each stage is unit-testable WITHOUT
+# standing up the pipe. The SSOT flag + thresholds are bridged from mios.toml
+# [verity] via MIOS_ANTIFAB_* (userenv.sh -> system-sync-env.sh -> install.env);
+# env is the live source and the get() fallbacks are the degrade-OPEN defaults
+# used only before the bridge runs (they mirror the SSOT defaults). Same idiom as
+# the chat-sibling flag. -------------------------------------------------------
+_ANTIFAB_ENABLE = os.environ.get(
+    "MIOS_ANTIFAB_ENABLE", "true").strip().lower() not in {"false", "0", "no", "off"}
+
+
+def _antifab_min_entities() -> int:
+    """Minimum candidate entities a section must carry before its grounding is
+    judged; below this the signal is too thin to trust -> degrade-open. SSOT:
+    [verity].antifab_min_entities -> MIOS_ANTIFAB_MIN_ENTITIES (live)."""
+    try:
+        return int(os.environ.get("MIOS_ANTIFAB_MIN_ENTITIES", "").strip() or 3)
+    except ValueError:  # malformed override -> fall back to the degrade-open default
+        return 3
+
+
+def _antifab_ground_min() -> float:
+    """Minimum grounded fraction a judged section must clear to survive; below it
+    the section's named entities are mostly absent from every fetched source ->
+    fabricated. SSOT: [verity].antifab_ground_min -> MIOS_ANTIFAB_GROUND_MIN."""
+    try:
+        return float(os.environ.get("MIOS_ANTIFAB_GROUND_MIN", "").strip() or 0.34)
+    except ValueError:
+        return 0.34
+
+
+# Executor-evidence shapes. The '🤝 <verb> output:' sentinel is emitted ONLY into
+# the reasoning stream by the tool executor -- it is never concatenated into a
+# model-synthesized answer -- and the {"success":true,...,"tool":"..."} form is a
+# tool-run success claim. A synthesized answer that WRITES either is reprinting an
+# execution it did not produce (FAB-01). The 🤝 glyph appears ONLY on the
+# executor's evidence line, so matching any 🤝-line that mentions 'output' (the
+# real 'output:' AND a mimicked-but-varied 'output (truncated for brevity):') and
+# consuming its block to the next blank line is safe and total in synthesized prose.
+_RE_EVIDENCE_SENTINEL = re.compile(r'🤝[^\n]*output.*?(?=\n\n|\Z)', re.DOTALL)
+_RE_SUCCESS_JSON = re.compile(
+    r'\{[^{}]*"success"\s*:\s*true[^{}]*"tool"\s*:\s*"[^"]+"[^{}]*\}', re.DOTALL)
+
+
+def _strip_synth_evidence(ans: str) -> str:
+    """FAB-01 (synthesized answer): strip EVERY executor-evidence block. Verb
+    membership is irrelevant -- a synthesized answer is prose, so any sentinel or
+    success-JSON block is model-authored (e.g. a duplicate invented 'apps' block
+    for an already-fired verb). Lossless for real answers: the sentinel never
+    legitimately reaches synthesized prose."""
+    _san = _RE_EVIDENCE_SENTINEL.sub("", ans)
+    _san = _RE_SUCCESS_JSON.sub("", _san)
+    return _san
+
+
+def _real_tool_output(m2) -> dict:
+    """verb-name -> REAL captured output, from the secondary loop's role:"tool"
+    messages (the in-scope ground truth for what each verb actually returned)."""
+    return {str(_mm.get("name")): str(_mm.get("content") or "")
+            for _mm in (m2 or [])
+            if isinstance(_mm, dict) and _mm.get("role") == "tool"}
+
+
+def _keep_matching_success_json(ans: str, real_out: dict) -> str:
+    """FAB-01 (raw-evidence path): the answer IS surfaced executor evidence, so a
+    success-JSON block is legitimate ONLY if it byte-matches the real captured
+    output for its verb in `real_out`; a non-matching one is fabricated -> drop.
+    The sentinel form never appears on this path."""
+    def _keep(_m):
+        _blk = _m.group(0)
+        _mv = re.search(r'"tool"\s*:\s*"([^"]+)"', _blk)
+        _vn = _mv.group(1) if _mv else ""
+        return _blk if (_vn and _blk.strip() in str(real_out.get(_vn) or "")) else ""
+    return _RE_SUCCESS_JSON.sub(_keep, ans)
+
+
+def _guard_fabricated_execution(ans, *, surfaced_raw_evidence, m2, enable):
+    """FAB-01 guard body (extracted). SYNTHESIZED answer -> strip all evidence
+    blocks; RAW-evidence answer -> keep only success-JSON matching real tool
+    output. Degrade-OPEN: disabled / empty / error -> return `ans` byte-identical."""
+    if not (ans and enable):
+        return ans
+    try:
+        if not surfaced_raw_evidence:
+            _san = _strip_synth_evidence(ans)
+            if _san != ans:
+                log.warning("native-loop: stripped executor-evidence block(s) from "
+                            "synthesized answer (anti-fab)")
+                return _san.strip()
+            return ans
+        _san = _keep_matching_success_json(ans, _real_tool_output(m2))
+        if _san != ans:
+            log.warning("native-loop: dropped success-JSON block not matching "
+                        "captured tool output (anti-fab)")
+            return _san.strip()
+        return ans
+    except Exception:  # noqa: BLE001 -- degrade-open
+        return ans
+
+
+def _norm(s: str) -> str:
+    """Casefold + reduce to word chars for a language-neutral substring test."""
+    return re.sub(r"\W+", " ", str(s or ""), flags=re.UNICODE).casefold()
+
+
+def _entity_tokens(text: str) -> set:
+    """Structural, UNICODE-aware candidate entities (Law 7: NO English word list).
+    Bare registrable domains/hosts, digit-bearing tokens (years / versions /
+    counts), and proper-noun-shaped word tokens (unicode upper-initial or all-caps).
+    A caseless script (e.g. CJK) yields few/none -> callers see too-few entities
+    and degrade-open rather than strip."""
+    text = str(text or "")
+    ents = set()
+    for _m in re.findall(r"\b[\w-]+(?:\.[\w-]+)+\b", text):          # domains / hosts
+        if re.search(r"\.[^\W\d_]{2,}$", _m, re.UNICODE):
+            ents.add(_m)
+    for _m in re.findall(r"\b\w*\d[\w.]*\b", text):                   # digit-bearing
+        ents.add(_m)
+    for _w in re.findall(r"[^\W\d_][\w'’-]*", text, re.UNICODE):      # word tokens
+        if _w[:1].isupper() or _w.isupper():                         # proper-noun-ish
+            ents.add(_w)
+    return ents
+
+
+def _ground_sections(ans, corpus, min_entities, ground_min):
+    """FAB-02 per-SECTION grounding. Split the answer structurally (blank lines +
+    markdown heading boundaries) and drop ONLY a section that carries at least
+    `min_entities` candidate entities AND whose grounded fraction (entities whose
+    normalized form is a substring of the normalized fetched `corpus`) is below
+    `ground_min`. A section with too few entities is always kept (degrade-open,
+    covers caseless scripts). Returns (kept_text, stripped_any)."""
+    _nc = _norm(corpus)
+    if not _nc.strip():
+        return ans, False                       # no ground truth -> cannot verify
+    _sections = re.split(r"(?m)\n\s*\n|^(?=[ \t]*#{1,6}\s)", ans)
+    _kept, _stripped = [], False
+    for _sec in _sections:
+        if not _sec or not _sec.strip():
+            continue
+        _ents = _entity_tokens(_sec)
+        if len(_ents) < min_entities:
+            _kept.append(_sec.strip())          # too little signal -> keep
+            continue
+        _grounded = 0
+        for _e in _ents:
+            _ne = _norm(_e).strip()
+            if _ne and _ne in _nc:
+                _grounded += 1
+        if (_grounded / len(_ents)) < ground_min:
+            _stripped = True                    # mostly-ungrounded -> fabricated
+            continue
+        _kept.append(_sec.strip())
+    if not _stripped:
+        return ans, False
+    return "\n\n".join(_kept).strip(), True
+
+
+def _guard_entity_grounding(ans, corpus, *, gate, enable, min_entities, ground_min,
+                            note):
+    """FAB-02 guard body (extracted). Degrade-OPEN: disabled / ungated / empty
+    corpus / nothing stripped / error -> return `ans` unchanged. When it strips a
+    fabricated section it keeps the grounded sections and appends `note` (a
+    user-facing honest line -- output prose, NOT a decision gate)."""
+    if not (ans and enable and gate):
+        return ans
+    try:
+        _out, _stripped = _ground_sections(ans, corpus, min_entities, ground_min)
+        if _stripped and _out.strip():
+            log.warning("native-loop: stripped ungrounded section(s) from web/news "
+                        "answer (anti-fab per-section grounding)")
+            return _out.rstrip() + "\n\n" + note
+        return ans
+    except Exception:  # noqa: BLE001 -- degrade-open
+        return ans
 
 
 # -- Dependency-injection seam ----------------------------------------
@@ -619,6 +800,11 @@ async def _respond_native_loop_direct(
         # non-`web` domain) -- web-priming a "find my file" / "what's my CPU" query is
         # the route-by-source violation that made a local file-find web_search.
         _refs: list = []   # (title, url-or-path) SOURCES this turn -> saved References
+        # FETCHED-corpus ground truth for FAB-02 per-section grounding: the LIVE
+        # text the pipe actually retrieved this turn. Hoisted to function scope,
+        # appended as each fetch lands; stays "" for non-web turns -> the grounding
+        # guard degrades-open.
+        _fetched_corpus = ""
         # LOCAL-STATE prefetch FIRST (additive hybrid,): a
         # local_state turn reaches the native loop ONLY because it ALSO has a web
         # knowledge gap (pure-local goes to the deterministic fast-path). Ground THIS
@@ -661,6 +847,7 @@ async def _respond_native_loop_direct(
                           if isinstance(_wsr, dict) else str(_wsr or ""))
                 if _wtext.strip():
                     _push(" 🔎")
+                    _fetched_corpus += "\n" + _wtext   # FAB-02 ground truth
                     _msgs.append({"role": "system", "content":
                      "LIVE web_search results for the user's request (current and "
                      "real). Answer from THESE results; do NOT use training-memory "
@@ -853,6 +1040,10 @@ async def _respond_native_loop_direct(
         _stripped = re.sub(r"(?is)</?think>", "", _raw).strip()
     _raw = _stripped
     _ans = _raw
+    # PROVENANCE flag for the FAB-01 guard: True ONLY when `_ans` is surfaced RAW
+    # executor evidence (the relay-ladder fallback below), which must be preserved
+    # verbatim. False on every model-SYNTHESIZED path -> the evidence-strip applies.
+    _surfaced_raw_evidence = False
     # POLISH: heavy critic / style-correction over the final answer. Skipped when
     # the answer is ALREADY clean or if we streamed live (cannot rewrite past).
     if not getattr(locals(), "_live_streamed", False):
@@ -883,6 +1074,7 @@ async def _respond_native_loop_direct(
                     if len(_snips) >= 3:
                         break
             _ans = "\n\n".join(_snips).strip()
+            _surfaced_raw_evidence = bool(_ans)   # RAW executor evidence -> preserve verbatim
             # (3b) STILL empty but we injected saved-context recall this turn ->
             # surface it deterministically. granite sometimes emits NOTHING for a
             # memory ask (its "I have no memory" reflex -> 0 content + 0 tool-calls),
@@ -916,25 +1108,16 @@ async def _respond_native_loop_direct(
                 log.info("native-loop: %s", "surfaced tool evidence (raw+polish empty)"
                          if _ans else "no answer/raw/evidence (empty)")
     # ANTI-FABRICATED-EXECUTION guard (operator P0; sibling of the chat short-circuit
-    # guard): a synthesis hop that WRITES a tool-execution block ('🤝 <verb> output:'
-    # or {"success":true,"tool":...}) for a verb NOT in the turn's actually-fired set
-    # (_fired = the tool_calls the loop really dispatched) is narrating an execution
-    # that never happened -> strip that block. Degrade-open: no block / verb WAS fired.
-    if _ans:  # anti-fabrication is always-on (operator's #1 value); degrade-open below
-        try:
-            _fired_set = {str(_f) for _f in (_fired or [])}
-            def _drop_unfired(_m):
-                _blk = _m.group(0)
-                _mv = re.search(r'🤝\s+(\S+)\s+output|"tool"\s*:\s*"([^"]+)"', _blk)
-                _vn = ((_mv.group(1) or _mv.group(2)) if _mv else "") or ""
-                return "" if (_vn and _vn not in _fired_set) else _blk
-            _san = re.sub(r'🤝[^\n]*output\s*:.*?(?=\n\n|\Z)', _drop_unfired, _ans, flags=re.DOTALL)
-            _san = re.sub(r'\{[^{}]*"success"\s*:\s*true[^{}]*"tool"\s*:\s*"[^"]+"[^{}]*\}', _drop_unfired, _san, flags=re.DOTALL)
-            if _san != _ans:
-                log.warning("native-loop: stripped fabricated tool-result block(s) for unfired verb(s)")
-                _ans = _san.strip()
-        except Exception:  # noqa: BLE001 -- degrade-open
-            pass
+    # guard). Keys on CONTENT PROVENANCE, not verb membership: on a model-SYNTHESIZED
+    # answer any '🤝 <verb> output:' / {"success":true,"tool":...} block is
+    # model-authored (the real evidence streams to the reasoning pane), so ALL such
+    # blocks are stripped -- this kills FAB-01's duplicate fabricated block even for an
+    # already-FIRED verb, and subsumes the skill/recipe false-positive. On the
+    # RAW-evidence path a success-JSON block is kept only if it byte-matches the real
+    # captured output in _m2. Flag-gated (_ANTIFAB_ENABLE, SSOT); degrade-open.
+    _ans = _guard_fabricated_execution(
+        _ans, surfaced_raw_evidence=_surfaced_raw_evidence, m2=_m2,
+        enable=_ANTIFAB_ENABLE)
     # ANTI-FABRICATED-CITATION guard (operator no-farce): on a web/news turn, a
     # cited URL that is NOT among the sources actually FETCHED this turn was invented --
     # granite confidently emits e.g. "ai.googleblog.com/2024/..." as "this week's news"
@@ -964,6 +1147,33 @@ async def _respond_native_loop_direct(
                         "the current sources I found -- open one for the latest:")
         except Exception:  # noqa: BLE001 -- degrade-open, keep the model answer
             pass
+    # ANTI-FABRICATED-CITATION guard, PART 2 -- per-SECTION entity grounding
+    # (FAB-02): the URL check above only catches an off-list http URL; a partial
+    # fabrication (real fetched sources + an invented section that cites an outlet
+    # BY NAME, no URL) slips it. Complete the fetched corpus with the web-enrich
+    # tool outputs + real source titles/urls, then strip ONLY a section whose named
+    # entities are mostly absent from that corpus -- keeping the grounded half + the
+    # real Sources. Gated on the web/news signal (covers a news turn that never set
+    # domain==web) AND _ANTIFAB_ENABLE; degrade-open on empty corpus / caseless
+    # script / too-few entities. Thresholds from [verity] SSOT (no literals).
+    try:
+        for _mm in _m2:
+            if (isinstance(_mm, dict) and _mm.get("role") == "tool"
+                    and str(_mm.get("name")) in _toolexec._WEB_ENRICH_VERBS):
+                _fetched_corpus += "\n" + str(_mm.get("content") or "")
+        for _s in (_src_collected() or []):
+            if isinstance(_s, dict):
+                _fetched_corpus += ("\n" + str(_s.get("title") or "")
+                                    + " " + str(_s.get("url") or ""))
+    except Exception:  # noqa: BLE001 -- degrade-open (corpus stays partial/empty)
+        pass
+    _fab02_gate = bool((refined or {}).get("web") or (refined or {}).get("news")
+                       or _routed_domain_var.get(None) == "web")
+    _ans = _guard_entity_grounding(
+        _ans, _fetched_corpus, gate=_fab02_gate, enable=_ANTIFAB_ENABLE,
+        min_entities=_antifab_min_entities(), ground_min=_antifab_ground_min(),
+        note="*(Some content above could not be verified against the fetched "
+             "sources and was omitted.)*")
     # SAVE REFERENCES ("doesn't save references for web links"):
     # a small model cites web sources by NAME and drops the URL, so the answer loses
     # its links. Append a deterministic **Sources:** list from the REAL web_search

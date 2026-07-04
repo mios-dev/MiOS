@@ -168,6 +168,11 @@ EOF
     # Resolver-populated; emit only what resolved so an unset SSOT key leaves the
     # Python default (guard ON) intact -- degrade-open.
     [[ -n "${MIOS_ANTIFAB_ENABLE:-}" ]] && echo "MIOS_ANTIFAB_ENABLE=\"${MIOS_ANTIFAB_ENABLE}\""
+    # Per-section grounding thresholds ([verity].antifab_min_entities / .ground_min
+    # -> the FAB-02 citation guard). Resolver-populated; emit only what resolved so
+    # an unset key leaves the Python degrade-open default intact.
+    [[ -n "${MIOS_ANTIFAB_MIN_ENTITIES:-}" ]] && echo "MIOS_ANTIFAB_MIN_ENTITIES=\"${MIOS_ANTIFAB_MIN_ENTITIES}\""
+    [[ -n "${MIOS_ANTIFAB_GROUND_MIN:-}" ]] && echo "MIOS_ANTIFAB_GROUND_MIN=\"${MIOS_ANTIFAB_GROUND_MIN}\""
 
 
     # Frontier / A2O war-room roles (mios.toml [frontier] -> MIOS_A2O_* that the
