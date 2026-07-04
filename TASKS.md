@@ -2718,7 +2718,7 @@ T-084 (STRG-01 SSOT)
 **Done When:**
 - [x] SSOT `HealthCmd` added for both lanes, probing the runtime `${MIOS_PORT_*}` port (cpu-node -> llama-server `/health`; llm-light -> llama-swap `/v1/models`, model-load-free) -- commit c3eff07
 - [x] cpu-node `--ctx-size 32768` regenerated into the Quadlet (was drifted at 131072); `generate-pod-quadlets.py --check` green (26/26 match SSOT)
-- [ ] mios-cpu-node + mios-llm-light report Healthy after an operator pod recreate (daemon-reload + restart mios-ai.pod) -- LIVE-VERIFY pending
+- [x] mios-cpu-node + mios-llm-light report Healthy -- LIVE-VERIFIED in podman-MiOS-DEV: deployed the regenerated Quadlets, `systemctl daemon-reload` + `systemctl restart mios-cpu-node mios-llm-light`, both flipped to `Up (healthy)` within ~1 min
 
 ---
 
@@ -2786,3 +2786,133 @@ T-094 (CONV-01 SSOT)
 | `test_mios_cold_evict.py` (new) | T-102 |
 | `test_mios_mcp_pool.py` (new) | T-106 |
 | `test_lora_endpoints.py` (new) | T-099 |
+
+---
+
+# Part 11 — Win11-Minimal Install Completeness + NO-HARDCODE Sweep (2026-07-04 audit)
+
+<!-- Source: 4-agent read-only audit 2026-07-04 (hardcoded ports/IPs; hardcoded English keyword-gates;
+     Win11-minimal install completeness; SSOT-defaults coverage). Every item below carries live
+     file:line evidence from that audit. Law: NO-HARDCODE (ports/IPs/hosts/keyword-gates from
+     mios.toml SSOT with defaults; fix order model-driven > SSOT > unicode-aware > delete-dead) +
+     "everything defined by mios.toml/mios.html with defaults". -->
+
+## T-120: NOHC-01 -- Reconcile the `[ports]` SSOT renumber drift (8xxx) across code + bootstrap  [P1, systemic]
+> **Priority:** P1 | **Status:** pending | **Effort:** M | **Domain:** SSOT/Ports | **Source:** ports/IP audit 2026-07-04 -- `C:\MiOS` `[ports]` was renumbered into the 8xxx range (llm_light=8450, searxng=8899, open_webui=8033, pgvector=8432, cockpit=8090, forge_http=8300, sglang=8442, vllm=8441 -- confirmed live: `install.env` has `MIOS_PORT_LLM_LIGHT=8450`, `MIOS_PORT_CPU_NODE=8458`, and the lanes listen there) but **code, docs, and `C:\mios-bootstrap\mios.toml` still use the OLD values** (11450/8888/3030/5432/9090/3000/11441/11440). Live consequence: consumers that hardcode the old port hit a dead port (e.g. `mios-doctor:62` curls `localhost:11450` -> nothing listens -> false-negative health).
+
+**Instructions:** Pick ONE authoritative `[ports]` table (the 8xxx renumber appears intended -- it is what `install.env`/the live lanes use). Propagate it: (1) sync `C:\mios-bootstrap\mios.toml` `[ports]` to match `C:\MiOS`; (2) resolve every code literal (T-121) from `${MIOS_PORT_*}`; (3) document the container-INTERNAL vs host-published port distinction if the 11xxx values are internal. Add a drift-check that fails when the two repos' `[ports]` tables diverge.
+
+**Files:** `usr/share/mios/mios.toml` `[ports]` (~7615-7646), `C:\mios-bootstrap\mios.toml` `[ports]`, `automation/38-drift-checks.sh`.
+
+**Done When:**
+- [ ] one `[ports]` table is authoritative and identical across both repos (drift-check enforces it)
+- [ ] the internal-vs-published port semantics are documented where 11xxx lane ports are legitimately internal
+- [ ] `mios-doctor`/health probes hit the live port and report the real state
+
+## T-121: NOHC-02 -- De-hardcode port literals in libexec + agent-pipe code (22 sites)  [P1]
+> **Priority:** P1 | **Status:** pending | **Effort:** M | **Domain:** NO-HARDCODE/Ports | **Source:** ports/IP audit 2026-07-04 -- 22 evidenced port literals in live code (not comments), most also mismatching the current SSOT.
+
+**Instructions:** Replace each literal with a read from `${MIOS_PORT_*}` / `os.environ.get("MIOS_PORT_*", <SSOT-default>)`. P1 bare-literal sites: `mios-launch:173-179` (cockpit/owui/hermes/prefilter/searxng/forge alias dispatch), `mios-coderun-broker:65` (`:8640/v1/dispatch`), `mios-doctor:62,64,98,171` (`:11450`/`:3030` probes), `Get-MiOS.ps1:4150-4163` (`_ServiceCell -Port` literals), `Heal-MiOSLocalhostForwarding.ps1:33` (hardcoded port array), `build-mios.ps1:4721` (literal port map -- the sibling map at `:5567-5575` already resolves from `[ports]`; copy that pattern), `mios_pipe/routing/portal.py:773,775,864` (served JS `3030`/`8888`). P2 wrong-default fallbacks: `mios-compact:64`, `mios-cron-director:47`, `mios-daemon:87`, `mios-delegation-prefilter:66`, `mios-ingest:54`, `mios-ai-tag:298`, `mios-knowledge-search:48,61`, `gateway-agent/session.py:20`, `mios_pipe/memory/pg.py:79`, `gateway-agent/server.py:278`, `mios_endpoints.py:103`, `install-host-tools.ps1:501`. P3 served-prose: `grounding.py:432-436` (system-prompt bakes `:8640/:11450/:11441/:8642`), `mios-apps:587-591`, `mios-env-probe:189-191`.
+
+**Files:** the ~22 files above.
+
+**Done When:**
+- [ ] no bare port literal remains in code logic; each reads SSOT with the correct default
+- [ ] `grounding.py` system-prompt text renders ports from SSOT, not baked literals
+- [ ] a grep gate (T-125) passes
+
+## T-122: NOHC-03 -- Register the 6 unowned first-party service ports in `[ports]` SSOT  [P1]
+> **Priority:** P1 | **Status:** pending | **Effort:** S | **Domain:** SSOT/Ports | **Source:** SSOT-coverage + ports audits 2026-07-04 -- six named MiOS services have their port ONLY as a code literal, with no `[ports]` key and no `userenv.sh` bridge row.
+
+**Instructions:** Add `[ports]` keys (+ `userenv.sh` bridge rows + configurator field) for: `prefilter=8641` (`mios-delegation-prefilter:48` `MIOS_PREFILTER_LISTEN_PORT`), `arbiter=8650` (`mios-policy-arbiter:19`), `oscontrol=11437` (`mios-pc-control:80`), `model_router=11442` (`mios-model-router:38`), `daemon_agent=8644` (`mios-daemon:3082`, `mios-os-control:341`), `mcp=8765` (`mios-mcp-server:735`, `kernel/config.py:134-135`). Then repoint each consumer at `${MIOS_PORT_*}`.
+
+**Files:** `usr/share/mios/mios.toml` `[ports]`, `tools/lib/userenv.sh`, the 6 consumer scripts, `usr/share/mios/configurator/mios.html`.
+
+**Done When:**
+- [ ] all 6 service ports exist in `[ports]` with defaults and bridge rows; consumers read them
+- [ ] the configurator exposes them
+
+## T-123: NOHC-04 -- Purge baked operator identity + wire endpoint env vars to SSOT  [P1]
+> **Priority:** P1 | **Status:** pending | **Effort:** S | **Domain:** NO-HARDCODE/Privacy | **Source:** SSOT-coverage audit 2026-07-04 -- `MIOS_PUBLIC_HOST` defaults to a SPECIFIC operator's Tailscale MagicDNS name `"mios.taildd86d0.ts.net"` baked into `mios_pipe/routing/portal.py:97` (portability + privacy leak). Plus endpoint env vars restate ports instead of reading their existing SSOT keys.
+
+**Instructions:** (1) Remove the tailnet-host literal; default `MIOS_PUBLIC_HOST` to empty/`localhost` and source it from a new `[portal].public_host` SSOT key (degrade-open). (2) Wire these env defaults to their SSOT keys instead of restating ports: `MIOS_HERMES_ENDPOINT` (`kernel/config.py:178` -> `[hermes].endpoint`), `MIOS_HERMES_WORKER_ENDPOINT` (`:185` -> `[agents.hermes].endpoint`), heavy/vllm backends (`kernel/config.py:233-236`, `lanes_resolver.py:122-123`), `MIOS_A2A_DISCOVER_PORT` (`a2a_client.py:238` -> new `[a2a].discover_port`), `MIOS_PUBLIC_DOMAIN` (`a2a.py:478` -> new `[a2a].public_domain`). (3) Fix the orphaned `micro_*` SSOT: `micro_model`/`micro_endpoint` exist in `mios.toml` (~6184/6186) but `userenv.sh` has no bridge row, so `kernel/config.py:262-263` never sees them -> add the bridge rows.
+
+**Files:** `mios_pipe/routing/portal.py`, `mios_pipe/kernel/config.py`, `mios_pipe/routing/lanes_resolver.py`, `mios_pipe/federation/a2a*.py`, `usr/share/mios/mios.toml` (`[portal]`, `[a2a]`), `tools/lib/userenv.sh`.
+
+**Done When:**
+- [ ] no operator-specific hostname/tailnet id remains as a code default anywhere
+- [ ] every endpoint env var resolves from its SSOT section; `micro_*` defaults reach the pipe
+
+## T-124: NOHC-05 -- De-hardcode English keyword-gates in agent-pipe  [P1]
+> **Priority:** P1 | **Status:** pending | **Effort:** M | **Domain:** NO-HARDCODE/Routing | **Source:** keyword-gate audit 2026-07-04 -- code is mostly clean (router/classifier are model-driven/SSOT) but 4 decision-gating English matchers remain.
+
+**Instructions:** (1) `chat.py:1301-1304` -- inline temporal word-list gating `_time_sensitive`: DELETE it and key off model-emitted `refined.news or refined.needs_recency`. This is the surviving twin of a bug ALREADY fixed at `web_research.py:661-668`; lift that fix verbatim. (2) `routing.py:233` -- hardcoded English connective alternation `(in|and|then|with|on|to)` in `_deterministic_action_route`: move to `mios.toml [routing].compound_connectives`, load via `_load_routing_phrases` (all other vocab in that function is already SSOT-injected). (3) `federation/a2a_client.py:190-192` -- peer modality classification by model-id substrings (`embed|bert|bge` / `diffuse|flux|dall|sd`): derive modality from the SSOT model/engine registry, degrade-open to text. (4) `mios_gateway_queue.py:114-116` -- tool-param JSON-schema `type` inferred from English param-name substrings: read types from the SSOT verb-catalog typed schema (pairs with T-119). Low-priority notes: `cua.py:187-188` (English GOAL_REACHED sentinel/negation -- tighten only if hardening the protocol parse), `mios-finetune:164` (layer-name convention list -- marginal).
+
+**Files:** `mios_pipe/routing/chat.py`, `mios_pipe/routing/routing.py`, `mios_pipe/federation/a2a_client.py`, `mios_gateway_queue.py`, `usr/share/mios/mios.toml` `[routing]`.
+
+**Done When:**
+- [ ] `chat.py` time-sensitivity is model-flag-driven (no word-list); parity with `web_research.py`
+- [ ] compound-connective list lives in SSOT; a2a modality + gateway param-types read from SSOT
+- [ ] non-English / paraphrased inputs route identically (no ASCII-keyword regression)
+
+## T-125: NOHC-06 -- Extend NO-HARDCODE enforcement to ports/IPs in code (not just dates/.container)  [P2]
+> **Priority:** P2 | **Status:** pending | **Effort:** M | **Domain:** CI/Enforcement | **Source:** ports audit 2026-07-04 -- `usr/libexec/mios/mios-hardcode-lint` only checks date-literals + header/BOM; `check_container_ports` in `38-drift-checks.sh` only scans `.container` Quadlets. Port/IP hardcodes in `.py`/`.sh`/`.ps1` are currently UNENFORCED -- which is how the 22 T-121 sites accumulated.
+
+**Instructions:** Add a `check_code_ports_ips` gate: flag bare port literals (`:\d{4,5}` / `localhost:\d+` / `127.0.0.1:\d+`) and routable IPv4 literals in code logic, with an SSOT allowlist for legitimate exceptions (loopback binds, `0.0.0.0`, documented `172.16/12`, upstream image refs, test fixtures, RFC1918 comments). Wire into `mios-hardcode-lint` + `just drift-gate`. Seed the allowlist from the audit's "NOT violations" set.
+
+**Files:** `usr/libexec/mios/mios-hardcode-lint`, `automation/38-drift-checks.sh`, `usr/share/mios/mios.toml` (allowlist SSOT).
+
+**Done When:**
+- [ ] the gate flags a newly-introduced `:8640` literal in a `.py`/`.sh` and passes on the cleaned tree (post T-121)
+- [ ] allowlist is SSOT-driven, not inline
+
+## T-126: NOHC-07 -- SSOT hygiene: subnet IPs, dead bridge rows, configurator drift  [P3]
+> **Priority:** P3 | **Status:** pending | **Effort:** S | **Domain:** SSOT/Config | **Source:** ports + SSOT-coverage audits 2026-07-04.
+
+**Instructions:** (1) `automation/lib/globals.sh:214-216` -- podman subnet/gateway literals (`10.89.0.0/24`, `10.89.0.1`) as env-fallback defaults with no SSOT key: add `[network]` keys and read them. (2) Prune dead `userenv.sh` bridge rows for removed toml keys (`ports.ollama`, `ports.ollama_cpu`, `ports.hermes_workspace`, `services.ollama_cpu.*`, `image.sidecars.ollama*`/`hermes_workspace*`). (3) Close configurator drift: expose `[ports]` keys missing from `mios.html` (`stack_id`, `hermes_worker`, `hermes_dashboard`, `crawl4ai`, `firecrawl`, `adguard_dns`), `[network.quadlet]` (`core_subnet`, `core_gateway`), `[a2a]` (`protocol_version`, `route_on_card_skills`, `mdns_service_type`, `mdns_refresh_sec`).
+
+**Files:** `automation/lib/globals.sh`, `usr/share/mios/mios.toml` `[network]`, `tools/lib/userenv.sh`, `usr/share/mios/configurator/mios.html`.
+
+**Done When:**
+- [ ] subnet defaults come from `[network]` SSOT; dead bridge rows removed; configurator has no missing-key drift vs `[ports]`/`[network.quadlet]`/`[a2a]`
+
+## T-127: WIN-01 -- `Get-MiOS.ps1` entry-path prereq fallbacks (git + podman) before the fatal winget-only gates  [P1]
+> **Priority:** P1 | **Status:** pending | **Effort:** M | **Domain:** Install/Windows | **Source:** Win11-minimal audit 2026-07-04 -- on a fresh Win11 without winget, the canonical `irm|iex` one-liner DIES: `Get-MiOS.ps1:6497` `Require-Cmd "git"` hard-`exit 1`s, and git is only installed via winget (`Install-MiOSTerminalExtras`, `3246-3258`) which returns early if winget is absent (`3158-3161`). The robust PortableGit direct-download exists ONLY in `build-mios.ps1:8458-8480`, which runs AFTER the clone that needs git -- so it can never rescue the entry-path clone. Same shape for podman: `Get-MiOS.ps1:5141-5146` `exit 1` with no entry-path fallback.
+
+**Instructions:** Add PortableGit and podman-setup.exe direct-download fallbacks to `Get-MiOS.ps1` BEFORE the `Require-Cmd git` / podman gates (mirror `Install-MiosPrereqDirect` / the `build-mios.ps1` fallbacks). URLs/pkgs from SSOT `[packages.windows]` / `[bootstrap.prereqs]` (NO-HARDCODE). Ensure `Git.Git` is in the SSOT Windows package list, not only a code fallback list.
+
+**Files:** `C:\mios-bootstrap\Get-MiOS.ps1`, `C:\mios-bootstrap\mios.toml` (`[packages.windows]`, `[bootstrap.prereqs]`).
+
+**Done When:**
+- [ ] on a winget-less minimal Win11, `irm|iex` self-installs git + podman and completes the clone/bring-up with zero manual steps
+
+## T-128: WIN-02 -- Move the virtualization probe earlier (before disk-shrink + reboot)  [P2]
+> **Priority:** P2 | **Status:** pending | **Effort:** S | **Domain:** Install/Windows | **Source:** Win11-minimal audit 2026-07-04 -- the BIOS-virt-disabled probe (`VirtualizationFirmwareEnabled`/`HypervisorPresent`) lives only in `build-mios.ps1:8583`, i.e. AFTER `Get-MiOS.ps1` has already shrunk the disk, enabled features, and cloned. A virt-off machine burns a full partition + reboot cycle before failing.
+
+**Instructions:** Run the virtualization probe in `Get-MiOS.ps1` Pass-2, before `Initialize-DataDisk`. Fail fast with the existing "enable VT-x/AMD-V in BIOS" remediation. No behavior change on virt-enabled hosts.
+
+**Files:** `C:\mios-bootstrap\Get-MiOS.ps1`.
+
+**Done When:**
+- [ ] a virt-disabled machine fails with clear remediation BEFORE any disk/reboot changes
+
+## T-129: WIN-03 -- Podman CLI-only default + optional Desktop, and a login-time autostart "service"  [P2]
+> **Priority:** P2 | **Status:** pending | **Effort:** M | **Domain:** Install/Windows | **Source:** Win11-minimal audit 2026-07-04 (proposed changes, captured as tasks -- NOT yet implemented; the audit agent's speculative edits were reverted pending operator approval).
+
+**Instructions:** (1) Make "Podman for Windows" (CLI, `RedHat.Podman`) the primary/required install; gate Podman Desktop behind `[bootstrap.prereqs].install_podman_desktop` (default `false`). Update the winget-absent hint to point at the podman setup.exe. (2) Register a `MiOS-Autostart` Scheduled Task (AtLogon trigger, RunLevel Highest, hidden) that runs a staged `mios-autostart.ps1` which rebuilds PATH + `podman machine start <distro>` (so systemd inside the distro auto-starts every MiOS quadlet before the interactive desktop) -- the service-equivalent for a per-user WSL/podman-machine context, fail-soft, TOML-gated via `[bootstrap.autostart].enable`, with `HKCU\Run` fallback. Wire teardown into both reap paths (`Invoke-MiOSFullReap` + the `build-mios.ps1` uninstall here-string). NOTE the multi-user/SYSTEM-host caveat: the AtLogon task assumes a per-user podman machine.
+
+**Files:** `C:\mios-bootstrap\Get-MiOS.ps1`, `C:\mios-bootstrap\build-mios.ps1`, `C:\mios-bootstrap\mios.toml` (`[bootstrap.prereqs]`, `[bootstrap.autostart]`).
+
+**Done When:**
+- [ ] fresh install brings up podman CLI only (Desktop opt-in); the full quadlet stack auto-starts at logon before the desktop, with no UAC prompt; teardown removes the task
+
+## T-130: WIN-04 -- Residual minimal-Win11 hardening (GPU driver / long-path / TLS / offline / entry reconciliation)  [P3]
+> **Priority:** P3 | **Status:** pending | **Effort:** M | **Domain:** Install/Windows | **Source:** Win11-minimal audit 2026-07-04.
+
+**Instructions:** (1) Add a Windows-side GPU host-driver check/hint (NVIDIA/AMD/Intel) -- with no WSL-capable driver the AI plane silently degrades to CPU (`build-mios.ps1:3932-3947` wires `/dev/dxg`+CDI but never verifies the host driver). (2) Enable `LongPathsEnabled` (defensive). (3) Set `ServicePointManager` TLS 1.2 explicitly (down-level/.NET-old hosts). (4) Document offline/air-gap + proxy behavior (host irm/git/winget rely on system proxy). (5) Reconcile the two divergent "canonical" entry points: `bootstrap.ps1`'s docstring claims canonical but its irm path jumps straight to `build-mios.ps1` (which HAS the no-winget git/podman/wsl auto-install) and skips `Get-MiOS.ps1`'s M:\/elevation/WT staging -- pick one and make the other delegate.
+
+**Files:** `C:\mios-bootstrap\build-mios.ps1`, `C:\mios-bootstrap\Get-MiOS.ps1`, `C:\mios-bootstrap\bootstrap.ps1`.
+
+**Done When:**
+- [ ] GPU driver absence is detected + surfaced (not silent CPU fallback); long-path/TLS set; one canonical entry point; offline/proxy behavior documented
+
