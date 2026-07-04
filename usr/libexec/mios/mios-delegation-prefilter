@@ -63,7 +63,7 @@ HEADERS_DROP = {"host", "content-length"}
 # response streams back.
 # Default lane = mios-llm-light (:11450, OpenAI /v1); the old ollama :11434 is dead
 # (WS-10 "EVERYTHING IS LLAMA.CPP"), so a missing env must NOT point at it (2026-06-18).
-SYS_AGENT_ENDPOINT = os.environ.get("MIOS_SYS_AGENT_ENDPOINT", "http://127.0.0.1:11450/v1")
+SYS_AGENT_ENDPOINT = os.environ.get("MIOS_SYS_AGENT_ENDPOINT", f"http://127.0.0.1:{os.environ.get('MIOS_PORT_LLM_LIGHT', '8450')}/v1")
 SYS_AGENT_MODEL    = os.environ.get("MIOS_SYS_AGENT_MODEL", "granite4.1:8b")
 # Refinement is OPT-IN via env var; default OFF so a hung sys-agent
 # can't break the operator's chat. Operator enables once stage-2 is

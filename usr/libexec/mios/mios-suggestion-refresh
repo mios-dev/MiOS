@@ -366,7 +366,7 @@ def _ask_model(prompt: str) -> list[str]:
     return out
 
 
-OWUI_URL = os.environ.get("MIOS_OWUI_URL", "http://localhost:3030")
+OWUI_URL = os.environ.get("MIOS_OWUI_URL", f"http://localhost:{os.environ.get('MIOS_PORT_OPEN_WEBUI', '8033')}")
 
 
 def _admin_token() -> str:
