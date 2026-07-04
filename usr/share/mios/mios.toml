@@ -9654,6 +9654,16 @@ Wants = "network-online.target"
 ContainerName = "mios-cpu-node"
 Entrypoint = "/app/llama-server"
 Environment = "HOME=/var/lib/mios/llamacpp"
+# Health gate: the upstream llama-swap:cuda image bakes `curl localhost:8080/` as its
+# HEALTHCHECK, which never matches our SSOT listen port -> the lane reports Unhealthy
+# forever even while it serves 200 on ${MIOS_PORT_CPU_NODE}. Override the baked check
+# against the real runtime port's llama-server /health (200 ready / 503 loading).
+# NO-HARDCODE: same ${MIOS_PORT_CPU_NODE} runtime var the Exec resolves via systemd.
+HealthCmd = "curl -fsS http://localhost:${MIOS_PORT_CPU_NODE}/health || exit 1"
+HealthInterval = "30s"
+HealthTimeout = "10s"
+HealthStartPeriod = "120s"
+HealthRetries = "3"
 # ctx-size: 32768 (was 131072). CPU-only (n-gpu-layers 0) granite-8b with a 128k KV
 # ring is the Unhealthy-on-boot bloat (huge RAM KV even at q4_0); 32768 matches the
 # light lane + the VRAM/KV co-fit finding. Raise once CPU RAM headroom is proven.
@@ -9970,6 +9980,16 @@ Environment = [
   "LD_LIBRARY_PATH=/usr/lib/wsl/lib:/usr/local/cuda/lib64"
 ]
 EnvironmentFile = "/etc/mios/install.env"
+# Health gate: same upstream llama-swap:cuda baked `curl localhost:8080/` port mismatch
+# as the cpu-node lane -> perpetual Unhealthy while it serves 200 on ${MIOS_PORT_LLM_LIGHT}.
+# Override against the real port. Probes /v1/models (not /health): llama-swap answers it
+# from config.yaml WITHOUT forcing a model load, so the proxy reads healthy while idle
+# instead of flapping on lazy model swap. NO-HARDCODE: port from ${MIOS_PORT_LLM_LIGHT}.
+HealthCmd = "curl -fsS http://localhost:${MIOS_PORT_LLM_LIGHT}/v1/models || exit 1"
+HealthInterval = "30s"
+HealthTimeout = "10s"
+HealthStartPeriod = "60s"
+HealthRetries = "3"
 Exec = "--config /app/config.yaml --listen 0.0.0.0:${MIOS_PORT_LLM_LIGHT:-11450}"
 Group = "${MIOS_LLAMACPP_GID:-827}"
 Image = "${MIOS_LLM_LIGHT_IMAGE:-ghcr.io/mostlygeek/llama-swap:cuda}"

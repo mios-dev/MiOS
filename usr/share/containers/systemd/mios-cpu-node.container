@@ -11,8 +11,13 @@ Wants=network-online.target
 ContainerName=mios-cpu-node
 Entrypoint=/app/llama-server
 Environment=HOME=/var/lib/mios/llamacpp
-Exec=--model /models/granite-4.1-8b.gguf --host 0.0.0.0 --port ${MIOS_PORT_CPU_NODE} --ctx-size 131072 --flash-attn on --cache-type-k q4_0 --cache-type-v q4_0 --parallel 1 --threads 14 --n-gpu-layers 0 --jinja --alias mios-cpu --slot-save-path /var/lib/mios/llamacpp/slots
+Exec=--model /models/granite-4.1-8b.gguf --host 0.0.0.0 --port ${MIOS_PORT_CPU_NODE} --ctx-size 32768 --flash-attn on --cache-type-k q4_0 --cache-type-v q4_0 --parallel 1 --threads 14 --n-gpu-layers 0 --jinja --alias mios-cpu --slot-save-path /var/lib/mios/llamacpp/slots
 Group=827
+HealthCmd=curl -fsS http://localhost:${MIOS_PORT_CPU_NODE}/health || exit 1
+HealthInterval=30s
+HealthRetries=3
+HealthStartPeriod=120s
+HealthTimeout=10s
 Image=ghcr.io/mostlygeek/llama-swap:cuda
 Label=org.opencontainers.image.title=mios-cpu-node
 Pod=mios-ai.pod
