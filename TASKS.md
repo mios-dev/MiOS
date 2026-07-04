@@ -2916,3 +2916,17 @@ T-094 (CONV-01 SSOT)
 **Done When:**
 - [ ] GPU driver absence is detected + surfaced (not silent CPU fallback); long-path/TLS set; one canonical entry point; offline/proxy behavior documented
 
+
+## T-131: WIN-05 -- Zero-touch offline multi-user Win11 provisioning via SSOT-generated autounattend.xml  [P2, strategic]
+> **Priority:** P2 | **Status:** pending | **Effort:** L | **Domain:** Install/Windows | **Source:** Win11-minimal audit 2026-07-04 (autounattend research). `autounattend.xml` on install media (or a mounted `unattend.iso` for VMs/Hyper-V) is the canonical, supported, OFFLINE way to preseed Windows Setup in WinPE, BEFORE OOBE (survives interactive-OOBE changes). `cschneegans/unattend-generator` is an MIT-licensed .NET lib (Win10/11 incl. 24H2/25H2), drivable from PowerShell 7.4+ (`Import-Module UnattendGenerator.dll` -> `[UnattendGenerator]::Serialize($gen.GenerateXml($config))`; no public HTTP API -> vendor the lib or use the GUI). Subsumes several audit gaps at the Setup layer: creates multiple LOCAL offline accounts (bypasses the MS-account requirement), runs FirstLogon/UserOnce scripts, partitions disk, enables long-paths (32767), strips bloatware, injects VM drivers. Aligns with the multi-tenant direction (all local offline accounts from SSOT).
+
+**Instructions:** Design + build an SSOT-driven autounattend path: (1) add `[accounts]` (or extend `[identity]`) -- a list of local offline accounts (username / display / group Administrators|Users / first-logon); (2) `New-MiOSAutounattend` renders `autounattend.xml` from that list. **[OPERATOR DECISION]** vendor the MIT lib + pwsh 7.4 (cleaner SSOT; adds a .NET build dep) OR ship a static template personalized by a FirstLogon script from SSOT (no .NET dep). (3) FirstLogon script fires `irm Get-MiOS.ps1 | iex` = truly zero-touch. (4) carve `M:\` + enable long-paths + strip bloat at the Setup layer. (5) wrap into `unattend.iso` (VM/Hyper-V) or drop `autounattend.xml` on USB root. NO-HARDCODE: accounts/partitions/features all from SSOT. SECURITY: autounattend stores passwords plaintext/Base64 -> treat as first-boot temp credentials rotated on first logon (or derive from an SSOT secret at generation time). Relationship: this reduces but does not remove T-127 -- git/podman prereqs are moot inside the automated first-logon, but the plain `irm|iex`-on-an-existing-box path still needs T-127.
+
+**Files:** `C:\mios-bootstrap\` new `New-MiOSAutounattend.ps1` (+ vendored MIT lib or static template + FirstLogon script), `C:\mios-bootstrap\mios.toml` (`[accounts]`/`[identity]`, `[bootstrap.autounattend]`).
+
+**Done When:**
+- [ ] a fresh, minimal, OFFLINE Win11 machine boots MiOS media -> all SSOT-defined local accounts created, long-paths on, M:\ carved, bloat stripped, Get-MiOS runs at first logon -> full multi-user MiOS with ZERO manual steps (incl. OOBE)
+- [ ] first-boot passwords are temporary + rotated (no plaintext SSOT-secret leak)
+- [ ] the generator/template is SSOT-driven (accounts change in mios.toml -> answer file changes; drift-checked)
+
+*Sources: cschneegans/unattend-generator (GitHub, MIT) + schneegans.de/windows/unattend-generator (usage/samples/Example.ps1); autounattend.xml media-root + unattend.iso second-optical-drive discovery; Win11 25H2 local-account install.*

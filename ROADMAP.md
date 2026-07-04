@@ -2407,6 +2407,13 @@ path, and the historical BOM parse bug is FIXED.
 - **WIN-04 (T-130) residual hardening [P3]** -- Windows-side GPU host-driver check (no driver ->
   silent CPU fallback), `LongPathsEnabled`, explicit TLS 1.2, offline/proxy docs, and reconcile the two
   divergent "canonical" entry points (`Get-MiOS.ps1` vs `bootstrap.ps1`).
+- **WIN-05 (T-131) zero-touch offline multi-user install via autounattend.xml [P2, strategic]** --
+  SSOT-generate `autounattend.xml` (cschneegans MIT lib, pwsh 7.4, or a template personalized at
+  FirstLogon) from an `[accounts]` list, so a fresh OFFLINE Win11 boots MiOS media -> all local
+  accounts created (no MS-account), long-paths on, `M:\` carved + bloat stripped at the Setup layer,
+  and a FirstLogon script fires `irm Get-MiOS.ps1 | iex` -> full multi-user MiOS with ZERO manual
+  steps incl. OOBE. Subsumes the git/podman prereq gaps for the media path (moot inside first-logon)
+  and dovetails with the multi-tenant direction. Passwords are first-boot-temporary (rotate on logon).
 
 **Critical path:** T-120 (reconcile `[ports]`) is the unblocker for T-121/T-122/T-125. T-127 is the
 unblocker for "install on ANY minimal Win11". NOHC and WIN streams are otherwise independent and
