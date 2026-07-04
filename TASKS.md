@@ -3070,3 +3070,39 @@ T-094 (CONV-01 SSOT)
 **Instructions:** Locate the upstream generator that assembles `Get-MiOS.ps1`/`build-mios.ps1`/`mios.toml` and fold in: podman-CLI-only default (Desktop opt-in, T-129), multi-user `MiOS-Autostart` login task, and the `[autounattend]`/`[autounattend.layout]`/`[branding]` SSOT keys (T-147) -- so they survive regeneration.
 **Done When:**
 - [ ] a regeneration cycle preserves the podman-CLI default, the autostart task, and the new SSOT sections
+
+## T-150: ACCT-01 -- Account SSOT schema + install-time seeding (pgvector `account`)  [P2]
+> **Priority:** P2 | **Status:** pending | **Effort:** L | **Domain:** Data/Accounts | **Source:** operator directive -- DB-driven GLOBAL account control plane (Part 12 WS-ACCT); extends WISO-01/T-132 + WEDITION-02/T-147 from one-shot seeding to a live SSOT.
+
+**Instructions:** Extend pgvector `account` in `usr/share/mios/postgres/schema-init.sql`: kind `user|admin|service`, display, password_hash, uid/gid, groups + sudo/admin, os_targets `linux|windows|both`, enabled, meta. Seed rows from mios.toml `[[accounts]]`/`[identity]` at install (mios-bootstrap on Linux; `MiOS-Provision.lib.ps1` on Windows). LAW: separate the LOGIN account (`account.name`) from the DISPLAY name (`[user].name`, e.g. "Kabu") -- purge `MIOS_USER`=display-name usage from every consumer. Vendor default account = `user`/`user`.
+**Files:** `usr/share/mios/postgres/schema-init.sql`, `usr/share/mios/mios.toml` (`[[accounts]]`), `C:\mios-bootstrap\src\autounattend\MiOS-Provision.lib.ps1`.
+**Done When:**
+- [ ] a fresh install seeds the pgvector `account` rows from SSOT; the default `user`/`user` account exists in the DB
+- [ ] no consumer resolves the login user from `MIOS_USER`/`[user].name` (the "Kabu" leak is gone)
+
+## T-151: ACCT-02 -- Linux DB-native accounts via NSS + PAM (libnss-pgsql2 + pam_pgsql)  [P2]
+> **Priority:** P2 | **Status:** pending | **Effort:** L | **Domain:** Linux/Accounts | **Source:** operator directive -- "DBs control Linux accounts, live" (WS-ACCT).
+
+**Instructions:** Wire `libnss-pgsql2` (NSS `passwd`/`shadow`/`group` served from pgvector) + `pam_pgsql` (PAM auth against the DB) so the DB is the live Linux account store; a DB edit reflects with no re-provision. `nsswitch.conf` order `files pgsql` so root/service accounts + a DB outage degrade-open. Flag-gate `[accounts].db_backed`; package via mios.toml `[packages.*]`.
+**Files:** `automation/NN-accounts-db.sh` (new), `usr/share/mios/mios.toml`, `/etc/nsswitch.conf` drop-in, PAM stack.
+**Done When:**
+- [ ] `getent passwd <db-user>` resolves from pgvector; login authenticates via `pam_pgsql`; a DB edit reflects live
+- [ ] DB outage / local root + service accounts still work (files fallback)
+
+## T-152: ACCT-03 -- Windows DB->SAM live account-sync service (MiOS-XBOX)  [P2]
+> **Priority:** P2 | **Status:** pending | **Effort:** L | **Domain:** Windows/Accounts | **Source:** operator directive -- "DBs control Windows accounts, live"; MiOS-XBOX custom Windows edition (WS-ACCT + WS-XBOX).
+
+**Instructions:** Windows has no NSS -> build a MiOS account-sync service (PowerShell `LocalAccounts`/SAM provisioning + optional custom Credential Provider) that watches the pgvector `account` SSOT and applies create/modify/disable/password to local SAM accounts LIVE; auto-create-at-first-login from the DB. Ships in MiOS-XBOX so gaming-edition user/admin accounts are DB-managed and editable from the same surfaces as Linux.
+**Files:** `C:\mios-bootstrap\src\autounattend\` new `MiOS-AccountSync` service + provisioning lib; `usr/share/mios/mios.toml` `[accounts]`.
+**Done When:**
+- [ ] editing an account in the DB creates/updates the matching Windows local account live (no re-provision)
+- [ ] MiOS-XBOX first-logon creates the DB-defined accounts (no MS-account)
+
+## T-153: ACCT-04 -- DB account management surfaces + consumer cutover  [P2]
+> **Priority:** P2 | **Status:** pending | **Effort:** M | **Domain:** UI/Accounts | **Source:** operator directive -- "managed via DB management surfaces; global environments reflect live" (WS-ACCT).
+
+**Instructions:** mios.html/configurator + MiOS App expose account CRUD (add/edit/disable user & admin, set password, groups/sudo, per-OS target) writing the pgvector `account` SSOT; both OSes reflect via T-151/T-152. Cut consumers (both dashboards, cockpit PAM, forge) over to read the account SSOT, never `MIOS_USER`/`[user].name`.
+**Files:** `usr/share/mios/configurator/mios.html`, `usr/libexec/mios/mios-dashboard.sh`, `powershell/profile.ps1`, `usr/share/mios/mios.toml`.
+**Done When:**
+- [ ] an account edit in mios.html reflects live on BOTH Linux and Windows
+- [ ] dashboards show the DB account (default `user`/`user`), never "Kabu"

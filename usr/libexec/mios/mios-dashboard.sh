@@ -53,6 +53,8 @@ MONITOR=0
 for arg in "$@"; do
     case "$arg" in
         --services-only) MODE="services-only"; NO_FRAME=1 ;;
+        --table-only)    MODE="table-only"; NO_FRAME=1 ;;
+        --endpoints-only) MODE="endpoints-only"; NO_FRAME=1 ;;
         --mini)          MODE="mini" ;;
         --no-color)      NO_COLOR=1 ;;
         --no-frame)      NO_FRAME=1 ;;
@@ -181,13 +183,19 @@ if [[ -r /etc/mios/install.env ]]; then
     # shellcheck disable=SC1091
     set -a; source /etc/mios/install.env 2>/dev/null || true; set +a
 fi
-# Resolution order: install.env-staged MIOS_USER (canonical) > legacy
-# MIOS_LINUX_USER alias > literal 'mios'. Critically NEVER falls back
-# to $USER -- the service `mios-dashboard-issue.service` runs as root,
-# so $USER == 'root' would render `login: root / mios` in the pre-login
-# banner even though the configured login user is 'mios'. The banner
-# describes the OPERATOR'S login surface, not the running process.
-MIOS_LINUX_USER="${MIOS_USER:-${MIOS_LINUX_USER:-mios}}"
+# LOGIN account = the DB-driven account SSOT (pgvector), resolved via the
+# shared mios-login-account helper (DB person/account -> live primary human
+# account -> vendor default 'user'). Deliberately NOT MIOS_USER / [user].name:
+# that is the operator's DISPLAY name (e.g. "Kabu") and must never land in a
+# login/credential slot. Interim consumer ahead of the WS-ACCT DB<->OS control
+# plane (T-150..T-153). Degrade-open so the banner always renders; NEVER falls
+# back to $USER (the dashboard-issue service runs as root).
+_mios_login_helper="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)/mios-login-account"
+[[ -r "$_mios_login_helper" ]] || _mios_login_helper="/usr/libexec/mios/mios-login-account"
+MIOS_LINUX_USER="$(bash "$_mios_login_helper" 2>/dev/null)"
+[[ -z "$MIOS_LINUX_USER" ]] && MIOS_LINUX_USER="user"
+MIOS_LOGIN_PASSWORD="$(bash "$_mios_login_helper" password 2>/dev/null)"
+[[ -z "$MIOS_LOGIN_PASSWORD" ]] && MIOS_LOGIN_PASSWORD="user"
 [[ -z "${MIOS_VERSION:-}" ]] && MIOS_VERSION="$(cat /usr/share/mios/VERSION 2>/dev/null || cat /etc/mios/VERSION 2>/dev/null || echo "0.2.4")"
 MIOS_AI_MODEL="${MIOS_AI_MODEL:-granite4.1:8b}"
 
@@ -374,6 +382,24 @@ _mios_port() {
 GLYPH_QUADLETS=$''   #  cubes
 GLYPH_GIT=$''        #  code-branch
 
+# ── Live "SSH into the code-server dev container" command ────────────────────
+# The command (and its sshd port) come from the shared SSOT helper
+# mios-ssh-dev-cmd, which BOTH this dashboard and the Windows dashboard call so
+# the two never drift. We prefer the copy shipped next to this script (so a
+# repo checkout tests against its own helper) and fall back to the deployed
+# path. Run via `bash` so it works even when the exec bit is missing (e.g. a
+# /mnt/c Windows-filesystem checkout).
+_ssh_dev_helper() {
+    local self_dir c
+    self_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
+    for c in "$self_dir/mios-ssh-dev-cmd" /usr/libexec/mios/mios-ssh-dev-cmd; do
+        [[ -r "$c" ]] && { printf '%s' "$c"; return; }
+    done
+    printf '%s' "/usr/libexec/mios/mios-ssh-dev-cmd"
+}
+_ssh_live_port() { bash "$(_ssh_dev_helper)" port 2>/dev/null || _mios_port ssh 22; }
+_ssh_dev_cmd()   { bash "$(_ssh_dev_helper)" 2>/dev/null; }
+
 # ── Sections (each printed UNFRAMED; frame_filter wraps after capture) ───────
 print_endpoints() {
     local _user _pw _fpw
@@ -460,12 +486,9 @@ print_endpoints() {
     local r_name2="PS-Term"    r_link2="http://localhost:${_p_ttyd_ps}/"
     local l_name3="IDE / Code"  l_link3="http://localhost:${_p_code}/"
     local r_name3="SSH"
-    local r_link3
-    if [[ "$_p_ssh" == "22" ]]; then
-        r_link3="ssh ${_user}@localhost"
-    else
-        r_link3="ssh -p ${_p_ssh} ${_user}@localhost"
-    fi
+    local r_link3 _ssh_live
+    _ssh_live="$(_ssh_live_port)"
+    r_link3="port ${_ssh_live}"
 
     local col_sep=" │ "
     [[ "$NO_COLOR" -eq 1 ]] && col_sep=" | "
@@ -496,7 +519,7 @@ print_endpoints() {
 }
 
 print_unified_table() {
-    INNER="${INNER:-76}" NO_COLOR="${NO_COLOR:-0}" MONITOR="${MONITOR:-0}" MIOS_LINUX_USER="${MIOS_LINUX_USER:-}" MIOS_DEFAULT_PASSWORD="${MIOS_DEFAULT_PASSWORD:-}" python3 -c '
+    INNER="${INNER:-76}" NO_COLOR="${NO_COLOR:-0}" MONITOR="${MONITOR:-0}" MIOS_LINUX_USER="${MIOS_LINUX_USER:-}" MIOS_DEFAULT_PASSWORD="${MIOS_DEFAULT_PASSWORD:-}" MIOS_LOGIN_PASSWORD="${MIOS_LOGIN_PASSWORD:-}" python3 -c '
 import os, glob, subprocess, math, time, shutil
 
 no_color = int(os.environ.get("NO_COLOR", "0"))
@@ -770,7 +793,12 @@ for row in table_rows:
 print(border_line)
 
 # 3. Credentials Row
-user = os.environ.get("MIOS_LINUX_USER", os.environ.get("MIOS_USER", "mios"))
+# LOGIN user + password come from the DB-driven account SSOT (via
+# mios-login-account, passed in as MIOS_LINUX_USER / MIOS_LOGIN_PASSWORD) --
+# never the operator DISPLAY name. `pw` (service default) is only a fallback
+# for the Forge admin password.
+user = os.environ.get("MIOS_LINUX_USER") or "user"
+login_pw = os.environ.get("MIOS_LOGIN_PASSWORD") or "user"
 pw = os.environ.get("MIOS_DEFAULT_PASSWORD", "mios")
 fpw = ""
 if os.path.isfile("/etc/mios/forge/admin-password"):
@@ -782,11 +810,8 @@ if os.path.isfile("/etc/mios/forge/admin-password"):
 if not fpw:
     fpw = pw
 
-ssh_port = ports.get("ssh", "22")
-ssh_cmd = f"ssh -p {ssh_port} {user}@localhost" if str(ssh_port) != "22" else f"ssh {user}@localhost"
-cred_str = f"login {user}/{pw}   forge {user}/{fpw}   {ssh_cmd}"
-cred_pad = max(0, (inner - len(cred_str)) // 2)
-cred_pad_str = " " * cred_pad
+cred_str = f"login {user}/{login_pw}   forge {user}/{fpw}"
+cred_pad_str = " " * max(0, (inner - len(cred_str)) // 2)
 print(f"{cred_pad_str}{C_GRY}{cred_str}{C_R}")
 '
 }
@@ -1176,6 +1201,20 @@ render_dashboard() {
             # we render UNFRAMED here regardless of --no-frame.
             print_services_block
             ;;
+        table-only)
+            # Just the live UNIFIED service table (+ credentials line), UNFRAMED.
+            # The Windows dashboard bridges to this via wsl and embeds it in its
+            # own frame, so BOTH dashboards render the SAME live service list
+            # from ONE source (no drift).
+            print_unified_table
+            ;;
+        endpoints-only)
+            # The COMPACT endpoint table (fits 80x20), UNFRAMED. The Windows
+            # `mios mini` bridges to this so its compact view matches the Linux
+            # `mios mini` (which renders print_endpoints), while `mios dash`
+            # uses the fuller --table-only. One source, no drift.
+            print_endpoints
+            ;;
         *)
             if [[ $NO_FRAME -eq 1 ]]; then
                 print_ascii_header
@@ -1183,6 +1222,8 @@ render_dashboard() {
                 _dashboard_rows_render
                 print_services_block
                 print_loop_hint
+                _dev_cmd="$(_ssh_dev_cmd)"
+                [[ -n "$_dev_cmd" ]] && printf 'dev shell: %s\n' "$_dev_cmd"
             else
                 # Capture each section, pipe through frame_filter so each
                 # line is wrapped and truncated to fit INNER chars exactly.
@@ -1245,6 +1286,20 @@ render_dashboard() {
                     fi
                 fi
                 frame_bot
+                # LIVE, copy-pasteable "SSH from your host into the code-server
+                # container at the MiOS tree" command. Printed UNFRAMED below
+                # the box so it is never truncated -- it must stay usable in
+                # full. Every field (port / container / workdir / user)
+                # resolves from the running system via _ssh_dev_cmd; shown on
+                # both `mios dash` and `mios mini`.
+                _dev_cmd="$(_ssh_dev_cmd)"
+                if [[ -n "$_dev_cmd" ]]; then
+                    _dev_line="dev shell: ${_dev_cmd}"
+                    _dev_pad=$(( (WIDTH - ${#_dev_line}) / 2 ))
+                    (( _dev_pad < 0 )) && _dev_pad=0
+                    printf '%s%sdev shell:%s %s\n' \
+                        "$(hr_repeat ' ' "$_dev_pad")" "$C_B$C_CYN" "$C_R" "$_dev_cmd"
+                fi
             fi
             ;;
     esac

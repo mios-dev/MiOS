@@ -36,6 +36,14 @@
 # GHCR-side CI.
 !/.forgejo/
 !/.forgejo/**
+# Windows-host MiOS PowerShell profile = the framed dashboard renderer
+# (Show-MiosDashboard) sourced by the MiOS-WIN Windows Terminal profile.
+# Tracked here as the CANONICAL source and deployed to M:\MiOS\powershell\
+# (kept byte-in-sync C:/M:/live). It is a Windows artifact under version
+# control -- the Containerfile ctx does NOT copy /powershell/, so it never
+# lands in the Linux OS image.
+!/powershell/
+!/powershell/**
 # Repo-root files. After the 2026-05-05 FHS-consolidation pass:
 #   - operator-facing docs (architecture, engineering, deploy, security,
 #     api, sources, credits, licenses, tree, audits, ...) moved to

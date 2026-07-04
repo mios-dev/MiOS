@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+# AI-hint: Prints the LIVE, copy-pasteable "SSH from your host into the code-server dev container at the MiOS root tree" command. Single source of truth shared by the Linux dashboard (mios-dashboard.sh) and the Windows dashboard (profile.ps1 via wsl) so the two never drift.
+# AI-related: /usr/libexec/mios/mios-dashboard.sh, powershell/profile.ps1, mios-agents, code-server
+# AI-functions: _live_port, main
+#
+# The MiOS dev container (code-server) ships no sshd of its own, so the path
+# into it is: SSH to the host, then `podman exec` into the container. EVERY
+# field is resolved from the RUNNING system -- nothing is hard-coded, so the
+# line stays correct on a fresh install, after a podman re-init, or when the
+# container is renamed:
+#   port      -- the admin sshd's effective Port (`sshd -T`, needs privilege,
+#                so we try `sudo -n` and degrade to the [ports].ssh SSOT).
+#   container -- the running container whose code-server invocation carries
+#                --bind-addr (the browser IDE). Found live; no name literal.
+#   workdir   -- that container's bind-mount destination (the folder
+#                code-server serves) so the shell lands on the MiOS tree.
+#   user      -- the account that OWNS that tree (so it runs the rootless
+#                container and can podman-exec) -- read live from the mount
+#                source, NOT the operator's display identity (which may not be
+#                a real login account).
+#
+# Usage:
+#   mios-ssh-dev-cmd          -> the full `ssh -t ... "podman exec ..."` line
+#   mios-ssh-dev-cmd port     -> just the effective sshd port (for status cells)
+#
+# Must be sourced/run in a context that can see the rootful containers (the
+# login-shell podman connection). With no code-server container running we
+# degrade to a plain host SSH so the caller's row never disappears.
+set -uo pipefail
+
+# sshd effective port -- privileged (`sudo -n`), else the [ports].ssh SSOT.
+_live_port() {
+    local p t
+    p="$(sudo -n sshd -T 2>/dev/null | awk '/^port /{print $2; exit}')"
+    if [[ -z "$p" ]]; then
+        for t in "${HOME:-/root}/.config/mios/mios.toml" /etc/mios/mios.toml /usr/share/mios/mios.toml; do
+            [[ -r "$t" ]] || continue
+            p="$(awk '
+                /^\[ports\]/ { in_p = 1; next }
+                /^\[/        { in_p = 0 }
+                in_p && /^[[:space:]]*ssh[[:space:]]*=/ {
+                    sub(/^[^=]*=[[:space:]]*/, ""); sub(/[[:space:]]*#.*$/, "")
+                    gsub(/[[:space:]"]/, ""); print; exit
+                }' "$t")"
+            [[ -n "$p" ]] && break
+        done
+    fi
+    [[ -z "$p" ]] && p=22
+    printf '%s' "$p"
+}
+
+if [[ "${1:-}" == "port" ]]; then
+    _live_port
+    exit 0
+fi
+
+port="$(_live_port)"
+ctr=""; workdir=""; src=""; spec=""; n=""
+if command -v podman >/dev/null 2>&1; then
+    for n in $(podman ps --format '{{.Names}}' 2>/dev/null); do
+        spec="$(podman inspect "$n" --format '{{.Config.Entrypoint}} {{.Config.Cmd}}' 2>/dev/null)"
+        case "$spec" in
+            *--bind-addr*)
+                ctr="$n"
+                workdir="$(podman inspect "$n" --format '{{range .Mounts}}{{if eq .Type "bind"}}{{.Destination}}{{"\n"}}{{end}}{{end}}' 2>/dev/null | head -1)"
+                src="$(podman inspect "$n" --format '{{range .Mounts}}{{if eq .Type "bind"}}{{.Source}}{{"\n"}}{{end}}{{end}}' 2>/dev/null | head -1)"
+                break ;;
+        esac
+    done
+fi
+
+user="$(stat -c %U "$src" 2>/dev/null)"
+[[ -z "$user" ]] && user="${MIOS_LINUX_USER:-${MIOS_USER:-mios}}"
+
+pflag=""; [[ -n "$port" && "$port" != "22" ]] && pflag="-p $port "
+if [[ -n "$ctr" ]]; then
+    wflag=""; [[ -n "$workdir" ]] && wflag="-w $workdir "
+    printf 'ssh -t %s%s@localhost "podman exec -it %s%s bash -l"\n' "$pflag" "$user" "$wflag" "$ctr"
+else
+    printf 'ssh %s%s@localhost\n' "$pflag" "$user"
+fi

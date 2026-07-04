@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# AI-hint: Resolves the DB-driven LOGIN account the dashboards advertise -- the globally-controlled account SSOT (pgvector), NOT the operator DISPLAY name ([user].name, e.g. "Kabu"). Shared by the Linux dashboard and the Windows dashboard (via wsl) so the two never drift. Interim consumer ahead of the full WS-ACCT control plane (T-150..T-153).
+# AI-related: /usr/libexec/mios/mios-dashboard.sh, powershell/profile.ps1, mios-pg-query, account (pgvector table)
+# AI-functions: _db_name, main
+#
+# Resolution order (degrade-open, so a stale display name never appears):
+#   1. pgvector `person` singleton (the operator account) -- the intended DB source.
+#   2. pgvector `account` real user row (kind=user, excluding ephemeral
+#      mios-cli-* session rows) -- the account control plane.
+#   3. the live primary human system account (lowest uid in [1000,65000) with a
+#      real login shell) -- what the OS actually provisioned.
+#   4. the vendor default `user`.
+# The operator DISPLAY name ([user].name / MIOS_USER) is DELIBERATELY never
+# consulted: it is a display label, not a login account, and must not land in a
+# credential slot. Full DB<->OS account control is WS-ACCT (T-150..T-153).
+#
+# Usage:  mios-login-account          -> the login account NAME
+#         mios-login-account password -> the advertised login password
+set -uo pipefail
+
+PGQ=/usr/libexec/mios/mios-pg-query
+
+_db_name() {
+    [ -r "$PGQ" ] || return 0
+    local n
+    n="$(python3 "$PGQ" -At "SELECT username FROM person WHERE username IS NOT NULL AND btrim(username) <> '' ORDER BY id LIMIT 1" 2>/dev/null | head -1)"
+    if [ -z "$n" ]; then
+        n="$(python3 "$PGQ" -At "SELECT name FROM account WHERE kind = 'user' AND name NOT LIKE 'mios-cli-%' ORDER BY id LIMIT 1" 2>/dev/null | head -1)"
+    fi
+    printf '%s' "$n"
+}
+
+name="$(_db_name)"
+if [ -z "$name" ]; then
+    name="$(getent passwd 2>/dev/null | awk -F: '$3>=1000 && $3<65000 && $7 ~ /(bash|zsh|fish)$/ {print $3":"$1}' | sort -n | head -1 | cut -d: -f2)"
+fi
+[ -z "$name" ] && name="user"
+
+if [ "${1:-}" = "password" ]; then
+    # Advertised login password: from the DB account meta once the WS-ACCT
+    # control plane seeds it; until then the vendor default matches the account.
+    pw=""
+    if [ -r "$PGQ" ]; then
+        pw="$(printf '{"sql":"SELECT meta->>%s FROM account WHERE name = $1","params":["%s"]}' "'password'" "$name" | python3 "$PGQ" --exec-json 2>/dev/null | head -1)"
+    fi
+    [ -z "$pw" ] && pw="user"
+    printf '%s' "$pw"
+    exit 0
+fi
+printf '%s' "$name"
