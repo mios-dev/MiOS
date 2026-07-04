@@ -3407,18 +3407,68 @@ cmd        = "mios-pc-control screen-layout"
 
 [verbs.open_url]
 section    = "Window / app launch"
-sig        = "url, browser?"
-desc       = "SHOW a web page to the operator in their VISIBLE browser window (one they look at). Use for 'open / pull up / show me this link in the browser'. NOT for research: to look something up and report the answer back, use a WEB search / page fetch instead -- this just displays the page, it does not return its content."
-examples   = ["open youtube.com in my browser", "pull up the GitHub repo page on screen", "show me this link in Chrome", "open my bank's website"]
+sig        = "url, mode?, browser?, private?, profile?, reuse_instance?"
+desc       = "SHOW a web page to the operator in their VISIBLE browser. By DEFAULT opens the URL as a NEW TAB in the operator's ALREADY-RUNNING browser (reuses the instance -- NOT a new window, NOT a second instance). mode=window = a new window in the running browser; mode=new-window = force a brand-new isolated instance; private=true = incognito/private window. Use for 'open / pull up / show me this link' and 'open a tab to X'. NOT for research (that returns page content); this just displays the page."
+examples   = ["open a firefox tab to youtube", "open youtube.com in my browser", "pull up the GitHub repo page on screen", "show me this link in a new window", "open my bank's site in a private window"]
 tier       = "core"
 permission = "write"
-cmd        = "mios-open-url {url}{browser?}"
+# Native tab/window control. mode -> the browser's native tab/window/private flag
+# (SSOT [browser.flags.*]); tab reuses the running instance. NO literal quotes
+# around placeholders (the renderer shlex-quotes -> a literal quote breaks the cmd).
+cmd        = "mios-open-url {url}{mode?--mode}{browser?--browser}{private?--private}{profile?--profile}{reuse_instance?--reuse}"
   [verbs.open_url.params.url]
   type    = "string"
   aliases = ["link", "address", "uri"]
+  [verbs.open_url.params.mode]
+  type    = "string"
+  enum    = ["tab", "window", "new-window", "private"]
+  default = "tab"
+  aliases = ["disposition", "where"]
+  desc    = "How to present the URL: tab = a NEW TAB in the already-running browser (DEFAULT; reuses the instance). window = a new window in the running browser. new-window = force a brand-new isolated instance. private = private/incognito window."
   [verbs.open_url.params.browser]
   type = "string"
-  desc = "Browser shortname (chromedev / firefox / default). Empty = operator default."
+  desc = "Browser shortname (chromedev / firefox / epiphany / default). Empty = operator default."
+  [verbs.open_url.params.private]
+  type    = "boolean"
+  default = false
+  desc    = "Open in a private/incognito window (overrides mode)."
+  [verbs.open_url.params.profile]
+  type = "string"
+  desc = "Browser profile name (optional)."
+  [verbs.open_url.params.reuse_instance]
+  type    = "boolean"
+  default = true
+  desc    = "Reuse the already-running browser instance (open a TAB) rather than cold-launching a new one. false = force a new instance/window."
+
+# ─── Browser native launch flags (SSOT for mios-open-url tab/window control) ──
+# open_url opens a URL as a TAB in the ALREADY-RUNNING browser by default: the
+# browser BINARY invoked with the URL reuses its single instance (Firefox
+# remoting / Chromium ProcessSingleton / Epiphany GApplication) and opens a tab.
+# Launching a .lnk shortcut or a fresh sandbox instead spawns a NEW WINDOW
+# (upstream research). `family` maps the resolved browser app-id (case-insensitive
+# substring) to a flag family; `flags` maps mode -> the browser's native flag(s).
+# Unknown family -> no extra flag (degrade-open: most browsers tab-by-default).
+# NO-HARDCODE: the flags live here, never in the opener script.
+[browser.family]
+firefox  = ["firefox", "mozilla", "librewolf", "waterfox", "zen", "floorp"]
+chromium = ["chrome", "chromium", "brave", "edge", "vivaldi", "opera"]
+epiphany = ["epiphany", "gnome.web", "gnome.epiphany"]
+
+[browser.flags.firefox]
+tab          = "--new-tab"
+window       = "--new-window"
+new-window   = "--new-window --new-instance"
+private      = "--private-window"
+[browser.flags.chromium]
+tab          = ""
+window       = "--new-window"
+new-window   = "--new-window"
+private      = "--incognito"
+[browser.flags.epiphany]
+tab          = "--new-tab"
+window       = "--new-window"
+new-window   = "--new-window"
+private      = "--incognito-mode"
 
 # ─── Section: Automation / scheduling ─────────────────────────────────
 [verbs.schedule]
@@ -9598,6 +9648,7 @@ WantedBy = "multi-user.target default.target"
 
 [containers.mios-forge.Service]
 Delegate = "yes"
+EnvironmentFile = "/etc/mios/install.env"
 Restart = "on-failure"
 RestartSec = "10s"
 TimeoutStartSec = "300s"
@@ -9956,6 +10007,10 @@ WantedBy = "multi-user.target"
 
 [containers.mios-open-webui.Service]
 Delegate = "yes"
+EnvironmentFile = [
+  "/etc/mios/hermes/api.env",
+  "/etc/mios/install.env"
+]
 Restart = "on-failure"
 RestartSec = "10s"
 TimeoutStartSec = "300s"
@@ -10071,6 +10126,7 @@ WantedBy = "multi-user.target default.target"
 
 [containers.mios-searxng.Service]
 Delegate = "yes"
+EnvironmentFile = "/etc/mios/install.env"
 Restart = "on-failure"
 RestartSec = "10s"
 TimeoutStartSec = "300s"

@@ -401,6 +401,14 @@ print_endpoints() {
     _p_ttyd_bash=$(_mios_port ttyd_bash 7681)
     _p_ttyd_ps=$(_mios_port ttyd_powershell 7682)
     _p_ssh=$(_mios_port ssh 22)
+    local _ssh_check_port="$_p_ssh"
+    if command -v systemctl >/dev/null 2>&1; then
+        local _actual_ssh_port
+        _actual_ssh_port=$(systemctl status sshd 2>/dev/null | grep -m 1 -oP 'port \K[0-9]+' || true)
+        if [[ -n "$_actual_ssh_port" ]]; then
+            _ssh_check_port="$_actual_ssh_port"
+        fi
+    fi
 
     local d_forge d_ollama d_ollama_cpu d_cockpit d_searxng
     local d_hermes d_dash d_code d_webui d_agent_pipe d_pgvector
@@ -419,7 +427,7 @@ print_endpoints() {
     d_pgvector=$(tcp_dot  localhost "$_p_pgvector")
     d_ttyd_bash=$(tcp_dot "127.0.0.1" "$_p_ttyd_bash")
     d_ttyd_ps=$(tcp_dot "127.0.0.1" "$_p_ttyd_ps")
-    d_ssh=$(tcp_dot       localhost "$_p_ssh")
+    d_ssh=$(tcp_dot       localhost "$_ssh_check_port")
     s_guac=$( service_status mios-guacamole.service); IFS='|' read -r _ d_guacamole _ <<< "$s_guac"
     s_crowdsec=$( service_status mios-crowdsec-dashboard.service); IFS='|' read -r _ d_crowdsec _ <<< "$s_crowdsec"
 

@@ -9,8 +9,7 @@ Documentation=https://github.com/MiOS-DEV/MiOS
 # mios-hermes-workspace.service -- both deleted when the Hermes
 # container Quadlets were removed; hermes-agent.service is the runtime
 # now.
-After=local-fs.target systemd-tmpfiles-setup.service mios-llm-light.service
-Wants=mios-llm-light.service
+After=local-fs.target systemd-tmpfiles-setup.service
 Before=mios-gateway-agent.service multi-user.target
 # NO ConditionPathExists=!/etc/mios/hermes/api.env. The old gate made
 # this unit a true once-ever oneshot -- but the script does TWO jobs:

@@ -50,8 +50,32 @@ USAGE
     [ "$#" -lt 1 ] && exit 64 || exit 0
 fi
 
-URL="$1"
-OVERRIDE="${2:-}"
+# ── Native launch args (from the open_url verb schema) + back-compat positional
+# <url> [<browser-override>]. mode/private/reuse drive tab-vs-window: the URL is
+# opened as a TAB in the ALREADY-RUNNING browser by default (reuse the instance),
+# never a new window. NO-HARDCODE: the per-browser flags come from mios.toml. ──
+URL=""
+OVERRIDE=""
+MODE="tab"
+PRIVATE=0
+REUSE=1
+PROFILE=""
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --mode)    MODE="${2:-tab}"; shift $(( $# >= 2 ? 2 : 1 )) ;;
+        --browser) OVERRIDE="${2:-}"; shift $(( $# >= 2 ? 2 : 1 )) ;;
+        --private) case "$(printf '%s' "${2:-true}" | tr '[:upper:]' '[:lower:]')" in false|0|no|off) PRIVATE=0 ;; *) PRIVATE=1 ;; esac; shift $(( $# >= 2 ? 2 : 1 )) ;;
+        --reuse)   case "$(printf '%s' "${2:-true}" | tr '[:upper:]' '[:lower:]')" in false|0|no|off) REUSE=0 ;; *) REUSE=1 ;; esac; shift $(( $# >= 2 ? 2 : 1 )) ;;
+        --profile) PROFILE="${2:-}"; shift $(( $# >= 2 ? 2 : 1 )) ;;
+        --)        shift ;;
+        *)         if [ -z "$URL" ]; then URL="$1"; elif [ -z "$OVERRIDE" ]; then OVERRIDE="$1"; fi; shift ;;
+    esac
+done
+[ -n "$URL" ] || { echo "mios-open-url: missing <url>" >&2; exit 64; }
+# Effective disposition: private overrides; reuse=false forces a fresh instance.
+EFF_MODE="$MODE"
+if [ "$PRIVATE" = 1 ]; then EFF_MODE="private"; fi
+if [ "$REUSE" = 0 ] && [ "$EFF_MODE" = "tab" ]; then EFF_MODE="new-window"; fi
 # A literal "default" / "operator default" / "system" / "none" is NOT a browser
 # id -- it means "use the mios.toml-defined Linux default chain". Treating it as
 # an app id made mios-gui try to launch a bogus flatpak

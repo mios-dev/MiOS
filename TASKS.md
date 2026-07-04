@@ -2640,6 +2640,91 @@ T-084 (STRG-01 SSOT)
 
 ---
 
+## Live-Session Failure Register (@ agent-pipe · Hermes · service health)
+
+> Captured from a live operator session (`@` MiOS-AI CLI + `hermes` REPL + the
+> podman dashboard). The `@` path (agent-pipe) and the `hermes` path (:8642
+> direct) fail DIFFERENTLY: `@` FABRICATES tool execution; `hermes` executes for
+> real but mis-targets. Anti-fabrication is the operator's core value → T-113 is
+> P0. Detail SSOT for the chat-channel items = `MIOS-CHATQ-FV-WORKPLAN.md`.
+
+## T-113: FAB-01 -- @ agent-pipe FABRICATES tool execution + results (no real dispatch)  [P0]
+> **Priority:** P0 | **Status:** pending | **Effort:** L | **Domain:** Anti-Fabrication/Orchestration | **Source:** live `@` session -- `@ launch forza` emitted a fake `🤝 open_app output: {"success":true,"pid":8421,"window":{"handle":0x7f12345678,...}}` with IDENTICAL fake pid/handle across every launch AND an invented app ("Forza Horizon 6"), while NOTHING launched (operator: "doing NOTHING for me"). The parallel `hermes` path ran a REAL `mios-windows launch`. So the agent-pipe narrates/hallucinates a tool call AND its output instead of dispatching to the real executor.
+
+**Instructions:** Root-cause why the `@`/agent-pipe turn produces a fabricated tool-result block rather than a real `toolexec` dispatch (or a real hand-off to Hermes :8642). Enforce the hard invariant: **no `🤝 <tool> output:` / tool-result may EVER be emitted unless a real tool actually ran and returned it** — a tool result must be produced by `_exec_tool_calls`, never by a model hop. Wire a fabrication guard: any assistant-emitted text matching a tool-result envelope that has no corresponding executed `tool_call` row is dropped + the turn re-dispatched. Verify the `@`/`mios` CLI route reaches the real executor (memory says `@` should be Hermes-DIRECT :8642 -- confirm/repair the routing regression).
+
+**Files (likely):** `usr/lib/mios/agent-pipe/mios_pipe/routing/{chat,native_loop,secondary_loop,toolexec}.py`, `.../routing/refine.py`, `usr/bin/mios` (route), `server.py` (dispatch).
+
+**Done When:**
+- [ ] `@ launch forza horizon` either executes a REAL launch (dispatch/Hermes) or says it could not -- NEVER a fabricated success with a fake pid/handle
+- [ ] no tool-result block reaches the user without a matching executed `tool_call` row (live-verified)
+- [ ] identical-fake-pid fabrication cannot recur (guard + test)
+
+## T-114: FAB-02 -- pipeline fabricates web/news content + invents entities on misclassification  [P0]
+> **Priority:** P0 | **Status:** pending | **Effort:** M | **Domain:** Anti-Fabrication/Grounding | **Source:** live `@` session -- gibberish `??!!!?` was refine-misclassified as a "weekly news roundup" and the pipeline FABRICATED 5 fake articles attributed to real outlets (NYT/Reuters/BBC/FT/TechCrunch) with invented events, claiming `web_search` ran (it did not). Also invented "Forza Horizon 6" (nonexistent).
+
+**Instructions:** Hard anti-fabrication gate: NEVER emit web/news content or source attributions that were not returned by a real `web_search`/fetch tool call; NEVER invent entity names (apps/games). Fix the refine classifier so low-signal/gibberish input does NOT get promoted to a fabricated task plan (classify as chat/clarify, not "news"). Grounding: attributions must come from fetched results only. Model-driven, NO keyword gate.
+
+**Files (likely):** `.../routing/refine.py` (classifier), `.../routing/chat.py` (web-research enrich), `mios_grounding.py`, `.../federation` web tools.
+
+**Done When:**
+- [ ] gibberish input -> clarify/chat, never a fabricated news roundup
+- [ ] no source citation appears unless a real fetch produced it (live-verified)
+
+## T-115: CQ1 refine scaffold STILL leaking on CLI + redundant refine passes  (extends T-109)
+> **Priority:** P1 | **Status:** pending | **Effort:** S | **Domain:** Observability | **Source:** live `@` session -- the `Refined Text/Intent/Reply` scaffold streams verbatim to the strict CLI surface (CQ1 confirmed still live; the surface-aware `_sse_reasoning` fix is authored but undeployed, and the CLI sends no `x-mios-reasoning-ok` so it hits the legacy debug-inline path), and "🧠 Refining intent..." fires 2-3x per turn.
+
+**Instructions:** Deploy T-109; additionally de-duplicate the refine pass (it runs multiple times per turn) and confirm the strict-CLI folded-trace path (FV-F) shows the trace once, cleanly, without the raw scaffold. Fold into T-109/T-110.
+
+**Files:** `.../routing/{chat,sse,refine}.py`.
+
+## T-116: OSCTL-01 -- Hermes browser opens NEW WINDOWS instead of reusing running instance / opening a TAB  [P1]
+> **Priority:** P1 | **Status:** pending | **Effort:** M | **Domain:** OS-Control | **Source:** live `hermes` session -- "open a firefox TAB to youtube" launched the Firefox Nightly shortcut TWICE (2 new windows) + opened several random Epiphany tabs, despite Firefox already running AND the operator explicitly asking for a tab. Launch path uses `mios-windows launch <shortcut>` (always spawns a new window).
+
+**Instructions:** Make browser open-URL tab-aware: detect an already-running browser instance and open a NEW TAB in it (CDP `Target.createTarget` / `--new-tab` / activate-existing), NOT a new window/instance. Only cold-launch when the browser is not running. Honor an explicit "tab" request. Don't fan out extra Epiphany tabs.
+
+**Files (likely):** `usr/lib/mios/agent-pipe/mios_oscontrol.py`, `.../routing/oscontrol.py`, `usr/libexec/mios/mios-windows`, browser/CDP skills.
+
+**Done When:**
+- [ ] "open a firefox tab to <url>" with Firefox already open -> ONE new tab in the existing window, no new window (live-verified by operator)
+
+## T-117: OSCTL-02 -- Hermes container-exec: stale container name + interactive-exec hang + docker-first  [P1]
+> **Priority:** P1 | **Status:** pending | **Effort:** M | **Domain:** OS-Control | **Source:** live `hermes` session -- "ssh into code-server container" tried `docker` first (runtime is podman), used the RETIRED name `code-server` (now `mios-agents`), wrong-execed `mios-open-webui`, and hung 172s/21s on `podman exec -it ... bash` (interactive `-it` with no TTY in the agent context). The memory tool also errored mid-session.
+
+**Instructions:** (1) SSOT container-name resolution so `code-server` resolves to `mios-agents` (retired-name alias). (2) Never run interactive `-it` exec from the agent -- use non-interactive `podman exec <c> <cmd>` (no `-it`, no bare shell) so it can't hang. (3) Prefer podman (SSOT runtime), skip docker probing. (4) Investigate the memory-tool error.
+
+**Files (likely):** `.../mios_oscontrol.py`, `usr/libexec/mios/*`, Hermes tool skills, container-name SSOT (mios.toml `[containers.*]`).
+
+**Done When:**
+- [ ] "exec into the code-server container" targets `mios-agents`, runs non-interactively, returns promptly (no >5s hang), never `-it`
+
+## T-118: HEALTH-01 -- mios-cpu-node + mios-llm-light Unhealthy (oversized KV ctx)  [P1]
+> **Priority:** P1 | **Status:** pending | **Effort:** S | **Domain:** Inference/Reliability | **Source:** podman dashboard -- `mios-cpu-node` (granite-4.1-8b) runs `--ctx-size 131072` on CPU (n-gpu-layers 0) and is **Unhealthy** (oversized KV; the VRAM/KV co-fit finding recommends ctx 131072->32768); `mios-llm-light` is also **Unhealthy**. Health gates red.
+
+**Instructions:** Right-size the cpu-node KV ctx (SSOT `[lanes.*]`/llamacpp yaml) to a healthy value (e.g. 32768) per the co-fit finding; diagnose the llm-light health-gate failure (config.yaml / model load). NO-HARDCODE: ctx from SSOT.
+
+**Files:** `usr/share/mios/llamacpp/*.yaml`, `usr/share/mios/mios.toml` (lane ctx), the health-gate.
+
+**Done When:**
+- [ ] mios-cpu-node + mios-llm-light report Healthy (live)
+
+---
+
+## T-119: TOOLARG-01 -- Native typed launch-arguments for ALL tools/skills/recipes (OpenAI-pattern, all environments)  [P1, systemic]
+> **Priority:** P1 | **Status:** pending | **Effort:** XL | **Domain:** Tool-calling/OS-Control | **Source:** operator mandate (generalizes T-116) -- every verb/skill/recipe must expose NATIVE, typed launch/invocation arguments following OpenAI function-calling patterns (strict JSON-schema typed params + enums), grounded in upstream research on native invocation per app-type across ALL environments (Windows/Linux/WSL/container/browser). Not name-only coarse verbs. Exemplar: browser open-URL must take `{url, mode:tab|window, reuse_instance}` and open a TAB in the RUNNING browser, not a new window.
+
+**Instructions:** Research + design FIRST (-> a `research/` doc): the native typed-arg standard + a per-type/per-environment native launch-arg map (browser tab/window via CDP `Target.createTarget`/`--new-tab`/remote; Windows App Paths/protocol/`.lnk`/AUMID; Linux `.desktop` Exec field codes/`gio`/`xdg-open`; games via `steam://`). Then enrich the `_VERB_CATALOG` + skill/recipe schemas with typed native args and project them through the existing OpenAI-tool/MCP schema surface (`strict`). SSOT + NO-HARDCODE + degrade-open. Land T-116 (browser tab) as the first shipped instance. Pairs with T-111 (constrained tool-calling = the MECHANISM; this = schema RICHNESS).
+
+**Files (likely):** `usr/share/mios/mios.toml` (`[verbs.*]` arg schemas), `usr/lib/mios/agent-pipe/mios_pipe/routing/verbcatalog.py` (`_verb_to_openai_tool`), `.../mios_oscontrol.py`, `usr/libexec/mios/mios-windows`, skills/recipes catalogs.
+
+**Done When:**
+- [ ] a research/design doc defines the native typed-arg standard + per-type/env launch-arg map
+- [ ] browser open-URL opens a TAB in the running browser (T-116) as the first shipped instance
+- [ ] verbs/skills/recipes expose typed native args (not name-only) via the OpenAI/MCP tool projection
+- [ ] every argument is model-selectable + validated; degrade-open when an env/arg is unsupported
+
+---
+
 ## Appendix A: Dependency Graph (Critical Path â€” CONV additions)
 
 ```
