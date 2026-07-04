@@ -2708,15 +2708,17 @@ T-084 (STRG-01 SSOT)
 **Done When:**
 - [ ] "exec into the code-server container" targets `mios-agents`, runs non-interactively, returns promptly (no >5s hang), never `-it`
 
-## T-118: HEALTH-01 -- mios-cpu-node + mios-llm-light Unhealthy (oversized KV ctx)  [P1]
-> **Priority:** P1 | **Status:** pending | **Effort:** S | **Domain:** Inference/Reliability | **Source:** podman dashboard -- `mios-cpu-node` (granite-4.1-8b) runs `--ctx-size 131072` on CPU (n-gpu-layers 0) and is **Unhealthy** (oversized KV; the VRAM/KV co-fit finding recommends ctx 131072->32768); `mios-llm-light` is also **Unhealthy**. Health gates red.
+## T-118: HEALTH-01 -- mios-cpu-node + mios-llm-light Unhealthy (baked healthcheck port mismatch)  [P1]
+> **Priority:** P1 | **Status:** done-by-code | **Effort:** S | **Domain:** Inference/Reliability | **Source:** podman dashboard -- both llama-swap:cuda lanes report **Unhealthy**. ROOT CAUSE (live-probed, corrects the original "oversized KV" premise): the lanes are NOT down -- `curl :${MIOS_PORT_CPU_NODE}/health` and `:${MIOS_PORT_LLM_LIGHT}/health` + `/v1/models` all return **200**. The upstream `ghcr.io/mostlygeek/llama-swap:cuda` image bakes `HEALTHCHECK curl -f http://localhost:8080/`, but MiOS runs each lane on its SSOT `${MIOS_PORT_*}` port -> the baked probe can never connect -> perpetual red gate.
 
-**Instructions:** Right-size the cpu-node KV ctx (SSOT `[lanes.*]`/llamacpp yaml) to a healthy value (e.g. 32768) per the co-fit finding; diagnose the llm-light health-gate failure (config.yaml / model load). NO-HARDCODE: ctx from SSOT.
+**Instructions:** Override the baked image healthcheck with an SSOT `HealthCmd` that probes the REAL runtime `${MIOS_PORT_*}` port; also land the already-in-SSOT cpu-node ctx right-size (131072->32768). NO-HARDCODE: port from `${MIOS_PORT_*}` runtime var.
 
-**Files:** `usr/share/mios/llamacpp/*.yaml`, `usr/share/mios/mios.toml` (lane ctx), the health-gate.
+**Files:** `usr/share/mios/mios.toml` (`[containers.mios-cpu-node.Container]` + `[containers.mios-llm-light.Container]` HealthCmd/ctx), regenerated `usr/share/containers/systemd/mios-{cpu-node,llm-light}.container`.
 
 **Done When:**
-- [ ] mios-cpu-node + mios-llm-light report Healthy (live)
+- [x] SSOT `HealthCmd` added for both lanes, probing the runtime `${MIOS_PORT_*}` port (cpu-node -> llama-server `/health`; llm-light -> llama-swap `/v1/models`, model-load-free) -- commit c3eff07
+- [x] cpu-node `--ctx-size 32768` regenerated into the Quadlet (was drifted at 131072); `generate-pod-quadlets.py --check` green (26/26 match SSOT)
+- [ ] mios-cpu-node + mios-llm-light report Healthy after an operator pod recreate (daemon-reload + restart mios-ai.pod) -- LIVE-VERIFY pending
 
 ---
 
