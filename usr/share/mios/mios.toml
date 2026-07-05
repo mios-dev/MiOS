@@ -59,7 +59,11 @@ default_password = "mios"
 # the agent knows the user's name, pronouns, and bio. Layered from ~/.config/mios.
 # ----------------------------------------------------------------------------
 [user]
-name = "Kabu"
+# Vendor default is EMPTY -> the operator's display name inherits the SSOT
+# [identity].username until personalized (via ~/.config/mios or the MiOS App).
+# Never ship a personal name here: this is the display label, and it must never
+# be resolved into a login/credential slot (that reads the DB account SSOT).
+name = ""
 pronouns = ""
 bio = ""
 

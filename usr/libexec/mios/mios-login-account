@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# AI-hint: Resolves the DB-driven LOGIN account the dashboards advertise -- the globally-controlled account SSOT (pgvector), NOT the operator DISPLAY name ([user].name, e.g. "Kabu"). Shared by the Linux dashboard and the Windows dashboard (via wsl) so the two never drift. Interim consumer ahead of the full WS-ACCT control plane (T-150..T-153).
+# AI-hint: Resolves the DB-driven LOGIN account the dashboards advertise -- the globally-controlled account SSOT (pgvector), NOT the operator DISPLAY name ([user].name). Shared by the Linux dashboard and the Windows dashboard (via wsl) so the two never drift. Interim consumer ahead of the full WS-ACCT control plane (T-150..T-153).
 # AI-related: /usr/libexec/mios/mios-dashboard.sh, powershell/profile.ps1, mios-pg-query, account (pgvector table)
 # AI-functions: _db_name, main
 #
@@ -37,14 +37,14 @@ fi
 [ -z "$name" ] && name="user"
 
 if [ "${1:-}" = "password" ]; then
-    # Advertised login password: from the DB account meta once the WS-ACCT
-    # control plane seeds it; until then the vendor default matches the account.
-    pw=""
-    if [ -r "$PGQ" ]; then
-        pw="$(printf '{"sql":"SELECT meta->>%s FROM account WHERE name = $1","params":["%s"]}' "'password'" "$name" | python3 "$PGQ" --exec-json 2>/dev/null | head -1)"
-    fi
-    [ -z "$pw" ] && pw="user"
-    printf '%s' "$pw"
+    # Advertised login password = the fresh-seed convention (initial password
+    # equals the account name), which the dashboard shows as a first-boot HINT.
+    # We deliberately do NOT read any stored secret: passwords live hashed
+    # (account.password_hash, WS-ACCT), never plaintext, and a dashboard must
+    # never materialize a credential. Once an operator personalizes their
+    # password they already know it, so the hint is only meaningful on a fresh
+    # vendor seed -- where it correctly reads "<name>/<name>".
+    printf '%s' "$name"
     exit 0
 fi
 printf '%s' "$name"

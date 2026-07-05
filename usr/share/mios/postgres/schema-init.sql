@@ -382,6 +382,21 @@ CREATE TABLE IF NOT EXISTS account (
     meta        jsonb
 );
 CREATE INDEX IF NOT EXISTS account_kind ON account (kind);
+-- WS-ACCT: OS-account control-plane columns (additive + nullable/defaulted, so
+-- existing rows and the seed below are untouched). These let the pgvector
+-- `account` table drive NATIVE OS accounts on BOTH platforms -- Linux via
+-- libnss-pgsql2/pam_pgsql (the DB IS passwd/shadow/group) and Windows via the
+-- DB->SAM live-sync service -- so a DB edit reflects to the live OS. Passwords
+-- are stored HASHED only (never plaintext); is_admin drives sudo/Administrators;
+-- os_targets scopes a row to linux|windows|both; enabled toggles the account
+-- without deleting it. See ROADMAP WS-ACCT / TASKS T-150..T-153.
+ALTER TABLE account ADD COLUMN IF NOT EXISTS uid           integer;
+ALTER TABLE account ADD COLUMN IF NOT EXISTS gid           integer;
+ALTER TABLE account ADD COLUMN IF NOT EXISTS groups        text;              -- CSV of supplementary groups
+ALTER TABLE account ADD COLUMN IF NOT EXISTS is_admin      boolean DEFAULT false;
+ALTER TABLE account ADD COLUMN IF NOT EXISTS os_targets    text    DEFAULT 'both';   -- linux | windows | both
+ALTER TABLE account ADD COLUMN IF NOT EXISTS password_hash text;              -- hashed only; NEVER plaintext
+ALTER TABLE account ADD COLUMN IF NOT EXISTS enabled       boolean DEFAULT true;
 -- Seed accounts WITHOUT a hardcoded name (NO-HARDCODE law forbids restating the
 -- SSOT operator identity as a SQL literal). Derive them from the identities the
 -- database ALREADY holds, so every existing owner gains a home:

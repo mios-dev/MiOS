@@ -2947,7 +2947,7 @@ T-094 (CONV-01 SSOT)
 ## T-133: WISO-02 -- NTLite preset sanitizer (`ConvertTo-MiOSPreset.ps1` -> `MiOS-Xbox.xml`)  [P2]
 > **Priority:** P2 | **Status:** DONE (2026-07-04) | **Effort:** M | **Domain:** Windows/Install | **Source:** Part 12 WS-WISO.
 
-**Context:** Operator NTLite Xbox presets strip WSL/VMP/Hyper-V (the MiOS podman substrate) and carry machine-specific identity (Kabu/XBOX-PC/DriversExport).
+**Context:** Operator NTLite Xbox presets strip WSL/VMP/Hyper-V (the MiOS podman substrate) and carry machine-specific identity (personal account name / machine name / driver-export paths) that must be sanitized to MiOS defaults.
 **Files:** `src/autounattend/ConvertTo-MiOSPreset.ps1`, `MiOS-Xbox.xml`
 **Done When:**
 - [x] Posture B re-preserves WSL2/VMP/Hyper-V; SSOT hostname + credentialed accounts + AutoLogon; FirstLogonCommands = shared provisioning + nested `irm Get-MiOS.ps1 | iex`
@@ -3011,7 +3011,7 @@ T-094 (CONV-01 SSOT)
 ## T-141: XBOX-02 -- Gaming loadout + Xbox tuning  [P3]
 > **Priority:** P3 | **Status:** pending | **Effort:** M | **Domain:** Windows/Gaming | **Source:** Part 12 WS-XBOX.
 
-**Instructions:** Adopt the reference `unattend-02/03.ps1` sanitized to MiOS: Xbox services Manual, Teredo/IPv6, Game Mode, Delivery Optimization, FSE regs; winget gaming apps (Steam/Vesktop/Zen). OEM branding -> MiOS (not "Kabu").
+**Instructions:** Adopt the reference `unattend-02/03.ps1` sanitized to MiOS: Xbox services Manual, Teredo/IPv6, Game Mode, Delivery Optimization, FSE regs; winget gaming apps (Steam/Vesktop/Zen). OEM branding -> MiOS (never a personal name).
 **Done When:**
 - [ ] gaming services/tuning applied; gaming apps installed at first logon; no legacy operator branding
 
@@ -3074,11 +3074,11 @@ T-094 (CONV-01 SSOT)
 ## T-150: ACCT-01 -- Account SSOT schema + install-time seeding (pgvector `account`)  [P2]
 > **Priority:** P2 | **Status:** pending | **Effort:** L | **Domain:** Data/Accounts | **Source:** operator directive -- DB-driven GLOBAL account control plane (Part 12 WS-ACCT); extends WISO-01/T-132 + WEDITION-02/T-147 from one-shot seeding to a live SSOT.
 
-**Instructions:** Extend pgvector `account` in `usr/share/mios/postgres/schema-init.sql`: kind `user|admin|service`, display, password_hash, uid/gid, groups + sudo/admin, os_targets `linux|windows|both`, enabled, meta. Seed rows from mios.toml `[[accounts]]`/`[identity]` at install (mios-bootstrap on Linux; `MiOS-Provision.lib.ps1` on Windows). LAW: separate the LOGIN account (`account.name`) from the DISPLAY name (`[user].name`, e.g. "Kabu") -- purge `MIOS_USER`=display-name usage from every consumer. Vendor default account = `user`/`user`.
+**Instructions:** Extend pgvector `account` in `usr/share/mios/postgres/schema-init.sql`: kind `user|admin|service`, display, password_hash, uid/gid, groups + sudo/admin, os_targets `linux|windows|both`, enabled, meta. Seed rows from mios.toml `[[accounts]]`/`[identity]` at install (mios-bootstrap on Linux; `MiOS-Provision.lib.ps1` on Windows). LAW: separate the LOGIN account (`account.name`) from the DISPLAY name (`[user].name`) -- purge `MIOS_USER`=display-name usage from every consumer. Vendor default account = `user`/`user`.
 **Files:** `usr/share/mios/postgres/schema-init.sql`, `usr/share/mios/mios.toml` (`[[accounts]]`), `C:\mios-bootstrap\src\autounattend\MiOS-Provision.lib.ps1`.
 **Done When:**
 - [ ] a fresh install seeds the pgvector `account` rows from SSOT; the default `user`/`user` account exists in the DB
-- [ ] no consumer resolves the login user from `MIOS_USER`/`[user].name` (the "Kabu" leak is gone)
+- [ ] no consumer resolves the login user from `MIOS_USER`/`[user].name` (the display-name leak is gone)
 
 ## T-151: ACCT-02 -- Linux DB-native accounts via NSS + PAM (libnss-pgsql2 + pam_pgsql)  [P2]
 > **Priority:** P2 | **Status:** pending | **Effort:** L | **Domain:** Linux/Accounts | **Source:** operator directive -- "DBs control Linux accounts, live" (WS-ACCT).
@@ -3105,4 +3105,4 @@ T-094 (CONV-01 SSOT)
 **Files:** `usr/share/mios/configurator/mios.html`, `usr/libexec/mios/mios-dashboard.sh`, `powershell/profile.ps1`, `usr/share/mios/mios.toml`.
 **Done When:**
 - [ ] an account edit in mios.html reflects live on BOTH Linux and Windows
-- [ ] dashboards show the DB account (default `user`/`user`), never "Kabu"
+- [ ] dashboards show the DB account (default `user`/`user`), never the operator display name

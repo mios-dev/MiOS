@@ -178,7 +178,6 @@ fi
 # MOTD render `login: root / mios` because mios-dashboard-issue.service
 # runs as root -- $USER == 'root' wins over the unset MIOS_LINUX_USER.
 MIOS_VERSION=""
-MIOS_AI_MODEL=""
 if [[ -r /etc/mios/install.env ]]; then
     # shellcheck disable=SC1091
     set -a; source /etc/mios/install.env 2>/dev/null || true; set +a
@@ -186,7 +185,7 @@ fi
 # LOGIN account = the DB-driven account SSOT (pgvector), resolved via the
 # shared mios-login-account helper (DB person/account -> live primary human
 # account -> vendor default 'user'). Deliberately NOT MIOS_USER / [user].name:
-# that is the operator's DISPLAY name (e.g. "Kabu") and must never land in a
+# that is the operator's DISPLAY name ([user].name) and must never land in a
 # login/credential slot. Interim consumer ahead of the WS-ACCT DB<->OS control
 # plane (T-150..T-153). Degrade-open so the banner always renders; NEVER falls
 # back to $USER (the dashboard-issue service runs as root).
@@ -196,8 +195,11 @@ MIOS_LINUX_USER="$(bash "$_mios_login_helper" 2>/dev/null)"
 [[ -z "$MIOS_LINUX_USER" ]] && MIOS_LINUX_USER="user"
 MIOS_LOGIN_PASSWORD="$(bash "$_mios_login_helper" password 2>/dev/null)"
 [[ -z "$MIOS_LOGIN_PASSWORD" ]] && MIOS_LOGIN_PASSWORD="user"
-[[ -z "${MIOS_VERSION:-}" ]] && MIOS_VERSION="$(cat /usr/share/mios/VERSION 2>/dev/null || cat /etc/mios/VERSION 2>/dev/null || echo "0.2.4")"
-MIOS_AI_MODEL="${MIOS_AI_MODEL:-granite4.1:8b}"
+# Version: staged env > VERSION files > mios.toml [meta].mios_version SSOT > '?'.
+# NEVER a bare literal fallback -- a hardcoded version silently drifts from the
+# real image once it bumps (matches the non-fabricating _dash_field 'version'
+# path). '?' is the honest degrade-open marker.
+[[ -z "${MIOS_VERSION:-}" ]] && MIOS_VERSION="$(cat /usr/share/mios/VERSION 2>/dev/null || cat /etc/mios/VERSION 2>/dev/null || _mios_toml_value 'meta' 'mios_version' '?')"
 
 # ── Frame helpers ────────────────────────────────────────────────────────────
 # Repeat a single char N times.
@@ -408,22 +410,18 @@ print_endpoints() {
     _fpw="$(cat /etc/mios/forge/admin-password 2>/dev/null)"
     [[ -z "$_fpw" ]]    && _fpw="$_pw"
 
-    local _p_forge _p_cockpit _p_ollama _p_ollama_cpu _p_searxng
-    local _p_hermes _p_dash _p_code _p_webui _p_agent_pipe _p_pgvector _p_guacamole
+    local _p_forge _p_cockpit _p_searxng
+    local _p_hermes _p_code _p_webui _p_agent_pipe _p_pgvector
     local _p_ttyd_bash _p_ttyd_ps _p_ssh
     _p_forge=$(_mios_port forge_http 3000)
     _p_cockpit=$(_mios_port cockpit 9090)
-    _p_ollama=$(_mios_port ollama 11434)
-    _p_ollama_cpu=$(_mios_port ollama_cpu 11435)
     _p_llamaswap=$(_mios_port llm_light 11450)
     _p_searxng=$(_mios_port searxng 8899)
     _p_hermes=$(_mios_port hermes 8642)
-    _p_dash=$(_mios_port hermes_dashboard 9119)
     _p_code=$(_mios_port code_server 8800)
     _p_webui=$(_mios_port open_webui 3033)
     _p_agent_pipe=$(_mios_port agent_pipe 8640)
     _p_pgvector=$(_mios_port pgvector 5432)
-    _p_guacamole=$(_mios_port guacamole_web 8080)
     _p_ttyd_bash=$(_mios_port ttyd_bash 7681)
     _p_ttyd_ps=$(_mios_port ttyd_powershell 7682)
     _p_ssh=$(_mios_port ssh 22)
@@ -436,17 +434,18 @@ print_endpoints() {
         fi
     fi
 
-    local d_forge d_ollama d_ollama_cpu d_cockpit d_searxng
-    local d_hermes d_dash d_code d_webui d_agent_pipe d_pgvector
-    local d_ttyd_bash d_ttyd_ps d_guacamole d_ssh
+    # Only probe endpoints actually rendered below (count loop + table rows).
+    # Removed dead probes (ollama/ollama_cpu/dash/guacamole/crowdsec) whose dots
+    # were computed but never shown -- wasted curl/service_status work on a
+    # login-shell MOTD path.
+    local d_forge d_cockpit d_searxng
+    local d_hermes d_code d_webui d_agent_pipe d_pgvector
+    local d_ttyd_bash d_ttyd_ps d_ssh
     d_forge=$(ep_dot      "http://localhost:${_p_forge}/api/v1/version")
-    d_ollama=$(ep_dot     "http://localhost:${_p_ollama}/")
-    d_ollama_cpu=$(ep_dot "http://localhost:${_p_ollama_cpu}/")
     d_llamaswap=$(ep_dot  "http://localhost:${_p_llamaswap}/v1/models")
     d_cockpit=$(ep_dot    "https://localhost:${_p_cockpit}/")
     d_searxng=$(ep_dot    "http://localhost:${_p_searxng}/")
     d_hermes=$(ep_dot     "http://localhost:${_p_hermes}/health")
-    d_dash=$(ep_dot       "http://localhost:${_p_dash}/")
     d_code=$(ep_dot       "http://localhost:${_p_code}/")
     d_webui=$(ep_dot      "http://localhost:${_p_webui}/")
     d_agent_pipe=$(ep_dot "http://localhost:${_p_agent_pipe}/health")
@@ -454,8 +453,6 @@ print_endpoints() {
     d_ttyd_bash=$(tcp_dot "127.0.0.1" "$_p_ttyd_bash")
     d_ttyd_ps=$(tcp_dot "127.0.0.1" "$_p_ttyd_ps")
     d_ssh=$(tcp_dot       localhost "$_ssh_check_port")
-    s_guac=$( service_status mios-guacamole.service); IFS='|' read -r _ d_guacamole _ <<< "$s_guac"
-    s_crowdsec=$( service_status mios-crowdsec-dashboard.service); IFS='|' read -r _ d_crowdsec _ <<< "$s_crowdsec"
 
     local n_up=0 n_down=0
     for _d in "$d_agent_pipe" "$d_hermes" "$d_pgvector" \

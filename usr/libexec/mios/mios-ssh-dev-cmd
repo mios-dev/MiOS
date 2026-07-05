@@ -69,8 +69,19 @@ if command -v podman >/dev/null 2>&1; then
     done
 fi
 
+# SSH user = the owner of the served tree (so it runs the rootless container).
+# When that can't be read (no container / stat fails), fall back to the SAME
+# DB-driven login account the dashboard uses (mios-login-account), NOT MIOS_USER
+# / [user].name -- that is the operator's DISPLAY name and would
+# drift this command away from the dashboard's `login <user>` line. Resolve the
+# helper next to this script, then the deployed path.
 user="$(stat -c %U "$src" 2>/dev/null)"
-[[ -z "$user" ]] && user="${MIOS_LINUX_USER:-${MIOS_USER:-mios}}"
+if [[ -z "$user" ]]; then
+    _acct="$(cd "$(dirname "$0")" 2>/dev/null && pwd)/mios-login-account"
+    [[ -r "$_acct" ]] || _acct=/usr/libexec/mios/mios-login-account
+    user="$(bash "$_acct" 2>/dev/null)"
+    [[ -z "$user" ]] && user="user"
+fi
 
 pflag=""; [[ -n "$port" && "$port" != "22" ]] && pflag="-p $port "
 if [[ -n "$ctr" ]]; then

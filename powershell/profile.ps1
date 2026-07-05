@@ -536,94 +536,44 @@ if ($true) {
             }
         }
         # -- MiOS services block ----------------------------------
-        # refresh: parity with the Linux-side
-        # mios-dashboard.sh services grid. Each cell is a
-        # <dot> <name> :<port> probe row. Endpoints reachable from
-        # the Windows host go through localhost (WSL2's
-        # localhostForwarding mirrors the dev VM's listening sockets
-        # to the Windows loopback automatically). When a probe
-        # fails -- service is down OR forwarding misses (a known
-        # WSL2 networking flake) -- we show the dot as off and
-        # carry the row anyway so the layout stays stable.
-        function _ProbeEp {
-            param([string]$Url, [int]$TimeoutMs = 1500)
+        # Resolve the dev distro ONCE, and only if it is ALREADY RUNNING, via a
+        # fast `wsl --list --running` check (WSL_UTF8 so the names aren't UTF-16
+        # with embedded NULs). This never cold-boots a stopped distro -- the
+        # service + dev-shell bridges below reuse $_devDistro, so on every
+        # terminal spawn a stopped/absent MiOS-DEV degrades open INSTANTLY
+        # instead of blocking the prompt on a login-shell that triggers a boot.
+        $_devDistro = $null
+        if (Get-Command wsl.exe -ErrorAction SilentlyContinue) {
             try {
-                $req = [System.Net.WebRequest]::Create($Url)
-                $req.Timeout = $TimeoutMs
-                $req.Method  = "GET"
-                $req.ServicePoint.Expect100Continue = $false
-                try { $resp = $req.GetResponse(); $resp.Close() } catch {
-                    if ($_.Exception -is [System.Net.WebException] -and
-                        $_.Exception.Response -ne $null) { return $true }
-                    return $false
+                $env:WSL_UTF8 = '1'
+                $_running = @(& wsl.exe --list --running --quiet 2>$null) |
+                            ForEach-Object { ($_ -replace "`0", '').Trim() } |
+                            Where-Object { $_ }
+                foreach ($_c in @('podman-MiOS-DEV','MiOS-DEV')) {
+                    if ($_running -contains $_c) { $_devDistro = $_c; break }
                 }
-                return $true
-            } catch { return $false }
+            } catch {}
         }
-        function _ServiceCell {
-            param([string]$Name, [int]$Port, [string]$Probe = "/",
-                  [bool]$Https = $false)
-            $scheme = if ($Https) { "https" } else { "http" }
-            $url = "${scheme}://localhost:${Port}${Probe}"
-            $up  = _ProbeEp -Url $url
-            $dot = if ($up) { "$_esc[32m*$_esc[0m" } else { "$_esc[90m-$_esc[0m" }
-            $nm = $Name.PadRight(11)
-            "$dot $nm :$($Port.ToString().PadRight(5))"
-        }
-        function _ServiceRow {
-            param([string]$L, [string]$R)
-            Write-Host (_Frame ("  $L  $R")) -ForegroundColor Blue
-        }
-        # Resolve a [ports].<key> value from the layered mios.toml SSOT so the
-        # dashboard's ports track operator edits with no hard-coded literal --
-        # the Windows-side mirror of the Linux dashboard's _mios_port. Falls
-        # back to $Default only when no TOML layer carries the key.
-        function _MiosTomlPort {
-            param([string]$Key, [int]$Default)
-            $cands = @(
-                (Join-Path $env:USERPROFILE '.config\mios\mios.toml'),
-                'M:\etc\mios\mios.toml',
-                'M:\usr\share\mios\mios.toml'
-            )
-            foreach ($c in $cands) {
-                if ($c -and (Test-Path -LiteralPath $c)) {
-                    try {
-                        $t = Get-Content -LiteralPath $c -Raw -ErrorAction SilentlyContinue
-                        if (-not $t) { continue }
-                        $m = [regex]::Match($t, "(?ms)^\[ports\]\s*\r?\n(.*?)(?=^\[|\z)")
-                        if ($m.Success) {
-                            $pm = [regex]::Match($m.Groups[1].Value, "(?m)^\s*$([regex]::Escape($Key))\s*=\s*(\d+)")
-                            if ($pm.Success) { return [int]$pm.Groups[1].Value }
-                        }
-                    } catch {}
-                }
-            }
-            return $Default
-        }
+
         # Live UNIFIED service table -- bridged from the ONE Linux renderer
-        # (mios-dashboard.sh --table-only) via wsl, so BOTH dashboards show the
-        # SAME live services (pods/containers/host units + SSOT ports) from a
-        # single source: no hardcoded service/port list, no drift. Degrade-open
-        # when the MiOS-DEV distro is unreachable. (Replaces the old hardcoded
-        # AI/User-surface _ServiceCell rows that diverged from the Linux table.)
+        # (mios-dashboard.sh --table-only/--endpoints-only) via wsl, so BOTH
+        # dashboards show the SAME live services (pods/containers/host units +
+        # SSOT ports) from a single source: no hardcoded service/port list, no
+        # drift. Full `mios dash` -> fuller UNIFIED table; compact `mios mini`
+        # (80x20) -> compact endpoint table, exactly as the Linux dash vs mini.
         Write-Host ($LT + ($H * ($WIDTH - 2)) + $RT) -ForegroundColor Blue
-        # Full `mios dash` shows the fuller UNIFIED table; compact `mios mini`
-        # (80x20) shows the compact endpoint table -- exactly as the Linux
-        # `mios dash` vs `mios mini` do, from the same renderer.
         $_svcMode = if ($Full) { '--table-only' } else { '--endpoints-only' }
         $_svcLines = $null
-        if (Get-Command wsl.exe -ErrorAction SilentlyContinue) {
-            foreach ($_dd in @('podman-MiOS-DEV','MiOS-DEV')) {
-                try {
-                    $_o = & wsl.exe -d $_dd --user mios -- bash -lc "bash /usr/libexec/mios/mios-dashboard.sh $_svcMode --no-color" 2>$null
-                    if ($LASTEXITCODE -eq 0 -and $_o) { $_svcLines = @($_o); break }
-                } catch {}
-            }
+        if ($_devDistro) {
+            try {
+                $_o = & wsl.exe -d $_devDistro --user mios -- bash -lc "bash /usr/libexec/mios/mios-dashboard.sh $_svcMode --no-color" 2>$null
+                if ($LASTEXITCODE -eq 0 -and $_o) { $_svcLines = @($_o) }
+            } catch {}
         }
         if ($_svcLines) {
             foreach ($_sl in $_svcLines) { Write-Host (_Frame $_sl) -ForegroundColor Blue }
         } else {
-            Write-Host (_Frame "  $_esc[90m[services: MiOS-DEV distro not reachable -- start with: mios dev]$_esc[0m") -ForegroundColor Blue
+            Write-Host (_Frame "  $_esc[90m[services: MiOS-DEV distro not running -- start with: mios dev]$_esc[0m") -ForegroundColor Blue
         }
 
         # -- Command hints rows -----------------------------------
@@ -687,9 +637,9 @@ if ($true) {
         # probed from the same candidate list the rest of this profile uses.
         try {
             $_devCmd = $null
-            foreach ($_dd in @('podman-MiOS-DEV','MiOS-DEV')) {
-                $_out = & wsl.exe -d $_dd --user mios -- bash -lc 'bash /usr/libexec/mios/mios-ssh-dev-cmd' 2>$null
-                if ($LASTEXITCODE -eq 0 -and $_out) { $_devCmd = ("$($_out | Select-Object -First 1)").Trim(); break }
+            if ($_devDistro) {
+                $_out = & wsl.exe -d $_devDistro --user mios -- bash -lc 'bash /usr/libexec/mios/mios-ssh-dev-cmd' 2>$null
+                if ($LASTEXITCODE -eq 0 -and $_out) { $_devCmd = ("$($_out | Select-Object -First 1)").Trim() }
             }
             if ($_devCmd) {
                 Write-Host ("$_esc[1m$_esc[36mdev shell:$_esc[0m $_devCmd")
@@ -1026,6 +976,13 @@ function mios {
     }
     # Free-form query -> Hermes-Agent /v1/chat/completions.
     $_query = (@($Verb) + @($Args)) -join ' '
+    # $Global:MiosBin may be unset (this profile is dot-sourced standalone from
+    # the $PROFILE redirector). Guard it -- Join-Path throws on a null Path,
+    # which would surface a raw binder error instead of the friendly hint below.
+    if (-not $Global:MiosBin) {
+        Write-Host "  [!] mios-ask.ps1 not staged. Try: mios help" -ForegroundColor Yellow
+        return
+    }
     $_ask = Join-Path $Global:MiosBin 'mios-ask.ps1'
     if (Test-Path -LiteralPath $_ask) {
         & $_ask $_query
