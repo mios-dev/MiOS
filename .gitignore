@@ -57,6 +57,12 @@
 # workspace at /mnt/mios-root).
 !/ROADMAP.md
 !/TASKS.md
+# Research docs are local working notes by default; track ONLY those cross-referenced
+# by ROADMAP/TASKS so the reference resolves on a fresh clone. Cascade rule: unignore
+# the dir, re-ignore its contents, then unignore the specific referenced doc(s).
+!/research/
+/research/*
+!/research/multi-agent-orchestration-strategies-2026-07-05.md
 !/AGENTS.md
 !/AGREEMENTS.md
 !/CLAUDE.md
