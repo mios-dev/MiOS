@@ -3179,3 +3179,30 @@ T-094 (CONV-01 SSOT)
 **Done When:**
 - [ ] topology + debate protocol are chosen per task-class from SSOT/orchestrator judgement, not a fixed hardcoded path
 - [ ] switching protocol changes convergence/interaction behaviour as documented; default degrades open to the current fan-out
+
+## T-162: WBRAND-04 -- SSOT living-wallpaper shader (self-authored, permissive)  [P3]
+> **Priority:** P3 | **Status:** pending | **Effort:** M | **Domain:** Branding | **Source:** operator research digest (mesh gradients / WebGPU / Hyprland-Quickshell), filed for later. See `research/mesh-gradient-living-wallpaper-2026-07-06.md`.
+
+**Instructions:** Author a small (~40-line) WGSL/GLSL mesh-gradient fragment shader whose colors come from SSOT `[colors].accent`/`[colors].bg` (the same values behind the static wallpaper + DWM accent + matugen). No third-party license -- OR Apache-2.0 BabylonJS if a full engine is wanted. **LAW: never vendor `firecmsco/neat` (MIT + Commons Clause) or any non-OSI dep into a shipped OS; verify every LICENSE at vendor time.** Degrade-open ladder: animated shader → static SSOT gradient (current baked JPG) → solid accent. Gated `[branding].living_wallpaper` (off by default).
+**Files:** `usr/share/mios/branding/living-wallpaper.wgsl` (new), `usr/share/mios/mios.toml` (`[branding]`).
+**Done When:**
+- [ ] the shader renders a mesh gradient from SSOT colors only (no hardcoded palette); disabled by default
+- [ ] auto-degrades to the static gradient on no-Vulkan/old-iGPU; no Commons-Clause/non-OSI dependency vendored
+
+## T-163: WBRAND-05 -- Linux living wallpaper (GNOME layer / optional Quickshell)  [P3]
+> **Priority:** P3 | **Status:** pending | **Effort:** M | **Domain:** Linux/Branding | **Source:** operator research digest (filed for later); depends on T-162.
+
+**Instructions:** Render the T-162 shader NATIVELY on Linux (Qt6 RHI→Vulkan/OpenGL on the Mesa iGPU -- MiOS ships `[packages.gpu-mesa]`), not WebGPU-in-browser. GNOME/Wayland has no shader-wallpaper API → a minimal Wayland-background helper or `mpvpaper` video loop; an OPTIONAL Hyprland/Quickshell desktop profile may use a native `ShaderEffect` (refs: MIT `magetsu002/qs-wallpaper-picker`, `bjarneo/quickshell`). Universal fallback = pre-rendered loop. Gated + off by default.
+**Files:** `usr/libexec/mios/mios-living-wallpaper` (new), `usr/share/mios/mios.toml`.
+**Done When:**
+- [ ] the SSOT mesh gradient animates on a MiOS GNOME/Wayland desktop via the iGPU; falls back to static/video where unsupported
+- [ ] no browser/WebGPU-flag dependency on the Linux path
+
+## T-164: WBRAND-06 -- Windows animated background + SSOT living-wallpaper keys  [P3]
+> **Priority:** P3 | **Status:** pending | **Effort:** M | **Domain:** Windows/Branding | **Source:** operator research digest (filed for later); MiOS-XBOX/MiOS-Win; depends on T-162.
+
+**Instructions:** Add a MiOS-XBOX/MiOS-Win animated desktop background from the T-162 shader/palette (borderless WebView2/D3D canvas at background z-order, OR a pre-rendered loop -- most compatible). WebGPU-in-browser (WebView2/D3D12) is acceptable ONLY on Windows. Add `[branding].living_wallpaper` + `living_wallpaper_mode` (`shader|video|static`) to mios.toml + configurator; wire into the Windows branding path (`MiOS-Provision.lib.ps1` / `Set-MiOSIdentityOffline`, alongside the current static gradient).
+**Files:** `usr/share/mios/mios.toml` (`[branding]`), `usr/share/mios/configurator/mios.html`, `C:\mios-bootstrap\src\autounattend\MiOS-Provision.lib.ps1`.
+**Done When:**
+- [ ] `living_wallpaper_mode=static` keeps today's baked gradient (no regression); `shader`/`video` add the animated layer from SSOT colors
+- [ ] the mode is exposed in the configurator and read from the layered SSOT
