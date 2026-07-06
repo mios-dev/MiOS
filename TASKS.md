@@ -3106,3 +3106,76 @@ T-094 (CONV-01 SSOT)
 **Done When:**
 - [ ] an account edit in mios.html reflects live on BOTH Linux and Windows
 - [ ] dashboards show the DB account (default `user`/`user`), never the operator display name
+
+## T-154: MAO-01 -- Typed handoffs + parallel guardrails + tracing spans  [P2]
+> **Priority:** P2 | **Status:** pending | **Effort:** M | **Domain:** Agents/Orchestration | **Source:** multi-agent research digest (Part 13 WS-MAO); verified OpenAI Agents SDK / Swarm pattern. See `research/multi-agent-orchestration-strategies-2026-07-05.md`.
+
+**Instructions:** In agent-pipe, model handoffs as typed transfer functions returning `{target_agent, Result(context-update)}`; run input/output **guardrails in parallel** on a cheap model (validate + short-circuit); emit a **trace span per hop** (router/refine/synthesis/polish/swarm/council) into the native stream (feeds `feedback_everything_streams_natively_all_surfaces`). Add a server-side `context_variables` dict hidden from the tool schema (light shared state; heavy/volatile stays on-demand per the env-grounding law). All gated in `[agents.orchestration]`; degrade-open (missing guardrail model → pass-through).
+**Files:** `usr/lib/mios/agent-pipe/server.py`, `usr/share/mios/mios.toml` (`[agents.orchestration]`).
+**Done When:**
+- [ ] handoffs are typed transfers (not ad-hoc string routing); a hop failure is caught + traced, not silent
+- [ ] input/output guardrails run in parallel and can short-circuit; every hop emits a trace span visible on OWUI/CLI
+- [ ] `context_variables` carries light shared state without entering the tool schema
+
+## T-155: MAO-02 -- Structured deliberation for consequential tasks (DCI concept), MODEL-gated  [P2]
+> **Priority:** P2 | **Status:** pending | **Effort:** L | **Domain:** Agents/Council | **Source:** Part 13 WS-MAO; DCI CONCEPT (source `arXiv 2603.11781` UNVERIFIABLE/post-cutoff -- adopt concept, do NOT cite as authority).
+
+**Instructions:** Upgrade the council hop to optional **structured deliberation**: archetype roles (Framer/Explorer/Challenger/Integrator) via **differentiated system prompts** (bias only -- NOT hardcoded capability), a **typed interaction grammar** (propose/challenge/evidence/reframe/synthesize/concede/…) so a challenge is structurally distinct from a proposal, **tension tracking** (disagreements preserved as first-class objects), and a bounded convergence loop terminating in a **Decision Packet** (action + residual objections + minority report + reopen-conditions) persisted to pgvector. **Cost: ~62× tokens; it HARMS routine tasks** -> the trigger is a **model-driven consequentiality classifier** (Law 7: no keyword gate), gated `[agents.orchestration].deliberation`, default **off**. Routine tasks stay on the cheap council path.
+**Files:** `usr/lib/mios/agent-pipe/server.py`, `usr/share/mios/agents/`, `usr/share/mios/postgres/schema-init.sql` (decision_packet), `usr/share/mios/mios.toml`.
+**Done When:**
+- [ ] a model classifier (not a keyword list) decides deliberation vs cheap path; default off; routine tasks never pay the 62× cost
+- [ ] deliberation emits a Decision Packet with a preserved minority report; disagreements are tracked, not averaged away
+
+## T-156: MAO-03 -- Document-mutation + LISTEN/NOTIFY coordination lane on pgvector  [P3]
+> **Priority:** P3 | **Status:** pending | **Effort:** M | **Domain:** Agents/Coordination | **Source:** Part 13 WS-MAO; OpenClaw CONCEPT (`arXiv 2603.11721` UNVERIFIABLE) built on existing pgvector.
+
+**Instructions:** Add a decoupled async coordination mode: agents coordinate by **mutating shared rows/docs** in pgvector; a `LISTEN/NOTIFY` (or logical-decode) event bus wakes decoupled worker/daemon agents on mutation -- no direct message-passing, no polling. Every trigger/decision is a row (permanent audit trail); agents know only the shared schema (absolute decoupling). Reuse the MiOS-Daemon supervisor pattern for the subscribers. Flag-gated; degrade-open to the direct-call path.
+**Files:** `usr/share/mios/postgres/schema-init.sql`, `usr/lib/mios/agent-pipe/server.py` or a new `usr/libexec/mios/mios-coord-bus`, `usr/share/mios/mios.toml`.
+**Done When:**
+- [ ] an agent row-mutation wakes a decoupled subscriber via NOTIFY (no polling); the exchange is fully reconstructable from DB rows
+- [ ] bus down / disabled → falls back to direct dispatch (degrade-open)
+
+## T-157: MAO-04 -- Manifest-guided progressive-disclosure retrieval  [P3]
+> **Priority:** P3 | **Status:** pending | **Effort:** M | **Domain:** Agents/Memory | **Source:** Part 13 WS-MAO; OpenClaw CONCEPT (UNVERIFIABLE) -- an ADDITIONAL retrieval strategy, not a pgvector-recall replacement.
+
+**Instructions:** For large/longitudinal document trees, add retrieval that walks a tree of nodes each carrying a natural-language `manifest` of its children, selecting subtrees via **LLM-select** (reason over descriptions + prune) to a depth bound -- instead of cosine-only similarity. Manifest maintenance is O(depth) per mutation (local update on write). Selectable per query-class from `[agents.orchestration]`; pgvector vector recall remains the default.
+**Files:** `usr/lib/mios/agent-pipe/server.py` (retrieval strategy hook), `usr/share/mios/postgres/schema-init.sql` (node/manifest), `usr/share/mios/mios.toml`.
+**Done When:**
+- [ ] a longitudinal-tree query retrieves via manifest LLM-select traversal with pruned subtrees; precision beats flat vector recall on the target class
+- [ ] manifests update locally on document mutation (no full re-embed of siblings)
+
+## T-158: MAO-05 -- Identity-aware delegation: extend agent-passport/A2A (LDP concept)  [P2]
+> **Priority:** P2 | **Status:** pending | **Effort:** M | **Domain:** Agents/A2A | **Source:** Part 13 WS-MAO; LDP CONCEPT (`arXiv 2603.18043` UNVERIFIABLE) extending the SHIPPED `agent-passport.json` + A2A card.
+
+**Instructions:** Extend the existing MiOS agent identity (A2A card + `agent-passport.json` Ed25519 + `max_permission`) with `reasoning_profile`/`context_window`/`cost_hint`/capability fields for **metadata-aware routing** (cheap-fast model → simple subtasks; heavy lane → hard reasoning), **attested-vs-claimed quality** to defeat the **Provenance Paradox** (routing on self-reported score selects the WORST delegates -- attest via measured outcomes), **governed sessions** (persistent context; stop re-sending history each call), and **trust domains** (capability scopes / data-handling). Extends existing identity -- do NOT adopt the LDP wire protocol blind.
+**Files:** agent-passport + A2A card generators (`usr/share/mios/agents/` / `usr/lib/mios/agent-pipe/`), `usr/lib/mios/agent-pipe/server.py` (router), `usr/share/mios/mios.toml`.
+**Done When:**
+- [ ] delegation routes on attested (measured) quality, not self-claimed score; a self-inflating delegate is not preferred
+- [ ] a subtask's model tier is chosen from the delegate's `reasoning_profile`/`cost_hint`; sessions don't re-transmit full history each call
+
+## T-159: MAO-06 -- Progressive payload / token-efficiency modes  [P3]
+> **Priority:** P3 | **Status:** pending | **Effort:** M | **Domain:** Agents/A2A | **Source:** Part 13 WS-MAO; LDP CONCEPT (UNVERIFIABLE); feeds `feedback_native_typed_launch_args_all_tools`.
+
+**Instructions:** Negotiate the richest mutually-supported delegation payload mode: text (auditable fallback) → **semantic-frame (typed JSON; ~37% token reduction claimed)** → embedding hints → semantic graph. Auto-fall-back down the chain on unsupported mode. Text mode always retained for auditability. Gated; measure the actual token delta before defaulting up.
+**Files:** `usr/lib/mios/agent-pipe/server.py` / A2A transport, `usr/share/mios/mios.toml`.
+**Done When:**
+- [ ] two MiOS agents negotiate semantic-frame mode and fall back to text when unsupported; measured token reduction is logged
+- [ ] no quality regression vs text on a delegation benchmark
+
+## T-160: MAO-07 -- Cheap contribution evaluation → reputation (IntrospecLOO concept)  [P3]
+> **Priority:** P3 | **Status:** pending | **Effort:** M | **Domain:** Agents/Reputation | **Source:** Part 13 WS-MAO; IntrospecLOO CONCEPT (UNVERIFIABLE); feeds the existing reputation workstream.
+
+**Instructions:** Score each council/swarm agent's marginal contribution WITHOUT re-running the debate: post-session, prompt the remaining agents to re-decide while ignoring agent *j*'s inputs; the outcome delta ≈ leave-one-out at O(N) not O(T·N²). Write scores to the pgvector `reputation` table (down-weight consistently-negative/adversarial agents; surface high-value ones in future fan-outs). Gated; degrade-open (no scoring → equal weights).
+**Files:** `usr/lib/mios/agent-pipe/server.py`, `usr/share/mios/postgres/schema-init.sql` (reputation), `usr/share/mios/mios.toml`.
+**Done When:**
+- [ ] each agent gets an O(N) introspective LOO contribution score after a council session; a positively-necessary agent scores > a redundant one
+- [ ] scores feed reputation weighting in the next fan-out; no scoring model → equal weights (degrade-open)
+
+## T-161: MAO-08 -- Selectable topology + debate protocol from SSOT  [P2]
+> **Priority:** P2 | **Status:** pending | **Effort:** M | **Domain:** Agents/Orchestration | **Source:** Part 13 WS-MAO; verified swarm/mesh/hierarchical/pipeline + debate-protocol taxonomy.
+
+**Instructions:** Make the fan-out **topology** (pipeline / hierarchical / swarm / mesh) and **debate protocol** (within-round / cross-round / rank-adaptive cross-round) selectable per task-class from `[agents.orchestration]` + the orchestrator's own judgement (Law 7: model-driven, no keyword gate). Document the trade-off: within-round maximizes peer-reference/interaction but converges slowly; rank-adaptive cross-round converges fastest. No single hardcoded choice.
+**Files:** `usr/lib/mios/agent-pipe/server.py`, `usr/share/mios/mios.toml` (`[agents.orchestration]`).
+**Done When:**
+- [ ] topology + debate protocol are chosen per task-class from SSOT/orchestrator judgement, not a fixed hardcoded path
+- [ ] switching protocol changes convergence/interaction behaviour as documented; default degrades open to the current fan-out
