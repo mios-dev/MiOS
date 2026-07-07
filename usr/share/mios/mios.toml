@@ -5624,7 +5624,7 @@ cpu_node_threads = 14
 # quadlet's models/.ready gate keeps the lane inert (fails safe, no crash). Vision
 # (holo1.5-7b.gguf + mmproj) is operator-provisioned (the security classifier blocks the
 # assistant fetch).
-bake_models = "granite-4.1-8b.gguf=unsloth/granite-4.1-8b-GGUF:granite-4.1-8b-Q4_K_M.gguf,lfm2-700m.gguf=LiquidAI/LFM2-700M-GGUF:LFM2-700M-Q4_K_M.gguf,embeddinggemma-300m-qat-q8_0.gguf=ggml-org/embeddinggemma-300m-qat-q8_0-GGUF:embeddinggemma-300m-qat-Q8_0.gguf"
+bake_models = ""
 
 # ----------------------------------------------------------------------------
 # [enhanced_session] -- alternate launch path: full GNOME desktop inside
