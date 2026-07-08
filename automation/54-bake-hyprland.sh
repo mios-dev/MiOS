@@ -139,7 +139,7 @@ EOF
 # tokens instead of inline interpolation. Previously this file hardcoded a
 # neon cyan/green gradient (rgba(33ccffee)/rgba(00ff99ee)) with no
 # relationship to the rest of the OS; see design spec
-# usr/share/doc/mios/concepts/mios-app-browser-portal-dashboard-design-2026-07-03.md §7/§12.
+# usr/share/doc/mios/concepts/mios-app-browser-portal-dashboard-design-*.md §7/§12.
 : "${MIOS_COLOR_ACCENT:=#1A407F}"
 : "${MIOS_COLOR_INFO:=#1A407F}"
 : "${MIOS_COLOR_MUTED:=#948E8E}"

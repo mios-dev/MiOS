@@ -378,6 +378,10 @@ def _build_refine_system() -> str:
     "args value MUST be a concrete identifier (app name, file\n"
     "path, URL, fully-qualified id). NEVER a semantic phrase\n"
     "('highest', 'best', 'the one with X', 'whichever is fastest').\n"
+    "Do NOT invent or guess command-line arguments (e.g. '--big-picture' or\n"
+    "'-bigpicture') for open_app/launch_app. If the requested mode or target\n"
+    "has a native URI protocol (like steam://open/bigpicture for Steam Big Picture\n"
+    "mode), use that native URI directly as the app target name/URL.\n"
     "If the right value can't be known without first running other\n"
     "tools, pick intent=dag with the lookup as step 0 and the\n"
     "dispatch as a downstream node using #E0 substitution.\n"
@@ -423,6 +427,8 @@ _REFINE_SYSTEM_LITE = (
     "    explicitly requested or present in the context. Keep generic brand or\n"
     "    product names (e.g. 'forza horizon' or 'photoshop') EXACTLY as requested\n"
     "    so downstream resolver/search tools can match local system inventory.\n"
+    "    Do NOT invent/guess CLI arguments (like '--big-picture'). If a mode has\n"
+    "    a native URI scheme (e.g. steam://open/bigpicture), use it as the app target.\n"
     '  "news": recency-anchored / current-events / "latest" asks (a NEWS index\n'
     "    beats a general web search).\n"
     '  "web": ANY external-knowledge gap -- a fact about the outside world you are\n'
@@ -731,8 +737,11 @@ async def refine_intent(user_text: str,
     # parse failure still degrades to the lenient path below (fail-open).
     _refine_structured = os.environ.get(
         "MIOS_REFINE_STRUCTURED", "true").strip().lower() not in {"0", "false", "no", "off"}
-    if on_token:
+    _refine_stream_structured = os.environ.get(
+        "MIOS_REFINE_STREAM_STRUCTURED", "true").strip().lower() not in {"0", "false", "no", "off"}
+    if on_token and not _refine_stream_structured:
         _refine_structured = False
+
     
     _u_content = user_text[-1500:]
     if not _refine_structured and not on_token:
@@ -1032,31 +1041,7 @@ async def refine_intent(user_text: str,
     # really launches (real success OR an honest failure), never a fabricated
     # confirmation. The <X> token is resolved to a flatpak downstream by
     # mios-open-url, so there is NO hardcoded browser list here; the trailing
-    # "in <X>" shape + a URL are the language-agnostic tells.
-    try:
-        import re as _re_lp, json as _json_lp
-        _utlp = (user_text or "").strip()
-        _lm = _re_lp.match(
-            r'(?:please\s+)?(?:open|launch|start|show|view|bring\s+up|'
-            r'pull\s+up|load|go\s+to)\b.*?\b(?:in|with|using)\s+'
-            r'([A-Za-z][A-Za-z0-9 .+-]{1,24})\s*$', _utlp, _re_lp.I)
-        if _lm:
-            _br = _lm.group(1).strip().rstrip('.')
-            _uu = (_re_lp.search(r'https?://[^\s"\'<>]+', _utlp)
-                   or _re_lp.search(r'https?://[^\s"\'<>]+',
-                                    _json_lp.dumps(parsed)))
-            if _uu:
-                parsed["intent"] = "dispatch"
-                parsed["tool"] = "open_url"
-                parsed["args"] = {"url": _uu.group(0).rstrip('.,)'),
-                                  "browser": _br}
-                parsed["browser_action"] = False
-                parsed["web"] = False
-                parsed.pop("tasks", None)
-                log.info("refine: browser-launch pre-router -> "
-                         "open_url(browser=%s)", _br)
-    except Exception:
-        pass
+
     # local_state: the query is about THIS machine -> fire local READ tools +
     # SUPPRESS web research ("summarize recent activity" /
     # "check service status" got web-searched into garbage -- random .xlsx files

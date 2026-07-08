@@ -479,6 +479,38 @@ def _template_to_cmd(tool: str, template: str, args: dict) -> Optional[str]:
         return None
 
 
+def normalize_container_exec(script: str) -> str:
+    # 1. Map docker -> podman (case-insensitively, using word boundaries)
+    script = re.sub(r'\bdocker(\.exe)?\b', 'podman', script, flags=re.IGNORECASE)
+    
+    # 2. Map code-server / mios-code-server -> mios-agents
+    script = re.sub(r'\b(mios-)?code-server\b', 'mios-agents', script, flags=re.IGNORECASE)
+    
+    # 3. Strip interactive -t / -it / -ti / --tty flags from podman exec/docker exec
+    def clean_flags(match):
+        flag_str = match.group(2)
+        if flag_str.startswith('--'):
+            if 'tty' in flag_str.lower():
+                return match.group(1) + ' exec'
+            return match.group(0)
+        cleaned = re.sub(r'[tT]', '', flag_str)
+        if cleaned == '-':
+            return match.group(1) + ' exec'
+        return match.group(1) + ' exec ' + cleaned
+
+    script = re.sub(r'\b(podman)\s+exec\s+(\-[a-zA-Z]+|\-\-tty\b)', clean_flags, script, flags=re.IGNORECASE)
+    
+    # 4. Strip bare shell execution at the end of podman exec to prevent hangs.
+    # Replace bare shell (bash, sh, zsh, /bin/bash, etc.) with a safe 'true' command.
+    script = re.sub(
+        r'\b(podman\s+exec\s+(?:-[a-zA-Z\d\-]+(?:\s+[^\s]+)?\s+)*[\w\-\.]+)\s+(bash|sh|zsh|/bin/bash|/bin/sh|/bin/zsh)(\s+-[a-zA-Z\d\-]+)*\s*$',
+        r'\1 true',
+        script,
+        flags=re.IGNORECASE | re.MULTILINE
+    )
+    return script
+
+
 def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
     """Map verb name + args -> the bash command line the launcher
     broker executes. Kept in lockstep with the OWUI pipe's
@@ -734,6 +766,7 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
         script = str(args.get("script", ""))
         if not script.strip():
             return None
+        script = normalize_container_exec(script)
         timeout = int(args.get("timeout", 30))
         work_dir = str(args.get("work_dir", "")).strip()
         elevate = bool(args.get("elevate", False))

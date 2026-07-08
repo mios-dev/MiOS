@@ -189,7 +189,7 @@ def _portal_authed(request: Request) -> bool:
     <token>' header. Same signed token either way (_portal_token_ok); the
     header form exists for NATIVE (non-browser) local clients -- e.g. the
     Quickshell PortalData.qml widget (design spec: mios-app-browser-portal-
-    dashboard-design-2026-07-03.md, native-unification roadmap addendum) --
+    dashboard-design-*.md, native-unification roadmap addendum) --
     that call portal_login_logic once and reuse a Bearer token instead of
     implementing cookie-jar + redirect handling for a login flow that was
     designed for browsers."""
@@ -775,9 +775,9 @@ function render(j){
   if(h.uptime_s)hs.push("up <b>"+fmtUp(h.uptime_s)+"</b>");
   $("host").innerHTML=hs.join("");
   S=j.services||[];cards();
-  if(!chatSet){var ow=S.filter(function(s){return s.port==3030;})[0];
+  if(!chatSet){var ow=S.filter(function(s){return s.port==_MIOS_PORT_OWUI;})[0];
     if(ow){$("chat").src=ow.url;chatSet=true;}}
-  var sx=S.filter(function(s){return s.port==8888;})[0];if(sx)SEARX=sx.url;
+  var sx=S.filter(function(s){return s.port==_MIOS_PORT_SEARXNG;})[0];if(sx)SEARX=sx.url;
   $("foot").textContent="refreshed "+new Date((j.ts||0)*1000).toLocaleTimeString();
 }
 function renderSwarm(j){
@@ -866,7 +866,7 @@ $("appgo").onclick=searchApps;
 $("appq").addEventListener("keydown",function(e){if(e.key=="Enter")searchApps();});
 $("wsform").addEventListener("submit",function(e){e.preventDefault();
   var q=$("wsq").value.trim();if(!q)return;
-  var base=(SEARX||("https://"+location.hostname+":8888/")).replace(/\/+$/,"");
+  var base=(SEARX||("https://"+location.hostname+":"+_MIOS_PORT_SEARXNG+"/")).replace(/\/+$/,"");
   window.open(base+"/search?q="+encodeURIComponent(q),"_blank");});
 if("serviceWorker" in navigator){
   navigator.serviceWorker.register("/sw.js",{updateViaCache:"none"})
@@ -1402,10 +1402,22 @@ async def portal_page_logic(request: Request):
     if not _portal_authed(request):
         return RedirectResponse("/login", status_code=303)
     # Inject the SSOT palette AFTER the static defaults so it wins.
+    # Inject SSOT port JS vars so the baked JS uses live [ports] values
+    # (T-121 NO-HARDCODE: port comparisons in the JS must track mios.toml).
     # no-store: iOS standalone PWAs cache the start_url HTML indefinitely
     # without it, which is why old builds kept showing after deploys.
+    _port_owui = int(os.environ.get("MIOS_PORT_OPEN_WEBUI",
+                                    _pcfg("ports", "open_webui", 8033)))
+    _port_searxng = int(os.environ.get("MIOS_PORT_SEARXNG",
+                                       _pcfg("ports", "searxng", 8899)))
+    _port_inject = (
+        f"<script>var _MIOS_PORT_OWUI={_port_owui};"
+        f"var _MIOS_PORT_SEARXNG={_port_searxng};</script></head>"
+    )
     return HTMLResponse(
-        _PORTAL_HTML.replace("</head>", _portal_theme_css() + "</head>"),
+        _PORTAL_HTML
+        .replace("</head>", _portal_theme_css() + "</head>")
+        .replace("</head>", _port_inject, 1),
         headers={"Cache-Control": "no-store, must-revalidate"})
 
 

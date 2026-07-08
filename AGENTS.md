@@ -1,188 +1,102 @@
-<!-- AI-hint: The primary entry point for coding agents to understand repo-level identity, build commands, architectural laws, and project conventions, distinct from the runtime behavior defined in MiOS.md.
-     AI-related: /usr/share/mios/VERSION, /usr/share/mios/configurator/mios.html, /etc/mios/mios.toml, /usr/share/mios/mios.toml, /etc/mios/install.env, /etc/mios/MiOS.md, /usr/share/mios/ai/system.md, /etc/mios/ai/system-prompt.md, /usr/share/mios/ai/v1/mcp.json, mios-dev -->
+<!-- AI-hint: The primary entry point and source of truth for all AI agents in mios-bootstrap — the interactive installer + user-editable layer of MiOS. Defines the project identity, the whole-system context (immutable bootc/OCI Fedora workstation that is also a local self-replicating agentic AI OS), OpenAI-compatible interface standards, and this repo's role as the user-facing installer surface that drives the build pipeline into a deployed image.
+     AI-related: /etc/mios/profile.toml, /usr/share/mios/profile.toml, /usr/share/mios/ai/system.md, /etc/mios/ai/system-prompt.md, /usr/share/mios/ai/, /usr/share/mios/mios.toml, /usr/share/mios/llamacpp/llama-swap.yaml, /etc/mios/install.env, mios-bootstrap, mios-dev, mios-pipeline, mios-pull, mios-llm-light, mios-pgvector -->
 # AGENTS.md
 
-> `/AGENTS.md` — the [agents.md][1]-standard **repo entry point** for any
-> coding-agent CLI that arrives at `mios.git`. This is the **CLI-entry /
-> build-and-conventions** doc (repo identity, project laws, `mios.toml` SSOT,
-> build commands, architectural laws, lifecycle). It is **distinct** from the
-> runtime agent identity: **`/MiOS.md` is the single canonical SYSTEM identity
-> SSOT** (Role · Persistence · Tool-calling · Planning · Output · Standard),
-> injected per-request by agent-pipe. **When acting as a MiOS agent, operate
-> under `/MiOS.md`.** Runtime shared posture (OpenAI tool-loop, never-deny /
-> never-fabricate, act-don't-narrate, decompose / delegate / span / synthesise,
-> MCP=TOOLS / A2A=AGENTS) lives THERE — this file does not re-embed it. Per-tool
-> stubs (`CLAUDE.md`, `GEMINI.md`, `.cursorrules`, `.clinerules`,
-> `system-prompt.md`) are thin redirectors that defer to the canonical prompt.
-> No hardcoded topics, apps, or keywords.
+> Canonical agent entry point for `mios-bootstrap.git` — the interactive
+> installer + user-editable layer for MiOS. Follows the [agents.md][1]
+> standard and is the SSOT for any agent CLI that arrives at this repo.
+> Per-tool stubs (`CLAUDE.md`, `GEMINI.md`, `.cursorrules`, `.clinerules`,
+> `system-prompt.md`) are thin redirectors that defer here.
 >
 > **Strict OpenAI API standards and patterns ONLY.** Every interface is
 > OpenAI-API-compatible verb-for-verb. No vendor-native protocols, no
 > proprietary side-channels, no fallback to vendor-cloud URLs, no
 > vendor-specific agent / dev-tool product references in any AI file.
 >
+> **System repo:** <https://github.com/mios-dev/mios> — that's where
+> the FHS overlay, Containerfile, automation scripts, and the six
+> Architectural Laws live. This repo is the *user-facing entry surface*.
+>
 > [1]: https://agents.md
 
-## What MiOS is (and why this doc exists)
+## 0. What MiOS is (so this repo's job makes sense)
 
-MiOS is **one complete system with two faces that are the same artifact**:
+MiOS is one thing built two ways at once: an **immutable, bootc/OCI-shaped
+Fedora workstation** (the whole OS is a single container image — boot it,
+`bootc upgrade` it like a `git pull`, `bootc rollback` it like a Ctrl-Z) that
+is *also* a **local, self-replicating, agentic AI operating system**. The same
+image that ships GNOME/Wayland, NVIDIA + ROCm + Intel iGPU via CDI, KVM/libvirt
+with VFIO passthrough, and a k3s + Ceph one-node-cluster path also ships a full
+local agent stack behind one OpenAI-compatible endpoint. The OS can reason about
+itself, drive its own tools, and — because the whole thing is one rebuildable
+OCI image — effectively re-create itself.
 
-1. **An immutable bootc / OCI Fedora workstation.** The entire OS is a single
-   container image — `/usr` is a read-only composefs mount, `/etc` gets a 3-way
-   merge across upgrades, `/var` survives everything. `bootc upgrade` rolls
-   forward; `bootc rollback` rolls back. It ships GNOME on Wayland, NVIDIA/AMD/
-   Intel GPUs wired via CDI, KVM/QEMU + libvirt + Looking Glass for VFIO
-   passthrough, k3s + Ceph for one-node clustering, and a deny-by-default
-   security posture (SELinux enforcing, fapolicyd, USBGuard, CrowdSec,
-   kernel-lockdown integrity, MOK-signed modules).
-2. **A local, self-replicating agentic AI OS.** The same image bakes a complete,
-   offline-capable agent stack: local inference lanes, an OpenAI-compatible
-   gateway, a multi-agent orchestration pipeline, a PostgreSQL + pgvector
-   memory plane, and MCP/A2A standard surfaces. Every agent and tool on the box
-   targets one endpoint (`MIOS_AI_ENDPOINT`), so the OS can develop, audit, and
-   re-build *itself*.
-
-The load-bearing premise that fuses both faces: **the repo root IS the deployed
-system root, and `.git` IS `/`.** Editing a file in this repo edits the running
-OS; `git pull` at `/` upgrades the system; the next boot IS the edit.
-
-This document is the **map for a coding agent operating on that repo** — repo
-identity, the build surface, `mios.toml` as SSOT, the architectural laws, and
-the Day-0 → Day-N self-build lifecycle. It tells you how the build pipeline
-produces the image, how the image carries the bootc lifecycle, and where each
-part you might touch sits in the whole. For your *runtime behaviour* (how to
-plan, call tools, decompose, answer) operate under `/MiOS.md`; this file does
-not duplicate or override it.
-
-## Role and Objective
-
-You are a **coding agent operating inside `mios.git`** — restructuring,
-extending, and auditing the MiOS source tree. The repo root **IS** the deployed
-system root, so your edits are edits to the running OS. Your objective: make
-correct, FHS-grounded, OpenAI-API-compliant changes that build and pass the
-architectural-law audit, end-to-end.
-
-This document gives you the **repo map, the build surface, and the conventions**
-you need to do that. For your runtime *agent behaviour and posture* (how to plan,
-call tools, decompose, and answer), **operate under `/MiOS.md`** — the canonical
-system identity. Do not duplicate or override it here.
-
-## Persistence
-
-Keep going until the change is **completely done**: built, lint-clean, and
-audit-passing — not merely written. If you are unsure of repo state, a file, or
-a value, **read it** (in-process file ops first; see Tool-calling) rather than
-guessing. Deliver **complete replacement files only** — no diffs, no patches, no
-`# ... rest unchanged ...` placeholders.
-
-## Tool-calling
-
-* **Tool preference:** in-process file ops > local shell > MCP server > network
-  call. Never invoke a network tool when a local read suffices.
-* **cwd:** `/` IS the repo root and system root. **Do not treat it as
-  dangerous.** Cloning into a sibling workspace defeats the entire premise.
-* **Confirm before** any state-mutating or irreversible action: `git push`,
-  `bootc upgrade`, `bootc switch`, `dnf install`, `systemctl daemon-reload` /
-  other `systemctl`, `rm -rf` (especially against `.git` or the working tree),
-  `git reset --hard`, `git clean -fd`.
-* **Memory:** `/var/lib/mios/ai/memory/` (vendor-neutral, secret-free).
-* **Scratch:** `/var/lib/mios/ai/scratch/`.
-* **Persistence sanitization:** strip vendor names, chat metadata, and secrets
-  before writing. Resolve symlinks to FHS canonicals.
-* **Tasks:** use the task tool for multi-step work; one in-progress at a time.
-
-## Planning and Decomposition
-
-* **TOML-first.** Before adding a constant to a script, check whether the value
-  is operator-tunable. If yes, add it to `mios.toml` (§3), register the slot in
-  `tools/lib/userenv.sh`, expose it in the HTML configurator, then read it from
-  the layered overlay. **Hardcoded values that could live in `mios.toml` are
-  bugs.**
-* **Preserve numeric ordering.** `automation/NN-name.sh` prefixes encode
-  dependency order — keep it when adding scripts.
-* **Respect the layers.** USR-OVER-ETC: vendor static config in
-  `/usr/lib/<component>.d/` and `/usr/share/<component>/`; `/etc/` is
-  admin-override only.
-
-## Output
-
-* **Deliverables:** complete replacement files only. No diffs, no patches, no
-  placeholders.
-* **Tone:** direct, technical, no hedging qualifiers, no emoji unless the user
-  asked. Ground every suggestion in a concrete FHS path with file:line.
-* **OpenAI-API-only.** Never reference vendor-specific agent CLIs, dev-tool
-  products, or cloud-AI URLs in MiOS docs / code / commit messages. The OpenAI
-  public API surface is the only addressable contract.
-* **Failure mode.** When a question is outside MiOS scope or the data isn't
-  available locally, say so explicitly — *"I don't have that on this host; check
-  `<concrete file or URL>`."* Don't fabricate FHS paths or invent endpoint URLs.
-  Don't name vendor-specific agent or dev-tool products. If unsure between two
-  valid sources, name both and let the operator choose.
-
-## Standard
-
-Every agent / model / tool surface is OpenAI-API-compatible:
-`/v1/chat/completions`, `/v1/responses`, `/v1/embeddings`, `/v1/models`,
-function-calling, structured outputs, MCP via the Responses API. Doc layout
-follows OpenAI's topical split (`concepts/`, `guides/`, `reference/`, `audits/`).
-Behave as a standard OpenAI tool-using agent; the full runtime tool-loop posture
-is specified in `/MiOS.md`.
-
----
+The system's lifecycle is a single throughline: **installer (this repo) →
+build pipeline → OCI image → bootc lifecycle on the host.** `mios.git` is the
+FHS overlay that gets baked into the image; `mios-bootstrap.git` (this repo) is
+the user-facing entry surface that captures the operator's choices, performs the
+Total Root Merge, drives the build, and hands a deployed, self-developing host
+back to the operator. Everything below describes *this repo's* slice of that
+whole: how a paste on Windows or a `curl | bash` on Linux becomes a booted,
+agentic MiOS host that can then rebuild itself.
 
 ## 1. Repo identity
 
-* **Project:** MiOS — pronounced *MyOS*, short for *My OS / My Operating
-  System*. Research project, Apache-2.0.
-* **Shape:** immutable bootc-native Fedora workstation OS distributed as
-  an OCI image, that is **also** a local self-replicating agentic AI OS.
-  `bootc upgrade` rolls forward; `bootc rollback` rolls back.
-* **Repo invariant:** the repo root **IS** the deployed system root.
-  Browse `usr/`, `etc/`, `srv/`, `var/` here and you are looking at
-  exactly where those files land on a booted MiOS host. **`.git` IS `/`.**
-* **Naming convention:** every shipped artifact is `mios-<component>`
-  (lowercase-kebab). The earlier project name *CloudWS* is retired —
-  all `cloudws-*` units are now `mios-*` (e.g. `mios-guacamole`,
-  `mios-pxe-hub`, `mios-guacd`, `mios-guacamole-postgres`,
-  `mios-crowdsec-dashboard`).
-* **Version:** `VERSION` (top-level) → `/usr/share/mios/VERSION` →
-  resolved by `automation/lib/globals.{sh,ps1}`.
-* **Default image ref:** `ghcr.io/mios-dev/mios:latest`.
+* **Project:** MiOS — pronounced *MyOS* (short for *My OS*). Research project,
+  Apache-2.0. Generative: synthesized from seed scripts + curated docs, then
+  expanded under human review.
+* **Role:** interactive installer (Phase 0..4) and user-editable layer
+  of the three-layer profile model (vendor < host < user). The *entry surface*
+  for the build-pipeline → image → bootc lifecycle.
+* **Version:** see `VERSION` (top-level).
+* **Owns:** AI files (`usr/share/mios/ai/`), knowledge graphs, user
+  profile templates, installer scripts (`Get-MiOS.ps1`,
+  `bootstrap.{sh,ps1}`, `install.{sh,ps1}`, `build-mios.{sh,ps1}`,
+  `seed-merge.{sh,ps1}`).
+* **Does NOT own:** `Containerfile`, FHS system overlay, systemd units,
+  Quadlet sidecars, kernel args, tmpfiles, sysusers — those live in
+  `mios.git`. **Never double-track paths across the two repos.**
 
-## 2. The three project-wide laws
+## 2. The three project-wide laws (this repo's slice)
 
-1. **Native Linux FHS folder structuring.** `/usr/share/<pkg>/` for
-   vendor data, `/usr/lib/<pkg>/` for vendor code, `/etc/<pkg>/` for
-   admin overrides, `/var/lib/<pkg>/` for runtime state. No
-   `system_files/`, no `ansible/`, no out-of-tree scaffolding.
+These three are the installer-repo restatement of the system contract. The
+full **six Architectural Laws** (USR-OVER-ETC, NO-MKDIR-IN-VAR, BOUND-IMAGES,
+BOOTC-CONTAINER-LINT, UNIFIED-AI-REDIRECTS, UNPRIVILEGED-QUADLETS) are enforced
+at build/lint time in `mios.git`; see §11 for Law 5, the one this layer touches
+directly.
+
+1. **Native Linux FHS folder structuring.** Files live where the
+   Filesystem Hierarchy Standard says they live. Bootstrap files
+   mirror those destinations even at this repo's root. (Aligns with the
+   system's USR-OVER-ETC / NO-MKDIR-IN-VAR laws — static config in `/usr`,
+   `/etc` for overrides only, `/var` declared via tmpfiles.)
 2. **OpenAI API standards FULLY.** Every agent / model / tool surface
    is OpenAI-API-compatible: `/v1/chat/completions`, `/v1/responses`,
    `/v1/embeddings`, `/v1/models`, function-calling, structured
-   outputs, MCP via the Responses API. Doc layout follows OpenAI's
-   topical split (`concepts/`, `guides/`, `reference/`, `audits/`).
-3. **MiOS is a root filesystem overlay; `.git` IS `/`.** This repo,
-   materialized at `/`, IS the OS. `git pull` at `/` upgrades the
-   running system. Tracked-path changes flow through `git commit` →
-   push (local Forgejo at `localhost:3000` AND/OR GitHub) → CI rebuild
-   → `bootc switch`.
+   outputs, MCP via the Responses API. **No vendor-specific
+   agent / dev-tool product references in any AI file.** (This is the
+   user-facing face of the system's UNIFIED-AI-REDIRECTS law.)
+3. **MiOS is a root filesystem overlay; `.git` IS `/`.** Bootstrap is
+   what *makes* `.git` equal `/` on a target host. The Total Root
+   Merge in Phase-1 clones `mios.git` into `/` and overlays this
+   repo's `etc/`, `usr/`, `var/` on top. The next boot IS the edit — the
+   premise that makes MiOS self-developing.
 
 ## 3. `mios.toml` is THE singular SSOT
 
 **`mios.toml` is the singular file that runs the entire pipeline.** It
 is the **library of every verb, variable, and value** the codebase
-consumes — from the package set baked into the image, through the GPU
-and security posture, to the AI lanes and agent endpoints. Edited as
-HTML in a local browser by the defined user, saved locally, and fetched
-by the pipeline. This is what makes the *configure → build → image →
-boot* loop deterministic: there is one place where the system is
-described, and the build reads it rather than embedding literals.
+consumes — packages, ports, AI inference lanes, services, agent behaviour,
+identity, theme. Edited as HTML in a local browser by the defined user, saved
+locally, and fetched by the pipeline. This is how an operator's choices reach
+every downstream step of the build → image → bootc chain without a single
+hardcoded literal.
 
 ### What the TOML carries (inline)
 
 * **Packages** — RPMs, Flatpaks, OCI images, layered package sets per
   deployment shape (`[packages.<section>].pkgs`)
-* **Dependencies** — every transitive requirement, audit-able by reading
-  the TOML alone
+* **Dependencies** — every transitive requirement
 * **Repositories** — GitHub remotes, local Forgejo URL, OCI registries,
   upstream git mirrors
 * **Applications** — every layered Quadlet container, every Flatpak
@@ -194,204 +108,171 @@ described, and the build reads it rather than embedding literals.
 * **Color palette** — globally applied, **platform-agnostically**,
   across every terminal and console (Windows Terminal, conhost,
   GNOME Terminal, tmux, MOTD, fastfetch, oh-my-posh, dashboard
-  borders) — `[colors]` → `MIOS_COLOR_*` / `MIOS_ANSI_*` exports →
-  `etc/profile.d/mios-colors.sh`
+  borders, configurator HTML `:root`)
 * **Extras / bloat / optional** — operator-toggled add-ons
 * **Passwords + credentials** — operator-set, persisted only in the
   TOML overlay (never round-tripped through `install.env`'s readable
   bridge for secret keys)
 * **Quadlets** — `[quadlets.enable]` table + per-Quadlet parameters
-* **AI lanes + endpoints** — inference lanes, served-model names,
-  agent ports, and `MIOS_AI_ENDPOINT` (`[ai].*`, `[llamacpp]`,
-  `[ai.sglang]`, `[ai.vllm]`, `[ports].*`, `[agents.*]`, `[nodes.*]`)
 * **User preferences** — theme, terminal dims (80×40), locale,
   keyboard, timezone
 
 ### The edit-save-fetch lifecycle
 
-1. **Edit:** operator opens `mios.html` (or
-   `/usr/share/mios/configurator/mios.html`) in a **local browser**.
-   No server, no extension, no install step — `file://` is fine.
-2. **Save:** configurator writes the updated TOML to disk.
-3. **Fetch:** the pipeline reads the TOML from the layered overlay
-   (`~/.config > /etc > /usr/share`) and uses it to drive every
-   downstream step.
+1. **Edit:** operator opens `mios.html` in a **local browser**.
+   No server, no extension, no install step. `file://` is fine.
+2. **Save:** the configurator writes the updated TOML to disk.
+   On Windows: `%USERPROFILE%\Downloads\mios.toml` (browsers can't
+   write back to `file://`). On Linux: in-place to
+   `~/.config/mios/mios.toml`.
+3. **Fetch:** the pipeline (`mios build` on Windows, `mios-pipeline.sh`
+   on Linux) reads the TOML from the layered overlay and uses it to
+   drive every downstream step.
 4. **Overlay/install:** TOML selections bake into the overlay
    **before** installation. No mid-install prompts that bypass the
    TOML.
 
+The Windows `mios build` verb specifically promotes the newest
+`mios*.toml` from `%USERPROFILE%\Downloads` to `M:\etc\mios` +
+`M:\usr\share\mios` and archives the source as
+`.imported-<timestamp>` BEFORE running `mios-pull --hard` so operator
+edits aren't clobbered.
+
 ### Resolution layers (highest first)
 
 ```
-~/.config/mios/mios.toml      # per-user (highest)
-/etc/mios/mios.toml           # host
-/usr/share/mios/mios.toml     # vendor (lowest, always present)
+~/.config/mios/profile.toml      # per-user (highest, seeded from /etc/skel)
+/etc/mios/profile.toml           # host
+/usr/share/mios/profile.toml     # vendor (lowest, always present)
 ```
+
+`install.sh:resolve_profile_layers` walks all three at install time
+and field-level overlays them into the runtime defaults. **User-set
+fields in higher layers win. Empty strings do NOT override non-empty
+values below them.**
 
 **Empty / missing user TOML is the vendor-default state, not an error.**
-Code paths that fatal without a user TOML are bugs.
+**Hardcoded values that could live in `mios.toml` are bugs** — lift
+them, expose them in the HTML configurator, then read them from the
+layered overlay.
 
-**Hardcoded values that could live in `mios.toml` are bugs.** Lift
-them, register the slot in `tools/lib/userenv.sh`, expose them in the
-HTML configurator.
+## 4. Day-0 — Windows entry (thin shell only)
 
-Shell/systemd consumers use the derived bridge `/etc/mios/install.env`;
-run `mios-sync-env` after editing `mios.toml` to refresh it.
+The Windows entry point is **strictly an entry point** — it provisions and
+hands off; it does NOT build. The build runs inside MiOS-DEV (§4 handoff).
 
-### Package management
-
-Single source of truth: `usr/share/mios/mios.toml` under
-`[packages.<section>].pkgs`. Never call `dnf install` on hard-coded
-names. Use the helpers from `automation/lib/packages.sh`:
-
-```bash
-install_packages "<category>"           # best-effort, --skip-unavailable
-install_packages_strict "<category>"    # fails on any miss
-install_packages_optional "<category>"  # pure best-effort, never fails
+```text
+powershell -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/mios-dev/mios-bootstrap/main/Get-MiOS.ps1 | iex"
 ```
 
-Human-readable rationale docs live at
-`usr/share/doc/mios/reference/PACKAGES.md` — that is documentation,
-not the runtime SSOT.
+The contract is **one paste, one shot, no follow-up step required.**
 
-## 4. Loading order (runtime system prompt)
+`Get-MiOS.ps1` does *all* of the following before handing off:
 
-This file (AGENTS.md) is the agents.md-standard repo entry. The runtime
-LLM **system identity** is **`/MiOS.md`** (layered SSOT:
-`~/.config/mios/MiOS.md` < `/etc/mios/MiOS.md` < `/MiOS.md`), injected
-per-request by agent-pipe. The legacy vendor prompt
-`/usr/share/mios/ai/system.md` and the per-role overlays point to
-`/MiOS.md`. Per-tool stubs (`CLAUDE.md`, `GEMINI.md`, `.cursorrules`,
-`.clinerules`, `system-prompt.md`) are thin redirectors. Host/admin and
-per-user prompt overrides load highest-precedence first:
+1. **Self-cache-busts** at the top — Fastly's 5-min TTL on
+   `raw.githubusercontent.com` is invisible; every paste pulls fresh.
+2. **Full reset** — reaps prior MiOS state: temp clones, persistent
+   clones, WSL distros (`MiOS`, `MiOS-DEV`, `podman-MiOS-DEV`,
+   `MiOS-BUILDER`), podman machines, Hyper-V `MiOS-*` VMs, install
+   dirs (`M:\MiOS`, `C:\MiOS`, `%PROGRAMDATA%\MiOS`), Start Menu
+   shortcuts, uninstall registry key. **No partial state, no
+   carry-over.**
+3. **Force-clones to TEMP** — first stage runs from
+   `$env:TEMP\mios-bootstrap-<rand>`. (Carve-out: when *already
+   inside* MiOS-DEV, the live `/` is the working tree per Law 3.)
+4. **Two-pass self-elevation** — Pass 1 (user) installs Windows
+   Terminal + MiOS scheme, Geist Mono Nerd Font, oh-my-posh,
+   fastfetch, MiOS native-app shortcut. Pass 2 (admin) provisions
+   disk + machines.
+5. **Provisions `M:\` at exactly 256 GB NTFS** (label `MIOS-DEV`).
+   `shrink_mb = 262656` (256 GiB + 512 MB buffer) so Windows Explorer
+   shows `M:\` as 256 GB (NTFS reserves ~16 MB for boot sector / $MFT).
+   Junctions all candidate podman-machine storage paths
+   (`%LOCALAPPDATA%\containers\podman\machine`,
+   `%USERPROFILE%\.local\share\containers\podman\machine`,
+   `%PROGRAMDATA%\containers\podman\machine`) onto
+   `M:\podman\machine\*` **before** any `podman` command runs.
+6. **Clones to `M:\`** — `git clone` of `mios.git` and
+   `mios-bootstrap.git` to `M:\MiOS\repo\{mios,mios-bootstrap}`.
+7. **Provisions Podman Desktop + the `MiOS-DEV` podman machine** with
+   full parity: `podman-MiOS-DEV ≡ MiOS`. Achieved by `bootc switch
+   localhost/mios:latest` + reboot at the end of `mios-build-driver`.
+   Every layered RPM, every Quadlet container image (including the local
+   inference lanes), every Flatpak, every served model baked into
+   `mios-llm-light`, every systemd unit enabled. **No partial overlays.**
+8. **Stops at MiOS-DEV-ready** — prints hint banner, returns. The
+   build is **operator-triggered** by typing `mios build` in the WT
+   MiOS profile.
 
-1. `~/.config/mios/system-prompt.md` — per-user override
-2. `/etc/mios/ai/system-prompt.md` — host/admin override
-3. canonical identity (`/MiOS.md`) — vendor canonical (lowest)
+### After `mios build`: SSH handoff into MiOS-DEV
 
-## 5. Architectural laws (build/runtime, audited)
+Operator types `mios build` in the WT MiOS profile. From that point
+forward, **everything heavy runs inside MiOS-DEV via SSH** — this is the
+boundary where the user-facing installer hands the system over to the
+in-image build pipeline:
 
-Enforced by build-time lint and `automation/99-postcheck.sh`:
+* MiOS-DEV does its own local fetch + overlay + installations
+* MiOS-DEV brings itself inline with the expected MiOS OCI image(s)
+* The operator is prompted (inside MiOS-DEV) to confirm SSOT TOML
+  selections — those selections are edited in the HTML configurator
+  in a **local browser** (Epiphany on MiOS-DEV, rendered to Windows
+  via WSLg + wayland/mutter window portal)
+* Selections overlay onto MiOS-DEV's filesystem
+* The full build pipeline kicks off, producing every image type and
+  format MiOS targets (see §6)
 
-| # | Law | Enforced by |
-|---|---|---|
-| 1 | **USR-OVER-ETC** — vendor static config in `/usr/lib/<component>.d/` and `/usr/share/<component>/`; `/etc/` is admin-override only. | `automation/`, `usr/lib/`, `etc/` |
-| 2 | **NO-MKDIR-IN-VAR** — every `/var/` path declared via `usr/lib/tmpfiles.d/*.conf`. Never written at build time. | `usr/lib/tmpfiles.d/mios*.conf` |
-| 3 | **BOUND-IMAGES** — every Quadlet image symlinked into `/usr/lib/bootc/bound-images.d/` and baked into `/usr/lib/containers/storage` at build time. | `usr/lib/bootc/bound-images.d/`, `automation/08-system-files-overlay.sh` |
-| 4 | **BOOTC-CONTAINER-LINT** — every build ends with `bootc container lint`. Fail = fail the build. | `Containerfile` (last `RUN`) |
-| 5 | **UNIFIED-AI-REDIRECTS** — every OpenAI-API-shaped client resolves through `MIOS_AI_ENDPOINT` (the agent-pipe front door, `mios.toml [ai].endpoint`), `MIOS_AI_MODEL`, `MIOS_AI_KEY`. Resolve the variable; never bake a literal port or vendor-cloud URL. **No vendor-specific agent / dev-tool product names anywhere.** | `/etc/profile.d/mios-env.sh`, `usr/bin/mios`, `usr/bin/mios-env`, `etc/mios/ai/` |
-| 6 | **UNPRIVILEGED-QUADLETS** — every Quadlet declares `User=`, `Group=`, `Delegate=yes`. Documented exceptions (rationale in their headers): `mios-ceph`, `mios-k3s`, `mios-forgejo-runner`, `mios-coderun-sandbox`, and the gated heavy inference lanes (`mios-llm-heavy` / `mios-llm-heavy-alt`, whose upstream SGLang/vLLM images run as image-default root). | `etc/containers/systemd/`, `usr/share/containers/systemd/` |
-| 7 | **OFFLINE-FIRST** — every MiOS lifecycle phase works without internet from EITHER scenario: (1) a pre-built MiOS image, or (2) full repos on a USB drive + a Windows or minimal Fedora live env. Lifecycle phases: **overlay → pull → build → deploy → run → host → re-build → use AI** — all offline-capable. AI agents + tools + scripts + models + knowledge + skills + browser + search + code-run sandboxes all run from the local MiOS stack. Internet-using features (Discord, Tailscale, GitHub PRs, web_search-against-cloud Firecrawl/Tavily/Exa) are OPTIONAL and gracefully degrade when offline; nothing CORE is gated on network reachability. Operator-restated 2026-05-17. **See `docs/concepts/OFFLINE-FIRST.md` for the per-phase capability matrix + remaining build-time gaps.** | runtime: `automation/08-system-files-overlay.sh` (bound-images), model-bake automation, `usr/share/mios/owui/`, `web.search_backend: searxng` seeded config. build: cached wheels + bundled binaries (see OFFLINE-FIRST.md for gap status) |
+The Windows-side bootstrap has NO business cloning the repos to a
+final location, prompting for identity, or running phases 4–8 on its
+own — those move into MiOS-DEV via the SSH handoff.
 
-## 6. Endpoint contract (OpenAI-compatible)
+### The build dashboard
 
-The **single addressable front door** is `MIOS_AI_ENDPOINT` — the
-agent-pipe orchestrator (`mios.toml [ai].endpoint`). Per Architectural
-Law 5, every MiOS AI surface resolves through it — **never** hard-code a
-port, backend, or vendor URL. The endpoint fronts a layered AI plane;
-the pieces below are *function-named* MiOS units (not upstream tool
-names), all funnelled through the agent-pipe orchestrator (`:8640`),
-which fronts MiOS-Hermes and the inference lanes:
+The dashboard renders in the **Windows-Terminal MiOS-DEV SSH window**
+(running locally on the podman-MiOS-DEV machine, displayed in the
+Windows terminal — *not* a streamed proxy). It combines the unified
+installation status output with `mios dash`:
 
-| Unit | Port | Role |
-|---|---|---|
-| **agent-pipe** (`mios-agent-pipe`) | `:8640` | Standalone FastAPI orchestrator — router + refine + dispatch + critic/polish; fronts Hermes for every gateway (OWUI, Discord, future Slack/Telegram); persists Q+A to pgvector |
-| **MiOS-Hermes** (`hermes-agent`) | `:8642` | A LEAF the pipe fronts/dispatches to (not the front door) — OpenAI-compat agent gateway / tool-loop: sessions, tool-calling, skills, native browser/CDP + terminal loop. Dispatched with `fanout=false` to avoid recursion; often also run as a thin client back to `:8640` |
-| **MiOS-Prefilter** | `:8641` | Injects `tool_choice=delegate_task` on fan-outable prompts, forwards to Hermes |
-| **mios-llm-light** | `:11450` | **PRIMARY local inference lane** — llama.cpp behind the upstream llama-swap proxy image; multi-model auto-swap + KV-paging (`/slots` save/restore). Serves the everyday chat/reasoning models, the `mios-opencode` coder model, **and embeddings** (`nomic-embed-text`, OpenAI-compat `/v1/embeddings`). Config: `usr/share/mios/llamacpp/mios-llm-light.yaml` |
-| **mios-llm-heavy** | `:11441` | Heavy GPU lane (SGLang), served-name `mios-heavy`. Gated / off-by-default (VRAM) |
-| **mios-llm-heavy-alt** | `:11440` | Alternate heavy lane (vLLM, PagedAttention + APC). Gated / off-by-default |
-| **mios-llm-worker@** | (per-instance) | Single-model swarm workers |
-| **opencode-gateway** | `:8633` | opencode → OpenAI `/v1` shim — makes `[agents.opencode]` a real `/v1` council peer (loopback only) |
-| **mios-pgvector** | `:5432` | PostgreSQL + pgvector — the unified agent datastore (agent_memory, event, tool_call, session, skill, scratch, knowledge, sys_env, kanban, …) |
-| **mios-open-webui** | `:3030` | Browser front-end (Open WebUI), pointed at the agent-pipe / Hermes endpoint |
-| **mios-searxng** | `:8888` | SearXNG metasearch — backs the `web_search` tool |
+* MiOS banner / header ASCII art
+* fastfetch stats
+* MiOS MOTD stats
 
-> **Migration note.** Inference and embeddings formerly ran on Ollama
-> (`:11434`); Ollama is fully **retired** (containers, firstboot,
-> `37-ollama-prep`, Modelfiles, CLI shim all removed) and replaced by
-> `mios-llm-light` on `:11450`. The agent datastore formerly ran on
-> SurrealDB (BSL 1.1) with a vestigial Qdrant vector store; both are
-> **removed** in favour of PostgreSQL + pgvector. The MiOS units keep
-> their function names; the only *upstream* references that remain
-> legitimate are the mios-llm-light image (`ghcr.io/mostlygeek/llama-swap`)
-> and the Ollama-compatible API the engines speak.
+`mios.bat` is an equivalent shortcut: `WinKey+R` → `mios.bat` invokes
+the same `irm | iex` one-liner with cache-bust appended (`?cb=<unix-time>`)
+and self-elevates via `cmd`'s `net session` probe. The `irm | iex`
+shape is the contract; the `.bat` is one wrapper.
 
-Standard request paths through the gateway:
+**Terminal dimensions:** every spawned window opens at exactly
+80 cols × 40 rows (`wt.exe --size 80,40`,
+`[Console]::SetWindowSize(80,40)`, `stty cols 80 rows 40`).
 
-| Path | Method | Purpose |
-|---|---|---|
-| `/v1/models` | GET | list available models |
-| `/v1/chat/completions` | POST | streaming chat completions |
-| `/v1/embeddings` | POST | embeddings (served by `nomic-embed-text` on `mios-llm-light`) |
-| `/v1/audio/{transcriptions,speech}` | POST | when configured |
+## 5. Day-N — Self-development loop
 
-Default model: `mios.toml [ai].agent_model` (the served-model name the
-orchestrator advertises on `:8640/v1/models`). Streaming is mandatory for chat;
-non-streaming is reserved for batch tools. Lanes marked `api="llamacpp"`
-enable the agent-pipe's `_kv_paging` (per-conversation KV checkpoint to
-`--slot-save-path`), the MiOS AIOS Context Manager.
+Once Day-0 has produced a booted MiOS host, the system can rebuild itself.
+This is the "self-replicating" half: editing `/` on a running MiOS box edits
+the source, and the next `bootc upgrade` bakes it. The loop runs inside
+MiOS-DEV (or any Fedora-bootc-capable host):
 
-MCP servers registered at `/usr/share/mios/ai/v1/mcp.json`:
-
-* `mios-fs` — read-only fs browser scoped to `/var/lib/mios` + `/usr/share/mios`
-* `mios-kb` — local KB retrieval over the OpenAI-shaped manifest
-* `mios-forge` — Forgejo REST API at `http://localhost:3000/api/v1`
-
-Standard invocation: `POST /v1/responses` with
-`tools=[{"type":"mcp","server_url":...}]`. **MCP carries TOOLS; A2A
-carries AGENTS** — the orchestrator decomposes a request, delegates
-sub-tasks across lanes/peers, spans concurrent work, and synthesises
-(see `/MiOS.md` for the runtime posture).
-
-## 7. Day-0 → Day-N self-replication flow
-
-This is the loop that makes MiOS *self-replicating*: the OS builds the
-next OS image of itself from its own repo, deploys it, boots into it, and
-repeats. The agent stack (§6) is what lets the OS develop and audit
-itself along the way.
-
-### Day-0 — Windows entry (thin shell only)
-
-The Windows entry point is **strictly an entry point**:
-
-1. `irm | iex` of `Get-MiOS.ps1` (paste into Win+R, cmd, or any pwsh)
-2. Acknowledgements (AGREEMENTS.md ack)
-3. `M:\` provisioned at exactly 256 GB NTFS (label `MIOS-DEV`)
-4. Local Windows-side installs (Windows Terminal + MiOS scheme,
-   Geist Mono Nerd Font, oh-my-posh, fastfetch, MiOS native-app
-   shortcut)
-5. Podman Desktop + `MiOS-DEV` podman machine provisioned
-6. **SSH handoff into MiOS-DEV** — everything else happens inside
-
-After SSH handoff, the operator types `mios build` in the WT MiOS
-profile. From that point forward, the **build dashboard renders in
-the WT MiOS-DEV SSH window** (running locally on the podman-MiOS-DEV
-machine). The dashboard combines the unified installation status
-output with `mios dash` (banner / header ASCII art, fastfetch stats,
-MOTD stats).
-
-### Day-N — Self-development loop (inside MiOS-DEV / any Fedora host)
-
-1. Boot any Fedora-based machine (or already inside MiOS-DEV)
-2. `curl | bash` (Linux) / `irm | iex` (Windows) the bootstrap URL
+1. Boot any Fedora-based machine that can be installed to (or already
+   inside MiOS-DEV)
+2. `curl | bash` the bootstrap URL (or `irm | iex` on Windows)
 3. Acknowledgements
 4. **SSOT TOML/HTML prompt** — operator edits `mios.toml` via
-   `mios.html` in a local browser (Epiphany on MiOS-DEV, rendered to
-   Windows via WSLg + wayland/mutter window portal)
+   `mios.html` in a local browser (Epiphany via WSLg + wayland/mutter
+   on Windows)
 5. Save selections to overlay files
 6. Overlay the local system with all MiOS packages + dependencies
 7. Pull remaining repo files
 8. Complete installations + overlays
 9. **Develop directly inside MiOS-DEV.** Dev environment is
-   OpenAI-API-compatible only and routes through `MIOS_AI_ENDPOINT`.
-   Repo files materialized from every source.
+   OpenAI-API-compatible only and routes through `MIOS_AI_ENDPOINT`
+   (the one local endpoint — see §11). Repo files materialized from
+   every source.
 10. Iterate, commit, push — **dual-push:** local Forgejo
     (`http://mios@localhost:3000/mios/mios.git`) AND/OR GitHub
     (`origin main`)
 11. Push triggers CI/CD: Forgejo Runner OR GitHub Actions builds
     `MiOS(NON-DEV)`
-12. Test deployments locally for ALL formats (see §8)
+12. Test deployments locally for ALL formats (see §6)
 13. Debug → repeat
 14. Pull latest at MiOS-DEV's root (`git -C / pull`); re-overlay
 15. Loop — back to step 2, now at Day-N+1
@@ -399,9 +280,20 @@ MOTD stats).
 **`.git` IS `/` is the load-bearing premise.** Edits to `/` are edits
 to the source. The next boot IS the edit.
 
-## 8. Build artifact matrix
+```bash
+# Linux entry
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/mios-dev/mios-bootstrap/main/build-mios.sh)"
+```
 
-The pipeline produces deployment-shape outputs for ALL of:
+Each interactive prompt auto-accepts the resolved-from-`mios.toml`
+default after **90 seconds** idle. Override with
+`MIOS_PROMPT_TIMEOUT=` (seconds; `0` waits forever, `1` is the fastest
+unattended setting).
+
+## 6. Build artifact matrix
+
+The same OCI image is cut into deployment-shape outputs for ALL of — so a
+single immutable image lands on whatever substrate the operator runs:
 
 * **Hyper-V** — `.vhdx` + `.ps1` launcher
 * **WSL2/g** — `.tar` / `.vhdx` with WSLg windowing
@@ -411,205 +303,243 @@ The pipeline produces deployment-shape outputs for ALL of:
 * **USB installer** — Anaconda / coreos-installer
 * **RAW disk image** — `dd`-able
 
-Build outputs land on the operator-chosen data partition (`M:\` by
-default per `env.defaults` on Windows; the configured build-output
-path on Linux), NEVER under `%LOCALAPPDATA%`.
+Build outputs land on `M:\` (the operator-chosen data partition by
+default per `env.defaults`), NEVER under `%LOCALAPPDATA%`.
 
-## 9. Build pipeline (11 phases)
+## 7. Phase model (0..4)
 
-`./mios-pipeline.{sh,ps1}` is the canonical orchestrator. Each phase
-consumes a specific `mios.toml` section and corresponds to numbered
-scripts under `automation/[NN]-*.sh`:
+This is the installer's view of the lifecycle; the OCI image it produces is
+then deployed by `bootc switch`/`upgrade` and reverted by `bootc rollback`.
 
-| Phase | Name | Reads from `mios.toml` |
+| Phase | Owner | Purpose |
 |---|---|---|
-|  1 | Questions | `[identity].*`, `[ai].*` |
-|  2 | Stage | `[bootstrap].*`, `[image].*` |
-|  3 | MiOS-DEV | (Windows host only; Podman-WSL2 dev VM) |
-|  4 | Overlay | `[colors]`, all of `usr/`, `etc/` |
-|  5 | Account | `[identity]`, `[auth]` (overlay-time, not firstboot) |
-|  6 | Install | `[packages].sections`, `[network].*` |
-|  7 | Smoketest | `automation/99-postcheck.sh` + arch-law audits |
-|  8 | Build | `[image].*`, `[desktop].flatpaks` |
-|  9 | Deploy | local hardware detection picks host-compatible image |
-| 10 | Boot | `[quadlets.enable].*` |
-| 11 | Repeat | re-run hint |
-
-Re-run a single phase: `./mios-pipeline.sh --phase 6` (or `-Phase 6`).
-
-### Containerfile build flow
-
-Single-stage build with a `ctx` scratch context:
-
-1. `ctx` stage copies `automation/`, `usr/`, `etc/`, `tools/`,
-   `VERSION`, `config/artifacts/` read-only.
-2. Main stage bind-mounts `/ctx` read-only; mutable copies go to
-   `/tmp/build`.
-3. CRLF → LF normalization runs over all text files before any script
-   executes (Windows build hosts leak CRLFs past `.gitattributes`).
-4. `automation/08-system-files-overlay.sh` runs before the main build
-   pipeline (pre-pipeline, from the Containerfile).
-5. `automation/build.sh` iterates every `automation/[0-9][0-9]-*.sh` in
-   numeric order. `08-system-files-overlay.sh` runs pre-pipeline and is
-   skipped here. (The old `37-ollama-prep.sh` model-bake step was
-   removed with Ollama; the heavy lanes bake via opt-in
-   `38-sglang-prep.sh` / `38-vllm-prep.sh`.)
-6. Final `RUN bootc container lint` (Architectural Law 4 — fail = fail
-   the build).
-7. Never `--squash-all`: strips `ostree.final-diffid` and breaks BIB.
-
-### Bootstrap phase ownership
-
-| Phase | Owner | Description |
-|---|---|---|
-| Phase-0 | `mios-bootstrap` | Preflight, profile load, identity capture |
-| Phase-1 | `mios-bootstrap` | Total Root Merge (clone `mios.git` into `/`, overlay bootstrap) |
-| Phase-2 | `Containerfile` / `automation/build.sh` | Build (numbered sub-phases) |
-| Phase-3 | both | sysusers/tmpfiles/services + user create + per-user config staging |
+| Phase-0 | `mios-bootstrap` | Preflight, profile load (3-layer overlay), interactive identity capture |
+| Phase-1 | `mios-bootstrap` | Total Root Merge — clone `mios.git` into `/`, overlay `etc/`, `usr/`, `var/` |
+| Phase-2 | `mios` | Build — `dnf install` from `mios.toml [packages]` SSOT, OR `bootc switch ghcr.io/mios-dev/mios:latest` |
+| Phase-3 | both | `systemd-sysusers` + `systemd-tmpfiles` + `daemon-reload` + services + per-user `~/.config/mios/{profile.toml,system-prompt.md}` staging |
 | Phase-4 | `mios-bootstrap` | Reboot |
 
-Numbered automation scripts (`automation/NN-name.sh`) are sub-phases of
-Phase-2. The prefix encodes dependency order — preserve it when adding
-scripts.
+The 11-phase pipeline in `mios.git` (`mios-pipeline.{sh,ps1}`) is the
+finer-grained orchestrator that bootstrap calls into for Phase-2+. Inside
+Phase-2, numbered `automation/NN-name.sh` scripts run in numeric order; the
+prefix encodes dependency order. The scripts that stand up the AI plane (the
+inference lanes, the agent units, the pgvector schema) are just more numbered
+steps — the same mechanism that installs packages also stands up the brain.
 
-## 10. Setup / build commands
+## 8. Two Windows Terminal profiles
 
-```bash
-# From scratch on Linux
-git clone https://github.com/mios-dev/MiOS.git && cd MiOS
-just preflight
-just build
-just iso       # or: just raw / just qcow2 / just vhdx / just wsl2
-```
+| Profile | `commandline` | Notes |
+|---|---|---|
+| **MiOS** | `pwsh.exe` → MiOS PS profile body (dashboard + `mios <verb>` dispatcher) | Verbs: `dash`, `config`, `update`, `pull`, `help` → Windows host; `build`, `dev` → pass through to dev VM via `wsl.exe`. |
+| **MiOS-DEV** | `wsl.exe -d <BuilderDistro> --user mios` | Direct dev-VM shell. |
+
+**Don't bind the MiOS profile to `wsl.exe` directly** — that hits
+`WSL_E_DISTRO_NOT_FOUND` when the distro name doesn't match. Distro
+names are locked: `MIOS_WSL_DISTRO=MiOS`,
+`MIOS_BUILDER_DISTRO=MiOS-DEV`. Podman derives `podman-MiOS-DEV` from
+these; renaming breaks `podman machine` discovery.
+
+## 9. MiOS-DEV ≡ MiOS
+
+MiOS-DEV is the **source upon which MiOS itself is based** — testbed
+AND substrate. It mirrors the layered Quadlet container surface that
+ships in production MiOS, so the build pipeline's tests and the
+self-development workflow have the full runtime surface available.
+Representative Quadlet units under `usr/share/containers/systemd/`:
+
+* `mios-llm-light` — the **primary** local inference lane (llama.cpp behind
+  the `llama-swap` proxy image, `:11450`; also serves embeddings via
+  `nomic-embed-text`)
+* `mios-llm-heavy` / `mios-llm-heavy-alt` — gated heavy GPU lanes (SGLang on
+  `:11441` served-name `mios-heavy`; vLLM alternate). Off by default on VRAM
+  grounds
+* `mios-pgvector` — PostgreSQL + pgvector, the unified agent datastore
+  (`:5432`)
+* `mios-open-webui` — Open WebUI browser front-end (`:3030`)
+* `mios-searxng` — SearXNG metasearch backing `web_search` (`:8888`)
+* `mios-guacamole` (with `mios-guacd`, `mios-guacamole-postgres`) — browser
+  desktop
+* `mios-forge` / `mios-forgejo-runner` — local git forge + CI runner
+* `mios-cockpit-link`, `mios-code-server`, the `mios-webtools-*` pod,
+  `mios-adguard`, `mios-crowdsec-dashboard`, and the `mios-k3s` / `mios-ceph`
+  cluster path
+* (every Quadlet under `usr/share/containers/systemd/`)
+
+The MiOS-Hermes gateway (`:8642`), the agent-pipe orchestrator (`:8640`), the
+delegation prefilter (`:8641`), and the opencode `/v1` gateway (`:8633`) run as
+service units alongside these containers (see §11). MiOS-DEV needs the `mios`
+user appended (uid 1000, the same login user the production image ships) so the
+same per-user configs and rootless podman behaviors carry across.
+
+## 10. Loading order (system prompt)
+
+This file (AGENTS.md) is the agents.md-standard repo entry. The runtime
+LLM system prompt is `/usr/share/mios/ai/system.md`. Bootstrap deploys
+this repo's `system-prompt.md` to `/etc/mios/ai/system-prompt.md`; the
+local agent stack loads it for chat completions.
+
+1. `~/.config/mios/system-prompt.md` — per-user override
+2. `/etc/mios/ai/system-prompt.md` — host/admin override (deployed by
+   bootstrap)
+3. `/usr/share/mios/ai/system.md` — vendor canonical (lowest, from
+   `mios.git`)
+
+## 11. Endpoint contract (OpenAI-compatible)
+
+Architectural Law 5 (**UNIFIED-AI-REDIRECTS**) — every OpenAI-API-shaped
+client on the system resolves through `MIOS_AI_ENDPOINT`
+(default `http://localhost:8080/v1`), `MIOS_AI_MODEL`, `MIOS_AI_KEY`.
+**No vendor-cloud URLs. No vendor-specific agent / dev-tool product names
+anywhere.** This is what lets any OpenAI-API-compatible editor/CLI client
+talk to the same local brain with no vendor lock-in.
+
+Behind that one endpoint is the local agent stack (verify ports against the
+units / `mios.toml`):
+
+* **agent-pipe** (`:8640`) — standalone orchestrator: router + refine +
+  council/swarm fan-out + critic/polish; fronts Hermes for every gateway.
+* **MiOS-Hermes** (`:8642`) — OpenAI-compatible agent gateway: sessions,
+  tool-loop, skills, browser/CDP control.
+* **prefilter** (`:8641`) — injects fan-out hints on decomposable prompts,
+  forwards to Hermes.
+* **mios-llm-light** (`:11450`) — **primary** inference lane: llama.cpp behind
+  the upstream `llama-swap` proxy image (`ghcr.io/mostlygeek/llama-swap`),
+  multi-model auto-swap + KV-cache paging; serves everyday models, the
+  `mios-opencode` coder model, **and embeddings** (`nomic-embed-text`,
+  OpenAI-compat `/v1/embeddings`). Model map:
+  `usr/share/mios/llamacpp/llama-swap.yaml`.
+* **mios-llm-heavy** (`:11441`, served-name `mios-heavy`) / **mios-llm-heavy-alt**
+  — gated heavy GPU lanes (SGLang / vLLM), off by default on VRAM grounds.
+* **opencode-gateway** (`:8633`) — opencode → OpenAI `/v1` shim; a real `/v1`
+  council peer (loopback).
+* **OWUI** (`:3030`) — Open WebUI front-end; **SearXNG** (`:8888`) backs
+  `web_search`.
+* **pgvector** (`:5432`) — PostgreSQL + pgvector, the unified agent datastore
+  (agent memory, events, tool calls, sessions, skills, scratch, knowledge with
+  vector recall, …).
+
+The engines speak the OpenAI/Ollama-compatible API, so any OpenAI-API client
+talks to them unchanged — `llama-swap` and that wire-compat API are the only
+legitimate upstream references; the MiOS *unit identity* is `mios-llm-light`.
+The throughline: **inference lanes → agent-pipe/Hermes orchestration →
+pgvector memory → MCP (tools) / A2A (agents)**, all behind `MIOS_AI_ENDPOINT`.
+
+## 12. Setup commands
 
 ```powershell
-# From scratch on Windows — irm|iex from Win+R
+# Windows — canonical irm|iex from Win+R
 powershell -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/mios-dev/mios-bootstrap/main/Get-MiOS.ps1 | iex"
 ```
 
-```bash
-# On a Fedora-bootc-compatible host
-bootc switch ghcr.io/mios-dev/mios:latest
-sudo systemctl reboot
-```
-
-### `just` recipes (Linux)
-
-```bash
-just preflight          # system prereq check
-just build              # build OCI image (runs bootc container lint as final step)
-just lint               # re-run bootc container lint on the built image
-just artifact           # refresh AI manifests before a build
-just rechunk            # optimized Day-2 delta layers
-just raw                # RAW disk image via BIB
-just iso                # Anaconda installer ISO
-just qcow2              # QEMU disk image (needs MIOS_USER_PASSWORD_HASH, MIOS_SSH_PUBKEY)
-just vhdx               # Hyper-V VHDX (needs MIOS_USER_PASSWORD_HASH, MIOS_SSH_PUBKEY)
-just wsl2               # WSL2 tar.gz
-just all                # every artifact in one shot
-just verify-images      # smoke-test all output/ artifacts
-just sbom               # CycloneDX SBOM via syft
-just init-user-space    # seed ~/.config/mios/mios.toml from vendor template
-just show-env           # print resolved MIOS_* surface
-just edit               # open mios.toml in $EDITOR
-```
-
-### Windows build scripts
-
 ```powershell
-.\preflight.ps1
-.\mios-build-local.ps1   # full OCI build + rechunk + disk images + GHCR push
+# After bootstrap, on the Windows host
+mios dash      # dashboard
+mios config    # open configurator HTML in a local browser
+mios update    # pull latest mios.git + mios-bootstrap
+mios build     # promote Downloads edits, SSH into MiOS-DEV, ignite build
+mios dev       # drop into MiOS-DEV shell
+mios help      # verb list
 ```
 
-### Key build-time env vars
-
-| Variable | Purpose |
-|---|---|
-| `MIOS_BASE_IMAGE` | OCI base (default `ghcr.io/ublue-os/ucore-hci:stable-nvidia`) |
-| `MIOS_LOCAL_TAG` | Local image tag (default `localhost/mios:latest`) |
-| `MIOS_USER` / `MIOS_HOSTNAME` | Default account/hostname baked into the image |
-| `MIOS_USER_PASSWORD_HASH` | SHA-512 hash (`openssl passwd -6 'pw'`) — required for qcow2/vhdx |
-| `MIOS_SSH_PUBKEY` | ed25519 pubkey — required for qcow2/vhdx |
-
-## 11. Code conventions
-
-### Shell scripts
-
-* `set -euo pipefail` at the top of every phase script.
-* Arithmetic: `VAR=$((VAR + 1))`. `((VAR++))` is forbidden — returns 1
-  under `set -e` when the result is 0.
-* shellcheck-clean; SC2038 is fatal in CI.
-* File naming: `NN-name.sh` where `NN` encodes execution order.
-
-### Containerfile
-
-* `/ctx` is bind-mounted read-only; mutable writes go to `/tmp/build`.
-* `install_weak_deps=False` (underscore, capital F) — `install_weakdeps`
-  is silently ignored by dnf5.
-* Never upgrade `kernel` / `kernel-core` in-container
-  (`automation/01-repos.sh` excludes them).
-
-### kargs.d TOML
-
-```toml
-kargs = ["init_on_alloc=1", "lockdown=integrity"]
+```bash
+# Linux — canonical curl|bash
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/mios-dev/mios-bootstrap/main/build-mios.sh)"
 ```
 
-Flat top-level array only — no `[kargs]` section header, no `delete`
-sub-key. Files processed in lexicographic order.
+## 13. Operating rules for agents
 
-### SELinux
+* **cwd:** `/` IS the deployed system root. Bootstrap repo files map
+  to FHS destinations (`etc/` → `/etc/`, `usr/` → `/usr/`, etc.).
+* **Deliverables:** complete replacement files only. No diffs, no
+  patches, no `# ... rest unchanged ...` placeholders.
+* **Tone:** direct, technical, no hedging qualifiers, no emoji unless
+  the user asked. Ground every suggestion in a concrete FHS path with
+  file:line.
+* **OpenAI-API-only.** Never reference vendor-specific agent CLIs,
+  dev-tool products, or cloud-AI URLs in MiOS docs / code / commit
+  messages. The OpenAI public API surface is the only addressable
+  contract.
+* **TOML-first.** Before adding a constant to a script, check whether
+  the value is operator-tunable. If yes, add it to `mios.toml`,
+  expose it in the HTML configurator, then read it from the layered
+  overlay.
+* **Confirm before:** `git push`, `bootc switch`, `bootc upgrade`,
+  `dnf install`, `systemctl daemon-reload`, `rm -rf` (especially against
+  `.git` or working tree), `git reset --hard`, `git clean -fd`,
+  `wsl --unregister`, `podman machine rm`, `Remove-Partition`,
+  `Disable-WindowsOptionalFeature`.
+* **MiOS-DEV is THE builder.** ALL build operations (`podman build`,
+  BIB, `bootc switch`, manifest gen) run **inside** `podman-MiOS-DEV`.
+  Windows side is provisioning + handoff ONLY. Don't write commit
+  messages or comments that contradict this.
+* **Latest packages and software.** Default to newest stable upstream
+  when pinning RPMs / OCI tags / binaries / base images. Bump
+  conservative pins forward on next touch unless held for a
+  documented reason.
+* **Every repo file is tracked, whitelisted, and pushed.** When
+  generating any artifact in `mios` / `mios-bootstrap`, add a
+  `.gitignore` whitelist line, stage, commit, push. Pulling latest
+  must restore full context.
+* **No double-tracking.** `mios.git` owns the system FHS overlay;
+  `mios-bootstrap.git` owns the user-facing installer. Never
+  cross-track paths.
 
-Per-rule individual `.te` modules in
-`usr/share/selinux/packages/mios/` — not monolithic. New
-booleans/fcontexts go in `automation/37-selinux.sh`.
+## 14. Persistence sanitization
 
-### Service gating conventions
+Anything persisted to `/var/lib/mios/ai/memory/` or
+`/var/lib/mios/ai/scratch/` must be vendor-neutral:
 
-* Bare-metal-only: `ConditionVirtualization=no`
-* WSL2-incompatible: `ConditionVirtualization=!wsl`
-* Optional: `systemctl enable ... || true`
+* Strip vendor-specific names (model names, organization names,
+  product names) unless the user asked for them.
+* Drop chat metadata (`user-id`, `session-id`, `conversation-id`).
+* Reduce all paths to FHS canonicals; resolve symlinks before writing.
+* Never persist secrets (PATs, API keys, passphrases). If a tool call
+  returned one in a previous turn, redact it before saving.
 
-## 12. Hardware and runtime context
+> The durable agent datastore is **PostgreSQL + pgvector** (`mios-pgvector`,
+> `:5432`) — these on-disk paths are the lightweight episodic/scratch journals,
+> not the primary store.
 
-* `/run/mios/gpu-passthrough.status` — GPU detection result (JSON)
-* `/run/cdi/{nvidia.yaml,amd.json,intel.yaml}` — per-vendor CDI specs
-* `/etc/mios/install.env` — bootstrap-staged env exports
-* `/usr/share/mios/VERSION` — running mios.git tag
-* `/var/lib/mios/bootc-switch-history.tsv` — last successful `bootc switch`
-* `/var/lib/mios/.wsl-firstboot-done` — WSL firstboot marker
-* `/var/lib/mios/llamacpp/slots` — per-conversation KV checkpoints (the
-  Context Manager's save/restore store for the `mios-llm-light` lane)
+## 15. Where things live (this repo)
 
-User accounts (`mios` uid 1000, plus the sidecar service accounts —
-e.g. `mios-llm-light` uid 827, `mios-pgvector` uid 826, pinned in
-`usr/lib/sysusers.d/50-mios-services.conf`) are baked at OVERLAY TIME
-via `/usr/lib/sysusers.d/*.conf` + `automation/31-user.sh` +
-`/usr/lib/tmpfiles.d/mios-user.conf`. **Never propose runtime patches to
-`/etc/passwd`, `/etc/subuid`, `/etc/subgid`, or `/var/lib/systemd/linger`
-in firstboot scripts.**
-
-## 13. Where things live
-
-| Topic | Path |
+| File | Purpose |
 |---|---|
-| Runtime agent system identity (SSOT) | [`/MiOS.md`](MiOS.md) |
-| Architectural contract (agent-facing) | [`usr/share/mios/ai/INDEX.md`](usr/share/mios/ai/INDEX.md) |
-| Legacy vendor system prompt (redirects to `/MiOS.md`) | [`usr/share/mios/ai/system.md`](usr/share/mios/ai/system.md) |
-| Read-only audit-mode prompt | [`usr/share/mios/ai/audit-prompt.md`](usr/share/mios/ai/audit-prompt.md) |
-| OpenAI v1 surface manifests | [`usr/share/mios/ai/v1/`](usr/share/mios/ai/v1/) |
-| Primary inference lane (mios-llm-light map) | [`usr/share/mios/llamacpp/mios-llm-light.yaml`](usr/share/mios/llamacpp/mios-llm-light.yaml) |
-| Agent datastore schema (PostgreSQL + pgvector) | [`usr/share/mios/postgres/schema-init.sql`](usr/share/mios/postgres/schema-init.sql) |
-| HTML configurator (TOML editor) | [`usr/share/mios/configurator/mios.html`](usr/share/mios/configurator/mios.html) |
-| Filesystem and hardware layout | [`usr/share/doc/mios/concepts/architecture.md`](usr/share/doc/mios/concepts/architecture.md) |
-| Build pipeline conventions | [`usr/share/doc/mios/guides/engineering.md`](usr/share/doc/mios/guides/engineering.md) |
-| Hardening kargs and posture | [`usr/share/doc/mios/guides/security.md`](usr/share/doc/mios/guides/security.md) |
-| Build modes (CI / Linux / Windows / self-build) | [`usr/share/doc/mios/guides/self-build.md`](usr/share/doc/mios/guides/self-build.md) |
-| bootc + Day-2 lifecycle | [`usr/share/doc/mios/guides/deploy.md`](usr/share/doc/mios/guides/deploy.md) |
-| OpenAI-compatible AI surface (full spec) | [`usr/share/doc/mios/reference/api.md`](usr/share/doc/mios/reference/api.md) |
-| Sources / credits / licenses | [`usr/share/doc/mios/reference/{sources,credits,licenses}.md`](usr/share/doc/mios/reference/) |
-| Annotated FHS tree | [`usr/share/doc/mios/reference/tree.md`](usr/share/doc/mios/reference/tree.md) |
-| Audit reports | [`usr/share/doc/mios/audits/`](usr/share/doc/mios/audits/) |
-| LLM ingest indexes | [`llms.txt`](llms.txt), [`llms-full.txt`](llms-full.txt) |
+| `Get-MiOS.ps1` | Canonical Windows entry — `irm \| iex` target. |
+| `install.{sh,ps1}` | Phase-0..4 orchestrator. |
+| `bootstrap.{sh,ps1}` | Lower-level bootstrap primitives. |
+| `build-mios.{sh,ps1}` | Linux build entry (also a redirector for `install.sh`). |
+| `seed-merge.{sh,ps1}` | Total Root Merge primitive (Phase-1). |
+| `etc/mios/profile.toml` | Host-layer profile overlay (TOML). |
+| `etc/skel/.config/mios/{profile.toml,system-prompt.md}` | Per-user templates seeded into every uid≥1000 home. |
+| `usr/share/mios/ai/{system.md,models.json,mcp.json}` | Deployed AI assets (SSOT here, materialized to `/usr/share/mios/ai/` at install). |
+| `usr/share/mios/knowledge/*` | RAG knowledge graphs. |
+| `mios.toml` | This repo's reference `mios.toml`. |
+| `system-prompt.md` | Host-layer prompt redirector. |
+| `identity.env.example` | Operator identity template. |
+| `image-versions.yml` | Pinned upstream image versions. |
+| `llms.txt` | LLM ingest index. |
 
-## Imported Claude Cowork project instructions
+## 16. What gets persisted on a deployed host
+
+* `/etc/mios/install.env` — non-secret installation metadata (mode 0640)
+* `/etc/mios/profile.toml` — user-edit overlay (writable; preserved
+  across `bootc upgrade`)
+* `/etc/mios/ai/system-prompt.md` — host AI prompt
+* `~/.config/mios/profile.toml` (per user) — per-user overlay
+* `~/.config/mios/system-prompt.md` (per user) — per-user AI prompt
+* `~mios/.ssh/id_ed25519` — generated SSH key (mode 0600)
+* `~mios/.git-credentials` — only if a GitHub PAT was provided (mode 0600)
+
+Passwords are piped to `chpasswd` and **never written to disk in
+plaintext**.
+
+## 17. Failure mode
+
+When a question is outside MiOS scope or the data isn't available
+locally, say so explicitly:
+
+> *"I don't have that on this host; check `<concrete file or URL>`."*
+
+Don't fabricate FHS paths. Don't invent endpoint URLs. **Don't name
+vendor-specific agent or dev-tool products.** If unsure between two
+valid sources, name both and let the operator choose.

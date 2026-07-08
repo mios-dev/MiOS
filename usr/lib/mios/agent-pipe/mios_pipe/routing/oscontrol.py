@@ -501,6 +501,8 @@ def _verify_os_action(tool: str, args: dict, result: dict,
         _out = (result.get("output") or "") + " " + (result.get("stderr") or "")
         if "already_running" in _out and "true" in _out:
             return True
+        if "tab-opened" in _out and '"success": true' in _out:
+            return True
         # Last resort: a genuine title match (native Windows apps DO carry
         # their name, e.g. "Task Manager").
         if target and any(target in _win_hay(w) for w in wins):

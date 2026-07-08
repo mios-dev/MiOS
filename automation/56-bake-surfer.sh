@@ -7,7 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # other automation/*.sh script uses) already exports MIOS_COLOR_* from
 # mios.toml [colors] -- this script previously hardcoded Catppuccin Mocha
 # literals here instead of using them (Law 7 gap; see design spec
-# usr/share/doc/mios/concepts/mios-app-browser-portal-dashboard-design-2026-07-03.md
+# usr/share/doc/mios/concepts/mios-app-browser-portal-dashboard-design-*.md
 # §8/§12). Best-effort: if common.sh/userenv.sh can't be located, the
 # `${VAR:-default}` fallbacks below keep this script working exactly as
 # before (degrade-open).

@@ -188,4 +188,70 @@ assert not M._tmsgs_indicate_failure(
 assert not M._tmsgs_indicate_failure([{"role": "tool", "content": ""}])
 print("TEST 6 PASS: _tool_call_sig / _looks_like_disclaimer / _tmsgs_indicate_failure")
 
+# === TEST 7: runaway loop / progress checking =================================
+# Same signature requested 3 times in a row -> terminates early
+_wire(exec_result=([], True))
+nudges = []
+client = _FakeClient([
+    _msg(tool_calls=[{"id": "t1", "function": {"name": "web_search", "arguments": '{"q": "1"}'}}]),
+    _msg(tool_calls=[{"id": "t2", "function": {"name": "web_search", "arguments": '{"q": "2"}'}}]),
+    _msg(tool_calls=[{"id": "t3", "function": {"name": "web_search", "arguments": '{"q": "3"}'}}]),
+])
+# Override no_progress_window to 2 for the test
+sys_agent_cfg = {"no_progress_window": 2}
+import sys
+# Set up mios_config stub section read
+class FakeConfig:
+    @staticmethod
+    def _toml_section(sec):
+        return sys_agent_cfg if sec == "agent_pipe" else {}
+sys.modules["mios_config"] = FakeConfig
+
+out = asyncio.run(M._v1_secondary_tool_loop(
+    client, "http://ep/v1", "m", {}, [{"role": "user", "content": "go"}],
+    [{"function": {"name": "web_search"}}], None, nudges.append))
+print("DEBUG: out =", out)
+assert any("Runaway loop detected" in str(m.get("content")) for m in out), "runaway loop should terminate"
+print("TEST 7 PASS: same tool signatures trigger runaway loop termination")
+
+# === TEST 8: blacklist logic for repeated failures ===========================
+# Call fails -> gets blacklisted -> next identical call is intercepted without executing
+from types import ModuleType
+fake_reflect_mod = ModuleType("mios_reflect")
+async def dummy_reflect(*args, **kwargs):
+    return {"tool": "web_search", "args": {"q": "new_query"}, "rationale": "try another query"}
+fake_reflect_mod.reflect_on_step_failure = dummy_reflect
+sys.modules["mios_reflect"] = fake_reflect_mod
+
+fail_tmsgs = [{"role": "tool", "tool_call_id": "t1", "content": json.dumps({"success": False})}]
+_wire(exec_result=(fail_tmsgs, True))
+client = _FakeClient([
+    _msg(tool_calls=[{"id": "t1", "function": {"name": "web_search", "arguments": '{"q": "fail"}'}}]),
+    # Mix identical failed call (t2) with a new one (t3) to bypass seen guard
+    _msg(tool_calls=[
+        {"id": "t2", "function": {"name": "web_search", "arguments": '{"q": "fail"}'}},
+        {"id": "t3", "function": {"name": "web_search", "arguments": '{"q": "new_query"}'}}
+    ]),
+    _msg(content="stopping"),
+])
+# Reset sys_agent_cfg
+sys_agent_cfg = {"no_progress_window": 5, "max_consecutive_failures": 5}
+# Mock _exec_tool_calls to assert it is ONLY called for t1 and t3, not t2
+execution_calls = []
+async def mock_exec(tcs, push, allow_write=False):
+    execution_calls.append(tcs)
+    return fail_tmsgs, True
+M._exec_tool_calls = mock_exec
+
+out = asyncio.run(M._v1_secondary_tool_loop(
+    client, "http://ep/v1", "m", {}, [{"role": "user", "content": "go"}],
+    [{"function": {"name": "web_search"}}], None, nudges.append))
+# First execution call should have t1. Second should have t3 (since t2 was blacklisted/intercepted).
+assert len(execution_calls) == 2, f"expected 2 execution calls, got {len(execution_calls)}"
+assert any(tc.get("id") == "t1" for tc in execution_calls[0]), "first call should execute t1"
+assert any(tc.get("id") == "t3" for tc in execution_calls[1]), "second call should execute t3"
+assert not any(tc.get("id") == "t2" for tc in execution_calls[1]), "t2 should be blacklisted and not executed"
+assert "tool_execution_failed: This exact tool call previously failed" in str(out), "blacklist intercept prompt not found"
+print("TEST 8 PASS: identical failed tool call is blacklisted and intercepted")
+
 print("ALL TESTS PASSED")

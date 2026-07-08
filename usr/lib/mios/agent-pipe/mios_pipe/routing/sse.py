@@ -25,6 +25,7 @@ STATUS_AS_REASONING = os.environ.get(
     "MIOS_STATUS_AS_REASONING", "true").lower() not in {"false", "0", "no"}
 
 _DEBUG_ENABLE = False
+_SURFACE_DEFAULT = "clean"
 
 
 # ── SSE chunk builders ─────────────────────────────────────────────
@@ -103,7 +104,9 @@ def _sse_reasoning(text: str, *, chat_id: str, model: str,
         return _sse_chunk(None, chat_id=chat_id, model=model, reasoning=text)
     if reasoning_ok is False:
         return _sse_chunk(text, chat_id=chat_id, model=model)
-    if _DEBUG_ENABLE:
+    # reasoning_ok is None -> unknown surface. Route by surface_default setting (T-115).
+    # clean -> reasoning channel (Thinking pane); inline -> content channel (visible text).
+    if _SURFACE_DEFAULT == "inline":
         return _sse_chunk(text, chat_id=chat_id, model=model)
     return _sse_chunk(None, chat_id=chat_id, model=model, reasoning=text)
 
@@ -423,10 +426,11 @@ def _iter_answer_chunks(text: str, size: int):
         yield buf
 
 
-def configure(*, debug_enable: bool = True, **kwargs) -> None:
+def configure(*, debug_enable: bool = True, surface_default: str = "clean", **kwargs) -> None:
     # Full-visibility posture: server.py resolves [observability].debug (default
     # on) and passes it here; when on, reasoning/thinking/tool-io/status stream
     # as visible content to every chat surface. Set debug=false in mios.toml for
     # answer-only replies (reasoning then rides delta.reasoning_content instead).
-    global _DEBUG_ENABLE
+    global _DEBUG_ENABLE, _SURFACE_DEFAULT
     _DEBUG_ENABLE = bool(debug_enable)
+    _SURFACE_DEFAULT = str(surface_default).strip().lower()

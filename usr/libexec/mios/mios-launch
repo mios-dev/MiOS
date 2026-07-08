@@ -169,14 +169,22 @@ if command -v mios-app-type >/dev/null 2>&1; then
 fi
 
 # ─── 1. Internal-service URL alias ───────────────────────────────────
+# Ports from SSOT: install.env bridges mios.toml [ports] -> MIOS_PORT_*.
+# Hardcoded literals here silently break when [ports] is renumbered (T-120/T-121).
+[ -r /etc/mios/install.env ] && . /etc/mios/install.env || true
+_PORT_COCKPIT="${MIOS_PORT_COCKPIT:-8090}"
+_PORT_OWUI="${MIOS_PORT_OPEN_WEBUI:-8033}"
+_PORT_HERMES="${MIOS_PORT_HERMES:-8642}"
+_PORT_PREFILTER="${MIOS_PORT_PREFILTER:-8641}"
+_PORT_SEARXNG="${MIOS_PORT_SEARXNG:-8899}"
+_PORT_FORGE="${MIOS_PORT_FORGE_HTTP:-8300}"
 case "$NAME" in
-    cockpit)    exec mios-open-url "http://localhost:9090" "$@" ;;
-    owui|open-webui|webui) exec mios-open-url "http://localhost:3030" "$@" ;;
-    hermes)     exec mios-open-url "http://localhost:8642/v1" "$@" ;;
-    prefilter)  exec mios-open-url "http://localhost:8641/v1" "$@" ;;
-    inference|ollama-web) exec mios-open-url "http://localhost:11434" "$@" ;;
-    searxng|search) exec mios-open-url "http://localhost:8888" "$@" ;;
-    forgejo|forge)  exec mios-open-url "http://localhost:3000" "$@" ;;
+    cockpit)                   exec mios-open-url "http://localhost:${_PORT_COCKPIT}" "$@" ;;
+    owui|open-webui|webui|ai)  exec mios-open-url "http://localhost:${_PORT_OWUI}" "$@" ;;
+    hermes)                    exec mios-open-url "http://localhost:${_PORT_HERMES}/v1" "$@" ;;
+    prefilter)                 exec mios-open-url "http://localhost:${_PORT_PREFILTER}/v1" "$@" ;;
+    searxng|search)            exec mios-open-url "http://localhost:${_PORT_SEARXNG}" "$@" ;;
+    forgejo|forge)             exec mios-open-url "http://localhost:${_PORT_FORGE}" "$@" ;;
 esac
 
 # ─── 2. URL / URI literal ────────────────────────────────────────────

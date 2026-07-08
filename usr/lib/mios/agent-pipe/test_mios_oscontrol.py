@@ -127,6 +127,13 @@ def main():
     check("close verifies FALSE when the target window is still present",
           v_close_still is False)
 
+    # open_url: tab reuse verification check (T-116)
+    tab_res = {"success": True, "output": '{"success": true, "target": "com.google.ChromeDev", "url": "https://example.com", "summary": "tab-opened-existing"}', "exit_code": 0}
+    v_tab = m._verify_os_action(
+        "open_url", {"url": "https://example.com"}, tab_res,
+        before, after_none, m._window_diff(before, after_none))
+    check("open_url verify is TRUE for already-running tab opens", v_tab is True)
+
     # ── fast-path verb rendering (_render_os_control_verbs) ──────────
     # server injects _FASTPATH_VERBS + _VERB_CATALOG at import time; the render is
     # one sorted "  name(sig) -- desc" line per verb, desc newline-collapsed + clipped.

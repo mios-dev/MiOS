@@ -252,6 +252,13 @@ slots = [
     # vLLM heavy dGPU lane port ([ports].vllm; Phase 2).
     ("ports.vllm",                     "MIOS_PORT_VLLM"),
     ("ports.sglang",                   "MIOS_PORT_SGLANG"),
+    # T-122: service ports that were missing from install.env (had hardcoded defaults in scripts).
+    ("ports.prefilter",                "MIOS_PORT_PREFILTER"),
+    ("ports.arbiter",                  "MIOS_PORT_ARBITER"),
+    ("ports.daemon_agent",             "MIOS_PORT_DAEMON_AGENT"),
+    ("ports.model_router",             "MIOS_PORT_MODEL_ROUTER"),
+    ("ports.oscontrol",                "MIOS_PORT_OSCONTROL"),
+    ("ports.mcp",                      "MIOS_PORT_MCP"),
     # ── opencode + shared agent-plane (HYBRID; keys live under [ai]) ──────
     # opencode is a first-class /v1 council peer via mios-opencode-gateway.
     # service. install_url/version pre-existed; the rest are the front-door

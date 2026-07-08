@@ -276,6 +276,73 @@ while IFS= read -r TARGET; do
     # Native disposition flag (tab reuses the running instance; SSOT [browser.*]).
     _FLAG="$(_browser_flag "$TARGET" "$EFF_MODE")"
 
+    _already_running=0
+    _seg="$(printf '%s' "$TARGET" | sed 's/.*\.//')"
+    if [ "$EFF_MODE" = "tab" ]; then
+        if pgrep -fi "$TARGET" >/dev/null 2>&1 \
+           || { [ -n "$_seg" ] && pgrep -fi "$_seg" >/dev/null 2>&1; }; then
+            _already_running=1
+        elif command -v mios-windows >/dev/null 2>&1; then
+            _win_proc="$(basename "$TARGET" | sed 's/\.exe$//I')"
+            if mios-windows ps "Get-Process -Name $_win_proc -ErrorAction SilentlyContinue" >/dev/null 2>&1; then
+                _already_running=1
+            fi
+        fi
+    fi
+
+    # ─── Already running CDP browser shortcut ───
+    if [ "$_already_running" = "1" ] && { echo "$TARGET" | grep -qiE 'chrome|chromium'; }; then
+        # Try local CDP port first if responding
+        if curl -fsS -m 2 "http://127.0.0.1:${CDP_PORT}/json/version" >/dev/null 2>&1; then
+            echo "[mios-open-url] browser $TARGET is already running with CDP -> opening tab via CDP" >&2
+            if /usr/lib/mios/agents/.venv/bin/python3 - "$CDP_PORT" "$URL" <<'PYEOF' 2>/dev/null; then
+import sys
+import json
+import urllib.request
+import urllib.parse
+import asyncio
+
+async def cdp_create_tab(port, url):
+    try:
+        req = urllib.request.Request(f"http://127.0.0.1:{port}/json/new?{urllib.parse.quote(url)}", method="PUT")
+        with urllib.request.urlopen(req, timeout=5) as r:
+            return True
+    except Exception:
+        pass
+    try:
+        import websockets
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/json/version", timeout=5) as r:
+            version_data = json.loads(r.read().decode())
+        ws_url = version_data.get("webSocketDebuggerUrl")
+        if not ws_url:
+            return False
+        async with websockets.connect(ws_url, open_timeout=5) as ws:
+            mid = 1
+            await ws.send(json.dumps({
+                "id": mid,
+                "method": "Target.createTarget",
+                "params": {"url": url}
+            }))
+            raw = await asyncio.wait_for(ws.recv(), timeout=5)
+            resp = json.loads(raw)
+            if resp.get("id") == mid and "result" in resp:
+                return True
+    except Exception:
+        pass
+    return False
+
+if __name__ == "__main__":
+    port = int(sys.argv[1])
+    url = sys.argv[2]
+    success = asyncio.run(cdp_create_tab(port, url))
+    sys.exit(0 if success else 1)
+PYEOF
+                printf '%s\n' "{\"success\": true, \"target\": \"$TARGET\", \"url\": \"$URL\", \"summary\": \"tab-opened-cdp\", \"engine\": \"cdp\", \"launch_rc\": 0}"
+                exit 0
+            fi
+        fi
+    fi
+
         if [ "$TARGET" = "cmd.exe" ] || [ "$TARGET" = "explorer.exe" ]; then
             WIN_URL=$(wslpath -w "$URL" 2>/dev/null || echo "$URL")
             # cmd.exe start delegates to the Windows default browser's protocol
@@ -283,10 +350,20 @@ while IFS= read -r TARGET; do
             echo "[mios-open-url] trying Windows handler: $TARGET '$WIN_URL'" >&2
             cmd.exe /c start "" "$WIN_URL"
             _launch_rc=$?
+            _used_windows_fallback=1
         else
             # shellcheck disable=SC2086  # $_FLAG deliberately word-splits into flag tokens
             mios-gui "$TARGET" $_FLAG "$URL"
             _launch_rc=$?
+            _used_windows_fallback=0
+            if [ "$_launch_rc" -ne 0 ] && command -v mios-windows >/dev/null 2>&1; then
+                echo "[mios-open-url] mios-gui $TARGET failed; trying Windows fallback via mios-windows" >&2
+                # shellcheck disable=SC2086
+                if mios-windows launch "$TARGET" $_FLAG "$URL" >/dev/null 2>&1; then
+                    _launch_rc=0
+                    _used_windows_fallback=1
+                fi
+            fi
         fi
 
     # Poll the window verifier up to ~15s with progressive delays.
@@ -300,16 +377,18 @@ while IFS= read -r TARGET; do
     # despite mios-open-url declaring EXHAUSTED chain.
     _summary=""
     _verify=""
-    for _delay in 1 2 3 4 5; do
-        _verify=$(mios-window-active --present "$_verify_pattern" 2>/dev/null)
-        _summary=$(_parse_summary "$_verify")
-        if [ "$_summary" = "presented" ]; then
-            break
-        fi
-        sleep "$_delay"
-    done
-    _LAST_VERIFY="$_verify"
-    _LAST_SUMMARY="$_summary"
+    if [ "$_already_running" = "0" ]; then
+        for _delay in 1 2 3 4 5; do
+            _verify=$(mios-window-active --present "$_verify_pattern" 2>/dev/null)
+            _summary=$(_parse_summary "$_verify")
+            if [ "$_summary" = "presented" ]; then
+                break
+            fi
+            sleep "$_delay"
+        done
+        _LAST_VERIFY="$_verify"
+        _LAST_SUMMARY="$_summary"
+    fi
     _LAST_TARGET="$TARGET"
     _LAST_RC="$_launch_rc"
 
@@ -327,26 +406,49 @@ while IFS= read -r TARGET; do
     # confirm the flatpak's PROCESS is RUNNING instead -- a live instance means the
     # app launched on the WSLg desktop. Linux is the DEFAULT; fall through to the
     # next browser / Windows last-resort only when NOTHING is running.
-    _seg="$(printf '%s' "$TARGET" | sed 's/.*\.//')"
     _proc_ok=0
-    # PID probe against the GLOBAL process table. The flatpak runs as the
-    # operator (uid != agent uid), so neither `flatpak ps` (per-user) nor
-    # `mios-as-operator flatpak ps` (a fire-and-forget LAUNCHER that returns
-    # NO stdout -- it dispatches detached) can see it. But /proc is global,
-    # so pgrep finds the operator's process from any agent context. Match
-    # the full app-id (present in the bwrap'd flatpak app path) then the
-    # trailing segment / binary name as a looser fallback. Backoff loop
-    # because GTK4 apps take a moment to fork the real process in.
-    for _pp in 1 2 3 4; do
-        if pgrep -fi "$TARGET" >/dev/null 2>&1 \
-           || { [ -n "$_seg" ] && pgrep -fi "$_seg" >/dev/null 2>&1; }; then
-            _proc_ok=1; break
+    if [ "$TARGET" = "cmd.exe" ] || [ "$TARGET" = "explorer.exe" ] || [ "${_used_windows_fallback:-0}" = "1" ]; then
+        _proc_ok=1
+    else
+        # PID probe against the GLOBAL process table. The flatpak runs as the
+        # operator (uid != agent uid), so neither `flatpak ps` (per-user) nor
+        # `mios-as-operator flatpak ps` (a fire-and-forget LAUNCHER that returns
+        # NO stdout -- it dispatches detached) can see it. But /proc is global,
+        # so pgrep finds the operator's process from any agent context. Match
+        # the full app-id (present in the bwrap'd flatpak app path) then the
+        # trailing segment / binary name as a looser fallback. Backoff loop
+        # because GTK4 apps take a moment to fork the real process in.
+        for _pp in 1 2 3 4; do
+            if pgrep -fi "$TARGET" >/dev/null 2>&1 \
+               || { [ -n "$_seg" ] && pgrep -fi "$_seg" >/dev/null 2>&1; }; then
+                _proc_ok=1; break
+            fi
+            sleep "$_pp"
+        done
+    fi
+
+    # If the browser was already running, and we opened a tab, we don't expect a new window to open.
+    # So if the process is still alive and mios-gui succeeded (rc=0) or returned unconfirmed (rc=3),
+    # we treat it as success immediately.
+    if [ "$_already_running" = "1" ] && { [ "$_launch_rc" = "0" ] || [ "$_launch_rc" = "3" ]; } && [ "$_proc_ok" = "1" ]; then
+        if [ "${_used_windows_fallback:-0}" = "1" ]; then
+            printf '%s\n' "{\"success\": true, \"target\": \"$TARGET\", \"url\": \"$URL\", \"summary\": \"tab-opened-existing\", \"engine\": \"windows-host\", \"verified_by\": \"already-running\", \"launch_rc\": $_launch_rc}"
+            echo "[mios-open-url] $TARGET was already running on Windows -> tab opened in existing instance" >&2
+        else
+            printf '%s\n' "{\"success\": true, \"target\": \"$TARGET\", \"url\": \"$URL\", \"summary\": \"tab-opened-existing\", \"engine\": \"linux-flatpak\", \"verified_by\": \"already-running\", \"launch_rc\": $_launch_rc}"
+            echo "[mios-open-url] $TARGET was already running -> tab opened in existing instance" >&2
         fi
-        sleep "$_pp"
-    done
+        exit 0
+    fi
+
     if [ "$_launch_rc" = "0" ] && [ "$_proc_ok" = "1" ]; then
-        printf '%s\n' "{\"success\": true, \"target\": \"$TARGET\", \"url\": \"$URL\", \"summary\": \"running\", \"engine\": \"linux-flatpak\", \"verified_by\": \"pid-probe\", \"launch_rc\": 0}"
-        echo "[mios-open-url] $TARGET launched -> process verified running via PID probe (engine=linux-flatpak, Linux default); window surfacing is confirmed separately by the agent-pipe window-diff" >&2
+        if [ "${_used_windows_fallback:-0}" = "1" ]; then
+            printf '%s\n' "{\"success\": true, \"target\": \"$TARGET\", \"url\": \"$URL\", \"summary\": \"running\", \"engine\": \"windows-host\", \"verified_by\": \"windows-launch\", \"launch_rc\": 0}"
+            echo "[mios-open-url] $TARGET launched on Windows host via mios-windows" >&2
+        else
+            printf '%s\n' "{\"success\": true, \"target\": \"$TARGET\", \"url\": \"$URL\", \"summary\": \"running\", \"engine\": \"linux-flatpak\", \"verified_by\": \"pid-probe\", \"launch_rc\": 0}"
+            echo "[mios-open-url] $TARGET launched -> process verified running via PID probe (engine=linux-flatpak, Linux default); window surfacing is confirmed separately by the agent-pipe window-diff" >&2
+        fi
         exit 0
     fi
 

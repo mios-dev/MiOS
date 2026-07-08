@@ -87,10 +87,13 @@ class DispatchTool(Tool):
             return str(res.get("output") or res.get("result") or res)
         return str(res)
 
-def parse_sig(sig: str) -> dict:
+def parse_sig(sig: str, vcfg: dict = None) -> dict:
     if not sig:
         return {}
     inputs = {}
+    params_cfg = {}
+    if vcfg and isinstance(vcfg, dict):
+        params_cfg = vcfg.get("params") or {}
     for part in sig.split(","):
         part = part.strip()
         if not part:
@@ -109,16 +112,20 @@ def parse_sig(sig: str) -> dict:
             
         name = name.strip('"').strip("'")
         
-        param_type = "string"
-        lower_name = name.lower()
-        if any(x in lower_name for x in ("limit", "count", "timeout", "port", "every", "concurrency", "maxsize")):
-            param_type = "integer"
-        elif any(x in lower_name for x in ("enable", "force", "success", "active", "dryrun")):
-            param_type = "boolean"
+        pcfg = params_cfg.get(name)
+        if pcfg and isinstance(pcfg, dict) and pcfg.get("type"):
+            param_type = pcfg.get("type")
+        else:
+            param_type = "string"
+            lower_name = name.lower()
+            if any(x in lower_name for x in ("limit", "count", "timeout", "port", "every", "concurrency", "maxsize")):
+                param_type = "integer"
+            elif any(x in lower_name for x in ("enable", "force", "success", "active", "dryrun")):
+                param_type = "boolean"
             
         inputs[name] = {
             "type": param_type,
-            "description": f"Parameter {name}",
+            "description": pcfg.get("desc", f"Parameter {name}") if pcfg and isinstance(pcfg, dict) else f"Parameter {name}",
             "nullable": optional
         }
     return inputs
@@ -141,19 +148,22 @@ def get_tools(ceiling: str = "interactive") -> list:
         description = cap.get("description", "")
         
         sig = ""
+        vcfg = {}
         if kind == "verb":
             vcfg = _VERB_CATALOG.get(name) or {}
             sig = vcfg.get("sig", "")
         elif kind == "recipe":
             rcfg = _recipes.get(name) or {}
             sig = rcfg.get("sig", "")
+            vcfg = rcfg
             name = f"mios_recipe__{name}"
         elif kind == "skill":
             scfg = _skills.get(name) or {}
             sig = scfg.get("sig", "")
+            vcfg = scfg
             name = f"mios_skill__{name}"
             
-        inputs = parse_sig(sig)
+        inputs = parse_sig(sig, vcfg)
         tools.append(DispatchTool(
             name=name,
             description=description,

@@ -417,6 +417,12 @@ def _arch_grounding() -> str:
     hallucinated its own stack before (e.g. 'the orchestrator is Hermes', stale).
     Folds the key system.md facts in (system.md is not otherwise injected at
     runtime). Kept short to bound per-turn token cost."""
+    # Ports read from SSOT at call time; defaults track [ports] renumber (T-121).
+    import os as _os
+    _p_pipe    = _os.environ.get("MIOS_PORT_AGENT_PIPE", "8640")
+    _p_light   = _os.environ.get("MIOS_PORT_LLM_LIGHT", "8450")
+    _p_heavy   = _os.environ.get("MIOS_PORT_LLM_HEAVY", "8442")
+    _p_hermes  = _os.environ.get("MIOS_PORT_HERMES", "8642")
     return (
         "What MiOS IS (ground any 'what is MiOS / MiOS?' answer on THIS host and its "
         "on-disk docs, NEVER from a training prior): MiOS is THIS system -- an "
@@ -429,11 +435,11 @@ def _arch_grounding() -> str:
         "product from training data, that is FALSE -- correct it from these docs. "
         "Self-architecture (ground any 'how are you built / which model / what's the "
         "orchestrator' answer on THIS, never guess): you are MiOS AI, served by the "
-        "agent-pipe orchestrator (:8640, model id 'MiOS AI') -- the front door that "
+        f"agent-pipe orchestrator (:{_p_pipe}, model id 'MiOS AI') -- the front door that "
         "refines, routes, "
         "fans out across a council/DAG, and polishes. LOCAL inference lanes behind it: "
-        "mios-llm-light (:11450 — everyday models + embeddings + a vision VLM) + the "
-        "heavy lane mios-llm-heavy (:11441, SGLang). MiOS-Hermes (:8642) is a tool-loop "
+        f"mios-llm-light (:{_p_light} — everyday models + embeddings + a vision VLM) + the "
+        f"heavy lane mios-llm-heavy (:{_p_heavy}, SGLang). MiOS-Hermes (:{_p_hermes}) is a tool-loop "
         "WORKER the pipe fronts, NOT the orchestrator. Memory = pgvector; web_search = "
         "local SearXNG. Hardware: AMD Ryzen 9 9950X3D + NVIDIA RTX 4090. "
         "You have FULL read access to THIS machine's filesystem AND the authoritative "
@@ -444,6 +450,7 @@ def _arch_grounding() -> str:
         "MiOS facts are KNOWABLE from this machine, so NEVER answer them from a "
         "training-data guess."
     )
+
 
 
 def _env_block() -> str:

@@ -299,8 +299,8 @@ def test_sandbox_profile_coverage():
         import tomli as tomllib
     _here = os.path.dirname(os.path.abspath(__file__))
     _cands = [os.environ.get("MIOS_TOML"),
-              os.path.join(_here, "..", "..", "..", "share", "mios", "mios.toml"),
-              "/usr/share/mios/mios.toml"]
+              "/usr/share/mios/mios.toml",
+              os.path.join(_here, "..", "..", "..", "share", "mios", "mios.toml")]
     _path = next((p for p in _cands if p and os.path.exists(p)), None)
     assert _path, f"mios.toml not found (tried {_cands})"
     with open(_path, "rb") as _f:
@@ -422,5 +422,50 @@ def test_agent_access_control():
 
 
 test_agent_access_control()
+
+
+def test_normalize_container_exec():
+    # 1. Test docker -> podman conversion (with word boundaries)
+    s1 = "docker exec -it my-container bash"
+    r1 = mios_dispatch.normalize_container_exec(s1)
+    assert "podman" in r1, r1
+    assert "docker" not in r1, r1
+
+    # 2. Test code-server / mios-code-server -> mios-agents
+    s2 = "podman exec -it code-server bash"
+    r2 = mios_dispatch.normalize_container_exec(s2)
+    assert "mios-agents" in r2, r2
+    assert "code-server" not in r2, r2
+
+    # 3. Test stripping of interactive -it / -t flags from exec
+    s3 = "podman exec -it mios-agents bash"
+    r3 = mios_dispatch.normalize_container_exec(s3)
+    assert "-it" not in r3, r3
+    assert "-t" not in r3, r3
+    assert "-i" in r3, r3  # -i should be kept!
+
+    s3_long = "podman exec --tty mios-agents bash"
+    r3_long = mios_dispatch.normalize_container_exec(s3_long)
+    assert "--tty" not in r3_long, r3_long
+
+    # 4. Test replacing bare shell at end with true
+    s4 = "podman exec -i mios-agents bash"
+    r4 = mios_dispatch.normalize_container_exec(s4)
+    assert r4.endswith("true"), r4
+
+    s4_path = "podman exec -i mios-agents /bin/bash"
+    r4_path = mios_dispatch.normalize_container_exec(s4_path)
+    assert r4_path.endswith("true"), r4_path
+
+    # Multi-line test
+    s_multi = "docker exec -it code-server bash\nWrite-Output 'hello'"
+    r_multi = mios_dispatch.normalize_container_exec(s_multi)
+    assert "podman exec -i mios-agents true" in r_multi, r_multi
+    assert "Write-Output 'hello'" in r_multi, r_multi
+
+    print("[PASS] container exec normalization tests")
+
+
+test_normalize_container_exec()
 
 print("test_mios_dispatch: ALL PASS")

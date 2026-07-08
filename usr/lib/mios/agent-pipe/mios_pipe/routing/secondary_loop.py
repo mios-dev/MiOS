@@ -253,16 +253,24 @@ async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
  here ('any agent/model on any node/endpoint, no
     hardcodes')."""
     import sys
+    import time
     msgs = list(messages)
     
     # Check reflexion gate
     agent_cfg = {}
     if "mios_config" in sys.modules:
         try:
-            agent_cfg = sys.modules["mios_config"]._toml_section("agent") or {}
+            cfg_func = sys.modules["mios_config"]._toml_section
+            agent_cfg = cfg_func("agent_pipe") or cfg_func("agents") or cfg_func("agent") or {}
         except Exception:
             pass
     reflexion_enable = str(agent_cfg.get("reflexion_enable", "true")).strip().lower() not in {"false", "0", "no", "off"}
+    no_progress_window = int(agent_cfg.get("no_progress_window", 3))
+    max_consecutive_failures = int(agent_cfg.get("max_consecutive_failures", 3))
+    wall_clock_budget_s = float(agent_cfg.get("wall_clock_budget_s", 300))
+
+    _tool_max_iters = int(agent_cfg.get("tool_max_iters", SECONDARY_TOOL_MAX_ITERS))
+    _replan_max = int(agent_cfg.get("replan_max", SECONDARY_REPLAN_MAX))
 
     # Load superstep checkpoint
     start_iter = 0
@@ -297,7 +305,19 @@ async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
     # or this agent's OWN per-endpoint header for a remote/federated /v1 endpoint
     # (a forwarded client bearer would 401 the node, so set the right one here).
     _apply_outbound_auth(_hdrs, ep)
-    for _ in range(start_iter, max(1, SECONDARY_TOOL_MAX_ITERS)):
+
+    start_time = time.monotonic()
+    consecutive_failures = 0
+    blacklist = set()
+    signature_history = []
+    tool_name_history = []
+
+    for _ in range(start_iter, max(1, _tool_max_iters)):
+        if time.monotonic() - start_time >= wall_clock_budget_s:
+            log.warning("secondary tool-loop hit wall-clock budget %.1fs -> terminating", wall_clock_budget_s)
+            msgs.append({"role": "user", "content": f"SYSTEM ALERT: You have exceeded the maximum execution time budget of {wall_clock_budget_s} seconds for this turn. Do NOT make any more tool calls. Summarize the information you have gathered and provide a final answer to the user now."})
+            break
+
         # parallel_tool_calls (OpenAI default True): a SMALL local model handed a
         # multi-step request ("open notepad AND type hello") emits MALFORMED parallel
         # tool calls (the fn name/wrapper drops, leaving raw "arguments": {...} in
@@ -355,14 +375,14 @@ async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
             # stopped calling tools, but if a verb THIS loop reported a FAILURE it never
             # fixed, the turn is UNFULFILLED -> re-engage ONCE (bounded) with a fix-it
             # nudge so it retries the failed step instead of declaring done on a failure.
-            # Verdict = the broker result; SECONDARY_REPLAN_MAX bounds it (no infinite loop).
-            if _last_failed and _replan < SECONDARY_REPLAN_MAX:
+            # Verdict = the broker result; _replan_max bounds it (no infinite loop).
+            if _last_failed and _replan < _replan_max:
                 _replan += 1
                 _last_failed = False
                 push(f" 🔁{_replan}")
                 log.info("tool-loop CLOSED-LOOP re-engage #%d: prior verb FAILED and the "
                          "model gave up -> fix-it nudge (bounded %d)",
-                         _replan, SECONDARY_REPLAN_MAX)
+                         _replan, _replan_max)
                 # DAEMON-DIAGNOSE: a fresh monitor LLM explains WHY the step failed +
                 # proposes a DIFFERENT concrete action, so the retry is GUIDED, not a
                 # blind re-ask. Pulls the goal (original user msg) + the last failed tool
@@ -383,44 +403,151 @@ async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
                                      + _diag if _diag else ""))})
                 continue
             break
+
+        # runaway loop / progress checking
         _sigs = [_tool_call_sig(_tc) for _tc in tcs]
         if _sigs and all(_s in _seen for _s in _sigs):
             break   # loop guard: no NEW tool calls this round -> stop (runaway)
         _seen.update(_sigs)
+
+        turn_names = tuple(sorted(str(tc.get("function", {}).get("name") or "") for tc in tcs))
+        turn_sigs = tuple(sorted(_tool_call_sig(tc) for tc in tcs))
+        signature_history.append(turn_sigs)
+        tool_name_history.append(turn_names)
+
+        if len(signature_history) >= no_progress_window:
+            last_n_sigs = signature_history[-no_progress_window:]
+            if len(set(last_n_sigs)) == 1:
+                log.warning("tool-loop runaway detected: same tool signatures called consecutively %d times", no_progress_window)
+                msgs.append({"role": "user", "content": "SYSTEM ALERT: Runaway loop detected (repeated identical tool calls). Terminating loop."})
+                break
+            
+            last_n_names = tool_name_history[-no_progress_window:]
+            if len(set(last_n_names)) == 1:
+                log.warning("tool-loop runaway detected: same tool names called consecutively %d times", no_progress_window)
+                msgs.append({"role": "user", "content": "SYSTEM ALERT: Runaway loop detected (repeated identical tool names). Terminating loop."})
+                break
+
+        # Check blacklist for incoming tool calls
+        active_tcs = []
+        blacklisted_tmsgs = []
+        for tc in tcs:
+            sig = _tool_call_sig(tc)
+            if sig in blacklist:
+                log.warning("tool-loop intercepting blacklisted tool call: %s", sig)
+                blacklisted_tmsgs.append({
+                    "role": "tool",
+                    "tool_call_id": tc.get("id"),
+                    "name": tc.get("function", {}).get("name"),
+                    "content": json.dumps({
+                        "success": False,
+                        "error": "tool_execution_failed: This exact tool call previously failed in this turn. Do not retry the same call."
+                    })
+                })
+            else:
+                active_tcs.append(tc)
+
         msgs.append({"role": "assistant",
                      "content": msg.get("content") or "", "tool_calls": tcs})
-        _tmsgs, ran_read = await _exec_tool_calls(tcs, push, allow_write=allow_write)
+
+        _tmsgs = []
+        ran_read = False
+        if active_tcs:
+            _tmsgs, ran_read = await _exec_tool_calls(active_tcs, push, allow_write=allow_write)
+        _tmsgs.extend(blacklisted_tmsgs)
         msgs.extend(_tmsgs)
+
         batch_failed = _tmsgs_indicate_failure(_tmsgs)
         if batch_failed:
             _last_failed = True
+            consecutive_failures += 1
+            for tc in active_tcs:
+                tc_id = tc.get("id")
+                tm = next((m for m in _tmsgs if m.get("tool_call_id") == tc_id), None)
+                if tm and _tmsgs_indicate_failure([tm]):
+                    blacklist.add(_tool_call_sig(tc))
         else:
             if _batch_has_write_verb(tcs) or not _last_failed:
                 _last_failed = False
+                consecutive_failures = 0
 
         # On tool error: add Reflexion step
-        if _last_failed and reflexion_enable:
-            reflection_prompt = (
-                "SYSTEM REFLEXION: One or more tool calls failed. "
-                "Analyze the error, reflect on why it failed, and provide a revised tool call "
-                "or correct the approach in your next response."
-            )
-            msgs.append({"role": "user", "content": reflection_prompt})
+        if batch_failed and reflexion_enable:
+            if consecutive_failures >= max_consecutive_failures:
+                log.warning("tool-loop hit max_consecutive_failures=%d -> terminating", max_consecutive_failures)
+                msgs.append({"role": "user", "content": "SYSTEM ALERT: Maximum consecutive tool failures reached. Terminating loop."})
+                break
             
-            # Log the reflexion event in DB
-            if _db_create and _db_fire and _db_post:
+            # Find the first failed tool call
+            failed_tc = None
+            failed_tm = None
+            for tc in active_tcs:
+                tc_id = tc.get("id")
+                tm = next((m for m in _tmsgs if m.get("tool_call_id") == tc_id), None)
+                if tm and _tmsgs_indicate_failure([tm]):
+                    failed_tc = tc
+                    failed_tm = tm
+                    break
+            
+            if failed_tc and failed_tm:
+                # Call structured reflection helper
                 try:
-                    sql = _db_create("event", {
-                        "source": "mios-agent-pipe",
-                        "kind": "reflexion_retry",
-                        "severity": "warning",
-                        "summary": f"Tool call failed -> triggering Reflexion step for model {model}",
-                        "session_id": session_id,
-                        "act_type": "challenge"
-                    }, now_fields=("ts",))
-                    _db_fire(_db_post(sql))
-                except Exception as _ev_err:
-                    log.warning("Failed to log reflexion event: %s", _ev_err)
+                    from mios_reflect import reflect_on_step_failure
+                    failed_node = {
+                        "tool": failed_tc.get("function", {}).get("name"),
+                        "args": failed_tc.get("function", {}).get("arguments") or {}
+                    }
+                    if isinstance(failed_node["args"], str):
+                        try:
+                            failed_node["args"] = json.loads(failed_node["args"])
+                        except Exception:
+                            pass
+                    failed_result = {
+                        "exit_code": "?",
+                        "stderr": failed_tm.get("content") or "",
+                        "output": failed_tm.get("content") or ""
+                    }
+                    plan_context = {"summary": "Sub-agent tool execution"}
+                    
+                    push(" 🧠[Reflecting]")
+                    correction = await reflect_on_step_failure(
+                        failed_node, failed_result, plan_context, session_id
+                    )
+                    
+                    if correction and isinstance(correction, dict) and correction.get("tool"):
+                        # Keep it internal in reasoning channel
+                        rationale = correction.get("rationale") or "Correcting failed step"
+                        push(f"\n\n🤖 Reflexion correction: {rationale}\n")
+                        
+                        # Add correction user prompt
+                        reflection_prompt = (
+                            f"SYSTEM REFLEXION: A tool call failed. Corrective action suggested: "
+                            f"tool={correction['tool']}, args={json.dumps(correction['args'])}. "
+                            f"Analyze and proceed with this revised approach."
+                        )
+                        msgs.append({"role": "user", "content": reflection_prompt})
+                        
+                        # Log event
+                        if _db_create and _db_fire and _db_post:
+                            try:
+                                sql = _db_create("event", {
+                                    "source": "mios-agent-pipe",
+                                    "kind": "reflexion_retry",
+                                    "severity": "warning",
+                                    "summary": f"Triggering structured reflexion: retry {correction['tool']}",
+                                    "session_id": session_id,
+                                    "act_type": "challenge"
+                                }, now_fields=("ts",))
+                                await _db_fire(_db_post(sql))
+                            except Exception:
+                                pass
+                    else:
+                        log.info("Reflexion returned no correction (unfixable) -> terminating")
+                        msgs.append({"role": "user", "content": "SYSTEM ALERT: Reflection determined the failure is unfixable. Terminating loop."})
+                        break
+                except Exception as ref_err:
+                    log.warning("Failed to run structured reflexion: %s", ref_err)
+                    break
 
         # Save superstep checkpoint
         if session_id and _db_create and _db_fire and _db_post:
@@ -473,12 +600,38 @@ async def _ollama_secondary_tool_loop(client, base: str, model: str,
     calls across the fan-out; the per-lane semaphore caps concurrency. Returns
     `messages` augmented with the assistant tool-call turn(s) + tool results,
     ready for the final streamed answer; best-effort (returns what it has)."""
+    import sys
+    import time
     msgs = list(messages)
+    
+    agent_cfg = {}
+    if "mios_config" in sys.modules:
+        try:
+            agent_cfg = sys.modules["mios_config"]._toml_section("agent_pipe") or {}
+        except Exception:
+            pass
+    no_progress_window = int(agent_cfg.get("no_progress_window", 3))
+    wall_clock_budget_s = float(agent_cfg.get("wall_clock_budget_s", 300))
+
+    _tool_max_iters = int(agent_cfg.get("tool_max_iters", SECONDARY_TOOL_MAX_ITERS))
+    _replan_max = int(agent_cfg.get("replan_max", SECONDARY_REPLAN_MAX))
+
     _seen: set = set()   # tool-call signatures already made -> loop guard
     _nudged = False      # one-shot anti-disclaimer nudge already injected?
     _replan = 0          # supervisory closed-loop re-engages used (bounded)
     _last_failed = False # did the previous tool batch report a genuine failure?
-    for _ in range(max(1, SECONDARY_TOOL_MAX_ITERS)):
+    
+    start_time = time.monotonic()
+    blacklist = set()
+    signature_history = []
+    tool_name_history = []
+
+    for _ in range(max(1, _tool_max_iters)):
+        if time.monotonic() - start_time >= wall_clock_budget_s:
+            log.warning("secondary tool-loop hit wall-clock budget %.1fs -> terminating", wall_clock_budget_s)
+            msgs.append({"role": "user", "content": f"SYSTEM ALERT: You have exceeded the maximum execution time budget of {wall_clock_budget_s} seconds for this turn. Do NOT make any more tool calls. Summarize the information you have gathered and provide a final answer to the user now."})
+            break
+
         payload = {"model": model, "messages": msgs, "tools": tools, "stream": False}
         try:
             r = await client.post(
@@ -527,14 +680,14 @@ async def _ollama_secondary_tool_loop(client, base: str, model: str,
             # stopped calling tools, but if a verb THIS loop reported a FAILURE it never
             # fixed, the turn is UNFULFILLED -> re-engage ONCE (bounded) with a fix-it
             # nudge so it retries the failed step instead of declaring done on a failure.
-            # Verdict = the broker result; SECONDARY_REPLAN_MAX bounds it (no infinite loop).
-            if _last_failed and _replan < SECONDARY_REPLAN_MAX:
+            # Verdict = the broker result; _replan_max bounds it (no infinite loop).
+            if _last_failed and _replan < _replan_max:
                 _replan += 1
                 _last_failed = False
                 push(f" 🔁{_replan}")
                 log.info("tool-loop CLOSED-LOOP re-engage #%d: prior verb FAILED and the "
                          "model gave up -> fix-it nudge (bounded %d)",
-                         _replan, SECONDARY_REPLAN_MAX)
+                         _replan, _replan_max)
                 # DAEMON-DIAGNOSE: a fresh monitor LLM explains WHY the step failed +
                 # proposes a DIFFERENT concrete action, so the retry is GUIDED, not a
                 # blind re-ask. Pulls the goal (original user msg) + the last failed tool
@@ -555,20 +708,72 @@ async def _ollama_secondary_tool_loop(client, base: str, model: str,
                                      + _diag if _diag else ""))})
                 continue
             break
+
+        # runaway loop / progress checking
         _sigs = [_tool_call_sig(_tc) for _tc in tcs]
         if _sigs and all(_s in _seen for _s in _sigs):
             break   # loop guard: no NEW tool calls this round -> stop (runaway)
         _seen.update(_sigs)
+
+        turn_names = tuple(sorted(str(tc.get("function", {}).get("name") or "") for tc in tcs))
+        turn_sigs = tuple(sorted(_tool_call_sig(tc) for tc in tcs))
+        signature_history.append(turn_sigs)
+        tool_name_history.append(turn_names)
+
+        if len(signature_history) >= no_progress_window:
+            last_n_sigs = signature_history[-no_progress_window:]
+            if len(set(last_n_sigs)) == 1:
+                log.warning("tool-loop runaway detected: same tool signatures called consecutively %d times", no_progress_window)
+                msgs.append({"role": "user", "content": "SYSTEM ALERT: Runaway loop detected (repeated identical tool calls). Terminating loop."})
+                break
+            
+            last_n_names = tool_name_history[-no_progress_window:]
+            if len(set(last_n_names)) == 1:
+                log.warning("tool-loop runaway detected: same tool names called consecutively %d times", no_progress_window)
+                msgs.append({"role": "user", "content": "SYSTEM ALERT: Runaway loop detected (repeated identical tool names). Terminating loop."})
+                break
+
+        # Check blacklist for incoming tool calls
+        active_tcs = []
+        blacklisted_tmsgs = []
+        for tc in tcs:
+            sig = _tool_call_sig(tc)
+            if sig in blacklist:
+                log.warning("tool-loop intercepting blacklisted tool call: %s", sig)
+                blacklisted_tmsgs.append({
+                    "role": "tool",
+                    "tool_call_id": tc.get("id"),
+                    "name": tc.get("function", {}).get("name"),
+                    "content": json.dumps({
+                        "success": False,
+                        "error": "tool_execution_failed: This exact tool call previously failed in this turn. Do not retry the same call."
+                    })
+                })
+            else:
+                active_tcs.append(tc)
+
         msgs.append({"role": "assistant",
                      "content": msg.get("content") or "", "tool_calls": tcs})
-        _tmsgs, ran_read = await _exec_tool_calls(tcs, push, allow_write=allow_write)
+
+        _tmsgs = []
+        ran_read = False
+        if active_tcs:
+            _tmsgs, ran_read = await _exec_tool_calls(active_tcs, push, allow_write=allow_write)
+        _tmsgs.extend(blacklisted_tmsgs)
         msgs.extend(_tmsgs)
+
         batch_failed = _tmsgs_indicate_failure(_tmsgs)
         if batch_failed:
             _last_failed = True
+            for tc in active_tcs:
+                tc_id = tc.get("id")
+                tm = next((m for m in _tmsgs if m.get("tool_call_id") == tc_id), None)
+                if tm and _tmsgs_indicate_failure([tm]):
+                    blacklist.add(_tool_call_sig(tc))
         else:
             if _batch_has_write_verb(tcs) or not _last_failed:
                 _last_failed = False
+
         if not ran_read:
             break
     else:
@@ -578,6 +783,6 @@ async def _ollama_secondary_tool_loop(client, base: str, model: str,
         # looping turn is diagnosable rather than silently truncated.
         log.warning("secondary tool-loop hit MAX_ITERS=%d -> returning PARTIAL "
                     "(model kept requesting tools without a final answer)",
-                    max(1, SECONDARY_TOOL_MAX_ITERS))
+                    _tool_max_iters)
         msgs.append({"role": "user", "content": "SYSTEM ALERT: You have exhausted the maximum number of tool calls for this turn. Do NOT make any more tool calls. Summarize the information you have gathered and provide a final answer to the user now."})
     return msgs

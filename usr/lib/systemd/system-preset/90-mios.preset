@@ -203,6 +203,7 @@ enable mios-wsl-early.service
 enable mios-wsl-firstboot.service
 enable mios-wsl-init.service
 enable mios-wsl-runtime-dir.service
+enable mios-wsl-interop-priority.service
 # (dbus-daemon-wsl.service was removed entirely -- dbus-broker now runs
 # on WSL via 10-mios-no-audit.conf, and the legacy /usr/bin/dbus-daemon
 # binary is not shipped on Fedora CoreOS 44.)

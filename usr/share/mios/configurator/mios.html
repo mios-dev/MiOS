@@ -1555,6 +1555,54 @@
       </div>
     </details>
 
+    <details class="section" id="adv-autounattend">
+      <summary>Windows Autounattend &amp; Installer <span class="phase-badge">Phase 0-1 &middot; Setup</span></summary>
+      <div class="section-body">
+        <p style="color: var(--muted); font-size: 12px; margin: 0 0 12px;">
+          Configure the zero-touch Windows answer file (autounattend.xml) settings and clean directory layouts.
+        </p>
+        <div class="grid">
+          <fieldset>
+            <legend>[autounattend] — global answer file knobs</legend>
+            <label for="f-auto-compname">computer_name (NetBIOS hostname for Windows)</label>
+            <input type="text" id="f-auto-compname" data-key="autounattend.computer_name" placeholder="MIOS">
+            <label for="f-auto-partgb">c_partition_gb (Windows C: partition size in GB)</label>
+            <input type="text" id="f-auto-partgb" data-key="autounattend.c_partition_gb" data-type="int" placeholder="96">
+            <label for="f-auto-booturl">bootstrap_url (nested Get-MiOS.ps1 installer url)</label>
+            <input type="text" id="f-auto-booturl" data-key="autounattend.bootstrap_url" placeholder="https://raw.githubusercontent.com/mios-dev/mios-bootstrap/main/Get-MiOS.ps1">
+            <label for="f-auto-isoout">iso_out (output path for compiled custom ISO)</label>
+            <input type="text" id="f-auto-isoout" data-key="autounattend.iso_out" placeholder="M:\iso\MiOS-Xbox.iso">
+            <label for="f-auto-isolabel">iso_label (volume label of custom ISO)</label>
+            <input type="text" id="f-auto-isolabel" data-key="autounattend.iso_label" placeholder="MiOS-Xbox">
+            
+            <label for="f-auto-accounts">Offline Accounts (one account per line: username,password,display_name,group)</label>
+            <textarea id="f-auto-accounts" data-key="autounattend.accounts" placeholder="mios,mios,MiOS User,Administrators" style="min-height: 100px;"></textarea>
+          </fieldset>
+          
+          <fieldset>
+            <legend>[autounattend.layout] — NTFS directory layout</legend>
+            <div class="checkbox-row">
+              <input type="checkbox" id="f-layout-strip" data-key="autounattend.layout.strip_defaults">
+              <label for="f-layout-strip">strip_defaults (remove OneDrive, default desktop links, redundant user folders)</label>
+            </div>
+            <label for="f-layout-stripfolders">strip_folders (semicolon-separated folders to purge from Default profile)</label>
+            <input type="text" id="f-layout-stripfolders" data-key="autounattend.layout.strip_folders" placeholder="3D Objects;Contacts;Favorites;Links;Saved Games;Searches;OneDrive">
+            
+            <label for="f-layout-tree">linux_tree (space-separated folders created at C:\ to mimic WSL layout)</label>
+            <input type="text" id="f-layout-tree" data-key="autounattend.layout.linux_tree" placeholder="etc usr var home opt srv tmp bin lib root">
+            
+            <div class="checkbox-row">
+              <input type="checkbox" id="f-layout-lower" data-key="autounattend.layout.lowercase_userfolders">
+              <label for="f-layout-lower">lowercase_userfolders (force lowercase downloads, documents, desktop, etc.)</label>
+            </div>
+            
+            <label for="f-layout-thispc">strip_thispc (space-separated GUID namespaces to remove from 'This PC')</label>
+            <input type="text" id="f-layout-thispc" data-key="autounattend.layout.strip_thispc" placeholder="{0DB7E03F-FC29-4DC6-9020-FF41B59E513A}">
+          </fieldset>
+        </div>
+      </div>
+    </details>
+
     <details class="section" id="adv-personalization">
       <summary>Personalization · appearance · graphics · branding <span class="phase-badge">Look &amp; feel</span></summary>
       <div class="section-body">
@@ -1603,6 +1651,46 @@
             <input type="text" id="f-brand-logo-image" data-key="branding.logo_image" placeholder="branding/mios-logo.png">
             <label for="f-brand-icon">icon_ico (Windows icon path)</label>
             <input type="text" id="f-brand-icon" data-key="branding.icon_ico" placeholder="branding/mios.ico">
+          </fieldset>
+          <fieldset>
+            <legend>[branding.windows] — Windows OEM &amp; Theme Branding</legend>
+            <div class="checkbox-row">
+              <input type="checkbox" id="f-brand-win-enable" data-key="branding.windows.enable">
+              <label for="f-brand-win-enable">enable (apply visual identity globally to Windows)</label>
+            </div>
+            <label for="f-brand-oem-man">oem_manufacturer</label>
+            <input type="text" id="f-brand-oem-man" data-key="branding.oem_manufacturer" placeholder="MiOS">
+            <label for="f-brand-oem-mod">oem_model</label>
+            <input type="text" id="f-brand-oem-mod" data-key="branding.oem_model" placeholder="My Personal Operating System">
+            <label for="f-brand-oem-url">oem_support_url</label>
+            <input type="text" id="f-brand-oem-url" data-key="branding.oem_support_url" placeholder="https://github.com/mios-dev">
+            <label for="f-brand-oem-hours">oem_support_hours</label>
+            <input type="text" id="f-brand-oem-hours" data-key="branding.oem_support_hours" placeholder="Always on">
+            <label for="f-brand-oem-logo">oem_logo (Windows OEM logo bitmap path)</label>
+            <input type="text" id="f-brand-oem-logo" data-key="branding.oem_logo" placeholder="C:\Windows\Web\MiOS\mios-logo.bmp">
+            
+            <label for="f-brand-wallpaper">wallpaper (desktop background image path)</label>
+            <input type="text" id="f-brand-wallpaper" data-key="branding.wallpaper" placeholder="C:\Windows\Web\MiOS\mios-wallpaper.jpg">
+            <label for="f-brand-lockscreen">lockscreen (lock screen background path)</label>
+            <input type="text" id="f-brand-lockscreen" data-key="branding.lockscreen" placeholder="C:\Windows\Web\MiOS\mios-wallpaper.jpg">
+            <label for="f-brand-wallstyle">wallpaper_style (10 = Fill, 6 = Fit, 2 = Stretch)</label>
+            <input type="text" id="f-brand-wallstyle" data-key="branding.wallpaper_style" placeholder="10">
+            
+            <label for="f-brand-uifont">ui_font (system font replacement face)</label>
+            <input type="text" id="f-brand-uifont" data-key="branding.ui_font" placeholder="Geist">
+            <div class="checkbox-row">
+              <input type="checkbox" id="f-brand-font-sub" data-key="branding.font_substitute">
+              <label for="f-brand-font-sub">font_substitute (enable substitute Segoe UI -> ui_font)</label>
+            </div>
+            
+            <div class="checkbox-row">
+              <input type="checkbox" id="f-brand-cursor-en" data-key="branding.cursor">
+              <label for="f-brand-cursor-en">cursor (enable custom mouse cursor scheme)</label>
+            </div>
+            <label for="f-brand-cursor-dir">cursor_dir</label>
+            <input type="text" id="f-brand-cursor-dir" data-key="branding.cursor_dir" placeholder="%SystemRoot%\Cursors\Bibata-Modern-Classic">
+            <label for="f-brand-cursor-scheme">cursor_scheme</label>
+            <input type="text" id="f-brand-cursor-scheme" data-key="branding.cursor_scheme" placeholder="Bibata-Modern-Classic">
           </fieldset>
         </div>
       </div>
@@ -3418,17 +3506,45 @@ const FLATPAK_CATEGORY_ORDER = ["session", "appmgmt", "dev", "virt", "gaming", "
 
 function parseToml(text) {
   // Returns: { 'identity': {username:'...'}, ..., 'desktop': {flatpaks: [...]}, ... }
-  // Handles single-line and multi-line arrays (the canonical mios.toml uses
-  // multi-line arrays for [desktop].flatpaks).
+  // Handles single-line and multi-line arrays, and array-of-tables (e.g. [[autounattend.accounts]]).
   const sections = {};
-  let current = "";
+  let currentSection = "";
+  let currentArraySection = "";
+  let currentArrayObj = null;
   const rows = text.split(/\r?\n/);
   let i = 0;
   while (i < rows.length) {
     const line = rows[i].trim();
     if (!line || line.startsWith("#")) { i++; continue; }
+    
+    // Array-of-tables header match: [[section.key]]
+    const arrSec = line.match(/^\[\[([^\]]+)\]\]\s*$/);
+    if (arrSec) {
+      const fullSec = arrSec[1];
+      const dotIdx = fullSec.lastIndexOf(".");
+      const secName = dotIdx < 0 ? "" : fullSec.substring(0, dotIdx);
+      const arrayKey = dotIdx < 0 ? fullSec : fullSec.substring(dotIdx + 1);
+      currentSection = "";
+      currentArraySection = fullSec;
+      currentArrayObj = {};
+      sections[secName] = sections[secName] || {};
+      sections[secName][arrayKey] = sections[secName][arrayKey] || [];
+      sections[secName][arrayKey].push(currentArrayObj);
+      i++;
+      continue;
+    }
+
+    // Standard section header match: [section]
     const sec = line.match(/^\[([^\]]+)\]\s*$/);
-    if (sec) { current = sec[1]; sections[current] = sections[current] || {}; i++; continue; }
+    if (sec) {
+      currentSection = sec[1];
+      currentArraySection = "";
+      currentArrayObj = null;
+      sections[currentSection] = sections[currentSection] || {};
+      i++;
+      continue;
+    }
+
     const kv = line.match(/^([A-Za-z0-9_.\-]+)\s*=\s*(.*?)\s*$/);
     if (!kv) { i++; continue; }
     const k = kv[1];
@@ -3445,8 +3561,12 @@ function parseToml(text) {
       }
       v = buf;
     }
-    sections[current] = sections[current] || {};
-    sections[current][k] = parseTomlValue(v);
+    const val = parseTomlValue(v);
+    if (currentArrayObj) {
+      currentArrayObj[k] = val;
+    } else if (currentSection) {
+      sections[currentSection][k] = val;
+    }
     i++;
   }
   return sections;
@@ -3475,6 +3595,8 @@ function emitToml(sections) {
                  "bootstrap.host_storage", "bootstrap.dev_vm",
                  "terminal", "terminal.install", "theme", "theme.font", "theme.terminal",
                  "theme.prompt", "branding", "branding.dashboard",
+                 "autounattend", "autounattend.xbox", "autounattend.daemon",
+                 "autounattend.service", "autounattend.remote", "autounattend.layout",
                  "apps", "apps.shortcuts", "preflight", "network.retry",
                  "profile", "quadlets.enable", "env"];
   const lines = [];
@@ -3488,7 +3610,18 @@ function emitToml(sections) {
     if (!sections[sec]) continue;
     lines.push(`[${sec}]`);
     for (const [k, v] of Object.entries(sections[sec])) {
-      lines.push(`${k} = ${emitTomlValue(v)}`);
+      if (Array.isArray(v) && v.length > 0 && typeof v[0] === "object" && !Array.isArray(v[0])) {
+        // Array of tables: [[section.key]]
+        for (const obj of v) {
+          lines.push(`[[${sec}.${k}]]`);
+          for (const [subK, subV] of Object.entries(obj)) {
+            lines.push(`${subK} = ${emitTomlValue(subV)}`);
+          }
+          lines.push("");
+        }
+      } else {
+        lines.push(`${k} = ${emitTomlValue(v)}`);
+      }
     }
     lines.push("");
   }
@@ -3497,7 +3630,17 @@ function emitToml(sections) {
     if (known.has(sec)) continue;
     lines.push(`[${sec}]`);
     for (const [k, v] of Object.entries(sections[sec])) {
-      lines.push(`${k} = ${emitTomlValue(v)}`);
+      if (Array.isArray(v) && v.length > 0 && typeof v[0] === "object" && !Array.isArray(v[0])) {
+        for (const obj of v) {
+          lines.push(`[[${sec}.${k}]]`);
+          for (const [subK, subV] of Object.entries(obj)) {
+            lines.push(`${subK} = ${emitTomlValue(subV)}`);
+          }
+          lines.push("");
+        }
+      } else {
+        lines.push(`${k} = ${emitTomlValue(v)}`);
+      }
     }
     lines.push("");
   }
@@ -3540,7 +3683,14 @@ function refreshFromData() {
     const [sec, key] = splitDataKey(el.dataset.key);
     const v = DATA[sec]?.[key];
     if (v === undefined) return;
-    if (el.type === "checkbox") el.checked = !!v;
+    if (el.dataset.key === "autounattend.accounts") {
+      if (Array.isArray(v)) {
+        el.value = v.map(a => `${a.name || ""},${a.password || ""},${a.display_name || ""},${a.group || "Users"}`).join("\n");
+      } else {
+        el.value = "";
+      }
+    }
+    else if (el.type === "checkbox") el.checked = !!v;
     else if (el.dataset.array === "csv" || el.dataset.array === "csv-int") {
       el.value = Array.isArray(v) ? v.join(",") : String(v);
     }
@@ -4026,7 +4176,22 @@ function gatherFromForm() {
     if (el.dataset.customOf) return;
     const [sec, key] = splitDataKey(el.dataset.key);
     DATA[sec] = DATA[sec] || {};
-    if (el.type === "checkbox") DATA[sec][key] = el.checked;
+    if (el.dataset.key === "autounattend.accounts") {
+      const accounts = [];
+      el.value.split("\n").forEach(line => {
+        const parts = line.split(",").map(s => s.trim());
+        if (parts[0]) {
+          accounts.push({
+            name: parts[0],
+            password: parts[1] || "",
+            display_name: parts[2] || parts[0],
+            group: parts[3] || "Users"
+          });
+        }
+      });
+      DATA[sec][key] = accounts;
+    }
+    else if (el.type === "checkbox") DATA[sec][key] = el.checked;
     else if (el.dataset.array === "csv") {
       DATA[sec][key] = el.value.split(",").map(s => s.trim()).filter(Boolean);
     }
@@ -4126,6 +4291,43 @@ flatpaks      = [
     "com.mattjakeman.ExtensionManager",
     "com.google.ChromeDev",
 ]
+
+[autounattend]
+computer_name = "MIOS"
+c_partition_gb = 96
+bootstrap_url = "https://raw.githubusercontent.com/mios-dev/mios-bootstrap/main/Get-MiOS.ps1"
+iso_out = ""
+iso_label = "MiOS-Xbox"
+
+[[autounattend.accounts]]
+name = "mios"
+password = "mios"
+display_name = "MiOS User"
+group = "Administrators"
+
+[autounattend.layout]
+strip_defaults = true
+strip_folders = "3D Objects;Contacts;Favorites;Links;Saved Games;Searches;OneDrive"
+linux_tree = "etc usr var home opt srv tmp bin lib root"
+lowercase_userfolders = true
+strip_thispc = "{0DB7E03F-FC29-4DC6-9020-FF41B59E513A}"
+
+[branding]
+oem_manufacturer = "MiOS"
+oem_model = "My Personal Operating System"
+oem_support_url = "https://github.com/mios-dev"
+oem_support_hours = "Always on"
+oem_support_phone = ""
+oem_logo = "C:\\Windows\\Web\\MiOS\\mios-logo.bmp"
+wallpaper = "C:\\Windows\\Web\\MiOS\\mios-wallpaper.jpg"
+lockscreen = "C:\\Windows\\Web\\MiOS\\mios-wallpaper.jpg"
+wallpaper_style = "10"
+ui_font = "Geist"
+font_substitute = true
+cursor = true
+cursor_dir = "%SystemRoot%\\Cursors\\Bibata-Modern-Classic"
+cursor_scheme = "Bibata-Modern-Classic"
+windows.enable = true
 `.trim();
 
 // ── File handle (File System Access API) ─────────────────────────

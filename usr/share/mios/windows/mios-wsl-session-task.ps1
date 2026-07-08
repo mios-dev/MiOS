@@ -28,20 +28,12 @@ param(
     [string]$TaskName = 'MiOS-WSL-Session'
 )
 
-$me = "SYSTEM"
-Write-Host "Registering '$TaskName' (run as SYSTEM, AtStartup) -> start WSL distro '$Distro'"
-
-# Action: booting the distro starts systemd (boot=systemd) + all enabled MiOS
-# services. /bin/true returns immediately; the distro keeps running because systemd + services persist.
-#
-# Launched through a HIDDEN powershell host so no Windows Terminal / conhost
-# window flashes onto the operator's desktop. Same proven `-WindowStyle Hidden`
-# pattern as the iGPU / OSControl server tasks.
+$toolExe   = Join-Path $PSScriptRoot 'MiosServiceTool.exe'
 $wslExe    = Join-Path $env:SystemRoot 'System32\wsl.exe'
 $psExe     = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
 $inner     = "& '$wslExe' -d $Distro -- /bin/true"
-$action    = New-ScheduledTaskAction -Execute $psExe `
-    -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command `"$inner`""
+$action    = New-ScheduledTaskAction -Execute $toolExe `
+    -Argument "-Run `"$psExe`" -NoProfile -ExecutionPolicy Bypass -Command `"$inner`""
 $trigger   = New-ScheduledTaskTrigger -AtStartup
 # SYSTEM + ServiceAccount: starts the WSL VM pre-graphical logon
 $principal = New-ScheduledTaskPrincipal -UserId "NT AUTHORITY\SYSTEM" -LogonType ServiceAccount -RunLevel Highest

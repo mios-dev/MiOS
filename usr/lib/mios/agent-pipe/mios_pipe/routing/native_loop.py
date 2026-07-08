@@ -67,6 +67,25 @@ from mios_pipe.routing import toolexec as _toolexec
 log = logging.getLogger("mios-agent-pipe")
 
 
+def _is_punt(_out: str) -> bool:
+    t = (_out or "").strip().lower()
+    if not t:
+        return True
+    _markers = (
+        "no specific", "no information", "no data", "not available",
+        "provided context", "cannot provide", "i cannot", "unable to",
+        "no relevant", "i do not have enough", "don't have enough",
+        "would you like me to", "rephrase the search", "search again",
+        "no direct information", "not present in the current context",
+        "don't have access", "do not have access",
+    )
+    if not any(m in t for m in _markers):
+        return False
+    _facty = bool(re.search(r"\[\d+\]|\b20\d\d\b|\b\d{3,}\b", t)) or len(t) > 600
+    return not _facty
+
+
+
 # ── Anti-fabrication guards (FAB-01 fabricated execution / FAB-02 fabricated
 # grounding). Extracted to module scope so each stage is unit-testable WITHOUT
 # standing up the pipe. The SSOT flag + thresholds are bridged from mios.toml

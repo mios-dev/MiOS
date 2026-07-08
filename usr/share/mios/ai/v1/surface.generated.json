@@ -438,6 +438,7 @@
     "_AGENT_CHROME_RE",
     "_AGENT_CONTRACT",
     "_AGENT_CONTRACT_PATHS",
+    "_AGENT_PIPE_TOML",
     "_AGENT_REGISTRY",
     "_ANCHOR_STOPWORDS",
     "_ANCHOR_TOKEN_RE",
@@ -479,6 +480,8 @@
     "_COMPOUND_ACTION_ALT",
     "_COMPOUND_CONJUNCTIONS",
     "_COMPOUND_CONJ_ALT",
+    "_COMPOUND_CONNECTIVES",
+    "_COMPOUND_CONNECTIVE_ALT",
     "_COST_CFG",
     "_COST_LEDGER",
     "_COST_MODEL",
@@ -1387,6 +1390,6 @@
   ],
   "counts": {
     "routes": 83,
-    "provided": 1299
+    "provided": 1302
   }
 }

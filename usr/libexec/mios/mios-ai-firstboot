@@ -21,6 +21,8 @@
 set +eu
 log(){ logger -t mios-ai-firstboot "$*" 2>/dev/null; echo "[mios-ai-firstboot] $*"; }
 
+[ -f /etc/mios/install.env ] && . /etc/mios/install.env
+
 VENV=/usr/lib/mios/agents/.venv
 MODELS=/usr/share/mios/llamacpp/models
 

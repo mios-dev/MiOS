@@ -113,11 +113,13 @@ if ($Install) {
     if (-not $psExe -or $psExe -like '*\WindowsApps\*' -or -not (Test-Path $psExe)) {
         $psExe = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
     }
-    $action  = New-ScheduledTaskAction  -Execute $psExe -Argument $argline
-    $trigger = New-ScheduledTaskTrigger -AtStartup
+    $toolExe = Join-Path $PSScriptRoot 'MiosServiceTool.exe'
+    $action  = New-ScheduledTaskAction  -Execute $toolExe -Argument "-Run `"$psExe`" $argline"
+    $trigger = New-ScheduledTaskTrigger -AtLogon
     $set     = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
-    # SYSTEM + ServiceAccount: runs elevated at system startup pre-graphical logon
-    $prin    = New-ScheduledTaskPrincipal -UserId "NT AUTHORITY\SYSTEM" -LogonType ServiceAccount -RunLevel Highest
+    # Interactive Logon: runs elevated in the logged-on user's interactive session
+    # (so it has access to WinSta0\Default and can enumerate / focus GUI windows)
+    $prin    = New-ScheduledTaskPrincipal -GroupId "BUILTIN\Administrators" -RunLevel Highest
     Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Settings $set -Principal $prin -Force | Out-Null
     Ok "registered logon scheduled task '$taskName' (port $Port)"
     # Tailnet-scoped firewall: only Tailscale peers (100.64.0.0/10) reach it.
@@ -898,6 +900,15 @@ function Resolve-LaunchTarget($name) {
     if ($n -match '^[a-zA-Z]:\\' -or $n -match '^[a-zA-Z][a-zA-Z0-9+.\-]*:' -or (Test-Path $n -ErrorAction SilentlyContinue)) {
         return $n
     }
+    # For known browsers, return bare .exe so Windows resolves it via App Paths registry,
+    # which natively reuses the running instance and opens a tab instead of a new window.
+    $lower = $n.ToLower()
+    if ($lower -eq 'firefox') { return 'firefox.exe' }
+    if ($lower -eq 'chrome') { return 'chrome.exe' }
+    if ($lower -eq 'msedge' -or $lower -eq 'edge') { return 'msedge.exe' }
+    if ($lower -eq 'brave') { return 'brave.exe' }
+    if ($lower -eq 'opera') { return 'opera.exe' }
+
     # Match the cached Start-Menu index, SKIPPING WSLg-exported shortcuts
     # (target = WSL\wslg.exe -- those launch a LINUX flatpak through WSLg, which
     # on the executor is slow + bypasses the operator's trained flatpak path;
@@ -913,12 +924,19 @@ function Resolve-LaunchTarget($name) {
 }
 
 # FIRE a launch on this node's desktop, then poll for the window.
-function Invoke-LaunchAndVerify($app, $args = '', $position = 'default', $verifyName = '') {
+function Invoke-LaunchAndVerify($app, $appArgs = '', $position = 'default', $verifyName = '') {
     # Window-match needle: prefer the human title hint -- a steam:// URI or a
     # shell:appsFolder string never appears in a window title, so verifying a
     # game by $app would always miss. Falls back to $app.
     $wname = if ([string]::IsNullOrWhiteSpace($verifyName)) { $app } else { $verifyName }
     $target = Resolve-LaunchTarget $app
+    if ($target -like "*steam.exe" -or $target -like "*steam.lnk" -or $app -eq "steam") {
+        if ($appArgs -and ($appArgs -match 'big-?picture')) {
+            $target = "steam://open/bigpicture"
+            $appArgs = ""
+            $wname = "Steam"
+        }
+    }
     $fired  = $false
     $fireErr = ''
     if ($target) {
@@ -930,8 +948,8 @@ function Invoke-LaunchAndVerify($app, $args = '', $position = 'default', $verify
             } else {
                 # exe paths, names, AND protocol URIs (steam:// epic:// uplay://
                 # ...) -- Start-Process invokes the registered protocol handler.
-                if ($args) {
-                    Start-Process -FilePath $target -ArgumentList $args -ErrorAction Stop
+                if ($appArgs) {
+                    Start-Process -FilePath $target -ArgumentList $appArgs -ErrorAction Stop
                 } else {
                     Start-Process -FilePath $target -ErrorAction Stop
                 }

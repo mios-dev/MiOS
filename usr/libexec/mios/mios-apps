@@ -217,6 +217,13 @@ if command -v mios-win-scan >/dev/null 2>&1 && [ -d /mnt/c/Windows ]; then
             _wt="$(printf '%s' "$_wt" | tr -d '\r')"
             _wc="$(printf '%s' "$_wc" | tr -d '\r')"
             [ -n "$_wn" ] && [ -n "$_wt" ] || continue
+            # Skip WSLg-exported loopback shortcuts to avoid self-referential loops
+            case "$_wn" in
+                *podman-MiOS-DEV*) continue ;;
+            esac
+            case "$_wt" in
+                *Linux\ Apps*|*Linux\ apps*) continue ;;
+            esac
             case "$_wc" in
                 windows-game) _wdesc="Windows game" ;;
                 windows-app)  _wdesc="Windows Store app" ;;
@@ -238,11 +245,14 @@ PSEOF
     timeout 15 "$_PWSH" -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$_PS_ENUM" 2>/dev/null \
         | tr -d '\r' | while IFS= read -r _name; do
             [ -n "$_name" ] || continue
-            emit windows-gui "$_name" "Windows app (Start Menu)" "mios-windows launch $_name"
+            case "$_name" in
+                *podman-MiOS-DEV*|*Linux\ Apps*|*Linux\ apps*) continue ;;
+            esac
+            emit windows-gui "$_name" "Windows app (Start Menu)" "mios-windows launch \"$_name\""
         done || true
     # `|| true`: pwsh.exe returns non-zero when interop is down / hijacked by
-    # Wine; under `set -o pipefail` + `set -e` that aborts mios-apps entirely.
 fi
+
 
 # ─── 3a. windows-app (every Start-menu app on the Windows host) ──────
 # Operator directive 2026-05-15: "should automatically detect installed
@@ -347,7 +357,7 @@ PSEOF
         [ -n "$_bn" ] || continue
         _bdesc="Windows browser"
         [ "$(printf '%s' "$_bdef" | tr -d ' ')" = "1" ] && _bdesc="Windows DEFAULT browser"
-        emit windows-browser "$_bn" "$_bdesc" "mios-windows launch $_bn"
+        emit windows-browser "$_bn" "$_bdesc" "mios-windows launch \"$_bn\""
     done || true
     # `|| true`: under `set -o pipefail` a non-zero exit from the Windows-side
     # PowerShell (interop down / hijacked by Wine) would fail the whole pipe and,
@@ -582,17 +592,21 @@ done
 
 # ─── 6. service-url ──────────────────────────────────────────────────
 header service-url
-cat <<'SERVICE_URLS' | while IFS=$'\t' read -r name url desc; do
-cockpit	http://localhost:9090	Web system console
-owui	http://localhost:3030	MiOS Open WebUI (browser chat front)
-hermes	http://localhost:8642/v1	Hermes-Agent OpenAI gateway
-prefilter	http://localhost:8641/v1	MiOS-Prefilter (delegate-task forced) -> Hermes
-inference	http://localhost:11434	Ollama (raw model + embeddings)
-searxng	http://localhost:8888	MiOS-Search (SearXNG)
-forgejo	http://localhost:3000	MiOS-Forge (local git host)
-SERVICE_URLS
-    emit service-url "$name" "${desc:-$url}" "mios-open-url $url"
-done
+# Ports from SSOT: install.env bridges mios.toml [ports] -> MIOS_PORT_*.
+# Hardcoded literals here silently break when [ports] is renumbered (T-120/T-121).
+[ -r /etc/mios/install.env ] && . /etc/mios/install.env || true
+_SVC_PORT_COCKPIT="${MIOS_PORT_COCKPIT:-8090}"
+_SVC_PORT_OWUI="${MIOS_PORT_OPEN_WEBUI:-8033}"
+_SVC_PORT_HERMES="${MIOS_PORT_HERMES:-8642}"
+_SVC_PORT_PREFILTER="${MIOS_PORT_PREFILTER:-8641}"
+_SVC_PORT_SEARXNG="${MIOS_PORT_SEARXNG:-8899}"
+_SVC_PORT_FORGE="${MIOS_PORT_FORGE_HTTP:-8300}"
+emit service-url "cockpit"   "Web system console"                                   "mios-open-url http://localhost:${_SVC_PORT_COCKPIT}"
+emit service-url "owui"      "MiOS Open WebUI (browser chat front)"                 "mios-open-url http://localhost:${_SVC_PORT_OWUI}"
+emit service-url "hermes"    "Hermes-Agent OpenAI gateway"                          "mios-open-url http://localhost:${_SVC_PORT_HERMES}/v1"
+emit service-url "prefilter" "MiOS-Prefilter (delegate-task forced) -> Hermes"      "mios-open-url http://localhost:${_SVC_PORT_PREFILTER}/v1"
+emit service-url "searxng"   "MiOS-Search (SearXNG)"                               "mios-open-url http://localhost:${_SVC_PORT_SEARXNG}"
+emit service-url "forgejo"   "MiOS-Forge (local git host)"                          "mios-open-url http://localhost:${_SVC_PORT_FORGE}"
 
 # Always succeed if we ran: this is a best-effort GENERATIVE enumerator across
 # Linux + Windows sources; a non-zero from a probe (e.g. the Windows games PS on

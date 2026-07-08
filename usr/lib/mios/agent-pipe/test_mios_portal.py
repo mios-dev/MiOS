@@ -69,8 +69,9 @@ class _FakeWS:
     """Minimal Starlette WebSocket stand-in: records the close code + whether the
     socket was ever accepted, so the term-bridge auth/port gates are observable
     without a live ttyd."""
-    def __init__(self, cookie=None):
+    def __init__(self, cookie=None, headers=None):
         self.cookies = {} if cookie is None else {mios_portal.PORTAL_COOKIE: cookie}
+        self.headers = {} if headers is None else headers
         self.closed = None
         self.accepted = "UNSET"
 
@@ -83,9 +84,10 @@ class _FakeWS:
 
 class _ReqBody:
     """Request stand-in exposing an async .body() (login POST) + cookies."""
-    def __init__(self, body=b"", cookie=None):
+    def __init__(self, body=b"", cookie=None, headers=None):
         self._body = body
         self.cookies = {} if cookie is None else {mios_portal.PORTAL_COOKIE: cookie}
+        self.headers = {} if headers is None else headers
 
     async def body(self):
         return self._body
@@ -102,8 +104,9 @@ def test_token_roundtrip():
 
 
 class _Req:
-    def __init__(self, cookie=None):
+    def __init__(self, cookie=None, headers=None):
         self.cookies = {} if cookie is None else {mios_portal.PORTAL_COOKIE: cookie}
+        self.headers = {} if headers is None else headers
 
 
 def test_authed_flag():

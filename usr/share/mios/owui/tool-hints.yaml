@@ -195,6 +195,10 @@ intent_patterns:
     first_call: 'terminal: mios-find "<APP-OR-GAME>" | bash'
     note: 'EXECUTE the resolved target verbatim; never substitute a different launcher'
 
+  - match: 'start|launch|open steam in big picture'
+    first_call: 'open_app(name="steam://open/bigpicture")'
+    note: 'Launch Steam in Big Picture mode natively via steam:// protocol URI'
+
   - match: '(near|around|by) <PLACE>'
     first_call: 'terminal: mios-everything "<PLACE>"   # OR  web_search "<query> near <PLACE-ADDRESS>"'
     note: 'For restaurants/parking/etc. near a venue, resolve the venue ADDRESS first, then anchor the search on coordinates'

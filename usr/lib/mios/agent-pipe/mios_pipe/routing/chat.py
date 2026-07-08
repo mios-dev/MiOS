@@ -1820,9 +1820,12 @@ async def _kernel_chat_handler(decision, **ctx):
         _store_knowledge(query=last_user_text, answer=reply, session_id=session_id, tool_history=[])
         _write_skill_md_fire(query=last_user_text, answer=reply, tool_history=[], session_id=session_id)
         if streaming:
+            _dedup_refine = os.environ.get(
+                "MIOS_DEDUP_REFINE_STATUS", "true").strip().lower() not in {"0", "false", "no", "off"}
             async def _stream_refine_chat():
-                yield _sse_status_phase(chat_id=chat_id, model=model, phase="prompt")
-                yield _sse_status_phase(chat_id=chat_id, model=model, phase="refine")
+                if not _dedup_refine:
+                    yield _sse_status_phase(chat_id=chat_id, model=model, phase="prompt")
+                    yield _sse_status_phase(chat_id=chat_id, model=model, phase="refine")
                 yield _sse_chunk("", chat_id=chat_id, model=model, role="assistant")
                 async for _b in _stream_answer(reply, chat_id=chat_id, model=model):
                     yield _b

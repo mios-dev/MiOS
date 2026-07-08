@@ -119,7 +119,33 @@ async def t_worker_exception_handling():
             pass
 
 
+def t_parse_sig():
+    # 1. Test fallback when no catalog configuration is provided
+    res1 = mq.parse_sig("limit?, force?")
+    check("parse_sig fallback limit: type", res1["limit"]["type"] == "integer")
+    check("parse_sig fallback limit: nullable", res1["limit"]["nullable"] is True)
+    check("parse_sig fallback force: type", res1["force"]["type"] == "boolean")
+    check("parse_sig fallback force: nullable", res1["force"]["nullable"] is True)
+
+    # 2. Test reading from catalog (vcfg) params config
+    vcfg = {
+        "params": {
+            "my_param": {"type": "number", "desc": "A custom float param"},
+            "my_flag": {"type": "boolean", "desc": "A custom flag"}
+        }
+    }
+    res2 = mq.parse_sig("my_param, my_flag=false", vcfg)
+    check("parse_sig catalog my_param: type", res2["my_param"]["type"] == "number")
+    check("parse_sig catalog my_param: desc", res2["my_param"]["description"] == "A custom float param")
+    check("parse_sig catalog my_param: nullable", res2["my_param"]["nullable"] is False)
+
+    check("parse_sig catalog my_flag: type", res2["my_flag"]["type"] == "boolean")
+    check("parse_sig catalog my_flag: desc", res2["my_flag"]["description"] == "A custom flag")
+    check("parse_sig catalog my_flag: nullable", res2["my_flag"]["nullable"] is True)
+
+
 def main():
+    t_parse_sig()
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try:

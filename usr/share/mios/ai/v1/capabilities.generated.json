@@ -2,15 +2,15 @@
   "object": "mios.capability.manifest",
   "ceiling": "interactive",
   "summary": {
-    "total": 138,
+    "total": 140,
     "by_kind": {
       "recipe": 19,
-      "skill": 11,
-      "verb": 108
+      "skill": 12,
+      "verb": 109
     },
     "by_tier": {
       "read": 69,
-      "write": 66,
+      "write": 68,
       "interactive": 3
     }
   },
@@ -268,6 +268,15 @@
         "pc_key"
       ],
       "description": "Focus a window matching `editor`, type `body` text into it, save via Ctrl+S."
+    },
+    {
+      "name": "sync-to-root",
+      "kind": "skill",
+      "tier": "write",
+      "uses": [
+        "sync_to_root"
+      ],
+      "description": "Apply the code-server / war-room workspace edits DIRECTLY onto the deployed MiOS-DEV root so they go LIVE for testing, with no GitHub round-trip. Use when an agent has changed files in the code-server"
     },
     {
       "name": "window-focus-mode",
@@ -641,7 +650,7 @@
       "name": "open_url",
       "kind": "verb",
       "tier": "write",
-      "description": "SHOW a web page to the operator in their VISIBLE browser window (one they look at). Use for 'open / pull up / show me this link in the browser'. NOT for research: to look something up and report the a"
+      "description": "SHOW a web page to the operator in their VISIBLE browser. By DEFAULT opens the URL as a NEW TAB in the operator's ALREADY-RUNNING browser (reuses the instance -- NOT a new window, NOT a second instanc"
     },
     {
       "name": "os_recipe",
@@ -798,6 +807,12 @@
       "kind": "verb",
       "tier": "read",
       "description": "Switch the default application for an abstract app type (e.g. 'browser', 'editor')."
+    },
+    {
+      "name": "sync_to_root",
+      "kind": "verb",
+      "tier": "write",
+      "description": "Apply the code-server/war-room workspace edits DIRECTLY onto the deployed MiOS-DEV root so they go LIVE for testing (no GitHub round-trip). Only works on a mutable MiOS-DEV deploy; an immutable bootc "
     },
     {
       "name": "sys_env",

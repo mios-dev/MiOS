@@ -1,5 +1,5 @@
 {
-  "count": 108,
+  "count": 109,
   "data": [
     {
       "description": "Hand a SUB-TASK to another registered agent and GET ITS ANSWER BACK so YOU fold it into your own reasoning (you stay in control; this is NOT a final user reply and NOT a take-over). Pick a peer by id (mios-a2a-delegate --list-peers) or by skill name (--list-skills). Use when you want a second agent's result; to PASS THE SESSION to another agent use transfer_session_to_agent.",
@@ -544,13 +544,13 @@
       "tier": "rare"
     },
     {
-      "description": "SHOW a web page to the operator in their VISIBLE browser window (one they look at). Use for 'open / pull up / show me this link in the browser'. NOT for research: to look something up and report the answer back, use a WEB search / page fetch instead -- this just displays the page, it does not return its content.",
+      "description": "SHOW a web page to the operator in their VISIBLE browser. By DEFAULT opens the URL as a NEW TAB in the operator's ALREADY-RUNNING browser (reuses the instance -- NOT a new window, NOT a second instance). mode=window = a new window in the running browser; mode=new-window = force a brand-new isolated instance; private=true = incognito/private window. Use for 'open / pull up / show me this link' and 'open a tab to X'. NOT for research (that returns page content); this just displays the page.",
       "hidden": false,
       "model_name": "",
       "name": "open_url",
       "permission": "write",
       "section": "Window / app launch",
-      "sig": "url, browser?",
+      "sig": "url, mode?, browser?, private?, profile?, reuse_instance?",
       "tier": "core"
     },
     {
@@ -813,6 +813,16 @@
       "section": "Configuration",
       "sig": "type, app",
       "tier": "common"
+    },
+    {
+      "description": "Apply the code-server/war-room workspace edits DIRECTLY onto the deployed MiOS-DEV root so they go LIVE for testing (no GitHub round-trip). Only works on a mutable MiOS-DEV deploy; an immutable bootc root is refused. Use mode=check (or dry-run) to preview what would change without touching anything, then mode=apply to make it live.",
+      "hidden": false,
+      "model_name": "",
+      "name": "sync_to_root",
+      "permission": "write",
+      "section": "MiOS-DEV / self-development",
+      "sig": "mode=\"apply\"?",
+      "tier": "rare"
     },
     {
       "description": "READ the cached system/environment inventory (shared store): identity, the host OS + whether this is WSL2 + the Windows host, host hardware, which MiOS stack services are up/down, loaded ollama models, and the installed launchable-app inventory by category. Read this to know the ENVIRONMENT and WHAT IS INSTALLED/RUNNING instead of guessing the OS or the apps. Cached (may be slightly stale -> sys_env_refresh). Read-only.",

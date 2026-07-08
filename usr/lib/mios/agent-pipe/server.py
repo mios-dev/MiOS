@@ -321,6 +321,7 @@ def _apply_outbound_auth(hdrs: dict, ep: str) -> None:
 # SSOT today -- passes / crawl_timeout_s / max_attempts; the rest are a noted
 # follow-up sweep.)
 _WEB_TOML = _toml_section("web_research")
+_AGENT_PIPE_TOML = _toml_section("agent_pipe") or {}
 # [knowledge] SSOT (P2): the tiered semantic-memory recall
 # weights + thresholds live in mios.toml [knowledge], not as code literals. The
 # MIOS_KNOWLEDGE_* env vars stay as runtime overrides; the trailing literal is
@@ -832,7 +833,7 @@ SECONDARY_TOOL_LOOP = os.environ.get(
 # so a member doesn't stop after a single shallow search but also can't loop
 # unbounded. Generous by default for deep multi-step turns; override via
 # MIOS_SECONDARY_TOOL_ITERS to trade thoroughness against per-node cost.
-SECONDARY_TOOL_MAX_ITERS = int(os.environ.get("MIOS_SECONDARY_TOOL_ITERS", "15"))
+SECONDARY_TOOL_MAX_ITERS = int(os.environ.get("MIOS_SECONDARY_TOOL_ITERS", "") or _AGENT_PIPE_TOML.get("tool_max_iters", 15))
 # Forced-call chokepoint (universal-loop item #1 slice 3,):
 # when refine hints a state-changing (non-read) verb, set tool_choice=required so
 # the executor MUST emit a real tool_call instead of NARRATING the action (the
@@ -3311,7 +3312,7 @@ from mios_secondary_loop import _ollama_secondary_tool_loop  # noqa: E402
 # failed step (or report honestly), BOUNDED so it can never loop forever. The verdict is
 # the broker's own result (success=False / read-back marker), NOT a hardcoded rule, so it
 # generalises across ALL verbs/facets and all agents that share this loop.
-SECONDARY_REPLAN_MAX = int(os.environ.get("MIOS_SECONDARY_REPLAN_MAX", "5") or 5)
+SECONDARY_REPLAN_MAX = int(os.environ.get("MIOS_SECONDARY_REPLAN_MAX", "") or _AGENT_PIPE_TOML.get("replan_max", 5))
 # Multi-facet DAG closed loop (operator "loop anything not fully fulfilled" ACROSS the
 # fan-out): how many times to RE-DISPATCH the DAG when a facet's verdict is UNFULFILLED
 # (satisfied is False). Bounded; 0 disables. The re-run is adopt-ONLY-if-strictly-better
@@ -6155,7 +6156,8 @@ from mios_turn import (  # noqa: E402
     _split_think_tags, _strip_think_tags,
 )
 sys.modules["mios_sse"].configure(
-    debug_enable=_DEBUG_ENABLE
+    debug_enable=_DEBUG_ENABLE,
+    surface_default=str(os.environ.get("MIOS_SURFACE_DEFAULT") or _otel_toml.get("surface_default", "clean")).strip().lower()
 )
 sys.modules["mios_turn"].configure(
     _AGENT_REGISTRY=_AGENT_REGISTRY,

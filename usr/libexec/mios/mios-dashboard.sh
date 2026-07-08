@@ -149,13 +149,17 @@ _mios_rows=$(_mios_toml_value "terminal" "rows" "20")
 # AVAIL_ROWS so the dashboard always fits.
 _term_cols=$(tput cols 2>/dev/null || true)
 _term_rows=$(tput lines 2>/dev/null || true)
-if [[ -n "$_term_cols" ]] && (( _term_cols > 0 )); then
+if [[ -n "${COLUMNS:-}" ]] && (( ${COLUMNS:-0} > 0 )); then
+    WIDTH=$COLUMNS
+elif [[ -n "$_term_cols" ]] && (( _term_cols > 0 )); then
     WIDTH=$(( _term_cols - _mios_rmgn ))
 else
     WIDTH=$(( _mios_cols - _mios_rmgn ))
 fi
 (( WIDTH < 20 )) && WIDTH=80     # safety floor
-INNER=$((WIDTH - 4))
+if [[ -z "${INNER:-}" ]]; then
+    INNER=$((WIDTH - 4))
+fi
 if [[ -n "$_term_rows" ]] && (( _term_rows > 0 )); then
     AVAIL_ROWS=$(( _term_rows - 1 ))    # reserve 1 row for prompt
 else

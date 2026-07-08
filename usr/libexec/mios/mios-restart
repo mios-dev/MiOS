@@ -36,7 +36,7 @@ usage() {
     echo "  searxng             -> mios-searxng.service"
     echo "  forge               -> mios-forge.service"
     echo "  forge-runner        -> mios-forgejo-runner.service"
-    echo "  code-server         -> mios-code-server.service"
+    echo "  code-server         -> mios-agents.service (replaces code-server)"
     echo
     echo "or pass a full unit name (e.g. mios-k3s.service)"
 }
@@ -57,7 +57,7 @@ case "$SVC" in
     searxng|search)                 UNIT="mios-searxng.service" ;;
     forge|forgejo)                  UNIT="mios-forge.service" ;;
     forge-runner|forgejo-runner)    UNIT="mios-forgejo-runner.service" ;;
-    code-server|codeserver|code)    UNIT="mios-code-server.service" ;;
+    code-server|codeserver|code|agents)    UNIT="mios-agents.service" ;;
     crowdsec)                       UNIT="mios-crowdsec.service" ;;
     k3s)                            UNIT="mios-k3s.service" ;;
     *)

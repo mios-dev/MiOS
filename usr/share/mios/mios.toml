@@ -7659,6 +7659,13 @@ adguard_ui         = 8053     # AdGuard Home web UI + REST API (3000 is forge_ht
 opencode_gateway   = 8633     # opencode -> OpenAI /v1 gateway shim (mios-opencode-gateway.service); makes [agents.opencode] a REAL /v1 council peer. LOOPBACK only (127.0.0.1).
 vllm               = 8441    # vLLM heavy dGPU lane (re-scoped mios-llm-heavy Quadlet; OpenAI /v1, PagedAttention+APC). Off the iGPU's :11436 + finetune-serve :11438. GATED/disabled by default (VRAM). [ai.vllm] + [nodes.local-vllm].
 sglang             = 8442    # SGLang heavy dGPU lane (OpenAI /v1, HiCache CPU KV-offload). GATED/disabled by default (VRAM). [ai.sglang] + [nodes.local-sglang].
+prefilter          = 8641    # mios-delegation-prefilter: conversational-bypass classifier + delegation gate (OpenAI /v1 shim in front of hermes). LOOPBACK only.
+arbiter            = 8650    # mios-policy-arbiter: risk-tier arbiter (verb/risk allow-list enforcer). LOOPBACK only. (Mirrors agent.arbiter_port; SSOT migrated here for port-table completeness.)
+daemon_agent       = 8644    # mios-daemon-agent: background inference worker lane (low-priority; CPU-affined). LOOPBACK only.
+model_router       = 8645    # mios-model-router: internal model-selection micro-router (routes by modality/task). LOOPBACK only.
+oscontrol          = 8453    # mios-oscontrol-server: Windows-side UI Automation / PowerShell executor (HTTP gate; mios-computer-use-server mirrors protocol). LOOPBACK only.
+mcp                = 8460    # MCP host server (/mcp + A2A /.well-known; served by hermes-agent). LOOPBACK only. (Matches [agent].server_port when that key is absent.)
+
 
 # ----------------------------------------------------------------------------
 # [image.sidecars] -- pinned upstream container references for every

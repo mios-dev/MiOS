@@ -50,11 +50,18 @@ def t_reflexion_gate():
     class FakeConfig:
         @staticmethod
         def _toml_section(section):
-            if section == "agent":
+            if section in ("agent", "agents", "agent_pipe"):
                 return {"reflexion_enable": "false"}
             return {}
             
     sys.modules["mios_config"] = FakeConfig
+
+    import mios_reflect
+    import mios_pipe.routing.reflect as mpr
+    async def mock_reflect(*a, **k):
+        return {"tool": "read_file", "args": {}, "rationale": "retry logic"}
+    mpr.reflect_on_step_failure = mock_reflect
+    sys.modules["mios_reflect"].__dict__["reflect_on_step_failure"] = mock_reflect
     
     db_reads = []
     async def mock_db_read(sql, pg_sql=None):
@@ -94,10 +101,17 @@ def t_tool_failure_reflexion_flow():
     class FakeConfig:
         @staticmethod
         def _toml_section(section):
-            if section == "agent":
+            if section in ("agent", "agents", "agent_pipe"):
                 return {"reflexion_enable": "true"}
             return {}
     sys.modules["mios_config"] = FakeConfig
+
+    import mios_reflect
+    import mios_pipe.routing.reflect as mpr
+    async def mock_reflect(*a, **k):
+        return {"tool": "read_file", "args": {}, "rationale": "retry logic"}
+    mpr.reflect_on_step_failure = mock_reflect
+    sys.modules["mios_reflect"].__dict__["reflect_on_step_failure"] = mock_reflect
     
     created_queries = []
     fired_queries = []

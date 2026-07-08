@@ -31,54 +31,86 @@
 #
 # To remove:  Unregister-ScheduledTask -TaskName 'MiOS-WSL-KeepAlive' -Confirm:$false
 
+[CmdletBinding()]
 param(
     [string]$Distro   = 'podman-MiOS-DEV',
-    [string]$TaskName = 'MiOS-WSL-KeepAlive'
+    [string]$TaskName = 'MiOS-WSL-KeepAlive',
+    [switch]$Install,
+    [switch]$Uninstall
 )
 
-$me = "SYSTEM"
-Write-Host "Registering '$TaskName' (run as SYSTEM, AtStartup + every 1 min) -> hold '$Distro' up via sleep infinity"
-
-# Action: a long-lived holder, launched through a HIDDEN powershell host so NO
-# console window (Windows Terminal / conhost) ever flashes on the operator's
-# desktop. The hidden powershell keeps a console of its own; wsl.exe attaches to
-# THAT hidden console instead of allocating a fresh visible one -- the same proven
-# `-WindowStyle Hidden` pattern the iGPU / OSControl server tasks use. The powershell
-# process stays alive for as long as `sleep infinity` runs, so the holder IS a live
-# attached session and WSL keeps the VM + services up.
-$wslExe  = Join-Path $env:SystemRoot 'System32\wsl.exe'
-$psExe   = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
-$inner   = "& '$wslExe' -d $Distro --exec /usr/bin/sleep infinity"
-$action  = New-ScheduledTaskAction -Execute $psExe `
-    -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command `"$inner`""
-
-# Trigger: at startup, then repeat every 1 minute forever. The repetition is the
-# self-heal: if the holder ever exits (shutdown/crash), the next tick restarts it.
-$trigger = New-ScheduledTaskTrigger -AtStartup
-$trigger.Repetition = (New-ScheduledTaskTrigger -Once -At (Get-Date) `
-    -RepetitionInterval (New-TimeSpan -Minutes 1) `
-    -RepetitionDuration (New-TimeSpan -Days 3650)).Repetition
-
-# SYSTEM + ServiceAccount: runs elevated at system startup pre-graphical logon
-$principal = New-ScheduledTaskPrincipal -UserId "NT AUTHORITY\SYSTEM" -LogonType ServiceAccount -RunLevel Highest
-
-# ExecutionTimeLimit = 0 -> the holder may run forever (it is supposed to).
-# IgnoreNew -> the 1-min ticks never start a SECOND holder while one is alive.
-$settings  = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries `
-                -DontStopIfGoingOnBatteries -ExecutionTimeLimit ([TimeSpan]::Zero) `
-                -MultipleInstances IgnoreNew -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
-$desc      = "Holds a persistent sleep-infinity session inside the MiOS WSL distro so WSL never tears the VM/services down on last-session-detach (stops the ~30-60s service cycling). Startup + 1-min self-heal; only one holder runs."
-
-Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger `
-    -Principal $principal -Settings $settings -Description $desc -Force | Out-Null
-
-$t = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
-if ($t) {
-    Write-Host ("OK: {0} state={1} runAs={2}({3}) action='{4} {5}'" -f `
-        $t.TaskName, $t.State, $t.Principal.UserId, $t.Principal.LogonType, `
-        $t.Actions[0].Execute, $t.Actions[0].Arguments)
-    Write-Host "Start it now without waiting for logon:  Start-ScheduledTask -TaskName '$TaskName'"
-} else {
-    Write-Error "Registration failed: task '$TaskName' not found after Register-ScheduledTask"
-    exit 1
+if ($Uninstall) {
+    # Stop and remove Windows Service if it exists
+    if (Get-Service -Name $TaskName -ErrorAction SilentlyContinue) {
+        Stop-Service -Name $TaskName -Force -ErrorAction SilentlyContinue
+        sc.exe delete $TaskName | Out-Null
+    }
+    
+    # Delete old scheduled task
+    Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue | Out-Null
+    
+    # Clean up wrapper files
+    $targetExe = Join-Path $PSScriptRoot "$TaskName.exe"
+    $targetCfg = Join-Path $PSScriptRoot "$TaskName.cfg"
+    Remove-Item $targetExe -Force -ErrorAction SilentlyContinue
+    Remove-Item $targetCfg -Force -ErrorAction SilentlyContinue
+    Write-Host "  [+] removed task '$TaskName'"
+    return
 }
+
+if ($Install) {
+    $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+    if (-not $isAdmin) {
+        Write-Warning 'Not elevated -- re-launching via UAC to register the task...'
+        Start-Process -FilePath 'pwsh.exe' -Verb RunAs -ArgumentList @(
+            '-NoProfile','-ExecutionPolicy','Bypass','-File',$PSCommandPath,'-Install',
+            '-Distro',$Distro,'-TaskName',$TaskName)
+        return
+    }
+
+    # Stop and remove Windows Service if it exists
+    if (Get-Service -Name $TaskName -ErrorAction SilentlyContinue) {
+        Stop-Service -Name $TaskName -Force -ErrorAction SilentlyContinue
+        sc.exe delete $TaskName | Out-Null
+    }
+    
+    # Clean up wrapper files
+    $targetExe = Join-Path $PSScriptRoot "$TaskName.exe"
+    $targetCfg = Join-Path $PSScriptRoot "$TaskName.cfg"
+    Remove-Item $targetExe -Force -ErrorAction SilentlyContinue
+    Remove-Item $targetCfg -Force -ErrorAction SilentlyContinue
+
+    # Resolve concrete interpreter path
+    $psExe = (Get-Command pwsh.exe -ErrorAction SilentlyContinue).Source
+    if (-not $psExe -or $psExe -like '*\WindowsApps\*' -or -not (Test-Path $psExe)) {
+        $psExe = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    }
+
+    $toolExe = Join-Path $PSScriptRoot 'MiosServiceTool.exe'
+    $wslExe  = Join-Path $env:SystemRoot 'System32\wsl.exe'
+    $inner   = "& `"$wslExe`" -d $Distro --exec /usr/bin/sleep infinity"
+
+    $action  = New-ScheduledTaskAction -Execute $toolExe `
+        -Argument "-Run `"$psExe`" -NoProfile -ExecutionPolicy Bypass -Command `"$inner`""
+
+    $trigger = New-ScheduledTaskTrigger -AtLogon
+    $settings  = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries `
+                    -DontStopIfGoingOnBatteries -ExecutionTimeLimit ([TimeSpan]::Zero) `
+                    -MultipleInstances IgnoreNew -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
+    
+    $principal = New-ScheduledTaskPrincipal -GroupId "BUILTIN\Administrators" -RunLevel Highest
+    $desc = "Holds a persistent sleep-infinity session inside the MiOS WSL distro so WSL never tears the VM/services down on last-session-detach. Runs hidden in Session 1."
+
+    Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger `
+        -Principal $principal -Settings $settings -Description $desc -Force | Out-Null
+
+    Write-Host "  [+] registered logon scheduled task '$TaskName'"
+    Write-Host "  [*] starting it now..."
+    Start-ScheduledTask -TaskName $TaskName
+    return
+}
+
+# Standard run path (when wrapped as a service or run directly)
+$wslExe  = Join-Path $env:SystemRoot 'System32\wsl.exe'
+Write-Host "Starting WSL Keep-Alive for distro '$Distro'..."
+& $wslExe -d $Distro --exec /usr/bin/sleep infinity

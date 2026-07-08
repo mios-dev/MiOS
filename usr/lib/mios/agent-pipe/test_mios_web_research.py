@@ -17,8 +17,10 @@ import re
 # SSOT [search].anchor_stopwords screen loads (the anchor tokenizer resolves it at
 # import; absent -> degrade-open to an empty screen). Mirrors test_server_import.
 _here = os.path.dirname(os.path.abspath(__file__))
-_toml = os.path.abspath(os.path.join(_here, "..", "..", "..", "..",
-                                     "usr", "share", "mios", "mios.toml"))
+_toml = "/usr/share/mios/mios.toml"
+if not os.path.isfile(_toml):
+    _toml = os.path.abspath(os.path.join(_here, "..", "..", "..", "..",
+                                         "usr", "share", "mios", "mios.toml"))
 if "MIOS_TOML" not in os.environ and os.path.isfile(_toml):
     os.environ["MIOS_TOML"] = _toml
 

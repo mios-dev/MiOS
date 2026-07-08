@@ -82,7 +82,8 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$root      = Join-Path $env:LOCALAPPDATA 'mios\igpu'
+[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
+$root      = Join-Path $env:ProgramData 'mios\igpu'
 $binDir    = Join-Path $root 'bin'
 $modelsDir = Join-Path $root 'models'
 $logDir    = Join-Path $root 'logs'
@@ -100,45 +101,71 @@ function Info($m){ Write-Host "  [*] $m" -ForegroundColor Cyan }
 function Ok($m)  { Write-Host "  [+] $m" -ForegroundColor Green }
 function Warn($m){ Write-Host "  [!] $m" -ForegroundColor Yellow }
 
-# ---- scheduled-task install / uninstall -------------------------------------
+# ---- service install / uninstall -------------------------------------
 if ($Uninstall) {
-    Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
-    Ok "removed scheduled task '$taskName'"
+    # Delete old scheduled task if it exists
+    Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue | Out-Null
+    
+    # Stop and remove Windows Service
+    if (Get-Service -Name $taskName -ErrorAction SilentlyContinue) {
+        Stop-Service -Name $taskName -Force -ErrorAction SilentlyContinue
+        sc.exe delete $taskName | Out-Null
+        Ok "removed Windows Service '$taskName'"
+    }
+    # Clean up wrapper files
+    $targetExe = Join-Path $PSScriptRoot "$taskName.exe"
+    $targetCfg = Join-Path $PSScriptRoot "$taskName.cfg"
+    Remove-Item $targetExe -Force -ErrorAction SilentlyContinue
+    Remove-Item $targetCfg -Force -ErrorAction SilentlyContinue
     return
 }
 if ($Install) {
     $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
     if (-not $isAdmin) {
-        Warn 'Not elevated -- re-launching via UAC to register the logon task...'
+        Warn 'Not elevated -- re-launching via UAC to register the service...'
         Start-Process -FilePath 'pwsh.exe' -Verb RunAs -ArgumentList @(
             '-NoProfile','-ExecutionPolicy','Bypass','-File',$PSCommandPath,'-Install',
             '-Port',$Port,'-ContextSize',$ContextSize,'-GpuLayers',$GpuLayers)
         return
     }
-    $argline = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$PSCommandPath`" -Port $Port -ContextSize $ContextSize -GpuLayers $GpuLayers -Device $Device"
-    if ($Model) { $argline += " -Model `"$Model`"" }
-    # Task Scheduler CANNOT run a bare 'pwsh.exe' when PowerShell 7 is the MSIX
-    # (Microsoft Store) build: the bare name is a per-user app-execution ALIAS
-    # (a reparse point under %LOCALAPPDATA%\Microsoft\WindowsApps) that the task
-    # service does not resolve -> the task fails 0x80070002 (ERROR_FILE_NOT_FOUND)
-    # and the iGPU "never fires" (debug). Resolve a CONCRETE
-    # interpreter path: prefer a real pwsh under Program Files, but NOT the
-    # WindowsApps versioned path (it changes on every pwsh update -> re-breaks);
-    # fall back to Windows PowerShell 5.1 at its FIXED System32 path -- this
-    # launcher is 5.1-compatible (no ternary/??/-Parallel; only an if-expression
-    # assignment), so 5.1 runs it identically.
+    
+    # Delete old scheduled task
+    Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue | Out-Null
+
+    # Resolve concrete interpreter path
     $psExe = (Get-Command pwsh.exe -ErrorAction SilentlyContinue).Source
     if (-not $psExe -or $psExe -like '*\WindowsApps\*' -or -not (Test-Path $psExe)) {
         $psExe = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
     }
-    $action  = New-ScheduledTaskAction  -Execute $psExe -Argument $argline
-    $trigger = New-ScheduledTaskTrigger -AtStartup
-    $set     = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
-    $prin    = New-ScheduledTaskPrincipal -UserId "NT AUTHORITY\SYSTEM" -LogonType ServiceAccount -RunLevel Highest
-    Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Settings $set -Principal $prin -Force | Out-Null
-    Ok "registered logon scheduled task '$taskName' (port $Port)"
+    $argsStr = "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" -Port $Port -ContextSize $ContextSize -GpuLayers $GpuLayers -Device $Device"
+    if ($Model) { $argsStr += " -Model `"$Model`"" }
+
+    $targetExe = Join-Path $PSScriptRoot "$taskName.exe"
+    $targetCfg = Join-Path $PSScriptRoot "$taskName.cfg"
+    $wrapperSrc = Join-Path $PSScriptRoot "MiosServiceTool.exe"
+
+    if (-not (Test-Path $wrapperSrc)) {
+        throw "Wrapper tool source not found: $wrapperSrc"
+    }
+
+    # Copy wrapper and create configuration file
+    Copy-Item $wrapperSrc $targetExe -Force
+    $cfgContent = "$psExe`r`n$argsStr"
+    Set-Content -Path $targetCfg -Value $cfgContent -Encoding Utf8
+
+    # Register Windows Service
+    if (Get-Service -Name $taskName -ErrorAction SilentlyContinue) {
+        Stop-Service -Name $taskName -Force -ErrorAction SilentlyContinue
+        sc.exe delete $taskName | Out-Null
+        Start-Sleep -Seconds 1
+    }
+    
+    # Register as native Windows Service
+    New-Service -Name $taskName -BinaryPathName "`"$targetExe`"" -DisplayName "MiOS iGPU Server" -StartupType Automatic | Out-Null
+    
+    Ok "registered Windows Service '$taskName' (port $Port)"
     Info "starting it now..."
-    Start-ScheduledTask -TaskName $taskName
+    Start-Service -Name $taskName
     return
 }
 
@@ -177,7 +204,7 @@ if ($ShowDevices) { & $exe --list-devices; return }
 
 # ---- ensure a model ---------------------------------------------------------
 if (-not $Model) {
-    $existing = Get-ChildItem -Path $modelsDir -Filter '*.gguf' -ErrorAction SilentlyContinue | Select-Object -First 1
+    $existing = Get-ChildItem -Path $modelsDir -Filter '*.gguf' -ErrorAction SilentlyContinue | Where-Object { $_.Length -gt 0 } | Select-Object -First 1
     if ($existing) {
         $Model = $existing.FullName
     } else {
@@ -189,13 +216,15 @@ if (-not $Model) {
 }
 if (-not (Test-Path $Model)) { throw "model not found: $Model" }
 
-# ---- firewall: allow inbound on $Port, scoped to the Tailscale CGNAT range --
-# 100.64.0.0/10 = the tailnet. Only Tailscale peers (the dev VM) can reach the
-# iGPU server; it is NOT exposed to the wider LAN/Internet.
+# ---- firewall: allow inbound on $Port, scoped to Tailscale CGNAT + local WSL --
+$fwRemote = @('100.64.0.0/10', '172.16.0.0/12')
 if (-not (Get-NetFirewallRule -DisplayName $fwName -ErrorAction SilentlyContinue)) {
     New-NetFirewallRule -DisplayName $fwName -Direction Inbound -Action Allow -Protocol TCP `
-        -LocalPort $Port -RemoteAddress '100.64.0.0/10' -Profile Any -ErrorAction SilentlyContinue | Out-Null
-    Ok "firewall: allow tailnet -> :$Port"
+        -LocalPort $Port -RemoteAddress $fwRemote -Profile Any -ErrorAction SilentlyContinue | Out-Null
+    Ok "firewall: allow tailnet + local WSL -> :$Port"
+} else {
+    Set-NetFirewallRule -DisplayName $fwName -RemoteAddress $fwRemote -ErrorAction SilentlyContinue | Out-Null
+    Ok "firewall: reconciled scope -> tailnet + local WSL on :$Port"
 }
 
 # ---- resolve the AMD iGPU device by NAME (enumeration order is unstable) -----

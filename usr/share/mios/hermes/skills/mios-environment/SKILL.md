@@ -97,7 +97,7 @@ mios-open-webui.service          :3030  OWUI browser UI
 mios-ollama.service              :11434 raw inference
 mios-searxng.service             :8888  privacy search (web tool backend)
 mios-forge.service               :3000  Forgejo
-mios-code-server.service         :8080  VSCode-in-browser
+mios-agents.service              :8800  VSCode-in-browser (replaces code-server)
 mios-mcp.service                 -      Agent Context Service
 ```
 

@@ -102,6 +102,12 @@ done
 # /etc/skel -- shell dotfiles, only seed if directory exists in the repo
 _rsync_in "etc/skel/"          "/etc/skel/"
 
+# /etc/containers -- container storage and networking config overrides
+_rsync_in "etc/containers/"    "/etc/containers/"
+
+# /etc/binfmt.d -- mask vendor binfmt rules (e.g. WINE hijacking .exe execution)
+_rsync_in "etc/binfmt.d/"      "/etc/binfmt.d/"
+
 # /etc/mios -- vendor host config templates (install.env will be missing on
 # BUILDER because no Windows installer ran here; that's fine, agents fall
 # back to the layered mios.toml overlay -- the canonical SSOT)
