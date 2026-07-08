@@ -22,6 +22,7 @@ ConditionPathExistsGlob=/usr/?bin/ttyd
 [Service]
 Type=simple
 EnvironmentFile=-/etc/mios/userenv.sh
+EnvironmentFile=-/etc/mios/install.env
 # Run as the operator login user so the session inherits the
 # operator's $HOME, environment, and shell rc files. Connecting
 # from a browser gives the SAME shell experience as the operator's

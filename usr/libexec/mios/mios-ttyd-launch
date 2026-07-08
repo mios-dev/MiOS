@@ -94,7 +94,7 @@ MAX_CLIENTS="${MIOS_TTYD_MAX_CLIENTS:-0}"
 # the difference between a casual local convenience and a remote
 # code execution surface.
 if [[ "$BIND" != "127.0.0.1" ]] && [[ "$BIND" != "localhost" ]] && [[ "$BIND" != "::1" ]]; then
-    if [[ "$REQUIRE_AUTH" == "true" || "$REQUIRE_AUTH" == "1" ]]; then
+    if [[ "${REQUIRE_AUTH,,}" == "true" || "$REQUIRE_AUTH" == "1" ]]; then
         if [[ -z "$AUTH_USER" || -z "$AUTH_PASS" ]]; then
             echo "mios-ttyd-launch: refusing to bind $BIND:$PORT without auth creds" >&2
             echo "  set [ttyd].auth_user + .auth_pass in mios.toml, OR" >&2
@@ -105,7 +105,7 @@ if [[ "$BIND" != "127.0.0.1" ]] && [[ "$BIND" != "localhost" ]] && [[ "$BIND" !=
 fi
 
 ARGS=("-p" "$PORT" "-i" "$BIND")
-if [[ "$WRITABLE" == "true" || "$WRITABLE" == "1" ]]; then
+if [[ "${WRITABLE,,}" == "true" || "$WRITABLE" == "1" ]]; then
     ARGS+=("-W")
 fi
 if [[ "$MAX_CLIENTS" -gt 0 ]]; then

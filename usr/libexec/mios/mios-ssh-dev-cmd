@@ -28,10 +28,12 @@
 # degrade to a plain host SSH so the caller's row never disappears.
 set -uo pipefail
 
-# sshd effective port -- privileged (`sudo -n`), else the [ports].ssh SSOT.
 _live_port() {
     local p t
-    p="$(sudo -n sshd -T 2>/dev/null | awk '/^port /{print $2; exit}')"
+    p="$(grep -hE '^[[:space:]]*Port[[:space:]]+[0-9]+' /etc/ssh/sshd_config /etc/ssh/sshd_config.d/* 2>/dev/null | awk '{print $2; exit}')"
+    if [[ -z "$p" ]]; then
+        p="$(sudo -n sshd -T 2>/dev/null | awk '/^port /{print $2; exit}')"
+    fi
     if [[ -z "$p" ]]; then
         for t in "${HOME:-/root}/.config/mios/mios.toml" /etc/mios/mios.toml /usr/share/mios/mios.toml; do
             [[ -r "$t" ]] || continue

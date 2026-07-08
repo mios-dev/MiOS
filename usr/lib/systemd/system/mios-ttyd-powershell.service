@@ -32,6 +32,7 @@ ConditionPathExistsGlob=/usr/?bin/ttyd
 [Service]
 Type=simple
 EnvironmentFile=-/etc/mios/userenv.sh
+EnvironmentFile=-/etc/mios/install.env
 # Run as the operator -- WSL interop's /init creates per-user
 # Windows interop sockets, so the agent service-user contexts
 # CAN'T exec /mnt/c/Windows/System32/powershell.exe (operator-
