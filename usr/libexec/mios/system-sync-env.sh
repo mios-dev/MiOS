@@ -142,6 +142,7 @@ EOF
     [[ -n "${MIOS_LLAMACPP_MODELS_DIR:-}" ]]  && echo "MIOS_LLAMACPP_MODELS_DIR=\"${MIOS_LLAMACPP_MODELS_DIR}\""
     [[ -n "${MIOS_LLAMACPP_CONFIG:-}" ]]      && echo "MIOS_LLAMACPP_CONFIG=\"${MIOS_LLAMACPP_CONFIG}\""
     [[ -n "${MIOS_LLAMACPP_BAKE_MODELS:-}" ]] && echo "MIOS_LLAMACPP_BAKE_MODELS=\"${MIOS_LLAMACPP_BAKE_MODELS}\""
+    [[ -n "${MIOS_VLLM_BAKE_MODEL:-}" ]]      && echo "MIOS_VLLM_BAKE_MODEL=\"${MIOS_VLLM_BAKE_MODEL}\""
 
     # Part 10: Converged-Resource Architecture (MIOS_CONV_*)
     [[ -n "${MIOS_CONV_GATEWAY_MODE:-}" ]]                  && echo "MIOS_CONV_GATEWAY_MODE=\"${MIOS_CONV_GATEWAY_MODE}\""

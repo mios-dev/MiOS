@@ -53,6 +53,8 @@ except Exception:
     import subprocess
     subprocess.run([sys.executable, "-m", "pip", "install", "-q",
                     "huggingface_hub"], check=False)
+    import importlib
+    importlib.invalidate_caches()
     from huggingface_hub import snapshot_download
 model, dest = sys.argv[1], sys.argv[2]
 snapshot_download(repo_id=model, local_dir=dest,

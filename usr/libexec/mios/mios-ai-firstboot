@@ -105,6 +105,31 @@ if [ ! -f "${MODELS}/.ready" ]; then
     fi
 fi
 
+# ── 2b. vLLM model weights (vLLM-NATIVE -- HF download; opt-in, off-by-default) ──
+VLLM_MODEL="${MIOS_VLLM_BAKE_MODEL:-}"
+VLLM_DIR="/usr/share/mios/vllm/model"
+if [ -n "$VLLM_MODEL" ] && [ ! -f "${VLLM_DIR}/config.json" ]; then
+    install -d -m 0755 "$VLLM_DIR" 2>/dev/null
+    if [ -x "${VENV}/bin/python3" ]; then
+        log "fetching vLLM model weights for ${VLLM_MODEL} -> ${VLLM_DIR} via agent venv"
+        if "${VENV}/bin/python3" - "$VLLM_MODEL" "$VLLM_DIR" <<'PY' 2>/dev/null; then
+import sys
+from huggingface_hub import snapshot_download
+model, dest = sys.argv[1], sys.argv[2]
+snapshot_download(repo_id=model, local_dir=dest,
+                  ignore_patterns=["*.pth", "original/*", "*.gguf"])
+PY
+            log "vLLM model weights provisioned for ${VLLM_MODEL}"
+            systemctl reset-failed mios-llm-heavy 2>/dev/null
+            systemctl restart mios-llm-heavy 2>/dev/null || true
+        else
+            log "WARN: vLLM model weights fetch failed -- will retry next boot"
+        fi
+    else
+        log "WARN: agent venv python not available -- vLLM model weights NOT fetched"
+    fi
+fi
+
 # ── 2c. code-run sandbox: the dry-run sandbox Quadlet (mios-coderun-sandbox@)
 # is a USER unit -- it uses %t (XDG_RUNTIME_DIR) + is started via
 # `systemctl --user` by mios-coderun-session. For the mios-ai SERVICE account
@@ -172,10 +197,16 @@ systemctl restart mios-llm-light 2>/dev/null || true
 
 # ── sentinel: only when fully provisioned, so failures retry next boot ────────
 install -d -m 0755 /var/lib/mios 2>/dev/null
-if [ -x "${VENV}/bin/hermes" ] && [ -f "${MODELS}/.ready" ]; then
+_ggufs_ok=0; [ -f "${MODELS}/.ready" ] && _ggufs_ok=1
+_vllm_ok=1
+if [ -n "${MIOS_VLLM_BAKE_MODEL:-}" ] && [ ! -f "/usr/share/mios/vllm/model/config.json" ]; then
+    _vllm_ok=0
+fi
+
+if [ -x "${VENV}/bin/hermes" ] && [ "$_ggufs_ok" -eq 1 ] && [ "$_vllm_ok" -eq 1 ]; then
     touch /var/lib/mios/.ai-firstboot-done
-    log "complete -- agent venv + GGUFs provisioned"
+    log "complete -- agent venv + GGUFs + vLLM weights provisioned"
 else
-    log "incomplete (venv=$( [ -x "${VENV}/bin/hermes" ] && echo ok || echo missing ) ggufs=$( [ -f "${MODELS}/.ready" ] && echo ok || echo missing )) -- retrying next boot"
+    log "incomplete (venv=$( [ -x "${VENV}/bin/hermes" ] && echo ok || echo missing ) ggufs=$( [ "$_ggufs_ok" -eq 1 ] && echo ok || echo missing ) vllm=$( [ "$_vllm_ok" -eq 1 ] && echo ok || echo missing )) -- retrying next boot"
 fi
 exit 0
