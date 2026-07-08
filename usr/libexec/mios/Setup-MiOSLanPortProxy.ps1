@@ -26,19 +26,32 @@ $portMap = @(
     @{ Port = 8300;  Name = 'forge'            }
     @{ Port = 8033;  Name = 'open-webui'       }
     @{ Port = 8800;  Name = 'code-server'      }
-    @{ Port = 9090;  Name = 'cockpit'          }
-    @{ Port = 11450; Name = 'llm-light'        }
+    @{ Port = 8090;  Name = 'cockpit'          }
+    @{ Port = 8450;  Name = 'llm-light'        }
     @{ Port = 8899;  Name = 'searxng'          }
     @{ Port = 8642;  Name = 'hermes'           }
-    @{ Port = 9119;  Name = 'dash-ai'          }
-    @{ Port = 8090;  Name = 'guacamole'        }
-    @{ Port = 8443;  Name = 'ceph-dash'        }
-    @{ Port = 3389;  Name = 'rdp'              }
+    @{ Port = 8119;  Name = 'dash-ai'          }
+    @{ Port = 8080;  Name = 'guacamole'        }
+    @{ Port = 8444;  Name = 'ceph-dash'        }
+    @{ Port = 8389;  Name = 'rdp'              }
 )
 
-# Clean up retired Ollama portproxy and firewall rules
-& netsh interface portproxy delete v4tov4 listenaddress=0.0.0.0 listenport=11434 2>$null | Out-Null
-Remove-NetFirewallRule -DisplayName "MiOS - ollama (11434/tcp)" -ErrorAction SilentlyContinue | Out-Null
+# Clean up retired legacy portproxy and firewall rules
+$retiredPorts = @(
+    @{ Port = 11434; Name = 'ollama' }
+    @{ Port = 11450; Name = 'llm-light' }
+    @{ Port = 9090;  Name = 'cockpit' }
+    @{ Port = 9119;  Name = 'dash-ai' }
+    @{ Port = 8443;  Name = 'ceph-dash' }
+    @{ Port = 3389;  Name = 'rdp' }
+    @{ Port = 3000;  Name = 'forge' }
+    @{ Port = 3030;  Name = 'hermes_workspace' }
+    @{ Port = 3033;  Name = 'open-webui' }
+)
+foreach ($rp in $retiredPorts) {
+    & netsh interface portproxy delete v4tov4 listenaddress=0.0.0.0 listenport=$rp.Port 2>$null | Out-Null
+    Remove-NetFirewallRule -DisplayName "MiOS - $($rp.Name) ($($rp.Port)/tcp)" -ErrorAction SilentlyContinue | Out-Null
+}
 
 # 1. iphlpsvc must be running for netsh portproxy.
 $svc = Get-Service -Name iphlpsvc -ErrorAction SilentlyContinue

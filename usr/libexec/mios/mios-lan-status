@@ -29,16 +29,17 @@ SETUP_PS1="${MIOS_LAN_SETUP_PS1:-/usr/libexec/mios/Setup-MiOSLanPortProxy.ps1}"
 
 # (port, name) pairs. Keep aligned with Setup-MiOSLanPortProxy.ps1.
 SERVICES=(
-    "3033 open-webui"
-    "8642 hermes-api"
-    "11434 ollama"
+    "8300 forge"
+    "8033 open-webui"
+    "8800 code-server"
+    "8090 cockpit"
+    "8450 llm-light"
     "8899 searxng"
-    "9119 hermes-dashboard"
-    "3000 forge"
-    "8080 code-server"
-    "9090 cockpit"
-    "8090 guacamole"
-    "8443 ceph-dashboard"
+    "8642 hermes-api"
+    "8119 hermes-dashboard"
+    "8080 guacamole"
+    "8444 ceph-dashboard"
+    "8389 rdp"
 )
 
 # Find the Windows-routable host IP (skip wsl/loopback/docker bridges).

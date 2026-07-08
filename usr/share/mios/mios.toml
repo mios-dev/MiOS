@@ -6733,7 +6733,7 @@ verify_probes = [
 [browser_ai]
 enable       = true
 package      = "Zen-Team.Zen-Browser.Twilight"   # Zen Browser - Twilight (winget id)
-provider_url = "http://localhost:3033"            # OWUI front door = the MiOS AI pipeline
+provider_url = "http://localhost:8033"            # OWUI front door = the MiOS AI pipeline
 # Firefox/Zen prefs as "name|type|value" (type = bool|string|int) so the bootstrap
 # can build policies.json without a full TOML parser. Add Zen-specific zen.* AI
 # flags here as they stabilise -- they flow through unchanged.

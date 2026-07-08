@@ -1192,6 +1192,75 @@ PY
     fi
 }
 
+check_bootstrap_ports_drift() {
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "[38-drift-checks]   WARNING: python3 missing -- skipping bootstrap ports drift check" >&2
+        return 0
+    fi
+    if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
+import os, sys
+root = os.environ["MIOS_DRIFT_ROOT"]
+try:
+    import tomllib as _toml
+except ImportError:
+    try:
+        import tomli as _toml
+    except ImportError:
+        sys.exit(0)
+
+main_toml_path = os.path.join(root, "usr/share/mios/mios.toml")
+if not os.path.isfile(main_toml_path):
+    sys.exit(0)
+
+with open(main_toml_path, "rb") as fh:
+    main_data = _toml.load(fh)
+
+main_ports = {k: v for k, v in main_data.get("ports", {}).items() if not isinstance(v, dict)}
+
+bootstrap_repo_path = main_data.get("bootstrap", {}).get("bootstrap_repo", "C:/mios-bootstrap")
+
+if sys.platform != "win32" and bootstrap_repo_path.startswith("C:/"):
+    bootstrap_repo_path = "/mnt/c/" + bootstrap_repo_path[3:]
+
+if not os.path.isdir(bootstrap_repo_path):
+    bootstrap_repo_path = os.path.join(os.path.dirname(root), "mios-bootstrap")
+
+if not os.path.isdir(bootstrap_repo_path):
+    sys.exit(0)
+
+bootstrap_toml_path = os.path.join(bootstrap_repo_path, "mios.toml")
+if not os.path.isfile(bootstrap_toml_path):
+    sys.exit(0)
+
+with open(bootstrap_toml_path, "rb") as fh:
+    boot_data = _toml.load(fh)
+
+boot_ports = {k: v for k, v in boot_data.get("ports", {}).items() if not isinstance(v, dict)}
+
+drift = []
+for k, v in main_ports.items():
+    if k not in boot_ports:
+        drift.append(f"Port key '{k}' in main mios.toml is missing from bootstrap mios.toml")
+    elif boot_ports[k] != v:
+        drift.append(f"Port '{k}' value differs: main={v}, bootstrap={boot_ports[k]}")
+
+for k, v in boot_ports.items():
+    if k not in main_ports:
+        drift.append(f"Port key '{k}' in bootstrap mios.toml is missing from main mios.toml")
+
+if drift:
+    for d in drift:
+        sys.stderr.write("    " + d + "\n")
+    sys.exit(1)
+sys.exit(0)
+PY
+    then
+        echo "[38-drift-checks]   (22) bootstrap mios.toml [ports] table matches main repository"
+    else
+        _violation "bootstrap mios.toml [ports] table diverges from main repository mios.toml (drift detected)"
+    fi
+}
+
 main() {
     check_dead_lane
     check_retired_models
@@ -1214,6 +1283,7 @@ main() {
     check_converge_ssot
     check_hummingbird
     check_container_ports
+    check_bootstrap_ports_drift
 
     echo "[38-drift-checks] ---------------------------------------------------------"
     if [[ "$VIOLATIONS" -eq 0 ]]; then

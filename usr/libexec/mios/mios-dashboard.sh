@@ -413,18 +413,18 @@ print_endpoints() {
     local _p_forge _p_cockpit _p_searxng
     local _p_hermes _p_code _p_webui _p_agent_pipe _p_pgvector
     local _p_ttyd_bash _p_ttyd_ps _p_ssh
-    _p_forge=$(_mios_port forge_http 3000)
-    _p_cockpit=$(_mios_port cockpit 9090)
-    _p_llamaswap=$(_mios_port llm_light 11450)
+    _p_forge=$(_mios_port forge_http 8300)
+    _p_cockpit=$(_mios_port cockpit 8090)
+    _p_llamaswap=$(_mios_port llm_light 8450)
     _p_searxng=$(_mios_port searxng 8899)
     _p_hermes=$(_mios_port hermes 8642)
     _p_code=$(_mios_port code_server 8800)
-    _p_webui=$(_mios_port open_webui 3033)
+    _p_webui=$(_mios_port open_webui 8033)
     _p_agent_pipe=$(_mios_port agent_pipe 8640)
-    _p_pgvector=$(_mios_port pgvector 5432)
-    _p_ttyd_bash=$(_mios_port ttyd_bash 7681)
-    _p_ttyd_ps=$(_mios_port ttyd_powershell 7682)
-    _p_ssh=$(_mios_port ssh 22)
+    _p_pgvector=$(_mios_port pgvector 8432)
+    _p_ttyd_bash=$(_mios_port ttyd_bash 8681)
+    _p_ttyd_ps=$(_mios_port ttyd_powershell 8682)
+    _p_ssh=$(_mios_port ssh 8222)
     local _ssh_check_port
     _ssh_check_port="$(_ssh_live_port)"
 
