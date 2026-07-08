@@ -1,0 +1,4 @@
+﻿{
+  "Path": "C:\\\\WINDOWS\\\\System32\\\\WindowsPowerShell\\\\v1.0\\\\powershell.exe",
+  "Args": "-NoProfile -ExecutionPolicy Bypass -File \\\\"C:\\\\MiOS\\\\usr\\\\share\\\\mios\\\\windows\\\\mios-igpu-server.ps1\\\\" -Port 11436 -ContextSize 65536 -GpuLayers 99 -Device auto"
+}
