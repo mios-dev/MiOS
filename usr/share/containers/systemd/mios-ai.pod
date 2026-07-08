@@ -11,8 +11,8 @@
 #   mios-open-webui
 [Unit]
 Description='MiOS' AI pod (inference, heavy, data, ui)
-After=network-online.target mios-gateway-agent.service
-Wants=network-online.target mios-gateway-agent.service
+After=network-online.target
+Wants=network-online.target
 
 [Pod]
 PodName=mios-ai

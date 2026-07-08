@@ -7875,8 +7875,8 @@ doc = """Consolidated webtools pod."""
 [pods.mios-ai]
 description = "'MiOS' AI pod (inference, heavy, data, ui)"
 network     = "host"
-after       = ["network-online.target", "mios-gateway-agent.service"]
-wants       = ["network-online.target", "mios-gateway-agent.service"]
+after       = ["network-online.target"]
+wants       = ["network-online.target"]
 wanted_by   = ["multi-user.target", "default.target"]
 members     = [
   "mios-llm-light",
