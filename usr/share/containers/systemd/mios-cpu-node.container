@@ -18,7 +18,7 @@ HealthInterval=30s
 HealthRetries=3
 HealthStartPeriod=120s
 HealthTimeout=10s
-Image=ghcr.io/mostlygeek/llama-swap:cuda
+Image=ghcr.io/mostlygeek/llama-swap:cuda@sha256:1fd71f3766de94413616f264bb5c01d741829d7bb40d2cec663e3344bcdddd56
 Label=org.opencontainers.image.title=mios-cpu-node
 Pod=mios-ai.pod
 User=827

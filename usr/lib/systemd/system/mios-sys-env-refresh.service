@@ -15,7 +15,7 @@ Type=oneshot
 # SurrealDB cache row. operator 2026-05-23: "probe systems/environment live +
 # store/update a mios-sys-env database".
 # systemd does NOT expand bash ${VAR:-default} in Environment= -- it passes the
-# LITERAL string "${MIOS_PORT_PGVECTOR:-5432}", which mios-pg-query then int()s ->
+# LITERAL string "8432", which mios-pg-query then int()s ->
 # ValueError -> "pgvector upsert failed" on every run. Source install.env instead
 # so MIOS_PORT_PGVECTOR holds the real port; mios-pg-query reads it directly
 # (its own fallback is MIOS_PG_PORT or MIOS_PORT_PGVECTOR or 5432).

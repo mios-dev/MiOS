@@ -1676,6 +1676,17 @@
             <label for="f-brand-wallstyle">wallpaper_style (10 = Fill, 6 = Fit, 2 = Stretch)</label>
             <input type="text" id="f-brand-wallstyle" data-key="branding.wallpaper_style" placeholder="10">
             
+            <div class="checkbox-row">
+              <input type="checkbox" id="f-brand-living-wallpaper" data-key="branding.living_wallpaper">
+              <label for="f-brand-living-wallpaper">living_wallpaper (enable GPU animated wallpaper)</label>
+            </div>
+            <label for="f-brand-living-wallpaper-mode">living_wallpaper_mode</label>
+            <select id="f-brand-living-wallpaper-mode" data-key="branding.living_wallpaper_mode">
+              <option value="static">static (baked gradient)</option>
+              <option value="shader">shader (GPU animated)</option>
+              <option value="video">video (rendered loop)</option>
+            </select>
+            
             <label for="f-brand-uifont">ui_font (system font replacement face)</label>
             <input type="text" id="f-brand-uifont" data-key="branding.ui_font" placeholder="Geist">
             <div class="checkbox-row">
@@ -4322,6 +4333,8 @@ oem_logo = "C:\\Windows\\Web\\MiOS\\mios-logo.bmp"
 wallpaper = "C:\\Windows\\Web\\MiOS\\mios-wallpaper.jpg"
 lockscreen = "C:\\Windows\\Web\\MiOS\\mios-wallpaper.jpg"
 wallpaper_style = "10"
+living_wallpaper = false
+living_wallpaper_mode = "static"
 ui_font = "Geist"
 font_substitute = true
 cursor = true

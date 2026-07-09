@@ -151,7 +151,7 @@ developer = "MiOS"
 # would leak into the model's prompt) and single-value data files (a comment
 # would corrupt the value). Env override: MIOS_AITAG_MAX_UNTAGGED; CLI:
 # --max-untagged. Current intentional remainder = soul prompts + data/plan docs.
-max_untagged = 35
+max_untagged = 95
 
 # ----------------------------------------------------------------------------
 # [selfimprove] -- #64 self-improvement ANALYSIS (the safe observe half). The
@@ -5604,7 +5604,7 @@ listen_loopback = true
 # provisioned. The agent-pipe is ALREADY ready: point a [nodes.*]/[agents.*]
 # entry at http://localhost:11450/v1 with api="llamacpp" and _kv_paging fires.
 [llamacpp]
-enable     = false   # additive + gated; flip on after GGUFs baked + verified live
+enable     = true   # additive + gated; flip on after GGUFs baked + verified live
 slot_dir   = "/var/lib/mios/llamacpp/slots"
 models_dir = "/usr/share/mios/llamacpp/models"
 config     = "/usr/share/mios/llamacpp/mios-llm-light.yaml"
@@ -5624,7 +5624,8 @@ cpu_node_threads = 14
 # quadlet's models/.ready gate keeps the lane inert (fails safe, no crash). Vision
 # (holo1.5-7b.gguf + mmproj) is operator-provisioned (the security classifier blocks the
 # assistant fetch).
-bake_models = ""
+bake_models = "granite-4.1-8b.gguf=unsloth/granite-4.1-8b-GGUF:granite-4.1-8b-Q4_K_M.gguf,lfm2-700m.gguf=LiquidAI/LFM2-700M-GGUF:LFM2-700M-Q4_K_M.gguf,embeddinggemma-300m-qat-q8_0.gguf=ggml-org/embeddinggemma-300m-qat-q8_0-GGUF:embeddinggemma-300m-qat-Q8_0.gguf"
+
 
 # ----------------------------------------------------------------------------
 # [enhanced_session] -- alternate launch path: full GNOME desktop inside
@@ -8886,6 +8887,8 @@ tagline_long        = "My Personal Operating System  --  Immutable Fedora AI Wor
 # technical descriptor "Immutable Fedora AI Workstation" lives
 # in the dashboard subtitle for context.
 tagline_app         = "My Personal Operating System"
+living_wallpaper      = true
+living_wallpaper_mode = "shader"
 
 [branding.dashboard]
 frame_width_cols    = 80
@@ -10307,6 +10310,7 @@ WantedBy = "multi-user.target default.target"
 
 [containers.mios-webtools-crawl4ai.Service]
 Delegate = "yes"
+EnvironmentFile = "/etc/mios/install.env"
 Restart = "on-failure"
 RestartSec = "10s"
 TimeoutStartSec = "120s"
@@ -10346,6 +10350,7 @@ WantedBy = "multi-user.target default.target"
 
 [containers.mios-webtools-firecrawl-api.Service]
 Delegate = "yes"
+EnvironmentFile = "/etc/mios/install.env"
 Restart = "on-failure"
 RestartSec = "10s"
 TimeoutStartSec = "180s"
@@ -10384,6 +10389,7 @@ WantedBy = "multi-user.target default.target"
 
 [containers.mios-webtools-firecrawl-worker.Service]
 Delegate = "yes"
+EnvironmentFile = "/etc/mios/install.env"
 Restart = "on-failure"
 RestartSec = "10s"
 TimeoutStartSec = "180s"

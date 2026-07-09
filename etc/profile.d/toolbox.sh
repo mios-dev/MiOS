@@ -1,4 +1,3 @@
-# AI-hint: Configures the shell environment for Toolbx containers by setting the PS1 prompt, detecting host vs. container environments, and displaying welcome messages for Fedora-based immutable systems.
 # shellcheck shell=sh
 
 # shellcheck disable=SC2153

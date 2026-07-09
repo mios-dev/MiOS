@@ -168,6 +168,9 @@ slots = [
     ("desktop.session",         "MIOS_DESKTOP_SESSION"),
     ("desktop.color_scheme",    "MIOS_COLOR_SCHEME"),
     ("desktop.flatpaks",        "MIOS_FLATPAKS"),
+    # branding
+    ("branding.living_wallpaper",      "MIOS_BRANDING_LIVING_WALLPAPER"),
+    ("branding.living_wallpaper_mode", "MIOS_BRANDING_LIVING_WALLPAPER_MODE"),
     # image
     ("image.ref",               "MIOS_IMAGE_REF"),
     ("image.branch",            "MIOS_BRANCH"),
@@ -234,6 +237,7 @@ slots = [
     ("ports.hermes",                   "MIOS_PORT_HERMES"),
     ("ports.hermes_worker",            "MIOS_PORT_HERMES_WORKER"),
     ("ports.hermes_workspace",         "MIOS_PORT_HERMES_WORKSPACE"),
+    ("ports.hermes_dashboard",         "MIOS_PORT_HERMES_DASHBOARD"),
     ("ports.open_webui",               "MIOS_PORT_OPEN_WEBUI"),
     ("ports.code_server",              "MIOS_PORT_CODE_SERVER"),
     ("ports.k3s_api",                  "MIOS_K3S_API_PORT"),

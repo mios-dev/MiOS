@@ -1,4 +1,3 @@
-# AI-hint: Mounts the /var/lib/machines.raw loopback btrfs image to /var/lib/machines for backward compatibility with older systemd versions to provide container/VM storage.
 #  SPDX-License-Identifier: LGPL-2.1-or-later
 #
 #  This file is part of systemd.

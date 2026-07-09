@@ -15,7 +15,8 @@ install -d -m 0755 "${WANTS}"
 
 for unit in \
     mios-role.service \
-    mios-podman-gc.timer
+    mios-podman-gc.timer \
+    mios-webtools-firstboot.service
 do
     if [[ -f "/usr/lib/systemd/system/${unit}" ]]; then
         ln -sf "../${unit}" "${WANTS}/${unit}"
