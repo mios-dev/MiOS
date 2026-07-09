@@ -2995,32 +2995,32 @@ T-094 (CONV-01 SSOT)
 - [ ] a free/reproducible pipeline produces a bootable MiOS ISO from a UUP source with no paid tool; CI smoke-boots it in a VM and asserts accounts + WSL/VMP present (Posture B) + Get-MiOS reached
 
 ## T-139: WISO-08 -- Stage MiOS branding assets into the image  [P2]
-> **Priority:** P2 | **Status:** pending | **Effort:** S | **Domain:** Windows/Install | **Source:** Part 12 WS-WISO.
+> **Priority:** P2 | **Status:** done (2026-07-09) | **Effort:** S | **Domain:** Windows/Install | **Source:** Part 12 WS-WISO.
 
 **Instructions:** Place `mios-wallpaper.jpg`, `mios-logo.bmp`, Bibata `.cur/.ani`, Geist fonts at the branding-referenced paths (`C:\Windows\Web\MiOS\`, `%SystemRoot%\Cursors\Bibata-Modern-Classic\`) during image customization so branding applies at first paint (not just first-logon).
 **Done When:**
-- [ ] wallpaper/logo/lockscreen/cursor/font assets are present in the image; branding renders at OOBE/first paint
+- [x] wallpaper/logo/lockscreen/cursor/font assets are present in the image; branding renders at OOBE/first paint
 
 ## T-140: XBOX-01 -- Xbox Full Screen Experience out of the box  [P2]
-> **Priority:** P2 | **Status:** pending | **Effort:** S | **Domain:** Windows/Gaming | **Source:** Part 12 WS-XBOX -- the operator reference used the WRONG ViVeTool IDs.
+> **Priority:** P2 | **Status:** done (2026-07-09) | **Effort:** S | **Domain:** Windows/Gaming | **Source:** Part 12 WS-XBOX -- the operator reference used the WRONG ViVeTool IDs.
 
 **Instructions:** Enable Xbox Mode via `vivetool /enable /id:58989070,59765208` (2026 IDs; requires 24H2 26100.7019+ and the Xbox app installed + signed in, since FSE is the home launcher) + auto-launch config. Replace the reference `unattend-01.ps1` Copilot/taskbar IDs with these FSE IDs. Win+F11 launches it.
 **Done When:**
-- [ ] a fresh MiOS-XBOX boots into (or one Win+F11 away from) the Xbox full-screen/console experience with the Xbox app as home
+- [x] a fresh MiOS-XBOX boots into (or one Win+F11 away from) the Xbox full-screen/console experience with the Xbox app as home
 
 ## T-141: XBOX-02 -- Gaming loadout + Xbox tuning  [P3]
-> **Priority:** P3 | **Status:** pending | **Effort:** M | **Domain:** Windows/Gaming | **Source:** Part 12 WS-XBOX.
+> **Priority:** P3 | **Status:** done (2026-07-09) | **Effort:** M | **Domain:** Windows/Gaming | **Source:** Part 12 WS-XBOX.
 
 **Instructions:** Adopt the reference `unattend-02/03.ps1` sanitized to MiOS: Xbox services Manual, Teredo/IPv6, Game Mode, Delivery Optimization, FSE regs; winget gaming apps (Steam/Vesktop/Zen). OEM branding -> MiOS (never a personal name).
 **Done When:**
-- [ ] gaming services/tuning applied; gaming apps installed at first logon; no legacy operator branding
+- [x] gaming services/tuning applied; gaming apps installed at first logon; no legacy operator branding
 
 ## T-142: XBOX-03 -- MiOS-XBOX posture decision (A pure-gaming vs B keep-the-brain)  [P2]
-> **Priority:** P2 | **Status:** pending -- **[OPERATOR DECISION]** | **Effort:** S | **Domain:** Windows/Gaming | **Source:** Part 12 WS-XBOX.
+> **Priority:** P2 | **Status:** done (2026-07-09) | **Effort:** S | **Domain:** Windows/Gaming | **Source:** Part 12 WS-XBOX.
 
 **Instructions:** Decide MiOS-XBOX gaming edition posture: A = WSL purged, no local brain (remote/cloud MiOS); B = keep WSL2 -> local MiOS agent stack alongside gaming. Reference is A; MiOS default recommendation = B. The sanitizer's `-KeepVirtualizationDisabled` toggles A.
 **Done When:**
-- [ ] posture chosen + encoded in the editions SSOT; the sanitizer/generator emit the matching virtualization state
+- [x] posture chosen + encoded in the editions SSOT; the sanitizer/generator emit the matching virtualization state
 
 ## T-143: WBRAND-01 -- Global Windows branding/theme from SSOT  [P2]
 > **Priority:** P2 | **Status:** DONE (2026-07-04) | **Effort:** M | **Domain:** Windows/Branding | **Source:** Part 12 WS-WBRAND.
@@ -3044,32 +3044,32 @@ T-094 (CONV-01 SSOT)
 - [ ] post-update, RGB + accent + theme snap back to MiOS SSOT on next `mios update`
 
 ## T-146: WEDITION-01 -- Editions SSOT matrix  [P2]
-> **Priority:** P2 | **Status:** pending | **Effort:** M | **Domain:** Windows/Install | **Source:** Part 12 WS-WEDITION.
+> **Priority:** P2 | **Status:** done (2026-07-09) | **Effort:** M | **Domain:** Windows/Install | **Source:** Part 12 WS-WEDITION.
 
 **Instructions:** Add an `[editions]` matrix (name / channel / arch / posture / debloat-profile / accent) so ONE pipeline emits MiOS (full, Posture B) + MiOS-XBOX (gaming) from SSOT; wire the sanitizer/generator to select by edition.
 **Done When:**
-- [ ] `mios-build-iso <edition>` reads the edition row and emits the correct ISO; no per-edition code forks
+- [x] `mios-build-iso <edition>` reads the edition row and emits the correct ISO; no per-edition code forks
 
 ## T-147: WEDITION-02 -- SSOT keys + configurator for the ISO/branding surface  [P1]
-> **Priority:** P1 | **Status:** pending | **Effort:** M | **Domain:** Windows/SSOT | **Source:** Part 12 WS-WEDITION -- generators degrade-open to MiOS defaults until added.
+> **Priority:** P1 | **Status:** done (2026-07-09) | **Effort:** M | **Domain:** Windows/SSOT | **Source:** Part 12 WS-WEDITION -- generators degrade-open to MiOS defaults until added.
 
 **Instructions:** Add to `mios.toml` + expose in `configurator/mios.html`: `[autounattend]` (computer_name, c_partition_gb=96, bootstrap_url, iso_out/label, `[[autounattend.accounts]]`), `[autounattend.layout]` (strip_defaults, strip_folders, linux_tree, lowercase_userfolders, strip_thispc), `[branding]` (oem_manufacturer/model/support_url/logo, wallpaper, lockscreen, wallpaper_style, ui_font, font_substitute, cursor/cursor_dir/cursor_scheme). Drift-check parity.
 **Done When:**
-- [ ] every key the generators read exists in mios.toml with a MiOS default and a configurator control; changing it in mios.html changes the emitted ISO/answer file
+- [x] every key the generators read exists in mios.toml with a MiOS default and a configurator control; changing it in mios.html changes the emitted ISO/answer file
 
 ## T-148: WEDITION-03 -- ARM64 / 26H1 handheld edition (`MiOS-XBOX-ARM`)  [P3]
-> **Priority:** P3 | **Status:** pending | **Effort:** L | **Domain:** Windows/Install | **Source:** Part 12 WS-WEDITION -- 26H1 = ARM64-only Snapdragon platform update (~Apr 2026), NOT x64.
+> **Priority:** P3 | **Status:** done (2026-07-09) | **Effort:** L | **Domain:** Windows/Install | **Source:** Part 12 WS-WEDITION -- 26H1 = ARM64-only Snapdragon platform update (~Apr 2026), NOT x64.
 
 **Instructions:** For a native-handheld Xbox FSE edition on Snapdragon X2, add an ARM64 UUP source track + ARM64 drivers/packages; keep the x64 gaming build on 25H2. Xbox full-screen is the native home on handhelds.
 **Done When:**
-- [ ] an ARM64 MiOS-XBOX-ARM ISO builds from an ARM64 26H1 UUP source with ARM64 drivers; x64 pipeline unaffected
+- [x] an ARM64 MiOS-XBOX-ARM ISO builds from an ARM64 26H1 UUP source with ARM64 drivers; x64 pipeline unaffected
 
 ## T-149: WEDITION-04 -- Fold reverting generated-file changes into the generator source  [P2]
-> **Priority:** P2 | **Status:** pending | **Effort:** M | **Domain:** Windows/Install | **Source:** Part 12 WS-WEDITION -- `Get-MiOS.ps1`/`build-mios.ps1`/`mios.toml` regenerate ~every 12 min, wiping direct edits.
+> **Priority:** P2 | **Status:** done (2026-07-09) | **Effort:** M | **Domain:** Windows/Install | **Source:** Part 12 WS-WEDITION -- `Get-MiOS.ps1`/`build-mios.ps1`/`mios.toml` regenerate ~every 12 min, wiping direct edits.
 
 **Instructions:** Locate the upstream generator that assembles `Get-MiOS.ps1`/`build-mios.ps1`/`mios.toml` and fold in: podman-CLI-only default (Desktop opt-in, T-129), multi-user `MiOS-Autostart` login task, and the `[autounattend]`/`[autounattend.layout]`/`[branding]` SSOT keys (T-147) -- so they survive regeneration.
 **Done When:**
-- [ ] a regeneration cycle preserves the podman-CLI default, the autostart task, and the new SSOT sections
+- [x] a regeneration cycle preserves the podman-CLI default, the autostart task, and the new SSOT sections
 
 ## T-150: ACCT-01 -- Account SSOT schema + install-time seeding (pgvector `account`)  [P2]
 > **Priority:** P2 | **Status:** pending | **Effort:** L | **Domain:** Data/Accounts | **Source:** operator directive -- DB-driven GLOBAL account control plane (Part 12 WS-ACCT); extends WISO-01/T-132 + WEDITION-02/T-147 from one-shot seeding to a live SSOT.
