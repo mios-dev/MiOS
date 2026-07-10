@@ -119,7 +119,62 @@ def get(d, dotted):
         d = d[p]
     return d
 
-# Typed slot map. Pairs of "section.field=ENV_VAR".
+# Target sections to walk recursively for dynamic canonical exports
+TARGET_SECTIONS = [
+    "ports", "ai", "identity", "locale", "auth", "network", "desktop", 
+    "branding", "image", "bootstrap", "profile", "colors", "observability", 
+    "sandbox", "security", "code_mode", "hermes", "routing", "agents", "a2a"
+]
+
+def walk(d, prefix=""):
+    results = []
+    if not isinstance(d, dict):
+        return results
+    for k, v in d.items():
+        path = f"{prefix}.{k}" if prefix else k
+        if path == "routing.domains":
+            continue
+        if isinstance(v, dict):
+            results.extend(walk(v, path))
+        else:
+            env_name = "MIOS_" + path.upper().replace(".", "_").replace("-", "_")
+            results.append((path, env_name, v))
+    return results
+
+all_pairs = []
+for sec in TARGET_SECTIONS:
+    if sec in merged:
+        all_pairs.extend(walk(merged[sec], sec))
+
+# Build a dictionary of canonical exports
+canonical_exports = {}
+for path, env_name, val in all_pairs:
+    canonical_exports[env_name] = (path, val)
+
+stack_id = get(merged, "ports.stack_id")
+try:
+    stack_offset = int(stack_id) * 10000 if stack_id is not None else 0
+except ValueError:
+    stack_offset = 0
+
+def process_val(dotted, v):
+    if dotted.startswith("ports.") and dotted != "ports.stack_id":
+        try:
+            if int(v) != 53:
+                return int(v) + stack_offset
+        except (ValueError, TypeError):
+            pass
+    if isinstance(v, list):
+        return ",".join(str(x) for x in v)
+    return v
+
+# Print canonical exports
+for env_name, (path, val) in sorted(canonical_exports.items()):
+    val_processed = process_val(path, val)
+    if val_processed is not None and val_processed != "":
+        print(f"export {env_name}={shlex.quote(str(val_processed))}")
+
+# Print legacy compat exports
 slots = [
     # identity
     ("identity.username",       "MIOS_USER"),
@@ -137,64 +192,35 @@ slots = [
     # network
     ("network.firewalld_default_zone", "MIOS_FIREWALLD_ZONE"),
     # ai
-    ("ai.endpoint",             "MIOS_AI_ENDPOINT"),
-    ("ai.model",                "MIOS_AI_MODEL"),
-    ("ai.embed_model",          "MIOS_AI_EMBED_MODEL"),
-    # Per-role brain the agent-pipe reasoning stages inherit (server.py _STACK_MODEL);
-    # bridged so the SSOT [ai].stack_model reaches the service env, not a code literal.
     ("ai.stack_model",          "MIOS_STACK_MODEL"),
-    # server.py reads MIOS_VERB_EMBED_MODEL for verb-arg embeddings; bridge the SSOT
-    # embed_model to it too (the audit found only MIOS_AI_EMBED_MODEL was bridged).
     ("ai.embed_model",          "MIOS_VERB_EMBED_MODEL"),
-    # Chat VLM for image turns (server.py VISION_MODEL). Bridged so [ai].
-    # chat_vision_model is the SSOT -- empty = vision disabled (honest "unavailable"
-    # turn), a served tag (qwen3-vl:4b) = enabled ("FIX ALL VISION").
     ("ai.chat_vision_model",    "MIOS_AGENT_PIPE_VISION_MODEL"),
     ("ai.api_key",              "MIOS_AI_KEY"),
     ("ai.system_prompt_file",   "MIOS_SYSTEM_PROMPT_FILE"),
     ("ai.micro_model",          "MIOS_MICRO_MODEL"),
     ("ai.micro_endpoint",       "MIOS_MICRO_ENDPOINT"),
-    # WS-A5 tokenizer seam (mios_tokenize): backend selector + its SSOT params,
-    # read by server.py to install the real token-counter (degrade-open to the
-    # heuristic if the dep/asset is absent).
     ("ai.tokenizer_backend",    "MIOS_TOKENIZER_BACKEND"),
     ("ai.tokenizer_encoding",   "MIOS_TOKENIZER_ENCODING"),
     ("ai.tokenizer_cache_dir",  "MIOS_TOKENIZER_CACHE_DIR"),
     ("ai.tokenizer_path",       "MIOS_TOKENIZER_PATH"),
-    # Hermes-Agent direct host install (automation/38-hermes-agent.sh).
     ("ai.hermes_agent_repo",    "MIOS_HERMES_AGENT_REPO"),
     ("ai.hermes_agent_ref",     "MIOS_HERMES_AGENT_REF"),
     ("ai.hermes_backend_url",   "MIOS_HERMES_BACKEND_URL"),
     ("ai.mcp_registry",         "MIOS_MCP_REGISTRY"),
     # desktop
-    ("desktop.session",         "MIOS_DESKTOP_SESSION"),
     ("desktop.color_scheme",    "MIOS_COLOR_SCHEME"),
     ("desktop.flatpaks",        "MIOS_FLATPAKS"),
     # branding
-    ("branding.living_wallpaper",      "MIOS_BRANDING_LIVING_WALLPAPER"),
-    ("branding.living_wallpaper_mode", "MIOS_BRANDING_LIVING_WALLPAPER_MODE"),
     # image
-    ("image.ref",               "MIOS_IMAGE_REF"),
     ("image.branch",            "MIOS_BRANCH"),
     ("image.base",              "MIOS_BASE_IMAGE"),
     ("image.bib",               "MIOS_BIB_IMAGE"),
-    ("image.name",              "MIOS_IMAGE_NAME"),
-    ("image.tag",               "MIOS_IMAGE_TAG"),
     ("image.local_tag",         "MIOS_LOCAL_TAG"),
     # bootstrap
-    ("bootstrap.mode",          "MIOS_BOOTSTRAP_MODE"),
     ("bootstrap.mios_repo",     "MIOS_REPO_URL"),
     ("bootstrap.bootstrap_repo","MIOS_BOOTSTRAP_REPO_URL"),
     # profile
-    ("profile.role",            "MIOS_PROFILE_ROLE"),
-    ("profile.features",        "MIOS_PROFILE_FEATURES"),
-    # colors -- Hokusai + operator-neutrals palette, applied across every
-    # console / terminal / oh-my-posh / Cockpit / configurator HTML.
-    # /etc/profile.d/mios-colors.sh emits OSC-4 / OSC-10 / OSC-11 / OSC-12
-    # at every interactive shell start using these MIOS_COLOR_* values.
-    # The configurator HTML's :root CSS variables also bind to these
-    # tokens via applyColorsToRoot(), so an edit there re-skins every
-    # surface that resolves through this slot map.
+    # colors
     ("colors.bg",               "MIOS_COLOR_BG"),
     ("colors.fg",               "MIOS_COLOR_FG"),
     ("colors.accent",           "MIOS_COLOR_ACCENT"),
@@ -223,9 +249,8 @@ slots = [
     ("colors.ansi_13_bright_magenta",  "MIOS_ANSI_13_BRIGHT_MAGENTA"),
     ("colors.ansi_14_bright_cyan",     "MIOS_ANSI_14_BRIGHT_CYAN"),
     ("colors.ansi_15_bright_white",    "MIOS_ANSI_15_BRIGHT_WHITE"),
-    # ── ports (migrated from /usr/share/mios/env.defaults) ───────────────
+    # ports
     ("ports.ssh",                      "MIOS_PORT_SSH"),
-    # ── WS-2 Code Mode sandbox uid/gid (SSOT [code_mode].uid/gid) ──
     ("code_mode.uid",                  "MIOS_CODEMODE_UID"),
     ("code_mode.gid",                  "MIOS_CODEMODE_GID"),
     ("ports.forge_http",               "MIOS_PORT_FORGE_HTTP"),
@@ -250,36 +275,24 @@ slots = [
     ("ports.agent_pipe",               "MIOS_PORT_AGENT_PIPE"),
     ("ports.adguard_dns",              "MIOS_PORT_ADGUARD_DNS"),
     ("ports.adguard_ui",               "MIOS_PORT_ADGUARD_UI"),
-    # opencode -> OpenAI /v1 gateway shim port ([ports].opencode_gateway).
     ("ports.opencode_gateway",         "MIOS_PORT_OPENCODE_GATEWAY"),
-    # vLLM heavy dGPU lane port ([ports].vllm; Phase 2).
     ("ports.vllm",                     "MIOS_PORT_VLLM"),
     ("ports.sglang",                   "MIOS_PORT_SGLANG"),
-    # T-122: service ports that were missing from install.env (had hardcoded defaults in scripts).
     ("ports.prefilter",                "MIOS_PORT_PREFILTER"),
     ("ports.arbiter",                  "MIOS_PORT_ARBITER"),
     ("ports.daemon_agent",             "MIOS_PORT_DAEMON_AGENT"),
     ("ports.model_router",             "MIOS_PORT_MODEL_ROUTER"),
     ("ports.oscontrol",                "MIOS_PORT_OSCONTROL"),
     ("ports.mcp",                      "MIOS_PORT_MCP"),
-    # T-123: Wire endpoint env vars to SSOT keys.
-    ("hermes.endpoint",                "MIOS_HERMES_ENDPOINT"),
+    # T-123
     ("agents.hermes.endpoint",         "MIOS_HERMES_WORKER_ENDPOINT"),
-    ("a2a.discover_port",              "MIOS_A2A_DISCOVER_PORT"),
     ("a2a.public_domain",              "MIOS_PUBLIC_DOMAIN"),
-    ("ai.micro_model",                 "MIOS_MICRO_MODEL"),
-    ("ai.micro_endpoint",              "MIOS_MICRO_ENDPOINT"),
-    # T-124: Wire model modalities and parameter type keywords to SSOT keys.
+    # T-124
     ("routing.model_modalities_embeddings", "MIOS_MODEL_MODALITIES_EMBEDDINGS"),
     ("routing.model_modalities_image",      "MIOS_MODEL_MODALITIES_IMAGE"),
     ("routing.integer_param_keywords",      "MIOS_INTEGER_PARAM_KEYWORDS"),
     ("routing.boolean_param_keywords",      "MIOS_BOOLEAN_PARAM_KEYWORDS"),
-    # ── opencode + shared agent-plane (HYBRID; keys live under [ai]) ──────
-    # opencode is a first-class /v1 council peer via mios-opencode-gateway.
-    # service. install_url/version pre-existed; the rest are the front-door
-    # SSOT added. agent_venv/agent_install_dir are the de-facto
-    # shared interpreter for hermes-agent + agent-pipe + the gateway shim
-    # (mapped onto MIOS_HERMES_VENV/_DIR — the names those consumers expect).
+    # opencode + shared agent-plane
     ("ai.opencode_install_url",        "MIOS_OPENCODE_INSTALL_URL"),
     ("ai.opencode_version",            "MIOS_OPENCODE_VERSION"),
     ("ai.opencode_model",              "MIOS_OPENCODE_MODEL"),
@@ -290,17 +303,13 @@ slots = [
     ("ai.opencode_gateway_timeout_s",  "MIOS_OPENCODE_TIMEOUT_S"),
     ("ai.agent_venv",                  "MIOS_HERMES_VENV"),
     ("ai.agent_install_dir",           "MIOS_HERMES_DIR"),
-    # ── vLLM heavy lane ([ai.vllm]; re-scoped mios-llm-heavy-alt Quadlet, Phase 2) ──
-    # Rendered into mios-llm-heavy-alt.container's Exec= by 15-render-quadlets.sh;
-    # bake_model is read by automation/38-vllm-prep.sh at build time.
+    # vLLM heavy lane
     ("ai.vllm.served_name",            "MIOS_VLLM_SERVED_NAME"),
     ("ai.vllm.gpu_util",               "MIOS_VLLM_GPU_UTIL"),
     ("ai.vllm.max_model_len",          "MIOS_VLLM_MAX_MODEL_LEN"),
     ("ai.vllm.bake_model",             "MIOS_VLLM_BAKE_MODEL"),
     ("ai.vllm.v1_engine",              "MIOS_VLLM_USE_V1"),
-    # ── SGLang heavy lane ([ai.sglang]; mios-llm-heavy Quadlet,) ──
-    # Rendered into mios-llm-heavy.container's Exec= by 15-render-quadlets.sh;
-    # bake_model is read by automation/38-sglang-prep.sh at build time.
+    # SGLang heavy lane
     ("ai.sglang.served_name",          "MIOS_SGLANG_SERVED_NAME"),
     ("ai.sglang.mem_fraction",         "MIOS_SGLANG_MEM_FRACTION"),
     ("ai.sglang.max_model_len",        "MIOS_SGLANG_MAX_MODEL_LEN"),
@@ -308,7 +317,6 @@ slots = [
     ("ai.sglang.reasoning_parser",     "MIOS_SGLANG_REASONING_PARSER"),
     ("ai.sglang.bake_model",           "MIOS_SGLANG_BAKE_MODEL"),
     ("ai.sglang.unified_radix_tree",   "MIOS_SGLANG_ENABLE_UNIFIED_RADIX_TREE"),
-    ("gpu.device",                     "MIOS_GPU_DEVICE"),
     # legacy aliases for ports
     ("ports.forge_http",               "MIOS_FORGE_HTTP_PORT"),
     ("ports.forge_ssh",                "MIOS_FORGE_SSH_PORT"),
@@ -316,23 +324,17 @@ slots = [
     ("ports.hermes",                   "MIOS_HERMES_PORT"),
     ("ports.cockpit",                  "MIOS_COCKPIT_PORT"),
     ("ports.ssh",                      "MIOS_SSH_PORT"),
-    # ── MIOS_DEFAULT_* aliases (env.defaults compat — TOML wins) ─────────
+    # MIOS_DEFAULT_* aliases
     ("identity.username",              "MIOS_DEFAULT_USER"),
     ("identity.hostname",              "MIOS_DEFAULT_HOST"),
     ("identity.shell",                 "MIOS_DEFAULT_SHELL"),
     ("identity.groups",                "MIOS_DEFAULT_GROUPS"),
     ("identity.default_password",      "MIOS_DEFAULT_PASSWORD"),
-    ("accounts.db_backed",             "MIOS_ACCOUNTS_DB_BACKED"),
     ("portal.public_host",             "MIOS_PUBLIC_HOST"),
-    ("portal.require_login",           "MIOS_PORTAL_REQUIRE_LOGIN"),
-    ("portal.user",                    "MIOS_PORTAL_USER"),
-    ("portal.password",                "MIOS_PORTAL_PASSWORD"),
-    ("portal.session_ttl",             "MIOS_PORTAL_SESSION_TTL"),
-    ("portal.secret",                  "MIOS_PORTAL_SECRET"),
     ("locale.timezone",                "MIOS_DEFAULT_TIMEZONE"),
     ("locale.language",                "MIOS_DEFAULT_LOCALE"),
     ("locale.keyboard_layout",         "MIOS_DEFAULT_KEYBOARD"),
-    # ── storage.cephfs (Part 9: Unified Storage Fabric) ──────────────────
+    # storage.cephfs
     ("storage.cephfs.enable",                  "MIOS_CEPHFS_ENABLE"),
     ("storage.cephfs.monitors",                "MIOS_CEPHFS_MONITORS"),
     ("storage.cephfs.fs_name",                 "MIOS_CEPHFS_FS_NAME"),
@@ -344,8 +346,7 @@ slots = [
     ("storage.cephfs.keyring_dir",             "MIOS_CEPHFS_KEYRING_DIR"),
     ("storage.cephfs.automount_enable",        "MIOS_CEPHFS_AUTOMOUNT_ENABLE"),
     ("storage.cephfs.automount_idle_timeout_s","MIOS_CEPHFS_AUTOMOUNT_IDLE_TIMEOUT_S"),
-
-    # ── converge (Part 10: Converged-Resource Architecture) ─────────────────
+    # converge
     ("converge.gateway.mode",                  "MIOS_CONV_GATEWAY_MODE"),
     ("converge.gateway.queue_maxsize",         "MIOS_CONV_GATEWAY_QUEUE_MAXSIZE"),
     ("converge.gateway.worker_concurrency",    "MIOS_CONV_GATEWAY_WORKER_CONCURRENCY"),
@@ -364,12 +365,10 @@ slots = [
     ("converge.image.distroless_enable",       "MIOS_CONV_IMAGE_DISTROLESS_ENABLE"),
     ("converge.image.rechunk_enable",          "MIOS_CONV_IMAGE_RECHUNK_ENABLE"),
     ("converge.image.mcp_pool_enable",         "MIOS_CONV_IMAGE_MCP_POOL_ENABLE"),
-
-    # ── meta / version ──────────────────────────────────────────────────
+    # meta
     ("meta.mios_version",              "MIOS_VERSION"),
-    # ── ai bake list ────────────────────────────────────────────────────
-    ("ai.bake_models",                 "MIOS_AI_BAKE_MODELS"),
-    # ── bootstrap dev VM + host storage ─────────────────────────────────
+    # ai bake list
+    # bootstrap
     ("bootstrap.dev_vm.machine_name",  "MIOS_BUILDER_DISTRO"),
     ("bootstrap.dev_vm.wsl_distro",    "MIOS_WSL_DISTRO"),
     ("bootstrap.dev_vm.base_image",    "MIOS_DEV_VM_BASE_IMAGE"),
@@ -384,16 +383,12 @@ slots = [
     ("bootstrap.dev_vm.host_reserve.disk_gb",    "MIOS_DEV_VM_DISK_RESERVE_GB"),
     ("bootstrap.host_storage.shrink_mb",   "MIOS_DATA_DISK_MB"),
     ("bootstrap.host_storage.drive_letter","MIOS_DATA_DISK_LETTER"),
-    # ── wsl2 (utility VM networking + dev VM Quadlet network mode) ────────
-    ("wsl2.networking_mode",                  "MIOS_WSL2_NETWORKING_MODE"),
-    ("wsl2.localhost_forwarding",             "MIOS_WSL2_LOCALHOST_FORWARDING"),
-    ("wsl2.firewall",                         "MIOS_WSL2_FIREWALL"),
-    ("wsl2.gui_applications",                 "MIOS_WSL2_GUI_APPLICATIONS"),
+    # wsl2
     ("wsl2.desktop_compat.gdk_backend",       "MIOS_WSLG_GDK_BACKEND"),
     ("wsl2.desktop_compat.moz_wayland",       "MIOS_WSLG_MOZ_WAYLAND"),
     ("wsl2.desktop_compat.qt_platform",       "MIOS_WSLG_QT_PLATFORM"),
     ("wsl2.dev_vm.quadlet_network_mode",      "MIOS_QUADLET_DEV_NETWORK_MODE"),
-    # ── image.sidecars (sidecar container pins) ───────────────────────────
+    # image.sidecars
     ("image.sidecars.k3s_version",     "MIOS_K3S_VERSION"),
     ("image.sidecars.k3s",             "MIOS_K3S_IMAGE"),
     ("image.sidecars.ceph_version",    "MIOS_CEPH_VERSION"),
@@ -402,17 +397,6 @@ slots = [
     ("image.sidecars.forge",           "MIOS_FORGE_IMAGE"),
     ("image.sidecars.searxng_version", "MIOS_SEARXNG_VERSION"),
     ("image.sidecars.searxng",         "MIOS_SEARXNG_IMAGE"),
-    # web-tools POD ("make it a pod"): the crawl engine is now a
-    # podman POD (mios-webtools.pod, Network=host) with FOUR members --
-    # redis:7-alpine, firecrawl-api + firecrawl-worker (localhost/
-    # mios-firecrawl:v1.0.0, built from usr/share/mios/webtools/
-    # firecrawl.Containerfile), and crawl4ai (localhost/mios-crawl4ai-slim:latest,
-    # built from usr/share/mios/crawl4ai/Containerfile). Both are LOCALLY built,
-    # so there is no upstream image/version pin to render; the firecrawl quadlets
-    # default to localhost/mios-firecrawl:v1.0.0 via ${MIOS_FIRECRAWL_IMAGE} and
-    # the crawl4ai quadlet to localhost/mios-crawl4ai-slim:latest via
-    # ${MIOS_CRAWL4AI_IMAGE}. The port + service uid mappings ([ports].crawl4ai,
-    # [ports].firecrawl, [services.webtools].*) are RETAINED below.
     ("image.sidecars.hermes_version",  "MIOS_HERMES_VERSION"),
     ("image.sidecars.hermes",          "MIOS_HERMES_IMAGE"),
     ("image.sidecars.open_webui_version", "MIOS_OPEN_WEBUI_VERSION"),
@@ -438,7 +422,7 @@ slots = [
     ("image.sidecars.llm_light",       "MIOS_LLM_LIGHT_IMAGE"),
     ("image.sidecars.adguard_version", "MIOS_ADGUARD_VERSION"),
     ("image.sidecars.adguard",         "MIOS_ADGUARD_IMAGE"),
-    # ── services (per-service identity: user / uid / gid) ─────────────────
+    # services
     ("services.forge.user",            "MIOS_FORGE_USER"),
     ("services.forge.uid",             "MIOS_FORGE_UID"),
     ("services.forge.gid",             "MIOS_FORGE_GID"),
@@ -463,109 +447,38 @@ slots = [
     ("services.agent_pipe.user",       "MIOS_AGENT_PIPE_USER"),
     ("services.agent_pipe.uid",        "MIOS_AGENT_PIPE_UID"),
     ("services.agent_pipe.gid",        "MIOS_AGENT_PIPE_GID"),
-    # [services.webtools] -- consolidated web-tools container (firecrawl +
-    # crawl4ai + camoufox). Renamed from [services.crawl4ai]; the
-    # canonical env is now MIOS_WEBTOOLS_* + legacy MIOS_CRAWL4AI_* aliases are
-    # kept (sysusers/tmpfiles still name the user mios-crawl4ai @ uid 824).
     ("services.webtools.user",         "MIOS_WEBTOOLS_USER"),
     ("services.webtools.uid",          "MIOS_WEBTOOLS_UID"),
     ("services.webtools.gid",          "MIOS_WEBTOOLS_GID"),
     ("services.webtools.user",         "MIOS_CRAWL4AI_USER"),
     ("services.webtools.uid",          "MIOS_CRAWL4AI_UID"),
     ("services.webtools.gid",          "MIOS_CRAWL4AI_GID"),
-    # crawl4ai + firecrawl runtime tunables (consumed by the mios-webtools
-    # Quadlets; render allowlist already carries these in 15-render-quadlets.sh).
-    ("services.webtools.cdp_url",          "MIOS_CRAWL_CDP_URL"),
-    ("services.webtools.camoufox",         "MIOS_CRAWL_CAMOUFOX"),
-    ("services.webtools.min_chars",        "MIOS_CRAWL_MIN_CHARS"),
+    ("services.webtools.cdp_url",      "MIOS_CRAWL_CDP_URL"),
+    ("services.webtools.camoufox",     "MIOS_CRAWL_CAMOUFOX"),
+    ("services.webtools.min_chars",    "MIOS_CRAWL_MIN_CHARS"),
     ("services.webtools.firecrawl_workers", "MIOS_FIRECRAWL_WORKERS"),
     ("services.webtools.firecrawl_bull_key", "MIOS_FIRECRAWL_BULL_KEY"),
     ("services.webtools.firecrawl_log_level", "MIOS_FIRECRAWL_LOG_LEVEL"),
     ("services.adguard.user",          "MIOS_ADGUARD_USER"),
     ("services.adguard.uid",           "MIOS_ADGUARD_UID"),
     ("services.adguard.gid",           "MIOS_ADGUARD_GID"),
-    # ── security (Phase B.3 -- Semantic Firewall allowlist) ──────────────
-    ("security.allowlist_hosts",       "MIOS_SECURITY_ALLOWLIST_HOSTS"),
-    ("security.firewall_high_privilege_verbs",
-                                       "MIOS_SECURITY_FIREWALL_HIGH_PRIVILEGE_VERBS"),
-    # ── WS-7 immutable-host hardening (UKI + fapolicyd, DEFAULT-OFF) ─────
+    # security
     ("security.fapolicyd_observe.enable", "MIOS_FAPOLICYD_OBSERVE_ENABLE"),
     ("uki.verity_uki_build",             "MIOS_UKI_VERITY_BUILD"),
-    # ── verity (anti-fabrication guards) ─────────────────────────────────
     ("verity.antifab_enable",            "MIOS_ANTIFAB_ENABLE"),
     ("verity.antifab_min_entities",      "MIOS_ANTIFAB_MIN_ENTITIES"),
     ("verity.antifab_ground_min",        "MIOS_ANTIFAB_GROUND_MIN"),
-    # ── fs_watcher (Phase A.2 -- inotify event bus) ──────────────────────
+    # fs_watcher
     ("fs_watcher.watch_dirs",          "MIOS_FS_WATCHER_DIRS"),
-    # ── pkg (Phase C.1 -- Personal Knowledge Graph) ──────────────────────
-    ("pkg.bootstrap_per_source_cap",   "MIOS_PKG_BOOTSTRAP_PER_SOURCE_CAP"),
-    ("pkg.lookup_max_alias_results",   "MIOS_PKG_LOOKUP_MAX_ALIAS_RESULTS"),
-    # ── refine + polish (Phase D.5 -- agent-pipe orchestration) ─────────
-    ("refine.enable",                  "MIOS_REFINE_ENABLE"),
-    ("refine.model",                   "MIOS_REFINE_MODEL"),
-    ("refine.endpoint",                "MIOS_REFINE_ENDPOINT"),
+    # refine / polish
     ("refine.timeout_seconds",         "MIOS_REFINE_TIMEOUT_S"),
-    ("refine.max_tokens",              "MIOS_REFINE_MAX_TOKENS"),
-    ("refine.bypass_chars",            "MIOS_REFINE_BYPASS_CHARS"),
-    ("polish.enable",                  "MIOS_POLISH_ENABLE"),
-    ("polish.model",                   "MIOS_POLISH_MODEL"),
-    ("polish.endpoint",                "MIOS_POLISH_ENDPOINT"),
     ("polish.timeout_seconds",         "MIOS_POLISH_TIMEOUT_S"),
-    ("polish.max_tokens",              "MIOS_POLISH_MAX_TOKENS"),
-    # ── ttyd (Phase D.2 -- browser pty bridge for bash + powershell) ─────
-    ("ttyd.enable",                    "MIOS_TTYD_ENABLE"),
-    ("ttyd.bind",                      "MIOS_TTYD_BIND"),
-    ("ttyd.require_auth",              "MIOS_TTYD_REQUIRE_AUTH"),
-    ("ttyd.auth_user",                 "MIOS_TTYD_AUTH_USER"),
-    ("ttyd.auth_pass",                 "MIOS_TTYD_AUTH_PASS"),
-    ("ttyd.ssl_cert",                  "MIOS_TTYD_SSL_CERT"),
-    ("ttyd.ssl_key",                   "MIOS_TTYD_SSL_KEY"),
-    ("ttyd.bash_shell",                "MIOS_TTYD_BASH_SHELL"),
-    ("ttyd.powershell_shell",          "MIOS_TTYD_POWERSHELL_SHELL"),
-    ("ttyd.writable",                  "MIOS_TTYD_WRITABLE"),
-    ("ttyd.max_clients",               "MIOS_TTYD_MAX_CLIENTS"),
-    ("ttyd.font_size",                 "MIOS_TTYD_FONT_SIZE"),
+    # ttyd
     ("ports.ttyd_bash",                "MIOS_PORT_TTYD_BASH"),
     ("ports.ttyd_powershell",          "MIOS_PORT_TTYD_POWERSHELL"),
-    # ── passport (Phase C.3 -- Ed25519 agent identity tokens) ────────────
-    ("passport.enable",                "MIOS_PASSPORT_ENABLE"),
-    ("passport.algo",                  "MIOS_PASSPORT_ALGO"),
-    ("passport.key_dir",               "MIOS_PASSPORT_KEY_DIR"),
-    ("passport.rotate_days",           "MIOS_PASSPORT_ROTATE_DAYS"),
-    ("passport.verify_on_read",        "MIOS_PASSPORT_VERIFY_ON_READ"),
-    ("passport.agents",                "MIOS_PASSPORT_AGENTS"),
-    # ── skills (Phase C.2 -- Sequential Pattern Mining + catalog) ────────
-    ("skills.enable",                  "MIOS_SKILLS_ENABLE"),
-    ("skills.min_length",              "MIOS_SKILLS_MIN_LENGTH"),
-    ("skills.max_length",              "MIOS_SKILLS_MAX_LENGTH"),
-    ("skills.min_support",             "MIOS_SKILLS_MIN_SUPPORT"),
-    ("skills.window_hours",            "MIOS_SKILLS_WINDOW_HOURS"),
-    ("skills.auto_promote_threshold",  "MIOS_SKILLS_AUTO_PROMOTE_THRESHOLD"),
-    ("skills.mine_interval_minutes",   "MIOS_SKILLS_MINE_INTERVAL_MINUTES"),
-    ("skills.seed_catalog_dir",        "MIOS_SKILLS_SEED_CATALOG_DIR"),
-    ("skills.local_catalog_dir",       "MIOS_SKILLS_LOCAL_CATALOG_DIR"),
-    ("skills.min_success_rate",        "MIOS_SKILLS_MIN_SUCCESS_RATE"),
-    ("skills.min_success_samples",     "MIOS_SKILLS_MIN_SUCCESS_SAMPLES"),
-    # ── reliability (T-049 -- hard pass^k skill-promotion gate) ──────────
-    ("reliability.gate_enabled",           "MIOS_RELIABILITY_GATE_ENABLED"),
-    ("reliability.pass_and_k_count",       "MIOS_RELIABILITY_PASS_AND_K_COUNT"),
-    ("reliability.pass_and_k_dgm_count",   "MIOS_RELIABILITY_PASS_AND_K_DGM_COUNT"),
-    # ── agent_pipe (standalone router + refine + critic FastAPI) ─────────
-    ("agent_pipe.endpoint",            "MIOS_AGENT_PIPE_ENDPOINT"),
-    ("agent_pipe.backend",             "MIOS_AGENT_PIPE_BACKEND"),
-    ("agent_pipe.backend_model",       "MIOS_AGENT_PIPE_BACKEND_MODEL"),
-    ("agent_pipe.enable",              "MIOS_AGENT_PIPE_ENABLE"),
-    ("agent_pipe.client_tools_passthrough", "MIOS_AGENT_PIPE_CLIENT_TOOLS_PASSTHROUGH"),
-    ("agent_pipe.tool_backend",        "MIOS_AGENT_PIPE_TOOL_BACKEND"),
-    ("agent_pipe.tool_backend_model",  "MIOS_AGENT_PIPE_TOOL_BACKEND_MODEL"),
-    ("agent_pipe.ingress_key",         "MIOS_AGENT_PIPE_INGRESS_KEY"),
-    # ── surrealdb (shared cross-cutting agent state) ──────────────────────
-    ("pgvector.db_backend",              "MIOS_DB_BACKEND"),
-    # T-068 DB-side native Postgres RLS enforcement toggle (read by
-    # mios_pg.rls_enabled + the confined mios-pg-query CLI). Default false ->
-    # no SET LOCAL is emitted -> byte-identical single-operator behaviour.
-    ("pgvector.rls_enable",              "MIOS_DB_RLS_ENABLE"),
-    # ── pgvector (WS-9 unified agent-plane datastore, FOSS) ───────────────
+    # pgvector
+    ("pgvector.db_backend",            "MIOS_DB_BACKEND"),
+    ("pgvector.rls_enable",            "MIOS_DB_RLS_ENABLE"),
     ("pgvector.host",                  "MIOS_PG_HOST"),
     ("pgvector.user",                  "MIOS_PG_USER"),
     ("pgvector.pass",                  "MIOS_PG_PASS"),
@@ -574,33 +487,19 @@ slots = [
     ("pgvector.schema_init",           "MIOS_PG_SCHEMA_INIT"),
     ("pgvector.embed_model",           "MIOS_PG_EMBED_MODEL"),
     ("pgvector.enable",                "MIOS_PG_ENABLE"),
-    # Opt-in agent-pipe connection pool. Default off -> per-call connect (byte-
-    # identical). Read by mios_pg.pool_config; sizes the bounded reuse pool.
     ("pgvector.pool_enable",           "MIOS_PG_POOL_ENABLE"),
     ("pgvector.pool_min",              "MIOS_PG_POOL_MIN"),
     ("pgvector.pool_max",              "MIOS_PG_POOL_MAX"),
-    # HNSW iterative-scan recall tuning (pgvector 0.8.0+). Rendered into the
-    # mios-pgvector quadlet Exec= -c flags so the server-wide default reaches
-    # every session, incl. the agent-pipe recall connection (no per-session SET).
     ("pgvector.hnsw_iterative_scan",      "MIOS_PG_HNSW_ITERATIVE_SCAN"),
     ("pgvector.hnsw_max_scan_tuples",     "MIOS_PG_HNSW_MAX_SCAN_TUPLES"),
     ("pgvector.hnsw_scan_mem_multiplier", "MIOS_PG_HNSW_SCAN_MEM_MULTIPLIER"),
-    # WS-0 pgvector durability + bind hardening (Wave 0). backup_keep is read
-    # by the pg_dump retention timer/script; listen_loopback is the raw boolean
-    # that the post-load block below derives MIOS_PG_BIND_ADDR from (the value
-    # the quadlet renders).
     ("pgvector.backup_enable",         "MIOS_PG_BACKUP_ENABLE"),
     ("pgvector.backup_dir",            "MIOS_PG_BACKUP_DIR"),
     ("pgvector.backup_keep",           "MIOS_PG_BACKUP_KEEP"),
     ("pgvector.listen_loopback",       "MIOS_PG_LISTEN_LOOPBACK"),
-    # ── llamacpp / mios-llm-light lane (WS-10 ollama -> llama.cpp conversion) ──
-    ("llamacpp.enable",                "MIOS_LLAMACPP_ENABLE"),
-    ("llamacpp.slot_dir",              "MIOS_LLAMACPP_SLOT_DIR"),
-    ("llamacpp.models_dir",            "MIOS_LLAMACPP_MODELS_DIR"),
-    ("llamacpp.config",                "MIOS_LLAMACPP_CONFIG"),
-    ("llamacpp.bake_models",           "MIOS_LLAMACPP_BAKE_MODELS"),
+    # llamacpp
     ("llamacpp.cpu_node_threads",      "MIOS_CPU_NODE_THREADS"),
-    # ── paths (FHS canonical runtime artifacts) ────────────────────────────
+    # paths
     ("paths.ai_dir",                   "MIOS_AI_DIR"),
     ("paths.ai_models_dir",            "MIOS_AI_MODELS_DIR"),
     ("paths.ai_mcp_dir",               "MIOS_AI_MCP_DIR"),
@@ -612,17 +511,15 @@ slots = [
     ("paths.profile_toml_host",        "MIOS_PROFILE_TOML_HOST"),
     ("paths.wsl_firstboot_done",       "MIOS_WSLBOOT_DONE"),
     ("paths.mios_toml",                "MIOS_TOML"),
-    # ── build (build-time tunables) ────────────────────────────────────────
+    # build
     ("build.rechunk_max_layers",       "MIOS_RECHUNK_MAX_LAYERS"),
     ("build.ai_ram_floor_gb",          "MIOS_AI_RAM_FLOOR_GB"),
-    # ── network.quadlet (internal podman bridge) ───────────────────────────
+    # network.quadlet
     ("network.quadlet.network",        "MIOS_QUADLET_NETWORK"),
     ("network.quadlet.subnet",         "MIOS_QUADLET_SUBNET"),
     ("network.quadlet.core_subnet",    "MIOS_CORE_NET_SUBNET"),
     ("network.quadlet.core_gateway",   "MIOS_CORE_NET_GATEWAY"),
-    # ── frontier (A2O war-room roles -> the MIOS_A2O_* names the mios-a2o harness
-    #    reads; the mios-agents.service forwards these into the container). Empty
-    #    effort-flag templates are skipped by the emit loop = degrade-open. ──
+    # frontier
     ("frontier.orch_engine",        "MIOS_A2O_ORCH_ENGINE"),
     ("frontier.orch_model",         "MIOS_A2O_ORCH_MODEL"),
     ("frontier.orch_effort",        "MIOS_A2O_ORCH_EFFORT"),
@@ -634,7 +531,6 @@ slots = [
     ("frontier.lane_b_model",       "MIOS_A2O_LANE_B_MODEL"),
     ("frontier.lane_b_effort",      "MIOS_A2O_LANE_B_EFFORT"),
     ("frontier.lane_b_role",        "MIOS_A2O_LANE_B_ROLE"),
-    # Lane B degrade-open fallback (agy quota-blocked -> a Claude engine finalizes).
     ("frontier.lane_b_fallback_engine", "MIOS_A2O_LANE_B_FALLBACK_ENGINE"),
     ("frontier.lane_b_fallback_model",  "MIOS_A2O_LANE_B_FALLBACK_MODEL"),
     ("frontier.lane_b_fallback_effort", "MIOS_A2O_LANE_B_FALLBACK_EFFORT"),
@@ -642,53 +538,22 @@ slots = [
     ("frontier.claude_effort_flag", "MIOS_A2O_CLAUDE_EFFORT_FLAG"),
     ("frontier.agy_effort_flag",    "MIOS_A2O_AGY_EFFORT_FLAG"),
     ("frontier.gemini_effort_flag", "MIOS_A2O_GEMINI_EFFORT_FLAG"),
-    # F-011: war-room activity -> reasoning channel (off by default; degrade-open).
     ("frontier.stream_to_reasoning", "MIOS_A2O_STREAM_REASONING"),
     ("frontier.stream_path",         "MIOS_A2O_STREAM_PATH"),
-    # legacy/lightweight aliases (keep older mios.toml drafts working)
+    # legacy/lightweight fallback section keys
     ("user.name",               "MIOS_USER_FULLNAME"),
     ("user.hostname",           "MIOS_HOSTNAME"),
     ("build.local_tag",         "MIOS_LOCAL_TAG"),
-    ("ai.key",                  "MIOS_AI_KEY"),
     ("flatpaks.install",        "MIOS_FLATPAKS"),
 ]
-
-stack_id = get(merged, "ports.stack_id")
-try:
-    stack_offset = int(stack_id) * 10000 if stack_id is not None else 0
-except ValueError:
-    stack_offset = 0
 
 for dotted, env in slots:
     v = get(merged, dotted)
     if v is None or v == "":
         continue
-        
-    # Apply 8-Block schema offset to port integers, except adguard_dns (53)
-    if dotted.startswith("ports.") and dotted != "ports.stack_id":
-        try:
-            # Avoid applying offset to port 53 (DNS lookup compat)
-            if int(v) != 53:
-                v = int(v) + stack_offset
-        except (ValueError, TypeError):
-            pass
-            
-    if isinstance(v, list):
-        v = ",".join(str(x) for x in v)
-    print(f"export {env}={shlex.quote(str(v))}")
-
-# Free-form [env] table: arbitrary KEY=VALUE exports. POSIX-compliant
-# names only; silently skip otherwise so 'eval' below doesn't choke.
-ev = merged.get("env") if isinstance(merged.get("env"), dict) else {}
-for k, v in ev.items():
-    if not re.match(r'^[A-Za-z_][A-Za-z0-9_]*$', k):
-        sys.stderr.write(f"userenv: skipping invalid [env] key: {k!r}\n")
-        continue
-    if v is None:
-        continue
-    if isinstance(v, list):
-        v = ",".join(str(x) for x in v)
-    print(f"export {k}={shlex.quote(str(v))}")
+    val_processed = process_val(dotted, v)
+    if val_processed is not None and val_processed != "":
+        print(f"export {env}={shlex.quote(str(val_processed))}")
 PY
     )
     # `[[ ... ]] && cmd` returns 1 when the test is false. Under `set -e`
