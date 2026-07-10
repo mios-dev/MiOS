@@ -1590,6 +1590,67 @@ PY
     fi
 }
 
+# --- (29, DAG-integrity drift-gate) consumer-before-producer = build error. ----
+check_dag_integrity() {
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "[38-drift-checks]   WARNING: python3 missing -- skipping DAG-integrity check" >&2
+        return 0
+    fi
+    if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
+import os, sys, re
+root = os.environ["MIOS_DRIFT_ROOT"]
+violations = []
+
+scan_dirs = [
+    os.path.join(root, "usr/lib/systemd/system"),
+    os.path.join(root, "usr/share/containers/systemd"),
+]
+
+for d in scan_dirs:
+    if not os.path.isdir(d):
+        continue
+    for f in os.listdir(d):
+        fpath = os.path.join(d, f)
+        if not os.path.isfile(fpath) or not f.endswith((".service", ".container", ".pod")):
+            continue
+        try:
+            with open(fpath, "r", encoding="utf-8", errors="ignore") as fh:
+                content = fh.read()
+            
+            # Extract all After and Requires targets
+            after_requires_targets = []
+            for line in content.splitlines():
+                m = re.match(r"^[ \t]*(After|Requires)[ \t]*=[ \t]*(.*)$", line, re.IGNORECASE)
+                if m:
+                    after_requires_targets.extend(m.group(2).split())
+            
+            # Check venv consumer edge:
+            if "/usr/lib/mios/agents/.venv/" in content:
+                if "mios-ai-firstboot.service" not in after_requires_targets:
+                    violations.append(f"{f} uses agents venv but lacks 'After=... mios-ai-firstboot.service'")
+            
+            # Check webtools local image/pod consumer edge:
+            is_local_img = "Image=localhost/" in content
+            is_webtools_pod = f == "mios-webtools.pod"
+            if is_local_img or is_webtools_pod:
+                if "mios-webtools-firstboot.service" not in after_requires_targets:
+                    violations.append(f"{f} uses local image/pod but lacks 'After=... mios-webtools-firstboot.service'")
+        except OSError:
+            pass
+
+if violations:
+    for v in sorted(violations):
+        sys.stderr.write(f"    {v}\n")
+    sys.exit(1)
+sys.exit(0)
+PY
+    then
+        echo "[38-drift-checks]   (29) DAG-integrity: consumers start after their producers' readiness artifacts exist"
+    else
+        _violation "DAG dependency ordering violation detected: consumer starts before producer (flatten check 29)"
+    fi
+}
+
 main() {
     check_dead_lane
     check_retired_models
@@ -1619,6 +1680,7 @@ main() {
     check_verb_backends
     check_userenv_parity
     check_globals_ports
+    check_dag_integrity
 
     echo "[38-drift-checks] ---------------------------------------------------------"
     if [[ "$VIOLATIONS" -eq 0 ]]; then

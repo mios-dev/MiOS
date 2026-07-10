@@ -17,7 +17,7 @@
 # Cost: one extra hop per request (~1ms localhost overhead).
 Description='MiOS' delegation prefilter -- forces delegate_task on fan-out prompts
 Documentation=file:///usr/libexec/mios/mios-delegation-prefilter
-After=mios-gateway-agent.service network.target
+After=mios-gateway-agent.service network.target mios-ai-firstboot.service
 Wants=mios-gateway-agent.service
 ConditionPathExists=/usr/lib/mios/agents/.venv/bin/python3
 

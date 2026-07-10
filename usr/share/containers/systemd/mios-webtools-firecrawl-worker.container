@@ -2,7 +2,7 @@
 # /usr/share/containers/systemd/mios-webtools-firecrawl-worker.container
 
 [Unit]
-After=mios-webtools-redis.service
+After=mios-webtools-redis.service mios-webtools-firstboot.service
 Description='MiOS' web-tools firecrawl worker (Bull queue processor)
 Wants=mios-webtools-redis.service
 

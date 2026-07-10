@@ -2,6 +2,7 @@
 # /usr/share/containers/systemd/mios-webtools-crawl4ai.container
 
 [Unit]
+After=mios-webtools-firstboot.service
 Description='MiOS' web-tools crawl4ai slim engine (Chrome-CDP primary + camoufox fallback)
 
 [Container]
@@ -10,7 +11,7 @@ ContainerName=mios-webtools-crawl4ai
 Environment=MIOS_CRAWL_CDP_URL=http://127.0.0.1:9222
 Environment=MIOS_PORT_CRAWL4AI=${MIOS_PORT_CRAWL4AI}
 Environment=MIOS_CRAWL_BIND=127.0.0.1
-Environment=MIOS_CRAWL_CAMOUFOX=True
+Environment=MIOS_CRAWL_CAMOUFOX=true
 Environment=MIOS_CRAWL_MIN_CHARS=200
 Group=0
 Image=localhost/mios-crawl4ai-slim:latest

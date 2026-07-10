@@ -23,7 +23,7 @@
 # inference (:11441 mios-heavy) so it never relays to :8640 -- no recursion.
 Description='MiOS' Hermes-Worker (non-thin agent, native tool loop, :8643)
 Documentation=https://github.com/NousResearch/hermes-agent
-After=network-online.target mios-llm-heavy.service mios-llm-light.service hermes-worker-firstboot.service
+After=network-online.target mios-llm-heavy.service mios-llm-light.service hermes-worker-firstboot.service mios-ai-firstboot.service
 Wants=network-online.target mios-llm-heavy.service mios-llm-light.service hermes-worker-firstboot.service
 # Skip cleanly if the direct install didn't land.
 ConditionPathExists=/usr/lib/mios/agents/.venv/bin/hermes

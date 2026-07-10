@@ -1,6 +1,6 @@
 [Unit]
 Description='MiOS' Gateway Agent Service (FastAPI smolagents Engine)
-After=network-online.target mios-pgvector.service
+After=network-online.target mios-pgvector.service mios-ai-firstboot.service
 Wants=network-online.target mios-pgvector.service
 
 [Service]

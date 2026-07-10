@@ -13,8 +13,8 @@
 #   mios-otelcol
 [Unit]
 Description='MiOS' Webtools pod (webtools, search, devforge)
-After=network-online.target mios-hermes-browser.service
-Wants=network-online.target mios-hermes-browser.service
+After=network-online.target mios-hermes-browser.service mios-webtools-firstboot.service
+Wants=network-online.target mios-hermes-browser.service mios-webtools-firstboot.service
 
 [Pod]
 PodName=mios-webtools

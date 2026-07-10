@@ -3,7 +3,7 @@
 [Unit]
 Description='MiOS' Agent Pipe (router + refine + critic FastAPI; fronts hermes for every gateway)
 Documentation=file:///usr/lib/mios/agent-pipe/server.py
-After=network-online.target mios-gateway-agent.service mios-pgvector.service mios-passport-provision.service
+After=network-online.target mios-gateway-agent.service mios-pgvector.service mios-passport-provision.service mios-ai-firstboot.service
 Wants=network-online.target mios-gateway-agent.service mios-passport-provision.service
 
 [Service]

@@ -7926,8 +7926,8 @@ doc = """Consolidated system services pod."""
 [pods.mios-webtools]
 description = "'MiOS' Webtools pod (webtools, search, devforge)"
 network     = "host"
-after       = ["network-online.target", "mios-hermes-browser.service"]
-wants       = ["network-online.target", "mios-hermes-browser.service"]
+after       = ["network-online.target", "mios-hermes-browser.service", "mios-webtools-firstboot.service"]
+wants       = ["network-online.target", "mios-hermes-browser.service", "mios-webtools-firstboot.service"]
 wanted_by   = ["multi-user.target", "default.target"]
 members     = [
   "mios-webtools-redis",
@@ -10377,6 +10377,7 @@ TimeoutStartSec = "120s"
 
 [containers.mios-webtools-crawl4ai.Unit]
 Description = "'MiOS' web-tools crawl4ai slim engine (Chrome-CDP primary + camoufox fallback)"
+After = "mios-webtools-firstboot.service"
 
 [containers.mios-webtools-firecrawl-api.Container]
 AutoUpdate = "local"
@@ -10416,7 +10417,7 @@ RestartSec = "10s"
 TimeoutStartSec = "180s"
 
 [containers.mios-webtools-firecrawl-api.Unit]
-After = "mios-webtools-redis.service"
+After = "mios-webtools-redis.service mios-webtools-firstboot.service"
 Description = "'MiOS' web-tools firecrawl API (v1.0.0, self-host no-auth)"
 Wants = "mios-webtools-redis.service"
 
@@ -10455,7 +10456,7 @@ RestartSec = "10s"
 TimeoutStartSec = "180s"
 
 [containers.mios-webtools-firecrawl-worker.Unit]
-After = "mios-webtools-redis.service"
+After = "mios-webtools-redis.service mios-webtools-firstboot.service"
 Description = "'MiOS' web-tools firecrawl worker (Bull queue processor)"
 Wants = "mios-webtools-redis.service"
 

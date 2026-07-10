@@ -3,11 +3,11 @@
 [Unit]
 Description='MiOS' Hermes-Agent Dashboard (kanban board + chat + skills UI)
 Documentation=https://github.com/NousResearch/hermes-agent
-After=network-online.target hermes-agent.service
+After=network-online.target mios-gateway-agent.service mios-ai-firstboot.service
 Wants=network-online.target
 # Soft-dep on the gateway; we share its HERMES_HOME, kanban.db, memories,
 # etc. but the dashboard is independent (uses its own FastAPI app on :9119).
-After=hermes-agent.service
+After=mios-gateway-agent.service
 
 # Without the [web] extras (fastapi + uvicorn) installed into the venv,
 # `hermes dashboard` aborts. mios-hermes-firstboot installs them; if the

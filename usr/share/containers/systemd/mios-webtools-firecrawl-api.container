@@ -2,7 +2,7 @@
 # /usr/share/containers/systemd/mios-webtools-firecrawl-api.container
 
 [Unit]
-After=mios-webtools-redis.service
+After=mios-webtools-redis.service mios-webtools-firstboot.service
 Description='MiOS' web-tools firecrawl API (v1.0.0, self-host no-auth)
 Wants=mios-webtools-redis.service
 
