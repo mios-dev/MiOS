@@ -4863,8 +4863,7 @@ function Invoke-WindowsPodmanBuild([string]$BaseImage, [string]$MiosUser, [strin
     # Run via cmd.exe so 2>&1 merges stderr (podman build progress) into stdout stream.
     # Build args propagate operator selections from the Phase-6 prompts
     # (or layered mios.toml [ai] defaults) into the Containerfile ARGs of
-    # the same name. 37-ollama-prep.sh reads MIOS_OLLAMA_BAKE_MODELS to
-    # decide which model set to bake into /usr/share/ollama/models.
+    # the same name.
     $psi = New-Object System.Diagnostics.ProcessStartInfo
     $psi.FileName  = "cmd.exe"
     $psi.Arguments = ("/c podman build --progress=plain --no-cache " +
@@ -4874,7 +4873,6 @@ function Invoke-WindowsPodmanBuild([string]$BaseImage, [string]$MiosUser, [strin
                       "--build-arg `"MIOS_FLATPAKS=`" " +
                       "--build-arg `"MIOS_AI_MODEL=$AiModel`" " +
                       "--build-arg `"MIOS_AI_EMBED_MODEL=$EmbedModel`" " +
-                      "--build-arg `"MIOS_OLLAMA_BAKE_MODELS=$BakeModels`" " +
                       "-t localhost/mios:latest . 2>&1")
     $psi.WorkingDirectory       = $repoPath
     $psi.RedirectStandardOutput = $true
@@ -10133,7 +10131,6 @@ MIOS_HOSTNAME="$MiosHostname"
 MIOS_USER_PASSWORD_HASH="$MiosHash"
 MIOS_AI_MODEL="$MiosAiModel"
 MIOS_AI_EMBED_MODEL="$MiosAiEmbedModel"
-MIOS_OLLAMA_BAKE_MODELS="$MiosOllamaBakeModels"
 MIOS_LLAMACPP_BAKE_MODELS="$MiosLlamacppBakeModels"
 MIOS_VLLM_BAKE_MODEL="$MiosVllmBakeModel"
 "@.Trim()

@@ -130,8 +130,6 @@ EOF
     _ai_backend="${MIOS_AI_BACKEND:-${MIOS_HERMES_BACKEND_URL:-}}"
     _ai_backend="${_ai_backend%/v1}"
     [[ -n "$_ai_backend" ]] && echo "MIOS_AI_BACKEND=\"${_ai_backend}\""
-    # Build-time ollama bake list (resolver-populated; emit only if set).
-    [[ -n "${MIOS_OLLAMA_BAKE_MODELS:-}" ]] && echo "MIOS_OLLAMA_BAKE_MODELS=\"${MIOS_OLLAMA_BAKE_MODELS}\""
 
     # llama.cpp light lane ([llamacpp] -> MIOS_LLAMACPP_*). All resolver-
     # populated; emit only the values the resolver actually produced (no

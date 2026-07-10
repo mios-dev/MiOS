@@ -369,7 +369,6 @@ slots = [
     ("meta.mios_version",              "MIOS_VERSION"),
     # ── ai bake list ────────────────────────────────────────────────────
     ("ai.bake_models",                 "MIOS_AI_BAKE_MODELS"),
-    ("ai.bake_models",                 "MIOS_OLLAMA_BAKE_MODELS"),
     # ── bootstrap dev VM + host storage ─────────────────────────────────
     ("bootstrap.dev_vm.machine_name",  "MIOS_BUILDER_DISTRO"),
     ("bootstrap.dev_vm.wsl_distro",    "MIOS_WSL_DISTRO"),

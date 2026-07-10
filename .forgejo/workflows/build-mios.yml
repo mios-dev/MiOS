@@ -107,7 +107,6 @@ jobs:
               [[ -n "${MIOS_HOSTNAME:-}"   ]] && BUILD_ARGS+=(--build-arg "MIOS_HOSTNAME=${MIOS_HOSTNAME}")
               [[ -n "${MIOS_AI_MODEL:-}"   ]] && BUILD_ARGS+=(--build-arg "MIOS_AI_MODEL=${MIOS_AI_MODEL}")
               [[ -n "${MIOS_AI_EMBED_MODEL:-}" ]] && BUILD_ARGS+=(--build-arg "MIOS_AI_EMBED_MODEL=${MIOS_AI_EMBED_MODEL}")
-              [[ -n "${MIOS_OLLAMA_BAKE_MODELS:-}" ]] && BUILD_ARGS+=(--build-arg "MIOS_OLLAMA_BAKE_MODELS=${MIOS_OLLAMA_BAKE_MODELS}")
           fi
           podman build \
               "${BUILD_ARGS[@]}" \

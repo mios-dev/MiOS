@@ -81,7 +81,6 @@ ARG MIOS_HOSTNAME=mios
 # of build-time bake (smaller image, slower first boot).
 ARG MIOS_AI_MODEL=qwen2.5-coder:7b
 ARG MIOS_AI_EMBED_MODEL=nomic-embed-text
-ARG MIOS_OLLAMA_BAKE_MODELS=
 
 # Curated phase set for the minimal track. The canonical build.sh runs
 # 50+ phases that assume ucore-hci's prebakes; this RUN invokes only the

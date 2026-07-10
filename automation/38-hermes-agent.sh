@@ -39,7 +39,7 @@
 # TOML-first: HERMES_REPO/REF resolve from MIOS_HERMES_AGENT_* env vars
 # (exported by tools/lib/userenv.sh from mios.toml [ai].hermes_agent_*),
 # with the canonical upstream as the `:-` shell default -- the same
-# pattern 37-ollama-prep.sh uses for MIOS_OLLAMA_BAKE_MODELS.
+# pattern 38-llamacpp-prep.sh uses for MIOS_LLAMACPP_BAKE_MODELS.
 #
 # NO `set -e` -- a sub-failure here must never cascade into a build
 # failure. Explicit guards + `exit 0` everywhere.

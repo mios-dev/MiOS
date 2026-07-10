@@ -84,8 +84,16 @@ get_packages_from_toml() {
             collecting = 1
         }
         collecting {
-            print
-            if ($0 ~ /\][[:space:]]*$/) { collecting = 0 }
+            # Strip # comments per-line BEFORE the downstream comma-split.
+            # Otherwise a comment containing an internal comma (e.g.
+            # "# plugins, so the operator-facing UX is the") is split by
+            # `tr , \n`, and the post-comma fragment -- now without its
+            # leading # -- survives the later comment-strip and leaks in as
+            # a bogus package token (masked only by dnf --skip-unavailable).
+            line = $0
+            sub(/#.*$/, "", line)
+            print line
+            if (line ~ /\]/) { collecting = 0 }
         }
     ' "$toml_path" \
         | tr -d '[]' \
