@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -179,6 +180,7 @@ namespace MiOSWallpaperService
             // (see ShouldRunInSession). Each explorer.exe == one interactive session.
             Process[] explorerProcs = Process.GetProcessesByName("explorer");
             Process[] wallpaperProcs = Process.GetProcessesByName("MiOS-Wallpaper");
+            HashSet<int> processedSessions = new HashSet<int>();
 
             foreach (Process explorer in explorerProcs)
             {
@@ -186,6 +188,9 @@ namespace MiOSWallpaperService
 
                 // Skip session 0 (the non-interactive services session)
                 if (sessionId == 0) continue;
+
+                if (processedSessions.Contains(sessionId)) continue;
+                processedSessions.Add(sessionId);
 
                 // Is a host already running in this session?
                 bool isRunningInSession = false;
