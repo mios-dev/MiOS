@@ -183,6 +183,87 @@ def main():
                                     (dom, vname, desc)
                                 )
                 log.info("Domain verb mappings seeded.")
+
+                # 4. Seed package_set
+                packages = data.get("packages") or {}
+                if isinstance(packages, dict):
+                    for sec_name, sec_cfg in packages.items():
+                        if not isinstance(sec_cfg, dict) or "pkgs" not in sec_cfg:
+                            continue
+                        pkgs = sec_cfg.get("pkgs") or []
+                        enable = bool(sec_cfg.get("enable", True))
+                        layer = int(sec_cfg.get("layer", 0))
+                        base_image_ref = sec_cfg.get("base_image_ref")
+                        
+                        cur.execute(
+                            """
+                            INSERT INTO package_set (name, section, pkgs, enable, layer, base_image_ref)
+                            VALUES (%s, %s, %s, %s, %s, %s)
+                            ON CONFLICT (name) DO UPDATE SET
+                                section = EXCLUDED.section,
+                                pkgs = EXCLUDED.pkgs,
+                                enable = EXCLUDED.enable,
+                                layer = EXCLUDED.layer,
+                                base_image_ref = EXCLUDED.base_image_ref;
+                            """,
+                            (sec_name, "packages", json.dumps(pkgs), enable, layer, base_image_ref)
+                        )
+                log.info("package_set seeded.")
+
+                # 5. Seed build_phase
+                import re
+                repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+                automation_dir = os.path.join(repo_root, "automation")
+                if not os.path.isdir(automation_dir):
+                    automation_dir = "/ctx/automation"
+                if not os.path.isdir(automation_dir):
+                    automation_dir = "/usr/share/mios/automation"
+                
+                log.info("Scanning automation directory: %s", automation_dir)
+                if os.path.isdir(automation_dir):
+                    scripts = []
+                    for f in os.listdir(automation_dir):
+                        if re.match(r"^\d{2}-.*\.sh$", f):
+                            scripts.append(f)
+                    scripts.sort()
+                    
+                    prev_script = None
+                    for idx, s in enumerate(scripts):
+                        ordinal = int(s.split("-", 1)[0])
+                        deps = [prev_script] if prev_script else []
+                        
+                        cur.execute(
+                            """
+                            INSERT INTO build_phase (ordinal, script, stage, deps)
+                            VALUES (%s, %s, 'container', %s)
+                            ON CONFLICT (script) DO UPDATE SET
+                                ordinal = EXCLUDED.ordinal,
+                                stage = EXCLUDED.stage,
+                                deps = EXCLUDED.deps;
+                            """,
+                            (ordinal, s, json.dumps(deps))
+                        )
+                        prev_script = s
+                        
+                    # Also seed firstboot scripts
+                    fb_dir = os.path.join(automation_dir, "firstboot")
+                    if os.path.isdir(fb_dir):
+                        for f in os.listdir(fb_dir):
+                            if f.endswith(".sh"):
+                                script_path = f"firstboot/{f}"
+                                cur.execute(
+                                    """
+                                    INSERT INTO build_phase (ordinal, script, stage, deps)
+                                    VALUES (NULL, %s, 'firstboot', '[]'::jsonb)
+                                    ON CONFLICT (script) DO UPDATE SET
+                                        ordinal = EXCLUDED.ordinal,
+                                        stage = EXCLUDED.stage,
+                                        deps = EXCLUDED.deps;
+                                    """,
+                                    (script_path,)
+                                )
+                log.info("build_phase seeded.")
+
                 conn.commit()
                 log.info("Seeding completed successfully.")
     except Exception as e:

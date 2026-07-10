@@ -637,6 +637,144 @@ CREATE INDEX IF NOT EXISTS verb_emb_hnsw_idx ON verb USING hnsw (emb vector_cosi
 CREATE INDEX IF NOT EXISTS tool_call_emb_hnsw_idx ON tool_call USING hnsw (emb vector_cosine_ops);
 CREATE INDEX IF NOT EXISTS directory_entry_emb_hnsw_idx ON directory_entry USING hnsw (emb vector_cosine_ops);
 
+-- ===== WS-VECTOR V3: build-catalog and xbox catalog (AGY-11) =====
+CREATE TABLE IF NOT EXISTS package_set (
+    id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    name text UNIQUE NOT NULL,
+    section text,
+    pkgs jsonb,
+    enable boolean DEFAULT true,
+    layer integer,
+    base_image_ref text,
+    emb vector(768),
+    emb_model varchar(128),
+    emb_version varchar(64),
+    ts timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS package_set_emb_hnsw_idx ON package_set USING hnsw (emb vector_cosine_ops);
+
+CREATE TABLE IF NOT EXISTS build_recipe (
+    id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    name text UNIQUE NOT NULL,
+    description text,
+    emb vector(768),
+    emb_model varchar(128),
+    emb_version varchar(64),
+    ts timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS build_recipe_emb_hnsw_idx ON build_recipe USING hnsw (emb vector_cosine_ops);
+
+CREATE TABLE IF NOT EXISTS build_phase (
+    id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    ordinal integer,
+    script text UNIQUE NOT NULL,
+    stage text,
+    deps jsonb,
+    emb vector(768),
+    emb_model varchar(128),
+    emb_version varchar(64),
+    ts timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS build_phase_emb_hnsw_idx ON build_phase USING hnsw (emb vector_cosine_ops);
+
+CREATE TABLE IF NOT EXISTS xbox_feature (
+    id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    name text UNIQUE NOT NULL,
+    description text,
+    emb vector(768),
+    emb_model varchar(128),
+    emb_version varchar(64),
+    ts timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS xbox_feature_emb_hnsw_idx ON xbox_feature USING hnsw (emb vector_cosine_ops);
+
+CREATE TABLE IF NOT EXISTS debloat_policy (
+    id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    name text UNIQUE NOT NULL,
+    policy_type text,
+    rules jsonb,
+    emb vector(768),
+    emb_model varchar(128),
+    emb_version varchar(64),
+    ts timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS debloat_policy_emb_hnsw_idx ON debloat_policy USING hnsw (emb vector_cosine_ops);
+
+CREATE TABLE IF NOT EXISTS debloat_profile (
+    id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    name text UNIQUE NOT NULL,
+    description text,
+    emb vector(768),
+    emb_model varchar(128),
+    emb_version varchar(64),
+    ts timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS debloat_profile_emb_hnsw_idx ON debloat_profile USING hnsw (emb vector_cosine_ops);
+
+CREATE TABLE IF NOT EXISTS feature_set (
+    id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    name text UNIQUE NOT NULL,
+    description text,
+    emb vector(768),
+    emb_model varchar(128),
+    emb_version varchar(64),
+    ts timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS feature_set_emb_hnsw_idx ON feature_set USING hnsw (emb vector_cosine_ops);
+
+CREATE TABLE IF NOT EXISTS appx_removal (
+    id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    package_name text UNIQUE NOT NULL,
+    emb vector(768),
+    emb_model varchar(128),
+    emb_version varchar(64),
+    ts timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS appx_removal_emb_hnsw_idx ON appx_removal USING hnsw (emb vector_cosine_ops);
+
+CREATE TABLE IF NOT EXISTS feature_removal (
+    id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    feature_name text UNIQUE NOT NULL,
+    emb vector(768),
+    emb_model varchar(128),
+    emb_version varchar(64),
+    ts timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS feature_removal_emb_hnsw_idx ON feature_removal USING hnsw (emb vector_cosine_ops);
+
+CREATE TABLE IF NOT EXISTS capability_removal (
+    id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    capability_name text UNIQUE NOT NULL,
+    emb vector(768),
+    emb_model varchar(128),
+    emb_version varchar(64),
+    ts timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS capability_removal_emb_hnsw_idx ON capability_removal USING hnsw (emb vector_cosine_ops);
+
+CREATE TABLE IF NOT EXISTS component_removal (
+    id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    component_name text UNIQUE NOT NULL,
+    emb vector(768),
+    emb_model varchar(128),
+    emb_version varchar(64),
+    ts timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS component_removal_emb_hnsw_idx ON component_removal USING hnsw (emb vector_cosine_ops);
+
+CREATE TABLE IF NOT EXISTS preset (
+    id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    name text UNIQUE NOT NULL,
+    description text,
+    features jsonb,
+    debloat_profile_name text,
+    emb vector(768),
+    emb_model varchar(128),
+    emb_version varchar(64),
+    ts timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS preset_emb_hnsw_idx ON preset USING hnsw (emb vector_cosine_ops);
+
 
 
 
