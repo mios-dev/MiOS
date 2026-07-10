@@ -166,10 +166,17 @@ if ($SkipDataDrive) {
                 # file -- that nukes genuine operator data dropped at M:\ root.
                 # Only remove files matching a known MiOS artifact pattern;
                 # preserve anything else (whitelist parity with $MIOS_DIRS).
-                $_miosFilePat = @('Get-MiOS.ps1','mios.toml','mios*.toml','*.md',
-                                  'Containerfile','build-mios.*','bootstrap.*',
-                                  'install.*','justfile','.gitignore','.gitattributes',
-                                  'mios-*.ps1','MiOS.md','AGENTS.md','GEMINI.md')
+                $_miosFilePat = @(
+                    # Top-level mios.git / mios-bootstrap checkout files (the M:\ root
+                    # is a Total-Root-Merge of the repos, so these are all MiOS).
+                    'Get-MiOS.ps1','Uninstall-MiOS.ps1','mios.toml','mios*.toml',
+                    '*.md','Containerfile*','Justfile','LICENSE','VERSION',
+                    'build-mios.*','bootstrap.*','install.*','install-mios-agents.sh',
+                    'mios-*.ps1','mios-*.sh','seed-merge.*','preflight.ps1',
+                    'push-to-github.ps1','system-prompt.md',
+                    '.gitignore','.gitattributes','.clinerules','.cursorrules',
+                    '.editorconfig','.env.mios','image-versions.yml','renovate.json',
+                    'manifest.json','MiOS-SBOM.csv','llms*.txt')
                 $_isMios = $false
                 foreach ($pat in $_miosFilePat) { if ($n -like $pat) { $_isMios = $true; break } }
                 if ($_isMios) {
