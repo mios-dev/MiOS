@@ -140,7 +140,12 @@ etc/containers/*
 !/etc/containers/storage.conf
 !/etc/containers/systemd/
 etc/containers/systemd/*
-!/etc/containers/systemd/mios*
+# NOTE: the vendor Quadlets are TRACKED under /usr/share/containers/systemd/ (USR-
+# OVER-ETC). The /etc/containers/systemd/mios* files are host-deploy RENDERS,
+# generated at build by tools/generate-pod-quadlets.py from [containers.*] in
+# mios.toml (each carries a "GENERATED -- DO NOT EDIT" header) and are often
+# digest-UNpinned copies of the /usr source. They were git-rm'd in the pods-as-SSOT
+# flatten (b0921582); keep them ignored so a local deploy never resurfaces them.
 # storage.conf.d/ -- additionalimagestores bridge so rootless distrobox
 # can read images built into rootful podman storage by the system-scope
 # .build Quadlets (Universal Blue / Bazzite pattern).
@@ -310,14 +315,13 @@ etc/mios/*
 # /agents/ is BOOTSTRAP territory (knowledge graphs / RAG manifests).
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 6. /root -- MiOS shell skeleton for root user (system layer)
+# 6. /root -- seeded at build, NOT tracked
 # ─────────────────────────────────────────────────────────────────────────────
-!/root/
-root/*
-!/root/.bashrc
-!/root/.zshrc
-!/root/.oh-my-zsh/
-!/root/.oh-my-zsh/**
+# /root is populated by the image build (automation/31-user.sh,
+# 08-system-files-overlay.sh) -- nothing in the build COPYs a tracked root/
+# skeleton (none was ever committed). A live root session run in this tree leaks
+# a real home (.ssh, .cache, .hermes, .opencode, stock .bashrc + opencode PATH
+# edits); ignore the whole path so that runtime state can never be committed.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 9. /usr -- full cascade whitelist
