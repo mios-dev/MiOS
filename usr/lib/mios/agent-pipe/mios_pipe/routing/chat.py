@@ -1228,6 +1228,11 @@ async def chat_completions_logic(request: Request) -> Any:
             or "autonomous")
         log.info("AUTONOMOUS turn (source=%s) -> bounded (no wide research fan-out on either path)",
                  _autonomous_source)
+
+    # Set the ContextVars for agent_call / budget propagation
+    from mios_pipe.routing.agent_call import _autonomous_var, _autonomous_source_var
+    _autonomous_var.set(_autonomous)
+    _autonomous_source_var.set(_autonomous_source)
     # Operator-facing persona + environment/language/locale guidance the
     # OWUI pipe injected as system message(s). Captured once so the final
     # polish can apply the operator's voice + the correct language

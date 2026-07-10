@@ -2688,6 +2688,9 @@ classify_dedup_s        = 600
 # fan out into a thundering herd of mios-ai runs. Raise only on a box with
 # spare lanes.
 cron_max_concurrent     = 1
+# Limits for scheduled/cron classify and refusal loops to prevent runaway LLM calls
+classify_limit_per_min  = 10
+refusal_limit_per_min   = 20
 # CALM-loop max tick (seconds): upper bound on a single autonomous daemon
 # tick's wall-clock before it yields back to the scheduler, so one long
 # autonomous unit can't monopolise the daemon. Generous so normal ticks finish
@@ -6163,6 +6166,8 @@ ram_gb  = 24
 # VRAM thresholds (NOT system RAM -- the rule is about GPU availability):
 mid_vram_gb       = 8                             # >= this -> auto-promote to mid_ram_model
 big_vram_gb       = 16                            # >= this -> big_ram_model AVAILABLE for explicit picks
+max_cpu_percent   = 85.0                          # CPU load percent ceiling for heavy dispatches
+max_vram_percent  = 90.0                          # GPU VRAM percent ceiling for heavy dispatches
 # NOTE: even on a 24GB+ VRAM host, default stays CPU-tier unless the
 # operator opts in via mios.html. Auto-promotion stops at mid.
 

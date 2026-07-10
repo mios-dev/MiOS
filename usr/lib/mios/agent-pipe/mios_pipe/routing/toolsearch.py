@@ -179,39 +179,90 @@ async def _mcp_embed_new_tools() -> None:
 
 async def _ensure_verb_embeddings() -> None:
     """Compute embeddings for tier=core+common verbs. Persisted to
-    /var/lib/mios/agent-env/verb-embeddings.json -- restart doesn't
-    re-flood the embed lane. Hidden by lock. P1: the persisted cache carries a
-    `__fingerprint__` of the catalog embed-text; a mismatch (rename/desc/example edit)
-    rebuilds rather than serving stale vectors."""
+    the postgres database table 'verb' (PG native) with a fallback to
+    /var/lib/mios/agent-env/verb-embeddings.json when PG is unavailable.
+    Hidden by lock."""
     async with _VERB_EMBEDDINGS_LOCK:
         if _VERB_EMBEDDINGS:
             return
         fp = _verb_embed_fingerprint()
-        # First try disk -- but ONLY if it was built from the current catalog text.
-        cached = _load_persisted_embeddings(_VERB_EMBED_PERSIST)
-        if cached and cached.get("__fingerprint__") == fp:
+        
+        # 1. Try PostgreSQL database first
+        pg_success = False
+        try:
+            from mios_pg import execute as pg_execute
+            # Try fetching existing embeddings
+            rows = await pg_execute(
+                "SELECT name, emb, emb_model, emb_version FROM verb WHERE hidden = false AND (tier = 'core' OR tier = 'common')",
+                fetch=True
+            )
+            if isinstance(rows, list):
+                pg_success = True
+                db_embs = {}
+                for r in rows:
+                    name = r.get("name")
+                    emb = r.get("emb")
+                    ver = r.get("emb_version")
+                    if name and isinstance(emb, list) and emb and ver == fp:
+                        db_embs[name] = [float(x) for x in emb]
+                            
+                # Populate _VERB_EMBEDDINGS with the valid db ones
+                for vname, vcfg in _VERB_CATALOG.items():
+                    if vcfg.get("tier") == "rare":
+                        continue
+                    if vname in db_embs:
+                        _VERB_EMBEDDINGS[vname] = db_embs[vname]
+                
+                # Rebuild missing or stale ones and write them to the DB
+                rebuilt = False
+                for vname, vcfg in _VERB_CATALOG.items():
+                    if vcfg.get("tier") == "rare":
+                        continue
+                    if vname in _VERB_EMBEDDINGS:
+                        continue
+                    vec = await _embed_one(_verb_embed_text(vname, vcfg))
+                    if vec:
+                        _VERB_EMBEDDINGS[vname] = vec
+                        rebuilt = True
+                        try:
+                            # Cast list to vector on the postgres side
+                            await pg_execute(
+                                "UPDATE verb SET emb = %(emb)s::vector, emb_model = %(model)s, emb_version = %(ver)s WHERE name = %(name)s",
+                                {"emb": vec, "model": "qwen2.5-coder:1.5b", "ver": fp, "name": vname}
+                            )
+                        except Exception as e_up:
+                            log.debug("Failed to update database verb embedding for %s: %s", vname, e_up)
+                log.info("verb database embeddings ready: %d entries (rebuilt=%s)",
+                         len(_VERB_EMBEDDINGS), rebuilt)
+        except Exception as e_pg:
+            log.debug("Database verb embeddings lookup failed (falling back to JSON): %s", e_pg)
+            pg_success = False
+
+        if not pg_success:
+            # 2. Fallback: load/save JSON file
+            cached = _load_persisted_embeddings(_VERB_EMBED_PERSIST)
+            if cached and cached.get("__fingerprint__") == fp:
+                for vname, vcfg in _VERB_CATALOG.items():
+                    if vcfg.get("tier") == "rare":
+                        continue
+                    vec = cached.get(vname)
+                    if isinstance(vec, list) and vec:
+                        _VERB_EMBEDDINGS[vname] = [float(x) for x in vec]
+            rebuilt = False
             for vname, vcfg in _VERB_CATALOG.items():
                 if vcfg.get("tier") == "rare":
                     continue
-                vec = cached.get(vname)
-                if isinstance(vec, list) and vec:
-                    _VERB_EMBEDDINGS[vname] = [float(x) for x in vec]
-        # Fill gaps (new/changed verbs not loaded from cache).
-        rebuilt = False
-        for vname, vcfg in _VERB_CATALOG.items():
-            if vcfg.get("tier") == "rare":
-                continue
-            if vname in _VERB_EMBEDDINGS:
-                continue
-            vec = await _embed_one(_verb_embed_text(vname, vcfg))
-            if vec:
-                _VERB_EMBEDDINGS[vname] = vec
-                rebuilt = True
-        if rebuilt:
-            _save_persisted_embeddings(
-                _VERB_EMBED_PERSIST, {"__fingerprint__": fp, **_VERB_EMBEDDINGS})
-        log.info("verb embeddings ready: %d entries (rebuilt=%s)",
-                 len(_VERB_EMBEDDINGS), rebuilt)
+                if vname in _VERB_EMBEDDINGS:
+                    continue
+                vec = await _embed_one(_verb_embed_text(vname, vcfg))
+                if vec:
+                    _VERB_EMBEDDINGS[vname] = vec
+                    rebuilt = True
+            if rebuilt:
+                _save_persisted_embeddings(
+                    _VERB_EMBED_PERSIST, {"__fingerprint__": fp, **_VERB_EMBEDDINGS})
+            log.info("verb JSON embeddings ready: %d entries (rebuilt=%s)",
+                     len(_VERB_EMBEDDINGS), rebuilt)
 
 
 # -- /v1/app-search (semantic over the mios-apps inventory) --

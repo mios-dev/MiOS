@@ -184,6 +184,12 @@ CALM_MAX_TICK_S = _cfg_num(
 QUIESCENCE_WINDOW_MIN = _cfg_num(
     "MIOS_DAEMON_QUIESCENCE_WINDOW_MIN", "quiescence_window_min", 15.0)
 
+# (5) Rate limiting for classify and refusal judge dispatches
+CLASSIFY_LIMIT_PER_MIN = int(_cfg_num(
+    "MIOS_DAEMON_CLASSIFY_LIMIT_PER_MIN", "classify_limit_per_min", 10.0))
+REFUSAL_LIMIT_PER_MIN = int(_cfg_num(
+    "MIOS_DAEMON_REFUSAL_LIMIT_PER_MIN", "refusal_limit_per_min", 20.0))
+
 
 # Units to watch for journal subscription. Operator 2026-05-21: consolidate
 # from ALL GLOBAL sources -> default is now EMPTY = the whole journal
@@ -849,6 +855,25 @@ def _persist_log_digest(result: dict) -> None:
         _noise_agg.update({"batches": 0, "events": 0, "since": time.time()})
 
 
+_limiter_lock = threading.Lock()
+_classify_timestamps: list[float] = []
+_refusal_timestamps: list[float] = []
+
+def _check_rate_limit(timestamps: list[float], limit: int, window: float = 60.0) -> bool:
+    """Returns True if request is allowed, False if capped."""
+    if limit <= 0:
+        return True
+    now = time.time()
+    with _limiter_lock:
+        cutoff = now - window
+        while timestamps and timestamps[0] < cutoff:
+            timestamps.pop(0)
+        if len(timestamps) < limit:
+            timestamps.append(now)
+            return True
+        return False
+
+
 def classify_loop() -> None:
     # W0-T2 (4): adaptive cadence. Starts responsive (CLASSIFY_BATCH_S) and,
     # when the box goes quiescent (no new med/high digest / unsatisfied
@@ -871,6 +896,9 @@ def classify_loop() -> None:
         # W0-T2 (1): host-pressure gate -- skip this tick (no LLM call) when
         # load/GPU-util exceed the ceiling AND pressure_skip is enabled.
         if _pressure_should_skip("classify"):
+            continue
+        if not _check_rate_limit(_classify_timestamps, CLASSIFY_LIMIT_PER_MIN):
+            log.warning("classify: rate limit exceeded (%d/min). Skipping this tick.", CLASSIFY_LIMIT_PER_MIN)
             continue
         with _buffer_lock:
             batch = _event_buffer[-CLASSIFY_BATCH_MAX:][:]
@@ -995,6 +1023,9 @@ def refusal_loop() -> None:
                 continue
             msg = (ev.get("MESSAGE") or "")
             if not msg:
+                continue
+            if not _check_rate_limit(_refusal_timestamps, REFUSAL_LIMIT_PER_MIN):
+                log.warning("refusal: rate limit exceeded (%d/min). Skipping refusal judge for this message.", REFUSAL_LIMIT_PER_MIN)
                 continue
             verdict = _classify_refusal(msg)
             if verdict is None:

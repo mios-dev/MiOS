@@ -1078,6 +1078,21 @@ def _a2a_make_push_cfg_id() -> str:
     return uuid.uuid4().hex
 
 
+def _redact_payload(val: Any) -> Any:
+    try:
+        from mios_pipe.redact import redact
+        if isinstance(val, str):
+            r, _ = redact(val)
+            return r
+        elif isinstance(val, dict):
+            return {k: _redact_payload(v) for k, v in val.items()}
+        elif isinstance(val, list):
+            return [_redact_payload(v) for v in val]
+    except Exception:
+        pass
+    return val
+
+
 async def _a2a_fire_push_notifications(task: dict) -> None:
     """POST the Task envelope to every webhook registered for this task_id.
     Best-effort: each webhook POST runs in its own try/except so one bad
@@ -1090,6 +1105,10 @@ async def _a2a_fire_push_notifications(task: dict) -> None:
         cfgs = list((_A2A_PUSH_CONFIGS.get(tid) or {}).values())
     if not cfgs:
         return
+    
+    # Redact sensitive payloads before sending to webhooks (gossip/federation)
+    task_redacted = _redact_payload(task)
+    
     client = await _get_client()
     for cfg in cfgs:
         url = str(cfg.get("url") or "").strip()
@@ -1100,7 +1119,7 @@ async def _a2a_fire_push_notifications(task: dict) -> None:
         if tok:
             headers["Authorization"] = f"Bearer {tok}"
         try:
-            await client.post(url, json=task, headers=headers, timeout=10.0)
+            await client.post(url, json=task_redacted, headers=headers, timeout=10.0)
         except Exception as e:  # noqa: BLE001
             log.warning("a2a push notification to %s failed: %s", url, e)
 

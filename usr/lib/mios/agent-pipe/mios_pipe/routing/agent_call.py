@@ -29,7 +29,7 @@ import logging
 import time
 from typing import Optional
 
-from mios_config import _AUTH_HOSTPORTS, _DISPATCH_TOML
+from mios_config import _AUTH_HOSTPORTS, _DISPATCH_TOML, _toml_section
 import os
 KV_SLOTS_DIR = (os.environ.get("MIOS_KV_SLOTS_DIR", "")
                 or str(_DISPATCH_TOML.get("kv_slots_dir", "") or "")).strip()
@@ -80,6 +80,19 @@ OLLAMA_NUM_PREDICT_CAP_CPU = 512
 
 # mutable registry (injected BY REFERENCE; re-injected on live membership reload)
 _AGENT_REGISTRY: dict = {}
+
+# Rate limiting, preemption, and deduplication state (AGY-5, AGY-6)
+import contextvars
+_autonomous_var: contextvars.ContextVar[bool] = contextvars.ContextVar("autonomous", default=False)
+_autonomous_source_var: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar("autonomous_source", default=None)
+_dispatch_depth_var: contextvars.ContextVar[int] = contextvars.ContextVar("dispatch_depth", default=0)
+
+_IN_FLIGHT_PROMPTS: dict[str, asyncio.Future] = {}
+_IN_FLIGHT_LOCK = asyncio.Lock()
+
+_SESSION_TOKENS: dict[str, int] = {}
+_AUTONOMOUS_SOURCE_TOKENS: dict[str, int] = {}
+_BUDGET_LOCK = asyncio.Lock()
 
 # shared KV/priority/preempt state owned by server (injected BY REFERENCE so the
 # moved _kv_* mutations and the server-side KV-GC sweep observe the SAME dicts).
@@ -341,8 +354,59 @@ def _record_cost(cfg: dict, ep: str, t0: float, body: dict, text: str) -> None:
     except Exception:  # noqa: BLE001
         pass
 
+def _host_threshold_val(key: str, default: Any) -> Any:
+    try:
+        ai = _toml_section("ai")
+        thresholds = ai.get("host_thresholds") or {}
+        return thresholds.get(key, default)
+    except Exception:
+        return default
 
-# ── Moved verbatim from server.py (refactor R3 dispatch-substrate) ─────────────
+def _get_gpu_vram_usage() -> float:
+    import subprocess
+    try:
+        p = subprocess.run(
+            ["nvidia-smi", "--query-gpu=memory.used,memory.total", "--format=csv,nounits,noheader"],
+            capture_output=True, text=True, timeout=3
+        )
+        if p.returncode == 0 and p.stdout:
+            parts = p.stdout.strip().split(",")
+            if len(parts) == 2:
+                used = float(parts[0].strip())
+                total = float(parts[1].strip())
+                return (used / total) * 100.0
+    except Exception:
+        pass
+    return 0.0
+
+def _get_cpu_load() -> float:
+    try:
+        import psutil
+        return float(psutil.cpu_percent())
+    except Exception:
+        pass
+    return 0.0
+
+def _get_budget_ceil(key: str, default: int) -> int:
+    try:
+        budget = _toml_section("budget")
+        return int(budget.get(key, default))
+    except Exception:
+        return default
+
+def _hash_request(ep: str, body: dict) -> str:
+    import hashlib
+    msgs = body.get("messages") or []
+    msgs_str = json.dumps(msgs, sort_keys=True)
+    model = body.get("model") or ""
+    h = hashlib.sha256()
+    h.update(str(ep).encode("utf-8"))
+    h.update(str(model).encode("utf-8"))
+    h.update(msgs_str.encode("utf-8"))
+    return h.hexdigest()
+
+from typing import Any
+# ── Moved verbatim from server.py (refactor R3 dispatch-substrate) ──
 async def _call_agent_complete(name, cfg, body, headers, client,
                                *, prefer_cpu: bool = True,
                                priority: Optional[float] = None) -> tuple:
@@ -352,62 +416,151 @@ async def _call_agent_complete(name, cfg, body, headers, client,
     iGPU, accelerator, each remote node) all fire CONCURRENTLY and only same-lane
     agents queue. No nested agent calls, so no deadlock. `priority` feeds the
     capacity-aware _admit gate; default None -> lane-derived (_dispatch_priority)
- so slow/remote lanes self-shed under load ('all nodes
+    so slow/remote lanes self-shed under load ('all nodes
     enabled by default')."""
-    _engine = _agent_offload_engine(cfg) if prefer_cpu else None
-    _ep, _adm_model = _agent_binding(cfg, _engine)
-    _prio = priority if priority is not None else _dispatch_priority(cfg)
-    # Capacity-aware admission BEFORE the semaphores (no-op unless ADMIT_ENABLE;
-    # degrade-open -- never blocks a turn). Endpoint cap OUTER (serialize cold-
-    # loads on ONE ollama daemon), lane cap INNER (hardware category) -- operator
-    # thundering-herd fix.
-    _est = _opt_int_mb(cfg.get("vram_mb"))   # Phase-1 per-worker VRAM (0 = unknown)
+    # 1. Depth checking (Recursion bound)
+    depth = _dispatch_depth_var.get()
+    max_depth = _get_budget_ceil("max_dispatch_depth", 5)
+    if depth >= max_depth:
+        log.warning("Max dispatch depth exceeded (%d >= %d) for agent %s", depth, max_depth, name)
+        raise RecursionError(f"Max dispatch depth exceeded ({depth}/{max_depth})")
+        
+    depth_token = _dispatch_depth_var.set(depth + 1)
+    
     try:
-        # foreground=False: this is the fan-out / secondary dispatch -- background
-        # work that IS shed-eligible (best_effort) under contention (the merge
-        # degrades gracefully when a node drops). A genuine foreground turn keeps
-        # the protective default (interactive, never shed).
-        await _admit(_ep, _adm_model, _engine or _lane_sem_key(cfg), _prio, _est,
-                     foreground=False)
-    except _SloShed:  # WS-SCHED-SLO: best_effort shed -> drop this node from the merge
-        log.info("SLO shed: best_effort fan-out %s dropped under contention", name)
-        return name, ""
-    # WS-A12: RR-preemptible path. This fn IS the fan-out/secondary dispatch (the
-    # work that SHOULD yield a lane to a higher-priority waiter), so when RR is on
-    # and this is a plain completion on a /slots lane, drive it through _rr_run --
-    # which OWNS the priority gate itself (release/re-acquire across preemptions),
-    # so it runs UNDER the endpoint+lane caps but NOT _priority_gate (single gate
-    # owner = no double-accounting). Default-off => the else-branch below is the
-    # unchanged, proven path.
-    if _rr_eligible(body, _ep, cfg, _engine):
-        async with _endpoint_sem(_ep):
-            async with _lane_sem(_engine or _lane_sem_key(cfg)):
-                await _model_active(_ep, _adm_model, 1, _est)
-                try:
-                    _conv = _conv_key_var.get() or name
-                    _t = await _rr_run(client, _ep, _adm_model,
-                                       body.get("messages") or [], conv=_conv,
-                                       priority=_prio, max_tokens=body.get("max_tokens"),
-                                       headers=headers)
-                finally:
-                    await _model_active(_ep, _adm_model, -1, _est)
-                return name, _strip_agent_chrome(_t)
-    # Global host cap OUTERMOST (bounds TOTAL running dispatches across all lanes
-    # so a wide all-nodes fan-out can't sum past host capacity), then endpoint,
-    # then lane.
-    async with _priority_gate(_prio):
-        async with _endpoint_sem(_ep):
-            async with _lane_sem(_engine or _lane_sem_key(cfg)):
-                # Mark the model in-flight so idle-VRAM reclaim won't evict it.
-                await _model_active(_ep, _adm_model, 1, _est)
-                _cost_t0 = time.time()
-                try:
-                    _n, _t = await _call_agent_complete_inner(
-                        name, cfg, body, headers, client, prefer_cpu=prefer_cpu)
-                finally:
-                    await _model_active(_ep, _adm_model, -1, _est)
-                _record_cost(cfg, _ep, _cost_t0, body, _t)   # WS-RES-GOV observe-only
-                return _n, _strip_agent_chrome(_t)
+        # 2. Token Budget enforcement (check before dispatch)
+        session_id = (_conv_key_var.get() if _conv_key_var else "") or ""
+        conv_ceil = _get_budget_ceil("conversation_token_ceil", 2000000)
+        if session_id and conv_ceil > 0:
+            used = _SESSION_TOKENS.get(session_id, 0)
+            if used > conv_ceil:
+                log.warning("Conversation token budget exceeded (%d > %d) for session %s", used, conv_ceil, session_id)
+                raise ValueError(f"Conversation token budget exceeded ({used}/{conv_ceil})")
+                
+        if _autonomous_var.get():
+            auto_ceil = _get_budget_ceil("autonomous_token_ceil", 400000)
+            src = _autonomous_source_var.get() or "autonomous"
+            if auto_ceil > 0:
+                used = _AUTONOMOUS_SOURCE_TOKENS.get(src, 0)
+                if used > auto_ceil:
+                    log.warning("Autonomous source %s token budget exceeded (%d > %d)", src, used, auto_ceil)
+                    raise ValueError(f"Autonomous source token budget exceeded ({used}/{auto_ceil})")
+
+        # 3. Host Pressure Gate
+        _engine = _agent_offload_engine(cfg) if prefer_cpu else None
+        _ep, _adm_model = _agent_binding(cfg, _engine)
+        
+        big_model = _host_threshold_val("big_ram_model", "mistral-magistral-small-2509")
+        is_heavy = (_adm_model == big_model or (_engine in ("vllm", "sglang") or (isinstance(_ep, str) and "8640" in _ep)))
+        if is_heavy:
+            cpu_load = _get_cpu_load()
+            vram_pct = _get_gpu_vram_usage()
+            max_cpu = _host_threshold_val("max_cpu_percent", 85.0)
+            max_vram = _host_threshold_val("max_vram_percent", 90.0)
+            if (cpu_load > max_cpu) or (vram_pct > max_vram):
+                log.info("Host pressure exceeded (CPU: %.1f%% > %.1f%% or VRAM: %.1f%% > %.1f%%). Degrading heavy dispatch %s to light lane.",
+                         cpu_load, max_cpu, vram_pct, max_vram, name)
+                _engine = "cpu"
+                _ep, _adm_model = _agent_binding(cfg, _engine)
+                light_model = _host_threshold_val("small_ram_model", "granite4.1:8b")
+                if not _adm_model:
+                    _adm_model = light_model
+
+        # 4. Priority / Preemption
+        _prio = priority if priority is not None else _dispatch_priority(cfg)
+        if _autonomous_var.get():
+            _prio = -100.0
+
+        # 5. Request Deduplication (in-flight collapse)
+        req_hash = _hash_request(_ep or "", body)
+        
+        is_first = False
+        fut = None
+        async with _IN_FLIGHT_LOCK:
+            if req_hash in _IN_FLIGHT_PROMPTS:
+                fut = _IN_FLIGHT_PROMPTS[req_hash]
+                log.info("Request dedup: prompt hash %s is already in-flight. Sharing result.", req_hash)
+            else:
+                fut = asyncio.get_running_loop().create_future()
+                _IN_FLIGHT_PROMPTS[req_hash] = fut
+                is_first = True
+
+        if not is_first:
+            return await fut
+
+        async def _execute_query():
+            # Capacity-aware admission BEFORE the semaphores (no-op unless ADMIT_ENABLE;
+            # degrade-open -- never blocks a turn). Endpoint cap OUTER, lane cap INNER.
+            _est = _opt_int_mb(cfg.get("vram_mb"))   # Phase-1 per-worker VRAM (0 = unknown)
+            try:
+                # foreground=False: background / secondary is shed-eligible
+                await _admit(_ep, _adm_model, _engine or _lane_sem_key(cfg), _prio, _est,
+                             foreground=False)
+            except _SloShed:  # WS-SCHED-SLO: best_effort shed -> drop this node
+                log.info("SLO shed: best_effort fan-out %s dropped under contention", name)
+                return name, ""
+
+            # WS-A12: RR-preemptible path
+            if _rr_eligible(body, _ep, cfg, _engine):
+                async with _endpoint_sem(_ep):
+                    async with _lane_sem(_engine or _lane_sem_key(cfg)):
+                        await _model_active(_ep, _adm_model, 1, _est)
+                        try:
+                            _conv = _conv_key_var.get() or name
+                            _t = await _rr_run(client, _ep, _adm_model,
+                                               body.get("messages") or [], conv=_conv,
+                                               priority=_prio, max_tokens=body.get("max_tokens"),
+                                               headers=headers)
+                        finally:
+                            await _model_active(_ep, _adm_model, -1, _est)
+                        return name, _strip_agent_chrome(_t)
+
+            async with _priority_gate(_prio):
+                async with _endpoint_sem(_ep):
+                    async with _lane_sem(_engine or _lane_sem_key(cfg)):
+                        await _model_active(_ep, _adm_model, 1, _est)
+                        _cost_t0 = time.time()
+                        try:
+                            _n, _t = await _call_agent_complete_inner(
+                                name, cfg, body, headers, client, prefer_cpu=prefer_cpu)
+                        finally:
+                            await _model_active(_ep, _adm_model, -1, _est)
+                        _record_cost(cfg, _ep, _cost_t0, body, _t)   # WS-RES-GOV observe-only
+                        return _n, _strip_agent_chrome(_t)
+
+        try:
+            res = await _execute_query()
+            
+            # Post-completion token tracking
+            _n, _t = res
+            _msgs = (body or {}).get("messages") or []
+            _ptok = mios_tokenize.count_messages(_msgs)
+            _ctok = mios_tokenize.count_text(_t)
+            tokens_used = _ptok + _ctok
+            
+            if session_id:
+                async with _BUDGET_LOCK:
+                    _SESSION_TOKENS[session_id] = _SESSION_TOKENS.get(session_id, 0) + tokens_used
+            
+            if _autonomous_var.get():
+                src = _autonomous_source_var.get() or "autonomous"
+                async with _BUDGET_LOCK:
+                    _AUTONOMOUS_SOURCE_TOKENS[src] = _AUTONOMOUS_SOURCE_TOKENS.get(src, 0) + tokens_used
+
+            async with _IN_FLIGHT_LOCK:
+                _IN_FLIGHT_PROMPTS.pop(req_hash, None)
+                if not fut.done():
+                    fut.set_result(res)
+            return res
+        except Exception as e:
+            async with _IN_FLIGHT_LOCK:
+                _IN_FLIGHT_PROMPTS.pop(req_hash, None)
+                if not fut.done():
+                    fut.set_exception(e)
+            raise e
+            
+    finally:
+        _dispatch_depth_var.reset(depth_token)
 
 
 async def _call_agent_complete_inner(name: str, cfg: dict, body: dict,

@@ -614,6 +614,29 @@ CREATE TABLE IF NOT EXISTS domain_verb (
 
 ALTER TABLE domain_verb ADD COLUMN IF NOT EXISTS description text;
 
+-- ===== WS-VECTOR V2: AI-plane vectorization gaps (AGY-7) =====
+ALTER TABLE skill ADD COLUMN IF NOT EXISTS emb vector(768);
+ALTER TABLE skill ADD COLUMN IF NOT EXISTS emb_model varchar(128);
+ALTER TABLE skill ADD COLUMN IF NOT EXISTS emb_version varchar(64);
+
+ALTER TABLE verb ADD COLUMN IF NOT EXISTS emb vector(768);
+ALTER TABLE verb ADD COLUMN IF NOT EXISTS emb_model varchar(128);
+ALTER TABLE verb ADD COLUMN IF NOT EXISTS emb_version varchar(64);
+
+ALTER TABLE tool_call ADD COLUMN IF NOT EXISTS emb vector(768);
+ALTER TABLE tool_call ADD COLUMN IF NOT EXISTS emb_model varchar(128);
+ALTER TABLE tool_call ADD COLUMN IF NOT EXISTS emb_version varchar(64);
+
+ALTER TABLE directory_entry ADD COLUMN IF NOT EXISTS emb vector(768);
+ALTER TABLE directory_entry ADD COLUMN IF NOT EXISTS emb_model varchar(128);
+ALTER TABLE directory_entry ADD COLUMN IF NOT EXISTS emb_version varchar(64);
+
+-- Create HNSW indexes (idempotently via CREATE INDEX IF NOT EXISTS)
+CREATE INDEX IF NOT EXISTS skill_emb_hnsw_idx ON skill USING hnsw (emb vector_cosine_ops);
+CREATE INDEX IF NOT EXISTS verb_emb_hnsw_idx ON verb USING hnsw (emb vector_cosine_ops);
+CREATE INDEX IF NOT EXISTS tool_call_emb_hnsw_idx ON tool_call USING hnsw (emb vector_cosine_ops);
+CREATE INDEX IF NOT EXISTS directory_entry_emb_hnsw_idx ON directory_entry USING hnsw (emb vector_cosine_ops);
+
 
 
 

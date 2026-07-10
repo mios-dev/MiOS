@@ -522,6 +522,31 @@ async def execute(sql: str, params: Optional[dict] = None,
     -> byte-identical to the pre-RLS path."""
     if _pg_skip():
         return None
+        
+    if params and any(t in sql.lower() for t in ("knowledge", "agent_memory", "event", "tool_call")):
+        try:
+            from mios_pipe.redact import redact
+            if isinstance(params, dict):
+                new_params = {}
+                for k, v in params.items():
+                    if isinstance(v, str):
+                        redacted_val, _ = redact(v)
+                        new_params[k] = redacted_val
+                    else:
+                        new_params[k] = v
+                params = new_params
+            elif isinstance(params, (list, tuple)):
+                new_params_list = []
+                for v in params:
+                    if isinstance(v, str):
+                        redacted_val, _ = redact(v)
+                        new_params_list.append(redacted_val)
+                    else:
+                        new_params_list.append(v)
+                params = type(params)(new_params_list)
+        except Exception:
+            pass
+
     try:
         import psycopg  # lazy: only needed at cutover, not for the pure helpers
         from psycopg.rows import dict_row
