@@ -2510,3 +2510,19 @@ MiOS-XBOX.iso is not just a VM test target — it is the **bootable, USB-flashab
 **Critical path:** AIO-01 (embed installer repos) makes a clean deploy offline — the first real step toward USB/bare-metal. AIO-02 (embed the distro + deps) removes the biggest download. AIO-04 (USB + bare-metal validation) proves the AIO medium. AIO-03/05 broaden it. All size-gated + SSOT-driven; the network path is an update fallback, never a hard dependency.
 
 *Research (2026-07-06): OEM/DISM embedding techniques in `src/autounattend/docs/oem-dism-techniques-2026-07-06.md` (mios-bootstrap). Current gap: MiOS-Host BootstrapUrl = GitHub raw (download-only). Embedding order by size: installer repos (~100s MB) → MiOS-DEV rootfs + deps (GB) → OCI images + models (GB, size-gated).*
+
+# Part 15: Global Naming Minification — one unified names/keys registry (2026-07-10)
+
+## WS-NAME — Global naming minification → one unified names/keys SSOT
+
+Collapse every authored name in MiOS — TOML keys, `MIOS_*` env vars, verbs,
+`globals.sh`/`.ps1` consts, configurator `data-key`s, emitters (~1,290 names today,
+incl. the 418-entry `userenv.sh` key→env table) — onto **one unified names/keys
+registry** that is the naming SSOT. **No translation layer:** every surface sources
+the same canonical identifier directly from the one registry (generated, never
+mapped); the `userenv.sh` table + `globals` mirror are deleted. **Minimal + folded:**
+one name per capability, similar capabilities folded into one parametric entry
+(model / endpoint / tokenizer families, `colors.*`, `ports.*`). **No loss of
+functionality** — rename/collapse only, via a compat-shim phase, domain-by-domain,
+drift-gate-enforced. Full workflow + convention + phased plan:
+`usr/share/doc/mios/reference/naming-unification.md`. Task: **T-165**.

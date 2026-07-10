@@ -3212,3 +3212,13 @@ T-094 (CONV-01 SSOT)
 - [x] `living_wallpaper_mode=static` keeps today's baked gradient (no regression); `shader`/`video` add the animated layer from SSOT colors
 - [x] the mode is exposed in the configurator and read from the layered SSOT
 
+## T-165: NAME-01 -- Global naming minification → one unified names/keys registry  [P2]
+> **Priority:** P2 | **Status:** planned | **Effort:** XL | **Domain:** SSOT/Cross-cutting | **Source:** operator directive 2026-07-10.
+
+**Instructions:** Collapse every authored name in MiOS (TOML keys, `MIOS_*` env vars, verbs, `globals.sh`/`.ps1` consts, configurator `data-key`s, emitters — ~1,290 today) onto ONE unified names/keys registry that is the naming SSOT. **No translation layer** — delete the 418-entry `userenv.sh` key→env table + the `globals` mirror; every surface sources the same canonical identifier directly from the one registry (generated, never mapped). **Fold similar** capabilities into one parametric entry; keep exactly one name per capability (minimal, combined). **NO loss of functionality** — rename/collapse only, via a compat-shim phase. Full workflow, convention, phased migration + drift-gate: `usr/share/doc/mios/reference/naming-unification.md`.
+**Files:** `usr/share/mios/names.toml` (new registry) or `mios.toml [names]`, `tools/lib/userenv.sh` + `usr/lib/mios/userenv.sh` (delete table → generic sourcing), `automation/lib/globals.sh`/`.ps1`, `usr/lib/mios/mios_toml.py`, `automation/38-drift-checks.sh` (new gate), `usr/share/doc/mios/reference/naming-unification.md`.
+**Done When:**
+- [ ] one unified names/keys registry is the SSOT; every surface is generated from / sources it (no authored per-name mapping or translation anywhere)
+- [ ] similar capabilities folded to one parametric entry; one canonical name per capability; legacy names + the userenv table deleted; zero functional regression
+- [ ] a drift-gate regenerates + diffs the registry and fails on any new translation/duplicate; all `test_mios_*` + `just drift-gate` green
+
