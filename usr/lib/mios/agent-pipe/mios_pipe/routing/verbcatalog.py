@@ -137,8 +137,6 @@ def _load_verb_catalog() -> dict:
                     #     sharing the group run one-at-a-time (e.g. open_app /
                     #     focus_window / pc_type all contend for the one foreground
                     #     window + keyboard, so a fan-out must not interleave them).
-                    # Consumed by mios_toolconflict.ConflictGate at the dispatch
-                    # chokepoint (_dispatch_bounded). Neither declared -> no-op.
                     "parallel_limit": int(vcfg.get("parallel_limit", 0) or 0),
                     "conflict_group": str(vcfg.get("conflict_group", "") or "").strip(),
                 }
@@ -146,6 +144,76 @@ def _load_verb_catalog() -> dict:
         log.warning("verb catalog load failed: %s", e)
         if CATALOG_FAIL_MODE == "fail":   # WS-A1 fail-loud (opt-in)
             raise
+
+    # ── Database Overlay & Localization (T-126) ──
+    try:
+        import psycopg
+        from psycopg.rows import dict_row
+        from mios_pipe.memory.pg import pg_config
+        cfg = pg_config()
+        conn_str = (f"postgresql://{cfg['user']}:{cfg['password']}"
+                    f"@{cfg['host']}:{cfg['port']}/{cfg['dbname']}")
+        
+        locale = os.environ.get("MIOS_LOCALE") or os.environ.get("LANG", "en")
+        lang = locale.split("_")[0].split(".")[0].lower()
+        
+        with psycopg.connect(conn_str, connect_timeout=2) as conn:
+            with conn.cursor(row_factory=dict_row) as cur:
+                cur.execute("SELECT * FROM verb;")
+                rows = cur.fetchall()
+                for r in rows:
+                    vname = r["name"]
+                    if not r["is_active"]:
+                        cat.pop(vname, None)
+                        continue
+                    
+                    sig = r["sig"]
+                    desc = r["desc_default"]
+                    tier = r["tier"]
+                    permission = r["permission"]
+                    cmd = r["cmd"] or ""
+                    params = r["params"] or {}
+                    
+                    i18n = r["i18n"] or {}
+                    if lang in i18n:
+                        lang_data = i18n[lang]
+                        if "desc" in lang_data:
+                            desc = lang_data["desc"]
+                        if "params" in lang_data:
+                            lang_params = lang_data["params"]
+                            for arg, arg_cfg in params.items():
+                                if isinstance(arg_cfg, dict) and arg in lang_params:
+                                    arg_cfg["desc"] = lang_params[arg]
+                                    
+                    if vname in cat:
+                        cat[vname].update({
+                            "sig": sig,
+                            "desc": desc,
+                            "tier": tier,
+                            "permission": permission,
+                            "cmd": cmd,
+                            "params": params
+                        })
+                    else:
+                        cat[vname] = {
+                            "section": "Misc",
+                            "sig": sig,
+                            "desc": desc,
+                            "tier": tier,
+                            "permission": permission,
+                            "params": params,
+                            "cmd": cmd,
+                            "max_result_chars": 0,
+                            "model_name": "",
+                            "examples": [],
+                            "hidden": False,
+                            "hidden_aliases": [],
+                            "parallel_limit": 0,
+                            "conflict_group": "",
+                        }
+    except Exception as db_err:
+        log.debug("Database verb catalog overlay failed (using TOML baseline): %s", db_err)
+
     return cat
 
 
@@ -368,14 +436,31 @@ def _recipe_to_openai_tool(name: str, cfg: dict) -> dict:
     # the model emits null to skip it, and os_recipe fills the default. Mirrors
     # _verb_to_openai_tool. (Was additionalProperties:true + required:[] -> not
     # strict-mode-valid, silently degraded constrained decoding for mios_recipe__*.)
+    args_raw = cfg.get("args") or []
     props: dict = {}
-    for argname in (cfg.get("args") or []):
-        if not isinstance(argname, str) or not argname:
-            continue
-        props[argname] = {
-            "type": ["string", "null"],
-            "description": f"value for {argname}",
-        }
+    if isinstance(args_raw, dict):
+        for argname, argcfg in args_raw.items():
+            if isinstance(argcfg, dict):
+                spec = {
+                    "type": [argcfg.get("type", "string"), "null"],
+                    "description": argcfg.get("desc") or argcfg.get("description") or f"value for {argname}"
+                }
+                if "enum" in argcfg:
+                    spec["enum"] = list(argcfg["enum"]) + [None]
+                props[argname] = spec
+            else:
+                props[argname] = {
+                    "type": ["string", "null"],
+                    "description": f"value for {argname}",
+                }
+    else:
+        for argname in args_raw:
+            if not isinstance(argname, str) or not argname:
+                continue
+            props[argname] = {
+                "type": ["string", "null"],
+                "description": f"value for {argname}",
+            }
     if "os" not in props:
         props["os"] = {
             "type": ["string", "null"],

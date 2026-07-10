@@ -1,4 +1,4 @@
-<!-- AI-hint: The primary architectural specification and API-surface map for MiOS as a whole system: how an immutable bootc/OCI Fedora workstation is also a local, self-replicating agentic AI OS. Defines the OpenAI-compatible routing (agent-pipe :8640, MiOS-Hermes :8642, prefilter :8641), the function-named inference lanes (mios-llm-light :11450 primary + embeddings, mios-llm-heavy SGLang :11441, mios-llm-heavy-alt vLLM :11440), the PostgreSQL+pgvector agent datastore (:5432), the six Architectural Laws, and the layered mios.toml SSOT.
+<!-- AI-hint: The primary architectural specification and API-surface map for MiOS as a whole system: how an immutable bootc/OCI Fedora workstation is also a local, self-replicating agentic AI OS. Defines the OpenAI-compatible routing (agent-pipe :8640, MiOS-Hermes :8642, prefilter :8641), the function-named inference lanes (mios-llm-light :8450 primary + embeddings, mios-llm-heavy SGLang :8442, mios-llm-heavy-alt vLLM :8441), the PostgreSQL+pgvector agent datastore (:8432), the eight Architectural Laws, and the layered mios.toml SSOT.
      AI-related: /usr/share/mios/llamacpp/llama-swap.yaml, /usr/share/mios/postgres/schema-init.sql, /etc/mios/mios.toml, /usr/share/mios/mios.toml, /etc/mios/profile.toml, /usr/share/mios/profile.toml, /usr/share/mios/env.defaults, /etc/mios/env.d/, /etc/mios/install.env, /etc/mios/ai, /etc/mios/forge -->
 # 'MiOS' System Interface -- v0.3.0
 
@@ -69,9 +69,9 @@ Law 5). The layers, front to back:
   to MiOS-Hermes. It is a *subset* of the agent-pipe (no refine/swarm/emits) and
   remains available as an override drop-in.
 - **Inference lanes** one layer down (function-named, not upstream-tool-named):
-  raw model inference + embeddings live on **mios-llm-light** (`:11450`); two
-  gated heavy GPU lanes (**mios-llm-heavy** SGLang `:11441`, **mios-llm-heavy-alt**
-  vLLM `:11440`) co-serve the heavy reasoner when VRAM permits. See §2a.
+  raw model inference + embeddings live on **mios-llm-light** (`:8450`); two
+  gated heavy GPU lanes (**mios-llm-heavy** SGLang `:8442`, **mios-llm-heavy-alt**
+  vLLM `:8441`) co-serve the heavy reasoner when VRAM permits. See §2a.
 
 The endpoints below follow the OpenAI public API spec
 (<https://platform.openai.com/docs/api-reference>) verb-for-verb;
@@ -82,7 +82,7 @@ clients can ignore them.
 |---|---|---|---|
 | `/v1/chat/completions` | POST | MiOS-Agent pipe (`:8640`) -- refines, decomposes, tool-loops, polishes | <https://platform.openai.com/docs/api-reference/chat> |
 | `/v1/responses` | POST | MiOS-Agent pipe (`:8640`) -- backed by Hermes (`:8642`) by default | <https://platform.openai.com/docs/api-reference/responses> |
-| `/v1/embeddings` | POST | MiOS-Agent pipe (`:8640`); proxied to **mios-llm-light** (`:11450`, `nomic-embed-text`) | <https://platform.openai.com/docs/api-reference/embeddings> |
+| `/v1/embeddings` | POST | MiOS-Agent pipe (`:8640`); proxied to **mios-llm-light** (`:8450`, `nomic-embed-text`) | <https://platform.openai.com/docs/api-reference/embeddings> |
 | `/v1/models` | GET | MiOS-Agent pipe; manifest at `usr/share/mios/ai/v1/models.json` | <https://platform.openai.com/docs/api-reference/models/list> |
 | `/v1/agents` (manifest) | GET | `usr/share/mios/ai/v1/agents.json` -- mirror of `[agents.*]` in mios.toml | -- |
 | `x-mios:/v1/mcp` | GET | `usr/share/mios/ai/v1/mcp.json` | <https://modelcontextprotocol.io/specification> |
@@ -111,9 +111,9 @@ which is why OWUI's `RAG_*` knobs and every OpenAI SDK work unchanged.
 
 | Lane (unit) | Port | Engine (upstream image) | Role | State |
 |---|---|---|---|---|
-| **mios-llm-light** (`mios-llm-light.service`) | `:11450` | llama.cpp via the **llama-swap** proxy (`ghcr.io/mostlygeek/llama-swap:cuda`) | PRIMARY everyday inference + embeddings + the `mios-opencode` coder model; multi-model auto-swap with per-conversation KV-paging to disk | default-on (gated on baked GGUFs) |
-| **mios-llm-heavy** (`mios-llm-heavy.service`) | `:11441` | SGLang (`lmsysorg/sglang`) | heavy GPU reasoner, served-name `mios-heavy` | gated/off (VRAM) |
-| **mios-llm-heavy-alt** (`mios-llm-heavy-alt.service`) | `:11440` | vLLM (`vllm/vllm-openai`), PagedAttention + APC | alternate heavy reasoner, served-name `mios-heavy` | gated/off (VRAM) |
+| **mios-llm-light** (`mios-llm-light.service`) | `:8450` | llama.cpp via the **llama-swap** proxy (`ghcr.io/mostlygeek/llama-swap:cuda`) | PRIMARY everyday inference + embeddings + the `mios-opencode` coder model; multi-model auto-swap with per-conversation KV-paging to disk | default-on (gated on baked GGUFs) |
+| **mios-llm-heavy** (`mios-llm-heavy.service`) | `:8442` | SGLang (`lmsysorg/sglang`) | heavy GPU reasoner, served-name `mios-heavy` | gated/off (VRAM) |
+| **mios-llm-heavy-alt** (`mios-llm-heavy-alt.service`) | `:8441` | vLLM (`vllm/vllm-openai`), PagedAttention + APC | alternate heavy reasoner, served-name `mios-heavy` | gated/off (VRAM) |
 | **mios-llm-worker@** (template) | -- | single-model swarm worker | one model per process for fan-out concurrency | on-demand |
 
 `mios-llm-light` is the linchpin of the everyday lane: llama-swap launches/swaps
@@ -141,7 +141,7 @@ otherwise).
 
 The runtime "which model does Hermes use by default" knob is `[ai].big_ram_model`;
 the inference backend Hermes forwards to is `[ai].hermes_backend_url`
-(`http://localhost:11450/v1` -- the mios-llm-light lane). GGUFs are an opt-in
+(`http://localhost:8450/v1` -- the mios-llm-light lane). GGUFs are an opt-in
 offline build bake; a missing-weights lane stays inert (its
 `ConditionPathExists=` model-ready guard short-circuits the unit so it can't
 crash-loop). The host overlay at `/etc/mios/mios.toml` takes precedence over the
@@ -153,14 +153,14 @@ into `/etc/mios/mios.toml`. Restart the relevant lane unit and
 > Historical note: earlier MiOS releases used **Ollama** on `:11434` for
 > inference and embeddings. Ollama has been fully removed as a MiOS backend
 > (containers, firstboot, model-bake, Modelfiles, CLI shim); inference and
-> embeddings now run on `mios-llm-light` (`:11450`). "Ollama" survives only as an
+> embeddings now run on `mios-llm-light` (`:8450`). "Ollama" survives only as an
 > *upstream API-compat reference* -- the lanes speak the OpenAI/Ollama-compatible
 > API -- and in migration notes.
 
 ### 2b. Agent memory + datastore
 
 The unified agent-plane datastore is **PostgreSQL + pgvector** -- the
-`mios-pgvector` container (`mios-pgvector.service`, host-net `:5432`, uid 826),
+`mios-pgvector` container (`mios-pgvector.service`, host-net `:8432`, uid 826),
 one engine for relational + JSONB (document) + vector (pgvector HNSW) memory.
 Schema is initialised idempotently from
 `usr/share/mios/postgres/schema-init.sql` (tables: `agent_memory`, `event`,
@@ -178,7 +178,7 @@ and injected back into agent context.
 
 ## 3. Architectural laws (enforced; non-negotiable)
 
-These six laws are the contract every other part of the system is built to
+These eight laws are the contract every other part of the system is built to
 satisfy -- they keep the OS immutable, auditable, and self-replicating.
 
 | # | Law | Enforced by |
@@ -189,6 +189,8 @@ satisfy -- they keep the OS immutable, auditable, and self-replicating.
 | 4 | **BOOTC-CONTAINER-LINT** -- final RUN of `Containerfile`. Fail = fail the build. | `Containerfile` (last `RUN`) |
 | 5 | **UNIFIED-AI-REDIRECTS** -- every OpenAI-API-shaped client resolves through one canonical surface: `MIOS_AI_ENDPOINT` (default `http://localhost:8080/v1`, the OpenAI-SDK `base_url` slot), `MIOS_AI_MODEL` (default model id), `MIOS_AI_KEY` (api key, empty for the local proxy). No vendor-hardcoded URLs. | `/etc/profile.d/mios-env.sh`, `usr/bin/mios`, `usr/bin/mios-env`, `etc/mios/ai/` |
 | 6 | **UNPRIVILEGED-QUADLETS** -- every Quadlet declares `User=`, `Group=`, `Delegate=yes`. Documented exceptions: `mios-ceph` and `mios-k3s` declare `User=root`/`Group=root` because Ceph/K3s require uid 0; `mios-forgejo-runner` declares `User=0`/`Group=0` because the closed self-replication loop runs `podman build -f /Containerfile` on every push (needs write access to rootful `/var/lib/containers/storage/` and `bootc switch` permissions on the resulting image); the upstream `mios-llm-heavy` (SGLang) image runs image-default root because it probes GPU memory via a root-only `nvidia-smi` and has no `mios` user. Rationale lives in each unit's file header. | `etc/containers/systemd/`, `usr/share/containers/systemd/` |
+| 7 | **NO-HARDCODE** -- nothing operator-tunable, including model names, ports, or scoring parameters, may be hardcoded. Values must resolve via the `mios.toml` configuration cascade. | `usr/share/mios/mios.toml`, `C:\mios-bootstrap\mios.toml` |
+| 8 | **K-I-S-S-LANGUAGES** -- all scripting and automation must consolidate strictly around modern, FOSS, user-selected, and defined languages (Nushell, Rust, Zig) using Keep-It-Simple-Stupid (K.I.S.S.) principles to eliminate shell script sprawl. | `C:\MiOS\automation\17-accounts-db.sh`, `language_modernization_blueprint.md` |
 
 ## 4. Profile + environment resolution
 
@@ -356,33 +358,39 @@ SSOT in `[ports]` of `mios.toml`:
 
 | Port  | Proto | Service | Notes |
 |---|---|---|---|
-| 2222  | tcp | sshd                | host admin sshd (hardened off :22) |
-| 3000  | tcp | mios-forge          | Forgejo HTTP web UI |
-| 3030  | tcp | **MiOS-OWUI**       | Open WebUI (browser front; OWUI Quadlet → :8080 in container) |
-| 3053  | tcp | mios-adguard        | AdGuard Home web UI + REST API |
-| 3389  | tcp | RDP                 | GNOME Remote Desktop / xRDP |
-| 6443  | tcp | mios-k3s            | Kubernetes API |
-| 8090  | tcp | mios-guacamole      | Browser desktop (host → container 8080; 8080 is reserved for the off-by-default LocalAI lane) |
-| 8443  | tcp | mios-ceph           | Ceph dashboard |
+| 53    | udp | adguard_dns          | AdGuard Home DNS resolver (tailnet-wide global DNS) |
+| 8033  | tcp | **MiOS-OWUI**       | Open WebUI (browser front; OWUI Quadlet → :8080 in container) |
+| 8053  | tcp | mios-adguard        | AdGuard Home web UI + REST API |
+| 8080  | tcp | mios-guacamole      | Browser desktop web UI |
+| 8090  | tcp | cockpit             | host web console |
+| 8091  | tcp | mios-cockpit-link   | Podman Desktop discovery shim |
+| 8119  | tcp | hermes dashboard    | Hermes Dashboard web UI (sessions, skills, stats) |
+| 8222  | tcp | sshd                | host admin sshd (hardened off :22) |
+| 8300  | tcp | mios-forge          | Forgejo HTTP web UI |
+| 8301  | tcp | mios-forge          | Forgejo git+ssh (vacated 2222 for host admin sshd) |
+| 8389  | tcp | RDP                 | GNOME Remote Desktop / xRDP |
+| 8432  | tcp | **mios-pgvector**   | PostgreSQL + pgvector unified agent DB |
+| 8441  | tcp | **mios-llm-heavy-alt** | vLLM heavy dGPU lane (gated/off by default) |
+| 8442  | tcp | **mios-llm-heavy**  | SGLang heavy dGPU lane (gated/off by default) |
+| 8443  | tcp | mios-k3s            | Kubernetes API |
+| 8444  | tcp | mios-ceph           | Ceph dashboard |
+| 8450  | tcp | **mios-llm-light**  | PRIMARY inference + embeddings (llama.cpp via llama-swap; backs Hermes) |
+| 8458  | tcp | **mios-cpu-node**   | Always-on CPU granite-brain lane |
 | 8633  | tcp | **MiOS-OpenCoder**  | opencode → OpenAI `/v1` gateway shim (loopback only) |
 | 8640  | tcp | **MiOS-Agent pipe** | Full agentic pipeline front door (refine → swarm/DAG → tool-loop → polish); what OWUI + desktop target |
 | 8641  | tcp | **MiOS-Prefilter**  | Delegation prefilter; injects `tool_choice=delegate_task` then forwards to MiOS-Hermes |
 | 8642  | tcp | **MiOS-Hermes**     | OpenAI-compat agent gateway (host-direct, NOT a Quadlet) |
 | 8800  | tcp | mios-code-server    | code-server (VS Code in a browser) |
-| 8888  | tcp | **MiOS-Search**     | SearXNG; backs `web_search` tool + OWUI's web augmentation |
-| 9090  | tcp | cockpit             | host web console |
-| 9119  | tcp | hermes dashboard    | Hermes Dashboard web UI (sessions, skills, stats) |
-| 11440 | tcp | **mios-llm-heavy-alt** | vLLM heavy dGPU lane (gated/off by default) |
-| 11441 | tcp | **mios-llm-heavy**  | SGLang heavy dGPU lane (gated/off by default) |
-| 11450 | tcp | **mios-llm-light**  | PRIMARY inference + embeddings (llama.cpp via llama-swap; backs Hermes) |
-| 19090 | tcp | mios-cockpit-link   | Podman Desktop discovery shim → 9090 |
-| 49922 | tcp | mios-forge          | Forgejo git+ssh (vacated 2222 for host admin sshd) |
+| 8899  | tcp | **MiOS-Search**     | SearXNG; backs `web_search` tool + OWUI's web augmentation |
+| 8681  | tcp | ttyd_bash           | ttyd browser pty -- Linux bash session |
+| 8682  | tcp | ttyd_powershell     | ttyd browser pty -- Windows PowerShell session |
 
 Internal-only / loopback services (no LAN `PublishPort`): `mios-pgvector`
-(5432, host-net loopback agent DB), `mios-guacamole-postgres` (5432 sibling on
-the bridge), `mios-guacd` (4822), `mios-crowdsec-dashboard` (LAPI sibling-only),
-the `mios-webtools` pod members `mios-webtools-firecrawl-api` (3002) and
-`mios-webtools-crawl4ai` (11235), and `mios-pxe-hub`.
+(8432, host-net loopback agent DB), `mios-guacd` (4822),
+`mios-webtools-firecrawl-api` (8302), `mios-webtools-crawl4ai` (8235),
+`prefilter` (8641), `arbiter` (8650), `daemon_agent` (8644), `model_router` (8645),
+`oscontrol` (8453), `mcp` (8460). Only `Network=host` is used for primary AI-plane
+Quadlets, so ports are bound directly on the host interface.
 
 ## 8. Global pipeline phases
 

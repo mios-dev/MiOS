@@ -1,4 +1,3 @@
-# AI-hint: Configures environment variables and ANSI color codes for the guestfish shell prompt and output formatting to ensure consistent visual feedback during guestfish session interactions.
 # Guestfish colour prompts.  See PROMPT in guestfish(1).
 GUESTFISH_PS1='\[\e[1;32m\]><fs>\[\e[0;31m\] '
 GUESTFISH_OUTPUT='\e[0m'

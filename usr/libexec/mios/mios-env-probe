@@ -24,6 +24,11 @@ set -euo pipefail
 #   --json       machine-readable
 set -eu
 
+[ -r /etc/mios/install.env ] && . /etc/mios/install.env || true
+_PORT_HERMES="${MIOS_PORT_HERMES:-8642}"
+_PORT_PREFILTER="${MIOS_PORT_PREFILTER:-8641}"
+_PORT_LLM_LIGHT="${MIOS_PORT_LLM_LIGHT:-8450}"
+
 MODE="${1:-brief}"
 case "$MODE" in
     --brief|brief|-b) MODE=brief ;;
@@ -93,7 +98,7 @@ OS_PRETTY="$(grep -m1 PRETTY_NAME= /etc/os-release 2>/dev/null | sed 's/^.*=//; 
 _svc_active() {
     if systemctl is-active --quiet "$1"; then echo up; else echo down; fi
 }
-SVC_HERMES=$(_svc_active hermes-agent.service)
+SVC_HERMES=$(_svc_active mios-gateway-agent.service)
 SVC_PREFILTER=$(_svc_active mios-delegation-prefilter.service)
 SVC_OWUI=$(_svc_active mios-open-webui.service)
 SVC_LLM_LIGHT=$(_svc_active mios-llm-light.service)
@@ -174,7 +179,7 @@ $(if [ -n "$WIN_BLOCK" ]; then printf '\n## Windows host (the machine WSL lives 
 ## MiOS stack services
 | service                              | state |
 |--------------------------------------|-------|
-| hermes-agent.service                 | $SVC_HERMES |
+| mios-gateway-agent.service           | $SVC_HERMES |
 | mios-delegation-prefilter.service    | $SVC_PREFILTER |
 | mios-open-webui.service              | $SVC_OWUI |
 | mios-llm-light.service               | $SVC_LLM_LIGHT |
@@ -186,9 +191,9 @@ $(if [ -n "$WIN_BLOCK" ]; then printf '\n## Windows host (the machine WSL lives 
 
 ## AI inference
 - Models loaded (llm-light): \`$OLLAMA_MODELS\`
-- Hermes gateway: http://localhost:8642/v1
-- Prefilter (force delegate_task on fan-out): http://localhost:8641/v1
-- Backend llm-light: http://localhost:11450
+- Hermes gateway: http://localhost:${_PORT_HERMES}/v1
+- Prefilter (force delegate_task on fan-out): http://localhost:${_PORT_PREFILTER}/v1
+- Backend llm-light: http://localhost:${_PORT_LLM_LIGHT}
 
 ## Launchable inventory
 - $N_FLATPAK flatpaks

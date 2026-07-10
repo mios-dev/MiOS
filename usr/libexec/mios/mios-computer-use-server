@@ -57,10 +57,9 @@ import sys
 import tempfile
 from pathlib import Path
 
-try:
-    import tomllib
-except ModuleNotFoundError:  # pragma: no cover
-    tomllib = None
+sys.path.insert(0, os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "..", "lib", "mios"))
+import mios_toml  # noqa: E402  -- the ONE shared layered-mios.toml resolver
 
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -74,22 +73,8 @@ MCP_PROTOCOL_VERSION = "2025-06-18"
 
 # ── config ────────────────────────────────────────────────────────────────────
 def _toml() -> dict:
-    if tomllib is None:
-        return {}
-    out: dict = {}
-    for p in ("/usr/share/mios/mios.toml", "/etc/mios/mios.toml",
-              os.path.join(os.environ.get("HOME", ""), ".config/mios/mios.toml")):
-        try:
-            with open(p, "rb") as f:
-                d = tomllib.load(f)
-            for k, v in d.items():
-                if isinstance(v, dict) and isinstance(out.get(k), dict):
-                    out[k].update(v)
-                else:
-                    out[k] = v
-        except (OSError, tomllib.TOMLDecodeError):  # type: ignore[attr-defined]
-            continue
-    return out
+    """Layered mios.toml overlay (vendor < /etc < ~/.config) via the shared resolver."""
+    return mios_toml.load_merged()
 
 
 _CFG = (_toml().get("computer_use") or {})

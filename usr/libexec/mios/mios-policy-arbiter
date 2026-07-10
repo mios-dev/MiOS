@@ -16,7 +16,7 @@ if _PIPE not in sys.path:
 import mios_arbiter as arb  # noqa: E402  -- pure decision core
 
 HOST = os.environ.get("MIOS_ARBITER_HOST", "127.0.0.1")
-PORT = int(os.environ.get("MIOS_ARBITER_PORT", "8650") or 8650)
+PORT = int(os.environ.get("MIOS_PORT_ARBITER", os.environ.get("MIOS_ARBITER_PORT", "8650")) or 8650)
 
 
 def _csv(name):

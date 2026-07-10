@@ -71,18 +71,15 @@ ES_PROBE_LIST=""
 if [ -n "${EVERYTHING_CLI:-}" ]; then
     ES_PROBE_LIST="$(printf '%s\n' "$EVERYTHING_CLI" | tr ':' '\n')"
 else
-    ES_PROBE_LIST="$(python3 - <<'PYEOF' 2>/dev/null
-import tomllib, sys
-for p in ("/etc/mios/mios.toml", "/usr/share/mios/mios.toml"):
-    try:
-        with open(p, "rb") as f:
-            d = tomllib.load(f)
-        paths = d.get("paths", {}).get("everything_cli")
-        if paths:
-            print("\n".join(paths))
-            sys.exit(0)
-    except (OSError, tomllib.TOMLDecodeError):
-        continue
+    ES_PROBE_LIST="$(python3 - "$(cd "$(dirname "$0")" && pwd)/../../lib/mios" <<'PYEOF' 2>/dev/null
+import sys
+# Shared layered mios.toml resolver (vendor < host < user), path injected as argv[1].
+sys.path.insert(0, sys.argv[1])
+import mios_toml
+paths = mios_toml.section(mios_toml.load_merged(), "paths").get("everything_cli")
+if paths:
+    print("\n".join(paths))
+    sys.exit(0)
 print("/mnt/m/Programs/Everything/es.exe")
 PYEOF
 )"
@@ -152,24 +149,7 @@ if [ -z "$RAW" ]; then
         # so the actionable hint names WHICH es.exe to install (a stale es.exe vs
         # the running Everything is the usual cause of this IPC error). Degrade-open:
         # if the key is absent the hint just omits the version.
-        _ES_VER="$(python3 - <<'PYEOF' 2>/dev/null
-try:
-    import tomllib
-except ImportError:
-    tomllib = None
-if tomllib:
-    for p in ("/etc/mios/mios.toml", "/usr/share/mios/mios.toml"):
-        try:
-            with open(p, "rb") as f:
-                d = tomllib.load(f)
-        except (OSError, tomllib.TOMLDecodeError):
-            continue
-        v = d.get("paths", {}).get("everything_cli_version")
-        if v:
-            print(v)
-            break
-PYEOF
-)"
+        _ES_VER="$("$(cd "$(dirname "$0")" && pwd)/mios-toml-get" paths everything_cli_version "" 2>/dev/null)"
         _REC=""
         [ -n "$_ES_VER" ] && _REC=" (recommended: es.exe $_ES_VER)"
         _MSG="Everything UNREACHABLE -- es.exe could not connect ($_ES_STDERR). Install an es.exe whose version matches the running Everything${_REC}, point EVERYTHING_CLI or mios.toml [paths].everything_cli at it, and ensure Everything is running."

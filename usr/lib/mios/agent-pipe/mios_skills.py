@@ -379,11 +379,35 @@ def _skill_to_openai_tool(row: dict) -> dict:
     name = row.get("name") or ""
     description = row.get("description") or f"MiOS skill {name}"
     body = row.get("body") or {}
-    params = body.get("params") or []
-    properties = {
-        p: {"type": "string",
-            "description": f"value for ${p}"} for p in params
-    }
+    params_raw = body.get("params") or []
+    
+    if isinstance(params_raw, dict):
+        properties = {}
+        required = []
+        for p, pcfg in params_raw.items():
+            if isinstance(pcfg, dict):
+                ptype = pcfg.get("type", "string")
+                pdesc = pcfg.get("desc") or pcfg.get("description") or f"value for ${p}"
+                spec = {"type": ptype, "description": pdesc}
+                if "enum" in pcfg:
+                    spec["enum"] = list(pcfg["enum"])
+                if "items" in pcfg:
+                    spec["items"] = pcfg["items"]
+                properties[p] = spec
+            else:
+                properties[p] = {
+                    "type": "string",
+                    "description": f"value for ${p}"
+                }
+            required.append(p)
+    else:
+        params = list(params_raw)
+        properties = {
+            p: {"type": "string",
+                "description": f"value for ${p}"} for p in params
+        }
+        required = params
+
     # OpenAI STRICT mode (audit P2): skill params are all required by
     # construction (required == params), so strict mode is satisfied by just adding
     # strict:True + additionalProperties:False -- no nullable rework needed. Brings
@@ -398,7 +422,7 @@ def _skill_to_openai_tool(row: dict) -> dict:
             "parameters": {
                 "type": "object",
                 "properties": properties,
-                "required": params,
+                "required": required,
                 "additionalProperties": False,
             },
         },

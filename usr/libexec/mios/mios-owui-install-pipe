@@ -175,28 +175,15 @@ BASE_MODEL="mios_agent.mios-agent"  # <function_id>.<pipe_id> from pipes()
 # strings if the operator edits mios.toml between them).
 SYSTEM_PROMPT_FILE="$(mktemp -t mios-owui-sys-XXXXXX.md)"
 trap 'rm -f "$SYSTEM_PROMPT_FILE"' EXIT
-python3 - "$SYSTEM_PROMPT_FILE" <<'PYEOF'
+python3 - "$(cd "$(dirname "$0")" && pwd)/../../lib/mios" "$SYSTEM_PROMPT_FILE" <<'PYEOF'
 import json, os, sys
-out_path = sys.argv[1]
+# Shared layered mios.toml resolver (vendor < host < user), path injected as argv[1].
+sys.path.insert(0, sys.argv[1])
+import mios_toml
+out_path = sys.argv[2]
 
 def _load_system_prompt() -> str:
-    try:
-        import tomllib
-    except ImportError:
-        try:
-            import tomli as tomllib  # type: ignore
-        except ImportError:
-            return ""
-    merged = {}
-    for p in ("/usr/share/mios/mios.toml", "/etc/mios/mios.toml"):
-        try:
-            with open(p, "rb") as f:
-                d = tomllib.load(f)
-        except (OSError, tomllib.TOMLDecodeError):
-            continue
-        block = (d.get("owui", {}) or {}).get("system_prompt", {}) or {}
-        if isinstance(block, dict):
-            merged.update(block)
+    merged = mios_toml.section(mios_toml.load_merged(), "owui.system_prompt")
     template = str(merged.get("template", "")).strip()
     user_path = str(merged.get("user_section_path", "")).strip()
     if user_path:

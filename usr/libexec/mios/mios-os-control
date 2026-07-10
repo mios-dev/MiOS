@@ -69,32 +69,15 @@ _WINDOW_DEFAULT_FALLBACK = {
 }
 
 
-def _toml():
-    try:
-        import tomllib
-    except ImportError:
-        try:
-            import tomli as tomllib  # type: ignore
-        except ImportError:
-            sys.stderr.write("mios-os-control: tomllib unavailable\n")
-            sys.exit(3)
-    return tomllib
+sys.path.insert(0, os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "..", "lib", "mios"))
+import mios_toml  # noqa: E402  -- the ONE shared layered-mios.toml resolver
 
 
 def _load_section(section: str) -> dict:
-    """Merge [<section>.*] across vendor + /etc override (etc wins)."""
-    tomllib = _toml()
-    merged: dict = {}
-    for path in _TOML_PATHS:
-        try:
-            with open(path, "rb") as f:
-                d = tomllib.load(f)
-        except (OSError, tomllib.TOMLDecodeError):
-            continue
-        block = d.get(section) or {}
-        if isinstance(block, dict):
-            merged.update(block)
-    return merged
+    """Merge [<section>.*] across vendor + /etc override (etc wins) via the shared
+    resolver. _TOML_PATHS = (MIOS_TOML-or-vendor, /etc) -- no per-user layer."""
+    return dict(mios_toml.section(mios_toml.load_merged(list(_TOML_PATHS)), section))
 
 
 def _load_verbs() -> dict:
@@ -338,7 +321,7 @@ def cmd_launch(args: list[str]) -> int:
         print(json.dumps({"success": False, "fired": False, "launched": False,
                           "error": "usage: mios-os-control launch \"<app>\""}))
         return 64
-    port = os.environ.get("MIOS_DAEMON_AGENT_PORT", "8644")
+    port = os.environ.get("MIOS_PORT_DAEMON_AGENT", os.environ.get("MIOS_DAEMON_AGENT_PORT", "8644"))
     base = os.environ.get(
         "MIOS_DAEMON_AGENT_URL", f"http://127.0.0.1:{port}").rstrip("/")
     payload = json.dumps({"action": "launch", "app": app,

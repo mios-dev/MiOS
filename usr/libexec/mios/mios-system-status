@@ -201,7 +201,7 @@ def _probe_services() -> dict:
     # MiOS-specific health roll-up. is-active returns the state string
     # (active / inactive / failed) for each unit, one per line.
     mios_units = [
-        "hermes-agent.service",
+        "mios-gateway-agent.service",
         "mios-open-webui.service",
         "mios-delegation-prefilter.service",
         "mios-hermes-tail.service",
@@ -217,11 +217,12 @@ def _probe_services() -> dict:
 
 
 def _probe_ollama() -> list[dict]:
-    """Query model list from the mios-llm-light API (port 11450)."""
+    """Query model list from the mios-llm-light API."""
     out: list[dict] = []
     try:
         import urllib.request
-        req = urllib.request.Request("http://localhost:11450/api/tags")
+        port = os.environ.get("MIOS_PORT_LLM_LIGHT", "8450")
+        req = urllib.request.Request(f"http://localhost:{port}/api/tags")
         with urllib.request.urlopen(req, timeout=5.0) as response:
             data = json.loads(response.read().decode('utf-8'))
             models = data.get("models", [])

@@ -51,7 +51,7 @@ PG_QUERY = os.environ.get("MIOS_PG_QUERY_BIN", "/usr/libexec/mios/mios-pg-query"
 # would make ingested rows un-rankable against chat-embedded queries.
 EMBED_MODEL = os.environ.get("MIOS_VERB_EMBED_MODEL", "nomic-embed-text")
 EMBED_URL = os.environ.get(
-    "MIOS_VERB_EMBED_URL", "http://localhost:11450/v1/embeddings")
+    "MIOS_VERB_EMBED_URL", f"http://localhost:{os.environ.get('MIOS_PORT_LLM_LIGHT', '8450')}/v1/embeddings")
 # Cap the embed input (~1200 chars). nomic handles longer, but L0+L1 is already
 # a compact tiered summary; capping keeps the light-lane call fast + bounded.
 EMBED_MAX_CHARS = int(os.environ.get("MIOS_INGEST_EMBED_MAX_CHARS", "1200"))

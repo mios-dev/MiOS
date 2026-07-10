@@ -47,6 +47,10 @@ import sys
 import urllib.error
 import urllib.request
 
+sys.path.insert(0, os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "..", "lib", "mios"))
+import mios_toml  # noqa: E402  -- the ONE shared layered-mios.toml resolver
+
 OWUI_DB = os.environ.get("MIOS_OWUI_DB", "/var/lib/mios/open-webui/webui.db")
 # Suggestion generation needs a MORE capable model than the micro
 # refiner -- a 1.7b produced repetitive, id-leaking chips ("Open
@@ -54,7 +58,7 @@ OWUI_DB = os.environ.get("MIOS_OWUI_DB", "/var/lib/mios/open-webui/webui.db")
 # non-thinking + instruction-capable + warm on the dGPU lane; this is a
 # periodic BACKGROUND task so its latency doesn't touch chat turns.
 REFINE_ENDPOINT = os.environ.get(
-    "MIOS_SUGGESTION_ENDPOINT", "http://localhost:11450")
+    "MIOS_SUGGESTION_ENDPOINT", f"http://localhost:{os.environ.get('MIOS_PORT_LLM_LIGHT', '8450')}")
 REFINE_MODEL = os.environ.get("MIOS_SUGGESTION_MODEL", "granite4.1:8b")
 REFINE_TIMEOUT_S = int(os.environ.get(
     "MIOS_SUGGESTION_TIMEOUT_S", "60"))
@@ -122,28 +126,18 @@ def _mios_verbs_sample() -> list[str]:
     "<name>: <desc>" descriptors the model turns into natural, localised
     starter chips. Falls back to concrete baseline seeds if the catalog
     can't be read."""
-    try:
-        import tomllib
-    except ImportError:  # pragma: no cover
-        tomllib = None
+    # [verbs]+[recipes] across vendor + /etc (etc wins) via the shared resolver.
+    doc = mios_toml.load_merged(layers=["/usr/share/mios/mios.toml",
+                                        "/etc/mios/mios.toml"])
     caps: list[str] = []
-    if tomllib is not None:
-        for path in ("/usr/share/mios/mios.toml", "/etc/mios/mios.toml"):
-            try:
-                with open(path, "rb") as f:
-                    doc = tomllib.load(f)
-            except (OSError, tomllib.TOMLDecodeError):
+    for section in ("verbs", "recipes"):
+        table = mios_toml.section(doc, section)
+        for name, cfg in table.items():
+            if not isinstance(cfg, dict):
                 continue
-            for section in ("verbs", "recipes"):
-                table = doc.get(section, {}) or {}
-                if not isinstance(table, dict):
-                    continue
-                for name, cfg in table.items():
-                    if not isinstance(cfg, dict):
-                        continue
-                    desc = str(cfg.get("desc")
-                               or cfg.get("description") or "").strip()
-                    caps.append(f"{name}: {desc[:90]}" if desc else str(name))
+            desc = str(cfg.get("desc")
+                       or cfg.get("description") or "").strip()
+            caps.append(f"{name}: {desc[:90]}" if desc else str(name))
     # De-dupe, keep order, cap so the prompt stays bounded.
     seen: set[str] = set()
     out: list[str] = []

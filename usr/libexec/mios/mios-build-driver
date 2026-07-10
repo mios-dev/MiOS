@@ -87,23 +87,14 @@ _fail() { _log "FATAL: $*"; exit 1; }
 # degrade-open (enabled when the key is ABSENT so a runtime with no podman still
 # self-heals via CI); set false to keep the historical hard-fail.
 _build_curl_fallback_enabled() {
-    python3 - <<'PYEOF' 2>/dev/null
+    python3 - "$(cd "$(dirname "$0")" && pwd)/../../lib/mios" <<'PYEOF' 2>/dev/null
 import sys
-try:
-    import tomllib
-except ImportError:
-    sys.exit(0)  # no toml reader -> degrade-open (enabled)
-val = True
-for p in ("/etc/mios/mios.toml", "/usr/share/mios/mios.toml"):
-    try:
-        with open(p, "rb") as f:
-            d = tomllib.load(f)
-    except (OSError, tomllib.TOMLDecodeError):
-        continue
-    b = d.get("build")
-    if isinstance(b, dict) and "curl_trigger_fallback" in b:
-        val = bool(b["curl_trigger_fallback"])
-        break
+# Shared layered mios.toml resolver (vendor < host < user), path injected as argv[1].
+sys.path.insert(0, sys.argv[1])
+import mios_toml
+b = mios_toml.section(mios_toml.load_merged(), "build")
+# Degrade-open: absent key -> enabled (exit 0); honor the highest layer that sets it.
+val = bool(b["curl_trigger_fallback"]) if "curl_trigger_fallback" in b else True
 sys.exit(0 if val else 1)
 PYEOF
 }

@@ -416,6 +416,11 @@ _REFINE_SYSTEM_LITE = (
     '  "intent": chat | dispatch | agent | multi_task   (coarse -- the\n'
     "    planner decides single-step vs multi-step downstream)\n"
     '  "refined_text": the request rewritten as a clear, ACTIONABLE query.\n'
+    "    For follow-up / contextual requests (e.g. 'research further', 'tell me more',\n"
+    "    'explain the second one', 'why?', 'show links'), you MUST resolve all relative\n"
+    "    references and details from the chat history into a fully detailed and explicit\n"
+    "    rewritten query (e.g. 'detailed background and additional news on Volkswagen cost-cutting\n"
+    "    production cuts in China July 2026') rather than repeating the generic query.\n"
     "    For current / recent / live info (news, events, trends, prices,\n"
     "    scores), make it a CONCRETE search query anchored to NOW (use the\n"
     "    current date or 'today' / 'latest') and DISAMBIGUATE any vague word a\n"
@@ -716,7 +721,7 @@ async def refine_intent(user_text: str,
             if isinstance(h, dict) and h.get("role") in ("user", "assistant"):
                 msgs.append({"role": h["role"],
                              "content": mios_tokenize.truncate_to_tokens(
-                                 str(h.get("content", "")), 50)})  # WS-A5 seam (was [:200])
+                                 str(h.get("content", "")), 250)})  # WS-A5 seam (was [:200])
     # Cap the refine input to the TAIL. OWUI's RAG ("Searching Knowledge")
     # rewrites the user turn as "<context...>\n\nQuery: <actual question>"
     # - the real question is at the END (operator test showed a

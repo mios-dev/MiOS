@@ -123,9 +123,170 @@ def _header_risk(raw: bytes, path: str):
             return "shebang not on line 1 (a header/comment is above it)"
     return None
 
+_PORT_PATTERNS = [
+    re.compile(r'localhost:(\d+)'),
+    re.compile(r'127\.0\.0\.1:(\d+)'),
+    re.compile(r':(\d{4,5})\b'),
+]
+
+_IP_PATTERN = re.compile(
+    r'\b(?:[1-9]|\d{2}|1\d{2}|2[0-4]\d|25[0-5])\.(?:\d|[1-9]\d|1\d{2}|2[0-4]\d|25[0-5])\.(?:\d|[1-9]\d|1\d{2}|2[0-4]\d|25[0-5])\.(?:\d|[1-9]\d|1\d{2}|2[0-4]\d|25[0-5])\b'
+)
+
+def _is_routable_ip(ip_str: str) -> bool:
+    if ip_str in ("127.0.0.1", "0.0.0.0"):
+        return False
+    parts = ip_str.split('.')
+    if len(parts) != 4:
+        return False
+    try:
+        p1, p2, p3, p4 = [int(p) for p in parts]
+    except ValueError:
+        return False
+    if p1 == 10:
+        return False
+    if p1 == 172 and (16 <= p2 <= 31):
+        return False
+    if p1 == 192 and p2 == 168:
+        return False
+    if p1 == 100 and (64 <= p2 <= 127):
+        return False
+    return True
+
+def _check_ports_ips_py(text: str, filename: str, exempt_patterns: list[str]) -> list[tuple[int, str]]:
+    violations = []
+    exempt_rx = [re.compile(pat) for pat in exempt_patterns]
+    try:
+        toks = list(tokenize.generate_tokens(io.StringIO(text).readline))
+    except (tokenize.TokenError, IndentationError, SyntaxError):
+        return []
+    
+    lines = text.split('\n')
+    for t in toks:
+        if t.type == tokenize.COMMENT:
+            continue
+        if t.type == tokenize.STRING and t.string.startswith(('"""', "'''", 'r"""', "r'''", 'u"""', "u'''")):
+            continue
+            
+        s = t.string
+        ln = t.start[0]
+        line = lines[ln - 1] if 1 <= ln <= len(lines) else ""
+        
+        is_line_exempt = False
+        for rx in exempt_rx:
+            if rx.search(line):
+                is_line_exempt = True
+                break
+        if is_line_exempt:
+            continue
+            
+        # Check ports
+        for pat in _PORT_PATTERNS:
+            for m in pat.finditer(s):
+                port_num_str = m.group(1)
+                try:
+                    port_num = int(port_num_str)
+                except ValueError:
+                    continue
+                if not (1 <= port_num <= 65535):
+                    continue
+                
+                start = m.start()
+                end = m.end()
+                if end < len(s) and s[end] == ']':
+                    continue
+                if start > 0 and s[start - 1] in ('[', '-', '+', ':', '/'):
+                    continue
+                
+                violations.append((ln, m.group(0)))
+                
+        # Check IPs
+        for m in _IP_PATTERN.finditer(s):
+            ip_str = m.group(0)
+            if _is_routable_ip(ip_str):
+                violations.append((ln, ip_str))
+                
+    return violations
+
+def _check_ports_ips(text: str, filename: str, exempt_patterns: list[str]) -> list[tuple[int, str]]:
+    violations = []
+    lines = text.split('\n')
+    exempt_rx = [re.compile(pat) for pat in exempt_patterns]
+    for idx, line in enumerate(lines, 1):
+        stripped = line.strip()
+        if stripped.startswith('#') or stripped.startswith('//') or stripped.startswith(';'):
+            continue
+        
+        is_line_exempt = False
+        for rx in exempt_rx:
+            if rx.search(line):
+                is_line_exempt = True
+                break
+        if is_line_exempt:
+            continue
+            
+        code_part = line
+        in_s = in_d = False
+        for i, ch in enumerate(line):
+            if ch == "'" and not in_d:
+                in_s = not in_s
+            elif ch == '"' and not in_s:
+                in_d = not in_d
+            elif not in_s and not in_d and ch == '#':
+                code_part = line[:i]
+                break
+                
+        for pat in _PORT_PATTERNS:
+            for m in pat.finditer(code_part):
+                port_num_str = m.group(1)
+                try:
+                    port_num = int(port_num_str)
+                except ValueError:
+                    continue
+                if not (1 <= port_num <= 65535):
+                    continue
+                    
+                start = m.start()
+                end = m.end()
+                if end < len(code_part) and code_part[end] == ']':
+                    continue
+                if start > 0 and code_part[start - 1] in ('-', '+', ':', '['):
+                    continue
+                violations.append((idx, m.group(0)))
+                
+        for m in _IP_PATTERN.finditer(code_part):
+            ip_str = m.group(0)
+            if _is_routable_ip(ip_str):
+                violations.append((idx, ip_str))
+                
+    return violations
+
+sys.path.insert(0, os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "..", "lib", "mios"))
+import mios_toml  # noqa: E402  -- the ONE shared layered-mios.toml resolver
+
+
+def _load_allowlist(roots):
+    exempt_files = []
+    exempt_patterns = []
+    for r in roots:
+        toml_path = os.path.join(r, "usr/share/mios/mios.toml")
+        if os.path.isfile(toml_path):
+            # Vendor-only, ROOT-RELATIVE read: this offline drift-gate scans a
+            # SOURCE tree (roots), so it must parse THIS root's vendor mios.toml,
+            # not the deployed /usr path -- a single explicit layer is the
+            # vendor-only view. (load_vendor() would read the fixed system path.)
+            data = mios_toml.load_merged(layers=[toml_path])
+            sec = mios_toml.section(data, "security.nohc_allowlist")
+            exempt_files.extend(sec.get("exempt_files", []))
+            exempt_patterns.extend(sec.get("exempt_patterns", []))
+            break
+    return exempt_files, exempt_patterns
 
 def scan(roots):
     violations = []
+    exempt_files, exempt_patterns = _load_allowlist(roots)
+    exempt_files_rx = [re.compile(pat) for pat in exempt_files]
     for root in roots:
         for dirpath, dirs, files in os.walk(root):
             dirs[:] = [d for d in dirs if d not in ('.git', '__pycache__', 'node_modules')]
@@ -144,6 +305,21 @@ def scan(roots):
                 if hr:
                     violations.append((p, 0, f"HEADER: {hr}"))
                 text = raw.decode('utf-8-sig' if raw[:3] == _BOM else 'utf-8', 'ignore').replace('\r\n', '\n')
+                
+                is_file_exempt = False
+                for rx in exempt_files_rx:
+                    if rx.search(rel):
+                        is_file_exempt = True
+                        break
+                
+                if fn.endswith(('.py', '.sh', '.bash', '.ps1', '.psm1')) and not is_file_exempt:
+                    if fn.endswith('.py'):
+                        for ln, snip in _check_ports_ips_py(text, fn, exempt_patterns):
+                            violations.append((p, ln, f"HARDCODED-PORT/IP: {snip}"))
+                    else:
+                        for ln, snip in _check_ports_ips(text, fn, exempt_patterns):
+                            violations.append((p, ln, f"HARDCODED-PORT/IP: {snip}"))
+                        
                 if fn.endswith('.py'):
                     for ln, snip in _date_in_comment_py(text):
                         violations.append((p, ln, f"DATE-IN-COMMENT: {snip}"))
@@ -160,14 +336,14 @@ def main(argv):
     soft = os.environ.get('MIOS_HARDCODE_LINT_SOFT', '0') == '1'
     v = scan(roots)
     if not v:
-        print('[mios-hardcode-lint] PASS: no date-in-comment/string / header crash-risk.')
+        print('[mios-hardcode-lint] PASS: no date-in-comment/string / header crash-risk / port-IP hardcode.')
         return 0
     for p, ln, msg in v[:60]:
         sys.stderr.write(f"    {p}:{ln}: {msg}\n")
     if len(v) > 60:
         sys.stderr.write(f"    ... and {len(v) - 60} more\n")
     sys.stderr.write(f"[mios-hardcode-lint] FAIL: {len(v)} NO-HARDCODE violation(s) "
-                     "(strip the date -> timeless comment/string; move a header below the shebang/BOM).\n")
+                     "(strip dates/ports/IPs -> timeless comment/string / env vars; move a header below the shebang/BOM).\n")
     if soft:
         sys.stderr.write("[mios-hardcode-lint] (MIOS_HARDCODE_LINT_SOFT=1 -> advisory, exit 0)\n")
         return 0

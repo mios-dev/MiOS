@@ -1032,6 +1032,14 @@
         </p>
         <div class="grid">
           <fieldset>
+            <legend>accounts — DB-backed account control plane</legend>
+            <p style="color: var(--muted); font-size: 11.5px; margin: 0 0 8px;">
+              Wire <code>libnss-pgsql2</code> + <code>pam_pgsql</code> on Linux, and a background SAM sync service on Windows, to make the local PostgreSQL database the live host account store.
+            </p>
+            <label for="f-accounts-db-backed">db_backed (Centralize host accounts in the Postgres database)</label>
+            <input type="text" id="f-accounts-db-backed" data-key="accounts.db_backed" data-type="bool" placeholder="true">
+          </fieldset>
+          <fieldset>
             <legend>security — inbound principal / per-tenant auth</legend>
             <label for="f-sec-principal">principal_mode (off = trust surface-claimed user · verify = require a scoped token · enforce = verify + 401 on miss)</label>
             <input type="text" id="f-sec-principal" data-key="security.principal_mode" placeholder="off">
@@ -1302,6 +1310,14 @@
             <input type="text" id="f-a2a-council" data-key="a2a.council" data-type="bool" placeholder="false">
             <label for="f-a2a-self">self_id (this pipe's own peer id; always self-excluded)</label>
             <input type="text" id="f-a2a-self" data-key="a2a.self_id" placeholder="local-mios">
+            <label for="f-a2a-discover-port">discover_port (A2A protocol discovery port)</label>
+            <input type="text" id="f-a2a-discover-port" data-key="a2a.discover_port" data-type="int" placeholder="8640">
+            <label for="f-a2a-public-domain">public_domain (public domain for the agent passport)</label>
+            <input type="text" id="f-a2a-public-domain" data-key="a2a.public_domain" placeholder="">
+            <label for="f-a2a-protocol-version">protocol_version (A2A protocol version card conforms to)</label>
+            <input type="text" id="f-a2a-protocol-version" data-key="a2a.protocol_version" placeholder="1.0">
+            <label for="f-a2a-route-on-card-skills">route_on_card_skills (route concurrent fan-out on full skills)</label>
+            <input type="text" id="f-a2a-route-on-card-skills" data-key="a2a.route_on_card_skills" data-type="bool" placeholder="false">
           </fieldset>
           <fieldset>
             <legend>[gossip] — epidemic peer discovery (anti-entropy)</legend>
@@ -1345,6 +1361,10 @@
             <input type="text" id="f-a2a-mdns-disc" data-key="a2a.mdns_discovery" data-type="bool" placeholder="false">
             <label for="f-a2a-mdns-adv">a2a.mdns_advertise (announce THIS node's A2A endpoint via avahi)</label>
             <input type="text" id="f-a2a-mdns-adv" data-key="a2a.mdns_advertise" data-type="bool" placeholder="false">
+            <label for="f-a2a-mdns-service-type">mdns_service_type (DNS-SD service type shared by advertise/browse)</label>
+            <input type="text" id="f-a2a-mdns-service-type" data-key="a2a.mdns_service_type" placeholder="_mios-a2a._tcp">
+            <label for="f-a2a-mdns-refresh-sec">mdns_refresh_sec (minimum seconds between live mDNS browses)</label>
+            <input type="text" id="f-a2a-mdns-refresh-sec" data-key="a2a.mdns_refresh_sec" data-type="int" placeholder="300">
             <label for="f-mcp-proto">mcp.protocol_version (MCP revision token declared on the initialize handshake)</label>
             <input type="text" id="f-mcp-proto" data-key="mcp.protocol_version" placeholder="2025-11-25">
           </fieldset>
@@ -1676,6 +1696,17 @@
             <label for="f-brand-wallstyle">wallpaper_style (10 = Fill, 6 = Fit, 2 = Stretch)</label>
             <input type="text" id="f-brand-wallstyle" data-key="branding.wallpaper_style" placeholder="10">
             
+            <div class="checkbox-row">
+              <input type="checkbox" id="f-brand-living-wallpaper" data-key="branding.living_wallpaper">
+              <label for="f-brand-living-wallpaper">living_wallpaper (enable GPU animated wallpaper)</label>
+            </div>
+            <label for="f-brand-living-wallpaper-mode">living_wallpaper_mode</label>
+            <select id="f-brand-living-wallpaper-mode" data-key="branding.living_wallpaper_mode">
+              <option value="static">static (baked gradient)</option>
+              <option value="shader">shader (GPU animated)</option>
+              <option value="video">video (rendered loop)</option>
+            </select>
+            
             <label for="f-brand-uifont">ui_font (system font replacement face)</label>
             <input type="text" id="f-brand-uifont" data-key="branding.ui_font" placeholder="Geist">
             <div class="checkbox-row">
@@ -1847,6 +1878,8 @@
         <input type="text" id="f-port-vllm" data-key="ports.vllm" data-type="int" placeholder="11440">
         <label for="f-port-k3s">k3s_api (Kubernetes API)</label>
         <input type="text" id="f-port-k3s" data-key="ports.k3s_api" data-type="int" placeholder="6443">
+        <label for="f-port-stack-id">stack_id (multiplier offset for port collision avoidance)</label>
+        <input type="text" id="f-port-stack-id" data-key="ports.stack_id" data-type="int" placeholder="0">
       </fieldset>
       <fieldset>
         <legend>ports — sidecar services</legend>
@@ -1872,6 +1905,28 @@
         <input type="text" id="f-port-opencode-gateway" data-key="ports.opencode_gateway" data-type="int" placeholder="8633">
         <label for="f-port-adguard-ui">adguard_ui (AdGuard Home web UI + REST API)</label>
         <input type="text" id="f-port-adguard-ui" data-key="ports.adguard_ui" data-type="int" placeholder="3053">
+        <label for="f-port-prefilter">prefilter (conversational-bypass classifier; loopback)</label>
+        <input type="text" id="f-port-prefilter" data-key="ports.prefilter" data-type="int" placeholder="8641">
+        <label for="f-port-arbiter">arbiter (risk-tier arbiter allow-list enforcer; loopback)</label>
+        <input type="text" id="f-port-arbiter" data-key="ports.arbiter" data-type="int" placeholder="8650">
+        <label for="f-port-daemon-agent">daemon_agent (low-priority background inference worker; loopback)</label>
+        <input type="text" id="f-port-daemon-agent" data-key="ports.daemon_agent" data-type="int" placeholder="8644">
+        <label for="f-port-model-router">model_router (internal model-selection micro-router; loopback)</label>
+        <input type="text" id="f-port-model-router" data-key="ports.model_router" data-type="int" placeholder="8645">
+        <label for="f-port-oscontrol">oscontrol (Windows-side UI Automation / PowerShell executor; loopback)</label>
+        <input type="text" id="f-port-oscontrol" data-key="ports.oscontrol" data-type="int" placeholder="8453">
+        <label for="f-port-mcp">mcp (MCP host server / well-known; loopback)</label>
+        <input type="text" id="f-port-mcp" data-key="ports.mcp" data-type="int" placeholder="8460">
+        <label for="f-port-hermes-worker">hermes_worker (Hermes-Agent worker instance)</label>
+        <input type="text" id="f-port-hermes-worker" data-key="ports.hermes_worker" data-type="int" placeholder="8643">
+        <label for="f-port-hermes-dashboard">hermes_dashboard (Hermes Dashboard web UI)</label>
+        <input type="text" id="f-port-hermes-dashboard" data-key="ports.hermes_dashboard" data-type="int" placeholder="8119">
+        <label for="f-port-crawl4ai">crawl4ai (local crawl4ai engine FastAPI)</label>
+        <input type="text" id="f-port-crawl4ai" data-key="ports.crawl4ai" data-type="int" placeholder="8235">
+        <label for="f-port-firecrawl">firecrawl (self-hosted firecrawl API)</label>
+        <input type="text" id="f-port-firecrawl" data-key="ports.firecrawl" data-type="int" placeholder="8302">
+        <label for="f-port-adguard-dns">adguard_dns (AdGuard Home DNS resolver)</label>
+        <input type="text" id="f-port-adguard-dns" data-key="ports.adguard_dns" data-type="int" placeholder="53">
       </fieldset>
       <fieldset>
         <legend>network.quadlet — internal podman bridge</legend>
@@ -1879,6 +1934,10 @@
         <input type="text" id="f-qnet-network" data-key="network.quadlet.network" placeholder="mios.network">
         <label for="f-qnet-subnet">subnet</label>
         <input type="text" id="f-qnet-subnet" data-key="network.quadlet.subnet" placeholder="10.89.0.0/24">
+        <label for="f-qnet-core-subnet">core_subnet</label>
+        <input type="text" id="f-qnet-core-subnet" data-key="network.quadlet.core_subnet" placeholder="10.89.0.0/24">
+        <label for="f-qnet-core-gateway">core_gateway</label>
+        <input type="text" id="f-qnet-core-gateway" data-key="network.quadlet.core_gateway" placeholder="10.89.0.1">
       </fieldset>
     </div>
   </div>
@@ -4322,6 +4381,8 @@ oem_logo = "C:\\Windows\\Web\\MiOS\\mios-logo.bmp"
 wallpaper = "C:\\Windows\\Web\\MiOS\\mios-wallpaper.jpg"
 lockscreen = "C:\\Windows\\Web\\MiOS\\mios-wallpaper.jpg"
 wallpaper_style = "10"
+living_wallpaper = false
+living_wallpaper_mode = "static"
 ui_font = "Geist"
 font_substitute = true
 cursor = true

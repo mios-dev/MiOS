@@ -62,7 +62,7 @@ ACP); web research goes via `web_search`, which routes through the local SearXNG
 | Role               | Process                                                                              | Port     | Purpose                                                                       |
 |--------------------|-------------------------------------------------------------------------------------|----------|------------------------------------------------------------------------------|
 | **MiOS-Agent-Pipe**| `mios-agent-pipe.service`                                                            | `:8640`  | The front door AND orchestrator — refine + route + council/swarm fan-out + critic/polish; every gateway funnels through it; fronts Hermes and the lanes |
-| **MiOS-Hermes**    | `hermes-agent.service` (host-direct)                                                 | `:8642`  | OpenAI-compat agent gateway / tool-loop the pipe fronts — sessions, tool-calling, skills, browser/CDP loop |
+| **MiOS-Hermes**    | `mios-gateway-agent.service` (host-direct)                                           | `:8642`  | OpenAI-compat agent gateway / tool-loop the pipe fronts — sessions, tool-calling, skills, browser/CDP loop |
 | **MiOS-Prefilter** | `mios-delegation-prefilter.service`                                                  | `:8641`  | HTTP forwarder; injects `tool_choice=delegate_task` on fan-outable prompts    |
 | **MiOS-Inference** | `mios-llm-light` (llama.cpp, fronted by the upstream llama-swap proxy) primary + `mios-llm-heavy`/`-heavy-alt` (SGLang/vLLM) heavy lanes | `:11450` | GGUF models + embeddings (`nomic-embed-text`) behind the unified `MIOS_AI_ENDPOINT`; lanes across CPU / iGPU / dGPU / heavy |
 | **MiOS-Memory**    | `mios-pgvector` (PostgreSQL + pgvector)                                              | `:5432`  | Unified agent datastore — memory, sessions, events, skills, knowledge/RAG vectors |
@@ -153,7 +153,7 @@ next MiOS forever (Day-0 → Day-1 → Day-N).
   single-model swarm fan-out. All sit behind the OpenAI-compat `MIOS_AI_ENDPOINT`.
   The front door AND orchestrator is **MiOS-Agent-Pipe**
   (`mios-agent-pipe.service` :8640) — every gateway funnels through it; it fronts
-  **MiOS-Hermes** (`hermes-agent.service` :8642), an OpenAI-compat agent gateway /
+  **MiOS-Hermes** (`mios-gateway-agent.service` :8642), an OpenAI-compat agent gateway /
   tool-loop it dispatches to. **MiOS-Prefilter** (:8641) injects
   `tool_choice=delegate_task` on fan-outable prompts; **MiOS-OpenCoder**
   (`mios-opencode-gateway.service` :8633) is a first-class `/v1` council peer. The unified agent datastore is

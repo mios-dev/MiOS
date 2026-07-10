@@ -74,13 +74,12 @@ fi
 # which is why launch_app("files") returned "no resolution for
 # 'files'" even though [mios-find.aliases].files="nautilus" was set.
 _alias_resolve() {
-    python3 - "$1" <<'PYEOF' 2>/dev/null
+    python3 - "$(cd "$(dirname "$0")" && pwd)/../../lib/mios" "$1" <<'PYEOF' 2>/dev/null
 import sys, re
-try:
-    import tomllib
-except ImportError:
-    sys.exit(0)
-raw = sys.argv[1]
+# Shared layered mios.toml resolver (vendor < host < user), path injected as argv[1].
+sys.path.insert(0, sys.argv[1])
+import mios_toml
+raw = sys.argv[2]
 # Normalised lookup key: lowercase, collapse whitespace to single
 # hyphens. Lets "File Explorer", "file_explorer", "FILE-EXPLORER"
 # match the same SSOT row.
@@ -95,54 +94,50 @@ last = norm.split("-")[-1] if norm else ""
 if last and last not in candidates:
     candidates.append(last)
 
-for path in ("/etc/mios/mios.toml", "/usr/share/mios/mios.toml"):
-    try:
-        with open(path, "rb") as f:
-            d = tomllib.load(f)
-    except (OSError, tomllib.TOMLDecodeError):
-        continue
-    aliases = d.get("mios-find", {}).get("aliases", {})
-    if isinstance(aliases, dict):
-        for c in candidates:
-            v = aliases.get(c)
-            if isinstance(v, str) and v:
-                print(v)
-                sys.exit(0)
-    # ── Role-aware fallback: consult [[desktop.apps]] for the default app of a
-    # role. SPECIFIC-APP-BEFORE-ROLE (operator 2026-06-19 "open edge browser
-    # opened zen randomly"): when the input is "<specific> <role>" (e.g. "edge
-    # browser"), the LAST word is a role but the HEAD names a SPECIFIC app --
-    # resolve the head downstream (-> Microsoft Edge) instead of the role default
-    # (-> the operator's default browser, Zen). The role default fires ONLY for a
-    # BARE role ("browser", "my browser") whose head is empty or itself a role.
-    # SSOT = mios.toml; NO hardcoded English app-name mappings.
-    apps = d.get("desktop", {}).get("apps", [])
-    if isinstance(apps, list):
-        roles = set()
-        role_app = {}
-        for app_cfg in apps:
-            if not isinstance(app_cfg, dict):
-                continue
-            role = str(app_cfg.get("role", "")).lower().rstrip("s")
-            aid = str(app_cfg.get("id", ""))
-            if not role or not aid:
-                continue
-            roles.add(role)
-            if app_cfg.get("default") is True or role not in role_app:
-                role_app[role] = aid.split(".")[-1].lower()
-        last_word = norm.split("-")[-1] if norm else ""
-        head = "-".join(norm.split("-")[:-1])
-        head = re.sub(r"^(my|the|a|an)-", "", head)
-        # "<specific> <role>" -> resolve the SPECIFIC head downstream, not the role.
-        if last_word.rstrip("s") in roles and head and head.rstrip("s") not in roles:
-            print(head)
+# Merged layered read (vendor < host < user, highest wins) via the shared resolver.
+d = mios_toml.load_merged()
+aliases = d.get("mios-find", {}).get("aliases", {})
+if isinstance(aliases, dict):
+    for c in candidates:
+        v = aliases.get(c)
+        if isinstance(v, str) and v:
+            print(v)
             sys.exit(0)
-        # Bare role -> the operator's default app for that role.
-        for c in (norm, norm_stripped, last_word):
-            cn = c.rstrip("s")
-            if cn in role_app:
-                print(role_app[cn])
-                sys.exit(0)
+# ── Role-aware fallback: consult [[desktop.apps]] for the default app of a
+# role. SPECIFIC-APP-BEFORE-ROLE (operator 2026-06-19 "open edge browser
+# opened zen randomly"): when the input is "<specific> <role>" (e.g. "edge
+# browser"), the LAST word is a role but the HEAD names a SPECIFIC app --
+# resolve the head downstream (-> Microsoft Edge) instead of the role default
+# (-> the operator's default browser, Zen). The role default fires ONLY for a
+# BARE role ("browser", "my browser") whose head is empty or itself a role.
+# SSOT = mios.toml; NO hardcoded English app-name mappings.
+apps = d.get("desktop", {}).get("apps", [])
+if isinstance(apps, list):
+    roles = set()
+    role_app = {}
+    for app_cfg in apps:
+        if not isinstance(app_cfg, dict):
+            continue
+        role = str(app_cfg.get("role", "")).lower().rstrip("s")
+        aid = str(app_cfg.get("id", ""))
+        if not role or not aid:
+            continue
+        roles.add(role)
+        if app_cfg.get("default") is True or role not in role_app:
+            role_app[role] = aid.split(".")[-1].lower()
+    last_word = norm.split("-")[-1] if norm else ""
+    head = "-".join(norm.split("-")[:-1])
+    head = re.sub(r"^(my|the|a|an)-", "", head)
+    # "<specific> <role>" -> resolve the SPECIFIC head downstream, not the role.
+    if last_word.rstrip("s") in roles and head and head.rstrip("s") not in roles:
+        print(head)
+        sys.exit(0)
+    # Bare role -> the operator's default app for that role.
+    for c in (norm, norm_stripped, last_word):
+        cn = c.rstrip("s")
+        if cn in role_app:
+            print(role_app[cn])
+            sys.exit(0)
 PYEOF
 }
 # Preserve the user's ACTUAL term BEFORE the Linux freedesktop alias rewrites
@@ -379,24 +374,16 @@ s.close()
 # English mappings in this file -- the override list comes from
 # mios.toml SSOT. Operator binding 2026-05-19.
 _launcher_override() {
-    python3 - "$1" <<'PYEOF' 2>/dev/null
+    python3 - "$(cd "$(dirname "$0")" && pwd)/../../lib/mios" "$1" <<'PYEOF' 2>/dev/null
 import sys, re
-try:
-    import tomllib
-except ImportError:
-    sys.exit(0)
-name = sys.argv[1].strip()
+# Shared layered mios.toml resolver (vendor < host < user), path injected as argv[1].
+sys.path.insert(0, sys.argv[1])
+import mios_toml
+name = sys.argv[2].strip()
 name_lc = name.lower()
 norm = re.sub(r"\s+", "-", name_lc)
-for path in ("/etc/mios/mios.toml", "/usr/share/mios/mios.toml"):
-    try:
-        with open(path, "rb") as f:
-            d = tomllib.load(f)
-    except (OSError, tomllib.TOMLDecodeError):
-        continue
-    apps = d.get("desktop", {}).get("apps", [])
-    if not isinstance(apps, list):
-        continue
+apps = mios_toml.load_merged().get("desktop", {}).get("apps", [])
+if isinstance(apps, list):
     for cfg in apps:
         if not isinstance(cfg, dict):
             continue
@@ -558,7 +545,7 @@ if grep -qiE 'microsoft|wsl' /proc/sys/kernel/osrelease 2>/dev/null \
     done
     if [ -z "$_xep" ]; then
         _xgw="$(ip route show default 2>/dev/null | awk '/default/{print $3; exit}' || true)"
-        [ -n "$_xgw" ] && _xep="http://${_xgw}:${MIOS_OSCONTROL_PORT:-11437}"
+        [ -n "$_xgw" ] && _xep="http://${_xgw}:${MIOS_PORT_OSCONTROL:-11437}"
     fi
     _xep="${_xep%/}"
     if [ -n "$_xep" ] && curl -fsS --connect-timeout 1 --max-time 2 "$_xep/health" >/dev/null 2>&1; then
@@ -636,13 +623,14 @@ fi
 # worst. Caller iterates: try each in order, fall through to the
 # next when one fails. Generalizes the browser fallback chain
 # (already in mios-open-url) to ALL launches.
-_DESC_CHAIN="$(python3 - "$NAME" "$_ORIG_NAME" <<'PYEOF' 2>/dev/null
+_DESC_CHAIN="$(python3 - "$(cd "$(dirname "$0")" && pwd)/../../lib/mios" "$NAME" "$_ORIG_NAME" <<'PYEOF' 2>/dev/null
 import json, subprocess, sys
-q = sys.argv[1].lower().strip()
+sys.path.insert(0, sys.argv[1]); import mios_toml  # the ONE shared layered resolver
+q = sys.argv[2].lower().strip()
 # Also match the user's ORIGINAL term (pre Linux-alias) so a role alias that
 # points at an absent Linux app still resolves the real app from the LIVE
 # inventory -- generative, Linux-first, no hardcoded app list.
-_q2 = (sys.argv[2].lower().strip() if len(sys.argv) > 2 else "")
+_q2 = (sys.argv[3].lower().strip() if len(sys.argv) > 3 else "")
 _queries = [x for x in (q, _q2) if x]
 if not _queries:
     sys.exit(0)
@@ -659,25 +647,9 @@ except Exception:
 # wine notepad. Falls back to the built-in order if the toml is unreadable;
 # unknown categories sort last (PRIORITY.get(cat, 9) below).
 def _load_launch_priority():
-    import os
     _default = ["windows-app", "windows-gui", "linux-flatpak", "linux-rpm-gui", "linux-cli"]
-    for _p in (os.environ.get("MIOS_TOML", ""), "/etc/mios/mios.toml", "/usr/share/mios/mios.toml"):
-        if not _p:
-            continue
-        try:
-            try:
-                import tomllib
-            except ImportError:
-                import tomli as tomllib
-            with open(_p, "rb") as _f:
-                _d = tomllib.load(_f)
-            _lst = (_d.get("os_control") or {}).get("launch_category_priority") or []
-            _lst = [str(x).strip() for x in _lst if str(x).strip()]
-            if _lst:
-                return _lst
-        except Exception:
-            pass
-    return _default
+    _lst = [str(x).strip() for x in (mios_toml.get("os_control", "launch_category_priority", []) or []) if str(x).strip()]
+    return _lst or _default
 PRIORITY = {cat: i for i, cat in enumerate(_load_launch_priority())}
 candidates = []
 for line in raw.splitlines():

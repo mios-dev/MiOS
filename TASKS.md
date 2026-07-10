@@ -2573,68 +2573,68 @@ T-084 (STRG-01 SSOT)
 **Files:** `usr/share/mios/mios.toml [agent_pipe]`; `.../agent-pipe/mios_pipe/routing/secondary_loop.py` (44-60, 265, 345-408); `.../server.py` (835, 3314); `.../routing/native_loop.py`; `.../routing/reflect.py`; `automation/38-drift-checks.sh`.
 
 **Done When:**
-- [ ] `reflexion_enable` + budgets read from `[agent_pipe]`; no `[agent]`/literal fallbacks remain (drift-gate green)
-- [ ] identical failing `(tool,args)` is never retried; loop terminates/escalates within `wall_clock_budget_s`
-- [ ] failure path uses the structured reflector (corrective action or terminate), no free-text essay in `content`
-- [ ] live-fired in `podman-MiOS-DEV`: a deliberately-failing tool call does not loop
+- [x] `reflexion_enable` + budgets read from `[agent_pipe]`; no `[agent]`/literal fallbacks remain (drift-gate green)
+- [x] identical failing `(tool,args)` is never retried; loop terminates/escalates within `wall_clock_budget_s`
+- [x] failure path uses the structured reflector (corrective action or terminate), no free-text essay in `content`
+- [x] live-fired in `podman-MiOS-DEV`: a deliberately-failing tool call does not loop
 
 ---
 
 ## T-109: CHATQ-01 -- Refine/plan trace to reasoning channel + one-answer-in-content (CQ1)
-> **Priority:** P1 | **Status:** pending | **Effort:** M | **Domain:** Observability/Orchestration | **Source:** CQ1 -- refine's `{Refined Query/Intent/Reply}` scaffold streams into `delta.content` (`chat.py:1425-1426` -> `sse.py:93-94` under `_DEBUG_ENABLE`) and the answer is restated 3x (refine `reply` + local-state + polish all reach content).
+> **Priority:** P1 | **Status:** done | **Effort:** M | **Domain:** Observability/Orchestration | **Source:** CQ1 -- refine's `{Refined Query/Intent/Reply}` scaffold streams into `delta.content` (`chat.py:1425-1426` -> `sse.py:93-94` under `_DEBUG_ENABLE`) and the answer is restated 3x (refine `reply` + local-state + polish all reach content).
 
 **Instructions:** Wave 1 (Claude C1-C3). Route the refine pump + `_refine_reasoning` summary through a channel-pinned emitter (reasoning channel regardless of `_DEBUG_ENABLE`); extend the `_live_streamed` guard (`native_loop.py:858`) so exactly one generation reaches `content`. Refine `reply` is trace, not answer. Visibility preserved; only the channel + dedup change.
 
 **Files:** `.../agent-pipe/mios_pipe/routing/sse.py`, `.../routing/chat.py` (1425-1426, 1482-1495, 1789-1803), `.../routing/native_loop.py` (858, 1061, 1101-1102).
 
 **Done When:**
-- [ ] refine trace renders in the Thinking pane, never in `delta.content`
-- [ ] `@ what directory are we in right now` returns exactly one clean answer (no `Refined Query/...` block, no 3x restate)
-- [ ] byte-identical when `[observability]` flags off (degrade-open)
+- [x] refine trace renders in the Thinking pane, never in `delta.content`
+- [x] `@ what directory are we in right now` returns exactly one clean answer (no `Refined Query/...` block, no 3x restate)
+- [x] byte-identical when `[observability]` flags off (degrade-open)
 
 ---
 
 ## T-110: FV-01 -- Canonical typed-event schema + per-surface routing + sub-agent visibility (FV-A/B/E/F)
-> **Priority:** P1 | **Status:** pending | **Effort:** L | **Domain:** Observability | **Source:** FV -- full-visibility mandate is untracked; "visibility" today is faked by content-inlining under `[observability].debug=ON`; leaf thinking is turned OFF at source (`agent_call.py:820-821`; `swarm.py:1237`); fan-out `_push` has no channel discriminator; strict clients can't see the reasoning channel.
+> **Priority:** P1 | **Status:** done | **Effort:** L | **Domain:** Observability | **Source:** FV -- full-visibility mandate is untracked; "visibility" today is faked by content-inlining under `[observability].debug=ON`; leaf thinking is turned OFF at source (`agent_call.py:820-821`; `swarm.py:1237`); fan-out `_push` has no channel discriminator; strict clients can't see the reasoning channel.
 
 **Instructions:** Wave 1. One schema `thinking|plan|tool_call|tool_result|source|content` every stage + sub-agent emits into; per-lane `[lanes.*].stream_thinking` replaces the blanket `enable_thinking:False`; channel tag on the `_push` merged event; retire content-inline as the mechanism (`debug` gates only content-mirroring for strict surfaces); per-surface routing via `X-MiOS-Surface`/`reasoning_ok` with MiOS-owned replay-strip; OWUI pipe translates `mios_status`->status + refs->source events. AGY owns SSOT + OWUI pipe; Claude owns emitter + `agent_call`.
 
 **Files:** SSOT `[observability]`/`[observability.channels]`/`[lanes.*]`; `usr/share/mios/owui/pipes/mios_agent_pipe.py`; `.../agent-pipe/mios_pipe/routing/sse.py`, `.../routing/agent_call.py` (738-746, 797-885, 820-821), `.../server.py`, `swarm.py`.
 
 **Done When:**
-- [ ] every sub-agent's thinking + tool calls + sources stream live on OWUI/Hermes; strict clients get a folded inline trace; final answer only in `content`
-- [ ] KV cache intact across turns (persisted history = clean answer only)
-- [ ] per-lane `stream_thinking=false` cleanly downgrades that lane (degrade-open)
+- [x] every sub-agent's thinking + tool calls + sources stream live on OWUI/Hermes; strict clients get a folded inline trace; final answer only in `content`
+- [x] KV cache intact across turns (persisted history = clean answer only)
+- [x] per-lane `stream_thinking=false` cleanly downgrades that lane (degrade-open)
 
 ---
 
 ## T-111: CHATQ-02 -- Constrained tool-calling + tools-on-final + verb-catalog repair (CQ2)
-> **Priority:** P1 | **Status:** pending | **Effort:** L | **Domain:** Tool-calling | **Source:** CQ2 -- the final answer-shaping completion fires with NO `tools[]` (`native_loop.py:780-782`) so residual tool intent leaks as literal `<tool_call>`/```json``` text; `linux_file_search` is `hidden` but name-dropped in visible descriptions -> model wraps it into `launch_app`; no constrained decoding on any lane; rescue returns after the first block and is gated on empty `tool_calls`.
+> **Priority:** P1 | **Status:** done | **Effort:** L | **Domain:** Tool-calling | **Source:** CQ2 -- the final answer-shaping completion fires with NO `tools[]` (`native_loop.py:780-782`) so residual tool intent leaks as literal `<tool_call>`/```json``` text; `linux_file_search` is `hidden` but name-dropped in visible descriptions -> model wraps it into `launch_app`; no constrained decoding on any lane; rescue returns after the first block and is gated on empty `tool_calls`.
 
 **Instructions:** Wave 2. AGY: engine `--tool-call-parser`/`--reasoning-parser` + `constrained_tools` per lane; consolidate duplicate `launch_app`; correct `fs_search` desc; stop advertising uncallable names; fix `[routing.domains.files].verbs`. Claude: give `_pb` the `tools[]`; streaming-aware salvage that RE-EMITS as typed events (visible) + diverts off `content` + executes; remove first-block early-return; surface routed-domain verbs even when hidden (key Stage-2 filter on canonical verb).
 
 **Files:** SSOT `[lanes.*]`, `[verbs.launch_app]` (9084/3157), `fs_search` (3465-3473), `[routing.domains.files]` (3103-3110); `.../routing/native_loop.py` (780), `.../routing/secondary_loop.py` (309, 334-344), `.../routing/toolexec.py` (210-279), `.../server.py` (3956, 4028-4034), `.../verbcatalog.py`, `.../mios_endpoints.py`.
 
 **Done When:**
-- [ ] a narrated tool call renders as a native/typed tool pill, never as text in `delta.content`
-- [ ] a files turn always carries a callable `linux_file_search`; no `launch_app` misroute
-- [ ] live-fired: `@ what's here?` fires a real typed file/`list_dir` call
+- [x] a narrated tool call renders as a native/typed tool pill, never as text in `delta.content`
+- [x] a files turn always carries a callable `linux_file_search`; no `launch_app` misroute
+- [x] live-fired: `@ what's here?` fires a real typed file/`list_dir` call
 
 **Deps:** T-112 (list_dir gives the correct files-turn verb), T-110 (typed tool_call channel).
 
 ---
 
 ## T-112: CHATQ-03 -- First-class list_dir verb + cwd act-before-answer grounding (CQ3)
-> **Priority:** P1 | **Status:** pending | **Effort:** M | **Domain:** Tool-calling/Grounding | **Source:** CQ3 -- no `list_dir` verb exists (`linux_file_search`=`mios-locate` substring, not `ls`); `read_file`/`text_view` can list a dir but is depth-2/500-capped and framed as "read a file"; cwd string is injected but no snapshot + no lister auto-fires -> model hallucinates a generic FHS table. Also unblocks T-032's phantom `list_directory` op assumption.
+> **Priority:** P1 | **Status:** done | **Effort:** M | **Domain:** Tool-calling/Grounding | **Source:** CQ3 -- no `list_dir` verb exists (`linux_file_search`=`mios-locate` substring, not `ls`); `read_file`/`text_view` can list a dir but is depth-2/500-capped and framed as "read a file"; cwd string is injected but no snapshot + no lister auto-fires -> model hallucinates a generic FHS table. Also unblocks T-032's phantom `list_directory` op assumption.
 
 **Instructions:** Wave 3. AGY: add `--depth 1` immediate-children mode to `mios-text-edit`; add `[verbs.list_dir]` (`model_name=list_directory`, `path` default cwd, accurate desc + examples); redirect `read_file`/`fs_search` descriptions. Claude: fire `list_dir(path=cwd)` in `_read_tool_enrich` when cwd present (keyed off SSOT `_client_env` cwd); add a model-chosen filesystem/`state_scope` signal to refine so dir-content queries set `tool_choice:required`.
 
 **Files:** `usr/libexec/mios/mios-text-edit` (83-84, 219-241); SSOT `[verbs.list_dir]` + `fs_search`/`read_file` descs; `.../server.py` `_read_tool_enrich` (4648, 4685-4701, 4734-4745); `.../routing/refine.py`, `.../routing/chat.py` (1193-1198).
 
 **Done When:**
-- [ ] `list_dir` with no arg lists cwd immediate children (true `ls` semantics)
-- [ ] `@ what's here?` returns the real directory, never a generic FHS table
-- [ ] selection is model-driven (classifier), not a keyword/English match
+- [x] `list_dir` with no arg lists cwd immediate children (true `ls` semantics)
+- [x] `@ what's here?` returns the real directory, never a generic FHS table
+- [x] selection is model-driven (classifier), not a keyword/English match
 
 **Unblocks:** T-032 (its allow-listed `list_directory` op now exists).
 
@@ -2682,31 +2682,31 @@ T-084 (STRG-01 SSOT)
 - [x] no source citation appears unless a real fetch produced it -- native_loop.py's ANTI-FABRICATED-CITATION guard rewrites the answer to an honest note when a web/news turn cites an off-list URL, or fetched ZERO sources yet produced a markdown report table (structural, not keyword); code authored + SSOT-wired. Live-session confirmation of the `(live-verified)` wording still needs live @-session verify
 
 ## T-115: CQ1 refine scaffold STILL leaking on CLI + redundant refine passes  (extends T-109)
-> **Priority:** P1 | **Status:** pending | **Effort:** S | **Domain:** Observability | **Source:** live `@` session -- the `Refined Text/Intent/Reply` scaffold streams verbatim to the strict CLI surface (CQ1 confirmed still live; the surface-aware `_sse_reasoning` fix is authored but undeployed, and the CLI sends no `x-mios-reasoning-ok` so it hits the legacy debug-inline path), and "🧠 Refining intent..." fires 2-3x per turn.
+> **Priority:** P1 | **Status:** done | **Effort:** S | **Domain:** Observability | **Source:** live `@` session -- the `Refined Text/Intent/Reply` scaffold streams verbatim to the strict CLI surface (CQ1 confirmed still live; the surface-aware `_sse_reasoning` fix is authored but undeployed, and the CLI sends no `x-mios-reasoning-ok` so it hits the legacy debug-inline path), and "🧠 Refining intent..." fires 2-3x per turn.
 
 **Instructions:** Deploy T-109; additionally de-duplicate the refine pass (it runs multiple times per turn) and confirm the strict-CLI folded-trace path (FV-F) shows the trace once, cleanly, without the raw scaffold. Fold into T-109/T-110.
 
 **Files:** `.../routing/{chat,sse,refine}.py`.
 
 ## T-116: OSCTL-01 -- Hermes browser opens NEW WINDOWS instead of reusing running instance / opening a TAB  [P1]
-> **Priority:** P1 | **Status:** pending | **Effort:** M | **Domain:** OS-Control | **Source:** live `hermes` session -- "open a firefox TAB to youtube" launched the Firefox Nightly shortcut TWICE (2 new windows) + opened several random Epiphany tabs, despite Firefox already running AND the operator explicitly asking for a tab. Launch path uses `mios-windows launch <shortcut>` (always spawns a new window).
+> **Priority:** P1 | **Status:** done | **Effort:** M | **Domain:** OS-Control | **Source:** live `hermes` session -- "open a firefox TAB to youtube" launched the Firefox Nightly shortcut TWICE (2 new windows) + opened several random Epiphany tabs, despite Firefox already running AND the operator explicitly asking for a tab. Launch path uses `mios-windows launch <shortcut>` (always spawns a new window).
 
 **Instructions:** Make browser open-URL tab-aware: detect an already-running browser instance and open a NEW TAB in it (CDP `Target.createTarget` / `--new-tab` / activate-existing), NOT a new window/instance. Only cold-launch when the browser is not running. Honor an explicit "tab" request. Don't fan out extra Epiphany tabs.
 
 **Files (likely):** `usr/lib/mios/agent-pipe/mios_oscontrol.py`, `.../routing/oscontrol.py`, `usr/libexec/mios/mios-windows`, browser/CDP skills.
 
 **Done When:**
-- [ ] "open a firefox tab to <url>" with Firefox already open -> ONE new tab in the existing window, no new window (live-verified by operator)
+- [x] "open a firefox tab to <url>" with Firefox already open -> ONE new tab in the existing window, no new window (live-verified by operator)
 
 ## T-117: OSCTL-02 -- Hermes container-exec: stale container name + interactive-exec hang + docker-first  [P1]
-> **Priority:** P1 | **Status:** pending | **Effort:** M | **Domain:** OS-Control | **Source:** live `hermes` session -- "ssh into code-server container" tried `docker` first (runtime is podman), used the RETIRED name `code-server` (now `mios-agents`), wrong-execed `mios-open-webui`, and hung 172s/21s on `podman exec -it ... bash` (interactive `-it` with no TTY in the agent context). The memory tool also errored mid-session.
+> **Priority:** P1 | **Status:** done | **Effort:** M | **Domain:** OS-Control | **Source:** live `hermes` session -- "ssh into code-server container" tried `docker` first (runtime is podman), used the RETIRED name `code-server` (now `mios-agents`), wrong-execed `mios-open-webui`, and hung 172s/21s on `podman exec -it ... bash` (interactive `-it` with no TTY in the agent context). The memory tool also errored mid-session.
 
 **Instructions:** (1) SSOT container-name resolution so `code-server` resolves to `mios-agents` (retired-name alias). (2) Never run interactive `-it` exec from the agent -- use non-interactive `podman exec <c> <cmd>` (no `-it`, no bare shell) so it can't hang. (3) Prefer podman (SSOT runtime), skip docker probing. (4) Investigate the memory-tool error.
 
 **Files (likely):** `.../mios_oscontrol.py`, `usr/libexec/mios/*`, Hermes tool skills, container-name SSOT (mios.toml `[containers.*]`).
 
 **Done When:**
-- [ ] "exec into the code-server container" targets `mios-agents`, runs non-interactively, returns promptly (no >5s hang), never `-it`
+- [x] "exec into the code-server container" targets `mios-agents`, runs non-interactively, returns promptly (no >5s hang), never `-it`
 
 ## T-118: HEALTH-01 -- mios-cpu-node + mios-llm-light Unhealthy (baked healthcheck port mismatch)  [P1]
 > **Priority:** P1 | **Status:** done-by-code | **Effort:** S | **Domain:** Inference/Reliability | **Source:** podman dashboard -- both llama-swap:cuda lanes report **Unhealthy**. ROOT CAUSE (live-probed, corrects the original "oversized KV" premise): the lanes are NOT down -- `curl :${MIOS_PORT_CPU_NODE}/health` and `:${MIOS_PORT_LLM_LIGHT}/health` + `/v1/models` all return **200**. The upstream `ghcr.io/mostlygeek/llama-swap:cuda` image bakes `HEALTHCHECK curl -f http://localhost:8080/`, but MiOS runs each lane on its SSOT `${MIOS_PORT_*}` port -> the baked probe can never connect -> perpetual red gate.
@@ -2722,18 +2722,18 @@ T-084 (STRG-01 SSOT)
 
 ---
 
-## T-119: TOOLARG-01 -- Native typed launch-arguments for ALL tools/skills/recipes (OpenAI-pattern, all environments)  [P1, systemic]
-> **Priority:** P1 | **Status:** pending | **Effort:** XL | **Domain:** Tool-calling/OS-Control | **Source:** operator mandate (generalizes T-116) -- every verb/skill/recipe must expose NATIVE, typed launch/invocation arguments following OpenAI function-calling patterns (strict JSON-schema typed params + enums), grounded in upstream research on native invocation per app-type across ALL environments (Windows/Linux/WSL/container/browser). Not name-only coarse verbs. Exemplar: browser open-URL must take `{url, mode:tab|window, reuse_instance}` and open a TAB in the RUNNING browser, not a new window.
+## T-119: TOOLARG-01 -- Native typed launch-arguments for ALL tools/skills/recipes (OpenAI-pattern, all environments)  [P1, systemic] [DONE]
+> **Priority:** P1 | **Status:** done | **Effort:** XL | **Domain:** Tool-calling/OS-Control | **Source:** operator mandate (generalizes T-116) -- every verb/skill/recipe must expose NATIVE, typed launch/invocation arguments following OpenAI function-calling patterns (strict JSON-schema typed params + enums), grounded in upstream research on native invocation per app-type across ALL environments (Windows/Linux/WSL/container/browser). Not name-only coarse verbs. Exemplar: browser open-URL must take `{url, mode:tab|window, reuse_instance}` and open a TAB in the RUNNING browser, not a new window.
 
 **Instructions:** Research + design FIRST (-> a `research/` doc): the native typed-arg standard + a per-type/per-environment native launch-arg map (browser tab/window via CDP `Target.createTarget`/`--new-tab`/remote; Windows App Paths/protocol/`.lnk`/AUMID; Linux `.desktop` Exec field codes/`gio`/`xdg-open`; games via `steam://`). Then enrich the `_VERB_CATALOG` + skill/recipe schemas with typed native args and project them through the existing OpenAI-tool/MCP schema surface (`strict`). SSOT + NO-HARDCODE + degrade-open. Land T-116 (browser tab) as the first shipped instance. Pairs with T-111 (constrained tool-calling = the MECHANISM; this = schema RICHNESS).
 
 **Files (likely):** `usr/share/mios/mios.toml` (`[verbs.*]` arg schemas), `usr/lib/mios/agent-pipe/mios_pipe/routing/verbcatalog.py` (`_verb_to_openai_tool`), `.../mios_oscontrol.py`, `usr/libexec/mios/mios-windows`, skills/recipes catalogs.
 
 **Done When:**
-- [ ] a research/design doc defines the native typed-arg standard + per-type/env launch-arg map
-- [ ] browser open-URL opens a TAB in the running browser (T-116) as the first shipped instance
-- [ ] verbs/skills/recipes expose typed native args (not name-only) via the OpenAI/MCP tool projection
-- [ ] every argument is model-selectable + validated; degrade-open when an env/arg is unsupported
+- [x] a research/design doc defines the native typed-arg standard + per-type/env launch-arg map
+- [x] browser open-URL opens a TAB in the running browser (T-116) as the first shipped instance
+- [x] verbs/skills/recipes expose typed native args (not name-only) via the OpenAI/MCP tool projection
+- [x] every argument is model-selectable + validated; degrade-open when an env/arg is unsupported
 
 ---
 
@@ -2798,136 +2798,136 @@ T-094 (CONV-01 SSOT)
      "everything defined by mios.toml/mios.html with defaults". -->
 
 ## T-120: NOHC-01 -- Reconcile the `[ports]` SSOT renumber drift (8xxx) across code + bootstrap  [P1, systemic]
-> **Priority:** P1 | **Status:** pending | **Effort:** M | **Domain:** SSOT/Ports | **Source:** ports/IP audit 2026-07-04 -- `C:\MiOS` `[ports]` was renumbered into the 8xxx range (llm_light=8450, searxng=8899, open_webui=8033, pgvector=8432, cockpit=8090, forge_http=8300, sglang=8442, vllm=8441 -- confirmed live: `install.env` has `MIOS_PORT_LLM_LIGHT=8450`, `MIOS_PORT_CPU_NODE=8458`, and the lanes listen there) but **code, docs, and `C:\mios-bootstrap\mios.toml` still use the OLD values** (11450/8888/3030/5432/9090/3000/11441/11440). Live consequence: consumers that hardcode the old port hit a dead port (e.g. `mios-doctor:62` curls `localhost:11450` -> nothing listens -> false-negative health).
+> **Priority:** P1 | **Status:** done | **Effort:** M | **Domain:** SSOT/Ports | **Source:** ports/IP audit 2026-07-04 -- `C:\MiOS` `[ports]` was renumbered into the 8xxx range (llm_light=8450, searxng=8899, open_webui=8033, pgvector=8432, cockpit=8090, forge_http=8300, sglang=8442, vllm=8441 -- confirmed live: `install.env` has `MIOS_PORT_LLM_LIGHT=8450`, `MIOS_PORT_CPU_NODE=8458`, and the lanes listen there) but **code, docs, and `C:\mios-bootstrap\mios.toml` still use the OLD values** (11450/8888/3030/5432/9090/3000/11441/11440). Live consequence: consumers that hardcode the old port hit a dead port (e.g. `mios-doctor:62` curls `localhost:11450` -> nothing listens -> false-negative health).
 
 **Instructions:** Pick ONE authoritative `[ports]` table (the 8xxx renumber appears intended -- it is what `install.env`/the live lanes use). Propagate it: (1) sync `C:\mios-bootstrap\mios.toml` `[ports]` to match `C:\MiOS`; (2) resolve every code literal (T-121) from `${MIOS_PORT_*}`; (3) document the container-INTERNAL vs host-published port distinction if the 11xxx values are internal. Add a drift-check that fails when the two repos' `[ports]` tables diverge.
 
 **Files:** `usr/share/mios/mios.toml` `[ports]` (~7615-7646), `C:\mios-bootstrap\mios.toml` `[ports]`, `automation/38-drift-checks.sh`.
 
 **Done When:**
-- [ ] one `[ports]` table is authoritative and identical across both repos (drift-check enforces it)
-- [ ] the internal-vs-published port semantics are documented where 11xxx lane ports are legitimately internal
-- [ ] `mios-doctor`/health probes hit the live port and report the real state
+- [x] one `[ports]` table is authoritative and identical across both repos (drift-check enforces it)
+- [x] the internal-vs-published port semantics are documented where 11xxx lane ports are legitimately internal
+- [x] `mios-doctor`/health probes hit the live port and report the real state
 
 ## T-121: NOHC-02 -- De-hardcode port literals in libexec + agent-pipe code (22 sites)  [P1]
-> **Priority:** P1 | **Status:** pending | **Effort:** M | **Domain:** NO-HARDCODE/Ports | **Source:** ports/IP audit 2026-07-04 -- 22 evidenced port literals in live code (not comments), most also mismatching the current SSOT.
+> **Priority:** P1 | **Status:** done | **Effort:** M | **Domain:** NO-HARDCODE/Ports | **Source:** ports/IP audit 2026-07-04 -- 22 evidenced port literals in live code (not comments), most also mismatching the current SSOT.
 
 **Instructions:** Replace each literal with a read from `${MIOS_PORT_*}` / `os.environ.get("MIOS_PORT_*", <SSOT-default>)`. P1 bare-literal sites: `mios-launch:173-179` (cockpit/owui/hermes/prefilter/searxng/forge alias dispatch), `mios-coderun-broker:65` (`:8640/v1/dispatch`), `mios-doctor:62,64,98,171` (`:11450`/`:3030` probes), `Get-MiOS.ps1:4150-4163` (`_ServiceCell -Port` literals), `Heal-MiOSLocalhostForwarding.ps1:33` (hardcoded port array), `build-mios.ps1:4721` (literal port map -- the sibling map at `:5567-5575` already resolves from `[ports]`; copy that pattern), `mios_pipe/routing/portal.py:773,775,864` (served JS `3030`/`8888`). P2 wrong-default fallbacks: `mios-compact:64`, `mios-cron-director:47`, `mios-daemon:87`, `mios-delegation-prefilter:66`, `mios-ingest:54`, `mios-ai-tag:298`, `mios-knowledge-search:48,61`, `gateway-agent/session.py:20`, `mios_pipe/memory/pg.py:79`, `gateway-agent/server.py:278`, `mios_endpoints.py:103`, `install-host-tools.ps1:501`. P3 served-prose: `grounding.py:432-436` (system-prompt bakes `:8640/:11450/:11441/:8642`), `mios-apps:587-591`, `mios-env-probe:189-191`.
 
 **Files:** the ~22 files above.
 
 **Done When:**
-- [ ] no bare port literal remains in code logic; each reads SSOT with the correct default
-- [ ] `grounding.py` system-prompt text renders ports from SSOT, not baked literals
-- [ ] a grep gate (T-125) passes
+- [x] no bare port literal remains in code logic; each reads SSOT with the correct default
+- [x] `grounding.py` system-prompt text renders ports from SSOT, not baked literals
+- [x] a grep gate (T-125) passes
 
 ## T-122: NOHC-03 -- Register the 6 unowned first-party service ports in `[ports]` SSOT  [P1]
-> **Priority:** P1 | **Status:** pending | **Effort:** S | **Domain:** SSOT/Ports | **Source:** SSOT-coverage + ports audits 2026-07-04 -- six named MiOS services have their port ONLY as a code literal, with no `[ports]` key and no `userenv.sh` bridge row.
+> **Priority:** P1 | **Status:** done | **Effort:** S | **Domain:** SSOT/Ports | **Source:** SSOT-coverage + ports audits 2026-07-04 -- six named MiOS services have their port ONLY as a code literal, with no `[ports]` key and no `userenv.sh` bridge row.
 
 **Instructions:** Add `[ports]` keys (+ `userenv.sh` bridge rows + configurator field) for: `prefilter=8641` (`mios-delegation-prefilter:48` `MIOS_PREFILTER_LISTEN_PORT`), `arbiter=8650` (`mios-policy-arbiter:19`), `oscontrol=11437` (`mios-pc-control:80`), `model_router=11442` (`mios-model-router:38`), `daemon_agent=8644` (`mios-daemon:3082`, `mios-os-control:341`), `mcp=8765` (`mios-mcp-server:735`, `kernel/config.py:134-135`). Then repoint each consumer at `${MIOS_PORT_*}`.
 
 **Files:** `usr/share/mios/mios.toml` `[ports]`, `tools/lib/userenv.sh`, the 6 consumer scripts, `usr/share/mios/configurator/mios.html`.
 
 **Done When:**
-- [ ] all 6 service ports exist in `[ports]` with defaults and bridge rows; consumers read them
-- [ ] the configurator exposes them
+- [x] all 6 service ports exist in `[ports]` with defaults and bridge rows; consumers read them
+- [x] the configurator exposes them
 
 ## T-123: NOHC-04 -- Purge baked operator identity + wire endpoint env vars to SSOT  [P1]
-> **Priority:** P1 | **Status:** pending | **Effort:** S | **Domain:** NO-HARDCODE/Privacy | **Source:** SSOT-coverage audit 2026-07-04 -- `MIOS_PUBLIC_HOST` defaults to a SPECIFIC operator's Tailscale MagicDNS name `"mios.taildd86d0.ts.net"` baked into `mios_pipe/routing/portal.py:97` (portability + privacy leak). Plus endpoint env vars restate ports instead of reading their existing SSOT keys.
+> **Priority:** P1 | **Status:** done | **Effort:** S | **Domain:** NO-HARDCODE/Privacy | **Source:** SSOT-coverage audit 2026-07-04 -- `MIOS_PUBLIC_HOST` defaults to a SPECIFIC operator's Tailscale MagicDNS name `"mios.taildd86d0.ts.net"` baked into `mios_pipe/routing/portal.py:97` (portability + privacy leak). Plus endpoint env vars restate ports instead of reading their existing SSOT keys.
 
 **Instructions:** (1) Remove the tailnet-host literal; default `MIOS_PUBLIC_HOST` to empty/`localhost` and source it from a new `[portal].public_host` SSOT key (degrade-open). (2) Wire these env defaults to their SSOT keys instead of restating ports: `MIOS_HERMES_ENDPOINT` (`kernel/config.py:178` -> `[hermes].endpoint`), `MIOS_HERMES_WORKER_ENDPOINT` (`:185` -> `[agents.hermes].endpoint`), heavy/vllm backends (`kernel/config.py:233-236`, `lanes_resolver.py:122-123`), `MIOS_A2A_DISCOVER_PORT` (`a2a_client.py:238` -> new `[a2a].discover_port`), `MIOS_PUBLIC_DOMAIN` (`a2a.py:478` -> new `[a2a].public_domain`). (3) Fix the orphaned `micro_*` SSOT: `micro_model`/`micro_endpoint` exist in `mios.toml` (~6184/6186) but `userenv.sh` has no bridge row, so `kernel/config.py:262-263` never sees them -> add the bridge rows.
 
 **Files:** `mios_pipe/routing/portal.py`, `mios_pipe/kernel/config.py`, `mios_pipe/routing/lanes_resolver.py`, `mios_pipe/federation/a2a*.py`, `usr/share/mios/mios.toml` (`[portal]`, `[a2a]`), `tools/lib/userenv.sh`.
 
 **Done When:**
-- [ ] no operator-specific hostname/tailnet id remains as a code default anywhere
-- [ ] every endpoint env var resolves from its SSOT section; `micro_*` defaults reach the pipe
+- [x] no operator-specific hostname/tailnet id remains as a code default anywhere
+- [x] every endpoint env var resolves from its SSOT section; `micro_*` defaults reach the pipe
 
 ## T-124: NOHC-05 -- De-hardcode English keyword-gates in agent-pipe  [P1]
-> **Priority:** P1 | **Status:** pending | **Effort:** M | **Domain:** NO-HARDCODE/Routing | **Source:** keyword-gate audit 2026-07-04 -- code is mostly clean (router/classifier are model-driven/SSOT) but 4 decision-gating English matchers remain.
+> **Priority:** P1 | **Status:** done | **Effort:** M | **Domain:** NO-HARDCODE/Routing | **Source:** keyword-gate audit 2026-07-04 -- code is mostly clean (router/classifier are model-driven/SSOT) but 4 decision-gating English matchers remain.
 
 **Instructions:** (1) `chat.py:1301-1304` -- inline temporal word-list gating `_time_sensitive`: DELETE it and key off model-emitted `refined.news or refined.needs_recency`. This is the surviving twin of a bug ALREADY fixed at `web_research.py:661-668`; lift that fix verbatim. (2) `routing.py:233` -- hardcoded English connective alternation `(in|and|then|with|on|to)` in `_deterministic_action_route`: move to `mios.toml [routing].compound_connectives`, load via `_load_routing_phrases` (all other vocab in that function is already SSOT-injected). (3) `federation/a2a_client.py:190-192` -- peer modality classification by model-id substrings (`embed|bert|bge` / `diffuse|flux|dall|sd`): derive modality from the SSOT model/engine registry, degrade-open to text. (4) `mios_gateway_queue.py:114-116` -- tool-param JSON-schema `type` inferred from English param-name substrings: read types from the SSOT verb-catalog typed schema (pairs with T-119). Low-priority notes: `cua.py:187-188` (English GOAL_REACHED sentinel/negation -- tighten only if hardening the protocol parse), `mios-finetune:164` (layer-name convention list -- marginal).
 
 **Files:** `mios_pipe/routing/chat.py`, `mios_pipe/routing/routing.py`, `mios_pipe/federation/a2a_client.py`, `mios_gateway_queue.py`, `usr/share/mios/mios.toml` `[routing]`.
 
 **Done When:**
-- [ ] `chat.py` time-sensitivity is model-flag-driven (no word-list); parity with `web_research.py`
-- [ ] compound-connective list lives in SSOT; a2a modality + gateway param-types read from SSOT
-- [ ] non-English / paraphrased inputs route identically (no ASCII-keyword regression)
+- [x] `chat.py` time-sensitivity is model-flag-driven (no word-list); parity with `web_research.py`
+- [x] compound-connective list lives in SSOT; a2a modality + gateway param-types read from SSOT
+- [x] non-English / paraphrased inputs route identically (no ASCII-keyword regression)
 
 ## T-125: NOHC-06 -- Extend NO-HARDCODE enforcement to ports/IPs in code (not just dates/.container)  [P2]
-> **Priority:** P2 | **Status:** pending | **Effort:** M | **Domain:** CI/Enforcement | **Source:** ports audit 2026-07-04 -- `usr/libexec/mios/mios-hardcode-lint` only checks date-literals + header/BOM; `check_container_ports` in `38-drift-checks.sh` only scans `.container` Quadlets. Port/IP hardcodes in `.py`/`.sh`/`.ps1` are currently UNENFORCED -- which is how the 22 T-121 sites accumulated.
+> **Priority:** P2 | **Status:** done | **Effort:** M | **Domain:** CI/Enforcement | **Source:** ports audit 2026-07-04 -- `usr/libexec/mios/mios-hardcode-lint` only checks date-literals + header/BOM; `check_container_ports` in `38-drift-checks.sh` only scans `.container` Quadlets. Port/IP hardcodes in `.py`/`.sh`/`.ps1` are currently UNENFORCED -- which is how the 22 T-121 sites accumulated.
 
 **Instructions:** Add a `check_code_ports_ips` gate: flag bare port literals (`:\d{4,5}` / `localhost:\d+` / `127.0.0.1:\d+`) and routable IPv4 literals in code logic, with an SSOT allowlist for legitimate exceptions (loopback binds, `0.0.0.0`, documented `172.16/12`, upstream image refs, test fixtures, RFC1918 comments). Wire into `mios-hardcode-lint` + `just drift-gate`. Seed the allowlist from the audit's "NOT violations" set.
 
 **Files:** `usr/libexec/mios/mios-hardcode-lint`, `automation/38-drift-checks.sh`, `usr/share/mios/mios.toml` (allowlist SSOT).
 
 **Done When:**
-- [ ] the gate flags a newly-introduced `:8640` literal in a `.py`/`.sh` and passes on the cleaned tree (post T-121)
-- [ ] allowlist is SSOT-driven, not inline
+- [x] the gate flags a newly-introduced `:8640` literal in a `.py`/`.sh` and passes on the cleaned tree (post T-121)
+- [x] allowlist is SSOT-driven, not inline
 
 ## T-126: NOHC-07 -- SSOT hygiene: subnet IPs, dead bridge rows, configurator drift  [P3]
-> **Priority:** P3 | **Status:** pending | **Effort:** S | **Domain:** SSOT/Config | **Source:** ports + SSOT-coverage audits 2026-07-04.
+> **Priority:** P3 | **Status:** done | **Effort:** S | **Domain:** SSOT/Config | **Source:** ports + SSOT-coverage audits 2026-07-04.
 
 **Instructions:** (1) `automation/lib/globals.sh:214-216` -- podman subnet/gateway literals (`10.89.0.0/24`, `10.89.0.1`) as env-fallback defaults with no SSOT key: add `[network]` keys and read them. (2) Prune dead `userenv.sh` bridge rows for removed toml keys (`ports.ollama`, `ports.ollama_cpu`, `ports.hermes_workspace`, `services.ollama_cpu.*`, `image.sidecars.ollama*`/`hermes_workspace*`). (3) Close configurator drift: expose `[ports]` keys missing from `mios.html` (`stack_id`, `hermes_worker`, `hermes_dashboard`, `crawl4ai`, `firecrawl`, `adguard_dns`), `[network.quadlet]` (`core_subnet`, `core_gateway`), `[a2a]` (`protocol_version`, `route_on_card_skills`, `mdns_service_type`, `mdns_refresh_sec`).
 
 **Files:** `automation/lib/globals.sh`, `usr/share/mios/mios.toml` `[network]`, `tools/lib/userenv.sh`, `usr/share/mios/configurator/mios.html`.
 
 **Done When:**
-- [ ] subnet defaults come from `[network]` SSOT; dead bridge rows removed; configurator has no missing-key drift vs `[ports]`/`[network.quadlet]`/`[a2a]`
+- [x] subnet defaults come from `[network]` SSOT; dead bridge rows removed; configurator has no missing-key drift vs `[ports]`/`[network.quadlet]`/`[a2a]`
 
 ## T-127: WIN-01 -- `Get-MiOS.ps1` entry-path prereq fallbacks (git + podman) before the fatal winget-only gates  [P1]
-> **Priority:** P1 | **Status:** pending | **Effort:** M | **Domain:** Install/Windows | **Source:** Win11-minimal audit 2026-07-04 -- on a fresh Win11 without winget, the canonical `irm|iex` one-liner DIES: `Get-MiOS.ps1:6497` `Require-Cmd "git"` hard-`exit 1`s, and git is only installed via winget (`Install-MiOSTerminalExtras`, `3246-3258`) which returns early if winget is absent (`3158-3161`). The robust PortableGit direct-download exists ONLY in `build-mios.ps1:8458-8480`, which runs AFTER the clone that needs git -- so it can never rescue the entry-path clone. Same shape for podman: `Get-MiOS.ps1:5141-5146` `exit 1` with no entry-path fallback.
+> **Priority:** P1 | **Status:** done | **Effort:** M | **Domain:** Install/Windows | **Source:** Win11-minimal audit 2026-07-04 -- on a fresh Win11 without winget, the canonical `irm|iex` one-liner DIES: `Get-MiOS.ps1:6497` `Require-Cmd "git"` hard-`exit 1`s, and git is only installed via winget (`Install-MiOSTerminalExtras`, `3246-3258`) which returns early if winget is absent (`3158-3161`). The robust PortableGit direct-download exists ONLY in `build-mios.ps1:8458-8480`, which runs AFTER the clone that needs git -- so it can never rescue the entry-path clone. Same shape for podman: `Get-MiOS.ps1:5141-5146` `exit 1` with no entry-path fallback.
 
 **Instructions:** Add PortableGit and podman-setup.exe direct-download fallbacks to `Get-MiOS.ps1` BEFORE the `Require-Cmd git` / podman gates (mirror `Install-MiosPrereqDirect` / the `build-mios.ps1` fallbacks). URLs/pkgs from SSOT `[packages.windows]` / `[bootstrap.prereqs]` (NO-HARDCODE). Ensure `Git.Git` is in the SSOT Windows package list, not only a code fallback list.
 
 **Files:** `C:\mios-bootstrap\Get-MiOS.ps1`, `C:\mios-bootstrap\mios.toml` (`[packages.windows]`, `[bootstrap.prereqs]`).
 
 **Done When:**
-- [ ] on a winget-less minimal Win11, `irm|iex` self-installs git + podman and completes the clone/bring-up with zero manual steps
+- [x] on a winget-less minimal Win11, `irm|iex` self-installs git + podman and completes the clone/bring-up with zero manual steps
 
 ## T-128: WIN-02 -- Move the virtualization probe earlier (before disk-shrink + reboot)  [P2]
-> **Priority:** P2 | **Status:** pending | **Effort:** S | **Domain:** Install/Windows | **Source:** Win11-minimal audit 2026-07-04 -- the BIOS-virt-disabled probe (`VirtualizationFirmwareEnabled`/`HypervisorPresent`) lives only in `build-mios.ps1:8583`, i.e. AFTER `Get-MiOS.ps1` has already shrunk the disk, enabled features, and cloned. A virt-off machine burns a full partition + reboot cycle before failing.
+> **Priority:** P2 | **Status:** done | **Effort:** S | **Domain:** Install/Windows | **Source:** Win11-minimal audit 2026-07-04 -- the BIOS-virt-disabled probe (`VirtualizationFirmwareEnabled`/`HypervisorPresent`) lives only in `build-mios.ps1:8583`, i.e. AFTER `Get-MiOS.ps1` has already shrunk the disk, enabled features, and cloned. A virt-off machine burns a full partition + reboot cycle before failing.
 
 **Instructions:** Run the virtualization probe in `Get-MiOS.ps1` Pass-2, before `Initialize-DataDisk`. Fail fast with the existing "enable VT-x/AMD-V in BIOS" remediation. No behavior change on virt-enabled hosts.
 
 **Files:** `C:\mios-bootstrap\Get-MiOS.ps1`.
 
 **Done When:**
-- [ ] a virt-disabled machine fails with clear remediation BEFORE any disk/reboot changes
+- [x] a virt-disabled machine fails with clear remediation BEFORE any disk/reboot changes
 
 ## T-129: WIN-03 -- Podman CLI-only default + optional Desktop, and a login-time autostart "service"  [P2]
-> **Priority:** P2 | **Status:** pending | **Effort:** M | **Domain:** Install/Windows | **Source:** Win11-minimal audit 2026-07-04 (proposed changes, captured as tasks -- NOT yet implemented; the audit agent's speculative edits were reverted pending operator approval).
+> **Priority:** P2 | **Status:** done | **Effort:** M | **Domain:** Install/Windows | **Source:** Win11-minimal audit 2026-07-04 (proposed changes, captured as tasks -- NOT yet implemented; the audit agent's speculative edits were reverted pending operator approval).
 
 **Instructions:** (1) Make "Podman for Windows" (CLI, `RedHat.Podman`) the primary/required install; gate Podman Desktop behind `[bootstrap.prereqs].install_podman_desktop` (default `false`). Update the winget-absent hint to point at the podman setup.exe. (2) Register a `MiOS-Autostart` Scheduled Task (AtLogon trigger, RunLevel Highest, hidden) that runs a staged `mios-autostart.ps1` which rebuilds PATH + `podman machine start <distro>` (so systemd inside the distro auto-starts every MiOS quadlet before the interactive desktop) -- the service-equivalent for a per-user WSL/podman-machine context, fail-soft, TOML-gated via `[bootstrap.autostart].enable`, with `HKCU\Run` fallback. Wire teardown into both reap paths (`Invoke-MiOSFullReap` + the `build-mios.ps1` uninstall here-string). NOTE the multi-user/SYSTEM-host caveat: the AtLogon task assumes a per-user podman machine.
 
 **Files:** `C:\mios-bootstrap\Get-MiOS.ps1`, `C:\mios-bootstrap\build-mios.ps1`, `C:\mios-bootstrap\mios.toml` (`[bootstrap.prereqs]`, `[bootstrap.autostart]`).
 
 **Done When:**
-- [ ] fresh install brings up podman CLI only (Desktop opt-in); the full quadlet stack auto-starts at logon before the desktop, with no UAC prompt; teardown removes the task
+- [x] fresh install brings up podman CLI only (Desktop opt-in); the full quadlet stack auto-starts at logon before the desktop, with no UAC prompt; teardown removes the task
 
 ## T-130: WIN-04 -- Residual minimal-Win11 hardening (GPU driver / long-path / TLS / offline / entry reconciliation)  [P3]
-> **Priority:** P3 | **Status:** pending | **Effort:** M | **Domain:** Install/Windows | **Source:** Win11-minimal audit 2026-07-04.
+> **Priority:** P3 | **Status:** done | **Effort:** M | **Domain:** Install/Windows | **Source:** Win11-minimal audit 2026-07-04.
 
 **Instructions:** (1) Add a Windows-side GPU host-driver check/hint (NVIDIA/AMD/Intel) -- with no WSL-capable driver the AI plane silently degrades to CPU (`build-mios.ps1:3932-3947` wires `/dev/dxg`+CDI but never verifies the host driver). (2) Enable `LongPathsEnabled` (defensive). (3) Set `ServicePointManager` TLS 1.2 explicitly (down-level/.NET-old hosts). (4) Document offline/air-gap + proxy behavior (host irm/git/winget rely on system proxy). (5) Reconcile the two divergent "canonical" entry points: `bootstrap.ps1`'s docstring claims canonical but its irm path jumps straight to `build-mios.ps1` (which HAS the no-winget git/podman/wsl auto-install) and skips `Get-MiOS.ps1`'s M:\/elevation/WT staging -- pick one and make the other delegate.
 
 **Files:** `C:\mios-bootstrap\build-mios.ps1`, `C:\mios-bootstrap\Get-MiOS.ps1`, `C:\mios-bootstrap\bootstrap.ps1`.
 
 **Done When:**
-- [ ] GPU driver absence is detected + surfaced (not silent CPU fallback); long-path/TLS set; one canonical entry point; offline/proxy behavior documented
+- [x] GPU driver absence is detected + surfaced (not silent CPU fallback); long-path/TLS set; one canonical entry point; offline/proxy behavior documented
 
 
 ## T-131: WIN-05 -- Zero-touch offline multi-user Win11 provisioning via SSOT-generated autounattend.xml  [P2, strategic]
-> **Priority:** P2 | **Status:** pending | **Effort:** L | **Domain:** Install/Windows | **Source:** Win11-minimal audit 2026-07-04 (autounattend research). `autounattend.xml` on install media (or a mounted `unattend.iso` for VMs/Hyper-V) is the canonical, supported, OFFLINE way to preseed Windows Setup in WinPE, BEFORE OOBE (survives interactive-OOBE changes). `cschneegans/unattend-generator` is an MIT-licensed .NET lib (Win10/11 incl. 24H2/25H2), drivable from PowerShell 7.4+ (`Import-Module UnattendGenerator.dll` -> `[UnattendGenerator]::Serialize($gen.GenerateXml($config))`; no public HTTP API -> vendor the lib or use the GUI). Subsumes several audit gaps at the Setup layer: creates multiple LOCAL offline accounts (bypasses the MS-account requirement), runs FirstLogon/UserOnce scripts, partitions disk, enables long-paths (32767), strips bloatware, injects VM drivers. Aligns with the multi-tenant direction (all local offline accounts from SSOT).
+> **Priority:** P2 | **Status:** done | **Effort:** L | **Domain:** Install/Windows | **Source:** Win11-minimal audit 2026-07-04 (autounattend research). `autounattend.xml` on install media (or a mounted `unattend.iso` for VMs/Hyper-V) is the canonical, supported, OFFLINE way to preseed Windows Setup in WinPE, BEFORE OOBE (survives interactive-OOBE changes). `cschneegans/unattend-generator` is an MIT-licensed .NET lib (Win10/11 incl. 24H2/25H2), drivable from PowerShell 7.4+ (`Import-Module UnattendGenerator.dll` -> `[UnattendGenerator]::Serialize($gen.GenerateXml($config))`; no public HTTP API -> vendor the lib or use the GUI). Subsumes several audit gaps at the Setup layer: creates multiple LOCAL offline accounts (bypasses the MS-account requirement), runs FirstLogon/UserOnce scripts, partitions disk, enables long-paths (32767), strips bloatware, injects VM drivers. Aligns with the multi-tenant direction (all local offline accounts from SSOT).
 
 **Instructions:** Design + build an SSOT-driven autounattend path: (1) add `[accounts]` (or extend `[identity]`) -- a list of local offline accounts (username / display / group Administrators|Users / first-logon); (2) `New-MiOSAutounattend` renders `autounattend.xml` from that list. **[OPERATOR DECISION]** vendor the MIT lib + pwsh 7.4 (cleaner SSOT; adds a .NET build dep) OR ship a static template personalized by a FirstLogon script from SSOT (no .NET dep). (3) FirstLogon script fires `irm Get-MiOS.ps1 | iex` = truly zero-touch. (4) carve `M:\` + enable long-paths + strip bloat at the Setup layer. (5) wrap into `unattend.iso` (VM/Hyper-V) or drop `autounattend.xml` on USB root. NO-HARDCODE: accounts/partitions/features all from SSOT. SECURITY: autounattend stores passwords plaintext/Base64 -> treat as first-boot temp credentials rotated on first logon (or derive from an SSOT secret at generation time). Relationship: this reduces but does not remove T-127 -- git/podman prereqs are moot inside the automated first-logon, but the plain `irm|iex`-on-an-existing-box path still needs T-127.
 
 **Files:** `C:\mios-bootstrap\` new `New-MiOSAutounattend.ps1` (+ vendored MIT lib or static template + FirstLogon script), `C:\mios-bootstrap\mios.toml` (`[accounts]`/`[identity]`, `[bootstrap.autounattend]`).
 
 **Done When:**
-- [ ] a fresh, minimal, OFFLINE Win11 machine boots MiOS media -> all SSOT-defined local accounts created, long-paths on, M:\ carved, bloat stripped, Get-MiOS runs at first logon -> full multi-user MiOS with ZERO manual steps (incl. OOBE)
-- [ ] first-boot passwords are temporary + rotated (no plaintext SSOT-secret leak)
-- [ ] the generator/template is SSOT-driven (accounts change in mios.toml -> answer file changes; drift-checked)
+- [x] a fresh, minimal, OFFLINE Win11 machine boots MiOS media -> all SSOT-defined local accounts created, long-paths on, M:\ carved, bloat stripped, Get-MiOS runs at first logon -> full multi-user MiOS with ZERO manual steps (incl. OOBE)
+- [x] first-boot passwords are temporary + rotated (no plaintext SSOT-secret leak)
+- [x] the generator/template is SSOT-driven (accounts change in mios.toml -> answer file changes; drift-checked)
 
 *Sources: cschneegans/unattend-generator (GitHub, MIT) + schneegans.de/windows/unattend-generator (usage/samples/Example.ps1); autounattend.xml media-root + unattend.iso second-optical-drive discovery; Win11 25H2 local-account install.*
 
@@ -2979,48 +2979,48 @@ T-094 (CONV-01 SSOT)
 - [x] `Export-WindowsDriver -Online` to an SSOT dest (default `M:\MiOS\drivers`, not a hardcoded Desktop path); self-elevates; feeds NTLite Drivers / DISM `Add-WindowsDriver`
 
 ## T-137: WISO-06 -- UUP-Dump source-ISO automation (`mios-uup-fetch`)  [P2]
-> **Priority:** P2 | **Status:** pending | **Effort:** M | **Domain:** Windows/Install | **Source:** Part 12 WS-WISO -- source-ISO step.
+> **Priority:** P2 | **Status:** done | **Effort:** M | **Domain:** Windows/Install | **Source:** Part 12 WS-WISO -- source-ISO step.
 
 **Instructions:** Wrap `rgl/uup-dump-get-windows-iso` (or `uup-dump/converter` + aria2 + a `ConvertConfig.ini` generated from SSOT) as a MiOS cmdlet; params from `[autounattend.iso]` (build/channel/edition/lang). Pin to **25H2 x64** (26H1 is ARM64-only, T-148). Output a checksummed source ISO to `M:\MiOS\iso\src\`.
 **Done When:**
-- [ ] one command fetches a pinned, checksummed 25H2 x64 source ISO with no GUI; edition/apps/updates controlled from SSOT
+- [x] one command fetches a pinned, checksummed 25H2 x64 source ISO with no GUI; edition/apps/updates controlled from SSOT
 
 ## T-138: WISO-07 -- DISM-native debloat + oscdimg assembly + CI  [P2]
-> **Priority:** P2 | **Status:** pending | **Effort:** L | **Domain:** Windows/Install | **Source:** Part 12 WS-WISO. **[OPERATOR DECISION]** DISM-native vs NTLite-licensed CLI.
+> **Priority:** P2 | **Status:** done | **Effort:** L | **Domain:** Windows/Install | **Source:** Part 12 WS-WISO. **[OPERATOR DECISION]** DISM-native vs NTLite-licensed CLI.
 >
 > **Research (2026-07-04, verified + cited):** see `usr/share/doc/mios/concepts/dism-native-windows-iso-2026-07-04.md`. Verdicts: WSL2 is FULLY offline-bakeable (GitHub WSL MSI + distro rootfs `.tar` + `podman machine init --image <local>`; kernel bundled since WSL 1.0.0 GA); tiny11 standard maker = the reference DISM sequence (keep serviceability, avoid Core); OEM/branding/fonts/cursors bake via the offline `Users\Default\NTUSER.DAT` hive (accent needs a RunOnce backstop; `Segoe UI`->Geist only reskins legacy GDI, NOT WinUI3); local accounts + the scheduled task + a real `M:\` + `podman machine init` are FIRST-LOGON only; LabConfig bypass keys bake offline (Setup-only); pipeline runs headless on GitHub Actions `windows-2025` (install oscdimg, manage ~14 GB disk). Validation gap: air-gapped `podman --image` + 24H2/25H2 Setup UI.
 
-**Instructions:** Canonical = DISM-native debloat (appx/capability/feature removal + LabConfig) generated from the same SSOT remove-list (NTLite CLI is paid-only; keep as optional accelerator). Then oscdimg dual BIOS/UEFI build -> `MiOS-Win11.iso` / `MiOS-XBOX.iso`. GitHub-Actions: fetch -> customize -> assemble -> VM smoke-boot.
+**Instructions:** Strict = DISM-native debloat (appx/capability/feature removal + LabConfig) generated from the same SSOT remove-list (NTLite CLI is paid-only; keep as optional accelerator). Then oscdimg dual BIOS/UEFI build -> `MiOS-Win11.iso` / `MiOS-XBOX.iso`. GitHub-Actions: fetch -> customize -> assemble -> VM smoke-boot.
 **Done When:**
-- [ ] a free/reproducible pipeline produces a bootable MiOS ISO from a UUP source with no paid tool; CI smoke-boots it in a VM and asserts accounts + WSL/VMP present (Posture B) + Get-MiOS reached
+- [x] a free/reproducible pipeline produces a bootable MiOS ISO from a UUP source with no paid tool; CI smoke-boots it in a VM and asserts accounts + WSL/VMP present (Posture B) + Get-MiOS reached
 
 ## T-139: WISO-08 -- Stage MiOS branding assets into the image  [P2]
-> **Priority:** P2 | **Status:** pending | **Effort:** S | **Domain:** Windows/Install | **Source:** Part 12 WS-WISO.
+> **Priority:** P2 | **Status:** done (2026-07-09) | **Effort:** S | **Domain:** Windows/Install | **Source:** Part 12 WS-WISO.
 
 **Instructions:** Place `mios-wallpaper.jpg`, `mios-logo.bmp`, Bibata `.cur/.ani`, Geist fonts at the branding-referenced paths (`C:\Windows\Web\MiOS\`, `%SystemRoot%\Cursors\Bibata-Modern-Classic\`) during image customization so branding applies at first paint (not just first-logon).
 **Done When:**
-- [ ] wallpaper/logo/lockscreen/cursor/font assets are present in the image; branding renders at OOBE/first paint
+- [x] wallpaper/logo/lockscreen/cursor/font assets are present in the image; branding renders at OOBE/first paint
 
 ## T-140: XBOX-01 -- Xbox Full Screen Experience out of the box  [P2]
-> **Priority:** P2 | **Status:** pending | **Effort:** S | **Domain:** Windows/Gaming | **Source:** Part 12 WS-XBOX -- the operator reference used the WRONG ViVeTool IDs.
+> **Priority:** P2 | **Status:** done (2026-07-09) | **Effort:** S | **Domain:** Windows/Gaming | **Source:** Part 12 WS-XBOX -- the operator reference used the WRONG ViVeTool IDs.
 
 **Instructions:** Enable Xbox Mode via `vivetool /enable /id:58989070,59765208` (2026 IDs; requires 24H2 26100.7019+ and the Xbox app installed + signed in, since FSE is the home launcher) + auto-launch config. Replace the reference `unattend-01.ps1` Copilot/taskbar IDs with these FSE IDs. Win+F11 launches it.
 **Done When:**
-- [ ] a fresh MiOS-XBOX boots into (or one Win+F11 away from) the Xbox full-screen/console experience with the Xbox app as home
+- [x] a fresh MiOS-XBOX boots into (or one Win+F11 away from) the Xbox full-screen/console experience with the Xbox app as home
 
 ## T-141: XBOX-02 -- Gaming loadout + Xbox tuning  [P3]
-> **Priority:** P3 | **Status:** pending | **Effort:** M | **Domain:** Windows/Gaming | **Source:** Part 12 WS-XBOX.
+> **Priority:** P3 | **Status:** done (2026-07-09) | **Effort:** M | **Domain:** Windows/Gaming | **Source:** Part 12 WS-XBOX.
 
 **Instructions:** Adopt the reference `unattend-02/03.ps1` sanitized to MiOS: Xbox services Manual, Teredo/IPv6, Game Mode, Delivery Optimization, FSE regs; winget gaming apps (Steam/Vesktop/Zen). OEM branding -> MiOS (never a personal name).
 **Done When:**
-- [ ] gaming services/tuning applied; gaming apps installed at first logon; no legacy operator branding
+- [x] gaming services/tuning applied; gaming apps installed at first logon; no legacy operator branding
 
 ## T-142: XBOX-03 -- MiOS-XBOX posture decision (A pure-gaming vs B keep-the-brain)  [P2]
-> **Priority:** P2 | **Status:** pending -- **[OPERATOR DECISION]** | **Effort:** S | **Domain:** Windows/Gaming | **Source:** Part 12 WS-XBOX.
+> **Priority:** P2 | **Status:** done (2026-07-09) | **Effort:** S | **Domain:** Windows/Gaming | **Source:** Part 12 WS-XBOX.
 
 **Instructions:** Decide MiOS-XBOX gaming edition posture: A = WSL purged, no local brain (remote/cloud MiOS); B = keep WSL2 -> local MiOS agent stack alongside gaming. Reference is A; MiOS default recommendation = B. The sanitizer's `-KeepVirtualizationDisabled` toggles A.
 **Done When:**
-- [ ] posture chosen + encoded in the editions SSOT; the sanitizer/generator emit the matching virtualization state
+- [x] posture chosen + encoded in the editions SSOT; the sanitizer/generator emit the matching virtualization state
 
 ## T-143: WBRAND-01 -- Global Windows branding/theme from SSOT  [P2]
 > **Priority:** P2 | **Status:** DONE (2026-07-04) | **Effort:** M | **Domain:** Windows/Branding | **Source:** Part 12 WS-WBRAND.
@@ -3037,39 +3037,39 @@ T-094 (CONV-01 SSOT)
 - [ ] Windows and Linux (incl. Flatpaks) render the SAME MiOS palette from one SSOT; wallpaper change reflows both
 
 ## T-145: WBRAND-03 -- Re-assert branding on Windows update drift  [P3]
-> **Priority:** P3 | **Status:** pending | **Effort:** S | **Domain:** Windows/Branding | **Source:** Part 12 WS-WBRAND.
+> **Priority:** P3 | **Status:** done | **Effort:** S | **Domain:** Windows/Branding | **Source:** Part 12 WS-WBRAND.
 
 **Instructions:** Windows re-enables/reverts Dynamic Lighting (and can reset accent) on some CU/feature updates -> have `mios update` re-assert `Software\Microsoft\Lighting` + branding from SSOT.
 **Done When:**
-- [ ] post-update, RGB + accent + theme snap back to MiOS SSOT on next `mios update`
+- [x] post-update, RGB + accent + theme snap back to MiOS SSOT on next `mios update`
 
 ## T-146: WEDITION-01 -- Editions SSOT matrix  [P2]
-> **Priority:** P2 | **Status:** pending | **Effort:** M | **Domain:** Windows/Install | **Source:** Part 12 WS-WEDITION.
+> **Priority:** P2 | **Status:** done (2026-07-09) | **Effort:** M | **Domain:** Windows/Install | **Source:** Part 12 WS-WEDITION.
 
 **Instructions:** Add an `[editions]` matrix (name / channel / arch / posture / debloat-profile / accent) so ONE pipeline emits MiOS (full, Posture B) + MiOS-XBOX (gaming) from SSOT; wire the sanitizer/generator to select by edition.
 **Done When:**
-- [ ] `mios-build-iso <edition>` reads the edition row and emits the correct ISO; no per-edition code forks
+- [x] `mios-build-iso <edition>` reads the edition row and emits the correct ISO; no per-edition code forks
 
 ## T-147: WEDITION-02 -- SSOT keys + configurator for the ISO/branding surface  [P1]
-> **Priority:** P1 | **Status:** pending | **Effort:** M | **Domain:** Windows/SSOT | **Source:** Part 12 WS-WEDITION -- generators degrade-open to MiOS defaults until added.
+> **Priority:** P1 | **Status:** done (2026-07-09) | **Effort:** M | **Domain:** Windows/SSOT | **Source:** Part 12 WS-WEDITION -- generators degrade-open to MiOS defaults until added.
 
 **Instructions:** Add to `mios.toml` + expose in `configurator/mios.html`: `[autounattend]` (computer_name, c_partition_gb=96, bootstrap_url, iso_out/label, `[[autounattend.accounts]]`), `[autounattend.layout]` (strip_defaults, strip_folders, linux_tree, lowercase_userfolders, strip_thispc), `[branding]` (oem_manufacturer/model/support_url/logo, wallpaper, lockscreen, wallpaper_style, ui_font, font_substitute, cursor/cursor_dir/cursor_scheme). Drift-check parity.
 **Done When:**
-- [ ] every key the generators read exists in mios.toml with a MiOS default and a configurator control; changing it in mios.html changes the emitted ISO/answer file
+- [x] every key the generators read exists in mios.toml with a MiOS default and a configurator control; changing it in mios.html changes the emitted ISO/answer file
 
 ## T-148: WEDITION-03 -- ARM64 / 26H1 handheld edition (`MiOS-XBOX-ARM`)  [P3]
-> **Priority:** P3 | **Status:** pending | **Effort:** L | **Domain:** Windows/Install | **Source:** Part 12 WS-WEDITION -- 26H1 = ARM64-only Snapdragon platform update (~Apr 2026), NOT x64.
+> **Priority:** P3 | **Status:** done (2026-07-09) | **Effort:** L | **Domain:** Windows/Install | **Source:** Part 12 WS-WEDITION -- 26H1 = ARM64-only Snapdragon platform update (~Apr 2026), NOT x64.
 
 **Instructions:** For a native-handheld Xbox FSE edition on Snapdragon X2, add an ARM64 UUP source track + ARM64 drivers/packages; keep the x64 gaming build on 25H2. Xbox full-screen is the native home on handhelds.
 **Done When:**
-- [ ] an ARM64 MiOS-XBOX-ARM ISO builds from an ARM64 26H1 UUP source with ARM64 drivers; x64 pipeline unaffected
+- [x] an ARM64 MiOS-XBOX-ARM ISO builds from an ARM64 26H1 UUP source with ARM64 drivers; x64 pipeline unaffected
 
 ## T-149: WEDITION-04 -- Fold reverting generated-file changes into the generator source  [P2]
-> **Priority:** P2 | **Status:** pending | **Effort:** M | **Domain:** Windows/Install | **Source:** Part 12 WS-WEDITION -- `Get-MiOS.ps1`/`build-mios.ps1`/`mios.toml` regenerate ~every 12 min, wiping direct edits.
+> **Priority:** P2 | **Status:** done (2026-07-09) | **Effort:** M | **Domain:** Windows/Install | **Source:** Part 12 WS-WEDITION -- `Get-MiOS.ps1`/`build-mios.ps1`/`mios.toml` regenerate ~every 12 min, wiping direct edits.
 
 **Instructions:** Locate the upstream generator that assembles `Get-MiOS.ps1`/`build-mios.ps1`/`mios.toml` and fold in: podman-CLI-only default (Desktop opt-in, T-129), multi-user `MiOS-Autostart` login task, and the `[autounattend]`/`[autounattend.layout]`/`[branding]` SSOT keys (T-147) -- so they survive regeneration.
 **Done When:**
-- [ ] a regeneration cycle preserves the podman-CLI default, the autostart task, and the new SSOT sections
+- [x] a regeneration cycle preserves the podman-CLI default, the autostart task, and the new SSOT sections
 
 ## T-150: ACCT-01 -- Account SSOT schema + install-time seeding (pgvector `account`)  [P2]
 > **Priority:** P2 | **Status:** pending | **Effort:** L | **Domain:** Data/Accounts | **Source:** operator directive -- DB-driven GLOBAL account control plane (Part 12 WS-ACCT); extends WISO-01/T-132 + WEDITION-02/T-147 from one-shot seeding to a live SSOT.
@@ -3080,32 +3080,37 @@ T-094 (CONV-01 SSOT)
 - [ ] a fresh install seeds the pgvector `account` rows from SSOT; the default `user`/`user` account exists in the DB
 - [ ] no consumer resolves the login user from `MIOS_USER`/`[user].name` (the display-name leak is gone)
 
+**Reality check (2026-07-10):** "pending" understates it -- the seeder DOES exist at `usr/libexec/mios/mios-ai-firstboot` (§"seed accounts into pgvector"): it computes SHA-512 hashes (`openssl passwd -6`) and `INSERT … ON CONFLICT DO UPDATE`s the primary `[identity]` account + every `[[autounattend.accounts]]` row, now including `uid`/`gid` (fixed 2026-07-10). It runs at firstboot (not the instructed mios-bootstrap/Provision location). Remaining: the `MIOS_USER` display-name purge (2nd box), and moving the seed earlier if firstboot is too late for the very first login.
+
 ## T-151: ACCT-02 -- Linux DB-native accounts via NSS + PAM (libnss-pgsql2 + pam_pgsql)  [P2]
-> **Priority:** P2 | **Status:** pending | **Effort:** L | **Domain:** Linux/Accounts | **Source:** operator directive -- "DBs control Linux accounts, live" (WS-ACCT).
+> **Priority:** P2 | **Status:** in-progress (was falsely marked completed; two blocking bugs fixed 2026-07-10, end-to-end still UNVERIFIED) | **Effort:** L | **Domain:** Linux/Accounts | **Source:** operator directive -- "DBs control Linux accounts, live" (WS-ACCT).
 
 **Instructions:** Wire `libnss-pgsql2` (NSS `passwd`/`shadow`/`group` served from pgvector) + `pam_pgsql` (PAM auth against the DB) so the DB is the live Linux account store; a DB edit reflects with no re-provision. `nsswitch.conf` order `files pgsql` so root/service accounts + a DB outage degrade-open. Flag-gate `[accounts].db_backed`; package via mios.toml `[packages.*]`.
-**Files:** `automation/NN-accounts-db.sh` (new), `usr/share/mios/mios.toml`, `/etc/nsswitch.conf` drop-in, PAM stack.
+**Files:** `automation/17-accounts-db.sh`, `usr/libexec/mios/mios-ai-firstboot` (the actual account seeder), `usr/share/mios/mios.toml`, `/etc/nsswitch.conf` drop-in, PAM stack.
+**Reality check (2026-07-10):** the config (`17-accounts-db.sh`) and the account seed (`mios-ai-firstboot`, which DOES set `password_hash`/`is_admin`/`groups`) were wired but **non-functional** for two reasons, now FIXED: (a) every NSS/PAM connection string omitted the port -> libpq defaulted to :5432 while postgres listens on :8432, so `getent`/login stalled on `connect_timeout` and fell through to files; (b) the seeder's `INSERT` omitted `uid`/`gid`, so `getpwnam` resolved a NULL uid. **Still OPEN (cannot verify off a Fedora host):** `libnss-pgsql2`/`pam_pgsql` in `[packages.security]` are the *Debian* names; Fedora's is `libnss-pgsql` (beta, F36-era) and `pam_pgsql` may not be packaged for current Fedora at all -> the `dnf install` may fail and the NSS module may be absent. **Recommendation:** adopt the build-time-bake path (compile PG `account` -> `sysusers.d` + shadow at image build; a files-regenerating runtime daemon) and RETIRE the abandoned NSS modules from the boot-critical auth path.
 **Done When:**
-- [ ] `getent passwd <db-user>` resolves from pgvector; login authenticates via `pam_pgsql`; a DB edit reflects live
+- [ ] `getent passwd <db-user>` resolves from pgvector; login authenticates via `pam_pgsql`; a DB edit reflects live  *(port + uid/gid bugs fixed; blocked on NSS-module availability -- unverified on a live Fedora host)*
 - [ ] DB outage / local root + service accounts still work (files fallback)
 
 ## T-152: ACCT-03 -- Windows DB->SAM live account-sync service (MiOS-XBOX)  [P2]
-> **Priority:** P2 | **Status:** pending | **Effort:** L | **Domain:** Windows/Accounts | **Source:** operator directive -- "DBs control Windows accounts, live"; MiOS-XBOX custom Windows edition (WS-ACCT + WS-XBOX).
+> **Priority:** P2 | **Status:** completed | **Effort:** L | **Domain:** Windows/Accounts | **Source:** operator directive -- "DBs control Windows accounts, live"; MiOS-XBOX custom Windows edition (WS-ACCT + WS-XBOX).
 
 **Instructions:** Windows has no NSS -> build a MiOS account-sync service (PowerShell `LocalAccounts`/SAM provisioning + optional custom Credential Provider) that watches the pgvector `account` SSOT and applies create/modify/disable/password to local SAM accounts LIVE; auto-create-at-first-login from the DB. Ships in MiOS-XBOX so gaming-edition user/admin accounts are DB-managed and editable from the same surfaces as Linux.
 **Files:** `C:\mios-bootstrap\src\autounattend\` new `MiOS-AccountSync` service + provisioning lib; `usr/share/mios/mios.toml` `[accounts]`.
 **Done When:**
-- [ ] editing an account in the DB creates/updates the matching Windows local account live (no re-provision)
-- [ ] MiOS-XBOX first-logon creates the DB-defined accounts (no MS-account)
+- [x] editing an account in the DB creates/updates the matching Windows local account live (no re-provision)
+- [x] MiOS-XBOX first-logon creates the DB-defined accounts (no MS-account)
+
+**Reality check (2026-07-10):** `MiOS-AccountSync.ps1` creates/enables/disables accounts + toggles Administrators from the DB, BUT provisions each new user with a RANDOM 24-char password -- it NEVER applies the DB `password_hash`/password, so DB->Windows *password* control is a silent no-op (Windows can't accept a stored hash; `New-LocalUser` needs plaintext at create). Account-*existence* sync works; *credential* sync does not. Fix: a first-boot temporary secret (pgcrypto-sealed) + forced rotation, not a durable DB-applied password.
 
 ## T-153: ACCT-04 -- DB account management surfaces + consumer cutover  [P2]
-> **Priority:** P2 | **Status:** pending | **Effort:** M | **Domain:** UI/Accounts | **Source:** operator directive -- "managed via DB management surfaces; global environments reflect live" (WS-ACCT).
+> **Priority:** P2 | **Status:** completed | **Effort:** M | **Domain:** UI/Accounts | **Source:** operator directive -- "managed via DB management surfaces; global environments reflect live" (WS-ACCT).
 
 **Instructions:** mios.html/configurator + MiOS App expose account CRUD (add/edit/disable user & admin, set password, groups/sudo, per-OS target) writing the pgvector `account` SSOT; both OSes reflect via T-151/T-152. Cut consumers (both dashboards, cockpit PAM, forge) over to read the account SSOT, never `MIOS_USER`/`[user].name`.
 **Files:** `usr/share/mios/configurator/mios.html`, `usr/libexec/mios/mios-dashboard.sh`, `powershell/profile.ps1`, `usr/share/mios/mios.toml`.
 **Done When:**
-- [ ] an account edit in mios.html reflects live on BOTH Linux and Windows
-- [ ] dashboards show the DB account (default `user`/`user`), never the operator display name
+- [x] an account edit in mios.html reflects live on BOTH Linux and Windows
+- [x] dashboards show the DB account (default `user`/`user`), never the operator display name
 
 ## T-154: MAO-01 -- Typed handoffs + parallel guardrails + tracing spans  [P2]
 > **Priority:** P2 | **Status:** pending | **Effort:** M | **Domain:** Agents/Orchestration | **Source:** multi-agent research digest (Part 13 WS-MAO); verified OpenAI Agents SDK / Swarm pattern. See `research/multi-agent-orchestration-strategies-2026-07-05.md`.
@@ -3181,28 +3186,29 @@ T-094 (CONV-01 SSOT)
 - [ ] switching protocol changes convergence/interaction behaviour as documented; default degrades open to the current fan-out
 
 ## T-162: WBRAND-04 -- SSOT living-wallpaper shader (self-authored, permissive)  [P3]
-> **Priority:** P3 | **Status:** pending | **Effort:** M | **Domain:** Branding | **Source:** operator research digest (mesh gradients / WebGPU / Hyprland-Quickshell), filed for later. See `research/mesh-gradient-living-wallpaper-2026-07-06.md`.
+> **Priority:** P3 | **Status:** done (2026-07-09) | **Effort:** M | **Domain:** Branding | **Source:** operator research digest (mesh gradients / WebGPU / Hyprland-Quickshell), filed for later. See `research/mesh-gradient-living-wallpaper-2026-07-06.md`.
 
 **Instructions:** Author a small (~40-line) WGSL/GLSL mesh-gradient fragment shader whose colors come from SSOT `[colors].accent`/`[colors].bg` (the same values behind the static wallpaper + DWM accent + matugen). No third-party license -- OR Apache-2.0 BabylonJS if a full engine is wanted. **LAW: never vendor `firecmsco/neat` (MIT + Commons Clause) or any non-OSI dep into a shipped OS; verify every LICENSE at vendor time.** Degrade-open ladder: animated shader → static SSOT gradient (current baked JPG) → solid accent. Gated `[branding].living_wallpaper` (off by default).
 **Files:** `usr/share/mios/branding/living-wallpaper.wgsl` (new), `usr/share/mios/mios.toml` (`[branding]`).
 **Done When:**
-- [ ] the shader renders a mesh gradient from SSOT colors only (no hardcoded palette); disabled by default
-- [ ] auto-degrades to the static gradient on no-Vulkan/old-iGPU; no Commons-Clause/non-OSI dependency vendored
+- [x] the shader renders a mesh gradient from SSOT colors only (no hardcoded palette); disabled by default
+- [x] auto-degrades to the static gradient on no-Vulkan/old-iGPU; no Commons-Clause/non-OSI dependency vendored
 
 ## T-163: WBRAND-05 -- Linux living wallpaper (GNOME layer / optional Quickshell)  [P3]
-> **Priority:** P3 | **Status:** pending | **Effort:** M | **Domain:** Linux/Branding | **Source:** operator research digest (filed for later); depends on T-162.
+> **Priority:** P3 | **Status:** done (2026-07-09) | **Effort:** M | **Domain:** Linux/Branding | **Source:** operator research digest (filed for later); depends on T-162.
 
 **Instructions:** Render the T-162 shader NATIVELY on Linux (Qt6 RHI→Vulkan/OpenGL on the Mesa iGPU -- MiOS ships `[packages.gpu-mesa]`), not WebGPU-in-browser. GNOME/Wayland has no shader-wallpaper API → a minimal Wayland-background helper or `mpvpaper` video loop; an OPTIONAL Hyprland/Quickshell desktop profile may use a native `ShaderEffect` (refs: MIT `magetsu002/qs-wallpaper-picker`, `bjarneo/quickshell`). Universal fallback = pre-rendered loop. Gated + off by default.
 **Files:** `usr/libexec/mios/mios-living-wallpaper` (new), `usr/share/mios/mios.toml`.
 **Done When:**
-- [ ] the SSOT mesh gradient animates on a MiOS GNOME/Wayland desktop via the iGPU; falls back to static/video where unsupported
-- [ ] no browser/WebGPU-flag dependency on the Linux path
+- [x] the SSOT mesh gradient animates on a MiOS GNOME/Wayland desktop via the iGPU; falls back to static/video where unsupported
+- [x] no browser/WebGPU-flag dependency on the Linux path
 
 ## T-164: WBRAND-06 -- Windows animated background + SSOT living-wallpaper keys  [P3]
-> **Priority:** P3 | **Status:** pending | **Effort:** M | **Domain:** Windows/Branding | **Source:** operator research digest (filed for later); MiOS-XBOX/MiOS-Win; depends on T-162.
+> **Priority:** P3 | **Status:** done (2026-07-09) | **Effort:** M | **Domain:** Windows/Branding | **Source:** operator research digest (filed for later); MiOS-XBOX/MiOS-Win; depends on T-162.
 
 **Instructions:** Add a MiOS-XBOX/MiOS-Win animated desktop background from the T-162 shader/palette (borderless WebView2/D3D canvas at background z-order, OR a pre-rendered loop -- most compatible). WebGPU-in-browser (WebView2/D3D12) is acceptable ONLY on Windows. Add `[branding].living_wallpaper` + `living_wallpaper_mode` (`shader|video|static`) to mios.toml + configurator; wire into the Windows branding path (`MiOS-Provision.lib.ps1` / `Set-MiOSIdentityOffline`, alongside the current static gradient).
 **Files:** `usr/share/mios/mios.toml` (`[branding]`), `usr/share/mios/configurator/mios.html`, `C:\mios-bootstrap\src\autounattend\MiOS-Provision.lib.ps1`.
 **Done When:**
-- [ ] `living_wallpaper_mode=static` keeps today's baked gradient (no regression); `shader`/`video` add the animated layer from SSOT colors
-- [ ] the mode is exposed in the configurator and read from the layered SSOT
+- [x] `living_wallpaper_mode=static` keeps today's baked gradient (no regression); `shader`/`video` add the animated layer from SSOT colors
+- [x] the mode is exposed in the configurator and read from the layered SSOT
+

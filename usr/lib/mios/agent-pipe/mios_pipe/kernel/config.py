@@ -132,13 +132,13 @@ PORT = int(os.environ.get("MIOS_PORT_AGENT_PIPE", "8640"))
 # advertised a hardcoded :8765. Reuse the canonical precedence from
 # mios-mcp-server (MIOS_PORT_MCP -> MIOS_MCP_PORT -> 8765 default).
 MCP_SERVER_PORT = int(os.environ.get("MIOS_PORT_MCP")
-                      or os.environ.get("MIOS_MCP_PORT") or "8765")
+                      or os.environ.get("MIOS_MCP_PORT") or "8460")
 # WS-0B: ONE owned light-lane base. The mios-llm-light port was hardcoded as the
 # literal `http://localhost:11450` in ~10 endpoint defaults below (drift). Derive
 # it ONCE from the [ports].llm_light SSOT key (MIOS_PORT_LLM_LIGHT via install.env;
-# default 11450) so a port change is a single edit; each endpoint still honors its
+# default 8450) so a port change is a single edit; each endpoint still honors its
 # explicit MIOS_*_ENDPOINT override first.
-_LIGHT_BASE = "http://localhost:" + (os.environ.get("MIOS_PORT_LLM_LIGHT") or "11450")
+_LIGHT_BASE = "http://localhost:" + (os.environ.get("MIOS_PORT_LLM_LIGHT") or "8450")
 # WS-0B: the agent-pipe's reasoning backend. An explicit MIOS_AGENT_PIPE_BACKEND URL
 # wins; else when the deployment opts into reasoning DIRECTLY on the light lane
 # (MIOS_AGENT_PIPE_BACKEND_LIGHT -- the operator "EVERYTHING IS LLAMA.CPP, bypass
@@ -148,7 +148,7 @@ BACKEND = (os.environ.get("MIOS_AGENT_PIPE_BACKEND")
            or (_LIGHT_BASE + "/v1"
                if (os.environ.get("MIOS_AGENT_PIPE_BACKEND_LIGHT") or "").strip().lower()
                   in {"1", "true", "yes", "on"}
-               else "http://localhost:8642/v1")).rstrip("/")
+               else f"http://localhost:{os.environ.get('MIOS_PORT_HERMES', '8642')}/v1")).rstrip("/")
 # True when the reasoning backend is the light llama.cpp lane DIRECTLY (the
 # BACKEND_LIGHT "bypass Hermes" deployment), so callers know the primary endpoint
 # is llama.cpp -- which 200-accepts but SILENTLY IGNORES tool_choice='required'.
@@ -168,21 +168,23 @@ _BACKEND_HOSTPORT = BACKEND.split("://")[-1].split("/")[0]
 # Endpoints that ENFORCE the bearer key. Always includes the configured
 # BACKEND; ALSO the Hermes gateway, whose host:port differs from BACKEND when
 # MIOS_AGENT_PIPE_BACKEND is repointed at a keyless local lane (mios-llm-light on
-# :11450) while Hermes still runs on its own port (:8642). Scoping the key to
+# :8450) while Hermes still runs on its own port (:8642). Scoping the key to
 # this SET (not just BACKEND) keeps non-streaming hermes dispatch (swarm /
 # council / DAG facets) authenticated instead of silently 401'ing -- the
 # regression of the "hermes facets 401'd in the swarm" fix once
 # BACKEND moved off :8642.. SSOT: same :8642 default as
 # BACKEND above and mios.toml [agents.hermes].endpoint; env-overridable.
-_HERMES_ENDPOINT = os.environ.get(
-    "MIOS_HERMES_ENDPOINT", "http://localhost:8642/v1").rstrip("/")
+_HERMES_ENDPOINT = (os.environ.get("MIOS_HERMES_ENDPOINT")
+                    or _toml_section("hermes").get("endpoint")
+                    or f"http://localhost:{os.environ.get('MIOS_PORT_HERMES', '8642')}/v1").rstrip("/")
 # P1 : the hermes WORKER on :8643 (hermes-worker.service) is the
 # [agents.hermes].endpoint dispatch target now, and it REQUIRES API_SERVER_KEY auth
 # (it rejected the pipe's probes with "invalid API key" until added here). Scope the
 # backend key to it too so swarm/council/DAG hermes dispatch authenticates. SSOT env-
 # overridable; same :8643 default as the worker unit's API_SERVER_PORT.
-_HERMES_WORKER_ENDPOINT = os.environ.get(
-    "MIOS_HERMES_WORKER_ENDPOINT", "http://localhost:8643/v1").rstrip("/")
+_HERMES_WORKER_ENDPOINT = (os.environ.get("MIOS_HERMES_WORKER_ENDPOINT")
+                           or _toml_section("agents").get("hermes", {}).get("endpoint")
+                           or f"http://localhost:{os.environ.get('MIOS_PORT_HERMES_WORKER', '8643')}/v1").rstrip("/")
 _AUTH_HOSTPORTS = {
     _BACKEND_HOSTPORT,
     _HERMES_ENDPOINT.split("://")[-1].split("/")[0],
@@ -229,8 +231,9 @@ _TOOL_BACKEND_MODEL = os.environ.get(
 # always-up/low-VRAM. Prefer heavy WHEN it is serving, fall back to light when it is
 # down (e.g. gaming/VRAM) -- so "SGLang for all agents" holds when the GPU is free and
 # the agentic surface NEVER hard-fails when it isn't. Health probe cached for the TTL.
-_TOOL_BACKEND_HEAVY = os.environ.get(
-    "MIOS_AGENT_PIPE_TOOL_BACKEND_HEAVY", "http://localhost:11441/v1").rstrip("/")
+_TOOL_BACKEND_HEAVY = (os.environ.get("MIOS_AGENT_PIPE_TOOL_BACKEND_HEAVY")
+                       or _toml_section("nodes").get("local-sglang", {}).get("endpoint")
+                       or f"http://localhost:{os.environ.get('MIOS_PORT_SGLANG', '8442')}/v1").rstrip("/")
 _TOOL_BACKEND_HEAVY_MODEL = os.environ.get(
     "MIOS_AGENT_PIPE_TOOL_BACKEND_HEAVY_MODEL", "mios-heavy")
 _HEAVY_PROBE_TTL = float(os.environ.get("MIOS_AGENT_PIPE_HEAVY_PROBE_TTL", "30"))
@@ -259,10 +262,12 @@ _INGRESS_KEY = os.environ.get("MIOS_AGENT_PIPE_INGRESS_KEY", "").strip()
 _STACK_MODEL = (os.environ.get("MIOS_STACK_MODEL")        # explicit per-deploy override
                 or os.environ.get("MIOS_AI_MODEL")        # WS-0B: ONE owned key = [ai].model (install.env)
                 or "granite4.1:8b")  # served brain on :11450 (gemma4:12b retired -> 404;)
-_MICRO_MODEL = os.environ.get("MIOS_MICRO_MODEL", _STACK_MODEL)
-_MICRO_ENDPOINT = os.environ.get(
-    "MIOS_MICRO_ENDPOINT", _LIGHT_BASE + "/v1",  # mios-llm-light (WS-0B: one owned port key)
-).rstrip("/")
+_MICRO_MODEL = (os.environ.get("MIOS_MICRO_MODEL")
+                or _toml_section("ai").get("micro_model")
+                or _STACK_MODEL)
+_MICRO_ENDPOINT = (os.environ.get("MIOS_MICRO_ENDPOINT")
+                   or _toml_section("ai").get("micro_endpoint")
+                   or _LIGHT_BASE + "/v1").rstrip("/")
 # Callers below append "/v1/chat/completions"; strip a trailing /v1 so we
 # don't double it.
 _MICRO_BASE = (_MICRO_ENDPOINT[:-3].rstrip("/")

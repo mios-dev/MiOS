@@ -305,7 +305,7 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 
 #### Overview
 
-Governance of MiOS is defined by seven strict, non-negotiable mandates enforced at build-time by [38-ssot-lint.sh](file:///C:/MiOS/automation/38-ssot-lint.sh), [38-drift-checks.sh](file:///C:/MiOS/automation/38-drift-checks.sh), and [99-postcheck.sh](file:///C:/MiOS/automation/99-postcheck.sh):
+Governance of MiOS is defined by eight strict, non-negotiable mandates enforced at build-time by [38-ssot-lint.sh](file:///C:/MiOS/automation/38-ssot-lint.sh), [38-drift-checks.sh](file:///C:/MiOS/automation/38-drift-checks.sh), and [99-postcheck.sh](file:///C:/MiOS/automation/99-postcheck.sh):
 
 1. **USR-OVER-ETC**: Static system configs must reside in `/usr/lib/<component>.d/`. The `/etc/` directory is reserved solely for administrative overrides.
 2. **NO-MKDIR-IN-VAR**: Build-time scripts must never call `mkdir` inside `/var/`. All `/var/` paths must be declared declaratively via `usr/lib/tmpfiles.d/*.conf`.
@@ -314,6 +314,7 @@ Governance of MiOS is defined by seven strict, non-negotiable mandates enforced 
 5. **UNIFIED-AI-REDIRECTS**: All local services, tools, and agents must communicate with `MIOS_AI_ENDPOINT` (defaulting to `http://localhost:8080/v1`). No vendor-hardcoded URLs are allowed.
 6. **UNPRIVILEGED-QUADLETS**: All Quadlet units must declare `User=`, `Group=`, and `Delegate=yes` configuration bounds. The only exceptions are `mios-ceph` and `mios-k3s` (which require root block device access).
 7. **NO-HARDCODE**: Nothing operator-tunable, including model names, ports, or scoring parameters, may be hardcoded. Values must resolve via the `mios.toml` configuration cascade.
+8. **K-I-S-S-LANGUAGES**: All scripting and automation must consolidate strictly around modern, FOSS, user-selected, and defined languages (Nushell, Rust, Zig) using Keep-It-Simple-Stupid (K.I.S.S.) principles to eliminate shell script sprawl.
 
 #### Citation & Attribution References
 

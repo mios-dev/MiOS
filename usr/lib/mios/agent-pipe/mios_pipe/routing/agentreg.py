@@ -424,9 +424,11 @@ def _agent_lane(cfg: dict) -> str:
         return lane
     ep = str(cfg.get("endpoint", ""))
     mdl = str(cfg.get("model", "")).lower()
-    if ":11436" in ep or "igpu" in mdl:        # iGPU lane (e.g. Windows llama.cpp)
+    _light_port = os.environ.get("MIOS_PORT_LLM_LIGHT", "8450")
+    _cpu_port = os.environ.get("MIOS_PORT_CPU_NODE", "8458")
+    if (":" + _light_port) in ep or "igpu" in mdl:        # iGPU / light lane
         return "igpu"
-    if ":8644" in ep or ":11435" in ep or "cpu" in mdl:
+    if ":8644" in ep or (":" + _cpu_port) in ep or "cpu" in mdl:
         return "cpu"
     return "gpu"
 

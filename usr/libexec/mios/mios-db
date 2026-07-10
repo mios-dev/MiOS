@@ -53,6 +53,38 @@
 
 set -uo pipefail
 
+if [ "${1:-}" = "--config" ]; then
+    shift
+    for _ue in /usr/lib/mios/userenv.sh /usr/share/mios/tools/lib/userenv.sh; do
+        if [ -r "$_ue" ]; then
+            . "$_ue"
+            break
+        fi
+    done
+    PG_HOST="${MIOS_PG_HOST:-localhost}"
+    PG_PORT="${MIOS_PORT_PGVECTOR:-5432}"
+    PG_USER="${MIOS_PG_USER:-mios}"
+    PG_PASS="${MIOS_PG_PASS:-mios}"
+    PG_DB="${MIOS_PG_DB:-mios}"
+
+    if [ "${1:-}" = "get" ]; then
+        VAL_ESCAPED=$(echo "${2:-}" | sed "s/'/''/g")
+        /usr/libexec/mios/mios-db --pg "SELECT value FROM system_config WHERE key = '$VAL_ESCAPED';"
+        exit $?
+    elif [ "${1:-}" = "set" ]; then
+        KEY_ESCAPED=$(echo "${2:-}" | sed "s/'/''/g")
+        VAL_ESCAPED=$(echo "${3:-}" | sed "s/'/''/g")
+        /usr/libexec/mios/mios-db --pg "INSERT INTO system_config (key, value) VALUES ('$KEY_ESCAPED', '$VAL_ESCAPED'::jsonb) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;"
+        exit $?
+    elif [ "${1:-}" = "show" ]; then
+        /usr/libexec/mios/mios-db --pg "SELECT key, value FROM system_config;"
+        exit $?
+    else
+        echo "Usage: mios-db --config [get <key> | set <key> <value> | show]" >&2
+        exit 1
+    fi
+fi
+
 # Source the SSOT-layered env first so MIOS_* envs reflect the operator's
 # mios.toml overrides without callers having to source userenv.sh themselves.
 # Canonical deployed paths mirror /etc/profile.d/mios-env.sh; silent no-op
@@ -67,13 +99,13 @@ for _ue in /usr/lib/mios/userenv.sh /usr/share/mios/tools/lib/userenv.sh; do
 done
 
 OWUI_DB="${MIOS_OWUI_DB:-/var/lib/mios/open-webui/webui.db}"
-EMBED_URL="${MIOS_EMBED_URL:-http://localhost:${MIOS_PORT_LLM_LIGHT:-11450}}"
+EMBED_URL="${MIOS_EMBED_URL:-http://localhost:${MIOS_PORT_LLM_LIGHT:-8450}}"
 EMBED_MODEL="${MIOS_EMBED_MODEL:-nomic-embed-text}"
 # WS-9 PostgreSQL + pgvector unified agent DB (--pg mode). SSOT [pgvector] /
 # [ports].pgvector via userenv.sh; local-only defaults. Callers route through
 # THIS tool so creds live in one SSOT place (no hardcoded root:root copies).
 PG_HOST="${MIOS_PG_HOST:-localhost}"
-PG_PORT="${MIOS_PORT_PGVECTOR:-5432}"
+PG_PORT="${MIOS_PORT_PGVECTOR:-8432}"
 PG_USER="${MIOS_PG_USER:-mios}"
 PG_PASS="${MIOS_PG_PASS:-mios}"
 PG_DB="${MIOS_PG_DB:-mios}"
@@ -228,5 +260,5 @@ fi
 echo "mios-db: no backend flag (SurrealDB is retired -> pgvector is the agent DB)." >&2
 echo "  mios-db --pg    '<sql>'    -- agent/session/event/scratch/skill (pgvector)" >&2
 echo "  mios-db --owui  '<sql>'    -- Open WebUI webui.db (SQLite)" >&2
-echo "  mios-db --embed '<text>'   -- embeddings via mios-llm-light (port ${MIOS_PORT_LLM_LIGHT:-11450})" >&2
+echo "  mios-db --embed '<text>'   -- embeddings via mios-llm-light (port ${MIOS_PORT_LLM_LIGHT:-8450})" >&2
 exit 2

@@ -31,24 +31,20 @@ def usage():
   help""")
     sys.exit(0)
 
+sys.path.insert(0, os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "..", "lib", "mios"))
+import mios_toml  # noqa: E402  -- the ONE shared layered-mios.toml resolver
+
 def _read_toml_endpoint():
-    try:
-        import tomllib
-    except ImportError:
-        try:
-            import tomli as tomllib
-        except ImportError:
-            return ""
-    for p in (os.environ.get("MIOS_TOML", ""), "/etc/mios/mios.toml", "/usr/share/mios/mios.toml"):
-        if not p: continue
-        try:
-            with open(p, "rb") as f:
-                d = tomllib.load(f)
-            ep = d.get("os_control", {}).get("executor_endpoint", "")
-            if ep: return str(ep).strip().rstrip("/")
-        except Exception:
-            pass
-    return ""
+    """[os_control].executor_endpoint via the shared resolver. Priority
+    MIOS_TOML > /etc > vendor (no per-user layer), matching the former reader."""
+    layers = ["/usr/share/mios/mios.toml", "/etc/mios/mios.toml"]
+    env_toml = os.environ.get("MIOS_TOML", "")
+    if env_toml:
+        layers.append(env_toml)
+    ep = mios_toml.get("os_control", "executor_endpoint", "",
+                       data=mios_toml.load_merged(layers))
+    return str(ep).strip().rstrip("/") if ep else ""
 
 def _get_executor_endpoint():
     ep = os.environ.get("MIOS_OSCONTROL_EXECUTOR", "")
@@ -77,7 +73,7 @@ def _get_executor_endpoint():
                     if ep:
                         ep = ep.replace("localhost", gw).replace("127.0.0.1", gw)
                     else:
-                        port = os.environ.get("MIOS_OSCONTROL_PORT", "11437")
+                        port = os.environ.get("MIOS_PORT_OSCONTROL", os.environ.get("MIOS_OSCONTROL_PORT", "11437"))
                         ep = f"http://{gw}:{port}"
             except Exception:
                 pass

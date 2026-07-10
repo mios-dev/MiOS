@@ -19,18 +19,18 @@ def check(name, cond, detail=""):
 
 
 def t_key():
-    check("key: strips scheme + /v1", mb.batch_key("http://localhost:11441/v1", "mios-heavy") == "localhost:11441|mios-heavy")
-    check("key: bare endpoint", mb.batch_key("localhost:11450", "x") == "localhost:11450|x")
+    check("key: strips scheme + /v1", mb.batch_key("http://localhost:8442/v1", "mios-heavy") == "localhost:8442|mios-heavy")
+    check("key: bare endpoint", mb.batch_key("localhost:8450", "x") == "localhost:8450|x")
     check("key: distinct models differ", mb.batch_key("e", "a") != mb.batch_key("e", "b"))
 
 
 def t_native_bypass():
-    hints = ["11441", "11440", "11450"]  # SGLang / vLLM / llama-swap local lanes
-    check("native: SGLang lane bypassed", mb.is_native_batch("http://localhost:11441/v1", hints) is True)
-    check("native: vLLM lane bypassed", mb.is_native_batch("http://localhost:11440/v1", hints) is True)
-    check("native: llama.cpp lane bypassed", mb.is_native_batch("http://localhost:11450/v1", hints) is True)
+    hints = ["8442", "8441", "8450"]  # SGLang / vLLM / llama-swap local lanes
+    check("native: SGLang lane bypassed", mb.is_native_batch("http://localhost:8442/v1", hints) is True)
+    check("native: vLLM lane bypassed", mb.is_native_batch("http://localhost:8441/v1", hints) is True)
+    check("native: llama.cpp lane bypassed", mb.is_native_batch("http://localhost:8450/v1", hints) is True)
     check("non-native: remote API NOT bypassed", mb.is_native_batch("https://api.example.com/v1", hints) is False)
-    check("non-native: empty hints -> nothing bypassed", mb.is_native_batch("http://localhost:11441", []) is False)
+    check("non-native: empty hints -> nothing bypassed", mb.is_native_batch("http://localhost:8442", []) is False)
 
 
 def t_window_size():

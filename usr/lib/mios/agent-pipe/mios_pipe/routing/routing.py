@@ -94,6 +94,29 @@ def _load_routing_domains() -> tuple[dict, bool]:
             if isinstance(cfg, dict):
                 domains[str(dom)] = {"desc": str(cfg.get("desc", "")),
                                      "verbs": [str(v) for v in (cfg.get("verbs") or [])]}
+        # ── Database domain routing overlay (T-126) ──
+        try:
+            import psycopg
+            from psycopg.rows import dict_row
+            from mios_pipe.memory.pg import pg_config
+            pcfg = pg_config()
+            conn_str = (f"postgresql://{pcfg['user']}:{pcfg['password']}"
+                        f"@{pcfg['host']}:{pcfg['port']}/{pcfg['dbname']}")
+            with psycopg.connect(conn_str, connect_timeout=2) as conn:
+                with conn.cursor(row_factory=dict_row) as cur:
+                    cur.execute("SELECT domain, verb_name FROM domain_verb;")
+                    db_domains = {}
+                    for r in cur.fetchall():
+                        db_domains.setdefault(r["domain"], []).append(r["verb_name"])
+                    for dom, verbs in db_domains.items():
+                        if dom in domains:
+                            domains[dom]["verbs"] = verbs
+                        else:
+                            domains[dom] = {"desc": f"Database domain {dom}", "verbs": verbs}
+        except Exception as db_err:
+            if log is not None:
+                log.debug("Database routing domains overlay failed (using TOML baseline): %s", db_err)
+
         return domains, enable
     except Exception as e:
         if log is not None:

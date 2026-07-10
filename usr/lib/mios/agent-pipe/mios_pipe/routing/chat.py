@@ -1293,7 +1293,7 @@ async def chat_completions_logic(request: Request) -> Any:
         # web_search + inject the LIVE results -- the SAME deterministic grounding the
         # native-loop uses -- so the client-tools model synthesises from real data.
         # Degrade-open; non-web client-tools turns (browser/IDE) are untouched.
-        if _ct_user and _routed_domain_var.get(None) == "web":
+        if not _incoming_turn and _ct_user and _routed_domain_var.get(None) == "web":
             try:
                 _refined = await refine_intent(_ct_user)
                 if not _refined or _refined.get("intent") != "chat":
@@ -1411,46 +1411,45 @@ async def chat_completions_logic(request: Request) -> Any:
         outer_ctx = locals().copy()
         async def _stream_refine_and_dispatch() -> AsyncGenerator[bytes, None]:
             nonlocal last_user_text, messages
-            yield _sse_status_phase(chat_id=chat_id, model=model, phase="refine")
-            yield _sse_status(chat_id=chat_id, model=model, emoji="🧠", label="Refining intent & decomposing plan...")
-            
-            await _vram_checkpoint()
-            
-            queue = asyncio.Queue()
-            async def _on_refine_token(token_val: str, is_re: bool):
-                await queue.put((token_val, is_re))
-            
-            refine_task = asyncio.create_task(
-                refine_intent(last_user_text, messages, on_token=_on_refine_token)
-            )
-            
-            while not refine_task.done() or not queue.empty():
-                try:
-                    token_val, is_re = await asyncio.wait_for(queue.get(), timeout=0.05)
-                    # Surface the refine hop working LIVE: forward BOTH its
-                    # reasoning tokens AND its content tokens (the refined
-                    # query/plan being written) on the reasoning channel, so the
-                    # decomposition is visible token-by-token -- inlined as
-                    # content under debug, folded into the Thinking pane
-                    # otherwise. (Previously non-reasoning tokens were dropped.)
-                    if token_val:
-                        yield _sse_reasoning(token_val, chat_id=chat_id, model=model,
-                                             reasoning_ok=_reasoning_ok)
-                    queue.task_done()
-                except asyncio.TimeoutError:
-                    continue
-            
-            refined = await refine_task
-            if refined and refined.get("refined_text"):
-                _refined_q = str(refined["refined_text"]).strip()
-                if _refined_q:
-                    last_user_text = _refined_q
-                    for _i in range(len(messages) - 1, -1, -1):
-                        _m = messages[_i]
-                        if isinstance(_m, dict) and _m.get("role") == "user" \
-                                and isinstance(_m.get("content"), str):
-                            messages[_i] = {**_m, "content": _refined_q}
-                            break
+            refined = None
+            if not _incoming_turn:
+                yield _sse_status_phase(chat_id=chat_id, model=model, phase="refine")
+                yield _sse_status(chat_id=chat_id, model=model, emoji="🧠", label="Refining intent & decomposing plan...")
+                
+                await _vram_checkpoint()
+                
+                queue = asyncio.Queue()
+                async def _on_refine_token(token_val: str, is_re: bool):
+                    await queue.put((token_val, is_re))
+                
+                refine_task = asyncio.create_task(
+                    refine_intent(last_user_text, messages, on_token=_on_refine_token)
+                )
+                
+                while not refine_task.done() or not queue.empty():
+                    try:
+                        token_val, is_re = await asyncio.wait_for(queue.get(), timeout=0.05)
+                        # Surface the refine hop working LIVE: forward ONLY its
+                        # reasoning tokens (is_re=True) on the reasoning channel, so it
+                        # is folded into the Thinking pane without leaking JSON scaffold.
+                        if token_val and is_re:
+                            yield _sse_reasoning(token_val, chat_id=chat_id, model=model,
+                                                 reasoning_ok=_reasoning_ok)
+                        queue.task_done()
+                    except asyncio.TimeoutError:
+                        continue
+                
+                refined = await refine_task
+                if refined and refined.get("refined_text"):
+                    _refined_q = str(refined["refined_text"]).strip()
+                    if _refined_q:
+                        last_user_text = _refined_q
+                        for _i in range(len(messages) - 1, -1, -1):
+                            _m = messages[_i]
+                            if isinstance(_m, dict) and _m.get("role") == "user" \
+                                    and isinstance(_m.get("content"), str):
+                                messages[_i] = {**_m, "content": _refined_q}
+                                break
             
             try:
                 _turn_volatile_var.set(bool(refined and (
@@ -1554,18 +1553,20 @@ async def chat_completions_logic(request: Request) -> Any:
                 
         return StreamingResponse(_stream_refine_and_dispatch(), media_type="text/event-stream")
 
-    await _vram_checkpoint()
-    refined = await refine_intent(last_user_text, messages)
-    if refined and refined.get("refined_text"):
-        _refined_q = str(refined["refined_text"]).strip()
-        if _refined_q:
-            last_user_text = _refined_q
-            for _i in range(len(messages) - 1, -1, -1):
-                _m = messages[_i]
-                if isinstance(_m, dict) and _m.get("role") == "user" \
-                        and isinstance(_m.get("content"), str):
-                    messages[_i] = {**_m, "content": _refined_q}
-                    break
+    refined = None
+    if not _incoming_turn:
+        await _vram_checkpoint()
+        refined = await refine_intent(last_user_text, messages)
+        if refined and refined.get("refined_text"):
+            _refined_q = str(refined["refined_text"]).strip()
+            if _refined_q:
+                last_user_text = _refined_q
+                for _i in range(len(messages) - 1, -1, -1):
+                    _m = messages[_i]
+                    if isinstance(_m, dict) and _m.get("role") == "user" \
+                            and isinstance(_m.get("content"), str):
+                        messages[_i] = {**_m, "content": _refined_q}
+                        break
     # Anti-stale-recall ("data/time of requests should be weighed
     # appropriately in an AIOS environment"): flag this turn VOLATILE when the model
     # classified it as live local-state / current-events / location-bound -- its answer

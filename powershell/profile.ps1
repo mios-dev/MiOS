@@ -18,6 +18,13 @@
 if ($Global:MiosProfileLoaded) { return }
 $Global:MiosProfileLoaded = $true
 
+# Ensure WinGet machine links directory is in the Path for the current session.
+# This prevents PATH drift warnings or command-not-found errors if a user installs
+# a global portable package (like claude) and expects it to work in the active shell.
+if ($env:Path -notlike "*C:\Program Files\WinGet\Links*") {
+    $env:Path += ";C:\Program Files\WinGet\Links"
+}
+
 # -- UTF-8 codepage + Console encoding ------------------------------
 # Operator-reported regression: powerline glyphs (U+E0B4 etc.) rendered
 # as 'î' mojibake -- WT was decoding the UTF-8 bytes as cp1252 because
@@ -312,7 +319,7 @@ if ($true) {
             }
             Write-Host (_Center $title) -ForegroundColor Blue
         }
-        elseif (Test-Path -LiteralPath $LogoPath) {
+        elseif ($LogoPath -and (Test-Path -LiteralPath $LogoPath)) {
             # Centered ASCII logo (operator-blue). Center the BLOCK (not
             # each line individually) -- the logo's internal alignment
             # depends on each line's leading whitespace.

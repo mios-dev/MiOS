@@ -261,7 +261,7 @@ async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
     if "mios_config" in sys.modules:
         try:
             cfg_func = sys.modules["mios_config"]._toml_section
-            agent_cfg = cfg_func("agent_pipe") or cfg_func("agents") or cfg_func("agent") or {}
+            agent_cfg = cfg_func("agent_pipe") or {}
         except Exception:
             pass
     reflexion_enable = str(agent_cfg.get("reflexion_enable", "true")).strip().lower() not in {"false", "0", "no", "off"}

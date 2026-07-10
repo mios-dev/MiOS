@@ -1,5 +1,4 @@
 #!/usr/bin/sh
-# AI-hint: NetworkManager dispatcher script that executes chronyc onoffline to synchronize NTP source availability with network interface status changes (up/down/connectivity) to ensure accurate time synchronization.
 # This is a NetworkManager dispatcher / networkd-dispatcher script for
 # chronyd to set its NTP sources online or offline when a network interface
 # is configured or removed

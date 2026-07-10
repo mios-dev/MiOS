@@ -9,43 +9,30 @@ fi
 
 TYPE="$1"
 
-python3 - "$TYPE" <<'PYEOF' 2>/dev/null
+python3 - "$(cd "$(dirname "$0")" && pwd)/../../lib/mios" "$TYPE" <<'PYEOF' 2>/dev/null
 import sys
-try:
-    import tomllib
-except ImportError:
-    import tomli as tomllib
+# Shared layered mios.toml resolver (vendor < host < user), path injected as argv[1].
+sys.path.insert(0, sys.argv[1])
+import mios_toml
 
-target_type = sys.argv[1].lower().strip()
+target_type = sys.argv[2].lower().strip()
 
 def resolve():
     best_match = target_type
-    # Read files in increasing order of priority.
-    # /usr/share/mios/mios.toml is lowest (vendor)
-    # /etc/mios/mios.toml is middle (host)
-    # ~/.config/mios/mios.toml is highest (user)
-    import os
-    user_config = os.path.expanduser("~/.config/mios/mios.toml")
-    
-    for path in ("/usr/share/mios/mios.toml", "/etc/mios/mios.toml", user_config):
-        try:
-            with open(path, "rb") as f:
-                d = tomllib.load(f)
-            app_types = d.get("desktop", {}).get("app_types", [])
-            for t in app_types:
-                if t.get("type", "").lower() == target_type:
-                    os_priority = t.get("os_priority", "linux-first")
-                    linux_def = t.get("linux_default")
-                    windows_def = t.get("windows_default")
-                    
-                    if os_priority == "windows":
-                        best_match = windows_def or target_type
-                    elif os_priority == "linux":
-                        best_match = linux_def or target_type
-                    else:
-                        best_match = linux_def or windows_def or target_type
-        except Exception:
-            continue
+    d = mios_toml.load_merged()
+    app_types = d.get("desktop", {}).get("app_types", [])
+    for t in app_types:
+        if t.get("type", "").lower() == target_type:
+            os_priority = t.get("os_priority", "linux-first")
+            linux_def = t.get("linux_default")
+            windows_def = t.get("windows_default")
+
+            if os_priority == "windows":
+                best_match = windows_def or target_type
+            elif os_priority == "linux":
+                best_match = linux_def or target_type
+            else:
+                best_match = linux_def or windows_def or target_type
     return best_match
 
 res = resolve()

@@ -2705,7 +2705,7 @@ def _agent_engines(cfg: dict) -> list:
 # substrings of the light lanes (CPU :11435, iGPU :11436).
 _CPU_LANE_HINTS = tuple(h.strip() for h in os.environ.get(
     "MIOS_CPU_LANE_HINTS",
-    str(_DISPATCH_TOML.get("cpu_lane_hints", "11435,11436"))).split(",")
+    str(_DISPATCH_TOML.get("cpu_lane_hints", "8458,8450"))).split(",")
     if h.strip())
 _CPU_LANE_MICRO_MODEL = (os.environ.get("MIOS_CPU_LANE_MICRO_MODEL")
                          or str(_DISPATCH_TOML.get("cpu_lane_micro_model", "granite4.1:8b")))  # qwen3:1.7b retired
@@ -5958,6 +5958,14 @@ from mios_dispatch import (   # noqa: E402
 # app at the SAME path/method the @app wrapper served; the body calls the
 # module-resident dispatch_mios_verb at request time (its configure() deps land below).
 app.include_router(dispatch_router)
+# App-ification #3: mount the web-research SSE applet -- the Discovery/resolution
+# verb cluster (web_search/web_extract/crawl) streamed as HTML-over-SSE into the
+# portal's iframe-applet shell (the slot the Configurator uses). It calls the SAME
+# dispatch_mios_verb chokepoint and is boundary-clean (never imports server).
+from mios_pipe.routing import applet_webresearch as _applet_webresearch  # noqa: E402
+from mios_pipe.routing.applet_webresearch import router as _webresearch_router  # noqa: E402
+_applet_webresearch.configure(dispatch=dispatch_mios_verb)
+app.include_router(_webresearch_router)
 # Inject mios_dispatch's deps now that every one is defined above (one-way
 # boundary -- mios_dispatch never imports server; referenced via sys.modules so NO
 # new top-level name enters server's importable surface). NATIVE_LOOP_DATE_IN_QUERY

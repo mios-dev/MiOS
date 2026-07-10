@@ -105,59 +105,41 @@ _resolve_browser_chain() {
         _lead="$(mios-app-type "browser" 2>/dev/null || true)"
         [ -n "$_lead" ] && echo "$_lead"
     fi
-    python3 - <<'PYEOF' 2>/dev/null
+    python3 - "$(cd "$(dirname "$0")" && pwd)/../../lib/mios" <<'PYEOF' 2>/dev/null
 import sys
-try:
-    import tomllib
-except ImportError:
-    import tomli as tomllib
+sys.path.insert(0, sys.argv[1]); import mios_toml  # the ONE shared layered resolver
 chain = []
 seen = set()
 # MiOS is Linux-native first. Browser chain reads [[desktop.apps]]
 # role=browser in declaration order (defaults first). Windows-side
 # fallback (cmd.exe /c start) is the LAST resort -- appended only
 # at the tail by mios-open-url's runtime loop, NOT prepended.
-# Operator binding 2026-05-19: "always prefer Linux native apps
-# first as MiOS Linux Native/first".
-for path in ("/etc/mios/mios.toml", "/usr/share/mios/mios.toml"):
-    try:
-        with open(path, "rb") as f:
-            d = tomllib.load(f)
-    except (OSError, tomllib.TOMLDecodeError):
-        continue
-    # Pass 1: defaults first (preserve declaration order across files)
-    apps = d.get("desktop", {}).get("apps", [])
-    if isinstance(apps, list):
-        for entry in apps:
-            if not isinstance(entry, dict):
-                continue
-            if entry.get("role") != "browser":
-                continue
-            aid = entry.get("id")
-            if not aid or aid in seen:
-                continue
-            if entry.get("default"):
-                chain.append(aid)
-                seen.add(aid)
-        # Pass 2: non-defaults
-        for entry in apps:
-            if not isinstance(entry, dict):
-                continue
-            if entry.get("role") != "browser":
-                continue
-            aid = entry.get("id")
-            if not aid or aid in seen:
-                continue
+# Operator binding: "always prefer Linux native apps first."
+d = mios_toml.load_merged()
+apps = mios_toml.section(d, "desktop").get("apps", [])
+if isinstance(apps, list):
+    # Pass 1: defaults first (preserve declaration order)
+    for entry in apps:
+        if not isinstance(entry, dict) or entry.get("role") != "browser":
+            continue
+        aid = entry.get("id")
+        if aid and aid not in seen and entry.get("default"):
             chain.append(aid)
             seen.add(aid)
-    # mios-find.aliases.web as tail fallback (legacy operator config)
-    aliases = d.get("mios-find", {}).get("aliases", {})
-    web = aliases.get("web") if isinstance(aliases, dict) else None
-    if isinstance(web, str) and web and web not in seen:
-        chain.append(web)
-        seen.add(web)
-    if chain:
-        break  # earlier overlay wins (etc > usr/share)
+    # Pass 2: non-defaults
+    for entry in apps:
+        if not isinstance(entry, dict) or entry.get("role") != "browser":
+            continue
+        aid = entry.get("id")
+        if aid and aid not in seen:
+            chain.append(aid)
+            seen.add(aid)
+# mios-find.aliases.web as tail fallback (legacy operator config)
+aliases = mios_toml.section(d, "mios-find").get("aliases", {})
+web = aliases.get("web") if isinstance(aliases, dict) else None
+if isinstance(web, str) and web and web not in seen:
+    chain.append(web)
+    seen.add(web)
 print("\n".join(chain))
 PYEOF
 }
@@ -166,36 +148,21 @@ PYEOF
 # [browser.*] map. Empty when unknown (degrade-open: the running instance opens a
 # tab by default when the binary is invoked with the URL). NO-HARDCODE.
 _browser_flag() {
-    python3 - "$1" "$2" <<'PYEOF' 2>/dev/null || true
+    python3 - "$(cd "$(dirname "$0")" && pwd)/../../lib/mios" "$1" "$2" <<'PYEOF' 2>/dev/null || true
 import sys
-try:
-    import tomllib
-except ImportError:
-    try:
-        import tomli as tomllib
-    except ImportError:
-        sys.exit(0)
-target = (sys.argv[1] or "").lower()
-mode = sys.argv[2] or "tab"
-for p in ("/etc/mios/mios.toml", "/usr/share/mios/mios.toml"):
-    try:
-        with open(p, "rb") as f:
-            d = tomllib.load(f)
-    except Exception:
-        continue
-    br = d.get("browser", {}) or {}
-    fam_map = br.get("family", {}) or {}
-    flags = br.get("flags", {}) or {}
-    if not fam_map and not flags:
-        continue
-    fam = ""
-    for name, subs in fam_map.items():
-        if isinstance(subs, list) and any(isinstance(s, str) and s.lower() in target for s in subs):
-            fam = name
-            break
-    if fam and isinstance(flags.get(fam), dict):
-        print((flags[fam].get(mode) or "").strip())
-    break
+sys.path.insert(0, sys.argv[1]); import mios_toml  # the ONE shared layered resolver
+target = (sys.argv[2] or "").lower()
+mode = sys.argv[3] or "tab"
+br = mios_toml.section(mios_toml.load_merged(), "browser")
+fam_map = br.get("family", {}) or {}
+flags = br.get("flags", {}) or {}
+fam = ""
+for name, subs in fam_map.items():
+    if isinstance(subs, list) and any(isinstance(s, str) and s.lower() in target for s in subs):
+        fam = name
+        break
+if fam and isinstance(flags.get(fam), dict):
+    print((flags[fam].get(mode) or "").strip())
 PYEOF
 }
 
@@ -293,9 +260,10 @@ while IFS= read -r TARGET; do
     # ─── Already running CDP browser shortcut ───
     if [ "$_already_running" = "1" ] && { echo "$TARGET" | grep -qiE 'chrome|chromium'; }; then
         # Try local CDP port first if responding
-        if curl -fsS -m 2 "http://127.0.0.1:${CDP_PORT}/json/version" >/dev/null 2>&1; then
+        _cdp_port="${CDP_PORT:-9222}"
+        if curl -fsS -m 2 "http://127.0.0.1:${_cdp_port}/json/version" >/dev/null 2>&1; then
             echo "[mios-open-url] browser $TARGET is already running with CDP -> opening tab via CDP" >&2
-            if /usr/lib/mios/agents/.venv/bin/python3 - "$CDP_PORT" "$URL" <<'PYEOF' 2>/dev/null; then
+            if /usr/lib/mios/agents/.venv/bin/python3 - "$_cdp_port" "$URL" <<'PYEOF' 2>/dev/null; then
 import sys
 import json
 import urllib.request

@@ -68,13 +68,9 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-try:
-    import tomllib  # py3.11+
-except ModuleNotFoundError:  # pragma: no cover
-    try:
-        import tomli as tomllib  # type: ignore
-    except ModuleNotFoundError:
-        tomllib = None  # degrade: env-var-only config
+sys.path.insert(0, os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "..", "lib", "mios"))
+import mios_toml  # noqa: E402  -- the ONE shared layered-mios.toml resolver
 
 PROG = "mios-computer-use"
 HTTP_TIMEOUT_S = 20
@@ -82,35 +78,13 @@ HTTP_TIMEOUT_S = 20
 
 # ── config ──────────────────────────────────────────────────────────────────
 def _toml_layered() -> dict:
-    """Deep-merge mios.toml across vendor < /etc < ~/.config (higher wins)."""
-    if tomllib is None:
-        return {}
-    out: dict = {}
-    paths = [
-        Path("/usr/share/mios/mios.toml"),
-        Path("/etc/mios/mios.toml"),
-    ]
-    home = os.environ.get("HOME", "")
-    if home:
-        paths.append(Path(home) / ".config/mios/mios.toml")
+    """Deep-merge mios.toml across vendor < /etc < ~/.config (higher wins), plus
+    an optional MIOS_TOML override as the top layer -- via the shared resolver."""
+    layers = mios_toml.layer_paths()
     env_toml = os.environ.get("MIOS_TOML", "")
     if env_toml:
-        paths.append(Path(env_toml))
-
-    def _merge(dst: dict, src: dict) -> None:
-        for k, v in src.items():
-            if isinstance(v, dict) and isinstance(dst.get(k), dict):
-                _merge(dst[k], v)
-            else:
-                dst[k] = v
-
-    for p in paths:
-        try:
-            with open(p, "rb") as f:
-                _merge(out, tomllib.load(f))
-        except (OSError, tomllib.TOMLDecodeError):  # type: ignore[attr-defined]
-            continue
-    return out
+        layers = layers + [env_toml]
+    return mios_toml.load_merged(layers)
 
 
 _TOML = _toml_layered()

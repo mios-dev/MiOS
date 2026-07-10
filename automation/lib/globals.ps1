@@ -74,19 +74,18 @@ $script:MIOS_BASE_IMAGE   = if ($env:MIOS_BASE_IMAGE)   { $env:MIOS_BASE_IMAGE }
 $script:MIOS_BIB_IMAGE    = if ($env:MIOS_BIB_IMAGE)    { $env:MIOS_BIB_IMAGE }    else { 'quay.io/centos-bootc/bootc-image-builder:latest' }
 
 # ── PORTS ────────────────────────────────────────────────────────────
-$script:MIOS_PORT_SSH           = if ($env:MIOS_PORT_SSH)           { [int]$env:MIOS_PORT_SSH }           else { 2222 }
-$script:MIOS_PORT_FORGE_HTTP    = if ($env:MIOS_PORT_FORGE_HTTP)    { [int]$env:MIOS_PORT_FORGE_HTTP }    else { 3000 }
-$script:MIOS_PORT_FORGE_SSH     = if ($env:MIOS_PORT_FORGE_SSH)     { [int]$env:MIOS_PORT_FORGE_SSH }     else { 49922 }
-$script:MIOS_PORT_COCKPIT       = if ($env:MIOS_PORT_COCKPIT)       { [int]$env:MIOS_PORT_COCKPIT }       else { 9090 }
-$script:MIOS_PORT_OLLAMA        = if ($env:MIOS_PORT_OLLAMA)        { [int]$env:MIOS_PORT_OLLAMA }        else { 11450 }
-$script:MIOS_PORT_LLM_LIGHT     = if ($env:MIOS_PORT_LLM_LIGHT)     { [int]$env:MIOS_PORT_LLM_LIGHT }     else { 11450 }
-$script:MIOS_PORT_PGVECTOR      = if ($env:MIOS_PORT_PGVECTOR)      { [int]$env:MIOS_PORT_PGVECTOR }      else { 5432 }
-$script:MIOS_PORT_SEARXNG       = if ($env:MIOS_PORT_SEARXNG)       { [int]$env:MIOS_PORT_SEARXNG }       else { 8888 }
-$script:MIOS_PORT_CRAWL4AI      = if ($env:MIOS_PORT_CRAWL4AI)      { [int]$env:MIOS_PORT_CRAWL4AI }      else { 11235 }
+$script:MIOS_PORT_SSH           = if ($env:MIOS_PORT_SSH)           { [int]$env:MIOS_PORT_SSH }           else { 8222 }
+$script:MIOS_PORT_FORGE_HTTP    = if ($env:MIOS_PORT_FORGE_HTTP)    { [int]$env:MIOS_PORT_FORGE_HTTP }    else { 8300 }
+$script:MIOS_PORT_FORGE_SSH     = if ($env:MIOS_PORT_FORGE_SSH)     { [int]$env:MIOS_PORT_FORGE_SSH }     else { 8301 }
+$script:MIOS_PORT_COCKPIT       = if ($env:MIOS_PORT_COCKPIT)       { [int]$env:MIOS_PORT_COCKPIT }       else { 8090 }
+$script:MIOS_PORT_LLM_LIGHT     = if ($env:MIOS_PORT_LLM_LIGHT)     { [int]$env:MIOS_PORT_LLM_LIGHT }     else { 8450 }
+$script:MIOS_PORT_PGVECTOR      = if ($env:MIOS_PORT_PGVECTOR)      { [int]$env:MIOS_PORT_PGVECTOR }      else { 8432 }
+$script:MIOS_PORT_SEARXNG       = if ($env:MIOS_PORT_SEARXNG)       { [int]$env:MIOS_PORT_SEARXNG }       else { 8899 }
+$script:MIOS_PORT_CRAWL4AI      = if ($env:MIOS_PORT_CRAWL4AI)      { [int]$env:MIOS_PORT_CRAWL4AI }      else { 8235 }
 $script:MIOS_PORT_HERMES        = if ($env:MIOS_PORT_HERMES)        { [int]$env:MIOS_PORT_HERMES }        else { 8642 }
-$script:MIOS_PORT_OPEN_WEBUI    = if ($env:MIOS_PORT_OPEN_WEBUI)    { [int]$env:MIOS_PORT_OPEN_WEBUI }    else { 3030 }
-$script:MIOS_PORT_CODE_SERVER     = if ($env:MIOS_PORT_CODE_SERVER)     { [int]$env:MIOS_PORT_CODE_SERVER }     else { 8080 }
-$script:MIOS_PORT_COCKPIT_LINK  = if ($env:MIOS_PORT_COCKPIT_LINK)  { [int]$env:MIOS_PORT_COCKPIT_LINK }  else { 19090 }
+$script:MIOS_PORT_OPEN_WEBUI    = if ($env:MIOS_PORT_OPEN_WEBUI)    { [int]$env:MIOS_PORT_OPEN_WEBUI }    else { 8033 }
+$script:MIOS_PORT_CODE_SERVER     = if ($env:MIOS_PORT_CODE_SERVER)     { [int]$env:MIOS_PORT_CODE_SERVER }     else { 8800 }
+$script:MIOS_PORT_COCKPIT_LINK  = if ($env:MIOS_PORT_COCKPIT_LINK)  { [int]$env:MIOS_PORT_COCKPIT_LINK }  else { 8091 }
 
 # ── URLS ─────────────────────────────────────────────────────────────
 $script:MIOS_AI_ENDPOINT  = if ($env:MIOS_AI_ENDPOINT)  { $env:MIOS_AI_ENDPOINT }  else { "http://localhost:$($script:MIOS_PORT_HERMES)/v1" }

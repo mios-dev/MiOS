@@ -36,58 +36,29 @@ command -v python3 >/dev/null 2>&1 || {
 MIOS_LAYERS="${MIOS_VENDOR_TOML} ${MIOS_HOST_TOML} ${MIOS_USER_TOML}" \
 MIOS_THEME_OUT_DIR="${OUT_DIR}" \
 MIOS_THEME_CHECK="${CHECK_ONLY}" \
+MIOS_LIB_DIR="$(cd "$(dirname "$0")/../../lib/mios" 2>/dev/null && pwd || echo /usr/lib/mios)" \
 python3 - <<'PY'
 import json
 import os
 import sys
 
-try:
-    import tomllib
-except ImportError:
-    try:
-        import tomli as tomllib
-    except ImportError:
-        sys.stderr.write("[mios-sync-theme] no TOML reader available (need py3.11+ tomllib or tomli) -- aborting\n")
-        sys.exit(1)
+sys.path.insert(0, os.environ.get("MIOS_LIB_DIR", "/usr/lib/mios"))
+import mios_toml  # the ONE shared layered-mios.toml resolver (no local copy)
 
 layers = os.environ["MIOS_LAYERS"].split()
 out_dir = os.environ["MIOS_THEME_OUT_DIR"]
 check_only = os.environ.get("MIOS_THEME_CHECK") == "1"
 
 
-def deep_merge(dst, src):
-    for k, v in src.items():
-        if isinstance(v, dict) and isinstance(dst.get(k), dict):
-            deep_merge(dst[k], v)
-        else:
-            dst[k] = v
-
-
-merged = {}
-for path in layers:
-    if not path or not os.path.isfile(path):
-        continue
-    try:
-        with open(path, "rb") as f:
-            deep_merge(merged, tomllib.load(f))
-    except Exception as e:
-        sys.stderr.write(f"[mios-sync-theme] failed to parse {path}: {e}\n")
-
-colors = merged.get("colors", {})
+merged = mios_toml.load_merged(layers)
 theme = merged.get("theme", {})
 font = theme.get("font", {})
 
-# Vendor defaults (mirrors mios.toml [colors] verbatim) so this script still
-# produces a usable bridge even if every TOML layer is unreadable -- the
-# SAME degrade-open posture Theme.qml's fallback properties use.
-DEFAULTS = {
-    "bg": "#282262", "fg": "#E7DFD3", "accent": "#1A407F", "cursor": "#F35C15",
-    "success": "#3E7765", "warning": "#F35C15", "error": "#DC271B",
-    "info": "#1A407F", "muted": "#948E8E", "subtle": "#B7C9D7",
-    "earth": "#734F39", "silver": "#E0E0E0",
-}
-
-resolved = {k: colors.get(k, v) for k, v in DEFAULTS.items()}
+# Palette from the shared resolver (single source; SSOT over the canonical defaults).
+_SEMANTIC = ["bg", "fg", "accent", "cursor", "success", "warning", "error",
+             "info", "muted", "subtle", "earth", "silver"]
+_pal = mios_toml.colors(merged)
+resolved = {k: _pal[k] for k in _SEMANTIC}
 resolved["font_family"] = font.get("family", "GeistMono Nerd Font Mono")
 resolved["font_size"] = font.get("size", 12)
 # [theme] acrylic/opacity/scrollbar_state are the operator's standing
@@ -147,3 +118,19 @@ with open(css_path, "w") as f:
 
 print(f"[mios-sync-theme] wrote {theme_json_path} + {css_path}")
 PY
+
+# Project every OTHER committed theme surface (btop, oh-my-posh, quickshell,
+# fastfetch, the app-shell CSS, the terminal OSC fallbacks) from the SAME palette
+# SSOT, so this single command is the GLOBAL runtime theme refresh. The surface
+# registry + templates live in mios-theme-render; --check mirrors ours (diff, no
+# write). A projection error warns but never aborts the bridge write above.
+_render="$(dirname "$0")/mios-theme-render"
+if [[ -f "$_render" ]] && command -v python3 >/dev/null 2>&1; then
+    if [[ "$CHECK_ONLY" == "1" ]]; then
+        python3 "$_render" check || true
+    else
+        python3 "$_render" render || echo "[mios-sync-theme] WARNING: surface projection reported errors" >&2
+    fi
+else
+    echo "[mios-sync-theme] note: mios-theme-render/python3 unavailable -- extended surfaces not projected" >&2
+fi

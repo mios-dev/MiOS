@@ -1,6 +1,4 @@
 #!/usr/bin/sh
-# AI-hint: NetworkManager dispatcher script that synchronizes chrony NTP sources with DHCP-provided server lists from DHCP4_NTP_SERVERS and DHCP6_DHCP6_NTP_SERVERS environment variables upon interface state changes.
-# AI-functions: add_servers_from_dhcp, clear_servers_from_dhcp
 # This is a NetworkManager dispatcher script for chronyd to update
 # its NTP sources with servers from DHCP options passed by NetworkManager
 # in the DHCP4_NTP_SERVERS and DHCP6_DHCP6_NTP_SERVERS environment variables.

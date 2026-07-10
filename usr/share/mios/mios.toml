@@ -35,9 +35,9 @@
 # MIOS_USER_GROUPS.
 # ----------------------------------------------------------------------------
 [identity]
-username  = "mios"
-fullname  = "'MiOS' User"
-hostname  = "mios"
+username  = "user"
+fullname  = "User"
+hostname  = "user"
 shell     = "/bin/bash"
 # Home location for "local" / "near me" / weather / news asks. When the chat
 # surface forwards no geo (e.g. OWUI on a phone with location-sharing off), the
@@ -49,10 +49,10 @@ location  = ""
 groups    = ["wheel", "libvirt", "kvm", "video", "render", "input", "dialout", "docker"]
 # Global MiOS default password. Every service (Hermes Workspace, Forge
 # admin, Cockpit, Ceph dashboard, etc.) defaults to this credential
-# unless the operator overrides per-service. Vendor default is "mios".
+# unless the operator overrides per-service. Vendor default is "user".
 # Operators rotate by editing /etc/mios/mios.toml or
 # ~/.config/mios/mios.toml [identity].default_password.
-default_password = "mios"
+default_password = "user"
 
 # ----------------------------------------------------------------------------
 # [user] -- Human Operator Profile. Injected natively into the AI context so
@@ -88,6 +88,7 @@ bio = ""
 # table is the home for FUTURE account-model knobs; it declares none today.
 # ----------------------------------------------------------------------------
 [accounts]
+db_backed = true
 
 # ----------------------------------------------------------------------------
 # [mios] -- AI Agent Persona. Replaces hardcoded identity strings in the
@@ -151,7 +152,7 @@ developer = "MiOS"
 # would leak into the model's prompt) and single-value data files (a comment
 # would corrupt the value). Env override: MIOS_AITAG_MAX_UNTAGGED; CLI:
 # --max-untagged. Current intentional remainder = soul prompts + data/plan docs.
-max_untagged = 35
+max_untagged = 95
 
 # ----------------------------------------------------------------------------
 # [selfimprove] -- #64 self-improvement ANALYSIS (the safe observe half). The
@@ -687,6 +688,53 @@ allowlist_hosts = [
 # autonomous function, so the operator opts in. LOCAL rag/recall are NOT tainted
 # (RAG runs every turn -> tainting it would block all OS-control).
 provenance_taint = false
+
+[security.nohc_allowlist]
+# SSOT Allowlist for legitimate exceptions to the ports/IPs hardcode check (T-125).
+exempt_files = [
+    "test_.*\\.py$",
+    "Heal-MiOSLocalhostForwarding\\.ps1$",
+    "Setup-MiOSLanPortProxy\\.ps1$",
+    "Update-MiOSStartMenuShortcuts\\.ps1$",
+    "user-setup\\.sh$",
+    "system-sync-env\\.sh$",
+    "mios-dashboard\\.sh$",
+    ".*firstboot\\.sh$",
+    ".*firstboot$",
+    ".*/automation/.*",
+    ".*/windows/.*",
+    ".*/usr/libexec/.*",
+    ".*/profile\\.d/.*",
+    ".*/xrdp/.*",
+    ".*/startwm\\.sh$",
+    ".*/evals/.*",
+    ".*/embeddings/.*",
+    ".*/tools/.*",
+    ".*/tests/.*",
+    ".*/usr/share/mios/.*",
+    ".*build-mios\\.ps1$",
+    ".*Get-MiOS\\.ps1$",
+    ".*patch_pods\\.py$",
+    ".*mios-fix-wslg\\.ps1$"
+]
+exempt_patterns = [
+    "0\\.0\\.0\\.0",
+    "localhost:80",
+    "localhost:443",
+    "127\\.0\\.0\\.1:80",
+    "127\\.0\\.0\\.1:443",
+    "localhost/mios",
+    "wsl\\.localhost",
+    "localhost:8640",
+    "localhost:4317",
+    ":8640",
+    ":4317",
+    ":11436",
+    ":8644",
+    ":11435",
+    ":9222",
+    ":8283"
+]
 
 # F2 / T-033 -- the CaMeL-class "Rule of Two" architectural prompt-injection defense
 # (Meta, "Agents Rule of Two"), applied as a DETERMINISTIC (not probabilistic) gate at
@@ -2144,7 +2192,7 @@ offload_cpu          = false
 lane_tool_cap        = "igpu:12,mobile:12"
 default_tool_cap     = 16
 no_tool_choice_hints = "11436"               # host:port substrings whose llama.cpp rejects tool_choice=required
-parallel_tools_hints = "11441"               # host:port substrings whose model reliably emits PARALLEL tool calls -> OpenAI-default parallel_tool_calls=True (capable heavy lane); everything else stays sequential (small models malform parallel calls). MIOS_PARALLEL_TOOLS_HINTS overrides.
+parallel_tools_hints = "8441,8442"               # host:port substrings whose model reliably emits PARALLEL tool calls -> OpenAI-default parallel_tool_calls=True (capable heavy lane); everything else stays sequential (small models malform parallel calls). MIOS_PARALLEL_TOOLS_HINTS overrides.
 worker_mcp_tools     = true                  # surface external MCP client tools to fan-out workers
 # ── KV-cache paging (AIOS context-manager prototype, "VRAM
 # can compress or write to disk ... clean state when agents/models load/unload").
@@ -2246,7 +2294,7 @@ slo_shed_enable   = false       # off => admission never sheds (capacity-only, a
 batch_enable        = false
 batch_interval_s    = 0.05      # window for a NON-native endpoint (seconds)
 batch_max_size      = 8         # flush a window at this many pending calls
-batch_native_hints  = "11441,11440,11450"  # SGLang / vLLM / llama-swap -> bypass coalescing
+batch_native_hints  = "8442,8441,8450"  # SGLang / vLLM / llama-swap -> bypass coalescing
 # ── Per-request trace/span observability (WS-A8). A chat_completions request
 # mints (or adopts via the X-MiOS-Trace header) a trace_id; each pipeline stage
 # (route/plan/refine/dispatch) opens a child span, and finished spans land in a
@@ -2986,6 +3034,8 @@ min_trust    = 0.0  # reject peer rumors below this reputation score (0 = accept
 # moved this into each AgentCard supportedInterfaces[] entry; it is a protocol
 # version token, declared once here, never restated in code.
 protocol_version = "1.0"
+discover_port = 8640
+public_domain = ""
 nodes = []          # e.g. in /etc/mios: nodes = ["http://172.20.0.5:8640", "http://192.168.1.40:8640"]
 discover_cidr = ""  # e.g. "192.168.1.0/24" -> auto-sweep a LAN segment (bounded to 256 hosts)
 # SWARM Phase-4: opt discovered A2A peers INTO the concurrent
@@ -3107,6 +3157,10 @@ compound_actions = ["type", "write", "enter", "input", "paste", "put"]
 # router splits content from target. SSOT (was an inline English regex in
 # routing.py -- NO hardcoded keyword gate in code). Empty => guard degrades open.
 compound_connectives = ["in", "and", "then", "with", "on", "to"]
+model_modalities_embeddings = ["embed", "bert", "text-embedding", "bge"]
+model_modalities_image      = ["diffuse", "flux", "dall", "midjourney", "sd"]
+integer_param_keywords = ["limit", "count", "timeout", "port", "every", "concurrency", "maxsize"]
+boolean_param_keywords = ["enable", "force", "success", "active", "dryrun"]
 
 # Conversational-bypass classifier for mios-delegation-prefilter: decides which
 # user turns are PURE chat (greeting / ack / smalltalk, no task surface) and must
@@ -3208,6 +3262,7 @@ permission       = "read"
 max_result_chars = 0
 parallel_limit   = 0
 hidden           = false
+
 
 # MiOS-DEV self-development: apply the war-room / code-server workspace edits
 # DIRECTLY onto the deployed dev root so they go live for testing without a GitHub
@@ -5403,6 +5458,11 @@ stream_path = "/var/lib/mios/hermes-tail/frontier/frontier.jsonl"
 [agent_pipe]
 tool_loop_limit = 20
 reflexion_limit = 2
+tool_max_iters = 15
+replan_max = 5
+no_progress_window = 2
+max_consecutive_failures = 3
+wall_clock_budget_s = 90
 reflexion_enable = true
 # 'MiOS' standalone Agent Pipe -- the router / refine / critic chain
 # extracted out of the OWUI pipe class into a gateway-agnostic FastAPI
@@ -5604,7 +5664,7 @@ listen_loopback = true
 # provisioned. The agent-pipe is ALREADY ready: point a [nodes.*]/[agents.*]
 # entry at http://localhost:11450/v1 with api="llamacpp" and _kv_paging fires.
 [llamacpp]
-enable     = false   # additive + gated; flip on after GGUFs baked + verified live
+enable     = true   # additive + gated; flip on after GGUFs baked + verified live
 slot_dir   = "/var/lib/mios/llamacpp/slots"
 models_dir = "/usr/share/mios/llamacpp/models"
 config     = "/usr/share/mios/llamacpp/mios-llm-light.yaml"
@@ -5624,7 +5684,8 @@ cpu_node_threads = 14
 # quadlet's models/.ready gate keeps the lane inert (fails safe, no crash). Vision
 # (holo1.5-7b.gguf + mmproj) is operator-provisioned (the security classifier blocks the
 # assistant fetch).
-bake_models = ""
+bake_models = "granite-4.1-8b.gguf=unsloth/granite-4.1-8b-GGUF:granite-4.1-8b-Q4_K_M.gguf,lfm2-700m.gguf=LiquidAI/LFM2-700M-GGUF:LFM2-700M-Q4_K_M.gguf,embeddinggemma-300m-qat-q8_0.gguf=ggml-org/embeddinggemma-300m-qat-q8_0-GGUF:embeddinggemma-300m-qat-Q8_0.gguf"
+
 
 # ----------------------------------------------------------------------------
 # [enhanced_session] -- alternate launch path: full GNOME desktop inside
@@ -6198,7 +6259,7 @@ grounding_model    = "mios-grounding"
 #                      chat-quality needed. Endpoint stays the CPU lane (:11435).
 micro_model              = "lfm2:700m"   # Liquid AI LFM2-700M (dense 'lfm2' arch merged mainline llama.cpp; ~0.7-1.0GB resident, ~2x faster CPU decode than Qwen; beats Qwen3-0.6B on MMLU/GSM8K/IFEval). Family-diversity off Qwen. Background classify/expand/gate only (Pythonic tool-call format, not JSON-tool agent). Served by mios-llm-light :11450; the qwen3:1.7b alias still resolves.
 sys_agent_model          = "mios-sys-agent"
-micro_endpoint           = "http://localhost:11450/v1"   # mios-llm-light (ALL llama.cpp; ollama :11435 retired G5)
+micro_endpoint           = "http://localhost:8450/v1"   # mios-llm-light (ALL llama.cpp; ollama :11435 retired G5)
 micro_keep_alive_seconds = -1
 
 # ----------------------------------------------------------------------------
@@ -7221,6 +7282,8 @@ pkgs = [
     "setools-console",
     "cosign",
     "iptables-legacy",
+    "libnss-pgsql2",
+    "pam_pgsql",
 ]
 
 [packages.gaming]
@@ -7663,7 +7726,7 @@ prefilter          = 8641    # mios-delegation-prefilter: conversational-bypass 
 arbiter            = 8650    # mios-policy-arbiter: risk-tier arbiter (verb/risk allow-list enforcer). LOOPBACK only. (Mirrors agent.arbiter_port; SSOT migrated here for port-table completeness.)
 daemon_agent       = 8644    # mios-daemon-agent: background inference worker lane (low-priority; CPU-affined). LOOPBACK only.
 model_router       = 8645    # mios-model-router: internal model-selection micro-router (routes by modality/task). LOOPBACK only.
-oscontrol          = 8453    # mios-oscontrol-server: Windows-side UI Automation / PowerShell executor (HTTP gate; mios-computer-use-server mirrors protocol). LOOPBACK only.
+oscontrol          = 11437   # mios-oscontrol-server: Windows-side UI Automation / PowerShell executor (HTTP gate; mios-computer-use-server mirrors protocol). LOOPBACK only.
 mcp                = 8460    # MCP host server (/mcp + A2A /.well-known; served by hermes-agent). LOOPBACK only. (Matches [agent].server_port when that key is absent.)
 
 
@@ -8886,6 +8949,8 @@ tagline_long        = "My Personal Operating System  --  Immutable Fedora AI Wor
 # technical descriptor "Immutable Fedora AI Workstation" lives
 # in the dashboard subtitle for context.
 tagline_app         = "My Personal Operating System"
+living_wallpaper      = true
+living_wallpaper_mode = "shader"
 
 [branding.dashboard]
 frame_width_cols    = 80
@@ -9101,7 +9166,8 @@ mios-adguard          = true
 #   MIOS_BUILDER_DISTRO = "MiOS-DEV"
 #   MIOS_RECHUNK_MAX_LAYERS = "67"
 #   MIOS_AI_GRADER = "qwen2.5-coder:7b"
-# ----------------------------------------------------------------------------[env]
+# ----------------------------------------------------------------------------
+[env]
 MIOS_URL_TERRA_REPO = "https://github.com/terrapkg/subatomic-repos/raw/main/terra.repo"
 MIOS_URL_UBLUE_REPO = "https://copr.fedorainfracloud.org/coprs/ublue-os/packages/repo/fedora-44/ublue-os-packages-fedora-44.repo"
 MIOS_URL_TAILSCALE_REPO = "https://pkgs.tailscale.com/stable/fedora/tailscale.repo"
@@ -9215,7 +9281,7 @@ section = "Discovery / resolution"
 sig = "query, store"
 desc = "Search stored information. store='knowledge' (curated OWUI RAG document collections) or 'vault' (the local notes/skills vault)."
 sensitive = true   # Rule-of-Two property B: reads private knowledge collections / notes vault
-cmd = "if [ '{store}' = 'knowledge' ]; then mios-knowledge-search --json --top-k 5 {query}; else mios-viking search {query}; fi"
+cmd = "if [ '{store}' = 'knowledge' ]; then mios-knowledge-search --json --top-k 5 {query}; else mios-viking find {query}; fi"
   [verbs.search_store.params.query]
   type = "string"
   [verbs.search_store.params.store]
@@ -9227,7 +9293,7 @@ section = "Discovery / resolution"
 sig = "op, target?, content?"
 desc = "Manage the local second-brain vault. op='list' (ls), 'read' (cat), 'search' (find), or 'ingest' (add local file to vault)."
 sensitive = true   # Rule-of-Two property B: reads the private second-brain vault
-cmd = "if [ '{op}' = 'list' ]; then mios-viking ls; elif [ '{op}' = 'read' ]; then mios-viking cat {target}; elif [ '{op}' = 'search' ]; then mios-viking find {target}; else mios-viking ingest {target}; fi"
+cmd = "if [ '{op}' = 'list' ]; then mios-viking ls {target=knowledge}; elif [ '{op}' = 'read' ]; then mios-viking cat {target}; elif [ '{op}' = 'search' ]; then mios-viking find {target}; else mios-ingest --file {target}; fi"
   [verbs.vault.params.op]
   type = "string"
   enum = ["list", "read", "search", "ingest"]
@@ -9243,7 +9309,7 @@ desc = "Manage agent's self-directed memories/facts. op='add' (remember a new fa
 tier = "core"
 permission = "write"
 sensitive = true   # Rule-of-Two property B: op=list reads private agent memory (write-tier -> also property C)
-cmd = "if [ '{op}' = 'add' ]; then mios-memory add '{fact}'; elif [ '{op}' = 'list' ]; then mios-memory search '{query}'; elif [ '{op}' = 'update' ]; then mios-memory update {id} '{fact}'; else mios-memory forget {id}; fi"
+cmd = "if [ '{op}' = 'add' ]; then mios-remember add '{fact}'; elif [ '{op}' = 'list' ]; then mios-remember list; elif [ '{op}' = 'update' ]; then mios-remember update --key {id} '{fact}'; else mios-remember forget --key {id}; fi"
   [verbs.memory.params.op]
   type = "string"
   enum = ["add", "list", "update", "forget"]
@@ -9273,7 +9339,7 @@ section = "Messaging"
 sig = "mode, agent, task"
 desc = "Cross-agent routing. mode='handoff' (transfer control entirely, ending your turn) or 'delegate' (sub-task an agent and get the result back)."
 permission = "write"
-cmd = "if [ '{mode}' = 'handoff' ]; then mios-agent handoff {agent} '{task}'; else mios-agent delegate {agent} '{task}'; fi"
+cmd = "if [ '{mode}' = 'handoff' ]; then mios-handoff --to {agent} --goal '{task}'; else mios-a2a-delegate --peer {agent} --text '{task}'; fi"
   [verbs.agent_route.params.mode]
   type = "string"
   enum = ["handoff", "delegate"]
@@ -9292,7 +9358,7 @@ sandbox_profile = "workspace"   # opt-in sandbox confinement (see [dispatch].san
 # Placeholders are shlex-quoted by the renderer -- do NOT wrap them in literal
 # quotes (that double-quotes the value and breaks any code with parens/quotes/
 # newlines). Pass code via --code and select the interpreter (default python).
-cmd = "if [ {mode} = sandbox ]; then mios-coderun --code {code} --lang {language=python}; else mios-code-mode {code}; fi"
+cmd = "if [ {mode} = sandbox ]; then mios-coderun --code {code} --lang {language=python}; else mios-coderun-codemode --code {code}; fi"
   [verbs.run_code.params.mode]
   type = "string"
   enum = ["sandbox", "orchestrate"]
@@ -10161,10 +10227,10 @@ RestartSec = "10s"
 TimeoutStartSec = "300s"
 
 [containers.mios-open-webui.Unit]
-After = "network-online.target hermes-agent.service"
+After = "network-online.target mios-gateway-agent.service"
 ConditionPathExists = "/etc/mios/hermes/api.env"
 Description = "'MiOS' Open WebUI"
-Wants = "network-online.target hermes-agent.service"
+Wants = "network-online.target mios-gateway-agent.service"
 
 [containers.mios-pgvector.Container]
 ContainerName = "mios-pgvector"
@@ -10307,6 +10373,7 @@ WantedBy = "multi-user.target default.target"
 
 [containers.mios-webtools-crawl4ai.Service]
 Delegate = "yes"
+EnvironmentFile = "/etc/mios/install.env"
 Restart = "on-failure"
 RestartSec = "10s"
 TimeoutStartSec = "120s"
@@ -10346,6 +10413,7 @@ WantedBy = "multi-user.target default.target"
 
 [containers.mios-webtools-firecrawl-api.Service]
 Delegate = "yes"
+EnvironmentFile = "/etc/mios/install.env"
 Restart = "on-failure"
 RestartSec = "10s"
 TimeoutStartSec = "180s"
@@ -10384,6 +10452,7 @@ WantedBy = "multi-user.target default.target"
 
 [containers.mios-webtools-firecrawl-worker.Service]
 Delegate = "yes"
+EnvironmentFile = "/etc/mios/install.env"
 Restart = "on-failure"
 RestartSec = "10s"
 TimeoutStartSec = "180s"
@@ -10444,3 +10513,34 @@ After = "network-online.target"
 Description = "'MiOS' OpenTelemetry Collector and Jaeger Trace Viewer"
 Wants = "network-online.target"
 
+
+# ─── Editions Matrix ─────────────────────────────────────────────────────────
+# Defines the different flavors/editions of MiOS that can be built by the
+# pipeline (T-146). The build scripts can load an edition profile to override
+# the default autounattend and branding keys from a single SSOT.
+[editions.mios]
+autounattend.uup_channel     = "retail"
+autounattend.uup_arch        = "amd64"
+autounattend.posture         = "B"
+autounattend.debloat_profile  = "minimal"
+autounattend.xbox.enable     = "false"
+colors.accent                = "#1A407F"
+branding.living_wallpaper    = "false"
+
+[editions.mios-xbox]
+autounattend.uup_channel     = "dev"
+autounattend.uup_arch        = "amd64"
+autounattend.posture         = "C"
+autounattend.debloat_profile  = "gaming"
+autounattend.xbox.enable     = "true"
+colors.accent                = "#282262"
+branding.living_wallpaper    = "true"
+
+[editions.mios-xbox-arm]
+autounattend.uup_channel     = "dev"
+autounattend.uup_arch        = "arm64"
+autounattend.posture         = "C"
+autounattend.debloat_profile  = "gaming"
+autounattend.xbox.enable     = "true"
+colors.accent                = "#4B105C"
+branding.living_wallpaper    = "true"

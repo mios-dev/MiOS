@@ -28,33 +28,17 @@ import os
 import sys
 
 
+sys.path.insert(0, os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "..", "lib", "mios"))
+import mios_toml  # noqa: E402  -- the ONE shared layered-mios.toml resolver
+
+
 def _toml_get(dotted, default):
-    paths = [
-        os.path.expanduser("~/.config/mios/mios.toml"),
-        "/etc/mios/mios.toml",
-        "/usr/share/mios/mios.toml",
-    ]
-    try:
-        import tomllib
-    except ImportError:  # pragma: no cover
-        return default
-    for p in paths:
-        try:
-            with open(p, "rb") as fh:
-                data = tomllib.load(fh)
-        except (OSError, tomllib.TOMLDecodeError):
-            continue
-        node = data
-        ok = True
-        for k in dotted.split("."):
-            if isinstance(node, dict) and k in node:
-                node = node[k]
-            else:
-                ok = False
-                break
-        if ok and node not in (None, ""):
-            return node
-    return default
+    """Dotted [a.b].key from the layered mios.toml (per-user > host > vendor)
+    via the shared resolver; empty/missing -> default."""
+    parts = dotted.split(".")
+    val = mios_toml.get(".".join(parts[:-1]), parts[-1], None)
+    return default if val in (None, "") else val
 
 
 def main():

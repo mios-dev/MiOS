@@ -61,7 +61,36 @@ def t_skill_to_openai_tool():
           params.get("required") == ["url", "title"])
     check("tool additionalProperties False",
           params.get("additionalProperties") is False)
-    check("tool x-mios-skill tag", tool.get("x-mios-skill") == "my skill!")
+    # Rich typed params test case
+    tool_rich = s._skill_to_openai_tool({
+        "name": "rich skill",
+        "description": "does a rich thing",
+        "body": {
+            "params": {
+                "url": {
+                    "type": "string",
+                    "description": "URL to open"
+                },
+                "disposition": {
+                    "type": "string",
+                    "enum": ["tab", "window"],
+                    "description": "where to open"
+                }
+            }
+        }
+    })
+    check("rich: tool type function", tool_rich.get("type") == "function")
+    fn_rich = tool_rich.get("function") or {}
+    check("rich: tool name", fn_rich.get("name") == "mios_skill__rich_skill")
+    check("rich: tool strict True", fn_rich.get("strict") is True)
+    params_rich = fn_rich.get("parameters") or {}
+    check("rich: tool required matches keys", params_rich.get("required") == ["url", "disposition"])
+    check("rich: tool additionalProperties False", params_rich.get("additionalProperties") is False)
+    props_rich = params_rich.get("properties") or {}
+    check("rich: url type", props_rich.get("url", {}).get("type") == "string")
+    check("rich: url desc", props_rich.get("url", {}).get("description") == "URL to open")
+    check("rich: disposition type", props_rich.get("disposition", {}).get("type") == "string")
+    check("rich: disposition enum", props_rich.get("disposition", {}).get("enum") == ["tab", "window"])
 
 
 def t_execute_skill():

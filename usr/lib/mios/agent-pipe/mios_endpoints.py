@@ -31,7 +31,7 @@ from mios_config import _DISPATCH_TOML
 # declares its protocol in mios.toml [agents.*]/[agents.*.engines.*].
 _OLLAMA_API_HINTS = tuple(
     h.strip() for h in os.environ.get(
-        "MIOS_OLLAMA_API_HINTS", "11434,11435").split(",") if h.strip())
+        "MIOS_OLLAMA_API_HINTS", "8458,8450").split(",") if h.strip())
 
 
 def _binding_api(cfg: dict, engine: Optional[str]) -> str:
@@ -68,7 +68,7 @@ def _endpoint_is_ollama(ep: str, cfg: dict, engine: Optional[str] = None) -> boo
 _NO_TOOL_CHOICE_API = {"llamacpp", "llama.cpp", "llama-server", "vulkan"}
 _NO_TOOL_CHOICE_HINTS = tuple(
     h.strip() for h in str(os.environ.get("MIOS_NO_TOOL_CHOICE_HINTS")
-                           or _DISPATCH_TOML.get("no_tool_choice_hints", "11436")).split(",")
+                           or _DISPATCH_TOML.get("no_tool_choice_hints", "8450,8458,11436")).split(",")
     if h.strip())
 
 
@@ -100,7 +100,7 @@ def _endpoint_supports_tool_choice(ep: str, cfg: dict,
 # loop, so enabling parallelism here never reorders a launch+type chain.
 _PARALLEL_TOOLS_HINTS = tuple(
     h.strip() for h in str(os.environ.get("MIOS_PARALLEL_TOOLS_HINTS")
-                           or _DISPATCH_TOML.get("parallel_tools_hints", "11441")).split(",")
+                           or _DISPATCH_TOML.get("parallel_tools_hints", "8441,8442")).split(",")
     if h.strip())
 
 
@@ -116,7 +116,7 @@ _LLAMACPP_API = {"llamacpp", "llama.cpp", "llama-server", "vulkan"}
 # the iGPU llama.cpp lane). An agent/engine api='llamacpp' opts in regardless.
 _KV_PAGING_HINTS = tuple(
     h.strip() for h in str(os.environ.get("MIOS_KV_PAGING_HINTS")
-                           or _DISPATCH_TOML.get("kv_paging_hints", "11436")).split(",")
+                           or _DISPATCH_TOML.get("kv_paging_hints", "8450,8458,11436")).split(",")
     if h.strip())
 
 

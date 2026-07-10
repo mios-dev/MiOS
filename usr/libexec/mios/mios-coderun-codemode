@@ -52,28 +52,18 @@ except Exception:  # noqa: BLE001 -- degrade closed if the helper is missing
     cm = None
 
 
+sys.path.insert(0, os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "..", "lib", "mios"))
+import mios_toml  # noqa: E402  -- the ONE shared layered-mios.toml resolver
+
+
 def _toml_code_mode() -> dict:
-    """Layered [code_mode] table (vendor <- /etc <- ~/.config). Best-effort."""
+    """Layered [code_mode] table (vendor <- /etc <- ~/.config, MIOS_TOML
+    overriding the vendor layer) via the shared resolver. Best-effort."""
     layers = [os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml"),
               "/etc/mios/mios.toml",
               os.path.expanduser("~/.config/mios/mios.toml")]
-    out: dict = {}
-    try:
-        try:
-            import tomllib
-        except ImportError:
-            import tomli as tomllib  # type: ignore
-        for p in layers:
-            try:
-                with open(p, "rb") as f:
-                    layer = (tomllib.load(f).get("code_mode") or {})
-            except (OSError, tomllib.TOMLDecodeError):
-                continue
-            if isinstance(layer, dict):
-                out.update(layer)
-    except Exception:  # noqa: BLE001
-        pass
-    return out
+    return dict(mios_toml.section(mios_toml.load_merged(layers), "code_mode"))
 
 
 def _resolve_workspace_root(cfg: dict) -> str:
@@ -85,23 +75,13 @@ def _resolve_workspace_root(cfg: dict) -> str:
     v = cfg.get("workspace_root")
     if v:
         return str(v)
-    # fall through to the shared coderun workspace root
-    try:
-        try:
-            import tomllib
-        except ImportError:
-            import tomli as tomllib  # type: ignore
-        for p in ("/etc/mios/mios.toml", "/usr/share/mios/mios.toml"):
-            try:
-                with open(p, "rb") as f:
-                    d = tomllib.load(f)
-            except (OSError, tomllib.TOMLDecodeError):
-                continue
-            r = (d.get("paths", {}) or {}).get("coderun_workspace_root")
-            if r:
-                return str(r)
-    except Exception:  # noqa: BLE001
-        pass
+    # fall through to the shared coderun workspace root ([paths]; /etc wins
+    # over vendor, no per-user layer -- same order as the former inline reader).
+    r = mios_toml.get("paths", "coderun_workspace_root", None,
+                      data=mios_toml.load_merged(["/usr/share/mios/mios.toml",
+                                                  "/etc/mios/mios.toml"]))
+    if r:
+        return str(r)
     return "/var/home/mios/coderuns"
 
 

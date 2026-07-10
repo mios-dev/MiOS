@@ -61,7 +61,7 @@ _mios_osc_endpoint() {
     fi
     if [ -z "$_ep" ] && grep -qiE 'microsoft|wsl' /proc/sys/kernel/osrelease 2>/dev/null; then
         _gw="$(ip route show default 2>/dev/null | awk '/default/{print $3; exit}' || true)"
-        [ -n "$_gw" ] && _ep="http://${_gw}:${MIOS_OSCONTROL_PORT:-11437}"
+        [ -n "$_gw" ] && _ep="http://${_gw}:${MIOS_PORT_OSCONTROL:-11437}"
     fi
     _ep="${_ep%/}"
     # Only return an endpoint that is actually UP (quick /health probe) so an

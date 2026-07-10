@@ -462,6 +462,17 @@ async def _respond_native_loop_direct(
         _agent_contract(),
         (_capability_grounding(_VERB_CATALOG) if NATIVE_LOOP_CAPABILITY_GROUNDING else ""),
         _env_grounding(), persona_system) if p and p.strip())
+    _sys += (
+        "\n\nAGENTIC SEARCH & RETRY RULES:\n"
+        "- If a web search (either pre-fetched or from a previous tool call) returns no results, "
+        "or if the returned results are irrelevant, empty, or do not contain the specific information "
+        "needed to answer the user's request, DO NOT stop or conclude that the information does not exist. "
+        "You MUST call the `web_search` tool again in the next step with a different, broader, or alternative "
+        "query (e.g. by removing narrow date/keyword constraints, using synonyms, or searching for related topics "
+        "found in history) to find the relevant information.\n"
+        "- You are expected to loop and perform multiple search queries as needed until you gather sufficient "
+        "relevant details to fully answer the user's request."
+    )
     if NATIVE_LOOP_PERSISTENCE:
         _sys += "\n\n" + _NATIVE_LOOP_PERSISTENCE_PROSE
     if NATIVE_LOOP_BREADTH_GUIDANCE:
@@ -869,9 +880,10 @@ async def _respond_native_loop_direct(
                     _fetched_corpus += "\n" + _wtext   # FAB-02 ground truth
                     _msgs.append({"role": "system", "content":
                      "LIVE web_search results for the user's request (current and "
-                     "real). Answer from THESE results; do NOT use training-memory "
-                     "facts or invent any headlines, titles, dates, or figures not "
-                     "present here. Cite sources inline as [n]; the system appends the "
+                     "real). Answer from these results if they are relevant; if they are empty "
+                     "or do not contain the required information, DO NOT summarize their absence. "
+                     "Instead, call the `web_search` tool again with a different or broader query to "
+                     "find the relevant details. Do NOT invent headlines, titles, or figures. Cite sources inline as [n]; the system appends the "
                      "numbered Sources list with the real URLs -- do NOT write your own "
                      "'Source: <name>' lines or homepage URLs (those are fabrications). "
                      "If you have no source for a claim, omit the citation:\n"

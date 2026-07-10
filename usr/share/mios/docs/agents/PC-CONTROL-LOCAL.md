@@ -97,7 +97,7 @@ dGPU frees.
   captchas, custom-rendered UIs).
 * **Operator-side launcher broker — `mios-launcher-daemon`** bridges the WSL
   service-user perm wall so any agent action can reach the operator's WSLg session.
-* **`mios-pwsh`** + **`mios-windows {ps,cmd,launch}`** for raw shell-out to the
+* **`mios-powershell`** + **`mios-windows {ps,cmd,launch}`** for raw shell-out to the
   Windows side.
 * **opencode** (host install at `/usr/lib/mios/agents/opencode/bin/opencode`)
   served as a first-class OpenAI `/v1` council peer by

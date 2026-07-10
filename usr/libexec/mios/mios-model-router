@@ -35,7 +35,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import StreamingResponse, JSONResponse, Response
 import uvicorn
 
-PORT = int(os.environ.get("MIOS_ROUTER_PORT", "11442"))
+PORT = int(os.environ.get("MIOS_PORT_MODEL_ROUTER", os.environ.get("MIOS_ROUTER_PORT", "8645")))
 COOLDOWN_S = float(os.environ.get("MIOS_ROUTER_COOLDOWN_S", "30"))
 PROBE_S = float(os.environ.get("MIOS_ROUTER_PROBE_S", "8"))
 CTX = int(os.environ.get("MIOS_ROUTER_CTX", "16384"))
@@ -59,10 +59,10 @@ _GW = _gateway()
 # Compute nodes. cpu = orchestrator host (always up, CPU-only); light(dGPU)+igpu =
 # fast worker nodes; heavy(SGLang) is usually down (VRAM) -> simply never healthy.
 _DEFAULT_DEPLOYMENTS = [
-    {"name": "cpu",   "base": "http://localhost:11451/v1", "model": "mios-cpu"},
-    {"name": "light", "base": "http://localhost:11450/v1", "model": "qwen3:1.7b"},
-    {"name": "igpu",  "base": f"http://{_GW}:11436/v1",    "model": "mios-igpu"},
-    {"name": "heavy", "base": "http://localhost:11441/v1", "model": "mios-heavy"},
+    {"name": "cpu",   "base": f"http://localhost:{os.environ.get('MIOS_PORT_CPU_NODE', '8458')}/v1", "model": "mios-cpu"},
+    {"name": "light", "base": f"http://localhost:{os.environ.get('MIOS_PORT_LLM_LIGHT', '8450')}/v1", "model": "qwen3:1.7b"},
+    {"name": "igpu",  "base": f"http://{_GW}:{os.environ.get('MIOS_PORT_IGPU', '11436')}/v1",    "model": "mios-igpu"},
+    {"name": "heavy", "base": f"http://localhost:{os.environ.get('MIOS_PORT_SGLANG', '8442')}/v1", "model": "mios-heavy"},
 ]
 try:
     DEPLOYMENTS = json.loads(os.environ.get("MIOS_ROUTER_DEPLOYMENTS", "")) or _DEFAULT_DEPLOYMENTS

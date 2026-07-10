@@ -42,33 +42,17 @@ import sys
 from typing import Optional
 
 
+sys.path.insert(0, os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "..", "lib", "mios"))
+import mios_toml  # noqa: E402  -- the ONE shared layered-mios.toml resolver
+
+
 def _load_recipes() -> dict:
-    try:
-        import tomllib
-    except ImportError:
-        try:
-            import tomli as tomllib  # type: ignore
-        except ImportError:
-            print("mios-os-recipe: tomllib unavailable", file=sys.stderr)
-            sys.exit(3)
-    merged: dict = {}
-    # Layer order: vendor first, host override second (so /etc wins on
-    # key collisions). Walk BOTH -- previous "return first that parses"
-    # logic silently dropped the vendor [recipes.*] block when
-    # /etc/mios/mios.toml existed without its own [recipes.*].
-    for path in (
-        os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml"),
-        "/etc/mios/mios.toml",
-    ):
-        try:
-            with open(path, "rb") as f:
-                d = tomllib.load(f)
-        except (OSError, tomllib.TOMLDecodeError):
-            continue
-        r = d.get("recipes") or {}
-        if isinstance(r, dict):
-            merged.update(r)
-    return merged
+    """Merge [recipes] across vendor + /etc (etc wins on collisions; MIOS_TOML
+    overrides the vendor layer) via the shared resolver -- no per-user layer."""
+    layers = [os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml"),
+              "/etc/mios/mios.toml"]
+    return dict(mios_toml.section(mios_toml.load_merged(layers), "recipes"))
 
 
 def _detect_os() -> str:

@@ -76,7 +76,7 @@ def pg_config(env: Optional[dict] = None) -> dict:
     e = env if env is not None else os.environ
     return {
         "host": e.get("MIOS_PG_HOST", "localhost"),
-        "port": int(e.get("MIOS_PORT_PGVECTOR", "5432") or 5432),
+        "port": int(e.get("MIOS_PORT_PGVECTOR", "8432") or 8432),
         "user": e.get("MIOS_PG_USER", "mios"),
         "password": e.get("MIOS_PG_PASS", "mios"),
         "dbname": e.get("MIOS_PG_DB", "mios"),

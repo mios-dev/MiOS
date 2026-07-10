@@ -1,0 +1,13 @@
+[Unit]
+Description='MiOS' web-tools images build-on-demand firstboot service
+After=network-online.target
+Wants=network-online.target
+Before=mios-webtools-pod.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/mios/mios-webtools-firstboot.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

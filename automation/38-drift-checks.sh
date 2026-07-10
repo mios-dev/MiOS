@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # AI-hint: Source-tree drift fitness-functions (WS-0A). Read-only static analysis over the repo (== system root) that FAILS on AI-plane SSOT drift no other gate catches: a retired local :11434 lane in active config, a retired model-id (gemma4 / qwen3:1.7b) hardcoded in a CONSUMER unit, a [nodes.local-*] lane pointing at a localhost port no shipped unit serves, an ai/v1/*.json manifest that won't parse or references a missing schema file, (check 5, WS-10) AI-hint header coverage regressing past [ai_tag].max_untagged, and (check 6, WS-3) an agent-pipe sibling module importing the server.py monolith (modular-monolith boundary). Sibling to 38-ssot-lint.sh; runs standalone, as a build sub-phase, and as a CI/PR drift-gate (needs NO built image). bash + grep + (optional) python3 for the toml/json/coverage checks.
 # AI-related: ./automation/38-ssot-lint.sh, ./automation/99-postcheck.sh, ./usr/libexec/mios/mios-ai-hint-coverage, ./usr/share/mios/mios.toml, ./usr/share/mios/ai/v1
-# AI-functions: _violation, check_dead_lane, check_retired_models, check_structured, check_hint_coverage, check_module_boundary, check_rbac_tiers, check_ai_manifest, check_package_registry, check_cli_sql_safety, check_module_test_coverage, check_capability_manifest, check_pod_quadlets, check_egress_firewall, check_unwired_modules, main
+# AI-functions: _violation, check_dead_lane, check_retired_models, check_structured, check_hint_coverage, check_module_boundary, check_rbac_tiers, check_ai_manifest, check_package_registry, check_cli_sql_safety, check_module_test_coverage, check_capability_manifest, check_pod_quadlets, check_egress_firewall, check_unwired_modules, check_globals_ports, main
 # automation/38-drift-checks.sh
 # ----------------------------------------------------------------------------
 # WHY THIS EXISTS (WS-0A drift-freeze). 99-postcheck.sh enforces the same
@@ -1261,6 +1261,335 @@ PY
     fi
 }
 
+# --- (23) Verify all [agent_pipe] variables have code consumers. -------------
+check_agent_pipe_budgets() {
+    if ! command -v python3 >/dev/null 2>&1; then
+        return 0
+    fi
+    if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
+import os, sys, re
+try:
+    import tomllib
+except ImportError:
+    import tomli as tomllib
+
+root = os.environ["MIOS_DRIFT_ROOT"]
+toml_path = os.path.join(root, "usr/share/mios/mios.toml")
+if not os.path.isfile(toml_path):
+    sys.exit(0)
+
+with open(toml_path, "rb") as f:
+    data = tomllib.load(f)
+
+agent_pipe = data.get("agent_pipe", {})
+if not agent_pipe:
+    sys.stderr.write("    Missing [agent_pipe] table in mios.toml\n")
+    sys.exit(1)
+
+# Find all occurrences of the keys in usr/lib/mios/agent-pipe/
+search_dir = os.path.join(root, "usr/lib/mios/agent-pipe")
+if not os.path.isdir(search_dir):
+    search_dir = root
+
+code = ""
+for r, ds, fs in os.walk(search_dir):
+    for f in fs:
+        if f.endswith(".py"):
+            try:
+                with open(os.path.join(r, f), "r", encoding="utf-8", errors="ignore") as fh:
+                    code += fh.read() + "\n"
+            except OSError:
+                pass
+
+budget_keys = ["tool_max_iters", "replan_max", "no_progress_window", "max_consecutive_failures", "wall_clock_budget_s", "reflexion_enable"]
+missing = []
+for k in budget_keys:
+    if k not in agent_pipe:
+        missing.append(f"{k} (missing from mios.toml)")
+        continue
+    pattern = rf"['\"]{k}['\"]"
+    if not re.search(pattern, code) and k not in code:
+        missing.append(k)
+
+if missing:
+    sys.stderr.write(f"    Missing code consumers or TOML definitions for [agent_pipe] budget keys: {missing}\n")
+    sys.exit(1)
+sys.exit(0)
+PY
+    then
+        echo "[38-drift-checks]   (23) all [agent_pipe] budget variables have code consumers"
+    else
+        _violation "some [agent_pipe] keys do not have code consumers inside the agent-pipe codebase (T-108 drift detected)"
+    fi
+}
+
+# --- (24) Verify no bare port literals remain in execution paths. ------------
+check_no_bare_port_literals() {
+    if ! command -v python3 >/dev/null 2>&1; then
+        return 0
+    fi
+    if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
+import os, sys, re, ast
+
+root = os.environ["MIOS_DRIFT_ROOT"]
+banned_ports = ["11450", "11441", "11440", "11451", "11434", "11435"]
+scan_dirs = [
+    os.path.join(root, "usr/lib/mios/agent-pipe"),
+    os.path.join(root, "usr/libexec/mios"),
+    os.path.join(root, "usr/bin")
+]
+
+class DocstringCollector(ast.NodeVisitor):
+    def __init__(self):
+        self.docstring_nodes = set()
+    def check_body(self, body):
+        if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant):
+            if isinstance(body[0].value.value, str):
+                self.docstring_nodes.add(body[0].value)
+    def visit_Module(self, node):
+        self.check_body(node.body)
+        self.generic_visit(node)
+    def visit_FunctionDef(self, node):
+        self.check_body(node.body)
+        self.generic_visit(node)
+    def visit_AsyncFunctionDef(self, node):
+        self.check_body(node.body)
+        self.generic_visit(node)
+    def visit_ClassDef(self, node):
+        self.check_body(node.body)
+        self.generic_visit(node)
+
+violations = []
+for d in scan_dirs:
+    if not os.path.isdir(d):
+        continue
+    for r, ds, fs in os.walk(d):
+        for f in fs:
+            if not f.endswith((".py", ".sh", ".ps1")) or "test_" in f:
+                continue
+            if f in ["Setup-MiOSLanPortProxy.ps1", "Heal-MiOSLocalhostForwarding.ps1", "Setup-MiOSLanPortProxy.ps1.bom-bak", "mios-doctor"]:
+                continue
+            path = os.path.join(r, f)
+            try:
+                with open(path, "r", encoding="utf-8", errors="ignore") as fh:
+                    content = fh.read()
+                
+                if f.endswith(".py"):
+                    try:
+                        tree = ast.parse(content)
+                        collector = DocstringCollector()
+                        collector.visit(tree)
+                        
+                        for node in ast.walk(tree):
+                            if isinstance(node, ast.Constant):
+                                if node in collector.docstring_nodes:
+                                    continue
+                                val = str(node.value)
+                                for port in banned_ports:
+                                    if port in val:
+                                        violations.append(f"{f}:{getattr(node, 'lineno', '?')} contains banned port '{port}' in constant '{val}'")
+                    except Exception as e:
+                        for line_no, line in enumerate(content.splitlines(), 1):
+                            stripped = line.strip()
+                            if stripped.startswith(("#", "'''", '"""')):
+                                continue
+                            code_part = line.split("#", 1)[0]
+                            for port in banned_ports:
+                                if port in code_part:
+                                    violations.append(f"{f}:{line_no} contains banned port '{port}' (fallback)")
+                else:
+                    for line_no, line in enumerate(content.splitlines(), 1):
+                        stripped = line.strip()
+                        if stripped.startswith(("#", "//", "Write-Host", "echo", "help", "usage")):
+                            continue
+                        code_part = line.split("#", 1)[0].split("//", 1)[0]
+                        for port in banned_ports:
+                            if port in code_part:
+                                violations.append(f"{f}:{line_no} contains banned port '{port}'")
+            except OSError:
+                pass
+
+if violations:
+    for v in sorted(set(violations)):
+        sys.stderr.write(f"    {v}\n")
+    sys.exit(1)
+sys.exit(0)
+PY
+    then
+        echo "[38-drift-checks]   (24) no bare port literals remain in execution paths"
+    else
+        _violation "bare port literals detected in execution paths (T-121/T-125 drift detected)"
+    fi
+}
+
+# --- (25, Phase-1 palette SSOT) Theme-surface projection gate. -----------------
+# Every committed theme surface (btop, oh-my-posh, quickshell, fastfetch, the
+# app-shell CSS, the terminal OSC fallbacks) is PROJECTED from mios.toml
+# [colors]/[theme] via mios-theme-render's token-substitution templates. This
+# gate regenerates each surface from the SSOT and FAILS on any diff, so a palette
+# value can NEVER drift from the SSOT (re-run `mios-sync-theme` to refresh --
+# it is the one global runtime theme command). Same regenerate-and-diff shape as
+# checks 8/12/13/14, over the theme surfaces.
+check_theme_projection() {
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "[38-drift-checks]   WARNING: python3 missing -- skipping theme-projection check" >&2
+        return 0
+    fi
+    local tool="$ROOT/usr/libexec/mios/mios-theme-render"
+    if [[ ! -f "$tool" ]]; then
+        echo "[38-drift-checks]   WARNING: mios-theme-render not found -- skipping" >&2
+        return 0
+    fi
+    if MIOS_THEME_ROOT="$ROOT" python3 "$tool" check >/dev/null 2>"$ROOT/.theme.err"; then
+        rm -f "$ROOT/.theme.err" 2>/dev/null || true
+        echo "[38-drift-checks]   (25) every committed theme surface projects from mios.toml [colors] SSOT"
+    else
+        sed 's/^/    /' "$ROOT/.theme.err" >&2 2>/dev/null || true
+        rm -f "$ROOT/.theme.err" 2>/dev/null || true
+        _violation "a theme surface drifted from the mios.toml [colors]/[theme] SSOT projection -- re-run mios-sync-theme (Phase-1 palette drift-gate; mios-theme-render)"
+    fi
+}
+
+# --- (27, flatten) userenv.sh resolver copy parity. --------------------------
+# tools/lib/userenv.sh is the authoritative resolver (36-tools.sh installs it to
+# /usr/lib/mios/userenv.sh at build). The committed FHS copy MUST match it byte-
+# for-byte, else the build silently swaps the exported MIOS_* env set (the two
+# had diverged: retired ollama slots vs the live micro-llm slots).
+check_userenv_parity() {
+    local src="$ROOT/tools/lib/userenv.sh" dst="$ROOT/usr/lib/mios/userenv.sh"
+    if [[ ! -f "$src" || ! -f "$dst" ]]; then
+        echo "[38-drift-checks]   (27) userenv.sh parity -- a copy is absent, skipped"
+        return 0
+    fi
+    if diff -q "$src" "$dst" >/dev/null 2>&1; then
+        echo "[38-drift-checks]   (27) usr/lib/mios/userenv.sh matches authoritative tools/lib/userenv.sh"
+    else
+        _violation "usr/lib/mios/userenv.sh drifted from the authoritative tools/lib/userenv.sh (36-tools.sh installs the latter) -- resync: cp tools/lib/userenv.sh usr/lib/mios/userenv.sh (flatten check 27)"
+    fi
+}
+
+# --- (26, flatten) Verb-backend resolvability gate. --------------------------
+# Every mios-* command a [verbs.*].cmd dispatches to MUST exist on disk
+# (usr/libexec/mios or usr/bin). The consolidated Gen-2 verbs shipped cmd
+# templates pointing at NON-EXISTENT backends (mios-memory / mios-agent /
+# mios-code-mode) while the model-facing surface advertised them -- a live
+# dead-dispatch. This gate makes that class unrepresentable.
+check_verb_backends() {
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "[38-drift-checks]   WARNING: python3 missing -- skipping verb-backend check" >&2
+        return 0
+    fi
+    if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
+import os, sys, re
+root = os.environ["MIOS_DRIFT_ROOT"]
+try:
+    import tomllib as _toml
+except ImportError:
+    try:
+        import tomli as _toml  # type: ignore
+    except ImportError:
+        sys.exit(0)
+p = os.path.join(root, "usr/share/mios/mios.toml")
+if not os.path.isfile(p):
+    sys.exit(0)
+with open(p, "rb") as fh:
+    d = _toml.load(fh)
+libexec = os.path.join(root, "usr/libexec/mios")
+usrbin = os.path.join(root, "usr/bin")
+def _exists(t):
+    return os.path.isfile(os.path.join(libexec, t)) or os.path.isfile(os.path.join(usrbin, t))
+missing = {}
+for name, cfg in (d.get("verbs", {}) or {}).items():
+    if not isinstance(cfg, dict):
+        continue
+    cmd = cfg.get("cmd", "")
+    if not isinstance(cmd, str) or not cmd:
+        continue
+    for tok in set(re.findall(r"\bmios-[a-z0-9-]+", cmd)):
+        if not _exists(tok):
+            missing.setdefault(tok, []).append(name)
+for t, vs in sorted(missing.items()):
+    sys.stderr.write(f"    {t} <- [verbs.*] {sorted(vs)} (backend not on disk)\n")
+sys.exit(1 if missing else 0)
+PY
+    then
+        echo "[38-drift-checks]   (26) every [verbs.*].cmd mios-* backend resolves on disk"
+    else
+        _violation "a [verbs.*].cmd dispatches to a mios-* backend that does not exist (dead dispatch) -- fix the cmd template or ship the backend (flatten check 26)"
+    fi
+}
+
+# --- (28, flatten) globals.{ps1,sh} port fallback vs [ports] SSOT. -----------
+# The MIOS_PORT_* fallback defaults in automation/lib/globals.ps1 and
+# automation/lib/globals.sh are the values that survive when userenv.sh never
+# runs (the Windows side). They had frozen at a RETIRED pre-8xxx port schema and
+# silently drifted from mios.toml [ports] (the SSOT), causing real cross-plane
+# port disagreement. This gate re-derives every `else { N }` (ps1) and
+# `:=N` (sh) fallback and asserts it equals the matching [ports].<name> value,
+# so the fallbacks can never drift from the SSOT again.
+check_globals_ports() {
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "[38-drift-checks]   WARNING: python3 missing -- skipping globals-ports check" >&2
+        return 0
+    fi
+    if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
+import os, sys, re
+root = os.environ["MIOS_DRIFT_ROOT"]
+try:
+    import tomllib as _toml
+except ImportError:
+    try:
+        import tomli as _toml  # type: ignore
+    except ImportError:
+        sys.exit(0)
+toml = os.path.join(root, "usr/share/mios/mios.toml")
+if not os.path.isfile(toml):
+    sys.exit(0)
+with open(toml, "rb") as fh:
+    ports = (_toml.load(fh).get("ports", {}) or {})
+
+bad = []
+# ps1: `$script:MIOS_PORT_<NAME> ... else { N }`
+ps1 = os.path.join(root, "automation/lib/globals.ps1")
+if os.path.isfile(ps1):
+    with open(ps1, encoding="utf-8") as fh:
+        for line in fh:
+            m = re.search(r"MIOS_PORT_([A-Z0-9_]+)\b", line)
+            v = re.search(r"else\s*\{\s*(\d+)\s*\}", line)
+            if not (m and v):
+                continue
+            name, got = m.group(1), int(v.group(1))
+            key = name.lower()
+            if key not in ports:
+                bad.append(f"globals.ps1 MIOS_PORT_{name}={got} has NO [ports].{key} key (retired lane?)")
+            elif int(ports[key]) != got:
+                bad.append(f"globals.ps1 MIOS_PORT_{name}={got} != [ports].{key}={ports[key]}")
+# sh: `: "${MIOS_PORT_<NAME>:=N}"`
+sh = os.path.join(root, "automation/lib/globals.sh")
+if os.path.isfile(sh):
+    with open(sh, encoding="utf-8") as fh:
+        for line in fh:
+            m = re.search(r"\$\{MIOS_PORT_([A-Z0-9_]+):=(\d+)\}", line)
+            if not m:
+                continue
+            name, got = m.group(1), int(m.group(2))
+            key = name.lower()
+            if key not in ports:
+                bad.append(f"globals.sh MIOS_PORT_{name}={got} has NO [ports].{key} key (retired lane?)")
+            elif int(ports[key]) != got:
+                bad.append(f"globals.sh MIOS_PORT_{name}={got} != [ports].{key}={ports[key]}")
+
+for b in bad:
+    sys.stderr.write(f"    {b}\n")
+sys.exit(1 if bad else 0)
+PY
+    then
+        echo "[38-drift-checks]   (28) every MIOS_PORT_* fallback in globals.{ps1,sh} equals mios.toml [ports] SSOT"
+    else
+        _violation "a MIOS_PORT_* fallback default in automation/lib/globals.ps1 or globals.sh drifted from mios.toml [ports] SSOT (Windows-side effective default; align the else{N}/:=N literal to [ports].<name>) (flatten check 28)"
+    fi
+}
+
 main() {
     check_dead_lane
     check_retired_models
@@ -1284,6 +1613,12 @@ main() {
     check_hummingbird
     check_container_ports
     check_bootstrap_ports_drift
+    check_agent_pipe_budgets
+    check_no_bare_port_literals
+    check_theme_projection
+    check_verb_backends
+    check_userenv_parity
+    check_globals_ports
 
     echo "[38-drift-checks] ---------------------------------------------------------"
     if [[ "$VIOLATIONS" -eq 0 ]]; then

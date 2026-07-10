@@ -1,4 +1,3 @@
-# AI-hint: Configures the XDG_DATA_DIRS environment variable to include Flatpak installation paths, ensuring the system correctly locates and displays assets/icons for Flatpak-installed applications.
 # shellcheck shell=sh
 if command -v flatpak > /dev/null; then
     # set XDG_DATA_DIRS to include Flatpak installations

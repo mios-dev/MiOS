@@ -29,7 +29,7 @@ usage() {
     echo "usage: mios-restart <service>"
     echo
     echo "shortcuts:"
-    echo "  hermes              -> hermes-agent.service (+ drops skill cache)"
+    echo "  hermes              -> mios-gateway-agent.service (+ drops skill cache)"
     echo "  llm-light           -> mios-llm-light.service"
     echo "  pgvector            -> mios-pgvector.service"
     echo "  open-webui          -> mios-open-webui.service"
@@ -50,7 +50,7 @@ SVC="$1"
 
 # Map short names to full unit names. Lowercase + alias-expand.
 case "$SVC" in
-    hermes|hermes-agent)            UNIT="hermes-agent.service" ;;
+    hermes|hermes-agent|gateway-agent)  UNIT="mios-gateway-agent.service" ;;
     llm-light|llmlight)             UNIT="mios-llm-light.service" ;;
     pgvector|postgres)              UNIT="mios-pgvector.service" ;;
     open-webui|owui|webui)          UNIT="mios-open-webui.service" ;;
@@ -89,7 +89,7 @@ fi
 # bit us when pc-control + windows-control + mios-environment were
 # added vendor-side but never appeared in HERMES_HOME because
 # firstboot only runs once.
-if [ "$UNIT" = "hermes-agent.service" ]; then
+if [ "$UNIT" = "mios-gateway-agent.service" ]; then
     if [ -d /usr/share/mios/hermes/skills ]; then
         # Try every plausible HERMES_HOME -- the service one is canonical
         # but operator CLI homes also benefit. Owner per-target.
@@ -171,7 +171,7 @@ echo "  state: $state (after $(( $(date +%s) - _poll_start ))s)"
 # Hermes-specific POST-restart: drop the in-process skills-prompt cache
 # so SOUL.md / SKILL.md edits take effect immediately on the very next
 # chat (without a second restart).
-if [ "$UNIT" = "hermes-agent.service" ]; then
+if [ "$UNIT" = "mios-gateway-agent.service" ]; then
     for d in /var/lib/mios/hermes /home/mios/.hermes /var/home/mios/.hermes; do
         [ -d "$d" ] || continue
         find "$d" -name '.skills_prompt_snapshot.json' -delete 2>/dev/null || true

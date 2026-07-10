@@ -104,37 +104,12 @@ fi
 # [terminal].cols / right_margin via their respective TOML readers
 # (Get-MiOS.ps1's Get-MiosTomlValue / mios-dash.ps1's regex / this
 # awk helper). No hardcoded 80 anywhere -- if you find one, lift it.
-_mios_toml_value() {
-    local section="$1" key="$2" def_val="$3"
-    local toml="${MIOS_TOML:-/usr/share/mios/mios.toml}"
-    [[ -r "$toml" ]] || { printf '%s' "$def_val"; return; }
-    # gawk reserves `default` as a keyword (used in switch/case).  Passing
-    # `-v default=...` raises `cannot use gawk builtin 'default' as variable
-    # name` on Fedora's gawk.  Renamed to `def_val` everywhere -- mawk and
-    # gawk both accept it.
-    awk -v want_section="$section" -v want_key="$key" -v def_val="$def_val" '
-        BEGIN { in_section = 0; found = 0 }
-        /^\[/ {
-            line = $0
-            sub(/[[:space:]]*#.*$/, "", line)
-            in_section = (line == "[" want_section "]") ? 1 : 0
-            next
-        }
-        in_section && /^[[:space:]]*[A-Za-z_][A-Za-z0-9_]*[[:space:]]*=/ {
-            line = $0
-            sub(/[[:space:]]*#.*$/, "", line)
-            eq = index(line, "=")
-            if (eq == 0) next
-            k = substr(line, 1, eq - 1)
-            v = substr(line, eq + 1)
-            gsub(/^[[:space:]]+|[[:space:]]+$/, "", k)
-            gsub(/^[[:space:]]+|[[:space:]]+$/, "", v)
-            gsub(/^"|"$/, "", v)
-            if (k == want_key) { print v; found = 1; exit }
-        }
-        END { if (!found) print def_val }
-    ' "$toml"
-}
+# Drop-in over the shared layered resolver (usr/lib/mios/mios_toml.py via the
+# mios-toml-get shell CLI): vendor < host < user overlay, highest wins. Replaces
+# the single-file awk scanner. All MiOS consoles honor the same
+# [terminal].cols / right_margin through this one SSOT resolver.
+_MIOS_TOML_GET="$(cd "$(dirname "$0")" && pwd)/mios-toml-get"
+_mios_toml_value() { "$_MIOS_TOML_GET" "$1" "$2" "${3:-}"; }
 _mios_cols=$(_mios_toml_value "terminal" "cols" "80")
 _mios_rmgn=$(_mios_toml_value "terminal" "right_margin" "0")
 _mios_rows=$(_mios_toml_value "terminal" "rows" "20")
