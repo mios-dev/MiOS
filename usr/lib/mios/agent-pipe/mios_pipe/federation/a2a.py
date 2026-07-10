@@ -475,7 +475,7 @@ def _build_agent_passport() -> dict:
     ap = _toml_section("agent_passport") or {}
     ident = _toml_section("identity") or {}
     base = f"http://localhost:{PORT}"
-    domain = str(ap.get("domain") or os.environ.get("MIOS_PUBLIC_DOMAIN") or "localhost")
+    domain = str(os.environ.get("MIOS_PUBLIC_DOMAIN") or ap.get("domain") or (_toml_section("a2a") or {}).get("public_domain") or "localhost")
     agent_id = str((_toml_section("ai") or {}).get("agent_model") or "MiOS AI")
     cur = str(ap.get("spend_currency") or "USD")
     now = int(time.time())

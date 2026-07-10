@@ -188,7 +188,14 @@ async def chat_completions(req: ChatCompletionRequest):
         context += f"{role.upper()}: {content}\n"
     
     last_user_text = history[-1].get("content", "")
-    task = f"Conversation History:\n{context}\n\nUser request: {last_user_text}"
+    task = (
+        f"Conversation History:\n{context}\n\n"
+        f"User request: {last_user_text}\n\n"
+        "Guidelines for execution:\n"
+        "- If a web search query returns no results (0 results) or irrelevant results, DO NOT give up immediately. "
+        "Loop to refine/broaden your search query (e.g., remove specific date/time constraints, try alternative keywords, or search for related topics from the history) and try again.\n"
+        "- Perform multiple searches if necessary to gather comprehensive details."
+    )
 
     # Helper function to generate stream chunks
     def openai_chunk(content: str, finish_reason: Optional[str] = None) -> str:
@@ -273,7 +280,6 @@ async def chat_completions(req: ChatCompletionRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    # Load settings to bind host/port
     gateway_cfg = _toml_section("gateway")
-    port = int(gateway_cfg.get("port") or 8642)
+    port = int(os.environ.get("MIOS_PORT_HERMES", gateway_cfg.get("port") or 8642))
     uvicorn.run(app, host="0.0.0.0", port=port)

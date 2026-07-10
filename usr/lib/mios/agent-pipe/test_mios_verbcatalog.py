@@ -91,10 +91,10 @@ class VerbCatalogTest(unittest.TestCase):
         self.assertEqual(params["properties"]["name"]["type"], "string")
 
     def test_verb_to_openai_optional_param_nullable(self):
-        # recall.query has a default -> strict-mode nullable type.
+        # recall.limit has a default -> strict-mode nullable type.
         tool = VC._verb_to_openai_tool("recall", self.cat["recall"])
-        spec = tool["function"]["parameters"]["properties"]["query"]
-        self.assertEqual(spec["type"], ["string", "null"])
+        spec = tool["function"]["parameters"]["properties"]["limit"]
+        self.assertEqual(spec["type"], ["integer", "null"])
         # name == key when no model_name declared.
         self.assertEqual(tool["function"]["name"], "recall")
 
@@ -108,7 +108,32 @@ class VerbCatalogTest(unittest.TestCase):
         self.assertIn("message", props)
         self.assertIn("os", props)            # injected OS selector
         self.assertEqual(props["message"]["type"], ["string", "null"])
-        self.assertTrue(tool["function"]["strict"])
+        # Test typed dict recipe arguments
+        rich_cfg = {
+            "description": "Rich toast",
+            "args": {
+                "message": {
+                    "type": "string",
+                    "description": "the message"
+                },
+                "duration": {
+                    "type": "integer",
+                    "description": "duration in seconds"
+                }
+            },
+            "permission": "read"
+        }
+        tool_rich = VC._recipe_to_openai_tool("toast_rich", rich_cfg)
+        self.assertEqual(tool_rich["function"]["name"], "mios_recipe__toast_rich")
+        props_rich = tool_rich["function"]["parameters"]["properties"]
+        self.assertIn("message", props_rich)
+        self.assertIn("duration", props_rich)
+        self.assertIn("os", props_rich)
+        self.assertEqual(props_rich["message"]["type"], ["string", "null"])
+        self.assertEqual(props_rich["message"]["description"], "the message")
+        self.assertEqual(props_rich["duration"]["type"], ["integer", "null"])
+        self.assertEqual(props_rich["duration"]["description"], "duration in seconds")
+        self.assertTrue(tool_rich["function"]["strict"])
 
     def test_render_verb_catalog_prose(self):
         prose = VC._render_verb_catalog(self.cat)
@@ -133,7 +158,7 @@ class VerbCatalogTest(unittest.TestCase):
 
     def test_arg_synonyms_projection(self):
         syn = VC._verb_arg_synonyms_from_catalog(self.cat)
-        self.assertEqual(syn["open_app"]["name"], ["app", "application"])
+        self.assertEqual(syn["open_app"]["name"], ["query", "title", "app", "target", "program", "path", "file", "binary", "exe"])
         # The compat shim reads the injected _VERB_CATALOG.
         self.assertEqual(VC._load_verb_arg_synonyms(), syn)
 

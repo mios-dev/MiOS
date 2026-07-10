@@ -15,6 +15,9 @@
     "GET /login -> portal_login_page",
     "GET /passport/public-key -> passport_public_key",
     "GET /portal/addon-fit.js -> portal_addon_fit",
+    "GET /portal/app/webresearch -> _page",
+    "GET /portal/app/webresearch/render -> _render",
+    "GET /portal/app/webresearch/stream -> _stream",
     "GET /portal/configurator -> portal_configurator_iframe",
     "GET /portal/icon-192.png -> portal_icon_192",
     "GET /portal/icon-512.png -> portal_icon_512",
@@ -747,6 +750,7 @@
     "_allowed_tool_names",
     "_anchor_tokens",
     "_anthropic_resp_to_oai",
+    "_applet_webresearch",
     "_apply_outbound_auth",
     "_arch_grounding",
     "_arg_with_synonyms",
@@ -1215,6 +1219,7 @@
     "_vram_checkpoint",
     "_web_research_enrich",
     "_web_sem",
+    "_webresearch_router",
     "_win_hay",
     "_win_titles",
     "_window_delta_text",
@@ -1389,7 +1394,7 @@
     "websockets"
   ],
   "counts": {
-    "routes": 83,
-    "provided": 1302
+    "routes": 86,
+    "provided": 1304
   }
 }

@@ -27,28 +27,14 @@ RUNDIR=/run/mios/swarm
 MODELS=/usr/share/mios/llamacpp/models
 
 # Emit the arming plan as shell-evalable lines, or "PROFILE_OFF" / "REFUSE ...".
-PLAN="$(python3 - <<'PY'
+PLAN="$(python3 - "$(cd "$(dirname "$0")" && pwd)/../../lib/mios" <<'PY'
 import os, sys, glob
-try:
-    import tomllib
-except Exception:
-    print("REFUSE no-tomllib"); sys.exit(0)
+# Shared layered mios.toml resolver (vendor < host < user), path injected as argv[1].
+sys.path.insert(0, sys.argv[1])
+import mios_toml
 
-def load(p):
-    try:
-        with open(p, "rb") as f: return tomllib.load(f)
-    except Exception: return {}
-
-# Layered read: vendor <- /etc <- ~/.config (highest wins), shallow-merged per top key.
-cfg = {}
-for p in ("/usr/share/mios/mios.toml", "/etc/mios/mios.toml",
-          os.path.expanduser("~mios/.config/mios/mios.toml")):
-    d = load(p)
-    for k, v in d.items():
-        if isinstance(v, dict) and isinstance(cfg.get(k), dict):
-            cfg[k] = {**cfg[k], **v}
-        else:
-            cfg[k] = v
+# Layered read: vendor < /etc < ~/.config (highest wins) via the shared resolver.
+cfg = mios_toml.load_merged()
 
 disp = cfg.get("dispatch", {}) if isinstance(cfg.get("dispatch"), dict) else {}
 profile = str(disp.get("gpu_profile", "orchestrator")).strip().lower()

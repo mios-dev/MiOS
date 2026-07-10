@@ -13,6 +13,7 @@ from typing import Any, Callable, Dict, Optional, List
 
 from smolagents import Tool, ToolCallingAgent, LiteLLMModel
 import mios_scratchpad
+from mios_config import _toml_section
 
 log = logging.getLogger("mios-agent-pipe")
 
@@ -117,10 +118,21 @@ def parse_sig(sig: str, vcfg: dict = None) -> dict:
             param_type = pcfg.get("type")
         else:
             param_type = "string"
+            _routing_cfg = _toml_section("routing") or {}
+            _int_kw = (os.environ.get("MIOS_INTEGER_PARAM_KEYWORDS")
+                       or _routing_cfg.get("integer_param_keywords")
+                       or ["limit", "count", "timeout", "port", "every", "concurrency", "maxsize"])
+            if isinstance(_int_kw, str):
+                _int_kw = [x.strip() for x in _int_kw.split(",") if x.strip()]
+            _bool_kw = (os.environ.get("MIOS_BOOLEAN_PARAM_KEYWORDS")
+                        or _routing_cfg.get("boolean_param_keywords")
+                        or ["enable", "force", "success", "active", "dryrun"])
+            if isinstance(_bool_kw, str):
+                _bool_kw = [x.strip() for x in _bool_kw.split(",") if x.strip()]
             lower_name = name.lower()
-            if any(x in lower_name for x in ("limit", "count", "timeout", "port", "every", "concurrency", "maxsize")):
+            if any(x in lower_name for x in _int_kw):
                 param_type = "integer"
-            elif any(x in lower_name for x in ("enable", "force", "success", "active", "dryrun")):
+            elif any(x in lower_name for x in _bool_kw):
                 param_type = "boolean"
             
         inputs[name] = {

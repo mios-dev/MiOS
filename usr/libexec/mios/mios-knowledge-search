@@ -58,7 +58,7 @@ DEFAULT_THRESHOLD = float(
 # knowledge_search still returns relevant results instead of hard-failing. The
 # OWUI-memory backend resumes automatically once a token is available.
 _KB_EMBED_ENDPOINT = os.environ.get("MIOS_RAG_EMBED_ENDPOINT",
-                                    "http://localhost:11450").rstrip("/")
+                                    f"http://localhost:{os.environ.get('MIOS_PORT_LLM_LIGHT', '8450')}").rstrip("/")
 _KB_EMBED_MODEL = os.environ.get("MIOS_RAG_EMBED_MODEL", "nomic-embed-text")
 
 

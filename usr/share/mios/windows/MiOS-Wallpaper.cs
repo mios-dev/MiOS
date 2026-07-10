@@ -432,7 +432,16 @@ namespace MiOSWallpaper
             {
                 string userDataFolder = @"C:\Windows\Temp\MiOS-WV2-Profile";
                 var options = new CoreWebView2EnvironmentOptions();
-                options.AdditionalBrowserArguments = "--ignore-gpu-blocklist --disable-gpu-driver-bug-workarounds --enable-gpu-rasterization";
+                // Keep the wallpaper animating behind the desktop: Chromium marks a fully
+                // covered (occluded) WorkerW window "hidden" and pauses rendering/rAF —
+                // disabling native window occlusion + renderer backgrounding is the standard
+                // web-wallpaper fix (Lively/CEF do the same). Without this the page freezes.
+                options.AdditionalBrowserArguments =
+                    "--ignore-gpu-blocklist --disable-gpu-driver-bug-workarounds --enable-gpu-rasterization "
+                    + "--disable-features=CalculateNativeWinOcclusion "
+                    + "--disable-backgrounding-occluded-windows "
+                    + "--disable-renderer-backgrounding "
+                    + "--disable-background-timer-throttling";
                 CoreWebView2Environment env = await CoreWebView2Environment.CreateAsync(
                     null, userDataFolder, options);
                 Log("WebView2 environment created with GPU flags.");

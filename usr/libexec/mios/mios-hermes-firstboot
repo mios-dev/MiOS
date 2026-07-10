@@ -39,37 +39,10 @@ _mios_toml_layers() {
         "/usr/share/mios/mios.toml"
 }
 
-_mios_toml_value() {
-    local section="$1" key="$2" def_val="$3"
-    local toml
-    while IFS= read -r toml; do
-        [[ -r "$toml" ]] || continue
-        local v
-        v="$(awk -v want_section="$section" -v want_key="$key" '
-            BEGIN { in_section = 0; found = 0 }
-            /^\[/ {
-                line = $0
-                sub(/[[:space:]]*#.*$/, "", line)
-                in_section = (line == "[" want_section "]") ? 1 : 0
-                next
-            }
-            in_section && /^[[:space:]]*[A-Za-z_][A-Za-z0-9_]*[[:space:]]*=/ {
-                line = $0
-                sub(/[[:space:]]*#.*$/, "", line)
-                eq = index(line, "=")
-                if (eq == 0) next
-                k = substr(line, 1, eq - 1)
-                v = substr(line, eq + 1)
-                gsub(/^[[:space:]]+|[[:space:]]+$/, "", k)
-                gsub(/^[[:space:]]+|[[:space:]]+$/, "", v)
-                gsub(/^"|"$/, "", v)
-                if (k == want_key) { print v; found = 1; exit }
-            }
-        ' "$toml")"
-        if [[ -n "$v" ]]; then printf '%s' "$v"; return; fi
-    done < <(_mios_toml_layers)
-    printf '%s' "$def_val"
-}
+# Drop-in over the shared layered resolver (usr/lib/mios/mios_toml.py via the
+# mios-toml-get shell CLI). Same signature/semantics as the retired awk scanner.
+_MIOS_TOML_GET="$(cd "$(dirname "$0")" && pwd)/mios-toml-get"
+_mios_toml_value() { "$_MIOS_TOML_GET" "$1" "$2" "${3:-}"; }
 
 # Read an array-of-tables [[ai.catalog]] and emit id<TAB>label<TAB>ram_gb
 # per row. Layered overlay: rows from the highest-precedence file that
@@ -216,7 +189,7 @@ fi
 # vendor value so a missing/unreadable toml still yields a working endpoint
 # (operator 2026-06-07: firstboot previously HARDCODED the port, so a stale REPL
 # config survived the ollama->mios-llm-light migration; now it follows the SSOT).
-_AI_BACKEND="$(_mios_toml_value ai backend 'http://localhost:11450')"
+_AI_BACKEND="$(_mios_toml_value ai backend 'http://localhost:8450')"
 _AI_BACKEND="${_AI_BACKEND%/}"
 
 # ── Agent-surface (orchestrator) endpoint + model for THIN clients ──────────────
@@ -1808,19 +1781,7 @@ fi
 # operators on minimal hosts aren't paying for them), but mios.toml's
 # vendor default opts in. Firstboot reads the toml SSOT and enables.
 # Idempotent: systemctl enable on an already-enabled unit is a no-op.
-_ttyd_enabled="$(python3 -c '
-import sys
-try:
-    import tomllib
-except ImportError:
-    import tomli as tomllib
-try:
-    with open("/usr/share/mios/mios.toml","rb") as f:
-        d = tomllib.load(f)
-    print(str(bool((d.get("ttyd") or {}).get("enable", False))).lower())
-except Exception:
-    print("false")
-' 2>/dev/null || echo false)"
+_ttyd_enabled="$(_mios_toml_value ttyd enable false)"
 if [[ "$_ttyd_enabled" == "true" ]]; then
     # Read [identity].username from the SSOT mios.toml. The vendor
     # ttyd unit ships `User=mios` as a convention placeholder, but
@@ -1830,20 +1791,7 @@ if [[ "$_ttyd_enabled" == "true" ]]; then
     # below replaces single-value User=/Group= without modifying
     # the vendor file. Read directly from toml so firstboot doesn't
     # need EnvironmentFile= for userenv.sh.
-    _ttyd_user="$(python3 -c '
-import sys
-try:
-    import tomllib
-except ImportError:
-    import tomli as tomllib
-try:
-    with open("/usr/share/mios/mios.toml","rb") as f:
-        d = tomllib.load(f)
-    u = (d.get("identity") or {}).get("username") or "mios"
-    print(u)
-except Exception:
-    print("mios")
-' 2>/dev/null || echo mios)"
+    _ttyd_user="$(_mios_toml_value identity username mios)"
     _ttyd_group="$_ttyd_user"
     for _ttyd_unit in mios-ttyd-bash mios-ttyd-powershell; do
         _ttyd_dropdir="/etc/systemd/system/${_ttyd_unit}.service.d"

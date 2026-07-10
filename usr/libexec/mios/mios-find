@@ -132,24 +132,20 @@ fi
 # remap generic words ("browser", "web browser", "the browser") to
 # their preferred concrete app. Read from mios.toml [mios-find.aliases].
 ALIAS_TARGET=""
-ALIAS_TARGET="$(python3 - "$QUERY" <<'PYEOF' 2>/dev/null
-import sys, tomllib
-q = sys.argv[1].strip().lower()
+ALIAS_TARGET="$(python3 - "$(cd "$(dirname "$0")" && pwd)/../../lib/mios" "$QUERY" <<'PYEOF' 2>/dev/null
+import sys
+# Shared layered mios.toml resolver (vendor < host < user), path injected as argv[1].
+sys.path.insert(0, sys.argv[1])
+import mios_toml
+q = sys.argv[2].strip().lower()
 if not q:
     sys.exit(0)
-for p in ("/etc/mios/mios.toml", "/usr/share/mios/mios.toml"):
-    try:
-        with open(p, "rb") as f:
-            d = tomllib.load(f)
-        aliases = d.get("mios-find", {}).get("aliases", {})
-        if not isinstance(aliases, dict):
-            continue
-        for k, v in aliases.items():
-            if isinstance(k, str) and isinstance(v, str) and k.strip().lower() == q:
-                print(v)
-                sys.exit(0)
-    except (OSError, tomllib.TOMLDecodeError, AttributeError):
-        continue
+aliases = mios_toml.section(mios_toml.load_merged(), "mios-find.aliases")
+if isinstance(aliases, dict):
+    for k, v in aliases.items():
+        if isinstance(k, str) and isinstance(v, str) and k.strip().lower() == q:
+            print(v)
+            sys.exit(0)
 PYEOF
 )"
 if [ -n "$ALIAS_TARGET" ]; then
@@ -177,23 +173,19 @@ fi
 # query to the head so the scorer resolves the NAMED app. A BARE role ("browser")
 # is left alone -> the windows-browser default (Zen) still wins. SSOT = mios.toml
 # roles; no hardcoded English app names.
-_REDUCED="$(python3 - "$QUERY" <<'PYEOF' 2>/dev/null
-import sys, re, tomllib
-q = re.sub(r"\s+", "-", sys.argv[1].strip().lower())
+_REDUCED="$(python3 - "$(cd "$(dirname "$0")" && pwd)/../../lib/mios" "$QUERY" <<'PYEOF' 2>/dev/null
+import sys, re
+# Shared layered mios.toml resolver (vendor < host < user), path injected as argv[1].
+sys.path.insert(0, sys.argv[1])
+import mios_toml
+q = re.sub(r"\s+", "-", sys.argv[2].strip().lower())
 if "-" not in q:
     sys.exit(0)
 roles = set()
-for p in ("/etc/mios/mios.toml", "/usr/share/mios/mios.toml"):
-    try:
-        with open(p, "rb") as f:
-            d = tomllib.load(f)
-    except Exception:
-        continue
-    for a in (d.get("desktop", {}).get("apps", []) or []):
-        if isinstance(a, dict) and a.get("role"):
-            roles.add(str(a["role"]).lower().rstrip("s"))
-    if roles:
-        break
+d = mios_toml.load_merged()
+for a in (d.get("desktop", {}).get("apps", []) or []):
+    if isinstance(a, dict) and a.get("role"):
+        roles.add(str(a["role"]).lower().rstrip("s"))
 last = q.split("-")[-1].rstrip("s")
 head = re.sub(r"^(my|the|a|an)-", "", "-".join(q.split("-")[:-1]))
 # Require a SUBSTANTIVE head (>=4 chars) so generic browser synonyms ("web") stay
@@ -239,15 +231,17 @@ if command -v mios-everything >/dev/null 2>&1; then
 fi
 
 # ─── Fast path B: mios-apps inventory (Linux + Windows Start Menu + games) ─
-python3 - "$QUERY" <<'PYEOF'
+python3 - "$(cd "$(dirname "$0")" && pwd)/../../lib/mios" "$QUERY" <<'PYEOF'
 import json
 import os
 import re
 import subprocess
 import sys
-import tomllib
+# Shared layered mios.toml resolver (vendor < host < user), path injected as argv[1].
+sys.path.insert(0, sys.argv[1])
+import mios_toml
 
-query = sys.argv[1].strip().lower()
+query = sys.argv[2].strip().lower()
 if not query:
     print("mios-find: empty query", file=sys.stderr)
     sys.exit(2)
@@ -278,22 +272,11 @@ def _load_ranker_cfg():
     fuzzy_min = None
     fuzzy_cap = None
     fuzzy_ratio = None
-    # Config layers, highest priority first: MIOS_TOML override (when set) then
-    # admin (/etc) then vendor (/usr/share). First file that defines a key wins.
-    # Honouring MIOS_TOML matches every other MiOS config reader; when it is
-    # unset the layer list is the admin+vendor pair, so behaviour is unchanged.
-    _layers = [p for p in (os.environ.get("MIOS_TOML"),
-                           "/etc/mios/mios.toml",
-                           "/usr/share/mios/mios.toml") if p]
-    for p in _layers:
-        try:
-            with open(p, "rb") as f:
-                d = tomllib.load(f)
-        except (OSError, tomllib.TOMLDecodeError):
-            continue
-        mf = d.get("mios-find", {})
-        if not isinstance(mf, dict):
-            continue
+    # Merged layered read (vendor < host < user, highest wins) via the shared
+    # resolver -- replaces the hand-rolled MIOS_TOML/etc/usr layer loop.
+    d = mios_toml.load_merged()
+    mf = d.get("mios-find", {})
+    if isinstance(mf, dict):
         r = mf.get("ranker", {})
         if isinstance(r, dict):
             if tiers is None and isinstance(r.get("tiers"), list):

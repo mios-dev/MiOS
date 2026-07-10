@@ -10,7 +10,7 @@ Group=mios-ai
 WorkingDirectory=/usr/lib/mios/gateway-agent
 Environment=HOME=/var/lib/mios/hermes
 EnvironmentFile=-/etc/mios/install.env
-ExecStart=/usr/lib/mios/agents/.venv/bin/python3 -u server.py
+ExecStart=/usr/lib/mios/agents/.venv/bin/python3 -u /usr/lib/mios/gateway-agent/server.py
 Restart=on-failure
 RestartSec=5s
 

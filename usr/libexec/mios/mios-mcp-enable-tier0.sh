@@ -28,9 +28,12 @@ command -v gcc >/dev/null 2>&1 || dnf install -y --setopt=install_weak_deps=Fals
 runuser -u mios-ai -- "$VENV/bin/pip" install --quiet --disable-pip-version-check \
     mcp-server-motherduck postgres-mcp || { echo "pip install failed"; exit 1; }
 
+[ -r /etc/mios/install.env ] && . /etc/mios/install.env || true
+_PGPORT="${MIOS_PORT_PGVECTOR:-8432}"
+
 echo "[3/5] /etc overlay -- enable duckdb + postgres (Postgres uses the EXISTING mios role, restricted/read-only)"
 mkdir -p /etc/mios/ai/v1
-cat > /etc/mios/ai/v1/mcp.json <<'JSON'
+cat > /etc/mios/ai/v1/mcp.json <<JSON
 { "object":"mios.mcp.registry","version":"v1","servers":[
   { "id":"playwright","label":"Playwright","enabled":true,"transport":"stdio","command":"npx",
     "args":["-y","@playwright/mcp@0.0.76","--headless","--isolated"],"cwd":"/var/lib/mios/ai",
@@ -45,7 +48,7 @@ cat > /etc/mios/ai/v1/mcp.json <<'JSON'
   { "id":"postgres","label":"Postgres (restricted, reads pgvector)","enabled":true,"transport":"stdio",
     "command":"/var/lib/mios/ai/mcp-venv/bin/postgres-mcp","args":["--access-mode","restricted"],
     "cwd":"/var/lib/mios/ai",
-    "env":{"HOME":"/var/lib/mios/ai","TMPDIR":"/var/lib/mios/ai/tmp","DATABASE_URI":"postgresql://mios:mios@127.0.0.1:5432/mios"},
+    "env":{"HOME":"/var/lib/mios/ai","TMPDIR":"/var/lib/mios/ai/tmp","DATABASE_URI":"postgresql://mios:mios@127.0.0.1:\${_PGPORT}/mios"},
     "tier":"rare","namespace":"pg_","taint":"",
     "examples":["query the postgres database read-only","run a select over the data","look up rows in pgvector"] } ]}
 JSON

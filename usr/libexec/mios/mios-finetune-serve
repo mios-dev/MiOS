@@ -29,36 +29,18 @@ import sys
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-try:
-    import tomllib
-except ModuleNotFoundError:  # pragma: no cover
-    import tomli as tomllib  # type: ignore
+sys.path.insert(0, os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "..", "lib", "mios"))
+import mios_toml  # noqa: E402  -- the ONE shared layered-mios.toml resolver
 
 VENDOR_TOML = "/usr/share/mios/mios.toml"
 ETC_TOML = "/etc/mios/mios.toml"
 USER_TOML = os.path.expanduser("~/.config/mios/mios.toml")
 
 
-def _deep_merge(b, o):
-    for k, v in (o or {}).items():
-        if isinstance(v, dict) and isinstance(b.get(k), dict):
-            _deep_merge(b[k], v)
-        else:
-            b[k] = v
-    return b
-
-
 def load_cfg() -> dict:
-    cfg: dict = {}
-    for p in (VENDOR_TOML, ETC_TOML, USER_TOML):
-        try:
-            with open(p, "rb") as fh:
-                _deep_merge(cfg, tomllib.load(fh))
-        except FileNotFoundError:
-            continue
-        except Exception as e:  # noqa: BLE001
-            print(f"[finetune-serve] WARN bad TOML {p}: {e}", file=sys.stderr)
-    ft = dict(cfg.get("finetune") or {})
+    cfg = mios_toml.load_merged(layers=[VENDOR_TOML, ETC_TOML, USER_TOML])
+    ft = dict(mios_toml.section(cfg, "finetune"))
     for k in list(ft.keys()):
         env = os.environ.get("MIOS_FINETUNE_" + k.upper())
         if env is not None:

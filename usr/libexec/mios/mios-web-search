@@ -45,29 +45,24 @@ import time
 import urllib.parse
 import urllib.request
 
+sys.path.insert(0, os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "..", "lib", "mios"))
+import mios_toml  # noqa: E402  -- the ONE shared layered-mios.toml resolver
+
+
 def _ssot_val(env: str, section: str, key: str, default: str) -> str:
     """Resolve a scalar tunable from SSOT: an env override -> the layered
-    mios.toml [section].key -> the fallback default."""
+    mios.toml [section].key (vendor < /etc < ~/.config, highest wins) -> the
+    fallback default. Via the shared resolver (MIOS_TOML overrides vendor)."""
     val = os.environ.get(env)
     if val not in (None, ""):
         return val
-    try:
-        try:
-            import tomllib
-        except ImportError:  # py<3.11
-            import tomli as tomllib  # type: ignore
-        for _p in (os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml"),
-                   "/etc/mios/mios.toml",
-                   os.path.expanduser("~/.config/mios/mios.toml")):
-            try:
-                with open(_p, "rb") as _f:
-                    _v = (tomllib.load(_f).get(section) or {}).get(key)
-            except (OSError, tomllib.TOMLDecodeError):
-                continue
-            if _v is not None:
-                return str(_v)
-    except Exception:
-        pass
+    layers = [os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml"),
+              "/etc/mios/mios.toml",
+              os.path.expanduser("~/.config/mios/mios.toml")]
+    _v = mios_toml.get(section, key, None, data=mios_toml.load_merged(layers))
+    if _v is not None:
+        return str(_v)
     return default
 
 
@@ -106,26 +101,12 @@ def _ssot_list(env: str, section: str, key: str, default: tuple) -> tuple:
         items = [t.strip() for t in _csv.split(",") if t.strip()]
         if items:
             return tuple(items)
-    try:
-        try:
-            import tomllib
-        except ImportError:  # py<3.11
-            import tomli as tomllib  # type: ignore
-        val = None
-        for _p in (os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml"),
-                   "/etc/mios/mios.toml",
-                   os.path.expanduser("~/.config/mios/mios.toml")):
-            try:
-                with open(_p, "rb") as _f:
-                    _v = (tomllib.load(_f).get(section) or {}).get(key)
-            except (OSError, tomllib.TOMLDecodeError):
-                continue
-            if isinstance(_v, list) and _v:
-                val = _v
-        if val:
-            return tuple(str(x).strip() for x in val if str(x).strip())
-    except Exception:  # noqa: BLE001 -- best-effort; fall to the literal default
-        pass
+    layers = [os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml"),
+              "/etc/mios/mios.toml",
+              os.path.expanduser("~/.config/mios/mios.toml")]
+    _v = mios_toml.get(section, key, None, data=mios_toml.load_merged(layers))
+    if isinstance(_v, list) and _v:
+        return tuple(str(x).strip() for x in _v if str(x).strip())
     return default
 
 

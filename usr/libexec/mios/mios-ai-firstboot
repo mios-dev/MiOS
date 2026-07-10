@@ -183,6 +183,173 @@ if id mios-ai >/dev/null 2>&1 && command -v podman >/dev/null 2>&1; then
     fi
 fi
 
+# ── 2e. seed accounts into pgvector datastore ──────────────────────────────────
+# Waits up to 90 seconds for pgvector to accept connections, then parses
+# mios.toml configurations to seed database accounts.
+python3 - "$(cd "$(dirname "$0")" && pwd)/../../lib/mios" <<'PY_SEED'
+import os, sys, json, subprocess, socket, time
+sys.path.insert(0, sys.argv[1]); import mios_toml  # the ONE shared layered resolver
+
+# 1. Wait for pgvector socket
+PORT = int(os.environ.get("MIOS_PORT_PGVECTOR") or os.environ.get("MIOS_PG_PORT") or "5432")
+db_ready = False
+for _ in range(45):
+    try:
+        s = socket.create_connection(("127.0.0.1", PORT), timeout=1)
+        s.close()
+        db_ready = True
+        break
+    except OSError:
+        time.sleep(2)
+
+if not db_ready:
+    sys.stderr.write("seeder: pgvector port not ready, skipping seeding\n")
+    sys.exit(0)
+
+# 2. Parse layered TOML files
+merged = mios_toml.load_merged()
+
+env_pwhash = os.environ.get("MIOS_USER_PASSWORD_HASH")
+
+accounts = []
+
+# 3. Add default 'user'/'user' account first (vendor default)
+user_pw = "user"
+user_hash = subprocess.run(["openssl", "passwd", "-6", user_pw], capture_output=True, text=True).stdout.strip()
+accounts.append({
+    "name": "user",
+    "display": "User",
+    "kind": "user",
+    "groups": "wheel,libvirt,kvm,video,render,input,dialout,docker",
+    "is_admin": True,
+    "os_targets": "both",
+    "password_hash": user_hash,
+    "enabled": True
+})
+
+# 4. Extract identity account
+ident = merged.get("identity", {})
+if isinstance(ident, dict) and ident.get("username"):
+    username = ident.get("username")
+    fullname = ident.get("fullname", "User")
+    default_pw = ident.get("default_password", "user")
+    raw_groups = ident.get("groups", ["wheel"])
+    groups = ",".join(raw_groups) if isinstance(raw_groups, list) else str(raw_groups)
+    
+    pwhash = env_pwhash
+    if not pwhash and default_pw:
+        pwhash = subprocess.run(["openssl", "passwd", "-6", default_pw], capture_output=True, text=True).stdout.strip()
+        
+    accounts.append({
+        "name": username,
+        "display": fullname,
+        "kind": "user",
+        "groups": groups,
+        "is_admin": True,
+        "os_targets": "both",
+        "password_hash": pwhash,
+        "enabled": True,
+        # uid/gid the NSS getpwnam path needs (17-accounts-db.sh). The primary
+        # interactive operator maps to the login uid the sysusers layer allocates
+        # (10-mios.conf: mios = 1000); without these the DB row resolves to a NULL
+        # uid and login via the pgsql NSS module silently fails.
+        "uid": 1000,
+        "gid": 1000
+    })
+
+# 5. Extract additional accounts
+autounattend = merged.get("autounattend", {})
+if isinstance(autounattend, dict):
+    accts_list = autounattend.get("accounts", [])
+    if isinstance(accts_list, list):
+        for a in accts_list:
+            if not isinstance(a, dict):
+                continue
+            name = a.get("name")
+            if not name:
+                continue
+            display = a.get("display_name", name)
+            password = a.get("password")
+            group = a.get("group", "Users")
+            is_admin = True if group.lower() in ("admin", "administrators", "wheel") else False
+            
+            pwhash = None
+            if password:
+                pwhash = subprocess.run(["openssl", "passwd", "-6", password], capture_output=True, text=True).stdout.strip()
+                
+            accounts.append({
+                "name": name,
+                "display": display,
+                "kind": "user",
+                "groups": group,
+                "is_admin": is_admin,
+                "os_targets": "both",
+                "password_hash": pwhash,
+                "enabled": True,
+                # Secondary accounts are Windows-targeted (SAM has no uid); leave
+                # uid/gid unset unless the SSOT entry supplies them.
+                "uid": a.get("uid"),
+                "gid": a.get("gid")
+            })
+
+# 6. Build statements for mios-pg-query
+statements = []
+for a in accounts:
+    sql = """
+    INSERT INTO account (name, kind, display, groups, is_admin, os_targets, password_hash, enabled, uid, gid)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    ON CONFLICT (name) DO UPDATE SET
+        kind = EXCLUDED.kind,
+        display = EXCLUDED.display,
+        groups = EXCLUDED.groups,
+        is_admin = EXCLUDED.is_admin,
+        os_targets = EXCLUDED.os_targets,
+        password_hash = COALESCE(account.password_hash, EXCLUDED.password_hash),
+        enabled = EXCLUDED.enabled,
+        uid = COALESCE(account.uid, EXCLUDED.uid),
+        gid = COALESCE(account.gid, EXCLUDED.gid);
+    """
+    params = [
+        a["name"],
+        a["kind"],
+        a["display"],
+        a["groups"],
+        a["is_admin"],
+        a["os_targets"],
+        a["password_hash"],
+        a["enabled"],
+        a["uid"],
+        a["gid"]
+    ]
+    statements.append({"sql": sql, "params": params})
+
+# Execute bulk statements via mios-pg-query --exec-json
+if statements:
+    envelope = {"statements": statements}
+    # Try multiple paths for mios-pg-query
+    pgq_path = "/usr/libexec/mios/mios-pg-query"
+    if not os.path.isfile(pgq_path):
+        pgq_path = "/mnt/c/MiOS/usr/libexec/mios/mios-pg-query"
+    if os.path.isfile(pgq_path):
+        proc = subprocess.run(
+            ["python3", pgq_path, "--exec-json"],
+            input=json.dumps(envelope),
+            capture_output=True,
+            text=True
+        )
+        if proc.returncode != 0:
+            sys.stderr.write(f"seeder failed: {proc.stderr}\n")
+        else:
+            print(f"seeder successfully seeded {len(statements)} accounts")
+    else:
+        sys.stderr.write("seeder: mios-pg-query not found\n")
+PY_SEED
+
+# Seeding system configurations and verbs into database
+if [ -f "/usr/libexec/mios/seed-db-config.py" ]; then
+    python3 /usr/libexec/mios/seed-db-config.py || true
+fi
+
 # ── 3. (re)start the AI services now their prerequisites exist ────────────────
 # --no-block on hermes-agent + mios-agent-pipe: firstboot must NOT wait on them
 # settling. They have their own readiness deps and can deadlock against the

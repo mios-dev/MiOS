@@ -295,7 +295,7 @@ def main() -> int:
     ap.add_argument("--hints-json", default=None,
                     help="JSON {abs_path: hint}; override the hint for listed files "
                          "(an agent-refined/verified hint) -- structure still regex-derived")
-    ap.add_argument("--teacher-endpoint", default="http://localhost:11450")
+    ap.add_argument("--teacher-endpoint", default=f"http://localhost:{os.environ.get('MIOS_PORT_LLM_LIGHT', '8450')}")
     ap.add_argument("--teacher-model", default="gemma4:12b")
     a = ap.parse_args()
 

@@ -32,8 +32,8 @@ source /usr/lib/mios/paths.sh
 
 _log()  { logger -t mios-mcp "$*" 2>/dev/null || true; echo "[mcp] $*" >&2; }
 
-: "${MIOS_AI_ENDPOINT:=http://localhost:8080/v1}"
-: "${MIOS_MCP_PORT:=8765}"
+: "${MIOS_AI_ENDPOINT:=http://localhost:8640/v1}"
+: "${MIOS_MCP_PORT:=8460}"
 : "${MIOS_MCP_LOG_DIR:=/var/log/mios/mcp}"
 : "${MIOS_WRITE_ALLOWED_PATHS:=/tmp/mios-mcp:/var/lib/mios/ai}"
 : "${MIOS_MCP_SANDBOX:=false}"

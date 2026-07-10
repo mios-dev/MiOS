@@ -2,10 +2,10 @@
 # /usr/share/containers/systemd/mios-open-webui.container
 
 [Unit]
-After=network-online.target hermes-agent.service
+After=network-online.target mios-gateway-agent.service
 ConditionPathExists=/etc/mios/hermes/api.env
 Description='MiOS' Open WebUI
-Wants=network-online.target hermes-agent.service
+Wants=network-online.target mios-gateway-agent.service
 
 [Container]
 AutoUpdate=registry

@@ -55,3 +55,22 @@ case "${1:-}" in
         exit 2
         ;;
 esac
+
+# Re-assert Windows-side branding and registry settings from SSOT
+# to counteract any theme/accent resets during Windows Updates.
+if [[ "${1:-}" != "--check" && "${1:-}" != "--rollback" && "${1:-}" != "--help" && "${1:-}" != "-h" ]]; then
+    if [ -d "/mnt/c" ]; then
+        echo "[mios-update] Re-asserting Windows host branding + registry settings..."
+        for mPath in "M:\\MiOS\\repo\\mios-bootstrap\\src\\autounattend\\Invoke-MiOSProvision.ps1" \
+                     "C:\\MiOS\\repo\\mios-bootstrap\\src\\autounattend\\Invoke-MiOSProvision.ps1" \
+                     "C:\\mios-bootstrap\\src\\autounattend\\Invoke-MiOSProvision.ps1"; do
+            wPath=$(echo "$mPath" | sed 's|\\|/|g' | sed 's|^\([A-Za-z]\):|/mnt/\1|')
+            wPath=$(echo "$wPath" | sed 's|/mnt/\([A-Z]\)|/mnt/\1|' | sed -E 's|/mnt/([A-Z])|/mnt/\L\1|')
+            if [ -f "$wPath" ]; then
+                /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$mPath" -SkipBootstrap || true
+                break
+            fi
+        done
+    fi
+fi
+

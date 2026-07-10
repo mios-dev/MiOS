@@ -60,37 +60,12 @@ fi
 #      default_remote (stable flathub)
 #   3. mios.toml [flatpak].default_remote
 #   4. Hardcoded fallback: flathub
-_default_remote=$(python3 - <<'PYEOF' 2>/dev/null
-import tomllib
-for p in ("/etc/mios/mios.toml", "/usr/share/mios/mios.toml"):
-    try:
-        with open(p, "rb") as f:
-            d = tomllib.load(f)
-    except (OSError, tomllib.TOMLDecodeError):
-        continue
-    fp = d.get("flatpak", {}) or {}
-    print(fp.get("default_remote", "flathub"))
-    break
-else:
-    print("flathub")
-PYEOF
-)
+# Shared layered mios.toml resolver (vendor < host < user) via the mios-toml-get CLI.
+_MIOS_TOML_GET="$(cd "$(dirname "$0")" && pwd)/mios-toml-get"
+_default_remote=$("$_MIOS_TOML_GET" flatpak default_remote flathub 2>/dev/null)
 _default_remote="${_default_remote:-flathub}"
-_prefer_beta=$(python3 - <<'PYEOF' 2>/dev/null
-import tomllib
-for p in ("/etc/mios/mios.toml", "/usr/share/mios/mios.toml"):
-    try:
-        with open(p, "rb") as f:
-            d = tomllib.load(f)
-    except (OSError, tomllib.TOMLDecodeError):
-        continue
-    fp = d.get("flatpak", {}) or {}
-    print("true" if fp.get("prefer_beta") else "false")
-    break
-else:
-    print("false")
-PYEOF
-)
+_prefer_beta=$("$_MIOS_TOML_GET" flatpak prefer_beta false 2>/dev/null)
+_prefer_beta="${_prefer_beta:-false}"
 
 _resolve_remote_for() {
     local _id="$1"

@@ -59,7 +59,7 @@ def t_load_domains():
     check("domain desc parsed", domains.get("web", {}).get("desc") == "web research",
           str(domains))
     check("domain verbs parsed",
-          domains.get("web", {}).get("verbs") == ["web_search", "fetch_page"],
+          domains.get("web", {}).get("verbs") == ["web_search", "web_scrape", "crawl", "web_extract"],
           str(domains))
 
 

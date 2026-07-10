@@ -1,0 +1,155 @@
+{
+  "$schema": "https://raw.githubusercontent.com/JanDeDobbeleer/oh-my-posh/main/themes/schema.json",
+  "version": 4,
+  "final_space": false,
+  "//": [
+    "MiOS Oh-My-Posh theme.",
+    "DETERMINISTIC TWO-LINE LAYOUT (2026-05-10 redesign): the prior",
+    "left+right alignment scheme overflowed to a 3rd line on 80x20",
+    "terminals because oh-my-posh's right-block alignment math saw",
+    "the trailing 6-NBSP buffer + right_margin as part of the right",
+    "block's render width and triggered an early wrap. Operator-",
+    "reported as 'powerlines wrap incorrectly' with screenshot.",
+    "",
+    "New layout:",
+    "  Line 1 (block 1): leader cap + shell + path + git + exectime",
+    "                    + WSL/OS indicator + HH:MM time, all packed",
+    "                    LEFT-aligned -- no right alignment, no",
+    "                    cross-block math, no wrap risk.",
+    "  Line 2 (block 2): closer cap + chevron prompt arrow.",
+    "",
+    "All segments still pull glyphs from mios.toml [theme.prompt]",
+    "via the post-install template substitution in",
+    "Install-MiOSOhMyPoshTheme. Palette: mios.toml [colors] (Hokusai +",
+    "operator neutrals). Language segments (node/python/go/rust/dotnet)",
+    "and conditional infrastructure segments (kubectl/aws/battery)",
+    "removed -- they pollute the line and rarely render meaningfully",
+    "on the dev VM. Operators who need them can add via mios.html.",
+    "",
+    "Powerline cap glyph: U+E0B4 (rounded right half-circle). Geist",
+    "Mono Nerd Font has full Powerline coverage; the previous design",
+    "used \"\" (empty) which produced abutting square color blocks --",
+    "operator-flagged 2026-05-10 'pipelin isn't rounded anymore'."
+  ],
+  "blocks": [
+    {
+      "type": "prompt",
+      "alignment": "left",
+      "segments": [
+        {
+          "//": "Leading prompt cap. Box-drawing chars (U+256D / U+2500) are guaranteed in any monospace font; the U+E0B6 rounded-cap PUA approach we tried in v1 was unreliable on operator's GeistMono Nerd Font Mono build (cap glyph never surfaced, leaving cols 0-2 blank).",
+          "type": "text",
+          "style": "plain",
+          "foreground": "@MIOS:subtle@",
+          "template": "╭─"
+        },
+        {
+          "type": "shell",
+          "style": "powerline",
+          "powerline_symbol": "",
+          "background": "@MIOS:accent@",
+          "foreground": "@MIOS:fg@",
+          "template": "  {{ .Name }} "
+        },
+        {
+          "type": "root",
+          "style": "powerline",
+          "powerline_symbol": "",
+          "background": "@MIOS:error@",
+          "foreground": "@MIOS:cursor@",
+          "template": "  "
+        },
+        {
+          "type": "path",
+          "style": "powerline",
+          "powerline_symbol": "",
+          "background": "@MIOS:cursor@",
+          "foreground": "@MIOS:bg@",
+          "properties": {
+            "folder_icon": "  ",
+            "home_icon": "",
+            "style": "agnoster_short",
+            "max_depth": 3
+          },
+          "template": "  {{ .Path }} "
+        },
+        {
+          "type": "git",
+          "style": "powerline",
+          "powerline_symbol": "",
+          "background": "@MIOS:success@",
+          "background_templates": [
+            "{{ if or (.Working.Changed) (.Staging.Changed) }}@MIOS:cursor@{{ end }}",
+            "{{ if and (gt .Ahead 0) (gt .Behind 0) }}@MIOS:error@{{ end }}",
+            "{{ if gt .Ahead 0 }}@MIOS:accent@{{ end }}",
+            "{{ if gt .Behind 0 }}@MIOS:earth@{{ end }}"
+          ],
+          "foreground": "@MIOS:bg@",
+          "properties": {
+            "branch_icon": " ",
+            "fetch_status": true,
+            "fetch_upstream_icon": true
+          },
+          "template": "  {{ .UpstreamIcon }}{{ .HEAD }}{{ if .BranchStatus }} {{ .BranchStatus }}{{ end }}{{ if .Working.Changed }} ✎{{ .Working.String }}{{ end }}{{ if and (.Working.Changed) (.Staging.Changed) }} |{{ end }}{{ if .Staging.Changed }}<@MIOS:error@> +{{ .Staging.String }}</>{{ end }} "
+        },
+        {
+          "type": "executiontime",
+          "style": "powerline",
+          "powerline_symbol": "",
+          "background": "@MIOS:muted@",
+          "foreground": "@MIOS:bg@",
+          "properties": {
+            "style": "roundrock",
+            "threshold": 0
+          },
+          "template": "  {{ .FormattedMs }} "
+        },
+        {
+          "//": "Compact OS indicator -- just the platform glyph, no 'WSL at' prose. Saves cells; the framed dashboard already names the host kind explicitly.",
+          "type": "os",
+          "style": "powerline",
+          "powerline_symbol": "",
+          "background": "@MIOS:subtle@",
+          "foreground": "@MIOS:bg@",
+          "properties": {
+            "linux": "",
+            "macos": "",
+            "windows": ""
+          },
+          "template": " {{ .Icon }} "
+        },
+        {
+          "type": "time",
+          "style": "powerline",
+          "powerline_symbol": "",
+          "background": "@MIOS:accent@",
+          "foreground": "@MIOS:fg@",
+          "properties": {
+            "time_format": "15:04"
+          },
+          "template": " {{ .CurrentDate | date .Format }} "
+        }
+      ]
+    },
+    {
+      "type": "prompt",
+      "alignment": "left",
+      "newline": true,
+      "segments": [
+        {
+          "//": "Closer cap + prompt arrow. Status-tinted: tints the whole `╰─ ❯` red on non-zero exit code (.Code > 0), pale-blue otherwise (matches the leading `╭─` cap for visual symmetry).",
+          "type": "status",
+          "style": "plain",
+          "foreground": "@MIOS:subtle@",
+          "foreground_templates": [
+            "{{ if gt .Code 0 }}@MIOS:error@{{ end }}"
+          ],
+          "properties": {
+            "always_enabled": true
+          },
+          "template": "╰─ ❯ "
+        }
+      ]
+    }
+  ]
+}

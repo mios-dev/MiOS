@@ -60,6 +60,10 @@ AGENT_PIPE_URL = os.environ.get(
     "MIOS_AGENT_PIPE_URL", "http://localhost:8640"
 ).rstrip("/")
 
+sys.path.insert(0, os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "..", "lib", "mios"))
+import mios_toml  # noqa: E402  -- the ONE shared layered-mios.toml resolver
+
 
 def _ssot_protocol_version() -> str:
     """MCP revision this server DECLARES -- the [mcp].protocol_version SSOT shared
@@ -71,27 +75,13 @@ def _ssot_protocol_version() -> str:
     env = os.environ.get("MIOS_MCP_PROTOCOL_VERSION")
     if env and env.strip():
         return env.strip()
-    try:
-        try:
-            import tomllib
-        except ImportError:
-            import tomli as tomllib  # type: ignore
-        layers = [os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml"),
-                  "/etc/mios/mios.toml",
-                  os.path.expanduser("~/.config/mios/mios.toml")]
-        val = ""
-        for _p in layers:
-            try:
-                with open(_p, "rb") as _f:
-                    _sec = tomllib.load(_f).get("mcp") or {}
-            except (OSError, tomllib.TOMLDecodeError):
-                continue
-            if isinstance(_sec, dict) and _sec.get("protocol_version"):
-                val = str(_sec["protocol_version"]).strip()
-        if val:
-            return val
-    except Exception:  # noqa: BLE001 -- degrade-open to the default
-        pass
+    layers = [os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml"),
+              "/etc/mios/mios.toml",
+              os.path.expanduser("~/.config/mios/mios.toml")]
+    val = mios_toml.get("mcp", "protocol_version", None,
+                        data=mios_toml.load_merged(layers))
+    if val:
+        return str(val).strip()
     return "2025-11-25"
 
 
@@ -732,7 +722,7 @@ def main() -> int:
             or os.environ.get("MIOS_MCP_HTTP", "").strip().lower()
             in {"1", "true", "yes"}):
         port = int(os.environ.get("MIOS_PORT_MCP")
-                   or os.environ.get("MIOS_MCP_PORT") or "8765")
+                   or os.environ.get("MIOS_MCP_PORT") or "8460")
         # Warm the catalog (disk last-good, else mios.toml SSOT floor) BEFORE
         # serving, then keep it warm in the background -- so tools/list is never
         # empty/partial regardless of how soon a client connects after a restart.

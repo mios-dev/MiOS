@@ -53,8 +53,8 @@ allow_cockpit          = true   # server management UI (9090/tcp) -- kept for he
 allow_libvirt_bridge   = true
 
 [ai]
-endpoint        = "http://localhost:8080/v1"
-model           = "qwen3.5:2b"
+endpoint        = "http://localhost:8640/v1"
+model           = "MiOS AI"
 embed_model     = "nomic-embed-text"
 api_key         = ""
 enable_ollama   = true

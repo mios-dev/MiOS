@@ -30,7 +30,51 @@ if (-not $isAdmin) {
     return
 }
 
-$ports = 8642,9090,8300,8800,8033,8888,11434,11450,9119
+# Resolve mios.toml path
+$tomlPath = $null
+foreach ($path in @(
+    (Join-Path $env:USERPROFILE '.config\mios\mios.toml'),
+    'M:\etc\mios\mios.toml',
+    'M:\usr\share\mios\mios.toml',
+    'C:\mios-bootstrap\mios.toml'
+)) {
+    if (Test-Path $path) {
+        $tomlPath = $path
+        break
+    }
+}
+
+# Simple toml parser for [ports]
+function Get-MiosPort ($key, $default) {
+    if ($tomlPath) {
+        $content = Get-Content $tomlPath -Raw
+        # Extract the [ports] section
+        if ($content -match '(?s)\[ports\]\s*\r?\n(.*?)(?=\r?\n\[|$)') {
+            $portsSec = $Matches[1]
+            if ($portsSec -match "(?m)^\s*$key\s*=\s*([0-9]+)") {
+                return [int]$Matches[1]
+            }
+        }
+    }
+    return $default
+}
+
+$portKeys = @(
+    @{ Key = 'hermes'; Default = 8642 },
+    @{ Key = 'cockpit'; Default = 8090 },
+    @{ Key = 'forge_http'; Default = 8300 },
+    @{ Key = 'code_server'; Default = 8800 },
+    @{ Key = 'open_webui'; Default = 8033 },
+    @{ Key = 'searxng'; Default = 8899 },
+    @{ Key = 'llm_light'; Default = 8450 },
+    @{ Key = 'agent_pipe'; Default = 8640 },
+    @{ Key = 'hermes_dashboard'; Default = 8119 }
+)
+
+$ports = foreach ($pk in $portKeys) {
+    Get-MiosPort -key $pk.Key -default $pk.Default
+}
+$cockpitPort = Get-MiosPort -key 'cockpit' -default 8090
 
 Write-Host '--- current portproxy table ---' -ForegroundColor Cyan
 & netsh interface portproxy show all
@@ -49,7 +93,7 @@ Write-Host '--- portproxy table after cleanup ---' -ForegroundColor Cyan
 Write-Host ''
 Write-Host '--- testing WSL2 localhost forwarding ---' -ForegroundColor Cyan
 foreach ($p in $ports) {
-    $scheme = if ($p -eq 9090) { 'https' } else { 'http' }
+    $scheme = if ($p -eq $cockpitPort) { 'https' } else { 'http' }
     try {
         $r = Invoke-WebRequest -Uri ("${scheme}://localhost:${p}/") -UseBasicParsing -SkipCertificateCheck -TimeoutSec 3 -ErrorAction Stop
         Write-Host ("  [+] {0}://localhost:{1}/ -> {2}" -f $scheme, $p, $r.StatusCode) -ForegroundColor Green

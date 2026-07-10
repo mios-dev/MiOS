@@ -50,6 +50,9 @@ fi
 ACTION="$1"
 SESSION="${2:-}"
 
+# Shared layered mios.toml resolver (vendor < host < user) via the mios-toml-get CLI.
+_MIOS_TOML_GET="$(cd "$(dirname "$0")" && pwd)/mios-toml-get"
+
 # Resolve the projects root (env -> mios.toml [paths] -> default).
 _resolve_projects_root() {
     if [ -n "${MIOS_CODERUN_WORKSPACE_ROOT:-}" ]; then
@@ -57,20 +60,7 @@ _resolve_projects_root() {
         return
     fi
     local val
-    val=$(python3 - <<'PYEOF' 2>/dev/null
-import tomllib
-for p in ("/etc/mios/mios.toml", "/usr/share/mios/mios.toml"):
-    try:
-        with open(p, "rb") as f:
-            d = tomllib.load(f)
-        v = d.get("paths", {}).get("coderun_workspace_root")
-        if v:
-            print(v)
-            raise SystemExit(0)
-    except (OSError, tomllib.TOMLDecodeError):
-        continue
-PYEOF
-)
+    val=$("$_MIOS_TOML_GET" paths coderun_workspace_root "" 2>/dev/null)
     if [ -n "$val" ]; then
         printf '%s' "$val"
     else
@@ -84,20 +74,7 @@ _resolve_snapshots_root() {
         return
     fi
     local val
-    val=$(python3 - <<'PYEOF' 2>/dev/null
-import tomllib
-for p in ("/etc/mios/mios.toml", "/usr/share/mios/mios.toml"):
-    try:
-        with open(p, "rb") as f:
-            d = tomllib.load(f)
-        v = d.get("paths", {}).get("coderun_snapshots_root")
-        if v:
-            print(v)
-            raise SystemExit(0)
-    except (OSError, tomllib.TOMLDecodeError):
-        continue
-PYEOF
-)
+    val=$("$_MIOS_TOML_GET" paths coderun_snapshots_root "" 2>/dev/null)
     if [ -n "$val" ]; then
         printf '%s' "$val"
     else

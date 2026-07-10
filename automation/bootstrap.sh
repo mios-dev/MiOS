@@ -55,8 +55,8 @@ echo ""
 
 # ── Admin username ─────────────────────────────────────────────────────────
 if [[ -z "${MIOS_USER:-}" ]]; then
-    read -rp "  Admin username ${_dim}[mios]${_r}: " MIOS_USER </dev/tty
-    MIOS_USER="${MIOS_USER:-mios}"
+    read -rp "  Admin username ${_dim}[user]${_r}: " MIOS_USER </dev/tty
+    MIOS_USER="${MIOS_USER:-user}"
 else
     echo "  Admin username: ${MIOS_USER}  ${_dim}(env)${_r}"
 fi

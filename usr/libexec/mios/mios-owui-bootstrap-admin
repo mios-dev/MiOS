@@ -46,37 +46,19 @@ def _log(msg: str) -> None:
     print(f"[mios-owui-bootstrap-admin] {msg}", file=sys.stderr)
 
 
+sys.path.insert(0, os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "..", "lib", "mios"))
+import mios_toml  # noqa: E402  -- the ONE shared layered-mios.toml resolver
+
+
 def _read_mios_toml_identity():
-    """Return (username, email) from layered mios.toml; defaults if missing."""
-    name = "mios"
-    email = "admin@mios.local"  # neutral default; operator sets the real value
-                                 # via mios.toml [identity].email (overlay)
-    for p in (
-        Path(os.environ.get("HOME", "/root")) / ".config/mios/mios.toml",
-        Path("/etc/mios/mios.toml"),
-        Path("/usr/share/mios/mios.toml"),
-    ):
-        if not p.is_file():
-            continue
-        try:
-            text = p.read_text(encoding="utf-8")
-        except OSError:
-            continue
-        in_identity = False
-        for line in text.splitlines():
-            stripped = line.strip()
-            if stripped.startswith("[") and stripped.endswith("]"):
-                in_identity = stripped == "[identity]"
-                continue
-            if not in_identity or "=" not in stripped or stripped.startswith("#"):
-                continue
-            k, _, v = stripped.partition("=")
-            v = v.strip().strip('"').strip("'")
-            if k.strip() == "username" and v:
-                name = v
-            elif k.strip() == "email" and v:
-                email = v
-        break
+    """Return (username, email) from layered mios.toml; defaults if missing.
+    Resolved through the shared real-TOML overlay (per-user > host > vendor,
+    per-key) -- replaces the former hand-rolled line scanner."""
+    data = mios_toml.load_merged()
+    ident = mios_toml.section(data, "identity")
+    name = str(ident.get("username") or "mios")
+    email = str(ident.get("email") or "admin@mios.local")
     return name, email
 
 
@@ -108,33 +90,9 @@ def _read_toml_default_password():
     """[identity].default_password from layered mios.toml -- the canonical
     MiOS SSOT for the operator's shared admin password (same field Forge /
     Portal / Cockpit / RDP resolve)."""
-    for p in (
-        Path(os.environ.get("HOME", "/root")) / ".config/mios/mios.toml",
-        Path("/etc/mios/mios.toml"),
-        Path("/usr/share/mios/mios.toml"),
-    ):
-        if not p.is_file():
-            continue
-        try:
-            text = p.read_text(encoding="utf-8")
-        except OSError:
-            continue
-        in_identity = False
-        found = None
-        for line in text.splitlines():
-            stripped = line.strip()
-            if stripped.startswith("[") and stripped.endswith("]"):
-                in_identity = stripped == "[identity]"
-                continue
-            if not in_identity or "=" not in stripped or stripped.startswith("#"):
-                continue
-            k, _, v = stripped.partition("=")
-            if k.strip() == "default_password":
-                v = v.split("#", 1)[0].strip().strip('"').strip("'")
-                if v:
-                    found = v
-        if found:
-            return found
+    val = mios_toml.get("identity", "default_password", None)
+    if val not in (None, ""):
+        return str(val)
     return None
 
 

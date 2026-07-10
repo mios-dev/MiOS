@@ -41,6 +41,17 @@ namespace MiOSWallpaperService
         [DllImport("userenv.dll")]
         static extern bool DestroyEnvironmentBlock(IntPtr env);
 
+        [DllImport("wtsapi32.dll", SetLastError = true)]
+        static extern bool WTSQuerySessionInformation(IntPtr hServer, int sessionId,
+            int wtsInfoClass, out IntPtr ppBuffer, out int pBytesReturned);
+
+        [DllImport("wtsapi32.dll")]
+        static extern void WTSFreeMemory(IntPtr pMemory);
+
+        // WTS_INFO_CLASS.WTSClientProtocolType = 16 -> 0 console, 1 ICA (Citrix), 2 RDP
+        const int WTSClientProtocolType = 16;
+        static readonly IntPtr WTS_CURRENT_SERVER_HANDLE = IntPtr.Zero;
+
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
         struct STARTUPINFO
         {
@@ -131,6 +142,16 @@ namespace MiOSWallpaperService
             Log("Service stopped.");
         }
 
+        protected override void OnSessionChange(SessionChangeDescription changeDescription)
+        {
+            // React immediately on connect/disconnect/logon so the wallpaper toggles
+            // without waiting for the 5s poll — e.g. a remote seamless session attaching.
+            Log("Session change: " + changeDescription.Reason + " (session " + changeDescription.SessionId + ")");
+            try { CheckAndLaunchWallpaper(); }
+            catch (Exception ex) { Log("OnSessionChange error: " + ex.Message); }
+            base.OnSessionChange(changeDescription);
+        }
+
         private void WorkerLoop()
         {
             while (!_stopping)
@@ -149,7 +170,13 @@ namespace MiOSWallpaperService
 
         private void CheckAndLaunchWallpaper()
         {
-            // Find all running explorer.exe processes (each represents an active user session)
+            // The living wallpaper is a FULL-DESKTOP background layer. It stays ON for
+            // the local console and for a full RDP desktop, but is toggled OFF (no layer
+            // at all) when the MiOS Windows env is projected as floating native app
+            // windows + taskbar onto a HOST desktop (WinBoat / RemoteApp seamless) — there
+            // the host desktop environment is the background, so a Windows wallpaper must
+            // not paint over it. The integration layer signals that mode via the registry
+            // (see ShouldRunInSession). Each explorer.exe == one interactive session.
             Process[] explorerProcs = Process.GetProcessesByName("explorer");
             Process[] wallpaperProcs = Process.GetProcessesByName("MiOS-Wallpaper");
 
@@ -157,26 +184,99 @@ namespace MiOSWallpaperService
             {
                 int sessionId = explorer.SessionId;
 
-                // Skip session 0
+                // Skip session 0 (the non-interactive services session)
                 if (sessionId == 0) continue;
 
-                // Check if MiOS-Wallpaper is running in this session
+                // Is a host already running in this session?
                 bool isRunningInSession = false;
+                Process running = null;
                 foreach (Process wp in wallpaperProcs)
                 {
-                    if (wp.SessionId == sessionId)
-                    {
-                        isRunningInSession = true;
-                        break;
-                    }
+                    if (wp.SessionId == sessionId) { isRunningInSession = true; running = wp; break; }
                 }
 
-                if (!isRunningInSession)
+                string reason;
+                bool shouldRun = ShouldRunInSession(sessionId, out reason);
+
+                if (shouldRun && !isRunningInSession)
                 {
-                    Log("MiOS-Wallpaper not running in Session " + sessionId + ". Launching...");
+                    Log("MiOS-Wallpaper not running in Session " + sessionId + " (" + reason + "). Launching...");
                     LaunchWallpaperInSession(explorer);
                 }
+                else if (!shouldRun && isRunningInSession)
+                {
+                    // Toggle OFF: tear the layer down so the host DE / bare desktop shows through.
+                    Log("Suppressing MiOS-Wallpaper in Session " + sessionId + " (" + reason + "). Terminating host PID " + running.Id + ".");
+                    try { running.Kill(); }
+                    catch (Exception ex) { Log("Terminate failed for PID " + running.Id + ": " + ex.Message); }
+                }
             }
+        }
+
+        /// <summary>
+        /// Decide whether the full-desktop living wallpaper belongs in this session.
+        /// ON for local console + full RDP desktop; OFF when suppressed by the master
+        /// switch or when the session runs in floating-apps / seamless (WinBoat /
+        /// RemoteApp) integration mode, which the integration layer signals via
+        /// HKLM\SOFTWARE\MiOS\Wallpaper:
+        ///   Enabled        DWORD  default 1 — global master toggle (0 = never paint)
+        ///   SeamlessMode   DWORD  default 0 — 1 = env projected as floating apps -> OFF
+        ///   SuppressRemote DWORD  default 0 — 1 = also OFF for any remote (RDP) session
+        /// </summary>
+        private bool ShouldRunInSession(int sessionId, out string reason)
+        {
+            if (ReadWallpaperDword("Enabled", 1) == 0) { reason = "master Enabled=0"; return false; }
+
+            if (ReadWallpaperDword("SeamlessMode", 0) != 0)
+            {
+                reason = "SeamlessMode=1 (floating-apps projection — host DE is background)";
+                return false;
+            }
+
+            bool remote = (GetSessionProtocol(sessionId) == 2); // 2 == RDP
+            if (remote && ReadWallpaperDword("SuppressRemote", 0) != 0)
+            {
+                reason = "remote session + SuppressRemote=1";
+                return false;
+            }
+
+            reason = remote ? "full RDP desktop" : "local console";
+            return true;
+        }
+
+        // WTSClientProtocolType: 0 = console (local), 1 = ICA (Citrix), 2 = RDP (remote).
+        private int GetSessionProtocol(int sessionId)
+        {
+            IntPtr buf = IntPtr.Zero;
+            try
+            {
+                int bytes;
+                if (WTSQuerySessionInformation(WTS_CURRENT_SERVER_HANDLE, sessionId,
+                        WTSClientProtocolType, out buf, out bytes) && buf != IntPtr.Zero && bytes >= 2)
+                {
+                    return Marshal.ReadInt16(buf);
+                }
+            }
+            catch (Exception ex) { Log("GetSessionProtocol(" + sessionId + ") error: " + ex.Message); }
+            finally { if (buf != IntPtr.Zero) WTSFreeMemory(buf); }
+            return 0;
+        }
+
+        private int ReadWallpaperDword(string name, int def)
+        {
+            try
+            {
+                using (RegistryKey key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\MiOS\Wallpaper"))
+                {
+                    if (key != null)
+                    {
+                        object v = key.GetValue(name);
+                        if (v != null) return Convert.ToInt32(v);
+                    }
+                }
+            }
+            catch (Exception ex) { Log("ReadWallpaperDword(" + name + ") error: " + ex.Message); }
+            return def;
         }
 
         private void LaunchWallpaperInSession(Process explorerProcess)

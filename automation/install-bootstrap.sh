@@ -13,9 +13,9 @@ set -euo pipefail
 # ============================================================================
 # Defaults
 # ============================================================================
-DEFAULT_USER="mios"
-DEFAULT_HOST="mios"
-DEFAULT_USER_FULLNAME="'MiOS' User"
+DEFAULT_USER="user"
+DEFAULT_HOST="user"
+DEFAULT_USER_FULLNAME="User"
 DEFAULT_USER_SHELL="/bin/bash"
 DEFAULT_USER_GROUPS="wheel,libvirt,kvm,video,render,input,dialout"
 DEFAULT_SSH_KEY_TYPE="ed25519"

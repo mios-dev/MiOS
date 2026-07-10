@@ -67,7 +67,7 @@ def _pg_json(envelope: dict):
 # embedded the rows, so the HNSW recall never surfaced them). Embed via the live
 # dGPU /v1 lane; degrade-open -- the row still writes without emb on any miss.
 _EMBED_ENDPOINT = os.environ.get("MIOS_RAG_EMBED_ENDPOINT",
-                                 "http://localhost:11450").rstrip("/")
+                                 f"http://localhost:{os.environ.get('MIOS_PORT_LLM_LIGHT', '8450')}").rstrip("/")
 _EMBED_MODEL = os.environ.get("MIOS_RAG_EMBED_MODEL", "nomic-embed-text")
 # WS-A2 embedding-version hygiene: stamp the embedding identity alongside every
 # stored vector so a model/dim change is detectable + re-embeddable (matches the

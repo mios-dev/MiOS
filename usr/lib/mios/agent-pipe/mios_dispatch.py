@@ -515,6 +515,10 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
     """Map verb name + args -> the bash command line the launcher
     broker executes. Kept in lockstep with the OWUI pipe's
     _dispatch_mios_verb. Returns None for unknown verbs."""
+    if tool in ("powershell_run", "run_code", "code_mode"):
+        for key in ("script", "code"):
+            if key in args and isinstance(args[key], str):
+                args[key] = normalize_container_exec(args[key])
     # SSOT command template takes precedence (P3): a verb with a `cmd` in
     # mios.toml renders via the catalog; verbs without one fall through to the
     # code branches below. Incremental migration -> zero regression.

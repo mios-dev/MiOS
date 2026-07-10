@@ -30,7 +30,7 @@ def t_config_dsn() -> None:
                                    "password": "p", "dbname": "d"}, str(c))
     _check("dsn: built", P.dsn(c) == "postgresql://u:p@h:5544/d", P.dsn(c))
     d = P.pg_config({})
-    _check("config: local defaults", d["host"] == "localhost" and d["port"] == 5432
+    _check("config: local defaults", d["host"] == "localhost" and d["port"] == 8432
            and d["user"] == "mios" and d["dbname"] == "mios", str(d))
 
 

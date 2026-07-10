@@ -9,6 +9,10 @@ import sys
 import os
 import configparser
 
+sys.path.insert(0, os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "..", "lib", "mios"))
+import mios_toml  # noqa: E402  -- the ONE shared layered-mios.toml resolver
+
 def load_cephfs_config() -> dict:
     """Load storage.cephfs table from layered mios.toml configurations."""
     layers = [
@@ -16,14 +20,6 @@ def load_cephfs_config() -> dict:
         "/etc/mios/mios.toml",
         os.path.expanduser("~/.config/mios/mios.toml")
     ]
-    try:
-        import tomllib
-    except ImportError:
-        try:
-            import tomli as tomllib
-        except ImportError:
-            tomllib = None
-
     cfg = {
         "client_cache_size": "16384",
         "client_cache_after_readdir": "true",
@@ -32,25 +28,15 @@ def load_cephfs_config() -> dict:
         "fuse_disable_pagecache": "false"
     }
 
-    if tomllib is None:
-        return cfg
-
-    for p in layers:
-        try:
-            with open(p, "rb") as f:
-                data = tomllib.load(f)
-                cephfs = data.get("storage", {}).get("cephfs", {})
-                if cephfs:
-                    for k in cfg.keys():
-                        if k in cephfs:
-                            v = cephfs[k]
-                            # Convert to string format for INI writing
-                            if isinstance(v, bool):
-                                cfg[k] = "true" if v else "false"
-                            else:
-                                cfg[k] = str(v)
-        except Exception:
-            continue
+    cephfs = mios_toml.section(mios_toml.load_merged(layers), "storage.cephfs")
+    for k in cfg.keys():
+        if k in cephfs:
+            v = cephfs[k]
+            # Convert to string format for INI writing
+            if isinstance(v, bool):
+                cfg[k] = "true" if v else "false"
+            else:
+                cfg[k] = str(v)
     return cfg
 
 def configure_client(cfg: dict, ceph_conf_path: str):

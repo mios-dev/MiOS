@@ -210,3 +210,8 @@ Every contribution obeys these, enforced by build-time lint and
 6. **UNPRIVILEGED-QUADLETS** — every Quadlet declares `User=`, `Group=`,
    `Delegate=yes`. Documented exceptions (rationale in their headers):
    `mios-ceph`, `mios-k3s`, `mios-forgejo-runner`.
+7. **NO-HARDCODE** — nothing operator-tunable, including model names, ports, or scoring
+   parameters, may be hardcoded. Values must resolve via the `mios.toml` configuration cascade.
+8. **K-I-S-S-LANGUAGES** — all scripting and automation must consolidate strictly around modern,
+   FOSS, user-selected, and defined languages (Nushell, Rust, Zig) using Keep-It-Simple-Stupid
+   (K.I.S.S.) principles to eliminate shell script sprawl.

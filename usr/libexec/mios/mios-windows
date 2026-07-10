@@ -161,7 +161,7 @@ _mios_executor_endpoint() {
     # admits the WSL subnet. Same resolver shape as mios-pc-control.
     if [ -z "$_ep" ] && grep -qiE 'microsoft|wsl' /proc/sys/kernel/osrelease 2>/dev/null; then
         _gw="$(ip route show default 2>/dev/null | awk '/default/{print $3; exit}')"
-        [ -n "$_gw" ] && _ep="http://${_gw}:${MIOS_OSCONTROL_PORT:-11437}"
+        [ -n "$_gw" ] && _ep="http://${_gw}:${MIOS_PORT_OSCONTROL:-11437}"
     fi
     printf '%s' "${_ep%/}"
 }
@@ -176,7 +176,7 @@ _mios_executor_endpoint() {
 # operator's interactive session, so its Start-Process shows the window on the
 # real desktop + verifies it + centers it. Returns 0 on a confirmed launch (so
 # the caller exits), non-zero to fall through to the legacy broker route.
-_mios_launch_via_executor() {  # <app-name-or-windows-path>
+_mios_launch_via_executor() {  # <app-name-or-windows-path> [args...]
     command -v curl >/dev/null 2>&1 || return 1
     _xe="$(_mios_executor_endpoint)"
     [ -z "$_xe" ] && return 1
@@ -185,14 +185,17 @@ _mios_launch_via_executor() {  # <app-name-or-windows-path>
     # subnet) must fall back to the legacy interop path in ~2s, NOT stall the whole
     # launch on the 45s POST timeout below (operator 2026-06-07).
     curl -fsS -m 2 "$_xe/health" >/dev/null 2>&1 || return 1
+    _app="$1"
+    shift
+    _args="$*"
     # `verify` = the human title hint (MIOS_LAUNCH_TITLE_HINT, e.g. "Forza
     # Horizon 6") so the executor matches the WINDOW by title, not by a steam://
     # URI / shell:appsFolder string that never appears in a window title
     # (operator 2026-05-30). Falls back to `app` when no hint is set.
-    _resp="$(python3 - "$1" "$_xe" <<'PYEOF'
+    _resp="$(python3 - "$_app" "$_xe" "$_args" <<'PYEOF'
 import sys, os, json, urllib.request
 try:
-    payload = json.dumps({"app": sys.argv[1], "center": True, "verify": os.environ.get("MIOS_LAUNCH_TITLE_HINT","")}).encode()
+    payload = json.dumps({"app": sys.argv[1], "args": sys.argv[3], "center": True, "verify": os.environ.get("MIOS_LAUNCH_TITLE_HINT","")}).encode()
     req = urllib.request.Request(sys.argv[2] + "/launch", data=payload, headers={'Content-Type': 'application/json'}, method="POST")
     with urllib.request.urlopen(req, timeout=45) as r:
         print(r.read().decode())
@@ -513,7 +516,7 @@ PSEOF
                 # CWD isn't Windows-translatable) AND lands in a non-interactive
                 # window station (operator 2026-05-30: "play a game" -> steam:// ->
                 # Invalid argument). Fall back to the ps path only with no executor.
-                if _mios_launch_via_executor "$app"; then exit 0; fi
+                if _mios_launch_via_executor "$app" "$@"; then exit 0; fi
                 _PS="$(_build_uri_center_ps "Start-Process '$app'" "${MIOS_LAUNCH_TITLE_HINT:-}")"
                 exec "$0" ps "$_PS"
                 ;;
@@ -536,7 +539,7 @@ PSEOF
                 # shell: URIs via explorer.exe + shows the window on the desktop);
                 # the broker/interop ps path is the fallback (Start-Process can't
                 # grok shell: URIs, so explorer.exe is the handler there too).
-                if _mios_launch_via_executor "$app"; then exit 0; fi
+                if _mios_launch_via_executor "$app" "$@"; then exit 0; fi
                 _PS="$(_build_uri_center_ps "Start-Process -FilePath explorer.exe -ArgumentList '$app'" "${MIOS_LAUNCH_TITLE_HINT:-}")"
                 exec "$0" ps "$_PS"
                 ;;
@@ -544,7 +547,7 @@ PSEOF
                 # Bare AppID (PackageFamilyName!Entry) from Get-StartApps --
                 # prepend shell:appsFolder\ then launch via the in-session
                 # executor first (explorer.exe handler), broker ps as fallback.
-                if _mios_launch_via_executor "shell:appsFolder\\$app"; then exit 0; fi
+                if _mios_launch_via_executor "shell:appsFolder\\$app" "$@"; then exit 0; fi
                 _PS="$(_build_uri_center_ps "Start-Process -FilePath explorer.exe -ArgumentList 'shell:appsFolder\\$app'" "${MIOS_LAUNCH_TITLE_HINT:-}")"
                 exec "$0" ps "$_PS"
                 ;;
@@ -585,7 +588,7 @@ PSEOF
             # mios-find last-resort because mios-find re-applies the Linux
             # freedesktop alias (calculator->gnome-calculator) and would miss it.
             echo "mios-windows launch: '$app' -> $_saf (Get-StartApps)" >&2
-            if _mios_launch_via_executor "$_saf"; then exit 0; fi
+            if _mios_launch_via_executor "$_saf" "$@"; then exit 0; fi
             _PS="$(_build_uri_center_ps "Start-Process -FilePath explorer.exe -ArgumentList '$_saf'" "${MIOS_LAUNCH_TITLE_HINT:-$app}")"
             exec "$0" ps "$_PS"
         else
@@ -638,7 +641,7 @@ PSEOF
         # sees (operator 2026-05-29: "discord NEVER OPENED" -- proven: executor
         # /launch shows it, broker cmd/start does not). Falls through to the
         # legacy broker route when no executor is configured / it didn't confirm.
-        if _mios_launch_via_executor "$app"; then
+        if _mios_launch_via_executor "$app" "$@"; then
             exit 0
         fi
 
@@ -661,7 +664,7 @@ PSEOF
             # Translate /mnt/c/... back to C:\... for Start-Process
             _target_win="$(wslpath -w "$target" 2>/dev/null)"
             [ -z "$_target_win" ] && _target_win="$target"
-            python3 - "$_target_win" "$@" <<'PYEOF'
+            MIOS_LIB_DIR="$(cd "$(dirname "$0")" && pwd)/../../lib/mios" python3 - "$_target_win" "$@" <<'PYEOF'
 import socket, sys, shlex
 target = sys.argv[1]
 extra_args = sys.argv[2:]
@@ -760,18 +763,16 @@ def _resolve_powershell():
     env = os.environ.get("WINDOWS_POWERSHELL")
     if env:
         return env
+    # Shared layered mios.toml resolver (vendor < host < user); lib dir via env.
+    _lib = os.environ.get("MIOS_LIB_DIR")
+    if _lib and _lib not in sys.path:
+        sys.path.insert(0, _lib)
     try:
-        import tomllib
-        for p in ("/etc/mios/mios.toml", "/usr/share/mios/mios.toml"):
-            try:
-                with open(p, "rb") as f:
-                    d = tomllib.load(f)
-                v = d.get("paths", {}).get("powershell_exe")
-                if v:
-                    return v
-            except (OSError, tomllib.TOMLDecodeError):
-                continue
-    except ImportError:
+        import mios_toml
+        v = mios_toml.get("paths", "powershell_exe")
+        if v:
+            return v
+    except Exception:
         pass
     return "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
 PWSH_PATH = _resolve_powershell()

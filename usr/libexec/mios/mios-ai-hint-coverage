@@ -61,37 +61,25 @@ def _load_tagger(explicit: str | None):
     return None, None
 
 
+sys.path.insert(0, os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "..", "lib", "mios"))
+import mios_toml  # noqa: E402  -- the ONE shared layered-mios.toml resolver
+
+
 def _toml_ceiling(roots) -> int | None:
-    """[ai_tag].max_untagged from layered mios.toml (vendor < /etc < ~). Highest wins."""
+    """[ai_tag].max_untagged from layered mios.toml (per-root vendor, then
+    vendor < /etc < ~/.config; highest wins) via the shared resolver."""
+    layers = [os.path.join(r, "usr/share/mios/mios.toml") for r in roots]
+    layers += ["/usr/share/mios/mios.toml", "/etc/mios/mios.toml",
+               os.path.expanduser("~/.config/mios/mios.toml")]
+    v = mios_toml.get("ai_tag", "max_untagged", None,
+                      data=mios_toml.load_merged(layers))
+    if v is None:
+        return None
     try:
-        import tomllib as _toml
-    except ImportError:
-        try:
-            import tomli as _toml  # type: ignore
-        except ImportError:
-            return None
-    paths = []
-    for r in roots:
-        paths.append(os.path.join(r, "usr/share/mios/mios.toml"))
-    paths.append("/usr/share/mios/mios.toml")
-    paths.append("/etc/mios/mios.toml")
-    paths.append(os.path.expanduser("~/.config/mios/mios.toml"))
-    val = None
-    for p in paths:
-        if not os.path.isfile(p):
-            continue
-        try:
-            with open(p, "rb") as fh:
-                data = _toml.load(fh)
-        except (OSError, ValueError):
-            continue
-        sect = data.get("ai_tag")
-        if isinstance(sect, dict) and "max_untagged" in sect:
-            try:
-                val = int(sect["max_untagged"])  # later (more specific) layer wins
-            except (TypeError, ValueError):
-                pass
-    return val
+        return int(v)  # later (more specific) layer wins
+    except (TypeError, ValueError):
+        return None
 
 
 def _ceiling(args, roots):

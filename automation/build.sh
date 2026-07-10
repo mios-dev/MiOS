@@ -200,6 +200,7 @@ NON_FATAL_SCRIPTS="
   05-enable-external-repos.sh
   10-gnome.sh
   13-ceph-k3s.sh
+  17-accounts-db.sh
   19-k3s-selinux.sh
   21-moby-engine.sh
   23-uki-render.sh

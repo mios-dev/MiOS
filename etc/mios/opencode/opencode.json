@@ -1,0 +1,22 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "local/mios-opencode:latest",
+  "small_model": "local/mios-opencode:latest",
+  "provider": {
+    "local": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "MiOS-Inference (mios-llm-light)",
+      "options": {
+        "baseURL": "http://localhost:8450/v1"
+      },
+      "models": {
+        "mios-opencode:latest": {
+          "name": "MiOS-OpenCode (coding role; FROM granite4.1:8b)"
+        },
+        "granite4.1:8b": {
+          "name": "Granite 4.1 8B (IBM; MiOS brain+coder base, dense 'granite' arch on mainline llama.cpp)"
+        }
+      }
+    }
+  }
+}

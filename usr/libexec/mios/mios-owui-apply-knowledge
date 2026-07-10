@@ -49,7 +49,7 @@ from pathlib import Path
 from typing import Iterable
 
 DB = Path(os.environ.get("MIOS_OWUI_DB", "/var/lib/mios/open-webui/webui.db"))
-MODEL_ID = os.environ.get("MIOS_OWUI_MODEL_ID", "hermes-agent")
+MODEL_ID = os.environ.get("MIOS_OWUI_MODEL_ID", "MiOS AI")
 
 # Knowledge collection identity. The id is a stable v5-uuid derived from
 # a fixed MiOS namespace + name so every host that runs this helper

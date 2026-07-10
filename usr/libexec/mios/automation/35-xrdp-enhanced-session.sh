@@ -38,36 +38,11 @@ set -euo pipefail
 _log() { printf '[grd-enhanced] %s\n' "$*" >&2; }
 
 # ─── mios.toml resolver ──────────────────────────────────────────────
-_mios_toml_value() {
-    local section="$1" key="$2" def_val="$3"
-    local toml
-    for toml in "${HOME:-/var/home/mios}/.config/mios/mios.toml" /etc/mios/mios.toml /usr/share/mios/mios.toml; do
-        [ -r "$toml" ] || continue
-        local v
-        v=$(awk -v want_section="$section" -v want_key="$key" '
-            /^\[/ {
-                line = $0
-                sub(/[[:space:]]*#.*$/, "", line)
-                in_s = (line == "[" want_section "]") ? 1 : 0
-                next
-            }
-            in_s && /^[[:space:]]*[A-Za-z_][A-Za-z0-9_]*[[:space:]]*=/ {
-                line = $0
-                sub(/[[:space:]]*#.*$/, "", line)
-                eq = index(line, "=")
-                if (eq == 0) next
-                k = substr(line, 1, eq - 1)
-                v = substr(line, eq + 1)
-                gsub(/^[[:space:]]+|[[:space:]]+$/, "", k)
-                gsub(/^[[:space:]]+|[[:space:]]+$/, "", v)
-                gsub(/^"|"$/, "", v)
-                if (k == want_key) { print v; exit }
-            }
-        ' "$toml" 2>/dev/null)
-        if [ -n "$v" ]; then printf '%s' "$v"; return; fi
-    done
-    printf '%s' "$def_val"
-}
+# Drop-in over the shared layered resolver (usr/lib/mios/mios_toml.py via the
+# mios-toml-get shell CLI): vendor < host < user overlay, highest wins. This
+# script lives in usr/libexec/mios/automation/, so mios-toml-get is one dir up.
+_MIOS_TOML_GET="$(cd "$(dirname "$0")" && pwd)/../mios-toml-get"
+_mios_toml_value() { "$_MIOS_TOML_GET" "$1" "$2" "${3:-}"; }
 
 PORT="$(_mios_toml_value 'enhanced_session' 'port' '13389')"
 USER_NAME="$(_mios_toml_value 'enhanced_session' 'user' "$(_mios_toml_value 'identity' 'username' 'mios')")"

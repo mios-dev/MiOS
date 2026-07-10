@@ -235,8 +235,8 @@ class Pipe:
             description="Small NON-THINKING CPU model used for refinement. qwen3.x family models all emit to message.thinking with empty message.content even with /nothink directive (modelfile-level thinking-mode override). qwen2.5-coder:7b is the available non-thinking model that produces content directly. ~4.7 GB on CPU; cold load 30-90s on WSL2 disk, warm calls 3-10s. Loaded once with keep_alive=-1.",
         )
         REFINE_ENDPOINT: str = Field(
-            default="http://host.containers.internal:11450",
-            description="Refine-call endpoint -- mios-llm-light (:11450, llama.cpp behind llama-swap; the local inference :11434 lane is retired G5). Hits /api/chat (NOT /v1, which drops options field).",
+            default="http://host.containers.internal:8450",
+            description="Refine-call endpoint -- mios-llm-light (:8450, llama.cpp behind llama-swap; the local inference :11434 lane is retired G5). Hits /api/chat (NOT /v1, which drops options field).",
         )
         REFINE_TIMEOUT_S: int = Field(
             default=180,

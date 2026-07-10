@@ -191,6 +191,8 @@ def _suggest_candidates(path: str) -> list[str]:
 
 def cmd_view(args: argparse.Namespace) -> int:
     path = args.path
+    if not path or not path.strip():
+        path = "."
     if "\x00" in path:
         return _emit({"ok": False, "verb": "view", "path": path,
                       "error": "null_byte_in_path"})
@@ -396,7 +398,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub = p.add_subparsers(dest="cmd", required=True)
 
     pv = sub.add_parser("view", help="read a file or list a directory")
-    pv.add_argument("path")
+    pv.add_argument("path", nargs="?", default="")
     pv.add_argument("--start", help="1-indexed first line")
     pv.add_argument("--end", help="1-indexed last line (inclusive)")
     pv.add_argument("--depth", type=int, help="directory listing depth (default 2)")

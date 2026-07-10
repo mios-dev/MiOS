@@ -1,0 +1,6 @@
+The OpenUI generative-UI bundle is licensed under the MIT License.
+Source: https://github.com/thesysdev/openui (npm: @openuidev/browser-bundle)
+The bundle file (openui-bundle.min.js) embeds @license React headers
+internally; the full attribution is preserved in those header comments.
+This MiOS image redistributes the unmodified bundle to satisfy
+Law 7 OFFLINE-FIRST -- no runtime CDN fetches.

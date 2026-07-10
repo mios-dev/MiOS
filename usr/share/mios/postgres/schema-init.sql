@@ -537,5 +537,36 @@ ALTER TABLE session ADD COLUMN IF NOT EXISTS prev_hash text;
 ALTER TABLE session ADD COLUMN IF NOT EXISTS chain_hash text;
 
 
+-- ── Consolidated Database-Driven Configurations & Verbs (T-126) ──────────────
+CREATE TABLE IF NOT EXISTS system_config (
+    key           text PRIMARY KEY,
+    value         jsonb NOT NULL,
+    description   text,
+    last_updated  timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS system_config_last_upd ON system_config (last_updated);
+
+CREATE TABLE IF NOT EXISTS verb (
+    name         text PRIMARY KEY,
+    sig          text NOT NULL,
+    desc_default text NOT NULL,
+    tier         text         DEFAULT 'common',
+    permission   text         DEFAULT 'read',
+    cmd          text,
+    params       jsonb        DEFAULT '{}'::jsonb,
+    i18n         jsonb        DEFAULT '{}'::jsonb,
+    is_active    boolean      DEFAULT true,
+    last_updated timestamptz  DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS verb_active ON verb (is_active);
+
+CREATE TABLE IF NOT EXISTS domain_verb (
+    domain       text NOT NULL,
+    verb_name    text NOT NULL REFERENCES verb(name) ON DELETE CASCADE,
+    PRIMARY KEY (domain, verb_name)
+);
+
+
+
 
 

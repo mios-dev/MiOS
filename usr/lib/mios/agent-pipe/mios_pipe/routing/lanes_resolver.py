@@ -118,8 +118,9 @@ def _lane_resolver():
         _ai = {}
     heavy_engine = (os.environ.get("MIOS_AGENT_PIPE_HEAVY_ENGINE")
                     or str(_ai.get("heavy_engine", "sglang"))).strip()
-    _vllm_url = os.environ.get("MIOS_AGENT_PIPE_TOOL_BACKEND_VLLM",
-                               "http://localhost:11440/v1").rstrip("/")
+    _vllm_url = (os.environ.get("MIOS_AGENT_PIPE_TOOL_BACKEND_VLLM")
+                 or _toml_section("nodes").get("local-vllm", {}).get("endpoint")
+                 or f"http://localhost:{os.environ.get('MIOS_PORT_VLLM', '8441')}/v1").rstrip("/")
     _vllm_model = os.environ.get("MIOS_AGENT_PIPE_TOOL_BACKEND_VLLM_MODEL",
                                  _TOOL_BACKEND_HEAVY_MODEL)
     lanes = {

@@ -1,0 +1,64 @@
+#!/usr/bin/env python3
+# AI-hint: Thin shell-facing CLI over the shared usr/lib/mios/mios_toml.py resolver, so bash scripts + `python3 - <<PY` heredocs stop re-rolling their own awk/regex mios.toml scanners (which mishandle multi-line arrays, [[array.of.tables]], inline tables, and quoting) and instead read the SSOT through the ONE real tomllib-backed layered overlay (vendor<host<user, empty-string rule). `mios-toml-get <section[.sub]> <key> [default]` prints a scalar (default/empty if absent); `--section <a.b>` prints the sub-table as JSON (for [[array]]/catalog reads); `--dump <a.b> k1 k2 ...` prints several keys as `k=v` lines to avoid a python spawn per value on hot paths (e.g. the login-path dashboard). Pairs with mios_toml.py + the 29 already-migrated Python tools; drop-in for the `_mios_toml_value` bash helpers.
+# AI-related: ../../lib/mios/mios_toml.py, ./mios-sync-theme, ./mios-dashboard.sh, ../../../automation/38-drift-checks.sh
+# AI-functions: main
+"""Shell CLI over the shared mios_toml resolver: scalar get, section-as-JSON, batch dump."""
+
+from __future__ import annotations
+
+import json
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "lib", "mios"))
+import mios_toml  # noqa: E402
+
+
+def _scalar(v):
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    if isinstance(v, (list, dict)):
+        return json.dumps(v)
+    return "" if v is None else str(v)
+
+
+def main(argv):
+    args = argv[1:]
+    if not args or args[0] in ("-h", "--help"):
+        sys.stderr.write(
+            "usage: mios-toml-get <section[.sub]> <key> [default]   # scalar\n"
+            "       mios-toml-get --section <a.b>                    # sub-table as JSON\n"
+            "       mios-toml-get --dump <a.b> <key> [<key> ...]     # k=v lines\n")
+        return 2
+
+    data = mios_toml.load_merged()
+
+    if args[0] == "--section":
+        if len(args) < 2:
+            sys.stderr.write("mios-toml-get --section needs a section\n")
+            return 2
+        print(json.dumps(mios_toml.section(data, args[1])))
+        return 0
+
+    if args[0] == "--dump":
+        if len(args) < 3:
+            sys.stderr.write("mios-toml-get --dump needs a section + at least one key\n")
+            return 2
+        sect = mios_toml.section(data, args[1])
+        for k in args[2:]:
+            print(f"{k}={_scalar(sect.get(k))}")
+        return 0
+
+    # scalar: <section> <key> [default]
+    if len(args) < 2:
+        sys.stderr.write("mios-toml-get needs <section> <key>\n")
+        return 2
+    section, key = args[0], args[1]
+    default = args[2] if len(args) > 2 else ""
+    val = mios_toml.section(data, section).get(key)
+    print(default if val is None else _scalar(val))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

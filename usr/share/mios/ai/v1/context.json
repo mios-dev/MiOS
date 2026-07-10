@@ -38,7 +38,7 @@
   },
   "stack": {
     "agent_pipe":      {"port": 8640, "service": "mios-agent-pipe.service",       "role": "canonical /v1 entry; refine + route + polish"},
-    "hermes":          {"port": 8642, "service": "hermes-agent.service",          "role": "default sub-agent (general orchestration)"},
+    "hermes":          {"port": 8642, "service": "mios-gateway-agent.service",    "role": "default sub-agent (general orchestration)"},
     "llm_light":       {"port": 11450, "service": "mios-llm-light.service",       "role": "llama.cpp multi-model + KV-paging inference lane"},
     "pgvector":        {"port": 5432,  "service": "mios-pgvector.service",        "role": "PostgreSQL database + pgvector vector store for shared agent state"},
     "open_webui":      {"port": 3030,  "service": "mios-open-webui.service",      "role": "browser front-end -> :8640"},

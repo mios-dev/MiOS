@@ -31,36 +31,18 @@ import shutil
 import subprocess
 import sys
 
-try:
-    import tomllib
-except ModuleNotFoundError:  # pragma: no cover
-    import tomli as tomllib  # type: ignore
+sys.path.insert(0, os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "..", "lib", "mios"))
+import mios_toml  # noqa: E402  -- the ONE shared layered-mios.toml resolver
 
 VENDOR_TOML = "/usr/share/mios/mios.toml"
 ETC_TOML = "/etc/mios/mios.toml"
 USER_TOML = os.path.expanduser("~/.config/mios/mios.toml")
 
 
-def _deep_merge(base: dict, over: dict) -> dict:
-    for k, v in (over or {}).items():
-        if isinstance(v, dict) and isinstance(base.get(k), dict):
-            _deep_merge(base[k], v)
-        else:
-            base[k] = v
-    return base
-
-
 def load_cfg() -> dict:
-    cfg: dict = {}
-    for path in (VENDOR_TOML, ETC_TOML, USER_TOML):
-        try:
-            with open(path, "rb") as fh:
-                _deep_merge(cfg, tomllib.load(fh))
-        except FileNotFoundError:
-            continue
-        except Exception as e:  # noqa: BLE001
-            print(f"[finetune] WARN bad TOML {path}: {e}", file=sys.stderr)
-    ft = dict(cfg.get("finetune") or {})
+    cfg = mios_toml.load_merged(layers=[VENDOR_TOML, ETC_TOML, USER_TOML])
+    ft = dict(mios_toml.section(cfg, "finetune"))
     for k in list(ft.keys()):
         env = os.environ.get("MIOS_FINETUNE_" + k.upper())
         if env is not None:

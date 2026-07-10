@@ -43,17 +43,39 @@ except ImportError:
     sys.exit(127)
 
 # ─── Configuration ────────────────────────────────────────────────────
-ENDPOINT = os.environ.get("MIOS_AI_ENDPOINT", "http://localhost:8640/v1")
-# UNIFIED ENTRYPOINT (operator 2026-06-16 "UNIFY THE MiOS AI PIPELINE"): route
-# `mios <prompt>` / `@<prompt>` to the AGENT-PIPE ORCHESTRATOR (:8640), NOT Hermes
-# (:8642). The pipe runs the full MiOS pipeline (refine -> route -> native-loop /
-# council / client-tools-hybrid -> polish) and executes EVERY tool SERVER-SIDE via
-# the broker (firewall/HITL/audit/read-back verification), so the CLI gets the same
-# orchestrated, anti-fabricating behaviour as OWUI -- never a weak leaf model
-# fabricating "I typed it". Hermes :8642 becomes a leaf engine the pipe calls, not a
-# public entrypoint. The pipe serves the virtual model "MiOS-Agent". MIOS_AI_MODEL
-# stays the raw-tag SSOT for the image build; the request model is MIOS_AI_GATEWAY_MODEL.
-MODEL    = os.environ.get("MIOS_AI_GATEWAY_MODEL", "MiOS AI")
+def _resolve_ai_config() -> tuple[str, str]:
+    env_ep = os.environ.get("MIOS_AI_ENDPOINT")
+    env_model = os.environ.get("MIOS_AI_GATEWAY_MODEL")
+    if env_ep and env_ep != "http://localhost:8080/v1":
+        return env_ep, env_model or "MiOS AI"
+    try:
+        import tomllib
+    except ImportError:
+        try:
+            import tomli as tomllib  # type: ignore
+        except ImportError:
+            tomllib = None
+    ep = None
+    model = None
+    if tomllib:
+        for p in (os.environ.get("MIOS_TOML", ""), "/etc/mios/mios.toml", "/usr/share/mios/mios.toml"):
+            if not p or not pathlib.Path(p).is_file():
+                continue
+            try:
+                with open(p, "rb") as f:
+                    cfg = tomllib.load(f)
+                    ai = cfg.get("ai") or {}
+                    if not ep and ai.get("endpoint"):
+                        ep = ai.get("endpoint")
+                    if not model and ai.get("agent_model"):
+                        model = ai.get("agent_model")
+                    if ep and model:
+                        break
+            except Exception:
+                continue
+    return (ep or env_ep or "http://localhost:8640/v1", model or env_model or "MiOS AI")
+
+ENDPOINT, MODEL = _resolve_ai_config()
 SHARE    = pathlib.Path(os.environ.get("MIOS_SHARE_DIR", "/usr/share/mios"))
 LIB      = pathlib.Path("/usr/lib/mios")
 LIBEXEC  = pathlib.Path("/usr/libexec/mios/tools")
@@ -394,7 +416,7 @@ KNOWN_VERBS = {
     "summary":["/usr/libexec/mios/system-summary.sh"],
     "profile":["/usr/libexec/mios/system-profile.sh"],
     "assess": ["/usr/libexec/mios/capability-audit.sh"],
-    "theme":  ["/usr/libexec/mios/theme-sync.sh"],
+    "theme":  ["/usr/libexec/mios/mios-sync-theme"],
     "iommu":  ["/usr/libexec/mios/hardware-iommu.sh"],
     "iommu-groups": ["/usr/libexec/mios/hardware-iommu-groups.sh"],
     "env":    ["/usr/libexec/mios/system-env.sh"],
@@ -668,7 +690,7 @@ def main(argv: list[str]) -> int:
             # No remembered app in this session -> fall through to chat so the
             # agent can ask / resolve (rather than the CLI guessing a target).
 
-    client = OpenAI(base_url=ENDPOINT, api_key=API_KEY)
+    client = OpenAI(base_url=ENDPOINT, api_key=API_KEY, default_headers={"x-mios-reasoning-ok": "true"})
     is_orchestrator = ":8640" in ENDPOINT or "/agent-pipe" in ENDPOINT
     msgs: list[dict[str, Any]] = []
     if not is_orchestrator:

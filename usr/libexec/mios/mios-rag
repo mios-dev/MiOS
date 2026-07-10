@@ -21,7 +21,7 @@ INSERT binds source/content/emb as OUT-OF-BAND params (mios-pg-query --exec-json
 extended protocol) -- no filesystem-sourced value is ever spliced into SQL.
 
 Config (SSOT-overridable via env):
-  MIOS_RAG_EMBED_ENDPOINT  default http://localhost:11450 (mios-llm-light /v1)
+  MIOS_RAG_EMBED_ENDPOINT  default http://localhost:8450 (mios-llm-light /v1)
   MIOS_RAG_EMBED_MODEL     default nomic-embed-text
   MIOS_RAG_DOCS_DIR        default /usr/share/mios/docs
   MIOS_RAG_CHUNK_CHARS     default 700
@@ -36,7 +36,7 @@ import sys
 import urllib.request
 
 EMBED_ENDPOINT = os.environ.get("MIOS_RAG_EMBED_ENDPOINT",
-                                "http://localhost:11450").rstrip("/")  # mios-llm-light /v1
+                                f"http://localhost:{os.environ.get('MIOS_PORT_LLM_LIGHT', '8450')}").rstrip("/")  # mios-llm-light /v1
 EMBED_MODEL = os.environ.get("MIOS_RAG_EMBED_MODEL", "nomic-embed-text")
 DOCS_DIR = os.environ.get("MIOS_RAG_DOCS_DIR", "/usr/share/mios/docs")
 CHUNK_CHARS = int(os.environ.get("MIOS_RAG_CHUNK_CHARS", "700"))

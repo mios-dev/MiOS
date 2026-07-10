@@ -186,9 +186,9 @@ def t_health_gate_via_registry():
 def t_agent_lane():
     # Pure (no injected deps): explicit lane wins, else inferred from endpoint/model.
     check("lane: explicit wins", reg._agent_lane({"lane": "IGPU"}) == "igpu")
-    check("lane: igpu port inferred", reg._agent_lane({"endpoint": "http://h:11436/v1"}) == "igpu")
+    check("lane: igpu port inferred", reg._agent_lane({"endpoint": "http://h:8450/v1"}) == "igpu")
     check("lane: igpu model inferred", reg._agent_lane({"model": "mios-igpu"}) == "igpu")
-    check("lane: cpu port inferred", reg._agent_lane({"endpoint": "http://h:11435/v1"}) == "cpu")
+    check("lane: cpu port inferred", reg._agent_lane({"endpoint": "http://h:8458/v1"}) == "cpu")
     check("lane: cpu model inferred", reg._agent_lane({"model": "mios-agent-cpu"}) == "cpu")
     check("lane: default gpu", reg._agent_lane({"endpoint": "http://h:9999/v1"}) == "gpu")
 
@@ -198,7 +198,7 @@ def t_render_agent_catalog():
     check("catalog: empty registry -> ''", reg._render_agent_catalog({}) == "")
     out = reg._render_agent_catalog({
         "coder": {"job": "writes code", "lane": "gpu"},
-        "rsrch": {"role": "research", "strengths": ["web"], "endpoint": "http://h:11435/v1"},
+        "rsrch": {"role": "research", "strengths": ["web"], "endpoint": "http://h:8458/v1"},
     })
     check("catalog: job line present", "writes code" in out, out)
     check("catalog: explicit lane shown", "[gpu lane]" in out, out)

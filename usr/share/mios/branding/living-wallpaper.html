@@ -1,194 +1,262 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <meta charset="utf-8">
-    <title>MiOS Living Wallpaper</title>
-    <style>
-        html, body {
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            background-color: #282262;
-        }
-        canvas {
-            display: block;
-            width: 100vw;
-            height: 100vh;
-        }
-    </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MiOS Living Wallpaper</title>
+<!--
+  MiOS Living Wallpaper — generative advected colour-ocean, non-looping, dark/light.
+  ALL colours come from the mios.toml [colors] SSOT (12 tokens), never hardcoded and NOT
+  mapped to fixed positions. Technique (per deep research): a colour field is ADVECTED
+  frame-to-frame by a divergence-free curl-noise velocity (FBO ping-pong feedback); tiny
+  colour splats are injected at random positions and the advection transports them so they
+  well up, radiate, and spread across neighbours like an ocean seen top-down. Which SSOT
+  colour surfaces each cycle is hashed from a cycle counter (not the slot index). Lifecycles
+  are incommensurate -> it never loops. Requires WebGL2 + EXT_color_buffer_float; otherwise
+  it falls back to a single-pass metaball shader (WebGL1) that still uses the full palette.
+    palette params: bg fg accent cursor success warning error info muted subtle earth silver
+    mode:  ?mode=dark | ?mode=light   (else prefers-color-scheme -> DE theme -> dark).
+-->
+<style>
+  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #282262; }
+  #mios-wp { display: block; position: fixed; inset: 0; width: 100vw; height: 100vh; }
+</style>
 </head>
 <body>
-    <canvas id="canvas"></canvas>
-    <script>
-        const canvas = document.getElementById('canvas');
-        const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
-        
-        if (!gl) {
-            console.error('WebGL not supported');
-            document.body.style.background = '#282262'; // Fallback to bg color
-        }
+<canvas id="mios-wp"></canvas>
+<script>
+(function () {
+  "use strict";
 
-        // Helper to parse hex colors
-        function parseHex(hexStr, defaultHex) {
-            let hex = hexStr || defaultHex;
-            if (hex.startsWith('#')) hex = hex.substring(1);
-            if (hex.length === 3) {
-                hex = hex[0]+hex[0]+hex[1]+hex[1]+hex[2]+hex[2];
-            }
-            const r = parseInt(hex.substring(0, 2), 16) / 255.0;
-            const g = parseInt(hex.substring(2, 4), 16) / 255.0;
-            const b = parseInt(hex.substring(4, 6), 16) / 255.0;
-            return [isNaN(r) ? 0 : r, isNaN(g) ? 0 : g, isNaN(b) ? 0 : b];
-        }
+  // ── SSOT palette (12 tokens) + mode ────────────────────────────────────────
+  var TOKENS = [
+    ["bg","282262"], ["fg","E7DFD3"], ["accent","1A407F"], ["cursor","F35C15"],
+    ["success","3E7765"], ["warning","F35C15"], ["error","DC271B"], ["info","1A407F"],
+    ["muted","948E8E"], ["subtle","B7C9D7"], ["earth","734F39"], ["silver","E0E0E0"]
+  ];
+  function hex3(s, def) {
+    var h = (s || def || "").replace(/^#/, "");
+    if (h.length === 3) h = h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
+    var r = parseInt(h.substr(0,2),16)/255, g = parseInt(h.substr(2,2),16)/255, b = parseInt(h.substr(4,2),16)/255;
+    return [isNaN(r)?0:r, isNaN(g)?0:g, isNaN(b)?0:b];
+  }
+  var qp = new URLSearchParams(location.search);
+  var pal = new Float32Array(TOKENS.length * 3);
+  TOKENS.forEach(function (t, i) { var c = hex3(qp.get(t[0]), t[1]); pal[i*3]=c[0]; pal[i*3+1]=c[1]; pal[i*3+2]=c[2]; });
+  var bgHex = "#" + (qp.get("bg") || TOKENS[0][1]).replace(/^#/, "");
+  var fgHex = "#" + (qp.get("fg") || TOKENS[1][1]).replace(/^#/, "");
+  var m = (qp.get("mode") || "").toLowerCase();
+  var darkMode = m === "dark" ? true : m === "light" ? false
+    : (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches ? false : true);
+  document.body.style.background = darkMode ? bgHex : fgHex;
 
-        // Parse colors from URL params (MiOS SSOT Palette)
-        const params = new URLSearchParams(window.location.search);
-        const bgColor = parseHex(params.get('bg'), '282262');
-        const accentColor = parseHex(params.get('accent'), '1A407F');
-        const cursorColor = parseHex(params.get('cursor'), 'F35C15');
-        const subtleColor = parseHex(params.get('subtle'), 'B7C9D7');
-        const successColor = parseHex(params.get('success'), '3E7765');
+  var canvas = document.getElementById("mios-wp");
 
-        // Set body background to matching solid color immediately
-        document.body.style.backgroundColor = params.get('bg') ? '#' + params.get('bg') : '#282262';
+  // Shared GLSL helpers (noise + curl) — injected into both GL1 and GL2 shaders.
+  var NOISE = [
+    "float hash21(vec2 p){ p=fract(p*vec2(123.34,345.45)); p+=dot(p,p+34.345); return fract(p.x*p.y); }",
+    "float vnoise(vec2 p){ vec2 i=floor(p), f=fract(p);",
+    "  float a=hash21(i), b=hash21(i+vec2(1.,0.)), c=hash21(i+vec2(0.,1.)), d=hash21(i+vec2(1.,1.));",
+    "  vec2 u=f*f*f*(f*(f*6.-15.)+10.); return mix(mix(a,b,u.x),mix(c,d,u.x),u.y); }",
+    "float fbm(vec2 p){ float s=0., a=.55; for(int k=0;k<3;k++){ s+=a*vnoise(p); p=p*1.9+3.1; a*=.5; } return s; }",
+    "float pot(vec2 p, float t){ return fbm(p*0.9 + vec2(0.0,-t*0.15)); }",
+    "vec2 curl(vec2 p, float t){ float e=0.006;",
+    "  float n1=pot(p+vec2(0.,e),t), n2=pot(p-vec2(0.,e),t), n3=pot(p+vec2(e,0.),t), n4=pot(p-vec2(e,0.),t);",
+    "  return vec2(n1-n2, -(n3-n4))/(2.0*e); }"
+  ].join("\n");
+  var GRADE = [ // dark/light complexion, from the SAME palette (shared)
+    "  vec3 dG = u_pal[0]; vec3 lG = mix(u_pal[1], u_pal[11], 0.45);",
+    "  col = mix(col, dG, 0.24*u_dark);",
+    "  col = mix(col, lG, 0.24*(1.0-u_dark));",
+    "  col *= mix(1.05, 0.88, u_dark);",
+    "  col = pow(max(col,0.0), vec3(mix(0.96, 1.05, u_dark)));",
+    "  col *= 1.0 - 0.10*dot(uv-0.5, uv-0.5)*2.0;"
+  ].join("\n");
 
-        // Vertex shader source (covers screen with a single quad)
-        const vsSource = `
-            attribute vec2 a_position;
-            void main() {
-                gl_Position = vec4(a_position, 0.0, 1.0);
-            }
-        `;
+  function compile(gl, type, src) {
+    var s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) { console.error(gl.getShaderInfoLog(s), src); return null; }
+    return s;
+  }
+  function program(gl, vsSrc, fsSrc) {
+    var v = compile(gl, gl.VERTEX_SHADER, vsSrc), f = compile(gl, gl.FRAGMENT_SHADER, fsSrc);
+    if (!v || !f) return null;
+    var p = gl.createProgram(); gl.attachShader(p, v); gl.attachShader(p, f); gl.linkProgram(p);
+    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) { console.error(gl.getProgramInfoLog(p)); return null; }
+    return p;
+  }
 
-        // Fragment shader source (premium animated multi-color mesh gradient)
-        const fsSource = `
-            precision mediump float;
-            uniform float u_time;
-            uniform vec2 u_resolution;
-            uniform vec3 u_bg;
-            uniform vec3 u_accent;
-            uniform vec3 u_cursor;
-            uniform vec3 u_subtle;
-            uniform vec3 u_success;
+  var DPR_CAP = 1.5, SIM_SCALE = 0.6;
+  function dpr() { return Math.min(window.devicePixelRatio || 1, DPR_CAP); }
 
-            void main() {
-                vec2 uv = gl_FragCoord.xy / u_resolution.xy;
-                float t = u_time * 0.15; // Slow, elegant motion
-                
-                // Four orbiting nodes using different speeds and paths
-                vec2 p1 = vec2(0.25 + 0.20 * sin(t * 0.8), 0.30 + 0.20 * cos(t * 1.2));
-                vec2 p2 = vec2(0.75 + 0.15 * cos(t * 1.1), 0.70 - 0.20 * sin(t * 0.7));
-                vec2 p3 = vec2(0.50 + 0.25 * sin(t * 0.9), 0.45 + 0.25 * cos(t * 1.0));
-                vec2 p4 = vec2(0.30 + 0.18 * cos(t * 1.3), 0.80 + 0.15 * sin(t * 0.6));
+  // ════════════════ PRIMARY PATH: WebGL2 advection-feedback ocean ════════════════
+  var gl2 = canvas.getContext("webgl2", { antialias: false, alpha: false });
+  if (gl2 && gl2.getExtension("EXT_color_buffer_float")) {
+    runAdvection(gl2);
+  } else {
+    var gl1 = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
+    if (gl1) runFallback(gl1); else document.body.style.background = darkMode ? bgHex : fgHex;
+  }
 
-                float d1 = distance(uv, p1);
-                float d2 = distance(uv, p2);
-                float d3 = distance(uv, p3);
-                float d4 = distance(uv, p4);
+  function runAdvection(gl) {
+    var VS = "#version 300 es\nin vec2 a; void main(){ gl_Position=vec4(a,0.0,1.0); }";
 
-                // Convert distance to smooth weight
-                float w1 = 1.0 - smoothstep(0.0, 0.9, d1);
-                float w2 = 1.0 - smoothstep(0.0, 0.8, d2);
-                float w3 = 1.0 - smoothstep(0.0, 0.85, d3);
-                float w4 = 1.0 - smoothstep(0.0, 0.75, d4);
+    var SIM = "#version 300 es\nprecision highp float;\n"
+      + "uniform sampler2D u_prev; uniform vec2 u_sim; uniform float u_time,u_dt,u_asp; uniform vec3 u_pal[12];\n"
+      + "out vec4 o;\n" + NOISE + "\n"
+      + "vec4 splats(vec2 uv){\n"
+      + "  vec3 s=vec3(0.0); float w=0.0;\n"
+      + "  for(int k=0;k<12;k++){ float i=float(k);\n"
+      + "    float period=11.0+7.0*fract(sin(i*1.7)*43.0);\n"
+      + "    float tt=u_time/period + fract(sin(i*3.3)*91.0)*11.0;\n"
+      + "    float cyc=floor(tt), age=fract(tt);\n"
+      + "    float sd=i*17.0 + cyc*57.3;\n"
+      + "    vec2 pos=vec2(0.10,0.08)+vec2(0.80,0.86)*fract(sin(vec2(sd*12.9+i, sd*78.2-i))*43758.5);\n"
+      + "    int ci=int(mod(sd*7.0, 12.0));\n"                        // WHICH SSOT colour surfaces — hashed, not k
+      + "    float r=mix(0.14,0.30,age);\n"                           // BIG soft emitter; advection+diffusion spread it
+      + "    float env=sin(age*3.14159265);\n"                        // 0..1..0 soft bloom = COVERAGE, not brightness
+      + "    vec2 d=(uv-pos)*vec2(u_asp,1.0);\n"
+      + "    float g=env*exp(-dot(d,d)/(2.0*r*r));\n"
+      + "    s+=u_pal[ci]*g; w+=g; }\n"
+      + "  return vec4(s,w); }\n"
+      + "vec3 fetchBlur(vec2 c){\n"                                   // 3x3 gaussian diffusion — colours bleed & mix
+      + "  vec2 tx=2.2/u_sim;\n"
+      + "  vec3 b=texture(u_prev,c).rgb*4.0;\n"
+      + "  b+=(texture(u_prev,c+vec2(tx.x,0.0)).rgb+texture(u_prev,c-vec2(tx.x,0.0)).rgb+texture(u_prev,c+vec2(0.0,tx.y)).rgb+texture(u_prev,c-vec2(0.0,tx.y)).rgb)*2.0;\n"
+      + "  b+=texture(u_prev,c+tx).rgb+texture(u_prev,c-tx).rgb+texture(u_prev,c+vec2(tx.x,-tx.y)).rgb+texture(u_prev,c+vec2(-tx.x,tx.y)).rgb;\n"
+      + "  return b/16.0; }\n"
+      + "void main(){\n"
+      + "  vec2 uv=gl_FragCoord.xy/u_sim;\n"
+      + "  vec2 pv=vec2(uv.x*u_asp, uv.y);\n"
+      + "  vec2 v=curl(pv*0.55, u_time*0.06)*0.5; v.y+=0.08;\n"        // divergence-free flow + gentle upwelling
+      + "  vec2 srcp=pv - v*u_dt; vec2 src=vec2(srcp.x/u_asp, srcp.y);\n"
+      + "  vec3 fld=fetchBlur(src);\n"                                // advect + DIFFUSE (soft — no sharp edges/collisions)
+      + "  vec3 base=mix(u_pal[0], u_pal[2], 0.5);\n"                 // deep-ocean rest colour
+      + "  fld=mix(fld, base, 0.006);\n"                              // gentle settle — keeps evolving, never blows up
+      + "  vec4 sp=splats(uv);\n"
+      + "  vec3 tgt = sp.w>1e-4 ? sp.rgb/sp.w : fld;\n"               // normalized SSOT colour being injected
+      + "  float wgt = clamp(sp.w,0.0,1.0)*0.05;\n"                   // BLEND toward colour — bounded, NEVER infinite
+      + "  vec3 col=mix(fld, tgt, wgt);\n"
+      + "  o=vec4(col,1.0); }";
 
-                vec3 c1 = u_accent;
-                vec3 c2 = u_cursor;
-                vec3 c3 = u_subtle;
-                vec3 c4 = u_success;
+    var PRES = "#version 300 es\nprecision highp float;\n"
+      + "uniform sampler2D u_field; uniform vec2 u_res; uniform vec3 u_pal[12]; uniform float u_dark,u_time;\n"
+      + "out vec4 o;\n" + NOISE + "\n"
+      + "void main(){\n"
+      + "  vec2 uv=gl_FragCoord.xy/u_res;\n"
+      + "  vec3 fld=texture(u_field, uv).rgb;\n"
+      + "  vec3 ground=mix(u_pal[0], u_pal[2], 0.35);\n"             // deep-ocean ground (bg+accent)
+      + "  float m=clamp(length(fld)*1.7, 0.0, 1.0);\n"              // how much SSOT colour has welled here
+      + "  vec3 col=mix(ground, fld, m);\n"                          // reveal welled colour over calm ocean — bounded
+      + GRADE + "\n"
+      + "  col+=(hash21(gl_FragCoord.xy+fract(u_time))-0.5)/320.0;\n"
+      + "  o=vec4(col,1.0); }";
 
-                float total_w = w1 + w2 + w3 + w4 + 0.01;
-                vec3 mixedBlobs = (w1 * c1 + w2 * c2 + w3 * c3 + w4 * c4) / total_w;
-                
-                float blendFactor = smoothstep(0.1, 0.8, max(max(w1, w2), max(w3, w4)));
-                vec3 finalColor = mix(u_bg, mixedBlobs, blendFactor * 0.85);
+    var sim = program(gl, VS, SIM), pres = program(gl, VS, PRES);
+    if (!sim || !pres) { var g1 = canvas.getContext("webgl"); if (g1) return runFallback(g1); return; }
 
-                gl_FragColor = vec4(finalColor, 1.0);
-            }
-        `;
+    var quad = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, quad);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1]), gl.STATIC_DRAW);
+    function bindQuad(p) { var l = gl.getAttribLocation(p, "a"); gl.bindBuffer(gl.ARRAY_BUFFER, quad); gl.enableVertexAttribArray(l); gl.vertexAttribPointer(l, 2, gl.FLOAT, false, 0, 0); }
 
-        function createShader(gl, type, source) {
-            const shader = gl.createShader(type);
-            gl.shaderSource(shader, source);
-            gl.compileShader(shader);
-            if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-                console.error(gl.getShaderInfoLog(shader));
-                gl.deleteShader(shader);
-                return null;
-            }
-            return shader;
-        }
+    var W=1, H=1, simW=1, simH=1, texs=[null,null], fbos=[null,null], readi=0;
+    function makeTarget(w, h) {
+      var tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, w, h, 0, gl.RGBA, gl.HALF_FLOAT, null);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      var fbo = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+      gl.clearColor(0,0,0,1); gl.clear(gl.COLOR_BUFFER_BIT);
+      return { tex: tex, fbo: fbo };
+    }
+    function alloc() {
+      W = Math.round(window.innerWidth * dpr()); H = Math.round(window.innerHeight * dpr());
+      canvas.width = W; canvas.height = H;
+      simW = Math.max(2, Math.round(W * SIM_SCALE)); simH = Math.max(2, Math.round(H * SIM_SCALE));
+      var a = makeTarget(simW, simH), b = makeTarget(simW, simH);
+      texs = [a.tex, b.tex]; fbos = [a.fbo, b.fbo]; readi = 0;
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    }
+    window.addEventListener("resize", alloc); alloc();
 
-        const vs = createShader(gl, gl.VERTEX_SHADER, vsSource);
-        const fs = createShader(gl, gl.FRAGMENT_SHADER, fsSource);
-        
-        if (vs && fs) {
-            const program = gl.createProgram();
-            gl.attachShader(program, vs);
-            gl.attachShader(program, fs);
-            gl.linkProgram(program);
+    var uDarkP = gl.getUniformLocation(pres, "u_dark");
+    setDark();
+    function setDark() { gl.useProgram(pres); gl.uniform1f(uDarkP, darkMode ? 1.0 : 0.0); }
+    if (!m && window.matchMedia) {
+      var mq = window.matchMedia("(prefers-color-scheme: light)");
+      var onC = function (e) { darkMode = !e.matches; setDark(); document.body.style.background = darkMode ? bgHex : fgHex; };
+      if (mq.addEventListener) mq.addEventListener("change", onC); else if (mq.addListener) mq.addListener(onC);
+    }
 
-            if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-                console.error('Shader program linking failed');
-            }
+    var FPS=30, minDelta=1000/FPS, last=0, t0=performance.now();
+    function step() {
+      var t = (performance.now() - t0) / 1000, asp = W / H;
+      // SIM: read texs[readi] -> write fbos[1-readi]
+      gl.bindFramebuffer(gl.FRAMEBUFFER, fbos[1-readi]); gl.viewport(0,0,simW,simH);
+      gl.useProgram(sim); bindQuad(sim);
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, texs[readi]);
+      gl.uniform1i(gl.getUniformLocation(sim,"u_prev"), 0);
+      gl.uniform2f(gl.getUniformLocation(sim,"u_sim"), simW, simH);
+      gl.uniform1f(gl.getUniformLocation(sim,"u_time"), t);
+      gl.uniform1f(gl.getUniformLocation(sim,"u_dt"), 1.0/30.0);
+      gl.uniform1f(gl.getUniformLocation(sim,"u_asp"), asp);
+      gl.uniform3fv(gl.getUniformLocation(sim,"u_pal"), pal);
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+      // PRESENT: draw the just-written field to screen
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0,0,W,H);
+      gl.useProgram(pres); bindQuad(pres);
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, texs[1-readi]);
+      gl.uniform1i(gl.getUniformLocation(pres,"u_field"), 0);
+      gl.uniform2f(gl.getUniformLocation(pres,"u_res"), W, H);
+      gl.uniform1f(gl.getUniformLocation(pres,"u_time"), t);
+      gl.uniform3fv(gl.getUniformLocation(pres,"u_pal"), pal);
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+      readi = 1 - readi;
+    }
+    function frame() { requestAnimationFrame(frame); var now=performance.now(); if (now-last<minDelta) return; last=now; step(); }
+    requestAnimationFrame(frame);
+    setInterval(function () { if (performance.now()-last >= 180) { last=performance.now(); step(); } }, 180);
+  }
 
-            gl.useProgram(program);
-
-            // Position buffer
-            const positionBuffer = gl.createBuffer();
-            gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-            const positions = [
-                -1, -1,
-                 1, -1,
-                -1,  1,
-                -1,  1,
-                 1, -1,
-                 1,  1,
-            ];
-            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
-
-            const positionLocation = gl.getAttribLocation(program, 'a_position');
-            gl.enableVertexAttribArray(positionLocation);
-            gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
-
-            // Uniform locations
-            const timeLocation = gl.getUniformLocation(program, 'u_time');
-            const resLocation = gl.getUniformLocation(program, 'u_resolution');
-            const bgLocation = gl.getUniformLocation(program, 'u_bg');
-            const accentLocation = gl.getUniformLocation(program, 'u_accent');
-            const cursorLocation = gl.getUniformLocation(program, 'u_cursor');
-            const subtleLocation = gl.getUniformLocation(program, 'u_subtle');
-            const successLocation = gl.getUniformLocation(program, 'u_success');
-
-            // Set static color uniforms
-            gl.uniform3fv(bgLocation, bgColor);
-            gl.uniform3fv(accentLocation, accentColor);
-            gl.uniform3fv(cursorLocation, cursorColor);
-            gl.uniform3fv(subtleLocation, subtleColor);
-            gl.uniform3fv(successLocation, successColor);
-
-            function resize() {
-                canvas.width = window.innerWidth;
-                canvas.height = window.innerHeight;
-                gl.viewport(0, 0, canvas.width, canvas.height);
-                gl.uniform2f(resLocation, canvas.width, canvas.height);
-            }
-
-            window.addEventListener('resize', resize);
-            resize();
-
-            let startTime = Date.now();
-            function render() {
-                const elapsed = (Date.now() - startTime) / 1000.0;
-                gl.uniform1f(timeLocation, elapsed);
-                gl.drawArrays(gl.TRIANGLES, 0, 6);
-                requestAnimationFrame(render);
-            }
-
-            requestAnimationFrame(render);
-        }
-    </script>
+  // ════════════════ FALLBACK: WebGL1 single-pass metaball (full palette) ════════════════
+  function runFallback(gl) {
+    var VS = "attribute vec2 a; void main(){ gl_Position=vec4(a,0.0,1.0); }";
+    var FS = "precision highp float;\n"
+      + "uniform float u_time; uniform vec2 u_res; uniform vec3 u_pal[12]; uniform float u_dark;\n" + NOISE + "\n"
+      + "void main(){\n"
+      + "  vec2 uv=gl_FragCoord.xy/u_res; float asp=u_res.x/u_res.y;\n"
+      + "  vec2 p=vec2(uv.x*asp,uv.y); float t=u_time*0.85;\n"
+      + "  vec2 flow=curl(p*0.6,t*0.14)*0.14; flow.y+=0.02; flow+=curl(p*1.3+5.0,t*0.10)*0.05; vec2 q=p+flow;\n"
+      + "  vec3 base=mix(u_pal[0],u_pal[7],0.25); vec3 acc=base*0.30; float w=0.30;\n"
+      + "  for(int k=0;k<12;k++){ float i=float(k);\n"
+      + "    float period=5.0+4.0*fract(sin(i*1.7)*43.0);\n"
+      + "    float tt=t/period+fract(sin(i*3.3)*91.0)*11.0; float cyc=floor(tt), age=fract(tt);\n"
+      + "    float sd=i*17.0+cyc*57.3;\n"
+      + "    vec2 pos=vec2(0.10,0.08)+vec2(0.80,0.86)*fract(sin(vec2(sd*12.9+i,sd*78.2-i))*43758.5);\n"
+      + "    float rad=mix(0.05,0.40,age); float inten=sin(age*3.14159265);\n"
+      + "    float d=distance(q,pos*vec2(asp,1.0)); float g=inten*exp(-(d*d)/(2.0*rad*rad));\n"
+      + "    acc+=u_pal[k]*g; w+=g; }\n"
+      + "  vec3 col=acc/w;\n" + GRADE + "\n"
+      + "  col+=(hash21(gl_FragCoord.xy+fract(t))-0.5)/320.0; gl_FragColor=vec4(col,1.0); }";
+    var prog = program(gl, VS, FS); if (!prog) return; gl.useProgram(prog);
+    var quad = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, quad);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1]), gl.STATIC_DRAW);
+    var l = gl.getAttribLocation(prog,"a"); gl.enableVertexAttribArray(l); gl.vertexAttribPointer(l,2,gl.FLOAT,false,0,0);
+    var uT=gl.getUniformLocation(prog,"u_time"), uR=gl.getUniformLocation(prog,"u_res"), uD=gl.getUniformLocation(prog,"u_dark");
+    gl.uniform3fv(gl.getUniformLocation(prog,"u_pal"), pal); gl.uniform1f(uD, darkMode?1.0:0.0);
+    function rs(){ canvas.width=Math.round(window.innerWidth*dpr()); canvas.height=Math.round(window.innerHeight*dpr()); gl.viewport(0,0,canvas.width,canvas.height); gl.uniform2f(uR,canvas.width,canvas.height); }
+    window.addEventListener("resize", rs); rs();
+    if (!m && window.matchMedia) { var mq=window.matchMedia("(prefers-color-scheme: light)"); var oc=function(e){ darkMode=!e.matches; gl.uniform1f(uD,darkMode?1.0:0.0); document.body.style.background=darkMode?bgHex:fgHex; }; if(mq.addEventListener)mq.addEventListener("change",oc); else if(mq.addListener)mq.addListener(oc); }
+    var FPS=30, minDelta=1000/FPS, last=0, t0=performance.now();
+    function draw(){ gl.uniform1f(uT,(performance.now()-t0)/1000); gl.drawArrays(gl.TRIANGLES,0,6); }
+    function frame(){ requestAnimationFrame(frame); var now=performance.now(); if(now-last<minDelta) return; last=now; draw(); }
+    requestAnimationFrame(frame);
+    setInterval(function(){ if(performance.now()-last>=180){ last=performance.now(); draw(); } }, 180);
+  }
+})();
+</script>
 </body>
 </html>

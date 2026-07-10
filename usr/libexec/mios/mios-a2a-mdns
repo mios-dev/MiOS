@@ -52,29 +52,14 @@ MDNS_CACHE = os.environ.get(
     "MIOS_A2A_MDNS_CACHE", "/run/mios/a2a-mdns-candidates.json")
 
 
-def _deep_merge(base, over):
-    for k, v in over.items():
-        if isinstance(v, dict) and isinstance(base.get(k), dict):
-            _deep_merge(base[k], v)
-        else:
-            base[k] = v
+sys.path.insert(0, os.path.join(_HERE, "..", "..", "lib", "mios"))
+import mios_toml  # noqa: E402  -- the ONE shared layered-mios.toml resolver
 
 
 def _load_toml():
-    """Merge the layered mios.toml (vendor < host < user). Empty on any failure."""
-    try:
-        import tomllib
-    except Exception:  # noqa: BLE001
-        return {}
-    merged = {}
-    for p in ("/usr/share/mios/mios.toml", "/etc/mios/mios.toml",
-              os.path.expanduser("~/.config/mios/mios.toml")):
-        try:
-            with open(p, "rb") as f:
-                _deep_merge(merged, tomllib.load(f))
-        except Exception:  # noqa: BLE001
-            continue
-    return merged
+    """Merge the layered mios.toml (vendor < host < user) via the shared resolver.
+    Empty on any failure."""
+    return mios_toml.load_merged()
 
 
 def _resolve_port(cfg):

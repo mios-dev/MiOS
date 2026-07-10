@@ -39,6 +39,7 @@ import httpx
 from mios_a2a import _a2a_principal_metadata
 from mios_mcp import _mcp_render_headers
 from mios_jsonsalvage import loads_lenient as _loads_lenient
+from mios_config import _toml_section
 
 log = logging.getLogger("mios-agent-pipe")
 
@@ -185,11 +186,22 @@ async def _a2a_fetch_models_card(url: str, headers: dict, timeout_s: float = 10.
                 has_text = False
                 has_embed = False
                 has_image = False
+                _routing_cfg = _toml_section("routing") or {}
+                _embed_kw = (os.environ.get("MIOS_MODEL_MODALITIES_EMBEDDINGS")
+                             or _routing_cfg.get("model_modalities_embeddings")
+                             or ["embed", "bert", "text-embedding", "bge"])
+                if isinstance(_embed_kw, str):
+                    _embed_kw = [x.strip() for x in _embed_kw.split(",") if x.strip()]
+                _image_kw = (os.environ.get("MIOS_MODEL_MODALITIES_IMAGE")
+                             or _routing_cfg.get("model_modalities_image")
+                             or ["diffuse", "flux", "dall", "midjourney", "sd"])
+                if isinstance(_image_kw, str):
+                    _image_kw = [x.strip() for x in _image_kw.split(",") if x.strip()]
                 for mid in model_ids:
                     mid_lower = mid.lower()
-                    if any(x in mid_lower for x in ("embed", "bert", "text-embedding", "bge")):
+                    if any(x in mid_lower for x in _embed_kw):
                         has_embed = True
-                    elif any(x in mid_lower for x in ("diffuse", "flux", "dall", "midjourney", "sd")):
+                    elif any(x in mid_lower for x in _image_kw):
                         has_image = True
                     else:
                         has_text = True
@@ -235,7 +247,7 @@ async def _a2a_tailnet_candidates() -> list:
     [a2a] block feeds MIOS_A2A_DISCOVER_PORT / MIOS_A2A_DISCOVER_URLS via the
     userenv slot (no hardcoded node IPs in code)."""
     try:
-        port = int(os.environ.get("MIOS_A2A_DISCOVER_PORT", "8640") or 8640)
+        port = int(os.environ.get("MIOS_A2A_DISCOVER_PORT") or (_toml_section("a2a") or {}).get("discover_port") or 8640)
     except ValueError:
         port = 8640
     urls: list = []
