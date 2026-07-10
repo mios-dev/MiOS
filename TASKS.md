@@ -1,6 +1,6 @@
 # MiOS -- Master Tasks (SINGULAR monolith)
 
-> The one canonical task list. **221 tasks** (103 done, 118 open/in-progress). Absorbs the former top-level `*-PLAN-*.md` + `usr/share/doc/mios/concepts/ws-*` backlogs (T-167+). Each task carries **Who / What / Where / When / How** + Done-When. Full detail per task below the index.
+> The one canonical task list. **227 tasks** (106 done, 121 open/in-progress). Absorbs the former `*-PLAN-*.md` + `concepts/*` backlogs. Each task carries **Who / What / Where / When / How** + Done-When.
 
 | ID | Pri | Status | Domain | Title |
 |---|---|---|---|---|
@@ -225,6 +225,12 @@
 | T-239 | P3 | ? | Security/Boot | UKI-01 -- verity-rooted UKI build + fapolicyd enforce-promotion  |
 | T-240 | P2 | in-progress | Data/Migration | A3F-01 -- Central-path SurrealDB→pg primary flip + un-mirrored w |
 | T-241 | P2 | in-progress | OS-control/Windows | OSCTL2-01 -- hwnd-threaded target-window resolution for `pc_type |
+| T-242 | P1 | planned | AI-plane/SSOT/DB | VECTOR-00 -- V0 Foundation: unified DB + provenance + DB->TOML m |
+| T-243 | P1 | planned | AI-plane/SSOT/DB | VECTOR-01 -- V1 Config read-path: DB becomes the runtime read (T |
+| T-244 | P2 | planned | AI-plane/Vectorization | VECTOR-02 -- V2 AI-plane vectors: embed skill/verb/tool_call/eve |
+| T-245 | P2 | planned | Build/Install/Xbox/DB | VECTOR-03 -- V3 Build catalog: package/build/xbox/debloat tables |
+| T-246 | P2 | planned | Accounts/Identity/DB | VECTOR-04 -- V4 Accounts/users: DB-owned ids + prefs + bidirecti |
+| T-247 | P3 | planned | SSOT/DB/Configurator | VECTOR-05 -- V5 Invert authority: DB=SSOT, TOML=generated export |
 
 ---
 
@@ -4073,3 +4079,59 @@ T-094 (CONV-01 SSOT)
 **When (deps/order):** Extends CU-01/T-038; operator-live-test-gated.
 **Done When:**
 - [ ] A type into a named/handle-resolved background window lands in that window (not the focused one); read-back verification passes.
+
+
+## T-242: VECTOR-00 -- V0 Foundation: unified DB + provenance + DB->TOML materialize + drift-gate  [P1]
+> **Priority:** P1 | **Status:** planned | **Effort:** M | **Domain:** AI-plane/SSOT/DB | **Who:** DB/build agent | **Source:** WS-VECTOR ultracode survey 2026-07-10; usr/share/doc/mios/reference/everything-db-driven.md
+**Instructions (WHAT + HOW):** Land the unified pgvector DB in /var with emb/emb_model/emb_version provenance columns; add the INVERSE DB->TOML materialize step (today only TOML->DB seeds); make the verb round-trip LOSSLESS (section/examples/model_name/hidden/aliases/conflict_group/parallel_limit/max_result_chars all survive TOML<->DB); add drift-gate 29 (drift_projection) that regenerates TOML from DB and diffs (theme check-25 pattern, now across the build boundary). No behavior change yet.
+**Where (files):** usr/share/mios/postgres/schema-init.sql, usr/libexec/mios/seed-db-config.py (+ a new DB->TOML materialize peer), automation/38-drift-checks.sh (check 29)
+**When (deps/order):** First -- foundation for V1-V5; depends on nothing beyond the running mios-pgvector.
+**Done When:**
+- [ ] the V2 surface is DB-driven per the WS-VECTOR law (DB read at runtime, TOML fail-open) with no functionality loss
+- [ ] emb/HNSW recall works where the phase adds vectors; drift-gate (regenerate+diff) green; `just drift-gate` + `test_mios_*` pass
+
+## T-243: VECTOR-01 -- V1 Config read-path: DB becomes the runtime read (TOML fail-open)  [P1]
+> **Priority:** P1 | **Status:** planned | **Effort:** L | **Domain:** AI-plane/SSOT/DB | **Who:** agent-pipe backend engineer | **Source:** WS-VECTOR ultracode survey 2026-07-10; usr/share/doc/mios/reference/everything-db-driven.md
+**Instructions (WHAT + HOW):** Add a config resolver PEER of mios_toml.py that READS config_kv/verb/domain_verb/recipe/routing_phrase from the DB at runtime (overlay-first: vendor<host<user<machine via config_layer), with the existing TOML path as fail-open fallback; wire verbcatalog.py + the config consumers to it; kill the write-only system_config dead-drift. Per-surface authority flip only when read-path + lossless round-trip + drift-gate are green.
+**Where (files):** usr/lib/mios/mios_toml.py (+ new db resolver), usr/lib/mios/agent-pipe/mios_pipe/routing/verbcatalog.py, usr/libexec/mios/seed-db-config.py
+**When (deps/order):** After T-242 (lossless round-trip + materialize). Honors WS-NAME aliases + load-bearing legacy verbs (fold-refactor, never blind-drop).
+**Done When:**
+- [ ] the V3 surface is DB-driven per the WS-VECTOR law (DB read at runtime, TOML fail-open) with no functionality loss
+- [ ] emb/HNSW recall works where the phase adds vectors; drift-gate (regenerate+diff) green; `just drift-gate` + `test_mios_*` pass
+
+## T-244: VECTOR-02 -- V2 AI-plane vectors: embed skill/verb/tool_call/event/session/directory  [P2]
+> **Priority:** P2 | **Status:** planned | **Effort:** M | **Domain:** AI-plane/Vectorization | **Who:** agent-pipe backend engineer | **Source:** WS-VECTOR ultracode survey 2026-07-10; usr/share/doc/mios/reference/everything-db-driven.md
+**Instructions (WHAT + HOW):** Add emb vector(768) + HNSW(vector_cosine_ops) to skill, verb, tool_call, event, session, directory_entry over a text projection (emb_model/emb_version stamped, off-hot-path backfill like embed_backfill.py); retire the in-process verb-embeddings/apps-embeddings BM25/cosine caches for native <=> queries. Ground-truth stays in typed columns.
+**Where (files):** usr/share/mios/postgres/schema-init.sql, usr/lib/mios/agent-pipe/mios_pipe/routing/worker_tools.py, mios_pipe/memory/embed_backfill.py, mios-skills
+**When (deps/order):** After V1 (or parallel -- vectors are additive). No functionality loss (adds recall, keeps text-match).
+**Done When:**
+- [ ] the V4 surface is DB-driven per the WS-VECTOR law (DB read at runtime, TOML fail-open) with no functionality loss
+- [ ] emb/HNSW recall works where the phase adds vectors; drift-gate (regenerate+diff) green; `just drift-gate` + `test_mios_*` pass
+
+## T-245: VECTOR-03 -- V3 Build catalog: package/build/xbox/debloat tables + DB->/ctx materialize  [P2]
+> **Priority:** P2 | **Status:** planned | **Effort:** L | **Domain:** Build/Install/Xbox/DB | **Who:** build/DISM agent | **Source:** WS-VECTOR ultracode survey 2026-07-10; usr/share/doc/mios/reference/everything-db-driven.md
+**Instructions (WHAT + HOW):** Move the build + MiOS-Xbox catalog into DB tables: package_set (the [packages.*] SSOT), build_recipe/build_phase (OCI+Xbox recipes; build_phase = the WS-DEPLOY DAG as rows with stage∈{container,runtime,firstboot}+deps), xbox_feature, debloat_policy/profile, feature_set, {appx,feature,capability,component}_removal, preset -- each with emb. Solve the clean-container chicken-and-egg with a DB->/ctx materialize at build entry; unify build-time vs runtime identity onto the account table.
+**Where (files):** usr/share/mios/postgres/schema-init.sql, automation/lib/packages.sh, automation/build.sh + NN-*.sh, C:\mios-bootstrap\srcutounattend\* (New-MiOSISO.ps1, mios-debloat.json, mios-xbox-features.txt, presets)
+**When (deps/order):** After V0/V1 (materialize + read-path). Offline-safe: /ctx materialize keeps the clean-container build hermetic.
+**Done When:**
+- [ ] the V5 surface is DB-driven per the WS-VECTOR law (DB read at runtime, TOML fail-open) with no functionality loss
+- [ ] emb/HNSW recall works where the phase adds vectors; drift-gate (regenerate+diff) green; `just drift-gate` + `test_mios_*` pass
+
+## T-246: VECTOR-04 -- V4 Accounts/users: DB-owned ids + prefs + bidirectional write-back  [P2]
+> **Priority:** P2 | **Status:** planned | **Effort:** L | **Domain:** Accounts/Identity/DB | **Who:** identity/accounts agent | **Source:** WS-VECTOR ultracode survey 2026-07-10; usr/share/doc/mios/reference/everything-db-driven.md
+**Instructions (WHAT + HOW):** Complete the account plane: account.home_dir/shell, a uid_alloc SEQUENCE + allocate_uid()/allocate_gid() so ids are DB-owned, account_preference (layer-scoped, emb) so per-user dotfiles RENDER from the DB (retire static etc/skel); bidirectional write-back -- Linux pam/getent (NSS from account already), Windows SAM watcher (extend MiOS-AccountSync.ps1). Reconcile the /etc/shadow parallel store via pam write-back so the two credential planes don't drift.
+**Where (files):** usr/share/mios/postgres/schema-init.sql, automation/17-accounts-db.sh, usr/libexec/mios/mios-ai-firstboot (account seeder), C:\mios-bootstrap\srcutounattend\MiOS-AccountSync.ps1, etc/skel
+**When (deps/order):** After V0/V1. Builds on the shipped WS-ACCT account table + NSS getpwnam.
+**Done When:**
+- [ ] the V6 surface is DB-driven per the WS-VECTOR law (DB read at runtime, TOML fail-open) with no functionality loss
+- [ ] emb/HNSW recall works where the phase adds vectors; drift-gate (regenerate+diff) green; `just drift-gate` + `test_mios_*` pass
+
+## T-247: VECTOR-05 -- V5 Invert authority: DB=SSOT, TOML=generated export, event-sourced  [P3]
+> **Priority:** P3 | **Status:** planned | **Effort:** XL | **Domain:** SSOT/DB/Configurator | **Who:** platform architect | **Source:** WS-VECTOR ultracode survey 2026-07-10; usr/share/doc/mios/reference/everything-db-driven.md
+**Instructions (WHAT + HOW):** Flip authority: the DB is the SSOT and mios.toml becomes a generated EXPORT (materialized for the next image build). The configurator (mios.html) CRUDs the DB (emitting config_event); install/build/config/account mutations become append-only event-sourced with time-travel + rollback, aligned to bootc atomic-upgrade. Flip per-surface only after V1-V4 read-paths + drift-gates are all green.
+**Where (files):** usr/share/mios/configurator/mios.html, usr/share/mios/postgres/schema-init.sql (config_event + event-sourcing), automation/38-drift-checks.sh, the DB->TOML materialize
+**When (deps/order):** LAST -- after V0-V4 are green per-surface. The terminal state of WS-VECTOR.
+**Done When:**
+- [ ] the V7 surface is DB-driven per the WS-VECTOR law (DB read at runtime, TOML fail-open) with no functionality loss
+- [ ] emb/HNSW recall works where the phase adds vectors; drift-gate (regenerate+diff) green; `just drift-gate` + `test_mios_*` pass
+

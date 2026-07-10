@@ -1,6 +1,6 @@
 # MiOS -- Master Roadmap (SINGULAR monolith)
 
-> The one canonical roadmap. Absorbs all former top-level `*-PLAN-*.md` and `usr/share/doc/mios/concepts/*` planning docs (Parts 17-19+). Workstreams map to `T-*` in TASKS.md.
+> The one canonical roadmap. Absorbs all former top-level `*-PLAN-*.md` + `concepts/*` planning docs. Workstreams map to `T-*` in TASKS.md.
 
 
 **Part 1: Next-Gen OS & Observability Research Integration**
@@ -86,6 +86,9 @@
 
 **Part 19: Deploy the stated heavy dGPU lane (model provisioning) (2026-07-10)**
 - `WS-HEAVY` — provision the heavy dGPU model so the STATED lane defaults deploy
+
+**Part 20: Everything DB-driven + vectorized (2026-07-10)**
+- `WS-VECTOR` — Everything DB-driven + vectorized (unified pgvector control plane)
 
 ---
 
@@ -2854,6 +2857,33 @@ provisioning remains). **Source:** live dGPU diagnosis; `[lanes.*]`, `[ai.vllm]`
 `[ai.sglang]`, `[ai.host_thresholds]`, `[nodes.local-dgpu/vllm/sglang]`,
 `mios-ai-firstboot` L111-124.
 
+
+# Part 20: Everything DB-driven + vectorized (2026-07-10)
+
+## WS-VECTOR — Everything DB-driven + vectorized (unified pgvector control plane)
+
+**Law.** mios.toml is the human-readable, git-diffable, image-baked (/usr) COLD-START authoring seed. Postgres/pgvector (mios-pgvector, db=mios, in /var) is the LIVE RUNTIME SSOT. On first boot a deterministic seeder projects the baked TOML -> DB; thereafter the DB is authoritative and every resolver reads the DB with TOML as fail-open fallback. A DB->TOML materialize step regenerates the file for the next image build. Same regenerate-and-diff discipline as the theme SSOT (drift check 25), now spanning the build boundary.
+
+**Storage law.** Ground-truth values stay in typed relational columns; every semantically-recallable row gets a separate `emb vector(768)` (nomic-embed-text via mios-llm-light /v1/embeddings) over a TEXT PROJECTION, HNSW(emb vector_cosine_ops m=16 ef_construction=64), with emb_model/emb_version provenance. Vectors find; SQL reads. Never vectorize the authoritative value.
+
+### Phases (offline-bootstrap-safe, drift-gated, no functionality loss)
+- **V0 Foundation** — unified DB in /var; emb provenance columns; DB->TOML materialize (invert direction); drift-gates 29+ (`drift_projection`); make the verb round-trip lossless (section/examples/model_name/hidden/aliases/conflict_group/parallel_limit/max_result_chars).
+- **V1 Config read-path** — config resolver peer of `mios_toml.py` reading `config_kv`/`verb`/`domain_verb`/`recipe`/`routing_phrase`, TOML fail-open; kill the write-only `system_config` dead-drift.
+- **V2 AI-plane vectors** — add emb to `skill`, `verb`, `tool_call`, `event`, `session`, `directory_entry`; retire verb-embeddings.json / apps-embeddings.json in-process caches for native `<=>`.
+- **V3 Build catalog** — `package_set`/`build_recipe`/`xbox_feature`/`debloat_policy`/`preset`/`*_removal` tables; DB->/ctx materialize solves the clean-container chicken-and-egg; unify build-time vs runtime identity onto `account`.
+- **V4 Accounts/users** — `account.home_dir`/`shell`, uid_alloc sequence, `account_preference` (render dotfiles from DB, retire static skel), bidirectional write-back (Linux pam/getent, Windows SAM watcher).
+- **V5 Invert authority** — DB is SSOT, TOML is generated export; configurator CRUDs the DB (emits `config_event`); event-sourced install/build/config/account with time-travel + rollback (bootc atomic-upgrade alignment).
+
+### Invariants / guardrails
+- DB lives in /var (Docker-VOLUME), never image-baked; factory-reset reseeds from /usr TOML.
+- Cold boot with empty /var must self-heal: seed from baked TOML, set authority sentinel, then run DB-authoritative — every resolver keeps a TOML fail-open branch.
+- Authority flips per-surface only when read-path + lossless round-trip + drift-gate are all green.
+- WS-NAME model-facing aliases and load-bearing legacy verbs (winget_*/flatpak_* re-dispatch, memory_append/replace) migrate via coordinated fold-refactor, never blind-drop.
+- password_hash hash-only; reconcile the /etc/shadow parallel store via a pam write-back or the two credential planes drift.
+
+Cross-refs: [[theme-ssot-projection]] (projection engine + check 25 pattern), [[mios-flatten-consolidation]] (shared `mios_toml.py` resolver, drift-gates 25-28, load-bearing-verb caution). New drift-gates land in `automation/38-drift-checks.sh` (29+). Schema SSOT: `usr/share/mios/postgres/schema-init.sql`.
+
+Full research + schema + phases: `usr/share/doc/mios/reference/everything-db-driven.md`.
 
 ---
 
