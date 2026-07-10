@@ -49,6 +49,33 @@ TYPOGRAPHIC = {
     "⁃": "-",    # hyphen bullet
     "«": '"',    # left guillemet
     "»": '"',    # right guillemet
+    "‹": "<",    # single left angle quote
+    "›": ">",    # single right angle quote
+    "′": "'",    # prime
+    "″": '"',    # double prime
+    "‐": "-",    # hyphen (U+2010)
+    # -- structural mappings folded from the retired tools/lib/ascii-sweep.py --
+    # Box drawings -> ASCII frame chars (kept readable, not stripped): these sit
+    # below DECORATIVE_RE's emoji ranges, so without an explicit map they'd
+    # survive the sweep and leave non-ASCII bytes in frames/tables.
+    "─": "-", "━": "-", "═": "=",
+    "│": "|", "┃": "|", "║": "|",
+    "┌": "+", "┐": "+", "└": "+", "┘": "+",
+    "┏": "+", "┓": "+", "┗": "+", "┛": "+",
+    "╔": "+", "╗": "+", "╚": "+", "╝": "+",
+    "├": "+", "┤": "+", "┬": "+", "┴": "+", "┼": "+",
+    # Arrows / triangles.
+    "→": "->", "←": "<-", "↑": "^", "↓": "v",
+    "▶": ">", "◀": "<", "▲": "^", "▼": "v",
+    "▪": "*", "▫": "*",
+    # Math operators.
+    "±": "+/-", "×": "x", "÷": "/",
+    # Currency.
+    "€": "EUR", "£": "GBP", "¥": "JPY", "¢": "c",
+    # Misc symbols.
+    "§": "S", "°": " deg", "©": "(c)", "®": "(R)", "™": "(TM)",
+    # Directional marks -> drop.
+    "‎": "", "‏": "",
 }
 
 # Status-indicator emoji -> ASCII tags so logs stay scannable.
@@ -119,9 +146,7 @@ SKIP_PATTERNS = (
     "var\\lib\\mios\\embeddings\\",  # Windows path form from git ls-files
     "var\\lib\\mios\\training\\",
     "tools/ascii-sweep.py",
-    "tools/lib/ascii-sweep.py",
     "tools\\ascii-sweep.py",
-    "tools\\lib\\ascii-sweep.py",
 )
 
 
