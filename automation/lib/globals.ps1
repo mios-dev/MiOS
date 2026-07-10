@@ -1,5 +1,5 @@
 # AI-hint: Provides a central PowerShell registry of MiOS-wide constants (VERSION, USERS, PORTS, URLS) and environment-aware defaults for system-wide configuration used by all automation scripts.
-# AI-related: /usr/share/mios/VERSION, mios-forge, mios-ollama, mios-services, mios-searxng, mios-ceph, mios-hermes, mios-dev, mios-crawl4ai, mios-bootstrap
+# AI-related: /usr/share/mios/VERSION, mios-forge, mios-services, mios-searxng, mios-ceph, mios-hermes, mios-dev, mios-crawl4ai, mios-bootstrap
 # AI-functions: Resolve-MiosVersion
 # automation/lib/globals.ps1
 #
@@ -42,13 +42,6 @@ $script:MIOS_FORGE_USER   = if ($env:MIOS_FORGE_USER)   { $env:MIOS_FORGE_USER }
 $script:MIOS_FORGE_UID    = if ($env:MIOS_FORGE_UID)    { [int]$env:MIOS_FORGE_UID } else { 816 }
 $script:MIOS_FORGE_GID    = if ($env:MIOS_FORGE_GID)    { [int]$env:MIOS_FORGE_GID } else { 816 }
 
-$script:MIOS_OLLAMA_USER  = if ($env:MIOS_OLLAMA_USER)  { $env:MIOS_OLLAMA_USER }  else { 'mios-ollama' }
-# 815 -- MUST match usr/lib/sysusers.d/50-mios-services.conf. Was 818
-# (typo, collided with mios-searxng). Caused ollama container to start
-# as UID 818 and `mkdir /var/lib/ollama/.ollama` -> permission denied
-# because the host bind-mount is chowned to UID 815 (mios-ollama).
-$script:MIOS_OLLAMA_UID   = if ($env:MIOS_OLLAMA_UID)   { [int]$env:MIOS_OLLAMA_UID } else { 815 }
-$script:MIOS_OLLAMA_GID   = if ($env:MIOS_OLLAMA_GID)   { [int]$env:MIOS_OLLAMA_GID } else { 815 }
 
 $script:MIOS_CEPH_USER    = if ($env:MIOS_CEPH_USER)    { $env:MIOS_CEPH_USER }    else { 'mios-ceph' }
 $script:MIOS_CEPH_UID     = if ($env:MIOS_CEPH_UID)     { [int]$env:MIOS_CEPH_UID }  else { 819 }
@@ -91,7 +84,6 @@ $script:MIOS_PORT_COCKPIT_LINK  = if ($env:MIOS_PORT_COCKPIT_LINK)  { [int]$env:
 $script:MIOS_AI_ENDPOINT  = if ($env:MIOS_AI_ENDPOINT)  { $env:MIOS_AI_ENDPOINT }  else { "http://localhost:$($script:MIOS_PORT_HERMES)/v1" }
 $script:MIOS_FORGE_URL    = if ($env:MIOS_FORGE_URL)    { $env:MIOS_FORGE_URL }    else { "http://localhost:$($script:MIOS_PORT_FORGE_HTTP)" }
 $script:MIOS_COCKPIT_URL  = if ($env:MIOS_COCKPIT_URL)  { $env:MIOS_COCKPIT_URL }  else { "https://localhost:$($script:MIOS_PORT_COCKPIT)" }
-$script:MIOS_OLLAMA_URL   = if ($env:MIOS_OLLAMA_URL)   { $env:MIOS_OLLAMA_URL }   else { "http://localhost:$($script:MIOS_PORT_LLM_LIGHT)" }
 $script:MIOS_LLM_LIGHT_URL = if ($env:MIOS_LLM_LIGHT_URL) { $env:MIOS_LLM_LIGHT_URL } else { "http://localhost:$($script:MIOS_PORT_LLM_LIGHT)" }
 $script:MIOS_PGVECTOR_URL = if ($env:MIOS_PGVECTOR_URL) { $env:MIOS_PGVECTOR_URL } else { "postgresql://mios:mios@localhost:$($script:MIOS_PORT_PGVECTOR)/mios" }
 $script:MIOS_SEARXNG_URL  = if ($env:MIOS_SEARXNG_URL)  { $env:MIOS_SEARXNG_URL }  else { "http://localhost:$($script:MIOS_PORT_SEARXNG)" }
@@ -136,9 +128,6 @@ $script:MIOS_SRV_AI_MODELS_DIR          = "$($script:MIOS_SRV_AI_DIR)/models"
 $script:MIOS_SRV_AI_OUTPUTS_DIR         = "$($script:MIOS_SRV_AI_DIR)/outputs"
 $script:MIOS_SRV_AI_COLLECTIONS_DIR     = "$($script:MIOS_SRV_AI_DIR)/collections"
 $script:MIOS_SRV_AI_MCP_DIR             = "$($script:MIOS_SRV_AI_DIR)/mcp"
-# Ollama
-$script:MIOS_OLLAMA_RUNTIME_DIR         = '/var/lib/ollama/models'
-$script:MIOS_OLLAMA_SEED_DIR            = '/usr/share/ollama/models'
 # Windows-side dev paths
 $script:MIOS_WIN_APPDATA_DIR            = if ($env:APPDATA)      { Join-Path $env:APPDATA 'MiOS' }      else { $null }
 $script:MIOS_WIN_DOCS_DIR               = if ($env:USERPROFILE)  { Join-Path $env:USERPROFILE 'Documents\MiOS' } else { $null }
@@ -151,7 +140,6 @@ $script:MIOS_TOML_HOST          = "$($script:MIOS_ETC_DIR)/mios.toml"
 $script:MIOS_TOML_USER          = if ($env:HOME) { "$env:HOME/.config/mios/mios.toml" } else { '~/.config/mios/mios.toml' }
 $script:MIOS_INSTALL_ENV        = "$($script:MIOS_ETC_DIR)/install.env"
 $script:MIOS_FIRSTBOOT_SENTINEL = "$($script:MIOS_VAR_DIR)/.wsl-firstboot-done"
-$script:MIOS_OLLAMA_SENTINEL    = "$($script:MIOS_VAR_DIR)/.ollama-firstboot-done"
 $script:MIOS_AI_SYSTEM_PROMPT        = "$($script:MIOS_SHARE_AI_DIR)/system.md"
 $script:MIOS_MCP_REGISTRY            = "$($script:MIOS_SHARE_AI_DIR)/v1/mcp.json"
 $script:MIOS_BUILD_ENV_FILE          = if ($env:HOME) { "$env:HOME/.config/mios/mios-build.env" } else { '~/.config/mios/mios-build.env' }
@@ -159,7 +147,6 @@ $script:MIOS_BUILD_ENV_FILE          = if ($env:HOME) { "$env:HOME/.config/mios/
 # ── SYSTEMD UNITS ────────────────────────────────────────────────────
 $script:MIOS_UNIT_FORGE             = 'mios-forge.service'
 $script:MIOS_UNIT_FORGE_RUNNER      = 'mios-forgejo-runner.service'
-$script:MIOS_UNIT_OLLAMA            = 'ollama.service'
 $script:MIOS_UNIT_LLM_LIGHT         = 'mios-llm-light.service'
 $script:MIOS_UNIT_PGVECTOR          = 'mios-pgvector.service'
 $script:MIOS_UNIT_AGENT_PIPE        = 'mios-agent-pipe.service'
@@ -172,13 +159,11 @@ $script:MIOS_UNIT_OPEN_WEBUI          = 'mios-open-webui.service'
 $script:MIOS_UNIT_HERMES_FIRSTBOOT  = 'mios-hermes-firstboot.service'
 $script:MIOS_UNIT_CODE_SERVER       = 'mios-code-server.service'
 $script:MIOS_UNIT_FIRSTBOOT_TARGET  = 'mios-firstboot.target'
-$script:MIOS_UNIT_OLLAMA_FIRSTBOOT  = 'mios-ollama-firstboot.service'
 $script:MIOS_UNIT_WSL_FIRSTBOOT     = 'mios-wsl-firstboot.service'
 $script:MIOS_UNIT_USER_SESSION      = "user@$($script:MIOS_UID).service"
 
 # ── CONTAINER IMAGES ─────────────────────────────────────────────────
 $script:MIOS_CONTAINER_FORGE_IMAGE             = 'codeberg.org/forgejo/forgejo:12'
-$script:MIOS_CONTAINER_OLLAMA_IMAGE            = 'docker.io/ollama/ollama:latest'
 $script:MIOS_CONTAINER_SEARXNG_IMAGE           = 'docker.io/searxng/searxng:latest'
 $script:MIOS_CONTAINER_HERMES_IMAGE            = 'docker.io/nousresearch/hermes-agent:latest'
 $script:MIOS_CONTAINER_OPEN_WEBUI_IMAGE        = 'ghcr.io/open-webui/open-webui:main'

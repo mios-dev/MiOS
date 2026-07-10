@@ -8023,9 +8023,6 @@ install_env         = "/etc/mios/install.env"
 profile_toml_vendor = "/usr/share/mios/profile.toml"
 profile_toml_host   = "/etc/mios/profile.toml"
 wsl_firstboot_done  = "/var/lib/mios/.wsl-firstboot-done"
-ollama_firstboot_done = "/var/lib/mios/.ollama-firstboot-done"
-ollama_seed_dir     = "/usr/share/ollama/models"   # immutable, build-baked
-ollama_runtime_dir  = "/var/lib/ollama/models"      # writable, first-boot-seeded
 mios_toml           = "/usr/share/mios/mios.toml"   # this file's vendor path
 
 coderun_workspace_root = "/var/home/mios/coderuns"          # podman coderun-sandbox /work bind root (shared by code_mode + coderun-session)

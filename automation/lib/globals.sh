@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: Provides a centralized, idempotent source of truth for MiOS-wide constants including versioning, service UIDs/GIDs, OCI image references, network ports, and API endpoints for use across all automation scripts.
-# AI-related: /usr/share/mios/VERSION, mios-services, mios-forge, mios-ollama, mios-searxng, mios-ceph, mios-hermes, mios-open-webui, mios-dev, mios-guacamole
+# AI-related: /usr/share/mios/VERSION, mios-services, mios-forge, mios-searxng, mios-ceph, mios-hermes, mios-open-webui, mios-dev, mios-guacamole
 # AI-functions: _mios_resolve_version
 # automation/lib/globals.sh
 #
@@ -61,18 +61,6 @@ export MIOS_VERSION
 : "${MIOS_FORGE_UID:=816}"
 : "${MIOS_FORGE_GID:=816}"
 
-: "${MIOS_OLLAMA_USER:=mios-ollama}"
-# UID/GID 815 -- MUST match usr/lib/sysusers.d/50-mios-services.conf
-# (`u mios-ollama 815:mios-ollama ...`). Was 818 by typo, which collided
-# with mios-searxng (also 818). The renderer exported MIOS_OLLAMA_UID=818
-# into 15-render-quadlets.sh's env, the Quadlet's `${MIOS_OLLAMA_UID:-815}`
-# template substituted to 818, the container started as UID 818 (searxng's
-# user), and `mkdir /var/lib/ollama/.ollama` failed with "permission
-# denied" because the host bind-mount /var/lib/ollama is chowned to
-# mios-ollama (UID 815). Operator-flagged.
-: "${MIOS_OLLAMA_UID:=815}"
-: "${MIOS_OLLAMA_GID:=815}"
-
 : "${MIOS_CEPH_USER:=mios-ceph}"
 : "${MIOS_CEPH_UID:=819}"
 : "${MIOS_CEPH_GID:=819}"
@@ -97,7 +85,6 @@ export MIOS_VERSION
 
 export MIOS_USER MIOS_GROUP MIOS_UID MIOS_GID
 export MIOS_FORGE_USER MIOS_FORGE_UID MIOS_FORGE_GID
-export MIOS_OLLAMA_USER MIOS_OLLAMA_UID MIOS_OLLAMA_GID
 export MIOS_CEPH_USER MIOS_CEPH_UID MIOS_CEPH_GID
 export MIOS_SEARXNG_USER MIOS_SEARXNG_UID MIOS_SEARXNG_GID
 export MIOS_HERMES_USER MIOS_HERMES_UID MIOS_HERMES_GID
@@ -142,11 +129,10 @@ export MIOS_K3S_API_PORT MIOS_GUACAMOLE_PORT MIOS_CEPH_DASHBOARD_PORT MIOS_RDP_P
 
 # ── URLS ─────────────────────────────────────────────────────────────
 # Derived from PORTS. MIOS_AI_ENDPOINT is the canonical Architectural
-# Law 5 surface: Hermes-Agent on :8642, fronting Ollama.
+# Law 5 surface: Hermes-Agent on :8642.
 : "${MIOS_AI_ENDPOINT:=http://localhost:${MIOS_PORT_HERMES}/v1}"
 : "${MIOS_FORGE_URL:=http://localhost:${MIOS_PORT_FORGE_HTTP}}"
 : "${MIOS_COCKPIT_URL:=https://localhost:${MIOS_PORT_COCKPIT}}"
-: "${MIOS_OLLAMA_URL:=http://localhost:${MIOS_PORT_LLM_LIGHT}}"
 : "${MIOS_LLM_LIGHT_URL:=http://localhost:${MIOS_PORT_LLM_LIGHT}}"
 : "${MIOS_PGVECTOR_URL:=postgresql://mios:mios@localhost:${MIOS_PORT_PGVECTOR}/mios}"
 : "${MIOS_SEARXNG_URL:=http://localhost:${MIOS_PORT_SEARXNG}}"
@@ -157,7 +143,7 @@ export MIOS_K3S_API_PORT MIOS_GUACAMOLE_PORT MIOS_CEPH_DASHBOARD_PORT MIOS_RDP_P
 : "${MIOS_HERMES_URL:=http://localhost:${MIOS_PORT_HERMES}/v1}"
 : "${MIOS_OPEN_WEBUI_URL:=http://localhost:${MIOS_PORT_OPEN_WEBUI}/}"
 : "${MIOS_CODE_SERVER_URL:=http://localhost:${MIOS_PORT_CODE_SERVER}/}"
-export MIOS_AI_ENDPOINT MIOS_FORGE_URL MIOS_COCKPIT_URL MIOS_OLLAMA_URL MIOS_LLM_LIGHT_URL MIOS_PGVECTOR_URL
+export MIOS_AI_ENDPOINT MIOS_FORGE_URL MIOS_COCKPIT_URL MIOS_LLM_LIGHT_URL MIOS_PGVECTOR_URL
 export MIOS_SEARXNG_URL MIOS_CRAWL_SERVICE_URL MIOS_HERMES_URL MIOS_OPEN_WEBUI_URL MIOS_CODE_SERVER_URL
 
 # ── REPOS ────────────────────────────────────────────────────────────
@@ -194,10 +180,6 @@ export MIOS_REPO_URL MIOS_BOOTSTRAP_REPO_URL MIOS_LOCAL_FORGE_REPO
 : "${MIOS_SRV_AI_COLLECTIONS_DIR:=${MIOS_SRV_AI_DIR}/collections}"
 : "${MIOS_SRV_AI_MCP_DIR:=${MIOS_SRV_AI_DIR}/mcp}"
 
-# Ollama model store (writable runtime + immutable build-baked seed)
-: "${MIOS_OLLAMA_RUNTIME_DIR:=/var/lib/ollama/models}"
-: "${MIOS_OLLAMA_SEED_DIR:=/usr/share/ollama/models}"
-
 export MIOS_SHARE_AI_DIR MIOS_SHARE_DISTROBOX_DIR MIOS_SHARE_BRANDING_DIR
 export MIOS_SHARE_FASTFETCH_DIR MIOS_SHARE_KB_DIR MIOS_SHARE_CONFIGURATOR_DIR
 export MIOS_SHARE_K3S_MANIFESTS_DIR
@@ -205,7 +187,6 @@ export MIOS_ETC_AI_DIR MIOS_ETC_FORGE_DIR MIOS_ETC_ENVD_DIR
 export MIOS_VAR_AI_DIR MIOS_VAR_MCP_DIR MIOS_VAR_BACKUPS_DIR MIOS_VAR_CACHE_DIR
 export MIOS_SRV_AI_DIR MIOS_SRV_AI_MODELS_DIR MIOS_SRV_AI_OUTPUTS_DIR
 export MIOS_SRV_AI_COLLECTIONS_DIR MIOS_SRV_AI_MCP_DIR
-export MIOS_OLLAMA_RUNTIME_DIR MIOS_OLLAMA_SEED_DIR
 
 # ── NETWORK ──────────────────────────────────────────────────────────
 # internal podman bridge for sidecar containers.
@@ -228,7 +209,6 @@ export MIOS_CORE_NET_SUBNET MIOS_CORE_NET_GATEWAY
 
 # Sentinel files (presence => first-boot work already done)
 : "${MIOS_FIRSTBOOT_SENTINEL:=${MIOS_VAR_DIR}/.wsl-firstboot-done}"
-: "${MIOS_OLLAMA_SENTINEL:=${MIOS_VAR_DIR}/.ollama-firstboot-done}"
 
 # AI system prompt + MCP registry
 : "${MIOS_AI_SYSTEM_PROMPT:=${MIOS_SHARE_AI_DIR}/system.md}"
@@ -238,14 +218,13 @@ export MIOS_CORE_NET_SUBNET MIOS_CORE_NET_GATEWAY
 : "${MIOS_BUILD_ENV_FILE:=${HOME:-/root}/.config/mios/mios-build.env}"
 
 export MIOS_TOML_VENDOR MIOS_TOML_HOST MIOS_TOML_USER
-export MIOS_INSTALL_ENV MIOS_FIRSTBOOT_SENTINEL MIOS_OLLAMA_SENTINEL
+export MIOS_INSTALL_ENV MIOS_FIRSTBOOT_SENTINEL
 export MIOS_AI_SYSTEM_PROMPT MIOS_MCP_REGISTRY MIOS_BUILD_ENV_FILE
 
 # ── SYSTEMD UNITS ────────────────────────────────────────────────────
 # Quadlet-generated service names (one per .container/.build/.image file)
 : "${MIOS_UNIT_FORGE:=mios-forge.service}"
 : "${MIOS_UNIT_FORGE_RUNNER:=mios-forgejo-runner.service}"
-: "${MIOS_UNIT_OLLAMA:=mios-ollama.service}"
 : "${MIOS_UNIT_LLM_LIGHT:=mios-llm-light.service}"
 : "${MIOS_UNIT_PGVECTOR:=mios-pgvector.service}"
 : "${MIOS_UNIT_AGENT_PIPE:=mios-agent-pipe.service}"
@@ -260,26 +239,24 @@ export MIOS_AI_SYSTEM_PROMPT MIOS_MCP_REGISTRY MIOS_BUILD_ENV_FILE
 
 # Hand-written units
 : "${MIOS_UNIT_FIRSTBOOT_TARGET:=mios-firstboot.target}"
-: "${MIOS_UNIT_OLLAMA_FIRSTBOOT:=mios-ollama-firstboot.service}"
 : "${MIOS_UNIT_WSL_FIRSTBOOT:=mios-wsl-firstboot.service}"
 : "${MIOS_UNIT_USER_SESSION:=user@${MIOS_UID}.service}"
 
-export MIOS_UNIT_FORGE MIOS_UNIT_FORGE_RUNNER MIOS_UNIT_OLLAMA MIOS_UNIT_LLM_LIGHT MIOS_UNIT_PGVECTOR MIOS_UNIT_AGENT_PIPE
+export MIOS_UNIT_FORGE MIOS_UNIT_FORGE_RUNNER MIOS_UNIT_LLM_LIGHT MIOS_UNIT_PGVECTOR MIOS_UNIT_AGENT_PIPE
 export MIOS_UNIT_CEPH MIOS_UNIT_K3S
 export MIOS_UNIT_COCKPIT_LINK MIOS_UNIT_SEARXNG MIOS_UNIT_FIRSTBOOT_TARGET
 export MIOS_UNIT_HERMES MIOS_UNIT_OPEN_WEBUI MIOS_UNIT_HERMES_FIRSTBOOT MIOS_UNIT_CODE_SERVER
-export MIOS_UNIT_OLLAMA_FIRSTBOOT MIOS_UNIT_WSL_FIRSTBOOT MIOS_UNIT_USER_SESSION
+export MIOS_UNIT_WSL_FIRSTBOOT MIOS_UNIT_USER_SESSION
 
 # ── CONTAINER IMAGES ─────────────────────────────────────────────────
 : "${MIOS_CONTAINER_FORGE_IMAGE:=codeberg.org/forgejo/forgejo:12}"
-: "${MIOS_CONTAINER_OLLAMA_IMAGE:=docker.io/ollama/ollama:latest}"
 : "${MIOS_CONTAINER_SEARXNG_IMAGE:=docker.io/searxng/searxng:latest}"
 : "${MIOS_CONTAINER_HERMES_IMAGE:=docker.io/nousresearch/hermes-agent:latest}"
 : "${MIOS_CONTAINER_OPEN_WEBUI_IMAGE:=ghcr.io/open-webui/open-webui:main}"
 : "${MIOS_CONTAINER_CODE_SERVER_IMAGE:=ghcr.io/coder/code-server:latest}"
 
 export MIOS_CONTAINER_FORGE_IMAGE
-export MIOS_CONTAINER_OLLAMA_IMAGE MIOS_CONTAINER_SEARXNG_IMAGE
+export MIOS_CONTAINER_SEARXNG_IMAGE
 export MIOS_CONTAINER_HERMES_IMAGE MIOS_CONTAINER_OPEN_WEBUI_IMAGE
 export MIOS_CONTAINER_CODE_SERVER_IMAGE
 

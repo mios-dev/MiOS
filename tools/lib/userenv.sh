@@ -612,9 +612,6 @@ slots = [
     ("paths.profile_toml_vendor",      "MIOS_PROFILE_TOML_VENDOR"),
     ("paths.profile_toml_host",        "MIOS_PROFILE_TOML_HOST"),
     ("paths.wsl_firstboot_done",       "MIOS_WSLBOOT_DONE"),
-    ("paths.ollama_firstboot_done",    "MIOS_OLLAMA_FIRSTBOOT_DONE"),
-    ("paths.ollama_seed_dir",          "MIOS_AI_SEED_DIR"),
-    ("paths.ollama_runtime_dir",       "MIOS_AI_RUNTIME_DIR"),
     ("paths.mios_toml",                "MIOS_TOML"),
     # ── build (build-time tunables) ────────────────────────────────────────
     ("build.rechunk_max_layers",       "MIOS_RECHUNK_MAX_LAYERS"),

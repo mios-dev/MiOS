@@ -4033,9 +4033,8 @@ done
 # Install the operator-facing terminal flatpak so MiOS-DEV mirrors a
 # deployed MiOS host's UX: open Ptyxis on the Windows desktop via WSLg
 # -> default tab spawns into the host shell via flatpak-spawn --host
-# -> the operator types `ollama list`, `mios "..."`, `mios-ollama chat
-# "..."` and hits the Ollama Quadlet on :11434 + LocalAI on :8080
-# directly. Idempotent (--or-update). Also pulls the few other
+# -> the operator types `mios "..."` and hits the local AI plane on
+# :8640 directly. Idempotent (--or-update). Also pulls the few other
 # substrate-class flatpaks (Nautilus, Bazaar, Flatseal) so the
 # emulated MiOS environment carries its file manager and app store.
 # Run the same canonical automation scripts the build pipeline uses,
@@ -4046,11 +4045,7 @@ done
 #
 # 09-fonts.sh         Geist (Vercel) + Symbols-Only Nerd Font
 # 38-oh-my-posh.sh    Oh-My-Posh static binary -> /usr/bin/oh-my-posh
-# 37-ollama-prep.sh   ollama CLI tarball -> /usr/bin/ollama (build
-#                     pipeline only baked models too; for the dev
-#                     overlay we want the binary only -- the .container
-#                     pulls models on first run)
-echo "[quadlet-overlay] running canonical fetchers (fonts + oh-my-posh + ollama + xrdp Enhanced Session)..."
+echo "[quadlet-overlay] running canonical fetchers (fonts + oh-my-posh + xrdp Enhanced Session)..."
 for script in /automation/09-fonts.sh \
               /automation/35-xrdp-enhanced-session.sh \
               /automation/38-oh-my-posh.sh; do
@@ -4059,41 +4054,6 @@ for script in /automation/09-fonts.sh \
         sudo bash "$script" 2>&1 | grep -vE '^\+ |^\+\+' | tail -5 || true
     fi
 done
-
-# ollama CLI: minimal install (binary only, no model bake). The
-# in-build automation/37-ollama-prep.sh starts a transient ollama
-# serve and pulls models -- skip that on the dev overlay; the
-# Ollama Quadlet handles serving + the operator pulls models via
-# `ollama pull <model>` on demand.
-if ! command -v ollama >/dev/null 2>&1; then
-    echo "[quadlet-overlay] fetching ollama CLI binary..."
-    olm_arch="amd64"; [[ "$(uname -m)" == "aarch64" ]] && olm_arch="arm64"
-    olm_tmp="$(mktemp -d)"
-    olm_extract=""
-    if curl -fsSL "https://github.com/ollama/ollama/releases/latest/download/ollama-linux-${olm_arch}.tar.zst" \
-            -o "$olm_tmp/ollama.tar.zst" 2>/dev/null \
-            && tar --zstd -xf "$olm_tmp/ollama.tar.zst" -C "$olm_tmp" 2>/dev/null; then
-        olm_extract="$olm_tmp"
-    elif curl -fsSL "https://github.com/ollama/ollama/releases/latest/download/ollama-linux-${olm_arch}.tgz" \
-            -o "$olm_tmp/ollama.tgz" 2>/dev/null \
-            && tar -xzf "$olm_tmp/ollama.tgz" -C "$olm_tmp" 2>/dev/null; then
-        olm_extract="$olm_tmp"
-    fi
-    if [[ -n "$olm_extract" ]]; then
-        olm_bin="$(find "$olm_extract" -type f -name ollama -perm -u+x 2>/dev/null | head -1)"
-        if [[ -n "$olm_bin" ]]; then
-            sudo install -m 0755 "$olm_bin" /usr/bin/ollama
-            if [[ -d "$olm_extract/lib/ollama" ]]; then
-                sudo install -d -m 0755 /usr/lib/ollama
-                sudo cp -a "$olm_extract/lib/ollama/." /usr/lib/ollama/
-            fi
-            echo "[quadlet-overlay] ollama installed: $(/usr/bin/ollama --version 2>&1 | head -1)"
-        fi
-    else
-        echo "[quadlet-overlay] WARN: ollama download failed -- /usr/bin/ollama not installed"
-    fi
-    rm -rf "$olm_tmp"
-fi
 
 echo "[quadlet-overlay] installing GNOME Flatpaks for WSLg portal (one-time, ~600MB)..."
 sudo install -d -m 0755 /var/lib/flatpak
