@@ -1,3 +1,94 @@
+# MiOS -- Master Roadmap (SINGULAR monolith)
+
+> The one canonical roadmap. Absorbs all former top-level `*-PLAN-*.md` and `usr/share/doc/mios/concepts/*` planning docs (Parts 17-19+). Workstreams map to `T-*` in TASKS.md.
+
+
+**Part 1: Next-Gen OS & Observability Research Integration**
+
+**Part 2: MIOS-ROADMAP-2026-06-22.md**
+- `WS-A` — Multi-agent / orchestrator (the agent system)
+- `WS-B` — AIOS governance (activate the inert)
+- `WS-C` — Pod consolidation + port minimization
+- `WS-D` — Remote / edge AI nodes (remote compute)
+- `WS-E` — OWUI integration
+- `WS-F` — Install / verb residual
+- `WS-G` — Honesty / docs reconciliation  **[P2]**
+- `WS-FED` — Open agent-agnostic federation (any agent on the net + credentials joins)
+- `WS-H` — Sovereign AIOS Architecture & Advanced Orchestration (Additive Research)
+
+**Part 3: agentos-roadmap.md**
+
+**Part 4: agentic-standards-roadmap.md**
+
+**Part 5: aios-full-control-roadmap.md**
+
+**Part 6: aios-completion-roadmap.md**
+
+**Part 7: Architectural Gap-Fill (2026-06-24)**
+
+**Part 8: Hermes Sovereignty Migration (2026-06-24)**
+
+**Part 9: XDG + CephFS Unified User Storage Fabric (2026-06-25)**
+
+**Part 9: XDG + CephFS Unified Storage Fabric**
+
+**Part 10: Converged-Resource Architecture — AI Pipeline Simplification (2026-06-25)**
+
+**Part 10: Converged-Resource Architecture (2026-06-25)**
+
+**Part 11: Windows-11-Minimal Install Completeness + NO-HARDCODE Sweep (2026-07-04)**
+- `WS-NOHC` — - NO-HARDCODE / SSOT completeness
+- `WS-WIN` — - Windows-11-minimal install completeness
+
+**Part 12: MiOS Custom Windows Editions — UUP + NTLite/DISM + autounattend ISO Program (2026-07-04)**
+- `WS-WISO` — Custom Windows ISO pipeline (UUP Dump → customize → autounattend → ISO)
+- `WS-XBOX` — MiOS-XBOX gaming edition (Xbox Mode out of the box)
+- `WS-WBRAND` — OS-wide MiOS branding/theme parity (Windows + Linux)
+- `WS-WEDITION` — MiOS-derived Windows editions matrix
+- `WS-ACCT` — DB-driven GLOBAL account control plane (Linux + Windows; live, bidirectional)
+
+**Part 13: Advanced Multi-Agent Orchestration Strategies (2026-07-05)**
+- `WS-MAO` — Multi-Agent Orchestration strategy adoption (on the existing agent plane)
+
+**Part 14: MiOS-XBOX as the self-contained AIO deployment medium (2026-07-06)**
+- `WS-AIO` — self-contained embedding + multi-target deployment
+
+**Part 15: Global Naming Minification — one unified names/keys registry (2026-07-10)**
+- `WS-NAME` — Global naming minification → one unified names/keys SSOT
+
+**Part 16: Install/first-boot pipeline reorder + dependency-completeness (2026-07-10)**
+- `WS-DEPLOY` — logical dependency ordering; eliminate "missing dependency" states
+
+**Part 17: Absorbed top-level plans (2026-06-14/15)**
+- `WS-SHELL` — Persistent PTY / stateful shell substrate (G9)
+- `WS-KENF` — Kernel enforcement plane: Tetragon eBPF/LSM (G2-rest)
+- `WS-ISOL` — Per-action isolation tier ladder (G4)
+- `WS-GVLM` — Grounding-VLM activation on the perception path (G1)
+- `WS-CONS` — Weighted consensus judge + JSD drift monitor (K4)
+- `WS-GUARD` — Autonomous-runtime guardrails (W0-T2/W0-T3)
+- `WS-DURA` — Mutable-brain durability + redaction (W0-T4/W2-T4)
+- `WS-LSFS` — Semantic-FS verbs + task-state protocol (K6)
+
+**Part 18: Absorbed concept/workstream docs (2026-06)**
+- `WS-FBM` — First-boot large-model provisioning
+- `WS-OFFL` — Offline build-time vendoring
+- `WS-IGPU` — iGPU-in-WSL + llama.cpp RPC compute lanes
+- `WS-RDSK` — GPU-accelerated remote-desktop lane
+- `WS-WSL` — Dual-personality WSL image + offline atomic upgrades
+- `WS-STD26` — 2026 agent wire-standards upgrade
+- `WS-OAI` — OpenAI-conformance residual
+- `WS-KACT` — Built-gated kernel/module activation deltas
+- `WS-UISHELL` — Native QML shell surfaces
+- `WS-NAME2` — Naming/SSOT reconciliation residual (extends WS-NAME/T-165)
+- `WS-UKI` — verity-rooted UKI build + fapolicyd enforce-promotion (extends WS-H/H7)
+- `WS-A3F` — central-path SurrealDB→pg primary flip (extends surreal→pg cutover)
+- `WS-OSCTL2` — hwnd-threaded target-window resolution for pc_type (extends CU-01)
+
+**Part 19: Deploy the stated heavy dGPU lane (model provisioning) (2026-07-10)**
+- `WS-HEAVY` — provision the heavy dGPU model so the STATED lane defaults deploy
+
+---
+
 # MiOS Master Unified Roadmap (2026-06-22)
 
 This document is the lossless consolidation of all historical and active MiOS roadmaps, bridging the immutable bootc/OCI Fedora workstation with the local agentic AIOS plane.
@@ -2544,3 +2635,234 @@ agent venv gave up on a transient blip → `smolagents` missing → agent-pipe c
 `webtools-crawl4ai` started before its local image was built. A new drift-gate makes
 a consumer-before-producer edge a build-time error. Full workflow + phasing:
 `usr/share/doc/mios/reference/install-ordering.md`. Task: **T-166**.
+
+<!-- Consolidation note: carried forward 8 NEW workstreams (WS-SHELL, WS-KENF, WS-ISOL, WS-GVLM, WS-CONS, WS-GUARD, WS-DURA, WS-LSFS) from the 9 top-level 2026-06-14/15 plan docs. The large majority of those plans' content (G3/G5/G6/G7/G8/G10/G11, K1/K5, and the entire WS-A/B/C/D/E/H grounding + native-OpenAI + tool-consolidation initiatives) is ALREADY captured in Parts 1-16 / T-001..T-166 or already shipped in code -- see the "already captured" annotations inline; those are NOT re-listed here. -->
+
+# Part 17: Absorbed top-level plans (2026-06-14/15)
+
+Source docs: `AIOS-GAP-IMPLEMENTATION-PLAN-2026-06-14.md`, `AIOS-MIOS-MASTER-PLAN-2026-06-14.md`, `MIOS-AIOS-MULTIAGENT-EXECUTION-PLAN-2026-06-14.md`, `MIOS-AWARENESS-GROUNDING-PLAN-2026-06-15.md`, `MIOS-COMPLETION-PLAN-2026-06-15.md`, `MIOS-FRESH-CONTEXT-EXECUTION-PLAN.md`, `MIOS-MASTER-PLAN-2026-06-15.md`, `MIOS-NATIVE-OPENAI-PATTERNS-PLAN-2026-06-15.md`, `MIOS-TOOL-CONSOLIDATION-PLAN-2026-06-15.md`.
+
+**Dedup summary (what was NOT carried because it is already represented):**
+- **G3 reliability pass^k gate** = already captured as **T-049 (GAP-3)** + shipped `[reliability]` mios.toml section (`gate_enabled=false`).
+- **G5 closed self-improvement** = **T-062 (B3)** + **T-064 (GAP-4)** + shipped `[selfimprove]` section (observe half + queued proposals).
+- **G6 agent-self-edit memory** = **T-035 (MEM-02)**; the consolidated `memory` verb (op=add|list|update|forget) is shipped.
+- **G7 Code Mode** = **T-045 (F2)**, **T-072 (F3)**, **T-061 (ORCH-09)**.
+- **G8 / K1 universal tool_choice + constrained decode** = **T-111 (CHATQ-02, done)**.
+- **G10 A2A topology/discovery** = **T-011 (FED-G3)**, **T-051 (FED-G7)**, **T-022 (FED-CONSUME)**.
+- **G11 integrity chain** = **T-003 (BOOT-03 OpenSCAP)**, **T-004 (BOOT-04 composefs)**.
+- **G2 policy arbiter (out-of-process intent layer)** = shipped (`mios-policy-arbiter` + `mios_pipe/access/arbiter.py`) and **T-033 (SEC-02)** / **T-026 (B1)**. Only the **kernel-enforcement half (Tetragon eBPF/LSM)** is new -> WS-KENF below.
+- **K5 exec-safety Verify/Monitor + Analyst->Action** = HITL/permission SSOT, **T-037 (SEC-04)** / **T-026 (B1)**.
+- **WS-A env-awareness** (`system_status.os` / `_probe_os`), **WS-B/C root-MD grounding + bake**, **WS-D app-type aliases** (`mios-app-type`, `mios-app-default`), **WS-E OpenAI conformance**, **WS-H1/H2 Structured Outputs** (`mios_pipe/routing/refine.py` + `classify.py`) = all **shipped in code** per the 06-15 master plan execution log.
+- **WS-F tool consolidation** into enum/mode verbs = largely shipped (live surface exposes `window_op`, `file_edit`, `memory`, `vault`, `document`, `agent_route`, `run_code`, `search_store`, `windows_input`, `linux_input`, `apps`, `find_file_fast`).
+- **W0-T1 SSOT-render lint** = shipped (`automation/38-ssot-lint.sh`). **W2-T1 passport trust gate** = **T-001/T-010/T-012/T-014**. **W2-T3 distributed tracing** = **T-023 (OBS-01)**. Install self-assembly / SGLang-flag / model-durability items = Part 16 (WS-DEPLOY) + CONV parts.
+
+---
+
+## WS-SHELL - Persistent PTY / stateful shell substrate (G9)
+**Goal:** Give the agent a long-lived, per-chat shell (tmux-backed bash inside the existing bwrap jail) so `cwd`/`env`/history persist across turns instead of every shell/code call being isolated.
+**Why:** tmux + `mios-sandbox-exec` + `mios_aci` + session-keying all already exist, but no persistent shell process the agent can write to across calls; multi-step shell work re-initializes every turn.
+**Status:** PLANNED / not built -- repo grep finds no `mios_pty`, `mios-shell-session`, `run_in_shell`, or `[shell_session]` section; not represented anywhere in T-001..T-166.
+**Scope:** `mios_pty.py` (pure session-id + tmux-argv + marker-sentinel/nonce protocol) + `mios-shell-session` libexec + idle-GC timer + `[verbs.shell_session]` (model_name `run_in_shell`) + `[shell_session]` config. Reuses bwrap (no new container).
+**Source:** `AIOS-GAP-IMPLEMENTATION-PLAN-2026-06-14.md` (G9). -> **T-167**
+
+## WS-KENF - Kernel enforcement plane: Tetragon eBPF/LSM (G2-rest)
+**Goal:** Add the in-kernel side-effect enforcement half of the semantic firewall -- a Tetragon (Cilium) TracingPolicy plane that can observe/deny/SIGKILL disallowed `execve`/outbound-connect for the AI cgroups, rendered from `mios.toml [security.policy]`.
+**Why:** The out-of-process intent arbiter (`mios-policy-arbiter`) is already shipped, but nothing verifies side-effects at the kernel -- a compromised process can still act. The roadmap's only sandboxing is microVM/Kata (T-032), which is a *refuse-into-VM* model, not an in-kernel tripwire; no eBPF/LSM enforcement exists.
+**Status:** PLANNED / not built -- Tetragon/eBPF/enforcer appear only in `mios-sandbox-exec` + shim-links references; no `mios-enforcer` unit, render tool, or `[security.enforcer]` section.
+**Scope:** `mios-enforcer.container` (documented Law-6 privileged exception, CAP_BPF/CAP_SYS_ADMIN), `mios-enforcer-render` (TOML->TracingPolicy YAML), shipper writing `enforcer_kill`/`enforcer_deny` rows, `[security.enforcer]`+`[security.policy]` SSOT. `ConditionVirtualization`-gated OFF on WSL2 (bare-metal capability).
+**Source:** `AIOS-GAP-IMPLEMENTATION-PLAN-2026-06-14.md` (G2-rest). -> **T-168**
+
+## WS-ISOL - Per-action isolation tier ladder (G4)
+**Goal:** Replace the binary REFUSE-on-taint decision with a promote-not-refuse ladder (bwrap -> rootless-podman -> gVisor `runsc` -> microVM `krun`): tainted/high-risk actions run in a *stronger* tier rather than being blocked.
+**Why:** Tiers 1-2 exist (`mios-sandbox-exec`, `mios-coderun-sandbox@`), but gVisor/microVM are absent and the taint plane only refuses. Distinct from T-032 (SEC-01, microVM-*per-tool* hermetic sandboxing) -- this is a *tier-selection/promotion* engine keyed off the existing taint set.
+**Status:** PLANNED / not built -- no `mios_isolation`, `runsc`/`krun` runtime registration, or `[isolation]` section. (Overlaps T-032/T-045 on the sandbox substrate; the ladder + `resolve_effective_tier()` promotion is the new part.)
+**Scope:** `[isolation]` table (ladder, taint->tier map, `taint_min_tier`), `mios_isolation.py` + tests, `resolve_effective_tier()` in dispatch (emit `firewall_promote`), `runsc`/`krun` OCI-runtime registration, `mios-coderun-tier`. `/dev/kvm`-gated so tier-4 self-inerts on WSL2.
+**Source:** `AIOS-GAP-IMPLEMENTATION-PLAN-2026-06-14.md` (G4). -> **T-169**
+
+## WS-GVLM - Grounding-VLM activation on the perception path (G1)
+**Goal:** Activate the already-wired-but-inert vision-grounding lane (Holo1.5-7B GGUF is staged in `mios-llm-light.yaml` as `qwen3-vl:4b` but gated off via empty `[ai].vision_grounding_model`) and add the missing `cu_act` (ground->click->verify) and `cu_verify` (visual Definition-of-Done) verbs.
+**Why:** The perception->action->verify chain (`mios-pc-vision`, `cu_ground`, `mios-verify-launch`) exists but is dead without an active vision model; computer-use is effectively blind on canvas/Electron surfaces.
+**Status:** IN-PROGRESS / staged-inert -- vision GGUF map + mmproj already in `usr/share/mios/llamacpp/mios-llm-light.yaml`, `vision_grounding_model=""` in `mios.toml`; `cu_act`/`cu_verify` verbs + `mios-cu-verify` tool do NOT exist. (T-038 CU-01 covers the verify-after-action *concept* but not the model activation or these two verbs.)
+**Scope:** bake/reference the vision GGUF, set `[ai].vision_grounding_model`, add `mios-cu-verify` libexec + `cu_act`/`cu_verify` `[verbs.*]` (three-projection MCP/OpenAI/A2A), `[computer_use].verify_after_act`.
+**Source:** `AIOS-GAP-IMPLEMENTATION-PLAN-2026-06-14.md` (G1). -> **T-170**
+
+## WS-CONS - Weighted consensus judge + JSD drift monitor (K4)
+**Goal:** Add a weighted multi-judge consensus pipeline (weighted-vote + RRF over 2-3 lanes, weights optionally from `reliability_run`, degrade-open to single judge) and a Jensen-Shannon-divergence drift monitor over intent/score/verdict distributions vs a frozen baseline.
+**Why:** DCI critic/judge exists (yes/no), and GAP-1/GAP-2 (T-047/T-048, RouteMoA/MOSAIC) cover pre-synthesis diversity + confidence-bypass -- but a *scored, reliability-weighted* consensus and a distribution-drift alarm (Goodhart/reward-hacking early warning) are not built.
+**Status:** PLANNED / not built -- no `mios_consensus`, `mios_drift`, `drift_snapshot` table, `[consensus]`/`[drift]` sections, or `/v1/drift` endpoint. Builds on the reliability scorer (T-049).
+**Scope:** `mios_consensus.py` + `[consensus]`; `mios_drift.py` + `drift_snapshot` table + `/v1/drift` + drift_alert event + `[drift]`.
+**Source:** `AIOS-MIOS-MASTER-PLAN-2026-06-14.md` (K4), `MIOS-AIOS-MULTIAGENT-EXECUTION-PLAN-2026-06-14.md` (W3-T2/W3-T3). -> **T-171, T-172**
+
+## WS-GUARD - Autonomous-runtime guardrails (W0-T2/W0-T3)
+**Goal:** Prevent the GPU-runaway class of incident with (a) daemon runaway controls -- a cached host-pressure gate (loadavg + nvidia-smi), per-(source,kind,summary-hash) dedup+cooldown, and a cron concurrency cap -- and (b) an aggregate cumulative token/turn budget debited per-conversation and per-autonomous-source with hard-halt + lowest dispatch priority for background work.
+**Why:** Five subsystems guard the shared 4090 with independent local heuristics that don't compose; there is no cumulative tripwire or host-pressure circuit breaker -- exactly how the daemon->swarm runaway slipped through.
+**Status:** PLANNED / not built -- no host-pressure gate or aggregate budget task in T-001..T-166; the priority scheduler exists but has no global pressure/budget signal.
+**Scope:** `_host_pressure_gate()` + dedup/cooldown + cron cap in `mios-daemon` (`[daemon]`); aggregate `[budget]`/`[dispatch]` ceiling in agent-pipe with background preemption.
+**Source:** `MIOS-AIOS-MULTIAGENT-EXECUTION-PLAN-2026-06-14.md` (W0-T2, W0-T3). -> **T-173, T-174**
+
+## WS-DURA - Mutable-brain durability + redaction (W0-T4/W2-T4)
+**Goal:** Protect the pgvector "brain" (the OS half is immutable, the brain is not): nightly `pg_dump` backup timer to `/var/lib/mios/backups`, loopback-only bind + non-default-password enforcement off-loopback, and secret/PII redaction before every pgvector write, scratchpad broadcast, and A2A echo.
+**Why:** pgvector holds knowledge/memory/passports/audit with no backup, historically bound `0.0.0.0` on default creds, and no redaction -- an inverse-asymmetry risk against the immutable OS. (Embed-on-write in `mios-ingest` is already addressed; durability + redaction are not.)
+**Status:** PLANNED / not built -- no `pg_dump`/backup-timer or redaction task in T-001..T-166.
+**Scope:** `mios-pgvector-backup.{service,timer}` + tmpfiles; bind/creds hardening in the pgvector quadlet + `[pgvector]`; redaction filter in the persist/federate paths + `[security]`.
+**Source:** `MIOS-AIOS-MULTIAGENT-EXECUTION-PLAN-2026-06-14.md` (W0-T4, W2-T4). -> **T-175, T-176**
+
+## WS-LSFS - Semantic-FS verbs + task-state protocol (K6)
+**Goal:** Add LSFS-style semantic-filesystem verbs (mount/create/write/search/rollback/share over FS + pgvector) and a directory-prompt execution-state protocol (`tasks/backlog|in-progress|done.md`) the agent maintains across turns.
+**Why:** docs-index + pgvector + scratch exist, but there is no semantic-FS verb surface or durable task-state protocol; a low-priority depth item, distinct from the pgvector recall path.
+**Status:** PLANNED / not built (P3, partly speculative) -- no LSFS verbs or `tasks`-protocol in code or T-001..T-166.
+**Scope:** `[verbs.lsfs_*]` cmd-template verbs + a `tasks` table/dir protocol; reuses pgvector + nomic-embed, no new runtime dep.
+**Source:** `AIOS-MIOS-MASTER-PLAN-2026-06-14.md` (K6). -> **T-177**
+
+# Part 18: Absorbed concept/workstream docs (2026-06)
+
+<!-- Carried forward: 13 not-yet-captured workstreams (WS-FBM, WS-OFFL, WS-IGPU, WS-RDSK, WS-WSL, WS-STD26, WS-OAI, WS-KACT, WS-UISHELL, WS-NAME2, WS-UKI, WS-A3F, WS-OSCTL2) → tasks T-200..T-241. -->
+<!-- Already-captured / pure-reference: ~24 concept docs map to existing Parts 1-16 + T-001..T-166 or are shipped-state records; listed under "Reference docs (kept as-is)" below with pointers, no new tasks. Honesty note: nearly the entire June-2026 backlog has since SHIPPED (verified by grepping usr/lib/mios/agent-pipe/mios_*.py + automation/ + units); the workstreams below are the residual deltas that are genuinely unbuilt or built-but-central-path-gated. -->
+
+---
+
+## WS-FBM — First-boot large-model provisioning
+- **Goal:** Move large-model (GGUF + heavy-lane container) provisioning out of the build-time bake and into a first-boot fetch, so model size is unbounded and the buildah `exit 125` layer-commit ceiling is dodged.
+- **Why:** Baking multi-GB models into the OCI image hits the layer-commit ceiling and bloats the image; a gated, SSOT-driven first-boot pull keeps the image lean and lets operators pick model sets (incl. air-gapped pre-seed).
+- **Status:** PLANNED — genuinely unbuilt. `mios-models-firstboot.service`, `[ai.firstboot_models]`, and `mios models sync` appear only in the plan doc; no on-disk artifacts. This is the single genuine greenfield workstream from the June arch docs.
+- **Source:** firstboot-large-models-plan.md
+
+## WS-OFFL — Offline build-time vendoring
+- **Goal:** Close the remaining build-time internet fetches so a fully offline (Scenario-2 USB) image build succeeds: vendor external repo defs, fonts/cursors/flathub, k3s + k3s-selinux, hermes-agent wheels, GGUF blobs + llama-swap image, and a local rpm mirror.
+- **Why:** OFFLINE-FIRST.md's "Remaining build-time gaps" ledger shows ~8 automation steps still reach the network at build time; each blocks the sovereign/air-gapped build promise.
+- **Status:** PLANNED — open ledger in OFFLINE-FIRST.md; each is a discrete "vendor X + install --no-index / local mirror" task.
+- **Source:** OFFLINE-FIRST.md
+
+## WS-IGPU — iGPU-in-WSL + llama.cpp RPC compute lanes
+- **Goal:** Stand up an in-VM iGPU compute lane (AMD ROCm / Intel Level-Zero) to retire the native-Windows `mios-igpu-server.ps1` (:11436) + its Tailscale hop, and build a llama.cpp `rpc-server` fabric across phone/iGPU/dGPU/cluster targeting one logical RPC endpoint for oversized models.
+- **Why:** Upstream drift audit (Wave-0/Wave-2) found iGPU-in-WSL compute is now viable and would collapse a fragile cross-OS hop; RPC fabric enables running models larger than any single lane's VRAM.
+- **Status:** PLANNED — gated on Wave-0 hardware verify probes (iGPU-WSL matmul, heavy-lane in ~4 GB, WSL ≥2.7.5/kernel ≥6.18). Native `mios-igpu-server.ps1` remains the current path; no in-VM lane or RPC fabric in-tree.
+- **Source:** upstream-gap-plan-2026-06.md (Waves 0 & 2)
+
+## WS-RDSK — GPU-accelerated remote-desktop lane
+- **Goal:** Add a Selkies (WebRTC + NVENC) or Neko remote-desktop lane, upgrading the KasmVNC/llvmpipe software-render path to hardware-encoded streaming.
+- **Why:** Software VNC is the bottleneck for the remote-desktop / computer-use federation surface; NVENC streaming is dramatically better on GPU hosts.
+- **Status:** PLANNED — no `selkies`/`neko` reference anywhere in the tree.
+- **Source:** upstream-gap-plan-2026-06.md (Wave 3, T3.1)
+
+## WS-WSL — Dual-personality WSL image + offline atomic upgrades
+- **Goal:** Ship the `rootfs-export → wsl --import` dual-personality pipeline with a MiOS-owned update mechanism (since `bootc upgrade` is inoperable inside WSL), plus air-gapped atomic upgrades (`skopeo copy oci:/usb → bootc switch --transport oci → bootc upgrade --apply`) with kernel-vs-userspace delta split and soft-reboot for non-kernel updates.
+- **Why:** The same OCI image must boot both as a bare-metal bootc workstation and as an importable WSL distro; WSL can't `bootc upgrade`, so an alternate MiOS-owned update path is required, and offline hosts need transport-over-USB atomic upgrades.
+- **Status:** IN-PROGRESS — WSL personality scaffolding exists (`usr/lib/wsl-distribution.conf`, `config/artifacts/wsl2.toml`); the export/import pipeline, MiOS update mechanism, and air-gapped/soft-reboot flow are unbuilt. `automation/43-uupd-installer.sh` covers part of the updater.
+- **Source:** upstream-gap-plan-2026-06.md (Wave 4, T4.1/T4.2/T4.3/T4.4)
+
+## WS-STD26 — 2026 agent wire-standards upgrade
+- **Goal:** Bring MiOS onto the mid-2026 open-standard wire protocols: MCP `2026-07-28` (stateless Streamable-HTTP, `Mcp-Method`/`Mcp-Name` headers, structured tool-output JSON-Schema, elicitation, local MCP Registry + `.well-known` Server Cards); A2A v1.0.0 (card 0.3.0→v1.0, `AgentCardSignature` JWS-over-JCS, standard task states + `TaskStatusUpdateEvent` push webhooks); AGNTCY OASF Agent Directory + DID Agent Identity; durable event-sourcing over swarm/DAG + explicit Memory-Block abstraction; and standards-based HITL (MCP elicitation SEP-2322 + A2A INPUT_REQUIRED/AUTH_REQUIRED).
+- **Why:** MiOS already has bespoke MCP/A2A/passport/HITL surfaces; adopting the ratified 2026 wire versions makes MiOS interoperable with the wider agent ecosystem and replaces hand-maintained overlay files with a syncable directory.
+- **Status:** PLANNED (mostly) — bespoke MCP/A2A/passport/`mios_hitl.py` shipped, but no `2026-07-28`/`Streamable-HTTP`/`elicitation`/`AGNTCY`/`OASF`/`DID`/`a2a.proto`/`AgentCardSignature` references in tree. `mios_a2a_principal.py` provides signed principals (a partial down-payment on the A2A-v1.0 card signature).
+- **Source:** upstream-gap-plan-2026-06.md (Wave 5, T5.1–T5.5)
+
+## WS-OAI — OpenAI-conformance residual
+- **Goal:** Finish the OpenAI-standards master plan's remaining slivers: a unified multi-kind capability catalog (recipes + skills folded into the `[routing]` catalog as `kind`/`domain`-tagged rows with composition rules), Tier-1 `usage` detail fields (`completion_tokens_details.reasoning_tokens`, `prompt_tokens_details.cached_tokens`) + strict function schemas + cache-friendly static-first ordering, a persistent PTY/tmux stateful shell (+ PowerShell object-pipeline→flat-text normalization), and run-template REPLAY-REUSE (intent-keyed zero-token DAG replay).
+- **Why:** The 2-stage domain router, `/v1/responses`, and the usage-completeness middleware already shipped; these are the last conformance + statefulness gaps flagged in the master plan and the AIOS implementation plan (WS-5/WS-6 second halves).
+- **Status:** IN-PROGRESS — router + domains + `/v1/responses` + `usage` object are live (`mios.toml [routing]`, server.py); the capability catalog is `kind=tool`-only, usage-detail fields are absent, no PTY-persistence module, and run-template capture is built but reuse/match is not.
+- **Source:** agent-pipe-openai-standards-master-plan.md + aios-implementation-plan.md
+
+## WS-KACT — Built-gated kernel/module activation deltas
+- **Goal:** Wire the pure-logic modules the engineering blueprint's Gap Register found "built but not on the live path": batch-coalescing chokepoint (`mios_batch`), remote SmartRouting + quality-gate + daily budget (`mios_smartroute` + `mios_quota`), per-user quota keying/persistence on a verified principal, gossip/DHT federated discovery transport (`mios_gossip` over `mios_reputation`), per-verb risk-tier bwrap/seccomp ENFORCEMENT exec (`mios_sandbox` — argv builder exists but is never exec'd), and `Notify=healthy` + `HealthCmd` + rollback-on-failed-health across the AI quadlets.
+- **Why:** These modules ship with unit tests and are imported into `server.py` but default OFF / stubbed, so the audited capability doesn't actually run; the blueprint (trusted over MEMORY.md) is the honest source. Distinct from the already-captured Kernel Stage-2 rewire (A6/T-025), SEC-01 MCP-microVM sandbox, FED-G1/G6 inbound auth, and B7 RLS — these are the remaining per-module activation deltas.
+- **Status:** IN-PROGRESS — `mios_batch.py`, `mios_smartroute.py`, `mios_quota.py`, `mios_gossip.py`, `mios_sandbox.py` all present + imported; central-path wiring / exec / transport off by default. `mios_sandbox` exec is security-critical (argv built, never exec'd, seccomp not applied). Quadlet `Notify=healthy` is UNVERIFIED/likely-planned.
+- **Source:** aios-engineering-blueprint.md (Gap Register) + upstream-gap-plan-2026-06.md (T1.4)
+
+## WS-UISHELL — Native QML shell surfaces
+- **Goal:** Complete the app/portal design's Phase-3/4 native shell: native QML Services/Swarm views bound to the already-shipped `PortalData` properties (replacing the "open web Portal" fallback), a login-prompt QML popup so operators can call `PortalData.login()` without editing QML, reconciliation of the `mios-webshell` AI-sidebar endpoint (`:3030` OWUI vs agent-pipe) before the next Surfer rebuild, and a Cockpit native-vs-web decision.
+- **Why:** Phase-2 data plumbing (`PortalData.qml`, `Sidebar.qml`, theme SSOT projection) shipped; the native views and login UI were deliberately deferred, and the webshell endpoint disagreement will bake a wrong default into Surfer if unaddressed.
+- **Status:** PLANNED — Phase-2 done; no native Services/Swarm QML views, no login popup, Cockpit decision open. (The §13 "wire `mios-sync-theme` into the numbered build pipeline" gap is LIKELY already closed by the theme-render engine + drift-gate 25 — verify only, no task.)
+- **Source:** mios-app-browser-portal-dashboard-design-2026-07-03.md
+
+## WS-NAME2 — Naming/SSOT reconciliation residual (extends WS-NAME/T-165)
+- **Goal:** Land the three still-pending naming items under NAME-01's umbrella: reconcile the agent-plane user SSOT (`[services.hermes]` uid 820 / `[services.agent_pipe]` uid 822 still declared, but the live plane runs as `mios-ai`/850), rename the `mios-daemon-agent` agent-id to `daemon-agent` (drop redundant `mios-` prefix), and run the residual mutable-module-state casing pass (`_lower_snake` for semaphores/caches/registries) + `ContainerName=` audit on renamed units.
+- **Why:** The 820/822 declarations are an active SSOT lie (units/firstboot/tmpfiles/sudoers point at inert users); NAME-01 captures the intent but doesn't name these as done-criteria.
+- **Status:** PLANNED — 820/822 declarations still present and un-reconciled; ~105 `daemon-agent` refs still carry the `mios-` form; server.py Phase-1b renames landed but the casing sweep is a pending dedicated pass.
+- **Source:** naming-refactor-plan.md
+
+## WS-UKI — verity-rooted UKI build + fapolicyd enforce-promotion (extends WS-H/H7)
+- **Goal:** Beyond H7's fapolicyd allow-list baking, promote the scaffolded verity-rooted Unified Kernel Image build (`ukify` measuring the composefs fs-verity digest → `mios-verity.efi`, `kargs.d`) and the fapolicyd PERMISSIVE→enforce path to a shippable state by fixing the 4 named defects (inverted agent-codegen carve-out rule, false `permissive` karg claim, rootflags merge collision, carve-out review).
+- **Why:** The UKI + fapolicyd scaffolding exists but is deliberately observe-only — enforce or a mis-signed UKI bricks boot; the enforce-promotion path is blocked on real defects, not just an operator flip.
+- **Status:** IN-PROGRESS / intentionally-deferred — `automation/lib/ws7-uki-fapolicyd-build.sh` + `[security.fapolicyd_observe]` shipped, gated off; enforce-promotion blocked on the 4 defects.
+- **Source:** ws7-uki-fapolicyd.md + multi-agent-buildout-plan.md (WS-7)
+
+## WS-A3F — central-path SurrealDB→pg primary flip (extends surreal→pg cutover)
+- **Goal:** Complete the ONE surreal→pg surface the CLI/daemon cutover deliberately deferred: the CENTRAL path (server.py + OWUI pipe) pg-primary flip, fixing the un-mirrored write sites (`execute_skill last_used_at`, `_skill_invocation_close`, `hitl_approve` audit UPDATE, 4 OWUI-pipe writes in `mios_agent_pipe.py`) and making the `_skill_attribute_tool_call` RELATE-edge schema decision (add `tool_call_emissions` table vs. `emitted_by_invocation` column).
+- **Why:** The "surreal→pg LANDED" claim is accurate for the CLI/daemon halves but overstates the central path — those writes flip live only when `[pgvector].db_backend` goes dual→postgres / the `_PG_PRIMARY` gate flips, an operator VM-session step with real un-mirrored write bugs behind it.
+- **Status:** IN-PROGRESS — CLI/daemon cutover DONE; central-path flip + un-mirrored write fixes are operator-VM-gated and not applied. Includes an open schema decision.
+- **Source:** ws-a3-central-path-cutover-worklist.md
+
+## WS-OSCTL2 — hwnd-threaded target-window resolution for pc_type (extends CU-01)
+- **Goal:** Plumb an explicit target window handle through the type path (`Resolve-EditElement(FromHandle)` → `/input/type`, route compound focus through the WINDOWS executor and pass the hwnd to `pc_type`), so typing targets a specific resolved window instead of whatever UIA thinks is focused/visible.
+- **Why:** The "typed into the wrong window" root cause was partly fixed by the UIA `SetValue` write-branch (shipped), but `Invoke-TypeText($text)` takes no explicit target hwnd — the last leg of oscontrol-envgrounding items 1 & 4.
+- **Status:** IN-PROGRESS — UIA `SetValue`/`Invoke-UIASetValue` write-branch + `pc_type` read-back shipped in `mios-oscontrol-server.ps1`; hwnd-threaded target resolution not clearly present. Operator-live-test-gated. Verify whether CU-01/T-038 already covers this; if not, it's the one explicit sub-item worth tracking.
+- **Source:** oscontrol-envgrounding-gaps-2026-06-20.md
+
+---
+
+## Reference docs (kept as-is — roadmap pointer, no new tasks)
+
+Pure architecture / shipped-state records / audit ledgers. These are the design-of-record or point at an already-captured item; do not mine for backlog.
+
+- **architecture.md** — end-to-end bootc image / FHS / CDI-VFIO / AI-surface layout reference. Pure reference.
+- **roadmap-snapshot-decomposition-2026-06-22.md** — the source snapshot + correction ledger the current ROADMAP/TASKS were generated against (ROADMAP cites it directly). Reference.
+- **unified-ai-pipeline-2026-06-16.md** — reference for the shipped one-`:8640` orchestrator / thin-client / tool-loop / anti-fabrication pipeline. Live-verified, SSOT is the code.
+- **postgres-pgvector-unification.md** — DONE record (pgvector is the shipped unified datastore; SurrealDB/Qdrant retired). → maps to the shipped datastore.
+- **ws-a3-surreal-to-pg-cutover.md** — DONE record for the CLI/daemon cutover. (Central-path flip carried forward as WS-A3F.)
+- **ws-0-preflight-findings-2026-06-20.md** — baseline-reconciliation audit; confirms plan premises already satisfied. Reference.
+- **ws-subsystems-activation-2026-06-20.md** — operator activation playbook for the default-off WS-* subsystems (RLS, signed principal, egress firewall, reputation, mTLS, self-improve — all shipped). Reference.
+- **a2a-passport-conformance-2026-06-20.md** — A2A v0.3.0 + Open Agent Passport v0.1.0 conformance record (shipped). → passports (Part 3) + FED-G4 + DATA-01/T-059. (v1.0 upgrade carried forward as WS-STD26.)
+- **ws-grounding-2026-06-20.md** — HEAD grounding audit; every "genuinely UNBUILT" kernel primitive it named (mios_tokenize/ctxpack/compact/toolconflict/trace/router/dispatcher/kernel/preempt/memory/batch/smartroute/pdp/embed_backfill/scratchpad) has since shipped with tests. Reference. → A6/T-025.
+- **ws-remaining-implementation-plan-2026-06-20.md** — decision-plan for 6 WS subsystems (GOAP, federation, strangler-fig, RLS, k3s, self-improve), all since shipped. Reference. → WS-A/WS-B/WS-FED.
+- **ws-decompose-stage2-plan-2026-06-20.md** — the Kernel Stage-2 central-path rewire plan. → already captured as A6/T-025 (IN-PROGRESS: only `dag` mode delegated; chat/dispatch/multi_task/agent still `_kernel_stage2b` stubs; flags off).
+- **multi-agent-buildout-plan.md** — historical Build→Synthesize→Verify run record + the reusable `mios-aios-buildout` fan-out methodology. Reference. (WS-7 UKI half carried forward as WS-UKI.)
+- **computer-use-federation.md** — shipped record for Linux/Wayland computer-use (`mios-computer-use`, `cu_*` verbs, AT-SPI+vision grounding). → CU-01/T-038 + WS-FED.
+- **coderun-sandbox.md** — shipped record (`mios-coderun-session`, `coderun-sandbox@.container`, Landlock/seccomp). → F2/T-045 + F3/T-072.
+- **llamacpp-engine-conversion.md** — DONE record (llama.cpp behind llama-swap = `mios-llm-light`; Ollama retired). → shipped light lane + Part 10 CONV.
+- **pod-architecture-2026-06-22.md** — shipped record for the 3 capability pods generated from `[pods.*]` via `generate-pod-quadlets.py`. → WS-C (C0–C5).
+- **dism-native-windows-iso-2026-07-04.md** — DISM-native custom-Win11 ISO research/verdict. → WISO-01..08 (Part 12). ACTION: fold its hard-won constraints (first-logon-only list, accent ABGR/ARGB byte-order bug, `BypassNRO` removal → pin build, SetupComplete edition gate, `podman machine init --image` air-gap form, Geist/Bibata face-name resolution) into the WISO task acceptance criteria so they aren't lost — not a new task.
+- **uia-ai-integration-2026-06-22.md** — shipped record for Windows UIA-tree grounding (`mios-uia-dump.ps1`, `windows_desktop_uia_tree` verb). → record under CU/computer-use as the Windows-UIA grounding leg.
+- **aios-implementation-plan.md** — WS-1/3/5/6 shipped + default-on (`mios_sched`, `mios_evict`, `mios_codemode`, `mios_hitl`, `mios_kvfork`); residual (persistent PTY shell, run-template replay-reuse) carried forward as WS-OAI. Otherwise reference.
+- **agent-pipe-openai-standards-master-plan.md** — 2-stage router + `/v1/responses` + usage middleware shipped; residual (multi-kind catalog, Tier-1 usage detail) carried forward as WS-OAI. Otherwise reference.
+- **aios-engineering-blueprint.md** — the honest 5-phase gap register (TRUST THIS OVER MEMORY.md). Residual built-gated deltas carried forward as WS-KACT; the rest maps to SCHED-*/MEM-*/ORCH-*/SEC-*/OBS-*/FED-*.
+- **upstream-gap-plan-2026-06.md** — 5-wave upstream-drift roadmap. Wave-1 largely SHIPPED (`podman.socket.d/10-mios-operator-access.conf`, `45-nvidia-cdi-refresh.sh`, `26-gnome-remote-desktop.sh`, `40-flatpak-bake.sh`, `42-cosign-policy.sh`, `90-generate-sbom.sh`); residual carried forward as WS-IGPU/WS-RDSK/WS-WSL/WS-STD26 + KACT-06.
+- **oscontrol-envgrounding-gaps-2026-06-20.md** — env-grounding (`_env_block`) + UIA SetValue shipped; residual (hwnd-threaded pc_type) carried forward as WS-OSCTL2.
+- **naming-refactor-plan.md** — most phases DONE; residual carried forward as WS-NAME2 under NAME-01/T-165.
+- **firstboot-large-models-plan.md** — the one genuinely-greenfield plan → WS-FBM.
+- **OFFLINE-FIRST.md** — offline-capability audit ledger; its build-time vendoring gaps → WS-OFFL.
+
+# Part 19: Deploy the stated heavy dGPU lane (model provisioning) (2026-07-10)
+
+## WS-HEAVY - provision the heavy dGPU model so the STATED lane defaults deploy
+
+**Goal:** The SSOT already defines the global lane defaults for all agents --
+`[lanes.light]` (the everyday default), `[lanes.vllm]` (the dGPU heavy engine),
+`[lanes.sglang]` (a first-class lane/component), plus `lane_priority`
+(`gpu:8,cpu:7,accelerator:6,igpu:3,mobile:2,_default:5`) and `[ai.host_thresholds]`.
+On a detected dGPU (RTX 4090) the heavy lane must actually come up per those stated
+defaults. It doesn't today -- purely a **deployment bug**, not an architecture
+question.
+
+**Bug:** `mios-llm-heavy` was **skipped** on install because its
+`ConditionPathExists=/usr/share/mios/vllm/model/config.json` was unmet -- the
+**heavy-model weights were never fetched**, a cascade of the agent-venv bug (the HF
+`snapshot_download` in `mios-ai-firstboot` runs through the venv, which failed under
+install contention). So the stated config had no model to gate on and the lane
+never started. **Status:** in-progress (venv fixed 31a52fb1 -> fetch unblocked;
+provisioning remains). **Source:** live dGPU diagnosis; `[lanes.*]`, `[ai.vllm]`/
+`[ai.sglang]`, `[ai.host_thresholds]`, `[nodes.local-dgpu/vllm/sglang]`,
+`mios-ai-firstboot` L111-124.
+
+
+---
+
+## Appendix: Absorbed sources (2026-07-10 consolidation)
+
+ROADMAP.md + TASKS.md are now the **singular** planning SSOT. Folded in:
+- **9 top-level `*-PLAN-*.md`** (2026-06-14/15) → **Part 17 / T-167–T-177**. Originals archived under `usr/share/doc/mios/archive/absorbed-plans-2026-06/`.
+- **~28 `usr/share/doc/mios/concepts/*` docs** → **Part 18 / T-200–T-241** (actionable deltas); the ~24 pure-reference/architecture docs are kept in place and cross-referenced from their Part.
+- Live dGPU heavy-lane diagnosis → **Part 19 / T-178**.
+- Retired the old `combine_roadmaps.py` script.
+
+A master index sits at the top of each file; every task carries **Who / What / Where / When / How** + Done-When.
