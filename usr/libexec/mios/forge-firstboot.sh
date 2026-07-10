@@ -59,21 +59,20 @@ if [[ "$admin_password" == "__random__" ]]; then
     admin_password=""
 fi
 
-# Wait for mios-forge to come up. The Quadlet sets TimeoutStartSec=300s;
-# we mirror that ceiling. Forgejo's HTTP listener is the canonical
+# Wait for mios-forge to come up. Forgejo's HTTP listener is the canonical
 # readiness probe.
 http_port="${MIOS_FORGE_HTTP_PORT:-3000}"
 deadline=$(( $(date +%s) + 300 ))
 while (( $(date +%s) < deadline )); do
-    if curl -fsS -o /dev/null "http://localhost:${http_port}/api/v1/version"; then
+    if curl -fsS -o /dev/null "http://localhost:${http_port}/api/v1/version" 2>/dev/null; then
         _log "Forgejo is up on :${http_port}"
         break
     fi
     sleep 2
 done
 
-if ! curl -fsS -o /dev/null "http://localhost:${http_port}/api/v1/version"; then
-    _log "ERROR: Forgejo did not become ready within 300s; aborting"
+if ! curl -fsS -o /dev/null "http://localhost:${http_port}/api/v1/version" 2>/dev/null; then
+    _log "ERROR: Forgejo did not become ready; exiting with error for systemd retry"
     exit 1
 fi
 

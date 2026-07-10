@@ -12,6 +12,8 @@ Wants=network-online.target
 # The script writes the sentinel ONLY when both the venv and the GGUFs are
 # present, so a network-less first boot simply retries on the next one.
 ConditionPathExists=!/var/lib/mios/.ai-firstboot-done
+StartLimitIntervalSec=1200
+StartLimitBurst=6
 
 [Service]
 Type=oneshot
@@ -25,6 +27,8 @@ TimeoutStartSec=2400
 # install-robustness 2026-06-21.
 EnvironmentFile=-/etc/mios/install.env
 ExecStart=/usr/libexec/mios/mios-ai-firstboot
+Restart=on-failure
+RestartSec=30
 
 [Install]
 WantedBy=multi-user.target

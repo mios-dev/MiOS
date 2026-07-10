@@ -89,14 +89,26 @@ if [ ! -f "${MODELS}/.ready" ]; then
             # Download to a .part then atomic-rename so a truncated file
             # never trips the .ready gate.
             _url="https://huggingface.co/${repo}/resolve/main/${file}"
-            if curl -fL -C - --retry 3 --max-time 1800 \
-                    -o "${MODELS}/${dest}.part" "$_url" 2>/dev/null \
-               && [ -s "${MODELS}/${dest}.part" ]; then
-                mv -f "${MODELS}/${dest}.part" "${MODELS}/${dest}"
+            success=0
+            for attempt in 1 2 3; do
+                if curl -fL -C - --retry 3 --max-time 1800 \
+                        -o "${MODELS}/${dest}.part" "$_url" 2>/dev/null \
+                   && [ -s "${MODELS}/${dest}.part" ]; then
+                    mv -f "${MODELS}/${dest}.part" "${MODELS}/${dest}"
+                    success=1
+                    break
+                else
+                    log "Attempt ${attempt}/3 to fetch GGUF ${dest} failed"
+                    rm -f "${MODELS}/${dest}.part" 2>/dev/null
+                    if [ "$attempt" -lt 3 ]; then
+                        sleep $(( 2 ** attempt ))
+                    fi
+                fi
+            done
+            if [ "$success" -eq 1 ]; then
                 fetched=$((fetched + 1)); log "GGUF ${dest} fetched from HF (${_url})"
             else
-                rm -f "${MODELS}/${dest}.part" 2>/dev/null
-                log "GGUF ${dest} fetch failed (no egress / upstream) -- will retry next boot"
+                log "GGUF ${dest} fetch failed after 3 attempts (no egress / upstream) -- will retry"
             fi
         done
         if [ "$total" -gt 0 ] && [ "$fetched" -ge "$total" ]; then
@@ -116,16 +128,34 @@ if [ -n "$VLLM_MODEL" ] && [ ! -f "${VLLM_DIR}/config.json" ]; then
         log "fetching vLLM model weights for ${VLLM_MODEL} -> ${VLLM_DIR} via agent venv"
         if "${VENV}/bin/python3" - "$VLLM_MODEL" "$VLLM_DIR" <<'PY' 2>/dev/null; then
 import sys
+import time
+import os
 from huggingface_hub import snapshot_download
 model, dest = sys.argv[1], sys.argv[2]
-snapshot_download(repo_id=model, local_dir=dest,
-                  ignore_patterns=["*.pth", "original/*", "*.gguf"])
+success = False
+for attempt in range(1, 4):
+    try:
+        snapshot_download(repo_id=model, local_dir=dest,
+                          ignore_patterns=["*.pth", "original/*", "*.gguf"])
+        if os.path.isfile(os.path.join(dest, "config.json")):
+            success = True
+            break
+        else:
+            raise Exception("config.json missing after download")
+    except Exception as e:
+        sys.stderr.write(f"Attempt {attempt} failed: {e}\n")
+        if attempt < 3:
+            time.sleep(2 ** attempt)
+if success:
+    sys.exit(0)
+else:
+    sys.exit(1)
 PY
             log "vLLM model weights provisioned for ${VLLM_MODEL}"
             systemctl reset-failed mios-llm-heavy 2>/dev/null
             systemctl restart mios-llm-heavy 2>/dev/null || true
         else
-            log "WARN: vLLM model weights fetch failed -- will retry next boot"
+            log "WARN: vLLM model weights fetch failed -- will retry"
         fi
     else
         log "WARN: agent venv python not available -- vLLM model weights NOT fetched"
@@ -357,7 +387,7 @@ fi
 # is the inference lane (no firstboot ordering dependency) so a plain restart is
 # fine there.
 systemctl daemon-reload 2>/dev/null
-for s in hermes-agent mios-agent-pipe; do
+for s in mios-gateway-agent mios-agent-pipe; do
     systemctl reset-failed "${s}" 2>/dev/null
     systemctl restart --no-block "${s}" 2>/dev/null || true
 done
@@ -375,7 +405,8 @@ fi
 if [ -x "${VENV}/bin/hermes" ] && [ "$_ggufs_ok" -eq 1 ] && [ "$_vllm_ok" -eq 1 ]; then
     touch /var/lib/mios/.ai-firstboot-done
     log "complete -- agent venv + GGUFs + vLLM weights provisioned"
+    exit 0
 else
-    log "incomplete (venv=$( [ -x "${VENV}/bin/hermes" ] && echo ok || echo missing ) ggufs=$( [ "$_ggufs_ok" -eq 1 ] && echo ok || echo missing ) vllm=$( [ "$_vllm_ok" -eq 1 ] && echo ok || echo missing )) -- retrying next boot"
+    log "incomplete (venv=$( [ -x "${VENV}/bin/hermes" ] && echo ok || echo missing ) ggufs=$( [ "$_ggufs_ok" -eq 1 ] && echo ok || echo missing ) vllm=$( [ "$_vllm_ok" -eq 1 ] && echo ok || echo missing )) -- exiting with error for systemd retry"
+    exit 1
 fi
-exit 0

@@ -17,6 +17,8 @@ ConditionPathExists=!/var/lib/mios/forge/.firstboot-done
 # as `wsl` -- a container variant. Use OR: "not a container OR is WSL".
 ConditionVirtualization=|!container
 ConditionVirtualization=|wsl
+StartLimitIntervalSec=1200
+StartLimitBurst=6
 
 [Service]
 Type=oneshot
@@ -24,6 +26,8 @@ RemainAfterExit=yes
 EnvironmentFile=-/etc/mios/install.env
 ExecStart=/usr/libexec/mios/forge-firstboot.sh
 TimeoutStartSec=600s
+Restart=on-failure
+RestartSec=30
 
 # Hardening: this service writes to a small set of paths plus calls
 # 'podman exec' against the running mios-forge container. RestrictNamespaces

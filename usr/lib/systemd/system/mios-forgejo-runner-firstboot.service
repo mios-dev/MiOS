@@ -8,12 +8,16 @@ Wants=mios-forge.service
 Before=mios-forgejo-runner.service
 ConditionPathExists=/etc/mios/forge/runner-token
 ConditionPathExists=!/srv/mios/forge-runner/.runner
+StartLimitIntervalSec=1200
+StartLimitBurst=6
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
 ExecStart=/usr/libexec/mios/mios-forgejo-runner-firstboot.sh
 TimeoutStartSec=180s
+Restart=on-failure
+RestartSec=30
 
 [Install]
 WantedBy=multi-user.target
