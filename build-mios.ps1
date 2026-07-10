@@ -4051,7 +4051,9 @@ for script in /automation/09-fonts.sh \
               /automation/38-oh-my-posh.sh; do
     if [[ -x "$script" ]]; then
         echo "[quadlet-overlay] => $script"
-        sudo bash "$script" 2>&1 | grep -vE '^\+ |^\+\+' | tail -5 || true
+        # Stream live (line-buffered), drop only bash -x trace lines -- no `tail`
+        # so long fetchers show continuous progress instead of a silent gap.
+        sudo stdbuf -oL bash "$script" 2>&1 | grep --line-buffered -vE '^\+ |^\+\+' || true
     fi
 done
 
@@ -4396,17 +4398,23 @@ if [[ -f "$TOML_FILE" ]] && command -v awk >/dev/null 2>&1; then
         fi
         if [[ -z "$installed_via" ]] && command -v dnf >/dev/null 2>&1; then
             echo "[quadlet-overlay] dnf install fallback (rpm-ostree usroverlay -> dnf)..."
+            echo "[quadlet-overlay] installing $PKG_COUNT packages via dnf (streaming live)..."
             sudo rpm-ostree usroverlay 2>&1 | tail -3 || true
+            # Stream live (stdbuf -oL) -- do NOT pipe to `tail`: tail buffers all
+            # output until the (20-40 min) transaction finishes AND masks dnf's
+            # exit code (the `if` would see tail's 0 and mark success on failure).
             # shellcheck disable=SC2086
-            if sudo dnf install -y --skip-unavailable $PKG_LIST 2>&1 | tail -40; then
+            if sudo stdbuf -oL -eL dnf install -y --skip-unavailable $PKG_LIST 2>&1; then
                 installed_via="dnf"
             fi
         fi
         if [[ -z "$installed_via" ]] && command -v dnf5 >/dev/null 2>&1; then
             echo "[quadlet-overlay] dnf5 install fallback..."
+            echo "[quadlet-overlay] installing $PKG_COUNT packages via dnf5 (streaming live)..."
             sudo rpm-ostree usroverlay 2>&1 | tail -3 || true
+            # Stream live; no `tail` (see dnf note above -- buffers + masks exit).
             # shellcheck disable=SC2086
-            if sudo dnf5 install -y --skip-unavailable $PKG_LIST 2>&1 | tail -40; then
+            if sudo stdbuf -oL -eL dnf5 install -y --skip-unavailable $PKG_LIST 2>&1; then
                 installed_via="dnf5"
             fi
         fi
