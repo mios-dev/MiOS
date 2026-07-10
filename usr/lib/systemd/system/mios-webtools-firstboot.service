@@ -3,11 +3,19 @@ Description='MiOS' web-tools images build-on-demand firstboot service
 After=network-online.target
 Wants=network-online.target
 Before=mios-webtools-pod.service
+# WS-DEPLOY: allow the build to retry (script exits non-zero on a missing image)
+# without tripping the start-limit too fast under sustained install contention.
+StartLimitIntervalSec=1200
+StartLimitBurst=6
 
 [Service]
 Type=oneshot
 ExecStart=/usr/libexec/mios/mios-webtools-firstboot.sh
 RemainAfterExit=yes
+# Retry the build if an image is still missing (a transient network/CDN blip
+# during first install must not leave webtools permanently down).
+Restart=on-failure
+RestartSec=30
 
 [Install]
 WantedBy=multi-user.target
