@@ -73,7 +73,10 @@ if (-not $admin) {
 
 # ── 1. WSL distros (the dev VM + builder; their vhdx lives under the data drive) ──
 _say "`n[1/5] WSL distros" 'Cyan'
-$wslList = (& wsl.exe -l -q) 2>$null | ForEach-Object { $_.Trim([char]0, ' ') } | Where-Object { $_ }
+$wslList = @()
+if (Get-Command wsl.exe -ErrorAction SilentlyContinue) {
+    try { $wslList = (& wsl.exe -l -q) 2>$null | ForEach-Object { $_.Trim([char]0, ' ') } | Where-Object { $_ } } catch { $wslList = @() }
+}
 foreach ($d in @('podman-MiOS-DEV','podman-MiOS-BUILDER','MiOS-DEV','MiOS-BUILDER')) {
     if ($wslList -contains $d) {
         _act "wsl --unregister $d" { & wsl.exe --shutdown *> $null; & wsl.exe --unregister $d *> $null; if ($LASTEXITCODE) { throw "wsl exit $LASTEXITCODE" } }
@@ -111,10 +114,17 @@ if ($RemoveTerminalProfiles) {
     $wtSettings = Get-ChildItem "$env:LOCALAPPDATA\Packages\Microsoft.WindowsTerminal_*\LocalState\settings.json" -ErrorAction SilentlyContinue
     foreach ($s in $wtSettings) {
         _act "WT profiles MiOS/MiOS-DEV in $($s.FullName)" {
-            $j = Get-Content -LiteralPath $s.FullName -Raw | ConvertFrom-Json
-            if ($j.profiles -and $j.profiles.list) {
+            # settings.json may carry // comments (PS 5.1 ConvertFrom-Json throws);
+            # skip on parse failure rather than corrupt the operator's terminal.
+            $raw = Get-Content -LiteralPath $s.FullName -Raw
+            $j = $null
+            try { $j = $raw | ConvertFrom-Json -ErrorAction Stop } catch { $j = $null }
+            if ($j -and $j.profiles -and $j.profiles.list) {
                 $j.profiles.list = @($j.profiles.list | Where-Object { $_.name -notin @('MiOS','MiOS-DEV') })
-                ($j | ConvertTo-Json -Depth 32) | Set-Content -LiteralPath $s.FullName -Encoding UTF8
+                $json = $j | ConvertTo-Json -Depth 32
+                # BOM-less UTF-8 (Set-Content -Encoding UTF8 emits a BOM on PS 5.1,
+                # which older Windows Terminal builds reject).
+                [System.IO.File]::WriteAllText($s.FullName, $json, (New-Object System.Text.UTF8Encoding($false)))
             }
         }
     }
@@ -152,9 +162,21 @@ if ($SkipDataDrive) {
                 if ($MIOS_DIRS -contains $n) { _act "dir $root$n" { Remove-Item -LiteralPath $item.FullName -Recurse -Force } }
                 else { _keep "$root$n  (unlisted dir -- preserved for safety)" }
             } else {
-                # MiOS repo root files (Get-MiOS.ps1, mios.toml, *.md, Containerfile, ...);
-                # the KEEP list already excludes pagefile/DumpStack/etc.
-                _act "file $root$n" { Remove-Item -LiteralPath $item.FullName -Force }
+                # File at data-drive root. DO NOT blanket-delete every non-KEEP
+                # file -- that nukes genuine operator data dropped at M:\ root.
+                # Only remove files matching a known MiOS artifact pattern;
+                # preserve anything else (whitelist parity with $MIOS_DIRS).
+                $_miosFilePat = @('Get-MiOS.ps1','mios.toml','mios*.toml','*.md',
+                                  'Containerfile','build-mios.*','bootstrap.*',
+                                  'install.*','justfile','.gitignore','.gitattributes',
+                                  'mios-*.ps1','MiOS.md','AGENTS.md','GEMINI.md')
+                $_isMios = $false
+                foreach ($pat in $_miosFilePat) { if ($n -like $pat) { $_isMios = $true; break } }
+                if ($_isMios) {
+                    _act "file $root$n" { Remove-Item -LiteralPath $item.FullName -Force }
+                } else {
+                    _keep "$root$n  (unlisted file -- preserved for safety)"
+                }
             }
         }
     }
