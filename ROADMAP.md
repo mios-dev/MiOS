@@ -2526,3 +2526,21 @@ one name per capability, similar capabilities folded into one parametric entry
 functionality** — rename/collapse only, via a compat-shim phase, domain-by-domain,
 drift-gate-enforced. Full workflow + convention + phased plan:
 `usr/share/doc/mios/reference/naming-unification.md`. Task: **T-165**.
+
+# Part 16: Install/first-boot pipeline reorder + dependency-completeness (2026-07-10)
+
+## WS-DEPLOY — logical dependency ordering; eliminate "missing dependency" states
+
+Sibling of WS-NAME in the streamlining/hardening campaign. Refactor + reorder the
+install and first-boot steps into a logical dependency DAG so a "missing dependency
+/ prerequisite not ready / artifact not yet built" state is **structurally
+impossible**: every step runs only after its inputs are *ready* (readiness gates,
+not fixed timeouts), builds its outputs **atomically + retried + idempotently**, and
+self-verifies completeness before setting its sentinel. Grounded in the operator's
+2026-07-10 clean reinstall, where every failure was an ordering/completeness bug:
+agent venv gave up on a transient blip → `smolagents` missing → agent-pipe crash-loop
+(fixed 31a52fb1, the reference pattern); DB seeding skipped (no psycopg, cascade);
+`forge-firstboot` aborted on a 300s timeout instead of true readiness;
+`webtools-crawl4ai` started before its local image was built. A new drift-gate makes
+a consumer-before-producer edge a build-time error. Full workflow + phasing:
+`usr/share/doc/mios/reference/install-ordering.md`. Task: **T-166**.

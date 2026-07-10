@@ -3222,3 +3222,13 @@ T-094 (CONV-01 SSOT)
 - [ ] similar capabilities folded to one parametric entry; one canonical name per capability; legacy names + the userenv table deleted; zero functional regression
 - [ ] a drift-gate regenerates + diffs the registry and fails on any new translation/duplicate; all `test_mios_*` + `just drift-gate` green
 
+## T-166: DEPLOY-01 -- Install/first-boot reorder → eliminate "missing dependency" states  [P1]
+> **Priority:** P1 | **Status:** planned | **Effort:** L | **Domain:** Install/Deploy/SSOT | **Source:** operator directive 2026-07-10 (surfaced by the clean reinstall debug).
+
+**Instructions:** Refactor + reorder the install and first-boot pipeline into a logical dependency DAG so a "missing dependency / prerequisite-not-ready / artifact-not-built" state is structurally impossible. (1) Model the producer→consumer DAG across `automation/NN-*.sh` + the `*-firstboot` units; encode edges as systemd `After=`/`Requires=`/`ConditionPathExists=`. (2) Replace fixed timeouts with readiness gates (poll the real health/socket/row/file signal + `Restart=on-failure`). (3) Make every producer atomic + retried + idempotent + completeness-self-checking (the `38-hermes-agent.sh` venv fix — install `-r requirements.txt` in one retried transaction — is the reference pattern; apply to the webtools/sandbox image builds, GGUF/vLLM fetch, forge bootstrap). (4) Topologically reorder the overlay/automation sequence. (5) Add a drift-gate that fails the build on any consumer-before-producer edge (missing `After=`/`Condition*=`). Full plan: `usr/share/doc/mios/reference/install-ordering.md`.
+**Files:** `automation/38-hermes-agent.sh` (done), `usr/libexec/mios/mios-ai-firstboot`, `usr/libexec/mios/mios-webtools-firstboot.sh`, `usr/libexec/mios/forge-firstboot.sh`, the `*-firstboot`/`38-*` units + their `.service` `After=`/`Condition*=`, `automation/build.sh`, `automation/38-drift-checks.sh` (new gate), `usr/share/doc/mios/reference/install-ordering.md`.
+**Done When:**
+- [ ] every consumer step is gated on its producer's real readiness (no fixed-timeout aborts); every producer is atomic + retried + idempotent + completeness-checked
+- [ ] a clean `podman-MiOS-DEV` reinstall deploys a fully-working system (AI plane + forge + webtools) with zero "missing dependency" failures
+- [ ] a drift-gate fails the build on any consumer-before-producer edge; `just drift-gate` + `test_mios_*` green
+
