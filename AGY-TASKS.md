@@ -11,7 +11,9 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 > ## AGY — THIS LIST GROWS. Re-check it after every task.
 > Claude marks your finished tasks **[DONE]** and **appends NEW tasks** as you clear them — there is always more work. **After each commit, `git pull` and re-read this file from the bottom** for new `AGY-N` items. Do NOT stop when you reach the end — new tasks keep arriving. Mark a task done by committing `agy: AGY-N <summary>`.
 >
-> **Queue status (updated by Claude):** AGY-1..8 all **[DONE]** ✔ (Claude-verified: parse-clean, `mios.toml` valid, `test_mios_{budget,daemon,vector,redact}` green; integrated at `5dab41e3`). **NEW → AGY-9 · AGY-10 · AGY-11 · AGY-12 queued below — go.**
+> **Queue status (updated by Claude):** AGY-1..10 all **[DONE]** ✔ — AGY-9 (`de42d755`) + AGY-10 (`180a52d3`) Claude-verified: all parse, `test_mios_db_config` 3/3 + `test_mios_backfill` 3/3 green, your `server.py` edits preserved the `:8642` endpoint. **Still queued: AGY-11 · AGY-12. NEW → AGY-13 · AGY-14 · AGY-15 appended below — go.**
+>
+> ⚠️ **AGY, one process fix (AGY-10 regression Claude had to repair in `65f27383`):** your AGY-10 commit swept 7 `usr/share/containers/systemd/*.container` Quadlets in with their `@sha256` digest pins STRIPPED — re-introducing drift I'd already fixed. **Do NOT `git add -A` / `git add .`** — stage ONLY the files your task touched (`git add <explicit paths>`), and never commit regenerated Quadlets unless your task is about them (they derive from `mios.toml` `[containers]` digest pins via `tools/generate-pod-quadlets.py`). Run `git status` before every commit and drop anything unrelated.
 
 **Ground rules for AGY**
 - Repo: `C:\MiOS` (the FHS overlay; `/usr`, `/etc`, `automation/` map to `/`). Read `CLAUDE.md` + `AGENTS.md` first.
@@ -103,6 +105,26 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 **What + How:** your AGY-4 gate proves no NEW translations creep in; Phase 1 removes the EXISTING ones. Walk `usr/lib/mios/userenv.sh` (and any peer that re-exports a native key under a second `MIOS_*` name): for each entry that is a pure **translation** (an env var that merely renames a native/native-derived key already in `names.generated.txt`), **fold** callers onto the single generated name and delete the duplicate export — **no loss of names, no loss of function** (this is the operator's "fold similar, minimal names combined" law). For any export that is **load-bearing** (has logic, a default, or a consumer that can't take the native name yet — e.g. the `winget_*`/`flatpak_*` re-dispatch verbs, `memory_append`/`memory_replace`), leave it and add a `# WS-NAME: load-bearing, keep` note rather than blind-dropping (per the mios-flatten caution). Update `naming-unification.md` Phase-1 status with the fold count + the explicit keep-list.
 **Where:** `usr/lib/mios/userenv.sh`, callers across `usr/lib/mios/**` + `usr/libexec/mios/**`, `automation/38-drift-checks.sh` (AGY-4 gate should still be green after the fold), `usr/share/doc/mios/reference/naming-unification.md`.
 **Done When:** every folded name resolves to one generated key; grep shows no caller references a deleted alias; the keep-list is documented with reasons; AGY-4's names gate + `just drift-gate` stay green; `bash -n` clean.
+
+---
+
+## AGY-13  (WS-VECTOR V2 runtime / T-244, **P1**) — schedule + wire your AGY-10 backfill worker
+**Who:** you (Python + systemd). **When:** next — AGY-10 built `embed_backfill.py` but nothing RUNS it; close the loop.
+**What + How:** (1) Add a systemd **timer + oneshot service** that runs the AGY-10 backfill on a cadence (mirror `mios-skills-miner.{service,timer}` structure — `User=`/`Group=`, low privilege, `After=mios-pgvector.service mios-llm-light.service`, non-fatal). It should call the backfill entrypoint to populate `emb` on the AGY-7 columns (`verb`/`skill`/`tool_call`/`directory_entry`) idempotently. (2) Confirm `toolsearch.py`'s verb search prefers a native `verb.emb <=>` query when populated and falls back to the in-process lexicon when not (this is the retirement AGY-7/AGY-10 set up) — add the fallback branch if missing. Fail-open throughout (embeddings endpoint down → skip, never crash).
+**Where:** new `usr/lib/systemd/system/mios-embed-backfill.{service,timer}`, `usr/lib/mios/agent-pipe/mios_pipe/routing/toolsearch.py`, `usr/lib/tmpfiles.d/` if a state dir is needed. **Gitignore-whitelist any new unit** and add it to the relevant `automation/NN-*.sh` enable list if there is one.
+**Done When:** the timer unit is valid (`systemd-analyze verify` clean if runnable, else `bash -n`/structure matches the miner unit); backfill is idempotent (2nd run near-noop); `<=>` verb search returns sane neighbors with lexicon fallback intact; `test_mios_backfill` still green; `just drift-gate` passes. **Stage only your files** (see the ⚠️ note up top).
+
+## AGY-14  (WS-VECTOR V1 / T-243, **P1**) — shadow-compare telemetry + projection drift-gate
+**Who:** you (Python + the drift-gate framework). **When:** after AGY-13; builds on your AGY-9 resolver.
+**What + How:** your AGY-9 `mios_db_config.py` shadow-compares DB vs TOML but the divergence goes nowhere. (1) Make the shadow-compare **count + log** divergences (structured log + an in-memory counter the health endpoint can expose), so we can measure when the DB projection is safe to make authoritative. (2) Add **drift-check 31 `drift_projection`** to `automation/38-drift-checks.sh` (next free number after AGY's 29/30): statically assert the DB→TOML materialize round-trip (from AGY-3's `materialize-config-toml.py`) is lossless for `verb`/`config_kv` — regenerate + diff, fail on drift, same pattern as the theme check 25. Read-only, no live DB (operate on the seed + materializer output).
+**Where:** `usr/lib/mios/mios_db_config.py`, `automation/38-drift-checks.sh`, a `test_mios_db_config.py` case for the counter.
+**Done When:** shadow-compare divergences are observable (0 on the current tree); check 31 flags an injected verb-field drop and passes clean on HEAD; `just drift-gate` green; tests green.
+
+## AGY-15  (WS-A2 module hygiene, P2) — sibling-test + modular-boundary compliance for your new modules
+**Who:** you (Python). **When:** independent; quick hygiene pass.
+**What + How:** drift-check 11 requires every `agent-pipe/mios_*.py` to have a sibling `test_mios_*.py`, and check 6 requires siblings to be **server.py-free** (one-way import). Audit YOUR new/changed modules (`mios_db_config.py`, `mios_pipe/memory/embed_backfill.py`, `mios_pipe/routing/toolsearch.py`) + any peer you touched: ensure each has a sibling unit test (add minimal ones where missing) and that none imports the `server.py` monolith (refactor to a shared helper if one does). Then run the full `test_mios_*` suite and confirm all green.
+**Where:** `usr/lib/mios/agent-pipe/test_mios_*.py`, the modules above.
+**Done When:** checks 6 + 11 pass; the whole `test_mios_*` suite is green; `just drift-gate` passes; no new server.py import edges.
 
 ---
 
