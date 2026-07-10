@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: Configures the MiOS-DEV podman machine by syncing system files, creating service users, setting up tmpfiles, and configuring subuid/subgid to mirror a production MiOS environment for hosting Quadlets.
-# AI-related: /usr/lib/mios/logs, mios-ollama, mios-forge, mios-guacamole, mios-pxe-hub, mios-crowdsec, mios-guacd, mios-postgres, mios-virt, mios-tmpfiles-prereq
+# AI-related: /usr/lib/mios/logs, mios-forge, mios-guacamole, mios-pxe-hub, mios-crowdsec, mios-guacd, mios-postgres, mios-virt, mios-tmpfiles-prereq
 # AI-functions: _rsync_in
 # 'MiOS' MiOS-DEV overlay -- makes the build-host podman machine look and
 # feel like a Live 'MiOS' environment so it can host the same Quadlets the
@@ -21,7 +21,7 @@
 #   * rsync etc/mios/ (vendor host config templates)
 #   * COPY MiOS sysusers.d into /etc/sysusers.d/ + run systemd-sysusers,
 #     creating the 'mios' login user (uid 1000) and the service accounts
-#     (mios-ollama, mios-forge, mios-guacamole, mios-pxe-hub,
+#     (mios-forge, mios-guacamole, mios-pxe-hub,
 #     mios-crowdsec, mios-guacd, mios-postgres -- 810-829 range; mios-virt
 #     800; cockpit). Drops into /etc (host-layer override) instead of
 #     /usr/lib (vendor layer) to avoid colliding with podman-machine-os's
@@ -143,7 +143,7 @@ if (( _sysusers_added > 0 )); then
 fi
 
 # ── tmpfiles: create /var/lib/<service>/ dirs the Quadlets bind-mount.
-# Same /etc-layer override pattern. mios-services.conf, mios-ollama.conf,
+# Same /etc-layer override pattern. mios-services.conf,
 # mios-forge.conf etc. declare per-service writable state directories that
 # the matching Quadlets expect to find pre-created with the right owner.
 echo "[overlay-builder] Setting up MiOS tmpfiles.d (etc-layer override)..."
@@ -151,7 +151,6 @@ install -d -m 0755 /etc/tmpfiles.d
 _tmpfiles_added=0
 for tf in usr/lib/tmpfiles.d/mios.conf \
           usr/lib/tmpfiles.d/mios-services.conf \
-          usr/lib/tmpfiles.d/mios-ollama.conf \
           usr/lib/tmpfiles.d/mios-forge.conf \
           usr/lib/tmpfiles.d/mios-forge-runner.conf \
           usr/lib/tmpfiles.d/mios-pxe-hub.conf \

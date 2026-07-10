@@ -1,5 +1,5 @@
 #!/bin/bash
-# AI-hint: Syncs Quadlet container configurations with live CDI specifications in /run/cdi/ to automatically map NVIDIA, AMD, or Intel GPUs to background AI services like ollama based on detected hardware.
+# AI-hint: Syncs Quadlet container configurations with live CDI specifications in /run/cdi/ to automatically map NVIDIA, AMD, or Intel GPUs to background AI service Quadlets (mios-llm-light, vLLM heavy lanes) based on detected hardware.
 # AI-related: /usr/libexec/mios/mios-gpu-passthrough, /etc/mios/gpu-passthrough.conf, /etc/mios/gpu-passthrough.conf., mios-cdi-detect, mios-daemon, mios-igpu, mios-open-webui, mios-mycustom, mios-doctor, mios-system-status
 # AI-functions: log, build_dropin
 # /usr/libexec/mios/mios-gpu-passthrough
@@ -86,7 +86,7 @@ MIOS_AI_QUADLETS_DEFAULT=(
 )
 
 # Operator override: drop a one-liner here:
-#   MIOS_AI_QUADLETS=(ollama mios-open-webui mios-mycustom)
+#   MIOS_AI_QUADLETS=(mios-llm-light mios-open-webui mios-mycustom)
 # or comment out an entry to skip wiring.
 if [ -r "$CONF_FILE" ]; then
     # shellcheck source=/dev/null

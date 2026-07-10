@@ -1,6 +1,6 @@
 #!/bin/bash
 # AI-hint: Summarizes the operational status of core MiOS services, identifies failed systemd units, and audits active network port listeners to provide a snapshot of the system's health and connectivity.
-# AI-related: mios-agent-pipe, mios-daemon, mios-surrealdb, mios-open-webui, mios-ollama-cpu, mios-searxng, mios-forge, mios-skills-miner, mios-passport-provision, mios-hermes-firstboot
+# AI-related: mios-agent-pipe, mios-daemon, mios-surrealdb, mios-open-webui, mios-searxng, mios-forge, mios-skills-miner, mios-passport-provision, mios-hermes-firstboot
 set -euo pipefail
 echo "=== FINAL service state ==="
 for u in mios-agent-pipe mios-daemon mios-pgvector hermes-agent \

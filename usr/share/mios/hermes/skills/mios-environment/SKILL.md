@@ -94,7 +94,6 @@ hand-offs, cached lookups for downstream agents.
 hermes-agent.service             :8642  you (OpenAI gateway)
 mios-delegation-prefilter        :8641  prompt refinement + name rewrite + force-delegate
 mios-open-webui.service          :3030  OWUI browser UI
-mios-ollama.service              :11434 raw inference
 mios-searxng.service             :8888  privacy search (web tool backend)
 mios-forge.service               :3000  Forgejo
 mios-agents.service              :8800  VSCode-in-browser (replaces code-server)
