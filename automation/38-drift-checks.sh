@@ -1651,6 +1651,183 @@ PY
     fi
 }
 
+# --- (30, WS-NAME names/keys registry enforcement) ----------------------------
+check_names_registry() {
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "[38-drift-checks]   WARNING: python3 missing -- skipping names registry check" >&2
+        return 0
+    fi
+    if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
+import os, sys, re, subprocess
+
+root = os.environ["MIOS_DRIFT_ROOT"]
+violations = []
+
+# 1. Verify names.generated.txt matches a fresh execution of the generator
+gen_script = os.path.join(root, "tools/generate-names-registry.py")
+registry_file = os.path.join(root, "usr/share/mios/names.generated.txt")
+
+if not os.path.isfile(gen_script):
+    violations.append("tools/generate-names-registry.py missing")
+elif not os.path.isfile(registry_file):
+    violations.append("usr/share/mios/names.generated.txt missing")
+else:
+    try:
+        res = subprocess.run([sys.executable, gen_script], capture_output=True, text=True, check=True)
+        fresh_data = res.stdout
+        with open(registry_file, "r") as fh:
+            committed_data = fh.read()
+        
+        # Normalize line endings
+        fresh_lines = [l.strip() for l in fresh_data.splitlines() if l.strip()]
+        committed_lines = [l.strip() for l in committed_data.splitlines() if l.strip()]
+        
+        if fresh_lines != committed_lines:
+            violations.append("usr/share/mios/names.generated.txt is stale. Please run tools/generate-names-registry.py.")
+    except Exception as e:
+        violations.append(f"Failed to check names registry generation: {e}")
+
+# 2. Verify slots array in userenv.sh matches canonical or allowed legacy names
+userenv_sh = os.path.join(root, "tools/lib/userenv.sh")
+if not os.path.isfile(userenv_sh):
+    violations.append("tools/lib/userenv.sh missing")
+else:
+    try:
+        with open(userenv_sh, "r") as fh:
+            content = fh.read()
+            
+        slots_match = re.search(r"slots\s*=\s*\[(.*?)\]", content, re.DOTALL)
+        if not slots_match:
+            violations.append("Could not find slots array in userenv.sh")
+        else:
+            slots_str = slots_match.group(1)
+            slots = []
+            for m in re.finditer(r'\(\s*"([^"]+)"\s*,\s*"([^"]+)"\s*\)', slots_str):
+                slots.append((m.group(1), m.group(2)))
+                
+            legacy_allowed = {
+                "identity.username": "MIOS_USER",
+                "identity.fullname": "MIOS_USER_FULLNAME",
+                "identity.hostname": "MIOS_HOSTNAME",
+                "identity.shell": "MIOS_USER_SHELL",
+                "identity.groups": "MIOS_USER_GROUPS",
+                "locale.timezone": "MIOS_TIMEZONE",
+                "locale.keyboard_layout": "MIOS_KEYBOARD",
+                "locale.language": "MIOS_LOCALE",
+                "auth.ssh_key_action": "MIOS_SSH_KEY_ACTION",
+                "auth.password_policy": "MIOS_PASSWORD_POLICY",
+                "network.firewalld_default_zone": "MIOS_FIREWALLD_ZONE",
+                "ai.api_key": "MIOS_AI_KEY",
+                "ai.chat_vision_model": "MIOS_AGENT_PIPE_VISION_MODEL",
+                "ai.stack_model": "MIOS_STACK_MODEL",
+                "ai.embed_model": "MIOS_VERB_EMBED_MODEL",
+                "desktop.flatpaks": "MIOS_FLATPAKS",
+                "bootstrap.mios_repo": "MIOS_REPO_URL",
+                "bootstrap.bootstrap_repo": "MIOS_BOOTSTRAP_REPO_URL",
+                "ports.ssh": "MIOS_PORT_SSH",
+                "ports.forge_http": "MIOS_PORT_FORGE_HTTP",
+                "ports.forge_ssh": "MIOS_PORT_FORGE_SSH",
+                "ports.cockpit": "MIOS_PORT_COCKPIT",
+                "ports.cockpit_link": "MIOS_PORT_COCKPIT_LINK",
+                "ports.searxng": "MIOS_PORT_SEARXNG",
+                "ports.crawl4ai": "MIOS_PORT_CRAWL4AI",
+                "ports.firecrawl": "MIOS_PORT_FIRECRAWL",
+                "ports.hermes": "MIOS_PORT_HERMES",
+                "ports.hermes_worker": "MIOS_PORT_HERMES_WORKER",
+                "ports.hermes_dashboard": "MIOS_PORT_HERMES_DASHBOARD",
+                "ports.open_webui": "MIOS_PORT_OPEN_WEBUI",
+                "ports.code_server": "MIOS_PORT_CODE_SERVER",
+                "ports.k3s_api": "MIOS_K3S_API_PORT",
+                "ports.guacamole_web": "MIOS_GUACAMOLE_PORT",
+                "ports.ceph_dashboard": "MIOS_CEPH_DASHBOARD_PORT",
+                "ports.rdp": "MIOS_RDP_PORT",
+                "ports.pgvector": "MIOS_PORT_PGVECTOR",
+                "ports.llm_light": "MIOS_PORT_LLM_LIGHT",
+                "ports.cpu_node": "MIOS_PORT_CPU_NODE",
+                "ports.agent_pipe": "MIOS_PORT_AGENT_PIPE",
+                "ports.adguard_dns": "MIOS_PORT_ADGUARD_DNS",
+                "ports.adguard_ui": "MIOS_PORT_ADGUARD_UI",
+                "ports.opencode_gateway": "MIOS_PORT_OPENCODE_GATEWAY",
+                "ports.vllm": "MIOS_PORT_VLLM",
+                "ports.sglang": "MIOS_PORT_SGLANG",
+                "ports.prefilter": "MIOS_PORT_PREFILTER",
+                "ports.arbiter": "MIOS_PORT_ARBITER",
+                "ports.daemon_agent": "MIOS_PORT_DAEMON_AGENT",
+                "ports.model_router": "MIOS_PORT_MODEL_ROUTER",
+                "ports.oscontrol": "MIOS_PORT_OSCONTROL",
+                "ports.mcp": "MIOS_PORT_MCP",
+                "hermes.endpoint": "MIOS_HERMES_ENDPOINT",
+                "agents.hermes.endpoint": "MIOS_HERMES_WORKER_ENDPOINT",
+                "a2a.discover_port": "MIOS_A2A_DISCOVER_PORT",
+                "a2a.public_domain": "MIOS_PUBLIC_DOMAIN",
+                "routing.model_modalities_embeddings": "MIOS_MODEL_MODALITIES_EMBEDDINGS",
+                "routing.model_modalities_image": "MIOS_MODEL_MODALITIES_IMAGE",
+                "routing.integer_param_keywords": "MIOS_INTEGER_PARAM_KEYWORDS",
+                "routing.boolean_param_keywords": "MIOS_BOOLEAN_PARAM_KEYWORDS",
+                "ai.opencode_gateway_workdir": "MIOS_OPENCODE_WORKDIR",
+                "ai.agent_venv": "MIOS_HERMES_VENV",
+                "ai.agent_install_dir": "MIOS_HERMES_DIR",
+                "ai.vllm.v1_engine": "MIOS_VLLM_USE_V1",
+            }
+            
+            def is_legacy_color_match(toml_key, env_var):
+                if toml_key.startswith("colors.ansi_"):
+                    suffix = toml_key[len("colors.ansi_"):].upper().replace(".", "_").replace("-", "_")
+                    return env_var == f"MIOS_ANSI_{suffix}"
+                elif toml_key.startswith("colors."):
+                    suffix = toml_key[len("colors."):].upper().replace(".", "_").replace("-", "_")
+                    return env_var == f"MIOS_COLOR_{suffix}"
+                return False
+                
+            mapped_keys = []
+            mapped_vars = []
+            
+            for toml_key, env_var in slots:
+                canonical = "MIOS_" + toml_key.upper().replace(".", "_").replace("-", "_")
+                
+                # Check mapping correctness
+                is_ok = (
+                    env_var == canonical or
+                    (toml_key in legacy_allowed and legacy_allowed[toml_key] == env_var) or
+                    is_legacy_color_match(toml_key, env_var)
+                )
+                
+                if not is_ok:
+                    violations.append(f"Invalid non-canonical env mapping in userenv.sh: '{toml_key}' maps to '{env_var}' (expected canonical '{canonical}')")
+                
+                mapped_keys.append(toml_key)
+                mapped_vars.append(env_var)
+            
+            # Check duplicates (except allowed duplicates like 'ai.embed_model')
+            uniq_keys = set()
+            for tk in mapped_keys:
+                if tk == "ai.embed_model":
+                    continue
+                if tk in uniq_keys:
+                    violations.append(f"Duplicate mapping key in userenv.sh: '{tk}'")
+                uniq_keys.add(tk)
+                
+            uniq_vars = set()
+            for ev in mapped_vars:
+                if ev in uniq_vars:
+                    violations.append(f"Duplicate mapping target env var in userenv.sh: '{ev}'")
+                uniq_vars.add(ev)
+    except Exception as e:
+        violations.append(f"Failed to check userenv.sh mappings: {e}")
+
+if violations:
+    for v in sorted(violations):
+        sys.stderr.write(f"    {v}\n")
+    sys.exit(1)
+sys.exit(0)
+PY
+    then
+        echo "[38-drift-checks]   (30) names registry matches generate-names-registry.py and userenv.sh maps cleanly"
+    else
+        _violation "naming registry drift / userenv translation table violation (flatten check 30)"
+    fi
+}
+
 main() {
     check_dead_lane
     check_retired_models
@@ -1681,6 +1858,7 @@ main() {
     check_userenv_parity
     check_globals_ports
     check_dag_integrity
+    check_names_registry
 
     echo "[38-drift-checks] ---------------------------------------------------------"
     if [[ "$VIOLATIONS" -eq 0 ]]; then
