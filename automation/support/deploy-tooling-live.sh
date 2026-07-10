@@ -25,7 +25,7 @@ done
 
 echo "[live] tmpfiles + sysusers"
 for f in mios-shim-links.conf mios-pgvector.conf mios-llamacpp.conf \
-         mios-agent-pipe.conf mios-surrealdb.conf; do
+         mios-agent-pipe.conf; do
     s="$SRC/usr/lib/tmpfiles.d/$f"
     [ -f "$s" ] && tr -d '\r' < "$s" | sudo tee "/usr/lib/tmpfiles.d/$f" >/dev/null && echo "  + tmpfiles/$f"
 done

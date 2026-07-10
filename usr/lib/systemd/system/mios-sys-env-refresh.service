@@ -12,7 +12,7 @@ Type=oneshot
 # host HW) and UPSERT the shared `sys_env:current` row so EVERY agent reads a
 # current snapshot from the DB -- the env analogue of mios-podman-ps (dashboard)
 # and the daemon's directory_entry cache. Read-only probe; the only write is the
-# SurrealDB cache row. operator 2026-05-23: "probe systems/environment live +
+# pgvector cache row. operator 2026-05-23: "probe systems/environment live +
 # store/update a mios-sys-env database".
 # systemd does NOT expand bash ${VAR:-default} in Environment= -- it passes the
 # LITERAL string "8432", which mios-pg-query then int()s ->
