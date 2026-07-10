@@ -5,7 +5,7 @@ set -euo pipefail
 echo "=== FINAL service state ==="
 for u in mios-agent-pipe mios-daemon mios-pgvector hermes-agent \
          mios-open-webui mios-llm-light mios-searxng \
-         mios-forge mios-skills-miner.timer mios-passport-provision \
+         mios-forge mios-skills-miner.timer mios-embed-backfill.timer mios-passport-provision \
          mios-hermes-firstboot mios-ttyd-bash mios-ttyd-powershell \
          mios-delegation-prefilter hermes-dashboard mios-code-server; do
     printf '  %-30s %s\n' "$u" "$(systemctl is-active "$u" 2>/dev/null)"

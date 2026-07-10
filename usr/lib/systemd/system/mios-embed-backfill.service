@@ -1,0 +1,27 @@
+# AI-hint: Systemd unit that runs the mios_pipe.memory.embed_backfill worker to periodically re-embed database rows with stale or missing vector versions.
+# AI-related: /usr/lib/mios/agent-pipe/mios_pipe/memory/embed_backfill.py, mios-embed-backfill.timer, mios-pgvector.service, mios-llm-light.service
+# /usr/lib/systemd/system/mios-embed-backfill.service
+
+[Unit]
+Description='MiOS' Embedding Backfill Worker
+Documentation=file:///usr/lib/mios/agent-pipe/mios_pipe/memory/embed_backfill.py
+After=mios-pgvector.service mios-llm-light.service mios-agent-pipe.service mios-ai-firstboot.service
+Requires=mios-pgvector.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/mios/userenv.sh
+EnvironmentFile=-/etc/mios/install.env
+Environment=PYTHONPATH=/usr/lib/mios/agent-pipe
+ExecStart=/usr/lib/mios/agents/.venv/bin/python3 -u -m mios_pipe.memory.embed_backfill
+
+# Low-privilege execution
+User=mios-ai
+Group=mios-ai
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

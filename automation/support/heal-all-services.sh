@@ -29,14 +29,16 @@ journalctl -u mios-hermes-firstboot.service --since '30 sec ago' --no-pager \
 
 echo
 echo "── opt-in service states after firstboot ──"
-for u in mios-ttyd-bash mios-ttyd-powershell mios-skills-miner; do
+for u in mios-ttyd-bash mios-ttyd-powershell mios-skills-miner mios-embed-backfill; do
     state=$(systemctl is-active "${u}.service" 2>&1)
     enabled=$(systemctl is-enabled "${u}.service" 2>&1)
     printf '  %-30s active=%-10s enabled=%s\n' "$u" "$state" "$enabled"
 done
-state=$(systemctl is-active mios-skills-miner.timer 2>&1)
-enabled=$(systemctl is-enabled mios-skills-miner.timer 2>&1)
-printf '  %-30s active=%-10s enabled=%s\n' "mios-skills-miner.timer" "$state" "$enabled"
+for t in mios-skills-miner.timer mios-embed-backfill.timer; do
+    state=$(systemctl is-active "$t" 2>&1)
+    enabled=$(systemctl is-enabled "$t" 2>&1)
+    printf '  %-30s active=%-10s enabled=%s\n' "$t" "$state" "$enabled"
+done
 
 echo
 echo "── env drop-in parse re-check (no rejected lines) ──"

@@ -15,7 +15,7 @@ echo " 2. All mios-* + agent services (state)"
 echo "═══════════════════════════════════════════════════════"
 for u in mios-agent-pipe mios-daemon mios-pgvector hermes-agent \
          mios-open-webui mios-llm-light mios-searxng \
-         mios-forge mios-skills-miner mios-passport-provision \
+         mios-forge mios-skills-miner mios-embed-backfill mios-passport-provision \
          mios-hermes-firstboot mios-ttyd-bash mios-ttyd-powershell \
          mios-delegation-prefilter hermes-dashboard mios-code-server; do
     state=$(systemctl is-active "${u}.service" 2>&1)

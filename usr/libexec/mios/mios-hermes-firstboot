@@ -1824,6 +1824,14 @@ if [[ -f /usr/lib/systemd/system/mios-skills-miner.timer ]]; then
         _log "  WARN: mios-skills-miner.timer failed to enable/start"
     fi
 fi
+# Embedding backfill: off-hot-path vector backfiller.
+if [[ -f /usr/lib/systemd/system/mios-embed-backfill.timer ]]; then
+    if systemctl enable --now mios-embed-backfill.timer 2>/dev/null; then
+        _log "  enabled+started mios-embed-backfill.timer"
+    else
+        _log "  WARN: mios-embed-backfill.timer failed to enable/start"
+    fi
+fi
 # Starter-chip refresh: generates MiOS-aware revolving chips for
 # OWUI's new-chat starter row, driven off recent operator state.
 # Fires on a 10-min cadence (operator-tunable via the timer drop-in).

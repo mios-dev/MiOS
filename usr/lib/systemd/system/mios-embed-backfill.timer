@@ -1,0 +1,17 @@
+# AI-hint: Defines the systemd timer for the mios-embed-backfill.service, controlling the periodic execution interval (default 15m) for background embedding backfilling.
+# AI-related: /usr/lib/mios/agent-pipe/mios_pipe/memory/embed_backfill.py, mios-embed-backfill.service, timers.target
+# /usr/lib/systemd/system/mios-embed-backfill.timer
+
+[Unit]
+Description='MiOS' Embedding Backfill Timer
+Documentation=file:///usr/lib/mios/agent-pipe/mios_pipe/memory/embed_backfill.py
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=15min
+AccuracySec=1min
+Unit=mios-embed-backfill.service
+Persistent=true
+
+[Install]
+WantedBy=timers.target
