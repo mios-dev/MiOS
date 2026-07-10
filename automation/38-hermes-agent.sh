@@ -164,12 +164,32 @@ fi
 # writes nothing and the DB cutover can never fill (the live
 #     mirror was empty until psycopg was added). [binary] = prebuilt wheel, no
 #     libpq headers / compiler needed.
-# --no-input keeps it non-interactive; failure here is non-fatal.
-if "${VENV_DIR}/bin/pip" install --no-input --disable-pip-version-check ${PIP_OFFLINE_ARGS} ${PIP_CONSTRAINTS_ARG} \
-        "${INSTALL_TARGET}" aiohttp websockets "discord.py>=2.4,<3" "psycopg[binary]" "firecrawl-py" 2>&1 | tail -5; then
-    :
-else
-    warn "[MiOS AI] pip install of ${INSTALL_TARGET} + soft-deps failed -- removing partial venv, skipping"
+# --no-input keeps it non-interactive. ATOMIC + RETRIED: install the hermes git
+# ref, the canonical agent-pipe requirements.txt (fastapi/uvicorn/smolagents/mcp/
+# psycopg/... -- the COMPLETE set agent-pipe imports), AND the hermes soft-deps in
+# ONE transaction, retried 3x with backoff. Previously this ran once and, on a
+# single network blip (routine under install-time dnf/image-pull contention),
+# rm-rf'd the venv and gave up -- leaving smolagents/mcp missing so mios-agent-pipe
+# crash-looped ("No module named 'smolagents'") until a manual rebuild. Installing
+# the full requirements set + retrying makes a fresh install deploy a working AI
+# plane every time. (The later per-module check-installs below are now redundant
+# safety nets.)
+_REQ_FILE="/usr/lib/mios/agent-pipe/requirements.txt"
+_REQ_ARG=""; [ -f "${_REQ_FILE}" ] && _REQ_ARG="-r ${_REQ_FILE}"
+_venv_pip_ok=""
+for _venv_attempt in 1 2 3; do
+    # shellcheck disable=SC2086
+    if "${VENV_DIR}/bin/pip" install --no-input --disable-pip-version-check ${PIP_OFFLINE_ARGS} ${PIP_CONSTRAINTS_ARG} \
+            "${INSTALL_TARGET}" ${_REQ_ARG} \
+            aiohttp websockets "discord.py>=2.4,<3" "psycopg[binary]" "firecrawl-py" \
+            "smolagents>=1.0.0" "litellm>=1.0.0" 2>&1 | tail -8; then
+        _venv_pip_ok=1; break
+    fi
+    warn "[MiOS AI] agent-venv pip install attempt ${_venv_attempt}/3 failed (transient network under install load?) -- retrying in $((_venv_attempt*8))s"
+    sleep $((_venv_attempt*8))
+done
+if [ -z "${_venv_pip_ok}" ]; then
+    warn "[MiOS AI] agent-venv pip install failed after 3 attempts -- removing partial venv, will retry next boot"
     rm -rf "${VENV_DIR}"
     exit 0
 fi
