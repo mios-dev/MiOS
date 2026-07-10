@@ -90,6 +90,7 @@
 !/install-mios-agents.sh
 !/Get-MiOS.ps1
 !/Uninstall-MiOS.ps1
+!/AGY-TASKS.md
 !/install.ps1
 !/build-mios.ps1
 !/mios-pipeline.ps1
