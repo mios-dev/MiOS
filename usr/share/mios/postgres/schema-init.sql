@@ -538,6 +538,35 @@ ALTER TABLE session ADD COLUMN IF NOT EXISTS chain_hash text;
 
 
 -- ── Consolidated Database-Driven Configurations & Verbs (T-126) ──────────────
+CREATE TABLE IF NOT EXISTS config_layer (
+    rank integer PRIMARY KEY,
+    name text UNIQUE NOT NULL
+);
+
+INSERT INTO config_layer (rank, name) VALUES
+    (0, 'vendor'),
+    (1, 'host'),
+    (2, 'user'),
+    (3, 'machine')
+ON CONFLICT (rank) DO UPDATE SET name = EXCLUDED.name;
+
+CREATE TABLE IF NOT EXISTS config_kv (
+    id           bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    scope        text NOT NULL,
+    key          text NOT NULL,
+    value        jsonb,
+    layer        integer REFERENCES config_layer(rank),
+    owner_user   text,
+    description  text,
+    emb          vector(768),
+    emb_model    text,
+    emb_version  text,
+    ts           timestamptz DEFAULT now(),
+    UNIQUE (scope, key, layer)
+);
+CREATE INDEX IF NOT EXISTS config_kv_emb_hnsw
+    ON config_kv USING hnsw (emb vector_cosine_ops) WITH (m = 16, ef_construction = 64);
+
 CREATE TABLE IF NOT EXISTS system_config (
     key           text PRIMARY KEY,
     value         jsonb NOT NULL,
@@ -547,24 +576,43 @@ CREATE TABLE IF NOT EXISTS system_config (
 CREATE INDEX IF NOT EXISTS system_config_last_upd ON system_config (last_updated);
 
 CREATE TABLE IF NOT EXISTS verb (
-    name         text PRIMARY KEY,
-    sig          text NOT NULL,
-    desc_default text NOT NULL,
-    tier         text         DEFAULT 'common',
-    permission   text         DEFAULT 'read',
-    cmd          text,
-    params       jsonb        DEFAULT '{}'::jsonb,
-    i18n         jsonb        DEFAULT '{}'::jsonb,
-    is_active    boolean      DEFAULT true,
-    last_updated timestamptz  DEFAULT now()
+    name             text PRIMARY KEY,
+    sig              text NOT NULL,
+    desc_default     text NOT NULL,
+    tier             text         DEFAULT 'common',
+    permission       text         DEFAULT 'read',
+    cmd              text,
+    params           jsonb        DEFAULT '{}'::jsonb,
+    i18n             jsonb        DEFAULT '{}'::jsonb,
+    is_active        boolean      DEFAULT true,
+    section          text,
+    examples         jsonb,
+    model_name       text,
+    hidden           boolean      DEFAULT false,
+    aliases          jsonb,
+    conflict_group   text,
+    parallel_limit   integer      DEFAULT 0,
+    max_result_chars integer      DEFAULT 0,
+    last_updated     timestamptz  DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS verb_active ON verb (is_active);
+
+ALTER TABLE verb ADD COLUMN IF NOT EXISTS section          text;
+ALTER TABLE verb ADD COLUMN IF NOT EXISTS examples         jsonb;
+ALTER TABLE verb ADD COLUMN IF NOT EXISTS model_name       text;
+ALTER TABLE verb ADD COLUMN IF NOT EXISTS hidden           boolean DEFAULT false;
+ALTER TABLE verb ADD COLUMN IF NOT EXISTS aliases          jsonb;
+ALTER TABLE verb ADD COLUMN IF NOT EXISTS conflict_group   text;
+ALTER TABLE verb ADD COLUMN IF NOT EXISTS parallel_limit   integer DEFAULT 0;
+ALTER TABLE verb ADD COLUMN IF NOT EXISTS max_result_chars integer DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS domain_verb (
     domain       text NOT NULL,
     verb_name    text NOT NULL REFERENCES verb(name) ON DELETE CASCADE,
     PRIMARY KEY (domain, verb_name)
 );
+
+ALTER TABLE domain_verb ADD COLUMN IF NOT EXISTS description text;
 
 
 

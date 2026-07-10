@@ -68,6 +68,36 @@ def main():
                             (db_key, json.dumps(val), f"Default configuration for {db_key}")
                         )
                 log.info("System configuration seeded.")
+
+                # 1b. Seed verbs._defaults to config_kv
+                verbs = data.get("verbs") or {}
+                defaults = verbs.get("_defaults") or {}
+                cur.execute(
+                    """
+                    INSERT INTO config_kv (scope, key, value, layer, description)
+                    VALUES ('verbs', '_defaults', %s, 0, 'Verbs defaults')
+                    ON CONFLICT (scope, key, layer) DO UPDATE SET value = EXCLUDED.value;
+                    """,
+                    (json.dumps(defaults),)
+                )
+
+                # 1c. Seed config_kv (V0 layer foundation)
+                for sec in sections:
+                    sec_data = data.get(sec) or {}
+                    if not isinstance(sec_data, dict):
+                        continue
+                    for k, val in sec_data.items():
+                        if sec == "routing" and k == "domains":
+                            continue
+                        cur.execute(
+                            """
+                            INSERT INTO config_kv (scope, key, value, layer, description)
+                            VALUES (%s, %s, %s, 0, %s)
+                            ON CONFLICT (scope, key, layer) DO UPDATE SET value = EXCLUDED.value;
+                            """,
+                            (sec, k, json.dumps(val), f"Vendor default for {sec}.{k}")
+                        )
+                log.info("config_kv seeded.")
                 
                 # 2. Seed verbs
                 verbs = data.get("verbs") or {}
@@ -88,19 +118,46 @@ def main():
                             cmd = str(cmd)
                         params = merged.get("params") or {}
                         
+                        # Extra fields to satisfy lossless round-trip requirements
+                        section = merged.get("section")
+                        examples = merged.get("examples")
+                        model_name = merged.get("model_name")
+                        hidden = bool(merged.get("hidden", False))
+                        aliases = merged.get("aliases")
+                        conflict_group = merged.get("conflict_group")
+                        parallel_limit = int(merged.get("parallel_limit", 0))
+                        max_result_chars = int(merged.get("max_result_chars", 0))
+                        
+                        examples_json = json.dumps(examples) if examples is not None else None
+                        aliases_json = json.dumps(aliases) if aliases is not None else None
+                        
                         cur.execute(
                             """
-                            INSERT INTO verb (name, sig, desc_default, tier, permission, cmd, params)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s)
+                            INSERT INTO verb (name, sig, desc_default, tier, permission, cmd, params,
+                                              section, examples, model_name, hidden, aliases,
+                                              conflict_group, parallel_limit, max_result_chars)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                             ON CONFLICT (name) DO UPDATE SET
                                 sig = EXCLUDED.sig,
                                 desc_default = EXCLUDED.desc_default,
                                 tier = EXCLUDED.tier,
                                 permission = EXCLUDED.permission,
                                 cmd = EXCLUDED.cmd,
-                                params = EXCLUDED.params;
+                                params = EXCLUDED.params,
+                                section = EXCLUDED.section,
+                                examples = EXCLUDED.examples,
+                                model_name = EXCLUDED.model_name,
+                                hidden = EXCLUDED.hidden,
+                                aliases = EXCLUDED.aliases,
+                                conflict_group = EXCLUDED.conflict_group,
+                                parallel_limit = EXCLUDED.parallel_limit,
+                                max_result_chars = EXCLUDED.max_result_chars;
                             """,
-                            (vname, sig, desc, tier, perm, cmd, json.dumps(params))
+                            (
+                                vname, sig, desc, tier, perm, cmd, json.dumps(params),
+                                section, examples_json, model_name, hidden, aliases_json,
+                                conflict_group, parallel_limit, max_result_chars
+                            )
                         )
                 log.info("Verbs seeded.")
                 
@@ -113,16 +170,17 @@ def main():
                         if not isinstance(dom_cfg, dict):
                             continue
                         vlist = dom_cfg.get("verbs") or []
+                        desc = dom_cfg.get("desc") or ""
                         for vname in vlist:
                             cur.execute("SELECT 1 FROM verb WHERE name = %s;", (vname,))
                             if cur.fetchone():
                                 cur.execute(
                                     """
-                                    INSERT INTO domain_verb (domain, verb_name)
-                                    VALUES (%s, %s)
-                                    ON CONFLICT DO NOTHING;
+                                    INSERT INTO domain_verb (domain, verb_name, description)
+                                    VALUES (%s, %s, %s)
+                                    ON CONFLICT (domain, verb_name) DO UPDATE SET description = EXCLUDED.description;
                                     """,
-                                    (dom, vname)
+                                    (dom, vname, desc)
                                 )
                 log.info("Domain verb mappings seeded.")
                 conn.commit()
