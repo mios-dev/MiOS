@@ -134,16 +134,20 @@ if ($SkipDataDrive) {
     } else {
         $root = "${DataDrive}:\"
         _say "  data drive: $root (label MIOS-DEV)" 'Gray'
-        # HARD keep-list -- NEVER deleted, guarantees non-MiOS data survives.
+        # HARD keep-list -- NEVER deleted, guarantees the pagefile + genuine user
+        # data survive (pagefile.sys is load-bearing: C:\ is too small to hold it).
         $KEEP = @('$RECYCLE.BIN','System Volume Information','pagefile.sys','swapfile.sys',
-                  'hiberfil.sys','DumpStack.log.tmp','SteamLibrary','W10UIuup','MountUUP',
+                  'hiberfil.sys','DumpStack.log.tmp','SteamLibrary',
                   'winget','images','research','config')
+        # PURGE -- disposable Windows UUP staging left on M:\; removed for a fresh state.
+        $PURGE = @('W10UIuup','MountUUP')
         # Explicit MiOS artifact dirs on the data drive (FHS overlay + repo + VM + runtime).
         $MIOS_DIRS = @('.devcontainer','.forgejo','.git','.github','automation','etc','MiOS',
                        'podman','root','src','tests','tools','usr','var','powershell')
         foreach ($item in Get-ChildItem -LiteralPath $root -Force -ErrorAction SilentlyContinue) {
             $n = $item.Name
             if ($KEEP -contains $n) { _keep "$root$n  (non-MiOS -- preserved)"; continue }
+            if ($PURGE -contains $n) { _act "purge $root$n  (Windows UUP staging)" { Remove-Item -LiteralPath $item.FullName -Recurse -Force }; continue }
             if ($item.PSIsContainer) {
                 if ($MIOS_DIRS -contains $n) { _act "dir $root$n" { Remove-Item -LiteralPath $item.FullName -Recurse -Force } }
                 else { _keep "$root$n  (unlisted dir -- preserved for safety)" }
