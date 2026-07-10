@@ -92,6 +92,7 @@ ai.available_models  MIOS_AI_AVAILABLE_MODELS
 ai.bake_models  MIOS_AI_BAKE_MODELS
 ai.catalog  MIOS_AI_CATALOG
 ai.catalog_fail_mode  MIOS_AI_CATALOG_FAIL_MODE
+ai.db_authoritative  MIOS_AI_DB_AUTHORITATIVE
 ai.effort  MIOS_AI_EFFORT
 ai.embed_model  MIOS_AI_EMBED_MODEL
 ai.endpoint  MIOS_AI_ENDPOINT

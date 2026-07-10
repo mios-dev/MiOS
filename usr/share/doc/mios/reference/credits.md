@@ -104,7 +104,7 @@ via `MIOS_BASE_IMAGE`).
 
 ## 6. Local AI runtime (the canonical 'MiOS' AI endpoint)
 
-`MIOS_AI_ENDPOINT=http://localhost:8080/v1` is served by the LocalAI Quadlet
+`MIOS_AI_ENDPOINT` is served by the LocalAI Quadlet
 at `etc/containers/systemd/mios-ai.container`. All other engines below are
 listed as **Day-0 portability targets**: 'MiOS' agents resolve through
 `MIOS_AI_ENDPOINT` so any of these can be slotted in.
@@ -317,7 +317,7 @@ subset. Every URL below is the source-of-truth for the named surface.
 | FHS 3.0 root layout | repo root mirrors `/` |
 | `agents.md` agent identity convention | `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.clinerules`, `.cursorrules` |
 | `llms.txt` / `llms-full.txt` | repo root |
-| OpenAI `/v1` API surface | `MIOS_AI_ENDPOINT=http://localhost:8080/v1` |
+| OpenAI `/v1` API surface | `MIOS_AI_ENDPOINT=http://localhost:8642/v1` |
 | MCP server registry | `usr/share/mios/ai/v1/mcp.json` |
 
 ## 20. Internal repo files referenced as canonical sources
@@ -370,7 +370,7 @@ the source of truth for a given concern. When in doubt, these win:
 > are vendor-neutral pointers to the same canonical prompt.
 >
 > **Architectural Law 5 -- UNIFIED-AI-REDIRECTS.** Every client below
-> resolves through `MIOS_AI_ENDPOINT=http://localhost:8080/v1`, an
+> resolves through `MIOS_AI_ENDPOINT`, an
 > OpenAI-public-API-compatible surface served by
 > `etc/containers/systemd/mios-ai.container` (LocalAI). Vendor-native URLs
 > (`api.openai.com`, `api.anthropic.com`,

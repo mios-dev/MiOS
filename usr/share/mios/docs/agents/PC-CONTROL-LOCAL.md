@@ -24,7 +24,7 @@ workstation** (the whole OS is a single container image you `bootc upgrade` like
 self-hosted, agentic AI operating system**. The same image that ships the
 GNOME/Wayland desktop, the NVIDIA+ROCm+iGPU CDI wiring, and the KVM/k3s paths also
 ships a complete local agent stack behind one OpenAI-compatible endpoint
-(`MIOS_AI_ENDPOINT`, default `http://localhost:8080/v1`).
+(`MIOS_AI_ENDPOINT`).
 
 **PC Control is the capability that lets that agent stack drive the GUI it lives
 in** — open apps, click buttons, fill forms, verify results — entirely on local

@@ -40,7 +40,7 @@ mios "$(cat usr/share/mios/ai/audit-prompt.md)"                           # vend
 ```
 
 Every client resolves the model through `MIOS_AI_ENDPOINT` (Architectural Law 5
--- the single OpenAI-compatible front door, default `http://localhost:8080/v1`),
+-- the single OpenAI-compatible front door named by `MIOS_AI_ENDPOINT`),
 so the same prompt audits identically regardless of which editor/CLI is driving
 it. This prompt replaces the runtime `CLAUDE.md` / `MiOS.md` operating context
 for the duration of the audit.

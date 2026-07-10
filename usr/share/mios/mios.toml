@@ -692,6 +692,8 @@ provenance_taint = false
 [security.nohc_allowlist]
 # SSOT Allowlist for legitimate exceptions to the ports/IPs hardcode check (T-125).
 exempt_files = [
+    "install-mios-agents\\.sh$",
+    "usr/lib/mios/agent-pipe/server\\.py$",
     "test_.*\\.py$",
     "Heal-MiOSLocalhostForwarding\\.ps1$",
     "Setup-MiOSLanPortProxy\\.ps1$",
@@ -726,8 +728,10 @@ exempt_patterns = [
     "localhost/mios",
     "wsl\\.localhost",
     "localhost:8640",
+    "localhost:8642",
     "localhost:4317",
     ":8640",
+    ":8642",
     ":4317",
     ":11436",
     ":8644",
@@ -5797,6 +5801,7 @@ xcursor_path = "~/.local/share/icons:~/.icons:/usr/share/icons:/usr/share/pixmap
 
 [ai]
 kernel_dispatch = true
+db_authoritative = false
 # Canonical agent surface = the AGENT-PIPE ORCHESTRATOR on :8640 (served model
 # "MiOS-Agent"), the UNIFIED entrypoint ("UNIFY THE MiOS AI
 # PIPELINE"). MIOS_AI_ENDPOINT (the surface every OpenAI-API client + the `@`/

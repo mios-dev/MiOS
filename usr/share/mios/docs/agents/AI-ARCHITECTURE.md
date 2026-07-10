@@ -18,8 +18,7 @@ KVM/libvirt passthrough, and a k3s+Ceph cluster path also ships the full agent
 stack described here.
 
 This document covers that second half — the AI plane. It is reachable through a
-single OpenAI-compatible endpoint named by `MIOS_AI_ENDPOINT` (default
-`http://localhost:8080/v1`); every agent, tool, and editor on the box resolves
+single OpenAI-compatible endpoint named by `MIOS_AI_ENDPOINT`; every agent, tool, and editor on the box resolves
 to that one endpoint (Architectural Law 5). Because the stack is baked into the
 same immutable image as the OS, it is version-locked to the OS and reproduced
 exactly on every host that pulls the ref — that is what makes a *local* agent

@@ -71,8 +71,8 @@ What you actually get out of the box:
   Windows VM and game on it.
 - **k3s + Ceph** for when you want to grow the box into a one-node cluster
   without re-imaging.
-- **A complete local AI surface**, OpenAI-compatible at
-  `http://localhost:8080/v1`. Local inference lanes (`mios-llm-light` for the
+- **A complete local AI surface**, OpenAI-compatible behind
+  `MIOS_AI_ENDPOINT`. Local inference lanes (`mios-llm-light` for the
   everyday models + embeddings, plus gated heavy GPU lanes) feed a multi-agent
   pipeline with PostgreSQL+pgvector memory. Every agent and tool on the system
   targets that one endpoint via `MIOS_AI_ENDPOINT`, so any OpenAI-API-compatible
@@ -200,7 +200,7 @@ Want to know what kernel arguments ship? They're in
 The AI surface is one of the things 'MiOS' is *for*, so here's the end-to-end
 shape. Everything below ships in the image, runs on your hardware, and is
 reachable through the single OpenAI-compatible endpoint named by
-`MIOS_AI_ENDPOINT` (default `http://localhost:8080/v1`).
+`MIOS_AI_ENDPOINT`.
 
 - **Inference lanes** -- named by *function*, not by upstream tool:
   - `mios-llm-light` (`:11450`) is the **primary** lane: a `llama.cpp`
@@ -290,8 +290,8 @@ build-time lint and by `automation/99-postcheck.sh`:
    `/usr/lib/bootc/bound-images.d/` so it ships *with* the host.
 4. **BOOTC-CONTAINER-LINT** -- every build ends with `bootc container lint`.
    Fail the lint, fail the build.
-5. **UNIFIED-AI-REDIRECTS** -- every agent and tool targets `MIOS_AI_ENDPOINT`
-   (`http://localhost:8080/v1`). No vendor-hardcoded URLs.
+5. **UNIFIED-AI-REDIRECTS** -- every agent and tool targets `MIOS_AI_ENDPOINT`.
+   No vendor-hardcoded URLs.
 6. **UNPRIVILEGED-QUADLETS** -- every Quadlet declares `User=`, `Group=`,
    `Delegate=yes`. Documented exceptions: `mios-ceph` and `mios-k3s`
    (rationale in their headers).

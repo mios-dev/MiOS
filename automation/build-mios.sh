@@ -137,14 +137,14 @@ collect_user_config() {
         read -p "AI Model (default: llama3.1:8b): " MIOS_AI_MODEL
         MIOS_AI_MODEL="${MIOS_AI_MODEL:-llama3.1:8b}"
 
-        read -p "AI Endpoint (default: http://localhost:8080/v1): " MIOS_AI_ENDPOINT
-        MIOS_AI_ENDPOINT="${MIOS_AI_ENDPOINT:-http://localhost:8080/v1}"
+        read -p "AI Endpoint (default: http://localhost:8642/v1): " MIOS_AI_ENDPOINT
+        MIOS_AI_ENDPOINT="${MIOS_AI_ENDPOINT:-http://localhost:8642/v1}"
 
         read -sp "AI API Key (optional, press Enter to skip): " MIOS_AI_KEY
         echo ""
     else
         MIOS_AI_MODEL="llama3.1:8b"
-        MIOS_AI_ENDPOINT="http://localhost:8080/v1"
+        MIOS_AI_ENDPOINT="http://localhost:8642/v1"
         MIOS_AI_KEY=""
     fi
 

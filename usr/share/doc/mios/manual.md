@@ -26,7 +26,7 @@ This unified document consolidates the entire 50-chapter documentation suite, de
 
 ### Part II: The Agentic AI Stack
 * **Chapter 04: The Agentic AI Stack**
-  * [Unified AI Endpoint](#04_unified_ai_endpoint): Describes the routing of all AI interactions through the MIOS_AI_ENDPOINT on port 8080.
+  * [Unified AI Endpoint](#04_unified_ai_endpoint): Describes the routing of all AI interactions through the MIOS_AI_ENDPOINT (Hermes gateway, port 8642).
   * [Agent Pipe Orchestrator](#04_agent_pipe_orchestrator): Details the primary front door on port 8640 used to route requests and fan out tasks.
   * [MiOS Hermes Gateway](#04_mios_hermes_gateway): Outlines the operation of the tool-loop gateway and session manager running on port 8642.
   * [Inference Lanes](#04_inference_lanes): Maps the local token generation engines, llama.cpp proxy, and VRAM-gated heavy lanes.
@@ -256,7 +256,7 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -289,7 +289,7 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -305,16 +305,15 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 
 #### Overview
 
-Governance of MiOS is defined by eight strict, non-negotiable mandates enforced at build-time by [38-ssot-lint.sh](file:///C:/MiOS/automation/38-ssot-lint.sh), [38-drift-checks.sh](file:///C:/MiOS/automation/38-drift-checks.sh), and [99-postcheck.sh](file:///C:/MiOS/automation/99-postcheck.sh):
+Governance of MiOS is defined by seven strict, non-negotiable mandates enforced at build-time by [38-ssot-lint.sh](file:///C:/MiOS/automation/38-ssot-lint.sh), [38-drift-checks.sh](file:///C:/MiOS/automation/38-drift-checks.sh), and [99-postcheck.sh](file:///C:/MiOS/automation/99-postcheck.sh):
 
 1. **USR-OVER-ETC**: Static system configs must reside in `/usr/lib/<component>.d/`. The `/etc/` directory is reserved solely for administrative overrides.
 2. **NO-MKDIR-IN-VAR**: Build-time scripts must never call `mkdir` inside `/var/`. All `/var/` paths must be declared declaratively via `usr/lib/tmpfiles.d/*.conf`.
 3. **BOUND-IMAGES**: Every Podman Quadlet container image must be symlinked under `/usr/lib/bootc/bound-images.d/` and baked into `/usr/lib/containers/storage` at build-time.
 4. **BOOTC-CONTAINER-LINT**: The last instruction of the `Containerfile` must be `RUN bootc container lint`. A failing lint fails the build.
-5. **UNIFIED-AI-REDIRECTS**: All local services, tools, and agents must communicate with `MIOS_AI_ENDPOINT` (defaulting to `http://localhost:8080/v1`). No vendor-hardcoded URLs are allowed.
+5. **UNIFIED-AI-REDIRECTS**: All local services, tools, and agents must communicate with `MIOS_AI_ENDPOINT`. No vendor-hardcoded URLs are allowed.
 6. **UNPRIVILEGED-QUADLETS**: All Quadlet units must declare `User=`, `Group=`, and `Delegate=yes` configuration bounds. The only exceptions are `mios-ceph` and `mios-k3s` (which require root block device access).
 7. **NO-HARDCODE**: Nothing operator-tunable, including model names, ports, or scoring parameters, may be hardcoded. Values must resolve via the `mios.toml` configuration cascade.
-8. **K-I-S-S-LANGUAGES**: All scripting and automation must consolidate strictly around modern, FOSS, user-selected, and defined languages (Nushell, Rust, Zig) using Keep-It-Simple-Stupid (K.I.S.S.) principles to eliminate shell script sprawl.
 
 #### Citation & Attribution References
 
@@ -326,7 +325,7 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -374,7 +373,7 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -407,7 +406,7 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -440,7 +439,7 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -474,7 +473,7 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -508,7 +507,7 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -541,7 +540,7 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -574,7 +573,7 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -596,7 +595,7 @@ This chapter covers the documentation for **The Agentic AI Stack** under MiOS.
 
 #### Overview
 
-To avoid hardcoded vendor SDK dependencies, all intelligence pipelines on MiOS are routed through a single local endpoint on loopback: `http://localhost:8080/v1` (`MIOS_AI_ENDPOINT`). This endpoint abstractly translates chat-completions and embeddings requests to the active inference backend, ensuring client compatibility.
+To avoid hardcoded vendor SDK dependencies, all intelligence pipelines on MiOS are routed through a single local endpoint on loopback named by `MIOS_AI_ENDPOINT` (the Hermes gateway on `:8642`). This endpoint abstractly translates chat-completions and embeddings requests to the active inference backend, ensuring client compatibility.
 
 #### Citation & Attribution References
 
@@ -608,7 +607,7 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -637,7 +636,7 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -669,7 +668,7 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -699,7 +698,7 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -729,7 +728,7 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -765,7 +764,7 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -797,7 +796,7 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -829,7 +828,7 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -864,7 +863,7 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -894,7 +893,7 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -924,7 +923,7 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -955,7 +954,7 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -987,7 +986,7 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -1022,7 +1021,7 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -1054,7 +1053,7 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -1087,7 +1086,7 @@ Unified Kernel Images (UKIs) combine the Linux kernel, initramfs, and kernel com
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -1114,7 +1113,7 @@ Secure Boot ensures that only cryptographically signed binaries can be executed 
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -1140,7 +1139,7 @@ Kernel arguments customize hardware and hypervisor settings during system launch
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -1170,7 +1169,7 @@ MiOS uses unprivileged systemd user services to run AI components safely within 
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -1196,7 +1195,7 @@ Podman Quadlets simplify systemd container management by translating `.container
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -1222,7 +1221,7 @@ Services are dynamically activated, stopped, or scaled based on host states and 
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -1255,7 +1254,7 @@ The llama-swap proxy manages model requests on port **11450**, serving as the si
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -1281,7 +1280,7 @@ Embedded inference on MiOS uses optimized GGUF format weights to enable local ex
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -1306,7 +1305,7 @@ Models are mapped in [mios-llm-light.yaml](file:///C:/MiOS/usr/share/mios/llamac
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -1336,7 +1335,7 @@ The heavy reasoning lane utilizes SGLang (port **11441**) to serve large languag
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -1362,7 +1361,7 @@ The alternate heavy lane uses vLLM (port **11440**) to run swarm worker instance
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -1388,7 +1387,7 @@ VRAM scheduling isolates graphics memory resources between virtual machines (Loo
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -1418,7 +1417,7 @@ MiOS integrates PostgreSQL inside rootless Podman to serve as the unified agent 
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -1447,7 +1446,7 @@ Memory and knowledge tables are queried using semantic vector searches.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -1473,7 +1472,7 @@ To maintain search performance, memory indexes are optimized via background prun
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -1503,7 +1502,7 @@ Developers can extend agent capabilities by writing custom Model Context Protoco
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -1529,7 +1528,7 @@ The system uses dynamic tool discovery to collect active MCP tools at session st
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -1555,7 +1554,7 @@ To prevent malicious tool execution, MCP server processes are sandboxed.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -1593,7 +1592,7 @@ The Agent-to-Agent (A2A) protocol defines how agents delegate tasks to peer node
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -1620,7 +1619,7 @@ Coding tasks are fanned out to the `mios-opencode` coding specialist on port **8
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -1646,7 +1645,7 @@ A2A communications are secured through capability-based access controls.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -1676,7 +1675,7 @@ Desktop automation uses UI-TARS models to translate visual displays into action 
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -1702,7 +1701,7 @@ Inputs are emulated on Wayland through secure input modules.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -1728,7 +1727,7 @@ AT-SPI screen trees allow agents to navigate UI hierarchies programmatically.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -1760,7 +1759,7 @@ The system root `/usr` is mounted as a read-only composefs image to prevent run-
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -1786,7 +1785,7 @@ fs-verity protects binaries from offline tampering.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -1812,7 +1811,7 @@ System updates are applied transactionally on booted hosts.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -1842,7 +1841,7 @@ CrowdSec monitors local logs to detect threat activities.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -1868,7 +1867,7 @@ fapolicyd blocks execution of untrusted scripts and binaries.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -1894,7 +1893,7 @@ USBGuard safeguards against hardware security exploits.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -1924,7 +1923,7 @@ Sigstore policies ensure only trusted images can be executed.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -1950,7 +1949,7 @@ Keyless signing uses OIDC trust systems to sign OCI container images.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -1976,7 +1975,7 @@ Attestations verify the build origin and contents of OCI images.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -2006,7 +2005,7 @@ Isolating host graphics cards allows direct passthrough to virtual guests.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -2032,7 +2031,7 @@ PCI routing maps isolated hardware into VM XML configurations.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -2058,7 +2057,7 @@ Guest systems require clean driver configurations to utilize passed hardware.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -2088,7 +2087,7 @@ NVIDIA CDI specs enable CUDA applications inside rootless containers.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -2114,7 +2113,7 @@ AMD CDI profiles map compute hardware to container environments.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -2140,7 +2139,7 @@ Intel CDI maps integrated and discrete Intel graphics processors.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -2170,7 +2169,7 @@ Looking Glass requires the KVM Framebuffer (KVMFR) driver to share screen memory
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -2196,7 +2195,7 @@ Looking Glass uses host shared memory to pass frames.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -2222,7 +2221,7 @@ The host client renders guest framebuffers on the Wayland display.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -2252,7 +2251,7 @@ CPU pinning partitions processing cores between virtual machines and the host.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -2278,7 +2277,7 @@ NUMA alignment optimizes memory access times by keeping tasks close to memory no
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -2304,7 +2303,7 @@ Tuning settings reduce virtualization scheduling latencies.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -2336,7 +2335,7 @@ Integrating single-node K3s allows container orchestration without affecting GNO
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -2362,7 +2361,7 @@ Ingress configs manage external routing into local cluster services.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -2388,7 +2387,7 @@ Custom SELinux rules protect the host from cluster workloads.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -2418,7 +2417,7 @@ Ceph storage daemons are orchestrated inside unprivileged containers.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -2444,7 +2443,7 @@ Ceph requires block access permissions, making it one of the few root exemptions
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -2470,7 +2469,7 @@ Desktop directories are synced to CephFS mounts for automatic backups.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -2500,7 +2499,7 @@ Sovereign search services are provided locally by containerized SearXNG.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -2526,7 +2525,7 @@ Agents execute search queries using SearXNG API endpoints.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -2552,7 +2551,7 @@ Parsed search results are transformed into Markdown for inference ingestion.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -2582,7 +2581,7 @@ Ingested documents are parsed and vectorized to build the knowledge base.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -2608,7 +2607,7 @@ The ingest pipeline maps content to Postgres database tables.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -2634,7 +2633,7 @@ Maintaining vector indexes keeps similarity query times fast.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -2667,7 +2666,7 @@ Use `mios-env --explain` to trace key resolution layers.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -2693,7 +2692,7 @@ The system shell uses Oh My Posh themes to show system status.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -2719,7 +2718,7 @@ Standard locale and time formats are staging targets during deployment.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -2749,7 +2748,7 @@ Firewall rules isolate host services and control outbound networks.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -2775,7 +2774,7 @@ Ports are allocated dynamically during build and boot phases.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -2801,7 +2800,7 @@ VPN integrations secure communication across network devices.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -2831,7 +2830,7 @@ The configuration dashboard allows graphical form editing of system parameters.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -2857,7 +2856,7 @@ The web panel monitors resource usages and active containers.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -2883,7 +2882,7 @@ Config settings are synchronized back to target system files on save.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -2915,7 +2914,7 @@ The postcheck suite validates system state compliance before image builds finish
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -2941,7 +2940,7 @@ Build rules prohibit hardcoded keys, URLs, and settings.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -2967,7 +2966,7 @@ Verifies that active system configurations meet zero-trust security profiles.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -2997,7 +2996,7 @@ Flatpaks are defined in system configs and pre-downloaded to reduce setup times.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -3023,7 +3022,7 @@ Flatpak permissions are confined using Flatseal profiles.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -3049,7 +3048,7 @@ Syncs application icons and shortcuts to the GNOME desktop launcher menu.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -3079,7 +3078,7 @@ Adding swarm worker instances scales execution capacities dynamically.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -3105,7 +3104,7 @@ The system splits complex queries and routes them to parallel workers.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -3131,7 +3130,7 @@ Balances parallel model tasks based on health status metrics.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -3161,7 +3160,7 @@ Confines untrusted coding tasks within rootless containers.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -3187,7 +3186,7 @@ Custom SELinux profiles prevent sandbox escape actions.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -3213,7 +3212,7 @@ Validates code actions and sanitizes script outputs securely.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -3243,7 +3242,7 @@ Resolves host client authentication with central FreeIPA domains.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -3269,7 +3268,7 @@ Sysusers definitions pre-stage user and system accounts prior to install.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -3295,7 +3294,7 @@ Automates joining host systems to corporate domains.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -3325,7 +3324,7 @@ Exporters collect system metrics from physical hardware.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -3351,7 +3350,7 @@ Logs query times, token counts, and routing states.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -3377,7 +3376,7 @@ Configures dashboards to monitor system and AI workloads.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -3407,7 +3406,7 @@ Greenboot verifies service status after system upgrades.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -3433,7 +3432,7 @@ Rollback triggers swap root partition indexes back to working slots on boot fail
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -3459,7 +3458,7 @@ Automated scripts attempt self-repair tasks on service start failures.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -3489,7 +3488,7 @@ Refreshes CDI specs automatically when graphics adapters change.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -3515,7 +3514,7 @@ Gating mechanisms control GPU resource allocations between containers and hyperv
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -3541,7 +3540,7 @@ Loads host display drivers based on profile settings.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -3571,7 +3570,7 @@ Enables GUI remote management when running headless.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -3597,7 +3596,7 @@ Secures remote display sessions using TLS certificates.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -3623,7 +3622,7 @@ Allows toggling display signals for virtual desktop environments.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -3653,7 +3652,7 @@ Tuning virtiofs settings allows high-speed file sharing with guests.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -3679,7 +3678,7 @@ Overlay folders expose host configurations to guest runtimes.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -3705,7 +3704,7 @@ Maps user IDs across host and guest environments.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -3735,7 +3734,7 @@ Copies system journals to bootstrap drives for offline diagnostics.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -3761,7 +3760,7 @@ Configures background daemons to aggregate container logs.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -3787,7 +3786,7 @@ Assembles diagnostic packages to simplify system troubleshooting.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -3817,7 +3816,7 @@ Generates secure signature keys for custom kernel drivers.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -3844,7 +3843,7 @@ Enrolls Machine Owner Keys (MOK) inside host firmware.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -3870,7 +3869,7 @@ Signs compiled driver binaries automatically during kernel upgrades.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -3900,7 +3899,7 @@ Upgrading host kernels relies on stable LTS packages.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -3926,7 +3925,7 @@ Guards compilation tasks to prevent boot failures from driver updates.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -3952,7 +3951,7 @@ Compiling images relies on bootc-image-builder (BIB) containers.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -3982,7 +3981,7 @@ Sets up private registry containers for local image hosting.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -4008,7 +4007,7 @@ Caching static container layers reduces OCI build times.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -4034,7 +4033,7 @@ Upgrades local hosts using updated image references.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -4064,7 +4063,7 @@ Manages file priority rules across system overlays.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -4090,7 +4089,7 @@ Exemptions allow manual packages installation for debugging.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -4116,7 +4115,7 @@ Solves dependency conflicts during system builds.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -4146,7 +4145,7 @@ Profiles system capabilities using profiling scripts.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -4172,7 +4171,7 @@ Validates outbound networking rules.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -4198,7 +4197,7 @@ Compares configuration states against templates.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -4228,7 +4227,7 @@ Sets up user accounts and home layouts.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -4254,7 +4253,7 @@ Deploys template configuration files to user home folders.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -4280,7 +4279,7 @@ Isolates configuration environments across different user accounts.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -4310,7 +4309,7 @@ Provides VM templates meeting Windows 11 Secure Boot specifications.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -4336,7 +4335,7 @@ Deploy virtual machines using pre-configured cloud-init settings.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -4362,7 +4361,7 @@ Manages virtual guests using command tools.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -4392,7 +4391,7 @@ Deploys Open WebUI as the primary browser chat interface.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -4418,7 +4417,7 @@ Customizes panels and options in the web interface.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -4444,7 +4443,7 @@ Secures web access using credentials tokens.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -4474,7 +4473,7 @@ Configures local update repositories to support air-gapped runtimes.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -4500,7 +4499,7 @@ Caches model weights locally to prevent telemetry leaks.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -4526,7 +4525,7 @@ Ensures local tools remain functional when offline.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -4556,7 +4555,7 @@ Monitors updates and changes inside upstream base OCI images.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -4582,7 +4581,7 @@ Automates repetitive build and test targets using Justfile.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 
@@ -4608,7 +4607,7 @@ Runbook steps guide moving image builds to release configurations.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8080/v1`
+- Runtime services: `http://localhost:8642/v1`
 
 #### Guidelines & Best Practices
 

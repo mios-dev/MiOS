@@ -1968,7 +1968,7 @@ T-084 (SSOT) is the unblocker for all others. T-085 must exist before T-087 (aut
 
 # Part 10: Converged-Resource Architecture — AI Pipeline Simplification (2026-06-25)
 
-<!-- AI-hint: Additive. Architectural transition plan from "Container-Per-Component" to "Converged-Resource" topology across four phases: (1) asyncio.Queue process merger of agent-pipe + gateway; (2) Single-Engine Multiplexing with llama-swap LRU + vLLM multi-LoRA; (3) sqlite-vec transient memory + zstd cold eviction; (4) Hummingbird distroless containers + rechunk OCI optimization. ALL changes uphold Law 5 (MIOS_AI_ENDPOINT via MIOS_AI_ENDPOINT at http://localhost:8080/v1) and Law 6 (UNPRIVILEGED-QUADLETS). Tasks: T-094..T-113 in TASKS.md. Does NOT decommission pgvector (agent SSOT datastore) — it remains the primary warm/hot semantic store. -->
+<!-- AI-hint: Additive. Architectural transition plan from "Container-Per-Component" to "Converged-Resource" topology across four phases: (1) asyncio.Queue process merger of agent-pipe + gateway; (2) Single-Engine Multiplexing with llama-swap LRU + vLLM multi-LoRA; (3) sqlite-vec transient memory + zstd cold eviction; (4) Hummingbird distroless containers + rechunk OCI optimization. ALL changes uphold Law 5 (MIOS_AI_ENDPOINT) and Law 6 (UNPRIVILEGED-QUADLETS). Tasks: T-094..T-113 in TASKS.md. Does NOT decommission pgvector (agent SSOT datastore) — it remains the primary warm/hot semantic store. -->
 
 *Source: MiOS Converged-Resource Architecture research (2026-06-25). Transitions the multi-service AI pipeline from network-hop-per-component topology to a consolidated, lower-overhead runtime while strictly preserving the two immutable architectural laws that define MiOS's AI plane: Law 5 (UNIFIED-AI-REDIRECTS — every inference call resolves through `MIOS_AI_ENDPOINT`) and Law 6 (UNPRIVILEGED-QUADLETS — all AI sidecars run as unprivileged Podman Quadlet units).*
 
@@ -2040,7 +2040,7 @@ mios-agent-pipe (:8640) [SINGLE FastAPI process — enlarged]
     └─── Response streaming back to client
     │
     ▼
-MIOS_AI_ENDPOINT (http://localhost:8080/v1)   ← Law 5 unchanged
+MIOS_AI_ENDPOINT (Hermes :8642)   ← Law 5 unchanged
 ```
 
 **hermes-agent.service** is retained as a deprecated-open compatibility shim: `MIOS_GATEWAY_MODE=http` in `/etc/mios/install.env` re-enables the HTTP route to `:8642`, ensuring zero-disruption rollback if the queue worker encounters an unexpected condition.

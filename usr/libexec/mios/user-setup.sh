@@ -133,7 +133,7 @@ TOML
 
 [ai]
 # model              = "qwen2.5-coder:7b"
-# endpoint           = "http://localhost:8080/v1"
+# endpoint           = "http://localhost:8642/v1"
 # key                = ""
 # system_prompt_file = "~/.config/mios/system-prompt.md"
 

@@ -115,7 +115,7 @@ def main():
                     "title": "The Seven Architectural Laws",
                     "desc": "Details the non-negotiable mandates: USR-OVER-ETC, NO-MKDIR-IN-VAR, BOUND-IMAGES, etc.",
                     "citations": [7, 8, 9],
-                    "content": "Governance of MiOS is defined by seven strict, non-negotiable mandates enforced at build-time by [38-ssot-lint.sh](file:///C:/MiOS/automation/38-ssot-lint.sh), [38-drift-checks.sh](file:///C:/MiOS/automation/38-drift-checks.sh), and [99-postcheck.sh](file:///C:/MiOS/automation/99-postcheck.sh):\n\n1. **USR-OVER-ETC**: Static system configs must reside in `/usr/lib/<component>.d/`. The `/etc/` directory is reserved solely for administrative overrides.\n2. **NO-MKDIR-IN-VAR**: Build-time scripts must never call `mkdir` inside `/var/`. All `/var/` paths must be declared declaratively via `usr/lib/tmpfiles.d/*.conf`.\n3. **BOUND-IMAGES**: Every Podman Quadlet container image must be symlinked under `/usr/lib/bootc/bound-images.d/` and baked into `/usr/lib/containers/storage` at build-time.\n4. **BOOTC-CONTAINER-LINT**: The last instruction of the `Containerfile` must be `RUN bootc container lint`. A failing lint fails the build.\n5. **UNIFIED-AI-REDIRECTS**: All local services, tools, and agents must communicate with `MIOS_AI_ENDPOINT` (defaulting to `http://localhost:8080/v1`). No vendor-hardcoded URLs are allowed.\n6. **UNPRIVILEGED-QUADLETS**: All Quadlet units must declare `User=`, `Group=`, and `Delegate=yes` configuration bounds. The only exceptions are `mios-ceph` and `mios-k3s` (which require root block device access).\n7. **NO-HARDCODE**: Nothing operator-tunable, including model names, ports, or scoring parameters, may be hardcoded. Values must resolve via the `mios.toml` configuration cascade."
+                    "content": "Governance of MiOS is defined by seven strict, non-negotiable mandates enforced at build-time by [38-ssot-lint.sh](file:///C:/MiOS/automation/38-ssot-lint.sh), [38-drift-checks.sh](file:///C:/MiOS/automation/38-drift-checks.sh), and [99-postcheck.sh](file:///C:/MiOS/automation/99-postcheck.sh):\n\n1. **USR-OVER-ETC**: Static system configs must reside in `/usr/lib/<component>.d/`. The `/etc/` directory is reserved solely for administrative overrides.\n2. **NO-MKDIR-IN-VAR**: Build-time scripts must never call `mkdir` inside `/var/`. All `/var/` paths must be declared declaratively via `usr/lib/tmpfiles.d/*.conf`.\n3. **BOUND-IMAGES**: Every Podman Quadlet container image must be symlinked under `/usr/lib/bootc/bound-images.d/` and baked into `/usr/lib/containers/storage` at build-time.\n4. **BOOTC-CONTAINER-LINT**: The last instruction of the `Containerfile` must be `RUN bootc container lint`. A failing lint fails the build.\n5. **UNIFIED-AI-REDIRECTS**: All local services, tools, and agents must communicate with `MIOS_AI_ENDPOINT`. No vendor-hardcoded URLs are allowed.\n6. **UNPRIVILEGED-QUADLETS**: All Quadlet units must declare `User=`, `Group=`, and `Delegate=yes` configuration bounds. The only exceptions are `mios-ceph` and `mios-k3s` (which require root block device access).\n7. **NO-HARDCODE**: Nothing operator-tunable, including model names, ports, or scoring parameters, may be hardcoded. Values must resolve via the `mios.toml` configuration cascade."
                 }
             }
         },
@@ -182,9 +182,9 @@ def main():
             "pages": {
                 "Unified_AI_Endpoint.md": {
                     "title": "Unified AI Endpoint",
-                    "desc": "Describes the routing of all AI interactions through the MIOS_AI_ENDPOINT on port 8080.",
+                    "desc": "Describes the routing of all AI interactions through the MIOS_AI_ENDPOINT (Hermes gateway, port 8642).",
                     "citations": [1, 29, 30],
-                    "content": "To avoid hardcoded vendor SDK dependencies, all intelligence pipelines on MiOS are routed through a single local endpoint on loopback: `http://localhost:8080/v1` (`MIOS_AI_ENDPOINT`). This endpoint abstractly translates chat-completions and embeddings requests to the active inference backend, ensuring client compatibility."
+                    "content": "To avoid hardcoded vendor SDK dependencies, all intelligence pipelines on MiOS are routed through a single local endpoint on loopback named by `MIOS_AI_ENDPOINT` (the Hermes gateway on `:8642`). This endpoint abstractly translates chat-completions and embeddings requests to the active inference backend, ensuring client compatibility."
                 },
                 "Agent_Pipe_Orchestrator.md": {
                     "title": "Agent Pipe Orchestrator",
@@ -1304,7 +1304,7 @@ This unified document consolidates the entire 50-chapter documentation suite, de
 
                     aio_content += "#### System References\n\n"
                     aio_content += "- Relevant configurations: `mios.toml`\n"
-                    aio_content += "- Runtime services: `http://localhost:8080/v1`\n\n"
+                    aio_content += "- Runtime services: `http://localhost:8642/v1`\n\n"
                     aio_content += "#### Guidelines & Best Practices\n\n"
                     aio_content += "1. Adhere to the Seven Architectural Laws of MiOS at all times.\n"
                     aio_content += "2. All configurations should be resolved using the three-layer override structure.\n"

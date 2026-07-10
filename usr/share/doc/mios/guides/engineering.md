@@ -138,7 +138,7 @@ build that wires the AI surface correctly produces a machine where every agent
 and tool talks to one brain.
 
 - **Unified endpoint (LAW 5).** All system agents target the OpenAI-v1 protocol
-  at `MIOS_AI_ENDPOINT` (default `http://localhost:8080/v1`). Vendor-hardcoded
+  at `MIOS_AI_ENDPOINT`. Vendor-hardcoded
   URLs are forbidden. Behind that single redirect sits the agent stack:
   the agent-pipe (`:8640`) → the MiOS-Hermes gateway (`:8642`, sessions /
   tool-calling / skills) → the inference lanes (`mios-llm-light` on `:11450`
@@ -205,8 +205,8 @@ Every contribution obeys these, enforced by build-time lint and
    so it ships *with* the host.
 4. **BOOTC-CONTAINER-LINT** — final `RUN` of the `Containerfile`. Fail the lint,
    fail the build.
-5. **UNIFIED-AI-REDIRECTS** — every agent and tool targets `MIOS_AI_ENDPOINT`
-   (`http://localhost:8080/v1`). No vendor-hardcoded URLs.
+5. **UNIFIED-AI-REDIRECTS** — every agent and tool targets `MIOS_AI_ENDPOINT`.
+   No vendor-hardcoded URLs.
 6. **UNPRIVILEGED-QUADLETS** — every Quadlet declares `User=`, `Group=`,
    `Delegate=yes`. Documented exceptions (rationale in their headers):
    `mios-ceph`, `mios-k3s`, `mios-forgejo-runner`.

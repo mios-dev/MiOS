@@ -7,7 +7,7 @@ ingest_local.py — Embed chunks.jsonl against any OpenAI-API-compatible
 /v1/embeddings endpoint (LAW 5) and upsert into pgvector.
 
 Day-0 compatible. Works against:
-  - MiOS LocalAI         (http://localhost:8080/v1)  ← canonical (LAW 5)
+  - MiOS LocalAI         (http://localhost:8642/v1)  ← canonical (LAW 5)
   - Ollama               (http://localhost:11434/v1)
   - vLLM                 (http://localhost:8000/v1)
   - LM Studio            (http://localhost:1234/v1)
@@ -15,7 +15,7 @@ Day-0 compatible. Works against:
   - LiteLLM proxy        (http://localhost:4000/v1)
 
 Env vars (matches MiOS LAW 5: UNIFIED-AI-REDIRECTS):
-  MIOS_AI_ENDPOINT    — default http://localhost:8080/v1
+  MIOS_AI_ENDPOINT    — default http://localhost:8642/v1
   MIOS_AI_KEY         — default empty (LocalAI accepts empty key)
   MIOS_AI_EMBED_MODEL — default nomic-embed-text (canonical mios.toml [ai].embed_model)
 
@@ -77,7 +77,7 @@ def vector_literal(vec) -> str:
 
 
 def main(chunks_path: str = "chunks.jsonl") -> int:
-    endpoint = os.environ.get("MIOS_AI_ENDPOINT", "http://localhost:8080/v1").rstrip("/")
+    endpoint = os.environ.get("MIOS_AI_ENDPOINT", "http://localhost:8642/v1").rstrip("/")
     key      = os.environ.get("MIOS_AI_KEY", "")
     model    = os.environ.get("MIOS_AI_EMBED_MODEL", "nomic-embed-text")
     

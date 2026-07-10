@@ -1,5 +1,5 @@
 <!-- AI-hint: Claude Code entry point for mios.git — the MiOS SYSTEM repo (the OCI/bootc image source), where the repo root IS the deployed system root. Use this to navigate the build pipeline (Containerfile -> automation/NN-*.sh), the mios.toml SSOT, the six architectural laws, the local AI plane, and the `just` build surface. Defers to AGENTS.md / /usr/share/mios/ai/system.md for runtime agent identity.
-     AI-related: usr/share/mios/mios.toml, usr/share/mios/ai/system.md, usr/share/mios/ai/INDEX.md, automation/lib/packages.sh, automation/99-postcheck.sh, usr/lib/bootc/kargs.d/, usr/share/mios/llamacpp/mios-llm-light.yaml, http://localhost:8080/v1 -->
+     AI-related: usr/share/mios/mios.toml, usr/share/mios/ai/system.md, usr/share/mios/ai/INDEX.md, automation/lib/packages.sh, automation/99-postcheck.sh, usr/lib/bootc/kargs.d/, usr/share/mios/llamacpp/mios-llm-light.yaml, MIOS_AI_ENDPOINT -->
 # CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
@@ -70,14 +70,14 @@ Every change must obey these; a failing law fails the build:
 2. **NO-MKDIR-IN-VAR** — every `/var/` path is declared via `usr/lib/tmpfiles.d/*.conf`, never `mkdir`'d at build time.
 3. **BOUND-IMAGES** — every Quadlet image is symlinked into `/usr/lib/bootc/bound-images.d/` so it ships *with* the host.
 4. **BOOTC-CONTAINER-LINT** — every build ends with `bootc container lint`; fail the lint, fail the build.
-5. **UNIFIED-AI-REDIRECTS** — every agent and tool targets `MIOS_AI_ENDPOINT` (`http://localhost:8080/v1`). No vendor-hardcoded cloud URLs, no vendor-specific agent/product names in code, docs, or commit messages.
+5. **UNIFIED-AI-REDIRECTS** — every agent and tool targets `MIOS_AI_ENDPOINT`. No vendor-hardcoded cloud URLs, no vendor-specific agent/product names in code, docs, or commit messages.
 6. **UNPRIVILEGED-QUADLETS** — every Quadlet declares `User=`, `Group=`, `Delegate=yes`. Documented exceptions only: `mios-ceph`, `mios-k3s`.
 
 Quadlets are generated, not hand-edited into final form — see `automation/14-generate-quadlets.sh` and `15-render-quadlets.sh`. Kernel args ship in `usr/lib/bootc/kargs.d/`.
 
 ## The local AI plane
 
-The "self-hosted agent OS" half ships *inside* the image and is reachable through one OpenAI-compatible front door: **`http://localhost:8080/v1`** (named by `MIOS_AI_ENDPOINT`). Lanes are named by *function*, not upstream tool:
+The "self-hosted agent OS" half ships *inside* the image and is reachable through one OpenAI-compatible front door named by **`MIOS_AI_ENDPOINT`**. Lanes are named by *function*, not upstream tool:
 
 | Component | Port | Role |
 |---|---|---|

@@ -12,12 +12,12 @@
 2. **NO-MKDIR-IN-VAR** -- All `/var/` paths declared via `usr/lib/tmpfiles.d/*.conf`. No `mkdir` in build scripts.
 3. **BOUND-IMAGES** -- Every Quadlet sidecar image symlinked in `/usr/lib/bootc/bound-images.d/`.
 4. **BOOTC-CONTAINER-LINT** -- `RUN bootc container lint` is the final Containerfile instruction. Always.
-5. **UNIFIED-AI-REDIRECTS** -- `MIOS_AI_ENDPOINT/MODEL/KEY` target `http://localhost:8080/v1`. Zero vendor URLs in committed files.
+5. **UNIFIED-AI-REDIRECTS** -- `MIOS_AI_ENDPOINT/MODEL/KEY` are the canonical AI surface. Zero vendor URLs in committed files.
 6. **UNPRIVILEGED-QUADLETS** -- Every Quadlet: `User=`, `Group=`, `Delegate=yes`. Exception: `mios-k3s.container` and `mios-ceph.container`.
 
 ## AI Agent Surface
 
-- **Endpoint**: `http://localhost:8080/v1` (LocalAI v2.20.0, OpenAI-compatible)
+- **Endpoint**: `http://localhost:8642/v1` (MiOS-Hermes gateway, OpenAI-compatible)
 - **Inference model**: `granite4.1:8b` (`MIOS_AI_MODEL`)
 - **Embedding model**: `nomic-embed-text` (`MIOS_AI_EMBED_MODEL`)
 - **MCP registry**: `/usr/share/mios/ai/mcp.json`
@@ -70,4 +70,4 @@ Key vars: `MIOS_AI_ENDPOINT`, `MIOS_AI_MODEL`, `MIOS_AI_EMBED_MODEL`, `MIOS_BASE
 
 ## Sanitization (all persisted AI artifacts)
 
-No vendor/corporate entity names in prose. No chat metadata. No foreign sandbox paths. All AI endpoints target `http://localhost:8080/v1`. Upstream package names, FHS paths, and protocol names (`/v1/chat/completions`) survive unchanged.
+No vendor/corporate entity names in prose. No chat metadata. No foreign sandbox paths. All AI endpoints target `MIOS_AI_ENDPOINT`. Upstream package names, FHS paths, and protocol names (`/v1/chat/completions`) survive unchanged.

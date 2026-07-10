@@ -1886,7 +1886,7 @@ async def lifespan(app):
             trace_span=_trace_span
         )
         
-        ai_endpoint = os.environ.get("MIOS_AI_ENDPOINT", "http://localhost:8080/v1")
+        ai_endpoint = os.environ.get("MIOS_AI_ENDPOINT", "http://localhost:8642/v1")
         ai_model = os.environ.get("MIOS_AI_MODEL", "granite4.1:8b")
         tools = mios_gateway_queue.get_tools(ceiling="interactive")
         

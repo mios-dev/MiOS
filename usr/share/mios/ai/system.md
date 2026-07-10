@@ -35,7 +35,7 @@ the federation of cooperating processes that serve agent traffic on a MiOS host
   **OpenAI-API** surface (function-calling, structured outputs, the tool-calling
   loop). Production code paths are never provider-specific
   (Architectural Law UNIFIED-AI-REDIRECTS — every agent/tool targets
-  `MIOS_AI_ENDPOINT`, default `http://localhost:8080/v1`; no vendor-hardcoded
+  `MIOS_AI_ENDPOINT`; no vendor-hardcoded
   URLs).
 - **Host-owner identity** is read from `[identity]` in
   `/usr/share/mios/mios.toml` (layered with `/etc/mios/mios.toml` and

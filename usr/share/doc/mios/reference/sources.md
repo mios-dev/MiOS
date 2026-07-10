@@ -303,7 +303,7 @@ the deployed image via the `ctx` scratch stage and the
 - Project: https://github.com/mudler/LocalAI
 - Docs: https://localai.io/
 - API surfaces (OpenAI-compatible): `/v1/models`, `/v1/chat/completions` (SSE + tools), `/v1/embeddings`, `/v1/completions`
-- 'MiOS' Quadlet: `etc/containers/systemd/mios-ai.container` → `http://localhost:8080/v1`
+- 'MiOS' canonical endpoint: `MIOS_AI_ENDPOINT` (the retired `mios-ai.container` front door is now served by the Hermes gateway on `:8642`)
 - Backends: llama.cpp, vLLM-ish, transformers, gpt4all, exllama, etc.
 
 ### 3.16 Other local OpenAI-compatible runtimes (for Day-0 portability)
@@ -503,7 +503,7 @@ The repo root **is** the system root (no `system_files/` directory).
 | 2 | **NO-MKDIR-IN-VAR** -- every `/var/` path declared via `usr/lib/tmpfiles.d/*.conf`. | `usr/lib/tmpfiles.d/mios*.conf` |
 | 3 | **BOUND-IMAGES** -- every Quadlet image symlinked into `/usr/lib/bootc/bound-images.d/`. | `automation/08-system-files-overlay.sh:74-86` |
 | 4 | **BOOTC-CONTAINER-LINT** -- final RUN of `Containerfile`. | `Containerfile` last `RUN` |
-| 5 | **UNIFIED-AI-REDIRECTS** -- `MIOS_AI_KEY/MODEL/ENDPOINT` → `http://localhost:8080/v1`. No vendor URLs. | `usr/bin/mios`, `etc/mios/ai/` |
+| 5 | **UNIFIED-AI-REDIRECTS** -- `MIOS_AI_KEY/MODEL/ENDPOINT`. No vendor URLs. | `usr/bin/mios`, `etc/mios/ai/` |
 | 6 | **UNPRIVILEGED-QUADLETS** -- `User=`, `Group=`, `Delegate=yes` on every Quadlet. Documented exceptions: `mios-ceph`, `mios-k3s` as `User=root` (Ceph/K3s require uid 0). | `etc/containers/systemd/`, `usr/share/containers/systemd/` |
 
 ### 7.3 Service gating table -- verbatim from `usr/share/mios/ai/INDEX.md` §5
@@ -623,7 +623,7 @@ with `README.md` §"Day-0 local-model compatibility".
 | --- | --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
 | OpenAI cloud | `https://api.openai.com/v1` | [ok] | [ok] | [ok] | [ok] | [ok] | [ok] | [ok] | [ok] | [ok] |
 | Azure OpenAI | (your resource) | [ok] | [ok] | [ok] | [ok] | [ok] | [!] region | [ok] | [ok] | [ok] |
-| **'MiOS' LocalAI** (canonical, LAW 5) | `http://localhost:8080/v1` | [ok] | [ok] | [ok] | [!] ignored |  |  |  |  |  |
+| **'MiOS' LocalAI** (canonical, LAW 5) | `http://localhost:8642/v1` | [ok] | [ok] | [ok] | [!] ignored |  |  |  |  |  |
 | Ollama | `http://localhost:11434/v1` | [ok] | [ok] | [ok] | [!] ignored |  |  |  |  | external |
 | vLLM | `http://localhost:8000/v1` | [ok] | [ok] | [ok] | [ok] via xgrammar |  | partial |  |  | external |
 | LM Studio | `http://localhost:1234/v1` | [ok] | [ok] | [ok] | [!] ignored |  |  |  |  |  |

@@ -55,7 +55,7 @@
       ]
     },
     "llama_cpp": {
-      "endpoint": "http://localhost:8080/v1",
+      "endpoint": "http://localhost:8642/v1",
       "supports": [
         "chat/completions",
         "embeddings",

@@ -13,7 +13,7 @@
 >
 > **Scope.** This document specifies the OpenAI public API surface that 'MiOS'
 > exposes through the single unified endpoint `MIOS_AI_ENDPOINT`
-> (default `http://localhost:8080/v1`, **Architectural Law 5:
+> (**Architectural Law 5:
 > UNIFIED-AI-REDIRECTS**). That endpoint is a *contract*, not a single process:
 > the protocol is served by the MiOS inference lanes and agent gateway described
 > in [Where the surface is served](#where-the-surface-is-served). Per-endpoint
@@ -82,8 +82,8 @@ answered:
 
 ### Base URL
 ```
-http://localhost:8080/v1   # in-image (unified MIOS_AI_ENDPOINT contract)
-http://<host>:8080/v1      # cross-host
+http://localhost:8642/v1   # in-image (unified MIOS_AI_ENDPOINT contract)
+http://<host>:8642/v1      # cross-host
 ```
 All clients (CLI tools, the `mios` agent, IDE plugins, the desktop UI) MUST
 resolve through `MIOS_AI_ENDPOINT` -- vendor-hardcoded URLs are a Law-5 violation
@@ -916,7 +916,7 @@ The full pipeline spans five phases owned by two repos:
 2. **NO-MKDIR-IN-VAR** -- every `/var/` path declared via `usr/lib/tmpfiles.d/*.conf`. **Never write to `/var/` at build time.** bootc forbids it; lint will fail.
 3. **BOUND-IMAGES** -- every Quadlet image symlinked into `/usr/lib/bootc/bound-images.d/`. Binder loop: `automation/08-system-files-overlay.sh`.
 4. **BOOTC-CONTAINER-LINT** -- must be the final `RUN` of `Containerfile`. No `--squash-all` (strips OCI metadata bootc needs).
-5. **UNIFIED-AI-REDIRECTS** -- all agents and tools target `MIOS_AI_ENDPOINT` (default `http://localhost:8080/v1`). Vendor-hardcoded URLs are forbidden. The endpoint is served by the MiOS inference lanes (`mios-llm-light` primary; `mios-llm-heavy` gated) fronted by the MiOS-Hermes gateway (`:8642`) and the agent-pipe (`:8640`) -- see [Where the surface is served](#where-the-surface-is-served).
+5. **UNIFIED-AI-REDIRECTS** -- all agents and tools target `MIOS_AI_ENDPOINT`. Vendor-hardcoded URLs are forbidden. The endpoint is served by the MiOS inference lanes (`mios-llm-light` primary; `mios-llm-heavy` gated) fronted by the MiOS-Hermes gateway (`:8642`) and the agent-pipe (`:8640`) -- see [Where the surface is served](#where-the-surface-is-served).
 6. **UNPRIVILEGED-QUADLETS** -- every Quadlet declares `User=`, `Group=`, `Delegate=yes`. Documented root exceptions: `mios-ceph`, `mios-k3s`, `mios-forgejo-runner` (file headers explain why; heavy-lane images that must run as image-default root, e.g. SGLang's NVIDIA base, are similarly documented in their unit headers).
 
 ## A.5 Package management

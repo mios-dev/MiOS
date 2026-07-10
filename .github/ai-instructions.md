@@ -20,7 +20,7 @@ local agent stack behind one OpenAI-compatible endpoint.
 
 The throughline of the AI half: **inference lanes → agent-pipe / Hermes
 orchestration → PostgreSQL + pgvector memory → MCP/A2A**, all reached through the
-single endpoint named by `MIOS_AI_ENDPOINT` (default `http://localhost:8080/v1`).
+single endpoint named by `MIOS_AI_ENDPOINT`.
 Local inference runs on the `mios-llm-light` lane (`:11450`, llama.cpp behind the
 upstream `mios-llm-light` proxy image) — the everyday models, the `mios-opencode` coder model,
 **and** embeddings (`nomic-embed-text`) — with gated heavy GPU lanes

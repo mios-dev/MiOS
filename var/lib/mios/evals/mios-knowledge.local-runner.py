@@ -11,7 +11,7 @@ Mirrors the testing_criteria from mios-knowledge.eval.json:
   - score_model: an LLM grader rates 0.0 / 0.5 / 1.0 (cloud or local)
 
 Day-0 compatible. Set MIOS_AI_ENDPOINT to:
-  http://localhost:8080/v1   (MiOS LocalAI — canonical)
+  http://localhost:8642/v1   (MiOS LocalAI — canonical)
   http://localhost:11434/v1  (Ollama)
   http://localhost:8000/v1   (vLLM)
   http://localhost:1234/v1   (LM Studio)
@@ -95,7 +95,7 @@ def grade_score_model(grader_endpoint: str, grader_key: str, grader_model: str,
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--endpoint", default=os.environ.get("MIOS_AI_ENDPOINT", "http://localhost:8080/v1"))
+    ap.add_argument("--endpoint", default=os.environ.get("MIOS_AI_ENDPOINT", "http://localhost:8642/v1"))
     ap.add_argument("--key",      default=os.environ.get("MIOS_AI_KEY", ""))
     ap.add_argument("--model",    default=os.environ.get("MIOS_AI_MODEL", "qwen2.5-coder:7b"))
     ap.add_argument("--grader-endpoint", default=None)

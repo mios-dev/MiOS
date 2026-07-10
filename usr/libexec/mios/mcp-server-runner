@@ -15,7 +15,7 @@
 # is expected to drop one of those entry points at /srv/ai/mcp/.
 #
 # Env passed through:
-#     MIOS_AI_ENDPOINT  (default http://localhost:8080/v1)
+#     MIOS_AI_ENDPOINT  (default http://localhost:8642/v1)
 #     MIOS_MCP_PORT     (default 8765)
 #     MIOS_MCP_LOG_DIR  (default /var/log/mios/mcp)
 #

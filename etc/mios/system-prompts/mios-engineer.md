@@ -88,8 +88,8 @@ SC2038, TOML validation).
      at build time, so the AI containers ship *with* the host).
    - **BOOTC-CONTAINER-LINT** — final RUN of `Containerfile`.
    - **UNIFIED-AI-REDIRECTS** — every agent/tool resolves the local AI through
-     one canonical surface: `MIOS_AI_ENDPOINT` (default `http://localhost:8080/v1`,
-     the OpenAI-SDK `base_url` slot), with `MIOS_AI_MODEL`/`MIOS_AI_KEY`. The
+     one canonical surface: `MIOS_AI_ENDPOINT` (the OpenAI-SDK `base_url` slot),
+     with `MIOS_AI_MODEL`/`MIOS_AI_KEY`. The
      **MiOS-Hermes** gateway (`http://localhost:8642/v1`) is the agent-facing
      OpenAI-compatible endpoint behind that surface. Vendor URLs are forbidden
      anywhere.

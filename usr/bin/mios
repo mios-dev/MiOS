@@ -46,7 +46,7 @@ except ImportError:
 def _resolve_ai_config() -> tuple[str, str]:
     env_ep = os.environ.get("MIOS_AI_ENDPOINT")
     env_model = os.environ.get("MIOS_AI_GATEWAY_MODEL")
-    if env_ep and env_ep != "http://localhost:8080/v1":
+    if env_ep and env_ep != "http://localhost:8642/v1":
         return env_ep, env_model or "MiOS AI"
     try:
         import tomllib

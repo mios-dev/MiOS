@@ -184,7 +184,7 @@ the overlay/packing tools here have to respect them:
 2. **NO-MKDIR-IN-VAR** — every `/var/` path declared via `usr/lib/tmpfiles.d/*.conf`; never written at build time.
 3. **BOUND-IMAGES** — every Quadlet image symlinked into `/usr/lib/bootc/bound-images.d/` and baked in at build time.
 4. **BOOTC-CONTAINER-LINT** — final `RUN` of the `Containerfile`; fail = fail the build.
-5. **UNIFIED-AI-REDIRECTS** — every agent/tool targets `MIOS_AI_ENDPOINT` (default `http://localhost:8080/v1`); no vendor-hardcoded URLs.
+5. **UNIFIED-AI-REDIRECTS** — every agent/tool targets `MIOS_AI_ENDPOINT`; no vendor-hardcoded URLs.
 6. **UNPRIVILEGED-QUADLETS** — every Quadlet declares `User=`, `Group=`, `Delegate=yes` (documented exceptions: `mios-ceph`, `mios-k3s`, `mios-forgejo-runner`).
 
 ---

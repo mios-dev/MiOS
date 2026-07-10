@@ -97,7 +97,7 @@ for p in /usr/share/mios/ai/system.md /etc/mios/ai/system-prompt.md /system-prom
     [[ -r "$p" ]] && PROMPT_FILE="$p" && break
 done
 [[ -z "$PROMPT_FILE" ]] && { echo "mios-llm: no system prompt found" >&2; exit 1; }
-ENDPOINT="${MIOS_AI_ENDPOINT:-http://localhost:8080/v1}"
+ENDPOINT="${MIOS_AI_ENDPOINT:-http://localhost:8642/v1}"
 MODEL="${MIOS_AI_MODEL:-mi-os-7b}"
 USER_PROMPT="${*:-What are the six 'MiOS' Architectural Laws, in order?}"
 echo "[agent] $MODEL @ $ENDPOINT (OpenAI /v1/chat/completions) prompt: $PROMPT_FILE" >&2

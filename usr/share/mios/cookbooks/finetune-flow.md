@@ -23,7 +23,7 @@ The agent plane runs entirely on that local stack: the **agent-pipe** orchestrat
 pgvector** (`mios-pgvector`, `:5432`) is the unified agent memory (tiered memory,
 knowledge, sessions, skills, RAG embeddings); **MCP** exposes the tool surface and
 **A2A** federates peer agents. Every one of those components resolves the model via
-the single endpoint named by `MIOS_AI_ENDPOINT` (default `http://localhost:8080/v1`)
+the single endpoint named by `MIOS_AI_ENDPOINT`
 — Architectural Law 5 (UNIFIED-AI-REDIRECTS); none hard-code a port or vendor URL.
 
 Behind that endpoint are the **inference lanes** that do the actual generation and

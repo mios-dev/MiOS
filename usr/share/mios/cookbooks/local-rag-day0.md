@@ -13,8 +13,8 @@ MiOS is one image built two ways at once: an immutable, bootc/OCI Fedora
 workstation *and* a local, self-hosted agentic AI OS. The whole AI surface —
 inference lanes, the agent-pipe orchestrator, MiOS-Hermes, MCP/A2A, and a
 PostgreSQL+pgvector memory — ships inside the same image and is reachable
-through **one** OpenAI-compatible front door named by `MIOS_AI_ENDPOINT`
-(default `http://localhost:8080/v1`). That single endpoint is **Architectural
+through **one** OpenAI-compatible front door named by `MIOS_AI_ENDPOINT`.
+That single endpoint is **Architectural
 Law 5 (UNIFIED-AI-REDIRECTS)**: every agent and tool on the box talks to it,
 with no vendor-hardcoded URLs.
 
@@ -82,7 +82,7 @@ and tool targets (Law 5). The model + embed-model defaults come from
 `mios.toml [ai]` (`model`, `embed_model`):
 
 ```bash
-export MIOS_AI_ENDPOINT=${MIOS_AI_ENDPOINT:-http://localhost:8080/v1}
+export MIOS_AI_ENDPOINT=${MIOS_AI_ENDPOINT:-http://localhost:8642/v1}
 export MIOS_AI_KEY=${MIOS_AI_KEY:-}                               # empty key OK for local
 export MIOS_AI_MODEL=${MIOS_AI_MODEL:-granite4.1:8b}                 # canonical mios.toml [ai].model
 export MIOS_AI_EMBED_MODEL=${MIOS_AI_EMBED_MODEL:-nomic-embed-text}  # canonical [ai].embed_model
@@ -225,7 +225,7 @@ upstream tool:
 
 | Runtime | `MIOS_AI_ENDPOINT` | `MIOS_AI_MODEL` |
 | --- | --- | --- |
-| MiOS unified endpoint (canonical) | `http://localhost:8080/v1` | `granite4.1:8b` (mios.toml `[ai].model`) |
+| MiOS unified endpoint (canonical) | `http://localhost:8642/v1` | `granite4.1:8b` (mios.toml `[ai].model`) |
 | `mios-llm-light` lane direct (llama.cpp via the upstream llama-swap proxy) | `http://localhost:11450/v1` | per `mios-llm-light.yaml` model map |
 | `mios-llm-heavy` lane (SGLang, gated) | `http://localhost:11441/v1` | `mios-heavy` (served-name) |
 | `mios-llm-heavy-alt` lane (vLLM, gated) | `http://localhost:11440/v1` | `mios-heavy` |

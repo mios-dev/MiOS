@@ -63,7 +63,7 @@ mios_firewall.configure(
 # -- 1. _is_external_url classification ----------------------------------------
 assert mios_firewall._is_external_url("https://evil.example.com/path") is True, \
     "public dotted host = external taint source"
-assert mios_firewall._is_external_url("http://localhost:8080/v1") is False, \
+assert mios_firewall._is_external_url("http://localhost:8642/v1") is False, \
     "allowlist host = internal"
 assert mios_firewall._is_external_url("http://mios-searxng:8888") is False, \
     "operator-infra allowlist host = internal"

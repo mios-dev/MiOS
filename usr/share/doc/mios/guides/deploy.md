@@ -154,7 +154,7 @@ just forge                                # Self-hosted Git forge status + admin
 ```
 
 The AI plane resolves through the single OpenAI-compatible endpoint
-`MIOS_AI_ENDPOINT` (default `http://localhost:8080/v1`, Law 5). Behind it the
+`MIOS_AI_ENDPOINT` (Law 5). Behind it the
 agent-pipe (`:8640`) routes and fans out, MiOS-Hermes (`:8642`) runs the
 tool-loop, **inference and embeddings** run on `mios-llm-light` (`:11450`, the
 primary llama.cpp lane; the gated heavy GPU lanes `mios-llm-heavy`/`-alt` stay
