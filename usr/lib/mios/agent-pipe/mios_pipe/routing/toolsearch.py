@@ -428,11 +428,33 @@ async def tool_search_logic(query: str = "", limit: int = 5, namespace: str = ""
     qvec = await _embed_one(query)
     hits: list[dict] = []
     cap = max(1, min(20, int(limit or 5)))
-    if qvec and (_VERB_EMBEDDINGS or _MCP_EMBEDDINGS):
-        scored = [(_cosine(qvec, vec), n) for n, vec in _VERB_EMBEDDINGS.items()]
-        # P4: external MCP tools join the search so the model can DISCOVER them on demand.
-        scored += [(_cosine(qvec, vec), k) for k, vec in _MCP_EMBEDDINGS.items()]
-        scored.sort(reverse=True)
+    
+    pg_success = False
+    scored = []
+    if qvec:
+        try:
+            import mios_pg as _mios_pg
+            rows = await _mios_pg.execute(
+                "SELECT name, 1 - (emb <=> %(qvec)s::vector) AS score FROM verb "
+                "WHERE hidden = false AND emb IS NOT NULL",
+                {"qvec": qvec},
+                fetch=True
+            )
+            if rows:
+                scored = [(r["score"], r["name"]) for r in rows if r.get("name")]
+                scored += [(_cosine(qvec, vec), k) for k, vec in _MCP_EMBEDDINGS.items()]
+                scored.sort(reverse=True)
+                pg_success = True
+        except Exception as e_pg:
+            log.debug("Database native vector search failed: %s", e_pg)
+
+    if not pg_success:
+        if qvec and (_VERB_EMBEDDINGS or _MCP_EMBEDDINGS):
+            scored = [(_cosine(qvec, vec), n) for n, vec in _VERB_EMBEDDINGS.items()]
+            scored += [(_cosine(qvec, vec), k) for k, vec in _MCP_EMBEDDINGS.items()]
+            scored.sort(reverse=True)
+
+    if scored:
         for score, name in scored:
             if not _passes(name):
                 continue

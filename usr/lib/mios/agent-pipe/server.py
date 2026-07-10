@@ -4106,17 +4106,40 @@ async def _select_child_tools(surface: list, intent_text: str, cap: int) -> list
         try:
             await _ensure_verb_embeddings()
             qvec = await _embed_one(intent_text)
-            if not qvec or not _VERB_EMBEDDINGS:
+            if not qvec:
                 return core + tail_pool[:tail_budget]
 
             def _b2(t):  # P1: resolve model_name alias -> key (embeddings keyed by key)
                 return _resolve_verb_key(
                     str((t.get("function") or {}).get("name") or "").split("__", 1)[-1])
+
+            db_scores = {}
+            try:
+                import mios_pg as _mios_pg
+                rows = await _mios_pg.execute(
+                    "SELECT name, 1 - (emb <=> %(qvec)s::vector) AS score FROM verb "
+                    "WHERE hidden = false AND emb IS NOT NULL",
+                    {"qvec": qvec},
+                    fetch=True
+                )
+                if rows is not None:
+                    for r in rows:
+                        if r.get("name"):
+                            db_scores[r["name"]] = r["score"]
+            except Exception as e_pg:
+                log.debug("Database native vector search failed for child tools: %s", e_pg)
+
             scored = []
             for t in tail_pool:
-                vec = _tool_embedding(_b2(t))   # P4: native verb OR external MCP tool
-                scored.append(
-                    (_cosine(qvec, vec) if vec else _priority_fallback_score(t), t, vec))
+                b2_key = _b2(t)
+                vec = _tool_embedding(b2_key)
+                if b2_key in db_scores:
+                    score = db_scores[b2_key]
+                elif vec:
+                    score = _cosine(qvec, vec)
+                else:
+                    score = _priority_fallback_score(t)
+                scored.append((score, t, vec))
             scored.sort(key=lambda x: x[0], reverse=True)
             await _ensure_verb_lexicon()       # P2: lazy BM25 index (fingerprint-keyed)
             return core + _fuse_then_diversify(
@@ -4129,7 +4152,7 @@ async def _select_child_tools(surface: list, intent_text: str, cap: int) -> list
     try:
         await _ensure_verb_embeddings()
         qvec = await _embed_one(intent_text)
-        if not qvec or not _VERB_EMBEDDINGS:
+        if not qvec:
             return surface[:cap]
 
         def _nm(t):
@@ -4149,14 +4172,37 @@ async def _select_child_tools(surface: list, intent_text: str, cap: int) -> list
                 if _nm(t) not in seen and len(floor) < max(CHILD_TOOL_FLOOR, 0):
                     floor.append(t)
                     seen.add(_nm(t))
-        # Score the rest by relevance (embedded -> cosine; else priority fallback
+
+        db_scores = {}
+        try:
+            import mios_pg as _mios_pg
+            rows = await _mios_pg.execute(
+                "SELECT name, 1 - (emb <=> %(qvec)s::vector) AS score FROM verb "
+                "WHERE hidden = false AND emb IS NOT NULL",
+                {"qvec": qvec},
+                fetch=True
+            )
+            if rows is not None:
+                for r in rows:
+                    if r.get("name"):
+                        db_scores[r["name"]] = r["score"]
+        except Exception as e_pg:
+            log.debug("Database native vector search failed for child tools: %s", e_pg)
+
+        # Score the rest by relevance (database score if available; else embedded -> cosine; else priority fallback
         # so a rare/unembedded read verb is not demoted below an irrelevant one).
         scored = []
         for t in surface:
             if _nm(t) in seen:
                 continue
-            vec = _tool_embedding(_base(t))     # P4: native verb OR external MCP tool
-            score = _cosine(qvec, vec) if vec else _priority_fallback_score(t)
+            base_key = _resolve_verb_key(_base(t))
+            vec = _tool_embedding(base_key)
+            if base_key in db_scores:
+                score = db_scores[base_key]
+            elif vec:
+                score = _cosine(qvec, vec)
+            else:
+                score = _priority_fallback_score(t)
             scored.append((score, t, vec))
         scored.sort(key=lambda x: x[0], reverse=True)
         await _ensure_verb_lexicon()           # P2: lazy BM25 index (fingerprint-keyed)
