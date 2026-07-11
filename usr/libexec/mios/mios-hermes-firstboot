@@ -24,6 +24,17 @@ ENV_FILE="/etc/mios/hermes/api.env"
 
 _log() { logger -t mios-hermes-firstboot "$*" 2>/dev/null || true; echo "[hermes-firstboot] $*" >&2; }
 
+# ─── firstboot idempotency sentinel (AGY-38) ────────────────────────────────
+# Once a full firstboot run has completed, skip the whole provision on every
+# subsequent boot. The sentinel lives under /var/lib/mios (persists across
+# bootc upgrades). To force a re-provision, delete it:
+#   rm -f /var/lib/mios/.hermes-firstboot.done && systemctl restart mios-hermes-firstboot
+_FIRSTBOOT_SENTINEL="/var/lib/mios/.hermes-firstboot.done"
+if [[ -f "$_FIRSTBOOT_SENTINEL" ]]; then
+    _log "sentinel $_FIRSTBOOT_SENTINEL present -- firstboot already completed, skipping"
+    exit 0
+fi
+
 # ─── mios.toml layered overlay reader ───────────────────────────────────────
 #
 # Reads [section].key from ~/.config/mios/mios.toml -> /etc/mios/mios.toml
@@ -1914,6 +1925,12 @@ if [[ -n "$_xdg_setup" ]]; then
 else
     _log "WARN: CephFS XDG setup script not found"
 fi
+
+# ── sentinel: firstboot reached completion -- gate re-runs on later boots (AGY-38)
+# Degrade-open: the touch never hard-fails boot (|| true under set -e).
+install -d -m 0755 /var/lib/mios 2>/dev/null || true
+touch "$_FIRSTBOOT_SENTINEL" 2>/dev/null || true
+_log "wrote sentinel $_FIRSTBOOT_SENTINEL -- firstboot complete"
 
 # Explicit exit 0 so the script's exit status doesn't depend on the
 # last sub-block's truthiness under set -e (the Tailscale block

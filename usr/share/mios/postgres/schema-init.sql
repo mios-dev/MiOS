@@ -839,6 +839,54 @@ CREATE TABLE IF NOT EXISTS config_event (
 -- direction -- the live value still lives in config_kv, only the history is
 -- masked. Mirrors the intent of agent-pipe redact.py's MIOS_SECRET_PATTERN but
 -- matches config_kv's dotted-key shape (which that env-var regex never would).
+CREATE OR REPLACE FUNCTION mios_redact_jsonb_recursive(p_val jsonb)
+RETURNS jsonb AS $$
+DECLARE
+    v_type text;
+    v_key text;
+    v_item jsonb;
+    v_res jsonb;
+    v_str text;
+    v_idx int;
+BEGIN
+    IF p_val IS NULL THEN
+        RETURN NULL;
+    END IF;
+    v_type := jsonb_typeof(p_val);
+    IF v_type = 'object' THEN
+        v_res := '{}'::jsonb;
+        FOR v_key, v_item IN SELECT * FROM jsonb_each(p_val) LOOP
+            IF lower(v_key) ~ '(password|passwd|secret|token|passphrase|api[_]?key|private_key|credential)' THEN
+                v_res := jsonb_set(v_res, ARRAY[v_key], '"[REDACTED_SECRET]"'::jsonb, true);
+            ELSE
+                v_res := jsonb_set(v_res, ARRAY[v_key], mios_redact_jsonb_recursive(v_item), true);
+            END IF;
+        END LOOP;
+        RETURN v_res;
+    ELSIF v_type = 'array' THEN
+        v_res := '[]'::jsonb;
+        FOR v_item IN SELECT * FROM jsonb_array_elements(p_val) LOOP
+            v_res := v_res || jsonb_build_array(mios_redact_jsonb_recursive(v_item));
+        END LOOP;
+        RETURN v_res;
+    ELSIF v_type = 'string' THEN
+        v_str := p_val ->> 0;
+        IF v_str ~ '^[^=]+=' THEN
+            DECLARE
+                v_name text := split_part(v_str, '=', 1);
+            BEGIN
+                IF lower(v_name) ~ '(password|passwd|secret|token|passphrase|api[_]?key|private_key|credential)' THEN
+                    RETURN to_jsonb(v_name || '=[REDACTED_SECRET]');
+                END IF;
+            END;
+        END IF;
+        RETURN p_val;
+    ELSE
+        RETURN p_val;
+    END IF;
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
 CREATE OR REPLACE FUNCTION mios_redact_config_value(p_scope text, p_key text, p_value jsonb)
 RETURNS jsonb AS $$
 BEGIN
@@ -850,9 +898,10 @@ BEGIN
     THEN
         RETURN '"[REDACTED_SECRET]"'::jsonb;
     END IF;
-    RETURN p_value;
+    RETURN mios_redact_jsonb_recursive(p_value);
 END;
 $$ LANGUAGE plpgsql IMMUTABLE;
+
 
 CREATE OR REPLACE FUNCTION log_config_kv_change() RETURNS TRIGGER AS $$
 BEGIN

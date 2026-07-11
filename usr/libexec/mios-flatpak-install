@@ -132,7 +132,21 @@ for raw in "${TODO[@]}"; do
     # Refresh appstream for the target remote so search sees current metadata.
     flatpak update --system --appstream "$remote" 2>&1 | while read -r ln; do log "$ln"; done || true
 
-    if flatpak install --system --noninteractive --or-update -y "$remote" "$app" 2>&1 | while read -r ln; do log "$ln"; done; then
+    out=$(flatpak install --system --noninteractive --or-update -y "$remote" "$app" 2>&1)
+    irc=$?
+    printf '%s\n' "$out" | while read -r ln; do log "$ln"; done
+    # Ambiguous-branch fallback: under --noninteractive, an id that publishes
+    # several runtime branches (e.g. org.freedesktop.Platform.VulkanLayer.*)
+    # errors "Multiple refs match ... must specify one" instead of prompting.
+    # Retry once with a default //<branch> appended (unless already branched).
+    if [[ $irc -ne 0 && "$app" != *//* ]] && printf '%s' "$out" | grep -qiE 'multiple refs|must specify.*branch|multiple branches'; then
+        branch="${MIOS_FLATPAK_DEFAULT_BRANCH:-24.08}"
+        log "ambiguous branch for $app -- retrying with //${branch}"
+        out=$(flatpak install --system --noninteractive --or-update -y "$remote" "${app}//${branch}" 2>&1)
+        irc=$?
+        printf '%s\n' "$out" | while read -r ln; do log "$ln"; done
+    fi
+    if [[ $irc -eq 0 ]]; then
         log "installed: ${remote}:${app}"
     else
         log "FAILED: ${remote}:${app} (continuing)"

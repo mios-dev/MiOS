@@ -2,6 +2,7 @@
 import sys
 import os
 import unittest
+import json
 import psycopg
 from psycopg.rows import dict_row
 
@@ -94,6 +95,62 @@ class TestMiosConfigAudit(unittest.TestCase):
                 r_secret_scope = cur.fetchone()
                 self.assertIsNotNone(r_secret_scope)
                 self.assertEqual(r_secret_scope["new_value"], "[REDACTED_SECRET]")
+
+    def test_container_env_redaction(self):
+        with psycopg.connect(self.conn_str) as conn:
+            with conn.cursor() as cur:
+                val_json = {
+                    "Container": {
+                        "ContainerName": "test-container",
+                        "Environment": [
+                            "PORT=8080",
+                            "K3S_TOKEN=mysecret-token-value",
+                            "DATABASE_PASSWORD=secretpassword123"
+                        ],
+                        "SecretConfig": {
+                            "some_value": "nested-value"
+                        },
+                        "OtherConfig": {
+                            "api_key": "some-value-to-redact"
+                        }
+                    }
+                }
+                cur.execute(
+                    """
+                    INSERT INTO config_kv (scope, key, value, layer, description)
+                    VALUES ('test_audit_scope', 'container_cfg', %s::jsonb, 3, 'container with env secrets')
+                    """,
+                    (json.dumps(val_json),)
+                )
+            conn.commit()
+
+        # Query config_event to assert redactions
+        with psycopg.connect(self.conn_str, row_factory=dict_row) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT new_value FROM config_event
+                    WHERE scope = 'config_kv' AND key = 'test_audit_scope.container_cfg'
+                    ORDER BY id DESC LIMIT 1;
+                    """
+                )
+                r_container = cur.fetchone()
+                self.assertIsNotNone(r_container)
+                new_val = r_container["new_value"]
+                if isinstance(new_val, str):
+                    new_val = json.loads(new_val)
+                
+                # Check that Environment variables are redacted
+                env = new_val["Container"]["Environment"]
+                self.assertIn("PORT=8080", env)
+                self.assertIn("K3S_TOKEN=[REDACTED_SECRET]", env)
+                self.assertIn("DATABASE_PASSWORD=[REDACTED_SECRET]", env)
+                
+                # Check that SecretConfig key matched regex and was fully redacted
+                self.assertEqual(new_val["Container"]["SecretConfig"], "[REDACTED_SECRET]")
+                
+                # Check that OtherConfig nested key matched regex and was redacted
+                self.assertEqual(new_val["Container"]["OtherConfig"]["api_key"], "[REDACTED_SECRET]")
 
     def test_verb_cmd_redaction(self):
         with psycopg.connect(self.conn_str) as conn:

@@ -15,6 +15,18 @@ set -uo pipefail
 
 log() { logger -t mios-webtools-firstboot "$*" 2>/dev/null || true; echo "[mios-webtools-firstboot] $*" >&2; }
 
+# ─── firstboot idempotency sentinel (AGY-38) ────────────────────────────────
+# Once both webtools images are built + verified, skip re-running on every boot.
+# The sentinel lives under /var/lib/mios (persists across bootc upgrades). It is
+# written ONLY on a fully-successful run (_rc==0) below, so a partial/failed
+# build still retries. Delete it to force a rebuild:
+#   rm -f /var/lib/mios/.webtools-firstboot.done && systemctl restart mios-webtools-firstboot
+_FIRSTBOOT_SENTINEL="/var/lib/mios/.webtools-firstboot.done"
+if [ -f "$_FIRSTBOOT_SENTINEL" ]; then
+    log "sentinel $_FIRSTBOOT_SENTINEL present -- webtools firstboot already completed, skipping"
+    exit 0
+fi
+
 # need_build <image> <containerfile> -> echoes 1 if a (re)build is needed, else 0.
 # Rebuild when the image is absent OR the Containerfile is newer than the image.
 need_build() {
@@ -73,5 +85,13 @@ maybe_build "localhost/mios-firecrawl:v1.0.0" \
             "/usr/share/mios/webtools/firecrawl.Containerfile" \
             "/usr/share/mios/webtools" "firecrawl" || _rc=1
 
-[ "$_rc" -eq 0 ] && log "all webtools images present" || log "one or more webtools images missing -- exiting non-zero for Restart=on-failure retry"
+if [ "$_rc" -eq 0 ]; then
+    # sentinel: all images built + verified -- gate re-runs on later boots (AGY-38).
+    # Degrade-open: the touch never changes the exit status.
+    install -d -m 0755 /var/lib/mios 2>/dev/null || true
+    touch "$_FIRSTBOOT_SENTINEL" 2>/dev/null || true
+    log "all webtools images present -- wrote sentinel $_FIRSTBOOT_SENTINEL"
+else
+    log "one or more webtools images missing -- exiting non-zero for Restart=on-failure retry"
+fi
 exit "$_rc"

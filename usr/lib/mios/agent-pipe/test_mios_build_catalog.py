@@ -7,6 +7,23 @@ import sys
 # Import the modules by adding their directories to path
 sys.path.insert(0, "/mnt/c/MiOS/usr/libexec/mios")
 
+
+def setUpModule():
+    # Test hermeticity (AGY-35): self-skip when no live pgvector so the
+    # offline build gate reports SKIP (not FAIL/ERROR) while still running in CI.
+    try:
+        import psycopg
+    except ImportError:
+        raise unittest.SkipTest("no live pgvector -- integration test")
+    port = os.environ.get("MIOS_PORT_PGVECTOR", "8432")
+    dsn = f"postgresql://mios:mios@localhost:{port}/mios"
+    try:
+        with psycopg.connect(dsn, connect_timeout=1):
+            pass
+    except Exception:
+        raise unittest.SkipTest("no live pgvector -- integration test")
+
+
 class TestMiosBuildCatalog(unittest.TestCase):
 
     def test_seeding_and_materializing(self):

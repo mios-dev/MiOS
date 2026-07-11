@@ -55,6 +55,32 @@ _loads_lenient = None
 _embed_one = None
 
 
+# -- Embed-backend outage cooldown (AGY-36) --
+# When the embed backend (mios-llm-light) is DOWN, the embed loops below would
+# otherwise retry EVERY verb / app EVERY warmup cycle -> hundreds of failing HTTP
+# calls per second flooding the journal. After a failed embed attempt we arm a
+# cooldown; while it is active the loops skip further embed attempts and the service
+# STAYS UP serving whatever vectors it already has (0 on a cold outage). It
+# auto-recovers on the next cycle once the cooldown lapses and the backend answers.
+# The deadline is computed in-function (NOT at import), starting at 0 so nothing is
+# suppressed until an actual failure arms it.
+_EMBED_COOLDOWN_SECS = float(
+    os.environ.get("MIOS_EMBED_COOLDOWN_SECS", "60") or 60)
+_embed_cooldown_until = 0.0
+
+
+def _embed_in_cooldown() -> bool:
+    """True while we are backing off after an embed-backend connection failure."""
+    return time.time() < _embed_cooldown_until
+
+
+def _embed_note_failure() -> None:
+    """Arm the cooldown window after an embed call came back empty (backend likely
+    down). Subsequent loop iterations short-circuit until the window lapses."""
+    global _embed_cooldown_until
+    _embed_cooldown_until = time.time() + _EMBED_COOLDOWN_SECS
+
+
 def configure(*, get_client=None, verb_catalog=None, mcp_client_tools=None,
               mcp_client_lock=None, loads_lenient=None, embed_one=None) -> None:
     """Inject server.py's runtime deps (HTTP client, verb catalog, MCP registry +
@@ -213,25 +239,31 @@ async def _ensure_verb_embeddings() -> None:
                     if vname in db_embs:
                         _VERB_EMBEDDINGS[vname] = db_embs[vname]
                 
-                # Rebuild missing or stale ones and write them to the DB
+                # Rebuild missing or stale ones and write them to the DB. AGY-36:
+                # if the embed backend is down (cooldown armed) skip the rebuild
+                # entirely -- serve whatever the DB already had, don't hammer.
                 rebuilt = False
                 for vname, vcfg in _VERB_CATALOG.items():
                     if vcfg.get("tier") == "rare":
                         continue
                     if vname in _VERB_EMBEDDINGS:
                         continue
+                    if _embed_in_cooldown():
+                        break
                     vec = await _embed_one(_verb_embed_text(vname, vcfg), prefix="search_document: ")
-                    if vec:
-                        _VERB_EMBEDDINGS[vname] = vec
-                        rebuilt = True
-                        try:
-                            # Cast list to vector on the postgres side
-                            await pg_execute(
-                                "UPDATE verb SET emb = %(emb)s::vector, emb_model = %(model)s, emb_version = %(ver)s WHERE name = %(name)s",
-                                {"emb": vec, "model": os.environ.get("MIOS_VERB_EMBED_MODEL") or "nomic-embed-text", "ver": fp, "name": vname}
-                            )
-                        except Exception as e_up:
-                            log.debug("Failed to update database verb embedding for %s: %s", vname, e_up)
+                    if not vec:
+                        _embed_note_failure()
+                        break
+                    _VERB_EMBEDDINGS[vname] = vec
+                    rebuilt = True
+                    try:
+                        # Cast list to vector on the postgres side
+                        await pg_execute(
+                            "UPDATE verb SET emb = %(emb)s::vector, emb_model = %(model)s, emb_version = %(ver)s WHERE name = %(name)s",
+                            {"emb": vec, "model": os.environ.get("MIOS_VERB_EMBED_MODEL") or "nomic-embed-text", "ver": fp, "name": vname}
+                        )
+                    except Exception as e_up:
+                        log.debug("Failed to update database verb embedding for %s: %s", vname, e_up)
                 log.info("verb database embeddings ready: %d entries (rebuilt=%s)",
                          len(_VERB_EMBEDDINGS), rebuilt)
         except Exception as e_pg:
@@ -254,10 +286,14 @@ async def _ensure_verb_embeddings() -> None:
                     continue
                 if vname in _VERB_EMBEDDINGS:
                     continue
+                if _embed_in_cooldown():
+                    break
                 vec = await _embed_one(_verb_embed_text(vname, vcfg))
-                if vec:
-                    _VERB_EMBEDDINGS[vname] = vec
-                    rebuilt = True
+                if not vec:
+                    _embed_note_failure()
+                    break
+                _VERB_EMBEDDINGS[vname] = vec
+                rebuilt = True
             if rebuilt:
                 _save_persisted_embeddings(
                     _VERB_EMBED_PERSIST, {"__fingerprint__": fp, **_VERB_EMBEDDINGS})
@@ -373,11 +409,18 @@ async def _refresh_app_inventory(force: bool = False) -> None:
             seen_keys.add(key)
             if key in _APP_EMBEDDINGS:
                 continue
+            # AGY-36: skip new-record embedding while backing off from an embed
+            # outage. seen_keys is still fully populated (we `continue`, not break),
+            # so the stale-drop below stays correct and the service stays up.
+            if _embed_in_cooldown():
+                continue
             blob = f"{rec.get('name','')}: {rec.get('description','')}".strip()
             vec = await _embed_one(blob, prefix="search_document: ")
-            if vec:
-                _APP_EMBEDDINGS[key] = {"vec": vec, "record": rec}
-                added += 1
+            if not vec:
+                _embed_note_failure()
+                continue
+            _APP_EMBEDDINGS[key] = {"vec": vec, "record": rec}
+            added += 1
         # Drop entries whose key disappeared (app uninstalled / inventory shrank).
         stale = [k for k in _APP_EMBEDDINGS if k not in seen_keys]
         for k in stale:

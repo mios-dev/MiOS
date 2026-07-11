@@ -102,13 +102,32 @@ if [ "$(id -u)" -ne 0 ]; then
     SUDO=(sudo -n)
 fi
 
+# Default runtime branch used to disambiguate multi-branch refs (e.g. the
+# Vulkan-layer extensions like MangoHud publish several //<branch>s). Under
+# --noninteractive, `flatpak install <bare-id>` errors "Multiple refs match
+# ... must specify one" instead of prompting -- so on that specific failure
+# we retry once with //<branch> appended. Operator-overridable per call.
+_default_branch="${MIOS_FLATPAK_DEFAULT_BRANCH:-24.08}"
+
 failed=0
 for id in "$@"; do
     _id_remote=$(_resolve_remote_for "$id")
     echo "[mios-flatpak-install] installing $id from $_id_remote..."
-    if "${SUDO[@]}" flatpak install \
+    _out=$("${SUDO[@]}" flatpak install \
             --system --noninteractive --assumeyes \
-            "$_id_remote" "$id"; then
+            "$_id_remote" "$id" 2>&1) && _rc=0 || _rc=$?
+    printf '%s\n' "$_out"
+    # Ambiguous-branch fallback: retry once with a default //<branch> appended
+    # (only if the id doesn't already carry one).
+    if [ "$_rc" -ne 0 ] && [ "${id#*//}" = "$id" ] \
+            && printf '%s' "$_out" | grep -qiE 'multiple refs|must specify.*branch|multiple branches'; then
+        echo "[mios-flatpak-install] ambiguous branch for $id -- retrying with //${_default_branch}"
+        _out=$("${SUDO[@]}" flatpak install \
+                --system --noninteractive --assumeyes \
+                "$_id_remote" "${id}//${_default_branch}" 2>&1) && _rc=0 || _rc=$?
+        printf '%s\n' "$_out"
+    fi
+    if [ "$_rc" -eq 0 ]; then
         echo "[mios-flatpak-install] ✓ $id installed (remote=$_id_remote)"
     else
         echo "[mios-flatpak-install] ✗ $id failed (remote=$_id_remote)"

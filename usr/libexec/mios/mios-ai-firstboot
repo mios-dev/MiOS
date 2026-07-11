@@ -53,6 +53,15 @@ if [ ! -x "${VENV}/bin/hermes" ]; then
     else
         log "WARN: 38-hermes-agent.sh not found (/, git, /mnt/m) -- agent venv NOT built"
     fi
+    # BROKEN-VENV CLEANUP (AGY-38): if the builder ran but left a partial/broken
+    # venv (dir present but no working hermes entrypoint), rm -rf it so the
+    # image-seed fallback below -- and any next-boot retry -- start from a clean
+    # slate instead of layering onto a half-built tree that merely LOOKS present.
+    # Degrade-open: never hard-fail boot on the cleanup (set +eu + || true).
+    if [ ! -x "${VENV}/bin/hermes" ] && [ -d "${VENV}" ]; then
+        log "agent venv build incomplete/broken -- removing ${VENV} for a clean retry"
+        rm -rf "${VENV}" 2>/dev/null || true
+    fi
     # HARDENING (install-robustness): if the pip build failed or its builder was
     # absent (air-gapped host / dev-VM overlay where automation/ isn't checked out),
     # SEED the venv from the deployed OCI image. 38-hermes-agent ran WITH build-time

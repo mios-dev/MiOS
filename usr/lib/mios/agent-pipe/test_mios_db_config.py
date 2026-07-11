@@ -3,14 +3,30 @@
 # WS-A2 compliance: Sibling test present and free of server.py imports.
 import sys
 import os
+import unittest
+from unittest.mock import patch
 # Ensure /usr/lib/mios and relative path are in python path
 sys.path.insert(0, "/usr/lib/mios")
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-import unittest
-from unittest.mock import patch
-import psycopg
+try:
+    import psycopg
+except ImportError:
+    psycopg = None
 import mios_db_config
+
+def setUpModule():
+    # Test hermeticity (AGY-35): self-skip when no live pgvector so the
+    # offline build gate reports SKIP (not FAIL/ERROR) while still running in CI.
+    if psycopg is None:
+        raise unittest.SkipTest("no live pgvector -- integration test")
+    port = os.environ.get("MIOS_PORT_PGVECTOR", "8432")
+    conn_str = f"postgresql://mios:mios@localhost:{port}/mios"
+    try:
+        with psycopg.connect(conn_str, connect_timeout=1):
+            pass
+    except Exception:
+        raise unittest.SkipTest("no live pgvector -- integration test")
 
 class TestMiosDbConfig(unittest.TestCase):
 

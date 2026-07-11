@@ -7229,6 +7229,18 @@ _VERB_EMBED_URL = os.environ.get(
 # _get_client and is injected into mios_toolsearch via its configure().
 
 
+# AGY-36: rate-limit the "embed call failed" warning. When the embed backend
+# (mios-llm-light) is down the loops below call _embed_one for every verb/app every
+# cycle, so an unrated log floods the journal ("All connection attempts failed",
+# hundreds/sec). Emit at most one warning per interval, folding the suppressed count
+# into the next line. Timestamp is computed in-function (NOT at import), starting at 0
+# so the very first failure always logs.
+_EMBED_FAIL_LOG_INTERVAL = float(
+    os.environ.get("MIOS_EMBED_FAIL_LOG_INTERVAL", "60") or 60)
+_embed_fail_last_log = 0.0
+_embed_fail_suppressed = 0
+
+
 async def _embed_one(text: str, prefix: Optional[str] = "search_query: ") -> Optional[list[float]]:
     """Single-vector embed. Supports BOTH ollama /api/embeddings ({prompt} ->
     {embedding}) and OpenAI /v1/embeddings ({input} -> {data:[{embedding}]}),
@@ -7261,7 +7273,19 @@ async def _embed_one(text: str, prefix: Optional[str] = "search_query: ") -> Opt
         if isinstance(v, list) and v:
             return [float(x) for x in v]
     except Exception as e:
-        log.warning("embed call failed: %s", e)
+        global _embed_fail_last_log, _embed_fail_suppressed
+        now = time.time()
+        if now - _embed_fail_last_log >= _EMBED_FAIL_LOG_INTERVAL:
+            if _embed_fail_suppressed:
+                log.warning(
+                    "embed call failed: %s (+%d more suppressed in last %.0fs)",
+                    e, _embed_fail_suppressed, _EMBED_FAIL_LOG_INTERVAL)
+            else:
+                log.warning("embed call failed: %s", e)
+            _embed_fail_last_log = now
+            _embed_fail_suppressed = 0
+        else:
+            _embed_fail_suppressed += 1
     return None
 
 
