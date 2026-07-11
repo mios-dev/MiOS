@@ -35,40 +35,18 @@ def dict_to_toml(d):
     return "\n".join(lines) + "\n"
 
 def parse_simple_toml(filepath):
-    # A basic parser for mios.toml fallback files
-    res = {}
-    current_section = None
     if not os.path.isfile(filepath):
-        return res
+        return {}
     try:
-        with open(filepath, "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line or line.startswith("#"):
-                    continue
-                if line.startswith("[") and line.endswith("]"):
-                    current_section = line[1:-1].strip()
-                    if current_section not in res:
-                        res[current_section] = {}
-                elif "=" in line:
-                    k, v = line.split("=", 1)
-                    k = k.strip()
-                    v = v.strip()
-                    try:
-                        parsed_val = json.loads(v)
-                    except Exception:
-                        # Strip outer quotes if json parsing failed
-                        if (v.startswith('"') and v.endswith('"')) or (v.startswith("'") and v.endswith("'")):
-                            parsed_val = v[1:-1]
-                        else:
-                            parsed_val = v
-                    if current_section:
-                        res[current_section][k] = parsed_val
-                    else:
-                        res[k] = parsed_val
+        try:
+            import tomllib
+        except ImportError:
+            import tomli as tomllib
+        with open(filepath, "rb") as f:
+            return tomllib.load(f)
     except Exception as e:
-        log.warning("Failed to parse fallback TOML %s: %s", filepath, e)
-    return res
+        log.warning("Failed to parse TOML %s: %s", filepath, e)
+        return {}
 
 def main():
     toml_path = os.environ.get("MIOS_TOML", "/etc/mios/mios.toml")
@@ -137,17 +115,8 @@ def main():
 
                     log.info("Processing account: %s (home: %s)", name, home_dir)
 
-                    # Initialize default user config from skel
+                    # Initialize default user config: render only the typed pref slots, not the whole file
                     user_toml = {}
-                    skel_path = "/etc/skel/.config/mios/mios.toml"
-                    if os.path.isfile(skel_path):
-                        user_toml = parse_simple_toml(skel_path)
-                    else:
-                        # Fallback to general mios.toml template
-                        general_path = "/usr/share/mios/mios.toml"
-                        if os.path.isfile(general_path):
-                            user_toml = parse_simple_toml(general_path)
-
                     user_files = {}
 
                     # Apply preferences
@@ -166,14 +135,15 @@ def main():
 
                     # Render default mios.toml if not explicitly overridden by file: key
                     default_toml_rel = ".config/mios/mios.toml"
-                    if default_toml_rel not in user_files:
+                    if default_toml_rel not in user_files and user_toml:
                         user_files[default_toml_rel] = dict_to_toml(user_toml)
 
                     # Materialize files idempotently
                     for rel_path, content in user_files.items():
                         target_file = os.path.abspath(os.path.join(home_dir, rel_path))
-                        # Prevent writing outside user home
-                        if not target_file.startswith(os.path.abspath(home_dir)):
+                        # Prevent writing outside user home using commonpath comparison
+                        home_abs = os.path.abspath(home_dir)
+                        if os.path.commonpath([home_abs, target_file]) != home_abs:
                             log.warning("Security: skipping path %s outside home directory %s", rel_path, home_dir)
                             continue
 
