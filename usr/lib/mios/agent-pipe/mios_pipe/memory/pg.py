@@ -563,11 +563,11 @@ async def execute(sql: str, params: Optional[dict] = None,
                     async with conn.transaction():
                         await cur.execute(scope[0], scope[1])
                         await cur.execute(sql, params or {})
-                        return await cur.fetchall() if fetch else None
+                        return await cur.fetchall() if fetch else True
                 await cur.execute(sql, params or {})
                 if fetch:
                     return await cur.fetchall()
-                return None
+                return True
     except Exception:  # noqa: BLE001 -- degrade-open
         _pg_mark_down()
         return None

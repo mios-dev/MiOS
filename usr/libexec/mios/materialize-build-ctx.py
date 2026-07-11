@@ -56,7 +56,7 @@ def main():
                 log.info("Materialized package_sets.json (%d sets)", len(package_sets_out))
                 
                 # 2. Materialize build_phase
-                cur.execute("SELECT ordinal, script, stage, deps FROM build_phase ORDER BY stage, ordinal NULLS LAST, id;")
+                cur.execute("SELECT ordinal, script, stage, deps FROM build_phase ORDER BY stage, ordinal NULLS LAST, script;")
                 phases = cur.fetchall()
                 phases_out = []
                 for p in phases:

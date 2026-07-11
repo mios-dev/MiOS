@@ -62,6 +62,7 @@ def _load_verb_catalog() -> dict:
     catalog. Each entry: {section, sig, desc, tier, permission, params:
     {<arg>: {type, desc, aliases, enum, default}}}. SSOT for the planner
     prompt + the arg-synonym dispatcher + (future) MCP tools/list."""
+    global _DB_UNREACHABLE
     cat: dict = {}
     toml_path = os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml")
     try:
@@ -145,83 +146,92 @@ def _load_verb_catalog() -> dict:
         if CATALOG_FAIL_MODE == "fail":   # WS-A1 fail-loud (opt-in)
             raise
 
-    # ── Database Overlay & Localization (T-126) ──
-    try:
-        import psycopg
-        from psycopg.rows import dict_row
-        from mios_pipe.memory.pg import pg_config
-        cfg = pg_config()
-        conn_str = (f"postgresql://{cfg['user']}:{cfg['password']}"
-                    f"@{cfg['host']}:{cfg['port']}/{cfg['dbname']}")
-        
-        locale = os.environ.get("MIOS_LOCALE") or os.environ.get("LANG", "en")
-        lang = locale.split("_")[0].split(".")[0].lower()
-        
-        with psycopg.connect(conn_str, connect_timeout=2) as conn:
-            with conn.cursor(row_factory=dict_row) as cur:
-                cur.execute("SELECT * FROM verb;")
-                rows = cur.fetchall()
-                for r in rows:
-                    vname = r["name"]
-                    if not r["is_active"]:
-                        cat.pop(vname, None)
-                        continue
-                    
-                    sig = r["sig"]
-                    desc = r["desc_default"]
-                    tier = r["tier"]
-                    permission = r["permission"]
-                    cmd = r["cmd"] or ""
-                    params = r["params"] or {}
-                    
-                    i18n = r["i18n"] or {}
-                    if lang in i18n:
-                        lang_data = i18n[lang]
-                        if "desc" in lang_data:
-                            desc = lang_data["desc"]
-                        if "params" in lang_data:
-                            lang_params = lang_data["params"]
-                            for arg, arg_cfg in params.items():
-                                if isinstance(arg_cfg, dict) and arg in lang_params:
-                                    arg_cfg["desc"] = lang_params[arg]
-                                    
-                    if vname in cat:
-                        cat[vname].update({
-                            "sig": sig,
-                            "desc": desc,
-                            "tier": tier,
-                            "permission": permission,
-                            "cmd": cmd,
-                            "params": params
-                        })
-                    else:
-                        cat[vname] = {
-                            "section": "Misc",
-                            "sig": sig,
-                            "desc": desc,
-                            "tier": tier,
-                            "permission": permission,
-                            "params": params,
-                            "cmd": cmd,
-                            "max_result_chars": 0,
-                            "model_name": "",
-                            "examples": [],
-                            "hidden": False,
-                            "hidden_aliases": [],
-                            "parallel_limit": 0,
-                            "conflict_group": "",
-                        }
-    except Exception as db_err:
-        log.debug("Database verb catalog overlay failed (using TOML baseline): %s", db_err)
-
-    # ── Database Authority Sentinel & Shadow-Compare ──
+    db_auth = False
     try:
         import sys
         if "/usr/lib/mios" not in sys.path:
             sys.path.insert(0, "/usr/lib/mios")
         import mios_db_config
-        
         db_auth = mios_db_config.is_db_authoritative()
+    except Exception:
+        pass
+
+    import copy
+    pure_toml_cat = copy.deepcopy(cat)
+
+    # ── Database Overlay & Localization (T-126) ──
+    if db_auth and not _DB_UNREACHABLE:
+        try:
+            import psycopg
+            from psycopg.rows import dict_row
+            from mios_pipe.memory.pg import pg_config
+            cfg = pg_config()
+            conn_str = (f"postgresql://{cfg['user']}:{cfg['password']}"
+                        f"@{cfg['host']}:{cfg['port']}/{cfg['dbname']}")
+            
+            locale = os.environ.get("MIOS_LOCALE") or os.environ.get("LANG", "en")
+            lang = locale.split("_")[0].split(".")[0].lower()
+            
+            with psycopg.connect(conn_str, connect_timeout=2) as conn:
+                with conn.cursor(row_factory=dict_row) as cur:
+                    cur.execute("SELECT * FROM verb;")
+                    rows = cur.fetchall()
+                    for r in rows:
+                        vname = r["name"]
+                        if not r["is_active"]:
+                            cat.pop(vname, None)
+                            continue
+                        
+                        sig = r["sig"]
+                        desc = r["desc_default"]
+                        tier = r["tier"]
+                        permission = r["permission"]
+                        cmd = r["cmd"] or ""
+                        params = r["params"] or {}
+                        
+                        i18n = r["i18n"] or {}
+                        if lang in i18n:
+                            lang_data = i18n[lang]
+                            if "desc" in lang_data:
+                                desc = lang_data["desc"]
+                            if "params" in lang_data:
+                                lang_params = lang_data["params"]
+                                for arg, arg_cfg in params.items():
+                                    if isinstance(arg_cfg, dict) and arg in lang_params:
+                                        arg_cfg["desc"] = lang_params[arg]
+                                        
+                        if vname in cat:
+                            cat[vname].update({
+                                "sig": sig,
+                                "desc": desc,
+                                "tier": tier,
+                                "permission": permission,
+                                "cmd": cmd,
+                                "params": params
+                            })
+                        else:
+                            cat[vname] = {
+                                "section": "Misc",
+                                "sig": sig,
+                                "desc": desc,
+                                "tier": tier,
+                                "permission": permission,
+                                "params": params,
+                                "cmd": cmd,
+                                "max_result_chars": 0,
+                                "model_name": "",
+                                "examples": [],
+                                "hidden": False,
+                                "hidden_aliases": [],
+                                "parallel_limit": 0,
+                                "conflict_group": "",
+                            }
+        except Exception as db_err:
+            _DB_UNREACHABLE = True
+            log.debug("Database verb catalog overlay failed (using TOML baseline): %s", db_err)
+
+    # ── Database Authority Sentinel & Shadow-Compare ──
+    try:
         db_cat = _load_verb_catalog_from_db()
         
         if db_auth:
@@ -231,7 +241,7 @@ def _load_verb_catalog() -> dict:
             return cat
         else:
             if db_cat:
-                if not _compare_catalogs(cat, db_cat):
+                if not _compare_catalogs(pure_toml_cat, db_cat):
                     import mios_db_config
                     mios_db_config.DIVERGENCES += 1
                     log.warning("Verb catalog divergence detected between TOML/Overlay and DB")
@@ -241,7 +251,13 @@ def _load_verb_catalog() -> dict:
     return cat
 
 
+_DB_UNREACHABLE = False
+
+
 def _load_verb_catalog_from_db() -> dict:
+    global _DB_UNREACHABLE
+    if _DB_UNREACHABLE:
+        return {}
     import json
     cat: dict = {}
     try:
@@ -279,6 +295,8 @@ def _load_verb_catalog_from_db() -> dict:
                 for r in rows:
                     vname = r["name"]
                     if not r["is_active"]:
+                        continue
+                    if not r.get("section"):
                         continue
                     
                     vcfg = defaults.copy()
@@ -330,6 +348,7 @@ def _load_verb_catalog_from_db() -> dict:
                     })
                     cat[vname] = vcfg
     except Exception as e:
+        _DB_UNREACHABLE = True
         log.debug("Failed to load verb catalog from DB: %s", e)
         return {}
     return cat

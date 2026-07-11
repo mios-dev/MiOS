@@ -90,7 +90,7 @@ class TestMiosEmbedBackfill(unittest.IsolatedAsyncioTestCase):
                     if f"FROM {k}" in sql:
                         return select_results[k]
                 return []
-            return None
+            return True
             
         mock_execute.side_effect = execute_side_effect
         

@@ -10,14 +10,16 @@ import mios_toml
 
 log = logging.getLogger("mios-db-config")
 
+_DIVERGENT_KEYS = set()
 DIVERGENCES = 0
 
 def get_divergences() -> int:
     global DIVERGENCES
-    return DIVERGENCES
+    return len(_DIVERGENT_KEYS) + DIVERGENCES
 
 def reset_divergences() -> None:
     global DIVERGENCES
+    _DIVERGENT_KEYS.clear()
     DIVERGENCES = 0
 
 def get_pg_config() -> dict:
@@ -185,6 +187,23 @@ def _is_equal(a, b) -> bool:
     except Exception:
         return a == b
 
+def _find_divergent_keys(a: dict, b: dict, prefix="") -> set[str]:
+    divs = set()
+    for k in b:
+        if k == "verbs":
+            continue
+        p = f"{prefix}.{k}" if prefix else k
+        if k not in a:
+            divs.add(p)
+            continue
+        val_a = a[k]
+        val_b = b[k]
+        if isinstance(val_a, dict) and isinstance(val_b, dict):
+            divs.update(_find_divergent_keys(val_a, val_b, p))
+        elif not _is_equal(val_a, val_b):
+            divs.add(p)
+    return divs
+
 def load_merged(layers=None) -> dict:
     if layers is not None:
         return mios_toml.load_merged(layers)
@@ -198,12 +217,13 @@ def load_merged(layers=None) -> dict:
         toml_val = mios_toml.load_merged()
         db_val = load_db_config()
         if db_val:
-            filtered_toml = {k: toml_val[k] for k in db_val if k in toml_val and k != "verbs"}
-            filtered_db = {k: db_val[k] for k in db_val if k != "verbs"}
-            if not _is_equal(filtered_toml, filtered_db):
-                global DIVERGENCES
-                DIVERGENCES += 1
-                log.warning("Config divergence in load_merged: TOML=%s, DB=%s", filtered_toml, filtered_db)
+            divs = _find_divergent_keys(toml_val, db_val)
+            if divs:
+                global _DIVERGENT_KEYS
+                _DIVERGENT_KEYS.update(divs)
+                filtered_toml = {k: toml_val[k] for k in db_val if k in toml_val and k != "verbs"}
+                filtered_db = {k: db_val[k] for k in db_val if k != "verbs"}
+                log.warning("Config divergence in load_merged on keys %s: TOML=%s, DB=%s", divs, filtered_toml, filtered_db)
         return toml_val
 
 def load_vendor() -> dict:

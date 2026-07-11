@@ -82,6 +82,7 @@ OLLAMA_NUM_PREDICT_CAP_CPU = 512
 _AGENT_REGISTRY: dict = {}
 
 # Rate limiting, preemption, and deduplication state (AGY-5, AGY-6)
+import collections
 import contextvars
 _autonomous_var: contextvars.ContextVar[bool] = contextvars.ContextVar("autonomous", default=False)
 _autonomous_source_var: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar("autonomous_source", default=None)
@@ -90,9 +91,27 @@ _dispatch_depth_var: contextvars.ContextVar[int] = contextvars.ContextVar("dispa
 _IN_FLIGHT_PROMPTS: dict[str, asyncio.Future] = {}
 _IN_FLIGHT_LOCK = asyncio.Lock()
 
-_SESSION_TOKENS: dict[str, int] = {}
-_AUTONOMOUS_SOURCE_TOKENS: dict[str, int] = {}
+_SESSION_TOKENS: dict[str, collections.deque] = {}
+_AUTONOMOUS_SOURCE_TOKENS: dict[str, collections.deque] = {}
 _BUDGET_LOCK = asyncio.Lock()
+
+def _get_window_total(ledger: dict, key: str, now: float, window_s: float = 3600.0) -> int:
+    dq = ledger.get(key)
+    if not dq:
+        return 0
+    if isinstance(dq, int):
+        return dq
+    if not isinstance(dq, collections.deque):
+        return 0
+    cutoff = now - window_s
+    while dq and dq[0][0] < cutoff:
+        dq.popleft()
+    return sum(t for _ts, t in dq)
+
+def _add_to_window(ledger: dict, key: str, tokens: int, now: float) -> None:
+    if key not in ledger:
+        ledger[key] = collections.deque()
+    ledger[key].append((now, tokens))
 
 # shared KV/priority/preempt state owned by server (injected BY REFERENCE so the
 # moved _kv_* mutations and the server-side KV-GC sweep observe the SAME dicts).
@@ -431,8 +450,10 @@ async def _call_agent_complete(name, cfg, body, headers, client,
         # 2. Token Budget enforcement (check before dispatch)
         session_id = (_conv_key_var.get() if _conv_key_var else "") or ""
         conv_ceil = _get_budget_ceil("conversation_token_ceil", 2000000)
+        now = time.monotonic()
         if session_id and conv_ceil > 0:
-            used = _SESSION_TOKENS.get(session_id, 0)
+            async with _BUDGET_LOCK:
+                used = _get_window_total(_SESSION_TOKENS, session_id, now)
             if used > conv_ceil:
                 log.warning("Conversation token budget exceeded (%d > %d) for session %s", used, conv_ceil, session_id)
                 raise ValueError(f"Conversation token budget exceeded ({used}/{conv_ceil})")
@@ -441,7 +462,8 @@ async def _call_agent_complete(name, cfg, body, headers, client,
             auto_ceil = _get_budget_ceil("autonomous_token_ceil", 400000)
             src = _autonomous_source_var.get() or "autonomous"
             if auto_ceil > 0:
-                used = _AUTONOMOUS_SOURCE_TOKENS.get(src, 0)
+                async with _BUDGET_LOCK:
+                    used = _get_window_total(_AUTONOMOUS_SOURCE_TOKENS, src, now)
                 if used > auto_ceil:
                     log.warning("Autonomous source %s token budget exceeded (%d > %d)", src, used, auto_ceil)
                     raise ValueError(f"Autonomous source token budget exceeded ({used}/{auto_ceil})")
@@ -540,12 +562,12 @@ async def _call_agent_complete(name, cfg, body, headers, client,
             
             if session_id:
                 async with _BUDGET_LOCK:
-                    _SESSION_TOKENS[session_id] = _SESSION_TOKENS.get(session_id, 0) + tokens_used
+                    _add_to_window(_SESSION_TOKENS, session_id, tokens_used, time.monotonic())
             
             if _autonomous_var.get():
                 src = _autonomous_source_var.get() or "autonomous"
                 async with _BUDGET_LOCK:
-                    _AUTONOMOUS_SOURCE_TOKENS[src] = _AUTONOMOUS_SOURCE_TOKENS.get(src, 0) + tokens_used
+                    _add_to_window(_AUTONOMOUS_SOURCE_TOKENS, src, tokens_used, time.monotonic())
 
             async with _IN_FLIGHT_LOCK:
                 _IN_FLIGHT_PROMPTS.pop(req_hash, None)

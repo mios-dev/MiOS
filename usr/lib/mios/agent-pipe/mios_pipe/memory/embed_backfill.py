@@ -206,13 +206,21 @@ async def run_backfill(current_version: str = "nomic-768-v1") -> dict:
         }
         cols = cols_map[table]
         
+        table_ver = current_version
+        if table == "verb":
+            try:
+                from mios_pipe.routing.toolsearch import _verb_embed_fingerprint
+                table_ver = _verb_embed_fingerprint()
+            except Exception as e_fp:
+                log.debug("Failed to get verb catalog fingerprint: %s", e_fp)
+                
         select_query = (
             f"SELECT {cols} FROM {table} "
             f"WHERE emb IS NULL OR (emb_version IS DISTINCT FROM %(ver)s) "
             f"ORDER BY {pk} LIMIT 500"
         )
         try:
-            rows = await _mios_pg.execute(select_query, {"ver": current_version}, fetch=True)
+            rows = await _mios_pg.execute(select_query, {"ver": table_ver}, fetch=True)
         except Exception as e:
             log.warning("Failed to fetch backfill candidates for table %s: %s", table, e)
             continue
@@ -240,13 +248,14 @@ async def run_backfill(current_version: str = "nomic-768-v1") -> dict:
                     f"WHERE {pk} = %(id)s"
                 )
                 try:
-                    await _mios_pg.execute(update_query, {
+                    res = await _mios_pg.execute(update_query, {
                         "emb": vec,
                         "model": model,
-                        "ver": current_version,
+                        "ver": table_ver,
                         "id": pk_val
                     })
-                    embedded_count += 1
+                    if res is not None:
+                        embedded_count += 1
                 except Exception as e_up:
                     log.warning("Failed to update embedding for %s row %s: %s", table, pk_val, e_up)
                     

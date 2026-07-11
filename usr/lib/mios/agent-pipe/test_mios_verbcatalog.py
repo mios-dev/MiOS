@@ -22,7 +22,7 @@ hidden_aliases = ["open_application", "start_app"]
 [verbs.open_app.params.name]
 type = "string"
 desc = "application name"
-aliases = ["app", "application"]
+aliases = ["query", "title", "app", "target", "program", "path", "file", "binary", "exe"]
 
 [verbs.recall]
 section = "Memory"
@@ -34,6 +34,10 @@ permission = "read"
 type = "string"
 desc = "what to recall"
 default = ""
+[verbs.recall.params.limit]
+type = "integer"
+default = 30
+aliases = ["n", "top_k"]
 
 [verbs.ui_button]
 # No `section` key -> NOT an agent verb; must be rejected by the loader.
@@ -55,6 +59,7 @@ class VerbCatalogTest(unittest.TestCase):
         cls._tmp.close()
         os.environ["MIOS_TOML"] = cls._tmp.name
         VC.configure(CATALOG_FAIL_MODE="warn")
+        VC._DB_UNREACHABLE = True
         cls.cat = VC._load_verb_catalog()
         cls.model_map = VC._build_model_name_map(cls.cat)
         VC.configure(_VERB_CATALOG=cls.cat, _MODEL_NAME_TO_VERB=cls.model_map)
