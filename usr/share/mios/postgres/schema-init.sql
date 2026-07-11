@@ -877,6 +877,24 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+CREATE OR REPLACE FUNCTION mios_redact_verb_secrets(p_val jsonb)
+RETURNS jsonb AS $$
+DECLARE
+    res jsonb;
+BEGIN
+    IF p_val IS NULL THEN
+        RETURN NULL;
+    END IF;
+    res := p_val;
+    IF res ? 'cmd' AND jsonb_typeof(res -> 'cmd') = 'string' THEN
+        IF (res ->> 'cmd') ~* '(password|passwd|secret|token|passphrase|api[_]?key|private_key|credential|bearer\s+[a-zA-Z0-9_\-\.\~]+)' THEN
+            res := jsonb_set(res, ARRAY['cmd'], '"[REDACTED_SECRET]"'::jsonb);
+        END IF;
+    END IF;
+    RETURN res;
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
 CREATE OR REPLACE TRIGGER config_kv_audit_trigger
     AFTER INSERT OR UPDATE OR DELETE ON config_kv
     FOR EACH ROW EXECUTE FUNCTION log_config_kv_change();
@@ -885,15 +903,15 @@ CREATE OR REPLACE FUNCTION log_verb_change() RETURNS TRIGGER AS $$
 BEGIN
     IF (TG_OP = 'INSERT') THEN
         INSERT INTO config_event (scope, key, new_value, source)
-        VALUES (TG_TABLE_NAME, NEW.name, to_jsonb(NEW), 'verb_trigger');
+        VALUES (TG_TABLE_NAME, NEW.name, mios_redact_verb_secrets(to_jsonb(NEW)), 'verb_trigger');
         RETURN NEW;
     ELSIF (TG_OP = 'UPDATE') THEN
         INSERT INTO config_event (scope, key, old_value, new_value, source)
-        VALUES (TG_TABLE_NAME, NEW.name, to_jsonb(OLD), to_jsonb(NEW), 'verb_trigger');
+        VALUES (TG_TABLE_NAME, NEW.name, mios_redact_verb_secrets(to_jsonb(OLD)), mios_redact_verb_secrets(to_jsonb(NEW)), 'verb_trigger');
         RETURN NEW;
     ELSIF (TG_OP = 'DELETE') THEN
         INSERT INTO config_event (scope, key, old_value, source)
-        VALUES (TG_TABLE_NAME, OLD.name, to_jsonb(OLD), 'verb_trigger');
+        VALUES (TG_TABLE_NAME, OLD.name, mios_redact_verb_secrets(to_jsonb(OLD)), 'verb_trigger');
         RETURN OLD;
     END IF;
     RETURN NULL;
@@ -908,15 +926,15 @@ CREATE OR REPLACE FUNCTION log_domain_verb_change() RETURNS TRIGGER AS $$
 BEGIN
     IF (TG_OP = 'INSERT') THEN
         INSERT INTO config_event (scope, key, new_value, source)
-        VALUES (TG_TABLE_NAME, NEW.domain || '.' || NEW.verb_name, to_jsonb(NEW), 'domain_verb_trigger');
+        VALUES (TG_TABLE_NAME, NEW.domain || '.' || NEW.verb_name, mios_redact_verb_secrets(to_jsonb(NEW)), 'domain_verb_trigger');
         RETURN NEW;
     ELSIF (TG_OP = 'UPDATE') THEN
         INSERT INTO config_event (scope, key, old_value, new_value, source)
-        VALUES (TG_TABLE_NAME, NEW.domain || '.' || NEW.verb_name, to_jsonb(OLD), to_jsonb(NEW), 'domain_verb_trigger');
+        VALUES (TG_TABLE_NAME, NEW.domain || '.' || NEW.verb_name, mios_redact_verb_secrets(to_jsonb(OLD)), mios_redact_verb_secrets(to_jsonb(NEW)), 'domain_verb_trigger');
         RETURN NEW;
     ELSIF (TG_OP = 'DELETE') THEN
         INSERT INTO config_event (scope, key, old_value, source)
-        VALUES (TG_TABLE_NAME, OLD.domain || '.' || OLD.verb_name, to_jsonb(OLD), 'domain_verb_trigger');
+        VALUES (TG_TABLE_NAME, OLD.domain || '.' || OLD.verb_name, mios_redact_verb_secrets(to_jsonb(OLD)), 'domain_verb_trigger');
         RETURN OLD;
     END IF;
     RETURN NULL;
