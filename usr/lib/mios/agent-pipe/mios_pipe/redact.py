@@ -16,7 +16,9 @@ API_KEY_PATTERNS = [
 EMAIL_PATTERN = re.compile(r"\b([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\b")
 
 # MIOS_* environment variable secrets / passwords
-MIOS_SECRET_PATTERN = re.compile(r"\b(MIOS_[A-Z0-9_]*(?:PASS|SECRET|KEY|TOKEN|AUTH))\s*=\s*['\"]([^'\"]+)['\"]", re.IGNORECASE)
+# Quotes are OPTIONAL: the common unquoted env/shell form `MIOS_PG_PASS=secret`
+# (e.g. an exported DSN password) must redact too, not only the quoted form.
+MIOS_SECRET_PATTERN = re.compile(r"\b(MIOS_[A-Z0-9_]*(?:PASS|SECRET|KEY|TOKEN|AUTH))\s*=\s*['\"]?([^'\"\s]+)['\"]?", re.IGNORECASE)
 
 def redact(text: str) -> tuple[str, bool]:
     """Sanitizes text by replacing secrets, PII, and MIOS_* variables with [REDACTED].

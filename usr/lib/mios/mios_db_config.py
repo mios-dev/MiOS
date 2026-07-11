@@ -22,9 +22,17 @@ def reset_divergences() -> None:
 
 def get_pg_config() -> dict:
     e = os.environ
+    # Parse the port defensively: a non-numeric MIOS_PORT_PGVECTOR must NOT raise
+    # (get_pg_config runs outside load_db_config's fail-open try -- a ValueError
+    # here would propagate out of the resolver and crash every config read instead
+    # of falling back to mios.toml).
+    try:
+        port = int(e.get("MIOS_PORT_PGVECTOR") or 8432)
+    except (TypeError, ValueError):
+        port = 8432
     return {
         "host": e.get("MIOS_PG_HOST", "localhost"),
-        "port": int(e.get("MIOS_PORT_PGVECTOR", "8432") or 8432),
+        "port": port,
         "user": e.get("MIOS_PG_USER", "mios"),
         "password": e.get("MIOS_PG_PASS", "mios"),
         "dbname": e.get("MIOS_PG_DB", "mios"),

@@ -188,6 +188,25 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 
 ---
 
+## AGY-25  (AUDIT FIXES, **P0/P1**) — resolve 10 defects a Claude adversarial audit CONFIRMED in your WS-VECTOR code
+**Who:** you (Python + bash + SQL). **When:** NEXT — these are real, verified bugs in code you shipped (each independently code-traced + verified). Claude already fixed 2 (redact.py unquoted-secret leak + mios_db_config.py port fail-open) — do NOT redo those. Fix these 10:
+**HIGH:**
+1. **`verbcatalog.py` ~148-215 — the `db_authoritative` sentinel is a NO-OP.** The T-126 "Database Overlay" block runs UNCONDITIONALLY (only try/except-guarded), so with the sentinel FALSE (default) + pgvector up, the DB silently overlays/deletes verbs (`cat.pop` on is_active=false, overwrites sig/desc/tier/permission/cmd/params) — the returned catalog is NOT byte-identical to TOML. **Fix:** gate the entire T-126 overlay behind `is_db_authoritative()` so sentinel-FALSE returns the pure TOML catalog; keep only the shadow-compare (read-only) running when false.
+2. **`embed_backfill.py` ~209-248 + `toolsearch.py` ~206-231 — emb_version PING-PONG on `verb`.** Backfill stamps `emb_version='nomic-768-v1'`; toolsearch treats a verb vector valid only if `emb_version == <sha256 fp>` and re-stamps fp. The two writers perpetually invalidate each other -> every core/common verb re-embeds every 15-min timer run (never idempotent). **Fix:** unify to ONE scheme on `verb.emb_version` (make backfill compute+store the SAME fingerprint toolsearch uses, OR make toolsearch honor backfill's version) so a stamped vector satisfies both readers.
+3. **`agent_call.py` ~93/436/543 — token guard permanently WEDGES a session.** `_SESSION_TOKENS[session_id]` is cumulative-only, never windowed/reset; once a session crosses `conversation_token_ceil` (2M) `used > conv_ceil` raises `ValueError` on EVERY later dispatch for the process lifetime -> the user can never get another answer until daemon restart. **Fix:** make it a rolling window + graceful summarize (mirror `chat.py`'s `_budget_admit`/`_BUDGET_LEDGER`), not a permanent hard-raise.
+**MEDIUM:**
+4. **`mios_db_config.py` ~13/197 — `DIVERGENCES` counts read-observations, never resets** -> the health `config_divergences` gauge climbs unbounded on any persistent mismatch read on hot paths. **Fix:** track a SET of distinct divergent `scope.key`s (or reset per rebuild) so the gauge = number of divergent settings.
+5. **`verbcatalog.py` ~234 — shadow-compare feeds the ALREADY-DB-OVERLAID `cat`** into `_compare_catalogs`, masking real TOML-vs-DB drift on shared verbs AND firing a false divergence for every TOML-only verb during partial migration. **Fix:** snapshot a PRE-overlay pure-TOML copy and compare THAT vs `db_cat`.
+**LOW:**
+6. `verbcatalog.py` ~225 — redundant SECOND blocking `psycopg.connect(connect_timeout=2)` on the sentinel-FALSE path (~4s dead wait when DB down). Skip/cache when not db_authoritative.
+7. `toolsearch.py` ~231 — stamps `emb_model='qwen2.5-coder:1.5b'` on nomic-produced verb vectors (false provenance, disagrees with backfill's `nomic-embed-text`). Stamp the actual embed model.
+8. `embed_backfill.py` ~243-249 — `embedded_count += 1` runs even when the degrade-open `mios_pg.execute()` UPDATE returned None (silent DB failure over-reported as success). Check the return; count only real writes.
+9. `automation/38-drift-checks.sh` check 32 (~2707-2770) — "lossless" round-trip only diffs pkgs + phase ordinal/deps/stage; add `enable`/`layer`/`base_image_ref`/`section` + `debloat_profile.description` + `preset.debloat_profile_name` to the diff.
+10. `materialize-build-ctx.py` ~59 — same-ordinal `build_phase` tie-breaks by DB `id`, so an incremental re-seed sorts a new same-prefix script after older peers instead of lexically. **Fix:** `ORDER BY stage, ordinal NULLS LAST, script` (lexical), not `id`.
+**Where/Done When:** fix each at the cited file:line; add/extend tests (`test_mios_db_config`/`test_mios_backfill`/`test_mios_verbcatalog`) to cover the fixed behavior; `just drift-gate` green; **stage only your files (never the Quadlets).**
+
+---
+
 ### Reporting back
 Commit each task as `agy: <task-id> <summary>` and push to `main`. Claude is monitoring
 `main` for your commits + will integrate/verify. If blocked, leave a `TODO(agy):` note in
