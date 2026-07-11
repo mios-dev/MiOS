@@ -19,36 +19,18 @@ log = logging.getLogger("mios-agent-pipe")
 
 
 def _toml_section(section: str) -> dict:
-    """Layered <section> table from mios.toml (vendor <- /etc <- ~/.config),
-    merged field-by-field -- the ONE SSOT reader for any [section] tunables
- ("HARDCODES!!!": tunables live in mios.toml, not code)."""
-    _layers = [os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml"),
-               "/etc/mios/mios.toml",
-               os.path.expanduser("~/.config/mios/mios.toml")]
-    out: dict = {}
+    """Layered <section> table from mios.toml (vendor <- /etc <- ~/.config)
+    or from PostgreSQL config tables (behind the db_authoritative sentinel)."""
     try:
-        try:
-            import tomllib
-        except ImportError:
-            import tomli as tomllib
-        for _p in _layers:
-            try:
-                with open(_p, "rb") as _f:
-                    _layer = (tomllib.load(_f).get(section) or {})
-            except (OSError, tomllib.TOMLDecodeError):
-                continue
-            if isinstance(_layer, dict):
-                out.update(_layer)
-    except Exception:  # noqa: BLE001 -- best-effort; callers fall to literals
-        log.warning("Failed to load overlay config section %s", section, exc_info=True)
-    # Expand ${MIOS_PORT_*}/$VAR placeholders in string values against the
-    # process env (install.env supplies MIOS_PORT_*). mios.toml stores endpoint
-    # URLs as deferred-expansion templates ("http://localhost:${MIOS_PORT_HERMES_WORKER}/v1");
-    # systemd EnvironmentFile and Python do NOT expand ${...}, so without this
-    # the agent registry got a LITERAL "${MIOS_PORT_HERMES_WORKER}" port ->
-    # httpx InvalidURL -> the :8640 front door 500'd on every request. expandvars
-    # only touches $-prefixed tokens (ordinary values untouched; an unknown var
-    # is left verbatim). install-robustness.
+        import sys
+        if "/usr/lib/mios" not in sys.path:
+            sys.path.insert(0, "/usr/lib/mios")
+        import mios_db_config
+        out = mios_db_config.section(None, section) or {}
+    except Exception as e:
+        log.warning("Failed to load overlay config section %s: %s", section, e)
+        out = {}
+        
     def _xpand(v):
         if isinstance(v, str):
             return os.path.expandvars(v) if "$" in v else v
@@ -79,30 +61,17 @@ def _cfg_num(table: dict, env: str, key: str, default, cast=int):
 
 
 def _dispatch_toml() -> dict:
-    """Layered [dispatch] table from mios.toml (vendor <- /etc <- ~/.config),
-    merged field-by-field. ONE SSOT reader for the swarm fan-out + DAG-node +
-    deepen tunables; also used by _load_dispatch_cfg() so the layering logic
-    lives in a single place."""
-    _layers = [os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml"),
-               "/etc/mios/mios.toml",
-               os.path.expanduser("~/.config/mios/mios.toml")]
-    dd: dict = {}
+    """Layered [dispatch] table from mios.toml (vendor <- /etc <- ~/.config)
+    or from PostgreSQL config tables (behind the db_authoritative sentinel)."""
     try:
-        try:
-            import tomllib
-        except ImportError:
-            import tomli as tomllib
-        for _p in _layers:
-            try:
-                with open(_p, "rb") as _f:
-                    _layer = (tomllib.load(_f).get("dispatch") or {})
-            except (OSError, tomllib.TOMLDecodeError):
-                continue
-            if isinstance(_layer, dict):
-                dd.update(_layer)
-    except Exception:  # noqa: BLE001 -- best-effort; consts fall to literals
-        log.warning("Failed to load overlay config for dispatch", exc_info=True)
-    return dd
+        import sys
+        if "/usr/lib/mios" not in sys.path:
+            sys.path.insert(0, "/usr/lib/mios")
+        import mios_db_config
+        return mios_db_config.section(None, "dispatch") or {}
+    except Exception as e:
+        log.warning("Failed to load overlay config for dispatch: %s", e)
+        return {}
 
 
 _DISPATCH_TOML = _dispatch_toml()

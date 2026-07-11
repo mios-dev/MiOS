@@ -214,7 +214,169 @@ def _load_verb_catalog() -> dict:
     except Exception as db_err:
         log.debug("Database verb catalog overlay failed (using TOML baseline): %s", db_err)
 
+    # ── Database Authority Sentinel & Shadow-Compare ──
+    try:
+        import sys
+        if "/usr/lib/mios" not in sys.path:
+            sys.path.insert(0, "/usr/lib/mios")
+        import mios_db_config
+        
+        db_auth = mios_db_config.is_db_authoritative()
+        db_cat = _load_verb_catalog_from_db()
+        
+        if db_auth:
+            if db_cat:
+                return db_cat
+            # Else fall-open to TOML
+            return cat
+        else:
+            if db_cat:
+                if not _compare_catalogs(cat, db_cat):
+                    import mios_db_config
+                    mios_db_config.DIVERGENCES += 1
+                    log.warning("Verb catalog divergence detected between TOML/Overlay and DB")
+    except Exception as sentinel_err:
+        log.debug("sentinel check or shadow-compare failed: %s", sentinel_err)
+
     return cat
+
+
+def _load_verb_catalog_from_db() -> dict:
+    import json
+    cat: dict = {}
+    try:
+        import psycopg
+        from psycopg.rows import dict_row
+        from mios_pipe.memory.pg import pg_config
+        cfg = pg_config()
+        conn_str = (f"postgresql://{cfg['user']}:{cfg['password']}"
+                    f"@{cfg['host']}:{cfg['port']}/{cfg['dbname']}")
+        
+        locale = os.environ.get("MIOS_LOCALE") or os.environ.get("LANG", "en")
+        lang = locale.split("_")[0].split(".")[0].lower()
+        
+        defaults = {}
+        with psycopg.connect(conn_str, connect_timeout=2) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT value FROM config_kv
+                    WHERE scope = 'verbs' AND key = '_defaults' AND layer = 0;
+                    """
+                )
+                def_row = cur.fetchone()
+                if def_row:
+                    defaults = def_row[0]
+                    if isinstance(defaults, str):
+                        try:
+                            defaults = json.loads(defaults)
+                        except Exception:
+                            defaults = {}
+
+            with conn.cursor(row_factory=dict_row) as cur:
+                cur.execute("SELECT * FROM verb ORDER BY name;")
+                rows = cur.fetchall()
+                for r in rows:
+                    vname = r["name"]
+                    if not r["is_active"]:
+                        continue
+                    
+                    vcfg = defaults.copy()
+                    sig = r.get("sig")
+                    desc = r.get("desc_default")
+                    tier = r.get("tier")
+                    permission = r.get("permission")
+                    cmd = r.get("cmd")
+                    params = r.get("params")
+                    section = r.get("section")
+                    examples = r.get("examples")
+                    model_name = r.get("model_name")
+                    hidden = r.get("hidden")
+                    aliases = r.get("aliases")
+                    conflict_group = r.get("conflict_group")
+                    parallel_limit = r.get("parallel_limit")
+                    max_result_chars = r.get("max_result_chars")
+                    
+                    # Localization (T-126)
+                    i18n = r.get("i18n") or {}
+                    if lang in i18n:
+                        lang_data = i18n[lang]
+                        if "desc" in lang_data:
+                            desc = lang_data["desc"]
+                        if "params" in lang_data:
+                            lang_params = lang_data["params"]
+                            for arg, arg_cfg in (params or {}).items():
+                                if isinstance(arg_cfg, dict) and arg in lang_params:
+                                    arg_cfg["desc"] = lang_params[arg]
+
+                    vcfg.update({
+                        "section":    str(section or "Misc"),
+                        "sig":        str(sig or ""),
+                        "desc":       str(desc or ""),
+                        "tier":       str(tier or "common"),
+                        "permission": str(permission or "read"),
+                        "params":     params or {},
+                        "cmd":        str(cmd or ""),
+                        "max_result_chars": int(max_result_chars or 0),
+                        "model_name": str(model_name or "").strip(),
+                        "examples": [str(x).strip() for x in (examples or [])
+                                     if str(x).strip()],
+                        "hidden": bool(hidden),
+                        "hidden_aliases": [str(x).strip()
+                                           for x in (aliases or [])
+                                           if str(x).strip()],
+                        "parallel_limit": int(parallel_limit or 0),
+                        "conflict_group": str(conflict_group or "").strip(),
+                    })
+                    cat[vname] = vcfg
+    except Exception as e:
+        log.debug("Failed to load verb catalog from DB: %s", e)
+        return {}
+    return cat
+
+
+def _normalize_verb_catalog_entry(vcfg: dict) -> dict:
+    import copy
+    v = copy.deepcopy(vcfg)
+    for key in ("sig", "desc", "cmd", "section", "model_name", "conflict_group"):
+        val = v.get(key)
+        if val == "" or val is None:
+            v[key] = None
+        else:
+            v[key] = str(val).strip()
+    for key in ("examples", "hidden_aliases", "aliases"):
+        val = v.get(key)
+        if not val:
+            v[key] = None
+        else:
+            v[key] = [str(x).strip() for x in val if str(x).strip()]
+            if not v[key]:
+                v[key] = None
+    if "params" in v:
+        if not v["params"]:
+            v["params"] = None
+    v["hidden"] = bool(v.get("hidden"))
+    v["parallel_limit"] = int(v.get("parallel_limit") or 0)
+    v["max_result_chars"] = int(v.get("max_result_chars") or 0)
+    if "aliases" in v:
+        v["hidden_aliases"] = v.pop("aliases")
+    return v
+
+
+def _compare_catalogs(toml_cat: dict, db_cat: dict) -> bool:
+    for vname in set(toml_cat.keys()) | set(db_cat.keys()):
+        if vname not in toml_cat:
+            log.warning("Verb '%s' exists in DB but not in TOML", vname)
+            return False
+        if vname not in db_cat:
+            log.warning("Verb '%s' exists in TOML but not in DB", vname)
+            return False
+        toml_v = _normalize_verb_catalog_entry(toml_cat[vname])
+        db_v = _normalize_verb_catalog_entry(db_cat[vname])
+        if toml_v != db_v:
+            log.warning("Verb '%s' differences: TOML=%s, DB=%s", vname, toml_v, db_v)
+            return False
+    return True
 
 
 def _verb_arg_synonyms_from_catalog(cat: dict) -> dict:

@@ -186,5 +186,52 @@ class TestMiosDbConfig(unittest.TestCase):
             if "MIOS_DB_AUTHORITATIVE" in os.environ:
                 del os.environ["MIOS_DB_AUTHORITATIVE"]
 
+    def test_verb_catalog_sentinel_and_shadow(self):
+        import mios_pipe.routing.verbcatalog as vc
+        
+        # Divergence setup: update parallel_limit for list_windows in DB
+        with psycopg.connect(self.conn_str) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE verb
+                    SET parallel_limit = 99
+                    WHERE name = 'list_windows'
+                    """
+                )
+            conn.commit()
+            
+        try:
+            # Under db_authoritative = false (default), should shadow-compare and detect divergence
+            os.environ["MIOS_DB_AUTHORITATIVE"] = "False"
+            mios_db_config.reset_divergences()
+            
+            cat = vc._load_verb_catalog()
+            # Under false, parallel_limit should remain TOML default (0 or not 99)
+            self.assertNotEqual(cat["list_windows"]["parallel_limit"], 99)
+            # Divergence should have incremented
+            self.assertTrue(mios_db_config.get_divergences() > 0)
+            
+            # Now flip db_authoritative = true
+            os.environ["MIOS_DB_AUTHORITATIVE"] = "True"
+            cat_db = vc._load_verb_catalog()
+            # Under true, parallel_limit should be loaded from DB (99)
+            self.assertEqual(cat_db["list_windows"]["parallel_limit"], 99)
+            
+        finally:
+            # Restore db state
+            with psycopg.connect(self.conn_str) as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        UPDATE verb
+                        SET parallel_limit = 0
+                        WHERE name = 'list_windows'
+                        """
+                    )
+                conn.commit()
+            if "MIOS_DB_AUTHORITATIVE" in os.environ:
+                del os.environ["MIOS_DB_AUTHORITATIVE"]
+
 if __name__ == "__main__":
     unittest.main()
