@@ -194,7 +194,8 @@ def main():
                         pkgs = sec_cfg.get("pkgs") or []
                         enable = bool(sec_cfg.get("enable", True))
                         layer = int(sec_cfg.get("layer", 0))
-                        base_image_ref = sec_cfg.get("base_image_ref")
+                        base_image_ref = sec_cfg.get("base_image_ref", "")
+                        section = sec_cfg.get("section", "Misc")
                         
                         cur.execute(
                             """
@@ -207,7 +208,7 @@ def main():
                                 layer = EXCLUDED.layer,
                                 base_image_ref = EXCLUDED.base_image_ref;
                             """,
-                            (sec_name, "packages", json.dumps(pkgs), enable, layer, base_image_ref)
+                            (sec_name, section, json.dumps(pkgs), enable, layer, base_image_ref)
                         )
                 log.info("package_set seeded.")
 
@@ -320,6 +321,17 @@ def main():
                     (json.dumps(features_to_seed),)
                 )
                 log.info("Debloat and Xbox features/profiles seeded.")
+
+                # 7. Backfill account defaults (home_dir, shell)
+                cur.execute(
+                    """
+                    UPDATE account
+                    SET home_dir = COALESCE(home_dir, '/home/' || name),
+                        shell = COALESCE(shell, '/bin/bash')
+                    WHERE home_dir IS NULL OR shell IS NULL;
+                    """
+                )
+                log.info("Account defaults backfilled.")
 
                 conn.commit()
                 log.info("Seeding completed successfully.")

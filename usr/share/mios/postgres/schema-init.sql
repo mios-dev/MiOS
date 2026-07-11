@@ -788,6 +788,119 @@ ALTER TABLE session ADD COLUMN IF NOT EXISTS emb_version varchar(64);
 CREATE INDEX IF NOT EXISTS session_emb_hnsw_idx ON session USING hnsw (emb vector_cosine_ops);
 
 
+-- ===== WS-VECTOR V4: accounts, sequence, functions, preferences (AGY-22) =====
+ALTER TABLE account ADD COLUMN IF NOT EXISTS home_dir text;
+ALTER TABLE account ADD COLUMN IF NOT EXISTS shell text;
+
+CREATE SEQUENCE IF NOT EXISTS uid_alloc START WITH 1000;
+
+CREATE OR REPLACE FUNCTION allocate_uid() RETURNS integer AS $$
+BEGIN
+    RETURN nextval('uid_alloc');
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION allocate_gid() RETURNS integer AS $$
+BEGIN
+    RETURN nextval('uid_alloc');
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TABLE IF NOT EXISTS account_preference (
+    account_id bigint REFERENCES account(id) ON DELETE CASCADE,
+    layer integer NOT NULL,
+    key text NOT NULL,
+    value jsonb,
+    emb vector(768),
+    emb_model varchar(128),
+    emb_version varchar(64),
+    PRIMARY KEY (account_id, layer, key)
+);
+CREATE INDEX IF NOT EXISTS account_preference_emb_hnsw_idx ON account_preference USING hnsw (emb vector_cosine_ops);
+
+
+-- ===== WS-VECTOR V5: config_event and audit triggers (AGY-24) =====
+CREATE TABLE IF NOT EXISTS config_event (
+    id bigserial PRIMARY KEY,
+    ts timestamptz DEFAULT now(),
+    scope text,
+    key text,
+    old_value jsonb,
+    new_value jsonb,
+    actor text,
+    source text
+);
+
+CREATE OR REPLACE FUNCTION log_config_kv_change() RETURNS TRIGGER AS $$
+BEGIN
+    IF (TG_OP = 'INSERT') THEN
+        INSERT INTO config_event (scope, key, new_value, actor, source)
+        VALUES (TG_TABLE_NAME, NEW.scope || '.' || NEW.key, NEW.value, NEW.owner_user, 'config_kv_trigger');
+        RETURN NEW;
+    ELSIF (TG_OP = 'UPDATE') THEN
+        INSERT INTO config_event (scope, key, old_value, new_value, actor, source)
+        VALUES (TG_TABLE_NAME, NEW.scope || '.' || NEW.key, OLD.value, NEW.value, NEW.owner_user, 'config_kv_trigger');
+        RETURN NEW;
+    ELSIF (TG_OP = 'DELETE') THEN
+        INSERT INTO config_event (scope, key, old_value, actor, source)
+        VALUES (TG_TABLE_NAME, OLD.scope || '.' || OLD.key, OLD.value, OLD.owner_user, 'config_kv_trigger');
+        RETURN OLD;
+    END IF;
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE TRIGGER config_kv_audit_trigger
+    AFTER INSERT OR UPDATE OR DELETE ON config_kv
+    FOR EACH ROW EXECUTE FUNCTION log_config_kv_change();
+
+CREATE OR REPLACE FUNCTION log_verb_change() RETURNS TRIGGER AS $$
+BEGIN
+    IF (TG_OP = 'INSERT') THEN
+        INSERT INTO config_event (scope, key, new_value, source)
+        VALUES (TG_TABLE_NAME, NEW.name, to_jsonb(NEW), 'verb_trigger');
+        RETURN NEW;
+    ELSIF (TG_OP = 'UPDATE') THEN
+        INSERT INTO config_event (scope, key, old_value, new_value, source)
+        VALUES (TG_TABLE_NAME, NEW.name, to_jsonb(OLD), to_jsonb(NEW), 'verb_trigger');
+        RETURN NEW;
+    ELSIF (TG_OP = 'DELETE') THEN
+        INSERT INTO config_event (scope, key, old_value, source)
+        VALUES (TG_TABLE_NAME, OLD.name, to_jsonb(OLD), 'verb_trigger');
+        RETURN OLD;
+    END IF;
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE TRIGGER verb_audit_trigger
+    AFTER INSERT OR UPDATE OR DELETE ON verb
+    FOR EACH ROW EXECUTE FUNCTION log_verb_change();
+
+CREATE OR REPLACE FUNCTION log_domain_verb_change() RETURNS TRIGGER AS $$
+BEGIN
+    IF (TG_OP = 'INSERT') THEN
+        INSERT INTO config_event (scope, key, new_value, source)
+        VALUES (TG_TABLE_NAME, NEW.domain || '.' || NEW.verb_name, to_jsonb(NEW), 'domain_verb_trigger');
+        RETURN NEW;
+    ELSIF (TG_OP = 'UPDATE') THEN
+        INSERT INTO config_event (scope, key, old_value, new_value, source)
+        VALUES (TG_TABLE_NAME, NEW.domain || '.' || NEW.verb_name, to_jsonb(OLD), to_jsonb(NEW), 'domain_verb_trigger');
+        RETURN NEW;
+    ELSIF (TG_OP = 'DELETE') THEN
+        INSERT INTO config_event (scope, key, old_value, source)
+        VALUES (TG_TABLE_NAME, OLD.domain || '.' || OLD.verb_name, to_jsonb(OLD), 'domain_verb_trigger');
+        RETURN OLD;
+    END IF;
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE TRIGGER domain_verb_audit_trigger
+    AFTER INSERT OR UPDATE OR DELETE ON domain_verb
+    FOR EACH ROW EXECUTE FUNCTION log_domain_verb_change();
+
+
 
 
 

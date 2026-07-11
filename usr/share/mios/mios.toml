@@ -89,6 +89,7 @@ bio = ""
 # ----------------------------------------------------------------------------
 [accounts]
 db_backed = true
+db_render_prefs = false
 
 # ----------------------------------------------------------------------------
 # [mios] -- AI Agent Persona. Replaces hardcoded identity strings in the
