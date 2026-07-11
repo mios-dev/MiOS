@@ -41,7 +41,7 @@ _mios_resolve_version() {
             v="$(cat "${_root}/VERSION")"
         fi
     fi
-    printf '%s' "${v:-0.2.4}" | tr -d '[:space:]'
+    printf '%s' "${v:-0.3.0}" | tr -d '[:space:]'
 }
 : "${MIOS_VERSION:=$(_mios_resolve_version)}"
 export MIOS_VERSION
