@@ -994,7 +994,7 @@ PY
 # --- (19) [converge] SSOT validator (T-094 / CONV-01). ----------------------
 # Stub validator that currently passes unconditionally (unblocking subsequent work).
 check_converge_ssot() {
-    local retire_alt="${MIOS_CONV_INFERENCE_RETIRE_HEAVY_ALT:-false}"
+    local retire_alt="${MIOS_CONVERGE_INFERENCE_RETIRE_HEAVY_ALT:-false}"
     if [[ "$retire_alt" == "true" ]]; then
         if command -v systemctl >/dev/null 2>&1; then
             if systemctl is-enabled mios-llm-heavy-alt.service >/dev/null 2>&1; then
@@ -1006,28 +1006,28 @@ check_converge_ssot() {
     fi
 
     # Phase 3 checks
-    local cold_storage_dir="${MIOS_CONV_MEMORY_COLD_STORAGE_DIR:-/var/lib/mios/history/}"
+    local cold_storage_dir="${MIOS_CONVERGE_MEMORY_COLD_STORAGE_DIR:-/var/lib/mios/history/}"
     if [[ "$cold_storage_dir" == *"/tenants/"* ]]; then
         echo "[38-drift-checks] VIOLATION: cold_storage_dir ($cold_storage_dir) cannot be inside a CephFS tenants mount path!" >&2
         VIOLATIONS=$((VIOLATIONS + 1))
         return 1
     fi
 
-    local cold_retention_days="${MIOS_CONV_MEMORY_COLD_RETENTION_DAYS:-30}"
+    local cold_retention_days="${MIOS_CONVERGE_MEMORY_COLD_RETENTION_DAYS:-30}"
     if [[ "$cold_retention_days" -lt 1 ]]; then
         echo "[38-drift-checks] VIOLATION: cold_retention_days ($cold_retention_days) must be >= 1!" >&2
         VIOLATIONS=$((VIOLATIONS + 1))
         return 1
     fi
 
-    local cold_zstd_level="${MIOS_CONV_MEMORY_COLD_ZSTD_LEVEL:-3}"
+    local cold_zstd_level="${MIOS_CONVERGE_MEMORY_COLD_ZSTD_LEVEL:-3}"
     if [[ "$cold_zstd_level" -lt 1 || "$cold_zstd_level" -gt 19 ]]; then
         echo "[38-drift-checks] VIOLATION: cold_zstd_level ($cold_zstd_level) must be between 1 and 19!" >&2
         VIOLATIONS=$((VIOLATIONS + 1))
         return 1
     fi
 
-    local sqlite_vec_enable="${MIOS_CONV_MEMORY_SQLITE_VEC_ENABLE:-false}"
+    local sqlite_vec_enable="${MIOS_CONVERGE_MEMORY_SQLITE_VEC_ENABLE:-false}"
     if [[ "$sqlite_vec_enable" == "true" ]]; then
         local py_bin="/usr/lib/mios/agents/.venv/bin/python3"
         if [[ ! -x "$py_bin" ]]; then
@@ -1045,8 +1045,8 @@ check_converge_ssot() {
 
 # --- (20) Hummingbird distroless and Quadlet configuration (CONV-15). -------
 check_hummingbird() {
-    local distroless_enable="${MIOS_CONV_IMAGE_DISTROLESS_ENABLE:-false}"
-    local rechunk_enable="${MIOS_CONV_IMAGE_RECHUNK_ENABLE:-false}"
+    local distroless_enable="${MIOS_CONVERGE_IMAGE_DISTROLESS_ENABLE:-false}"
+    local rechunk_enable="${MIOS_CONVERGE_IMAGE_RECHUNK_ENABLE:-false}"
     local containerfile="Containerfile.hummingbird"
     local quadlet="usr/share/containers/systemd/mios-agent-pipe.container"
 
@@ -1975,25 +1975,6 @@ else:
                 # refine / polish
                 "refine.timeout_seconds": "MIOS_REFINE_TIMEOUT_S",
                 "polish.timeout_seconds": "MIOS_POLISH_TIMEOUT_S",
-                # converge
-                "converge.gateway.mode": "MIOS_CONV_GATEWAY_MODE",
-                "converge.gateway.queue_maxsize": "MIOS_CONV_GATEWAY_QUEUE_MAXSIZE",
-                "converge.gateway.worker_concurrency": "MIOS_CONV_GATEWAY_WORKER_CONCURRENCY",
-                "converge.inference.heavy_engine_mode": "MIOS_CONV_INFERENCE_HEAVY_ENGINE_MODE",
-                "converge.inference.vllm_lora_adapters_dir": "MIOS_CONV_INFERENCE_VLLM_LORA_ADAPTERS_DIR",
-                "converge.inference.vllm_allow_runtime_lora": "MIOS_CONV_INFERENCE_VLLM_ALLOW_RUNTIME_LORA",
-                "converge.inference.llama_cache_reuse_tokens": "MIOS_CONV_INFERENCE_LLAMA_CACHE_REUSE_TOKENS",
-                "converge.inference.llama_parallel_slots": "MIOS_CONV_INFERENCE_LLAMA_PARALLEL_SLOTS",
-                "converge.inference.retire_heavy_alt": "MIOS_CONV_INFERENCE_RETIRE_HEAVY_ALT",
-                "converge.memory.sqlite_vec_enable": "MIOS_CONV_MEMORY_SQLITE_VEC_ENABLE",
-                "converge.memory.scratchpad_dir": "MIOS_CONV_MEMORY_SCRATCHPAD_DIR",
-                "converge.memory.cold_evict_enable": "MIOS_CONV_MEMORY_COLD_EVICT_ENABLE",
-                "converge.memory.cold_storage_dir": "MIOS_CONV_MEMORY_COLD_STORAGE_DIR",
-                "converge.memory.cold_retention_days": "MIOS_CONV_MEMORY_COLD_RETENTION_DAYS",
-                "converge.memory.cold_zstd_level": "MIOS_CONV_MEMORY_COLD_ZSTD_LEVEL",
-                "converge.image.distroless_enable": "MIOS_CONV_IMAGE_DISTROLESS_ENABLE",
-                "converge.image.rechunk_enable": "MIOS_CONV_IMAGE_RECHUNK_ENABLE",
-                "converge.image.mcp_pool_enable": "MIOS_CONV_IMAGE_MCP_POOL_ENABLE",
                 # portal
                 "portal.public_host": "MIOS_PUBLIC_HOST",
                 "portal.require_login": "MIOS_PORTAL_REQUIRE_LOGIN",

@@ -17,15 +17,15 @@ if [[ -r "$ENV_FILE" ]]; then
     set +u
     . "$ENV_FILE"
     set -u
-    tokens="${MIOS_CONV_INFERENCE_LLAMA_CACHE_REUSE_TOKENS:-0}"
-    slots="${MIOS_CONV_INFERENCE_LLAMA_PARALLEL_SLOTS:-1}"
+    tokens="${MIOS_CONVERGE_INFERENCE_LLAMA_CACHE_REUSE_TOKENS:-0}"
+    slots="${MIOS_CONVERGE_INFERENCE_LLAMA_PARALLEL_SLOTS:-1}"
 fi
 
 if [[ "$tokens" -gt 0 ]]; then
     # Render with cache-reuse and slots
-    sed "s/--parallel \${MIOS_CONV_INFERENCE_LLAMA_PARALLEL_SLOTS:-1} --cache-reuse \${MIOS_CONV_INFERENCE_LLAMA_CACHE_REUSE_TOKENS:-0}/--parallel ${slots} --cache-reuse ${tokens}/g" "$SRC_YAML" > "$DST_YAML"
+    sed "s/--parallel \${MIOS_CONVERGE_INFERENCE_LLAMA_PARALLEL_SLOTS:-1} --cache-reuse \${MIOS_CONVERGE_INFERENCE_LLAMA_CACHE_REUSE_TOKENS:-0}/--parallel ${slots} --cache-reuse ${tokens}/g" "$SRC_YAML" > "$DST_YAML"
 else
     # Render without cache-reuse, parallel 1
-    sed "s/--parallel \${MIOS_CONV_INFERENCE_LLAMA_PARALLEL_SLOTS:-1} --cache-reuse \${MIOS_CONV_INFERENCE_LLAMA_CACHE_REUSE_TOKENS:-0}/--parallel 1/g" "$SRC_YAML" > "$DST_YAML"
+    sed "s/--parallel \${MIOS_CONVERGE_INFERENCE_LLAMA_PARALLEL_SLOTS:-1} --cache-reuse \${MIOS_CONVERGE_INFERENCE_LLAMA_CACHE_REUSE_TOKENS:-0}/--parallel 1/g" "$SRC_YAML" > "$DST_YAML"
 fi
 echo "[mios-conv-inference-setup] Rendered $DST_YAML (cache-reuse=$tokens, parallel=$slots)"

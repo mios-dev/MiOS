@@ -5,7 +5,7 @@
 
 set -euo pipefail
 
-RECHUNK_ENABLE="${MIOS_CONV_IMAGE_RECHUNK_ENABLE:-false}"
+RECHUNK_ENABLE="${MIOS_CONVERGE_IMAGE_RECHUNK_ENABLE:-false}"
 
 if [[ "$RECHUNK_ENABLE" != "true" ]]; then
     echo "rechunk disabled"
