@@ -27,8 +27,20 @@ USER = os.environ.get("MIOS_USER_TOML") or os.path.join(
 
 
 def layer_paths():
-    """The overlay layer paths, lowest precedence first."""
-    return [VENDOR, HOST, USER]
+    """The overlay layer paths, lowest precedence first. Resolved from the
+    environment at CALL time (not import time) so a caller / test / CI on a
+    non-FHS host can retarget a layer via MIOS_VENDOR_TOML / MIOS_HOST_TOML /
+    MIOS_USER_TOML / MIOS_TOML_ROOT AFTER this module is imported -- the
+    import-time module globals below froze those and silently broke the
+    retargetability this module's header promises (e.g. mios-find's ranker test,
+    which set the env only after importing the shared resolver)."""
+    root = os.environ.get("MIOS_TOML_ROOT", "")
+    vendor = os.environ.get("MIOS_VENDOR_TOML") or (
+        os.path.join(root, "usr/share/mios/mios.toml") if root else "/usr/share/mios/mios.toml")
+    host = os.environ.get("MIOS_HOST_TOML", "/etc/mios/mios.toml")
+    user = os.environ.get("MIOS_USER_TOML") or os.path.join(
+        os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")), "mios/mios.toml")
+    return [vendor, host, user]
 
 
 def deep_merge(dst, src):

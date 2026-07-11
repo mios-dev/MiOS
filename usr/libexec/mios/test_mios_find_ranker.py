@@ -27,6 +27,11 @@ import unittest
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _MIOS_FIND = os.path.join(_HERE, "mios-find")
+# mios-find invokes the ranker heredoc as `python3 - "<.../lib/mios>" "$QUERY"`,
+# so argv[1] is the shared-resolver lib dir and argv[2] is the query. Mirror that
+# 3-arg contract here (was the old 2-arg [prog, query] -> ModuleNotFoundError /
+# IndexError -> the libexec test gate die'd the whole OCI build).
+_LIB = os.path.abspath(os.path.join(_HERE, "..", "..", "lib", "mios"))
 
 
 def _extract_ranker_source():
@@ -74,13 +79,21 @@ def run_ranker(query, entries, toml_text):
 
     orig_run = subprocess.run
     orig_argv = sys.argv
-    orig_toml = os.environ.get("MIOS_TOML")
+    # mios-find's ranker reads the shared mios_toml resolver, which layers
+    # VENDOR<HOST<USER from MIOS_VENDOR_TOML/MIOS_HOST_TOML/MIOS_USER_TOML (NOT
+    # the old MIOS_TOML). Point the vendor layer at the fixture and isolate
+    # host/user at nonexistent paths so ONLY the fixture is merged.
+    _env_keys = ("MIOS_VENDOR_TOML", "MIOS_HOST_TOML", "MIOS_USER_TOML")
+    orig_env = {k: os.environ.get(k) for k in _env_keys}
+    _absent = os.path.join(tempfile.gettempdir(), "mios-find-test-absent-layer.toml")
     out, err = io.StringIO(), io.StringIO()
     code = 0
     try:
         subprocess.run = fake_run
-        sys.argv = ["mios-find", query]
-        os.environ["MIOS_TOML"] = toml_path
+        sys.argv = ["mios-find", _LIB, query]
+        os.environ["MIOS_VENDOR_TOML"] = toml_path
+        os.environ["MIOS_HOST_TOML"] = _absent
+        os.environ["MIOS_USER_TOML"] = _absent
         ns = {"__name__": "__mios_find_ranker__"}
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
             try:
@@ -90,10 +103,11 @@ def run_ranker(query, entries, toml_text):
     finally:
         subprocess.run = orig_run
         sys.argv = orig_argv
-        if orig_toml is None:
-            os.environ.pop("MIOS_TOML", None)
-        else:
-            os.environ["MIOS_TOML"] = orig_toml
+        for k, v in orig_env.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
         os.unlink(toml_path)
 
     stdout_lines = [ln for ln in out.getvalue().splitlines() if ln.strip()]

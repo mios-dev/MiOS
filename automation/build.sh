@@ -416,13 +416,16 @@ echo ""
 _row " POST-BUILD: Agent-pipe unit tests (test_mios_*.py)"
 _hline '-' '+' '+'
 _agent_pipe_dir="$(cd "${SCRIPT_DIR}/.." && pwd)/usr/lib/mios/agent-pipe"
-# Prefer the agent-plane venv python (built by 38-hermes-agent.sh): the sibling
-# mios_*.py modules transitively import fastapi/pydantic via the federation
-# routers, so the bare system python3 raises ModuleNotFoundError before any
-# assertion runs. Fall back to system python3 when the venv is absent.
+# REQUIRE the agent-plane venv python (built by 38-hermes-agent.sh): the sibling
+# mios_*.py modules transitively import fastapi/pydantic/psycopg/mcp/httpx via the
+# federation routers, so the bare SYSTEM python3 raises ModuleNotFoundError before
+# any assertion runs. Do NOT fall back to system python3 -- 38-hermes-agent.sh is
+# NON_FATAL and deletes the partial venv on pip failure ("retry next boot"), and a
+# fallback here would convert that tolerated venv miss into a HARD build die on a
+# fresh Day-0 host with cold pip caches. When the venv is absent, SKIP the gate
+# (mirroring the non-fatal venv contract) instead of running under system python3.
 _test_py="/usr/lib/mios/agents/.venv/bin/python3"
-[[ -x "$_test_py" ]] || _test_py="$(command -v python3 2>/dev/null || true)"
-if [[ -d "$_agent_pipe_dir" ]] && [[ -n "$_test_py" ]]; then
+if [[ -d "$_agent_pipe_dir" ]] && [[ -x "$_test_py" ]]; then
     _test_fails=0
     shopt -s nullglob
     for _t in "$_agent_pipe_dir"/test_mios_*.py; do
@@ -439,7 +442,7 @@ if [[ -d "$_agent_pipe_dir" ]] && [[ -n "$_test_py" ]]; then
     fi
     _row "  all agent-pipe unit tests passed"
 else
-    _row "  WARNING: agent-pipe dir or python3 missing -- skipping unit tests"
+    _row "  WARNING: agent venv absent (or agent-pipe dir missing) -- skipping agent-pipe unit tests (non-fatal; venv retries next boot)"
 fi
 
 # ── libexec/mios unit tests (live outside the agent-pipe glob) ───────────────
