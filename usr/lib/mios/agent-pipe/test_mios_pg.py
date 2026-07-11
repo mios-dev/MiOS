@@ -106,6 +106,24 @@ def t_build_recall_emb_version() -> None:
     _check("emb_ver: excludes mismatched row", _kept("v1") is False)
 
 
+def t_build_fts_query() -> None:
+    # knowledge (default)
+    sql, params = P.build_fts_query("knowledge", k=5)
+    _check("fts: expr on knowledge", "fts @@ plainto_tsquery('simple', %(query_text)s)" in sql, sql)
+    _check("fts: ts_rank score", "ts_rank(fts, plainto_tsquery('simple', %(query_text)s)) AS score" in sql, sql)
+    _check("fts: order by score", "ORDER BY score DESC LIMIT %(k)s" in sql, sql)
+    _check("fts: k bound", params["k"] == 5)
+
+    # mios_rag
+    sql_rag, _ = P.build_fts_query("mios_rag", k=3)
+    _check("fts: expr on mios_rag", "to_tsvector('simple', coalesce(content, '')) @@ plainto_tsquery" in sql_rag, sql_rag)
+
+    # agent_memory
+    sql_am, _ = P.build_fts_query("agent_memory", k=3, emb_version="v2")
+    _check("fts: expr on agent_memory", "to_tsvector('simple', coalesce(fact, '') || ' ' || coalesce(scope, ''))" in sql_am, sql_am)
+    _check("fts: emb_version on agent_memory", "emb_version = %(emb_version)s" in sql_am, sql_am)
+
+
 def t_recall_tuning() -> None:
     _check("tuning: ef_search", P.recall_tuning(120) == "SET hnsw.ef_search = 120;",
            P.recall_tuning(120))
@@ -507,7 +525,7 @@ def t_pool_warm_and_exhaustion() -> None:
 
 def main() -> int:
     for t in (t_config_dsn, t_vector_literal, t_build_insert, t_build_insert_jsonb,
-              t_build_recall, t_build_recall_emb_version, t_recall_tuning,
+              t_build_recall, t_build_recall_emb_version, t_build_fts_query, t_recall_tuning,
               t_rid_to_pg_id, t_rls_owner_scope,
               t_pool_default_off_per_call_connect, t_pool_on_reuses_connection,
               t_pool_degrade_open_poisoned, t_pool_no_owner_guc_leak,

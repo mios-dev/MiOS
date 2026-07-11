@@ -7229,7 +7229,7 @@ _VERB_EMBED_URL = os.environ.get(
 # _get_client and is injected into mios_toolsearch via its configure().
 
 
-async def _embed_one(text: str) -> Optional[list[float]]:
+async def _embed_one(text: str, prefix: Optional[str] = "search_query: ") -> Optional[list[float]]:
     """Single-vector embed. Supports BOTH ollama /api/embeddings ({prompt} ->
     {embedding}) and OpenAI /v1/embeddings ({input} -> {data:[{embedding}]}),
     chosen by the URL -- so it works on the llama.cpp nomic lane (mios-llm-light
@@ -7238,6 +7238,8 @@ async def _embed_one(text: str) -> Optional[list[float]]:
     match)."""
     if not text or not text.strip():
         return None
+    if prefix and not text.startswith(prefix):
+        text = prefix + text
     client = await _get_client()
     try:
         _v1 = "/v1/embeddings" in _VERB_EMBED_URL
@@ -7323,6 +7325,8 @@ sys.modules["mios_knowledge"].configure(   # noqa: E402
     knowledge_evict_max_rows=KNOWLEDGE_EVICT_MAX_ROWS,
     knowledge_evict_batch=KNOWLEDGE_EVICT_BATCH,
     knowledge_evict_interval_s=KNOWLEDGE_EVICT_INTERVAL_S,
+    knowledge_rag_hybrid=(os.environ.get("MIOS_RAG_HYBRID", "").strip().lower() not in ("0", "false", "no") if "MIOS_RAG_HYBRID" in os.environ else _toml_section("ai").get("rag_hybrid", False)),
+    knowledge_rag_rerank=(os.environ.get("MIOS_RAG_RERANK", "").strip().lower() not in ("0", "false", "no") if "MIOS_RAG_RERANK" in os.environ else _toml_section("ai").get("rag_rerank", False)),
 )
 
 

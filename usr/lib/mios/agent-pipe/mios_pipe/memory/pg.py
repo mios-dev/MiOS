@@ -182,6 +182,90 @@ def build_recall(table: str = "knowledge", k: int = 3,
     return sql, params
 
 
+def build_fts_query(table: str = "knowledge", k: int = 3,
+                    owner: "Optional[str]" = None,
+                    emb_version: "Optional[str]" = None) -> "tuple[str, dict]":
+    """Postgres FTS ranked recall query builder for hybrid dense+sparse retrieval."""
+    if table == "agent_memory":
+        proj = "mem_key AS id, fact, scope, source, ts"
+        fts_expr = "to_tsvector('simple', coalesce(fact, '') || ' ' || coalesce(scope, ''))"
+    elif table == "mios_rag":
+        proj = "id, source, content"
+        fts_expr = "to_tsvector('simple', coalesce(content, ''))"
+    else:  # knowledge (default)
+        proj = "id, q, answer, tier, satisfied, access_count, ts, last_access"
+        fts_expr = "fts"
+
+    where = f"{fts_expr} @@ plainto_tsquery('simple', %(query_text)s)"
+    params = {"query_text": None, "k": int(k)}
+    if owner is not None:
+        where += " AND (owner_user = %(owner)s OR owner_user IS NULL)"
+        params["owner"] = owner
+    if emb_version and table in ("knowledge", "agent_memory"):
+        where += " AND (emb_version = %(emb_version)s OR emb_version IS NULL)"
+        params["emb_version"] = emb_version
+
+    sql = (
+        f"SELECT {proj}, "
+        f"ts_rank({fts_expr}, plainto_tsquery('simple', %(query_text)s)) AS score "
+        f"FROM {table} WHERE {where} "
+        f"ORDER BY score DESC LIMIT %(k)s;"
+    )
+    return sql, params
+
+
+async def rerank_candidates(query: str, candidates: list, table: str) -> list:
+    """Query a local cross-encoder model to re-score/re-rank retrieved documents."""
+    if not candidates:
+        return []
+
+    def get_candidate_text(r):
+        if table == "knowledge":
+            return f"Q: {r.get('q', '')} A: {r.get('answer', '')}"
+        elif table == "mios_rag":
+            return r.get("content") or ""
+        else:
+            return r.get("fact") or r.get("answer") or ""
+
+    docs = [get_candidate_text(r) for r in candidates]
+    light_port = os.environ.get("MIOS_PORT_LLM_LIGHT") or "8450"
+    url = os.environ.get("MIOS_RERANK_URL") or f"http://localhost:{light_port}/v1/rerank"
+    model = os.environ.get("MIOS_RERANK_MODEL") or "bge-reranker-v2-m3"
+
+    payload = {
+        "model": model,
+        "query": query,
+        "documents": docs,
+        "top_n": len(candidates)
+    }
+
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.post(url, json=payload)
+            if resp.status_code != 200:
+                alt_url = f"http://localhost:{light_port}/rerank"
+                resp = await client.post(alt_url, json=payload)
+
+            if resp.status_code == 200:
+                data = resp.json()
+                results = data.get("results") or []
+                ranked_candidates = []
+                for res in results:
+                    idx = res.get("index")
+                    score = res.get("relevance_score")
+                    if idx is not None and 0 <= idx < len(candidates):
+                        cand = candidates[idx].copy()
+                        cand["score"] = score
+                        ranked_candidates.append(cand)
+                if ranked_candidates:
+                    return ranked_candidates
+    except Exception as e:
+        log.warning("Cross-encoder reranking failed, falling open: %s", e)
+
+    return candidates
+
+
 def recall_tuning(ef_search: int = 100) -> str:
     """Per-query HNSW recall/speed knob; run before the recall SELECT."""
     return f"SET hnsw.ef_search = {int(ef_search)};"
@@ -616,7 +700,10 @@ async def recall(qvec, *, table: str = "knowledge", k: int = 3,
                  ef_search: int = 100, owner: "Optional[str]" = None,
                  emb_version: "Optional[str]" = None,
                  cfg: Optional[dict] = None,
-                 rls_owner: "Optional[str]" = None) -> list:
+                 rls_owner: "Optional[str]" = None,
+                 query_text: "Optional[str]" = None,
+                 hybrid: bool = False,
+                 rerank: bool = False) -> list:
     """Native pgvector HNSW cosine recall on ONE connection (SET hnsw.ef_search
     then the SELECT must share a session). Returns rows [{id,q,answer,tier,
     satisfied,access_count,score}] (score = cosine similarity), or [] on any
@@ -643,22 +730,77 @@ async def recall(qvec, *, table: str = "knowledge", k: int = 3,
         return []
     try:
         scope = _owner_scope(rls_owner)
-        sql, params = build_recall(table, k, owner=owner, emb_version=emb_version)
+        dense_rows = []
+        sparse_rows = []
+
+        # 1. Run dense pgvector query (fetch k*2 candidates for RRF/rerank if hybrid/rerank is on)
+        fetch_k = max(k * 4, 60) if (hybrid or rerank) else k
+        sql, params = build_recall(table, fetch_k, owner=owner, emb_version=emb_version)
         params["qvec"] = vector_literal(qvec)
         async with _conn(cfg) as conn:
             async with conn.cursor(row_factory=dict_row) as cur:
                 if scope is not None:
-                    # SET LOCAL owner GUC + the tuning SET + the SELECT share ONE
-                    # transaction so the transaction-scoped GUC governs the SELECT
-                    # (autocommit would otherwise discard it). Owner bound, not spliced.
                     async with conn.transaction():
                         await cur.execute(scope[0], scope[1])
                         await cur.execute(recall_tuning(ef_search))
                         await cur.execute(sql, params)
-                        return await cur.fetchall()
-                await cur.execute(recall_tuning(ef_search))
-                await cur.execute(sql, params)
-                return await cur.fetchall()
+                        dense_rows = await cur.fetchall()
+                else:
+                    await cur.execute(recall_tuning(ef_search))
+                    await cur.execute(sql, params)
+                    dense_rows = await cur.fetchall()
+
+        # 2. Run sparse FTS query if hybrid is enabled
+        if hybrid and query_text:
+            try:
+                fts_sql, fts_params = build_fts_query(table, fetch_k, owner=owner, emb_version=emb_version)
+                fts_params["query_text"] = query_text
+                async with _conn(cfg) as conn:
+                    async with conn.cursor(row_factory=dict_row) as cur:
+                        if scope is not None:
+                            async with conn.transaction():
+                                await cur.execute(scope[0], scope[1])
+                                await cur.execute(fts_sql, fts_params)
+                                sparse_rows = await cur.fetchall()
+                        else:
+                            await cur.execute(fts_sql, fts_params)
+                            sparse_rows = await cur.fetchall()
+            except Exception as e:
+                log.warning("FTS sparse query failed (degrade-open to dense-only): %s", e)
+
+        # 3. Fuse dense and sparse results using RRF
+        if hybrid and query_text and (dense_rows or sparse_rows):
+            rrf_k = 60
+            scores = {}
+            docs = {}
+            for rank, r in enumerate(dense_rows, start=1):
+                doc_id = r["id"]
+                docs[doc_id] = r
+                scores[doc_id] = scores.get(doc_id, 0.0) + 1.0 / (rrf_k + rank)
+            for rank, r in enumerate(sparse_rows, start=1):
+                doc_id = r["id"]
+                if doc_id not in docs:
+                    docs[doc_id] = r
+                scores[doc_id] = scores.get(doc_id, 0.0) + 1.0 / (rrf_k + rank)
+
+            sorted_ids = sorted(scores.keys(), key=lambda x: scores[x], reverse=True)
+            fused_rows = []
+            for doc_id in sorted_ids:
+                doc = docs[doc_id].copy()
+                if "score" not in doc or doc["score"] is None:
+                    doc["score"] = 0.65
+                else:
+                    doc["score"] = max(float(doc["score"]), 0.65)
+                fused_rows.append(doc)
+            rows = fused_rows
+        else:
+            rows = dense_rows
+
+        # 4. Optional Cross-Encoder Reranking
+        if rerank and query_text and rows:
+            rows = await rerank_candidates(query_text, rows, table)
+
+        return rows[:k]
     except Exception:  # noqa: BLE001 -- degrade-open
         _pg_mark_down()
         return []

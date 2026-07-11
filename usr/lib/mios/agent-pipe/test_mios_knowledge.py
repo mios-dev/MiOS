@@ -74,11 +74,11 @@ def t_recall_blend():
     blend. All deps supplied through the DI seam with async stubs -- no DB."""
     fired = []
 
-    async def _embed_one(_q):
+    async def _embed_one(_q, *args, **kwargs):
         return [0.1] * 8
 
     class _Mem:
-        async def retrieve(self, qv, *, table=None, k=None, owner=None, emb_version=None, rls_owner=None):
+        async def retrieve(self, qv, *, table=None, k=None, owner=None, emb_version=None, rls_owner=None, **kwargs):
             # deliberately returned in the WRONG order to prove the rerank sorts.
             return [
                 {"id": 2, "score": 0.70, "q": "COLD question", "answer": "a2",
@@ -128,7 +128,7 @@ def t_recall_blend():
 
     # Below-floor candidates -> clean empty-string miss.
     class _MemLow:
-        async def retrieve(self, qv, *, table=None, k=None, owner=None, emb_version=None, rls_owner=None):
+        async def retrieve(self, qv, *, table=None, k=None, owner=None, emb_version=None, rls_owner=None, **kwargs):
             return [{"id": 9, "score": 0.10, "q": "x", "answer": "y",
                      "ts": time.time()}]
     k.configure(memory=_MemLow())
@@ -223,11 +223,11 @@ def t_recall_agent_memory_recency():
     + ts contribute, and nothing crashes."""
     now = time.time()
 
-    async def _embed_one(_q):
+    async def _embed_one(_q, *args, **kwargs):
         return [0.3] * 8
 
     class _Mem:
-        async def retrieve(self, qv, *, table=None, k=None, owner=None, emb_version=None, rls_owner=None):
+        async def retrieve(self, qv, *, table=None, k=None, owner=None, emb_version=None, rls_owner=None, **kwargs):
             # Equal cosine; returned STALE-first so a reorder is observable.
             return [
                 {"fact": "STALE fact zqx", "score": 0.80, "scope": "global",
@@ -288,6 +288,45 @@ def t_kg_lookup():
           asyncio.run(k.kg_lookup("nothere")) is None)
 
 
+def t_hybrid_and_rerank():
+    async def _embed_one(_q, *args, **kwargs):
+        return [0.1] * 8
+
+    retrieved_kwargs = {}
+
+    class _MemTrack:
+        async def retrieve(self, qv, **kwargs):
+            retrieved_kwargs.update(kwargs)
+            return [
+                {"id": 1, "score": 0.8, "q": "what is your favorite editor", "answer": "Neovim",
+                 "ts": time.time(), "satisfied": True, "tier": "hot", "access_count": 5}
+            ]
+
+    k.configure(
+        embed_one=_embed_one,
+        memory=_MemTrack(),
+        knowledge_table="knowledge",
+        knowledge_recall_k=3,
+        knowledge_recall_candidates=60,
+        knowledge_recall_min_score=0.62,
+        knowledge_rank_age=0.0,
+        knowledge_rag_hybrid=True,
+        knowledge_rag_rerank=True,
+    )
+
+    try:
+        block = asyncio.run(k._recall_knowledge_pg("what is your favorite editor"))
+        check("hybrid: query_text passed to memory.retrieve", retrieved_kwargs.get("query_text") == "what is your favorite editor")
+        check("hybrid: hybrid=True passed to memory.retrieve", retrieved_kwargs.get("hybrid") is True)
+        check("hybrid: rerank=True passed to memory.retrieve", retrieved_kwargs.get("rerank") is True)
+        check("hybrid: recall returns content correctly", "Neovim" in block, repr(block))
+    finally:
+        k.configure(
+            knowledge_rag_hybrid=False,
+            knowledge_rag_rerank=False,
+        )
+
+
 def main():
     t_recall_floor()
     t_recency_mult()
@@ -296,6 +335,7 @@ def main():
     t_recall_agent_memory()
     t_recall_agent_memory_recency()
     t_kg_lookup()
+    t_hybrid_and_rerank()
     if _fails:
         print(f"\n{_fails} FAILED")
         sys.exit(1)

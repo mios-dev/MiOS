@@ -92,6 +92,8 @@ KNOWLEDGE_EVICT_TTL_DAYS = 90
 KNOWLEDGE_EVICT_MAX_ROWS = 50000
 KNOWLEDGE_EVICT_BATCH = 500
 KNOWLEDGE_EVICT_INTERVAL_S = 3600
+KNOWLEDGE_RAG_HYBRID = False
+KNOWLEDGE_RAG_RERANK = False
 
 
 def configure(*, db_fire=None, db_post=None, db_create=None, db_update=None,
@@ -113,7 +115,8 @@ def configure(*, db_fire=None, db_post=None, db_create=None, db_update=None,
               knowledge_hot_threshold=None, knowledge_evict_enable=None,
               knowledge_evict_min_access=None, knowledge_evict_ttl_days=None,
               knowledge_evict_max_rows=None, knowledge_evict_batch=None,
-              knowledge_evict_interval_s=None) -> None:
+              knowledge_evict_interval_s=None,
+              knowledge_rag_hybrid=None, knowledge_rag_rerank=None) -> None:
     """Inject server.py runtime helpers, request contextvars and config consts.
 
     Constants are mapped to the EXACT original server-side global names; injected
@@ -134,6 +137,7 @@ def configure(*, db_fire=None, db_post=None, db_create=None, db_update=None,
     global KNOWLEDGE_RANK_AGE, KNOWLEDGE_RECALL_HALFLIFE_DAYS, KNOWLEDGE_HOT_THRESHOLD
     global KNOWLEDGE_EVICT_ENABLE, KNOWLEDGE_EVICT_MIN_ACCESS, KNOWLEDGE_EVICT_TTL_DAYS
     global KNOWLEDGE_EVICT_MAX_ROWS, KNOWLEDGE_EVICT_BATCH, KNOWLEDGE_EVICT_INTERVAL_S
+    global KNOWLEDGE_RAG_HYBRID, KNOWLEDGE_RAG_RERANK
     if db_fire is not None: _db_fire = db_fire
     if db_post is not None: _db_post = db_post
     if db_create is not None: _db_create = db_create
@@ -181,6 +185,8 @@ def configure(*, db_fire=None, db_post=None, db_create=None, db_update=None,
     if knowledge_evict_max_rows is not None: KNOWLEDGE_EVICT_MAX_ROWS = knowledge_evict_max_rows
     if knowledge_evict_batch is not None: KNOWLEDGE_EVICT_BATCH = knowledge_evict_batch
     if knowledge_evict_interval_s is not None: KNOWLEDGE_EVICT_INTERVAL_S = knowledge_evict_interval_s
+    if knowledge_rag_hybrid is not None: KNOWLEDGE_RAG_HYBRID = knowledge_rag_hybrid
+    if knowledge_rag_rerank is not None: KNOWLEDGE_RAG_RERANK = knowledge_rag_rerank
 
 
 def _recall_floor(query: str) -> float:
@@ -431,7 +437,7 @@ async def _store_knowledge_task(q: str, a: str,
         if satisfied is not None:
             row["satisfied"] = satisfied
         if KNOWLEDGE_RECALL_ENABLED:
-            emb = await _embed_one(q)
+            emb = await _embed_one(q, prefix="search_document: ")
             if emb:
                 row["emb"] = emb
                 row["emb_model"] = EMB_MODEL       # WS-A2 embedding-version hygiene
@@ -455,7 +461,7 @@ async def _recall_knowledge_pg(query: str) -> "Optional[str]":
     SurrealDB path on any error (degrade-open). #59 WS-5: scoped to the request
     principal when [pgvector].rls_mode == 'enforce' (else unfiltered)."""
     try:
-        qv = await _embed_one(query)
+        qv = await _embed_one(query, prefix="search_query: ")
         if not qv:
             return None
         # Fetch a CANDIDATE POOL (not just top-K) so the recency-weighted rerank
@@ -466,7 +472,10 @@ async def _recall_knowledge_pg(query: str) -> "Optional[str]":
             k=max(KNOWLEDGE_RECALL_K, KNOWLEDGE_RECALL_CANDIDATES),
             owner=_rls_owner(),  # WS-A15 seam (app-side WHERE-filter, gated by rls_mode)
             rls_owner=_request_principal(),  # T-068 DB-side SET LOCAL (gated in mios_pg by rls_enable)
-            emb_version=EMB_VERSION)  # A3: scope recall to the active embedding space
+            emb_version=EMB_VERSION,  # A3: scope recall to the active embedding space
+            query_text=query,
+            hybrid=KNOWLEDGE_RAG_HYBRID,
+            rerank=KNOWLEDGE_RAG_RERANK)
         if rows is None:
             return None
         _floor = _recall_floor(query)

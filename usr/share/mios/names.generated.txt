@@ -141,6 +141,8 @@ ai.package_registry  MIOS_AI_PACKAGE_REGISTRY
 ai.package_version  MIOS_AI_PACKAGE_VERSION
 ai.pdp_audit_allow  MIOS_AI_PDP_AUDIT_ALLOW
 ai.prompt_shortcut  MIOS_AI_PROMPT_SHORTCUT
+ai.rag_hybrid  MIOS_AI_RAG_HYBRID
+ai.rag_rerank  MIOS_AI_RAG_RERANK
 ai.ram_floor_gb  MIOS_AI_RAM_FLOOR_GB
 ai.remote_escalation  MIOS_AI_REMOTE_ESCALATION
 ai.sglang.bake_model  MIOS_AI_SGLANG_BAKE_MODEL
