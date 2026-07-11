@@ -10045,7 +10045,7 @@ Environment = [
   "NCCL_SOCKET_IFNAME=lo",
   "HOME=/tmp"
 ]
-Exec = "--model /models --served-model-name ${MIOS_VLLM_SERVED_NAME:-mios-heavy} --host 0.0.0.0 --port ${MIOS_PORT_VLLM:-11441} --gpu-memory-utilization ${MIOS_VLLM_GPU_UTIL:-0.45} --max-model-len ${MIOS_VLLM_MAX_MODEL_LEN:-16384} --enable-prefix-caching --enforce-eager --enable-auto-tool-choice --tool-call-parser hermes"
+Exec = "--model /models --served-model-name ${MIOS_VLLM_SERVED_NAME:-mios-heavy} --host 0.0.0.0 --port ${MIOS_PORT_VLLM:-11441} --gpu-memory-utilization ${MIOS_VLLM_GPU_UTIL:-0.45} --max-model-len ${MIOS_VLLM_MAX_MODEL_LEN:-16384} --kv-cache-dtype ${MIOS_VLLM_KV_CACHE_DTYPE:-auto} --enable-prefix-caching --enforce-eager --enable-auto-tool-choice --tool-call-parser ${MIOS_VLLM_TOOL_CALL_PARSER:-hermes}"
 Group = "${MIOS_VLLM_GID:-815}"
 Image = "${MIOS_VLLM_IMAGE:-docker.io/vllm/vllm-openai:latest}"
 Label = [

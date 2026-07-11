@@ -310,6 +310,8 @@ slots = [
     ("ai.vllm.max_model_len",          "MIOS_VLLM_MAX_MODEL_LEN"),
     ("ai.vllm.bake_model",             "MIOS_VLLM_BAKE_MODEL"),
     ("ai.vllm.v1_engine",              "MIOS_VLLM_USE_V1"),
+    ("ai.vllm.kv_cache_dtype",         "MIOS_VLLM_KV_CACHE_DTYPE"),
+    ("ai.vllm.tool_call_parser",       "MIOS_VLLM_TOOL_CALL_PARSER"),
     # SGLang heavy lane
     ("ai.sglang.served_name",          "MIOS_SGLANG_SERVED_NAME"),
     ("ai.sglang.mem_fraction",         "MIOS_SGLANG_MEM_FRACTION"),
@@ -318,6 +320,8 @@ slots = [
     ("ai.sglang.reasoning_parser",     "MIOS_SGLANG_REASONING_PARSER"),
     ("ai.sglang.bake_model",           "MIOS_SGLANG_BAKE_MODEL"),
     ("ai.sglang.unified_radix_tree",   "MIOS_SGLANG_ENABLE_UNIFIED_RADIX_TREE"),
+    ("ai.sglang.kv_cache_dtype",       "MIOS_SGLANG_KV_CACHE_DTYPE"),
+    ("ai.sglang.hierarchical_cache",   "MIOS_SGLANG_ENABLE_HIERARCHICAL_CACHE"),
     # legacy aliases for ports
     ("ports.forge_http",               "MIOS_FORGE_HTTP_PORT"),
     ("ports.forge_ssh",                "MIOS_FORGE_SSH_PORT"),
