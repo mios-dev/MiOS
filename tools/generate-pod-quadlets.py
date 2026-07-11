@@ -27,6 +27,20 @@ import os
 import sys
 import re
 
+_SIDECARS: dict = {}
+
+def _sidecar_image(var_name: str):
+    """Digest-pinned image for a MIOS_<X>_IMAGE var from [image.sidecars] (the
+    digest SSOT), used when the env isn't sourced so bare regeneration renders
+    the SAME @sha256 as a build-time render (fixes Quadlet digest clobber).
+    Returns None for non-image vars or sidecars not in SSOT (keeps literal
+    fallback behaviour for locally-built images like MIOS_FIRECRAWL_IMAGE)."""
+    m = re.match(r'^MIOS_(.+)_IMAGE$', var_name)
+    if not m:
+        return None
+    val = _SIDECARS.get(m.group(1).lower())
+    return val if isinstance(val, str) and val else None
+
 def resolve_env_vars(val: str | bool | list | dict) -> str | bool | list | dict:
     if isinstance(val, list):
         return [resolve_env_vars(x) for x in val]
@@ -41,7 +55,12 @@ def resolve_env_vars(val: str | bool | list | dict) -> str | bool | list | dict:
         fallback = m.group(2)
         if var_name.startswith("MIOS_PORT_"):
             return f"${{{var_name}}}"
-        return os.environ.get(var_name, fallback)
+        if var_name in os.environ:
+            return os.environ[var_name]
+        pinned = _sidecar_image(var_name)
+        if pinned is not None:
+            return pinned
+        return fallback
     val = re.sub(r'\$\{([A-Za-z0-9_]+):-([^}]*)\}', repl_fallback, val)
     
     # 2. Resolve ${VAR}
@@ -49,7 +68,12 @@ def resolve_env_vars(val: str | bool | list | dict) -> str | bool | list | dict:
         var_name = m.group(1)
         if var_name.startswith("MIOS_PORT_"):
             return m.group(0)
-        return os.environ.get(var_name, m.group(0))
+        if var_name in os.environ:
+            return os.environ[var_name]
+        pinned = _sidecar_image(var_name)
+        if pinned is not None:
+            return pinned
+        return m.group(0)
     val = re.sub(r'\$\{([A-Za-z0-9_]+)\}', repl_var, val)
     
     return val
@@ -165,6 +189,15 @@ def load_ports(toml_path: str) -> dict:
     return d.get("ports") or {}
 
 
+def load_sidecars(toml_path: str) -> dict:
+    """[image.sidecars] -- the digest-pinned image SSOT. Consulted by
+    _sidecar_image() so bare (no-userenv) regeneration renders the committed
+    @sha256 instead of the digestless inline fallback (Quadlet digest drift)."""
+    with open(toml_path, "rb") as f:
+        d = tomllib.load(f)
+    return (d.get("image") or {}).get("sidecars") or {}
+
+
 def load_containers(toml_path: str) -> dict:
     with open(toml_path, "rb") as f:
         d = tomllib.load(f)
@@ -236,6 +269,8 @@ def main(argv: "list[str]") -> int:
     if "--selftest" in argv:
         return _selftest()
     check = "--check" in argv
+    global _SIDECARS
+    _SIDECARS = load_sidecars(TOML)
     enabled_map = load_enabled_quadlets(TOML)
     pods = load_pods(TOML)
     ports = load_ports(TOML)

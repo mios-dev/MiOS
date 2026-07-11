@@ -30,7 +30,7 @@ def _cos(a, b):
 _QVEC = {"find on the web": [1.0, 0.0], "": None}
 
 
-def _embed_stub(text):
+def _embed_stub(text, prefix=None):
     async def _inner():
         return _QVEC.get(text, [1.0, 0.0])
     return _inner()
@@ -99,7 +99,7 @@ def test_tool_search_includes_mcp():
 
 def test_tool_search_substring_fallback():
     # embed_one returns None -> substring path over name+desc.
-    def _none(_t):
+    def _none(_t, *args, **kwargs):
         async def _inner():
             return None
         return _inner()
@@ -189,6 +189,26 @@ def test_verb_embed_fingerprint_deterministic_and_stale():
     cat3 = {**cat, "read_file": {"tier": "common", "desc": "read a file slowly"}}
     _reset(catalog=cat3)
     assert ts._verb_embed_fingerprint() != fp1
+
+
+def test_embedding_prefix_hygiene():
+    embedded_calls = []
+
+    async def _embed_tracker(text, prefix=None):
+        embedded_calls.append((text, prefix))
+        return [1.0, 0.0]
+
+    mcp_tools = {"mcp.srv.query": {"namespace": "duckdb_", "tier": "rare",
+                                   "description": "run a SQL query"}}
+    _reset(verb_emb={}, mcp_emb={}, catalog=_CATALOG, mcp_tools=mcp_tools, embed_one=_embed_tracker)
+
+    # 1. Run tool_search_logic (query search)
+    _run(ts.tool_search_logic(query="find on the web"))
+    assert any(prefix == "search_query: " for _, prefix in embedded_calls), embedded_calls
+
+    # 2. Run _mcp_embed_new_tools (document storage)
+    _run(ts._mcp_embed_new_tools())
+    assert any(prefix == "search_document: " for _, prefix in embedded_calls), embedded_calls
 
 
 if __name__ == "__main__":

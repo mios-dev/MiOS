@@ -170,7 +170,7 @@ async def _mcp_embed_new_tools() -> None:
             ex = [str(e).strip() for e in (info.get("examples") or []) if str(e).strip()]
             if ex:
                 txt += "\nExample requests: " + " | ".join(ex)
-            vec = await _embed_one(txt)
+            vec = await _embed_one(txt, prefix="search_document: ")
             if vec:
                 _MCP_EMBEDDINGS[k] = vec
     except Exception:  # noqa: BLE001
@@ -220,7 +220,7 @@ async def _ensure_verb_embeddings() -> None:
                         continue
                     if vname in _VERB_EMBEDDINGS:
                         continue
-                    vec = await _embed_one(_verb_embed_text(vname, vcfg))
+                    vec = await _embed_one(_verb_embed_text(vname, vcfg), prefix="search_document: ")
                     if vec:
                         _VERB_EMBEDDINGS[vname] = vec
                         rebuilt = True
@@ -374,7 +374,7 @@ async def _refresh_app_inventory(force: bool = False) -> None:
             if key in _APP_EMBEDDINGS:
                 continue
             blob = f"{rec.get('name','')}: {rec.get('description','')}".strip()
-            vec = await _embed_one(blob)
+            vec = await _embed_one(blob, prefix="search_document: ")
             if vec:
                 _APP_EMBEDDINGS[key] = {"vec": vec, "record": rec}
                 added += 1
@@ -425,7 +425,7 @@ async def tool_search_logic(query: str = "", limit: int = 5, namespace: str = ""
                 "namespace": ns, "score": sc}
 
     await _ensure_verb_embeddings()
-    qvec = await _embed_one(query)
+    qvec = await _embed_one(query, prefix="search_query: ")
     hits: list[dict] = []
     cap = max(1, min(20, int(limit or 5)))
     
@@ -482,7 +482,7 @@ async def app_search_logic(query: str = "", limit: int = 5) -> JSONResponse:
     if not query.strip():
         return JSONResponse({"hits": [], "error": "empty query"})
     await _refresh_app_inventory()
-    qvec = await _embed_one(query)
+    qvec = await _embed_one(query, prefix="search_query: ")
     hits: list[dict] = []
     if qvec and _APP_EMBEDDINGS:
         scored = [

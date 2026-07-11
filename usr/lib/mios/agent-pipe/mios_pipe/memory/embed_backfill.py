@@ -162,7 +162,9 @@ def get_text_projection(table: str, row: dict) -> Optional[str]:
     return None
 
 
-async def embed_text_with_retry(client: httpx.AsyncClient, text: str, url: str, model: str) -> Optional[list[float]]:
+async def embed_text_with_retry(client: httpx.AsyncClient, text: str, url: str, model: str, prefix: str = "search_document: ") -> Optional[list[float]]:
+    if prefix and not text.startswith(prefix):
+        text = prefix + text
     backoff = 1.0
     for attempt in range(3):
         try:
