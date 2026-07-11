@@ -175,6 +175,31 @@ for env_name, (path, val) in sorted(canonical_exports.items()):
     if val_processed is not None and val_processed != "":
         print(f"export {env_name}={shlex.quote(str(val_processed))}")
 
+# WS-NAME: derive the SHORT consumer aliases (MIOS_VLLM_*/MIOS_SGLANG_*) from the
+# canonical walk instead of hand-listing every ai.<lane>.* tuple. REGULAR keys
+# collapse via a section prefix-rewrite; only genuine key RENAMES stay explicit.
+# Reproduces the former hand-tuples byte-for-byte (names + process_val values).
+SHORT_ALIAS_PREFIX = {            # dotted prefix -> short env prefix
+    "ai.vllm":   "MIOS_VLLM",
+    "ai.sglang": "MIOS_SGLANG",
+}
+SHORT_ALIAS_IRREGULAR = {         # key renamed, not just prefix-dropped
+    "ai.vllm.v1_engine":            "MIOS_VLLM_USE_V1",
+    "ai.sglang.unified_radix_tree": "MIOS_SGLANG_ENABLE_UNIFIED_RADIX_TREE",
+    "ai.sglang.hierarchical_cache": "MIOS_SGLANG_ENABLE_HIERARCHICAL_CACHE",
+}
+for path, env_name, val in all_pairs:
+    alias = SHORT_ALIAS_IRREGULAR.get(path)
+    if alias is None:
+        for pfx, rep in SHORT_ALIAS_PREFIX.items():
+            if path.startswith(pfx + "."):
+                alias = rep + path[len(pfx):].upper().replace(".", "_").replace("-", "_")
+                break
+    if alias:
+        vp = process_val(path, val)
+        if vp is not None and vp != "":
+            print(f"export {alias}={shlex.quote(str(vp))}")
+
 # Print legacy compat exports
 slots = [
     # identity
@@ -304,24 +329,10 @@ slots = [
     ("ai.opencode_gateway_timeout_s",  "MIOS_OPENCODE_TIMEOUT_S"),
     ("ai.agent_venv",                  "MIOS_HERMES_VENV"),
     ("ai.agent_install_dir",           "MIOS_HERMES_DIR"),
-    # vLLM heavy lane
-    ("ai.vllm.served_name",            "MIOS_VLLM_SERVED_NAME"),
-    ("ai.vllm.gpu_util",               "MIOS_VLLM_GPU_UTIL"),
-    ("ai.vllm.max_model_len",          "MIOS_VLLM_MAX_MODEL_LEN"),
-    ("ai.vllm.bake_model",             "MIOS_VLLM_BAKE_MODEL"),
-    ("ai.vllm.v1_engine",              "MIOS_VLLM_USE_V1"),
-    ("ai.vllm.kv_cache_dtype",         "MIOS_VLLM_KV_CACHE_DTYPE"),
-    ("ai.vllm.tool_call_parser",       "MIOS_VLLM_TOOL_CALL_PARSER"),
-    # SGLang heavy lane
-    ("ai.sglang.served_name",          "MIOS_SGLANG_SERVED_NAME"),
-    ("ai.sglang.mem_fraction",         "MIOS_SGLANG_MEM_FRACTION"),
-    ("ai.sglang.max_model_len",        "MIOS_SGLANG_MAX_MODEL_LEN"),
-    ("ai.sglang.tool_parser",          "MIOS_SGLANG_TOOL_PARSER"),
-    ("ai.sglang.reasoning_parser",     "MIOS_SGLANG_REASONING_PARSER"),
-    ("ai.sglang.bake_model",           "MIOS_SGLANG_BAKE_MODEL"),
-    ("ai.sglang.unified_radix_tree",   "MIOS_SGLANG_ENABLE_UNIFIED_RADIX_TREE"),
-    ("ai.sglang.kv_cache_dtype",       "MIOS_SGLANG_KV_CACHE_DTYPE"),
-    ("ai.sglang.hierarchical_cache",   "MIOS_SGLANG_ENABLE_HIERARCHICAL_CACHE"),
+    # vLLM + SGLang heavy-lane short aliases (MIOS_VLLM_*/MIOS_SGLANG_*) are now
+    # derived table-driven from the canonical walk -- see SHORT_ALIAS_* above.
+    # The [ai.vllm]/[ai.sglang] toml keys are unchanged; only these redundant
+    # hand-tuples were removed (WS-NAME collapse).
     # legacy aliases for ports
     ("ports.forge_http",               "MIOS_FORGE_HTTP_PORT"),
     ("ports.forge_ssh",                "MIOS_FORGE_SSH_PORT"),
