@@ -551,11 +551,21 @@ async def scheduler_state_logic() -> JSONResponse:
 
 
 async def health_logic() -> dict[str, Any]:
+    import sys
+    if "/usr/lib/mios" not in sys.path:
+        sys.path.insert(0, "/usr/lib/mios")
+    try:
+        import mios_db_config
+        divergences = mios_db_config.get_divergences()
+    except Exception:
+        divergences = 0
+
     return {
         "status": "ok",
         "version": app.version,
         "backend": BACKEND,
         "backend_model": BACKEND_MODEL,
+        "config_divergences": divergences,
         "router": {
             "enabled": ROUTER_ENABLED,
             "model": ROUTER_MODEL,

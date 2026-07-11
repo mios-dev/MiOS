@@ -17,7 +17,7 @@ Environment=PGDATA=/var/lib/postgresql/data/pgdata
 EnvironmentFile=/etc/mios/install.env
 Exec=postgres -c port=${MIOS_PORT_PGVECTOR} -c listen_addresses=127.0.0.1 -c hnsw.iterative_scan=strict_order -c hnsw.max_scan_tuples=20000 -c hnsw.scan_mem_multiplier=1
 Group=826
-Image=docker.io/pgvector/pgvector:0.8.3-pg17@sha256:be400b50812ab2cc908ed78593fda2e51e3b45fe774fa637f1c7b16e68531d95
+Image=docker.io/pgvector/pgvector:0.8.3-pg17
 Label=org.opencontainers.image.title=mios-pgvector
 Label=org.opencontainers.image.documentation=https://github.com/pgvector/pgvector
 Pod=mios-ai.pod

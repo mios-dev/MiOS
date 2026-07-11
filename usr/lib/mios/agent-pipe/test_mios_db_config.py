@@ -90,5 +90,101 @@ class TestMiosDbConfig(unittest.TestCase):
             if "MIOS_DB_AUTHORITATIVE" in os.environ:
                 del os.environ["MIOS_DB_AUTHORITATIVE"]
 
+    def test_health_logic_divergences(self):
+        class MockApp:
+            version = "test-version"
+        
+        import mios_pipe.kernel.clusterhealth as ch
+        
+        ch.configure(
+            app=MockApp(),
+            BACKEND="http://localhost:8000",
+            BACKEND_MODEL="test-model",
+            ROUTER_ENABLED=False,
+            ROUTER_MODEL="test-router",
+            ROUTER_ENDPOINT="test-ep",
+            PLANNER_ENABLED=False,
+            PLANNER_MODEL="test-planner",
+            PLANNER_ENDPOINT="test-ep",
+            PLANNER_MAX_NODES=3,
+            PLANNER_REFLEXION_CAP=3,
+            DCI_ENABLED=False,
+            DCI_MODEL="test-dci",
+            DCI_ENDPOINT="test-ep",
+            _DCI_ACTS=[],
+            DCI_FLOW_ENABLED=False,
+            DCI_FLOW_R_MAX=3,
+            _DCI_PERSONAS=[],
+            DCI_FLOW_TRIGGER_CONF=0.5,
+            _ALLOWLIST_HOSTS={"localhost", "127.0.0.1"},
+            _HIGH_PRIVILEGE_VERBS={"shell_exec"},
+            _HIGH_PRIVILEGE_CURATED={"shell_exec"},
+            _toml_section=lambda s: {},
+            _TAINT_VERBS={"web_extract"},
+            SKILLS_ENABLED=False,
+            SKILLS_MIN_LENGTH=0,
+            SKILLS_MAX_LENGTH=0,
+            SKILLS_MIN_SUPPORT=0,
+            SKILLS_WINDOW_HOURS=0,
+            SKILLS_AUTO_PROMOTE_THRESHOLD=0,
+            PASSPORT_ENABLE=False,
+            PASSPORT_ALGO="RS256",
+            PASSPORT_AGENT_NAME="test",
+            PASSPORT_KEY_DIR="/test",
+            PASSPORT_VERIFY_ON_READ=False,
+            _passport_load_priv=lambda: None,
+            _passport_kid=lambda: None,
+            REFINE_ENABLED=False,
+            REFINE_MODEL="test",
+            REFINE_ENDPOINT="test",
+            REFINE_BYPASS_CHARS=0,
+            POLISH_ENABLED=False,
+            POLISH_MODEL="test",
+            POLISH_ENDPOINT="test",
+            _AGENT_REGISTRY={},
+            _agent_lane=lambda a: "gpu",
+            LAUNCHER_SOCK="/test.sock",
+            DB_URL="postgresql://test",
+            PORT=8640,
+        )
+        
+        mios_db_config.reset_divergences()
+        
+        with psycopg.connect(self.conn_str) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO config_layer (rank, name)
+                    VALUES (3, 'machine')
+                    ON CONFLICT (rank) DO NOTHING
+                    """
+                )
+                cur.execute(
+                    """
+                    INSERT INTO config_kv (scope, key, value, layer, description)
+                    VALUES ('mcp', 'port', '22222'::jsonb, 3, 'Divergent Test')
+                    ON CONFLICT (scope, key, layer) DO UPDATE SET value = EXCLUDED.value
+                    """
+                )
+            conn.commit()
+            
+        try:
+            os.environ["MIOS_DB_AUTHORITATIVE"] = "False"
+            _ = mios_db_config.get("mcp", "port")
+            
+            import asyncio
+            res = asyncio.run(ch.health_logic())
+            
+            self.assertIn("config_divergences", res)
+            self.assertEqual(res["config_divergences"], mios_db_config.get_divergences())
+            self.assertTrue(res["config_divergences"] > 0)
+        finally:
+            with psycopg.connect(self.conn_str) as conn:
+                with conn.cursor() as cur:
+                    cur.execute("DELETE FROM config_kv WHERE scope = 'mcp' AND key = 'port' AND layer = 3")
+                conn.commit()
+            if "MIOS_DB_AUTHORITATIVE" in os.environ:
+                del os.environ["MIOS_DB_AUTHORITATIVE"]
+
 if __name__ == "__main__":
     unittest.main()

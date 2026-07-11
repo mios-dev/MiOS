@@ -28,6 +28,9 @@ def format_toml_value(val):
     elif isinstance(val, list):
         items = [format_toml_value(x) for x in val]
         return "[" + ", ".join(items) + "]"
+    elif isinstance(val, dict):
+        items = [f"{k} = {format_toml_value(v)}" for k, v in sorted(val.items())]
+        return "{" + ", ".join(items) + "}"
     else:
         return str(val)
 

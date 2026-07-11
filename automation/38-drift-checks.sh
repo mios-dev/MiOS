@@ -2122,6 +2122,333 @@ PY
     fi
 }
 
+# --- (31, WS-VECTOR V1 drift_projection round-trip) --------------------------
+check_drift_projection() {
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "[38-drift-checks]   WARNING: python3 missing -- skipping drift-projection check" >&2
+        return 0
+    fi
+    if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
+import sys
+import os
+import json
+import collections
+import io
+import contextlib
+
+class MockCursor:
+    def __init__(self, db_store):
+        self.db_store = db_store
+        self.results = []
+        self.index = 0
+
+    def execute(self, query, params=None):
+        query_upper = " ".join(query.upper().split())
+        # Parse query and match
+        if "INSERT INTO SYSTEM_CONFIG" in query_upper:
+            pass
+        elif "INSERT INTO PACKAGE_SET" in query_upper:
+            pass
+        elif "INSERT INTO BUILD_PHASE" in query_upper:
+            pass
+        elif "INSERT INTO CONFIG_KV" in query_upper:
+            if len(params) == 1:
+                val_json = params[0]
+                scope = "verbs"
+                key = "_defaults"
+                layer = 0
+            else:
+                scope, key, val_json, desc = params
+                layer = 0
+            self.db_store["config_kv"][(scope, key, layer)] = {
+                "scope": scope,
+                "key": key,
+                "value": json.loads(val_json) if isinstance(val_json, str) else val_json,
+                "layer": layer
+            }
+        elif "INSERT INTO VERB" in query_upper:
+            name, sig, desc, tier, perm, cmd, params_json, section, examples_json, model_name, hidden, aliases_json, conflict_group, parallel_limit, max_result_chars = params
+            self.db_store["verb"][name] = {
+                "name": name,
+                "sig": sig,
+                "desc_default": desc,
+                "tier": tier,
+                "permission": perm,
+                "cmd": cmd,
+                "params": json.loads(params_json) if isinstance(params_json, str) else params_json,
+                "section": section,
+                "examples": json.loads(examples_json) if isinstance(examples_json, str) else examples_json,
+                "model_name": model_name,
+                "hidden": hidden,
+                "aliases": json.loads(aliases_json) if isinstance(aliases_json, str) else aliases_json,
+                "conflict_group": conflict_group,
+                "parallel_limit": parallel_limit,
+                "max_result_chars": max_result_chars
+            }
+        elif "TRUNCATE TABLE DOMAIN_VERB" in query_upper:
+            self.db_store["domain_verb"] = []
+        elif "INSERT INTO DOMAIN_VERB" in query_upper:
+            domain, verb_name, description = params
+            self.db_store["domain_verb"].append({
+                "domain": domain,
+                "verb_name": verb_name,
+                "description": description
+            })
+        elif "SELECT 1 FROM VERB WHERE NAME =" in query_upper:
+            name = params[0]
+            if name in self.db_store["verb"]:
+                self.results = [(1,)]
+            else:
+                self.results = []
+            self.index = 0
+        elif "SELECT SCOPE, KEY, VALUE FROM CONFIG_KV" in query_upper:
+            rows = []
+            for (scope, key, layer), item in sorted(self.db_store["config_kv"].items()):
+                if layer == 0 and scope != 'verbs':
+                    rows.append((scope, key, item["value"]))
+            self.results = rows
+            self.index = 0
+        elif "SELECT DOMAIN, DESCRIPTION, ARRAY_AGG(VERB_NAME" in query_upper or "SELECT DOMAIN, DESCRIPTION, ARRAY_AGG" in query_upper:
+            by_domain = collections.defaultdict(list)
+            descs = {}
+            for item in self.db_store["domain_verb"]:
+                dom = item["domain"]
+                by_domain[dom].append(item["verb_name"])
+                descs[dom] = item["description"]
+            
+            rows = []
+            for dom in sorted(by_domain.keys()):
+                rows.append((dom, descs[dom], sorted(by_domain[dom])))
+            self.results = rows
+            self.index = 0
+        elif "SELECT VALUE FROM CONFIG_KV WHERE SCOPE = 'VERBS' AND KEY = '_DEFAULTS'" in query_upper:
+            item = self.db_store["config_kv"].get(('verbs', '_defaults', 0))
+            if item:
+                self.results = [(item["value"],)]
+            else:
+                self.results = []
+            self.index = 0
+        elif "SELECT NAME, SIG, DESC_DEFAULT, TIER, PERMISSION, CMD, PARAMS" in query_upper:
+            rows = []
+            for name in sorted(self.db_store["verb"].keys()):
+                v = self.db_store["verb"][name]
+                rows.append((
+                    v["name"], v["sig"], v["desc_default"], v["tier"], v["permission"], v["cmd"],
+                    v["params"], v["section"], v["examples"], v["model_name"], v["hidden"],
+                    v["aliases"], v["conflict_group"], v["parallel_limit"], v["max_result_chars"]
+                ))
+            self.results = rows
+            self.index = 0
+
+    def fetchall(self):
+        return self.results
+
+    def fetchone(self):
+        if self.index < len(self.results):
+            r = self.results[self.index]
+            self.index += 1
+            return r
+        return None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+class MockConnection:
+    def __init__(self, db_store):
+        self.db_store = db_store
+
+    def cursor(self):
+        return MockCursor(self.db_store)
+
+    def commit(self):
+        pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+class MockPsycopgModule:
+    def __init__(self, db_store):
+        self.db_store = db_store
+
+    def connect(self, *args, **kwargs):
+        return MockConnection(self.db_store)
+
+def check_roundtrip(root):
+    db_store = {
+        "config_kv": {},
+        "verb": {},
+        "domain_verb": []
+    }
+    mock_psycopg = MockPsycopgModule(db_store)
+    sys.modules["psycopg"] = mock_psycopg
+
+    seed_path = os.path.join(root, "usr/libexec/mios/seed-db-config.py")
+    os.environ["MIOS_TOML"] = os.path.join(root, "usr/share/mios/mios.toml")
+
+    seed_globals = {"__name__": "__main__", "psycopg": mock_psycopg, "__file__": seed_path}
+    try:
+        with open(seed_path, "r", encoding="utf-8") as f:
+            exec(f.read(), seed_globals)
+    except SystemExit as e:
+        if e.code != 0:
+            print(f"Seed script exited with code {e.code}")
+            sys.exit(1)
+
+    materialize_path = os.path.join(root, "usr/libexec/mios/materialize-config-toml.py")
+    mat_globals = {"__name__": "__main__", "psycopg": mock_psycopg, "__file__": materialize_path}
+
+    stdout_capture = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(stdout_capture):
+            with open(materialize_path, "r", encoding="utf-8") as f:
+                exec(f.read(), mat_globals)
+    except SystemExit as e:
+        if e.code != 0:
+            print(f"Materialize script exited with code {e.code}")
+            sys.exit(1)
+
+    materialized_toml_str = stdout_capture.getvalue()
+
+    try:
+        import tomllib
+    except ImportError:
+        try:
+            import tomli as tomllib
+        except ImportError:
+            sys.exit(0)
+
+    with open(os.environ["MIOS_TOML"], "rb") as f:
+        orig_data = tomllib.load(f)
+
+    try:
+        mat_data = tomllib.loads(materialized_toml_str)
+    except Exception as parse_err:
+        print("Materialized TOML parsing failed!")
+        print("Lines 30-70:")
+        lines = materialized_toml_str.splitlines()
+        for i, l in enumerate(lines[29:70]):
+            print(f"{i+30:2d}: {l}")
+        raise parse_err
+
+    # Compare config_kv scopes
+    scopes = ["ports", "ai", "routing", "surrealdb", "pgvector", "a2a", "mcp", "observability", "sandbox", "security", "agent_passport", "agent_pipe"]
+    for scope in scopes:
+        orig_scope = orig_data.get(scope, {})
+        mat_scope = mat_data.get(scope, {})
+        
+        if scope == "routing":
+            orig_keys = {k: v for k, v in orig_scope.items() if k not in ("domains", "nohc_allowlist")}
+            mat_keys = {k: v for k, v in mat_scope.items() if k not in ("domains", "nohc_allowlist")}
+        else:
+            orig_keys = orig_scope
+            mat_keys = mat_scope
+            
+        if orig_keys != mat_keys:
+            print(f"Drift in scope [{scope}]:")
+            print(f"  Expected: {orig_keys}")
+            print(f"  Got:      {mat_keys}")
+            sys.exit(1)
+
+    # Compare routing.domains (normalized)
+    orig_domains = orig_data.get("routing", {}).get("domains", {})
+    mat_domains = mat_data.get("routing", {}).get("domains", {})
+    orig_domains_norm = {
+        dom: {
+            "desc": val.get("desc", ""),
+            "verbs": sorted(val.get("verbs", []))
+        }
+        for dom, val in orig_domains.items()
+    }
+    mat_domains_norm = {
+        dom: {
+            "desc": val.get("desc", ""),
+            "verbs": sorted(val.get("verbs", []))
+        }
+        for dom, val in mat_domains.items()
+    }
+    if orig_domains_norm != mat_domains_norm:
+        print("Drift in routing.domains:")
+        print(f"  Expected: {orig_domains_norm}")
+        print(f"  Got:      {mat_domains_norm}")
+        sys.exit(1)
+
+    # Compare verbs
+    orig_verbs = orig_data.get("verbs", {})
+    mat_verbs = mat_data.get("verbs", {})
+
+    if orig_verbs.get("_defaults") != mat_verbs.get("_defaults"):
+        print("Drift in verbs._defaults:")
+        print(f"  Expected: {orig_verbs.get('_defaults')}")
+        print(f"  Got:      {mat_verbs.get('_defaults')}")
+        sys.exit(1)
+
+    supported_verb_fields = {
+        "sig", "desc", "tier", "permission", "cmd", "params",
+        "section", "examples", "model_name", "hidden", "aliases",
+        "conflict_group", "parallel_limit", "max_result_chars"
+    }
+
+    for vname, orig_vcfg in orig_verbs.items():
+        if vname == "_defaults":
+            continue
+        if vname not in mat_verbs:
+            print(f"Verb '{vname}' missing in materialized output")
+            sys.exit(1)
+            
+        mat_vcfg = mat_verbs[vname]
+        orig_defaults = orig_verbs.get("_defaults", {})
+        mat_defaults = mat_verbs.get("_defaults", {})
+        
+        orig_full = orig_defaults.copy()
+        orig_full.update(orig_vcfg)
+        
+        mat_full = mat_defaults.copy()
+        mat_full.update(mat_vcfg)
+        
+        for key in supported_verb_fields:
+            orig_val = orig_full.get(key)
+            mat_val = mat_full.get(key)
+            
+            if key in ("sig", "desc", "cmd", "section", "model_name", "conflict_group"):
+                if orig_val == "": orig_val = None
+                if mat_val == "": mat_val = None
+            elif key in ("examples", "aliases"):
+                if orig_val == []: orig_val = None
+                if mat_val == []: mat_val = None
+            elif key == "params":
+                if orig_val == {}: orig_val = None
+                if mat_val == {}: mat_val = None
+            elif key == "hidden":
+                orig_val = bool(orig_val)
+                mat_val = bool(mat_val)
+            elif key in ("parallel_limit", "max_result_chars"):
+                orig_val = int(orig_val or 0)
+                mat_val = int(mat_val or 0)
+                
+            if orig_val != mat_val:
+                print(f"Drift in verb '{vname}' field '{key}':")
+                print(f"  Expected: {orig_val}")
+                print(f"  Got:      {mat_val}")
+                sys.exit(1)
+
+    sys.exit(0)
+
+if __name__ == "__main__":
+    check_roundtrip(os.environ["MIOS_DRIFT_ROOT"])
+PY
+    then
+        echo "[38-drift-checks]   (31) DB->TOML materialize round-trip is lossless for config_kv and verbs"
+    else
+        _violation "DB->TOML materialize round-trip drift detected (check 31) -- verify seed-db-config.py and materialize-config-toml.py mappings"
+    fi
+}
+
 main() {
     check_dead_lane
     check_retired_models
@@ -2153,6 +2480,7 @@ main() {
     check_globals_ports
     check_dag_integrity
     check_names_registry
+    check_drift_projection
 
     echo "[38-drift-checks] ---------------------------------------------------------"
     if [[ "$VIOLATIONS" -eq 0 ]]; then
