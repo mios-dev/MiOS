@@ -22,8 +22,11 @@ class TestMiosConfigAudit(unittest.TestCase):
         with psycopg.connect(self.conn_str) as conn:
             with conn.cursor() as cur:
                 cur.execute("DELETE FROM config_kv WHERE scope = 'test_audit_scope'")
+                cur.execute("DELETE FROM config_kv WHERE scope = 'security' AND key = 'default_password'")
                 cur.execute("DELETE FROM verb WHERE name IN ('test_audit_verb_clean', 'test_audit_verb_secret')")
                 cur.execute("DELETE FROM config_event WHERE scope = 'config_kv' AND key LIKE 'test_audit_scope.%'")
+                cur.execute("DELETE FROM config_event WHERE scope = 'config_event' AND key = 'security.default_password'")
+                cur.execute("DELETE FROM config_event WHERE scope = 'config_kv' AND key = 'security.default_password'")
                 cur.execute("DELETE FROM config_event WHERE scope = 'verb' AND key IN ('test_audit_verb_clean', 'test_audit_verb_secret')")
             conn.commit()
 
