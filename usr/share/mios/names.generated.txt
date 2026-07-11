@@ -90,6 +90,7 @@ ai.ask_to_run  MIOS_AI_ASK_TO_RUN
 ai.ask_to_run_ttl_s  MIOS_AI_ASK_TO_RUN_TTL_S
 ai.available_models  MIOS_AI_AVAILABLE_MODELS
 ai.bake_models  MIOS_AI_BAKE_MODELS
+ai.build_catalog_authoritative  MIOS_AI_BUILD_CATALOG_AUTHORITATIVE
 ai.catalog  MIOS_AI_CATALOG
 ai.catalog_fail_mode  MIOS_AI_CATALOG_FAIL_MODE
 ai.db_authoritative  MIOS_AI_DB_AUTHORITATIVE

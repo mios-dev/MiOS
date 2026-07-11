@@ -223,13 +223,29 @@ NON_FATAL_SCRIPTS="
   56-bake-surfer.sh
 "
 
+# Check if build_catalog_authoritative is true
+auth=$(awk '/^[[:space:]]*build_catalog_authoritative[[:space:]]*=/ {
+    if ($0 ~ /=[[:space:]]*true/) print "true"
+}' "$MIOS_TOML" 2>/dev/null || true)
+
 # Count total runnable scripts
 ALL_SCRIPTS=()
-for _s in "$SCRIPT_DIR"/[0-9][0-9]-*.sh; do
-    _n="$(basename "$_s")"
-    echo "$CONTAINERFILE_SCRIPTS" | grep -qF "$_n" && continue
-    ALL_SCRIPTS+=("$_s")
-done
+if [[ "$auth" == "true" && -f "$(dirname "$MIOS_TOML")/build_phases.json" ]]; then
+    # Read scripts from build_phases.json
+    mapfile -t PHASE_SCRIPTS < <(python3 -c "import json, os; d = json.load(open('$(dirname "$MIOS_TOML")/build_phases.json')); [print(os.path.basename(p['script'])) for p in d]" 2>/dev/null)
+    for _n in "${PHASE_SCRIPTS[@]}"; do
+        echo "$CONTAINERFILE_SCRIPTS" | grep -qF "$_n" && continue
+        if [[ -f "$SCRIPT_DIR/$_n" ]]; then
+            ALL_SCRIPTS+=("$SCRIPT_DIR/$_n")
+        fi
+    done
+else
+    for _s in "$SCRIPT_DIR"/[0-9][0-9]-*.sh; do
+        _n="$(basename "$_s")"
+        echo "$CONTAINERFILE_SCRIPTS" | grep -qF "$_n" && continue
+        ALL_SCRIPTS+=("$_s")
+    done
+fi
 TOTAL_SCRIPTS=${#ALL_SCRIPTS[@]}
 
 # ── Header ───────────────────────────────────────────────────────────────────

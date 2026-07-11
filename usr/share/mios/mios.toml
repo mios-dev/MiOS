@@ -5848,6 +5848,9 @@ ask_clarify         = true     # STRUCTURAL clarifications (e.g. the location gu
 # model false-positives on greetings that end with a social question ("how are you?")
 # -> a stray OWUI input dialog. Flip on only with a stronger judge model.
 ask_clarify_judge   = false
+# Gated build catalog authority (V3 Build Catalog): when true, the clean build
+# container materializes package sets and phase order from the seeded DB.
+build_catalog_authoritative = false
 # #62 out-of-process policy arbiter: when set, a high-risk action (tier >=
 # hitl_threshold) is POSTed to this URL ({verb,tier,args}) for an {allow,reason}
 # verdict, on top of the in-process gate above. Empty (default) -> no arbiter, no

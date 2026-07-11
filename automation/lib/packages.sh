@@ -60,6 +60,23 @@ get_packages_from_toml() {
     toml_path="${2:-$(_resolve_mios_toml)}" || return 1
     [[ -f "$toml_path" ]] || return 1
 
+    local auth
+    auth=$(awk '/^[[:space:]]*build_catalog_authoritative[[:space:]]*=/ {
+        if ($0 ~ /=[[:space:]]*true/) print "true"
+    }' "$toml_path" 2>/dev/null)
+
+    if [[ "$auth" == "true" ]]; then
+        local mat_json="$(dirname "$toml_path")/package_sets.json"
+        if [[ -f "$mat_json" ]]; then
+            local pkgs
+            pkgs=$(python3 -c "import json; d = json.load(open('$mat_json')); print(' '.join(next(p['pkgs'] for p in d if p['name'] == '$category')))" 2>/dev/null)
+            if [[ -n "$pkgs" ]]; then
+                echo "$pkgs"
+                return 0
+            fi
+        fi
+    fi
+
     # Tolerant TOML scrape: catches both
     #   [packages.foo]
     #   pkgs = ["a","b"]
