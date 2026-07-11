@@ -177,6 +177,12 @@ except ValueError:
     stack_offset = 0
 
 def process_val(dotted, v):
+    # Canonical value form: TOML booleans emit lowercase true/false, never Python
+    # str(True)="True"/"False". The shell drift-gates + service branches compare
+    # `== "true"` -- a capital True silently defeats them. One edit here normalizes
+    # every bool across BOTH the long walk-print and the short-alias derivation.
+    if isinstance(v, bool):
+        return "true" if v else "false"
     if dotted.startswith("ports.") and dotted != "ports.stack_id":
         try:
             if int(v) != 53:
