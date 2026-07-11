@@ -1,5 +1,6 @@
 # AI-hint: stdlib unit test for mios_db_config resolver (AGY-9).
 # Exercises the DB read path, precedence ordering, TOML fall-back, and shadow-compare divergences.
+# WS-A2 compliance: Sibling test present and free of server.py imports.
 import sys
 import os
 # Ensure /usr/lib/mios and relative path are in python path
