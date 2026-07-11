@@ -207,6 +207,20 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 
 ---
 
+## AGY-26  (RAG quality / research-gap #4+#5, **P1**) — hybrid BM25+vector fusion + cross-encoder rerank on knowledge/RAG
+**Who:** you (Python + SQL). **When:** after AGY-18 (vectors exist). Source: `usr/share/doc/mios/reference/upstream-gaps-2026-07.md` gaps 4+5.
+**What + How:** the RAG recall path (`mios_pipe/memory/pg.py` knowledge/mios_rag queries) does pure dense `<=>` search even though the schema is hybrid-capable and an **RRF helper already exists** (used only for tool selection today). (1) Add **hybrid retrieval**: run the pgvector dense query AND a Postgres FTS/`ts_rank` BM25-style query over the same rows, fuse with **Reciprocal Rank Fusion** (reuse the existing RRF helper), return the fused top-k. (2) Add an optional **cross-encoder reranking** stage over the fused candidates (a local reranker served through the light lane, or a small bge-reranker-v2-m3 / Qwen3-Reranker GGUF via mios-llm-light) — gated (`[ai] rag_rerank`, default false), fail-open to the fused order. Ground-truth stays typed; additive.
+**Where:** `usr/lib/mios/agent-pipe/mios_pipe/memory/pg.py`, the RRF helper's module, `usr/share/mios/mios.toml` (`[ai] rag_hybrid`/`rag_rerank`), `test_mios_*`.
+**Done When:** hybrid recall returns fused dense+lexical results; rerank (when enabled) reorders sanely + fails open; recall quality is not worse than today with flags off; tests + `just drift-gate` green.
+
+## AGY-27  (embedding hygiene / research-gap #6+#7, **P1**) — fix the emb_version space-collision + add EmbeddingGemma task prefixes
+**Who:** you (Python + SQL). **When:** NEXT after AGY-25 — this OVERLAPS AGY-25 finding #2 (unify the emb_version scheme first). Source: gaps 6+7.
+**What + How:** two real embedding-correctness bugs: (a) the served embedding model was swapped **nomic-embed-text → EmbeddingGemma-300m under the SAME served name AND same emb_version**, so two incompatible 768-d vector spaces now collide in one namespace — **bump the emb_version** (a new fingerprint that includes the actual model+revision) so old-space vectors are treated stale and re-embedded, and make backfill + toolsearch agree on that ONE fingerprint (this IS the AGY-25 #2 unification — do them together). (b) EmbeddingGemma REQUIRES task prompt templates (`task: search result | query: …` / document prefixes) — the embed call path (`server.py` embed seam + `embed_backfill.py`) sends **raw text**, degrading recall. Add the EmbeddingGemma query/document prefixes at the embed seam (gated by the active embed model so nomic-only setups are unaffected). Then trigger a one-time full re-embed via the backfill worker.
+**Where:** `usr/lib/mios/agent-pipe/mios_pipe/memory/embed_backfill.py` + `routing/toolsearch.py` (emb_version unify), the embed seam in `server.py`, `usr/share/mios/mios.toml` (embed model/version), `test_mios_backfill.py`.
+**Done When:** old-space vectors are invalidated + re-embedded once (not ping-ponging — see AGY-25 #2); EmbeddingGemma requests carry the task prefixes; nomic path unchanged; recall verified sane; tests + `just drift-gate` green.
+
+---
+
 ### Reporting back
 Commit each task as `agy: <task-id> <summary>` and push to `main`. Claude is monitoring
 `main` for your commits + will integrate/verify. If blocked, leave a `TODO(agy):` note in
