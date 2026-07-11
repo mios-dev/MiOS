@@ -6,6 +6,18 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
+# Source lib/common.sh -> tools/lib/userenv.sh so the generator sees the
+# resolved MIOS_* env. generate-pod-quadlets.py resolves ${VAR:-default} via
+# os.environ.get(VAR, default): WITHOUT these exports it bakes the FALLBACK
+# (e.g. --max-model-len 16384, --kv-cache-dtype auto, --gpu-memory-utilization
+# 0.45) and silently drops the entire [ai.vllm]/[ai.sglang] SSOT config -- the
+# 256k / fp8-KV heavy lane never reaches the built artifact. common.sh's
+# userenv source silently no-ops if the resolver is absent, so sourcing it here
+# is strictly additive: best case the configured serve-flags bake in, worst
+# case (no resolver) behaviour is identical to before. Mirrors 15-render-quadlets.
+# shellcheck source=lib/common.sh
+source "${SCRIPT_DIR}/lib/common.sh"
+
 GEN_SCRIPT="${ROOT}/tools/generate-pod-quadlets.py"
 TOML_FILE="${ROOT}/usr/share/mios/mios.toml"
 OUT_DIR="${ROOT}/usr/share/containers/systemd"
