@@ -1,6 +1,9 @@
 [Unit]
 Description='MiOS' Gateway Agent Service (FastAPI smolagents Engine)
-After=network-online.target mios-pgvector.service mios-ai-firstboot.service
+# R8: NOT ordered After=mios-ai-firstboot.service. The Hermes gateway needs the VENV
+# (baked into the image) + pgvector, NOT the boot-time model fetch; firstboot restarts
+# this unit once models land, so blocking it behind the download only held the plane hostage.
+After=network-online.target mios-pgvector.service
 Wants=network-online.target mios-pgvector.service
 
 [Service]

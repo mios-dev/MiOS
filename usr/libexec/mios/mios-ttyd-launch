@@ -13,7 +13,12 @@ set -euo pipefail
 #
 # Load environment configurations explicitly
 if [[ -r /etc/mios/userenv.sh ]]; then source /etc/mios/userenv.sh; fi
-if [[ -r /etc/mios/install.env ]]; then source /etc/mios/install.env; fi
+if [[ -r /etc/mios/install.env ]]; then
+    # Guard set -u: a value with shell-metachars must not abort under set -u.
+    _mios_had_u=0; case "$-" in *u*) _mios_had_u=1;; esac
+    set +u; set -a; source /etc/mios/install.env 2>/dev/null || true; set +a
+    [ "$_mios_had_u" = 1 ] && set -u
+fi
 #
 # Variant arg picks WHICH ttyd instance to start:
 #   bash       -> port MIOS_PORT_TTYD_BASH (default 7681), runs

@@ -28,7 +28,12 @@ command -v gcc >/dev/null 2>&1 || dnf install -y --setopt=install_weak_deps=Fals
 runuser -u mios-ai -- "$VENV/bin/pip" install --quiet --disable-pip-version-check \
     mcp-server-motherduck postgres-mcp || { echo "pip install failed"; exit 1; }
 
-[ -r /etc/mios/install.env ] && . /etc/mios/install.env || true
+# Guard set -u: a value with shell-metachars must not abort under set -u.
+if [ -r /etc/mios/install.env ]; then
+    _mios_had_u=0; case "$-" in *u*) _mios_had_u=1;; esac
+    set +u; set -a; . /etc/mios/install.env 2>/dev/null || true; set +a
+    [ "$_mios_had_u" = 1 ] && set -u
+fi
 _PGPORT="${MIOS_PORT_PGVECTOR:-8432}"
 
 echo "[3/5] /etc overlay -- enable duckdb + postgres (Postgres uses the EXISTING mios role, restricted/read-only)"

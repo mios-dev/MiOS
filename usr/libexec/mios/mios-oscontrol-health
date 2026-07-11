@@ -11,7 +11,12 @@
 # exit -1 and can't explain it. Read-only, no side effects.
 set -uo pipefail
 
-[ -r /etc/mios/install.env ] && . /etc/mios/install.env || true
+# Guard set -u: a value with shell-metachars must not abort under set -u.
+if [ -r /etc/mios/install.env ]; then
+    _mios_had_u=0; case "$-" in *u*) _mios_had_u=1;; esac
+    set +u; set -a; . /etc/mios/install.env 2>/dev/null || true; set +a
+    [ "$_mios_had_u" = 1 ] && set -u
+fi
 PORT="${MIOS_PORT_OSCONTROL:-${MIOS_OSCONTROL_PORT:-11437}}"
 # WSL2 NAT: the default gateway is the Windows host that runs the in-session executor.
 GW="$(ip route 2>/dev/null | awk '/^default/{print $3; exit}')"

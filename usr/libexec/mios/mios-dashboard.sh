@@ -159,7 +159,10 @@ fi
 MIOS_VERSION=""
 if [[ -r /etc/mios/install.env ]]; then
     # shellcheck disable=SC1091
-    set -a; source /etc/mios/install.env 2>/dev/null || true; set +a
+    # Guard set -u: a value with shell-metachars must not abort under set -u.
+    _mios_had_u=0; case "$-" in *u*) _mios_had_u=1;; esac
+    set +u; set -a; source /etc/mios/install.env 2>/dev/null || true; set +a
+    [ "$_mios_had_u" = 1 ] && set -u
 fi
 # LOGIN account = the DB-driven account SSOT (pgvector), resolved via the
 # shared mios-login-account helper (DB person/account -> live primary human

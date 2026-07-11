@@ -43,7 +43,10 @@ fi
 # script manually with env-vars set inline).
 if [[ -r "$ENV_FILE" ]]; then
     # shellcheck source=/dev/null
-    set -a; source "$ENV_FILE"; set +a
+    # Guard set -u: a value with shell-metachars must not abort under set -u.
+    _mios_had_u=0; case "$-" in *u*) _mios_had_u=1;; esac
+    set +u; set -a; source "$ENV_FILE" 2>/dev/null || true; set +a
+    [ "$_mios_had_u" = 1 ] && set -u
 fi
 
 # Resolution: explicit MIOS_FORGE_* wins; otherwise fall back to the

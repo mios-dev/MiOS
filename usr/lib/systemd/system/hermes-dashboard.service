@@ -3,7 +3,9 @@
 [Unit]
 Description='MiOS' Hermes-Agent Dashboard (kanban board + chat + skills UI)
 Documentation=https://github.com/NousResearch/hermes-agent
-After=network-online.target mios-gateway-agent.service mios-ai-firstboot.service
+# R8: dropped After=mios-ai-firstboot.service -- the dashboard shares the gateway's
+# HERMES_HOME (venv-backed) and does not depend on the boot-time model fetch.
+After=network-online.target mios-gateway-agent.service
 Wants=network-online.target
 # Soft-dep on the gateway; we share its HERMES_HOME, kanban.db, memories,
 # etc. but the dashboard is independent (uses its own FastAPI app on :9119).

@@ -217,6 +217,11 @@ enable mios-wsl-interop-priority.service
 # disables any unit not matched by an 'enable' line -> without these two the AI
 # plane is silently DEAD on first boot (the enable lines were dropped here).
 enable mios-ai-firstboot.service
+# The timer OWNS retry: it re-fires mios-ai-firstboot.service (~10min cadence)
+# until the sentinel lands, so the service degrades open (exit 0) instead of a
+# Restart=on-failure crash-loop that would hold the AI plane hostage behind a
+# multi-GB model download.
+enable mios-ai-firstboot.timer
 enable mios-swarm-pack-firstboot.service
 
 # --- Disabled in favor of uupd ---

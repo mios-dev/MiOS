@@ -49,7 +49,10 @@ fi
 # Source build args from install.env so the rebuild matches the installed identity.
 if [[ -r /etc/mios/install.env ]]; then
     # shellcheck disable=SC1091
-    set -a; source /etc/mios/install.env; set +a
+    # Guard set -u: a value with shell-metachars must not abort under set -u.
+    _mios_had_u=0; case "$-" in *u*) _mios_had_u=1;; esac
+    set +u; set -a; source /etc/mios/install.env 2>/dev/null || true; set +a
+    [ "$_mios_had_u" = 1 ] && set -u
 fi
 
 BUILD_ARGS=()

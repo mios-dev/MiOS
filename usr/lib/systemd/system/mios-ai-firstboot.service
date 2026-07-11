@@ -12,13 +12,17 @@ Wants=network-online.target
 # The script writes the sentinel ONLY when both the venv and the GGUFs are
 # present, so a network-less first boot simply retries on the next one.
 ConditionPathExists=!/var/lib/mios/.ai-firstboot-done
-StartLimitIntervalSec=1200
-StartLimitBurst=6
+# Retry is owned by mios-ai-firstboot.timer (OnBootSec + OnUnitInactiveSec), NOT
+# an in-unit Restart=on-failure / StartLimitBurst storm. The script degrades open
+# (exit 0) on a partial provision, so the unit shows success and the timer simply
+# re-fires it on its cadence until the sentinel above is written.
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-TimeoutStartSec=2400
+# Cap a hung fetch (multi-GB model download) at 10min so it can't wedge the unit
+# forever; the timer re-fires the run afterwards. (Was 2400s.)
+TimeoutStartSec=600
 # The script reads MIOS_LLAMACPP_BAKE_MODELS (the GGUF download spec) +
 # MIOS_AI_* from the env bridge. Without this, a fresh systemd boot has an
 # EMPTY environment -> bake_models reads empty -> "GGUFs not baked" -> the
@@ -27,8 +31,6 @@ TimeoutStartSec=2400
 # install-robustness 2026-06-21.
 EnvironmentFile=-/etc/mios/install.env
 ExecStart=/usr/libexec/mios/mios-ai-firstboot
-Restart=on-failure
-RestartSec=30
 
 [Install]
 WantedBy=multi-user.target

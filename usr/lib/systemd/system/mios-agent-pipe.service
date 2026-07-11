@@ -3,8 +3,19 @@
 [Unit]
 Description='MiOS' Agent Pipe (router + refine + critic FastAPI; fronts hermes for every gateway)
 Documentation=file:///usr/lib/mios/agent-pipe/server.py
-After=network-online.target mios-gateway-agent.service mios-pgvector.service mios-passport-provision.service mios-ai-firstboot.service
+# R8: NOT ordered After=mios-ai-firstboot.service. The plane needs the VENV (baked
+# into the image) + pgvector, NOT the boot-time model fetch; ordering behind
+# firstboot's multi-GB download blocked the router for the whole download. firstboot
+# `systemctl restart --no-block`s this unit once models land, so the edge is redundant.
+After=network-online.target mios-gateway-agent.service mios-pgvector.service mios-passport-provision.service
 Wants=network-online.target mios-gateway-agent.service mios-passport-provision.service
+# R6: the pipe touches pgvector on every route, so upgrade the DB edge from After=
+# (ordering only) to a hard Requires= -- a missing DB should hold/fail the unit.
+Requires=mios-pgvector.service
+# R6: bound the existing Restart=on-failure so a DB-down window (many quick
+# restarts) can't trip the default 5/10s start limit and land permanently failed.
+StartLimitIntervalSec=300
+StartLimitBurst=5
 
 [Service]
 Type=simple

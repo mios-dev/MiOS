@@ -4,7 +4,15 @@
 Description='MiOS' refresh the live system/environment cache (sys_env) in pgvector
 Documentation=file:///usr/libexec/mios/mios-sys-env
 After=mios-pgvector.service
-Wants=mios-pgvector.service
+# R6: hard DB edge -- this unit only exists to UPSERT the sys_env row into
+# pgvector, so a missing DB must hold/fail the unit (Requires=), not be merely
+# preferred (Wants= only ordered). After= keeps the ordering.
+Requires=mios-pgvector.service
+# R6: bound the Restart=on-failure below so a cold-DB retry storm gives up cleanly
+# after 5 tries / 300s instead of hammering (and never landing permanently failed
+# inside the default 5/10s window).
+StartLimitIntervalSec=300
+StartLimitBurst=5
 
 [Service]
 Type=oneshot
@@ -20,7 +28,17 @@ Type=oneshot
 # so MIOS_PORT_PGVECTOR holds the real port; mios-pg-query reads it directly
 # (its own fallback is MIOS_PG_PORT or MIOS_PORT_PGVECTOR or 5432).
 EnvironmentFile=-/etc/mios/install.env
+# R6: real readiness gate -- block ExecStart until pgvector actually answers so a
+# cold DB no longer produces a permanent 'failed' unit. NO `|| true`: this must
+# FAIL (and drive the bounded Restart below) until PG is up. ${MIOS_PORT_PGVECTOR}
+# expands from the EnvironmentFile above; /usr/bin/pg_isready ships with the
+# postgresql client (absolute path -- PATH is not guaranteed in the unit context).
+ExecStartPre=/usr/bin/pg_isready -q -h 127.0.0.1 -p ${MIOS_PORT_PGVECTOR} -U mios -d mios
 ExecStart=/usr/libexec/mios/mios-sys-env refresh
+# R6: on-failure (the only Restart= allowed with Type=oneshot) waits out a cold
+# pgvector; StartLimit* in [Unit] caps the retries.
+Restart=on-failure
+RestartSec=10s
 
 [Install]
 WantedBy=multi-user.target

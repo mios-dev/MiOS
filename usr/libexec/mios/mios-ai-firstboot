@@ -13,15 +13,23 @@
 #      model blobs (the tags come from /usr/share/mios/llamacpp/mios-llm-light.yaml).
 # Then it (re)starts the AI services so they pick up the new prerequisites.
 #
-# The sentinel /var/lib/mios/.ai-firstboot-done is written ONLY when BOTH the
-# venv and the GGUFs are in place, so a network-less boot retries next time
-# (mios-ai-firstboot.service carries ConditionPathExists=!<sentinel>).
+# The sentinel /var/lib/mios/.ai-firstboot-done is written ONLY when the venv,
+# the GGUFs AND (if opted-in) the vLLM weights are all in place; until then the
+# script degrades open (exit 0) and mios-ai-firstboot.timer re-fires it on a
+# ~10min cadence (the .service carries ConditionPathExists=!<sentinel> so the
+# timer-fired run no-ops once complete). Retry is owned by the TIMER, not a
+# Restart=on-failure storm.
 #
 # NO `set -e` -- every step is guarded; a partial provision must not wedge boot.
 set +eu
 log(){ logger -t mios-ai-firstboot "$*" 2>/dev/null; echo "[mios-ai-firstboot] $*"; }
 
-[ -f /etc/mios/install.env ] && . /etc/mios/install.env
+# Guard set -u: a value with shell-metachars must not abort under set -u.
+if [ -f /etc/mios/install.env ]; then
+    _mios_had_u=0; case "$-" in *u*) _mios_had_u=1;; esac
+    set +u; set -a; . /etc/mios/install.env 2>/dev/null || true; set +a
+    [ "$_mios_had_u" = 1 ] && set -u
+fi
 
 VENV=/usr/lib/mios/agents/.venv
 MODELS=/usr/share/mios/llamacpp/models
@@ -436,6 +444,10 @@ if [ -x "${VENV}/bin/hermes" ] && [ "$_ggufs_ok" -eq 1 ] && [ "$_vllm_ok" -eq 1 
     log "complete -- agent venv + GGUFs + vLLM weights provisioned"
     exit 0
 else
-    log "incomplete (venv=$( [ -x "${VENV}/bin/hermes" ] && echo ok || echo missing ) ggufs=$( [ "$_ggufs_ok" -eq 1 ] && echo ok || echo missing ) vllm=$( [ "$_vllm_ok" -eq 1 ] && echo ok || echo missing )) -- exiting with error for systemd retry"
-    exit 1
+    # DEGRADE-OPEN (R8): a partial provision must NOT crash-loop the unit or hold
+    # the AI plane hostage. Log a WARNING and exit 0 so the unit shows success;
+    # the sentinel above is deliberately NOT touched, so mios-ai-firstboot.timer
+    # re-fires this script (~10min cadence) until the venv+GGUFs+vLLM are all in.
+    log "WARNING: incomplete (venv=$( [ -x "${VENV}/bin/hermes" ] && echo ok || echo missing ) ggufs=$( [ "$_ggufs_ok" -eq 1 ] && echo ok || echo missing ) vllm=$( [ "$_vllm_ok" -eq 1 ] && echo ok || echo missing )) -- degrading open (exit 0); mios-ai-firstboot.timer retries until the sentinel lands"
+    exit 0
 fi

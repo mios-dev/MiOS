@@ -5,7 +5,9 @@
 [Unit]
 Description='MiOS' Embedding Backfill Worker
 Documentation=file:///usr/lib/mios/agent-pipe/mios_pipe/memory/embed_backfill.py
-After=mios-pgvector.service mios-llm-light.service mios-agent-pipe.service mios-ai-firstboot.service
+# R8: dropped After=mios-ai-firstboot.service -- the backfill worker needs pgvector
+# + the embedding lane (mios-llm-light), NOT the boot-time model fetch.
+After=mios-pgvector.service mios-llm-light.service mios-agent-pipe.service
 Requires=mios-pgvector.service
 
 [Service]

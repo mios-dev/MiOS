@@ -166,7 +166,12 @@ fi
 # ─── 1. Internal-service URL alias ───────────────────────────────────
 # Ports from SSOT: install.env bridges mios.toml [ports] -> MIOS_PORT_*.
 # Hardcoded literals here silently break when [ports] is renumbered (T-120/T-121).
-[ -r /etc/mios/install.env ] && . /etc/mios/install.env || true
+# Guard set -u: a value with shell-metachars must not abort under set -u.
+if [ -r /etc/mios/install.env ]; then
+    _mios_had_u=0; case "$-" in *u*) _mios_had_u=1;; esac
+    set +u; set -a; . /etc/mios/install.env 2>/dev/null || true; set +a
+    [ "$_mios_had_u" = 1 ] && set -u
+fi
 _PORT_COCKPIT="${MIOS_PORT_COCKPIT:-8090}"
 _PORT_OWUI="${MIOS_PORT_OPEN_WEBUI:-8033}"
 _PORT_HERMES="${MIOS_PORT_HERMES:-8642}"

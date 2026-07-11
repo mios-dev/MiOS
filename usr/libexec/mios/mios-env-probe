@@ -24,7 +24,12 @@ set -euo pipefail
 #   --json       machine-readable
 set -eu
 
-[ -r /etc/mios/install.env ] && . /etc/mios/install.env || true
+# Guard set -u: a value with shell-metachars must not abort under set -u.
+if [ -r /etc/mios/install.env ]; then
+    _mios_had_u=0; case "$-" in *u*) _mios_had_u=1;; esac
+    set +u; set -a; . /etc/mios/install.env 2>/dev/null || true; set +a
+    [ "$_mios_had_u" = 1 ] && set -u
+fi
 _PORT_HERMES="${MIOS_PORT_HERMES:-8642}"
 _PORT_PREFILTER="${MIOS_PORT_PREFILTER:-8641}"
 _PORT_LLM_LIGHT="${MIOS_PORT_LLM_LIGHT:-8450}"

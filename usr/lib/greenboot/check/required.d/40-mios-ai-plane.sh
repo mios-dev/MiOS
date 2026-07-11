@@ -34,7 +34,10 @@ fail() { echo "[mios-greenboot] $*" >&2; }
 # install.env is plain KEY="value"; mirror the firstboot scripts' source idiom.
 if [[ -r "$ENV_FILE" ]]; then
     # shellcheck source=/dev/null
-    set -a; source "$ENV_FILE" 2>/dev/null || true; set +a
+    # Guard set -u: a value with shell-metachars must not abort under set -u.
+    _mios_had_u=0; case "$-" in *u*) _mios_had_u=1;; esac
+    set +u; set -a; source "$ENV_FILE" 2>/dev/null || true; set +a
+    [ "$_mios_had_u" = 1 ] && set -u
 fi
 
 # TCP reachability via bash /dev/tcp -- no nc/curl dependency. `timeout` bounds

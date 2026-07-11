@@ -3,7 +3,9 @@
 [Unit]
 Description='MiOS' OpenCode /v1 gateway (OpenAI adapter fronting the opencode CLI)
 Documentation=file:///usr/lib/mios/agents/opencode-gateway/server.py
-After=network-online.target mios-llm-light.service mios-ai-firstboot.service
+# R8: dropped After=mios-ai-firstboot.service -- the coder gateway rides the venv +
+# the light inference lane (mios-llm-light), NOT the boot-time model fetch.
+After=network-online.target mios-llm-light.service
 Wants=network-online.target mios-llm-light.service
 # Makes [agents.opencode] endpoint :8633/v1 a REAL OpenAI endpoint so
 # agent-pipe's multi-agent fan-out (opencode secondary) + the primary path

@@ -21,7 +21,12 @@ set -u
 # MIOS_PORT_*. Hardcoded literals here silently broke when [ports] was
 # renumbered -- probing a dead :${LLM_LIGHT_PORT} while the lane serves :8450 reported a
 # false "unreachable" (T-120/T-121). Read the SSOT; defaults track [ports].
-[ -r /etc/mios/install.env ] && . /etc/mios/install.env || true
+# Guard set -u: a value with shell-metachars must not abort under set -u.
+if [ -r /etc/mios/install.env ]; then
+    _mios_had_u=0; case "$-" in *u*) _mios_had_u=1;; esac
+    set +u; set -a; . /etc/mios/install.env 2>/dev/null || true; set +a
+    [ "$_mios_had_u" = 1 ] && set -u
+fi
 LLM_LIGHT_PORT="${MIOS_PORT_LLM_LIGHT:-8450}"
 OWUI_PORT="${MIOS_PORT_OPEN_WEBUI:-8033}"
 
