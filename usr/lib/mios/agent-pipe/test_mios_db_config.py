@@ -8,6 +8,7 @@ sys.path.insert(0, "/usr/lib/mios")
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import unittest
+from unittest.mock import patch
 import psycopg
 import mios_db_config
 
@@ -233,6 +234,44 @@ class TestMiosDbConfig(unittest.TestCase):
                 conn.commit()
             if "MIOS_DB_AUTHORITATIVE" in os.environ:
                 del os.environ["MIOS_DB_AUTHORITATIVE"]
+
+    @patch("mios_toml.load_merged")
+    def test_zero_divergence_on_seeded_tree(self, mock_load):
+        import mios_toml
+        import mios_pipe.routing.verbcatalog as vc
+        
+        # Retrieve the clean vendor TOML baseline
+        vendor_data = mios_toml.load_vendor()
+        mock_load.return_value = vendor_data
+        
+        # Reset divergences
+        mios_db_config.reset_divergences()
+        
+        # 1. Test load_merged
+        merged = mios_db_config.load_merged()
+        self.assertIsNotNone(merged)
+        
+        # 2. Test section loading for seeded scopes
+        for sec in ["ai", "mcp", "routing", "recipes", "security"]:
+            sec_val = mios_db_config.section(None, sec)
+            self.assertIsNotNone(sec_val)
+            
+        # 3. Test get keys
+        self.assertEqual(
+            mios_db_config.get("ai", "kernel_dispatch"),
+            vendor_data.get("ai", {}).get("kernel_dispatch")
+        )
+        
+        # 4. Test colors
+        self.assertIsNotNone(mios_db_config.colors())
+        
+        # 5. Test verb catalog shadow compare directly
+        toml_cat = vc._load_verb_catalog()
+        db_cat = vc._load_verb_catalog_from_db()
+        self.assertTrue(vc._compare_catalogs(toml_cat, db_cat))
+        
+        # Ensure 0 divergences detected
+        self.assertEqual(mios_db_config.get_divergences(), 0)
 
 if __name__ == "__main__":
     unittest.main()

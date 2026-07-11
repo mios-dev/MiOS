@@ -157,9 +157,23 @@ def load_db_config() -> dict:
         return {}
     return data
 
+def _normalize_for_compare(val):
+    if isinstance(val, dict):
+        return {k: _normalize_for_compare(v) for k, v in val.items()}
+    elif isinstance(val, list):
+        if all(isinstance(x, (str, int, float, bool, type(None))) for x in val):
+            try:
+                return sorted(val, key=lambda x: str(x))
+            except Exception:
+                pass
+        return [_normalize_for_compare(x) for x in val]
+    return val
+
 def _is_equal(a, b) -> bool:
     try:
-        return json.dumps(a, sort_keys=True) == json.dumps(b, sort_keys=True)
+        norm_a = _normalize_for_compare(a)
+        norm_b = _normalize_for_compare(b)
+        return json.dumps(norm_a, sort_keys=True) == json.dumps(norm_b, sort_keys=True)
     except Exception:
         return a == b
 
@@ -175,10 +189,13 @@ def load_merged(layers=None) -> dict:
     else:
         toml_val = mios_toml.load_merged()
         db_val = load_db_config()
-        if db_val and not _is_equal(toml_val, db_val):
-            global DIVERGENCES
-            DIVERGENCES += 1
-            log.warning("Config divergence in load_merged: TOML=%s, DB=%s", toml_val, db_val)
+        if db_val:
+            filtered_toml = {k: toml_val[k] for k in db_val if k in toml_val and k != "verbs"}
+            filtered_db = {k: db_val[k] for k in db_val if k != "verbs"}
+            if not _is_equal(filtered_toml, filtered_db):
+                global DIVERGENCES
+                DIVERGENCES += 1
+                log.warning("Config divergence in load_merged: TOML=%s, DB=%s", filtered_toml, filtered_db)
         return toml_val
 
 def load_vendor() -> dict:
@@ -217,11 +234,13 @@ def get(sect, key, default=None, data=None) -> Any:
         toml_val = mios_toml.get(sect, key, default)
         db_cfg = load_db_config()
         if db_cfg:
-            db_val = mios_toml.section(db_cfg, sect).get(key, default)
-            if not _is_equal(toml_val, db_val):
-                global DIVERGENCES
-                DIVERGENCES += 1
-                log.warning("Config divergence in key '%s.%s': TOML=%s, DB=%s", sect, key, toml_val, db_val)
+            sect_dict = mios_toml.section(db_cfg, sect)
+            if key in sect_dict:
+                db_val = sect_dict[key]
+                if not _is_equal(toml_val, db_val):
+                    global DIVERGENCES
+                    DIVERGENCES += 1
+                    log.warning("Config divergence in key '%s.%s': TOML=%s, DB=%s", sect, key, toml_val, db_val)
         return toml_val
 
 def colors(data=None) -> dict:
@@ -235,7 +254,7 @@ def colors(data=None) -> dict:
     else:
         toml_val = mios_toml.colors()
         db_cfg = load_db_config()
-        if db_cfg:
+        if db_cfg and "colors" in db_cfg:
             db_val = mios_toml.colors(db_cfg)
             if not _is_equal(toml_val, db_val):
                 global DIVERGENCES

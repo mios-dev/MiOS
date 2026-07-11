@@ -50,8 +50,8 @@ def main():
                 log.info("Connected to database. Starting seeding...")
                 
                 # 1. Seed system_config
-                sections = ["ports", "ai", "routing", "surrealdb", "pgvector", "a2a", "mcp", "observability", "sandbox", "security", "agent_passport", "agent_pipe"]
-                for sec in sections:
+                sys_sections = ["ports", "ai", "routing", "surrealdb", "pgvector", "a2a", "mcp", "observability", "sandbox", "security", "agent_passport", "agent_pipe"]
+                for sec in sys_sections:
                     sec_data = data.get(sec) or {}
                     if not isinstance(sec_data, dict):
                         continue
@@ -82,7 +82,8 @@ def main():
                 )
 
                 # 1c. Seed config_kv (V0 layer foundation)
-                for sec in sections:
+                kv_sections = [k for k in data.keys() if k not in ("verbs", "packages")]
+                for sec in kv_sections:
                     sec_data = data.get(sec) or {}
                     if not isinstance(sec_data, dict):
                         continue

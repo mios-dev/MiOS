@@ -77,3 +77,40 @@ NEW: `verb.emb` (native tool-search, retires the in-process BM25/cosine rebuild)
 Cross-refs: theme-ssot-projection (projection engine + check 25), mios-flatten-consolidation
 (shared `mios_toml.py`, drift-gates 25-28, load-bearing-verb caution). New drift-gates
 land in `automation/38-drift-checks.sh` (29+). Tasks: **T-242–T-247** (V0–V5).
+
+
+## V1 Config read-path Flip & Rollback Runbook
+
+Database authority is designed to be flipped safely and reverted instantly.
+
+### surfaces and sentinel values
+
+The system reads settings from `config_kv`, `verb`, and `domain_verb` when the sentinel is enabled. The sentinel can be controlled in two ways:
+1. **Configuration File:** The `db_authoritative` key under the `[ai]` section in `mios.toml` (or its overlay `/etc/mios/mios.toml`).
+   ```toml
+   [ai]
+   db_authoritative = true
+   ```
+2. **Environment Override:** The `MIOS_DB_AUTHORITATIVE` environment variable (e.g. `MIOS_DB_AUTHORITATIVE=true`). This takes precedence over the TOML setting.
+
+### pre-flip validation
+Before enabling database authority:
+1. Run `just drift-gate` (or verify that unit tests pass) to verify that the seeded database matches the disk configuration.
+2. Check the `/health` or `/v1/cluster/health` observability endpoint. The `config_divergences` metric must be `0`.
+3. Check system logs for any `Config divergence in ...` warning logs.
+
+### promotion (flipping to DB-authoritative)
+1. Add `db_authoritative = true` to the `[ai]` section of `/etc/mios/mios.toml`.
+2. Restart the `mios-agent-pipe` service to load the new config:
+   ```bash
+   sudo systemctl restart mios-agent-pipe
+   ```
+
+### rollback procedure
+If any misbehavior is observed:
+1. Revert `db_authoritative = false` in `/etc/mios/mios.toml` (or delete the line).
+2. Restart the service:
+   ```bash
+   sudo systemctl restart mios-agent-pipe
+   ```
+3. The system will instantly fall back to reading from `mios.toml`, maintaining full service availability.

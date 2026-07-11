@@ -422,6 +422,12 @@ async def cluster_health_logic() -> JSONResponse:
         # runtime) through its getter via sys.modules -- server's re-imported
         # _LANE_RESOLVER alias is a stale None placeholder, not the live singleton.
         _lr = sys.modules["mios_lanes_resolver"]._lane_resolver_current()
+        try:
+            import mios_db_config
+            divergences = mios_db_config.get_divergences()
+        except Exception:
+            divergences = 0
+
         return JSONResponse({
             "object": "mios.cluster.health",
             "mode": _mode,
@@ -444,6 +450,7 @@ async def cluster_health_logic() -> JSONResponse:
             # first resolved -> the resolver is lazily built on first dispatch.
             "lane_resolver": (_lr.snapshot()
                               if _lr is not None else None),
+            "config_divergences": divergences,
             "ts": int(time.time()),
         })
     except Exception as e:  # noqa: BLE001

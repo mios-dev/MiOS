@@ -34,6 +34,13 @@ def format_toml_value(val):
     else:
         return str(val)
 
+def escape_toml_key(k):
+    import re
+    if re.match(r"^[A-Za-z0-9_-]+$", k):
+        return k
+    escaped = k.replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{escaped}"'
+
 def main():
     try:
         import psycopg
@@ -97,7 +104,7 @@ def main():
                         if not printed_section_header:
                             if first_printed:
                                 print("")
-                            print(f"[{scope}]")
+                            print(f"[{escape_toml_key(scope)}]")
                             printed_section_header = True
                             first_printed = True
                         print(f"{k} = {format_toml_value(v)}")
@@ -108,7 +115,7 @@ def main():
                         if isinstance(v, dict):
                             if first_printed:
                                 print("")
-                            print(f"[{scope}.{k}]")
+                            print(f"[{escape_toml_key(scope)}.{escape_toml_key(k)}]")
                             first_printed = True
                             for sub_k in sorted(v.keys()):
                                 print(f"{sub_k} = {format_toml_value(v[sub_k])}")
@@ -126,7 +133,7 @@ def main():
                 for domain, desc, verbs_list in domain_rows:
                     if first_printed:
                         print("")
-                    print(f"[routing.domains.{domain}]")
+                    print(f"[routing.domains.{escape_toml_key(domain)}]")
                     first_printed = True
                     if desc:
                         print(f"desc = {format_toml_value(desc)}")
@@ -169,7 +176,7 @@ def main():
                     
                     if first_printed:
                         print("")
-                    print(f"[verbs.{vname}]")
+                    print(f"[verbs.{escape_toml_key(vname)}]")
                     first_printed = True
                     # Collect keys to print if they differ from default
                     if sig:
@@ -207,7 +214,7 @@ def main():
                     if params:
                         for param_k in sorted(params.keys()):
                             param_v = params[param_k]
-                            print(f"\n  [verbs.{vname}.params.{param_k}]")
+                            print(f"\n  [verbs.{escape_toml_key(vname)}.params.{escape_toml_key(param_k)}]")
                             for pk in sorted(param_v.keys()):
                                 print(f"  {pk} = {format_toml_value(param_v[pk])}")
 
