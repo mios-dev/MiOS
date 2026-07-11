@@ -53,6 +53,26 @@ if [ ! -x "${VENV}/bin/hermes" ]; then
     else
         log "WARN: 38-hermes-agent.sh not found (/, git, /mnt/m) -- agent venv NOT built"
     fi
+    # HARDENING (install-robustness): if the pip build failed or its builder was
+    # absent (air-gapped host / dev-VM overlay where automation/ isn't checked out),
+    # SEED the venv from the deployed OCI image. 38-hermes-agent ran WITH build-time
+    # egress during the OCI build, so localhost/mios:latest ALWAYS carries a working
+    # venv -- extracting it needs NO network. (A bare-metal bootc host already has
+    # the venv baked into its rootfs, so this whole block is skipped there.) Without
+    # this, an offline agent-venv build left mios-agent-pipe/hermes DOWN after every
+    # install -> the operator-reported "outages / must deploy every time".
+    if [ ! -x "${VENV}/bin/hermes" ] && command -v podman >/dev/null 2>&1; then
+        for _img in localhost/mios:latest localhost/mios:day0 "${MIOS_IMAGE_REF:-ghcr.io/mios-dev/mios:latest}"; do
+            podman image exists "$_img" 2>/dev/null || continue
+            log "agent venv build unavailable -- seeding from OCI image ${_img} (offline)"
+            install -d -m 0755 /usr/lib/mios/agents
+            if podman run --rm --entrypoint="" "$_img" tar -C /usr/lib/mios/agents -cf - .venv 2>/dev/null \
+                 | tar -C /usr/lib/mios/agents -xf - 2>/dev/null && [ -x "${VENV}/bin/hermes" ]; then
+                log "agent venv seeded from ${_img}"
+                break
+            fi
+        done
+    fi
     if [ -x "${VENV}/bin/hermes" ]; then log "agent venv ready: ${VENV}"; else log "WARN: agent venv still missing"; fi
 fi
 
