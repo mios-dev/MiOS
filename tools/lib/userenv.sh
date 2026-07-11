@@ -201,16 +201,11 @@ def process_val(dotted, v):
         return ",".join(str(x) for x in v)
     return v
 
-# Print canonical exports
-for env_name, (path, val) in sorted(canonical_exports.items()):
-    val_processed = process_val(path, val)
-    if val_processed is not None and val_processed != "":
-        print(f"export {env_name}={shlex.quote(str(val_processed))}")
-
-# WS-NAME: derive the SHORT consumer aliases (MIOS_VLLM_*/MIOS_SGLANG_*) from the
-# canonical walk instead of hand-listing every ai.<lane>.* tuple. REGULAR keys
+# The SHORT canonical name for the heavy lanes: consumers read MIOS_VLLM_*/
+# MIOS_SGLANG_*, NOT the MIOS_AI_VLLM_*/MIOS_AI_SGLANG_* section-walk long form.
+# Defined BEFORE the walk-print so the print can de-duplicate: a value that has a
+# short alias emits under that ONE name only (no long shadow twin). REGULAR keys
 # collapse via a section prefix-rewrite; only genuine key RENAMES stay explicit.
-# Reproduces the former hand-tuples byte-for-byte (names + process_val values).
 SHORT_ALIAS_PREFIX = {            # dotted prefix -> short env prefix
     "ai.vllm":   "MIOS_VLLM",
     "ai.sglang": "MIOS_SGLANG",
@@ -220,13 +215,28 @@ SHORT_ALIAS_IRREGULAR = {         # key renamed, not just prefix-dropped
     "ai.sglang.unified_radix_tree": "MIOS_SGLANG_ENABLE_UNIFIED_RADIX_TREE",
     "ai.sglang.hierarchical_cache": "MIOS_SGLANG_ENABLE_HIERARCHICAL_CACHE",
 }
+def _alias_for(path):
+    a = SHORT_ALIAS_IRREGULAR.get(path)
+    if a is not None:
+        return a
+    for pfx, rep in SHORT_ALIAS_PREFIX.items():
+        if path.startswith(pfx + "."):
+            return rep + path[len(pfx):].upper().replace(".", "_").replace("-", "_")
+    return None
+
+# Print canonical exports -- ONE name per value. Skip any path that has a short
+# alias (emitted below); the MIOS_AI_VLLM_*/MIOS_AI_SGLANG_* long shadow is never
+# emitted, so nothing carries two separately-managed names for the same value.
+for env_name, (path, val) in sorted(canonical_exports.items()):
+    if _alias_for(path):
+        continue
+    val_processed = process_val(path, val)
+    if val_processed is not None and val_processed != "":
+        print(f"export {env_name}={shlex.quote(str(val_processed))}")
+
+# Emit the short heavy-lane aliases (the single canonical name for those values).
 for path, env_name, val in all_pairs:
-    alias = SHORT_ALIAS_IRREGULAR.get(path)
-    if alias is None:
-        for pfx, rep in SHORT_ALIAS_PREFIX.items():
-            if path.startswith(pfx + "."):
-                alias = rep + path[len(pfx):].upper().replace(".", "_").replace("-", "_")
-                break
+    alias = _alias_for(path)
     if alias:
         vp = process_val(path, val)
         if vp is not None and vp != "":
