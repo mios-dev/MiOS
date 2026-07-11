@@ -2495,6 +2495,26 @@ PY
     fi
 }
 
+check_etc_duplicates() {
+    local etc_dir="$ROOT/etc/containers/systemd"
+    local usr_dir="$ROOT/usr/share/containers/systemd"
+    local hits=""
+    if [[ -d "$etc_dir" ]]; then
+        while IFS= read -r -d '' f; do
+            local base
+            base="$(basename "$f")"
+            if [[ -f "$usr_dir/$base" ]]; then
+                hits+="    $f (shadows $usr_dir/$base)"$'\n'
+            fi
+        done < <(find "$etc_dir" -maxdepth 2 -type f \( -name '*.container' -o -name '*.pod' -o -name '*.network' -o -name '*.volume' \) -print0 2>/dev/null)
+    fi
+    if [[ -n "$hits" ]]; then
+        _violation "Full-unit duplicate(s) found in etc/ containers that shadow usr/share/ generated units (check 34):"$'\n'"$hits"
+    else
+        echo "[38-drift-checks]   (34) no etc/ full-unit duplicate shadows generated usr/share/ containers"
+    fi
+}
+
 # --- (32, WS-VECTOR V3 drift_build_catalog round-trip) -----------------------
 check_drift_build_catalog() {
     if ! command -v python3 >/dev/null 2>&1; then
@@ -2890,6 +2910,7 @@ main() {
     check_drift_projection
     check_drift_build_catalog
     check_canonical_bools
+    check_etc_duplicates
 
     echo "[38-drift-checks] ---------------------------------------------------------"
     if [[ "$VIOLATIONS" -eq 0 ]]; then
