@@ -496,6 +496,7 @@ slots = [
     ("pgvector.listen_loopback",       "MIOS_PG_LISTEN_LOOPBACK"),
     # llamacpp
     ("llamacpp.cpu_node_threads",      "MIOS_CPU_NODE_THREADS"),
+    ("llamacpp.bake_models",           "MIOS_LLAMACPP_BAKE_MODELS"),
     # paths
     ("paths.ai_dir",                   "MIOS_AI_DIR"),
     ("paths.ai_models_dir",            "MIOS_AI_MODELS_DIR"),
