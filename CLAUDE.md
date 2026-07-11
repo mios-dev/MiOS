@@ -62,16 +62,26 @@ cd usr/lib/mios/agent-pipe && python3 test_mios_<name>.py
 ```
 Additional standalone dispatcher/extraction tests live in `tests/` (`test-*.py`, `test-*.sh`) — run each file directly.
 
-## The six architectural laws (enforced by lint + `automation/99-postcheck.sh`)
+## The thirteen architectural laws (v0.3.0 — enforced by `automation/38-drift-checks.sh` offline + `automation/99-postcheck.sh` at bake + `bootc container lint`)
 
-Every change must obey these; a failing law fails the build:
+Every change must obey these; a failing law fails the build. The law list is
+itself an SSOT: `usr/share/mios/mios.toml [laws]` is the canonical registry
+(id/slug/`applies_to`/`enforced_by`), and the Law-6 root exceptions live in
+`[security.privileged_quadlets]` — never hand-maintain a second copy.
 
-1. **USR-OVER-ETC** — static config lives in `/usr/lib/<component>.d/`; `/etc/` is for admin overrides only.
-2. **NO-MKDIR-IN-VAR** — every `/var/` path is declared via `usr/lib/tmpfiles.d/*.conf`, never `mkdir`'d at build time.
-3. **BOUND-IMAGES** — every Quadlet image is symlinked into `/usr/lib/bootc/bound-images.d/` so it ships *with* the host.
-4. **BOOTC-CONTAINER-LINT** — every build ends with `bootc container lint`; fail the lint, fail the build.
-5. **UNIFIED-AI-REDIRECTS** — every agent and tool targets `MIOS_AI_ENDPOINT`. No vendor-hardcoded cloud URLs, no vendor-specific agent/product names in code, docs, or commit messages.
-6. **UNPRIVILEGED-QUADLETS** — every Quadlet declares `User=`, `Group=`, `Delegate=yes`. Documented exceptions only: `mios-ceph`, `mios-k3s`.
+1. **USR-OVER-ETC** — vendor/static config lives under `/usr`: `/usr/lib/<component>.d/`, the `/usr/share/mios/mios.toml` SSOT monolith, and `/usr/lib/mios/mios.d/*.toml` vendor fragments. `/etc` is admin-override-only. The overlay resolves vendor(`/usr`) < host(`/etc`) < user(`~/.config`).
+2. **NO-MKDIR-IN-VAR** — every `/var/` path is declared via `usr/lib/tmpfiles.d/*.conf`, never `mkdir`'d in a numbered image-build step.
+3. **BOUND-IMAGES** — every Quadlet image is symlinked into `/usr/lib/bootc/bound-images.d/` (generated at bake by `08-system-files-overlay.sh`) so it ships *with* the host.
+4. **BOOTC-CONTAINER-LINT** — the **final** instruction of every `Containerfile` is `RUN bootc container lint`; fail the lint, fail the build.
+5. **UNIFIED-AI-REDIRECTS** — every agent and tool targets `MIOS_AI_ENDPOINT`. No vendor cloud URLs, no vendor-specific agent/product names, no retired local lanes (`:11434`) in code, docs, or commits.
+6. **UNPRIVILEGED-QUADLETS** — every Quadlet declares `User=`, `Group=`, `Delegate=yes`. Root (`User=root`/`0`) is allowed **only** for units in `mios.toml [security.privileged_quadlets].root`, each with a justification.
+7. **NO-HARDCODE** — nothing operator-tunable (ports, model names, scoring params, IPs) is a literal; values resolve through the `mios.toml` cascade. No dates/timestamps baked into comments/docstrings.
+8. **SSOT-PROJECTION** — any file *derived* from `mios.toml` is emitted by a generator and guarded by a regenerate-and-diff drift-check; a hand-edited derived surface is a build failure.
+9. **ONE-CANONICAL-NAME** — each `MIOS_*` value carries exactly one canonical name, and every `MIOS_*` a consumer references is emitted by the resolver (referenced ⊆ emitted; `automation/lib/mios_var_closure.py`).
+10. **BARE-SAFE-ENV** — `install.env` is bare `KEY=value` only, safe under all three parsers (systemd `EnvironmentFile=`, bash `source`, podman `--env-file`): no quotes/whitespace/`$`/backtick/`#` in values.
+11. **SECRETS-NEVER-IN-ENV** — password hashes/tokens live only in `/etc/shadow` + `/etc/mios/secrets.env` (0600); never in a group/world-readable env file.
+12. **BAKE-NOT-FETCH** — the image bakes runtime payloads (venv, GGUFs, weights); firstboot seeds from the OCI image and **degrades open** — never blocks boot on egress.
+13. **NATIVE-DROPINS** — layered config resolves as `*.d` fragments with **tier-major** precedence (vendor `/usr/lib/mios/mios.d` < host `/etc/mios/mios.d` < user); a vendor fragment can never outrank a higher tier. The Python (`mios_toml.py`) and bash (`userenv.sh` twins) resolvers must agree.
 
 Quadlets are generated, not hand-edited into final form — see `automation/14-generate-quadlets.sh` and `15-render-quadlets.sh`. Kernel args ship in `usr/lib/bootc/kargs.d/`.
 

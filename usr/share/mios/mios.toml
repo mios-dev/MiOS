@@ -658,6 +658,29 @@ device = "nvidia.com/gpu=all"
 enable = false
 
 # ----------------------------------------------------------------------------
+[laws]
+# The MiOS architectural LAW registry (v0.3.0) -- the SINGLE source of the law
+# list. CLAUDE.md / AGENTS.md / MiOS.md and generate-manual.py document these;
+# 38-drift-checks.sh + 99-postcheck.sh enforce them (a failing law fails the
+# build). This table exists so the id<->slug<->enforcer mapping can never drift
+# across the prose copies again. applies_to = bootc | wsl | both.
+laws = [
+  { id = 1,  slug = "USR-OVER-ETC",         applies_to = "both",  enforced_by = "38-drift-checks.sh:check_usr_over_etc" },
+  { id = 2,  slug = "NO-MKDIR-IN-VAR",       applies_to = "both",  enforced_by = "38-drift-checks.sh:check_no_mkdir_in_var" },
+  { id = 3,  slug = "BOUND-IMAGES",          applies_to = "bootc", enforced_by = "99-postcheck.sh:item14" },
+  { id = 4,  slug = "BOOTC-CONTAINER-LINT",  applies_to = "bootc", enforced_by = "38-drift-checks.sh:check_lint_is_final" },
+  { id = 5,  slug = "UNIFIED-AI-REDIRECTS",  applies_to = "both",  enforced_by = "99-postcheck.sh:item12" },
+  { id = 6,  slug = "UNPRIVILEGED-QUADLETS", applies_to = "bootc", enforced_by = "38-drift-checks.sh:check_quadlet_privilege" },
+  { id = 7,  slug = "NO-HARDCODE",           applies_to = "both",  enforced_by = "38-drift-checks.sh:check_no_hardcode" },
+  { id = 8,  slug = "SSOT-PROJECTION",       applies_to = "both",  enforced_by = "38-drift-checks.sh:check_projection_registry" },
+  { id = 9,  slug = "ONE-CANONICAL-NAME",    applies_to = "both",  enforced_by = "38-drift-checks.sh:check_var_closure" },
+  { id = 10, slug = "BARE-SAFE-ENV",         applies_to = "both",  enforced_by = "99-postcheck.sh:item16" },
+  { id = 11, slug = "SECRETS-NEVER-IN-ENV",  applies_to = "bootc", enforced_by = "99-postcheck.sh:item17" },
+  { id = 12, slug = "BAKE-NOT-FETCH",        applies_to = "both",  enforced_by = "38-drift-checks.sh:check_dag_integrity,check_firstboot_degrade_open" },
+  { id = 13, slug = "NATIVE-DROPINS",        applies_to = "both",  enforced_by = "38-drift-checks.sh:check_resolver_twin_parity" },
+]
+
+# ----------------------------------------------------------------------------
 [security]
 # Phase B.3 of the AgentOS roadmap: TOML-driven Semantic Firewall
 # allowlist. Hosts in this list are TRUSTED -- open_url to one of
@@ -689,6 +712,28 @@ allowlist_hosts = [
 # autonomous function, so the operator opts in. LOCAL rag/recall are NOT tainted
 # (RAG runs every turn -> tainting it would block all OS-control).
 provenance_taint = false
+
+[security.privileged_quadlets]
+# Law 6 (UNPRIVILEGED-QUADLETS) documented root exceptions -- the ONLY place root
+# is granted. A Quadlet with User=root/User=0 that is NOT listed here fails
+# check_quadlet_privilege (38-drift-checks.sh) / postcheck item 13. Keep this in
+# sync with the tree: `grep -rlE '^User=(root|0)$' usr/share/containers/systemd/`.
+root = [
+  "mios-ceph.container",                    # Ceph OSD/MON -- uid 0 for block devices
+  "mios-k3s.container",                     # k3s server -- uid 0 (CNI, kubelet mounts)
+  "mios-forge.container",                   # Forgejo data bootstrap as 0
+  "mios-forgejo-runner.container",          # CI runner (DinD / --privileged)
+  "mios-pxe-hub.container",                 # PXE/TFTP/DHCP -- privileged net
+  "mios-webtools-crawl4ai.container",       # webtools pod -- upstream image runs as 0
+  "mios-webtools-firecrawl-api.container",  # webtools pod -- upstream image runs as 0
+  "mios-webtools-firecrawl-worker.container",
+  "mios-webtools-redis.container",          # webtools pod -- upstream image runs as 0
+  "mios-coderun-sandbox@.container",        # user-scope sandbox -- Network=none + ReadOnly + DropCapability=ALL
+]
+# Units legitimately without Group=/Delegate=yes (Law 6 exempt from those two keys only).
+no_group_delegate = [
+  "mios-coderun-sandbox@.container",        # UserNS=keep-id user unit -- Delegate n/a
+]
 
 [security.nohc_allowlist]
 # SSOT Allowlist for legitimate exceptions to the ports/IPs hardcode check (T-125).
