@@ -10118,7 +10118,15 @@ RestartSec = "10s"
 TimeoutStartSec = "180s"
 
 [containers.mios-llm-light.Unit]
-After = "network-online.target"
+# After mios-cdi-detect.service: the PRIMARY always-on lane hardcodes
+# AddDevice=${MIOS_GPU_DEVICE:-nvidia.com/gpu=all}, but mios-gpu-passthrough
+# (cdi-detect ExecStartPost) RESETS that list + re-adds only the vendor whose
+# CDI spec is actually present. Ordering after cdi-detect guarantees the drop-in
+# + daemon-reload land BEFORE llm-light starts, so a host with no/undetected
+# NVIDIA GPU starts CPU-only instead of podman hard-failing on an absent
+# nvidia.com/gpu device (which was failing the whole install on GPU-less/
+# undetected-dGPU hosts). Mirrors mios-llm-heavy/worker@. Hardware-agnostic.
+After = "network-online.target mios-cdi-detect.service"
 ConditionPathExists = "/usr/share/mios/llamacpp/models/.ready"
 Description = "'MiOS' LLM-Light (llama.cpp multi-model + KV-paging lane, served via the upstream llama-swap proxy, FOSS)"
 Wants = "network-online.target"

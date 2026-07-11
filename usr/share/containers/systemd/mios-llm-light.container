@@ -2,7 +2,7 @@
 # /usr/share/containers/systemd/mios-llm-light.container
 
 [Unit]
-After=network-online.target
+After=network-online.target mios-cdi-detect.service
 ConditionPathExists=/usr/share/mios/llamacpp/models/.ready
 Description='MiOS' LLM-Light (llama.cpp multi-model + KV-paging lane, served via the upstream llama-swap proxy, FOSS)
 Wants=network-online.target
@@ -21,7 +21,7 @@ HealthInterval=30s
 HealthRetries=3
 HealthStartPeriod=60s
 HealthTimeout=10s
-Image=ghcr.io/mostlygeek/llama-swap:cuda@sha256:1fd71f3766de94413616f264bb5c01d741829d7bb40d2cec663e3344bcdddd56
+Image=ghcr.io/mostlygeek/llama-swap:cuda
 Label=org.opencontainers.image.title=mios-llm-light
 Label=org.opencontainers.image.documentation=https://github.com/mostlygeek/llama-swap
 Pod=mios-ai.pod
