@@ -1,8 +1,40 @@
-<!-- AI-HINT: Heavy-lane model selection for the shared 24GB RTX 4090 (2026-07). Decides MIOS_VLLM_BAKE_MODEL from a 14-candidate research pass. RECOMMENDATION: openai/gpt-oss-20b (native MXFP4, first-party repo, only strong candidate that actually reaches the 128k mandate co-tenanted on a shared card). Runner-up: Qwen/Qwen3-14B-AWQ. Family-diverse alt honoring the SSOT intent: cyankiwi/Magistral-Small-2509-AWQ-4bit (Mistral, compressed-tensors W4A16 — NOT classic AutoAWQ). Every hf_repo below is grounded in the research JSON; do NOT invent repo ids. The SSOT still names Magistral 2509 — this doc argues gpt-oss wins on the 128k+trust axes and should carry the bake; keep Magistral as the diversity/SSOT-honoring alt. -->
+<!-- AI-HINT: Heavy-lane model selection for the shared 24GB RTX 4090 (2026-07). Decides MIOS_VLLM_BAKE_MODEL from a 14-candidate research pass. OPERATOR DECISION 2026-07-10: stelterlab/Qwen3-30B-A3B-Instruct-2507-AWQ @ 256k (see the DECISION section at top). Workflow had recommended openai/gpt-oss-20b (native MXFP4, first-party repo, only strong candidate that actually reaches the 128k mandate co-tenanted on a shared card) -- kept below as superseded. Runner-up: Qwen/Qwen3-14B-AWQ. Family-diverse alt honoring the SSOT intent: cyankiwi/Magistral-Small-2509-AWQ-4bit (Mistral, compressed-tensors W4A16 — NOT classic AutoAWQ). Every hf_repo below is grounded in the research JSON; do NOT invent repo ids. The SSOT still names Magistral 2509 — this doc argues gpt-oss wins on the 128k+trust axes and should carry the bake; keep Magistral as the diversity/SSOT-honoring alt. -->
 
 # Heavy-lane model selection — shared 24GB RTX 4090 (2026-07)
 
-**Decision:** set `MIOS_VLLM_BAKE_MODEL = openai/gpt-oss-20b` for the shared heavy lane.
+## ✅ OPERATOR DECISION (2026-07-10) — Qwen3-30B-A3B-Instruct-2507-AWQ @ 256k
+
+**Chosen:** `MIOS_VLLM_BAKE_MODEL = stelterlab/Qwen3-30B-A3B-Instruct-2507-AWQ` — Qwen3-30B-A3B-Instruct-2507
+(MoE 30.5B-total / **3.3B-active**, **262144 native context**), INT4 **AWQ via vllm-project
+`llm-compressor`** (~16GB, compressed-tensors format). Operator chose the **newest fittable MoE**
+over the workflow's gpt-oss-20b pick, and wants the **full 256k**. Instruct = **non-thinking**
+(fast agentic + tool-use); swap `Qwen/Qwen3-30B-A3B-Thinking-2507` for CoT reasoning.
+
+**Recency (live-verified 2026-07-10):** the newest *frontier* (DeepSeek V4 Pro, Qwen 3.7 Max,
+Qwen3-235B-A22B, Mistral Large 3) is **too large for a 24GB card** even at 4-bit — those are
+big-GPU/API class. Among 24GB-fittable options the current MoE picks are Qwen3-30B-A3B-2507,
+Qwen3.6-35B-A3B (newer but tighter fit), and gpt-oss-20b (roomier fit, but caps at 128k). So the
+chosen model is the freshest that actually fits the hardware at the requested 256k.
+
+**256k on a shared 24GB card — the honest mechanism:** a ~16GB 4-bit model leaves only ~4–8GB
+of VRAM KV. A single 256k sequence needs ~12GB KV even at fp8 — more than fits. So **256k rides
+the SGLang lane** (`[ai.sglang]`), whose **HiCache spills inactive KV to CPU RAM** + fp8 KV to
+reach the full 262144. The **vLLM lane** (`[ai.vllm]`) carries the same model but PagedAttention
+admits only as much as its ~4GB fp8-KV budget holds (well short of 256k) — use vLLM for
+throughput at moderate context, SGLang for the 256k long-context turns.
+
+**Config applied (commit 06c5f231, mios.toml):** both lanes `bake_model` + `max_model_len=262144`
++ `kv_cache_dtype=fp8`; vLLM `gpu_util=0.85 / quantization=compressed-tensors / tool_call_parser=hermes
+/ v1_engine=true`; SGLang `mem_fraction=0.85 / hierarchical_cache=true / tool_parser=qwen25 /
+reasoning_parser="" (Instruct)`. **Follow-up:** wire `--kv-cache-dtype`/`--quantization`/`--tool-call-parser`
+into the heavy `.container` Exec + `MIOS_VLLM_*`/`MIOS_SGLANG_*` userenv mapping, then live-validate
+on the GPU before enabling the lane.
+
+---
+
+## Workflow recommendation (superseded by the operator decision above)
+
+**Recommendation:** set `MIOS_VLLM_BAKE_MODEL = openai/gpt-oss-20b` for the shared heavy lane.
 
 **Context / constraints weighed:** single co-tenanted 24GB RTX 4090 (Windows + Granite 4.1
 light lane also resident) · 128k context mandate with **fp8 KV cache** · reasoning +
