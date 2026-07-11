@@ -435,6 +435,16 @@ def _selftest() -> int:
     ck("selftest nested: Unit section before Container", tc.index("[Unit]") < tc.index("[Container]"))
     ck("selftest nested: trailing newline", tc.endswith("\n"))
 
+    # Digest non-determinism guard: on env-miss, an Image fallback must resolve to
+    # the [image.sidecars] digest-pinned value, NOT the digestless inline default.
+    global _SIDECARS
+    _SIDECARS = {"pgvector": "docker.io/pgvector/pgvector:0.8.3-pg17@sha256:deadbeef"}
+    os.environ.pop("MIOS_PGVECTOR_IMAGE", None)
+    img_spec = {"Container": {"Image": "${MIOS_PGVECTOR_IMAGE:-docker.io/pgvector/pgvector:0.8.3-pg17}"}}
+    ic = render_nested_quadlet("mios-pgvector", img_spec, "container")
+    ck("selftest: bare-env resolves digest from [image.sidecars]", "@sha256:deadbeef" in ic)
+    _SIDECARS = {}
+
     print(f"\n{'ok' if fails == 0 else str(fails) + ' FAILED'}")
     return 1 if fails else 0
 
