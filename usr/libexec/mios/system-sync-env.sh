@@ -16,10 +16,19 @@
 #
 # This CLI is the bridge: edit mios.toml (via /usr/share/mios/
 # configurator/mios.html or your editor of choice), then run
-# 'mios-sync-env' to refresh install.env. Idempotent; preserves
-# secret fields the user can't put in mios.toml (e.g.
-# MIOS_USER_PASSWORD_HASH, MIOS_FORGE_ADMIN_PASSWORD) by reading the
-# previous install.env and re-emitting them verbatim.
+# 'mios-sync-env' to refresh install.env. Idempotent.
+#
+# SECRETS ARE NEVER WRITTEN HERE. The operator password hash lives in
+# /etc/shadow (baked via `chpasswd -e` in automation/31-user.sh) and in
+# /etc/mios/secrets.env (0600); Forge admin password + GitHub token also
+# live in secrets.env. install.env carries ONLY non-secret tunables.
+# Rationale: install.env is read by THREE parsers with incompatible
+# quoting rules -- systemd EnvironmentFile= (no $-expansion, strips outer
+# quotes), bash `.`-source (word-splits + set -u expands $6), and podman
+# --env-file (does NOT strip quotes). The only serialization safe under
+# all three is BARE `KEY=value` with no shell-metachar/whitespace values.
+# A `$`-bearing secret (the sha512 hash `$6$salt$digest`) cannot be
+# represented safely here at all -- so it is evicted, not quoted.
 #
 # Output: /etc/mios/install.env, mode 0640, owned root:root. Requires
 # sudo because /etc/mios/ is system config (FHS).
@@ -58,19 +67,22 @@ fi
 # shellcheck disable=SC1090
 . "$RESOLVER"
 
-# Preserve secret fields from the previous install.env if it exists
-# (mios.toml does NOT contain secrets; those flow in via the bootstrap
-# Phase-7 prompt and never round-trip through the dotfile).
-PREV_PWHASH=""
-PREV_FORGE_PW=""
-PREV_GHCR_TOKEN=""
-if [[ -r "$OUT" ]]; then
-    # shellcheck disable=SC1091
-    set +u; . <(grep -E '^MIOS_(USER_PASSWORD_HASH|FORGE_ADMIN_PASSWORD|GITHUB_TOKEN)=' "$OUT" || true); set -u
-    PREV_PWHASH="${MIOS_USER_PASSWORD_HASH:-}"
-    PREV_FORGE_PW="${MIOS_FORGE_ADMIN_PASSWORD:-}"
-    PREV_GHCR_TOKEN="${MIOS_GITHUB_TOKEN:-}"
-fi
+# emit KEY VALUE -- write ONE bare `KEY=value` line, the only form safe
+# under all three consumers of install.env (see header): systemd
+# EnvironmentFile=, bash `.`-source, and podman --env-file. Reject values
+# that cannot be represented bare -- whitespace (bash word-splits),
+# double/single quote, `$`, backtick, `#` (mis-parse/expand). Such values
+# do not belong in a tri-parser flat env file (secrets -> secrets.env;
+# free-text/multi-line -> read from mios.toml directly). install-robustness.
+_ENV_UNSAFE='[[:space:]"'"'"'$`#]'
+emit() {
+    local _k="$1" _v="$2"
+    if [[ "$_v" =~ $_ENV_UNSAFE ]]; then
+        printf 'mios-sync-env: WARN skip %s (value unsafe for a bare env file)\n' "$_k" >&2
+        return 0
+    fi
+    printf '%s=%s\n' "$_k" "$_v"
+}
 
 # Render the new install.env. Order matches what wsl-firstboot,
 # forge-firstboot, and 37-ollama-prep.sh expect.
@@ -80,10 +92,10 @@ generate_env() {
 # /etc/mios/install.env -- DERIVED from mios.toml by mios-sync-env.
 # Edit mios.toml (or use /usr/share/mios/configurator/mios.html), then
 # run 'sudo mios-sync-env' to refresh this file. Manual edits here are
-# overwritten on the next sync. Secrets (MIOS_USER_PASSWORD_HASH,
-# MIOS_FORGE_ADMIN_PASSWORD, MIOS_GITHUB_TOKEN) are preserved verbatim
-# from the previous install.env -- they are never round-tripped
-# through mios.toml.
+# overwritten on the next sync. This file holds ONLY non-secret tunables
+# as bare KEY=value lines. Secrets (MIOS_USER_PASSWORD_HASH,
+# MIOS_FORGE_ADMIN_PASSWORD, MIOS_GITHUB_TOKEN) are NOT here -- they live
+# in /etc/shadow and /etc/mios/secrets.env (0600).
 #
 # Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 # Source layers (highest precedence first):
@@ -100,15 +112,15 @@ EOF
     echo ""
 
     # Identity
-    echo "MIOS_USER=\"${MIOS_USER:-mios}\""
-    echo "MIOS_HOSTNAME=\"${MIOS_HOSTNAME:-mios}\""
-    [[ -n "${MIOS_USER_FULLNAME:-}" ]] && echo "MIOS_USER_FULLNAME=\"${MIOS_USER_FULLNAME}\""
-    [[ -n "${MIOS_USER_GROUPS:-}" ]]   && echo "MIOS_USER_GROUPS=\"${MIOS_USER_GROUPS}\""
+    emit MIOS_USER "${MIOS_USER:-mios}"
+    emit MIOS_HOSTNAME "${MIOS_HOSTNAME:-mios}"
+    [[ -n "${MIOS_USER_FULLNAME:-}" ]] && emit MIOS_USER_FULLNAME "${MIOS_USER_FULLNAME}"
+    [[ -n "${MIOS_USER_GROUPS:-}" ]]   && emit MIOS_USER_GROUPS "${MIOS_USER_GROUPS}"
     # Global default password. Every MiOS service (Hermes Workspace,
     # Forge admin, etc.) reads this as its default login credential
     # unless the operator overrides per-service. Vendor default is
     # "mios"; override in /etc/mios/mios.toml [identity].default_password.
-    echo "MIOS_DEFAULT_PASSWORD=\"${MIOS_DEFAULT_PASSWORD:-mios}\""
+    emit MIOS_DEFAULT_PASSWORD "${MIOS_DEFAULT_PASSWORD:-mios}"
 
     # AI surface (Architectural Law 5: UNIFIED-AI-REDIRECTS). The resolver
     # (userenv.sh) populates these from the layered mios.toml; prefer the
@@ -119,9 +131,9 @@ EOF
     #               Hermes :8642 is now a LEAF the pipe calls, NOT the client surface.)
     # model -> [ai].model = granite4.1:8b (fleet; ollama-era
     #               qwen3.5:2b was a dropped model -> a stale/unservable default)
-    echo "MIOS_AI_ENDPOINT=\"${MIOS_AI_ENDPOINT:-http://localhost:8640/v1}\""
-    echo "MIOS_AI_MODEL=\"${MIOS_AI_MODEL:-granite4.1:8b}\""
-    echo "MIOS_AI_EMBED_MODEL=\"${MIOS_AI_EMBED_MODEL:-nomic-embed-text}\""
+    emit MIOS_AI_ENDPOINT "${MIOS_AI_ENDPOINT:-http://localhost:8640/v1}"
+    emit MIOS_AI_MODEL "${MIOS_AI_MODEL:-granite4.1:8b}"
+    emit MIOS_AI_EMBED_MODEL "${MIOS_AI_EMBED_MODEL:-nomic-embed-text}"
     # Inference backend the agents forward to (mios-llm-light front; ollama
     # :11434 retired G5). Derived from the resolver's MIOS_HERMES_BACKEND_URL
     # ([ai].hermes_backend_url, e.g. http://localhost:11450/v1) so MIOS_AI_BACKEND
@@ -129,49 +141,49 @@ EOF
     # consumers that append their own path get a clean host:port base.
     _ai_backend="${MIOS_AI_BACKEND:-${MIOS_HERMES_BACKEND_URL:-}}"
     _ai_backend="${_ai_backend%/v1}"
-    [[ -n "$_ai_backend" ]] && echo "MIOS_AI_BACKEND=\"${_ai_backend}\""
+    [[ -n "$_ai_backend" ]] && emit MIOS_AI_BACKEND "${_ai_backend}"
 
     # llama.cpp light lane ([llamacpp] -> MIOS_LLAMACPP_*). All resolver-
     # populated; emit only the values the resolver actually produced (no
     # hardcoded literals). BAKE_MODELS feeds 38-llamacpp-prep.sh + the
     # mios-ai-firstboot online GGUF retry.
-    [[ -n "${MIOS_LLAMACPP_ENABLE:-}" ]]      && echo "MIOS_LLAMACPP_ENABLE=\"${MIOS_LLAMACPP_ENABLE}\""
-    [[ -n "${MIOS_LLAMACPP_SLOT_DIR:-}" ]]    && echo "MIOS_LLAMACPP_SLOT_DIR=\"${MIOS_LLAMACPP_SLOT_DIR}\""
-    [[ -n "${MIOS_LLAMACPP_MODELS_DIR:-}" ]]  && echo "MIOS_LLAMACPP_MODELS_DIR=\"${MIOS_LLAMACPP_MODELS_DIR}\""
-    [[ -n "${MIOS_LLAMACPP_CONFIG:-}" ]]      && echo "MIOS_LLAMACPP_CONFIG=\"${MIOS_LLAMACPP_CONFIG}\""
-    [[ -n "${MIOS_LLAMACPP_BAKE_MODELS:-}" ]] && echo "MIOS_LLAMACPP_BAKE_MODELS=\"${MIOS_LLAMACPP_BAKE_MODELS}\""
-    [[ -n "${MIOS_VLLM_BAKE_MODEL:-}" ]]      && echo "MIOS_VLLM_BAKE_MODEL=\"${MIOS_VLLM_BAKE_MODEL}\""
+    [[ -n "${MIOS_LLAMACPP_ENABLE:-}" ]]      && emit MIOS_LLAMACPP_ENABLE "${MIOS_LLAMACPP_ENABLE}"
+    [[ -n "${MIOS_LLAMACPP_SLOT_DIR:-}" ]]    && emit MIOS_LLAMACPP_SLOT_DIR "${MIOS_LLAMACPP_SLOT_DIR}"
+    [[ -n "${MIOS_LLAMACPP_MODELS_DIR:-}" ]]  && emit MIOS_LLAMACPP_MODELS_DIR "${MIOS_LLAMACPP_MODELS_DIR}"
+    [[ -n "${MIOS_LLAMACPP_CONFIG:-}" ]]      && emit MIOS_LLAMACPP_CONFIG "${MIOS_LLAMACPP_CONFIG}"
+    [[ -n "${MIOS_LLAMACPP_BAKE_MODELS:-}" ]] && emit MIOS_LLAMACPP_BAKE_MODELS "${MIOS_LLAMACPP_BAKE_MODELS}"
+    [[ -n "${MIOS_VLLM_BAKE_MODEL:-}" ]]      && emit MIOS_VLLM_BAKE_MODEL "${MIOS_VLLM_BAKE_MODEL}"
 
     # Part 10: Converged-Resource Architecture (MIOS_CONV_*)
-    [[ -n "${MIOS_CONV_GATEWAY_MODE:-}" ]]                  && echo "MIOS_CONV_GATEWAY_MODE=\"${MIOS_CONV_GATEWAY_MODE}\""
-    [[ -n "${MIOS_CONV_GATEWAY_QUEUE_MAXSIZE:-}" ]]         && echo "MIOS_CONV_GATEWAY_QUEUE_MAXSIZE=\"${MIOS_CONV_GATEWAY_QUEUE_MAXSIZE}\""
-    [[ -n "${MIOS_CONV_GATEWAY_WORKER_CONCURRENCY:-}" ]]    && echo "MIOS_CONV_GATEWAY_WORKER_CONCURRENCY=\"${MIOS_CONV_GATEWAY_WORKER_CONCURRENCY}\""
-    [[ -n "${MIOS_CONV_INFERENCE_HEAVY_ENGINE_MODE:-}" ]]   && echo "MIOS_CONV_INFERENCE_HEAVY_ENGINE_MODE=\"${MIOS_CONV_INFERENCE_HEAVY_ENGINE_MODE}\""
-    [[ -n "${MIOS_CONV_INFERENCE_VLLM_LORA_ADAPTERS_DIR:-}" ]] && echo "MIOS_CONV_INFERENCE_VLLM_LORA_ADAPTERS_DIR=\"${MIOS_CONV_INFERENCE_VLLM_LORA_ADAPTERS_DIR}\""
-    [[ -n "${MIOS_CONV_INFERENCE_VLLM_ALLOW_RUNTIME_LORA:-}" ]] && echo "MIOS_CONV_INFERENCE_VLLM_ALLOW_RUNTIME_LORA=\"${MIOS_CONV_INFERENCE_VLLM_ALLOW_RUNTIME_LORA}\""
-    [[ -n "${MIOS_CONV_INFERENCE_LLAMA_CACHE_REUSE_TOKENS:-}" ]] && echo "MIOS_CONV_INFERENCE_LLAMA_CACHE_REUSE_TOKENS=\"${MIOS_CONV_INFERENCE_LLAMA_CACHE_REUSE_TOKENS}\""
-    [[ -n "${MIOS_CONV_INFERENCE_LLAMA_PARALLEL_SLOTS:-}" ]] && echo "MIOS_CONV_INFERENCE_LLAMA_PARALLEL_SLOTS=\"${MIOS_CONV_INFERENCE_LLAMA_PARALLEL_SLOTS}\""
-    [[ -n "${MIOS_CONV_INFERENCE_RETIRE_HEAVY_ALT:-}" ]]    && echo "MIOS_CONV_INFERENCE_RETIRE_HEAVY_ALT=\"${MIOS_CONV_INFERENCE_RETIRE_HEAVY_ALT}\""
-    [[ -n "${MIOS_CONV_MEMORY_SQLITE_VEC_ENABLE:-}" ]]      && echo "MIOS_CONV_MEMORY_SQLITE_VEC_ENABLE=\"${MIOS_CONV_MEMORY_SQLITE_VEC_ENABLE}\""
-    [[ -n "${MIOS_CONV_MEMORY_SCRATCHPAD_DIR:-}" ]]         && echo "MIOS_CONV_MEMORY_SCRATCHPAD_DIR=\"${MIOS_CONV_MEMORY_SCRATCHPAD_DIR}\""
-    [[ -n "${MIOS_CONV_MEMORY_COLD_EVICT_ENABLE:-}" ]]      && echo "MIOS_CONV_MEMORY_COLD_EVICT_ENABLE=\"${MIOS_CONV_MEMORY_COLD_EVICT_ENABLE}\""
-    [[ -n "${MIOS_CONV_MEMORY_COLD_STORAGE_DIR:-}" ]]       && echo "MIOS_CONV_MEMORY_COLD_STORAGE_DIR=\"${MIOS_CONV_MEMORY_COLD_STORAGE_DIR}\""
-    [[ -n "${MIOS_CONV_MEMORY_COLD_RETENTION_DAYS:-}" ]]    && echo "MIOS_CONV_MEMORY_COLD_RETENTION_DAYS=\"${MIOS_CONV_MEMORY_COLD_RETENTION_DAYS}\""
-    [[ -n "${MIOS_CONV_MEMORY_COLD_ZSTD_LEVEL:-}" ]]        && echo "MIOS_CONV_MEMORY_COLD_ZSTD_LEVEL=\"${MIOS_CONV_MEMORY_COLD_ZSTD_LEVEL}\""
-    [[ -n "${MIOS_CONV_IMAGE_DISTROLESS_ENABLE:-}" ]]       && echo "MIOS_CONV_IMAGE_DISTROLESS_ENABLE=\"${MIOS_CONV_IMAGE_DISTROLESS_ENABLE}\""
-    [[ -n "${MIOS_CONV_IMAGE_RECHUNK_ENABLE:-}" ]]          && echo "MIOS_CONV_IMAGE_RECHUNK_ENABLE=\"${MIOS_CONV_IMAGE_RECHUNK_ENABLE}\""
-    [[ -n "${MIOS_CONV_IMAGE_MCP_POOL_ENABLE:-}" ]]         && echo "MIOS_CONV_IMAGE_MCP_POOL_ENABLE=\"${MIOS_CONV_IMAGE_MCP_POOL_ENABLE}\""
+    [[ -n "${MIOS_CONV_GATEWAY_MODE:-}" ]]                  && emit MIOS_CONV_GATEWAY_MODE "${MIOS_CONV_GATEWAY_MODE}"
+    [[ -n "${MIOS_CONV_GATEWAY_QUEUE_MAXSIZE:-}" ]]         && emit MIOS_CONV_GATEWAY_QUEUE_MAXSIZE "${MIOS_CONV_GATEWAY_QUEUE_MAXSIZE}"
+    [[ -n "${MIOS_CONV_GATEWAY_WORKER_CONCURRENCY:-}" ]]    && emit MIOS_CONV_GATEWAY_WORKER_CONCURRENCY "${MIOS_CONV_GATEWAY_WORKER_CONCURRENCY}"
+    [[ -n "${MIOS_CONV_INFERENCE_HEAVY_ENGINE_MODE:-}" ]]   && emit MIOS_CONV_INFERENCE_HEAVY_ENGINE_MODE "${MIOS_CONV_INFERENCE_HEAVY_ENGINE_MODE}"
+    [[ -n "${MIOS_CONV_INFERENCE_VLLM_LORA_ADAPTERS_DIR:-}" ]] && emit MIOS_CONV_INFERENCE_VLLM_LORA_ADAPTERS_DIR "${MIOS_CONV_INFERENCE_VLLM_LORA_ADAPTERS_DIR}"
+    [[ -n "${MIOS_CONV_INFERENCE_VLLM_ALLOW_RUNTIME_LORA:-}" ]] && emit MIOS_CONV_INFERENCE_VLLM_ALLOW_RUNTIME_LORA "${MIOS_CONV_INFERENCE_VLLM_ALLOW_RUNTIME_LORA}"
+    [[ -n "${MIOS_CONV_INFERENCE_LLAMA_CACHE_REUSE_TOKENS:-}" ]] && emit MIOS_CONV_INFERENCE_LLAMA_CACHE_REUSE_TOKENS "${MIOS_CONV_INFERENCE_LLAMA_CACHE_REUSE_TOKENS}"
+    [[ -n "${MIOS_CONV_INFERENCE_LLAMA_PARALLEL_SLOTS:-}" ]] && emit MIOS_CONV_INFERENCE_LLAMA_PARALLEL_SLOTS "${MIOS_CONV_INFERENCE_LLAMA_PARALLEL_SLOTS}"
+    [[ -n "${MIOS_CONV_INFERENCE_RETIRE_HEAVY_ALT:-}" ]]    && emit MIOS_CONV_INFERENCE_RETIRE_HEAVY_ALT "${MIOS_CONV_INFERENCE_RETIRE_HEAVY_ALT}"
+    [[ -n "${MIOS_CONV_MEMORY_SQLITE_VEC_ENABLE:-}" ]]      && emit MIOS_CONV_MEMORY_SQLITE_VEC_ENABLE "${MIOS_CONV_MEMORY_SQLITE_VEC_ENABLE}"
+    [[ -n "${MIOS_CONV_MEMORY_SCRATCHPAD_DIR:-}" ]]         && emit MIOS_CONV_MEMORY_SCRATCHPAD_DIR "${MIOS_CONV_MEMORY_SCRATCHPAD_DIR}"
+    [[ -n "${MIOS_CONV_MEMORY_COLD_EVICT_ENABLE:-}" ]]      && emit MIOS_CONV_MEMORY_COLD_EVICT_ENABLE "${MIOS_CONV_MEMORY_COLD_EVICT_ENABLE}"
+    [[ -n "${MIOS_CONV_MEMORY_COLD_STORAGE_DIR:-}" ]]       && emit MIOS_CONV_MEMORY_COLD_STORAGE_DIR "${MIOS_CONV_MEMORY_COLD_STORAGE_DIR}"
+    [[ -n "${MIOS_CONV_MEMORY_COLD_RETENTION_DAYS:-}" ]]    && emit MIOS_CONV_MEMORY_COLD_RETENTION_DAYS "${MIOS_CONV_MEMORY_COLD_RETENTION_DAYS}"
+    [[ -n "${MIOS_CONV_MEMORY_COLD_ZSTD_LEVEL:-}" ]]        && emit MIOS_CONV_MEMORY_COLD_ZSTD_LEVEL "${MIOS_CONV_MEMORY_COLD_ZSTD_LEVEL}"
+    [[ -n "${MIOS_CONV_IMAGE_DISTROLESS_ENABLE:-}" ]]       && emit MIOS_CONV_IMAGE_DISTROLESS_ENABLE "${MIOS_CONV_IMAGE_DISTROLESS_ENABLE}"
+    [[ -n "${MIOS_CONV_IMAGE_RECHUNK_ENABLE:-}" ]]          && emit MIOS_CONV_IMAGE_RECHUNK_ENABLE "${MIOS_CONV_IMAGE_RECHUNK_ENABLE}"
+    [[ -n "${MIOS_CONV_IMAGE_MCP_POOL_ENABLE:-}" ]]         && emit MIOS_CONV_IMAGE_MCP_POOL_ENABLE "${MIOS_CONV_IMAGE_MCP_POOL_ENABLE}"
 
     # Anti-fabricated-execution guard ([verity].antifab_enable -> the agent-pipe
     # routing layer, which reads MIOS_ANTIFAB_ENABLE from this EnvironmentFile).
     # Resolver-populated; emit only what resolved so an unset SSOT key leaves the
     # Python default (guard ON) intact -- degrade-open.
-    [[ -n "${MIOS_ANTIFAB_ENABLE:-}" ]] && echo "MIOS_ANTIFAB_ENABLE=\"${MIOS_ANTIFAB_ENABLE}\""
+    [[ -n "${MIOS_ANTIFAB_ENABLE:-}" ]] && emit MIOS_ANTIFAB_ENABLE "${MIOS_ANTIFAB_ENABLE}"
     # Per-section grounding thresholds ([verity].antifab_min_entities / .ground_min
     # -> the FAB-02 citation guard). Resolver-populated; emit only what resolved so
     # an unset key leaves the Python degrade-open default intact.
-    [[ -n "${MIOS_ANTIFAB_MIN_ENTITIES:-}" ]] && echo "MIOS_ANTIFAB_MIN_ENTITIES=\"${MIOS_ANTIFAB_MIN_ENTITIES}\""
-    [[ -n "${MIOS_ANTIFAB_GROUND_MIN:-}" ]] && echo "MIOS_ANTIFAB_GROUND_MIN=\"${MIOS_ANTIFAB_GROUND_MIN}\""
+    [[ -n "${MIOS_ANTIFAB_MIN_ENTITIES:-}" ]] && emit MIOS_ANTIFAB_MIN_ENTITIES "${MIOS_ANTIFAB_MIN_ENTITIES}"
+    [[ -n "${MIOS_ANTIFAB_GROUND_MIN:-}" ]] && emit MIOS_ANTIFAB_GROUND_MIN "${MIOS_ANTIFAB_GROUND_MIN}"
 
 
     # Frontier / A2O war-room roles (mios.toml [frontier] -> MIOS_A2O_* that the
@@ -184,17 +196,17 @@ EOF
                MIOS_A2O_CLAUDE_EFFORT_FLAG MIOS_A2O_AGY_EFFORT_FLAG MIOS_A2O_GEMINI_EFFORT_FLAG \
                MIOS_A2O_STREAM_REASONING MIOS_A2O_STREAM_PATH; do
         _fv="${!_fk:-}"
-        if [[ -n "$_fv" ]]; then echo "${_fk}=\"${_fv}\""; fi
+        if [[ -n "$_fv" ]]; then emit ${_fk} "${_fv}"; fi
     done
 
 
     # Heavy GPU lanes (gated/off-by-default; resolver-populated served names +
     # ports). Endpoints assembled from the lane ports so the value tracks the
     # SSOT rather than a hardcoded literal; emit only when the port resolved.
-    [[ -n "${MIOS_SGLANG_SERVED_NAME:-}" ]] && echo "MIOS_SGLANG_SERVED_NAME=\"${MIOS_SGLANG_SERVED_NAME}\""
-    [[ -n "${MIOS_VLLM_SERVED_NAME:-}" ]]   && echo "MIOS_VLLM_SERVED_NAME=\"${MIOS_VLLM_SERVED_NAME}\""
-    [[ -n "${MIOS_PORT_SGLANG:-}" ]] && echo "MIOS_AI_HEAVY_ENDPOINT=\"http://localhost:${MIOS_PORT_SGLANG}/v1\""
-    [[ -n "${MIOS_PORT_VLLM:-}" ]]   && echo "MIOS_AI_HEAVY_ALT_ENDPOINT=\"http://localhost:${MIOS_PORT_VLLM}/v1\""
+    [[ -n "${MIOS_SGLANG_SERVED_NAME:-}" ]] && emit MIOS_SGLANG_SERVED_NAME "${MIOS_SGLANG_SERVED_NAME}"
+    [[ -n "${MIOS_VLLM_SERVED_NAME:-}" ]]   && emit MIOS_VLLM_SERVED_NAME "${MIOS_VLLM_SERVED_NAME}"
+    [[ -n "${MIOS_PORT_SGLANG:-}" ]] && emit MIOS_AI_HEAVY_ENDPOINT "http://localhost:${MIOS_PORT_SGLANG}/v1"
+    [[ -n "${MIOS_PORT_VLLM:-}" ]]   && emit MIOS_AI_HEAVY_ALT_ENDPOINT "http://localhost:${MIOS_PORT_VLLM}/v1"
 
     # Resolved service ports (SSOT [ports].*). Emitted as NUMERIC vars so
     # EnvironmentFile= consumers (agent-pipe, hermes) AND ${MIOS_PORT_*}
@@ -208,36 +220,33 @@ EOF
     # install-robustness.
     for _pk in MIOS_PORT_LLM_LIGHT MIOS_PORT_HERMES MIOS_PORT_HERMES_WORKER MIOS_PORT_AGENT_PIPE MIOS_PORT_PREFILTER MIOS_PORT_OPENCODE MIOS_PORT_PGVECTOR MIOS_PORT_SGLANG MIOS_PORT_VLLM MIOS_PORT_FORGE_HTTP MIOS_FORGE_HTTP_PORT MIOS_PORT_FORGE_SSH MIOS_FORGE_SSH_PORT MIOS_PORT_OPEN_WEBUI MIOS_PORT_CODE_SERVER MIOS_PORT_SEARXNG MIOS_SEARXNG_PORT MIOS_PORT_TTYD_BASH MIOS_PORT_TTYD_POWERSHELL MIOS_PORT_CRAWL4AI MIOS_PORT_FIRECRAWL MIOS_PORT_CPU_NODE MIOS_PORT_OSCONTROL; do
         _pv="${!_pk:-}"
-        if [[ -n "$_pv" ]]; then echo "${_pk}=\"${_pv}\""; fi
+        if [[ -n "$_pv" ]]; then emit ${_pk} "${_pv}"; fi
     done
 
     # ttyd parameters
     for _tk in MIOS_TTYD_BASH_SHELL MIOS_TTYD_POWERSHELL_SHELL MIOS_TTYD_BIND MIOS_TTYD_REQUIRE_AUTH MIOS_TTYD_AUTH_USER MIOS_TTYD_AUTH_PASS MIOS_TTYD_SSL_CERT MIOS_TTYD_SSL_KEY MIOS_TTYD_WRITABLE MIOS_TTYD_MAX_CLIENTS MIOS_TTYD_FONT_SIZE; do
         _tv="${!_tk:-}"
-        if [[ -n "$_tv" ]]; then echo "${_tk}=\"${_tv}\""; fi
+        if [[ -n "$_tv" ]]; then emit ${_tk} "${_tv}"; fi
     done
 
 
     # Image
-    [[ -n "${MIOS_IMAGE_REF:-}" ]]    && echo "MIOS_IMAGE_REF=\"${MIOS_IMAGE_REF}\""
-    [[ -n "${MIOS_BRANCH:-}" ]]       && echo "MIOS_BRANCH=\"${MIOS_BRANCH}\""
-    [[ -n "${MIOS_BASE_IMAGE:-}" ]]   && echo "MIOS_BASE_IMAGE=\"${MIOS_BASE_IMAGE}\""
+    [[ -n "${MIOS_IMAGE_REF:-}" ]]    && emit MIOS_IMAGE_REF "${MIOS_IMAGE_REF}"
+    [[ -n "${MIOS_BRANCH:-}" ]]       && emit MIOS_BRANCH "${MIOS_BRANCH}"
+    [[ -n "${MIOS_BASE_IMAGE:-}" ]]   && emit MIOS_BASE_IMAGE "${MIOS_BASE_IMAGE}"
 
     # Forge admin (non-secret half)
-    [[ -n "${MIOS_FORGE_ADMIN_USER:-}" ]]  && echo "MIOS_FORGE_ADMIN_USER=\"${MIOS_FORGE_ADMIN_USER}\""
-    [[ -n "${MIOS_FORGE_ADMIN_EMAIL:-}" ]] && echo "MIOS_FORGE_ADMIN_EMAIL=\"${MIOS_FORGE_ADMIN_EMAIL}\""
+    [[ -n "${MIOS_FORGE_ADMIN_USER:-}" ]]  && emit MIOS_FORGE_ADMIN_USER "${MIOS_FORGE_ADMIN_USER}"
+    [[ -n "${MIOS_FORGE_ADMIN_EMAIL:-}" ]] && emit MIOS_FORGE_ADMIN_EMAIL "${MIOS_FORGE_ADMIN_EMAIL}"
 
-    # Preserved secrets (NEVER originate from mios.toml)
-    [[ -n "$PREV_PWHASH" ]]     && echo "MIOS_USER_PASSWORD_HASH=\"$PREV_PWHASH\""
-    [[ -n "$PREV_FORGE_PW" ]]   && echo "MIOS_FORGE_ADMIN_PASSWORD=\"$PREV_FORGE_PW\""
-    [[ -n "$PREV_GHCR_TOKEN" ]] && echo "MIOS_GITHUB_TOKEN=\"$PREV_GHCR_TOKEN\""
-    # CRITICAL: the secret lines above are conditional `&& echo`. On a fresh
-    # install with no preserved secrets the LAST one is a false `[[ -n "" ]]`
-    # returning non-zero -- which makes `generate_env > "$TMP"` fail under
-    # `set -e`, aborting the script BEFORE `mv "$TMP" "$OUT"`. The EXIT trap
-    # then rm's the temp, so install.env is NEVER written and the run exits
-    # ~silently (no "regenerated" line). This bricked the whole env bridge on
-    # every secret-less host. Force a clean 0 return. install-robustness.
+    # Secrets are intentionally ABSENT here (R2). MIOS_USER_PASSWORD_HASH,
+    # MIOS_FORGE_ADMIN_PASSWORD and MIOS_GITHUB_TOKEN live only in
+    # /etc/shadow (baked) and /etc/mios/secrets.env (0600). The password
+    # hash is a `$6$salt$digest` string -- unrepresentable in a bare
+    # tri-parser env file -- so it was the root of the `$6: unbound
+    # variable` service cascade; evicting it (not quoting it) is the fix.
+    # Force a clean 0 return so a trailing false `&& emit` never makes
+    # `generate_env > "$TMP"` fail under set -e and brick the env bridge.
     return 0
 }
 
@@ -269,6 +278,25 @@ trap 'rm -f "$TMP"' EXIT
 generate_env > "$TMP"
 chown root:root "$TMP" 2>/dev/null || true
 chmod 0640 "$TMP"
+
+# R4 self-test: assert the serialization can never crash a consumer.
+# Runs on the TMP before the atomic swap. Non-fatal (a warned imperfect
+# file beats no env at all -- see the generate_env brick history), but
+# loud; the hard gate is drift-check "install-env-safe" in automation/38.
+_st=0
+if grep -qE '="' "$TMP"; then
+    echo "mios-sync-env: SELFTEST double-quoted value(s) present (breaks podman --env-file):" >&2
+    grep -nE '="' "$TMP" >&2; _st=1
+fi
+if grep -qE '^MIOS_(USER_PASSWORD_HASH|FORGE_ADMIN_PASSWORD|GITHUB_TOKEN)=' "$TMP"; then
+    echo "mios-sync-env: SELFTEST secret present in install.env (must live only in secrets.env):" >&2
+    grep -nE '^MIOS_(USER_PASSWORD_HASH|FORGE_ADMIN_PASSWORD|GITHUB_TOKEN)=' "$TMP" >&2; _st=1
+fi
+if ! bash -u -c ". '$TMP'" >/dev/null 2>&1; then
+    echo "mios-sync-env: SELFTEST $OUT does not source clean under 'set -u'" >&2; _st=1
+fi
+[[ "$_st" -ne 0 ]] && echo "mios-sync-env: WARN self-test failed -- writing anyway (drift-gate is the hard gate)" >&2
+
 mv -f "$TMP" "$OUT"
 trap - EXIT
 

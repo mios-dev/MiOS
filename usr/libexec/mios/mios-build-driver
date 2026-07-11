@@ -664,18 +664,25 @@ case "${MIOS_PASSWORD_POLICY}" in
 esac
 export MIOS_USER_PASSWORD_HASH
 
-# Persist a flat install.env for downstream consumers that don't grok
+# Persist a flat install.env SEED for downstream consumers that don't grok
 # layered toml directly: /etc/profile.d/mios-env.sh, automation/build.sh
-# during `podman build`, sysusers/tmpfiles generators. install.env
-# mirrors a subset of the resolved env.
+# during `podman build`, sysusers/tmpfiles generators. mios-sync-env later
+# regenerates the full file from mios.toml; this seed only covers the few
+# keys needed before the resolver runs.
+#
+# BARE `KEY=value` only (no double quotes): install.env is read by systemd
+# EnvironmentFile=, bash `.`-source (under set -u), AND podman --env-file,
+# whose quoting rules are mutually incompatible -- bare is the only safe
+# form. The password HASH is NOT written here: a `$6$salt$digest` value is
+# unrepresentable in a bare env file and previously detonated `. install.env`
+# under set -u ("$6: unbound variable"). It lives ONLY in /etc/shadow and
+# /etc/mios/secrets.env (0600, written above). install-robustness.
 sudo install -d -m 0755 /etc/mios
 {
-    printf 'MIOS_USER="%s"\n'                  "$MIOS_USER"
-    printf 'MIOS_HOSTNAME="%s"\n'              "$MIOS_HOSTNAME"
-    printf 'MIOS_USER_PASSWORD_HASH="%s"\n'    "$MIOS_USER_PASSWORD_HASH"
-    printf 'MIOS_AI_MODEL="%s"\n'              "$MIOS_AI_MODEL"
-    printf 'MIOS_AI_EMBED_MODEL="%s"\n'        "$MIOS_AI_EMBED_MODEL"
-    printf 'MIOS_OLLAMA_BAKE_MODELS="%s"\n'    "$MIOS_OLLAMA_BAKE_MODELS"
+    printf 'MIOS_USER=%s\n'           "$MIOS_USER"
+    printf 'MIOS_HOSTNAME=%s\n'       "$MIOS_HOSTNAME"
+    printf 'MIOS_AI_MODEL=%s\n'       "$MIOS_AI_MODEL"
+    printf 'MIOS_AI_EMBED_MODEL=%s\n' "$MIOS_AI_EMBED_MODEL"
 } | sudo tee /etc/mios/install.env >/dev/null
 sudo chmod 0640 /etc/mios/install.env
 
