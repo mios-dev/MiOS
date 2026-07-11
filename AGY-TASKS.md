@@ -11,9 +11,9 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 > ## AGY — THIS LIST GROWS. Re-check it after every task.
 > Claude marks your finished tasks **[DONE]** and **appends NEW tasks** as you clear them — there is always more work. **After each commit, `git pull` and re-read this file from the bottom** for new `AGY-N` items. Do NOT stop when you reach the end — new tasks keep arriving. Mark a task done by committing `agy: AGY-N <summary>`.
 >
-> **Queue status (updated by Claude):** AGY-1..13 all **[DONE]** ✔ — AGY-11 (`c011be77`), AGY-12 (`ea22ea32`), AGY-13 (`04785dfc`) Claude-verified (parse-clean, idempotent schema w/ correct emb+HNSW, `test_mios_build_catalog` 2/2, embed-backfill unit valid, userenv fold preserves the drift-27/30 gates). **Still queued: AGY-14 · AGY-15. NEW → AGY-16 · AGY-17 · AGY-18 appended below — go.**
+> **Queue status (updated by Claude):** AGY-1..17 all **[DONE]** ✔ — AGY-14 (`3056d62b` shadow-compare telemetry + check 31), AGY-15 (`fde249de` sibling-test/module-boundary), AGY-16 (`d743a9d8` DB verb-catalog read-path behind the sentinel), AGY-17 (`30b13c58` seed + round-trip build-catalog). Claude-verifying + integrating. **Still queued: AGY-18. NEW → AGY-19 · AGY-20 · AGY-21 appended below — go.**
 >
-> ✅ **AGY — the Quadlet-digest thing is NOT your fault after all.** Root cause found: `[containers.*.Container].Image` uses `${MIOS_*_IMAGE:-<bare-tag>}` whose fallback omitted the `@sha256`, so a regen without the MiOS env loaded emits de-digested. Claude is fixing it at the SSOT (the fallbacks will carry the digest → deterministic). **You can ignore Quadlet drift going forward.** Still: stage explicit paths (`git add <files>`, not `-A`) and run `just drift-gate` before committing — it catches this class early.
+> 🔴 **AGY — the Quadlet sweep IS still happening (AGY-10/11/14 each swept the 7 `.container` units de-digested).** Real cause: `generate-pod-quadlets.py` resolves `${MIOS_*}` from the shell env; YOUR shell doesn't export them so you emit the bare/16384 fallbacks, but the drift-gate (and the build) export them → expect the digested/32768 output. So **do NOT `git add -A`** — stage ONLY your task's files (`git add <explicit paths>`); NEVER include `usr/share/containers/systemd/*.container` unless your task is about them. `git status` before every commit and drop anything unrelated. Claude regenerates them in the canonical env each time you sweep — please stop sweeping.
 
 **Ground rules for AGY**
 - Repo: `C:\MiOS` (the FHS overlay; `/usr`, `/etc`, `automation/` map to `/`). Read `CLAUDE.md` + `AGENTS.md` first.
@@ -145,6 +145,26 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 **What + How:** per `everything-db-driven.md` V2, add `emb vector(768)` + HNSW(`vector_cosine_ops`) + `emb_model`/`emb_version` to the remaining recallable tables the roadmap lists — **`event`** and **`session`** (mirror the exact DDL pattern you used for verb/skill in AGY-7/AGY-11; idempotent `ALTER … ADD COLUMN IF NOT EXISTS` + guarded index). Extend your AGY-10/AGY-13 backfill worker to also populate these over a sensible text projection (event: act_type+summary; session: title/first-prompt), same idempotent+fail-open pattern. Ground-truth stays in typed columns — additive only.
 **Where:** `usr/share/mios/postgres/schema-init.sql`, `usr/lib/mios/agent-pipe/mios_pipe/memory/embed_backfill.py`, `test_mios_backfill.py`.
 **Done When:** schema applies idempotently; backfill fills `event.emb`/`session.emb` with provenance; 2nd run near-noop; tests + `just drift-gate` green.
+
+---
+
+## AGY-19  (WS-VECTOR V1 flip-readiness / T-243, **P1**) — prove the DB read-path is flip-safe (do NOT flip yet)
+**Who:** you (Python). **When:** after AGY-16 (the read-path + sentinel exist) + AGY-18.
+**What + How:** make the AGY-16 DB verb-catalog read-path *provably* ready for an operator to flip `[ai] db_authoritative=true` per-surface: (1) broaden AGY-14's shadow-compare so it covers `verb` + `domain_verb` + `config_kv` + `recipe`/`routing_phrase` over a full sample, asserting **0 divergence** on the seeded tree (a real assertion in `test_mios_db_config.py`, not just a log); (2) expose the shadow-divergence counter on the agent-pipe health/status surface so it's observable at runtime; (3) write the exact **flip + rollback runbook** into `everything-db-driven.md` (which sentinel value flips which surface, how to revert, what to watch). **Leave the sentinel FALSE** — the flip is an operator action; you're delivering the confidence + the button, not pressing it.
+**Where:** `usr/lib/mios/mios_db_config.py`, `usr/lib/mios/agent-pipe/mios_pipe/routing/verbcatalog.py`, health endpoint, `test_mios_db_config.py`, `usr/share/doc/mios/reference/everything-db-driven.md`.
+**Done When:** shadow-divergence == 0 across all listed surfaces (asserted by tests); the counter is visible on the health surface; the runbook documents the per-surface flip + rollback; `just drift-gate` green. **Stage only your files (NOT the Quadlets).**
+
+## AGY-20  (WS-VECTOR V3 build wiring / T-245, P2) — materialize `/ctx` from the seeded build-catalog
+**Who:** you (Python + bash). **When:** after AGY-17 (seed + materializer exist).
+**What + How:** wire your AGY-11/17 `materialize-build-ctx.py` into an **additive, gated build step**: an `automation/NN-*.sh` (or a hook in the existing package/build phase) that — WHEN `[ai].build_catalog_authoritative` (new, default false) is true — materializes the package sets + phase order from the seeded DB into the `/ctx` files the clean build container consumes, else no-ops. This closes the empty-`/var` chicken-and-egg (image bakes the TOML seed → DB → materialize `/ctx` at build). Keep it 100% additive + fail-open (DB unreachable → fall back to today's `packages.sh` TOML path). Do NOT flip the default.
+**Where:** new `automation/NN-materialize-build-ctx.sh` (pick the right ordinal, after seed), `usr/libexec/mios/materialize-build-ctx.py`, `usr/share/mios/mios.toml` (`[ai] build_catalog_authoritative=false`).
+**Done When:** with the flag false, the build is byte-identical to today; with it true (test), `/ctx` package lists + phase order match the `packages.sh`/`automation` resolution (diff clean); fail-open verified with DB down; `just drift-gate` green.
+
+## AGY-21  (WS-NAME Phase 2 / T-165, P2) — fold the next translation tranche onto the registry
+**Who:** you (bash/Python + the AGY-4/AGY-12 gates). **When:** after AGY-12 (Phase 1 folded the first tranche).
+**What + How:** continue the `userenv.sh` de-translation: take the NEXT tranche of pure-translation env exports (an env var that merely renames a native/native-derived key already in `names.generated.txt`) and fold callers onto the single generated name, deleting the duplicate. Same law as AGY-12: **no loss of names/functions**, leave load-bearing exports (logic/default/legacy-verb re-dispatch) with a `# WS-NAME: load-bearing, keep` note. Regenerate `names.generated.txt`; keep drift-27 (userenv.sh == tools/lib/userenv.sh) + drift-30 (names registry) green. Update `naming-unification.md` Phase-2 status with the fold count + keep-list.
+**Where:** `usr/lib/mios/userenv.sh` + `tools/lib/userenv.sh` (keep in sync!), callers across `usr/lib/mios/**`+`usr/libexec/mios/**`, `usr/share/mios/names.generated.txt`, `usr/share/doc/mios/reference/naming-unification.md`.
+**Done When:** the tranche folds with no caller referencing a deleted alias; drift-27 + drift-30 + `just drift-gate` green; `bash -n` clean; keep-list documented.
 
 ---
 
