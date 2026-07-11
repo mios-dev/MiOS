@@ -6667,12 +6667,15 @@ native_rebuild = false
 # The mios-llm-heavy-alt Quadlet reads these via MIOS_VLLM_* (rendered from here).
 [ai.vllm]
 enable         = false          # documents intent; the systemd unit is the real gate (disabled by default)
-bake_model     = "Qwen/Qwen2.5-0.5B-Instruct"             # HF repo to bake OFFLINE at build (empty = skip the bake; opt-in, no image bloat)
+bake_model     = "stelterlab/Qwen3-30B-A3B-Instruct-2507-AWQ"   # provisioned to /usr/share/mios/vllm/model. Qwen3-30B-A3B-Instruct-2507 (MoE 30.5B-total/3.3B-active, 262144 NATIVE ctx), INT4 AWQ via vllm-project llm-compressor (~16GB). 2026-07 operator pick over Magistral-2509 (family-diverse, MoE-fast, 256k-native). Instruct = NON-thinking; swap to Qwen/Qwen3-30B-A3B-Thinking-2507 for CoT.
 served_name    = "mios-heavy"   # OpenAI served-model-name the lane advertises (= [nodes.local-vllm].model)
-gpu_util       = 0.45           # --gpu-memory-utilization: bounded slice; leaves room for ollama + Windows co-tenancy
-max_model_len  = 32768         # global 128k mandate. Heavy reasoner = Mistral Magistral Small 2509 AWQ (~14GB) leaves KV headroom on the 24GB 4090; pair with --kv-cache-dtype fp8 to fit 131072. Serve with --reasoning-parser mistral --quantization awq_marlin.
+gpu_util       = 0.85           # --gpu-memory-utilization: the ~16GB AWQ weights need >0.66; 0.85=~20.4GB leaves ~4GB KV. Heavy lane is gated OFF by default -> only claims the GPU when explicitly enabled (near-exclusive 4090 then).
+max_model_len  = 262144        # 256k native. On the shared 24GB 4090 vLLM's ~4GB fp8-KV budget admits well short of a full 256k sequence -> for the FULL 256k use the SGLang lane below (HiCache CPU KV-offload). vLLM PagedAttention admits up to this ceiling as KV allows.
+kv_cache_dtype = "fp8"          # --kv-cache-dtype fp8 (e5m2 on Ada): ~2x KV capacity; REQUIRED to approach the ceiling on 24GB.
+quantization   = "compressed-tensors"   # stelterlab repo is llm-compressor AWQ-INT4 -> compressed-tensors format (NOT awq_marlin). vLLM auto-detects; explicit for clarity.
+tool_call_parser = "hermes"     # Qwen3 emits Hermes-style <tool_call> blocks -> OpenAI tool_calls[]
 prefix_caching = true           # --enable-prefix-caching (APC): reuse the shared swarm prompt prefix across agents
-v1_engine      = false           # --v1: enable modern vLLM V1 engine
+v1_engine      = true            # V1 engine (default since vLLM 0.8, V0 removed in 0.11 -> MUST be true on current images). Chunked-prefill by default.
 
 # ----------------------------------------------------------------------------
 # [ai.sglang] -- the SGLang heavy lane ("continue with SGLang").
@@ -6682,13 +6685,14 @@ v1_engine      = false           # --v1: enable modern vLLM V1 engine
 # SGLang) on a shared GPU.
 [ai.sglang]
 enable             = false          # documents intent; the systemd unit is the real gate (disabled by default)
-bake_model         = ""             # empty = no bake (the 8B is provisioned separately; do NOT bake the unstable q35-4b)
+bake_model         = "stelterlab/Qwen3-30B-A3B-Instruct-2507-AWQ"   # same model as [ai.vllm], served from /usr/share/mios/vllm/model. THIS is the lane for the FULL 256k (HiCache CPU KV-offload makes it fit the partial 4090).
 served_name        = "mios-heavy"   # OpenAI served-model-name (= [nodes.local-sglang].model); shared heavy-lane name with vLLM
-mem_fraction       = 0.45           # --mem-fraction-static: bounded GPU slice; leaves room for ollama + Windows co-tenancy
-tool_parser        = "qwen25"       # --tool-call-parser: parse Qwen <tool_call> blocks into OpenAI tool_calls[] (qwen25 fits Qwen3-8B; a Magistral heavy model would use "mistral" + a reasoning_parser)
-reasoning_parser   = "qwen3"         # --reasoning-parser: split <think> reasoning from the answer (qwen3 fits Qwen3-8B; a Magistral heavy model would use "mistral"). SSOT for MIOS_SGLANG_REASONING_PARSER consumed by mios-llm-heavy.container.
-max_model_len      = 65536          # Wave 0: live-validated ceiling for the 8B + --disable-cuda-graph lane on the shared 4090 (131072 OOMs without KV-cache spill). 131072 requires HiCache CPU KV-offload + --kv-cache-dtype fp8 (Wave 1) -- re-raise once that lands and is verified live.
-hierarchical_cache = true           # --enable-hierarchical-cache (HiCache): spill inactive KV to CPU RAM
+mem_fraction       = 0.85           # --mem-fraction-static: the ~16GB AWQ weights need >0.66; HiCache spills the rest of the 256k KV to CPU RAM.
+tool_parser        = "qwen25"       # --tool-call-parser: Qwen3-2507 emits Qwen <tool_call> blocks (qwen25 parser handles them); SGLang's qwen25 parser fits the Qwen3 family.
+reasoning_parser   = ""             # Qwen3-30B-A3B-INSTRUCT-2507 is NON-thinking (no <think>) -> no reasoning parser. For CoT, bake Qwen/Qwen3-30B-A3B-Thinking-2507 and set reasoning_parser = "qwen3".
+max_model_len      = 262144         # 256k NATIVE (operator-requested). Feasible on the shared 4090 via HiCache CPU KV-offload + fp8 KV (the note above); vLLM alone can't hold 256k KV in ~4GB, SGLang can by spilling to RAM.
+kv_cache_dtype     = "fp8"          # --kv-cache-dtype fp8_e5m2: ~2x KV capacity; REQUIRED with HiCache to reach 256k.
+hierarchical_cache = true           # --enable-hierarchical-cache (HiCache): spill inactive KV to CPU RAM -- the mechanism that makes 256k fit
 unified_radix_tree = true           # --enable-unified-radix-tree (UnifiedRadixTree): enable radx-tree KV cache optimization
 
 # ----------------------------------------------------------------------------
