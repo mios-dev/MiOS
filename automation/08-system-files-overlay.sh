@@ -184,6 +184,15 @@ for QDIR in /usr/share/containers/systemd /etc/containers/systemd; do
 done
 shopt -u nullglob
 
+# bootc install to-disk requires bound-images.d to contain ONLY symlinks --
+# a regular file there aborts the install with "Querying bound images: Not a
+# symlink: .gitkeep". The committed .gitkeep only exists to track the otherwise-
+# empty dir in git; the build creates the dir + populates the symlinks above, so
+# the placeholder is redundant in the image and MUST NOT ship. (Found via a
+# bootc install to-disk boot-verify of the Day-0 image.)
+rm -f "${BDIR}/.gitkeep"
+log "  LBI: stripped git-tracking .gitkeep (bootc install requires symlinks-only)"
+
 # ═══ Pathing Compatibility ═══
 log "08-overlay: applying pathing compatibility symlinks"
 
