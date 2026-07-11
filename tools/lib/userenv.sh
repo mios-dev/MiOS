@@ -148,8 +148,8 @@ def get(d, dotted):
 # TOML directly -- never the MIOS_<SECTION>_<KEY> shadow. Dropping them removed 212
 # emitter-only vars with zero functionality loss.
 TARGET_SECTIONS = [
-    "ai", "locale", "image", "bootstrap", "profile",
-    "sandbox", "security", "code_mode", "hermes", "a2a",
+    "ai", "image", "bootstrap", "profile",
+    "sandbox", "security", "hermes", "a2a",
     "converge"
 ]
 
@@ -224,11 +224,30 @@ def _alias_for(path):
             return rep + path[len(pfx):].upper().replace(".", "_").replace("-", "_")
     return None
 
+# Wave 3: image/bootstrap/profile/sandbox/security are MOSTLY-dead sections -- only
+# these long forms have a real (non-emitter) consumer, proven by the drift-check 29
+# closure gate (mios_var_closure.py). Emit exactly those; drop the rest of those
+# sections' shadows. Sections NOT listed here emit all their (alias-de-duped) longs.
+WALK_MOSTLY_DEAD = {"ai", "image", "bootstrap", "profile", "sandbox", "security"}
+WALK_EMIT_KEEP = {
+    # ai (kept in TARGET_SECTIONS to seed the vllm/sglang aliases; only these
+    # MIOS_AI_* longs have a real consumer -- the rest are dead shadows)
+    "MIOS_AI_BAKE_MODELS", "MIOS_AI_DIR", "MIOS_AI_EMBED_MODEL", "MIOS_AI_ENDPOINT",
+    "MIOS_AI_JOURNAL", "MIOS_AI_MCP_DIR", "MIOS_AI_MEMORY_DIR", "MIOS_AI_MODEL",
+    "MIOS_AI_MODELS_DIR", "MIOS_AI_RAM_FLOOR_GB", "MIOS_AI_SCRATCH_DIR",
+    # image / bootstrap / profile / sandbox / security
+    "MIOS_IMAGE_NAME", "MIOS_IMAGE_REF", "MIOS_IMAGE_TAG",
+    "MIOS_BOOTSTRAP_MODE", "MIOS_PROFILE_FEATURES", "MIOS_PROFILE_ROLE",
+    "MIOS_SANDBOX_ENABLE", "MIOS_SECURITY_ALLOWLIST_HOSTS", "MIOS_SECURITY_PROVENANCE_TAINT",
+}
+
 # Print canonical exports -- ONE name per value. Skip any path that has a short
 # alias (emitted below); the MIOS_AI_VLLM_*/MIOS_AI_SGLANG_* long shadow is never
 # emitted, so nothing carries two separately-managed names for the same value.
 for env_name, (path, val) in sorted(canonical_exports.items()):
     if _alias_for(path):
+        continue
+    if path.split(".", 1)[0] in WALK_MOSTLY_DEAD and env_name not in WALK_EMIT_KEEP:
         continue
     val_processed = process_val(path, val)
     if val_processed is not None and val_processed != "":
