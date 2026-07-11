@@ -146,6 +146,7 @@ ai.remote_escalation  MIOS_AI_REMOTE_ESCALATION
 ai.sglang.bake_model  MIOS_AI_SGLANG_BAKE_MODEL
 ai.sglang.enable  MIOS_AI_SGLANG_ENABLE
 ai.sglang.hierarchical_cache  MIOS_AI_SGLANG_HIERARCHICAL_CACHE
+ai.sglang.kv_cache_dtype  MIOS_AI_SGLANG_KV_CACHE_DTYPE
 ai.sglang.max_model_len  MIOS_AI_SGLANG_MAX_MODEL_LEN
 ai.sglang.mem_fraction  MIOS_AI_SGLANG_MEM_FRACTION
 ai.sglang.reasoning_parser  MIOS_AI_SGLANG_REASONING_PARSER
@@ -163,9 +164,12 @@ ai.tokenizer_path  MIOS_AI_TOKENIZER_PATH
 ai.vllm.bake_model  MIOS_AI_VLLM_BAKE_MODEL
 ai.vllm.enable  MIOS_AI_VLLM_ENABLE
 ai.vllm.gpu_util  MIOS_AI_VLLM_GPU_UTIL
+ai.vllm.kv_cache_dtype  MIOS_AI_VLLM_KV_CACHE_DTYPE
 ai.vllm.max_model_len  MIOS_AI_VLLM_MAX_MODEL_LEN
 ai.vllm.prefix_caching  MIOS_AI_VLLM_PREFIX_CACHING
+ai.vllm.quantization  MIOS_AI_VLLM_QUANTIZATION
 ai.vllm.served_name  MIOS_AI_VLLM_SERVED_NAME
+ai.vllm.tool_call_parser  MIOS_AI_VLLM_TOOL_CALL_PARSER
 ai.vllm.v1_engine  MIOS_AI_VLLM_V1_ENGINE
 auth.existing_ssh_key  MIOS_AUTH_EXISTING_SSH_KEY
 auth.github_pat  MIOS_AUTH_GITHUB_PAT

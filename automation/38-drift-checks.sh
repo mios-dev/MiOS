@@ -1990,6 +1990,8 @@ else:
                 "ai.vllm.gpu_util": "MIOS_VLLM_GPU_UTIL",
                 "ai.vllm.max_model_len": "MIOS_VLLM_MAX_MODEL_LEN",
                 "ai.vllm.bake_model": "MIOS_VLLM_BAKE_MODEL",
+                "ai.vllm.kv_cache_dtype": "MIOS_VLLM_KV_CACHE_DTYPE",
+                "ai.vllm.tool_call_parser": "MIOS_VLLM_TOOL_CALL_PARSER",
                 "ai.sglang.served_name": "MIOS_SGLANG_SERVED_NAME",
                 "ai.sglang.mem_fraction": "MIOS_SGLANG_MEM_FRACTION",
                 "ai.sglang.max_model_len": "MIOS_SGLANG_MAX_MODEL_LEN",
@@ -1997,6 +1999,8 @@ else:
                 "ai.sglang.reasoning_parser": "MIOS_SGLANG_REASONING_PARSER",
                 "ai.sglang.bake_model": "MIOS_SGLANG_BAKE_MODEL",
                 "ai.sglang.unified_radix_tree": "MIOS_SGLANG_ENABLE_UNIFIED_RADIX_TREE",
+                "ai.sglang.hierarchical_cache": "MIOS_SGLANG_ENABLE_HIERARCHICAL_CACHE",
+                "ai.sglang.kv_cache_dtype": "MIOS_SGLANG_KV_CACHE_DTYPE",
                 "ai.micro_model": "MIOS_MICRO_MODEL",
                 "ai.micro_endpoint": "MIOS_MICRO_ENDPOINT",
                 "ai.opencode_install_url": "MIOS_OPENCODE_INSTALL_URL",
@@ -2693,6 +2697,21 @@ def check_roundtrip(root):
             print(f"  Got:      {mat_pkgs}")
             sys.exit(1)
 
+        # Diff packaging metadata (Defect 9)
+        orig_enable = sec_cfg.get("enable", True)
+        orig_layer = sec_cfg.get("layer", 0)
+        orig_base_ref = sec_cfg.get("base_image_ref", "")
+        orig_section = sec_cfg.get("section", "Misc")
+
+        if (mat_item.get("enable", True) != orig_enable or
+            mat_item.get("layer", 0) != orig_layer or
+            mat_item.get("base_image_ref", "") != orig_base_ref or
+            mat_item.get("section", "Misc") != orig_section):
+            print(f"Drift in package set '{sec_name}' metadata:")
+            print(f"  Expected: enable={orig_enable}, layer={orig_layer}, base={orig_base_ref}, section={orig_section}")
+            print(f"  Got:      enable={mat_item.get('enable')}, layer={mat_item.get('layer')}, base={mat_item.get('base_image_ref')}, section={mat_item.get('section')}")
+            sys.exit(1)
+
     # 2. Diff build phases
     with open(os.path.join(temp_ctx_dir, "build_phases.json"), "r", encoding="utf-8") as f:
         mat_phases = json.load(f)
@@ -2740,7 +2759,7 @@ def check_roundtrip(root):
                     print(f"Drift in debloat policy '{k}'")
                     sys.exit(1)
 
-        # Compare features
+        # Compare features and profile preset metadata (Defect 9)
         if os.path.isfile(features_txt_path):
             with open(features_txt_path, "r", encoding="utf-8") as f:
                 orig_features = [line.strip() for line in f if line.strip() and not line.strip().startswith("#")]
@@ -2751,6 +2770,18 @@ def check_roundtrip(root):
             if mat_preset["features"] != orig_features:
                 print("Drift in preset features")
                 sys.exit(1)
+            if mat_preset.get("debloat_profile_name") != "default":
+                print("Drift: Default preset debloat_profile_name is not 'default'")
+                sys.exit(1)
+
+        # Compare debloat profiles (Defect 9)
+        mat_profile = next((x for x in mat_debloat["profiles"] if x["name"] == "default"), None)
+        if not mat_profile:
+            print("Drift: Default debloat profile missing in materialized output")
+            sys.exit(1)
+        if mat_profile.get("description") != "Default debloat profile":
+            print("Drift: Default debloat profile description does not match")
+            sys.exit(1)
 
     sys.exit(0)
 
