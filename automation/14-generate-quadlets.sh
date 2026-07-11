@@ -6,20 +6,16 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-# Source lib/common.sh -> tools/lib/userenv.sh so the generator sees the
-# resolved MIOS_* env. generate-pod-quadlets.py resolves ${VAR:-default} via
-# os.environ.get(VAR, default): WITHOUT these exports it bakes the FALLBACK
-# (e.g. --max-model-len 16384, --kv-cache-dtype auto, --gpu-memory-utilization
-# 0.45) and silently drops the entire [ai.vllm]/[ai.sglang] SSOT config -- the
-# 256k / fp8-KV heavy lane never reaches the built artifact. common.sh's
-# userenv source silently no-ops if the resolver is absent, so sourcing it here
-# is strictly additive: best case the configured serve-flags bake in, worst
-# case (no resolver) behaviour is identical to before. Mirrors 15-render-quadlets.
-# shellcheck source=lib/common.sh
-# `|| true`: the generator MUST still run (with fallbacks) even if the resolver
-# errors -- never let env resolution fail image generation.
-source "${SCRIPT_DIR}/lib/common.sh" || true
-
+# DO NOT source userenv/common.sh here. generate-pod-quadlets.py resolves
+# ${VAR:-default} via os.environ.get(VAR, default), so the generator's output is
+# only DETERMINISTIC in a bare env (fallbacks). It MUST match the committed tree
+# and `generate-pod-quadlets.py --check` (drift-gate check 13), both of which run
+# bare -- sourcing userenv here bakes env-resolved values (e.g. --max-model-len
+# 262144) that differ from the bare --check (16384) and FAIL the build at
+# 38-drift-checks (STALE Quadlets). Runtime [ai.vllm]/[ai.sglang] config reaches
+# the container at DEPLOY time via 15-render-quadlets / systemd EnvironmentFile
+# expansion from install.env, NOT by baking at generate time. (Reverts c3d300c;
+# the 256k lane is gated-off by default and unaffected on the install path.)
 GEN_SCRIPT="${ROOT}/tools/generate-pod-quadlets.py"
 TOML_FILE="${ROOT}/usr/share/mios/mios.toml"
 OUT_DIR="${ROOT}/usr/share/containers/systemd"
