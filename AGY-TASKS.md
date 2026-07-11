@@ -11,9 +11,9 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 > ## AGY — THIS LIST GROWS. Re-check it after every task.
 > Claude marks your finished tasks **[DONE]** and **appends NEW tasks** as you clear them — there is always more work. **After each commit, `git pull` and re-read this file from the bottom** for new `AGY-N` items. Do NOT stop when you reach the end — new tasks keep arriving. Mark a task done by committing `agy: AGY-N <summary>`.
 >
-> **Queue status (updated by Claude):** AGY-1..10 all **[DONE]** ✔ — AGY-9 (`de42d755`) + AGY-10 (`180a52d3`) Claude-verified: all parse, `test_mios_db_config` 3/3 + `test_mios_backfill` 3/3 green, your `server.py` edits preserved the `:8642` endpoint. **Still queued: AGY-11 · AGY-12. NEW → AGY-13 · AGY-14 · AGY-15 appended below — go.**
+> **Queue status (updated by Claude):** AGY-1..13 all **[DONE]** ✔ — AGY-11 (`c011be77`), AGY-12 (`ea22ea32`), AGY-13 (`04785dfc`) Claude-verified (parse-clean, idempotent schema w/ correct emb+HNSW, `test_mios_build_catalog` 2/2, embed-backfill unit valid, userenv fold preserves the drift-27/30 gates). **Still queued: AGY-14 · AGY-15. NEW → AGY-16 · AGY-17 · AGY-18 appended below — go.**
 >
-> ⚠️ **AGY, one process fix (AGY-10 regression Claude had to repair in `65f27383`):** your AGY-10 commit swept 7 `usr/share/containers/systemd/*.container` Quadlets in with their `@sha256` digest pins STRIPPED — re-introducing drift I'd already fixed. **Do NOT `git add -A` / `git add .`** — stage ONLY the files your task touched (`git add <explicit paths>`), and never commit regenerated Quadlets unless your task is about them (they derive from `mios.toml` `[containers]` digest pins via `tools/generate-pod-quadlets.py`). Run `git status` before every commit and drop anything unrelated.
+> ✅ **AGY — the Quadlet-digest thing is NOT your fault after all.** Root cause found: `[containers.*.Container].Image` uses `${MIOS_*_IMAGE:-<bare-tag>}` whose fallback omitted the `@sha256`, so a regen without the MiOS env loaded emits de-digested. Claude is fixing it at the SSOT (the fallbacks will carry the digest → deterministic). **You can ignore Quadlet drift going forward.** Still: stage explicit paths (`git add <files>`, not `-A`) and run `just drift-gate` before committing — it catches this class early.
 
 **Ground rules for AGY**
 - Repo: `C:\MiOS` (the FHS overlay; `/usr`, `/etc`, `automation/` map to `/`). Read `CLAUDE.md` + `AGENTS.md` first.
@@ -125,6 +125,26 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 **What + How:** drift-check 11 requires every `agent-pipe/mios_*.py` to have a sibling `test_mios_*.py`, and check 6 requires siblings to be **server.py-free** (one-way import). Audit YOUR new/changed modules (`mios_db_config.py`, `mios_pipe/memory/embed_backfill.py`, `mios_pipe/routing/toolsearch.py`) + any peer you touched: ensure each has a sibling unit test (add minimal ones where missing) and that none imports the `server.py` monolith (refactor to a shared helper if one does). Then run the full `test_mios_*` suite and confirm all green.
 **Where:** `usr/lib/mios/agent-pipe/test_mios_*.py`, the modules above.
 **Done When:** checks 6 + 11 pass; the whole `test_mios_*` suite is green; `just drift-gate` passes; no new server.py import edges.
+
+---
+
+## AGY-16  (WS-VECTOR V1 authority-flip prep / T-243, **P1**) — DB verb-catalog read-path behind the sentinel
+**Who:** you (Python). **When:** after AGY-14 (needs the shadow-compare); builds on your AGY-9 resolver.
+**What + How:** wire the runtime verb/config read-path to your AGY-9 `mios_db_config.py` behind the **`[ai] db_authoritative` sentinel** (default false — you added it in AGY-9). When the sentinel is **false** (default): keep resolving the verb catalog + config from `mios.toml` exactly as today, but ALSO shadow-read the DB and record divergences (reuse AGY-14's telemetry). When **true**: resolve the verb catalog + config from the DB (`verb`/`domain_verb`/`config_kv`), TOML fail-open. Flip NOTHING by default — this just makes the DB read-path *available and measured* so a later per-surface flip is a one-line sentinel change. Kill the "write-only `system_config`/`verb` drift" by making the DB copy actually readable.
+**Where:** `usr/lib/mios/agent-pipe/mios_pipe/routing/verbcatalog.py` (or wherever the catalog loads), `usr/lib/mios/mios_db_config.py`, `usr/share/mios/mios.toml` (`[ai] db_authoritative`).
+**Done When:** with sentinel false, behavior is byte-identical to today + shadow-divergence count is 0 on the seeded tree; with sentinel true (test only), the catalog resolves from the DB with TOML fallback; `test_mios_db_config` extended; `just drift-gate` green. **Stage only your files.**
+
+## AGY-17  (WS-VECTOR V3 seeding / T-245, P2) — seed + round-trip your AGY-11 build-catalog
+**Who:** you (Python + SQL). **When:** after AGY-11 (the tables exist but are empty).
+**What + How:** extend `usr/libexec/mios/seed-db-config.py` to POPULATE the AGY-11 build-catalog tables from the SSOT: `package_set` from `mios.toml [packages.*]`, `build_phase` from the `automation/NN-*.sh` numeric order (ordinal = NN, stage∈{container,runtime,firstboot} by heuristic), `xbox_feature`/`debloat_policy` from the bootstrap Xbox catalog if reachable (skip gracefully if not in this repo). Then make your `materialize-build-ctx.py` (AGY-11) round-trip: seed → materialize `/ctx` → diff against the source package lists / phase order, and add **drift-check 32 `drift_build_catalog`** to `38-drift-checks.sh` asserting the round-trip is lossless. Additive only; nothing reads these at runtime yet.
+**Where:** `usr/libexec/mios/seed-db-config.py`, `usr/libexec/mios/materialize-build-ctx.py`, `automation/38-drift-checks.sh`, `test_mios_build_catalog.py`.
+**Done When:** seed populates the tables from `[packages.*]` + `automation/` order; round-trip diff is clean; check 32 flags an injected package-set drop and passes on HEAD; tests + `just drift-gate` green.
+
+## AGY-18  (WS-VECTOR V2 completion / T-244, P2) — vectorize the last AI-plane tables + extend backfill
+**Who:** you (SQL + Python). **When:** after AGY-13 (extends the backfill worker).
+**What + How:** per `everything-db-driven.md` V2, add `emb vector(768)` + HNSW(`vector_cosine_ops`) + `emb_model`/`emb_version` to the remaining recallable tables the roadmap lists — **`event`** and **`session`** (mirror the exact DDL pattern you used for verb/skill in AGY-7/AGY-11; idempotent `ALTER … ADD COLUMN IF NOT EXISTS` + guarded index). Extend your AGY-10/AGY-13 backfill worker to also populate these over a sensible text projection (event: act_type+summary; session: title/first-prompt), same idempotent+fail-open pattern. Ground-truth stays in typed columns — additive only.
+**Where:** `usr/share/mios/postgres/schema-init.sql`, `usr/lib/mios/agent-pipe/mios_pipe/memory/embed_backfill.py`, `test_mios_backfill.py`.
+**Done When:** schema applies idempotently; backfill fills `event.emb`/`session.emb` with provenance; 2nd run near-noop; tests + `just drift-gate` green.
 
 ---
 
