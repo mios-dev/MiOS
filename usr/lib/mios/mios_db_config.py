@@ -11,16 +11,18 @@ import mios_toml
 log = logging.getLogger("mios-db-config")
 
 _DIVERGENT_KEYS = set()
-DIVERGENCES = 0
 
 def get_divergences() -> int:
-    global DIVERGENCES
-    return len(_DIVERGENT_KEYS) + DIVERGENCES
+    return len(_DIVERGENT_KEYS)
 
 def reset_divergences() -> None:
-    global DIVERGENCES
     _DIVERGENT_KEYS.clear()
-    DIVERGENCES = 0
+
+def record_divergence(key: str | set[str] | list[str]) -> None:
+    if isinstance(key, (set, list)):
+        _DIVERGENT_KEYS.update(key)
+    else:
+        _DIVERGENT_KEYS.add(key)
 
 def get_pg_config() -> dict:
     e = os.environ
@@ -241,8 +243,11 @@ def section(data, name) -> dict:
         toml_val = mios_toml.section(mios_toml.load_merged(), name)
         db_val = mios_toml.section(load_db_config(), name)
         if db_val and not _is_equal(toml_val, db_val):
-            global DIVERGENCES
-            DIVERGENCES += 1
+            divs = _find_divergent_keys(toml_val, db_val, prefix=name)
+            if divs:
+                record_divergence(divs)
+            else:
+                record_divergence(name)
             log.warning("Config divergence in section '%s': TOML=%s, DB=%s", name, toml_val, db_val)
         return toml_val
 
@@ -266,8 +271,7 @@ def get(sect, key, default=None, data=None) -> Any:
             if key in sect_dict:
                 db_val = sect_dict[key]
                 if not _is_equal(toml_val, db_val):
-                    global DIVERGENCES
-                    DIVERGENCES += 1
+                    record_divergence(f"{sect}.{key}")
                     log.warning("Config divergence in key '%s.%s': TOML=%s, DB=%s", sect, key, toml_val, db_val)
         return toml_val
 
@@ -285,7 +289,10 @@ def colors(data=None) -> dict:
         if db_cfg and "colors" in db_cfg:
             db_val = mios_toml.colors(db_cfg)
             if not _is_equal(toml_val, db_val):
-                global DIVERGENCES
-                DIVERGENCES += 1
+                divs = _find_divergent_keys(toml_val, db_val, prefix="colors")
+                if divs:
+                    record_divergence(divs)
+                else:
+                    record_divergence("colors")
                 log.warning("Config divergence in colors: TOML=%s, DB=%s", toml_val, db_val)
         return toml_val

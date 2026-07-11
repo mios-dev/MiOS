@@ -51,13 +51,39 @@ class TestMiosBudgetAndDepth(unittest.IsolatedAsyncioTestCase):
         target_module._SESSION_TOKENS["session-1"] = 2500000
         
         cfg = {"vram_mb": 0}
-        body = {"messages": [{"role": "user", "content": "hello"}]}
+        body = {
+            "messages": [
+                {"role": "system", "content": "sys1"},
+                {"role": "system", "content": "sys2"},
+                {"role": "user", "content": "usr1"},
+                {"role": "user", "content": "usr2"},
+                {"role": "user", "content": "usr3"},
+                {"role": "user", "content": "usr4"},
+                {"role": "user", "content": "usr5"},
+                {"role": "user", "content": "usr6"},
+            ]
+        }
         
-        with self.assertRaises(ValueError) as ctx:
+        # Mock downstream dependency to intercept execution after budget check
+        class PassedCheck(Exception):
+            pass
+        target_module._agent_offload_engine = MagicMock(side_effect=PassedCheck)
+        
+        with self.assertRaises(PassedCheck):
             await target_module._call_agent_complete(
                 "test-agent", cfg, body, {}, MagicMock(), priority=1.0
             )
-        self.assertIn("Conversation token budget exceeded", str(ctx.exception))
+        
+        # Verify that messages are trimmed: should keep system messages + the last 4 non-system messages
+        expected = [
+            {"role": "system", "content": "sys1"},
+            {"role": "system", "content": "sys2"},
+            {"role": "user", "content": "usr3"},
+            {"role": "user", "content": "usr4"},
+            {"role": "user", "content": "usr5"},
+            {"role": "user", "content": "usr6"},
+        ]
+        self.assertEqual(body["messages"], expected)
 
     @patch("mios_pipe.routing.agent_call._get_budget_ceil")
     @patch("mios_pipe.routing.agent_call._autonomous_var")
@@ -74,13 +100,39 @@ class TestMiosBudgetAndDepth(unittest.IsolatedAsyncioTestCase):
         target_module._AUTONOMOUS_SOURCE_TOKENS["source-1"] = 450000
         
         cfg = {"vram_mb": 0}
-        body = {"messages": [{"role": "user", "content": "hello"}]}
+        body = {
+            "messages": [
+                {"role": "system", "content": "sys1"},
+                {"role": "system", "content": "sys2"},
+                {"role": "user", "content": "usr1"},
+                {"role": "user", "content": "usr2"},
+                {"role": "user", "content": "usr3"},
+                {"role": "user", "content": "usr4"},
+                {"role": "user", "content": "usr5"},
+                {"role": "user", "content": "usr6"},
+            ]
+        }
         
-        with self.assertRaises(ValueError) as ctx:
+        # Mock downstream dependency to intercept execution after budget check
+        class PassedCheck(Exception):
+            pass
+        target_module._agent_offload_engine = MagicMock(side_effect=PassedCheck)
+        
+        with self.assertRaises(PassedCheck):
             await target_module._call_agent_complete(
                 "test-agent", cfg, body, {}, MagicMock(), priority=1.0
             )
-        self.assertIn("Autonomous source token budget exceeded", str(ctx.exception))
+        
+        # Verify that messages are trimmed: should keep system messages + the last 4 non-system messages
+        expected = [
+            {"role": "system", "content": "sys1"},
+            {"role": "system", "content": "sys2"},
+            {"role": "user", "content": "usr3"},
+            {"role": "user", "content": "usr4"},
+            {"role": "user", "content": "usr5"},
+            {"role": "user", "content": "usr6"},
+        ]
+        self.assertEqual(body["messages"], expected)
 
     @patch("mios_pipe.routing.agent_call._get_budget_ceil")
     async def test_max_dispatch_depth(self, mock_budget):

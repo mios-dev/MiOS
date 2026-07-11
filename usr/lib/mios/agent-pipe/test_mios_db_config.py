@@ -211,7 +211,12 @@ class TestMiosDbConfig(unittest.TestCase):
             cat = vc._load_verb_catalog()
             # Under false, parallel_limit should remain TOML default (0 or not 99)
             self.assertNotEqual(cat["list_windows"]["parallel_limit"], 99)
-            # Divergence should have incremented
+            # Divergence should have incremented (wait for background thread)
+            import time
+            for _ in range(50):
+                if mios_db_config.get_divergences() > 0:
+                    break
+                time.sleep(0.05)
             self.assertTrue(mios_db_config.get_divergences() > 0)
             
             # Now flip db_authoritative = true
@@ -268,10 +273,17 @@ class TestMiosDbConfig(unittest.TestCase):
         # 5. Test verb catalog shadow compare directly
         toml_cat = vc._load_verb_catalog()
         db_cat = vc._load_verb_catalog_from_db()
-        self.assertTrue(vc._compare_catalogs(toml_cat, db_cat))
+        self.assertEqual(vc._compare_catalogs(toml_cat, db_cat), set())
         
         # Ensure 0 divergences detected
         self.assertEqual(mios_db_config.get_divergences(), 0)
+
+    def test_record_divergence_deduplication(self):
+        mios_db_config.reset_divergences()
+        mios_db_config.record_divergence("scope.key1")
+        mios_db_config.record_divergence("scope.key1")
+        mios_db_config.record_divergence({"scope.key1", "scope.key2"})
+        self.assertEqual(mios_db_config.get_divergences(), 2)
 
 if __name__ == "__main__":
     unittest.main()

@@ -211,7 +211,11 @@ async def run_backfill(current_version: str = "nomic-768-v1") -> dict:
         table_ver = current_version
         if table == "verb":
             try:
-                from mios_pipe.routing.toolsearch import _verb_embed_fingerprint
+                from mios_pipe.routing.toolsearch import _verb_embed_fingerprint, configure as ts_configure
+                from mios_pipe.routing.verbcatalog import _load_verb_catalog
+                cat = _load_verb_catalog()
+                if cat:
+                    ts_configure(verb_catalog=cat)
                 table_ver = _verb_embed_fingerprint()
             except Exception as e_fp:
                 log.debug("Failed to get verb catalog fingerprint: %s", e_fp)

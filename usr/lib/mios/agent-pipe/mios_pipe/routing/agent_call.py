@@ -455,8 +455,12 @@ async def _call_agent_complete(name, cfg, body, headers, client,
             async with _BUDGET_LOCK:
                 used = _get_window_total(_SESSION_TOKENS, session_id, now)
             if used > conv_ceil:
-                log.warning("Conversation token budget exceeded (%d > %d) for session %s", used, conv_ceil, session_id)
-                raise ValueError(f"Conversation token budget exceeded ({used}/{conv_ceil})")
+                log.warning("Conversation token budget exceeded (%d > %d) for session %s. Trimming history.", used, conv_ceil, session_id)
+                msgs = body.get("messages")
+                if isinstance(msgs, list) and len(msgs) > 5:
+                    system_msgs = [m for m in msgs if isinstance(m, dict) and m.get("role") == "system"]
+                    recent_msgs = [m for m in msgs if isinstance(m, dict) and m.get("role") != "system"][-4:]
+                    body["messages"] = system_msgs + recent_msgs
                 
         if _autonomous_var.get():
             auto_ceil = _get_budget_ceil("autonomous_token_ceil", 400000)
@@ -465,8 +469,12 @@ async def _call_agent_complete(name, cfg, body, headers, client,
                 async with _BUDGET_LOCK:
                     used = _get_window_total(_AUTONOMOUS_SOURCE_TOKENS, src, now)
                 if used > auto_ceil:
-                    log.warning("Autonomous source %s token budget exceeded (%d > %d)", src, used, auto_ceil)
-                    raise ValueError(f"Autonomous source token budget exceeded ({used}/{auto_ceil})")
+                    log.warning("Autonomous source %s token budget exceeded (%d > %d). Trimming history.", src, used, auto_ceil)
+                    msgs = body.get("messages")
+                    if isinstance(msgs, list) and len(msgs) > 5:
+                        system_msgs = [m for m in msgs if isinstance(m, dict) and m.get("role") == "system"]
+                        recent_msgs = [m for m in msgs if isinstance(m, dict) and m.get("role") != "system"][-4:]
+                        body["messages"] = system_msgs + recent_msgs
 
         # 3. Host Pressure Gate
         _engine = _agent_offload_engine(cfg) if prefer_cpu else None

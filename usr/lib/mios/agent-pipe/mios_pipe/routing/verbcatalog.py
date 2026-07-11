@@ -232,19 +232,28 @@ def _load_verb_catalog() -> dict:
 
     # ── Database Authority Sentinel & Shadow-Compare ──
     try:
-        db_cat = _load_verb_catalog_from_db()
-        
         if db_auth:
-            if db_cat:
-                return db_cat
+            if not _DB_UNREACHABLE:
+                db_cat = _load_verb_catalog_from_db()
+                if db_cat:
+                    return db_cat
             # Else fall-open to TOML
             return cat
         else:
-            if db_cat:
-                if not _compare_catalogs(pure_toml_cat, db_cat):
-                    import mios_db_config
-                    mios_db_config.DIVERGENCES += 1
-                    log.warning("Verb catalog divergence detected between TOML/Overlay and DB")
+            # Run shadow-compare in background thread to avoid blocking the main thread/startup
+            import threading
+            def _bg_shadow():
+                try:
+                    db_cat = _load_verb_catalog_from_db()
+                    if db_cat:
+                        divs = _compare_catalogs(pure_toml_cat, db_cat)
+                        if divs:
+                            import mios_db_config
+                            mios_db_config.record_divergence(divs)
+                            log.warning("Verb catalog divergence detected between TOML/Overlay and DB on keys: %s", divs)
+                except Exception as bg_err:
+                    log.debug("background shadow-compare failed: %s", bg_err)
+            threading.Thread(target=_bg_shadow, daemon=True).start()
     except Exception as sentinel_err:
         log.debug("sentinel check or shadow-compare failed: %s", sentinel_err)
 
@@ -382,20 +391,22 @@ def _normalize_verb_catalog_entry(vcfg: dict) -> dict:
     return v
 
 
-def _compare_catalogs(toml_cat: dict, db_cat: dict) -> bool:
+def _compare_catalogs(toml_cat: dict, db_cat: dict) -> set[str]:
+    divs = set()
     for vname in set(toml_cat.keys()) | set(db_cat.keys()):
         if vname not in toml_cat:
             log.warning("Verb '%s' exists in DB but not in TOML", vname)
-            return False
-        if vname not in db_cat:
+            divs.add(f"verbs.{vname}")
+        elif vname not in db_cat:
             log.warning("Verb '%s' exists in TOML but not in DB", vname)
-            return False
-        toml_v = _normalize_verb_catalog_entry(toml_cat[vname])
-        db_v = _normalize_verb_catalog_entry(db_cat[vname])
-        if toml_v != db_v:
-            log.warning("Verb '%s' differences: TOML=%s, DB=%s", vname, toml_v, db_v)
-            return False
-    return True
+            divs.add(f"verbs.{vname}")
+        else:
+            toml_v = _normalize_verb_catalog_entry(toml_cat[vname])
+            db_v = _normalize_verb_catalog_entry(db_cat[vname])
+            if toml_v != db_v:
+                log.warning("Verb '%s' differences: TOML=%s, DB=%s", vname, toml_v, db_v)
+                divs.add(f"verbs.{vname}")
+    return divs
 
 
 def _verb_arg_synonyms_from_catalog(cat: dict) -> dict:
