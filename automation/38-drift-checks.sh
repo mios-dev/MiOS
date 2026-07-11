@@ -2449,6 +2449,340 @@ PY
     fi
 }
 
+# --- (32, WS-VECTOR V3 drift_build_catalog round-trip) -----------------------
+check_drift_build_catalog() {
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "[38-drift-checks]   WARNING: python3 missing -- skipping drift-build-catalog check" >&2
+        return 0
+    fi
+    if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
+import sys
+import os
+import json
+import collections
+import io
+import contextlib
+
+class MockCursor:
+    def __init__(self, db_store):
+        self.db_store = db_store
+        self.results = []
+        self.index = 0
+
+    def execute(self, query, params=None):
+        query_upper = " ".join(query.upper().split())
+        
+        if "INSERT INTO SYSTEM_CONFIG" in query_upper:
+            pass
+        elif "INSERT INTO CONFIG_KV" in query_upper:
+            pass
+        elif "INSERT INTO VERB" in query_upper:
+            pass
+        elif "TRUNCATE TABLE DOMAIN_VERB" in query_upper:
+            pass
+        elif "INSERT INTO DOMAIN_VERB" in query_upper:
+            pass
+        elif "SELECT 1 FROM VERB" in query_upper:
+            self.results = []
+            self.index = 0
+        elif "INSERT INTO PACKAGE_SET" in query_upper:
+            name, section, pkgs_json, enable, layer, base_image_ref = params
+            self.db_store["package_set"][name] = {
+                "name": name,
+                "section": section,
+                "pkgs": pkgs_json,
+                "enable": enable,
+                "layer": layer,
+                "base_image_ref": base_image_ref
+            }
+        elif "INSERT INTO BUILD_PHASE" in query_upper:
+            if len(params) == 3:
+                ordinal, script, deps_json = params
+                stage = "container"
+            else:
+                script = params[0]
+                ordinal = None
+                stage = "firstboot"
+                deps_json = "[]"
+            self.db_store["build_phase"][script] = {
+                "ordinal": ordinal,
+                "script": script,
+                "stage": stage,
+                "deps": deps_json
+            }
+        elif "INSERT INTO DEBLOAT_POLICY" in query_upper:
+            name, policy_type, rules_json = params
+            self.db_store["debloat_policy"][name] = {
+                "name": name,
+                "policy_type": policy_type,
+                "rules": rules_json
+            }
+        elif "INSERT INTO DEBLOAT_PROFILE" in query_upper:
+            self.db_store["debloat_profile"]["default"] = {
+                "name": "default",
+                "description": "Default debloat profile"
+            }
+        elif "INSERT INTO PRESET" in query_upper:
+            features_json = params[0]
+            self.db_store["preset"]["default"] = {
+                "name": "default",
+                "description": "Default preset",
+                "features": features_json,
+                "debloat_profile_name": "default"
+            }
+        elif "SELECT NAME, SECTION, PKGS, ENABLE, LAYER, BASE_IMAGE_REF FROM PACKAGE_SET" in query_upper:
+            rows = []
+            for name in sorted(self.db_store["package_set"].keys()):
+                p = self.db_store["package_set"][name]
+                rows.append({
+                    "name": p["name"],
+                    "section": p["section"],
+                    "pkgs": p["pkgs"],
+                    "enable": p["enable"],
+                    "layer": p["layer"],
+                    "base_image_ref": p["base_image_ref"]
+                })
+            self.results = rows
+            self.index = 0
+        elif "SELECT ORDINAL, SCRIPT, STAGE, DEPS FROM BUILD_PHASE" in query_upper:
+            rows = []
+            def sort_key(item):
+                o = item["ordinal"]
+                return (item["stage"], o if o is not None else 999999, item["script"])
+            for script in sorted(self.db_store["build_phase"].keys()):
+                p = self.db_store["build_phase"][script]
+                rows.append(p)
+            rows.sort(key=sort_key)
+            self.results = [{
+                "ordinal": r["ordinal"],
+                "script": r["script"],
+                "stage": r["stage"],
+                "deps": r["deps"]
+            } for r in rows]
+            self.index = 0
+        elif "SELECT NAME, POLICY_TYPE, RULES FROM DEBLOAT_POLICY" in query_upper:
+            rows = []
+            for name in sorted(self.db_store["debloat_policy"].keys()):
+                p = self.db_store["debloat_policy"][name]
+                rows.append({
+                    "name": p["name"],
+                    "policy_type": p["policy_type"],
+                    "rules": p["rules"]
+                })
+            self.results = rows
+            self.index = 0
+        elif "SELECT NAME, DESCRIPTION FROM DEBLOAT_PROFILE" in query_upper:
+            rows = []
+            for name in sorted(self.db_store["debloat_profile"].keys()):
+                p = self.db_store["debloat_profile"][name]
+                rows.append({
+                    "name": p["name"],
+                    "description": p["description"]
+                })
+            self.results = rows
+            self.index = 0
+        elif "SELECT NAME, DESCRIPTION, FEATURES, DEBLOAT_PROFILE_NAME FROM PRESET" in query_upper:
+            rows = []
+            for name in sorted(self.db_store["preset"].keys()):
+                p = self.db_store["preset"][name]
+                rows.append({
+                    "name": p["name"],
+                    "description": p["description"],
+                    "features": p["features"],
+                    "debloat_profile_name": p["debloat_profile_name"]
+                })
+            self.results = rows
+            self.index = 0
+
+    def fetchall(self):
+        return self.results
+
+    def fetchone(self):
+        if self.index < len(self.results):
+            r = self.results[self.index]
+            self.index += 1
+            return r
+        return None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+class MockConnection:
+    def __init__(self, db_store):
+        self.db_store = db_store
+
+    def cursor(self, row_factory=None):
+        return MockCursor(self.db_store)
+
+    def commit(self):
+        pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+class MockPsycopgModule:
+    def __init__(self, db_store):
+        self.db_store = db_store
+
+    def connect(self, *args, **kwargs):
+        return MockConnection(self.db_store)
+
+def check_roundtrip(root):
+    db_store = {
+        "package_set": {},
+        "build_phase": {},
+        "debloat_policy": {},
+        "debloat_profile": {},
+        "preset": {}
+    }
+    mock_psycopg = MockPsycopgModule(db_store)
+    mock_psycopg.__path__ = []
+    class DictRowMock:
+        pass
+    mock_psycopg.rows = DictRowMock()
+    mock_psycopg.rows.dict_row = DictRowMock
+
+    sys.modules["psycopg"] = mock_psycopg
+    sys.modules["psycopg.rows"] = mock_psycopg.rows
+
+    seed_path = os.path.join(root, "usr/libexec/mios/seed-db-config.py")
+    os.environ["MIOS_TOML"] = os.path.join(root, "usr/share/mios/mios.toml")
+
+    # Run seed script
+    seed_globals = {"__name__": "__main__", "psycopg": mock_psycopg, "__file__": seed_path}
+    try:
+        with open(seed_path, "r", encoding="utf-8") as f:
+            exec(f.read(), seed_globals)
+    except SystemExit as e:
+        if e.code != 0:
+            print(f"Seed script exited with code {e.code}")
+            sys.exit(1)
+
+    # Run materialize script
+    materialize_path = os.path.join(root, "usr/libexec/mios/materialize-build-ctx.py")
+    temp_ctx_dir = "/tmp/mios-drift-ctx-test"
+    os.makedirs(temp_ctx_dir, exist_ok=True)
+    os.environ["MIOS_BUILD_CTX"] = temp_ctx_dir
+
+    mat_globals = {"__name__": "__main__", "psycopg": mock_psycopg, "__file__": materialize_path}
+    try:
+        with open(materialize_path, "r", encoding="utf-8") as f:
+            exec(f.read(), mat_globals)
+    except SystemExit as e:
+        if e.code != 0:
+            print(f"Materialize script exited with code {e.code}")
+            sys.exit(1)
+
+    # Statically diff materialized output
+    try:
+        import tomllib
+    except ImportError:
+        try:
+            import tomli as tomllib
+        except ImportError:
+            sys.exit(0)
+
+    with open(os.environ["MIOS_TOML"], "rb") as f:
+        toml_data = tomllib.load(f)
+
+    # 1. Diff package sets
+    with open(os.path.join(temp_ctx_dir, "package_sets.json"), "r", encoding="utf-8") as f:
+        mat_sets = json.load(f)
+
+    orig_packages = toml_data.get("packages", {})
+    for sec_name, sec_cfg in orig_packages.items():
+        if sec_name == "sections" or not isinstance(sec_cfg, dict) or "pkgs" not in sec_cfg:
+            continue
+        # Find in mat_sets
+        mat_item = next((x for x in mat_sets if x["name"] == sec_name), None)
+        if not mat_item:
+            print(f"Drift: Package set '{sec_name}' missing in materialized output")
+            sys.exit(1)
+        orig_pkgs = sec_cfg.get("pkgs", [])
+        mat_pkgs = mat_item["pkgs"]
+        if orig_pkgs != mat_pkgs:
+            print(f"Drift in package set '{sec_name}':")
+            print(f"  Expected: {orig_pkgs}")
+            print(f"  Got:      {mat_pkgs}")
+            sys.exit(1)
+
+    # 2. Diff build phases
+    with open(os.path.join(temp_ctx_dir, "build_phases.json"), "r", encoding="utf-8") as f:
+        mat_phases = json.load(f)
+
+    automation_dir = os.path.join(root, "automation")
+    import re
+    scripts = sorted([f for f in os.listdir(automation_dir) if re.match(r"^\d{2}-.*\.sh$", f)])
+    
+    prev_script = None
+    for s in scripts:
+        ordinal = int(s.split("-", 1)[0])
+        expected_deps = [prev_script] if prev_script else []
+        mat_item = next((x for x in mat_phases if x["script"] == s), None)
+        if not mat_item:
+            print(f"Drift: Build phase script '{s}' missing in materialized output")
+            sys.exit(1)
+        if mat_item["ordinal"] != ordinal or mat_item["deps"] != expected_deps or mat_item["stage"] != "container":
+            print(f"Drift in build phase script '{s}':")
+            print(f"  Expected: ordinal={ordinal}, stage=container, deps={expected_deps}")
+            print(f"  Got:      ordinal={mat_item['ordinal']}, stage={mat_item['stage']}, deps={mat_item['deps']}")
+            sys.exit(1)
+        prev_script = s
+
+    # 3. Diff debloat profiles / features
+    bootstrap_dir = os.path.abspath(os.path.join(root, "..", "mios-bootstrap", "src", "autounattend"))
+    debloat_json_path = os.path.join(bootstrap_dir, "mios-debloat.json")
+    features_txt_path = os.path.join(bootstrap_dir, "mios-xbox-features.txt")
+
+    if os.path.isfile(debloat_json_path) or os.path.isfile(features_txt_path):
+        with open(os.path.join(temp_ctx_dir, "debloat_profiles.json"), "r", encoding="utf-8") as f:
+            mat_debloat = json.load(f)
+        
+        # Compare policies
+        if os.path.isfile(debloat_json_path):
+            with open(debloat_json_path, "r", encoding="utf-8") as f:
+                orig_debloat = json.load(f)
+            for k, val in orig_debloat.items():
+                if k == "_comment" or not isinstance(val, list):
+                    continue
+                mat_policy = next((x for x in mat_debloat["policies"] if x["name"] == k), None)
+                if not mat_policy:
+                    print(f"Drift: Debloat policy '{k}' missing in materialized output")
+                    sys.exit(1)
+                if mat_policy["rules"] != val:
+                    print(f"Drift in debloat policy '{k}'")
+                    sys.exit(1)
+
+        # Compare features
+        if os.path.isfile(features_txt_path):
+            with open(features_txt_path, "r", encoding="utf-8") as f:
+                orig_features = [line.strip() for line in f if line.strip() and not line.strip().startswith("#")]
+            mat_preset = next((x for x in mat_debloat["presets"] if x["name"] == "default"), None)
+            if not mat_preset:
+                print("Drift: Default preset missing in materialized output")
+                sys.exit(1)
+            if mat_preset["features"] != orig_features:
+                print("Drift in preset features")
+                sys.exit(1)
+
+    sys.exit(0)
+
+if __name__ == "__main__":
+    check_roundtrip(os.environ["MIOS_DRIFT_ROOT"])
+PY
+    then
+        echo "[38-drift-checks]   (32) DB->/ctx materialize round-trip is lossless for build catalog"
+    else
+        _violation "DB->/ctx materialize round-trip drift detected (check 32) -- verify seed-db-config.py and materialize-build-ctx.py mappings"
+    fi
+}
+
 main() {
     check_dead_lane
     check_retired_models
@@ -2481,6 +2815,7 @@ main() {
     check_dag_integrity
     check_names_registry
     check_drift_projection
+    check_drift_build_catalog
 
     echo "[38-drift-checks] ---------------------------------------------------------"
     if [[ "$VIOLATIONS" -eq 0 ]]; then

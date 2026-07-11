@@ -264,6 +264,62 @@ def main():
                                 )
                 log.info("build_phase seeded.")
 
+                # 6. Seed debloat_policy, debloat_profile, preset from bootstrap if reachable
+                bootstrap_dir = os.path.abspath(os.path.join(repo_root, "..", "mios-bootstrap", "src", "autounattend"))
+                debloat_json_path = os.path.join(bootstrap_dir, "mios-debloat.json")
+                features_txt_path = os.path.join(bootstrap_dir, "mios-xbox-features.txt")
+                
+                policies_to_seed = {}
+                features_to_seed = []
+                
+                if os.path.isfile(debloat_json_path):
+                    try:
+                        with open(debloat_json_path, "r", encoding="utf-8") as f:
+                            policies_to_seed = json.load(f)
+                    except Exception as e:
+                        log.warning("Failed to parse mios-debloat.json: %s", e)
+                
+                if os.path.isfile(features_txt_path):
+                    try:
+                        with open(features_txt_path, "r", encoding="utf-8") as f:
+                            features_to_seed = [line.strip() for line in f if line.strip() and not line.strip().startswith("#")]
+                    except Exception as e:
+                        log.warning("Failed to parse mios-xbox-features.txt: %s", e)
+                
+                # Seed debloat_policy
+                for pol_name, pol_rules in policies_to_seed.items():
+                    if pol_name == "_comment" or not isinstance(pol_rules, list):
+                        continue
+                    pol_type = "service" if pol_name == "system_services" else "registry"
+                    cur.execute(
+                        """
+                        INSERT INTO debloat_policy (name, policy_type, rules)
+                        VALUES (%s, %s, %s)
+                        ON CONFLICT (name) DO UPDATE SET policy_type = EXCLUDED.policy_type, rules = EXCLUDED.rules;
+                        """,
+                        (pol_name, pol_type, json.dumps(pol_rules))
+                    )
+                
+                # Seed debloat_profile
+                cur.execute(
+                    """
+                    INSERT INTO debloat_profile (name, description)
+                    VALUES ('default', 'Default debloat profile')
+                    ON CONFLICT (name) DO UPDATE SET description = EXCLUDED.description;
+                    """
+                )
+                
+                # Seed preset
+                cur.execute(
+                    """
+                    INSERT INTO preset (name, description, features, debloat_profile_name)
+                    VALUES ('default', 'Default preset', %s, 'default')
+                    ON CONFLICT (name) DO UPDATE SET description = EXCLUDED.description, features = EXCLUDED.features, debloat_profile_name = EXCLUDED.debloat_profile_name;
+                    """,
+                    (json.dumps(features_to_seed),)
+                )
+                log.info("Debloat and Xbox features/profiles seeded.")
+
                 conn.commit()
                 log.info("Seeding completed successfully.")
     except Exception as e:
