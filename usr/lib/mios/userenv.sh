@@ -137,11 +137,19 @@ def get(d, dotted):
         d = d[p]
     return d
 
-# Target sections to walk recursively for dynamic canonical exports
+# Sections whose leaves are canonically EXPORTED as long-form MIOS_<SECTION>_<KEY>
+# env vars (the managed key library). A section belongs here ONLY if at least one
+# of its long forms has a real consumer, OR it seeds the short-alias derivation
+# below (ai -> MIOS_VLLM_*/MIOS_SGLANG_*). Sections whose entire long-form
+# projection was DEAD (0 non-emitter consumers -- proven by the drift-check 29
+# closure gate) are intentionally ABSENT: ports/colors/identity/auth/network/
+# desktop/branding/observability/routing/agents. Their consumers read either the
+# short slot names below (MIOS_PORT_*, MIOS_COLOR_*, MIOS_USER, ...) or the layered
+# TOML directly -- never the MIOS_<SECTION>_<KEY> shadow. Dropping them removed 212
+# emitter-only vars with zero functionality loss.
 TARGET_SECTIONS = [
-    "ports", "ai", "identity", "locale", "auth", "network", "desktop", 
-    "branding", "image", "bootstrap", "profile", "colors", "observability", 
-    "sandbox", "security", "code_mode", "hermes", "routing", "agents", "a2a",
+    "ai", "locale", "image", "bootstrap", "profile",
+    "sandbox", "security", "code_mode", "hermes", "a2a",
     "converge"
 ]
 
