@@ -2434,6 +2434,67 @@ PY
     fi
 }
 
+# --- (33, WS-NAME no non-canonical bools) ------------------------------------
+check_canonical_bools() {
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "[38-drift-checks]   WARNING: python3 missing -- skipping canonical-bool check" >&2
+        return 0
+    fi
+    if MIOS_TOML="$ROOT/usr/share/mios/mios.toml" python3 - <<'PY'
+import sys
+import os
+
+try:
+    import tomllib
+except ImportError:
+    try:
+        import tomli as tomllib
+    except ImportError:
+        sys.exit(0)
+
+with open(os.environ["MIOS_TOML"], "rb") as f:
+    data = tomllib.load(f)
+
+verbs = data.get("verbs", {})
+for vname, vcfg in verbs.items():
+    if vname == "_defaults":
+        continue
+    if not isinstance(vcfg, dict):
+        continue
+    if "hidden" in vcfg:
+        val = vcfg["hidden"]
+        if not isinstance(val, bool):
+            print(f"Non-canonical hidden value in verb '{vname}': {val!r} (must be true/false)")
+            sys.exit(1)
+    if "sensitive" in vcfg:
+        val = vcfg["sensitive"]
+        if not isinstance(val, bool):
+            print(f"Non-canonical sensitive value in verb '{vname}': {val!r} (must be true/false)")
+            sys.exit(1)
+    params = vcfg.get("params", {})
+    if isinstance(params, dict):
+        for p_name, p_cfg in params.items():
+            if not isinstance(p_cfg, dict):
+                continue
+            if "required" in p_cfg:
+                req = p_cfg["required"]
+                if not isinstance(req, bool):
+                    print(f"Non-canonical required value in verb '{vname}' param '{p_name}': {req!r} (must be true/false)")
+                    sys.exit(1)
+            if "default" in p_cfg and p_cfg.get("type") == "boolean":
+                d = p_cfg["default"]
+                if not isinstance(d, bool):
+                    print(f"Non-canonical default boolean value in verb '{vname}' param '{p_name}': {d!r} (must be true/false)")
+                    sys.exit(1)
+sys.exit(0)
+PY
+    then
+        echo "[38-drift-checks]   (33) no non-canonical bool literals in [verbs.*]"
+    else
+        _violation "Non-canonical bool literal detected in mios.toml verbs (check 33)"
+    fi
+}
+
 # --- (32, WS-VECTOR V3 drift_build_catalog round-trip) -----------------------
 check_drift_build_catalog() {
     if ! command -v python3 >/dev/null 2>&1; then
@@ -2828,6 +2889,7 @@ main() {
     check_names_registry
     check_drift_projection
     check_drift_build_catalog
+    check_canonical_bools
 
     echo "[38-drift-checks] ---------------------------------------------------------"
     if [[ "$VIOLATIONS" -eq 0 ]]; then

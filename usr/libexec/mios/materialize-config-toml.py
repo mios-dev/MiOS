@@ -202,7 +202,7 @@ def main():
                     if hidden != defaults.get("hidden", False):
                         print(f"hidden = {format_toml_value(hidden)}")
                     if aliases:
-                        print(f"aliases = {format_toml_value(aliases)}")
+                        print(f"hidden_aliases = {format_toml_value(aliases)}")
                     if conflict_group:
                         print(f"conflict_group = {format_toml_value(conflict_group)}")
                     if parallel_limit != defaults.get("parallel_limit", 0):

@@ -124,7 +124,7 @@ def main():
                         examples = merged.get("examples")
                         model_name = merged.get("model_name")
                         hidden = bool(merged.get("hidden", False))
-                        aliases = merged.get("aliases")
+                        aliases = merged.get("hidden_aliases") or merged.get("aliases")
                         conflict_group = merged.get("conflict_group")
                         parallel_limit = int(merged.get("parallel_limit", 0))
                         max_result_chars = int(merged.get("max_result_chars", 0))

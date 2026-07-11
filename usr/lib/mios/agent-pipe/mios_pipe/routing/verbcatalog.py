@@ -90,57 +90,25 @@ def _load_verb_catalog() -> dict:
                 # only the entries that carry the agent-verb shape.
                 if "section" not in vcfg:
                     continue
-                cat[vname] = {
+                cat[vname] = _normalize_verb_catalog_entry({
                     "section":    str(vcfg.get("section", "Misc")),
                     "sig":        str(vcfg.get("sig", "")),
                     "desc":       str(vcfg.get("desc", "")),
                     "tier":       str(vcfg.get("tier", "common")),
                     "permission": str(vcfg.get("permission", "read")),
                     "params":     vcfg.get("params") or {},
-                    # SSOT command template (P3): when present, the dispatch
-                    # builder renders THIS instead of a hardcoded branch.
                     "cmd":        str(vcfg.get("cmd", "") or ""),
-                    # Per-verb result cap (SSOT): inventory/discovery verbs
-                    # legitimately return LONG lists (mios_apps' full app+game
-                    # inventory is ~27KB) that the default READ_TOOL_ENRICH_CHARS
-                    # (1500) truncated -- dropping the games section entirely
-                    # ("list ALL my games" returned 2/11).
-                    # 0 -> use the default cap.
                     "max_result_chars": int(vcfg.get("max_result_chars", 0) or 0),
-                    # P1 PA-Tool : optional MODEL-FACING name alias. The
-                    # model sees `model_name` (a lexically-unambiguous, pretraining-
-                    # familiar name) while the internal KEY (vname) stays canonical for
-                    # dispatch/recipes/A2A/routing. Empty -> the model sees the key.
-                    # Resolved back to the key via _MODEL_NAME_TO_VERB / _resolve_verb_key.
                     "model_name": str(vcfg.get("model_name", "") or "").strip(),
-                    # P1 TDWA: synthetic example user-queries appended to the verb's
-                    # retrieval EMBEDDING text (NOT shown to the model) to sharpen the
-                    # cosine tool selection. Embedded by _ensure_verb_embeddings.
                     "examples": [str(x).strip() for x in (vcfg.get("examples") or [])
                                  if str(x).strip()],
-                    # P1: legacy deadweight (e.g. the flatpak_/winget_ verbs superseded
-                    # by `pkg`). Dropped from the model-facing surface (_worker_tools_*)
-                    # but still PARSED + dispatchable so any in-flight caller keeps working.
                     "hidden": bool(vcfg.get("hidden", False)),
-                    # Old verb names this verb ABSORBED during consolidation. Each
-                    # resolves to this key via _resolve_verb_key (back-compat for
-                    # in-flight chains, DAG/skill step bodies, and MCP/A2A callers) but
-                    # NEVER renders on the model / MCP / A2A surface (it is neither a verb
-                    # key nor a model_name). This lets a redundant verb block be DELETED
-                    # outright while its old name still dispatches. No hardcoded keywords.
                     "hidden_aliases": [str(x).strip()
                                        for x in (vcfg.get("hidden_aliases") or [])
                                        if str(x).strip()],
-                    # WS-A7 Tool-Manager serialization (SSOT, both optional):
-                    #   parallel_limit -- max concurrent dispatches of THIS verb
-                    #     (>=1; e.g. 1 = strictly single-flight). 0/absent = unbounded.
-                    #   conflict_group -- named mutual-exclusion set: all verbs
-                    #     sharing the group run one-at-a-time (e.g. open_app /
-                    #     focus_window / pc_type all contend for the one foreground
-                    #     window + keyboard, so a fan-out must not interleave them).
                     "parallel_limit": int(vcfg.get("parallel_limit", 0) or 0),
                     "conflict_group": str(vcfg.get("conflict_group", "") or "").strip(),
-                }
+                })
     except Exception as e:
         log.warning("verb catalog load failed: %s", e)
         if CATALOG_FAIL_MODE == "fail":   # WS-A1 fail-loud (opt-in)
@@ -355,7 +323,7 @@ def _load_verb_catalog_from_db() -> dict:
                         "parallel_limit": int(parallel_limit or 0),
                         "conflict_group": str(conflict_group or "").strip(),
                     })
-                    cat[vname] = vcfg
+                    cat[vname] = _normalize_verb_catalog_entry(vcfg)
     except Exception as e:
         _DB_UNREACHABLE = True
         log.debug("Failed to load verb catalog from DB: %s", e)
@@ -377,17 +345,82 @@ def _normalize_verb_catalog_entry(vcfg: dict) -> dict:
         if not val:
             v[key] = None
         else:
-            v[key] = [str(x).strip() for x in val if str(x).strip()]
-            if not v[key]:
-                v[key] = None
-    if "params" in v:
-        if not v["params"]:
-            v["params"] = None
-    v["hidden"] = bool(v.get("hidden"))
+            seen = set()
+            cleaned = []
+            for x in val:
+                s = str(x).strip()
+                if s and s not in seen:
+                    seen.add(s)
+                    cleaned.append(s)
+            v[key] = sorted(cleaned) if cleaned else None
+    if "aliases" in v:
+        val = v.pop("aliases")
+        if val:
+            if v.get("hidden_aliases"):
+                combined = set(v["hidden_aliases"]) | set(val)
+                v["hidden_aliases"] = sorted(list(combined))
+            else:
+                v["hidden_aliases"] = val
+    def to_bool(val):
+        if isinstance(val, bool):
+            return val
+        if isinstance(val, (int, float)):
+            return bool(val)
+        if isinstance(val, str):
+            return val.lower() in ("true", "1", "yes", "on")
+        return bool(val)
+    v["hidden"] = to_bool(v.get("hidden", False))
+    if "sensitive" in v:
+        v["sensitive"] = to_bool(v["sensitive"])
     v["parallel_limit"] = int(v.get("parallel_limit") or 0)
     v["max_result_chars"] = int(v.get("max_result_chars") or 0)
-    if "aliases" in v:
-        v["hidden_aliases"] = v.pop("aliases")
+    params = v.get("params")
+    if isinstance(params, dict) and params:
+        normalized_params = {}
+        for p_name, p_cfg in sorted(params.items()):
+            if not isinstance(p_cfg, dict):
+                normalized_params[p_name] = p_cfg
+                continue
+            p = copy.deepcopy(p_cfg)
+            if "required" in p:
+                p["required"] = to_bool(p["required"])
+            for k in ("type", "desc"):
+                if k in p:
+                    p[k] = str(p[k]).strip() if p[k] is not None else None
+            for k in ("aliases", "enum"):
+                if k in p:
+                    pval = p[k]
+                    if not pval:
+                        p[k] = None
+                    else:
+                        pseen = set()
+                        pcleaned = []
+                        for px in pval:
+                            ps = str(px).strip()
+                            if ps and ps not in pseen:
+                                pseen.add(ps)
+                                pcleaned.append(ps)
+                        p[k] = sorted(pcleaned) if pcleaned else None
+            if "default" in p:
+                p_type = str(p.get("type") or "").lower()
+                p_def = p["default"]
+                if p_type == "boolean":
+                    p["default"] = to_bool(p_def)
+                elif p_type in ("integer", "number"):
+                    try:
+                        p["default"] = int(p_def)
+                    except (ValueError, TypeError):
+                        try:
+                            p["default"] = float(p_def)
+                        except (ValueError, TypeError):
+                            p["default"] = p_def
+                else:
+                    if isinstance(p_def, str) and p_def.lower() in ("true", "false"):
+                        p["default"] = (p_def.lower() == "true")
+            normalized_params[p_name] = p
+        v["params"] = normalized_params
+    else:
+        v["params"] = None
     return v
 
 

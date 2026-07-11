@@ -163,7 +163,7 @@ class VerbCatalogTest(unittest.TestCase):
 
     def test_arg_synonyms_projection(self):
         syn = VC._verb_arg_synonyms_from_catalog(self.cat)
-        self.assertEqual(syn["open_app"]["name"], ["query", "title", "app", "target", "program", "path", "file", "binary", "exe"])
+        self.assertEqual(syn["open_app"]["name"], ["app", "binary", "exe", "file", "path", "program", "query", "target", "title"])
         # The compat shim reads the injected _VERB_CATALOG.
         self.assertEqual(VC._load_verb_arg_synonyms(), syn)
 
