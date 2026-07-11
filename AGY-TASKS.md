@@ -221,6 +221,34 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 
 ---
 
+## AGY-28  (AGY-25 RESIDUALS, **P1**) — close the 4 residual defects a Claude verification pass found still open after AGY-25
+**Who:** you (Python). **When:** NEXT. A Claude adversarial re-verify confirmed AGY-25 landed 10/10 but left these tails:
+1. **`agent_call.py` — D3 still HARD-RAISES.** The rolling-window is in (good, permanent-wedge gone) but once the 1h-windowed total exceeds `conversation_token_ceil` it still raises `ValueError` (500-style) instead of the **graceful summarize** the defect asked for. **Fix:** mirror `chat.py`'s `_budget_admit` degrade — summarize/trim + admit, never a hard raise on a live session.
+2. **`mios_db_config.py` + `verbcatalog.py:~246` — D4 not airtight.** `get_divergences()` sums the deduped `_DIVERGENT_KEYS` set PLUS the raw int `DIVERGENCES`, and `verbcatalog.py` still does `mios_db_config.DIVERGENCES += 1` per divergent reload. **Fix:** route the verbcatalog contributor into the SAME `_DIVERGENT_KEYS` set (scope.key granularity) and drop the raw-int path so the gauge = distinct divergent settings.
+3. **`embed_backfill.py` — D2 co-residency assumption.** `_verb_embed_fingerprint()` reads toolsearch's module-global `_VERB_CATALOG`; if the 15-min worker runs in a process where `configure()` never populated it, the fp is computed over an empty catalog → churn returns. **Fix:** guard/assert the catalog is populated before fingerprinting (skip the run + log if empty), or compute the fp from the same SSOT source both processes read.
+4. **`verbcatalog.py` — D6 first-load blocking connect.** On the sentinel-FALSE path the FIRST load still does one blocking `psycopg.connect(connect_timeout=2)` before `_DB_UNREACHABLE` caches. **Fix:** short-circuit the very first probe too (cache the unreachable state across the initial call, or make the probe non-blocking/background).
+**Done When:** each fixed at cited file:line; tests extended; `just drift-gate` green; stage only your files.
+
+## AGY-29  (WS-VECTOR V4 hardening / T-246, **P2**) — fix the two AGY-22/23 residuals a Claude verify pass flagged
+**Who:** you (Python). **When:** after AGY-28.
+1. **`materialize-user-config.py:~176` home-escape.** The path guard uses `startswith('/home/bob')`, so a seeded `file:`-pref like `../bob-evil/.bashrc` resolves to `/home/bob-evil/.bashrc` and PASSES. **Fix:** `os.path.commonpath([home, resolved]) == home` (or trailing-separator compare). Active only when `db_render_prefs=true` (default false) but fix before that flag is ever flipped.
+2. **`materialize-user-config.py:~37` lossy `parse_simple_toml`.** Rendering `~/.config/mios/mios.toml` via parse→reserialize drops comments and cannot represent inline tables / arrays-of-tables / multiline arrays. **Fix:** read with `tomllib` (never the naive parser) and, if you must re-emit, use a real TOML writer or a preserve-comments strategy; otherwise render only the typed pref slots, not the whole file.
+**Done When:** guard uses commonpath; user-config render is lossless or slot-scoped; tests cover both; `just drift-gate` green.
+
+## AGY-30  (VALUE/VERB MINIFICATION / WS-NAME sibling, **P1**) — canonicalize value + verb representation across the SSOT + verb tables
+**Who:** you (Python + SQL + TOML). **When:** parallel-safe. Operator campaign: MINIFY + canonicalize verbs, keys, AND values to ONE form — collapse `True`/`1`/`"yes"` → canonical lowercase `true`/`false`, dedupe redundant verb aliases, fold key-case variants. **SCOPE (avoid collision):** the **verbs tables** (`[verbs.*]` in mios.toml + the `verb`/`domain_verb` DB rows + `verbcatalog.py` normalization) and **non-quadlet config values**. **DO NOT touch** `tools/lib/userenv.sh` / `usr/lib/mios/userenv.sh` or `tools/generate-pod-quadlets.py` / the generated `*.container` (Claude owns the key-library + quadlet value-render collapse). **How:** add a canonicalizer in the verb-catalog load path that normalizes bool/int/enum arg-values + de-dupes aliases deterministically; sweep `[verbs.*]` for `True`/`1`/mixed-case bools and fold them; add a drift-check that asserts no non-canonical bool literal re-appears. Coordinate the shared-name registry via the existing names-registry generator.
+**Done When:** verbs + config values are single-canonical-form; a new drift-check guards it; behavior byte-identical at the consumer (parsers already `.lower()`); tests + `just drift-gate` green; stage only your files (NOT userenv.sh/quadlets).
+
+## AGY-31  (USR-OVER-ETC reconciliation, **P2**) — audit + reconcile the duplicate `etc/containers/systemd/*.container` copies
+**Who:** you (bash + audit). **When:** after Claude's #12 digest root-fix lands (DONE, commit 852b605). A Claude verify pass flagged that `etc/containers/systemd/*.container` duplicate copies exist alongside the generated `usr/share/...` units; if the `etc/` copies carry **stale digests** they defeat the digest-determinism fix at DEPLOY time (systemd prefers `/etc`). **How:** enumerate every `etc/containers/systemd/*.container`, diff against its `usr/share/...` generated twin; per LAW USR-OVER-ETC, `/etc` is admin-override only — either (a) delete the redundant `etc/` copy if it's just a stale mirror, or (b) if it's a deliberate override, reduce it to a `.d/` drop-in carrying ONLY the overridden keys (never a full duplicate with a pinned Image). Add a drift-check that fails if an `etc/` full-unit duplicate reappears.
+**Done When:** no full-unit `etc/` duplicate shadows a generated unit with a divergent/stale Image; overrides are drop-ins; drift-check added; `just drift-gate` green.
+
+## AGY-32  (audit-redaction test coverage, **P2**) — prove the config_event secret-redaction holds
+**Who:** you (SQL + Python test). **When:** after AGY-28. Claude added `mios_redact_config_value()` + wrapped `log_config_kv_change()` (commit 3abc92f) so seeded secrets (`identity.default_password`, `[security].*`, `[agent_passport].*`) are masked to `[REDACTED_SECRET]` in `config_event`. **How:** add a test (extend `test_mios_pg` or a new `test_mios_config_audit`) that: seeds a config_kv row with a secret-bearing key, asserts the resulting `config_event` row's `new_value` = `"[REDACTED_SECRET]"`, and a non-secret key passes through verbatim. ALSO audit the `verb`/`domain_verb` audit triggers (`log_verb_change`/`log_domain_verb_change`, `to_jsonb(NEW)`) — if any verb field can carry a credential (e.g. a cmd with an inline token), apply the same redaction; otherwise document why they're secret-free.
+**Done When:** redaction test green (secret masked, non-secret passes); verb-trigger secret-safety confirmed or fixed; `just drift-gate` green.
+
+---
+
 ### Reporting back
 Commit each task as `agy: <task-id> <summary>` and push to `main`. Claude is monitoring
 `main` for your commits + will integrate/verify. If blocked, leave a `TODO(agy):` note in
