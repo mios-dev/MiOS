@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import glob
 import os
 
 try:
@@ -26,21 +27,51 @@ USER = os.environ.get("MIOS_USER_TOML") or os.path.join(
     os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")), "mios/mios.toml")
 
 
-def layer_paths():
-    """The overlay layer paths, lowest precedence first. Resolved from the
-    environment at CALL time (not import time) so a caller / test / CI on a
-    non-FHS host can retarget a layer via MIOS_VENDOR_TOML / MIOS_HOST_TOML /
-    MIOS_USER_TOML / MIOS_TOML_ROOT AFTER this module is imported -- the
-    import-time module globals below froze those and silently broke the
-    retargetability this module's header promises (e.g. mios-find's ranker test,
-    which set the env only after importing the shared resolver)."""
+def _frags(dirpath):
+    """The *.toml drop-in fragments in dirpath, sorted lexically by BASENAME
+    (systemd .d ordering), or [] if the dir is absent. A missing mios.d/ makes
+    this a no-op -- the whole drop-in layer collapses to nothing."""
+    if not dirpath or not os.path.isdir(dirpath):
+        return []
+    return sorted(glob.glob(os.path.join(dirpath, "*.toml")),
+                  key=os.path.basename)
+
+
+def _tier_dirs():
+    """(vendor, vendor_d, host, host_d, user, user_d) resolved from the env at
+    CALL time. Vendor FRAGMENTS live in /usr/lib/mios/mios.d (Law 1 USR-OVER-ETC
+    + systemd's /usr/lib vendor convention), NOT beside the /usr/share monolith;
+    admin/user fragments sit in a mios.d/ beside their monolith."""
     root = os.environ.get("MIOS_TOML_ROOT", "")
     vendor = os.environ.get("MIOS_VENDOR_TOML") or (
         os.path.join(root, "usr/share/mios/mios.toml") if root else "/usr/share/mios/mios.toml")
     host = os.environ.get("MIOS_HOST_TOML", "/etc/mios/mios.toml")
     user = os.environ.get("MIOS_USER_TOML") or os.path.join(
         os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")), "mios/mios.toml")
-    return [vendor, host, user]
+    vendor_d = os.environ.get("MIOS_VENDOR_TOML_D") or (
+        os.path.join(root, "usr/lib/mios/mios.d") if root else "/usr/lib/mios/mios.d")
+    host_d = os.environ.get("MIOS_HOST_TOML_D") or os.path.join(os.path.dirname(host), "mios.d")
+    user_d = os.environ.get("MIOS_USER_TOML_D") or os.path.join(os.path.dirname(user), "mios.d")
+    return vendor, vendor_d, host, host_d, user, user_d
+
+
+def layer_paths():
+    """The overlay layer paths, lowest precedence first, EXPANDED to include
+    drop-in fragments. Resolved from the environment at CALL time (not import
+    time) so a caller / test / CI on a non-FHS host can retarget a layer via
+    MIOS_VENDOR_TOML / MIOS_HOST_TOML / MIOS_USER_TOML / MIOS_TOML_ROOT (and the
+    *_TOML_D fragment-dir overrides) AFTER this module is imported.
+
+    Ordering is TIER-MAJOR (vendor < host < user); within each tier the monolith
+    seeds LOWEST, then that tier's mios.d/*.toml fragments (lexical basename)
+    deep-merge over it. Tier is the primary precedence key -- a vendor fragment
+    can NEVER outrank a higher tier (the XDG/git-config scope model, not
+    systemd's global flat sort). NO-OP when no mios.d/ exists: every _frags()
+    glob is empty and this returns exactly [vendor, host, user] as before."""
+    vendor, vendor_d, host, host_d, user, user_d = _tier_dirs()
+    return ([vendor] + _frags(vendor_d)
+            + [host] + _frags(host_d)
+            + [user] + _frags(user_d))
 
 
 def deep_merge(dst, src):
@@ -75,8 +106,17 @@ def load_merged(layers=None):
 
 
 def load_vendor():
-    """Vendor-only view -- what the offline drift-gates intentionally read."""
-    return _load_one(VENDOR)
+    """Vendor-only view (monolith + /usr/lib/mios/mios.d fragments) -- what the
+    offline drift-gates intentionally read. Includes vendor fragments so that a
+    section migrated out of the monolith into a mios.d/ fragment (R6) stays
+    visible to the gates. No-op vs the old monolith-only view until the first
+    vendor fragment exists."""
+    vendor, vendor_d, *_ = _tier_dirs()
+    merged = {}
+    deep_merge(merged, _load_one(vendor))
+    for p in _frags(vendor_d):
+        deep_merge(merged, _load_one(p))
+    return merged
 
 
 def section(data, name):

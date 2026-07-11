@@ -80,11 +80,20 @@ MIOS_USER_TOML="${MIOS_CONFIG_DIR}/mios.toml"
 # stdlib; tomli fallback for older). The Python block prints shell-safe
 # 'export' lines that the surrounding shell evals.
 _mios_load_unified() {
-    local layers=("$MIOS_VENDOR_TOML" "$MIOS_HOST_TOML" "$MIOS_USER_TOML")
     command -v python3 >/dev/null 2>&1 || return 0
+    # Drop-in discovery (R1): each tier = monolith + its mios.d/*.toml fragments.
+    # Vendor fragments live in /usr/lib/mios/mios.d (Law 1 USR-OVER-ETC); admin/
+    # user fragments sit in a mios.d/ beside their monolith. Tier-major precedence
+    # (vendor < host < user); the Python block globs + orders them exactly like the
+    # peer resolver usr/lib/mios/mios_toml.py. No-op until the first fragment exists.
+    local vendor_d="${MIOS_VENDOR_TOML_D:-/usr/lib/mios/mios.d}"
+    local host_d="${MIOS_HOST_TOML_D:-$(dirname "$MIOS_HOST_TOML")/mios.d}"
+    local user_d="${MIOS_USER_TOML_D:-${MIOS_CONFIG_DIR}/mios.d}"
     local exports
-    exports=$(MIOS_LAYERS="${layers[*]}" python3 - <<'PY'
-import os, sys, shlex, re
+    exports=$(MIOS_VENDOR_TOML="$MIOS_VENDOR_TOML" MIOS_HOST_TOML="$MIOS_HOST_TOML" \
+              MIOS_USER_TOML="$MIOS_USER_TOML" MIOS_VENDOR_TOML_D="$vendor_d" \
+              MIOS_HOST_TOML_D="$host_d" MIOS_USER_TOML_D="$user_d" python3 - <<'PY'
+import os, sys, shlex, re, glob
 try:
     import tomllib
 except ImportError:
@@ -93,12 +102,21 @@ except ImportError:
     except ImportError:
         sys.exit(0)
 
-layers = os.environ["MIOS_LAYERS"].split()
+def _frags(d):
+    if not d or not os.path.isdir(d):
+        return []
+    return sorted(glob.glob(os.path.join(d, "*.toml")), key=os.path.basename)
+
+layers = ([os.environ.get("MIOS_VENDOR_TOML", "")] + _frags(os.environ.get("MIOS_VENDOR_TOML_D", ""))
+          + [os.environ.get("MIOS_HOST_TOML", "")] + _frags(os.environ.get("MIOS_HOST_TOML_D", ""))
+          + [os.environ.get("MIOS_USER_TOML", "")] + _frags(os.environ.get("MIOS_USER_TOML_D", "")))
 
 def deep_merge(dst, src):
     for k, v in src.items():
         if isinstance(v, dict) and isinstance(dst.get(k), dict):
             deep_merge(dst[k], v)
+        elif isinstance(v, str) and v == "" and dst.get(k) not in (None, ""):
+            continue  # empty string never overrides a non-empty value (parity with mios_toml.py:52)
         else:
             dst[k] = v
 
