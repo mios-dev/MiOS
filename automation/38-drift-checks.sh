@@ -708,6 +708,20 @@ check_pod_quadlets() {
         echo "[38-drift-checks]   WARNING: generate-pod-quadlets.py absent -- skipping" >&2
         return 0
     fi
+    # RENDER-AWARE SKIP: this is a PRE-BUILD source-tree invariant (committed
+    # .container == generator output). During the OCI build, 15-render-quadlets
+    # has already resolved runtime placeholders IN PLACE (e.g. --port
+    # ${MIOS_PORT_VLLM} -> 8441) and stripped the trailing newline, so a bare
+    # generate --check (which emits the pristine ${MIOS_PORT_*} placeholders)
+    # would false-positive on every rendered unit. The pristine invariant is
+    # enforced by the standalone `just drift-gate` (pre-build, unrendered tree).
+    # Canary: if a known placeholder no longer survives on disk, the tree is
+    # rendered -> skip. (`grep -F` so the literal ${...} matches, not a regex.)
+    local _canary="$ROOT/usr/share/containers/systemd/mios-llm-heavy.container"
+    if [[ -f "$_canary" ]] && ! grep -qF '${MIOS_PORT_VLLM}' "$_canary" 2>/dev/null; then
+        echo "[38-drift-checks]   (13) SKIP: Quadlets rendered (build context) -- pristine drift enforced by standalone just drift-gate"
+        return 0
+    fi
     if MIOS_ROOT="$ROOT" python3 "$gen" --check; then
         echo "[38-drift-checks]   (13) Quadlet units (.pod, .container, .network, .volume) in sync with mios.toml SSOT"
     else
