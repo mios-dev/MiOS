@@ -16,7 +16,9 @@ ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # is strictly additive: best case the configured serve-flags bake in, worst
 # case (no resolver) behaviour is identical to before. Mirrors 15-render-quadlets.
 # shellcheck source=lib/common.sh
-source "${SCRIPT_DIR}/lib/common.sh"
+# `|| true`: the generator MUST still run (with fallbacks) even if the resolver
+# errors -- never let env resolution fail image generation.
+source "${SCRIPT_DIR}/lib/common.sh" || true
 
 GEN_SCRIPT="${ROOT}/tools/generate-pod-quadlets.py"
 TOML_FILE="${ROOT}/usr/share/mios/mios.toml"
