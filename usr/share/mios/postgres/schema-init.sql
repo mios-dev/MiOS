@@ -776,6 +776,18 @@ CREATE TABLE IF NOT EXISTS preset (
 CREATE INDEX IF NOT EXISTS preset_emb_hnsw_idx ON preset USING hnsw (emb vector_cosine_ops);
 
 
+-- ===== WS-VECTOR V2: event and session tables (AGY-18) =====
+ALTER TABLE event ADD COLUMN IF NOT EXISTS emb vector(768);
+ALTER TABLE event ADD COLUMN IF NOT EXISTS emb_model varchar(128);
+ALTER TABLE event ADD COLUMN IF NOT EXISTS emb_version varchar(64);
+CREATE INDEX IF NOT EXISTS event_emb_hnsw_idx ON event USING hnsw (emb vector_cosine_ops);
+
+ALTER TABLE session ADD COLUMN IF NOT EXISTS emb vector(768);
+ALTER TABLE session ADD COLUMN IF NOT EXISTS emb_model varchar(128);
+ALTER TABLE session ADD COLUMN IF NOT EXISTS emb_version varchar(64);
+CREATE INDEX IF NOT EXISTS session_emb_hnsw_idx ON session USING hnsw (emb vector_cosine_ops);
+
+
 
 
 

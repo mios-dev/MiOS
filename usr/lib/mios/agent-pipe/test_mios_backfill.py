@@ -44,6 +44,26 @@ class TestMiosEmbedBackfill(unittest.IsolatedAsyncioTestCase):
             "File: /etc/hosts\nKind: file\nSize: 128 bytes\nSummary: Local DNS mappings"
         )
 
+        # 5. event
+        ev_row = {
+            "act_type": "critic",
+            "summary": "Critic rejected action"
+        }
+        self.assertEqual(
+            eb.get_text_projection("event", ev_row),
+            "Event: critic\nSummary: Critic rejected action"
+        )
+
+        # 6. session
+        sess_row = {
+            "title": "My Session",
+            "meta": {"first_prompt": "Hello AI"}
+        }
+        self.assertEqual(
+            eb.get_text_projection("session", sess_row),
+            "Session Title: My Session\nPrompt: Hello AI"
+        )
+
     @patch("mios_pipe.memory.pg.execute", new_callable=AsyncMock)
     @patch("httpx.AsyncClient")
     async def test_run_backfill_success(self, mock_client_cls, mock_execute):
@@ -59,7 +79,9 @@ class TestMiosEmbedBackfill(unittest.IsolatedAsyncioTestCase):
             "skill": [{"id": 1, "name": "skill_1", "description": "desc_1"}],
             "verb": [{"name": "verb_1", "desc_default": "desc_1", "examples": None, "model_name": None}],
             "tool_call": [{"id": 10, "tool": "tc_1", "args": "{}", "result_preview": "res", "output": None}],
-            "directory_entry": [{"id": 100, "path": "p_1", "kind": "file", "size": 10, "summary": "sum_1"}]
+            "directory_entry": [{"id": 100, "path": "p_1", "kind": "file", "size": 10, "summary": "sum_1"}],
+            "event": [{"id": 500, "act_type": "critic", "summary": "Critic check"}],
+            "session": [{"id": "sess_1", "meta": {"title": "Sess", "first_prompt": "Hello"}}]
         }
         
         def execute_side_effect(sql, params=None, fetch=False, **kwargs):
@@ -78,6 +100,8 @@ class TestMiosEmbedBackfill(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(res["verb"], 1)
         self.assertEqual(res["tool_call"], 1)
         self.assertEqual(res["directory_entry"], 1)
+        self.assertEqual(res["event"], 1)
+        self.assertEqual(res["session"], 1)
 
     @patch("mios_pipe.memory.pg.execute", new_callable=AsyncMock)
     @patch("httpx.AsyncClient")

@@ -96,8 +96,11 @@ PK_MAP = {
     "skill": "id",
     "verb": "name",
     "tool_call": "id",
-    "directory_entry": "id"
+    "directory_entry": "id",
+    "event": "id",
+    "session": "id"
 }
+
 
 def get_embed_config() -> Tuple[str, str]:
     light_port = os.environ.get("MIOS_PORT_LLM_LIGHT") or "8450"
@@ -105,6 +108,7 @@ def get_embed_config() -> Tuple[str, str]:
     url = os.environ.get("MIOS_VERB_EMBED_URL") or f"{light_base}/v1/embeddings"
     model = os.environ.get("MIOS_VERB_EMBED_MODEL") or "nomic-embed-text"
     return url, model
+
 
 def get_text_projection(table: str, row: dict) -> Optional[str]:
     if table == "skill":
@@ -141,7 +145,22 @@ def get_text_projection(table: str, row: dict) -> Optional[str]:
         size = row.get("size") or 0
         summary = row.get("summary") or ""
         return f"File: {path}\nKind: {kind}\nSize: {size} bytes\nSummary: {summary}".strip() or None
+    elif table == "event":
+        act_type = row.get("act_type") or ""
+        summary = row.get("summary") or ""
+        return f"Event: {act_type}\nSummary: {summary}".strip() or None
+    elif table == "session":
+        meta = row.get("meta") or {}
+        if isinstance(meta, str):
+            try:
+                meta = json.loads(meta)
+            except Exception:
+                meta = {}
+        title = row.get("title") or meta.get("title") or ""
+        first_prompt = row.get("first_prompt") or meta.get("first_prompt") or meta.get("first_user_text") or ""
+        return f"Session Title: {title}\nPrompt: {first_prompt}".strip() or None
     return None
+
 
 async def embed_text_with_retry(client: httpx.AsyncClient, text: str, url: str, model: str) -> Optional[list[float]]:
     backoff = 1.0
@@ -171,6 +190,7 @@ async def embed_text_with_retry(client: httpx.AsyncClient, text: str, url: str, 
             backoff *= 2.0
     return None
 
+
 async def run_backfill(current_version: str = "nomic-768-v1") -> dict:
     url, model = get_embed_config()
     results = {}
@@ -180,7 +200,9 @@ async def run_backfill(current_version: str = "nomic-768-v1") -> dict:
             "skill": "id, name, description",
             "verb": "name, desc_default, examples, model_name",
             "tool_call": "id, tool, args, result_preview, output",
-            "directory_entry": "id, path, kind, size, summary"
+            "directory_entry": "id, path, kind, size, summary",
+            "event": "id, act_type, summary",
+            "session": "id, meta"
         }
         cols = cols_map[table]
         
