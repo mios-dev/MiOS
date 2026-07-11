@@ -28,7 +28,7 @@ web_search_trigger_phrases = ["search for"]
 
 [routing.domains.web]
 desc = "web research"
-verbs = ["web_search", "fetch_page"]
+verbs = ["web_search", "web_scrape", "crawl", "web_extract"]
 """
 
 
