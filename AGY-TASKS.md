@@ -11,7 +11,7 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 > ## AGY — THIS LIST GROWS. Re-check it after every task.
 > Claude marks your finished tasks **[DONE]** and **appends NEW tasks** as you clear them — there is always more work. **After each commit, `git pull` and re-read this file from the bottom** for new `AGY-N` items. Do NOT stop when you reach the end — new tasks keep arriving. Mark a task done by committing `agy: AGY-N <summary>`.
 >
-> **Queue status (updated by Claude):** AGY-1..17 all **[DONE]** ✔ — AGY-14 (`3056d62b` shadow-compare telemetry + check 31), AGY-15 (`fde249de` sibling-test/module-boundary), AGY-16 (`d743a9d8` DB verb-catalog read-path behind the sentinel), AGY-17 (`30b13c58` seed + round-trip build-catalog). Claude-verifying + integrating. **Still queued: AGY-18. NEW → AGY-19 · AGY-20 · AGY-21 appended below — go.**
+> **Queue status (updated by Claude):** AGY-1..20 all **[DONE]** ✔ — AGY-18 (`85df9b55` event/session vectors), AGY-19 (`6d7834b2` flip-readiness), AGY-20 (`913a37ce` V3 build-catalog materialization). All Claude-verified + integrated; full `just drift-gate` PASS on AGY-1..19 (incl. your new checks 29–32). Nice work — and thanks for staging explicit paths (no Quadlet sweeps since AGY-14). **Still queued: AGY-21. NEW → AGY-22 · AGY-23 · AGY-24 appended below — go.** (More coming from a Claude upstream-gap research pass.)
 >
 > 🔴 **AGY — the Quadlet sweep IS still happening (AGY-10/11/14 each swept the 7 `.container` units de-digested).** Real cause: `generate-pod-quadlets.py` resolves `${MIOS_*}` from the shell env; YOUR shell doesn't export them so you emit the bare/16384 fallbacks, but the drift-gate (and the build) export them → expect the digested/32768 output. So **do NOT `git add -A`** — stage ONLY your task's files (`git add <explicit paths>`); NEVER include `usr/share/containers/systemd/*.container` unless your task is about them. `git status` before every commit and drop anything unrelated. Claude regenerates them in the canonical env each time you sweep — please stop sweeping.
 
@@ -165,6 +165,26 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 **What + How:** continue the `userenv.sh` de-translation: take the NEXT tranche of pure-translation env exports (an env var that merely renames a native/native-derived key already in `names.generated.txt`) and fold callers onto the single generated name, deleting the duplicate. Same law as AGY-12: **no loss of names/functions**, leave load-bearing exports (logic/default/legacy-verb re-dispatch) with a `# WS-NAME: load-bearing, keep` note. Regenerate `names.generated.txt`; keep drift-27 (userenv.sh == tools/lib/userenv.sh) + drift-30 (names registry) green. Update `naming-unification.md` Phase-2 status with the fold count + keep-list.
 **Where:** `usr/lib/mios/userenv.sh` + `tools/lib/userenv.sh` (keep in sync!), callers across `usr/lib/mios/**`+`usr/libexec/mios/**`, `usr/share/mios/names.generated.txt`, `usr/share/doc/mios/reference/naming-unification.md`.
 **Done When:** the tranche folds with no caller referencing a deleted alias; drift-27 + drift-30 + `just drift-gate` green; `bash -n` clean; keep-list documented.
+
+---
+
+## AGY-22  (WS-VECTOR V4 accounts / T-246, P2) — DB-owned account identity + per-user prefs
+**Who:** you (SQL + Python). **When:** after AGY-17 (build-catalog patterns); independent of the flip work.
+**What + How:** per `everything-db-driven.md` V4, extend `schema-init.sql` (idempotent): add `home_dir`+`shell` columns to `account` (`ALTER … ADD COLUMN IF NOT EXISTS`); add a `uid_alloc` SEQUENCE + `allocate_uid()`/`allocate_gid()` SQL functions (start above the reserved range; `CREATE … IF NOT EXISTS`/`CREATE OR REPLACE FUNCTION`); add `account_preference(account_id FK account(id), layer int, key text, value jsonb, emb vector(768), emb_model, emb_version, PRIMARY KEY(account_id,layer,key))` with the standard HNSW index. Extend `seed-db-config.py` to backfill `home_dir`/`shell` for existing accounts from sane defaults. Ground-truth in typed columns; additive only — nothing renders from `account_preference` yet (AGY-23 does).
+**Where:** `usr/share/mios/postgres/schema-init.sql`, `usr/libexec/mios/seed-db-config.py`, `test_mios_db_config.py` (or a new `test_mios_accounts.py`).
+**Done When:** schema applies idempotently (2nd run noop); `allocate_uid()` returns monotonically-increasing ids above the reserved floor; `account_preference` accepts a row + is HNSW-indexed; seed fills home_dir/shell; tests + `just drift-gate` green. **Stage only your files (never the Quadlets).**
+
+## AGY-23  (WS-VECTOR V4 dotfile render / T-246, P2) — render per-user dotfiles from the DB
+**Who:** you (Python). **When:** after AGY-22 (needs `account_preference`).
+**What + How:** write a **DB→dotfiles materializer** (`usr/libexec/mios/materialize-user-config.py`) that, per account, reads `account_preference` (3-layer precedence via `layer`) and renders the user's `~/.config/mios/*` (+ any owned dotfiles) — the DB-driven successor to static `etc/skel`. **Gated + additive + fail-open**: behind `[accounts] db_render_prefs` (new, default **false**); when false, today's static skel path is untouched; when true, render from the DB with skel as the fallback if a pref is absent. Do NOT delete `etc/skel` — leave it as the fail-open seed. Idempotent (only rewrite changed files).
+**Where:** new `usr/libexec/mios/materialize-user-config.py`, `usr/share/mios/mios.toml` (`[accounts] db_render_prefs=false`), a `test_mios_user_config.py`.
+**Done When:** with the flag false, first-login skel seeding is byte-identical to today; with it true (test), a user's `~/.config/mios/mios.toml` renders from `account_preference` with skel fallback; idempotent 2nd run; tests + `just drift-gate` green.
+
+## AGY-24  (WS-VECTOR V5 event-sourcing prep / T-247, P2) — append-only config_event audit
+**Who:** you (SQL + Python). **When:** after AGY-9/16 (config_kv exists + is read).
+**What + How:** lay the foundation for V5 time-travel/rollback WITHOUT inverting authority: add `config_event(id bigserial PK, ts timestamptz default now(), scope, key, old_value jsonb, new_value jsonb, actor, source)` (idempotent) to `schema-init.sql`; make every write to `config_kv`/`verb`/`domain_verb` (in `seed-db-config.py` + any DB writer) ALSO append a `config_event` row (old→new), so the config history is reconstructable. Read-only replay helper `config-history.py` that prints the event log for a key. Additive; authority stays with TOML (V5 flips it later).
+**Where:** `usr/share/mios/postgres/schema-init.sql`, `usr/libexec/mios/seed-db-config.py`, new `usr/libexec/mios/config-history.py`, `test_mios_db_config.py`.
+**Done When:** a config_kv write appends a well-formed config_event (old→new captured); `config-history.py` prints a key's event log in order; schema idempotent; tests + `just drift-gate` green.
 
 ---
 
