@@ -831,19 +831,46 @@ CREATE TABLE IF NOT EXISTS config_event (
     source text
 );
 
+-- Secret-redaction for the audit trail. seed-db-config.py seeds whole config
+-- sections into config_kv INCLUDING identity.default_password, [security].* and
+-- [agent_passport].*; the config_kv audit trigger below MUST NOT persist those
+-- verbatim into config_event (which config-history.py echoes). Redact by
+-- scope/key denylist before writing. Over-redaction in the audit is the safe
+-- direction -- the live value still lives in config_kv, only the history is
+-- masked. Mirrors the intent of agent-pipe redact.py's MIOS_SECRET_PATTERN but
+-- matches config_kv's dotted-key shape (which that env-var regex never would).
+CREATE OR REPLACE FUNCTION mios_redact_config_value(p_scope text, p_key text, p_value jsonb)
+RETURNS jsonb AS $$
+BEGIN
+    IF p_value IS NULL THEN
+        RETURN NULL;
+    END IF;
+    IF lower(coalesce(p_scope, '')) IN ('security', 'agent_passport')
+       OR lower(coalesce(p_key, '')) ~ '(password|passwd|secret|token|passphrase|api[_]?key|private_key|credential)'
+    THEN
+        RETURN '"[REDACTED_SECRET]"'::jsonb;
+    END IF;
+    RETURN p_value;
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
 CREATE OR REPLACE FUNCTION log_config_kv_change() RETURNS TRIGGER AS $$
 BEGIN
     IF (TG_OP = 'INSERT') THEN
         INSERT INTO config_event (scope, key, new_value, actor, source)
-        VALUES (TG_TABLE_NAME, NEW.scope || '.' || NEW.key, NEW.value, NEW.owner_user, 'config_kv_trigger');
+        VALUES (TG_TABLE_NAME, NEW.scope || '.' || NEW.key,
+                mios_redact_config_value(NEW.scope, NEW.key, NEW.value), NEW.owner_user, 'config_kv_trigger');
         RETURN NEW;
     ELSIF (TG_OP = 'UPDATE') THEN
         INSERT INTO config_event (scope, key, old_value, new_value, actor, source)
-        VALUES (TG_TABLE_NAME, NEW.scope || '.' || NEW.key, OLD.value, NEW.value, NEW.owner_user, 'config_kv_trigger');
+        VALUES (TG_TABLE_NAME, NEW.scope || '.' || NEW.key,
+                mios_redact_config_value(OLD.scope, OLD.key, OLD.value),
+                mios_redact_config_value(NEW.scope, NEW.key, NEW.value), NEW.owner_user, 'config_kv_trigger');
         RETURN NEW;
     ELSIF (TG_OP = 'DELETE') THEN
         INSERT INTO config_event (scope, key, old_value, actor, source)
-        VALUES (TG_TABLE_NAME, OLD.scope || '.' || OLD.key, OLD.value, OLD.owner_user, 'config_kv_trigger');
+        VALUES (TG_TABLE_NAME, OLD.scope || '.' || OLD.key,
+                mios_redact_config_value(OLD.scope, OLD.key, OLD.value), OLD.owner_user, 'config_kv_trigger');
         RETURN OLD;
     END IF;
     RETURN NULL;
