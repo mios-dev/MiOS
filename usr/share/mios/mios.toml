@@ -10252,10 +10252,15 @@ RestartSec = "10s"
 TimeoutStartSec = "300s"
 
 [containers.mios-open-webui.Unit]
-After = "network-online.target mios-gateway-agent.service"
+# After mios-cdi-detect.service: open-webui is in MIOS_AI_QUADLETS_DEFAULT so the
+# image ships a baked AddDevice=nvidia.com/gpu=all drop-in even though the base
+# needs no GPU; without ordering after cdi-detect it can start before
+# mios-gpu-passthrough rewrites that to the CPU-only reset -> podman "CDI device
+# not found" flap on a GPU-less/non-NVIDIA host. Mirrors mios-llm-light.
+After = "network-online.target mios-gateway-agent.service mios-cdi-detect.service"
 ConditionPathExists = "/etc/mios/hermes/api.env"
 Description = "'MiOS' Open WebUI"
-Wants = "network-online.target mios-gateway-agent.service"
+Wants = "network-online.target mios-gateway-agent.service mios-cdi-detect.service"
 
 [containers.mios-pgvector.Container]
 ContainerName = "mios-pgvector"

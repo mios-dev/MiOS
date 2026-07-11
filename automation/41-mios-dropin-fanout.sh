@@ -55,7 +55,13 @@ SYSTEMD_SYSTEM_DIR="/usr/lib/systemd/system"
 # UNITs include the explicit suffix (.service, .socket, .mount, .target).
 # The drop-in lands at ${SYSTEMD_SYSTEM_DIR}/${UNIT}.d/10-${GATE_NAME}.conf
 GATES=(
-    "virt-gate:mios-cdi-detect.service,mios-ceph-bootstrap.service,mios-flatpak-install.service,mios-gpu-amd.service,mios-gpu-intel.service,mios-gpu-nvidia.service,mios-gpu-status.service,mios-grd-setup.service,mios-k3s-init.service,mios-libvirtd-setup.service,mios-role.service,mios-selinux-init.service,mios-waydroid-init.service"
+    # NOTE: mios-cdi-detect.service must NOT be virt-gated -- the virt-gate drop-in
+    # carries ConditionVirtualization=!wsl, but cdi-detect's whole job is
+    # per-substrate GPU/CDI detection (its WSL /dev/dxg branch is the primary WSL2
+    # GPU path). Gating it out left WSL2 hosts with no /run/cdi specs -> the baked
+    # AddDevice=nvidia.com/gpu=all drop-ins hard-failed podman on GPU-less WSL and
+    # a present GPU was never registered. It is fully virt-aware + best-effort.
+    "virt-gate:mios-ceph-bootstrap.service,mios-flatpak-install.service,mios-gpu-amd.service,mios-gpu-intel.service,mios-gpu-nvidia.service,mios-gpu-status.service,mios-grd-setup.service,mios-k3s-init.service,mios-libvirtd-setup.service,mios-role.service,mios-selinux-init.service,mios-waydroid-init.service"
 
     "bare-metal-only:corosync.service,crowdsec.service,crowdsec-firewall-bouncer.service,mios-ha-bootstrap.service,multipathd.service,nfs-server.service,nmb.service,nvidia-powerd.service,osbuild-composer.service,osbuild-worker@1.service,pacemaker.service,pcsd.service,smb.service"
 

@@ -208,10 +208,16 @@ enable mios-wsl-interop-priority.service
 # on WSL via 10-mios-no-audit.conf, and the legacy /usr/bin/dbus-daemon
 # binary is not shipped on Fedora CoreOS 44.)
 
-# --- First-boot AI model pull (sentinel-guarded) ---
-# Build-time embedding fails because the OCI build's final /var
-# cleanup deletes /var/lib/ollama. The first-boot service pulls the
-# default model set into the persistent /var post-deploy.
+# --- First-boot AI plane provisioning (sentinel-guarded) ---
+# The OCI build's final /var cleanup wipes the agent venv + llama.cpp GGUFs, so
+# on any non-baked deployment (overlay-provisioned dev VM, WSL import) the AI
+# plane must provision post-deploy. mios-ai-firstboot also runs the pgvector
+# default-account/identity seeding (step 2e). Both units carry
+# [Install] WantedBy=multi-user.target but nothing Wants= them, and Fedora bootc
+# disables any unit not matched by an 'enable' line -> without these two the AI
+# plane is silently DEAD on first boot (the enable lines were dropped here).
+enable mios-ai-firstboot.service
+enable mios-swarm-pack-firstboot.service
 
 # --- Disabled in favor of uupd ---
 disable bootc-fetch-apply-updates.timer
