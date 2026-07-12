@@ -71,8 +71,8 @@ if (-not $admin) {
     if ($Execute) { exit 1 }
 }
 
-# ── 1. WSL distros (the dev VM + builder; their vhdx lives under the data drive) ──
-_say "`n[1/5] WSL distros" 'Cyan'
+# ── 1. WSL distros + podman machines (the dev VM + builder) ─────────────────
+_say "`n[1/6] WSL distros + podman machines" 'Cyan'
 $wslList = @()
 if (Get-Command wsl.exe -ErrorAction SilentlyContinue) {
     try { $wslList = (& wsl.exe -l -q) 2>$null | ForEach-Object { $_.Trim([char]0, ' ') } | Where-Object { $_ } } catch { $wslList = @() }
@@ -82,9 +82,19 @@ foreach ($d in @('podman-MiOS-DEV','podman-MiOS-BUILDER','MiOS-DEV','MiOS-BUILDE
         _act "wsl --unregister $d" { & wsl.exe --shutdown *> $null; & wsl.exe --unregister $d *> $null; if ($LASTEXITCODE) { throw "wsl exit $LASTEXITCODE" } }
     }
 }
+# podman tracks each machine under ~/.config/containers/podman/machine/ +
+# ~/.local/share/containers/. `wsl --unregister` drops the distro but leaves that
+# config dangling, so a later `podman machine ls` errors. Best-effort `machine rm`.
+if (Get-Command podman.exe -ErrorAction SilentlyContinue) {
+    foreach ($m in @('MiOS-DEV','MiOS-BUILDER')) {
+        if ((& podman.exe machine ls --format '{{.Name}}' 2>$null) -match [regex]::Escape($m)) {
+            _act "podman machine rm $m" { & podman.exe machine rm -f $m *> $null }
+        }
+    }
+}
 
 # ── 2. Windows-side services + processes ────────────────────────────────────
-_say "`n[2/5] Windows services + processes" 'Cyan'
+_say "`n[2/6] Windows services + processes" 'Cyan'
 foreach ($p in @('MiOS-Wallpaper','MiOS-Wallpaper-Service','MiOS-Launcher')) {
     if (Get-Process -Name $p -ErrorAction SilentlyContinue) { _act "kill process $p" { Get-Process -Name $p -ErrorAction SilentlyContinue | Stop-Process -Force } }
 }
@@ -95,11 +105,21 @@ foreach ($svc in @('MiOS-Wallpaper-Service')) {
 }
 
 # ── 3. Windows-side install: files, registry, tasks, shortcuts ──────────────
-_say "`n[3/5] Windows-side install (files / registry / tasks / shortcuts)" 'Cyan'
+_say "`n[3/6] Windows-side install (files / registry / tasks / shortcuts)" 'Cyan'
 foreach ($path in @("$env:WINDIR\Web\MiOS", "$env:WINDIR\Temp\MiOS-WV2-Profile")) {
     if (Test-Path -LiteralPath $path) { _act "dir $path" { Remove-Item -LiteralPath $path -Recurse -Force } }
 }
 if (Test-Path 'HKLM:\SOFTWARE\MiOS') { _act "registry HKLM\SOFTWARE\MiOS" { Remove-Item -LiteralPath 'HKLM:\SOFTWARE\MiOS' -Recurse -Force } }
+# HKCU: the Add/Remove Programs entry + the Bibata cursor scheme Get-MiOS.ps1 writes.
+if (Test-Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\MiOS') {
+    _act "registry HKCU\...\Uninstall\MiOS" { Remove-Item -LiteralPath 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\MiOS' -Recurse -Force }
+}
+$_curSchemes = 'HKCU:\Control Panel\Cursors\Schemes'
+if (Test-Path -LiteralPath $_curSchemes) {
+    foreach ($_v in @((Get-Item -LiteralPath $_curSchemes -ErrorAction SilentlyContinue).Property)) {
+        if ($_v -match 'MiOS|Bibata') { _act "cursor scheme $_v" { Remove-ItemProperty -LiteralPath $_curSchemes -Name $_v -Force } }
+    }
+}
 Get-ScheduledTask -ErrorAction SilentlyContinue | Where-Object { $_.TaskName -match 'MiOS' -or $_.TaskPath -match 'MiOS' } | ForEach-Object {
     _act "scheduled task $($_.TaskPath)$($_.TaskName)" { Unregister-ScheduledTask -TaskName $_.TaskName -TaskPath $_.TaskPath -Confirm:$false }
 }
@@ -120,7 +140,14 @@ if ($RemoveTerminalProfiles) {
             $j = $null
             try { $j = $raw | ConvertFrom-Json -ErrorAction Stop } catch { $j = $null }
             if ($j -and $j.profiles -and $j.profiles.list) {
-                $j.profiles.list = @($j.profiles.list | Where-Object { $_.name -notin @('MiOS','MiOS-DEV') })
+                # The installer creates MiOS-WIN + MiOS-DEV + podman-MiOS-DEV (and the
+                # legacy 'MiOS'); strip them ALL, plus any MiOS color schemes so a
+                # re-install re-adds them clean.
+                $_miosProfiles = @('MiOS','MiOS-WIN','MiOS-DEV','podman-MiOS-DEV','podman-MiOS-BUILDER','MiOS-BUILDER')
+                $j.profiles.list = @($j.profiles.list | Where-Object { $_.name -notin $_miosProfiles })
+                if (($j.PSObject.Properties.Name -contains 'schemes') -and $j.schemes) {
+                    $j.schemes = @($j.schemes | Where-Object { $_.name -notmatch '^MiOS' })
+                }
                 $json = $j | ConvertTo-Json -Depth 32
                 # BOM-less UTF-8 (Set-Content -Encoding UTF8 emits a BOM on PS 5.1,
                 # which older Windows Terminal builds reject).
@@ -131,7 +158,7 @@ if ($RemoveTerminalProfiles) {
 } else { _keep "Windows Terminal MiOS profiles (pass -RemoveTerminalProfiles to strip)" }
 
 # ── 4. Data drive: remove the MiOS checkout, PRESERVE everything non-MiOS ────
-_say "`n[4/5] Data drive (MiOS checkout only)" 'Cyan'
+_say "`n[4/6] Data drive (MiOS checkout only)" 'Cyan'
 if ($SkipDataDrive) {
     _keep "data drive (-SkipDataDrive)"
 } else {
@@ -189,8 +216,54 @@ if ($SkipDataDrive) {
     }
 }
 
-# ── 5. Summary ──────────────────────────────────────────────────────────────
-_say "`n[5/5] Summary ($MODE)" 'Cyan'
+# ── 5. Windows integration: env vars / Defender / port-proxy / firewall ─────
+_say "`n[5/6] Windows integration (env vars / Defender / port-proxy / firewall)" 'Cyan'
+# 5a. MIOS_* environment variables (User + Machine) + PATH segments under the MiOS
+#     install root. PATH pruning is deliberately conservative -- only \MiOS\ segments
+#     are dropped, so shared tools the installer also PATH'd (podman, git) survive.
+foreach ($scope in @('User','Machine')) {
+    if ($scope -eq 'Machine' -and -not $admin) { _keep "Machine env vars (needs admin)"; continue }
+    try {
+        $vars = [Environment]::GetEnvironmentVariables($scope)
+        foreach ($name in @($vars.Keys | Where-Object { $_ -like 'MIOS_*' })) {
+            _act "env $scope\$name" { [Environment]::SetEnvironmentVariable($name, $null, $scope) }
+        }
+        $path = [Environment]::GetEnvironmentVariable('Path', $scope)
+        if ($path) {
+            $newPath = (@($path -split ';' | Where-Object { $_ -and ($_ -notmatch '\\MiOS(\\|$)') }) -join ';')
+            if ($newPath -ne $path) { _act "prune $scope PATH of \MiOS segments" { [Environment]::SetEnvironmentVariable('Path', $newPath, $scope) } }
+        }
+    } catch { _say "  [FAILED ] env $scope -- $($_.Exception.Message)" 'Red'; $script:Failed++ }
+}
+# 5b. Windows Defender exclusions the installer added (paths + processes).
+if ($admin -and (Get-Command Get-MpPreference -ErrorAction SilentlyContinue)) {
+    try {
+        $pref = Get-MpPreference
+        foreach ($ex in @($pref.ExclusionPath    | Where-Object { $_ -match 'MiOS|podman-MiOS' })) { _act "Defender ExclusionPath $ex"    { Remove-MpPreference -ExclusionPath $ex -ErrorAction SilentlyContinue } }
+        foreach ($ex in @($pref.ExclusionProcess | Where-Object { $_ -match 'MiOS|podman' }))       { _act "Defender ExclusionProcess $ex" { Remove-MpPreference -ExclusionProcess $ex -ErrorAction SilentlyContinue } }
+    } catch {}
+} else { _keep "Defender exclusions (needs admin + Defender)" }
+# 5c. LAN port-proxy rules (netsh interface portproxy) forwarding the AI-plane
+#     ports (84xx/86xx) to the dev VM.
+if ($admin -and (Get-Command netsh.exe -ErrorAction SilentlyContinue)) {
+    try {
+        foreach ($line in @((& netsh interface portproxy show v4tov4) 2>$null)) {
+            if ($line -match '^\s*(\d+\.\d+\.\d+\.\d+|\*)\s+(\d+)\s') {
+                $la = $Matches[1]; $lp = [int]$Matches[2]
+                if ($lp -ge 8400 -and $lp -le 8999) { _act "portproxy ${la}:$lp" { & netsh interface portproxy delete v4tov4 listenport=$lp listenaddress=$la *> $null } }
+            }
+        }
+    } catch {}
+} else { _keep "port-proxy rules (needs admin)" }
+# 5d. Firewall rules named MiOS*.
+if (Get-Command Get-NetFirewallRule -ErrorAction SilentlyContinue) {
+    Get-NetFirewallRule -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -match 'MiOS' -or $_.Name -match 'MiOS' } | ForEach-Object {
+        _act "firewall rule $($_.DisplayName)" { Remove-NetFirewallRule -Name $_.Name -ErrorAction SilentlyContinue }
+    }
+}
+
+# ── 6. Summary ──────────────────────────────────────────────────────────────
+_say "`n[6/6] Summary ($MODE)" 'Cyan'
 _say "  removed : $script:Removed" 'Green'
 _say "  kept    : $script:Kept" 'DarkGray'
 _say "  failed  : $script:Failed" $(if ($script:Failed) { 'Red' } else { 'Green' })
