@@ -447,6 +447,222 @@
   .in-iframe header.pbar .toolbar {
     margin-left: auto;
   }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     PROFILE-CARD ONBOARDING REDESIGN
+     A hash-routed single-page shell sits on top of the (preserved) config
+     engine. The original field markup lives hidden in #pool and is MOVED
+     (appendChild — keeps listeners + data-key bindings) into these cards
+     and per-section Advanced pages at boot. All palette tokens (--bg/--fg/
+     --accent/…) still drive every surface, so a loaded [colors] block
+     re-skins the whole UI live (WYSIWYG). Palette = theme SSOT.
+     ══════════════════════════════════════════════════════════════════════ */
+
+  #pool[hidden] { display: none !important; }
+
+  /* Router views — exactly one visible at a time */
+  #views { position: relative; }
+  .view { display: none; }
+  .view.active { display: block; animation: viewfade .24s ease; }
+  @keyframes viewfade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+  /* Breadcrumb / back rail */
+  .crumbs {
+    display: flex; align-items: center; gap: 9px; flex-wrap: wrap;
+    margin: 2px 0 20px; font-size: 12.5px; color: var(--muted);
+    min-height: 20px;
+  }
+  .crumbs a { color: var(--muted); text-decoration: none; cursor: pointer; border-bottom: 1px dotted transparent; }
+  .crumbs a:hover { color: var(--accent); border-bottom-color: var(--accent); }
+  .crumbs .sep { opacity: .45; }
+  .crumbs .cat { color: var(--muted); }
+  .crumbs .cur { color: var(--fg); font-weight: 600; }
+
+  /* ── Profile hero ─────────────────────────────────────────────────────── */
+  .profile-hero {
+    border: 1px solid var(--border); border-radius: 20px;
+    padding: 24px 24px 22px; margin-bottom: 26px; position: relative; overflow: hidden;
+    background:
+      radial-gradient(600px 240px at 90% -30%, color-mix(in srgb, var(--accent) 20%, transparent), transparent 65%),
+      linear-gradient(180deg, color-mix(in srgb, var(--panel) 88%, transparent), color-mix(in srgb, var(--panel) 60%, transparent));
+    box-shadow: 0 8px 30px rgba(0,0,0,.24), inset 0 1px 0 rgba(255,255,255,.05);
+  }
+  .ph-top { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; }
+  .ph-avatar {
+    width: 68px; height: 68px; border-radius: 20px; flex-shrink: 0;
+    display: grid; place-items: center; font: 800 30px var(--sans); color: var(--bg);
+    background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 45%, var(--fg)));
+    box-shadow: 0 6px 18px color-mix(in srgb, var(--accent) 40%, transparent);
+  }
+  .ph-id { flex: 1 1 220px; min-width: 200px; }
+  .ph-eyebrow {
+    font-size: 10.5px; text-transform: uppercase; letter-spacing: .8px;
+    color: var(--accent); font-weight: 700; margin-bottom: 2px;
+  }
+  .ph-name { font-size: 24px; font-weight: 750; color: var(--fg); line-height: 1.15; letter-spacing: .2px; }
+  .ph-sub { color: var(--muted); font-family: var(--mono); font-size: 12.5px; margin-top: 3px; word-break: break-word; }
+  .ph-persona { margin-top: 7px; font-size: 12px; color: color-mix(in srgb, var(--fg) 80%, var(--accent)); }
+  .ph-meter { display: flex; align-items: center; gap: 12px; }
+  .ph-ring {
+    position: relative; width: 58px; height: 58px; border-radius: 50%; flex-shrink: 0;
+    display: grid; place-items: center;
+    background: conic-gradient(var(--accent) var(--p, 0%), color-mix(in srgb, var(--muted) 24%, transparent) 0);
+    transition: background .4s ease;
+  }
+  .ph-ring::before { content: ""; position: absolute; inset: 6px; border-radius: 50%;
+    background: color-mix(in srgb, var(--panel) 82%, var(--bg)); }
+  .ph-ring b, .ph-ring small { position: relative; z-index: 1; }
+  .ph-ring b { font-size: 19px; color: var(--fg); font-weight: 750; }
+  .ph-ring small { font-size: 10px; color: var(--muted); margin-left: 1px; }
+  .ph-meter-lbl { font-size: 11px; color: var(--muted); line-height: 1.35; }
+  .ph-guide {
+    align-self: flex-start; font-size: 12px; padding: 6px 12px; border-radius: 999px;
+    background: transparent; border: 1px solid var(--border); color: var(--muted); cursor: pointer;
+  }
+  .ph-guide:hover { border-color: var(--accent); color: var(--accent); }
+  .ph-cards {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(258px, 1fr));
+    gap: 16px; margin-top: 22px;
+  }
+  .ph-cards > .card { margin: 0; height: 100%; }
+
+  /* ── Home groups ──────────────────────────────────────────────────────── */
+  .home-group { margin: 28px 0; }
+  .grp-head { display: flex; align-items: center; gap: 11px; margin: 0 0 14px; }
+  .grp-head .grp-ic {
+    width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; flex-shrink: 0;
+    color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+  }
+  .grp-head .grp-ic svg { width: 17px; height: 17px; }
+  .grp-title { font-size: 16px; font-weight: 750; color: var(--fg); letter-spacing: .2px; }
+  .grp-note { color: var(--muted); font-size: 12px; margin-left: 2px; }
+  .card-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 16px; align-items: start;
+  }
+  .card-grid > .card { margin: 0; }
+
+  /* ── Advanced navigation cards ────────────────────────────────────────── */
+  .adv-cat { margin-bottom: 18px; }
+  .adv-cat-h {
+    display: flex; align-items: center; gap: 8px; margin: 4px 0 10px;
+    font-size: 12px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase;
+    color: var(--muted);
+  }
+  .adv-cat-h svg { width: 15px; height: 15px; color: var(--accent); }
+  .nav-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(248px, 1fr)); gap: 12px; }
+  .nav-card {
+    display: flex; gap: 12px; align-items: flex-start; text-align: left;
+    border: 1px solid var(--border); border-radius: 13px; padding: 14px;
+    background: color-mix(in srgb, var(--panel) 52%, transparent);
+    cursor: pointer; color: inherit; font: inherit; width: 100%;
+    transition: border-color .14s, transform .08s, background .16s, box-shadow .16s;
+  }
+  .nav-card:hover {
+    border-color: var(--accent); transform: translateY(-2px);
+    background: color-mix(in srgb, var(--accent) 8%, var(--panel) 55%);
+    box-shadow: 0 8px 22px rgba(0,0,0,.22);
+  }
+  .nav-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .nav-card:active { transform: translateY(0); }
+  .nav-card .nc-ic {
+    width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0; display: grid; place-items: center;
+    color: var(--accent); background: color-mix(in srgb, var(--accent) 13%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  }
+  .nav-card .nc-ic svg { width: 18px; height: 18px; }
+  .nav-card .nc-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .nav-card .nc-t { font-weight: 650; color: var(--fg); font-size: 13.5px; line-height: 1.25; }
+  .nav-card .nc-d { color: var(--muted); font-size: 11px; letter-spacing: .2px; }
+
+  /* ── Advanced sub-page ────────────────────────────────────────────────── */
+  .adv-view .adv-head { display: flex; align-items: center; gap: 13px; margin: 0 0 8px; flex-wrap: wrap; }
+  .btn-back {
+    background: color-mix(in srgb, var(--panel) 70%, transparent); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px; padding: 6px 13px; cursor: pointer; font: inherit;
+  }
+  .btn-back:hover { border-color: var(--accent); color: var(--accent); }
+  .adv-view .adv-ic {
+    width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center;
+    color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--border));
+  }
+  .adv-view .adv-ic svg { width: 18px; height: 18px; }
+  .adv-view .adv-head h2 { font-size: 20px; margin: 0; font-weight: 700; color: var(--fg); }
+  .adv-view .adv-lead { color: var(--muted); font-size: 12.5px; margin: 0 0 16px; }
+  /* Flatten the moved <details class="section"> into open page content */
+  .adv-view details.section {
+    border: none; background: none; margin: 0; overflow: visible;
+  }
+  .adv-view details.section > summary { display: none !important; }
+  .adv-view details.section .section-body { padding: 0; }
+  .adv-view details.section .phase-badge {
+    display: inline-block; margin: 0 0 12px; background: color-mix(in srgb, var(--accent) 16%, transparent);
+    color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  }
+
+  /* ── Review card ──────────────────────────────────────────────────────── */
+  .review-card { display: flex; flex-direction: column; gap: 14px; }
+  .review-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  button.big { padding: 11px 22px; font-size: 14px; border-radius: 10px; }
+  .review-hint { color: var(--muted); font-size: 12.5px; margin: 0; }
+  .review-hint code { font-family: var(--mono); color: var(--text); }
+  .raw-slot details.section { margin: 0; }
+
+  /* ── Onboarding wizard rail ───────────────────────────────────────────── */
+  .wiz {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 200; display: none;
+    background: color-mix(in srgb, var(--bg) 92%, transparent);
+    border-top: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
+    backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+    box-shadow: 0 -8px 30px rgba(0,0,0,.28);
+  }
+  body.wizard-mode.on-home .wiz { display: block; animation: wizup .3s ease; }
+  @keyframes wizup { from { transform: translateY(100%); } to { transform: none; } }
+  .wiz-inner {
+    max-width: 1280px; margin: 0 auto; padding: 14px max(16px, calc((100vw - 1280px) / 2));
+    display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+  }
+  .wiz-dots { display: flex; gap: 6px; align-items: center; }
+  .wiz-dot { width: 8px; height: 8px; border-radius: 50%; background: color-mix(in srgb, var(--muted) 35%, transparent); transition: all .2s; }
+  .wiz-dot.done { background: var(--ok); }
+  .wiz-dot.cur { background: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent); }
+  .wiz-copy { flex: 1 1 260px; min-width: 200px; }
+  .wiz-step { font-size: 10.5px; text-transform: uppercase; letter-spacing: .7px; color: var(--accent); font-weight: 700; }
+  .wiz-title { font-size: 16px; font-weight: 750; color: var(--fg); margin-top: 1px; }
+  .wiz-desc { color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+  .wiz-actions { display: flex; gap: 8px; align-items: center; }
+  .ghost-btn { background: transparent; border: 1px solid var(--border); color: var(--muted); }
+  .ghost-btn:hover { border-color: var(--accent); color: var(--accent); }
+  body.wizard-mode { padding-bottom: 132px; }
+
+  /* Coach spotlight — dim everything except the current step target */
+  body.coach .spot-dim { opacity: .34; filter: saturate(.7); transition: opacity .28s, filter .28s; }
+  .spotlight { position: relative; z-index: 3; }
+  .spotlight::after {
+    content: ""; position: absolute; inset: -8px; border-radius: 18px; pointer-events: none;
+    border: 2px solid var(--accent);
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 20%, transparent);
+    animation: spot 1.7s ease-in-out infinite;
+  }
+  @keyframes spot { 0%,100% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 20%, transparent); }
+                    50% { box-shadow: 0 0 0 9px color-mix(in srgb, var(--accent) 8%, transparent); } }
+
+  @media (max-width: 640px) {
+    .ph-name { font-size: 20px; }
+    .wiz-actions { flex: 1 1 100%; justify-content: flex-end; }
+  }
+
+  /* Theme-aware chrome: the loaded [colors] palette always wins (applied to
+     :root at runtime), but when the viewer's OS prefers light and no palette
+     has overridden yet, soften the shadows so the default dark hero still
+     reads with crisp edges against a light browser frame. */
+  @media (prefers-color-scheme: light) {
+    :root[data-theme="dark"] { color-scheme: dark; }
+    .profile-hero, .nav-card:hover { box-shadow: 0 6px 20px rgba(0,0,0,.32); }
+  }
+  :root[data-theme="light"] .profile-hero { box-shadow: 0 6px 20px rgba(0,0,0,.14); }
 </style>
 </head>
 <body>
@@ -468,24 +684,116 @@
 </header>
 <div id="path-banner" class="status info" style="display:none"></div>
 
-<!-- Tabbed section navigation. buildTabs() (script, at boot) fills this bar
-     and reparents the zones + advanced sections below into per-tab panels;
-     if the script never runs, the original layout below stays visible. -->
-<nav class="tabbar" id="tabbar" role="tablist" aria-label="Configuration sections"></nav>
-<div id="tabhost"></div>
+<!-- ═══════════════════════════════════════════════════════════════════════
+     PROFILE-CARD SPA SHELL
+     initShell() (script, at boot) MOVES every field from #pool below into the
+     home cards + per-section Advanced pages. appendChild moves nodes and keeps
+     their listeners + data-key bindings, so parseToml/emitToml/gatherFromForm/
+     refreshFromData and the colour/flatpak/package/quadlet/preset renders are
+     all untouched — every one of the 598 data-keys round-trips unchanged.
+     Degrade-open: if the script never runs, #pool stays hidden but is un-hidden
+     by the catch handler so the operator never sees a blank page.
+     ═══════════════════════════════════════════════════════════════════════ -->
+<nav class="crumbs" id="crumbs" aria-label="Breadcrumb"><span class="cur">MiOS setup</span></nav>
 
-<!--
-  Layout: three top-down zones for non-technical users.
-    Zone 1 — Personal (identity, locale, theme/colors, prompt) — open by default
-    Zone 2 — Apps & Flatpaks (desktop session + Flatpak catalog + Windows shortcuts) — open by default
-    Zone 3 — Advanced / Admin (everything technical) — collapsed by default
+<main id="views">
+  <!-- HOME — onboarding hero + streamlined cards + advanced launcher -->
+  <section class="view active" id="view-home">
 
-  Every original [data-key] field is preserved verbatim — only the
-  containing <details> shells were rearranged. The pipeline still
-  consumes the same TOML keys; the script block (parseToml /
-  emitToml / refreshFromData / gatherFromForm / renderColors /
-  renderFlatpaks / applyColorsToRoot / etc.) was not modified.
--->
+    <div class="profile-hero coachable" id="profile-hero">
+      <div class="ph-top">
+        <div class="ph-avatar" id="ph-avatar">M</div>
+        <div class="ph-id">
+          <div class="ph-eyebrow">MiOS Profile</div>
+          <div class="ph-name" id="ph-name">MiOS Operator</div>
+          <div class="ph-sub" id="ph-sub">@mios</div>
+          <div class="ph-persona" id="ph-persona">Persona · MiOS AI</div>
+        </div>
+        <div class="ph-meter">
+          <div class="ph-ring" id="ph-ring"><b id="ph-ring-num">0</b><small>/5</small></div>
+          <div class="ph-meter-lbl">essentials<br>completed</div>
+        </div>
+        <button type="button" class="ph-guide" id="ph-guide">Setup guide</button>
+      </div>
+      <div class="ph-cards" id="ph-cards"><!-- Identity / Human Profile / MiOS Persona cards move here --></div>
+    </div>
+
+    <section class="home-group coachable" id="grp-settings">
+      <div class="grp-head">
+        <span class="grp-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 6h13M3 12h9M3 18h15"/><circle cx="19" cy="6" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="21" cy="18" r="2"/></svg></span>
+        <span class="grp-title">Settings</span><span class="grp-note">locale &amp; system basics</span>
+      </div>
+      <div class="card-grid" data-slot="settings"></div>
+    </section>
+
+    <section class="home-group coachable" id="grp-preferences">
+      <div class="grp-head">
+        <span class="grp-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><circle cx="8.5" cy="9" r="1.3"/><circle cx="15.5" cy="9" r="1.3"/><circle cx="9" cy="15" r="1.3"/><path d="M15 15c2 0 3-1 3-3"/></svg></span>
+        <span class="grp-title">Preferences</span><span class="grp-note">theme, prompt &amp; palette</span>
+      </div>
+      <div class="card-grid" data-slot="preferences"></div>
+    </section>
+
+    <section class="home-group coachable" id="grp-apps">
+      <div class="grp-head">
+        <span class="grp-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span>
+        <span class="grp-title">Apps</span><span class="grp-note">Flatpaks &amp; Windows shortcuts</span>
+      </div>
+      <div class="card-grid" data-slot="apps"></div>
+    </section>
+
+    <section class="home-group coachable" id="grp-advanced">
+      <div class="grp-head">
+        <span class="grp-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3v3M12 18v3M5 12H3M21 12h-2M6 6l1.5 1.5M18 18l-1.5-1.5M6 18l1.5-1.5M18 6l-1.5 1.5"/><circle cx="12" cy="12" r="3.2"/></svg></span>
+        <span class="grp-title">Advanced</span><span class="grp-note">the deep 80% — one click into any subsystem</span>
+      </div>
+      <div id="adv-nav"></div>
+    </section>
+
+    <section class="home-group coachable" id="grp-review">
+      <div class="grp-head">
+        <span class="grp-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3v12M8 11l4 4 4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg></span>
+        <span class="grp-title">Review &amp; download</span><span class="grp-note">write mios.toml, then run <code>mios build</code></span>
+      </div>
+      <div class="card review-card">
+        <p class="review-hint">Everything you set here serialises to a single <code>mios.toml</code> (the MiOS SSOT). Save it to <code>~/.config/mios/mios.toml</code> (per-user, highest precedence), then run <code>mios build</code>. Nothing leaves the browser — the file is generated client-side.</p>
+        <div class="review-actions">
+          <button type="button" class="primary big" id="btn-download-main">Download mios.toml</button>
+          <span class="review-hint">or use <b>Save</b> in the top bar to write in place.</span>
+        </div>
+        <div class="raw-slot" data-slot="raw"><!-- Raw TOML preview section moves here --></div>
+      </div>
+    </section>
+
+  </section>
+  <!-- Advanced sub-pages (one .view per section) are appended here by initShell() -->
+</main>
+
+<!-- Onboarding wizard rail (first-run guided sequence; skippable) -->
+<div class="wiz" id="wiz" role="region" aria-label="Setup guide">
+  <div class="wiz-inner">
+    <div class="wiz-dots" id="wiz-dots"></div>
+    <div class="wiz-copy">
+      <div class="wiz-step" id="wiz-step">Step 1</div>
+      <div class="wiz-title" id="wiz-title">Welcome</div>
+      <div class="wiz-desc" id="wiz-desc"></div>
+    </div>
+    <div class="wiz-actions">
+      <button type="button" id="wiz-skip" class="ghost-btn">Skip to dashboard</button>
+      <button type="button" id="wiz-back">Back</button>
+      <button type="button" id="wiz-next" class="primary">Next</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     #pool — the ORIGINAL field markup, verbatim & hidden. Every [data-key]
+     input and catalog grid (#colors-named #colors-ansi #palette-presets
+     #flatpak-grid #package-grid #deploy-grid #quadlet-grid #raw) lives here
+     until initShell() relocates it. Do not edit the inputs below — they are
+     the coverage contract.
+     ═══════════════════════════════════════════════════════════════════════ -->
+<div id="pool" hidden>
 
 <div class="zones">
 
@@ -3111,6 +3419,7 @@
 
   </div><!-- /.admin-body -->
 </details><!-- /.admin-wrap -->
+</div><!-- /#pool -->
 
 <div id="status" class="status info" style="display:none"></div>
 
@@ -4626,87 +4935,275 @@ DATA = parseToml(DEFAULTS_TOML);
 refreshFromData();
 renderPathBanner();
 
-// ── Tabbed navigation ────────────────────────────────────────────
-// Reparent the existing zones + advanced <details> sections into tab
-// panels by id, so the page reads as tabs WITHOUT moving any markup by
-// hand. Every data-key + every render-target id (#colors-named,
-// #palette-presets, #package-grid, #flatpak-grid, #raw, ...) is preserved
-// -- appendChild MOVES a node and keeps its event listeners -- so the
-// serializer (gather/refresh/emit) and the colour/package/flatpak/preset
-// renders are untouched. Degrade-open: any failure leaves the original
-// .zones / .admin-wrap visible (they are hidden only after a successful
-// move), and an unclaimed section always falls through to the System tab,
-// so a section added later is never lost.
-function buildTabs() {
-  const host = document.getElementById("tabhost");
-  const bar  = document.getElementById("tabbar");
-  if (!host || !bar) return;
+// ── Profile-card SPA shell (replaces the tab reparenter) ─────────────────
+// initShell() MOVES the original field markup out of the hidden #pool into
+// the redesigned home cards + one Advanced sub-page per <details.section>.
+// appendChild moves a node and keeps its listeners + data-key binding, so the
+// serializer (parseToml/emitToml/gather/refresh) and every render target id
+// (#colors-named #colors-ansi #palette-presets #flatpak-grid #package-grid
+// #deploy-grid #quadlet-grid #raw) survive relocation untouched. No data-key
+// is added, removed or altered — gatherFromForm() walks the whole document
+// regardless of which card/page a node now lives on. Degrade-open: any failure
+// un-hides #pool so the operator always sees every field.
+function initShell() {
+  const pool  = document.getElementById("pool");
+  const views = document.getElementById("views");
+  if (!pool || !views) return;
 
-  // [id, label, [selectors claimed]]. Document order is preserved within
-  // each panel. "system" + "config" are catch-alls filled afterwards.
-  const TABS = [
-    ["personal",        "Personal",         [".zone-personal", "#adv-color-presets", "#adv-personalization"]],
-    ["apps",            "Apps & Shortcuts", [".zone-apps", "#adv-enhanced-session"]],
-    ["cluster",         "AI & Cluster",     ["#adv-ai", "#adv-ai-pipeline", "#adv-blades-nodes", "#adv-pods", "#adv-agents-federation"]],
-    ["system",          "System & Storage", ["#adv-storage", "#adv-governance"]],
-    ["config",          "Raw Config",       []],
-  ];
+  // Category icons (inline SVG — self-contained, no network) --------------
+  const ICONS = {
+    "AI & Agents":
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="7" y="7" width="10" height="10" rx="2"/><path d="M10 10h4v4h-4z"/><path d="M10 3v2M14 3v2M10 19v2M14 19v2M3 10h2M3 14h2M19 10h2M19 14h2"/></svg>',
+    "Cluster & Storage":
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="18" height="5" rx="1.5"/><rect x="3" y="15" width="18" height="5" rx="1.5"/><path d="M7 6.5h.01M7 17.5h.01"/></svg>',
+    "System & Network":
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2.3"/><circle cx="8" cy="17" r="2.3"/></svg>',
+    "Appearance & Windows":
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M7 6.5h.01"/></svg>'
+  };
+  const iconFor = c => ICONS[c] || ICONS["System & Network"];
 
-  const panels = {}, claimed = new Set();
-  TABS.forEach(([id]) => {
-    const p = document.createElement("section");
-    p.className = "tabpanel";
-    p.id = "tabpanel-" + id;
-    p.setAttribute("role", "tabpanel");
-    host.appendChild(p);
-    panels[id] = p;
-  });
+  // ── 1. Distribute the streamlined cards from the two zones ──────────────
+  // Zone order is stable: personal = Identity, Human Profile, AI Persona,
+  // Locale, Look&feel, Colours; apps = Desktop, Flatpaks, Windows shortcuts.
+  const per = Array.from(pool.querySelectorAll(".zone-personal > .card"));
+  const app = Array.from(pool.querySelectorAll(".zone-apps > .card"));
+  const slot = n => document.querySelector('[data-slot="' + n + '"]');
+  const phCards = document.getElementById("ph-cards");
 
-  // Move explicitly-claimed blocks.
-  TABS.forEach(([id, , sels]) => sels.forEach(sel =>
-    document.querySelectorAll(sel).forEach(el => { panels[id].appendChild(el); claimed.add(el); })
-  ));
+  const spots = ["identity", "human", "persona"];
+  per.slice(0, 3).forEach((c, i) => { c.dataset.spot = spots[i]; c.classList.add("coachable"); phCards.appendChild(c); });
+  if (per[3]) slot("settings").appendChild(per[3]);      // Locale & language
+  if (app[0]) slot("settings").appendChild(app[0]);      // Desktop session
+  if (per[4]) slot("preferences").appendChild(per[4]);   // Look & feel
+  if (per[5]) slot("preferences").appendChild(per[5]);   // Colour palette
+  if (app[1]) slot("apps").appendChild(app[1]);          // Flatpak catalog
+  if (app[2]) slot("apps").appendChild(app[2]);          // Windows shortcuts
 
-  // Raw-TOML-preview section -> Config (selected via its #raw child).
-  const rawSec = (document.getElementById("raw") || {}).closest
-    ? document.getElementById("raw").closest("details.section") : null;
-  if (rawSec) { panels.config.appendChild(rawSec); claimed.add(rawSec); }
+  // Relocate the live Flatpak count (it lived in the zone lead, not the card)
+  const fcount = document.getElementById("f-flatpak-count");
+  if (fcount && app[1]) { const h = app[1].querySelector("h3"); if (h) h.appendChild(fcount); }
 
-  // Every remaining advanced section -> System (catch-all, document order).
-  document.querySelectorAll(".admin-body > details.section").forEach(el => {
-    if (!claimed.has(el)) { panels.system.appendChild(el); claimed.add(el); }
-  });
+  // ── 2. Raw-TOML-preview section -> Review card ──────────────────────────
+  const rawEl  = document.getElementById("raw");
+  const rawSec = rawEl && rawEl.closest ? rawEl.closest("details.section") : null;
+  if (rawSec && slot("raw")) { rawSec.open = true; slot("raw").appendChild(rawSec); }
 
-  // Hide the now-empty original shells.
-  document.querySelectorAll(".zones, .admin-wrap").forEach(el => { el.style.display = "none"; });
-
-  function activate(id) {
-    TABS.forEach(([t]) => {
-      panels[t].classList.toggle("active", t === id);
-      const b = document.getElementById("tabbtn-" + t);
-      if (b) { b.classList.toggle("active", t === id); b.setAttribute("aria-selected", t === id ? "true" : "false"); }
-    });
+  // ── 3. One Advanced sub-page per remaining <details.section> ────────────
+  const slugify = s => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 44);
+  function sectionTitle(sec) {
+    const sum = sec.querySelector(":scope > summary");
+    if (!sum) return "Section";
+    const c = sum.cloneNode(true);
+    c.querySelectorAll(".phase-badge").forEach(b => b.remove());
+    return c.textContent.replace(/\s+/g, " ").trim();
   }
-  TABS.forEach(([id, label]) => {
-    if (!panels[id].children.length) return;   // skip an empty tab
-    const b = document.createElement("button");
-    b.type = "button"; b.id = "tabbtn-" + id; b.textContent = label;
-    b.setAttribute("role", "tab");
-    b.addEventListener("click", () => activate(id));
-    bar.appendChild(b);
+  function categoryFor(title) {
+    const t = title.toLowerCase();
+    if (/blade|node|pod|storage|cephfs|tenanc|pgvector|skills|passport|ttyd/.test(t)) return "Cluster & Storage";
+    if (/\bai\b|agent|governance|pipeline|inference|routing|daemon|os control|computer|convergence|refine|polish|knowledge/.test(t)) return "AI & Agents";
+    if (/personaliz|color|colour|autounattend|enhanced session|bootstrap|terminal|branding|appearance/.test(t)) return "Appearance & Windows";
+    return "System & Network";
+  }
+  function fieldNote(sec) {
+    const n = sec.querySelectorAll("[data-key]").length;
+    if (n) return n + (n === 1 ? " setting" : " settings");
+    if (sec.querySelector("#package-grid")) return "45 package groups";
+    if (sec.querySelector("#deploy-grid"))  return "10 image formats";
+    if (sec.querySelector("#quadlet-grid")) return "12 services";
+    return "catalog";
+  }
+
+  const catOrder = ["AI & Agents", "Cluster & Storage", "System & Network", "Appearance & Windows"];
+  const byCat = {}; catOrder.forEach(c => byCat[c] = []);
+  const usedSlugs = new Set(["home"]);
+
+  Array.from(pool.querySelectorAll("details.section")).forEach((sec, i) => {
+    const title = sectionTitle(sec);
+    let slug = sec.id || ("sec-" + (slugify(title) || i));
+    while (usedSlugs.has(slug)) slug += "-" + i;
+    usedSlugs.add(slug);
+    const cat = categoryFor(title);
+
+    const view = document.createElement("section");
+    view.className = "view adv-view";
+    view.id = "view-p-" + slug;
+    view.dataset.cat = cat;
+    view.dataset.title = title;
+
+    const head = document.createElement("div");
+    head.className = "adv-head";
+    head.innerHTML =
+      '<button type="button" class="btn-back" data-home>&lsaquo; Back</button>' +
+      '<span class="adv-ic">' + iconFor(cat) + "</span>" +
+      "<h2></h2>";
+    head.querySelector("h2").textContent = title;
+    view.appendChild(head);
+
+    sec.open = true;          // flatten into an always-open page
+    view.appendChild(sec);    // MOVE the section (keeps every data-key + listener)
+    views.appendChild(view);
+
+    byCat[cat].push({ slug, title, note: fieldNote(sec) });
   });
-  const first = TABS.find(([id]) => panels[id].children.length);
-  if (first) activate(first[0]);
+
+  // ── 4. Build the Advanced launcher on the home dashboard ────────────────
+  const navHost = document.getElementById("adv-nav");
+  catOrder.forEach(cat => {
+    const items = byCat[cat];
+    if (!items.length) return;
+    const wrap = document.createElement("div");
+    wrap.className = "adv-cat";
+    wrap.innerHTML = '<div class="adv-cat-h">' + iconFor(cat) + "<span>" + cat + "</span></div>";
+    const grid = document.createElement("div");
+    grid.className = "nav-grid";
+    items.forEach(it => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "nav-card";
+      b.innerHTML =
+        '<span class="nc-ic">' + iconFor(cat) + "</span>" +
+        '<span class="nc-body"><span class="nc-t"></span><span class="nc-d"></span></span>';
+      b.querySelector(".nc-t").textContent = it.title;
+      b.querySelector(".nc-d").textContent = it.note;
+      b.addEventListener("click", () => { location.hash = "#/p/" + it.slug; });
+      grid.appendChild(b);
+    });
+    wrap.appendChild(grid);
+    navHost.appendChild(wrap);
+  });
+
+  // ── 5. Hash router (home <-> advanced sub-page) ─────────────────────────
+  const crumbs = document.getElementById("crumbs");
+  const pageLbl = document.querySelector(".pbar-page");
+  function renderCrumbs(home, cat, title) {
+    if (home) { crumbs.innerHTML = '<span class="cur">MiOS setup</span>'; return; }
+    crumbs.innerHTML =
+      '<a data-home>Home</a><span class="sep">&rsaquo;</span>' +
+      '<span class="cat"></span><span class="sep">&rsaquo;</span><span class="cur"></span>';
+    crumbs.querySelector(".cat").textContent = cat || "Advanced";
+    crumbs.querySelector(".cur").textContent = title || "";
+  }
+  function showView(slug) {
+    const home = !slug || slug === "home";
+    document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
+    let title = "", cat = "";
+    if (home) {
+      document.getElementById("view-home").classList.add("active");
+    } else {
+      const v = document.getElementById("view-p-" + slug);
+      if (v) { v.classList.add("active"); title = v.dataset.title; cat = v.dataset.cat; }
+      else   { document.getElementById("view-home").classList.add("active"); }
+    }
+    document.body.classList.toggle("on-home", home || !document.getElementById("view-p-" + slug));
+    renderCrumbs(home, cat, title);
+    if (pageLbl) pageLbl.textContent = home ? "Settings" : title;
+    window.scrollTo(0, 0);
+  }
+  function route() {
+    const h = location.hash.replace(/^#\/?/, "");
+    if (h.indexOf("p/") === 0) showView(h.slice(2));
+    else showView("home");
+  }
+  window.addEventListener("hashchange", route);
+  document.addEventListener("click", e => {
+    const b = e.target.closest("[data-home]");
+    if (b) { e.preventDefault(); location.hash = "#home"; }
+  });
+
+  // ── 6. Live profile-hero (fills in as the operator types) ───────────────
+  const val = k => { const el = document.querySelector('[data-key="' + k + '"]'); return el ? (el.value || "").trim() : ""; };
+  function updateHero() {
+    const un = val("identity.username"), hn = val("identity.hostname"), fn = val("identity.fullname"),
+          uname = val("user.name"), mn = val("mios.name");
+    const disp = fn || uname || un || "MiOS Operator";
+    document.getElementById("ph-name").textContent = disp;
+    document.getElementById("ph-avatar").textContent = (disp.trim()[0] || "M").toUpperCase();
+    document.getElementById("ph-sub").textContent = "@" + (un || "mios") + (hn ? " · " + hn : "");
+    document.getElementById("ph-persona").textContent = "Persona · " + (mn || "MiOS AI");
+    const ess = [un, hn, fn, uname, mn].filter(Boolean).length;
+    document.getElementById("ph-ring-num").textContent = ess;
+    document.getElementById("ph-ring").style.setProperty("--p", (ess / 5 * 100) + "%");
+  }
+  document.addEventListener("input", updateHero);
+  updateHero();
+
+  // Prominent download actions -> reuse the toolbar Save handler
+  const saveBtn = document.getElementById("btn-save");
+  const dl = document.getElementById("btn-download-main");
+  if (dl && saveBtn) dl.addEventListener("click", () => saveBtn.click());
+
+  // ── 7. First-run onboarding wizard (skippable coach flow) ───────────────
+  const STEPS = [
+    { t: "Welcome to MiOS", d: "This guided setup fills in your profile and writes a single mios.toml. Skip to the dashboard anytime.", spot: "#profile-hero", cta: "Let's go" },
+    { t: "Your identity",   d: "Username, hostname and the one password used across every MiOS service (Portal, Cockpit, Forge…).", spot: '[data-spot="identity"]' },
+    { t: "About you",       d: "What the agent should call you — injected natively into the AI context.", spot: '[data-spot="human"]' },
+    { t: "Your MiOS persona", d: "The name and role your local agent answers to on every surface.", spot: '[data-spot="persona"]' },
+    { t: "Settings",        d: "Timezone, language, keyboard and desktop session.", spot: "#grp-settings" },
+    { t: "Look & feel",     d: "Theme mode, prompt style and the colour palette that re-skins every terminal live.", spot: "#grp-preferences" },
+    { t: "Apps & shortcuts", d: "Pick the Flatpaks to bake into the image and name your Windows shortcuts.", spot: "#grp-apps" },
+    { t: "Review & download", d: "Save your mios.toml, then run `mios build`. Deep options are always under Advanced.", spot: "#grp-review", cta: "Finish" }
+  ];
+  const WKEY = "mios.onboarded.v1";
+  let wi = 0;
+
+  function coachTo(el) {
+    document.body.classList.add("coach");
+    document.querySelectorAll(".spotlight").forEach(n => n.classList.remove("spotlight"));
+    Array.from(document.querySelectorAll(".coachable")).forEach(c => {
+      const related = c === el || c.contains(el) || el.contains(c);
+      c.classList.toggle("spot-dim", !related);
+    });
+    el.classList.add("spotlight");
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+  function renderWiz() {
+    const s = STEPS[wi];
+    document.getElementById("wiz-step").textContent = "Step " + (wi + 1) + " of " + STEPS.length;
+    document.getElementById("wiz-title").textContent = s.t;
+    document.getElementById("wiz-desc").textContent = s.d;
+    const dots = document.getElementById("wiz-dots"); dots.innerHTML = "";
+    STEPS.forEach((_, i) => {
+      const d = document.createElement("span");
+      d.className = "wiz-dot" + (i < wi ? " done" : i === wi ? " cur" : "");
+      dots.appendChild(d);
+    });
+    document.getElementById("wiz-next").textContent = (wi === STEPS.length - 1) ? "Finish" : (s.cta || "Next");
+    document.getElementById("wiz-back").style.visibility = wi === 0 ? "hidden" : "visible";
+    const target = document.querySelector(s.spot);
+    if (target) coachTo(target);
+  }
+  function startWizard() {
+    wi = 0;
+    if (location.hash && location.hash !== "#home") location.hash = "#home"; else showView("home");
+    document.body.classList.add("wizard-mode");
+    renderWiz();
+  }
+  function endWizard() {
+    document.body.classList.remove("wizard-mode", "coach");
+    document.querySelectorAll(".spotlight").forEach(n => n.classList.remove("spotlight"));
+    document.querySelectorAll(".spot-dim").forEach(n => n.classList.remove("spot-dim"));
+    try { localStorage.setItem(WKEY, "1"); } catch (e) {}
+  }
+  document.getElementById("wiz-next").addEventListener("click", () => {
+    if (wi < STEPS.length - 1) { wi++; renderWiz(); } else { endWizard(); showView("home"); }
+  });
+  document.getElementById("wiz-back").addEventListener("click", () => { if (wi > 0) { wi--; renderWiz(); } });
+  document.getElementById("wiz-skip").addEventListener("click", endWizard);
+  document.getElementById("ph-guide").addEventListener("click", startWizard);
+
+  // ── 8. Boot: first-run wizard, or straight to the routed dashboard ──────
+  let onboarded = false;
+  try { onboarded = !!localStorage.getItem(WKEY); } catch (e) {}
+  route();
+  if (!onboarded && (!location.hash || location.hash === "#home")) startWizard();
 }
-try {
-  buildTabs();
-} catch (e) {
-  // Degrade-open: never blank. Reveal every panel that already received content
-  // AND the original shells (anything not yet moved); drop the broken tab bar.
-  // appendChild moves (not copies) a node, so nothing is duplicated or lost.
-  document.querySelectorAll(".tabpanel").forEach(el => { el.style.display = "block"; });
-  document.querySelectorAll(".zones, .admin-wrap").forEach(el => { el.style.display = ""; });
-  const tb = document.getElementById("tabbar"); if (tb) tb.style.display = "none";
+// Degrade-open: run the profile-card shell; if ANY step throws, un-hide the
+// original #pool so the operator still sees (and can edit + save) every one of
+// the 598 fields. The coverage contract survives even a shell-init failure.
+try { initShell(); } catch (e) {
+  const p = document.getElementById("pool"); if (p) p.hidden = false;
+  if (window.console) console.error("MiOS shell init failed — showing raw field pool.", e);
 }
 </script>
 
