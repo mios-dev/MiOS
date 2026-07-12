@@ -32,7 +32,7 @@ FROM ${BASE_IMAGE}
 # current stamp so a manual `podman build` without --build-arg still
 # produces a valid image; callers who need a different version pin it
 # at the command line.
-ARG MIOS_VERSION=0.2.4
+ARG MIOS_VERSION=0.3.0
 
 LABEL org.opencontainers.image.title="MiOS"
 LABEL org.opencontainers.image.description="\MiOS is a user defined, customisable Linux distro based on Fedora/uBlue/uCore"
