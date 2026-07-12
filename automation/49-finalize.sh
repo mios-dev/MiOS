@@ -41,4 +41,19 @@ MIOS_BUILT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 EOF
 ln -sf ${MIOS_USR_DIR}/version ${MIOS_USR_DIR}/mios-version
 
+# LAW 7/8: project the single SSOT version onto every version-bearing os-release
+# field so the shipped OS identity DERIVES from mios.toml [meta].mios_version
+# (carried here via /ctx/VERSION -> MIOS_VERSION) and is never an independent
+# hardcode. The overlay ships os-release with values already == SSOT (drift-check
+# 42 enforces it); this is the authoritative build-time re-projection.
+OSR=/usr/lib/os-release
+if [[ -f "$OSR" && "$MIOS_VERSION" != "unknown" ]]; then
+    for _k in VERSION VERSION_ID BUILD_ID IMAGE_VERSION OSTREE_VERSION; do
+        sed -i -E "s|^${_k}=.*|${_k}=\"${MIOS_VERSION}\"|" "$OSR"
+    done
+    sed -i -E "s|^PRETTY_NAME=.*|PRETTY_NAME=\"MiOS ${MIOS_VERSION}\"|" "$OSR"
+    sed -i -E "s|^CPE_NAME=.*|CPE_NAME=\"cpe:/o:mios-dev:mios:${MIOS_VERSION}\"|" "$OSR"
+    log "os-release version projected from SSOT: ${MIOS_VERSION}"
+fi
+
 log "finalize complete"

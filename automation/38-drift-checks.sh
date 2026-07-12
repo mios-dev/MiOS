@@ -3163,6 +3163,20 @@ check_version_ssot() {
     fi
     [[ "$vfile" != "$ssot" ]] && bad+="    VERSION file = [$vfile], expected [$ssot]"$'\n'
     [[ "$carg"  != "$ssot" ]] && bad+="    Containerfile ARG MIOS_VERSION default = [$carg], expected [$ssot]"$'\n'
+    # os-release: the 7 version-bearing fields are build-projected from the same
+    # SSOT (49-finalize.sh); the committed values must already match so the repo
+    # never carries a stale OS version and the projection has a correct base.
+    local osr="$ROOT/usr/lib/os-release" _f _v
+    if [[ -f "$osr" ]]; then
+        for _f in VERSION VERSION_ID BUILD_ID IMAGE_VERSION OSTREE_VERSION; do
+            _v="$(grep -m1 -E "^${_f}=" "$osr" | sed -E 's/^[^=]+=//; s/^"//; s/"[[:space:]]*$//')"
+            [[ -n "$_v" && "$_v" != "$ssot" ]] && bad+="    os-release ${_f} = [$_v], expected [$ssot]"$'\n'
+        done
+        _v="$(grep -m1 -E '^PRETTY_NAME=' "$osr" | sed -E 's/.*MiOS //; s/"[[:space:]]*$//')"
+        [[ -n "$_v" && "$_v" != "$ssot" ]] && bad+="    os-release PRETTY_NAME version = [$_v], expected [$ssot]"$'\n'
+        _v="$(grep -m1 -E '^CPE_NAME=' "$osr" | sed -E 's|.*:mios:||; s/"[[:space:]]*$//')"
+        [[ -n "$_v" && "$_v" != "$ssot" ]] && bad+="    os-release CPE_NAME version = [$_v], expected [$ssot]"$'\n'
+    fi
     if [[ -n "$bad" ]]; then
         printf '%s' "$bad" >&2
         _violation "version drift from SSOT mios.toml [meta].mios_version=[$ssot] (Law 7 NO-HARDCODE / Law 8 SSOT-PROJECTION) -- VERSION file + Containerfile ARG default must match the SSOT"

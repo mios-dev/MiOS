@@ -1,14 +1,14 @@
 NAME="MiOS"
-VERSION="0.2.4"
+VERSION="0.3.0"
 ID=mios
 ID_LIKE="fedora coreos"
-VERSION_ID="0.2.4"
+VERSION_ID="0.3.0"
 VERSION_CODENAME=""
 PLATFORM_ID="platform:f44"
-PRETTY_NAME="MiOS 0.2.4"
+PRETTY_NAME="MiOS 0.3.0"
 ANSI_COLOR="0;38;5;213"
 LOGO=mios
-CPE_NAME="cpe:/o:mios-dev:mios:0.2.4"
+CPE_NAME="cpe:/o:mios-dev:mios:0.3.0"
 DEFAULT_HOSTNAME="mios"
 HOME_URL="https://github.com/mios-dev/mios"
 DOCUMENTATION_URL="https://github.com/mios-dev/mios"
@@ -16,10 +16,10 @@ SUPPORT_URL="https://github.com/mios-dev/mios/issues"
 BUG_REPORT_URL="https://github.com/mios-dev/mios/issues"
 VARIANT="MiOS Edition"
 VARIANT_ID=mios
-BUILD_ID="0.2.4"
+BUILD_ID="0.3.0"
 IMAGE_ID="mios"
-IMAGE_VERSION="0.2.4"
-OSTREE_VERSION="0.2.4"
+IMAGE_VERSION="0.3.0"
+OSTREE_VERSION="0.3.0"
 
 # MiOS is a bootc-based OCI bootable OS built on top of
 # ghcr.io/ublue-os/ucore-hci:stable-nvidia (Universal Blue's HCI variant
@@ -28,3 +28,11 @@ OSTREE_VERSION="0.2.4"
 # The ID_LIKE chain "fedora coreos" preserves CoreOS ancestry for tools
 # (zincati, rpm-ostree, bootc) that branch on it; the ID=mios is the new
 # canonical identity that fastfetch / motd / postcheck see.
+#
+# The seven version-bearing fields (VERSION, VERSION_ID, PRETTY_NAME,
+# CPE_NAME, BUILD_ID, IMAGE_VERSION, OSTREE_VERSION) are NOT authored here:
+# they are PROJECTED at build time from the single SSOT
+# mios.toml [meta].mios_version (via /ctx/VERSION -> MIOS_VERSION in
+# automation/49-finalize.sh), and drift-check (42) fails the build if the
+# committed values above ever diverge from that SSOT. Edit the version in
+# mios.toml [meta].mios_version ONLY.
