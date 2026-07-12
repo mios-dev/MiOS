@@ -389,13 +389,13 @@ fi
 #     provider: custom:<name>     # matches a custom_providers[].name
 #     default:  <ollama-model-id>
 #     base_url: ${_AI_BACKEND}/v1
-# `provider: custom:local-ollama` then resolves against the
-# `custom_providers:` list entry named `local-ollama`. The pre-0.13
+# `provider: custom:local-llm` then resolves against the
+# `custom_providers:` list entry named `local-llm`. The pre-0.13
 # `backend:` block is genuinely unused by 0.13.x -- we drop it (the
 # re-seed detection below treats a leftover `backend:` as stale).
 #
 # Architectural Law 5 (UNIFIED-AI-REDIRECTS): the agent loop stays
-# fully local -- custom_providers[local-ollama] points at the on-box
+# fully local -- custom_providers[local-llm] points at the on-box
 # Ollama OpenAI surface, no cloud calls.
 # ─── Auto-recover Hermes-Agent venv if missing ───────────────────────
 # automation/38-hermes-agent.sh installs Hermes-Agent directly onto
@@ -531,7 +531,7 @@ for _cand in "$_small_m" "$_mid_m" "$_safety_net"; do
 done
 _FALLBACK_YAML=""
 for _m in "${_FALLBACK_CHAIN[@]}"; do
-    _FALLBACK_YAML+="    - provider: custom:local-ollama
+    _FALLBACK_YAML+="    - provider: custom:local-llm
       model: ${_m}
 "
 done
@@ -656,10 +656,10 @@ _config_version: ${_CONFIG_VERSION}
 
 # Primary model. MUST be a mapping (not a bare string) so
 # resolve_requested_provider() sees the provider= key. provider=
-# "custom:local-ollama" resolves against the custom_providers entry
+# "custom:local-llm" resolves against the custom_providers entry
 # below. Architectural Law 5: local Ollama only, no cloud calls.
 model:
-  provider: custom:local-ollama
+  provider: custom:local-llm
   default: ${_AI_MODEL_RESOLVED}
   base_url: ${_AI_BACKEND}/v1
   api_key: ""
@@ -687,7 +687,7 @@ model:
 ${_FALLBACK_YAML}
 
 custom_providers:
-  - name: local-ollama
+  - name: local-llm
     base_url: ${_AI_BACKEND}/v1
     api_key: ""
 
@@ -708,55 +708,55 @@ auxiliary:
   # floor. Compression stays on the main model for context-fill
   # events (infrequent).
   compression:
-    provider: custom:local-ollama
+    provider: custom:local-llm
     base_url: ${_AI_BACKEND}/v1
     model: ${_AI_MODEL_RESOLVED}
     ollama_num_ctx: 65536
     context_length: 65536
   session_search:
-    provider: custom:local-ollama
+    provider: custom:local-llm
     base_url: ${_AI_BACKEND}/v1
     model: ${_AUX_MODEL}
     ollama_num_ctx: 65536
     context_length: 65536
   title_generation:
-    provider: custom:local-ollama
+    provider: custom:local-llm
     base_url: ${_AI_BACKEND}/v1
     model: ${_AUX_MODEL}
     ollama_num_ctx: 65536
     context_length: 65536
   triage_specifier:
-    provider: custom:local-ollama
+    provider: custom:local-llm
     base_url: ${_AI_BACKEND}/v1
     model: ${_AUX_MODEL}
     ollama_num_ctx: 65536
     context_length: 65536
   curator:
-    provider: custom:local-ollama
+    provider: custom:local-llm
     base_url: ${_AI_BACKEND}/v1
     model: ${_AUX_MODEL}
     ollama_num_ctx: 65536
     context_length: 65536
   mcp:
-    provider: custom:local-ollama
+    provider: custom:local-llm
     base_url: ${_AI_BACKEND}/v1
     model: ${_AUX_MODEL}
     ollama_num_ctx: 65536
     context_length: 65536
   web_extract:
-    provider: custom:local-ollama
+    provider: custom:local-llm
     base_url: ${_AI_BACKEND}/v1
     model: ${_AUX_MODEL}
     ollama_num_ctx: 65536
     context_length: 65536
   approval:
-    provider: custom:local-ollama
+    provider: custom:local-llm
     base_url: ${_AI_BACKEND}/v1
     model: ${_AUX_MODEL}
     ollama_num_ctx: 65536
     context_length: 65536
   skills_hub:
-    provider: custom:local-ollama
+    provider: custom:local-llm
     base_url: ${_AI_BACKEND}/v1
     model: ${_AUX_MODEL}
     ollama_num_ctx: 65536
@@ -768,7 +768,7 @@ auxiliary:
   # UI-TARS-1.5-7B is the upgrade-path candidate (PC-specific).
   # Architecture: /usr/share/mios/docs/agents/PC-CONTROL-LOCAL.md.
   vision_grounding:
-    provider: custom:local-ollama
+    provider: custom:local-llm
     base_url: ${_AI_BACKEND}/v1
     model: qwen3-vl:4b
 
@@ -929,7 +929,7 @@ browser:
 # sudo grant for mios-hermes (10-mios-hermes); the agent is
 # operator-authorized to act, including spawning its own children.
 delegation:
-  provider: custom:local-ollama
+  provider: custom:local-llm
   base_url: ${_AI_BACKEND}/v1
   model: ${_DELEGATION_MODEL}        # small fast tier (served-set resolved) -- CPU-friendly, tool-capable; runs alongside the GPU main
   ollama_num_ctx: 65536
@@ -1036,7 +1036,7 @@ EOF
     umask 0022
     chown 850:850 "$HERMES_DATA_CFG" 2>/dev/null || true
     chmod 0640 "$HERMES_DATA_CFG" 2>/dev/null || true
-    _log "seeded $HERMES_DATA_CFG (provider=custom:local-ollama default=${_AI_MODEL_RESOLVED})"
+    _log "seeded $HERMES_DATA_CFG (provider=custom:local-llm default=${_AI_MODEL_RESOLVED})"
 else
     _log "$HERMES_DATA_CFG already current (default=${_AI_MODEL_RESOLVED}) -- not overwriting"
 fi
@@ -1227,7 +1227,7 @@ EOF
     fi
 
     # ── Operator CLI key material (~/.hermes/.env) ──────────────────────
-    # config.yaml above seeds the PROVIDER half (custom:local-ollama). But
+    # config.yaml above seeds the PROVIDER half (custom:local-llm). But
     # the bare interactive `hermes` CLI ALSO has a startup config-detection
     # gate that trips with "no API keys or providers found -- run: hermes
     # setup" when it sees no API_SERVER_KEY / OPENAI_API_KEY in its
@@ -1244,7 +1244,7 @@ EOF
     # into `hermes setup`.
     #
     # Architectural Law 5 (UNIFIED-AI-REDIRECTS) is preserved: the seeded
-    # config.yaml pins provider=custom:local-ollama at ${_AI_BACKEND}/v1
+    # config.yaml pins provider=custom:local-llm at ${_AI_BACKEND}/v1
     # with api_key:"" (the local lane is keyless). This .env carries only
     # the gateway's OWN key (so the CLI can also auth to the local :8642
     # gateway) -- NO cloud provider, NO vendor URL is introduced.
@@ -1277,7 +1277,7 @@ EOF
 # \`hermes setup\` wizard ("no API keys or providers found"). Mirrors the
 # key material in /etc/mios/hermes/api.env (the gateway service's
 # EnvironmentFile=). The provider itself is the LOCAL lane -- see
-# ${_op_cfg} (provider: custom:local-ollama -> ${_AI_BACKEND}/v1).
+# ${_op_cfg} (provider: custom:local-llm -> ${_AI_BACKEND}/v1).
 # To take ownership: delete this "MiOS-managed" marker line and edit.
 API_SERVER_KEY=${_api_key_val}
 OPENAI_API_KEY=${_api_key_val}

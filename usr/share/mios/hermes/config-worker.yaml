@@ -38,7 +38,7 @@ model:
   # Degrade to the light lane (granite4.1:8b on :11450) if the heavy lane OOMs
   # (SGLang OOMs at gaming-time per memory). Walks DOWN the tier, never up.
   fallback_model:
-    - provider: custom:local-ollama
+    - provider: custom:local-llm
       model: granite4.1:8b
 
 # Heavy lane (main) + light lane (aux/delegation/fallback) providers.
@@ -46,7 +46,7 @@ custom_providers:
   - name: mios-heavy
     base_url: http://localhost:8441/v1
     api_key: ""
-  - name: local-ollama
+  - name: local-llm
     base_url: http://localhost:8450/v1
     api_key: ""
 
@@ -55,61 +55,61 @@ custom_providers:
 # free for the worker's main tool loop. >= 64k ctx required or Hermes refuses.
 auxiliary:
   compression:
-    provider: custom:local-ollama
+    provider: custom:local-llm
     base_url: http://localhost:8450/v1
     model: granite4.1:8b
     ollama_num_ctx: 65536
     context_length: 65536
   session_search:
-    provider: custom:local-ollama
+    provider: custom:local-llm
     base_url: http://localhost:8450/v1
     model: granite4.1:8b
     ollama_num_ctx: 65536
     context_length: 65536
   title_generation:
-    provider: custom:local-ollama
+    provider: custom:local-llm
     base_url: http://localhost:8450/v1
     model: granite4.1:8b
     ollama_num_ctx: 65536
     context_length: 65536
   triage_specifier:
-    provider: custom:local-ollama
+    provider: custom:local-llm
     base_url: http://localhost:8450/v1
     model: granite4.1:8b
     ollama_num_ctx: 65536
     context_length: 65536
   curator:
-    provider: custom:local-ollama
+    provider: custom:local-llm
     base_url: http://localhost:8450/v1
     model: granite4.1:8b
     ollama_num_ctx: 65536
     context_length: 65536
   mcp:
-    provider: custom:local-ollama
+    provider: custom:local-llm
     base_url: http://localhost:8450/v1
     model: granite4.1:8b
     ollama_num_ctx: 65536
     context_length: 65536
   web_extract:
-    provider: custom:local-ollama
+    provider: custom:local-llm
     base_url: http://localhost:8450/v1
     model: granite4.1:8b
     ollama_num_ctx: 65536
     context_length: 65536
   approval:
-    provider: custom:local-ollama
+    provider: custom:local-llm
     base_url: http://localhost:8450/v1
     model: granite4.1:8b
     ollama_num_ctx: 65536
     context_length: 65536
   skills_hub:
-    provider: custom:local-ollama
+    provider: custom:local-llm
     base_url: http://localhost:8450/v1
     model: granite4.1:8b
     ollama_num_ctx: 65536
     context_length: 65536
   vision_grounding:
-    provider: custom:local-ollama
+    provider: custom:local-llm
     base_url: http://localhost:8450/v1
     model: qwen3-vl:4b
 
@@ -179,7 +179,7 @@ browser:
 # Multi-agent delegation: children + aux stay on the LIGHT lane so they don't
 # serialize against the worker's own heavy-lane tool loop.
 delegation:
-  provider: custom:local-ollama
+  provider: custom:local-llm
   base_url: http://localhost:8450/v1
   model: granite4.1:8b
   ollama_num_ctx: 65536

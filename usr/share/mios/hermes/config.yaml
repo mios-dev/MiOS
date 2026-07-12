@@ -58,7 +58,7 @@ tools:
 # to that provider. config.local.yaml from build-mios.ps1 re-asserts
 # these on the dev VM with the Network=host loopback URLs.
 custom_providers:
-  - name: local-ollama
+  - name: local-llm
     base_url: http://localhost:8450/v1
     api_key: ""
     models:
