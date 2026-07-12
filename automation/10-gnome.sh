@@ -78,14 +78,22 @@ BIBATA_VER=$( (scurl -sL --connect-timeout 15 --max-time 30 \
 [[ -n "$BIBATA_VER" ]] || die "Bibata: api.github.com release-latest lookup returned empty"
 record_version bibata "v${BIBATA_VER}" "https://github.com/ful1e5/Bibata_Cursor/releases/tag/v${BIBATA_VER}"
 
-BIBATA_URL="${MIOS_URL_BIBATA_DL:-https://github.com/ful1e5/Bibata_Cursor/releases/download/v{}/Bibata-Modern-Classic.tar.xz}"
+# The {} placeholder must be substituted OUTSIDE the ${VAR:-default} expansion:
+# bash's ${:-} does not nest bare braces, so a literal '{}' in the default value
+# terminates the expansion at the first '}' and yields a mangled URL
+# (.../download/v{/Bibata-Modern-Classic.tar.xz}) -- the {}->version sub then finds
+# no adjacent '{}' and every download fails. Resolve the default into a plain var
+# first (no braces in the ${:-} default position), then substitute {}.
+_bibata_dl_default="https://github.com/ful1e5/Bibata_Cursor/releases/download/v{}/Bibata-Modern-Classic.tar.xz"
+BIBATA_URL="${MIOS_URL_BIBATA_DL:-$_bibata_dl_default}"
 BIBATA_URL="${BIBATA_URL//"{}"/${BIBATA_VER}}"
 BIBATA_DIR="/usr/share/icons/Bibata-Modern-Classic"
 mkdir -p /usr/share/icons
 
 # Download with retries + sha256 verification
 BIBATA_OK=0
-BIBATA_SUM_URL="${MIOS_URL_BIBATA_SUM:-https://github.com/ful1e5/Bibata_Cursor/releases/download/v{}/sha256-{}.txt}"
+_bibata_sum_default="https://github.com/ful1e5/Bibata_Cursor/releases/download/v{}/sha256-{}.txt"
+BIBATA_SUM_URL="${MIOS_URL_BIBATA_SUM:-$_bibata_sum_default}"
 BIBATA_SUM_URL="${BIBATA_SUM_URL//"{}"/${BIBATA_VER}}"
 for attempt in 1 2 3; do
     echo "[10-gnome]   Download attempt $attempt/3..."
