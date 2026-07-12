@@ -20,7 +20,7 @@ Fields:
   memory      {total_mib, used_mib, available_mib, swap_total_mib}
   disk        list of {mount, total, used, available, pct}
   services    {failed: [...], active_count, mios: {<name>: <state>}}
-  ollama      list of {model, size, modified} (emulated from mios-llm-light)
+  models      list of {model} served on the /v1 lane (mios-llm-light /v1/models)
   uptime_s    int
   ts          float (unix-epoch)
 """
@@ -216,36 +216,20 @@ def _probe_services() -> dict:
     return info
 
 
-def _probe_ollama() -> list[dict]:
-    """Query model list from the mios-llm-light API."""
+def _probe_models() -> list[dict]:
+    """Query the served-model list from the mios-llm-light /v1 lane (MiOS is
+    /v1-only; /v1/models reports served model ids, not on-disk size/mtime)."""
     out: list[dict] = []
     try:
         import urllib.request
         port = os.environ.get("MIOS_PORT_LLM_LIGHT", "8450")
-        req = urllib.request.Request(f"http://localhost:{port}/api/tags")
+        req = urllib.request.Request(f"http://localhost:{port}/v1/models")
         with urllib.request.urlopen(req, timeout=5.0) as response:
             data = json.loads(response.read().decode('utf-8'))
-            models = data.get("models", [])
-            for m in models:
-                size_bytes = m.get("size", 0)
-                if size_bytes > 1024**3:
-                    size_str = f"{size_bytes / 1024**3:.1f} GB"
-                elif size_bytes > 1024**2:
-                    size_str = f"{size_bytes / 1024**2:.1f} MB"
-                else:
-                    size_str = f"{size_bytes} B"
-                
-                digest = m.get("digest", "")
-                if ":" in digest:
-                    digest = digest.split(":", 1)[1]
-                short_id = digest[:12] if digest else ""
-                
-                out.append({
-                    "model": m.get("name", ""),
-                    "id": short_id,
-                    "size": size_str,
-                    "modified": m.get("modified_at", ""),
-                })
+            for m in data.get("data", []):
+                mid = m.get("id", "")
+                if mid:
+                    out.append({"model": mid})
     except Exception:
         pass
     return out
@@ -328,7 +312,7 @@ def main() -> int:
         "memory": _probe_memory(),
         "disk": _probe_disk(),
         "services": _probe_services(),
-        "ollama": _probe_ollama(),
+        "models": _probe_models(),
     }
     json.dump(payload, sys.stdout, separators=(",", ":"))
     return 0

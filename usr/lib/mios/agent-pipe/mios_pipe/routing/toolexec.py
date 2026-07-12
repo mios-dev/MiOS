@@ -356,7 +356,7 @@ def _tool_span(vname: str, session_id: str):
 async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
     """Execute the verbs in an OpenAI tool_calls[] list via the broker and return
     (tool_result_messages, ran_any). Shared by every pipe-side sub-agent tool-loop
- (ollama + /v1) so the OpenAI loop is ONE mechanism ('full
+ (every sub-agent lane, all /v1) so the OpenAI loop is ONE mechanism ('full
     loop ... to OpenAI Standards'). tool_call_id is preserved for OpenAI-spec
     linkage; the result is also keyed by `name` (some models match by name).
 

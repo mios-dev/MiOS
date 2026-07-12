@@ -9,8 +9,8 @@
 # host). Two pieces, both idempotent + best-effort:
 #   1. the shared agent venv (hermes-agent + agent-pipe), via the canonical
 #      builder automation/38-hermes-agent.sh (checked out at / by the overlay);
-#   2. the llama.cpp GGUFs for the mios-llm-light lane, extracted from ollama's
-#      model blobs (the tags come from /usr/share/mios/llamacpp/mios-llm-light.yaml).
+#   2. the llama.cpp GGUFs for the mios-llm-light lane, downloaded as HF-native
+#      GGUFs (the tags come from /usr/share/mios/llamacpp/mios-llm-light.yaml).
 # Then it (re)starts the AI services so they pick up the new prerequisites.
 #
 # The sentinel /var/lib/mios/.ai-firstboot-done is written ONLY when the venv,
@@ -93,12 +93,12 @@ if [ ! -x "${VENV}/bin/hermes" ]; then
     if [ -x "${VENV}/bin/hermes" ]; then log "agent venv ready: ${VENV}"; else log "WARN: agent venv still missing"; fi
 fi
 
-# ── 2. llama.cpp GGUFs (llama.cpp-NATIVE -- HF download; ollama retired, G5/G8) ─
+# ── 2. llama.cpp GGUFs (llama.cpp-NATIVE -- HF download; G5/G8) ─
 # GGUFs are normally BAKED at build by automation/38-llamacpp-prep.sh (the
 # offline-correct path). This firstboot block is the ONLINE retry for hosts that
 # didn't bake them: it fetches the SAME MIOS_LLAMACPP_BAKE_MODELS spec
 # (dest.gguf=hf_repo:file, FOSS pre-quantized) directly from Hugging Face via a
-# plain curl of the resolve URL -- NO ollama dependency (G5 retired it) and NO
+# plain curl of the resolve URL -- NO legacy-backend dependency (G5) and NO
 # huggingface_hub/pip dependency (G8: the runtime pip install failed on
 # air-gapped/locked hosts). When air-gapped + unbaked the lane stays inert
 # (operator sets [llamacpp].bake_models + rebuilds, or seeds ${MODELS} manually)

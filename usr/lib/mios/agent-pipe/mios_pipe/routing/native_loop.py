@@ -1515,7 +1515,6 @@ async def _format_local_state(question: str, grounding: str,
         log.warning("local-state format failed: %s", e)
         return None
     log.info("local-state format: %.1fs", time.time() - t0)
-    msg = body.get("message")
-    if not isinstance(msg, dict):
-        msg = ((body.get("choices") or [{}])[0].get("message")) or {}
+    # OpenAI /v1 choices[] shape (MiOS is /v1-only).
+    msg = ((body.get("choices") or [{}])[0].get("message")) or {}
     return _strip_think_tags((msg.get("content") or "").strip()) or None

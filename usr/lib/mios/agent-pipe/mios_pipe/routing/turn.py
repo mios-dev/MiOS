@@ -108,15 +108,8 @@ async def _live_agent_names() -> set:
             ep = (ep or "").rstrip("/")
             if not ep:
                 return False
-            try:  # OpenAI /v1/models first (llama.cpp + vLLM speak this)
+            try:  # OpenAI /v1/models (llama.cpp + vLLM + every MiOS lane speak this)
                 r = await client.get(f"{ep}/models", headers=_probe_auth_headers(ep))
-                if r.status_code < 500:
-                    return True
-            except Exception:
-                pass
-            tb = ep[:-3].rstrip("/") if ep.endswith("/v1") else ep
-            try:  # ollama-style /api/tags fallback
-                r = await client.get(f"{tb}/api/tags")
                 return r.status_code < 500
             except Exception:
                 return False

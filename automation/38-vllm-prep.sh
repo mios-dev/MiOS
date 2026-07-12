@@ -3,7 +3,7 @@
 # AI-related: /usr/share/mios/vllm/model, mios-llm-heavy-alt, mios-grounding, mios-llm-heavy-alt.container
 # automation/38-vllm-prep.sh -- bake the vLLM heavy-lane weights into the image
 # so the mios-llm-heavy-alt Quadlet serves them OFFLINE (vLLM/HF will NOT download
-# air-gapped at runtime). Mirrors automation/37-ollama-prep.sh: build-time,
+# air-gapped at runtime). Mirrors automation/38-llamacpp-prep.sh: build-time,
 # best-effort, NEVER fails the build (exit 0 on any error).
 #
 # Weights land in /usr/share/mios/vllm/model (immutable composefs surface; the

@@ -1183,10 +1183,10 @@ async def _plan_swarm(user_text: str, history: list = None) -> list:
         log.info("plan_swarm: dispatch depth %d >= %d -> no decomposition "
                  "(degrade-closed)", _dispatch_depth(), MAX_DISPATCH_DEPTH)
         return []
-    # /api/chat with think=False -- the proven-reliable path refine uses. The
+    # /v1 with enable_thinking=False -- the proven-reliable path refine uses. The
     # /v1 + response_format path returned EMPTY content for the full agent
     # roster (trace: "swarm planner raw (len=0)"). Use the
-    # general SWARM_MODEL (not the code model) and read native message.content.
+    # general SWARM_MODEL (not the code model) and read message.content.
     _base = (PLANNER_ENDPOINT[:-3].rstrip("/")
              if PLANNER_ENDPOINT.endswith("/v1") else PLANNER_ENDPOINT)
     # LIVE-only roster ("iGPU is down"): show the planner
@@ -1221,8 +1221,8 @@ async def _plan_swarm(user_text: str, history: list = None) -> list:
                 if _c:
                     _msgs.append({"role": h["role"], "content": _c[:_cap]})
     _msgs.append({"role": "user", "content": user_text[:4000] + " /no_think"})
-    # OpenAI /v1 (mios-llm-light :11450). The old ollama /api/chat shape 404'd post
-    # ollama-retirement -> the planner ALWAYS returned [] -> the swarm NEVER
+    # OpenAI /v1 (mios-llm-light :11450). A legacy non-/v1 chat shape once 404'd
+    # here -> the planner ALWAYS returned [] -> the swarm NEVER
     # decomposed -> force_council DUPS across lanes ("tasks
     # aren't delegated as distinct work"). Same drift class as summarize/daemon/cron.
     # NO response_format: it makes gemma4 emit into reasoning_content (content="")

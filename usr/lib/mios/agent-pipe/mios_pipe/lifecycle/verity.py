@@ -441,7 +441,7 @@ async def polish_response(raw_text: str,
     # raw tool_calls are still useful for the per-step detail.
     sat_verdicts = await _recent_satisfaction_verdicts(limit=3)
     sat_block = _format_satisfaction_block(sat_verdicts)
-    # Thinking is disabled via think=False on /api/chat below -- qwen3
+    # Thinking is disabled via enable_thinking=False on the /v1 call below -- qwen3
     # ignores /no_think and would otherwise emit empty content after a
     # long think pass (same fix + failure mode as refine; was the source
     # of the 45s polish timeout, operator test).
@@ -513,11 +513,9 @@ async def polish_response(raw_text: str,
         log.warning("polish unexpected error: %s", e)
         return None
     log.info("polish: %.1fs", time.time() - t0)
-    # /api/chat shape {"message":{"content"}}; /v1 choices[] fallback.
-    msg = body.get("message")
-    if not isinstance(msg, dict):
-        choices = body.get("choices") or []
-        msg = (choices[0].get("message") if choices else {}) or {}
+    # OpenAI /v1 choices[] shape (MiOS is /v1-only).
+    choices = body.get("choices") or []
+    msg = (choices[0].get("message") if choices else {}) or {}
     polished = (msg.get("content") or "").strip()
     if not polished:
         return None

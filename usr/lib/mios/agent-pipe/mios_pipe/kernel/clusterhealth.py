@@ -239,7 +239,7 @@ def configure(**deps) -> None:
 
 async def _probe_one_endpoint(client, ep: str, timeout_s: float = 3.0) -> tuple:
     """Single (reachable, live_models, latency_ms) tuple for one endpoint.
-    Tries OpenAI /v1/models first then ollama /api/tags fallback."""
+    Probes the OpenAI /v1/models surface (MiOS is /v1-only)."""
     ep = (ep or "").rstrip("/")
     if not ep:
         return (False, [], 0)
@@ -257,19 +257,6 @@ async def _probe_one_endpoint(client, ep: str, timeout_s: float = 3.0) -> tuple:
             return (True, lm, int((time.time() - t0) * 1000))
     except Exception:  # noqa: BLE001
         pass
-    tb = ep[:-3].rstrip("/") if ep.endswith("/v1") else ep
-    try:
-        r = await client.get(f"{tb}/api/tags", timeout=timeout_s)
-        if r.status_code < 500:
-            try:
-                lm = [str(m.get("name"))
-                      for m in ((r.json() or {}).get("models") or [])
-                      if isinstance(m, dict) and m.get("name")]
-            except (json.JSONDecodeError, ValueError):
-                lm = []
-            return (True, lm, int((time.time() - t0) * 1000))
-    except Exception:  # noqa: BLE001
-        return (False, [], int((time.time() - t0) * 1000))
     return (False, [], int((time.time() - t0) * 1000))
 
 

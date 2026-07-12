@@ -1,5 +1,5 @@
 #!/bin/bash
-# AI-hint: Checks and configures Windows-side port forwarding for MiOS services (e.g., Open WebUI, Ollama) to ensure LAN/Wi-Fi accessibility from the host machine via a PowerShell helper script.
+# AI-hint: Checks and configures Windows-side port forwarding for MiOS services (e.g., Open WebUI, mios-llm-light) to ensure LAN/Wi-Fi accessibility from the host machine via a PowerShell helper script.
 # AI-related: /usr/libexec/mios/mios-lan-status, /usr/libexec/mios/Setup-MiOSLanPortProxy.ps1, mios-windows
 # AI-functions: windows_ip
 # /usr/libexec/mios/mios-lan-status [--enable]

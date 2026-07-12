@@ -24,7 +24,7 @@ Config (all via env, SSOT-rendered by the unit / userenv.sh):
                                must match [agents.opencode].model + the key in
                                opencode.json)
   MIOS_OPENCODE_PROVIDER       opencode provider name from opencode.json
-                               (default "ollama"); used to build the `-m
+                               (default "local"); used to build the `-m
                                provider/model` selector
   MIOS_OPENCODE_CONFIG         explicit path to opencode.json; exported to the
                                child as OPENCODE_CONFIG so opencode does NOT
@@ -64,7 +64,7 @@ OPENCODE_MODEL = os.environ.get("MIOS_OPENCODE_MODEL", "mios-opencode:latest")
 # execute are decoupled: the real opencode subprocess still runs OPENCODE_MODEL.
 # Shares MIOS_AI_GATEWAY_MODEL with the front door (usr/bin/mios) -- one SSOT knob.
 ADVERTISED_MODEL = os.environ.get("MIOS_AI_GATEWAY_MODEL", "MiOS AI")
-# opencode provider name as declared in opencode.json (e.g. "ollama").
+# opencode provider name as declared in opencode.json (e.g. "local").
 OPENCODE_PROVIDER = os.environ.get("MIOS_OPENCODE_PROVIDER", "local")
 # Explicit config location (no hardcoded /root/.config/opencode). Exported to
 # the child process as OPENCODE_CONFIG.
@@ -274,7 +274,7 @@ class Handler(BaseHTTPRequestHandler):
         messages = req.get("messages", [])
         # This gateway serves exactly ONE model (opencode itself). The caller's
         # `model` is just a routing label -- the agent-pipe sends the AGENT NAME
-        # ("opencode"), which _selector would turn into the bogus "ollama/opencode"
+        # ("opencode"), which _selector would turn into the bogus "local/opencode"
         # > "Model not found" (live error). ALWAYS use our
         # own configured OPENCODE_MODEL (mios-opencode:latest) regardless of what
         # the caller asked for; only honour a caller id that is already a real,

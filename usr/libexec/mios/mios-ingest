@@ -101,22 +101,19 @@ def _summarize(text: str) -> dict:
 
 
 def _embed(text: str):
-    """Single-vector embed via the light-lane OpenAI-compat /v1/embeddings
+    """Single-vector embed via the light-lane OpenAI /v1/embeddings
     (mios-llm-light :11450, nomic-embed-text, 768-dim) -- the SAME model+endpoint
-    agent-pipe uses so cosine recall is comparable. Supports BOTH the OpenAI /v1
-    shape ({input} -> {data:[{embedding}]}) and the ollama shape ({prompt} ->
-    {embedding}), chosen by the URL. Returns a list[float] or None on ANY failure
-    (network down, light lane swapping, bad shape) -- the caller then stores the
-    row with emb NULL (still persisted + auditable, just not recallable). NEVER
+    agent-pipe uses so cosine recall is comparable. MiOS is /v1-only: the OpenAI
+    shape ({input} -> {data:[{embedding}]}). Returns a list[float] or None on ANY
+    failure (network down, light lane swapping, bad shape) -- the caller then stores
+    the row with emb NULL (still persisted + auditable, just not recallable). NEVER
     raises: embedding is best-effort and must not fail an ingest. Stdlib-only
     (urllib) to keep this offline tool dependency-free."""
     text = (text or "").strip()
     if not text:
         return None
     text = text[:EMBED_MAX_CHARS]
-    is_v1 = "/v1/embeddings" in EMBED_URL
-    payload = {"model": EMBED_MODEL,
-               ("input" if is_v1 else "prompt"): text}
+    payload = {"model": EMBED_MODEL, "input": text}
     try:
         req = urllib.request.Request(
             EMBED_URL,
@@ -132,11 +129,11 @@ def _embed(text: str):
         print(f"[mios-ingest] embed call failed (emb NULL): {str(e)[:160]}",
               file=sys.stderr)
         return None
-    v = data.get("embedding")
-    if v is None:                       # OpenAI /v1 shape
-        d = data.get("data")
-        if isinstance(d, list) and d:
-            v = d[0].get("embedding")
+    # OpenAI /v1 shape: {data:[{embedding:[...]}]}.
+    v = None
+    d = data.get("data")
+    if isinstance(d, list) and d:
+        v = d[0].get("embedding")
     if isinstance(v, list) and v:
         try:
             return [float(x) for x in v]

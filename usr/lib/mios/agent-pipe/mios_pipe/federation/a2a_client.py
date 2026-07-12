@@ -402,7 +402,7 @@ async def _a2a_autodiscover_peers(known_urls: set) -> list:
     cfgs for responders (skip URLs already in the registry, skip non-cards). So
     a NEW MiOS agent-pipe node auto-joins the mesh with zero registry editing
 . OFF unless MIOS_A2A_TAILNET_DISCOVER is truthy; never
-    raises; fast-fails on the compute-only nodes (ollama/oscontrol) that 404 the
+    raises; fast-fails on the compute-only nodes (e.g. oscontrol) that 404 the
     card."""
     if os.environ.get("MIOS_A2A_TAILNET_DISCOVER", "").strip().lower() \
             not in {"1", "true", "yes"}:

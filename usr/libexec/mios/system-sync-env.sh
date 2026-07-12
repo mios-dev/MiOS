@@ -85,7 +85,7 @@ emit() {
 }
 
 # Render the new install.env. Order matches what wsl-firstboot,
-# forge-firstboot, and 37-ollama-prep.sh expect.
+# forge-firstboot, and the llm-light prep step expect.
 generate_env() {
     local _ai_backend=""
     cat <<EOF
@@ -129,13 +129,13 @@ EOF
     #   endpoint -> [ai].endpoint  = http://localhost:8640/v1 (AGENT-PIPE ORCHESTRATOR
     # - the UNIFIED entrypoint, model "MiOS-Agent";.
     #               Hermes :8642 is now a LEAF the pipe calls, NOT the client surface.)
-    # model -> [ai].model = granite4.1:8b (fleet; ollama-era
+    # model -> [ai].model = granite4.1:8b (fleet; the earlier
     #               qwen3.5:2b was a dropped model -> a stale/unservable default)
     emit MIOS_AI_ENDPOINT "${MIOS_AI_ENDPOINT:-http://localhost:8640/v1}"
     emit MIOS_AI_MODEL "${MIOS_AI_MODEL:-granite4.1:8b}"
     emit MIOS_AI_EMBED_MODEL "${MIOS_AI_EMBED_MODEL:-nomic-embed-text}"
-    # Inference backend the agents forward to (mios-llm-light front; ollama
-    # :11434 retired G5). Derived from the resolver's MIOS_HERMES_BACKEND_URL
+    # Inference backend the agents forward to (mios-llm-light front; the
+    # :11434 lane retired G5). Derived from the resolver's MIOS_HERMES_BACKEND_URL
     # ([ai].hermes_backend_url, e.g. http://localhost:11450/v1) so MIOS_AI_BACKEND
     # follows the SSOT instead of a hardcoded port. Strip a trailing /v1 so
     # consumers that append their own path get a clean host:port base.

@@ -9,7 +9,7 @@
 # local backend agents need to query.
 #
 # Operator directives 2026-05-18 stacked:
-#   * "make sure this is all Ollama (and other OpenSource Alternatives /
+#   * "make sure this is all OpenSource Alternatives /
 #      Local Endpoints / Self-Hosted Endpoints) and Open WebUI Native
 #      DB(s) for knowledge/memory/context/scratch/skills/functions/
 #      tools/etc-etc"
@@ -22,7 +22,7 @@
 #                     knowledge / file / tool / function / model /
 #                     user / group / channel.
 #
-#   --embed <text>    Ollama /v1/embeddings via the canonical
+#   --embed <text>    /v1/embeddings via the canonical
 #                     MiOS embedding model (nomic-embed-text).
 #                     Returns the float[] vector. SOURCE OF TRUTH
 #                     for: embeddings. Switch model via --embed-model.
@@ -36,7 +36,7 @@
 # via tools/lib/userenv.sh -- vendor (/usr/share/mios/mios.toml) <
 # host (/etc/mios/mios.toml) < user (~/.config/mios/mios.toml). A shell
 # `export` always wins (`:=` form). To change the defaults globally,
-# edit [pgvector] / [ports].ollama / paths in mios.toml -- DO NOT
+# edit [pgvector] / [ports] / paths in mios.toml -- DO NOT
 # hardcode values here. See the SSOT directive in
 # automation/15-render-quadlets.sh.
 #
@@ -173,13 +173,13 @@ print(json.dumps(out, default=str, indent=2))
     exit 2
 fi
 
-# ── MODE: --embed  (Ollama /v1/embeddings via OpenAI-compat) ──
+# ── MODE: --embed  (/v1/embeddings, OpenAI-compat) ──
 if [ "$MODE" = "embed" ]; then
     if ! command -v curl >/dev/null 2>&1; then
         echo "mios-db: curl required for --embed" >&2
         exit 2
     fi
-    # OpenAI-compat shape -- Ollama implements identical schema.
+    # OpenAI-compat shape -- the canonical /v1 embeddings schema.
     # Pass model + text as argv (NOT spliced into the -c source) so a model name
     # or text containing a quote can't break out into the python program.
     PAYLOAD=$(python3 -c '

@@ -28,15 +28,15 @@
 #
 # Operator directive 2026-05-17 (two-step clarification):
 #   first: "iGPU's are ONLY micro-llms"
-#   then:  "wire to ollama!! JUST ONLY USES Micro-llms in MiOS stack"
+#   then:  "JUST ONLY USES Micro-llms in MiOS stack"
 #
-# Resolution: ollama IS in the list. MiOS-stack consumers of
-# Ollama only ask for small models (mios-daemon -> qwen3:0.6b-cpu,
+# Resolution: MiOS-stack consumers of the light lane only ask for
+# small models (mios-daemon -> qwen3:0.6b-cpu,
 # pipe refine/polish -> qwen2.5-coder:7b, prefilter -> small).
 # The big-model tags on disk (qwen3-coder:30b, gpt-oss:20b) are
-# parked for ad-hoc operator use; Ollama's auto-scheduling lands
+# parked for ad-hoc operator use; the backend's auto-scheduling lands
 # the small MiOS-stack models on whichever device has room. With
-# NVIDIA dGPU + AMD iGPU both registered as CDI devices, Ollama
+# NVIDIA dGPU + AMD iGPU both registered as CDI devices, the backend
 # spreads load across them; small models fit on the iGPU's WSL
 # DXG path (no VRAM contention with the dGPU), bigger ad-hoc
 # loads keep the dGPU free.
@@ -72,7 +72,6 @@ RESTART_ON_CHANGE="${MIOS_GPU_RESTART_ON_CHANGE:-0}"
 # Quadlet at /etc/containers/systemd/<name>.container OR
 # /usr/share/containers/systemd/<name>.container.
 MIOS_AI_QUADLETS_DEFAULT=(
-    "ollama"
     "mios-open-webui"
     # Install-robustness 2026-06-21: the FRONT-DOOR brain lanes + workers also
     # hardcode AddDevice=nvidia.com/gpu=all, so on a non-NVIDIA host (AMD/Intel/

@@ -39,7 +39,7 @@ class _FakeResp:
 
 class _FakeClient:
     """Minimal stand-in for an httpx.AsyncClient: returns a canned /models list
-    on the first GET, raising for the ollama fallback path is unnecessary."""
+    on the first GET (MiOS is /v1-only; there is no legacy fallback path)."""
     def __init__(self, payload):
         self._payload = payload
 

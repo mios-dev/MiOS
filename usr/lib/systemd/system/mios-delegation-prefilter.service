@@ -48,7 +48,7 @@ Environment=PYTHONUNBUFFERED=1
 # can flip this to =1 via a drop-in.
 Environment=MIOS_PREFILTER_REFINE=0
 Environment=MIOS_SYS_AGENT_MODEL=mios-sys-agent
-# mios-llm-light (ollama RETIRED G5; :11434 dead). Inert while MIOS_PREFILTER_REFINE=0.
+# mios-llm-light (the :11434 lane retired G5). Inert while MIOS_PREFILTER_REFINE=0.
 Environment=MIOS_SYS_AGENT_BASE=http://127.0.0.1:11450/v1
 Environment=MIOS_SYS_AGENT_ENDPOINT=http://127.0.0.1:11450
 # Cold-load of the ~4 GB CPU refiner takes 60-180s on WSL2 disks
@@ -57,7 +57,7 @@ Environment=MIOS_SYS_AGENT_ENDPOINT=http://127.0.0.1:11450
 # ~50 tok/s on a 12-core CPU, so a 600-token refine completes in
 # ~12s warm. 300s total covers cold + warm + the elaborate
 # modelfile SYSTEM prompt (~1500 tokens of reasoning template).
-# Combined with the OLLAMA_KEEP_ALIVE=-1 drop-in the cold load
+# Combined with the keep-warm drop-in the cold load
 # happens ONCE per boot and never again.
 Environment=MIOS_PREFILTER_REFINE_TIMEOUT=300
 # Heuristic + upstream are operator-tunable via /etc/mios/secrets.env

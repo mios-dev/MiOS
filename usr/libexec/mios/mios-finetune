@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-# AI-hint: Python script for hardware-agnostic LoRA/SFT fine-tuning of the MiOS model; detects CUDA/ROCm/MPS/CPU to train a local adapter from the mios-finetune-dataset and exports it as an Ollama-compatible model.
+# AI-hint: Python script for hardware-agnostic LoRA/SFT fine-tuning of the MiOS model; detects CUDA/ROCm/MPS/CPU to train a local adapter from the mios-finetune-dataset and exports it as a GGUF LoRA adapter for the llama.cpp / mios-llm-light lane.
 # AI-related: /usr/share/mios/mios.toml, /etc/mios/mios.toml, /usr/share/mios/finetune/requirements.txt, mios-finetune-dataset, mios-sys-agent-ft
 """'MiOS' fine-tuner -- HARDWARE-AGNOSTIC LoRA/SFT of a small role model.
 
 Trains a LoRA adapter on the distilled corpus from `mios-finetune-dataset`, then
-exports it as an ollama model (`FROM <base> + ADAPTER`). MiOS ships the components
+exports it as a GGUF LoRA adapter for the llama.cpp / mios-llm-light lane. MiOS ships the components
 to train on ANY hardware combination, so this auto-detects the compute device:
 
     NVIDIA CUDA  ->  4-bit QLoRA (bitsandbytes) when available, else bf16 LoRA
@@ -263,10 +263,12 @@ def train(cfg: dict, device: str, fourbit: bool, adapter_dir: str) -> dict:
 
 
 # --------------------------------------------------------------------------- #
-def export_ollama(cfg: dict, adapter_dir: str) -> dict:
-    """Convert the LoRA -> GGUF and create the ollama model (FROM base + ADAPTER).
-    Best-effort: needs llama.cpp's convert_lora_to_gguf.py + ollama. Reports the
-    manual steps honestly if the converter is absent rather than faking success."""
+def export_gguf(cfg: dict, adapter_dir: str) -> dict:
+    """Convert the trained LoRA adapter to GGUF for the llama.cpp / mios-llm-light
+    lane (MiOS is /v1-only -- there is no legacy packaging step). Best-effort:
+    needs llama.cpp's convert_lora_to_gguf.py. Reports the manual steps honestly if
+    the converter is absent rather than faking success. Serve the adapter by adding
+    '--lora <adapter.gguf>' to the base model's cmd in mios-llm-light.yaml."""
     if not _cb(cfg.get("gguf_convert"), True):
         return {"gguf": "skipped (gguf_convert=false)"}
     work = str(cfg.get("work_dir") or "/var/lib/mios/finetune")
@@ -276,26 +278,22 @@ def export_ollama(cfg: dict, adapter_dir: str) -> dict:
     if not conv:
         return {"gguf": "converter-missing", "manual":
                 "install llama.cpp; run convert_lora_to_gguf.py "
-                f"{adapter_dir} --outfile {lora_gguf}; then `ollama create`"}
+                f"{adapter_dir} --outfile {lora_gguf}; then add "
+                "'--lora adapter.gguf' to the model's cmd in mios-llm-light.yaml"}
     try:
         subprocess.run([sys.executable, conv, adapter_dir, "--outfile", lora_gguf,
                         "--outtype", str(cfg.get("gguf_quant") or "q8_0")],
                        check=True, timeout=1800)
     except Exception as e:  # noqa: BLE001
         return {"gguf": f"convert-failed: {e}"}
-
-    base = str(cfg.get("base_model") or "qwen3.5:2b")
     tag = str(cfg.get("output_tag") or "mios-sys-agent-ft")
     if not tag or tag.startswith("-") or "/" in tag:
-        return {"gguf": lora_gguf, "ollama": "create-failed: invalid or unsafe output_tag"}
-    mf = os.path.join(work, f"{tag}.Modelfile")
-    with open(mf, "w", encoding="utf-8") as fh:
-        fh.write(f"FROM {base}\nADAPTER {lora_gguf}\n")
-    try:
-        subprocess.run(["ollama", "create", tag, "-f", mf], check=True, timeout=600)
-    except Exception as e:  # noqa: BLE001
-        return {"gguf": lora_gguf, "ollama": f"create-failed: {e}", "modelfile": mf}
-    return {"gguf": lora_gguf, "ollama_model": tag, "modelfile": mf}
+        return {"gguf": lora_gguf, "model": "invalid or unsafe output_tag"}
+    # llama.cpp serves the adapter directly (base model + --lora <gguf>); wire it
+    # into the mios-llm-light.yaml model map under the base model's cmd.
+    return {"gguf": lora_gguf, "model": tag,
+            "serve": "add '--lora adapter.gguf' to the base model cmd in "
+                     "mios-llm-light.yaml"}
 
 
 # --------------------------------------------------------------------------- #
@@ -354,7 +352,7 @@ def main() -> int:
     if not res.get("success"):
         print(json.dumps(res, indent=2))
         return 1
-    res["export"] = export_ollama(cfg, adapter_dir)
+    res["export"] = export_gguf(cfg, adapter_dir)
     print(json.dumps(res, indent=2))
     return 0
 

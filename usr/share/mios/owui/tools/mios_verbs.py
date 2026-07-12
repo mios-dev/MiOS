@@ -571,14 +571,14 @@ class Tools:
 
         :return: JSON string with {ts, uptime_s, gpu[], memory{},
             disk[], services{failed[], active_count, mios{}},
-            ollama[]}. Missing probes come back as null or empty
+            models[]}. Missing probes come back as null or empty
             list -- never fabricated.
         """
         if not self.valves.ENABLED:
             return json.dumps({"success": False, "stderr": "MiOS verbs disabled by valve"})
         # mios-system-status is a self-contained JSON-emitting helper.
         # Broker dispatch so we hit it from the operator-side context
-        # (nvidia-smi + ollama list + systemctl all behave the same in
+        # (nvidia-smi + model list + systemctl all behave the same in
         # the broker context, but going through the broker keeps the
         # tool stateless and consistent with the other verbs).
         result = _broker_send("mios-system-status",

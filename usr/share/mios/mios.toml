@@ -1567,7 +1567,7 @@ enable                    = false
 # semaphore/diversity bucket; `health_gate=true` makes a come-and-go remote node
 # auto-join when reachable + drop when gone (local nodes omit it = always live).
 # The target endpoint MUST actually serve that Modelfile tag.
-# ALL LLAMA.CPP (operator binding: "EVERYTHING IS LLAMA.CPP, NO OLLAMA"). The GPU +
+# ALL LLAMA.CPP (operator binding: "EVERYTHING IS LLAMA.CPP"). The GPU +
 # light lanes point to mios-llm-light (${MIOS_PORT_LLM_LIGHT}).
 # api=llamacpp -> KV-paging + no tool_choice=required.
 # health_gate=true -> a lane is probed + skipped if mios-llm-light is momentarily down
@@ -2230,9 +2230,10 @@ request_cancel_enable  = 1      # 1=cancel non-streaming turns on client disconn
 request_cancel_poll_s  = 2.0    # disconnect-watcher poll interval (seconds)
 # Proactively evict an IDLE resident model (refcount 0, non-kept) to free VRAM for
 # a cold model a turn NEEDS -- "clear RAM/VRAM for idle agents to be loaded so
-# nothing in the pipeline is idle". ollama lanes (/api/ps + keep_alive:0); the hard
-# semaphores stay the OOM backstop. llama.cpp KV is paged separately (kv_paging_*).
-vram_reclaim_idle    = false  # DISABLED proactive evict->reload of multi-GB model files thrashed disk (~2GB/s). De-dup + swarm_max_width cut the model churn at the source; let ollama's own LRU manage residency.
+# nothing in the pipeline is idle". INERT on the /v1 plane (llama-swap owns model
+# residency); the hard semaphores stay the OOM backstop. llama.cpp KV is paged
+# separately (kv_paging_*).
+vram_reclaim_idle    = false  # DISABLED proactive evict->reload of multi-GB model files thrashed disk (~2GB/s). De-dup + swarm_max_width cut the model churn at the source; let llama-swap's own LRU manage residency.
 # CPU-offload of fan-out secondaries: OFF ("concurrent true
 # swarm / unfired nodes"). ON funneled EVERY secondary onto the single CPU lane
 # (:11435) -> 35-conn wedge while dGPU/potato/iGPU sat idle. OFF = each distinct
@@ -2251,7 +2252,7 @@ worker_mcp_tools     = true                  # surface external MCP client tools
 # On a llama.cpp endpoint (launched with --slot-save-path) the agent-pipe
 # demand-pages each conversation's KV to/from DISK: page OUT the resident conv
 # (save) + page IN this one (restore) only on a conversation SWITCH (no per-turn
-# disk thrash). ollama can't do this; vLLM+LMCache is the Phase-2/3 scale-up.
+# disk thrash). A swap-only backend can't do this; vLLM+LMCache is the Phase-2/3 scale-up.
 # Read by the agent-pipe (_kv_paging / _endpoint_is_llamacpp); env overrides
 # MIOS_KV_PAGING / MIOS_KV_PAGING_HINTS / MIOS_KV_PAGING_SLOT / _TIMEOUT.
 kv_paging_enable  = true     # master switch; only ACTS on llama.cpp /slots endpoints

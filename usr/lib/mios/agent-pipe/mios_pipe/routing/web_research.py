@@ -607,11 +607,9 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
                  {"role": "user",
                   "content": f"CURRENT DATE: {_current_date_str()}\nUSER QUERY: {user_q}\n\nGATHERED:\n{gathered}"}]
         # ENDPOINT-AWARE (the judge can run on the iGPU,
-        # which is llama.cpp serving OpenAI /v1 -- NOT Ollama /api/chat). Ollama
-        # lanes (:11434/:11435) use native /api/chat + think:False (the /v1 compat
-        # path strands a qwen3 'think' answer in an empty content field); a
-        # non-ollama /v1 endpoint (the iGPU's qwen2.5, no think-split) uses
-        # /chat/completions with response_format json_object.
+        # which is llama.cpp serving OpenAI /v1). Every MiOS lane speaks /v1, so
+        # the judge posts /chat/completions with response_format json_object
+        # (append /v1 when the endpoint doesn't already carry it).
         _url = (f"{_JUDGE_ENDPOINT}/chat/completions" if _JUDGE_ENDPOINT.endswith("/v1")
                 else f"{_JUDGE_ENDPOINT}/v1/chat/completions")
         try:

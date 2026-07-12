@@ -238,14 +238,17 @@ def t_probe_one_endpoint():
         raise RuntimeError("conn refused")
     rd, lmd, _ = asyncio.run(_REAL_PROBE(_FakeClient(_raise), "http://dead/v1"))
     check("probe: unreachable -> down", rd is False and lmd == [])
-    # ollama /api/tags fallback when /models is unavailable.
+    # /v1-only: an endpoint with NO OpenAI /v1/models surface is DOWN. There is no
+    # legacy /api/tags fallback (MiOS is /v1-only), so a host that 404s /models is
+    # unreachable, never silently probed via the retired lane.
 
-    def _tags(url, **k):
-        if url.endswith("/api/tags"):
-            return _FakeResp(200, {"models": [{"name": "n1"}]})
-        raise RuntimeError("no openai surface")
-    rt, lmt, _ = asyncio.run(_REAL_PROBE(_FakeClient(_tags), "http://ep/v1"))
-    check("probe: ollama /api/tags fallback", rt is True and lmt == ["n1"])
+    def _no_v1(url, **k):
+        if url.endswith("/models"):
+            raise RuntimeError("no openai surface")
+        return _FakeResp(200, {"models": [{"name": "n1"}]})
+    rt, lmt, _ = asyncio.run(_REAL_PROBE(_FakeClient(_no_v1), "http://ep/v1"))
+    check("probe: no /v1/models surface -> down (no /api/tags fallback)",
+          rt is False and lmt == [])
 
 
 def t_lane_sched_stats():

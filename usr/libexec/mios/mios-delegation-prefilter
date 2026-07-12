@@ -253,7 +253,7 @@ async def _refine_via_sys_agent(user_text: str) -> str | None:
     #
     # The mios-sys-agent refiner runs on the mios-llm-light /v1 lane (MiOS is
     # /v1-only). Model PLACEMENT (which device it loads on) is owned by the
-    # server / llama-swap, not a per-request knob, so the legacy ollama
+    # server / llama-swap, not a per-request knob, so the legacy
     # options.num_gpu/num_thread/keep_alive fields are gone.
     body = json.dumps({
         "model": SYS_AGENT_MODEL,
@@ -407,7 +407,7 @@ async def _proxy_inner(request: web.Request) -> web.StreamResponse:
             # ── Stage 2: refinement (DELEGATED TO THE OWUI PIPE) ──
             # Operator architecture 2026-05-17: the OWUI MiOS-Agent
             # pipe itself owns CPU refinement. The pipe calls
-            # qwen3.5:4b on Ollama BEFORE handing the request to this
+            # qwen3.5:4b on the /v1 lane BEFORE handing the request to this
             # prefilter, so by the time we see it the user message is
             # ALREADY the refined version. Doing refinement a second
             # time here would double-burn CPU + the prefilter would
@@ -456,7 +456,7 @@ async def _proxy_inner(request: web.Request) -> web.StreamResponse:
                                 "of the 4 GB CPU model exceeded the refine timeout. The refiner "
                                 "is normally pre-warmed at boot (keep_alive=-1); wait ~30s and "
                                 "retry, or check `journalctl -u mios-delegation-prefilter.service` "
-                                "+ `ollama ps`."
+                                "+ `systemctl status mios-llm-light`."
                             ),
                         }},
                         status=503,

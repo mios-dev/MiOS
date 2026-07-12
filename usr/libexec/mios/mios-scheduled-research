@@ -28,7 +28,7 @@ PIPE_TIMEOUT = float(os.environ.get("MIOS_SCHED_TIMEOUT", "240"))
 # 2026-06-01 autonomous-wedge fix). A scheduled research prompt is a research
 # turn -> the agent-pipe would otherwise fan out with include_research=True and
 # cold-load every 2-4GB replica across all lanes; fired on a timer with no human
-# watching, that periodically thundering-herds ollama and wedges the VM. We tag
+# watching, that periodically thundering-herds the backend and wedges the VM. We tag
 # the request metadata.mios_autonomous=true so the pipe takes the BOUNDED path
 # (narrow council, no research-replica fan-out). SSOT: MIOS_SCHED_BOUNDED.
 SCHED_BOUNDED = os.environ.get("MIOS_SCHED_BOUNDED", "true").lower() \

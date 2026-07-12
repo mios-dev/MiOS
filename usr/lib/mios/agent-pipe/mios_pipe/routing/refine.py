@@ -682,8 +682,8 @@ async def refine_intent(user_text: str,
         f"strengths={','.join(c.get('strengths') or [])[:80]}"
         for n, c in _AGENT_REGISTRY.items()
     )
-    # Thinking is disabled at the API level (think=False on /api/chat
-    # below) rather than via the `/no_think` token -- operator test
+    # Thinking is disabled at the API level (enable_thinking=False on the
+    # /v1 call below) rather than via the `/no_think` token -- operator test
     # proved the qwen3 micros ignore /no_think (modelfile
     # thinking-mode override) and dump the answer into message.reasoning,
     # leaving message.content EMPTY.
@@ -923,12 +923,10 @@ async def refine_intent(user_text: str,
     if body is None:
         return None
     elapsed = time.time() - t0
-    # /api/chat shape is {"message": {"content": ...}}; fall back to the
-    # /v1 choices[] shape so an endpoint override still parses.
-    msg = body.get("message")
-    if not isinstance(msg, dict):
-        choices = body.get("choices") or []
-        msg = (choices[0].get("message") if choices else {}) or {}
+    # OpenAI /v1 choices[] shape (MiOS is /v1-only). The streaming path above
+    # already synthesises this same {choices:[{message:{content}}]} envelope.
+    choices = body.get("choices") or []
+    msg = (choices[0].get("message") if choices else {}) or {}
     content = (msg.get("content") or "").strip()
     if not content:
         log.warning("refine: %.1fs empty_content", elapsed)

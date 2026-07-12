@@ -20,7 +20,7 @@ Architecture:
                               :8642 (hermes-agent)
                                        │
                                        ▼
-                              ollama (raw inference)
+                       mios-llm-light :8450 (raw /v1 inference)
 
 Endpoints:
   GET  /health                  -> {status, version, backend, port}
@@ -820,8 +820,8 @@ _WEB_ENRICH_VERBS = {"web_search", "web_extract", "crawl"}
 # Secondary (council/sub-agent) LIVE tool-loop ("use all web
 # tools concurrently by all agents and sub-agents" + secondaries get their own
 # tool-loops). The /v1 agents (Hermes/opencode) already loop internally; a RAW
-# ollama secondary (iGPU / phone) can't, so the PIPE runs a bounded READ-ONLY
-# tool-loop for it: ollama /api/chat with tools -> execute the permission=read
+# raw /v1 secondary (iGPU / phone) can't, so the PIPE runs a bounded READ-ONLY
+# tool-loop for it: a /v1 /chat/completions call with tools -> execute the permission=read
 # tool_calls (all web tools + system-state reads) via dispatch_mios_verb -> feed
 # results back -> re-call. WRITE/LAUNCH verbs are NEVER executed here (binding
 # no-live-launch rule); the conv-scoped single-flight dedup collapses identical
@@ -1109,7 +1109,7 @@ AUTONOMOUS_PRIORITY = _resolve_autonomous_priority()
 # SECONDARY agents a council turn engages -- distinct from _agent_sem (which
 # bounds how many run AT ONCE). The old code read MIOS_COUNCIL_MAX with a 0
 # (UNCAPPED) default, so a trivial prompt fanned out to every live agent and
-# cold-loaded all their models simultaneously -> ollama thundering herd ->
+# cold-loaded all their models simultaneously -> a backend thundering herd ->
 # loadavg 128 -> VM wedge. Default to a sane width; 0 = uncapped (opt-in).
 COUNCIL_MAX_DEFAULT = _dispatch_num("MIOS_COUNCIL_MAX", "council_max", 4)
 # COUNCIL BY DEFAULT ("force council shouldn't be FORCED but a
@@ -1333,7 +1333,7 @@ def _endpoint_key(ep: str) -> str:
 
 
 def _endpoint_sem(ep: str) -> asyncio.Semaphore:
-    """Concurrency gate for ONE inference endpoint (the physical ollama daemon),
+    """Concurrency gate for ONE inference endpoint (the physical inference backend),
     so a wide fan-out cannot cold-load N models on the SAME backend at once
  (thundering-herd runaway). Lazily created; SSOT
     [dispatch].endpoint_concurrency. Lane semaphore still applies on top --
@@ -1352,7 +1352,7 @@ async def _admit(ep: str, model: str, lane: str, priority: float = 5.0,
     Gates: (1) global host-load/mem ceiling; (2) a COLD model on an at-VRAM-
     ceiling endpoint waits briefly so cold loads serialize. Warm/under-ceiling
     dispatch returns immediately. (_host_stats_cached/_resident_cached/
-    _over_global_ceiling/_is_warm are defined below near _ollama_resident.)"""
+    _over_global_ceiling/_is_warm are defined below near _engine_resident.)"""
     # WS-SCHED-SLO fail-closed shed (independent of ADMIT_ENABLE): shed a
     # best_effort dispatch FAST (before the capacity wait) when over the ceiling
     # OR when the host probe failed (empty stats -> healthy=False -> shed). An
@@ -1438,9 +1438,9 @@ async def _admit(ep: str, model: str, lane: str, priority: float = 5.0,
 # config SSOT); re-imported above. The light-lane isolation rationale lives there.
 
 # Last-resort runaway reaper (j). A turn that BLEW its
-# wall-clock deadline may have left CPU-lane gens running -- ollama does NOT abort
-# on disconnect, and dropping the socket frees nothing; unloading the slow-lane
-# models (keep_alive:0) is the ONLY thing that actually releases the pegged cores.
+# wall-clock deadline may have left CPU-lane gens running. On the /v1 plane a
+# llama.cpp / llama-swap gen ABORTS when the client disconnects, so dropping the
+# socket already releases the pegged cores (the reaper is now a no-op seam).
 # Fires ONLY on a blown deadline (never on a normal supersede, which would just
 # disrupt the turn that replaced this one). Belt-and-braces behind the per-lane
 # num_predict cap + NUM_PARALLEL=2 that already bound each gen. SSOT [dispatch].
@@ -2378,10 +2378,11 @@ def _db_write(table: str, fields: dict, *, now_fields: tuple = (),
 # A big transient model (e.g. the 7B coder at ~21.6GB with a 32k ctx) can squat
 # the shared 4090 and EVICT the pipeline-critical refine+polish models, so every
 # turn cold-loads them (the 13-20s thrash the operator saw). At the START of
-# each turn, when ollama's resident models leave too little headroom, UNLOAD the
-# non-essential ones (keep refine+polish+backend resident) so the turn's models
-# stay warm. "As needed": a no-op when there's headroom. Uses ollama /api/ps
-# size_vram (container-friendly; no nvidia-smi dependency).
+# each turn, when the backend's resident models leave too little headroom, UNLOAD
+# the non-essential ones (keep refine+polish+backend resident) so the turn's models
+# stay warm. "As needed": a no-op when there's headroom. INERT on the /v1 plane --
+# llama-swap owns residency (no /v1 residency API), so _engine_resident() returns []
+# and this checkpoint no-ops (the co-load admission degrades open).
 VRAM_CHECKPOINT_ENABLE = os.environ.get(
     "MIOS_VRAM_CHECKPOINT", "true").lower() not in {"false", "0", "no"}
 VRAM_BUDGET_MB = int(os.environ.get("MIOS_VRAM_BUDGET_MB", "23000"))
@@ -2417,26 +2418,19 @@ def _checkpoint_keep_models() -> set:
     return keep
 
 
-async def _ollama_resident(endpoint: str) -> list:
-    # ollama's /api/ps lives at the server ROOT, not under /v1. A council/node
-    # endpoint passed in OpenAI form (".../v1") must probe ".../api/ps", never
-    # ".../v1/api/ps" (-> 404 -> [] -> the per-turn VRAM co-load admission flies
-    # blind). Strip a trailing /v1 the same way _kv_base() does for ollama-native
-    # paths (idiom repeated throughout for /api/* endpoints).
-    base = endpoint[:-3].rstrip("/") if (endpoint or "").endswith("/v1") \
-        else (endpoint or "").rstrip("/")
-    try:
-        async with httpx.AsyncClient(timeout=6) as s:
-            r = await s.get(f"{base}/api/ps")
-            if r.status_code == 200:
-                return r.json().get("models", []) or []
-    except Exception:
-        pass
+async def _engine_resident(endpoint: str) -> list:
+    """Resident-model list for an endpoint. MiOS is /v1-only and llama-swap owns
+    model residency on the mios-llm-light lane -- there is no /v1 residency-probe
+    primitive -- so this returns []: the per-turn VRAM co-load admission simply
+    flies blind and degrades OPEN (admits), exactly as it already did against a
+    lane exposing no residency API. Retained as the single seam the checkpoint /
+    reclaim helpers read, so a future engine that CAN report residents wires in
+    here alone."""
     return []
 
 
 def _norm_model_tag(name: str) -> str:
-    """ollama's /api/ps reports resident models tagged ('name:tag'; a bare ref
+    """A resident-model probe reports models tagged ('name:tag'; a bare ref
     defaults to ':latest'), but config/env model names are routinely UNTAGGED.
     Normalise both sides so 'mios-hermes' == 'mios-hermes:latest' WITHOUT
     collapsing genuine tags ('qwen3.5:4b' != 'qwen3.5:9b'). Without this the
@@ -2466,12 +2460,12 @@ def _host_stats_cached(ttl: float = 1.0) -> dict:
 
 
 async def _resident_cached(ep: str, ttl: float = 1.5) -> list:
-    """_ollama_resident(ep) with a short per-endpoint TTL cache. [] on error."""
+    """_engine_resident(ep) with a short per-endpoint TTL cache. [] on error."""
     try:
         now = time.monotonic()
         c = _RESIDENT_CACHE.get(ep)
         if c is None or now - c["t"] > ttl:
-            v = await _ollama_resident(ep)
+            v = await _engine_resident(ep)
             _RESIDENT_CACHE[ep] = {"t": now, "v": v or []}
             return v or []
         return c["v"]
@@ -2555,13 +2549,11 @@ async def _is_warm(ep: str, model: str) -> bool:
         return True
 
 
-async def _ollama_unload(name: str, endpoint: str) -> None:
-    try:
-        async with httpx.AsyncClient(timeout=10) as s:
-            await s.post(f"{endpoint.rstrip('/')}/api/generate",
-                         json={"model": name, "keep_alive": 0})
-    except Exception:
-        pass
+async def _engine_unload(name: str, endpoint: str) -> None:
+    """No-op on the /v1 plane: model lifecycle on the mios-llm-light lane is owned
+    by llama-swap (it swaps models on demand) and there is no /v1 unload primitive
+    to call. Kept as the seam the VRAM checkpoint / reclaim helpers invoke."""
+    return None
 
 
 async def _vram_checkpoint(keep: Optional[set] = None) -> None:
@@ -2571,7 +2563,7 @@ async def _vram_checkpoint(keep: Optional[set] = None) -> None:
         return
     ep = REFINE_ENDPOINT
     keep = keep or _checkpoint_keep_models()
-    resident = await _ollama_resident(ep)
+    resident = await _engine_resident(ep)
     if not resident:
         return
     used_mb = sum(int(m.get("size_vram", 0)) for m in resident) // (1024 * 1024)
@@ -2584,7 +2576,7 @@ async def _vram_checkpoint(keep: Optional[set] = None) -> None:
          if m.get("name") and _norm_model_tag(m.get("name")) not in keepn),
         key=lambda m: -int(m.get("size_vram", 0)))
     for m in evictable:
-        await _ollama_unload(m["name"], ep)
+        await _engine_unload(m["name"], ep)
         free_mb += int(m.get("size_vram", 0)) // (1024 * 1024)
         log.info("vram-checkpoint: unloaded %s (%.1fGB) for headroom -> ~%dMB free",
                  m.get("name"), int(m.get("size_vram", 0)) / 1e9, free_mb)
@@ -2638,9 +2630,9 @@ async def _reclaim_idle_vram(ep: str, want_model: str, need_mb: int) -> bool:
     """Evict IDLE (refcount 0, non-want, non-kept) resident models on `ep`,
     largest-first, to free ~need_mb so a COLD model a turn NEEDS can load NOW --
     'clear VRAM for idle agents so nothing in the pipeline is idle' (operator
-). ollama lanes only (/api/ps + keep_alive:0; llama.cpp KV is paged
-    separately by _kv_paging). Best-effort + degrade-open. Returns True if it
-    freed anything."""
+). INERT on the /v1 plane: llama-swap owns residency, so _engine_resident() returns
+    [] and there is nothing to reclaim (llama.cpp KV is paged separately by
+    _kv_paging). Best-effort + degrade-open. Returns True if it freed anything."""
     try:
         res = await _resident_cached(ep)
         if not res:
@@ -2656,7 +2648,7 @@ async def _reclaim_idle_vram(ep: str, want_model: str, need_mb: int) -> bool:
             key=lambda m: -int(m.get("size_vram") or 0))
         freed = 0
         for m in evictable:
-            await _ollama_unload(str(m["name"]), ep)
+            await _engine_unload(str(m["name"]), ep)
             freed += int(m.get("size_vram") or 0) // (1024 * 1024)
             log.info("admit-reclaim: evicted idle %s (~%dMB) on %s to load cold %s",
                      m.get("name"), int(m.get("size_vram") or 0) // (1024 * 1024),
@@ -2675,7 +2667,7 @@ async def _reclaim_idle_vram(ep: str, want_model: str, need_mb: int) -> bool:
 # Agent/Sub-Agent can run on any node/endpoint -- iPhone, Android, other MiOS
 # nodes/clusters") ───────────────────────────────────────────────────────────
 # An agent is a JOB (a Modelfile); a BINDING is an endpoint+model that serves it
-# -- whether a local compute ENGINE (dGPU ollama, CPU ollama, Windows iGPU
+# -- whether a local compute ENGINE (dGPU, CPU, Windows iGPU
 # llama.cpp, a future accelerator) or a remote NODE (a phone/tablet or another
 # MiOS host/cluster at a tailnet endpoint). They are the SAME thing: an endpoint
 # that runs the model. Decoupling agent from binding lets ANY agent run on ANY
@@ -2696,7 +2688,7 @@ def _agent_engines(cfg: dict) -> list:
 
 # CPU/iGPU light-lane = micro-LLMs ONLY (binding operator rule; enforced here
 # after a runaway where a 4.7B model cold-loaded on the CPU-only
-# ollama :11435 and pegged cores for hours). The offload swaps the ENDPOINT to a
+# CPU lane :11435 and pegged cores for hours). The offload swaps the ENDPOINT to a
 # light lane but historically kept the agent's full-size MODEL -- so a big
 # research model landed on a CPU daemon. This guard FORCES any dispatch resolved
 # onto a light-lane endpoint down to the micro model, regardless of what the
@@ -2715,7 +2707,7 @@ def _cap_cpu_lane_model(ep: str, model: str) -> str:
     """Force the micro model on a LOCAL light-lane (CPU/iGPU) endpoint -- a big
     model can never cold-load multi-GB weights on a CPU-only daemon MiOS itself
  controls (runaway fix). No-op for non-light endpoints AND for
-    REMOTE nodes: a remote node serves its OWN model catalog (a tailnet Ollama
+    REMOTE nodes: a remote node serves its OWN model catalog (a tailnet node
     whose port happens to be 11435/11436 need not serve the LOCAL micro tag), so
     it KEEPS its declared model -- exactly this function's long-standing intent
     ('remote keep their model'), which the bare port-substring match wrongly
@@ -2805,7 +2797,7 @@ from mios_endpoints import (  # noqa: E402
 # ── KV-cache paging — the AIOS context-manager prototype (Phase 1) ──────
 # "VRAM can compress or write to disk, properly stored and
 # clean state when agents/models load/unload" -> true per-conversation KV
-# save/restore. ollama CANNOT (no API; a swap UNLOADS the model, never
+# save/restore. A swap-only backend CANNOT (no API; a swap UNLOADS the model, never
 # checkpoints it); vLLM+LMCache is the scale-up (Phase 2/3). llama.cpp's
 # llama-server, launched with --slot-save-path, exposes
 #   POST /slots/{id}?action=save|restore   {"filename": "..."}
@@ -3351,7 +3343,7 @@ async def _call_agent_stream(name, cfg, body, headers, client, q,
     _prio = priority if priority is not None else _dispatch_priority(cfg)
     # Capacity-aware admission BEFORE the semaphores (no-op unless ADMIT_ENABLE;
     # degrade-open -- never blocks a turn). Endpoint cap OUTER (serialize cold-
-    # loads on ONE ollama daemon), lane cap INNER --.
+    # loads on ONE inference backend), lane cap INNER --.
     _est = _opt_int_mb(cfg.get("vram_mb"))   # Phase-1 per-worker VRAM (0 = unknown)
     try:
         # foreground=False: this is the fan-out / secondary dispatch -- background
@@ -3844,7 +3836,7 @@ WORKER_TOOLS_ENABLE = os.environ.get(
 # the CPU/iGPU light lanes). Execution still allows write regardless of scope.
 WORKER_TOOLS_SCOPE = os.environ.get("MIOS_WORKER_TOOLS_SCOPE", "all").strip().lower()
 # Per-worker context window for the tool-bearing call (the surface alone is
-# ~11K tok, so the raw-ollama default 4096 would truncate it). qwen3 supports
+# ~11K tok, so a bare 4096 default would truncate it). qwen3 supports
 # this comfortably; raise/lower per VRAM + latency budget.
 WORKER_TOOL_CTX = int(os.environ.get("MIOS_WORKER_TOOL_CTX", "16384") or 16384)
 # SLOW-lane context window ("planning isn't taking the
@@ -6544,7 +6536,7 @@ async def v1_agents_directory(request: Request) -> JSONResponse:
 # Public per-agent + per-endpoint health probe. Reuses the same probe shape
 # as /portal/swarm but without portal auth so external clients (and an
 # eventual mesh-wide health aggregator) can read it. SPOFs (:8642 hermes,
-# :11434 dGPU ollama) become visible at a glance + the declarative failover
+# :8450 mios-llm-light) become visible at a glance + the declarative failover
 # chain (mios.toml [agents.X].failover_agents) is surfaced so a caller can
 # see who would take over.
 
@@ -7233,34 +7225,29 @@ _embed_fail_suppressed = 0
 
 
 async def _embed_one(text: str, prefix: Optional[str] = "search_query: ") -> Optional[list[float]]:
-    """Single-vector embed. Supports BOTH ollama /api/embeddings ({prompt} ->
-    {embedding}) and OpenAI /v1/embeddings ({input} -> {data:[{embedding}]}),
-    chosen by the URL -- so it works on the llama.cpp nomic lane (mios-llm-light
- :11450) after the ollama retirement ("embed call failed"
-    on the dead :11435). Returns None on failure (caller falls back to substring
-    match)."""
+    """Single-vector embed over OpenAI /v1/embeddings ({input} -> {data:[{embedding}]})
+    -- MiOS is /v1-only; the nomic lane runs on llama.cpp (mios-llm-light). Returns
+    None on failure (caller falls back to substring match)."""
     if not text or not text.strip():
         return None
     if prefix and not text.startswith(prefix):
         text = prefix + text
     client = await _get_client()
     try:
-        _v1 = "/v1/embeddings" in _VERB_EMBED_URL
         r = await client.post(
             _VERB_EMBED_URL,
             content=json.dumps(
-                {"model": _VERB_EMBED_MODEL,
-                 ("input" if _v1 else "prompt"): text}).encode("utf-8"),
+                {"model": _VERB_EMBED_MODEL, "input": text}).encode("utf-8"),
             headers={"Content-Type": "application/json"},
         )
         if r.status_code != 200:
             return None
         data = r.json()
-        v = data.get("embedding")
-        if v is None:                      # OpenAI /v1 shape
-            _d = data.get("data")
-            if isinstance(_d, list) and _d:
-                v = _d[0].get("embedding")
+        # OpenAI /v1 shape: {data:[{embedding:[...]}]}.
+        v = None
+        _d = data.get("data")
+        if isinstance(_d, list) and _d:
+            v = _d[0].get("embedding")
         if isinstance(v, list) and v:
             return [float(x) for x in v]
     except Exception as e:
@@ -7974,8 +7961,8 @@ app.include_router(audit_router)
 # beyond the env default, matching the REFINE_MODEL/POLISH_MODEL pattern.
 VISION_ENABLE = os.environ.get(
     "MIOS_AGENT_PIPE_VISION", "true").lower() not in ("0", "false", "no", "")
-# Default = llama3.2-vision:11b: verified working through ollama's /v1 image
-# path. qwen3-vl:4b was the lighter first choice but its ollama
+# Default = llama3.2-vision:11b: verified working through the /v1 image
+# path. qwen3-vl:4b was the lighter first choice but its model
 # runner crashes on image input in this build ("model runner unexpectedly
 # stopped" / "png: invalid format") -- switch back via this env once fixed.
 VISION_MODEL = os.environ.get("MIOS_AGENT_PIPE_VISION_MODEL", "qwen3-vl:4b")
@@ -8171,11 +8158,9 @@ _LOCAL_STATE_SYSTEM = (
 
 
 def _polish_post(endpoint, model, messages, max_tokens, temperature=0.0):
-    """(url, payload) for a polish/format call on an ollama /api/chat OR a
-    llama.cpp OpenAI /v1 endpoint. llama.cpp (mios-llm-light :11450) has NO /api/chat
-    (404) -> speak /v1 there. Callers' response parse already handles both shapes.
- polish hardcoded /api/chat -> 404 on llama.cpp -> every
-    chat's final render silently degraded to the pre-polish text."""
+    """(url, payload) for a polish/format call on an OpenAI /v1 endpoint. MiOS is
+    /v1-only (llama.cpp / mios-llm-light), so this always targets
+    /v1/chat/completions (normalising a trailing /v1 already on the endpoint)."""
     base = str(endpoint or "").rstrip("/")
     if base.endswith("/v1"):
         base = base[:-3]

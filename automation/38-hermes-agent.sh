@@ -27,7 +27,7 @@
 # meant the agent couldn't see the real root FS / systemd / git tree
 # without bind-mount gymnastics. A direct host install removes that
 # boundary: the agent runs as a host systemd service (hermes-agent.
-# service), sees `/` natively, and uses the ollama CONTAINER as a
+# service), sees `/` natively, and uses the mios-llm-light lane as a
 # swappable OpenAI-compatible inference backend.
 #
 # CRITICAL: this script MUST NOT fail the OCI build. Network egress,

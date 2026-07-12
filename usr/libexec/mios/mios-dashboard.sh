@@ -411,7 +411,7 @@ print_endpoints() {
     _ssh_check_port="$(_ssh_live_port)"
 
     # Only probe endpoints actually rendered below (count loop + table rows).
-    # Removed dead probes (ollama/ollama_cpu/dash/guacamole/crowdsec) whose dots
+    # Removed dead probes (legacy lanes/dash/guacamole/crowdsec) whose dots
     # were computed but never shown -- wasted curl/service_status work on a
     # login-shell MOTD path.
     local d_forge d_cockpit d_searxng

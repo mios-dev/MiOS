@@ -205,7 +205,7 @@ def _portal_authed(request: Request) -> bool:
 
 def _portal_unit_hidden(quadlet_file: str) -> bool:
     """True if a Quadlet's generated unit is MASKED or was skipped by a FAILED
-    start condition (ConditionResult=no) -- i.e. retired (ollama -> mios-llm-light)
+    start condition (ConditionResult=no) -- i.e. retired (a legacy lane -> mios-llm-light)
     or gated OFF (vllm/guacamole: model not provisioned / wrong virtualization).
     Such a unit can only ever show as a phantom 'down' in the portal, so drop it.
     A unit that is MEANT to run but crashed keeps ConditionResult=yes and stays
@@ -259,7 +259,7 @@ def _discover_portal_services() -> list[dict]:
                 continue
             # Drop retired (masked) / gated-OFF (failed start condition) lanes so
             # the portal stops showing them as perpetual phantom 'down' entries
-            # (ollama/ollama-cpu retired -> mios-llm-light,
+            # (legacy lanes retired -> mios-llm-light,
             # vllm gated, guacamole condition-skipped). Genuine outages keep
             # ConditionResult=yes and stay visible.
             if _portal_unit_hidden(f):
@@ -1171,17 +1171,6 @@ async def _portal_swarm_probe(name: str, cfg: dict, client) -> dict:
                     if isinstance(m, dict) and m.get("id")]
     except Exception:
         pass
-    if not reachable:  # ollama-style /api/tags
-        tb = ep[:-3].rstrip("/") if ep.endswith("/v1") else ep
-        try:
-            r = await client.get(f"{tb}/api/tags")
-            if r.status_code < 500:
-                reachable = True
-                live = [str(m.get("name")) for m in
-                        ((r.json() or {}).get("models") or [])
-                        if isinstance(m, dict) and m.get("name")]
-        except Exception:
-            pass
     return {"name": name, "role": cfg.get("role", ""),
             "lane": _agent_lane(cfg), "endpoint": ep,
             "model": cfg.get("model", ""), "live_models": live[:8],

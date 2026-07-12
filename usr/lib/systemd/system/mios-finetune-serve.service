@@ -1,10 +1,10 @@
-# AI-hint: Systemd unit to host the fine-tuned refiner model as an OpenAI/Ollama-compatible endpoint on port 11438, allowing the agent-pipe to swap between the high-quality transformer-served adapter and the faster Ollama path.
+# AI-hint: Systemd unit to host the fine-tuned refiner model as an OpenAI /v1-compatible endpoint on port 11438, allowing the agent-pipe to swap between the high-quality transformer-served adapter and the faster llama.cpp path.
 # AI-related: /usr/libexec/mios/mios-finetune-serve, mios-finetune-serve, network-online.target, multi-user.target
 # 'MiOS' fine-tune serve -- serves the trained role adapter (base + LoRA) as an
-# OpenAI- AND ollama-shaped endpoint so the fine-tuned refiner can be adopted/A-B'd
+# OpenAI /v1 endpoint so the fine-tuned refiner can be adopted/A-B'd
 # in the agent-pipe. OPT-IN: NOT enabled by default (the transformers-served 2B is
-# correct but slower than ollama on the hot path; enable to evaluate, or once ollama
-# gains Qwen3-Next LoRA switch production to the fast adapter-on-GGUF path).
+# correct but slower than the GGUF lane on the hot path; enable to evaluate, or once
+# llama.cpp gains Qwen3-Next LoRA switch production to the fast adapter-on-GGUF path).
 #   systemctl enable --now mios-finetune-serve.service
 # Pair with a pipe drop-in pointing MIOS_REFINE_ENDPOINT at this server.
 [Unit]

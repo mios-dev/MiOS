@@ -25,7 +25,7 @@ Honest by construction: every example is the teacher's real output; nothing is
 fabricated. Run with --limit N for a fast smoke check (a couple of capabilities).
 
 Config: [finetune] in mios.toml (layered: vendor < /etc/mios < ~/.config/mios),
-overridable by MIOS_FINETUNE_* env. Needs only stdlib + the running pipe/ollama.
+overridable by MIOS_FINETUNE_* env. Needs only stdlib + the running pipe.
 """
 from __future__ import annotations
 import argparse
@@ -83,11 +83,11 @@ def _get(url: str, timeout: float) -> dict | list:
         return json.loads(r.read().decode("utf-8", "replace"))
 
 
-def ollama_chat(endpoint: str, model: str, system: str, user: str,
+def teacher_chat(endpoint: str, model: str, system: str, user: str,
                 as_json: bool = True, timeout: float = 120.0) -> str:
-    """Teacher chat over the OpenAI /v1 path (mios-llm-light; ollama retired in G5 so
-    /api/chat is GONE -- the old shape silently 404'd, starving the dataset
-    generator). enable_thinking:False keeps qwen out of a think pass; for JSON we
+    """Teacher chat over the OpenAI /v1 path (mios-llm-light). A legacy non-/v1
+    chat shape silently 404'd here, starving the dataset generator.
+    enable_thinking:False keeps qwen out of a think pass; for JSON we
     set response_format=json_object and read content OR reasoning_content (gemma4
     + response_format emits the JSON into reasoning_content with empty content --
     same drift class as the 2026-06-09 swarm/refine fixes). operator 2026-06-10."""
@@ -278,7 +278,7 @@ def gen_for_capability(endpoint, model, cap: dict, n: int) -> list[str]:
     )
     try:
         return [str(q).strip() for q in _parse_json_array(
-            ollama_chat(endpoint, model, GEN_SYS, user, as_json=True)) if str(q).strip()][:n]
+            teacher_chat(endpoint, model, GEN_SYS, user, as_json=True)) if str(q).strip()][:n]
     except Exception as e:  # noqa: BLE001
         print(f"[finetune-dataset] WARN gen {cap['name']}: {e}", file=sys.stderr)
         return []
@@ -288,7 +288,7 @@ def gen_for_intent(endpoint, model, label: str, definition: str, n: int) -> list
     user = (f"Write {n} DIVERSE, realistic user messages that are {label}. {definition}")
     try:
         return [str(q).strip() for q in _parse_json_array(
-            ollama_chat(endpoint, model, GEN_SYS, user, as_json=True)) if str(q).strip()][:n]
+            teacher_chat(endpoint, model, GEN_SYS, user, as_json=True)) if str(q).strip()][:n]
     except Exception as e:  # noqa: BLE001
         print(f"[finetune-dataset] WARN gen {label}: {e}", file=sys.stderr)
         return []
@@ -359,7 +359,7 @@ def build(cfg: dict, limit: int | None) -> dict:
     examples, fails, dropped = [], 0, 0
     for i, (q, src) in enumerate(uniq, 1):
         try:
-            lab = _parse_json_loose(ollama_chat(endpoint, model, sys_prompt, q, as_json=True))
+            lab = _parse_json_loose(teacher_chat(endpoint, model, sys_prompt, q, as_json=True))
         except Exception:  # noqa: BLE001
             lab = None
         if not isinstance(lab, dict) or "intent" not in lab:

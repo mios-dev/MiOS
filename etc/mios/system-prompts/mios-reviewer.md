@@ -61,7 +61,7 @@ unified/unprivileged-AI guarantees.
    `nomic-embed-text` embeddings; the gated heavy lanes
    `mios-llm-heavy`/`mios-llm-heavy-alt`) are
    reached *through* that endpoint, not hard-coded by callers. The
-   OpenAI/Ollama-compatible **API shape** is a legitimate upstream reference; a
+   OpenAI `/v1` **API shape** is the only addressable contract; a
    hard-coded vendor *URL* is not.
 9. **LAW 6 (UNPRIVILEGED-QUADLETS)** — new Quadlets declare `User=`,
    `Group=`, `Delegate=yes`; if not, the PR must justify why. The only

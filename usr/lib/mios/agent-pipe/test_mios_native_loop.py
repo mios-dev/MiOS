@@ -167,8 +167,9 @@ def _run():
 
 
 class _FakeResp2:
-    """status_code + .json() in either OpenAI (`choices`) or ollama (`message`)
-    shape, for the moved formulator/local-state tests."""
+    """status_code + .json() in the OpenAI (`choices`) shape -- MiOS is /v1-only --
+    for the moved formulator/local-state tests. (`native` kept for signature
+    compatibility; the retired `message` shape is no longer emitted.)"""
     def __init__(self, content, *, status=200, native=False):
         self._c = content
         self.status_code = status
@@ -225,12 +226,12 @@ def _run_moved():
                       ("http://x/v1/chat/completions",
                        {"model": model, "messages": msgs}))
     assert asyncio.run(M._format_local_state("zzqx", "")) is None
-    # ollama (`message`) shape -> content extracted via the polish call
-    M.httpx = _fake_httpx_returning("QRZL Vmbtok enumerated", native=True)
+    # /v1 (`choices`) shape -> content extracted via the polish call
+    M.httpx = _fake_httpx_returning("QRZL Vmbtok enumerated")
     out = asyncio.run(M._format_local_state("zzqx plff", "live: QRZL=1"))
     assert out == "QRZL Vmbtok enumerated", repr(out)
     # empty/blank polished content collapses to None (the `or None` guard)
-    M.httpx = _fake_httpx_returning("   ", native=True)
+    M.httpx = _fake_httpx_returning("   ")
     assert asyncio.run(M._format_local_state("zzqx plff", "live: QRZL=1")) is None
     print("moved _format_local_state polish + native-shape extract: OK ->", repr(out))
     print("MOVED OK")

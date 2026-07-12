@@ -113,15 +113,15 @@ SVC_BROWSER=$(_svc_active mios-hermes-browser.service)
 SVC_CROND=$(_svc_active crond.service)
 SVC_ATD=$(_svc_active atd.service)
 
-# Models loaded in Ollama
-OLLAMA_MODELS="$((curl -sS --max-time 2 http://127.0.0.1:${MIOS_PORT_LLM_LIGHT:-8450}/api/tags 2>/dev/null || true) \
+# Models loaded on the /v1 lane
+LLM_MODELS="$((curl -sS --max-time 2 http://127.0.0.1:${MIOS_PORT_LLM_LIGHT:-8450}/v1/models 2>/dev/null || true) \
     | python3 -c 'import sys, json
 try:
   d = json.load(sys.stdin)
-  print(",".join(m["name"] for m in d.get("models", [])[:8]))
+  print(",".join(m["id"] for m in d.get("data", [])[:8]))
 except Exception:
   print("?")' 2>/dev/null)"
-[ -z "$OLLAMA_MODELS" ] && OLLAMA_MODELS="(unreachable)"
+[ -z "$LLM_MODELS" ] && LLM_MODELS="(unreachable)"
 
 # App counts via mios-apps (cheap; just --names | wc -l per category)
 _count() {
@@ -153,7 +153,7 @@ brief)
 - Windows host (via WSL interop): $WIN_LINE}
 - Operator (mios.toml [identity]): $OPERATOR_FULL ($OPERATOR_NAME) on $HOSTNAME_TOML
 - Stack services: hermes=$SVC_HERMES prefilter=$SVC_PREFILTER owui=$SVC_OWUI llm_light=$SVC_LLM_LIGHT pgvector=$SVC_PGVECTOR searxng=$SVC_SEARXNG browser=$SVC_BROWSER crond=$SVC_CROND atd=$SVC_ATD
-- Models loaded (llm-light): $OLLAMA_MODELS
+- Models loaded (llm-light): $LLM_MODELS
 - Launchable: $N_FLATPAK flatpaks, $N_HOST_GUI host GUIs, $N_WIN_GUI windows shortcuts, $N_WIN_APP **all-windows apps** (Get-StartApps), $N_SHIM MiOS shims, $N_CLI CLIs, $N_URL service URLs
 - Discovery + launch: \`mios-apps\` (inventory) and \`mios-launch <name>\` (universal launcher)
 EOF
@@ -195,7 +195,7 @@ $(if [ -n "$WIN_BLOCK" ]; then printf '\n## Windows host (the machine WSL lives 
 | atd.service                          | $SVC_ATD |
 
 ## AI inference
-- Models loaded (llm-light): \`$OLLAMA_MODELS\`
+- Models loaded (llm-light): \`$LLM_MODELS\`
 - Hermes gateway: http://localhost:${_PORT_HERMES}/v1
 - Prefilter (force delegate_task on fan-out): http://localhost:${_PORT_PREFILTER}/v1
 - Backend llm-light: http://localhost:${_PORT_LLM_LIGHT}
@@ -236,7 +236,7 @@ json)
         EP_SVC_PGVECTOR="$SVC_PGVECTOR" \
         EP_SVC_SEARXNG="$SVC_SEARXNG" EP_SVC_BROWSER="$SVC_BROWSER" \
         EP_SVC_CROND="$SVC_CROND" EP_SVC_ATD="$SVC_ATD" \
-        EP_OLLAMA_MODELS="$OLLAMA_MODELS" \
+        EP_LLM_MODELS="$LLM_MODELS" \
         EP_N_FLATPAK="$N_FLATPAK" EP_N_HOST_GUI="$N_HOST_GUI" \
         EP_N_WIN_GUI="$N_WIN_GUI" EP_N_WIN_APP="$N_WIN_APP" \
         EP_N_SHIM="$N_SHIM" EP_N_CLI="$N_CLI" EP_N_URL="$N_URL"
@@ -275,7 +275,7 @@ print(json.dumps({
         "crond":                os.environ.get("EP_SVC_CROND", ""),
         "atd":                  os.environ.get("EP_SVC_ATD", ""),
     },
-    "ollama_models": os.environ.get("EP_OLLAMA_MODELS", ""),
+    "llm_models": os.environ.get("EP_LLM_MODELS", ""),
     "launchable_counts": {
         "linux_flatpak": _i("EP_N_FLATPAK"),
         "linux_rpm_gui": _i("EP_N_HOST_GUI"),

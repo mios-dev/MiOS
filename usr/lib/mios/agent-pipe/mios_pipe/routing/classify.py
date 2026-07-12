@@ -77,7 +77,7 @@ async def classify_intent(user_text: str) -> Optional[dict]:
     falls through cleanly."""
     if not ROUTER_ENABLED or not user_text or not user_text.strip():
         return None
-    # ollama /api/chat with think=False: ROUTER_MODEL is a qwen3 micro
+    # /v1 with enable_thinking=False: ROUTER_MODEL is a qwen3 micro
     # that ignores /no_think and otherwise dumps its answer into
     # message.reasoning with EMPTY content (operator test) --
     # which made the router slow (full think pass) and unreliable.
@@ -128,11 +128,9 @@ async def classify_intent(user_text: str) -> Optional[dict]:
     except Exception as e:
         log.warning("router unexpected error: %s", e)
         return None
-    # /api/chat shape {"message":{"content"}}; /v1 choices[] fallback.
-    msg = body.get("message")
-    if not isinstance(msg, dict):
-        choices = body.get("choices") or []
-        msg = (choices[0].get("message") if choices else {}) or {}
+    # OpenAI /v1 choices[] shape (MiOS is /v1-only).
+    choices = body.get("choices") or []
+    msg = (choices[0].get("message") if choices else {}) or {}
     content = (msg.get("content") or "").strip()
     if not content:
         return None

@@ -41,9 +41,9 @@ EnvironmentFile=-/etc/mios/agent-pipe.env
 # owned port key; no per-endpoint :11450 literal in this unit anymore.
 EnvironmentFile=-/etc/mios/install.env
 Environment=MIOS_PORT_AGENT_PIPE=8640
-# WS-10 (operator 2026-06-05 "EVERYTHING IS LLAMA.CPP, NO OLLAMA"): the agent-pipe
-# reasons DIRECTLY on mios-llm-light (:11450) instead of via Hermes->ollama. All
-# inference is on the dGPU via llama.cpp; ollama bypassed.
+# WS-10 (operator 2026-06-05 "EVERYTHING IS LLAMA.CPP"): the agent-pipe
+# reasons DIRECTLY on mios-llm-light (:11450) instead of via a Hermes hop. All
+# inference is on the dGPU via llama.cpp.
 # 2026-06-15 (Claude): model fleet swapped gemma4:12b -> granite4.1:8b (the served
 # brain on mios-llm-light; see mios-llm-light.yaml + mios.toml:4061). gemma4:12b is
 # NO LONGER SERVED -> any role still naming it 404s on llama-swap ("no model id").
@@ -62,7 +62,7 @@ Environment=MIOS_AGENT_PIPE_BACKEND_LIGHT=1
 # ([ai].model SSOT) -- so set the model in ONE place, not seven. Override
 # per-deploy in /etc/mios/agent-pipe.env, or globally via [ai].model -> MIOS_AI_MODEL.
 Environment=MIOS_AI_MODEL=granite4.1:8b
-# llama.cpp/mios-llm-light (:11450) is OpenAI /v1 ONLY (no ollama /api/chat, /api/ps)
+# llama.cpp/mios-llm-light (:11450) is OpenAI /v1 ONLY (no legacy /api/chat, /api/ps)
 # and 400s on tool_choice=required. Register it so the pipe treats it as llamacpp:
 # skip forced tool_choice (no 400) + use the /slots KV-paging path. No bare port
 # literal in routing code -- these are the env-SSOT hint lists.

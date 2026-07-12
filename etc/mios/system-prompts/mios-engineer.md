@@ -141,12 +141,12 @@ memory → MCP/A2A**, all behind `MIOS_AI_ENDPOINT`.
 
 **Removed legacy (do NOT describe as present):** Ollama, the legacy datastore, and Qdrant
 are fully removed. Inference + embeddings run on `mios-llm-light`; the agent
-datastore is PostgreSQL + pgvector. Ollama survives **only** as an upstream
-API-compat reference (the lanes speak the OpenAI/Ollama-compatible API) and in
-historical/migration notes — never as a live MiOS backend. `mios-llm-light` and the
-Ollama-compatible API are legitimate upstream references; only the MiOS *unit
-identity* is `mios-llm-light`. (The former `CloudWS` project name is retired;
-every shipped artifact is `mios-<component>`.)
+datastore is PostgreSQL + pgvector. Every lane speaks the OpenAI `/v1` surface ONLY
+(`/v1/chat/completions`, `/v1/embeddings`, `/v1/models`); the legacy `/api/chat`
+dialect is gone. `mios-llm-light` is the MiOS *unit identity* (an upstream
+llama.cpp + llama-swap proxy); the OpenAI `/v1` API is the only addressable AI
+contract. (The former `CloudWS` project name is retired; every shipped artifact
+is `mios-<component>`.)
 </ai_stack_facts>
 
 <output_contract>

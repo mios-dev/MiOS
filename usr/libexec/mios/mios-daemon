@@ -10,7 +10,7 @@ periodic-evaluating services (mios-log-watcher + mios-agent-nudger
 + mios-cron-director) with ONE process that:
 
   * Subscribes to journald ONCE (not three times)
-  * Holds a SINGLE Ollama client (keep_alive=-1 forever, num_gpu=0
+  * Holds a SINGLE /v1 client (keep_alive=-1 forever, num_gpu=0
     CPU-only per Law 7 + the operator's "always-on agentic OS"
     directive)
   * Dispatches three handlers off a single event stream:
@@ -80,8 +80,8 @@ log = logging.getLogger("mios-daemon")
 # iGPU CDI lane (wsl2-amd.yaml / wsl2-intel.yaml) when present, freeing
 # the dGPU for big-model work. Override via MIOS_DAEMON_MODEL.
 MODEL = os.environ.get("MIOS_DAEMON_MODEL", "qwen3:1.7b")
-# mios-ollama-cpu (sibling at :11435) is the canonical micro-LLM lane
-# for the daemon. Falls back to the CUDA-ollama lane (:11434) if the
+# mios-llm-light (:8450) is the canonical micro-LLM /v1 lane
+# for the daemon. Falls back to the dGPU lane (:11434) if the
 # CPU instance isn't running. Operator directive 2026-05-18: "iGPU
 # micro-llm(s)/mios-daemon agent collects Linux systems logs, journals,
 # relevant AI files" -- the daemon IS that micro-LLM agent; this
@@ -631,7 +631,7 @@ def _is_quiescent() -> bool:
     return (time.time() - last) >= (QUIESCENCE_WINDOW_MIN * 60.0)
 
 
-# ── Single shared Ollama client ──────────────────────────────────────
+# ── Single shared /v1 client ─────────────────────────────────────────
 def llm_chat(system: str, user: str, *, max_tokens: int = 150,
              temperature: float = 0.1, want_json: bool = False,
              num_thread: int = 4, model: str = "", endpoint: str = "") -> str:
@@ -1473,10 +1473,10 @@ def launch_verifier_loop() -> None:
 #        * /var/lib/mios/ai/scratch/               (assistant-side scratch)
 #        * /var/lib/mios/daemon/launch_failures.json
 #        * classify_loop's recent summary in state.json
-#   2. Sends the aggregate to the local Ollama via the OpenAI-compat
+#   2. Sends the aggregate to the local mios-llm-light via the OpenAI
 #      /v1/chat/completions endpoint with response_format=json_object
-#      (Ollama supports OpenAI structured-output as of 0.4; same shape
-#      any OpenAI-API-compatible backend uses).
+#      (the same structured-output shape any OpenAI-API-compatible
+#      backend uses).
 #   3. Parses JSON {nudges: [{type, severity, summary, action}],
 #                   digest: "..."}.
 #   4. Writes /var/lib/mios/scratch/agent-nudges.md (operator-facing
@@ -1872,7 +1872,7 @@ def _fire_and_verify(app: str, node: str = "") -> dict:
 
 def _openai_compat_llm_json(system: str, user: str,
                             timeout: int = 30) -> dict:
-    """Call Ollama via its OpenAI-compatible /v1/chat/completions
+    """Call the local /v1 lane via its OpenAI-compatible /v1/chat/completions
     endpoint with response_format=json_object (operator directive:
     'native for OpenAI API standards'). Returns parsed dict; {} on
     any failure (fail-open -- the loop just skips a tick)."""
@@ -2152,7 +2152,7 @@ def task_collector_loop() -> None:
 
 
 def suggestions_loop() -> None:
-    # Boot delay so OWUI + ollama warm before first generation
+    # Boot delay so OWUI + llm-light warm before first generation
     time.sleep(45)
     while not _stop_event.is_set():
         # W0-T2 (1): host-pressure gate -- skip this generation tick (the LLM
@@ -3016,7 +3016,7 @@ def rolling_report_loop() -> None:
 # monitor and (b) the council's CPU reasoning lane (the retired
 # mios-reasoner-cpu merged in here). When agent-pipe fans a turn out to
 # :8644, the daemon-agent REASONS on the CPU model (qwen3:1.7b @ the
-# ollama-cpu :11435, num_gpu 0 -- same compute the old mios-reasoner-cpu
+# CPU lane :11435, num_gpu 0 -- same compute the old mios-reasoner-cpu
 # used) via the proven think=False llm_chat() path, GROUNDED in the live
 # global journal/log telemetry it already maintains, and bursts to 8c/16t
 # for the foreground turn. agent-pipe's polish merges its answer with the
@@ -3041,9 +3041,9 @@ AGENT_THREADS = int(os.environ.get("MIOS_DAEMON_AGENT_THREADS", "16"))
 # snappy MODEL (qwen3:1.7b) so the daemon is never sluggish, but a SWARM facet
 # reply runs on this BIGGER CPU model (qwen3.5:4b ~4.7B) so the CPU node does a
 # heavy, VISIBLE, sustained 8c/16t churn instead of a brief light blip. Must be
-# a model present on the ollama-cpu lane (:11435). Empty -> fall back to MODEL.
+# a model present on the CPU lane (:11435). Empty -> fall back to MODEL.
 AGENT_MODEL = os.environ.get("MIOS_DAEMON_AGENT_MODEL", "qwen3.5:4b")
-# FOREGROUND swarm endpoint -- the CPU lane (:11435 ollama-cpu, num_gpu=0), so a
+# FOREGROUND swarm endpoint -- the CPU lane (:11435, num_gpu=0), so a
 # swarm facet reply VISIBLY churns the CPU (operator 2026-05-26 "CPU is seeing no
 # utilization") even though the daemon's background MODEL/ENDPOINT stay on the
 # iGPU (the 2026-05-25 always-on offload). Both directives held: iGPU runs the
@@ -3099,7 +3099,7 @@ def _daemon_agent_reply(query: str) -> str:
     """The consolidated CPU lane (operator 2026-05-24 "mios-daemon-agent =
     mios-cpu/reasoner! CONSOLIDATE"): the always-on daemon-agent IS the CPU
     reasoning lane now. It REASONS on the CPU model (the same model/endpoint the
-    retired mios-reasoner-cpu used -- qwen3:1.7b @ ollama-cpu :11435, num_gpu 0)
+    retired mios-reasoner-cpu used -- qwen3:1.7b @ the CPU lane :11435, num_gpu 0)
     via the proven think=False llm_chat() path, GROUNDED in the live global
     journal/log telemetry the daemon already maintains. So it contributes a real
     second-opinion answer that is system-state-aware -- NOT the raw telemetry

@@ -308,7 +308,7 @@ def _load_node_pool(registry: dict[str, dict]) -> int:
     injected, registry unchanged. Returns the count injected.
 
     Per-node fields (all but endpoint optional):
-      endpoint    -- OpenAI /v1 (or ollama) URL; EMPTY = inert node, skipped.
+      endpoint    -- OpenAI /v1 URL; EMPTY = inert node, skipped.
       model       -- canonical Modelfile tag the node serves (default mios-agent).
       lane        -- gpu/cpu/igpu/mobile/... (semaphore + fan-out diversity bucket).
       health_gate -- true for a come-and-go remote node (auto-join/drop); local
@@ -373,7 +373,7 @@ def _load_node_pool(registry: dict[str, dict]) -> int:
             "cpu_endpoint": str(cfg.get("cpu_endpoint", "")).rstrip("/"),
             "cpu_model":    str(cfg.get("cpu_model", "")),
             # Node-declared protocol (operator no-hardcode): 'llamacpp'/'vulkan'
-            # -> /slots KV-paging + no forced tool_choice; 'openai'/'ollama' as
+            # -> /slots KV-paging + no forced tool_choice; 'openai' as
             # usual. Carried so _binding_api/_endpoint_is_llamacpp honour it
             # WITHOUT relying on a port substring (e.g. an iGPU llama.cpp node).
             "api":          str(cfg.get("api", "")).strip().lower(),
@@ -507,7 +507,7 @@ def _dedup_pool_by_target(pool: list) -> list:
         # concurrent swarm fans N research facets onto the one batching server).
         # Key such nodes by NAME so each stays a distinct fan-out target; the
         # SWARM_MAX_WIDTH cap below still bounds total concurrency. Only
-        # SERIALIZING backends (llama.cpp/ollama -- one model loaded at a time,
+        # SERIALIZING backends (llama.cpp -- one model loaded at a time,
         # which THRASHED when 4 nodes requested different models) keep the
         # (endpoint, model) collapse that prevents redundant identical dispatch.
         _batching = str(c.get("api", "")).strip().lower() in {"openai", "sglang", "vllm"}

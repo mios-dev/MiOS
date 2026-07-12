@@ -264,7 +264,7 @@ PLANNER_MODEL = os.environ.get(
     "MIOS_AGENT_PIPE_PLANNER_MODEL", _STACK_MODEL,   # gemma4:12b entire-stack
 )
 PLANNER_ENDPOINT = os.environ.get(
-    # mios-llm-light /v1 (the old :11434 ollama default is dead -- G5/G17). Env (SSOT
+    # mios-llm-light /v1 (the old :11434 legacy lane default is dead -- G5/G17). Env (SSOT
     # agent-pipe.env) overrides; this is only the fresh-install fallback.
     "MIOS_AGENT_PIPE_PLANNER_ENDPOINT", _LIGHT_BASE,
 ).rstrip("/")

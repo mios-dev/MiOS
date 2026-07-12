@@ -6,7 +6,7 @@
 # feel like a Live 'MiOS' environment so it can host the same Quadlets the
 # deployed image runs (manifesto: "MiOS-DEV is the source upon what MiOS
 # itself is based upon ... mios user appended for hosting the layered
-# containers; guacamole, ollama, forgejo, cockpit etc-etc").
+# containers; guacamole, forgejo, cockpit etc-etc").
 #
 # Run inside MiOS-DEV, from the MiOS repo working tree:
 #   sudo bash automation/overlay-builder.sh /path/to/MiOS-repo

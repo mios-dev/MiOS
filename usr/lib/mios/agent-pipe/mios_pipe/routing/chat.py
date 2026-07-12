@@ -451,8 +451,8 @@ async def _quick_chat_reply(user_text: str, history: list = None) -> str:
                              "content": mios_tokenize.truncate_to_tokens(
                                  str(h.get("content", "")), 50)})  # WS-A5 seam (was [:200])
     msgs.append({"role": "user", "content": user_text[:500]})
-    # OpenAI /v1 (mios-llm-light :11450). The old ollama /api/chat 404'd post
-    # ollama-retirement -> refine returned "" = NO refined routing/decompose/
+    # OpenAI /v1 (mios-llm-light :11450). A legacy non-/v1 chat shape once 404'd
+    # here -> refine returned "" = NO refined routing/decompose/
     # grounding hints, silently degrading every turn.
     payload = {
         "model": REFINE_MODEL,

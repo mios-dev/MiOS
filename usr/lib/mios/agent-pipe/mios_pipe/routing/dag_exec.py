@@ -706,7 +706,7 @@ async def _execute_dag_node_core(node: dict, results_by_id: dict,
             _, _txt = await _run_node(prefer_cpu=False)
             _txt = (_txt or "").strip()
             # Fallback: a stream-only gateway (the Hermes server) returns empty on
-            # a non-streaming call. If the agent has an ollama CPU twin, use it --
+            # a non-streaming call. If the agent has a CPU twin, use it --
             # it answers a self-contained sub-task non-streaming cleanly. opencode
             # has no twin -> keeps hitting its real coder model.
             if not _txt and acfg.get("cpu_endpoint") and acfg.get("cpu_model"):
@@ -933,8 +933,8 @@ async def _execute_dag_saturated(dag: dict, *, session_id: Optional[str],
         except asyncio.CancelledError:
             # Turn cancelled (client disconnect / deadline / supersede): asyncio
             # does NOT auto-cancel a cancelled task's children, so cancel every
-            # in-flight node task here so they STOP dispatching to hermes/ollama
-            # instead of running on (runaway fix). Re-raise.
+            # in-flight node task here so they STOP dispatching to hermes / a
+            # sub-agent lane instead of running on (runaway fix). Re-raise.
             for _t in list(running.keys()):
                 if not _t.done():
                     _t.cancel()
@@ -1390,8 +1390,8 @@ async def _execute_dag_emitting(dag: dict, *, session_id: Optional[str],
         yield ("result", dag_result)
     finally:
         # ABANDONED / runaway / deadline-exceeded turn -> CANCEL the in-flight DAG
-        # so it STOPS instead of generating to completion through hermes->ollama
-        # (runaway ROOT CAUSE fix). On client disconnect the
+        # so it STOPS instead of generating to completion through hermes -> a
+        # sub-agent lane (runaway ROOT CAUSE fix). On client disconnect the
         # SSE generator is closed -> GeneratorExit lands here -> task.cancel() ->
         # _execute_dag_saturated cancels its node tasks. No-op on normal finish.
         if not task.done():
@@ -1573,25 +1573,13 @@ def _node_deepens(node: dict) -> bool:
 
 
 async def _reap_cpu_lane(reason: str) -> None:
-    """Unload every model resident on the CPU light-lane (:11435) via keep_alive:0
-    -- the only real release for ollama's un-abortable gens. Never raises into a
-    turn. No-op when disabled. The next turn cold-reloads the micro-LLM in ~2-3s
-    (acceptable cost for an EXCEPTIONAL deadline-exceed event)."""
+    """No-op on the /v1 plane. A llama.cpp / llama-swap generation ABORTS the moment
+    the client connection closes (unlike a legacy un-abortable backend), so a
+    cancelled / deadline-exceeded turn releases the lane on its own -- there is no
+    /v1 model-unload primitive to call and none is needed. Kept as a gated hook
+    (RUNAWAY_REAP_ENABLE) should a future backend ever need an explicit reap; never
+    raises into a turn."""
     if not RUNAWAY_REAP_ENABLE:
         return
-    unloaded: list = []
-    try:
-        async with httpx.AsyncClient(timeout=5.0) as c:
-            r = await c.get(f"{_LIGHT_LANE}/api/ps")
-            if r.status_code == 200:
-                for m in (r.json().get("models") or []):
-                    name = m.get("name") or m.get("model")
-                    if not name:
-                        continue
-                    await c.post(f"{_LIGHT_LANE}/api/generate",
-                                 json={"model": name, "keep_alive": 0})
-                    unloaded.append(name)
-        log.warning("runaway reaper (%s): unloaded CPU-lane models %s",
-                    reason, unloaded)
-    except Exception as e:  # noqa: BLE001 -- the reaper must never raise into a turn
-        log.warning("runaway reaper (%s) failed: %s", reason, e)
+    # The cancelled request already released the lane -- nothing to reap.
+    log.debug("runaway reaper (%s): /v1 lane self-releases on cancel -- no-op", reason)

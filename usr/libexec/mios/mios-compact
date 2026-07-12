@@ -36,7 +36,7 @@ Usage:
 
 Exit codes:
   0 = digest written (or printed)
-  1 = required state unreachable (OWUI db missing, ollama down)
+  1 = required state unreachable (OWUI db missing, llm-light down)
   64 = bad args
 """
 from __future__ import annotations
@@ -61,7 +61,7 @@ LAUNCH_FAILURES = Path(os.environ.get(
 COMPACTED_DIR = Path(os.environ.get(
     "MIOS_COMPACTED_DIR", "/var/lib/mios/compacted"))
 REPO_ROOT = Path(os.environ.get("MIOS_REPO_ROOT", "/mnt/c/MiOS"))
-OLLAMA_URL = os.environ.get("MIOS_LLM_URL", f"http://127.0.0.1:{os.environ.get('MIOS_PORT_LLM_LIGHT', '8450')}")
+LLM_URL = os.environ.get("MIOS_LLM_URL", f"http://127.0.0.1:{os.environ.get('MIOS_PORT_LLM_LIGHT', '8450')}")
 SUMMARY_MODEL = os.environ.get("MIOS_COMPACT_MODEL", "granite4.1:8b")
 
 
@@ -221,25 +221,25 @@ def _llm_summarize(raw_digest: str, timeout_s: int = 90) -> str:
             {"role": "system", "content": system},
             {"role": "user", "content": raw_digest[:32000]},
         ],
-        "options": {
-            "num_gpu": 0, "num_thread": 8,
-            "num_predict": 700, "temperature": 0.0,
-        },
-        "stream": False, "keep_alive": -1,
+        "max_tokens": 700, "temperature": 0.0, "stream": False,
+        "chat_template_kwargs": {"enable_thinking": False},
     }
     try:
+        _base = LLM_URL.rstrip("/")
+        if _base.endswith("/v1"):
+            _base = _base[:-3]
         req = urllib.request.Request(
-            f"{OLLAMA_URL}/api/chat",
+            f"{_base}/v1/chat/completions",
             data=json.dumps(payload).encode("utf-8"),
             headers={"Content-Type": "application/json"},
             method="POST",
         )
         with urllib.request.urlopen(req, timeout=timeout_s) as r:
             body = json.loads(r.read())
-        msg = body.get("message") or {}
+        msg = ((body.get("choices") or [{}])[0].get("message") or {})
         out = (msg.get("content") or "").strip()
         if not out:
-            out = (msg.get("thinking") or msg.get("reasoning") or "").strip()
+            out = (msg.get("reasoning_content") or msg.get("reasoning") or "").strip()
         return out or raw_digest
     except (urllib.error.URLError, OSError, json.JSONDecodeError) as e:
         sys.stderr.write(f"[mios-compact] llm-summarize failed: {e}\n")

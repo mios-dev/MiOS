@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: Detects GPU hardware (NVIDIA, AMD, Intel) and generates corresponding CDI specification files in /run/cdi/ to enable containerized GPU access before the nvidia-cdi-refresh service.
-# AI-related: /usr/lib/mios/paths.sh, /usr/libexec/mios/intel-cdi-specs-generator, mios-gpu, mios-ollama, mios-boot-diag, nvidia-cdi-refresh.service, mios-cdi-detect.service
+# AI-related: /usr/lib/mios/paths.sh, /usr/libexec/mios/intel-cdi-specs-generator, mios-gpu, mios-boot-diag, nvidia-cdi-refresh.service, mios-cdi-detect.service
 # AI-functions: _log
 # 'MiOS' CDI spec detection -- generate Container Device Interface
 # specs for every detected GPU vendor before nvidia-cdi-refresh.service
@@ -141,11 +141,11 @@ elif [[ "$HAS_NVIDIA" == 1 && ( "$VIRT" == "wsl" || -e /dev/dxg ) ]]; then
     # /usr/lib/wsl (which has libcuda.so + libcudadebugger.so + the
     # nvidia-smi binary). rbind, NOT bind: /usr/lib/wsl/lib is an
     # overlay sub-mount that doesn't propagate through a plain bind.
-    # Operator-flagged 2026-05-11: ollama loaded models on CPU
-    # (`load_tensors: CPU model buffer size = 16676 MiB`) because no
+    # Operator-flagged 2026-05-11: the local inference engine loaded models
+    # on CPU (`load_tensors: CPU model buffer size = 16676 MiB`) because no
     # CDI spec was generated and the Quadlet had no AddDevice for the
     # GPU. After this YAML lands + the Quadlet adds AddDevice=
-    # nvidia.com/gpu=all, ollama detects the GPU via libcuda.so 1.1
+    # nvidia.com/gpu=all, the engine detects the GPU via libcuda.so 1.1
     # and `inference compute ... library=CUDA ... description=NVIDIA
     # GeForce RTX 4090` shows in the journal.
     out=/run/cdi/wsl2-nvidia.yaml
@@ -198,7 +198,7 @@ elif [[ "$HAS_AMD_WSL" == 1 ]]; then
     # Operator directive 2026-05-17: "iGPU's are ONLY micro-llms" --
     # this spec REGISTERS the device with podman so containers that
     # explicitly request AddDevice=amd.com/gpu=all get it. The base
-    # mios-ollama (big-model, NVIDIA-lane) Quadlet does NOT request
+    # the big-model NVIDIA-lane Quadlet does NOT request
     # this; only micro-LLM container(s) do.
     out=/run/cdi/wsl2-amd.yaml
     cat > "$out" <<'WSLAMDCDI'

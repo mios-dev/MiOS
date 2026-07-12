@@ -22,7 +22,7 @@
 #                local-build tag).
 #   PORTS     -- host loopback ports for every Quadlet/host service,
 #                so URL constants below can be derived once.
-#   URLS      -- common endpoints (AI, Forgejo, Cockpit, Ollama).
+#   URLS      -- common endpoints (AI, Forgejo, Cockpit).
 #   REPOS     -- git remotes for the self-replication loop.
 #
 # Idempotent. Safe to source multiple times.

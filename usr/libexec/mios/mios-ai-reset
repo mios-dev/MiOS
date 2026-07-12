@@ -34,7 +34,6 @@ set -euo pipefail
 #   * /var/lib/mios/hermes/{config.yaml,SOUL.md,skills/,bin/,.local/,
 #     .config/,.npm/,.var/,platforms/,sandboxes/} (installed deps)
 #   * /var/lib/mios/open-webui/webui.db user/auth/config tables
-#   * /var/lib/ollama (models -- separate, large, expensive to re-pull)
 #
 # Restarts: hermes-agent, mios-open-webui, mios-log-watcher,
 #           mios-cron-director, mios-hermes-browser
@@ -61,7 +60,6 @@ DENY_ROOTS=(
     /mnt/c/MiOS    # explicit -- the source checkout
     /usr           # vendor read-only
     /etc           # operator config
-    /var/lib/ollama  # models (large, expensive to re-pull)
     /home          # operator home tree
     /var/home      # bootc-style operator home
     /root          # root's home (we wipe .hermes/* INSIDE it, not the home itself)
@@ -73,7 +71,7 @@ _check_safe() {
     # the guard is on the root itself plus any /mnt traversal.
     local p="$1"
     case "$p" in
-        /mnt|/mnt/*|/usr|/usr/*|/etc|/etc/*|/var/lib/ollama|/var/lib/ollama/*)
+        /mnt|/mnt/*|/usr|/usr/*|/etc|/etc/*)
             echo "mios-ai-reset: REFUSING to touch $p (denylist guardrail)" >&2
             exit 99 ;;
     esac

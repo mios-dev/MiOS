@@ -1,4 +1,4 @@
-# AI-hint: The mios-llm-light model map -- maps OpenAI/Ollama-compatible model tags to llama-server configs, enabling multi-model auto-swapping, KV-cache paging via slot-save-paths, and embeddings for the MiOS agent stack. Served via the upstream llama-swap proxy image.
+# AI-hint: The mios-llm-light model map -- maps OpenAI /v1-compatible model tags to llama-server configs, enabling multi-model auto-swapping, KV-cache paging via slot-save-paths, and embeddings for the MiOS agent stack. Served via the upstream llama-swap proxy image.
 # AI-related: /usr/share/mios/llamacpp/mios-llm-light.yaml, mios-llm-light, mios-agent, mios-agent-cpu, mios-hermes, mios-hermes-cpu, mios-daemon-agent, mios-opencode, mios-igpu, mios-heavy, mios-reasoner-cpu
 # /usr/share/mios/llamacpp/mios-llm-light.yaml
 # mios-llm-light model map -- MiOS's primary llama.cpp multi-model lane (WS-10).
@@ -8,8 +8,8 @@
 # Each chat model carries --parallel 1 + --slot-save-path so it lands on a single
 # deterministic slot and the agent-pipe's _kv_paging (POST /slots/{id}?action=
 # save|restore) can checkpoint/restore that conversation's KV to disk -- the
-# AIOS Context Manager, fleet-wide (ollama can't). The embed model runs a
-# --embedding llama-server so /v1/embeddings replaces the ollama embed lane.
+# AIOS Context Manager, fleet-wide (a swap-only backend can't). The embed model runs
+# a --embedding llama-server so /v1/embeddings replaces the legacy embed lane.
 #
 # KV-cache SERVING flags are DOCUMENTED canonically in mios.toml [ai.kv] -- distinct
 # from the agent-pipe's runtime [dispatch].kv_* paging knobs. NOTE: this yaml is NOT
@@ -32,7 +32,7 @@
 #   * the llama-server binary path inside the image (here /app/llama-server);
 #   * the GGUF filenames exist under /models (provisioned by the bake step);
 #   * --n-gpu-layers / --ctx-size sized to the shared 4090's free VRAM.
-# Model NAMES should match the ollama tags the agent-pipe already dispatches
+# Model NAMES should match the model tags the agent-pipe already dispatches
 # (granite4.1:8b, lfm2:700m, nomic-embed-text, ...) so the lane is a drop-in.
 
 models:
@@ -125,7 +125,7 @@ models:
     proxy: "http://127.0.0.1:${PORT}"
     ttl: 300
 
-  # ── embeddings (replaces the ollama embed lane; OpenAI /v1/embeddings) ──
+  # ── embeddings (replaces the legacy embed lane; OpenAI /v1/embeddings) ──
   # fleet modernization: nomic-embed-text -> Google EmbeddingGemma-300m QAT
   # (ggml-org/embeddinggemma-300m-qat-q8_0-GGUF). 768d NATIVE = exact pgvector
   # vector(768) match -> ZERO schema migration. QAT (operator efficiency win);

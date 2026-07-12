@@ -337,11 +337,9 @@ async def reflect_on_step_failure(
         log.warning("reflect unexpected error: %s", e)
         return None
     elapsed = time.time() - t0
-    # /api/chat shape {"message":{"content"}}; /v1 choices[] fallback.
-    msg = body.get("message")
-    if not isinstance(msg, dict):
-        choices = body.get("choices") or []
-        msg = (choices[0].get("message") if choices else {}) or {}
+    # OpenAI /v1 choices[] shape (MiOS is /v1-only).
+    choices = body.get("choices") or []
+    msg = (choices[0].get("message") if choices else {}) or {}
     content = (msg.get("content") or "").strip()
     if not content:
         log.warning("reflect: %.1fs empty_content", elapsed)
