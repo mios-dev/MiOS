@@ -613,6 +613,18 @@ for dotted, env in slots:
     val_processed = process_val(dotted, v)
     if val_processed is not None and val_processed != "":
         print(f"export {env}={shlex.quote(str(val_processed))}")
+
+# [env] -- the operator free-form injection table, documented "exported verbatim".
+# Keys are already MIOS_-prefixed, so emit each one unchanged: this makes
+# mios.toml [env] the LIVE SSOT for values like the vendor download URLs
+# (MIOS_URL_*). Consumers' inline ${VAR:-default} become fallbacks only, not the
+# source of truth -- editing mios.toml [env] now actually takes effect.
+_env_tbl = merged.get("env")
+if isinstance(_env_tbl, dict):
+    for _k, _v in sorted(_env_tbl.items()):
+        _vp = process_val("env." + _k, _v)
+        if _vp is not None and _vp != "":
+            print(f"export {_k}={shlex.quote(str(_vp))}")
 PY
     )
     # `[[ ... ]] && cmd` returns 1 when the test is false. Under `set -e`
