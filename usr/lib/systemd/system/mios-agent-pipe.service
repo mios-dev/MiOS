@@ -54,7 +54,7 @@ Environment=MIOS_PORT_AGENT_PIPE=8640
 # WS-0B: the agent-pipe reasons DIRECTLY on the light lane (NOT fronting Hermes
 # :8642). Opt in by FLAG -- server.py composes the URL from _LIGHT_BASE, so the
 # port lives in ONE place ([ports].llm_light), not a literal here. MICRO/ROUTER/
-# OLLAMA_CPU/PLANNER/REFINE/POLISH endpoints ALSO derive from _LIGHT_BASE now and
+# LLM_CPU/PLANNER/REFINE/POLISH endpoints ALSO derive from _LIGHT_BASE now and
 # are no longer pinned in this unit.
 Environment=MIOS_AGENT_PIPE_BACKEND_LIGHT=1
 # WS-0B: ONE owned model key. BACKEND/MICRO/SWARM/PLANNER/REFINE/POLISH all
@@ -72,8 +72,8 @@ Environment=MIOS_AI_MODEL=granite4.1:8b
 # the call instead of executing it. Keep :11450 in KV_PAGING (it does /slots).
 Environment=MIOS_NO_TOOL_CHOICE_HINTS=11436
 Environment=MIOS_KV_PAGING_HINTS=11436,11450
-Environment=MIOS_OLLAMA_API_HINTS=
-# WS-0B: ROUTER + the CPU-offload light-lane (MIOS_OLLAMA_CPU_ENDPOINT) both now
+Environment=MIOS_LLM_API_HINTS=
+# WS-0B: ROUTER + the CPU-offload light-lane (MIOS_LLM_CPU_ENDPOINT) both now
 # default to _LIGHT_BASE in server.py (mios-llm-light) -- no per-endpoint pin here.
 # Override either via /etc/mios/agent-pipe.env only if a deployment splits lanes.
 # Phase A.1 -- planner runs on the dGPU/CUDA lane :11434. Falls back to

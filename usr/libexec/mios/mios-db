@@ -46,7 +46,7 @@
 #   MIOS_PG_PASS         mios             [pgvector].pass
 #   MIOS_PG_DB           mios             [pgvector].database
 #   MIOS_OWUI_DB         /var/lib/mios/open-webui/webui.db
-#   MIOS_OLLAMA_URL      http://localhost:${MIOS_PORT_LLM_LIGHT:-11450}
+#   MIOS_LLM_URL         http://localhost:${MIOS_PORT_LLM_LIGHT:-11450}
 #   MIOS_EMBED_MODEL     nomic-embed-text [pgvector].embed_model
 #
 # Exits 0 on success, 1 on backend unreachable, 2 on missing binary.

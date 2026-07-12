@@ -144,26 +144,7 @@ diag = asyncio.run(M._daemon_diagnose(_FakeClient([]), "it failed", "the goal"))
 assert diag == "", f"disabled daemon-diagnose must return '', got {diag!r}"
 print("TEST 4 PASS: _daemon_diagnose degrade-open when disabled")
 
-# === TEST 5: _ollama_secondary_tool_loop (moved home) -> disclaimer re-loop ===
-# Symmetric sibling of _v1_secondary_tool_loop for a RAW ollama node: a no-tool
-# disclaimer must inject the module's own _TOOL_NUDGE and re-call once.
-_wire(exec_result=([], False))
-M._rescue_tool_calls = lambda content, tools=None: []   # don't promote plain text
-nudges = []
-client = _FakeClient([
-    _msg(content="I cannot do that, use my search tools."),  # disclaim -> nudge
-    _msg(content="The latest news is X."),                   # clean final
-])
-out = asyncio.run(M._ollama_secondary_tool_loop(
-    client, "http://node", "m",
-    [{"role": "user", "content": "what's the latest news?"}],
-    [{"function": {"name": "web_search"}}], None, nudges.append))
-assert any(m.get("role") == "user" and m.get("content") == M._TOOL_NUDGE
-           for m in out), "ollama loop: _TOOL_NUDGE not injected on a disclaimer"
-assert client.calls == 2, f"ollama loop: expected re-loop, got {client.calls} calls"
-print("TEST 5 PASS: _ollama_secondary_tool_loop nudges + re-loops on a disclaimer")
-
-# === TEST 6: the moved loop-guard helpers, tested directly ===================
+# === TEST 5: the moved loop-guard helpers, tested directly ===================
 # _tool_call_sig: stable + order-independent over the args dict.
 sig_a = M._tool_call_sig({"function": {"name": "web_search",
                                        "arguments": {"q": "x", "n": 3}}})

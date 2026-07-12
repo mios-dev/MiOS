@@ -18,7 +18,7 @@ build stays small + reproducible. The cost moves to a one-time first-boot fetch
 
 ## Design
 1. **Build-time = lean.** Bake ONLY the always-on light essentials (or nothing):
-   keep `MIOS_OLLAMA_BAKE_MODELS` minimal/empty; do NOT bind+bake the heavy-lane
+   keep `MIOS_LLAMACPP_BAKE_MODELS` minimal/empty; do NOT bind+bake the heavy-lane
    container images (SGLang/vLLM, multi-GB each) — mark them first-boot-provisioned.
    Law 3 (BOUND-IMAGES) still holds for the SMALL/essential images; large weights
    are data, not bound container images.

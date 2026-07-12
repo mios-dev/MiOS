@@ -68,13 +68,11 @@ def _kb_embed(text: str) -> list:
         else _KB_EMBED_ENDPOINT + "/v1"
     endpoints = [
         (base, _KB_EMBED_MODEL),
-        ("http://localhost:11434/api", "nomic-embed-text")
     ]
     for attempt in range(3):
         for ep, model in endpoints:
             try:
-                is_ollama = ep.endswith("/api")
-                payload = {"model": model, "prompt" if is_ollama else "input": text[:4000]}
+                payload = {"model": model, "input": text[:4000]}
                 req = urllib.request.Request(
                     f"{ep}/embeddings",
                     data=json.dumps(payload).encode(),

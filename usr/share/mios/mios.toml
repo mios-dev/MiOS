@@ -1177,7 +1177,7 @@ failover_agents = []
 denied_verbs    = []
 allowed_verbs   = []
 max_permission  = ""             # "" = no ceiling; e.g. "read" for an untrusted edge node
-api             = ""             # openai|llamacpp|ollama|vllm|sglang
+api             = ""             # openai|llamacpp|vllm|sglang
 research_only   = false
 
 # Per-agent CREDENTIAL + zero-trust posture (open-federation keystone, roadmap
@@ -1444,7 +1444,7 @@ failover_agents = ["hermes"]
 #   endpoint = "http://<igpu-host-tailnet>:11436/v1"    # llama.cpp + Vulkan
 #   model    = "mios-hermes-igpu"
 #   [agents.hermes.nodes.iphone]
-#   endpoint = "http://<iphone-tailnet>:11434/v1"       # AI.Local on the phone
+#   endpoint = "http://<iphone-tailnet>:8450/v1"        # AI.Local on the phone (OpenAI /v1)
 #   model    = "qwen2.5-3b-instruct-4bit"
 # The target engine/node must actually SERVE that model; health_gate=true makes
 # a come-and-go node (phone/cluster) auto-join when up + drop when gone.
@@ -1464,12 +1464,12 @@ failover_agents = ["hermes"]
 # resolver, so peers are addressed by tailnet IP, not name.)
 
 [agents.ai-local]
-# A phone / mobile device running AI.Local -- an ollama-compatible local-model
-# server on :11434 -- reached over Tailscale. Open the AI.Local app to host;
-# closing it drops the node from the swarm (health_gate). OPERATOR-SPECIFIC +
-# PRIVACY: vendor ships `endpoint` EMPTY so no personal device name / tailnet
-# IP is baked into the public repo; set it to your own device's tailnet
-# endpoint in your /etc/mios or ~/.config/mios overlay. Empty = inert node.
+# A phone / mobile device running AI.Local -- an OpenAI /v1-compatible local-model
+# server -- reached over Tailscale. Open the AI.Local app to host; closing it
+# drops the node from the swarm (health_gate). OPERATOR-SPECIFIC + PRIVACY: vendor
+# ships `endpoint` EMPTY so no personal device name / tailnet IP is baked into the
+# public repo; set it to your own device's tailnet /v1 endpoint in your /etc/mios
+# or ~/.config/mios overlay. Empty = inert node.
 endpoint    = ""
 model       = "qwen2.5-3b-instruct-4bit"
 role        = "mobile"
@@ -1660,46 +1660,48 @@ reasoning_parser = "qwen3"
 constrained_tools = true
 # REMOTE nodes (operator overlay only -- keep tailnet names/IPs out of the public
 # repo). Each is the SAME consolidation: one canonical MiOS Modelfile tag served
-# on that node, dispatched by capacity -- NOT a hand-numbered replica. Example
-# shape (put in /etc/mios/mios.toml):
+# on that node, dispatched by capacity -- NOT a hand-numbered replica. Every node
+# MUST expose the OpenAI /v1 surface (MiOS is /v1-only). Example shape (put in
+# /etc/mios/mios.toml):
 #   [nodes.potato-dgpu]
-#   endpoint    = "http://<potato-tailnet>:11434/v1"
+#   endpoint    = "http://<potato-tailnet>:8450/v1"
 #   model       = "mios-agent"          # the GPU brain on the potato node
 #   lane        = "gpu"
 #   blade       = "potato"              # V4: this node lives on the `potato` MACHINE
 #   health_gate = true                  # auto-join when reachable, drop when gone
 #   [nodes.potato-cpu]
-#   endpoint    = "http://<potato-tailnet>:11435/v1"
+#   endpoint    = "http://<potato-tailnet>:8451/v1"
 #   model       = "mios-agent-cpu"      # the CPU twin on the potato node
 #   lane        = "cpu"
 #   blade       = "potato"              # SAME machine as potato-dgpu -> one blade budget
 #   health_gate = true
 #   [nodes.phone]
-#   endpoint    = "http://<phone-tailnet>:11434/v1"
+#   endpoint    = "http://<phone-tailnet>:8450/v1"
 #   model       = "mios-agent-cpu"      # or the phone's own small local model tag
 #   lane        = "mobile"
 #   health_gate = true
 #
-# A PLAIN remote box that serves a stock Ollama (not the MiOS Modelfiles) joins
-# the SAME way -- declare api="ollama" and the model's REAL served tag (qwen3.5:4b
-# etc.); the pipe then runs its own grounding tool-loop (web_search ...) + strips
-# qwen3 <think> tags + posts to the box's /v1/chat/completions. A remote CPU node
-# whose port happens to be 11435/11436 KEEPS its declared tag (the cpu-lane model
-# cap is LOCAL-only -- a remote box serves its own catalog, not the local micro
-# tag). Example (operator's second machine, CPU+GPU; put the real tailnet IP in
-# /etc/mios/mios.toml, NOT the public vendor file):
+# A PLAIN remote box that serves its OWN model (not the MiOS Modelfiles) joins the
+# SAME way -- declare api="openai" (or leave api="" to auto-detect) and the model's
+# REAL served tag (qwen3.5:4b etc.); the pipe then runs its own grounding tool-loop
+# (web_search ...) + strips qwen3 <think> tags + posts to the box's
+# /v1/chat/completions. It MUST expose OpenAI /v1 -- MiOS speaks no other dialect.
+# A remote CPU node KEEPS its declared tag (the cpu-lane model cap is LOCAL-only --
+# a remote box serves its own catalog, not the local micro tag). Example (operator's
+# second machine, CPU+GPU; put the real tailnet IP in /etc/mios/mios.toml, NOT the
+# public vendor file):
 #   [nodes.remote-gpu]
-#   endpoint     = "http://<host-tailnet>:11434/v1"
+#   endpoint     = "http://<host-tailnet>:8450/v1"
 #   model        = "qwen3.5:4b"          # the remote's best tool-capable served tag
 #   lane         = "gpu"
-#   api          = "ollama"
+#   api          = "openai"
 #   health_gate  = true
 #   tool_capable = true
 #   [nodes.remote-cpu]
-#   endpoint     = "http://<host-tailnet>:11435/v1"
+#   endpoint     = "http://<host-tailnet>:8451/v1"
 #   model        = "qwen3:1.7b"          # lighter tag for the slower CPU lane
 #   lane         = "cpu"
-#   api          = "ollama"
+#   api          = "openai"
 #   health_gate  = true
 #   tool_capable = true
 
@@ -2145,19 +2147,19 @@ lane_concurrency_gpu0 = 4     # per-SUB-LANE cap for the 'gpu0' small-model pack
 # wide fan-out is bounded ("saturate to capacity, never over"). 0/unset -> code
 # default max(8, cpu_count-4). Read by _GLOBAL_DISPATCH_SEM.
 global_concurrency   = 16     # max concurrently-running agent dispatches across ALL lanes
-# ── Runaway / abandoned-turn bounds (cancellation fix). ollama
+# ── Runaway / abandoned-turn bounds (cancellation fix). A local llama.cpp lane
 # does NOT stop generating on client disconnect, so a hard num_predict cap is the
 # only real bound on an abandoned turn; the turn deadline is a wall-clock backstop
 # (per-node deepen caps don't bound the whole turn). The disconnect/supersede
 # cancellation lives in _execute_dag_emitting + _execute_dag_saturated.
-ollama_num_predict_cap = 2048   # hard per-generation token ceiling on AGENT ollama dispatches (fast/dGPU lanes)
+llm_num_predict_cap = 2048   # hard per-generation token ceiling on AGENT dispatches (fast/dGPU lanes)
 # PER-LANE cap (runaway fix j): a CPU/iGPU lane gens ~5 tok/s, so 2048
-# tokens = ~400s of pegged cores per gen; ollama can't be aborted on disconnect,
+# tokens = ~400s of pegged cores per gen; a disconnect can't abort the gen,
 # so stacked slow-lane gens drove loadavg to 387. Give the SLOW lanes a short
 # ceiling (~512 ≈ ~100s) so each self-clears fast; the dGPU keeps the full 2048.
-ollama_num_predict_cap_cpu = 512   # token ceiling on CPU/iGPU (mios-llm-light / host-iGPU) dispatches
+llm_num_predict_cap_cpu = 512   # token ceiling on CPU/iGPU (mios-llm-light / host-iGPU) dispatches
 turn_deadline_s        = 600    # wall-clock backstop per turn (s); generous so deep research still finishes
-runaway_reap           = true   # on a BLOWN deadline (not supersede), unload CPU-lane models (keep_alive:0) -- the only real release for ollama's un-abortable gens
+runaway_reap           = true   # on a BLOWN deadline (not supersede), unload CPU-lane models (keep_alive:0) -- the only real release for an un-abortable gen
 # ── COUNCIL ROSTER WIDTH + PER-ENDPOINT CAP (runaway fix). Left
 # uncapped, the council fans EVERY non-trivial turn out to ALL live agents
 # (MIOS_COUNCIL_MAX=0); with every node research-eligible by default, a trivial
@@ -2387,8 +2389,8 @@ trace_max_spans_per_trace = 128  # cap on stored spans per trace (further spans 
 # same ${MIOS_*:-default} pattern). "loop anything not
 # successful or fully fulfilled". All bounded + verdict-driven + degrade-open so a
 # robust turn never spins; they only re-engage on a CONFIRMED failure signal.
-#   MIOS_SECONDARY_REPLAN_MAX  = 1   -- supervisory re-engages in BOTH shared
-#       tool-loops (_v1_/_ollama_secondary_tool_loop): when the model stops calling
+#   MIOS_SECONDARY_REPLAN_MAX  = 1   -- supervisory re-engages in the shared
+#       tool-loop (_v1_secondary_tool_loop): when the model stops calling
 #       tools but a verb THIS loop ran reported a genuine FAILURE
 #       (_tmsgs_indicate_failure), re-engage once with a fix-it nudge.
 #   MIOS_DAG_REPLAN_MAX        = 1   -- multi-node DAG re-dispatch of UNFULFILLED
@@ -9240,7 +9242,8 @@ MIOS_URL_BIBATA_DL = "https://github.com/ful1e5/Bibata_Cursor/releases/download/
 MIOS_URL_BIBATA_SUM = "https://github.com/ful1e5/Bibata_Cursor/releases/download/v{}/sha256-{}.txt"
 [finetune]
 # Fine-tune subsystem -- distil a strong LOCAL teacher model into a small, fast
-# MiOS role model via LoRA/SFT, then ship the adapter as an ollama model. FOSS +
+# MiOS role model via LoRA/SFT, then ship the adapter as a GGUF for the llama.cpp
+# lane (served over OpenAI /v1 by mios-finetune-serve; MiOS is /v1-only). FOSS +
 # fully OFFLINE + HARDWARE-AGNOSTIC: the trainer auto-detects the device (NVIDIA
 # CUDA / AMD ROCm / Apple MPS / CPU) and only 4-bit-quantises where the hardware
 # supports it -- MiOS has the components to train on ANY hardware combination, same
@@ -9253,11 +9256,11 @@ enable          = true
 target_role     = "refiner"            # MiOS role to fine-tune (refiner = mios-sys-agent)
 base_model      = "granite4.1:8b"      # the role's base -- MUST match the Modelfile FROM. Repointed to Granite 4.1 8B (the new light_brain) from qwen3.5:4b (Qwen + qwen35 arch blocked on mainline llama.cpp).
 hf_base         = "ibm-granite/granite-4.1-8b"   # HF repo id OR local safetensors dir for the SAME base (Granite 4.1 8B, Apache-2.0, public; matches base_model granite4.1:8b)
-                                       # (PEFT/TRL train on HF weights; ollama stores GGUF). One-time
+                                       # (PEFT/TRL train on HF weights; the llama.cpp lane serves the GGUF). One-time
                                        # offline fetch, like the framework install. This is the actual
                                        # production refiner base (qwen3.5:4b == Qwen/Qwen3.5-4B, Apache-2.0,
                                        # public). Override per-install if base_model differs.
-output_tag      = "mios-sys-agent-ft"  # ollama tag the adapter is shipped as
+output_tag      = "mios-sys-agent-ft"  # served-model tag the adapter is shipped as
 device          = "auto"               # auto | cuda | rocm | mps | cpu
 load_in_4bit    = "auto"               # auto = 4bit ONLY on CUDA+bitsandbytes; else full/bf16
 prefer_unsloth  = true                 # use the Unsloth fast-path when CUDA + unsloth present
@@ -9290,11 +9293,11 @@ include_knowledge    = true            # also mine REAL operator queries from th
 dataset_path         = "/var/lib/mios/finetune/refiner-sft.jsonl"
 min_examples         = 24              # refuse to train on a corpus smaller than this
 
-# --- GGUF export + ollama wiring ---
+# --- GGUF export + llama.cpp wiring ---
 gguf_convert    = true
 gguf_quant      = "q8_0"               # adapter export precision
 work_dir        = "/var/lib/mios/finetune"
-serve_port      = 11438                # mios-finetune-serve OpenAI+ollama endpoint (opt-in)
+serve_port      = 11438                # mios-finetune-serve OpenAI /v1 endpoint (opt-in)
 
 # ─── WS-F Tool Consolidation (Phase 1) Merged Verbs ─────────────────────
 

@@ -78,13 +78,14 @@ _violation() {
 echo "[38-drift-checks] source-tree AI-plane drift fitness-functions"
 echo "[38-drift-checks]   root: $ROOT"
 
-# --- (1) Retired local :11434 lane in active config. -------------------------
-# Mirror of 99-postcheck.sh check 12b, on the SOURCE tree (PR-time). The local
-# ollama lane on :11434 was retired (everything moved to mios-llm-light :8450);
-# a stale local ref silently 404s a refine / sys-agent / DCI call. Only LOCAL
-# forms match -- remote tailnet :11434 lane templates are legitimate.
+# --- (1) Retired :11434 lane in active config (ANY host). --------------------
+# Mirror of 99-postcheck.sh check 12b, on the SOURCE tree (PR-time). The ollama
+# lane on :11434 is retired ENTIRELY -- MiOS is OpenAI-/v1-only (everything moved
+# to mios-llm-light :8450), so NO :11434 ref is legitimate, local OR remote (the
+# old remote-tailnet exception is gone). A stale ref silently 404s a refine /
+# sys-agent / DCI call.
 check_dead_lane() {
-    local pattern='(localhost|127\.0\.0\.1|host\.containers\.internal):11434'
+    local pattern=':11434'
     local hits="" f active
     for d in "${SCAN_DIRS[@]}"; do
         [[ -d "$d" ]] || continue
@@ -100,7 +101,7 @@ check_dead_lane() {
     done
     if [[ -n "$hits" ]]; then
         printf '%s' "$hits" >&2
-        _violation "retired local :11434 lane in active source config (use the live lane, e.g. mios-llm-light :8450)"
+        _violation "retired :11434 (ollama) lane in active source config -- MiOS is /v1-only; use the live lane, e.g. mios-llm-light :8450"
     else
         echo "[38-drift-checks]   (1) no retired :11434 lane in active config"
     fi

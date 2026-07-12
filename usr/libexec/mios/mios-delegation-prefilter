@@ -57,12 +57,12 @@ HEADERS_DROP = {"host", "content-length"}
 # need be)".
 #
 # Architecture: operator types in OWUI; OWUI POSTs to :8641 (this
-# service); prefilter calls mios-sys-agent (Ollama on :11434) to
+# service); prefilter calls mios-sys-agent (the mios-llm-light /v1 lane) to
 # refine the user's prompt via the reasoning template; refined
 # prompt forwarded to hermes :8642; hermes does the actual work;
 # response streams back.
-# Default lane = mios-llm-light (:11450, OpenAI /v1); the old ollama :11434 is dead
-# (WS-10 "EVERYTHING IS LLAMA.CPP"), so a missing env must NOT point at it (2026-06-18).
+# Default lane = mios-llm-light (:8450, OpenAI /v1); MiOS is /v1-only (WS-10
+# "EVERYTHING IS LLAMA.CPP"), so a missing env must NOT point at a retired lane (2026-06-18).
 SYS_AGENT_ENDPOINT = os.environ.get("MIOS_SYS_AGENT_ENDPOINT", f"http://127.0.0.1:{os.environ.get('MIOS_PORT_LLM_LIGHT', '8450')}/v1")
 SYS_AGENT_MODEL    = os.environ.get("MIOS_SYS_AGENT_MODEL", "granite4.1:8b")
 # Refinement is OPT-IN via env var; default OFF so a hung sys-agent
@@ -251,75 +251,46 @@ async def _refine_via_sys_agent(user_text: str) -> str | None:
     # temperature=0.0 for deterministic refinement (operator pastes
     # the same prompt twice, gets the same refined handoff).
     #
-    # options.num_gpu=0 -- force CPU execution. Operator architecture
-    # 2026-05-16: "ALL Global agents are default to the CPU models
-    # (even for GPU models also default to this global defaults)".
-    # Without this, Ollama loads mios-sys-agent on GPU (operator-
-    # flagged 2026-05-17: "prompt refinement doesn't trigger small
-    # CPU model(s) at ALL!!!" -- `ollama ps` showed mios-sys-agent at
-    # "100% GPU"). The refiner is supposed to run alongside the big
-    # GPU model, not compete for VRAM.
-    # Ollama /api/chat body shape:
-    #   options.num_predict -- max tokens (the /v1 `max_tokens` alias
-    #                          is NOT honored here)
-    #   options.temperature -- ditto
-    #   options.num_gpu=0   -- FORCE CPU (the whole point of this
-    #                          endpoint switch)
-    #   options.num_thread  -- CPU thread count; 8 is reasonable for
-    #                          a refiner running alongside hermes on GPU
-    #   keep_alive=-1       -- keep loaded so back-to-back chats don't
-    #                          pay cold-load cost
+    # The mios-sys-agent refiner runs on the mios-llm-light /v1 lane (MiOS is
+    # /v1-only). Model PLACEMENT (which device it loads on) is owned by the
+    # server / llama-swap, not a per-request knob, so the legacy ollama
+    # options.num_gpu/num_thread/keep_alive fields are gone.
     body = json.dumps({
         "model": SYS_AGENT_MODEL,
         "messages": [
             {"role": "system", "content": REFINE_SYSTEM},
             {"role": "user", "content": user_text},
         ],
-        "options": {
-            "num_gpu": 0,
-            "num_thread": 8,
-            # 600 tokens is the sweet spot: enough room for mios-sys-
-            # agent's reasoning template (it burns ~300 tokens on the
-            # template alone) plus a meaningful refined handoff
-            # (~200-300 tokens). 1200 was tipping over the 120s
-            # timeout on this slow WSL2 disk; 600 halves CPU time
-            # while still giving the refiner enough output room to
-            # produce a non-truncated answer.
-            "num_predict": 600,
-            "temperature": 0.0,
-        },
+        # 600 tokens is the sweet spot: room for mios-sys-agent's reasoning
+        # template (~300 tokens) plus a meaningful refined handoff (~200-300).
+        "max_tokens": 600,
+        "temperature": 0.0,
         "stream": False,
-        # Ollama's /api/chat parses keep_alive as Go time.Duration when
-        # it's a string ("5m", "24h") OR as seconds when an integer; -1
-        # int means "keep loaded indefinitely". The string "-1" trips
-        # Ollama's parser with: time: missing unit in duration "-1".
-        "keep_alive": -1,
+        # qwen3-family thinking models otherwise strand the answer in the
+        # reasoning channel with EMPTY content; disable thinking so the refined
+        # handoff lands in message.content.
+        "chat_template_kwargs": {"enable_thinking": False},
     }).encode()
     try:
         timeout = ClientTimeout(total=REFINE_TIMEOUT_S)
+        _base = SYS_AGENT_ENDPOINT.rstrip("/")
+        _url = (f"{_base}/chat/completions" if _base.endswith("/v1")
+                else f"{_base}/v1/chat/completions")
         async with ClientSession(timeout=timeout) as s:
-            # Use Ollama's NATIVE /api/chat endpoint, NOT the OpenAI-compat
-            # /v1/chat/completions surface. The /v1 surface silently drops
-            # the `options` field (operator-flagged 2026-05-17: the refiner
-            # request kept landing on GPU even with options.num_gpu=0
-            # because the /v1 endpoint discarded it). /api/chat passes
-            # options through to the runner, which respects num_gpu=0.
-            # Response shape differs (no `choices` array) -- normalized
-            # below before we read `content`.
-            async with s.post(f"{SYS_AGENT_ENDPOINT}/api/chat",
+            # OpenAI /v1 /chat/completions (MiOS is /v1-only).
+            async with s.post(_url,
                               data=body,
                               headers={"Content-Type": "application/json"}) as r:
                 if r.status != 200:
                     log.warning("refine: non-200 from sys-agent: %d", r.status)
                     return None
-                _native = await r.json()
-        # Ollama /api/chat returns {"message": {"role", "content",
-        # "thinking"}, "done": true, ...} -- normalize to the OpenAI
-        # shape the rest of the function expects.
-        _m = _native.get("message") or {}
+                _rj = await r.json()
+        # Normalize the /v1 message so the resolution logic below can read both
+        # the answer (content) and the reasoning channel (reasoning_content).
+        _m = (_rj.get("choices") or [{}])[0].get("message") or {}
         resp = {"choices": [{"message": {
             "content": _m.get("content", ""),
-            "reasoning": _m.get("thinking") or _m.get("reasoning", ""),
+            "reasoning": _m.get("reasoning_content") or _m.get("reasoning", ""),
         }}]}
         # Refined prompt resolution -- qwen3.5-family thinking models
         # split output between message.content (the final answer)

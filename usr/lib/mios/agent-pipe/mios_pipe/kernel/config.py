@@ -245,7 +245,7 @@ _MICRO_BASE = (_MICRO_ENDPOINT[:-3].rstrip("/")
 # Router (layer-1 micro-LLM classifier) config -- relocated from server.py (R14
 # config SSOT). The micro classifier runs on the CPU light-lane, ISOLATED from
 # the dGPU queue so router latency stays sub-second even under big-model load.
-_LIGHT_LANE = os.environ.get("MIOS_OLLAMA_CPU_ENDPOINT",
+_LIGHT_LANE = os.environ.get("MIOS_LLM_CPU_ENDPOINT",
                              _LIGHT_BASE).rstrip("/")  # mios-llm-light (WS-0B: one owned port key)
 ROUTER_ENABLED = os.environ.get("MIOS_AGENT_PIPE_ROUTER_ENABLED",
                                 "true").lower() not in {"false", "0", "no"}

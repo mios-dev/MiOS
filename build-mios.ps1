@@ -1895,7 +1895,7 @@ function Read-Line([string]$Prompt, [string]$Default = "") {
 
 function Read-Model([string]$Default = "qwen3.5:2b") {
     # AI model menu prompt -- feature parity with build-mios.sh's
-    # prompt_model. Drives MIOS_OLLAMA_BAKE_MODELS at build time and
+    # prompt_model. Drives MIOS_LLAMACPP_BAKE_MODELS at build time and
     # MIOS_AI_MODEL in install.env at runtime. Same auto-accept
     # semantics as the rest of the Phase-6 prompts. The lineup is
     # sourced from mios.toml [ai.host_thresholds] (the RAM-tier table)
@@ -10103,25 +10103,25 @@ exit 0
     # the image layer. Larger models stay SELECTABLE -- offered here as
     # an opt-in. This prompt only runs in the interactive local-build
     # path (build-mios.ps1); the Forgejo CI build sources
-    # MIOS_OLLAMA_BAKE_MODELS straight from install.env, so cloud/CI
+    # MIOS_LLAMACPP_BAKE_MODELS straight from install.env, so cloud/CI
     # builds always get just the minimal set. If the operator's chosen
     # default model isn't already in the minimal set, offer to bake it
     # too; declining means it first-boot-pulls instead of bloating the
     # image.
-    $MiosOllamaBakeModels = if ($aiDefaults.BakeModels) { $aiDefaults.BakeModels } else { "$defaultModel,$($aiDefaults.EmbedModel)" }
-    $_bakeList = @($MiosOllamaBakeModels -split ',' | ForEach-Object { $_.Trim() })
+    $MiosBakeModels = if ($aiDefaults.BakeModels) { $aiDefaults.BakeModels } else { "$defaultModel,$($aiDefaults.EmbedModel)" }
+    $_bakeList = @($MiosBakeModels -split ',' | ForEach-Object { $_.Trim() })
     # Make sure the embedding model the operator chose is in the set.
     if ($MiosAiEmbedModel -and ($_bakeList -notcontains $MiosAiEmbedModel)) {
-        $MiosOllamaBakeModels = "$MiosOllamaBakeModels,$MiosAiEmbedModel"
+        $MiosBakeModels = "$MiosBakeModels,$MiosAiEmbedModel"
         $_bakeList += $MiosAiEmbedModel
     }
     if ($MiosAiModel -and ($_bakeList -notcontains $MiosAiModel)) {
         $_ans = Read-Line "Also bake '$MiosAiModel' into the image? (larger image, fully offline) [y/N]" "N"
         if ($_ans -match '^[Yy]') {
-            $MiosOllamaBakeModels = "$MiosOllamaBakeModels,$MiosAiModel"
-            Write-Host "  bake set: $MiosOllamaBakeModels" -ForegroundColor DarkGray
+            $MiosBakeModels = "$MiosBakeModels,$MiosAiModel"
+            Write-Host "  bake set: $MiosBakeModels" -ForegroundColor DarkGray
         } else {
-            Write-Host "  bake set: $MiosOllamaBakeModels (minimal); '$MiosAiModel' first-boot-pulls" -ForegroundColor DarkGray
+            Write-Host "  bake set: $MiosBakeModels (minimal); '$MiosAiModel' first-boot-pulls" -ForegroundColor DarkGray
         }
     }
 
@@ -10766,7 +10766,7 @@ if (`$Purge) {
     # hardware-driven default in Get-Hardware.
     $rc = Invoke-WslBuild -Distro $BuilderDistro -BaseImage $HW.BaseImage `
                           -AiModel $MiosAiModel -EmbedModel $MiosAiEmbedModel `
-                          -BakeModels $MiosOllamaBakeModels `
+                          -BakeModels $MiosBakeModels `
                           -MiosUser $MiosUser -MiosHostname $MiosHostname
     if ($rc -eq 0) {
         End-Phase 9

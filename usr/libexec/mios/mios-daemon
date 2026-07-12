@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AI-hint: Consolidated MiOS core daemon that unifies log classification, refusal detection, and cron task evaluation into a single Ollama-backed process, outputting a unified state.json for the OWUI sidecar filter.
+# AI-hint: Consolidated MiOS core daemon that unifies log classification, refusal detection, and cron task evaluation into a single llama.cpp /v1-backed process, outputting a unified state.json for the OWUI sidecar filter.
 # AI-related: /etc/mios/daemon/cron.toml, /usr/share/mios/mios.toml, /etc/mios/mios.toml, /usr/libexec/mios/mios-db, /etc/mios/daemon/cron.toml., mios-db, mios-log-watcher, mios-agent-nudger, mios-cron-director
 # AI-functions: _atomic_write_state
 """mios-daemon -- consolidated MiOS micro-LLM daemon.
@@ -29,12 +29,12 @@ periodic-evaluating services (mios-log-watcher + mios-agent-nudger
     with all three handler outputs. mios_sidecar_filter.py polls
     this single file (replaces the three SIBLING_AGENTS entries).
 
-Architecture per Law 7 OFFLINE-FIRST: all LLM calls go to local
-Ollama at http://127.0.0.1:11434/api/chat with options.num_gpu=0,
-options.num_thread=4, keep_alive=-1. No /v1 surface (drops
-options field). Thinking-mode models' output is read from
-message.content first, then message.thinking / message.reasoning
-fallback (qwen3.5-family puts CoT in those fields).
+Architecture per Law 7 OFFLINE-FIRST: all LLM calls go to the local
+mios-llm-light OpenAI /v1 lane at /v1/chat/completions (MiOS is
+/v1-only; the server owns thread/offload placement). Thinking-mode
+models' output is read from message.content first, then
+message.reasoning_content / message.reasoning fallback (qwen3.5-family
+puts CoT in those fields).
 
 For the OWUI sidecar filter: state.json keys map 1:1 to the prior
 SIBLING_AGENTS labels so the filter just reads ONE file instead
@@ -635,7 +635,7 @@ def _is_quiescent() -> bool:
 def llm_chat(system: str, user: str, *, max_tokens: int = 150,
              temperature: float = 0.1, want_json: bool = False,
              num_thread: int = 4, model: str = "", endpoint: str = "") -> str:
-    """Call qwen3:0.6b-cpu (or whatever MODEL is) via Ollama /api/chat.
+    """Call qwen3:0.6b-cpu (or whatever MODEL is) via the OpenAI /v1 lane.
     Returns the model's text output (content with thinking fallback).
     Returns empty string on any error. Always uses CPU + keep_alive=-1.
 
@@ -643,13 +643,12 @@ def llm_chat(system: str, user: str, *, max_tokens: int = 150,
     keeps the default 4 (~2c, light), while the FOREGROUND daemon-agent
     reasoner (the consolidated mios-cpu/reasoner lane) passes a wider count
     (8c/16t) so a pipeline turn bursts -- operator 2026-05-24 '2c background /
-    8c foreground'. Ollama clamps to the available core count.
+    8c foreground'. On the OpenAI /v1 surface (MiOS is /v1-only) the server owns
+    thread/offload config, so these CPU knobs no longer shape the request.
     """
-    # ENDPOINT-AWARE (operator 2026-05-25: the daemon-agent can run on the iGPU =
-    # llama.cpp OpenAI /v1, NOT Ollama /api/chat). Ollama lanes (:11434/:11435)
-    # use native /api/chat with num_gpu=0 + num_thread + think:False; a non-ollama
-    # /v1 endpoint (the iGPU, which offloads to its own Vulkan device -- the
-    # num_gpu/num_thread CPU knobs do not apply) uses /chat/completions.
+    # llama.cpp OpenAI /v1 (MiOS is /v1-only): the daemon-agent posts the OpenAI
+    # /chat/completions shape whether it runs on the iGPU Vulkan device or a CPU
+    # lane -- the server owns thread/offload config, so no num_gpu/num_thread knobs.
     _msgs = [{"role": "system", "content": system},
              {"role": "user", "content": user}]
     # FOREGROUND swarm turns pass a BIGGER model (AGENT_MODEL) for a heavy,
@@ -661,24 +660,12 @@ def llm_chat(system: str, user: str, *, max_tokens: int = 150,
     # the iGPU (the 2026-05-25 offload), but a swarm facet reply forces the CPU
     # lane (AGENT_ENDPOINT=:11435) so the CPU node ACTUALLY + VISIBLY computes.
     _ep = (endpoint or ENDPOINT).rstrip("/")
-    _ollama = (":11434" in _ep) or (":11435" in _ep)
-    if _ollama:
-        payload = {
-            "model": _mdl, "messages": _msgs,
-            "options": {"num_gpu": 0, "num_thread": num_thread,
-                        "num_predict": max_tokens, "temperature": temperature},
-            "stream": False, "keep_alive": -1, "think": False,
-        }
-        if want_json:
-            payload["format"] = "json"
-        url = f"{_ep}/api/chat"
-    else:
-        payload = {"model": _mdl, "messages": _msgs, "stream": False,
-                   "max_tokens": max_tokens, "temperature": temperature}
-        if want_json:
-            payload["response_format"] = {"type": "json_object"}
-        url = (f"{_ep}/chat/completions" if _ep.endswith("/v1")
-               else f"{_ep}/v1/chat/completions")
+    payload = {"model": _mdl, "messages": _msgs, "stream": False,
+               "max_tokens": max_tokens, "temperature": temperature}
+    if want_json:
+        payload["response_format"] = {"type": "json_object"}
+    url = (f"{_ep}/chat/completions" if _ep.endswith("/v1")
+           else f"{_ep}/v1/chat/completions")
     try:
         req = urllib.request.Request(
             url,
@@ -688,16 +675,8 @@ def llm_chat(system: str, user: str, *, max_tokens: int = 150,
         )
         with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT_S) as r:
             body = json.loads(r.read())
-        if _ollama:
-            msg = body.get("message") or {}
-            out = (msg.get("content") or "").strip()
-            if not out and not want_json:
-                # Free-text calls ONLY -- `thinking` is never valid JSON, so a
-                # want_json fallback to it just produces an unparseable digest.
-                out = (msg.get("thinking") or msg.get("reasoning") or "").strip()
-        else:
-            msg = ((body.get("choices") or [{}])[0].get("message") or {})
-            out = (msg.get("content") or "").strip()
+        msg = ((body.get("choices") or [{}])[0].get("message") or {})
+        out = (msg.get("content") or "").strip()
         return out
     except (urllib.error.URLError, OSError, json.JSONDecodeError) as e:
         log.warning("LLM call failed (non-fatal): %s", e)

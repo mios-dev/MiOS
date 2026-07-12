@@ -963,23 +963,23 @@ async def _priority_gate(priority: float):
         _GLOBAL_DISPATCH_SEM.release()
 
 # ── Runaway-turn bounds (cancellation fix; research-backed).
-# (a) Hard num_predict cap on AGENT ollama dispatches: ollama does NOT stop
-# generating when the client disconnects (open ollama bug), so a per-generation
-# token ceiling is the ONLY real bound on an abandoned turn's compute. Applied
-# when the caller didn't set max_tokens (it previously left generation UNBOUNDED).
+# (a) Hard num_predict cap on AGENT dispatches: a local llama.cpp lane does NOT
+# stop generating when the client disconnects, so a per-generation token ceiling
+# is the ONLY real bound on an abandoned turn's compute. Applied when the caller
+# didn't set max_tokens (it previously left generation UNBOUNDED).
 # (b) Turn-wide wall-clock backstop: a connected-but-runaway turn can't exceed
 # this; the per-node deepen caps don't bound the whole turn. Generous so a legit
 # deep multi-node research turn still completes. SSOT [dispatch].*.
-OLLAMA_NUM_PREDICT_CAP = _dispatch_num(
-    "MIOS_OLLAMA_NUM_PREDICT_CAP", "ollama_num_predict_cap", 2048)
+LLM_NUM_PREDICT_CAP = _dispatch_num(
+    "MIOS_LLM_NUM_PREDICT_CAP", "llm_num_predict_cap", 2048)
 # (a2) PER-LANE cap: a CPU/iGPU lane generates SLOWLY (a 4B CPU model ~5 tok/s),
-# so the full 2048-token cap = ~400s of pegged cores per generation. Since ollama
-# can't be aborted on disconnect, stacked slow-lane gens are the load-387 runaway
+# so the full 2048-token cap = ~400s of pegged cores per generation. Since a
+# disconnect can't abort the gen, stacked slow-lane gens are the load-387 runaway
 # (j). Give the slow lanes a much SHORTER ceiling so each gen
 # self-clears fast; the dGPU keeps the full cap. Applied via _num_predict_cap_for
 # (reuses the _CPU_LANE_HINTS endpoint detector). SSOT [dispatch].*.
-OLLAMA_NUM_PREDICT_CAP_CPU = _dispatch_num(
-    "MIOS_OLLAMA_NUM_PREDICT_CAP_CPU", "ollama_num_predict_cap_cpu", 512)
+LLM_NUM_PREDICT_CAP_CPU = _dispatch_num(
+    "MIOS_LLM_NUM_PREDICT_CAP_CPU", "llm_num_predict_cap_cpu", 512)
 TURN_DEADLINE_S = _dispatch_num("MIOS_TURN_DEADLINE_S", "turn_deadline_s", 600, float)
 # T21 request-cancellation: cancel a NON-STREAMING turn's swarm the
 # moment the client disconnects, instead of churning DAG+deepen to the 600s
@@ -2740,7 +2740,7 @@ def _is_slow_lane_ep(ep: str) -> bool:
 
 # _num_predict_cap_for moved VERBATIM -> mios_agent_call (the dispatch path is its
 # SOLE caller). Re-imported below for surface parity; its deps -- the _is_slow_lane_ep
-# lane probe and the OLLAMA_NUM_PREDICT_CAP* SSOT ceilings -- stay server-owned and
+# lane probe and the LLM_NUM_PREDICT_CAP* SSOT ceilings -- stay server-owned and
 # are injected via mios_agent_call.configure(). _is_slow_lane_ep stays here (mios_swarm
 # consumes it too).
 
@@ -2781,18 +2781,16 @@ DISPATCH_OFFLOAD_CPU = str(os.environ.get("MIOS_DISPATCH_OFFLOAD_CPU")
 
 
 # ── Endpoint-capability detection (refactor R-wave leaf) ──────────────────
-# The pure endpoint protocol/capability probes (native-ollama vs OpenAI /v1,
-# llama.cpp /slots paging, tool_choice='required' + parallel-tools support)
-# moved verbatim to mios_endpoints.py. Re-imported under the original
-# _-prefixed names so the module surface is unchanged (surface-parity gate);
-# the host:port hint tuples + api-name SSOT sets moved with them (only this
-# cluster consumed them). No DI: every fn is pure (endpoint str + cfg dict),
-# config defaults from mios_config._DISPATCH_TOML (mios_endpoints never imports
-# server). _endpoint_is_llamacpp is used by the KV-paging block just below.
+# The pure /v1 endpoint capability probes (llama.cpp /slots paging,
+# tool_choice='required' + parallel-tools support -- MiOS is /v1-only, so there
+# is no wire-dialect to detect) moved verbatim to mios_endpoints.py. Re-imported
+# under the original _-prefixed names so the module surface is unchanged
+# (surface-parity gate); the host:port hint tuples + api-name SSOT sets moved
+# with them (only this cluster consumed them). No DI: every fn is pure (endpoint
+# str + cfg dict), config defaults from mios_config._DISPATCH_TOML (mios_endpoints
+# never imports server). _endpoint_is_llamacpp is used by the KV-paging block just below.
 from mios_endpoints import (  # noqa: E402
-    _OLLAMA_API_HINTS,
     _binding_api,
-    _endpoint_is_ollama,
     _NO_TOOL_CHOICE_API,
     _NO_TOOL_CHOICE_HINTS,
     _endpoint_supports_tool_choice,
@@ -3297,13 +3295,6 @@ from mios_secondary_loop import _DISCLAIM_MARKERS, _looks_like_disclaimer  # noq
 
 
 from mios_secondary_loop import _TOOL_NUDGE  # noqa: E402
-
-
-# _ollama_secondary_tool_loop moved verbatim -> mios_secondary_loop, home with its
-# symmetric sibling _v1_secondary_tool_loop and the shared loop guards. Re-imported
-# here under its original name (surface-parity zero-diff); still injected into
-# mios_agent_call via that module's configure().
-from mios_secondary_loop import _ollama_secondary_tool_loop  # noqa: E402
 
 
 # Closed-loop SUPERVISORY re-engage ("loop anything not successful
@@ -7577,7 +7568,6 @@ sys.modules["mios_agent_call"].configure(
     lane_sem=_lane_sem,
     lane_sem_key=_lane_sem_key,
     model_active=_model_active,
-    ollama_secondary_tool_loop=_ollama_secondary_tool_loop,
     opt_int_mb=_opt_int_mb,
     priority_gate=_priority_gate,
     # WS-RES-GOV cost recording now lives in mios_agent_call (its sole caller); the
@@ -7591,8 +7581,8 @@ sys.modules["mios_agent_call"].configure(
     # mios_turn's prune), and the SSOT num_predict ceilings.
     is_slow_lane_ep=_is_slow_lane_ep,
     node_live=_NODE_LIVE,
-    ollama_num_predict_cap=OLLAMA_NUM_PREDICT_CAP,
-    ollama_num_predict_cap_cpu=OLLAMA_NUM_PREDICT_CAP_CPU,
+    llm_num_predict_cap=LLM_NUM_PREDICT_CAP,
+    llm_num_predict_cap_cpu=LLM_NUM_PREDICT_CAP_CPU,
     should_health_probe=_should_health_probe,
     src_turn_key=_src_turn_key,
     strip_agent_chrome=_strip_agent_chrome,

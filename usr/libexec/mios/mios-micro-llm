@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# AI-hint: Thin client for the resident qwen3:1.7b model via Ollama, providing low-latency (<500ms) classification for mios-log-watcher, mios-cron-director, and other system agents.
-# AI-related: /etc/mios/mios.toml, /usr/share/mios/mios.toml, mios-log-watcher, mios-cron-director, mios-log-watcher.service, mios-cron-director.service, localhost:11434
+# AI-hint: Thin client for the resident qwen3:1.7b model on the mios-llm-light /v1 lane, providing low-latency (<500ms) classification for mios-log-watcher, mios-cron-director, and other system agents.
+# AI-related: /etc/mios/mios.toml, /usr/share/mios/mios.toml, mios-log-watcher, mios-cron-director, mios-log-watcher.service, mios-cron-director.service, localhost:8450
 """mios-micro-llm -- thin client + persistent-loaded helper for the
 always-on tiny model.
 
@@ -12,7 +12,7 @@ Used by:
 The "micro" model is configured via mios.toml [ai].micro_model
 (default qwen3:1.7b -- the 4-model-set micro/CPU base, ~1.4 GB
 resident; was qwen3:0.6b before the 2026-06-01 consolidation).
-Loaded continuously in Ollama via OLLAMA_KEEP_ALIVE so it stays warm.
+Kept warm on the mios-llm-light /v1 lane (llama-swap owns residency/TTL).
 
 USAGE
     mios-micro-llm classify <prompt>            -> single-line answer
@@ -23,7 +23,7 @@ USAGE
 CONFIG (per layered mios.toml [ai] priority):
     [ai]
     micro_model    = "qwen3:1.7b"
-    micro_endpoint = "http://localhost:11434/v1"
+    micro_endpoint = "http://localhost:8450/v1"
     micro_keep_alive_seconds = -1   # -1 = never unload
 """
 from __future__ import annotations
@@ -39,7 +39,7 @@ import urllib.error
 from pathlib import Path
 
 DEFAULT_MODEL = "qwen3:1.7b"  # 4-model-set micro base (was qwen3:0.6b, dropped 2026-06-01); SSOT is mios.toml [ai].micro_model
-DEFAULT_ENDPOINT = "http://localhost:11434/v1"
+DEFAULT_ENDPOINT = "http://localhost:8450/v1"
 DEFAULT_KEEP_ALIVE = "-1"  # never unload
 DEFAULT_TIMEOUT_S = 30
 
@@ -92,7 +92,8 @@ def _post_chat(endpoint: str, model: str, system: str, user: str,
         "max_tokens": max_tokens,
         "temperature": 0.1,
         "stream": False,
-        # Ollama-specific: keep_alive in chat-completions extension
+        # keep_alive residency hint (llama-swap honours its own TTL; a lane that
+        # doesn't recognise it ignores the extra field).
         "keep_alive": keep_alive,
     }
     req = urllib.request.Request(
@@ -154,30 +155,22 @@ def cmd_warm(args, *, model, endpoint, keep_alive) -> int:
 
 
 def cmd_status(args, *, model, endpoint, keep_alive) -> int:
-    # Probe: is the model resident? Use /api/ps on Ollama.
-    try:
-        with urllib.request.urlopen(
-            re.sub(r"/v1/?$", "/api/ps", endpoint), timeout=5
-        ) as r:
-            body = json.loads(r.read())
-    except urllib.error.URLError as e:
-        print(json.dumps({"loaded": False, "error": str(e), "model": model}))
-        return 1
-    loaded = [m.get("name") for m in body.get("models") or []]
-    is_loaded = model in loaded or any(model in n for n in loaded)
-    # Quick latency probe
+    # /v1-only: there is no residency-listing endpoint on the OpenAI surface, so
+    # gauge readiness with a 1-token latency probe -- a fast reply means the model
+    # is warm on the lane; a failure means it is unreachable/cold.
     started = time.monotonic()
     try:
         _post_chat(endpoint, model, "", "ok", max_tokens=1, keep_alive=keep_alive)
         latency_ms = int((time.monotonic() - started) * 1000)
-    except urllib.error.URLError:
-        latency_ms = -1
+        is_loaded = True
+    except urllib.error.URLError as e:
+        print(json.dumps({"loaded": False, "error": str(e), "model": model}))
+        return 1
     print(json.dumps({
         "model": model,
         "endpoint": endpoint,
         "keep_alive": keep_alive,
         "loaded": is_loaded,
-        "all_loaded": loaded,
         "latency_ms": latency_ms,
     }, indent=2))
     return 0

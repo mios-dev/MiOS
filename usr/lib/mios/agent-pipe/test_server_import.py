@@ -74,7 +74,7 @@ _EXTRACTED = {
     "mios_pipe.routing.provider_translate": ["_scrub_schema", "_oai_msgs_to_anthropic"],
     "mios_pipe.routing.sse": ["_sse_chunk", "_sse_status", "_stream_answer", "_iter_answer_chunks"],
     "mios_pipe.routing.dci": ["run_dci_flow", "critic_then_maybe_flow"],
-    "mios_endpoints": ["_endpoint_is_ollama", "_endpoint_is_llamacpp"],
+    "mios_endpoints": ["_endpoint_is_llamacpp"],
     "mios_pipe.context.grounding": ["_env_grounding", "_env_block", "_host_timezone", "_current_year"],
     "mios_pipe.lifecycle.verity": ["polish_response", "_strip_ungrounded_figures", "_clarify_question"],
     # _PARAM_TOKEN_RE is re-imported for surface parity but omitted here: a compiled
@@ -104,7 +104,7 @@ _EXTRACTED = {
                         "_rr_run",
                         # per-dispatch lane-governance pair moved home (sole caller)
                         "_trip_breaker", "_num_predict_cap_for"],
-    "mios_pipe.routing.secondary_loop": ["_v1_secondary_tool_loop", "_ollama_secondary_tool_loop",
+    "mios_pipe.routing.secondary_loop": ["_v1_secondary_tool_loop",
                             "_daemon_diagnose", "_TOOL_NUDGE", "_REPLAN_NUDGE",
                             "_tool_call_sig", "_looks_like_disclaimer",
                             "_tmsgs_indicate_failure", "_DISCLAIM_MARKERS"],

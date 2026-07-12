@@ -2,7 +2,7 @@
 # AI-hint: Stdlib assert-script for mios_agent_call. Stubs every injected dep (no
 # network/no admission/no broker -- async no-op gates, async-CM semaphores, a
 # capturing fake httpx client) then drives _call_agent_complete end-to-end down the
-# /v1 (non-ollama) path to assert (1) request-body ASSEMBLY (model/messages/tools/
+# /v1 path (MiOS is /v1-only) to assert (1) request-body ASSEMBLY (model/messages/tools/
 # tool_choice preserved, stream=False, max_tokens defaulted, enable_thinking=False)
 # and (2) response NORMALISATION -- the chrome-strip + think-tag-strip pipeline on a
 # 200, and the error path (non-200 with no failover chain -> ('', dropped from the
@@ -124,7 +124,6 @@ def _configure(client_unused=None):
         lane_sem=_acm,
         lane_sem_key=lambda cfg: "cpu",
         model_active=_anoop,
-        ollama_secondary_tool_loop=_anoop,
         opt_int_mb=lambda v: 0,
         priority_gate=_acm,
         # _num_predict_cap_for + _trip_breaker are now NATIVE to this module (moved
@@ -135,8 +134,8 @@ def _configure(client_unused=None):
         # should_health_probe is stubbed False (it never writes _NODE_LIVE); the
         # dedicated block below covers both functions directly.
         is_slow_lane_ep=lambda ep: True,
-        ollama_num_predict_cap=2048,
-        ollama_num_predict_cap_cpu=512,
+        llm_num_predict_cap=2048,
+        llm_num_predict_cap_cpu=512,
         node_live={},
         # _record_cost is now NATIVE to this module (moved home from server.py). It
         # stays a no-op on these dispatch tests because cost_accounting_enable
@@ -155,9 +154,6 @@ def _configure(client_unused=None):
         strip_think_tags=lambda t: t.replace("<think>x</think>", ""),
         v1_secondary_tool_loop=_anoop,
     )
-    # _endpoint_is_ollama is a direct sibling import; force the /v1 (non-native)
-    # branch so the test doesn't depend on mios_endpoints port heuristics.
-    T._endpoint_is_ollama = lambda ep, cfg, eng=None: False
 
 
 _configure()
@@ -203,7 +199,7 @@ async def _happy():
     ok(b.get("chat_template_kwargs") == {"enable_thinking": False},
        "thinking channel disabled so /v1 renders content not reasoning")
     ok("options" not in b and "think" not in b,
-       "ollama-only options/think stripped from the /v1 body")
+       "legacy options/think stripped from the /v1 body")
     # normalisation: chrome line + think tags both stripped from the answer
     ok(name == "secondary", "returns the dispatched agent name")
     ok(text == "the real answer",
@@ -277,7 +273,7 @@ async def _stream_happy():
     ok(b.get("chat_template_kwargs") == {"enable_thinking": False},
        "thinking channel disabled so /v1 renders content not reasoning")
     ok("options" not in b and "think" not in b,
-       "ollama-only options/think stripped from the /v1 body")
+       "legacy options/think stripped from the /v1 body")
     # drain the broadcast queue
     frags = []
     while not q.empty():

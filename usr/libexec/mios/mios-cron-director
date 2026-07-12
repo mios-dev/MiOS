@@ -158,7 +158,6 @@ def _gate_passes(question: str) -> bool:
     sys_ctx = (f"Current 1-min load average: {load1:.2f}. "
                f"Local time: {time.strftime('%Y-%m-%d %H:%M %A')}.")
     _ep = GATE_ENDPOINT.rstrip("/")
-    _ollama = (":11434" in _ep) or (":11435" in _ep)
     _msgs = [
         {"role": "system",
          "content": "You are a YES/NO gate for a scheduled task. Given the "
@@ -166,29 +165,19 @@ def _gate_passes(question: str) -> bool:
                     "the single word YES or NO."},
         {"role": "user", "content": f"{sys_ctx}\n\nQuestion: {question}"},
     ]
-    if _ollama:
-        payload = {"model": GATE_MODEL, "messages": _msgs, "think": False,
-                   "stream": False,
-                   "keep_alive": int(os.environ.get("MIOS_MICRO_KEEP_ALIVE", "-1")),
-                   "options": {"temperature": 0.0, "num_predict": 8}}
-        url = f"{_ep}/api/chat"
-    else:
-        # llama.cpp /v1 (ollama lanes :11434/:11435 retired). OpenAI shape.
-        payload = {"model": GATE_MODEL, "messages": _msgs, "stream": False,
-                   "max_tokens": 8, "temperature": 0.0}
-        url = (f"{_ep}/chat/completions" if _ep.endswith("/v1")
-               else f"{_ep}/v1/chat/completions")
+    # llama.cpp OpenAI /v1 (MiOS is /v1-only). OpenAI shape.
+    payload = {"model": GATE_MODEL, "messages": _msgs, "stream": False,
+               "max_tokens": 8, "temperature": 0.0}
+    url = (f"{_ep}/chat/completions" if _ep.endswith("/v1")
+           else f"{_ep}/v1/chat/completions")
     try:
         req = urllib.request.Request(
             url, data=json.dumps(payload).encode("utf-8"),
             headers={"Content-Type": "application/json"})
         with urllib.request.urlopen(req, timeout=GATE_TIMEOUT) as r:
             d = json.loads(r.read().decode("utf-8", "replace"))
-        if _ollama:
-            ans = ((d.get("message") or {}).get("content") or "").strip().lower()
-        else:
-            ans = (((d.get("choices") or [{}])[0].get("message")
-                    or {}).get("content") or "").strip().lower()
+        ans = (((d.get("choices") or [{}])[0].get("message")
+                or {}).get("content") or "").strip().lower()
         return ans.startswith("y")
     except Exception as e:  # noqa: BLE001
         _log(f"gate eval failed ({type(e).__name__}: {e}) -> SKIP (conservative)")

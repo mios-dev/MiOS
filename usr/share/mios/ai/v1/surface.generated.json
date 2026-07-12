@@ -226,6 +226,8 @@
     "KV_SLOT_PERSIST",
     "LANE_TOOL_CAP",
     "LAUNCHER_SOCK",
+    "LLM_NUM_PREDICT_CAP",
+    "LLM_NUM_PREDICT_CAP_CPU",
     "LOCAL_STATE_FASTPATH",
     "MAX_DISPATCH_DEPTH",
     "MAX_SOURCES",
@@ -254,8 +256,6 @@
     "NODES_RESEARCH_ONLY",
     "NODE_LIVENESS_CONNECT_S",
     "NODE_LIVENESS_TTL_S",
-    "OLLAMA_NUM_PREDICT_CAP",
-    "OLLAMA_NUM_PREDICT_CAP_CPU",
     "OS_CONTROL_ENUM_RETRY",
     "OS_CONTROL_ENUM_RETRY_SETTLE_S",
     "OS_CONTROL_ENUM_TIMEOUT_S",
@@ -598,7 +598,6 @@
     "_NO_TOOL_CHOICE_HINTS",
     "_OFFLINE_ENFORCE",
     "_OFFLOAD_ENGINES",
-    "_OLLAMA_API_HINTS",
     "_OSCONTROL_ENDPOINTS_CACHE",
     "_OS_CONTROL_ACTION_VERBS",
     "_OS_CONTROL_SECTION",
@@ -860,7 +859,6 @@
     "_emit_dispatch_dedup_event",
     "_emit_session_event",
     "_endpoint_is_llamacpp",
-    "_endpoint_is_ollama",
     "_endpoint_key",
     "_endpoint_sem",
     "_endpoint_supports_parallel_tools",
@@ -1020,7 +1018,6 @@
     "_oai_tools_to_gemini",
     "_offline_posture",
     "_ollama_resident",
-    "_ollama_secondary_tool_loop",
     "_ollama_unload",
     "_opt_int_mb",
     "_orch_ctx_var",
@@ -1398,6 +1395,6 @@
   ],
   "counts": {
     "routes": 86,
-    "provided": 1307
+    "provided": 1304
   }
 }

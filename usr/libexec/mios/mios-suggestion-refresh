@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Refreshes OWUI's ui.prompt_suggestions by analyzing MiOS state (kanban, daemon nudges, recent intents) via a refine model to generate 5-28 context-aware starter chips for the operator.
-# AI-related: random.sh, /usr/share/mios/mios.toml, /etc/mios/mios.toml, mios-daemon, localhost:11434, localhost:8000, localhost:3030
+# AI-related: random.sh, /usr/share/mios/mios.toml, /etc/mios/mios.toml, mios-daemon, localhost:8450, localhost:8000, localhost:3030
 """mios-suggestion-refresh -- generate MiOS-aware starter chips +
 write them into OWUI's ui.prompt_suggestions.
 
@@ -289,11 +289,10 @@ def _ask_model(prompt: str) -> list[str]:
     chip array out. Returns [] on any failure (caller keeps the
     previous suggestions, so a transient model issue doesn't blank
     the chip row)."""
-    # ollama native /api/chat with think=False: qwen3 (incl. 1.7b)
-    # ignores /no_think and otherwise dumps the JSON into message.reasoning
-    # with EMPTY content (operator test 2026-05-20). think=False makes it
-    # emit the chips JSON straight to message.content. num_predict has room
-    # for ~28 chips of JSON.
+    # llama.cpp OpenAI /v1 (MiOS is /v1-only): qwen3 (incl. 1.7b) otherwise dumps
+    # the JSON into message.reasoning with EMPTY content (operator test 2026-05-20),
+    # so disable the thinking channel to emit the chips JSON straight to
+    # message.content. max_tokens has room for ~28 chips of JSON.
     payload = {
         "model": REFINE_MODEL,
         "messages": [
@@ -301,13 +300,17 @@ def _ask_model(prompt: str) -> list[str]:
              "content": "You emit JSON only. No prose around it."},
             {"role": "user", "content": prompt},
         ],
-        "think": False,
-        "format": "json",
+        "chat_template_kwargs": {"enable_thinking": False},
+        "response_format": {"type": "json_object"},
         "stream": False,
-        "options": {"temperature": 0.4, "num_predict": 1600},
+        "temperature": 0.4,
+        "max_tokens": 1600,
     }
+    _base = REFINE_ENDPOINT.rstrip("/")
+    _url = (f"{_base}/chat/completions" if _base.endswith("/v1")
+            else f"{_base}/v1/chat/completions")
     req = urllib.request.Request(
-        f"{REFINE_ENDPOINT}/api/chat",
+        _url,
         data=json.dumps(payload).encode("utf-8"),
         headers={"Content-Type": "application/json"},
         method="POST",
@@ -318,11 +321,9 @@ def _ask_model(prompt: str) -> list[str]:
     except Exception as e:
         sys.stderr.write(f"  refine call failed: {e}\n")
         return []
-    # /api/chat shape {"message":{"content"}}; tolerate /v1 choices[] too.
-    msg = body.get("message")
-    if not isinstance(msg, dict):
-        choices = body.get("choices") or []
-        msg = (choices[0].get("message") if choices else {}) or {}
+    # OpenAI /v1 shape {"choices":[{"message":{"content"}}]}.
+    choices = body.get("choices") or []
+    msg = (choices[0].get("message") if choices else {}) or {}
     content = str(msg.get("content") or "").strip()
     # qwen3-family reasoning models sometimes burn the entire token
     # budget in the `reasoning` field with empty `content` (operator-

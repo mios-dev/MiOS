@@ -5,18 +5,18 @@
 """'MiOS' fine-tune server -- serve a trained role adapter on ANY hardware.
 
 Loads the base + the LoRA adapter from [finetune] (base+PEFT, the clean artifact that
-works everywhere transformers runs) and exposes BOTH wire shapes MiOS speaks:
+works everywhere transformers runs) and exposes the OpenAI /v1 surface MiOS speaks
+(MiOS is /v1-only):
 
-  POST /api/chat               (ollama-native; what the agent-pipe refiner calls)
   POST /v1/chat/completions    (OpenAI-compatible)
   GET  /v1/models , GET /healthz
 
 So adopting the fine-tuned refiner is a one-line config change -- point the pipe's
 refine endpoint at this server (e.g. MIOS_REFINE_ENDPOINT=http://127.0.0.1:11438) and
 its model at [finetune].output_tag. Deliberately a STANDALONE helper, NOT auto-enabled:
-the trained 2B served via transformers is correct but slower than ollama on the hot
-path, so use it to A/B-test now; switch production to it once ollama gains Qwen3-Next
-LoRA (then the same adapter runs fast on the official base GGUF).
+the trained 2B served via transformers is correct but slower than the baked llama.cpp
+lane on the hot path, so use it to A/B-test now; switch production to it once the
+mainline llama.cpp GGUF path serves the adapter (then the same adapter runs fast).
 
 Hardware-agnostic (auto cuda/rocm/mps/cpu). Stdlib HTTP only -- no extra deps beyond the
 fine-tune venv (torch/transformers/peft). Run with the venv python:
@@ -161,13 +161,7 @@ class H(BaseHTTPRequestHandler):
             dt = round(time.time() - t0, 2)
         except Exception as e:  # noqa: BLE001
             return self._send(500, {"error": f"generation failed: {e}"})
-        path = self.path.rstrip("/")
-        if path == "/api/chat":  # ollama-native shape (agent-pipe refiner)
-            return self._send(200, {
-                "model": req.get("model", TAG), "created_at": time.time(),
-                "message": {"role": "assistant", "content": content},
-                "done": True, "done_reason": "stop"})
-        # OpenAI shape
+        # OpenAI /v1 shape (MiOS is /v1-only)
         self._send(200, {
             "id": f"ftchat-{int(time.time())}", "object": "chat.completion",
             "created": int(time.time()), "model": req.get("model", TAG),

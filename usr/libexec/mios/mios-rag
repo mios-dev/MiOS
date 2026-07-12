@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Python tool for RAG retrieval that embeds MiOS documentation into Postgres+pgvector (table mios_rag) via nomic-embed-text to provide context to agents during the agent-pipe enrich stage. WS-A3: the ingest INSERT is PARAMETERIZED via mios-pg-query --exec-json (source/content/emb bound out-of-band, never f-string-spliced); the retired legacy transport is removed.
-# AI-related: /usr/share/mios/docs, /usr/libexec/mios/mios-pg-query, mios-pg-query, localhost:11450, localhost:11434
+# AI-related: /usr/share/mios/docs, /usr/libexec/mios/mios-pg-query, mios-pg-query, localhost:8450
 # AI-functions: _embed, _pg, _pg_param, _vec, _chunks, cmd_ingest, cmd_query, main
 """mios-rag -- agent-pipe RAG over MiOS knowledge, on infra MiOS already runs:
 nomic-embed-text for embeddings + Postgres+pgvector for the vector store. Keeps
@@ -46,18 +46,15 @@ _PGQ = "/usr/libexec/mios/mios-pg-query"
 
 def _embed(text: str) -> "list[float]":
     import time
-    # OpenAI /v1/embeddings (mios-llm-light serves nomic-embed-text)
-    # Falls back to the ollama shape if needed.
+    # OpenAI /v1/embeddings (mios-llm-light serves nomic-embed-text; MiOS is /v1-only)
     base = EMBED_ENDPOINT if EMBED_ENDPOINT.endswith("/v1") else EMBED_ENDPOINT + "/v1"
     endpoints = [
         (base, EMBED_MODEL),
-        ("http://localhost:11434/api", "nomic-embed-text")
     ]
     for attempt in range(3):
         for ep, model in endpoints:
             try:
-                is_ollama = ep.endswith("/api")
-                payload = {"model": model, "prompt" if is_ollama else "input": text[:4000]}
+                payload = {"model": model, "input": text[:4000]}
                 req = urllib.request.Request(
                     f"{ep}/embeddings",
                     data=json.dumps(payload).encode(),

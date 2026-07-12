@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-# AI-hint: Standalone assert-script unit test for mios_endpoints (refactor R-wave leaf extraction). Pure stdlib, no server.py/DB/pytest. Pins the endpoint protocol/capability invariants that drive lane routing: _binding_api reads the per-engine then per-agent `api` field (case-folded); _endpoint_is_ollama / _endpoint_is_llamacpp / _endpoint_supports_tool_choice are CONFIG-FIRST (an `api`/`tool_choice` field wins) and otherwise fall back to env-SSOT host:port hint substrings; _endpoint_supports_parallel_tools is hint-only opt-in. Sets the MIOS_*_HINTS env vars BEFORE import so the module-load-time hint tuples are deterministic (independent of mios.toml [dispatch]). Guards the extracted leaf so a later move/refactor can't silently change which dialect/feature-set a lane is classified as.
+# AI-hint: Standalone assert-script unit test for mios_endpoints (refactor R-wave leaf extraction). Pure stdlib, no server.py/DB/pytest. Pins the endpoint protocol/capability invariants that drive lane routing: _binding_api reads the per-engine then per-agent `api` field (case-folded); _endpoint_is_llamacpp / _endpoint_supports_tool_choice are CONFIG-FIRST (an `api`/`tool_choice` field wins) and otherwise fall back to env-SSOT host:port hint substrings; _endpoint_supports_parallel_tools is hint-only opt-in. MiOS is /v1-only, so there is no wire-dialect to detect -- only /v1 feature-set. Sets the MIOS_*_HINTS env vars BEFORE import so the module-load-time hint tuples are deterministic (independent of mios.toml [dispatch]). Guards the extracted leaf so a later move/refactor can't silently change which feature-set a lane is classified as.
 # AI-related: ./mios_endpoints.py
-# AI-functions: check, t_binding_api, t_is_ollama, t_tool_choice, t_parallel, t_is_llamacpp, main
+# AI-functions: check, t_binding_api, t_tool_choice, t_parallel, t_is_llamacpp, main
 """Unit tests for mios_endpoints (refactor R-wave leaf)."""
 
 import os
@@ -9,7 +9,6 @@ import sys
 
 # Pin the env-SSOT hint tuples BEFORE import so the module-load-time constants are
 # deterministic regardless of any mios.toml [dispatch] overrides on this host.
-os.environ["MIOS_OLLAMA_API_HINTS"] = "11434,11435"
 os.environ["MIOS_NO_TOOL_CHOICE_HINTS"] = "11436"
 os.environ["MIOS_PARALLEL_TOOLS_HINTS"] = "11441"
 os.environ["MIOS_KV_PAGING_HINTS"] = "11436"
@@ -30,27 +29,14 @@ def check(name, cond, detail=""):
 
 
 def t_binding_api():
-    check("binding: top-level api, case-folded", e._binding_api({"api": "Ollama"}, None) == "ollama")
+    check("binding: top-level api, case-folded", e._binding_api({"api": "Llamacpp"}, None) == "llamacpp")
     check("binding: empty when absent", e._binding_api({}, None) == "")
     check("binding: engine api wins, engine key case-insensitive",
           e._binding_api({"engines": {"cpu": {"api": "OpenAI"}}}, "CPU") == "openai")
     check("binding: engine overrides top-level api",
-          e._binding_api({"api": "openai", "engines": {"cpu": {"api": "ollama"}}}, "cpu") == "ollama")
+          e._binding_api({"api": "openai", "engines": {"cpu": {"api": "vllm"}}}, "cpu") == "vllm")
     check("binding: falls back to top-level when engine has no api",
           e._binding_api({"api": "v1", "engines": {"cpu": {}}}, "cpu") == "v1")
-
-
-def t_is_ollama():
-    # CONFIG-FIRST: explicit api wins over any hint.
-    check("ollama: api=ollama -> True", e._endpoint_is_ollama(GENERIC, {"api": "ollama"}) is True)
-    check("ollama: api=native -> True", e._endpoint_is_ollama(GENERIC, {"api": "native"}) is True)
-    check("ollama: api=openai overrides matching port hint",
-          e._endpoint_is_ollama("http://h:11434/", {"api": "openai"}) is False)
-    # Hint fallback (no api declared).
-    check("ollama: default port hint -> True", e._endpoint_is_ollama("http://h:11434/api/chat", {}) is True)
-    check("ollama: generic OpenAI endpoint -> False", e._endpoint_is_ollama(GENERIC, {}) is False)
-    check("ollama: llamacpp port (11436) not an ollama hint -> False",
-          e._endpoint_is_ollama("http://h:11436/v1", {}) is False)
 
 
 def t_tool_choice():
@@ -87,7 +73,6 @@ def t_is_llamacpp():
 
 def main():
     t_binding_api()
-    t_is_ollama()
     t_tool_choice()
     t_parallel()
     t_is_llamacpp()

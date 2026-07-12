@@ -1,4 +1,4 @@
-# AI-hint: Shared sub-agent COMPLETION-call primitive extracted verbatim from server.py (refactor R3 dispatch-substrate wave). Holds the HOT _call_agent_complete (the bounded entry point every council secondary AND DAG node dispatches through: it derives the lane binding, runs the capacity-aware _admit gate, drives the RR-preemptible path or the priority/endpoint/lane semaphore stack, marks the model in-flight, records cost, and strips agent chrome) plus its helper _call_agent_complete_inner (the best-effort non-streaming /v1-or-native-ollama call: pipe-side secondary tool-loop, KV fork/paging bracket, outbound auth + turn/trace header propagation, sub-source harvest, think-tag strip, and the P3.2b failover-chain recursion). Keeps its own httpx import. Also OWNS the engine-side actors the inner call routes through -- the KV demand-paging/fork bracket (_kv_base/_kv_filename/_kv_lock/_kv_slot_action/_kv_paging/_kv_fork) and the RR-preemptible chunked decode (_rr_eligible/_rr_slice/_rr_run) -- which moved here from server.py (their only caller is this module) over directly-imported leaf siblings (_endpoint_is_llamacpp from mios_endpoints, the validate_fork/plan_fork/fork_outcome/kv_filename plan from mios_kvfork, the mios_preempt policy) and _AUTH_HOSTPORTS from mios_config; _kv_filename stays SSOT with the server-side KV-GC sweep. Also OWNS _record_cost (the WS-RES-GOV per-dispatch cost recorder), which moved here because _call_agent_complete is its sole caller -- its token estimate routes through the mios_tokenize seam, and its cost-domain deps (the COST_ACCOUNTING_ENABLE flag + the server-owned CostLedger/CostModel instances + the _is_remote_endpoint lane probe) are injected via configure(). Every other server-side symbol it touches (lane semaphores _endpoint_sem/_lane_sem/_priority_gate, _admit/_SloShed, the binding helpers _agent_binding/_agent_offload_engine/_dispatch_priority/_lane_sem_key, _model_active, _apply_outbound_auth, the secondary tool-loops _ollama_secondary_tool_loop/_v1_secondary_tool_loop, the ContextVars _conv_key_var/_dispatch_agent_var/_kv_fork_parent_var, the header/trace helpers _src_turn_key/_hop_via_headers/_current_trace_id, _harvest_sub_sources/_strip_think_tags/_strip_agent_chrome/_trip_breaker/_should_health_probe/_num_predict_cap_for/_opt_int_mb, _AGENT_REGISTRY, the shared KV/priority/preempt state _KV_LOCKS/_KV_RESIDENT/_GLOBAL_PRIORITY_GATE/_PREEMPT/_BACKEND_KEY, and the config scalars HEALTHGATE_*/SECONDARY_TOOL_LOOP/KV_FORK_ENABLE/KV_PAGING_*/RR_*/PRIORITY_QUEUE_ENABLE/_SRC_TURN_HEADER) is dependency-INJECTED via configure() (one-way boundary -- this module NEVER imports server). _endpoint_is_ollama is imported directly from its sibling mios_endpoints. server.py re-imports every moved name verbatim under its original alias (surface-parity zero-diff) and re-injects _AGENT_REGISTRY on live membership reload.
+# AI-hint: Shared sub-agent COMPLETION-call primitive extracted verbatim from server.py (refactor R3 dispatch-substrate wave). Holds the HOT _call_agent_complete (the bounded entry point every council secondary AND DAG node dispatches through: it derives the lane binding, runs the capacity-aware _admit gate, drives the RR-preemptible path or the priority/endpoint/lane semaphore stack, marks the model in-flight, records cost, and strips agent chrome) plus its helper _call_agent_complete_inner (the best-effort non-streaming /v1 call: pipe-side secondary tool-loop, KV fork/paging bracket, outbound auth + turn/trace header propagation, sub-source harvest, think-tag strip, and the P3.2b failover-chain recursion). Keeps its own httpx import. Also OWNS the engine-side actors the inner call routes through -- the KV demand-paging/fork bracket (_kv_base/_kv_filename/_kv_lock/_kv_slot_action/_kv_paging/_kv_fork) and the RR-preemptible chunked decode (_rr_eligible/_rr_slice/_rr_run) -- which moved here from server.py (their only caller is this module) over directly-imported leaf siblings (_endpoint_is_llamacpp from mios_endpoints, the validate_fork/plan_fork/fork_outcome/kv_filename plan from mios_kvfork, the mios_preempt policy) and _AUTH_HOSTPORTS from mios_config; _kv_filename stays SSOT with the server-side KV-GC sweep. Also OWNS _record_cost (the WS-RES-GOV per-dispatch cost recorder), which moved here because _call_agent_complete is its sole caller -- its token estimate routes through the mios_tokenize seam, and its cost-domain deps (the COST_ACCOUNTING_ENABLE flag + the server-owned CostLedger/CostModel instances + the _is_remote_endpoint lane probe) are injected via configure(). Every other server-side symbol it touches (lane semaphores _endpoint_sem/_lane_sem/_priority_gate, _admit/_SloShed, the binding helpers _agent_binding/_agent_offload_engine/_dispatch_priority/_lane_sem_key, _model_active, _apply_outbound_auth, the secondary tool-loop _v1_secondary_tool_loop, the ContextVars _conv_key_var/_dispatch_agent_var/_kv_fork_parent_var, the header/trace helpers _src_turn_key/_hop_via_headers/_current_trace_id, _harvest_sub_sources/_strip_think_tags/_strip_agent_chrome/_trip_breaker/_should_health_probe/_num_predict_cap_for/_opt_int_mb, _AGENT_REGISTRY, the shared KV/priority/preempt state _KV_LOCKS/_KV_RESIDENT/_GLOBAL_PRIORITY_GATE/_PREEMPT/_BACKEND_KEY, and the config scalars HEALTHGATE_*/SECONDARY_TOOL_LOOP/KV_FORK_ENABLE/KV_PAGING_*/RR_*/PRIORITY_QUEUE_ENABLE/_SRC_TURN_HEADER) is dependency-INJECTED via configure() (one-way boundary -- this module NEVER imports server). _endpoint_is_llamacpp is imported directly from its sibling mios_endpoints. server.py re-imports every moved name verbatim under its original alias (surface-parity zero-diff) and re-injects _AGENT_REGISTRY on live membership reload.
 # AI-related: ./server.py, ./mios_config.py, ./mios_endpoints.py, ./mios_kvfork.py, ./mios_preempt.py, ./mios_tokenize.py, ./mios_cost.py, ./mios_fanout.py, ./test_mios_agent_call.py
 # AI-functions: _call_agent_complete, _call_agent_complete_inner, _call_agent_stream_inner, configure, _record_cost, _kv_base, _kv_filename, _kv_lock, _kv_slot_action, _kv_paging, _kv_fork, _rr_eligible, _rr_slice, _rr_run
 """Shared sub-agent completion-call primitive (council secondaries + DAG nodes).
@@ -6,10 +6,10 @@
 Extracted verbatim from ``server.py``. ``_call_agent_complete`` is the bounded
 dispatch entry point (admission + per-lane semaphores + RR preemption + cost +
 chrome strip); ``_call_agent_complete_inner`` is its best-effort non-streaming
-/v1-or-native call with the pipe-side secondary tool-loop, KV fork/paging
-bracket, outbound auth, source harvest and the P3.2b failover-chain recursion.
+/v1 call with the pipe-side secondary tool-loop, KV fork/paging bracket,
+outbound auth, source harvest and the P3.2b failover-chain recursion.
 
-The moved bodies are unchanged. ``_endpoint_is_ollama`` is imported directly
+The moved bodies are unchanged. ``_endpoint_is_llamacpp`` is imported directly
 from its sibling module ``mios_endpoints``; every other server-side symbol the
 two functions touch (the lane semaphores, the binding/priority helpers, the
 secondary tool-loops, the KV helpers, the ContextVars, the header/trace helpers,
@@ -33,7 +33,7 @@ from mios_config import _AUTH_HOSTPORTS, _DISPATCH_TOML, _toml_section
 import os
 KV_SLOTS_DIR = (os.environ.get("MIOS_KV_SLOTS_DIR", "")
                 or str(_DISPATCH_TOML.get("kv_slots_dir", "") or "")).strip()
-from mios_endpoints import _endpoint_is_ollama, _endpoint_is_llamacpp
+from mios_endpoints import _endpoint_is_llamacpp
 from mios_jsonsalvage import loads_lenient as _loads_lenient
 from mios_kvfork import (validate_fork as _kvfork_validate,
                          plan_fork as _kvfork_plan,
@@ -71,12 +71,12 @@ PRIORITY_QUEUE_ENABLE = False
 RR_SLICE_TOKENS = 512
 RR_SLICE_TIMEOUT = 120.0
 RR_QUANTUM_S = 8.0
-# Per-dispatch num_predict ceilings (server SSOT [dispatch].ollama_num_predict_cap*
+# Per-dispatch num_predict ceilings (server SSOT [dispatch].llm_num_predict_cap*
 # / env-derived; injected). _num_predict_cap_for (moved below) picks the CPU cap on
 # a slow lane, the full cap otherwise. Documented defaults so a standalone import
 # still resolves a ceiling; configure() overrides them from the live SSOT.
-OLLAMA_NUM_PREDICT_CAP = 2048
-OLLAMA_NUM_PREDICT_CAP_CPU = 512
+LLM_NUM_PREDICT_CAP = 2048
+LLM_NUM_PREDICT_CAP_CPU = 512
 
 # mutable registry (injected BY REFERENCE; re-injected on live membership reload)
 _AGENT_REGISTRY: dict = {}
@@ -147,7 +147,6 @@ _model_active = None
 # CPU/iGPU lane probe _num_predict_cap_for branches on) stays server-owned and is
 # injected, since mios_swarm consumes it too.
 _is_slow_lane_ep = None
-_ollama_secondary_tool_loop = None
 _opt_int_mb = None
 _priority_gate = None
 _should_health_probe = None
@@ -178,11 +177,10 @@ def configure(*, healthgate_connect_timeout=None, healthgate_read_timeout=None,
               dispatch_priority=None, endpoint_sem=None, harvest_sub_sources=None,
               hop_via_headers=None, kv_fork_parent_var=None,
               lane_sem=None, lane_sem_key=None, model_active=None,
-              ollama_secondary_tool_loop=None,
               opt_int_mb=None, priority_gate=None,
               cost_accounting_enable=None, cost_ledger=None, cost_model=None,
               is_remote_endpoint=None, is_slow_lane_ep=None, node_live=None,
-              ollama_num_predict_cap=None, ollama_num_predict_cap_cpu=None,
+              llm_num_predict_cap=None, llm_num_predict_cap_cpu=None,
               should_health_probe=None,
               src_turn_key=None, strip_agent_chrome=None, strip_think_tags=None,
               v1_secondary_tool_loop=None,
@@ -202,9 +200,9 @@ def configure(*, healthgate_connect_timeout=None, healthgate_read_timeout=None,
     global _dispatch_agent_var, _dispatch_priority, _endpoint_sem
     global _harvest_sub_sources, _hop_via_headers, _kv_fork_parent_var
     global _lane_sem, _lane_sem_key, _model_active
-    global _ollama_secondary_tool_loop, _opt_int_mb
+    global _opt_int_mb
     global _priority_gate, _is_slow_lane_ep, _NODE_LIVE
-    global OLLAMA_NUM_PREDICT_CAP, OLLAMA_NUM_PREDICT_CAP_CPU
+    global LLM_NUM_PREDICT_CAP, LLM_NUM_PREDICT_CAP_CPU
     global COST_ACCOUNTING_ENABLE, _COST_LEDGER, _COST_MODEL, _is_remote_endpoint
     global _should_health_probe, _src_turn_key, _strip_agent_chrome
     global _strip_think_tags, _v1_secondary_tool_loop
@@ -259,8 +257,6 @@ def configure(*, healthgate_connect_timeout=None, healthgate_read_timeout=None,
         _lane_sem_key = lane_sem_key
     if model_active is not None:
         _model_active = model_active
-    if ollama_secondary_tool_loop is not None:
-        _ollama_secondary_tool_loop = ollama_secondary_tool_loop
     if opt_int_mb is not None:
         _opt_int_mb = opt_int_mb
     if priority_gate is not None:
@@ -277,10 +273,10 @@ def configure(*, healthgate_connect_timeout=None, healthgate_read_timeout=None,
         _is_slow_lane_ep = is_slow_lane_ep
     if node_live is not None:
         _NODE_LIVE = node_live
-    if ollama_num_predict_cap is not None:
-        OLLAMA_NUM_PREDICT_CAP = ollama_num_predict_cap
-    if ollama_num_predict_cap_cpu is not None:
-        OLLAMA_NUM_PREDICT_CAP_CPU = ollama_num_predict_cap_cpu
+    if llm_num_predict_cap is not None:
+        LLM_NUM_PREDICT_CAP = llm_num_predict_cap
+    if llm_num_predict_cap_cpu is not None:
+        LLM_NUM_PREDICT_CAP_CPU = llm_num_predict_cap_cpu
     if should_health_probe is not None:
         _should_health_probe = should_health_probe
     if src_turn_key is not None:
@@ -347,7 +343,7 @@ def _num_predict_cap_for(ep: str) -> int:
     """Token ceiling for THIS dispatch -- the short slow-lane cap on a CPU/iGPU
     endpoint, the full cap otherwise (runaway fix: a slow lane can't be allowed to
     grind a full-length generation for hundreds of seconds of pegged cores)."""
-    return OLLAMA_NUM_PREDICT_CAP_CPU if _is_slow_lane_ep(ep) else OLLAMA_NUM_PREDICT_CAP
+    return LLM_NUM_PREDICT_CAP_CPU if _is_slow_lane_ep(ep) else LLM_NUM_PREDICT_CAP
 
 
 # ── Moved from server.py (strangler-fig): cost recording is driven ONLY by
@@ -641,12 +637,12 @@ async def _call_agent_complete_inner_orig(name: str, cfg: dict, body: dict,
     dispatch THAT -- the secondary works on the light iGPU/CPU lane while
     the dGPU stays dedicated to the primary. No twin -> its own endpoint.
 
-    An ollama-lane endpoint (detected by _endpoint_is_ollama, incl. every CPU
-    twin) is called via the NATIVE /api/chat with think=False -- the same
-    fix refine/polish use: a qwen3 model on the /v1 compat path dumps its
- answer into message.reasoning with EMPTY content,
-    so a /v1 secondary folds in nothing. Custom gateways (opencode :8633,
-    hermes :8642) are not ollama -> stay on /v1/chat/completions.
+    Every lane speaks the OpenAI /v1 surface (MiOS is /v1-only): the call
+    posts to {ep}/chat/completions with the thinking channel disabled
+    (chat_template_kwargs enable_thinking=False) -- a qwen3 model left on its
+    default thinking split dumps its answer into message.reasoning with EMPTY
+    content, so a secondary would fold in nothing. Custom gateways (opencode
+    :8633, hermes :8642) share the exact same /v1 path.
 
  P3.2b AUTO-FAILOVER ('remove SPOFs'): when a
     transport-level failure (unreachable endpoint, non-200, timeout)
@@ -691,9 +687,6 @@ async def _call_agent_complete_inner_orig(name: str, cfg: dict, body: dict,
         if rt and rt.strip():
             return rn, rt
         return name, ""
-    # ollama lanes speak the native API + honour think=False; the bespoke
-    # sub-agent servers do not. Detect by the SSOT lane ports.
-    _is_ollama = _endpoint_is_ollama(ep, cfg, _eng)
     # health-gated client node (mobile / Tailscale-hosted): SHORT timeout so a
     # sleeping/absent node drops from the merge fast instead of stalling.
     # health-gated nodes: a SHORT CONNECT timeout drops an ABSENT node (e.g. the
@@ -705,70 +698,13 @@ async def _call_agent_complete_inner_orig(name: str, cfg: dict, body: dict,
                          read=HEALTHGATE_READ_TIMEOUT, write=10.0, pool=10.0)
            if _should_health_probe(cfg) else None)
     try:
-        if _is_ollama:
-            base = ep[:-3].rstrip("/") if ep.endswith("/v1") else ep
-            _msgs = body.get("messages") or []
-            # Pipe-side tool-loop for a raw ollama worker (
-            # "all tools to all agents"): resolve its tool_calls (web_search etc.;
-            # write/launch via the broker when allow_write) before the final
-            # answer so it GROUNDS in live output, not fabrication. Mirrors the
-            # streaming path; no-op when disabled or no tools.
-            if SECONDARY_TOOL_LOOP and body.get("tools"):
-                _msgs = await _ollama_secondary_tool_loop(
-                    client, base, _mdl or cfg.get("model"), _msgs,
-                    body["tools"], _to, lambda _s: None,
-                    num_ctx=body.get("num_ctx"),
-                    allow_write=bool(body.get("_allow_write")))
-            payload = {
-                "model": _mdl or cfg.get("model"),
-                "messages": _msgs,
-                "stream": False,
-            }
-            _opts2: dict = {}
-            _np_cap = _num_predict_cap_for(ep)
-            _opts2["num_predict"] = (min(int(body["max_tokens"]), _np_cap)
-                                     if body.get("max_tokens") else _np_cap)
-            if body.get("num_ctx"):
-                _opts2["num_ctx"] = int(body["num_ctx"])
-            if _opts2:
-                payload["options"] = _opts2
-            # Note: 'think' is an Ollama native extension; for /v1 we omit it or
-            # rely on the model/backend default.
-            _oll_hdrs = {"Content-Type": "application/json"}
-            _tk = _src_turn_key()
-            if _tk:   # propagate the turn-id so a re-entrant sub-request's sources
-                _oll_hdrs[_SRC_TURN_HEADER] = _tk   # land in the parent turn bucket
-            _oll_hdrs.update(_hop_via_headers())   # P0 cross-hop recursion bound
-            # FED-G2 follow-up: attach the OUTBOUND credential for `base` (shared key for
-            # a local lane, the per-agent header for a remote/federated endpoint). Was
-            # omitted on this shim path -> a keyed remote peer reached here got no auth.
-            # Idempotent + degrade-open: a keyless endpoint gets no header (no-op today).
-            _apply_outbound_auth(_oll_hdrs, base)
-            r = await client.post(
-                f"{base}/v1/chat/completions",
-                content=json.dumps(payload).encode("utf-8"),
-                headers=_oll_hdrs, timeout=_to)
-            if r.status_code != 200:
-                rn, rt = await _try_failover(f"ollama /v1 {r.status_code}")
-                if rt and rt.strip():
-                    return rn, rt
-                return name, ""
-            _rj = r.json()
-            choices = (_rj.get("choices") or [])
-            msg = (choices[0].get("message") if choices else {})
-            _content = str(msg.get("content") or "")
-            try:   # harvest the sub-agent's real sources into THIS (parent) turn
-                _harvest_sub_sources(_rj, _content)
-            except Exception:  # noqa: BLE001
-                pass
-            return name, _strip_think_tags(_content)
         nb = dict(body)
         nb["stream"] = False
-        # Private worker-loop signalling keys are ollama-side only -- never send
+        # Private worker-loop signalling keys are pipe-internal only -- never send
         # them to a strict /v1 gateway (it may reject unknown fields).
         nb.pop("_allow_write", None)
         nb.pop("num_ctx", None)
-        # /v1 ignores ollama options.num_predict/think -> set max_tokens + disable
+        # /v1 ignores the legacy options.num_predict/think fields -> set max_tokens + disable
         # the thinking channel so the DAG node renders content (not an empty answer
         # the synth merge then drops -> merged_chars=0;).
         if not nb.get("max_tokens"):
@@ -785,7 +721,7 @@ async def _call_agent_complete_inner_orig(name: str, cfg: dict, body: dict,
         # agents (swarm non-answer). Attach the backend key
         # when THIS dispatch targets the Hermes backend and no auth was already
         # supplied; scoped to the backend netloc so the key never reaches a
-        # non-backend node (opencode/daemon/ollama don't enforce it anyway).
+        # non-backend node (opencode/daemon don't enforce it anyway).
         _hdrs = dict(headers or {})
         # WS-FED/G2: shared backend key for a local lane, or this agent's OWN
         # header for a remote/federated endpoint (see _apply_outbound_auth).
@@ -907,7 +843,6 @@ async def _call_agent_stream_inner_orig(name: str, cfg: dict, body: dict,
     ep, _mdl = _agent_binding(cfg, _eng)
     if not ep:
         return name, ""
-    _is_ollama = _endpoint_is_ollama(ep, cfg, _eng)
     # health-gated nodes: a SHORT CONNECT timeout drops an ABSENT node (e.g. the
     # phone asleep) from the merge fast, but a GENEROUS READ timeout lets a
     # PRESENT-but-slow node still generate. A flat 2.5s total read-timed-out the
@@ -929,69 +864,15 @@ async def _call_agent_stream_inner_orig(name: str, cfg: dict, body: dict,
                 pass
 
     try:
-        if _is_ollama:
-            base = ep[:-3].rstrip("/") if ep.endswith("/v1") else ep
-            _omdl = _mdl or cfg.get("model")
-            _omsgs = body.get("messages") or []
-            # LIVE tool-loop for this raw ollama secondary:
-            # resolve its READ-only tool_calls pipe-side first (web tools + state),
-            # then stream the grounded answer. Skipped when disabled or the request
-            # carries no tools. Best-effort -- a model that emits no tool_calls
-            # just falls straight through to the stream below.
-            if SECONDARY_TOOL_LOOP and body.get("tools"):
-                _omsgs = await _ollama_secondary_tool_loop(
-                    client, base, _omdl, _omsgs, body["tools"], _to, _push,
-                    num_ctx=body.get("num_ctx"),
-                    allow_write=bool(body.get("_allow_write")))
-            payload = {
-                "model": _omdl,
-                "messages": _omsgs,
-                "stream": True,
-            }
-            if body.get("max_tokens"):
-                payload["max_tokens"] = min(int(body["max_tokens"]), _num_predict_cap_for(ep))
-            else:
-                payload["max_tokens"] = _num_predict_cap_for(ep)
-            if body.get("response_format"):
-                payload["response_format"] = body["response_format"]
-            async with client.stream(
-                    "POST", f"{base}/v1/chat/completions",
-                    content=json.dumps(payload).encode("utf-8"),
-                    headers={"Content-Type": "application/json"},
-                    timeout=_to) as r:
-                if r.status_code != 200:
-                    return name, ""
-                async for line in r.aiter_lines():
-                    if not line:
-                        continue
-                    if not line.startswith("data:"):
-                        continue
-                    data = line[5:].strip()
-                    if data == "[DONE]":
-                        break
-                    try:
-                        chunk = _loads_lenient(data)
-                    except (json.JSONDecodeError, ValueError):
-                        continue
-                    ch = chunk.get("choices") or []
-                    if not ch:
-                        continue
-                    delta = ch[0].get("delta") or {}
-                    _content = delta.get("content") or ""
-                    frag = _content or (delta.get("reasoning_content") or "")
-                    if _content:
-                        parts.append(_content)
-                    if frag:
-                        _push(frag)
-            return name, _strip_think_tags("".join(parts))
-        # Bespoke /v1 gateway (opencode :8633, hermes :8642): SSE stream.
+        # /v1 SSE stream -- every lane (opencode :8633, hermes :8642, the local
+        # llama.cpp lanes) shares the exact same OpenAI streaming path.
         nb = dict(body)
         nb["stream"] = True
-        # Private worker-loop signalling keys are ollama-side only -- never send
+        # Private worker-loop signalling keys are pipe-internal only -- never send
         # them to a strict /v1 gateway (it may reject unknown fields).
         nb.pop("_allow_write", None)
         nb.pop("num_ctx", None)
-        # /v1 (llama.cpp) IGNORES ollama options.num_predict + think -> without an
+        # /v1 (llama.cpp) IGNORES the legacy options.num_predict + think fields -> without an
         # explicit max_tokens the server's tiny default lets gemma4's separate
         # thinking channel eat the whole budget and return EMPTY content (operator
         # grounded/browse nodes). Translate the cap to max_tokens and
@@ -1007,8 +888,8 @@ async def _call_agent_stream_inner_orig(name: str, cfg: dict, body: dict,
         # Pipe-side OpenAI tool-loop FIRST ("fix opencode +
         # others, full loop until satisfied"): resolve the /v1 agent's read-only
         # tool_calls -- RESCUING a narrated call (the opencode ```json webfetch```
-        # lie) -- before streaming the final answer, symmetric to the ollama
-        # branch above. No-op when the agent self-loops (returns no tool_calls)
+        # lie) -- before streaming the final answer, symmetric to the non-streaming
+        # sibling. No-op when the agent self-loops (returns no tool_calls)
         # or offers no tools, so a correctly-looping Hermes is unaffected.
         if SECONDARY_TOOL_LOOP and body.get("tools"):
             sess_id = (_conv_key_var.get() if _conv_key_var else None) or None
