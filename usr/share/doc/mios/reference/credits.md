@@ -104,21 +104,21 @@ via `MIOS_BASE_IMAGE`).
 
 ## 6. Local AI runtime (the canonical 'MiOS' AI endpoint)
 
-`MIOS_AI_ENDPOINT` is served by the LocalAI Quadlet
+`MIOS_AI_ENDPOINT` is served by the MiOS inference Quadlet
 at `etc/containers/systemd/mios-ai.container`. All other engines below are
 listed as **Day-0 portability targets**: 'MiOS' agents resolve through
 `MIOS_AI_ENDPOINT` so any of these can be slotted in.
 
 | Engine | Role | Upstream |
 |---|---|---|
-| LocalAI | Default served runtime; OpenAI-compatible at `/v1` | <https://github.com/mudler/LocalAI> -- <https://localai.io/> |
+| llama-swap | Default served runtime; model-swapping proxy fronting llama.cpp, OpenAI-compatible at `/v1` | <https://github.com/mostlygeek/llama-swap> |
 | Ollama | Drop-in substitute (`/v1` compatible at `:11434`) | <https://github.com/ollama/ollama> |
 | vLLM | High-throughput server (`vllm serve <model>`) | <https://github.com/vllm-project/vllm> |
 | llama.cpp server | CPU/GPU GGUF reference server | <https://github.com/ggerganov/llama.cpp> |
 | LM Studio | Desktop OpenAI-compatible server | <https://lmstudio.ai/> |
 | LiteLLM | Provider/translation proxy (incl. Responses <-> Chat Completions) | <https://github.com/BerriAI/litellm> |
 | OpenRouter | Cloud aggregator if you bring keys | <https://openrouter.ai/> |
-| llama.cpp (engine) | Powers GGUF inference inside `mios-llm-light` (mios-llm-light) / LocalAI | <https://github.com/ggerganov/llama.cpp> |
+| llama.cpp (engine) | Powers GGUF inference inside `mios-llm-light` (llama-swap) | <https://github.com/ggerganov/llama.cpp> |
 
 ## 7. OpenAI public API spec & standards (the surface 'MiOS' targets)
 
@@ -372,7 +372,7 @@ the source of truth for a given concern. When in doubt, these win:
 > **Architectural Law 5 -- UNIFIED-AI-REDIRECTS.** Every client below
 > resolves through `MIOS_AI_ENDPOINT`, an
 > OpenAI-public-API-compatible surface served by
-> `etc/containers/systemd/mios-ai.container` (LocalAI). Vendor-native URLs
+> `etc/containers/systemd/mios-ai.container`. Vendor-native URLs
 > (`api.openai.com`, `api.anthropic.com`,
 > `generativelanguage.googleapis.com`, `api.cline.bot`, `api.cursor.com`,
 > `api.githubcopilot.com`, etc.) are forbidden in the deployed image and
@@ -415,7 +415,7 @@ Aliasing files that all point to the same canonical prompt:
 
 | Surface | Role | Where |
 |---|---|---|
-| `mios-ai.container` | LocalAI-served `/v1` endpoint that all in-image agents call | `etc/containers/systemd/mios-ai.container` |
+| `mios-ai.container` | OpenAI-compatible `/v1` endpoint that all in-image agents call | `etc/containers/systemd/mios-ai.container` |
 | `mios-mcp.service` | Local MCP server runtime | `usr/lib/systemd/system/mios-mcp.service`, `usr/libexec/mios/mcp-server-runner` |
 | `mios-mcp-init.sh` | MCP pre-flight (sqlite vault + dirs) | `usr/libexec/mios/mcp-init.sh` |
 | `usr/bin/mios` | Single CLI entrypoint that resolves `MIOS_AI_ENDPOINT` for every agent | `usr/bin/mios` |
@@ -450,9 +450,9 @@ For people scanning quickly:
   + `osbuild/` + `ostreedev/` + `composefs/` orgs on GitHub.
 - **Image distribution (GHCR, cosign, syft, rechunk):** GitHub, Sigstore,
   Anchore, hhd-dev.
-- **Local AI runtime (LocalAI, llama.cpp, Ollama, vLLM):** independent
-  open-source projects -- 'MiOS' deploys LocalAI by default; the rest are
-  swap-in via `MIOS_AI_ENDPOINT`.
+- **Local AI runtime (llama.cpp, llama-swap, Ollama, vLLM):** independent
+  open-source projects -- 'MiOS' deploys llama.cpp behind llama-swap by
+  default; the rest are swap-in via `MIOS_AI_ENDPOINT`.
 - **AI surface (the `/v1` API spec):** OpenAI's published reference docs,
   treated as a public/community standard for OpenAI-compatible runtimes.
 - **Orchestration patterns (Quadlet, sysusers.d, tmpfiles.d, kargs.d, FHS):**

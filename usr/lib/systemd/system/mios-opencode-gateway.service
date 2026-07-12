@@ -1,4 +1,4 @@
-# AI-hint: Systemd unit that hosts the opencode-gateway on port 8633, providing a standard OpenAI-compatible /v1 API shim for the opencode CLI to enable multi-agent fan-out and local inference via ollama.
+# AI-hint: Systemd unit that hosts the opencode-gateway on port 8633, providing a standard OpenAI-compatible /v1 API shim for the opencode CLI to enable multi-agent fan-out and local inference via mios-llm-light.
 # AI-related: /usr/lib/mios/agents/opencode-gateway/server.py, /usr/lib/mios/agents/opencode/bin/opencode, /etc/mios/opencode/opencode.json, /usr/lib/mios/agents/.venv, /usr/lib/mios/agents/.venv/bin/python3, mios-ai, mios-agent-pipe, mios-opencode-gateway, mios-opencode, mios-llm-light.service
 [Unit]
 Description='MiOS' OpenCode /v1 gateway (OpenAI adapter fronting the opencode CLI)
@@ -11,7 +11,7 @@ Wants=network-online.target mios-llm-light.service
 # agent-pipe's multi-agent fan-out (opencode secondary) + the primary path
 # (refine target_agent=opencode) can reach it. opencode has no native /v1
 # (its `serve` is opencode's own OpenAPI on :4096); this shim wraps
-# `opencode run`. FOSS + offline (opencode -> local ollama qwen2.5-coder).
+# `opencode run`. FOSS + offline (opencode -> local mios-llm-light coder model).
 #
 # FRONT-DOOR commitment (operator 2026-05-31): opencode is a first-class /v1
 # council peer via this gateway (NOT a Hermes ACP subprocess). The shim now

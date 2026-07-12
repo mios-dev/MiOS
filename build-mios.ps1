@@ -3764,9 +3764,9 @@ echo "[quadlet-overlay] root symlinks: /mios.toml, /configurator.html"
 # /etc/containers/systemd/*.container ship raw `${VAR:-default}`
 # placeholders (Image=, PublishPort=, User=, Group=, Network=, ...);
 # systemd's Quadlet generator does NOT expand them, so podman gets
-# the literal string `${MIOS_PORT_LOCALAI` (split on the `:` of
-# `:-8080`) and dies with:
-#     Error: cannot parse "${MIOS_PORT_LOCALAI" as an IP address
+# the literal string `${MIOS_PORT_LLM_LIGHT` (split on the `:` of
+# `:-8450`) and dies with:
+#     Error: cannot parse "${MIOS_PORT_LLM_LIGHT" as an IP address
 # Every Quadlet stays in `activating auto-restart` and `podman ps`
 # is empty. Operator-flagged (containers all dead after
 # install).
@@ -4519,8 +4519,8 @@ backend:
   base_url: http://localhost:${MIOS_PORT_LLM_LIGHT:-8450}
 auxiliary:
   # LLM Light's OpenAI-compatible surface for compression / summarization /
-  # memory flush. Port 8080 was the legacy LocalAI bind -- after the
-  # LocalAI purge, 8080 is code-server, so the previous default 8080/v1
+  # memory flush. Port 8080 was a legacy inference bind -- after the
+  # retired-lane purge, 8080 is code-server, so the previous default 8080/v1
   # made Hermes 401 against code-server then fall through to its
   # openrouter auto-detect (which also 401'd without an API key).
   base_url: http://localhost:${MIOS_PORT_LLM_LIGHT:-8450}/v1

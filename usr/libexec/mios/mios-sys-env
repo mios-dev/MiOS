@@ -13,7 +13,7 @@ mios-sys-env database; ALL agents share global read+write access (via verbs)".
 
 What it stores (single row `sys_env:current`, in sys_env table):
   env   -- the full `mios-env-probe --json` envelope (identity, host HW, stack
-           services up/down, loaded ollama models, launchable-app counts).
+           services up/down, loaded models, launchable-app counts).
   apps  -- live launchable inventory, names per category (mios-apps --names
            --category <cat>), capped -- "the live system apps".
   indexed_at / host / source -- provenance.
@@ -41,14 +41,14 @@ import os
 import subprocess
 import sys
 
-# ── pgvector store (FOSS-pure replacement for the retired SurrealDB agent DB).
+# ── pgvector store (FOSS-pure replacement for the retired legacy agent DB).
 # The singleton lives in the shared `sys_env` table (schema-init.sql): one row
 # id='current', the whole envelope under the `data` jsonb column. Reached via
 # the pure-python mios-pg-query client -- the same pattern mios-rag uses. ─────
 PG_QUERY = os.environ.get("MIOS_PG_QUERY_BIN",
                           "/usr/libexec/mios/mios-pg-query")
 TABLE = os.environ.get("MIOS_SYS_ENV_TABLE", "sys_env")
-# Fixed singleton key (was the SurrealDB record id `sys_env:current`).
+# Fixed singleton key (was the legacy record id `sys_env:current`).
 RECORD = "current"
 # Per-category cap so a huge host can't bloat the stored row.
 APPS_CAP = int(os.environ.get("MIOS_SYS_ENV_APPS_CAP", "300"))

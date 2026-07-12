@@ -3,7 +3,7 @@
 # AI-functions: _toml_section, _cfg_num, _is_remote_endpoint, _should_health_probe, _parse_lane_caps, _lane_tool_cap, _dispatch_toml, _dispatch_num, _priority_gate, _parse_lane_priority, _lane_sem
 """'MiOS' Agent Pipe -- standalone FastAPI service.
 
-Step 2 of the migration: ports the router + dispatch + SurrealDB
+Step 2 of the migration: ports the router + dispatch + agent-plane DB
 writes from the OWUI Pipe class into this gateway-agnostic service.
 
 Operator directive "mios discord chats not going through
@@ -1625,7 +1625,7 @@ def _probe_auth_headers(ep: str) -> dict:
     return {}
 
 
-# ── SurrealDB (cross-cutting agent state) ──────────────────────────
+# ── Legacy DB seam (cross-cutting agent state) ─────────────────────
 DB_URL = os.environ.get("MIOS_DB_URL", "http://localhost:8000")
 DB_USER = os.environ.get("MIOS_DB_USER", "root")
 DB_PASS = os.environ.get("MIOS_DB_PASS", "root")
@@ -2086,7 +2086,7 @@ async def _get_client() -> httpx.AsyncClient:
     return _client
 
 
-# ── SurrealDB writer (port of the OWUI pipe helpers) ───────────────
+# ── Legacy DB writer (port of the OWUI pipe helpers) ───────────────
 # POOLED client (disk fix): the per-turn DB writes (a
 # passport-signed tool_call CREATE per DAG node, dedup events, knowledge) used to
 # open a FRESH httpx.AsyncClient PER CALL -> a TCP connect/teardown per write x
@@ -2105,7 +2105,7 @@ def _db_client() -> "httpx.AsyncClient":
 
 
 async def _db_post(sql: str, *, timeout: float = 3.0) -> Optional[list]:
-    """Best-effort SurrealDB write/query. Returns the parsed list of
+    """Best-effort legacy DB write/query. Returns the parsed list of
     per-statement results, or None on any error. A 30s backoff after
     each failure prevents per-turn retry storms when the DB is down. Uses the
     shared keep-alive pooled client (no per-call connect)."""
@@ -2113,9 +2113,9 @@ async def _db_post(sql: str, *, timeout: float = 3.0) -> Optional[list]:
     if not sql or not sql.strip():
         return None
     # WS-9c full cutover: when Postgres is primary, agent-plane WRITES are already
-    # mirrored to pgvector at the _db_create chokepoint -- skip the SurrealDB write
-    # here so `postgres` mode stops touching SurrealDB entirely. SELECTs still pass
-    # through (any not-yet-translated read falls back to SurrealDB until converted).
+    # mirrored to pgvector at the _db_create chokepoint -- skip the legacy write
+    # here so `postgres` mode stops touching the legacy DB entirely. SELECTs still pass
+    # through (any not-yet-translated read falls back to the legacy DB until converted).
     if _PG_PRIMARY:
         _verb = sql.lstrip().split(None, 1)[0].upper()
         if _verb in ("CREATE", "UPDATE", "DELETE", "INSERT", "RELATE"):
@@ -2147,8 +2147,8 @@ async def _db_read(surreal_sql: str, *, pg_sql: "Optional[str]" = None,
                    timeout: float = 3.0) -> Optional[list]:
     """Agent-plane READ seam (WS-9c cutover). When Postgres is primary AND a
     pg_sql translation is supplied, run it natively (psycopg) and wrap the rows
-    in SurrealDB's [{"result": [...]}] envelope so call sites parse the result
-    UNCHANGED. Otherwise hit SurrealDB. INERT in 'surreal'/'dual' (always
+    in the legacy [{"result": [...]}] envelope so call sites parse the result
+    UNCHANGED. Otherwise hit the legacy DB. INERT in the legacy backends (always
     _db_post), so read translations can be added incrementally + safely and only
     go live at the flip. Degrade-open -> [] on the PG side (mirrors _db_post).
     NOTE: PG `id` is a bigint, not a 'table:xyz' record id -- callers that
@@ -2162,8 +2162,8 @@ async def _db_read(surreal_sql: str, *, pg_sql: "Optional[str]" = None,
 async def _db_update(surreal_sql: str, *, pg_sql: "Optional[str]" = None,
                      pg_params: "Optional[dict]" = None) -> None:
     """Agent-plane UPDATE/DELETE seam (WS-9c cutover). Postgres-native when
-    primary + pg_sql given (params bound by psycopg), else SurrealDB. INERT in
-    'surreal'/'dual'. Degrade-open. Callers either `await` it or wrap in
+    primary + pg_sql given (params bound by psycopg), else the legacy DB. INERT in
+    the legacy backends. Degrade-open. Callers either `await` it or wrap in
     _db_fire() for fire-and-forget, exactly as they did with _db_post."""
     if _PG_PRIMARY and pg_sql:
         await _mios_pg.execute(pg_sql, pg_params or {}, fetch=False)
@@ -2193,7 +2193,7 @@ def _db_create(table: str, fields: dict, *,
                passport_sign: bool = True,
                _mirror: bool = True) -> str:
     """Build `CREATE <table> SET ...` with time::now() for datetime
-    fields. SurrealDB 3.0+ rejects plain ISO-Z strings for TYPE
+    fields. The legacy backend rejects plain ISO-Z strings for TYPE
     datetime; canonical pattern is `field = time::now()` literal.
 
     Phase C.3 -- when passport_sign=True (the default), attach an
@@ -2282,7 +2282,7 @@ sys.modules["mios_dci"].configure(
 
 
 # ── WS-9c DB backend selector (Postgres+pgvector cutover,) ─────────
-# "surreal" (legacy), "dual" (write to BOTH, read SurrealDB -- the SAFE live-
+# "dual" (write to BOTH, read the legacy DB -- the SAFE live-
 # migration default: Postgres is exercised + verifiable without risking the live
 # read path), "postgres" (PG primary incl. native <=> recall). Mirror writes are
 # fire-and-forget + degrade-open (psycopg/PG absent or down -> no-op with a 30s
@@ -2318,13 +2318,13 @@ def _pg_mirror(table: str, fields: dict, *, rls_owner: Optional[str] = None) -> 
 def _db_write(table: str, fields: dict, *, now_fields: tuple = (),
               extra: str = "", passport_sign: bool = True) -> None:
     """Unified agent-plane WRITE seam (WS-9c full cutover). Mirrors the row to
-    Postgres+pgvector when enabled, and writes SurrealDB UNLESS Postgres is
+    Postgres+pgvector when enabled, and writes the legacy DB UNLESS Postgres is
     primary -- so flipping [pgvector].db_backend='postgres' moves writes fully
-    onto PG and stops touching SurrealDB. Fire-and-forget + degrade-open (matches
+    onto PG and stops touching the legacy DB. Fire-and-forget + degrade-open (matches
     _db_fire/_pg_mirror). Time columns (now_fields) take the pgvector column
     DEFAULT (now()) on the PG side, so they're omitted from the mirror row."""
     # _db_create mirrors to pgvector at its chokepoint (default _mirror=True);
-    # post to SurrealDB only while it is still primary.
+    # post to the legacy DB only while it is still primary.
     sql = _db_create(table, fields, now_fields=now_fields,
                      extra=extra, passport_sign=passport_sign)
     if not _PG_PRIMARY:

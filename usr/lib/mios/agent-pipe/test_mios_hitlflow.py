@@ -199,7 +199,7 @@ def test_hitl_approve_logic():
     assert updates and updates[-1].get("pg_params", {}).get("id") == 42, updates
     assert updates[-1]["pg_params"]["status"] == "approved"
 
-    # DENY: a SurrealDB-style record id is accepted too; status flips to denied.
+    # DENY: a legacy-style record id is accepted too; status flips to denied.
     r = asyncio.run(M.hitl_approve_logic(_FakeReq({"id": "pending_action:7",
                                                    "approved": False})))
     body = _json_body(r)

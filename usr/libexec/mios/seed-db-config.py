@@ -50,7 +50,7 @@ def main():
                 log.info("Connected to database. Starting seeding...")
                 
                 # 1. Seed system_config
-                sys_sections = ["ports", "ai", "routing", "surrealdb", "pgvector", "a2a", "mcp", "observability", "sandbox", "security", "agent_passport", "agent_pipe"]
+                sys_sections = ["ports", "ai", "routing", "pgvector", "a2a", "mcp", "observability", "sandbox", "security", "agent_passport", "agent_pipe"]
                 for sec in sys_sections:
                     sec_data = data.get(sec) or {}
                     if not isinstance(sec_data, dict):

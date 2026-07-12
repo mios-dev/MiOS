@@ -220,7 +220,7 @@ Every `Image=` ref is a pinned upstream reference resolved at build time by
 > and the OpenAI/Ollama-compatible API are legitimate **upstream** references --
 > they are kept. Only the MiOS *unit/service identity* is renamed (e.g. the
 > llama.cpp lane is `mios-llm-light`, not an Ollama unit). The early
-> Ollama/SurrealDB/Qdrant stack is **removed** (see Appendix B).
+> Ollama/the legacy datastore/Qdrant stack is **removed** (see Appendix B).
 
 ### Build-time tools
 | Image | Purpose | Where |
@@ -566,7 +566,7 @@ the historical `/etc/containers/systemd/` path.
 
 - `mios-pgvector.container` (`mios-pgvector`, `:5432`, User/Group `826`/`826`) --
   PostgreSQL + pgvector, the **unified agent datastore** (FOSS replacement for
-  the removed SurrealDB/Qdrant). Schema in
+  the removed legacy datastore/Qdrant). Schema in
   `usr/share/mios/postgres/schema-init.sql`. Accessed via `mios-pg-query`
   (pure-python loopback client) and `mios-db --pg`.
 
@@ -748,7 +748,7 @@ under [`/usr/share/mios/ai/`](../../mios/ai/). The end-to-end shape is:
   across `git ls-files`), `automation/99-postcheck.sh` (vendor-URL / Quadlet
   `User=` / bound-images-coverage lints).
 
-> The early Ollama/SurrealDB/Qdrant stack is fully removed. Ollama survives only
+> The early Ollama/the legacy datastore/Qdrant stack is fully removed. Ollama survives only
 > as an *upstream API-compat reference* (the lanes speak the OpenAI/Ollama-
 > compatible API) and in historical migration notes; it is not a live MiOS
 > backend.
@@ -1101,14 +1101,14 @@ ls /var/lib/mios/             # memory, scratch, embeddings/, llamacpp/, pgvecto
 ## Appendix B: Reconciliation against live repo state
 
 ### Migration: the AI plane moved off the early stack
-The early Ollama / SurrealDB / Qdrant stack is **fully removed**. Current state:
+The early Ollama / the legacy datastore / Qdrant stack is **fully removed**. Current state:
 
 | Was | Now |
 |---|---|
 | `ollama.service` (`:11434`) / `mios-ollama-cpu.service` (`:11435`) | `mios-llm-light.service` (`:11450`) -- llama.cpp via `mios-llm-light`; also serves embeddings + the coder model |
 | `mios-sglang` / `mios-vllm` Quadlets | `mios-llm-heavy` (`:11441`, vLLM, gated) |
 | `mios-llama-worker@` | `mios-llm-worker@` |
-| SurrealDB agent store (BSL 1.1) | PostgreSQL + pgvector (`mios-pgvector`, `:5432`; `mios-pg-query` / `mios-db --pg`) |
+| the legacy datastore agent store (BSL 1.1) | PostgreSQL + pgvector (`mios-pgvector`, `:5432`; `mios-pg-query` / `mios-db --pg`) |
 | Qdrant vector store | pgvector (the same Postgres engine) |
 | `37-ollama-prep.sh` model bake | removed; `38-vllm-prep.sh` (opt-in, gated) |
 

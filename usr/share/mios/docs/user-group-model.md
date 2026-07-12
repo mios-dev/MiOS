@@ -47,8 +47,8 @@ The login user `mios` is a member of BOTH groups (declared in `10-mios.conf`) so
 the operator reads every shared surface without sudo. Writes still require the
 per-service UID or `sudo -u <service> …`.
 
-> **Migration note (Ollama/SurrealDB removal).** Earlier revisions listed
-> `mios-ollama`, `mios-ollama-cpu`, and `mios-surrealdb` in the `mios-ai` bucket.
+> **Migration note (Ollama/the legacy datastore removal).** Earlier revisions listed
+> `mios-ollama`, `mios-ollama-cpu`, and `mios-legacydb` in the `mios-ai` bucket.
 > Those backends are **removed**: local inference + embeddings now run on the
 > `mios-llm-light` lane (`mios-llamacpp` uid 827) and the unified agent datastore
 > is **PostgreSQL + pgvector** (`mios-pgvector` uid 826). The bucket membership

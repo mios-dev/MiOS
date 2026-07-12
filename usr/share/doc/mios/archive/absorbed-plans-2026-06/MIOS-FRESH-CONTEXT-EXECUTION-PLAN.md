@@ -20,7 +20,7 @@
 - Prompts perfected + grounded: `MiOS.md` (122L), `usr/share/mios/ai/agent-contract.md` (46L) — env/tool-patterns/routing/plan sections, deployable-anywhere, OpenAI-format. (`MiOS.md` is gitignored by the `/*` root rule — on-disk artifact; `agent-contract.md` is tracked.)
 - **`hidden_aliases` mechanism (`44a757a`)**: `_load_verb_catalog` reads `hidden_aliases=[...]`; `_build_model_name_map` folds them → keeper; never on model/MCP/A2A surface. Lets redundant verbs be DELETED losslessly.
 - **Launch cluster consolidated**: `launch_app`+`launch_verified` REMOVED; `open_app` (model_name `launch_windows_app`) absorbs them via `hidden_aliases`; verified `/v1/tools` shows ONE launch verb. (Routing domain cleaned.)
-- `mios dash` → pgvector (retired SurrealDB gone).
+- `mios dash` → pgvector (retired legacy datastore gone).
 
 ## 2. WAVE 1 — the live failures (HIGHEST PRIORITY; operator's core test)
 Live, via the `@` shell shortcut → agent-pipe orchestrator (`:8640`):

@@ -1,7 +1,7 @@
 #!/bin/bash
 # AI-hint: Unified MiOS shared-state CLI fronting the agent backends: PostgreSQL/pgvector for cross-cutting state (--pg), Open WebUI's SQLite webui.db (--owui), and local OpenAI-compat embeddings on mios-llm-light (--embed).
 # AI-related: userenv.sh, /usr/libexec/mios/mios-db, /usr/share/mios/mios.toml, /etc/mios/mios.toml, /usr/lib/mios/userenv.sh, /usr/share/mios/tools/lib/userenv.sh, /usr/libexec/mios/mios-pg-query, mios-pg-query, mios-env, mios-open-webui
-# /usr/libexec/mios/mios-db [<surrealql>] [-f <file.surql>] [--ns <ns>] [--db <db>] [--json]
+# /usr/libexec/mios/mios-db --pg '<sql>' [-f <file.sql>] [--json]
 #                            [--owui '<sql>']
 #                            [--embed '<text>'] [--embed-model <m>]
 #
@@ -27,27 +27,27 @@
 #                     Returns the float[] vector. SOURCE OF TRUTH
 #                     for: embeddings. Switch model via --embed-model.
 #
-#   (no flag)         SurrealDB at MIOS_DB_URL. SOURCE OF TRUTH for:
+#   --pg <sql>        PostgreSQL/pgvector at MIOS_PG_*. SOURCE OF TRUTH for:
 #                     agent / session / tool_call / event /
-#                     kanban_shadow / scratch / agent_metric.
+#                     kanban / scratch / agent_metric.
 #                     Cross-cutting state OWUI doesn't natively have.
 #
 # Env (with defaults). All envs source from the layered mios.toml chain
 # via tools/lib/userenv.sh -- vendor (/usr/share/mios/mios.toml) <
 # host (/etc/mios/mios.toml) < user (~/.config/mios/mios.toml). A shell
 # `export` always wins (`:=` form). To change the defaults globally,
-# edit [surrealdb] / [ports].ollama / paths in mios.toml -- DO NOT
+# edit [pgvector] / [ports].ollama / paths in mios.toml -- DO NOT
 # hardcode values here. See the SSOT directive in
 # automation/15-render-quadlets.sh.
 #
-#   MIOS_DB_URL          http://localhost:${MIOS_PORT_SURREALDB:-8000}
-#   MIOS_DB_USER         root             [surrealdb].user
-#   MIOS_DB_PASS         root             [surrealdb].pass
-#   MIOS_DB_NS           mios             [surrealdb].namespace
-#   MIOS_DB_DB           mios             [surrealdb].database
+#   MIOS_PG_HOST         localhost        [pgvector].host
+#   MIOS_PORT_PGVECTOR   8432             [ports].pgvector
+#   MIOS_PG_USER         mios             [pgvector].user
+#   MIOS_PG_PASS         mios             [pgvector].pass
+#   MIOS_PG_DB           mios             [pgvector].database
 #   MIOS_OWUI_DB         /var/lib/mios/open-webui/webui.db
 #   MIOS_OLLAMA_URL      http://localhost:${MIOS_PORT_LLM_LIGHT:-11450}
-#   MIOS_EMBED_MODEL     nomic-embed-text [surrealdb].embed_model
+#   MIOS_EMBED_MODEL     nomic-embed-text [pgvector].embed_model
 #
 # Exits 0 on success, 1 on backend unreachable, 2 on missing binary.
 
@@ -193,7 +193,7 @@ print(json.dumps({"model": sys.argv[1], "input": sys.argv[2]}))
 fi
 
 # ── MODE: --pg  (PostgreSQL + pgvector unified agent DB, WS-9) ──
-# Additive alongside the surreal mode during the staged cutover. Creds from the
+# The unified agent DB (pgvector is the sole datastore). Creds from the
 # SSOT [pgvector] section (above) -- no hardcoded values here.
 if [ "$MODE" = "pg" ]; then
     export PGPASSWORD="$PG_PASS"
@@ -254,10 +254,10 @@ if [ "$MODE" = "pgjson" ]; then
 fi
 
 # ── No backend flag matched ──
-# SurrealDB (the old no-flag default) is RETIRED -- cross-cutting agent state
+# The legacy no-flag DB default is RETIRED -- cross-cutting agent state
 # lives in PostgreSQL/pgvector now. Route explicitly so a bare invocation
 # can't silently hit a dead backend; tell the caller which flag to use.
-echo "mios-db: no backend flag (SurrealDB is retired -> pgvector is the agent DB)." >&2
+echo "mios-db: no backend flag (the legacy DB is retired -> pgvector is the agent DB)." >&2
 echo "  mios-db --pg    '<sql>'    -- agent/session/event/scratch/skill (pgvector)" >&2
 echo "  mios-db --owui  '<sql>'    -- Open WebUI webui.db (SQLite)" >&2
 echo "  mios-db --embed '<text>'   -- embeddings via mios-llm-light (port ${MIOS_PORT_LLM_LIGHT:-8450})" >&2

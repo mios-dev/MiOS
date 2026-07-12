@@ -1,4 +1,4 @@
-# AI-hint: Provenance-taint + Semantic Firewall plane extracted verbatim from server.py (refactor R7 wave). Lethal-trifecta defense: a session that ingested EXTERNAL/untrusted content (external open_url, powershell_run output, system-path text_view, taint-declaring MCP tools, or the SSOT-opt-in web-fetch verbs) gets its tool_call rows tainted, and _session_is_tainted lets the caller's firewall BLOCK downstream high-privilege + exfiltration verbs in the same session. Holds _is_external_url (allowlist-host classifier, fail-safe External), _classify_verb_taint (per-verb taint introducer; NAME-KEYED on _TAINT_VERBS + the open_url/powershell_run/text_view/mcp.* heuristics) and _session_is_tainted (the pg/SurrealDB taint-chain reader). SECURITY-CRITICAL: every verb key, heuristic and set-membership is moved byte-for-byte -- a silent gate-disable is the worst regression. The SSOT-derived _TAINT_VERBS set, the PROVENANCE_TAINT_ENABLE flag, the _ALLOWLIST_HOSTS host set, the _MCP_CLIENT_TOOLS registry and the _db_read pg/surreal reader are dependency-INJECTED via configure() (one-way boundary -- mios_firewall NEVER imports server). server.py re-imports every name under its EXACT original alias so the importable surface stays byte-identical.
+# AI-hint: Provenance-taint + Semantic Firewall plane extracted verbatim from server.py (refactor R7 wave). Lethal-trifecta defense: a session that ingested EXTERNAL/untrusted content (external open_url, powershell_run output, system-path text_view, taint-declaring MCP tools, or the SSOT-opt-in web-fetch verbs) gets its tool_call rows tainted, and _session_is_tainted lets the caller's firewall BLOCK downstream high-privilege + exfiltration verbs in the same session. Holds _is_external_url (allowlist-host classifier, fail-safe External), _classify_verb_taint (per-verb taint introducer; NAME-KEYED on _TAINT_VERBS + the open_url/powershell_run/text_view/mcp.* heuristics) and _session_is_tainted (the pg taint-chain reader). SECURITY-CRITICAL: every verb key, heuristic and set-membership is moved byte-for-byte -- a silent gate-disable is the worst regression. The SSOT-derived _TAINT_VERBS set, the PROVENANCE_TAINT_ENABLE flag, the _ALLOWLIST_HOSTS host set, the _MCP_CLIENT_TOOLS registry and the _db_read pg reader are dependency-INJECTED via configure() (one-way boundary -- mios_firewall NEVER imports server). server.py re-imports every name under its EXACT original alias so the importable surface stays byte-identical.
 # AI-related: ./server.py, ./mios_secset.py, ./mios_pdp.py, ./mios_policy.py, ./test_mios_firewall.py
 # AI-functions: _is_external_url, _classify_verb_taint, _session_is_tainted, configure
 """Provenance-taint + Semantic Firewall (lethal-trifecta defense).
@@ -13,7 +13,7 @@ SECURITY-CRITICAL: the gates are NAME-KEYED on verb keys. Nothing is renamed and
 no set is inlined -- the SSOT-derived always-taint verb set (``_TAINT_VERBS``,
 built from ``mios_secset.taint_verb_set`` in server.py), the ``PROVENANCE_TAINT_ENABLE``
 opt-in flag, the operator-infrastructure ``_ALLOWLIST_HOSTS`` host set, the
-``_MCP_CLIENT_TOOLS`` registry and the ``_db_read`` pg/SurrealDB taint-chain
+``_MCP_CLIENT_TOOLS`` registry and the ``_db_read`` pg taint-chain
 reader are all dependency-injected via :func:`configure` (one-way module
 boundary -- this module never imports ``server``).
 """
@@ -46,7 +46,7 @@ PROVENANCE_TAINT_ENABLE = False
 _ALLOWLIST_HOSTS: set = set()
 # live "mcp.<sid>.<tool>" -> tool metadata registry (carries per-tool taint=...).
 _MCP_CLIENT_TOOLS: dict = {}
-# pg/SurrealDB taint-chain reader (server._db_read; async). None until injected.
+# pg taint-chain reader (server._db_read; async). None until injected.
 _db_read = None
 # System-path prefixes whose text_view READ taints the session (content the agent
 # did not author). SSOT [security].text_view_taint_prefixes -- the SAME write-
@@ -154,7 +154,7 @@ async def _session_is_tainted(session_id: Optional[str]) -> tuple[bool, str]:
     the upstream taint sources for the firewall event."""
     if not session_id:
         return False, ""
-    # SurrealDB 3.0+ requires ORDER BY fields to be in the SELECT
+    # The legacy backend requires ORDER BY fields to be in the SELECT
     # projection -- include `ts` even though we don't use it past the
     # ordering (parse error otherwise: "Missing order idiom `ts` in
     # statement selection").

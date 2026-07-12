@@ -1046,7 +1046,7 @@ nano
 > units, model-bake `37-ollama-prep`, Modelfiles, and the legacy `aichat` /
 > `aichat-ng` musl-binary CLIs fetched by `37-aichat.sh`). That stack has been
 > fully removed: inference + embeddings now run on `mios-llm-light` (:11450), and
-> the agent datastore moved from SurrealDB/Qdrant to PostgreSQL+pgvector. Ollama
+> the agent datastore moved from the legacy datastore/Qdrant to PostgreSQL+pgvector. Ollama
 > survives only as an **upstream API-compat reference** -- the lanes speak the
 > OpenAI/Ollama-compatible API so any such client connects unchanged -- not as a
 > live MiOS backend.

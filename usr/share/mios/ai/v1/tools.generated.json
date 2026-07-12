@@ -825,7 +825,7 @@
       "tier": "rare"
     },
     {
-      "description": "READ the cached system/environment inventory (shared store): identity, the host OS + whether this is WSL2 + the Windows host, host hardware, which MiOS stack services are up/down, loaded ollama models, and the installed launchable-app inventory by category. Read this to know the ENVIRONMENT and WHAT IS INSTALLED/RUNNING instead of guessing the OS or the apps. Cached (may be slightly stale -> sys_env_refresh). Read-only.",
+      "description": "READ the cached system/environment inventory (shared store): identity, the host OS + whether this is WSL2 + the Windows host, host hardware, which MiOS stack services are up/down, loaded models, and the installed launchable-app inventory by category. Read this to know the ENVIRONMENT and WHAT IS INSTALLED/RUNNING instead of guessing the OS or the apps. Cached (may be slightly stale -> sys_env_refresh). Read-only.",
       "hidden": true,
       "model_name": "sys_env_snapshot",
       "name": "sys_env",
@@ -865,7 +865,7 @@
       "tier": "rare"
     },
     {
-      "description": "Live LOCAL machine health dashboard (JSON): OS (Linux distro + kernel + whether this is WSL2 + the WINDOWS HOST OS caption/version when on WSL2), GPU/VRAM, RAM, disk usage, running services, loaded ollama models. THE verb for 'system status', 'system health', 'what OS / Windows version am I on', 'is the GPU/memory/disk ok'. Local state only -- NEVER a web search, and NEVER answer the OS/host from training data: read it HERE (the `os` field). Single source of truth for these live numbers.",
+      "description": "Live LOCAL machine health dashboard (JSON): OS (Linux distro + kernel + whether this is WSL2 + the WINDOWS HOST OS caption/version when on WSL2), GPU/VRAM, RAM, disk usage, running services, loaded models. THE verb for 'system status', 'system health', 'what OS / Windows version am I on', 'is the GPU/memory/disk ok'. Local state only -- NEVER a web search, and NEVER answer the OS/host from training data: read it HERE (the `os` field). Single source of truth for these live numbers.",
       "hidden": true,
       "model_name": "",
       "name": "system_status",

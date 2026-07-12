@@ -1,8 +1,8 @@
-# AI-hint: Provides a PostgreSQL and pgvector client for the agent plane (WS-9), offering a standalone, SQL-injection-safe replacement for the SurrealDB client using parameterized queries and HNSW-indexed vector recall.
+# AI-hint: Provides a PostgreSQL and pgvector client for the agent plane (WS-9), offering a standalone, SQL-injection-safe datastore client using parameterized queries and HNSW-indexed vector recall.
 # AI-functions: _pg_skip, _pg_mark_down, rid_to_pg_id, pg_config, dsn, vector_literal, build_insert, build_recall, recall_tuning, rls_enabled, build_set_owner, _owner_scope, execute, _table_columns, insert, recall
 """mios_pg -- PostgreSQL + pgvector client foundation for the agent plane (WS-9).
 
-FOSS-pure replacement path for the SurrealDB HTTP client. The PURE, deterministic
+FOSS-pure PostgreSQL + pgvector client for the agent plane. The PURE, deterministic
 parts (DSN building, pgvector literal formatting, parameterized INSERT/recall SQL
 builders) are stdlib-only so they unit-test in isolation (sibling-module pattern,
 like mios_sched / mios_evict / mios_hitl). The actual connection + execute use
@@ -15,9 +15,7 @@ to bind, which kills SQL-injection and is how OpenAI's / pgvector's own cookbook
 do it. Vector recall uses the pgvector cosine operator `<=>` against an HNSW
 index (`ORDER BY emb <=> %(qvec)s::vector LIMIT k`); similarity = 1 - distance.
 
-This is ADDITIVE: it is NOT yet wired into the live agent-pipe (that is the
-staged cutover, WS-9c). It stands up next to the SurrealDB client so the engine
-swap happens behind one seam.
+This is the native agent-plane datastore client (WS-9c cutover: db_backend=postgres).
 """
 
 from __future__ import annotations
@@ -32,7 +30,7 @@ from typing import Any, Optional
 
 log = logging.getLogger("mios-agent-pipe")
 
-# Connect-failure backoff (mirrors the SurrealDB _db_post 30s backoff): when the
+# Connect-failure backoff (mirrors the _db_post 30s backoff): when the
 # DB is down / not yet deployed, skip attempts for a window so a default "dual"
 # backend doesn't churn one failed 5s connect per write. Module-global; single
 # event loop.
@@ -51,13 +49,13 @@ def _pg_mark_down() -> None:
 
 def rid_to_pg_id(rid: Any) -> "Optional[int]":
     """Extract the Postgres bigint id from an agent-plane row id that may be a
-    SurrealDB 'table:NNN' record-string OR a bare bigint (int or numeric str).
+    legacy 'table:NNN' record-string OR a bare bigint (int or numeric str).
 
     WS-MEM-TIER: several agent-plane UPDATE sites round-trip a row id from a
-    SELECT back into an UPDATE. On SurrealDB the id is a record-string
-    ('knowledge:abc'); on pgvector it is a bigint. A caller converting such an
+    SELECT back into an UPDATE. A legacy record-string id is 'knowledge:abc';
+    on pgvector it is a bigint. A caller converting such an
     UPDATE to a parameterized PG statement needs the bigint. Returns None when the
-    trailing segment is not an integer (e.g. a legacy surreal alpha id with no pg
+    trailing segment is not an integer (e.g. a legacy alpha id with no pg
     analog) so the caller can SKIP the pg write rather than bind a bad id. Pure +
     deterministic (no DB)."""
     if rid is None:
@@ -708,7 +706,7 @@ async def recall(qvec, *, table: str = "knowledge", k: int = 3,
     then the SELECT must share a session). Returns rows [{id,q,answer,tier,
     satisfied,access_count,score}] (score = cosine similarity), or [] on any
     error / no psycopg. Caller applies the score threshold (matches the
-    SurrealDB recall). `owner` (#59 WS-5): when set, scopes recall to that owner
+    prior recall). `owner` (#59 WS-5): when set, scopes recall to that owner
     (+ NULL/shared rows); None = no filter, byte-identical to pre-RLS. Pass only
     for owner_user-bearing tables -- see build_recall. `emb_version` (A3): when
     set, scopes recall to the active embedding space (+ NULL/un-stamped rows) for

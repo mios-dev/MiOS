@@ -12,7 +12,7 @@ set -euo pipefail
 #   linux-rpm-gui    host-installed GUI RPMs (.desktop files; not NoDisplay)
 #   windows-gui      Windows host apps reachable via WSL interop
 #   mios-shim        MiOS shell helpers under /usr/libexec/mios/ + /usr/local/bin/
-#   agent-cli        agent toolchain CLIs (hermes, opencode, ollama, ...)
+#   agent-cli        agent toolchain CLIs (hermes, opencode, ...)
 #   service-url      known internal-service URLs (Cockpit, OWUI, Forgejo, ...)
 #
 # Operator directive 2026-05-15: "MiOS-Agents should be aware of all
@@ -583,7 +583,7 @@ done
 
 # ─── 5. agent-cli ────────────────────────────────────────────────────
 header agent-cli
-for tool in hermes opencode ollama podman flatpak just bootc skopeo; do
+for tool in hermes opencode podman flatpak just bootc skopeo; do
     if command -v "$tool" >/dev/null 2>&1; then
         ver="$($tool --version 2>/dev/null | head -1 | tr -d '\r' | head -c 60 || true)"
         emit agent-cli "$tool" "${ver:-$tool}" "$tool"

@@ -100,7 +100,7 @@ import urllib.error
 import urllib.request
 
 # ─── SSOT env knobs ───────────────────────────────────────────────
-# Postgres/pgvector is the sole backend (SurrealDB :8000 retired). All SQL is
+# Postgres/pgvector is the sole backend (the legacy :8000 DB retired). All SQL is
 # bound out-of-band via the shared mios-db --pg-json CLI: a JSON envelope on
 # STDIN ({"sql": "... $1 ...", "params": [...]}) bound over the pg v3 extended
 # protocol. No request data is ever spliced into SQL text; table/column names
@@ -218,10 +218,10 @@ def _args_shape(args: dict) -> dict:
 def _fetch_recent_tool_calls(hours: int, limit: int = 5000) -> list[dict]:
     """Pull recent successful tool_call rows for mining (Postgres).
 
-    The SurrealQL duration form (`time::now() - {h}h`) silently matched NOTHING
+    The legacy duration form (`time::now() - {h}h`) silently matched NOTHING
     on pg, so the miner used to see "no tool_call rows" and the training loop
     starved (operator 2026-06-10 "train MiOS AI"). The old emitted-edge
-    exclusion was a Surreal graph traversal with no pg analogue -- re-mined
+    exclusion was a legacy graph traversal with no pg analogue -- re-mined
     patterns dedup by name at insert time instead. hours/limit are int()-coerced
     and stay inline (integers don't bind reliably). Degrade-open -> []."""
     try:

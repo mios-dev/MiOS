@@ -77,7 +77,7 @@ def main():
         38: ("containers/storage", "file:///usr/share/doc/mios/reference/credits.md#L101"),
         39: ("containers/image", "file:///usr/share/doc/mios/reference/credits.md#L102"),
         40: ("nvidia-container-toolkit", "file:///usr/share/doc/mios/reference/credits.md#L103"),
-        41: ("LocalAI", "file:///usr/share/doc/mios/reference/credits.md#L114"),
+        41: ("llama-swap", "file:///usr/share/doc/mios/reference/credits.md#L114"),
         42: ("Ollama", "file:///usr/share/doc/mios/reference/credits.md#L115"),
         43: ("vLLM", "file:///usr/share/doc/mios/reference/credits.md#L116"),
         44: ("llama.cpp server", "file:///usr/share/doc/mios/reference/credits.md#L117"),

@@ -335,7 +335,7 @@ Captured so the next build session starts grounded. All citations are
 > Datastore note: the agent plane is now **PostgreSQL + pgvector**
 > (`mios-pgvector` :5432; schema in `usr/share/mios/postgres/schema-init.sql`;
 > accessed via `mios-pg-query` / `mios-db --pg` and the `mios_pg.py` client).
-> The original `_db_create`/`_db_post`/`/sql` SurrealDB plumbing described below
+> The original `_db_create`/`_db_post`/`/sql` the legacy datastore plumbing described below
 > was the WS-9 cutover's starting point — it has since been replaced by the
 > pgvector path (parameterized `(sql, params)` builders; cosine recall via the
 > pgvector `<=>` operator against an HNSW index). The field semantics

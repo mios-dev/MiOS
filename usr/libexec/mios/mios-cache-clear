@@ -15,7 +15,7 @@ set -euo pipefail
 #         api_key, oauth_session
 #   Hermes: config.yaml, SOUL.md, .env (operator API keys),
 #           skills/, hooks/, bin/, cron/
-#   System: ollama models (multi-GB pulls), service systemd units,
+#   System: model weights (multi-GB), service systemd units,
 #           Quadlets, /etc/mios/* configs, /etc/sudoers.d/10-mios-hermes
 #
 # WIPED -- conversation/cache state, regenerable on demand:
@@ -271,7 +271,7 @@ if [ "$DRY_RUN" = "1" ]; then
     echo "  DRY RUN complete. Re-run without --dry-run to actually delete."
 else
     echo "  Cache + temp wipe complete."
-    echo "  Preserved: configs, SOUL.md, skills, ollama models, OWUI users +"
+    echo "  Preserved: configs, SOUL.md, skills, models, OWUI users +"
     echo "             auth + models + functions + tools, cron jobs, latest"
     echo "             build log, Chrome bookmarks/prefs."
 fi

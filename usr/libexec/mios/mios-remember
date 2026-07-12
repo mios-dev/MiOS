@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AI-hint: Active-memory write interface for agents to store/update/delete durable facts in the Postgres+pgvector agent_memory table, scoped global/agent:<name>/conversation:<id>. WS-A3: every write is PARAMETERIZED via `mios-db --pg-json` (values bound out-of-band through mios-pg-query's extended protocol -- never f-string-spliced into SQL); the retired SurrealDB transport is removed.
+# AI-hint: Active-memory write interface for agents to store/update/delete durable facts in the Postgres+pgvector agent_memory table, scoped global/agent:<name>/conversation:<id>. WS-A3: every write is PARAMETERIZED via `mios-db --pg-json` (values bound out-of-band through mios-pg-query's extended protocol -- never f-string-spliced into SQL); the retired legacy transport is removed.
 # AI-related: /usr/libexec/mios/mios-db, mios-db, /usr/libexec/mios/mios-pg-query, localhost:11450
 # AI-functions: _pg_json, _embed_vec, main
 """mios-remember -- agent-authored durable memory (Letta/MemGPT core tier).
@@ -21,7 +21,7 @@ Stored in Postgres+pgvector `agent_memory`, scope-tagged:
   agent:<name>   -- specific to one agent
   conversation:<id> -- scoped to one chat thread
 
-WS-A3 cutover: SurrealDB (:8000) is RETIRED. The datastore is Postgres+pgvector,
+WS-A3 cutover: the legacy DB (:8000) is RETIRED. The datastore is Postgres+pgvector,
 and EVERY statement is parameterized -- values are bound out-of-band via
 `mios-db --pg-json` (-> mios-pg-query extended protocol), never spliced into the
 SQL string. The pg column is `mem_key` (this tool's `key`).

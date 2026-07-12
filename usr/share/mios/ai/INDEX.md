@@ -98,7 +98,7 @@ and call **tools**; the A2A surface (agent cards at `/v1/agents`,
 two together are how the agentic AI OS extends and federates without
 hardcoded plumbing.
 
-LocalAI / LiteLLM and any other OpenAI-shaped backend are supported as drop-in
+LiteLLM and any other OpenAI-shaped backend are supported as drop-in
 alternates but are NOT started by default -- flip them on in `[ai]` of
 `mios.toml`. Default deployment is **mios-llm-light inference + MiOS-Agent-pipe
 front door + MiOS-Hermes gateway**, with the heavy lanes gated off.
@@ -171,7 +171,7 @@ OS *learn*: every finished Q+A, tool call, and derived fact is persisted and
 recalled by cosine similarity (embeddings via mios-llm-light's `nomic-embed-text`)
 and injected back into agent context.
 
-> Historical note: the agent store was previously **SurrealDB** (BSL 1.1) with
+> Historical note: the agent store was previously **the legacy datastore** (BSL 1.1) with
 > **Qdrant** as a vestigial vector store. Both are fully removed; pgvector is the
 > single FOSS (PostgreSQL License + pgvector) datastore for relational, document,
 > and vector memory.

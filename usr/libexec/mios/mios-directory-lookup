@@ -111,7 +111,7 @@ def lookup(query: str, root: str, ext: str, kind: str,
     if not q:
         return []
     ql = q.lower()
-    # pgvector is the unconditional path (SurrealDB is retired). A None return
+    # pgvector is the unconditional path (the legacy DB is retired). A None return
     # means the backend was unreachable -> degrade open to an empty result.
     rows = _pg_lookup(ql, root, ext, kind, limit)
     if not isinstance(rows, list):

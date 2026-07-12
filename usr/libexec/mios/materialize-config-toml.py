@@ -75,7 +75,7 @@ def main():
                     config_by_scope[scope][key] = value_json
 
                 # We output standard sections in original order if they exist, else alphabetical
-                sections_order = ["ports", "ai", "routing", "surrealdb", "pgvector", "a2a", "mcp", "observability", "sandbox", "security", "agent_passport", "agent_pipe"]
+                sections_order = ["ports", "ai", "routing", "pgvector", "a2a", "mcp", "observability", "sandbox", "security", "agent_passport", "agent_pipe"]
                 all_scopes = list(config_by_scope.keys())
                 for s in sections_order:
                     if s not in all_scopes and s in config_by_scope:

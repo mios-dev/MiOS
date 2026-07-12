@@ -401,7 +401,7 @@ def main() -> int:
         },
         {
             "name": "close_window",
-            "description": "Close a window by title pattern. Graceful (WM_CLOSE) lets the app save state; force (TerminateProcess) drops unsaved work. NEVER on MiOS infrastructure (hermes-agent / mios-open-webui / ollama / mios-daemon / mios-launcher) -- use `mios-restart <svc>` instead.",
+            "description": "Close a window by title pattern. Graceful (WM_CLOSE) lets the app save state; force (TerminateProcess) drops unsaved work. NEVER on MiOS infrastructure (hermes-agent / mios-open-webui / mios-daemon / mios-launcher) -- use `mios-restart <svc>` instead.",
             "parameters": {
                 "type": "object",
                 "properties": {

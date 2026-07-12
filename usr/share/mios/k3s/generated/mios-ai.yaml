@@ -45,8 +45,6 @@ spec:
       value: openai
     - name: RAG_RELEVANCE_THRESHOLD
       value: "0.5"
-    - name: ENABLE_OLLAMA
-      value: "False"
     - name: OPENAI_API_BASE_URL
       value: http://host.containers.internal:8640/v1
     - name: DEFAULT_USER_ROLE

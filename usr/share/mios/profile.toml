@@ -1,4 +1,4 @@
-# AI-hint: Immutable vendor-default configuration for MiOS system identity, locale, network, and AI agent parameters (Hermes-Agent/Ollama) used as the base layer for the three-tier profile resolution.
+# AI-hint: Immutable vendor-default configuration for MiOS system identity, locale, network, and AI agent parameters (Hermes-Agent) used as the base layer for the three-tier profile resolution.
 # AI-related: /usr/share/mios/profile.toml, /etc/mios/profile.toml, /usr/share/mios/ai/v1/mcp.json, mios-bootstrap, mios-dev, mios-ceph, mios-k3s, mios-forge, mios-cockpit-link, mios-hermes
 # /usr/share/mios/profile.toml -- 'MiOS' Profile Defaults (vendor-immutable)
 #
@@ -48,7 +48,7 @@ allow_cockpit          = true
 allow_libvirt_bridge   = true
 
 [ai]
-# Migration note: Ollama, SurrealDB, and Qdrant are retired from the live stack.
+# Migration note: the legacy DB and Qdrant are retired from the live stack.
 # Hermes-Agent /v1 (the live MiOS agent at /) fronts the local inference lanes.
 endpoint        = "http://localhost:8642/v1"
 model           = "granite4.1:8b"
@@ -102,7 +102,6 @@ mios-hermes-workspace = true
 # host crowdsec agent for ~6 days. Retired; the host agent provides the IPS.
 # Full rationale in mios.toml [quadlets.enable] + memory mios_crowdsec_recovery.
 mios-crowdsec-dashboard    = false
-# Migration note: mios-ollama is retired and removed.
 mios-guacamole        = true
 mios-pxe-hub          = true
 mios-guacamole-postgres    = true

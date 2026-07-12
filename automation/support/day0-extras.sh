@@ -1,14 +1,14 @@
 #!/bin/bash
 # AI-hint: Executes targeted Day-0 cleanup of PostgreSQL/pgvector tables, daemon states, skills catalogs, agent passports, and audit logs to purge persistent state when standard cache clearing is insufficient.
 # AI-related: mios-cache-clear, mios-daemon, mios-skills-miner, mios-passport-provision, mios-skills-miner.timer, mios-passport-provision.service
-# AI-functions: surreal, daemon, skills, passports, agentpipe, audit, ttyd, pycache
+# AI-functions: pgvector, daemon, skills, passports, agentpipe, audit, ttyd, pycache
 # Day-0 readiness: surfaces NOT covered by mios-cache-clear.
 # Run via: wsl.exe ... bash /mnt/c/MiOS/automation/support/day0-extras.sh <section>
-# Sections: surreal | daemon | skills | passports | agentpipe | audit | ttyd | pycache | all
+# Sections: pgvector | daemon | skills | passports | agentpipe | audit | ttyd | pycache | all
 set -euo pipefail
 SECTION="${1:-all}"
 
-surreal() {
+pgvector() {
     echo "── PostgreSQL/pgvector row-level wipe (schema preserved) ──"
     local TABLES="knowledge agent_memory event tool_call session skill skill_invocation sys_env pending_action run_template scratch kanban app_install alias resolves_to directory_entry log_digest person agent_keypair mios_rag"
     for t in $TABLES; do
@@ -91,7 +91,7 @@ pycache() {
 }
 
 case "$SECTION" in
-    surreal)    surreal ;;
+    pgvector)   pgvector ;;
     daemon)     daemon ;;
     skills)     skills ;;
     passports)  passports ;;
@@ -100,7 +100,7 @@ case "$SECTION" in
     ttyd)       ttyd ;;
     pycache)    pycache ;;
     all)
-        surreal
+        pgvector
         daemon
         skills
         passports

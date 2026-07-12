@@ -520,13 +520,13 @@ check_package_registry() {
 }
 
 # (10, WS-A3) CLI SQL-safety: a libexec tool must not (re)introduce the retired
-# SurrealDB HTTP transport (post_sql/_sql -> :8000/sql, surreal-ns headers) or
+# legacy HTTP transport (post_sql/_sql -> :8000/sql, surreal-ns headers) or
 # hand-rolled SQL-escaping (_pgesc/_pgq single-quote doubling). The WS-A3 cutover
 # replaced both with PARAMETERIZED pg -- values bound OUT-OF-BAND via
 # mios-pg-query --exec-json / mios-db --pg-json -- so a regression silently
-# no-ops on pg (dead SurrealQL) or reopens a SQL-injection hole. TWO tools carry
+# no-ops on pg (dead legacy query) or reopens a SQL-injection hole. TWO tools carry
 # The allowlist is now EMPTY: every libexec tool was cut over to parameterized pg
-# (mios-daemon's dead SurrealQL transports _db_post/_db_post_sync are stubbed
+# (mios-daemon's dead legacy transports _db_post/_db_post_sync are stubbed
 # no-ops + _pgesc deleted + its live pg writes parameterized; mios-viking
 # migrated). Any reappearance of these markers anywhere in libexec is a real
 # regression -> fail. (Re-add a NAMED entry to `allow` only for a deliberate,
@@ -552,7 +552,7 @@ check_cli_sql_safety() {
     done < <(find "$dir" -maxdepth 1 -type f 2>/dev/null)
     if [[ -n "$hits" ]]; then
         printf '%s' "$hits" >&2
-        _violation "a libexec CLI (re)introduced the retired SurrealDB transport (post_sql/_sql/:8000/sql) or hand-rolled SQL escaping (_pgesc/_pgq) -- use parameterized pg via mios-pg-query --exec-json / mios-db --pg-json (WS-A3)"
+        _violation "a libexec CLI (re)introduced the retired legacy DB transport (post_sql/_sql/:8000/sql) or hand-rolled SQL escaping (_pgesc/_pgq) -- use parameterized pg via mios-pg-query --exec-json / mios-db --pg-json (WS-A3)"
     else
         echo "[38-drift-checks]   (10) libexec CLIs SQL-safe (parameterized pg; allowlist empty -- all tools cut over)"
     fi
@@ -2338,7 +2338,7 @@ def check_roundtrip(root):
         raise parse_err
 
     # Compare config_kv scopes
-    scopes = ["ports", "ai", "routing", "surrealdb", "pgvector", "a2a", "mcp", "observability", "sandbox", "security", "agent_passport", "agent_pipe"]
+    scopes = ["ports", "ai", "routing", "pgvector", "a2a", "mcp", "observability", "sandbox", "security", "agent_passport", "agent_pipe"]
     for scope in scopes:
         orig_scope = orig_data.get(scope, {})
         mat_scope = mat_data.get(scope, {})

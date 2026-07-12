@@ -126,7 +126,7 @@ canonical_verbs:
 
   # --- system + diagnostics ------------------------------------
   - name: mios-system-status
-    intent: snapshot host MiOS state (GPU/CPU/RAM/services/ollama models) — JSON
+    intent: snapshot host MiOS state (GPU/CPU/RAM/services/models) — JSON
     example: 'mios-system-status'
     tags: [diag]
 
@@ -146,7 +146,7 @@ canonical_verbs:
     tags: [service]
 
   - name: mios-cache-clear
-    intent: wipe chat / cache / session state (preserves users / tools / models / ollama)
+    intent: wipe chat / cache / session state (preserves users / tools / models)
     example: 'mios-cache-clear [--dry-run] [--all]'
     tags: [maintenance]
 

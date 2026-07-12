@@ -8,7 +8,7 @@ PostgreSQL/pgvector (person / app_install / alias + resolves_to natural-key
 edge). The agent-pipe's kg_lookup() helper queries the same tables (JOIN on
 app_id) to resolve ambiguous noun phrases to concrete launch targets. Mappings
 are PER-OPERATOR data -- this CLI is the interface, never the source. NO
-hardcoded English aliases in this codebase. (SurrealDB, BSL 1.1, is retired.)
+hardcoded English aliases in this codebase. (The legacy BSL 1.1 store is retired.)
 
 Subcommands:
   bootstrap                Create the person row (from $USER /
@@ -41,7 +41,7 @@ import subprocess
 import sys
 
 # PKG store: PostgreSQL + pgvector via the shared mios-db --pg-json CLI (which
-# binds params through mios-pg-query's extended protocol). SurrealDB (BSL 1.1) is
+# binds params through mios-pg-query's extended protocol). The legacy BSL 1.1 store is
 # retired -- ALL reads + writes go to pg. Natural-key model
 # (resolves_to(phrase, app_id)) -- no record-id round-trips.
 _MIOS_DB = "/usr/libexec/mios/mios-db"
@@ -238,7 +238,7 @@ def cmd_alias_rm(args: argparse.Namespace) -> int:
 
 
 def cmd_alias_list(args: argparse.Namespace) -> int:
-    # pg JOIN replaces the surreal `->resolves_to->app_install` graph walk.
+    # pg JOIN replaces the legacy `->resolves_to->app_install` graph walk.
     # LEFT JOIN so aliases with no edge still list (as "(unresolved)").
     # Aggregate resolved targets per phrase into a JSON array of short_names.
     # Constant SQL -- no external value.
@@ -265,7 +265,7 @@ def cmd_alias_list(args: argparse.Namespace) -> int:
 def cmd_lookup(args: argparse.Namespace) -> int:
     phrase = args.phrase.strip().lower()
     # Exact first; fall back to contains. Run the queries in priority order and
-    # pick the first non-empty. pg JOINs replace the surreal
+    # pick the first non-empty. pg JOINs replace the legacy
     # `->resolves_to->app_install` graph walk (same shape the agent-pipe
     # kg_lookup uses); each row aggregates its resolved apps into the `app` JSON
     # array. `_app_obj` is a CONSTANT projection; `phrase` is a BOUND param ($1).

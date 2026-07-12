@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 # AI-hint: Provides vision-based grounding for the PC-CONTROL agent by processing screenshots and natural language queries via a local VLM to return precise JSON coordinates for UI element interaction.
-# AI-related: /usr/share/mios/docs/agents/PC-CONTROL-LOCAL.md, /etc/mios/mios.toml, /usr/share/mios/mios.toml, mios-pc-control, mios-grounding, localhost:11450, localhost:11434
+# AI-related: /usr/share/mios/docs/agents/PC-CONTROL-LOCAL.md, /etc/mios/mios.toml, /usr/share/mios/mios.toml, mios-pc-control, mios-grounding, localhost:8450
 """mios-pc-vision -- screenshot + UI-element query -> click coordinates.
 
 Local-only PC-Control vision grounding. Takes a screenshot path + a
 natural-language description of a UI target, calls a local vision
-LLM (default qwen3-vl:4b on Ollama at :11434), returns JSON:
+LLM (default qwen3-vl:4b on mios-llm-light :8450), returns JSON:
 
     {"x": <int>, "y": <int>, "confidence": <0..1>, "reasoning": "..."}
 
@@ -42,8 +42,7 @@ import urllib.error
 from pathlib import Path
 
 DEFAULT_MODEL = "qwen3-vl:4b"
-# :8450 = mios-llm-light (the live OpenAI /v1 serving). Was http://localhost:11434/v1
-# -- the RETIRED ollama port (same drift that broke the micro layer). Serve a VLM
+# :8450 = mios-llm-light (the live OpenAI /v1 serving). Serve a VLM
 # GGUF (qwen3-vl:4b + mmproj) on :8450 to activate vision grounding (operator dl).
 DEFAULT_ENDPOINT = f"http://localhost:{os.environ.get('MIOS_PORT_LLM_LIGHT', '8450')}/v1"
 DEFAULT_TIMEOUT_S = 60

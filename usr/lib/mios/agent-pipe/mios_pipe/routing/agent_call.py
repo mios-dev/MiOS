@@ -637,11 +637,11 @@ async def _call_agent_complete_inner_orig(name: str, cfg: dict, body: dict,
 
  CPU-lane offload : a secondary always runs
     CONCURRENTLY with the GPU primary, so if the agent declares a CPU
-    twin (cpu_endpoint/cpu_model -> mios-*-cpu Modelfile on :11435) we
+    twin (a declared CPU/light engine binding -> the mios-llm-light lane) we
     dispatch THAT -- the secondary works on the light iGPU/CPU lane while
     the dGPU stays dedicated to the primary. No twin -> its own endpoint.
 
-    An ollama-lane endpoint (the :11434/:11435 instances, incl. every CPU
+    An ollama-lane endpoint (detected by _endpoint_is_ollama, incl. every CPU
     twin) is called via the NATIVE /api/chat with think=False -- the same
     fix refine/polish use: a qwen3 model on the /v1 compat path dumps its
  answer into message.reasoning with EMPTY content,

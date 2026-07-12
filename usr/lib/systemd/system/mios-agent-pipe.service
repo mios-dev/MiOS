@@ -89,8 +89,8 @@ Environment=MIOS_OLLAMA_API_HINTS=
 # -> mios-agent(qwen3.5:4b, consolidated brain) 2026-05-22.
 # WS-0B: PLANNER endpoint+model both derive from server.py (_LIGHT_BASE +
 # MIOS_STACK_MODEL) -- no per-role pin here.
-# WS-A3 de-rot: SurrealDB (:8000) is RETIRED -> the agent DB is Postgres+pgvector
-# (MIOS_PG_* / mios-pgvector). The former MIOS_DB_URL/USER/PASS/NS/DB SurrealDB env
+# WS-A3 de-rot: the legacy DB (:8000) is RETIRED -> the agent DB is Postgres+pgvector
+# (MIOS_PG_* / mios-pgvector). The former MIOS_DB_URL/USER/PASS/NS/DB legacy env
 # is removed (the pg client reads MIOS_PG_* + the pgvector quadlet creds).
 # Phase C.3 -- this service signs agent-plane writes (pgvector + A2A) as agent-pipe.
 Environment=MIOS_PASSPORT_AGENT_NAME=agent-pipe

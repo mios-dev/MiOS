@@ -1,5 +1,5 @@
 #!/bin/bash
-# AI-hint: A diagnostic tool for identifying system-level failures in MiOS, checking sudo permissions, hermes-agent status, mount-namespace escapability, and Ollama API availability to troubleshoot environment issues.
+# AI-hint: A diagnostic tool for identifying system-level failures in MiOS, checking sudo permissions, hermes-agent status, and mount-namespace escapability to troubleshoot environment issues.
 # AI-related: /usr/libexec/mios/mios-doctor, /usr/libexec/mios/flatpak-launch, /usr/libexec/mios/mios-build-driver, /etc/mios/mios.toml, /usr/share/mios/mios.toml, /etc/mios/cron-rules.toml, /usr/share/mios/hermes/skills, /usr/share/mios/hermes/skills/, /usr/share/mios/ai/hermes-soul.md, mios-build-driver
 # AI-functions: _run_as, ok, fail, warn, info
 set -euo pipefail

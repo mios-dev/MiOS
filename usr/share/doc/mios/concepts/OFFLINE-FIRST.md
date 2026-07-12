@@ -97,7 +97,7 @@ cloud API keys configured; Quadlet images symlinked into
 > `mios-llm-heavy-alt` vLLM `:11440`) — Ollama is **removed** (it survives only as
 > an upstream API-compat reference, since the lanes speak the OpenAI/Ollama-
 > compatible API). The agent datastore is **PostgreSQL + pgvector**
-> (`mios-pgvector`, `:5432`) — SurrealDB and Qdrant are **removed**. Re-run
+> (`mios-pgvector`, `:5432`) — the legacy datastore and Qdrant are **removed**. Re-run
 > `audit-offline.sh` against these endpoints for a current snapshot.
 
 **Runtime + use-AI phases: 100% offline-capable.**

@@ -80,7 +80,7 @@ it, and what to do if a step fails.
 > `mios-llm-light` / `mios-llm-heavy` / `mios-llm-heavy-alt`. `mios-llm-light`
 > (`ghcr.io/mostlygeek/llama-swap`) and the OpenAI/Ollama-compatible API are
 > legitimate upstream references; only the MiOS *unit identity* is `mios-llm-*`.
-> There is no longer an `ollama`, `qdrant`, or SurrealDB service — inference and
+> There is no longer an `ollama`, `qdrant`, or the legacy datastore service — inference and
 > embeddings run on `mios-llm-light`; the agent datastore is pgvector.
 
 ## Verifying

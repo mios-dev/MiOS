@@ -216,7 +216,7 @@ MiOS nodes discover each other's tools (MCP) and agents (A2A) and delegate work,
 rather than relying on bespoke point-to-point plumbing.
 
 > **Naming note (migration history).** Earlier revisions described inference as
-> Ollama (`:11434`) + Ollama-CPU, with SurrealDB for state and Qdrant for
+> Ollama (`:11434`) + Ollama-CPU, with the legacy datastore for state and Qdrant for
 > vectors. Those are **fully retired**: inference + embeddings run on
 > `mios-llm-light` (`:11450`), state + vectors run on PostgreSQL+pgvector. The
 > upstream `mios-llm-light` image and the Ollama-/OpenAI-compatible *API* remain

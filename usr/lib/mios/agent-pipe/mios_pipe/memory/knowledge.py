@@ -1,4 +1,4 @@
-# AI-hint: Tiered pgvector KNOWLEDGE memory subsystem extracted verbatim from server.py (refactor R6 wave). The store half (_store_knowledge fire-and-forget + _store_knowledge_task embed-on-write with verdict-gated/anti-poison + ASI08 memguard + owner-tag + volatile-skip), the recency-weighted recall half (_recall_floor possessive-floor, _row_age_seconds/_humanize_age/_recency_mult bounded temporal decay, _recall_knowledge_pg native pgvector blended rerank + page-in bump, _recall_knowledge with SurrealDB degrade-open fallback + topical-anchor guard), the source attribution (_knowledge_sources), and the K-LRU+TTL eviction sweep wrappers (_db_count/_evict_select_ids/_evict_delete_ids/_evict_knowledge/_knowledge_evict_loop) over mios_evict. Also owns the RLS owner resolver (_rls_owner: [pgvector].rls_mode==enforce -> the request principal, else None), the SELF-EDITED durable-memory recall (_recall_agent_memory: the remember/memory_update agent_memory tier, default-off, owner-scoped via _rls_owner), and the operator Personal-Knowledge-Graph lookup (kg_lookup: alias -> resolves_to -> app_install phrase resolution over the dual SurrealDB/pg _db_read). Pure SQL/plan logic stays in mios_evict; the pg client is mios_pg; the write-time poison scan is mios_memguard. Every server-side helper (_db_*/_pg_mirror/_embed_one/_cosine/_anchor_tokens/_shares_anchor/_recent_satisfaction_verdicts/_MEMORY/_PG_PRIMARY), contextvar (_turn_volatile_var/_client_env_var) and KNOWLEDGE_*/EMB_*/AGENT_MEMORY_* config constant is dependency-INJECTED via configure() (one-way boundary -- this module NEVER imports server; _toml_section is imported directly from the leaf mios_config). server.py re-imports every name under its exact original alias so the importable surface stays byte-identical; the @app.on_event startup hooks + the KV-GC loop stay in server.py.
+# AI-hint: Tiered pgvector KNOWLEDGE memory subsystem extracted verbatim from server.py (refactor R6 wave). The store half (_store_knowledge fire-and-forget + _store_knowledge_task embed-on-write with verdict-gated/anti-poison + ASI08 memguard + owner-tag + volatile-skip), the recency-weighted recall half (_recall_floor possessive-floor, _row_age_seconds/_humanize_age/_recency_mult bounded temporal decay, _recall_knowledge_pg native pgvector blended rerank + page-in bump, _recall_knowledge with legacy degrade-open fallback + topical-anchor guard), the source attribution (_knowledge_sources), and the K-LRU+TTL eviction sweep wrappers (_db_count/_evict_select_ids/_evict_delete_ids/_evict_knowledge/_knowledge_evict_loop) over mios_evict. Also owns the RLS owner resolver (_rls_owner: [pgvector].rls_mode==enforce -> the request principal, else None), the SELF-EDITED durable-memory recall (_recall_agent_memory: the remember/memory_update agent_memory tier, default-off, owner-scoped via _rls_owner), and the operator Personal-Knowledge-Graph lookup (kg_lookup: alias -> resolves_to -> app_install phrase resolution over _db_read). Pure SQL/plan logic stays in mios_evict; the pg client is mios_pg; the write-time poison scan is mios_memguard. Every server-side helper (_db_*/_pg_mirror/_embed_one/_cosine/_anchor_tokens/_shares_anchor/_recent_satisfaction_verdicts/_MEMORY/_PG_PRIMARY), contextvar (_turn_volatile_var/_client_env_var) and KNOWLEDGE_*/EMB_*/AGENT_MEMORY_* config constant is dependency-INJECTED via configure() (one-way boundary -- this module NEVER imports server; _toml_section is imported directly from the leaf mios_config). server.py re-imports every name under its exact original alias so the importable surface stays byte-identical; the @app.on_event startup hooks + the KV-GC loop stay in server.py.
 # AI-related: ./server.py, ./mios_config.py, ./mios_evict.py, ./mios_pg.py, ./mios_memguard.py, ./test_mios_knowledge.py
 # AI-functions: _recall_floor, _row_age_seconds, _humanize_age, _recency_mult, _knowledge_sources, _store_knowledge, _store_knowledge_task, _recall_knowledge_pg, _recall_knowledge, _db_count, _evict_select_ids, _evict_delete_ids, _evict_knowledge, _knowledge_evict_loop, _rls_owner, _recall_agent_memory, kg_lookup, configure
 """Tiered pgvector KNOWLEDGE memory: store + recency-weighted recall + eviction.
@@ -270,7 +270,7 @@ def _recency_mult(row: dict) -> float:
 
 def _blend_rank(row: dict) -> float:
     """Blended recall score SHARED by every tiered-recall path (knowledge pgvector,
-    knowledge SurrealDB, agent_memory) so the tiers rank CONSISTENTLY instead of each
+    knowledge legacy fallback, agent_memory) so the tiers rank CONSISTENTLY instead of each
     re-deriving the blend. Cosine SIMILARITY (the row's ``score``) stays dominant; the
     outcome / tier / access signals are each added with their ``[knowledge]`` rank_*
     SSOT weight, and the whole is scaled by the bounded recency multiplier
@@ -458,7 +458,7 @@ async def _store_knowledge_task(q: str, a: str,
 async def _recall_knowledge_pg(query: str) -> "Optional[str]":
     """WS-9c native pgvector recall (used when DB_BACKEND='postgres'). Returns the
     injectable block, '' on a clean miss, or None to fall through to the
-    SurrealDB path on any error (degrade-open). #59 WS-5: scoped to the request
+    legacy fallback path on any error (degrade-open). #59 WS-5: scoped to the request
     principal when [pgvector].rls_mode == 'enforce' (else unfiltered)."""
     try:
         qv = await _embed_one(query, prefix="search_query: ")
@@ -483,18 +483,18 @@ async def _recall_knowledge_pg(query: str) -> "Optional[str]":
         if not cands:
             return ""
         # Blended rerank via the SHARED _blend_rank (same blend the agent_memory +
-        # SurrealDB recall paths use): (cosine + outcome + tier + access) * BOUNDED
+        # legacy recall paths use): (cosine + outcome + tier + access) * BOUNDED
         # recency decay, then take top-K. Cosine stays dominant -- a stale-but-relevant
         # hit still wins; recency only re-orders near-ties toward fresher rows.
         cands.sort(key=_blend_rank, reverse=True)
         hits = cands[:KNOWLEDGE_RECALL_K]
         # B2 PAGE-IN BUMP : increment access_count/recall_hits +
         # refresh last_access + promote to tier='hot' on the rows we actually surfaced.
-        # This existed ONLY in the dead SurrealDB recall path, so on the LIVE pgvector
+        # This existed ONLY in the dead legacy recall path, so on the LIVE pgvector
         # path the counters NEVER moved -- access_count stayed 0 for every row, the
         # outcome-ranked tiering/eviction ran on all-zero signal, and no row ever went
         # hot. Fire-and-forget; degrade-open (a miss just skips the bump). CASE sees the
-        # pre-increment access_count, mirroring the surreal IF semantics.
+        # pre-increment access_count, mirroring the legacy IF semantics.
         for _r in hits:
             _rid = _r.get("id")
             if _rid is None:
@@ -563,12 +563,12 @@ async def _recall_knowledge(query: str) -> str:
         _pgr = await _recall_knowledge_pg(query)
         if _pgr is not None:
             return _pgr
-        # degrade-open: fall through to the SurrealDB recall path
+        # degrade-open: fall through to the legacy recall path
     try:
         qv = await _embed_one(query)
         if not qv:
             return ""
-        # NOTE: this SurrealDB build requires the ORDER BY field to be in the
+        # NOTE: this legacy build requires the ORDER BY field to be in the
         # SELECT projection ("Missing order idiom"), hence `ts` is selected;
         # rows lacking `emb` are filtered in Python below.
         resp = await _db_post(
@@ -601,7 +601,7 @@ async def _recall_knowledge(query: str) -> str:
                 continue
             scored.append((s, r))
         # P2 blended rank via the SHARED _blend_rank (same blend the pgvector +
-        # agent_memory paths use). The SurrealDB rows carry no `score` column -- the
+        # agent_memory paths use). The legacy rows carry no `score` column -- the
         # cosine was computed app-side into the tuple's first element -- so inject it
         # as `score` for the shared ranker; negated for the ascending sort.
         scored.sort(key=lambda item: -_blend_rank({**item[1], "score": item[0]}))
@@ -610,9 +610,9 @@ async def _recall_knowledge(query: str) -> str:
             return ""
         # Page-in counter: bump access_count/last_access/recall_hits on the rows
         # we actually surfaced (fire-and-forget; degrade-open -- a DB miss just
-        # skips the bump). Requires `id` in the projection (step 1). SurrealDB
-        # returns a SELECTed id as a record-string ("knowledge:abc"); the `??`
-        # null-coalesce (SurrealDB 3.0+) makes the bump safe on legacy rows that
+        # skips the bump). Requires `id` in the projection (step 1). The legacy
+        # backend returns a SELECTed id as a record-string ("knowledge:abc"); the `??`
+        # null-coalesce (legacy 3.0+) makes the bump safe on legacy rows that
         # never wrote access_count/recall_hits (step 4 writes them at 0 on new
         # rows). Each UPDATE is its own fire-and-forget _db_post -> any per-row
         # error just no-ops; the recall block returns regardless.
@@ -623,7 +623,7 @@ async def _recall_knowledge(query: str) -> str:
                     continue
                 _rid_s = _rid if isinstance(_rid, str) else str(_rid)
                 _pgid = _mios_pg.rid_to_pg_id(_rid)
-                # SurrealDB record-id path (legacy/dual): `??` + IF/ELSE keep the
+                # Legacy record-id path: `??` + IF/ELSE keep the
                 # bump safe on rows that never wrote access_count/recall_hits.
                 _surreal = (
                     f"UPDATE {_rid_s} SET "
@@ -640,7 +640,7 @@ async def _recall_knowledge(query: str) -> str:
                 # on recall, so K-LRU eviction (mios_evict) ran on stale/zero
                 # counters. Route through _db_update with a parameterized PG UPDATE
                 # (COALESCE/CASE mirror the ??/IF semantics; CASE sees the
-                # pre-increment access_count exactly like the surreal IF) so the
+                # pre-increment access_count exactly like the legacy IF) so the
                 # tiering feedback loop is LIVE on the active store. Fire-and-forget.
                 if not _surreal and not (_PG_PRIMARY and _pgid is not None):
                     continue
@@ -968,7 +968,7 @@ async def _recall_agent_memory(query: str) -> str:
 # Resolves operator-set noun phrases ("my browser", "the dev VM") to concrete
 # app_install rows via the alias -> resolves_to -> app_install graph. Used by the
 # planner + dispatch to disambiguate phrases that would otherwise force the LLM to
-# guess. _db_read does the dual SurrealDB/pg I/O (injected via configure()).
+# guess. _db_read does the pg I/O (injected via configure()).
 async def kg_lookup(phrase: str) -> Optional[dict]:
     """Look up a phrase in the operator's PKG. Returns the first
     matching app_install record as a dict, or None if no match.

@@ -201,23 +201,23 @@ WATCHED_UNITS = [u for u in os.environ.get(
     "MIOS_DAEMON_WATCH_UNITS", "",
 ).split(",") if u.strip()]
 
-# ── agent-plane DB writer (Postgres+pgvector; SurrealDB retired) ──────
-# WS-A3: SurrealDB (:8000) is retired -> _db_post / _db_post_sync are no-op
+# ── agent-plane DB writer (Postgres+pgvector; legacy DB retired) ──────
+# WS-A3: the legacy DB (:8000) is retired -> _db_post / _db_post_sync are no-op
 # stubs. The daemon persists to Postgres+pgvector: _db_create mirrors rows via
 # _pg_insert (parameterized), reads go through _db_read's pg_sql path, and the
 # task_collector tick writes the canonical `kanban` + scratch + event rows on
 # its 5-minute cadence so other agents (mios-agent-pipe, hermes) query one
-# source of truth instead of polling N JSON files. (The SurrealDB connection
+# source of truth instead of polling N JSON files. (The legacy DB connection
 # constants DB_URL/DB_USER/DB_PASS/DB_NS/DB_DB/_DB_AUTH were removed with the
 # transports.)
 
 
 # WS-9c cutover: mirror daemon writes to Postgres+pgvector via the shared
-# mios-db --pg CLI (system-python, no psycopg). MIOS_DB_BACKEND: surreal|dual|postgres.
+# mios-db --pg CLI (system-python, no psycopg). MIOS_DB_BACKEND: dual|postgres.
 def _toml_db_backend() -> str:
     """SSOT: [dispatch] db_backend from the layered mios.toml (vendor < /etc).
     Mirrors the agent-pipe so the whole agent plane flips together at the
-    SurrealDB->pgvector cutover (R15/G11). Env MIOS_DB_BACKEND still wins."""
+    legacy->pgvector cutover (R15/G11). Env MIOS_DB_BACKEND still wins."""
     val = "dual"
     layers = [os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml"),
               "/etc/mios/mios.toml"]
@@ -296,7 +296,7 @@ def _pg_insert(table: str, fields: dict) -> None:
 
 
 def _db_post(sql: str, *, timeout: float = 3.0) -> Optional[list]:
-    """WS-A3: SurrealDB (:8000) is RETIRED -> hard no-op. Returns None (callers
+    """WS-A3: the legacy DB (:8000) is RETIRED -> hard no-op. Returns None (callers
     do `or []` / _ok_result(None) -> []), exactly as the dead backend resolved to
     but WITHOUT the per-call 3s timeout + 30s backoff. Writes are already mirrored
     to pgvector at the _db_create chokepoint (_pg_insert); translated reads go
@@ -332,19 +332,19 @@ def _pg_query(select_sql: str, params: "Optional[list]" = None) -> list:
 def _db_read(surreal_sql: str, *, pg_sql: "Optional[str]" = None,
              pg_params: "Optional[list]" = None) -> list:
     """Agent-plane READ seam (mirrors agent-pipe's). When pg is ENABLED AND a
-    pg_sql translation is supplied, run it and wrap the rows in SurrealDB's
+    pg_sql translation is supplied, run it and wrap the rows in the legacy
     [{"result": [...]}] envelope so _ok_result parses both shapes UNCHANGED. Else
-    SurrealDB.
+    the legacy DB.
 
     WS-A3: gated on _PG_ENABLED (not _PG_PRIMARY) -- in the DEFAULT 'dual' mode
-    SurrealDB (:8000) is retired and dead, so a _PG_PRIMARY gate left every
+    the legacy DB (:8000) is retired and dead, so a _PG_PRIMARY gate left every
     translated read (satisfaction monitor, refine scan, ...) hitting the dead
     backend and returning [] (the documented training/telemetry-starvation bug).
     Reading the live pgvector mirror in dual is correct (daemon writes already
     mirror to pg) and strictly non-regressive: a missing/bad translation still
-    falls back to SurrealDB -> [] (degrade-open), same as before, and pg responds
+    falls back to the legacy DB -> [] (degrade-open), same as before, and pg responds
     instead of timing out + arming the 30s backoff. Reads WITHOUT a pg_sql still
-    go to SurrealDB (-> [] until translated). pg_params (when the pg_sql uses
+    go to the legacy DB (-> [] until translated). pg_params (when the pg_sql uses
     $1..$n placeholders) are bound out-of-band -> injection-safe."""
     if _PG_ENABLED and pg_sql:
         return [{"result": _pg_query(pg_sql, pg_params)}]
@@ -356,11 +356,11 @@ def _db_create(table: str, fields: dict, *,
                extra: str = "") -> str:
     """WS-A3: write a row to Postgres+pgvector via _pg_insert (parameterized) and
     return "" -- the agent-plane DB is pg now. Callers wrap this in
-    `_db_post(_db_create(...))`; _db_post is a no-op stub (SurrealDB retired), so
-    returning "" makes the surreal write vanish cleanly with NO call-site change.
+    `_db_post(_db_create(...))`; _db_post is a no-op stub (legacy DB retired), so
+    returning "" makes the legacy write vanish cleanly with NO call-site change.
     `now_fields` (datetime cols) are omitted from the insert so the pgvector
     column DEFAULT now() applies; `now_fields`/`extra` are vestigial (were the
-    SurrealQL time::now()/clause shaping) and kept only for signature compat."""
+    legacy time::now()/clause shaping) and kept only for signature compat."""
     _pg_insert(table, fields)
     return ""
 
@@ -368,7 +368,7 @@ def _db_create(table: str, fields: dict, *,
 # ── inotify wrapper (stdlib ctypes; no pip deps for offline / Day-0) ──
 # Phase A.2 of the AgentOS roadmap: replace the daemon's poll loops
 # with kernel-event-driven mutations. Watches the /var/lib/mios/*
-# scratchpads + state dirs; emits SurrealDB event rows (source=
+# scratchpads + state dirs; emits DB event rows (source=
 # fs-watcher, kind=fs_change) on every change so other agents
 # (agent-pipe critic, future DCI deliberation, ...) can subscribe
 # via `SELECT FROM event WHERE source = 'fs-watcher' AND ts > <last>`
@@ -421,7 +421,7 @@ if _env_fs_dirs:
 else:
     _FS_WATCHER_DIRS = list(_DEFAULT_FS_WATCHER_DIRS)
 
-# Map of mask-bit -> short op name for the SurrealDB event row.
+# Map of mask-bit -> short op name for the DB event row.
 _OP_NAMES = {
     _IN_CLOSE_WRITE: "write",
     _IN_MOVED_TO:    "moved_in",
@@ -752,7 +752,7 @@ CLASSIFY_SYSTEM = (
 )
 
 
-# Log consolidation -> SurrealDB (operator 2026-05-21: "logs should be
+# Log consolidation -> the DB (operator 2026-05-21: "logs should be
 # compacted/compressed/consolidated and stored in global database(s)").
 # Compress by SIGNAL: med/high severity -> one compact `log_digest` row
 # (summary + tags + severity + count -- NOT raw lines); low/noise ->
@@ -939,7 +939,7 @@ def classify_loop() -> None:
         result["events_sample"] = lines[:3]
         result["ts"] = datetime.datetime.now().isoformat(timespec="seconds")
         _update_state("classify", result)
-        _persist_log_digest(result)   # compacted -> SurrealDB log_digest
+        _persist_log_digest(result)   # compacted -> DB log_digest
         log.info("classify: %d events -> %s (%s)",
                  len(batch), result.get("summary", "")[:80],
                  result.get("severity", "?"))
@@ -1444,7 +1444,7 @@ def launch_verifier_loop() -> None:
                                 "summary=%s",
                                 cl["app"], cl["chat_id"][:8],
                                 verdict.get("summary"))
-                    # SurrealDB event: high-severity launch failure so
+                    # DB event: high-severity launch failure so
                     # other agents (pipe critic, hermes) can react.
                     _db_post(_db_create("event", {
                         "source": "mios-daemon",
@@ -1967,7 +1967,7 @@ def fs_watcher_loop() -> None:
     """Phase A.2: kernel-event-driven mutation bus.
 
     Watches /var/lib/mios/* scratchpads + state dirs via inotify.
-    Each mutation -> one SurrealDB event row with source=fs-watcher,
+    Each mutation -> one DB event row with source=fs-watcher,
     kind=fs_change, payload={path, op, size, preview}. Other agents
     subscribe via `SELECT FROM event WHERE source = 'fs-watcher'
     AND ts > <last_seen>` instead of polling individual files.
@@ -1978,7 +1978,7 @@ def fs_watcher_loop() -> None:
     the thread.
     """
     # Boot delay: let the rest of the daemon initialize so the
-    # SurrealDB writer is warm before we start firing events.
+    # DB writer is warm before we start firing events.
     for _ in range(15):
         if _stop_event.is_set(): return
         time.sleep(1)
@@ -2113,7 +2113,7 @@ def task_collector_loop() -> None:
                 },
             })
             # WS-A3: sync into the CANONICAL pg kanban table (id/title/status/
-            # detail jsonb). Was a SurrealDB kanban_shadow UPSERT -- dead on the
+            # detail jsonb). Was a legacy kanban_shadow UPSERT -- dead on the
             # retired :8000, and its pg mirror targeted a non-existent
             # kanban_shadow table -> the daemon's task view never persisted.
             # Parameterized upsert (id is the PK), degrade-open via _pg_run.
@@ -2263,7 +2263,7 @@ def _on_signal(signum, _frame):
 # monitoring successes and stopping work if ALL criteria is met and
 # goals set are completed/tasks/user queries are satisfied".
 #
-# Polls SurrealDB.event for kind=refine rows (each user query goes
+# Polls the DB event table for kind=refine rows (each user query goes
 # through agent-pipe's refine pass which writes one of these). For
 # every refine that doesn't yet have a corresponding satisfaction
 # verdict, AND-fold the post-refine tool_call.success values from
@@ -2291,7 +2291,7 @@ SATISFACTION_LOOKBACK_MIN = int(os.environ.get(
 def _ok_result(db_response) -> list:
     """Extract the result rows from a _db_post response, returning
     [] when the response is None / errored / status != OK / result is
-    not a list. Defensive: SurrealDB returns the error string in the
+    not a list. Defensive: the legacy backend returns the error string in the
     `result` field when status=ERR, which would crash iteration
     expecting dicts."""
     if not db_response:
@@ -2318,7 +2318,7 @@ def _scan_unverified_refines(lookback_min: int) -> list[dict]:
         f"AND ts > now() - interval '{int(lookback_min)} minutes' "
         f"ORDER BY ts ASC LIMIT 50")))
     # Filter out refines that already have a satisfaction event
-    # referencing their id. SurrealDB doesn't have a JOIN; do it in
+    # referencing their id. The legacy backend doesn't have a JOIN; do it in
     # a second query against the recent satisfaction events.
     sat_sql = (
         f"SELECT payload FROM event "
@@ -2609,7 +2609,7 @@ def _emit_satisfaction(refine_row: dict, tool_calls: list[dict]) -> str:
 
 # ─── Directory indexer ────────────────────────────────────────────
 # Walks the configured [daemon.index] roots on a cadence, upserts
-# directory_entry rows into SurrealDB. Agents query via the
+# directory_entry rows into the DB. Agents query via the
 # `directory_lookup` verb -- DB hit ~5ms vs the 60ms+ live
 # mios-find / fs_search. Summaries extracted for text-shaped files
 # so the agent can rank relevance without re-reading each file.
@@ -2739,9 +2739,9 @@ def _walk_root(root_label: str, root_path: str, max_depth: int,
 
 
 def _upsert_directory_entries(entries: list[dict]) -> tuple[int, int]:
-    """Batch-upsert directory_entry rows via SurrealDB.
+    """Batch-upsert directory_entry rows via the legacy DB.
 
-    Datetime handling: SurrealDB 3.x rejects bare ISO strings for
+    Datetime handling: the legacy backend rejects bare ISO strings for
     TYPE datetime fields -- the canonical literal is
     `<datetime>"2026-05-19T..."`. We bypass _db_create for this
     batch path and format CREATE statements directly with the
@@ -2762,7 +2762,7 @@ def _upsert_directory_entries(entries: list[dict]) -> tuple[int, int]:
         batch = entries[i:i + CHUNK]
         statements = []
         for e in batch:
-            # Field-by-field SurrealQL with proper literal shapes.
+            # Field-by-field legacy-dialect with proper literal shapes.
             parts = []
             for k, v in e.items():
                 if v is None:
@@ -2859,7 +2859,7 @@ def _atomic_replace_for_root(root_label: str,
     persisting as stale rows."""
     # pgvector mirror (R15) -- runs in dual + postgres modes.
     _pg_replace_directory_entries(root_label, entries)
-    # SurrealDB replace -- skipped once Postgres is primary (pg is then the
+    # Legacy DB replace -- skipped once Postgres is primary (pg is then the
     # source of truth); kept for the dual-mode transition window.
     if _PG_PRIMARY:
         return (len(entries), 0)
@@ -2875,10 +2875,10 @@ def _atomic_replace_for_root(root_label: str,
 
 
 def _db_post_sync(sql: str) -> list:
-    """WS-A3: SurrealDB (:8000) is RETIRED -> hard no-op (returns []). The
+    """WS-A3: the legacy DB (:8000) is RETIRED -> hard no-op (returns []). The
     directory index is written to pgvector by _pg_replace_directory_entries
     (called FIRST in _atomic_replace_for_root, in dual + postgres modes), so this
-    surreal mirror was redundant dead work. Stub kept so the index-loop call
+    legacy mirror was redundant dead work. Stub kept so the index-loop call
     sites need no change."""
     return []
 
@@ -2887,7 +2887,7 @@ def index_loop() -> None:
     """Tick the directory-map indexer. Reads [daemon.index] config
     each tick so operators can re-tune cadence / roots without
     restarting the daemon."""
-    time.sleep(60)  # boot delay; let surrealdb settle
+    time.sleep(60)  # boot delay; let the DB settle
     while not _stop_event.is_set():
         try:
             cfg = _read_daemon_index_config()
@@ -2943,7 +2943,7 @@ def index_loop() -> None:
 def satisfaction_loop() -> None:
     """Tick the satisfaction monitor. Best-effort -- DB hiccups
     swallow + the next tick retries; no infinite-error loops."""
-    time.sleep(45)  # boot delay; let agent-pipe + surrealdb settle
+    time.sleep(45)  # boot delay; let agent-pipe + the DB settle
     while not _stop_event.is_set():
         try:
             unverified = _scan_unverified_refines(SATISFACTION_LOOKBACK_MIN)
@@ -2980,10 +2980,10 @@ def satisfaction_loop() -> None:
 def rolling_report_loop() -> None:
     """Operator 2026-05-21: consolidate the stored log_digests into a concise
     ROLLING REPORT. Every MIOS_DAEMON_REPORT_S, read the recent med/high
-    digests from SurrealDB, ask the micro for ONE short report, and store it
+    digests from the DB, ask the micro for ONE short report, and store it
     (state.json `report` + a log_digest report row). Cheap + idle-aware:
     skips the LLM entirely when nothing notable accumulated."""
-    if _stop_event.wait(120):   # boot delay; let surrealdb + classify warm
+    if _stop_event.wait(120):   # boot delay; let the DB + classify warm
         return
     interval = float(os.environ.get("MIOS_DAEMON_REPORT_S", "3600"))
     while not _stop_event.is_set():
@@ -2994,7 +2994,7 @@ def rolling_report_loop() -> None:
                 "SELECT ts, summary, severity FROM log_digest "
                 "WHERE ts > time::now() - 1h AND severity IN ['med','high'] "
                 "ORDER BY ts DESC LIMIT 30;",
-                pg_sql=(  # WS-A3: live pg read (was a dead SurrealQL _db_post)
+                pg_sql=(  # WS-A3: live pg read (was a dead legacy _db_post)
                     "SELECT ts, summary, severity FROM log_digest "
                     "WHERE ts > now() - interval '1 hour' "
                     "AND severity IN ('med','high') "
@@ -3082,7 +3082,7 @@ def _daemon_global_log_context(max_rows: int = 20) -> str:
             "SELECT ts, summary, severity FROM log_digest "
             "WHERE ts > time::now() - 2h "
             "ORDER BY ts DESC LIMIT " + str(int(max_rows)) + ";",
-            pg_sql=(  # WS-A3: live pg read (was a dead SurrealQL _db_post)
+            pg_sql=(  # WS-A3: live pg read (was a dead legacy _db_post)
                 "SELECT ts, summary, severity FROM log_digest "
                 "WHERE ts > now() - interval '2 hours' "
                 "ORDER BY ts DESC LIMIT " + str(int(max_rows)))) ) or []

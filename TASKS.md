@@ -223,7 +223,7 @@
 | T-237 | P3 | planned | Naming | NAME2-02 -- Rename `mios-daemon-agent` agent-id → `daemon-agent` |
 | T-238 | P3 | ? | Naming/Hygiene | NAME2-03 -- Mutable-state casing pass + `ContainerName=` audit   |
 | T-239 | P3 | ? | Security/Boot | UKI-01 -- verity-rooted UKI build + fapolicyd enforce-promotion  |
-| T-240 | P2 | in-progress | Data/Migration | A3F-01 -- Central-path SurrealDB→pg primary flip + un-mirrored w |
+| T-240 | P2 | in-progress | Data/Migration | A3F-01 -- Central-path legacy-datastore→pg primary flip + un-mirrored w |
 | T-241 | P2 | in-progress | OS-control/Windows | OSCTL2-01 -- hwnd-threaded target-window resolution for `pc_type |
 | T-242 | P1 | planned | AI-plane/SSOT/DB | VECTOR-00 -- V0 Foundation: unified DB + provenance + DB->TOML m |
 | T-243 | P1 | planned | AI-plane/SSOT/DB | VECTOR-01 -- V1 Config read-path: DB becomes the runtime read (T |
@@ -1700,7 +1700,7 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 
 **Instructions:**
 - E2: Strip trailing `(lat, long)` suffix in `_client_env` location string before it reaches the model.
-- E3: Fix stale `agent.json` description that still references "SurrealDB-state chain" (pgvector migration happened).
+- E3: Fix stale `agent.json` description that still references "legacy-datastore-state chain" (pgvector migration happened).
 
 **Files:** `usr/lib/mios/agent-pipe/server.py` (`_client_env`) | `usr/share/mios/ai/v1/agent.json`
 
@@ -1708,7 +1708,7 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 
 **Done When:**
 - [x] Location in OWUI shows city/timezone only, no coordinates
-- [x] `agent.json` description references pgvector, not SurrealDB
+- [x] `agent.json` description references pgvector, not the legacy datastore
 
 ---
 
@@ -4064,7 +4064,7 @@ T-094 (CONV-01 SSOT)
 **Done When:**
 - [ ] The 4 defects are fixed; a VM boots a verity-rooted signed UKI with fapolicyd in enforce, agent codegen still permitted; observe-mode remains the default.
 
-## T-240: A3F-01 -- Central-path SurrealDB→pg primary flip + un-mirrored write fixes  [P2] [VM]
+## T-240: A3F-01 -- Central-path legacy-datastore→pg primary flip + un-mirrored write fixes  [P2] [VM]
 > **Priority:** P2 | **Status:** in-progress | **Effort:** M | **Domain:** Data/Migration | **Who:** data agent | **Source:** ws-a3-central-path-cutover-worklist.md
 **Instructions (WHAT + HOW):** Complete the deferred CENTRAL path (server.py + OWUI pipe) pg-primary flip: fix the un-mirrored write sites (`execute_skill last_used_at`, `_skill_invocation_close`, `hitl_approve` audit UPDATE, and the 4 OWUI-pipe writes in `mios_agent_pipe.py` ~L1394/1620/1910/2310), and make the `_skill_attribute_tool_call` RELATE-edge schema decision (add a `tool_call_emissions` table vs. an `emitted_by_invocation` column). Flip `[pgvector].db_backend` dual→postgres / the `_PG_PRIMARY` gate under VM verify.
 **Where (files):** `usr/lib/mios/agent-pipe/server.py`; `usr/share/mios/owui/pipes/mios_agent_pipe.py`; `postgres/schema-init.sql`; `mios.toml [pgvector]`.

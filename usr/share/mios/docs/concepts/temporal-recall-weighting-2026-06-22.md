@@ -42,7 +42,7 @@ still true. The blended recall rank also had **no recency term** — the SSOT kn
 ## Implementation (SSOT-gated, model-classified — no hardcoded keyword lists)
 
 **1. Bounded multiplicative recency decay** (`_recency_mult`, both recall paths
-— live pgvector `_recall_knowledge_pg` + the SurrealDB `_blended` fallback):
+— live pgvector `_recall_knowledge_pg` + the legacy datastore `_blended` fallback):
 
 ```
 score = (cosine + w_outcome·outcome + w_hot·hot + w_access·log1p(access)) · M

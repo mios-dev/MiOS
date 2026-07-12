@@ -19,7 +19,7 @@
     "structured_outputs": "json_schema with strict:true"
   },
   "local_runtime_compatibility": {
-    "mios_localai": {
+    "mios_canonical": {
       "endpoint": "http://localhost:8642/v1",
       "supports": [
         "chat/completions",
@@ -179,7 +179,7 @@
     {
       "path": "/usr/share/doc/mios/70-ai-surface.md",
       "format": "markdown",
-      "purpose": "LocalAI Quadlet, LAW 5",
+      "purpose": "AI surface Quadlet, LAW 5",
       "endpoint": "vector_stores.files"
     },
     {
@@ -258,12 +258,6 @@
       "path": "/usr/share/doc/mios/upstream/nvidia.md",
       "format": "markdown",
       "purpose": "NVIDIA on Fedora bootc",
-      "endpoint": "vector_stores.files"
-    },
-    {
-      "path": "/usr/share/doc/mios/upstream/localai.md",
-      "format": "markdown",
-      "purpose": "LocalAI (the canonical local LLM endpoint)",
       "endpoint": "vector_stores.files"
     },
     {
@@ -503,7 +497,7 @@
     {
       "path": "/usr/share/mios/api/chat.local.example.json",
       "format": "json",
-      "purpose": "Chat Completions payload (MiOS LocalAI)",
+      "purpose": "Chat Completions payload (MiOS canonical endpoint)",
       "endpoint": "POST $MIOS_AI_ENDPOINT/chat/completions"
     },
     {
@@ -551,7 +545,7 @@
     {
       "path": "/usr/share/mios/cookbooks/local-rag-day0.md",
       "format": "markdown",
-      "purpose": "Day-0 local RAG against MiOS LocalAI",
+      "purpose": "Day-0 local RAG against the MiOS AI endpoint",
       "endpoint": null
     },
     {

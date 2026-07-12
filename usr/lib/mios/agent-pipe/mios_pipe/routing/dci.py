@@ -33,7 +33,7 @@ log = logging.getLogger("mios-agent-pipe")
 
 
 # ── Dependency-injection seam ─────────────────────────────────────
-# The DCI flow + critic write SurrealDB/pg event rows via server.py's
+# The DCI flow + critic write pg event rows via server.py's
 # _db_create/_db_post/_db_fire helpers and stamp outbound credentials
 # via _apply_outbound_auth. server.py calls configure() with those
 # functions AFTER they are defined (one-way boundary: this module never
@@ -590,7 +590,7 @@ async def critic_then_maybe_flow(
         # follow-up dispatch from the operator could land BEFORE
         # the write completes and slip past the firewall (operator-
         # observed race the dissent row didn't show up
-        # in the SurrealDB readback because the loop returned before
+        # in the DB readback because the loop returned before
         # the pending writes settled).
         if result.get("dissents") and session_id:
             taint_row = {

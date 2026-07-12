@@ -10,7 +10,7 @@
 # /etc, /usr, agent definitions, person/skill/app_install inventories,
 # the ed25519 passport keypairs, MCP + A2A registries (operator config).
 #
-# Backend: pgvector is the SOLE agent datastore (SurrealDB :8000 is retired).
+# Backend: pgvector is the SOLE agent datastore (the legacy :8000 DB is retired).
 # pg runtime tables are TRUNCATEd through mios-db --pg; the table list is a
 # trusted constant (config identifiers, never request data) so the names stay
 # inline. OWUI chat history lives in webui.db (sqlite).
@@ -38,7 +38,7 @@ systemctl stop mios-agent-pipe.service hermes-agent.service \
   mios-hermes-tail.service mios-daemon.service hermes-dashboard.service \
   mios-mcp.service 2>/dev/null
 
-# ── pgvector is the SOLE agent store since the SurrealDB->pgvector migration.
+# ── pgvector is the SOLE agent store since the legacy->pgvector migration.
 # Clear the runtime/AI tables in pg. KEEP the definitional/operator-curated
 # tables (alias, app_install, resolves_to, run_template, skill) AND mios_rag
 # (the docs-index RAG = baked SYSTEM knowledge, regenerated from /usr/share/doc

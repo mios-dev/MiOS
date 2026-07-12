@@ -559,10 +559,9 @@ fi
 : "${MIOS_HOSTNAME:=mios}"
 : "${MIOS_AI_MODEL:=qwen2.5-coder:7b}"
 : "${MIOS_AI_EMBED_MODEL:=nomic-embed-text}"
-: "${MIOS_OLLAMA_BAKE_MODELS:=${MIOS_AI_MODEL},${MIOS_AI_EMBED_MODEL}}"
 : "${MIOS_PASSWORD_POLICY:=interactive}"
 export MIOS_USER MIOS_HOSTNAME MIOS_AI_MODEL MIOS_AI_EMBED_MODEL \
-       MIOS_OLLAMA_BAKE_MODELS MIOS_PASSWORD_POLICY
+       MIOS_PASSWORD_POLICY
 
 # Password handling. The toml schema says password_hash is NEVER
 # tracked in a checked-in copy. Three policies:
@@ -761,7 +760,7 @@ _log "  podman build -t localhost/mios:latest -f Containerfile $BUILD_CTX"
 # hostname for mirrors.fedoraproject.org" / "[packages.sh] FATAL:
 # Mandatory 'base' packages failed to install" (operator-confirmed
 # 2026-05-14). The dev VM's HOST netns resolves fine (it pulls OCI
-# images, Ollama models, etc.), so run the build's RUN steps in the
+# images, model weights, etc.), so run the build's RUN steps in the
 # host network namespace. This affects only build-time network access;
 # nothing about --network is baked into the resulting image.
 if cd "$BUILD_CTX" && sudo podman build \

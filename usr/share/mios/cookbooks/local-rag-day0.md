@@ -37,7 +37,7 @@ That is what makes Day-0 evaluation trustworthy on MiOS.
 
 ## Why pgvector and not a sidecar vector DB
 
-MiOS retired its early SurrealDB/Qdrant stack: the unified datastore is now
+MiOS retired its early legacy datastore/Qdrant stack: the unified datastore is now
 **PostgreSQL + pgvector** (container `mios-pgvector`, accessed in MiOS via the
 pure-python `mios-pg-query` client and `mios-db --pg`). Putting your KB
 vectors in the same Postgres keeps one backup surface, one access path, and

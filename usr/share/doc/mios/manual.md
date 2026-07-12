@@ -822,7 +822,7 @@ MiOS provides agents with the ability to interact directly with the GNOME deskto
 
 This section links back to the authoritative [Attribution Registry (credits.md)](file:///usr/share/doc/mios/reference/credits.md):
 - **Row 40** (nvidia-container-toolkit): [Attribution Reference](file:///usr/share/doc/mios/reference/credits.md#L103)
-- **Row 41** (LocalAI): [Attribution Reference](file:///usr/share/doc/mios/reference/credits.md#L114)
+- **Row 41** (llama-swap): [Attribution Reference](file:///usr/share/doc/mios/reference/credits.md#L114)
 - **Row 42** (Ollama): [Attribution Reference](file:///usr/share/doc/mios/reference/credits.md#L115)
 
 #### System References

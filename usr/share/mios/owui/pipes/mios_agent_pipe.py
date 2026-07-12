@@ -103,7 +103,7 @@ _TAIL_ICONS = {
 
 
 # ── Retired database best-effort writer ─────────────────────────────────────
-# Migration note: SurrealDB is retired. Cross-agent state is now managed by
+# Migration note: the legacy DB is retired. Cross-agent state is now managed by
 # PostgreSQL/pgvector via agent-pipe. The writes in this class are retired.
 #
 # Resilience: writes are FIRE-AND-FORGET via asyncio.create_task so the
@@ -162,9 +162,9 @@ def _db_create(table: str, fields: dict, *,
     datetime ("Expected datetime but found '...'"). The canonical
     pattern is `field = time::now()` literal. now_fields lists the
     keys to assign via time::now(); all OTHER keys go through
-    json.dumps which yields valid SurrealQL for strings, numbers,
+    json.dumps which yields valid legacy-dialect literals for strings, numbers,
     bools, arrays, and nested objects (JSON-object syntax IS
-    SurrealQL-object syntax).
+    the legacy object syntax).
 
     extra is appended verbatim after the SET list (e.g. "RETURN id")."""
     parts = [f"{k} = time::now()" for k in now_fields]

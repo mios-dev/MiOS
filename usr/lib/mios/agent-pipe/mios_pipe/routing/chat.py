@@ -625,8 +625,8 @@ def _shadow_queue_tasks(tasks: list[dict],
     table. Returns the same list augmented with `hermes_task_id` so the
     dispatcher + polish can refer to each row by id.
 
-    WS-A3: this was the SurrealDB `kanban_shadow` shadow-queue, which silently
-    no-op'd once SurrealDB (:8000) was retired (and whose pg mirror targeted a
+    WS-A3: this was the legacy `kanban_shadow` shadow-queue, which silently
+    no-op'd once the legacy backend (:8000) was retired (and whose pg mirror targeted a
     `kanban_shadow` table that doesn't exist) -- so the multi-task queue was
     invisible. It now upserts the canonical pg `kanban` (id/title/status/detail
     jsonb) via a PARAMETERIZED statement (psycopg binds values; never spliced),
@@ -1367,7 +1367,7 @@ async def chat_completions_logic(request: Request) -> Any:
     # downstream tool_call linking + the inline confirmation engine.
     # passport_sign=False: the `session` table is SCHEMAFULL and has
     # NO `passport` field, so attaching the default Ed25519 envelope
-    # made SurrealDB reject the CREATE with a per-statement ERR
+    # made the legacy backend reject the CREATE with a per-statement ERR
     # ("Found field 'passport', but no such field exists for table
     # 'session'"). That ERR comes back inside an HTTP 200, so _db_post
     # returned a list whose statement result was an error STRING (not a

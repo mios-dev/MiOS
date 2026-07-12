@@ -11,7 +11,6 @@ Wants=network-online.target mios-gateway-agent.service mios-cdi-detect.service
 AutoUpdate=registry
 ContainerName=mios-open-webui
 Environment=OPENAI_API_BASE_URL=http://host.containers.internal:${MIOS_PORT_AGENT_PIPE}/v1
-Environment=ENABLE_OLLAMA=False
 Environment=OLLAMA_BASE_URL=http://host.containers.internal:${MIOS_PORT_LLM_LIGHT}
 Environment=WEBUI_NAME="MiOS AI"
 Environment=WEBUI_SECRET_KEY=mios-stable-secret-change-me

@@ -20,7 +20,7 @@ set -euo pipefail
 #   * OWUI: user, auth, group, model, function, tool, api_key
 #   * Hermes: config.yaml, SOUL.md, .env, skills/, bin/, hooks/
 #   * pgvector: agent_keypair, agent, person  (crypto identity + registry)
-#   * ollama models, /etc/mios/* configs, vendor /usr/share/mios/*
+#   * models, /etc/mios/* configs, vendor /usr/share/mios/*
 #
 # Operator directive 2026-05-20: "clear ... EVERYTHING to Day-0 ... constant
 # discord reports daily and want a completely clean slate". Root cause of the
@@ -52,7 +52,7 @@ if [ "$(id -u)" -ne 0 ]; then
     exec sudo -n -E "$0" "$@"
 fi
 
-# WS-9: agent state lives in PostgreSQL+pgvector now (SurrealDB BSL store
+# WS-9: agent state lives in PostgreSQL+pgvector now (the legacy BSL store
 # retired). Reset via the pure-python pg wire client (loopback trust, no
 # auth/psql/podman needed) -- same path mios-rag / mios-db --pg use.
 PG_QUERY="${MIOS_PG_QUERY_BIN:-/usr/libexec/mios/mios-pg-query}"

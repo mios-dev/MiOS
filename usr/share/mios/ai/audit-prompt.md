@@ -155,7 +155,7 @@ cite a real shipped file -- a stale path is a promise the image can't keep.
   -- function-named inference lanes (`mios-llm-light` primary `:11450` incl.
   embeddings, gated `mios-llm-heavy`/`mios-llm-heavy-alt`) and the
   PostgreSQL+pgvector agent datastore (`mios-pgvector` `:5432`). References to the
-  retired backends as *live* (`Ollama`/`mios-ollama`, `SurrealDB`, `Qdrant`, the
+  retired backends as *live* (`Ollama`/`mios-ollama`, `the legacy datastore`, `Qdrant`, the
   former `CloudWS`/`cloudws-*` naming) are drift findings; the same names as an
   *upstream API-compat reference* (the lanes speak the OpenAI/Ollama-compatible
   API) or in clearly-marked historical/migration notes are NOT findings.

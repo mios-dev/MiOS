@@ -129,7 +129,7 @@ async def _inline_satisfaction_check(
     # Fetch this turn's tool_calls (since the refine row was
     # written). Use a generous 5-min lookback that comfortably
     # covers a slow refine + sub-agent loop. `ts` MUST be in the
-    # projection: SurrealDB 3.x rejects an ORDER BY on a field that
+    # projection: the legacy backend rejects an ORDER BY on a field that
     # isn't selected ("Missing order idiom `ts`") with an HTTP 400,
     # which made _db_post return None (and trip a 30s DB backoff) --
     # the check then always bailed once a real session_id existed.

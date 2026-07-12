@@ -75,7 +75,7 @@ operator front-end          (Open WebUI, Discord/chat gateway, or the `mios` CLI
 > *do*. `mios-llm-light` (the upstream proxy image
 > `ghcr.io/mostlygeek/llama-swap`) and the Ollama-compatible API are legitimate
 > *upstream* references — the engines speak that API so any OpenAI-API client
-> talks to them unchanged. The earlier Ollama backend, SurrealDB datastore, and
+> talks to them unchanged. The earlier Ollama backend, the legacy datastore datastore, and
 > Qdrant vector store have been **removed**; inference + embeddings now run on
 > `mios-llm-light` and the unified agent datastore is **PostgreSQL + pgvector**.
 
@@ -244,7 +244,7 @@ which the prefilter did the refinement and `mistral-magistral-small-2509` ran on
 - Inference moved off **Ollama** to the function-named lanes
   (`mios-llm-light` primary on `:11450`, gated heavy lanes); Ollama survives
   only as an upstream API-compat reference and in migration notes.
-- The datastore moved off **SurrealDB**/**Qdrant** to **PostgreSQL + pgvector**.
+- The datastore moved off **the legacy datastore**/**Qdrant** to **PostgreSQL + pgvector**.
 - The **agent-pipe** (`:8640`) became the standalone orchestrator that owns
   refine/council/swarm/critic/polish; the prefilter (`:8641`) was narrowed to
   fan-out hint injection.

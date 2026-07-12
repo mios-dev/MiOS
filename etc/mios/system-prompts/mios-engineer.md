@@ -139,7 +139,7 @@ against the Quadlets and `usr/share/mios/mios.toml`):
 The throughline: **inference lanes → agent-pipe/Hermes orchestration → pgvector
 memory → MCP/A2A**, all behind `MIOS_AI_ENDPOINT`.
 
-**Removed legacy (do NOT describe as present):** Ollama, SurrealDB, and Qdrant
+**Removed legacy (do NOT describe as present):** Ollama, the legacy datastore, and Qdrant
 are fully removed. Inference + embeddings run on `mios-llm-light`; the agent
 datastore is PostgreSQL + pgvector. Ollama survives **only** as an upstream
 API-compat reference (the lanes speak the OpenAI/Ollama-compatible API) and in

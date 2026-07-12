@@ -173,7 +173,7 @@ export MIOS_REPO_URL MIOS_BOOTSTRAP_REPO_URL MIOS_LOCAL_FORGE_REPO
 : "${MIOS_VAR_BACKUPS_DIR:=${MIOS_VAR_DIR}/backups}"
 : "${MIOS_VAR_CACHE_DIR:=${MIOS_VAR_DIR}/cache}"
 
-# /srv/ai/* -- LocalAI bind targets (model store, generated outputs)
+# /srv/ai/* -- AI inference bind targets (model store, generated outputs)
 : "${MIOS_SRV_AI_DIR:=/srv/ai}"
 : "${MIOS_SRV_AI_MODELS_DIR:=${MIOS_SRV_AI_DIR}/models}"
 : "${MIOS_SRV_AI_OUTPUTS_DIR:=${MIOS_SRV_AI_DIR}/outputs}"

@@ -301,7 +301,7 @@ async def _read_recent_pending(session_id: "Optional[str]") -> "Optional[dict]":
                     "WHERE status = 'pending' AND session_id = %(sid)s "
                     "ORDER BY ts DESC LIMIT 1"),
             pg_params={"sid": session_id})
-        # _db_read wraps rows in the SurrealDB envelope [{"result": [...]}].
+        # _db_read wraps rows in the legacy result envelope [{"result": [...]}].
         _rows = ((resp[0] or {}).get("result") or []) if isinstance(resp, list) and resp else []
         if not _rows:
             return None
@@ -425,7 +425,7 @@ async def hitl_approve_logic(request: Request) -> JSONResponse:
     except Exception:  # noqa: BLE001
         body = {}
     rid = str(body.get("id") or "").strip()
-    # WS-MEM-TIER: accept a SurrealDB record-id ('pending_action:NNN') OR a bare
+    # WS-MEM-TIER: accept a legacy record-id ('pending_action:NNN') OR a bare
     # pgvector bigint id -- the old `":" not in rid` guard REJECTED every valid pg
     # id, so HITL approve/deny was unreachable on pgvector-primary.
     _pgid = _mios_pg.rid_to_pg_id(rid)

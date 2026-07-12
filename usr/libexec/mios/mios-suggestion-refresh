@@ -166,7 +166,7 @@ def _pg(sql: str) -> list:
 
 def _recent_kanban(limit: int = 4) -> list[str]:
     """Read recent operator-relevant kanban entries from the pgvector
-    `kanban` table (authoritative; retired the SurrealDB shadow). These
+    `kanban` table (authoritative; retired the legacy shadow). These
     are real queued tasks the operator opened; ideal chip seeds."""
     # pg `kanban.status` is todo|doing|done|blocked (+ tolerate a legacy
     # 'completed'); exclude the finished states. Ordered by ts (the shadow's

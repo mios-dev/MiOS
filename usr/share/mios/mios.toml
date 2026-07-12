@@ -322,7 +322,7 @@ allow_libvirt_bridge   = true   # for VM networking
 #       - 768-dim sentence embeddings (v1.5).
 #       - 8192-token context (long enough for whole source files).
 #       - ~270 MB Q4 GGUF; negligible runtime RAM cost.
-#       - Apache 2.0; OpenAI /v1/embeddings-shaped via LocalAI.
+#       - Apache 2.0; OpenAI /v1/embeddings-shaped via the mios-llm-light lane.
 #       - https://huggingface.co/nomic-ai/nomic-embed-text-v1.5
 #
 # Build-baked: automation/38-llamacpp-prep.sh pulls the 'model' +
@@ -629,13 +629,13 @@ enable   = true
 # authenticate from the in-page JS without external token wiring.
 
 # ----------------------------------------------------------------------------
-# WS-0B/WS-A3 de-rot: SurrealDB is RETIRED. Shared cross-cutting agent state
+# WS-0B/WS-A3 de-rot: the legacy DB is RETIRED. Shared cross-cutting agent state
 # (agent, session, tool_call, event, kanban, scratch, knowledge, agent_memory,
 # directory_entry, skill, log_digest, peer_reputation, ...) now lives in
 # Postgres+pgvector -- see the [pgvector] section + usr/share/mios/postgres/
 # schema-init.sql, accessed via mios-pg-query / mios-db --pg(-json) / the
 # agent-pipe mios_pg client. OWUI's webui.db remains SOT for OWUI-native
-# memory/knowledge/files/tools/functions/models. (The former [surrealdb] config
+# memory/knowledge/files/tools/functions/models. (The former legacy DB config
 # block + its :8000 service were removed in the WS-A3 cutover; this note is left
 # as a signpost.)
 # ----------------------------------------------------------------------------
@@ -1312,8 +1312,8 @@ strengths = ["kanban", "web_search", "skill_invocation",
 privilege_group = "routine"
 endpoint = "http://localhost:${MIOS_PORT_OPENCODE_GATEWAY}/v1"
 # ONE canonical model id (must match [ai].opencode_model + opencode.json + the
-# ollama Modelfile build name:tag). Was "opencode"; unified to the real tag the
-# gateway advertises and ollama serves.
+# mios-opencode build name:tag). Was "opencode"; unified to the real tag the
+# gateway advertises and mios-llm-light serves.
 model    = "mios-opencode:latest"
 # WS-A1 unified-template fields: opencode is a default-OFF subprocess-shim (CLI)
 # agent reached via the :8633 gateway. Declaring kind=cli + enabled=false makes
@@ -1367,7 +1367,7 @@ failover_agents = ["hermes"]
 # on a loopback port is BOTH the global log/journal monitor AND the council's
 # CPU reasoning lane. It runs LIGHT in the background (~2c/4t) and BURSTS to
 # 8c/16t when it joins a foreground pipeline turn.
-# WS-10: repoint off the daemon-agent's ollama-cpu backend (:11435 dead) to
+# WS-10: repoint off the daemon-agent's retired CPU backend (:11435 dead) to
 # mios-llm-light; model 'mios-daemon-agent' is aliased to gemma4:12b. Was :8644/v1.
 # "ALL AGENTS USE SGLANG": the council CPU-reasoner now
 # dispatches to the SGLang heavy lane (:11441, mios-heavy) like every other
@@ -1411,7 +1411,7 @@ failover_agents = ["hermes"]
 
 # [agents.mios-reasoner-cpu] was CONSOLIDATED into [agents.mios-daemon-agent]
 # above ("mios-daemon-agent = mios-cpu/reasoner!"). It
-# pointed at the SAME CPU ollama (:11435) running the SAME small qwen3:1.7b, so
+# pointed at the SAME retired CPU lane (:11435) running the SAME small qwen3:1.7b, so
 # the always-on daemon-agent simply ABSORBED the reasoning role rather than
 # running a duplicate light-lane. To run a CPU/iGPU reasoner on OTHER hardware
 # (e.g. the AMD iGPU served natively on the Windows host via llama.cpp+Vulkan
@@ -1568,8 +1568,8 @@ enable                    = false
 # auto-join when reachable + drop when gone (local nodes omit it = always live).
 # The target endpoint MUST actually serve that Modelfile tag.
 # ALL LLAMA.CPP (operator binding: "EVERYTHING IS LLAMA.CPP, NO OLLAMA"). The GPU +
-# light lanes point to mios-llm-light (${MIOS_PORT_LLM_LIGHT}) -- the retired ollama endpoints
-# are GONE. api=llamacpp -> KV-paging + no tool_choice=required.
+# light lanes point to mios-llm-light (${MIOS_PORT_LLM_LIGHT}).
+# api=llamacpp -> KV-paging + no tool_choice=required.
 # health_gate=true -> a lane is probed + skipped if mios-llm-light is momentarily down
 # (never a false "All connection attempts failed" fan-out; e2e).
 # "ALL AGENTS USE SGLANG": every swarm worker dispatches to
@@ -3004,7 +3004,7 @@ executor_endpoint  = ""          # e.g. in /etc/mios: "http://100.x.y.z:11438"
 input_backend      = "auto"      # auto | portal (GNOME/KDE, sandboxable) | uinput (compositor-agnostic)
 capture_backend    = "auto"      # auto | portal | grim | gnome | spectacle
 restore_token_path = ""          # default: $XDG_STATE_HOME/mios/cu-restore-token (skips the portal consent dialog on re-use)
-grounding_model    = ""          # vision grounding tag; empty => mios-pc-vision default (qwen3-vl:4b on Ollama) or the vLLM mios-grounding lane
+grounding_model    = ""          # vision grounding tag; empty => mios-pc-vision default (qwen3-vl:4b on mios-llm-light) or the vLLM mios-grounding lane
 require_approval   = true        # write-class ops (click/type/key) go through the DoD/approval gate; read-class (screenshot/window-list/ground) auto
 # mios-computer-use-server (the dual MCP+A2A node server) bind. Loopback-only in
 # vendor; set bind_address to the tailnet IP in your /etc overlay + firewall the
@@ -3748,7 +3748,7 @@ hidden = true
 section    = "Discovery / resolution"
 sig        = "query, collection?, top_k=5?"
 desc       = "Query the OWUI RAG knowledge COLLECTIONS (curated document corpora uploaded to Open WebUI) and return citation-ready hits {score, source, snippet}. This is the RAG document store -- distinct from the local notes vault (notes_vault_search, your second-brain of skills/Q&A/memory), from durable AI memories (recall), and from web/file search."
-examples   = ["search the RAG knowledge collections for the deployment runbook", "what do the uploaded OWUI documents say about firewall rules", "cite the knowledge base on the SurrealDB migration", "find passages in my knowledge collections about embeddings"]
+examples   = ["search the RAG knowledge collections for the deployment runbook", "what do the uploaded OWUI documents say about firewall rules", "cite the knowledge base on the database migration", "find passages in my knowledge collections about embeddings"]
 tier = "rare"
 sensitive  = true   # Rule-of-Two property B: reads private RAG knowledge collections
 cmd        = "mios-knowledge-search --json --top-k {top_k=5} {query}{collection?--collection}"
@@ -4508,7 +4508,7 @@ cmd = "mios-flatpak-preflight {id}"
 hidden = true
 section    = "System"
 sig        = ""
-desc       = "Live LOCAL machine health dashboard (JSON): OS (Linux distro + kernel + whether this is WSL2 + the WINDOWS HOST OS caption/version when on WSL2), GPU/VRAM, RAM, disk usage, running services, loaded ollama models. THE verb for 'system status', 'system health', 'what OS / Windows version am I on', 'is the GPU/memory/disk ok'. Local state only -- NEVER a web search, and NEVER answer the OS/host from training data: read it HERE (the `os` field). Single source of truth for these live numbers."
+desc       = "Live LOCAL machine health dashboard (JSON): OS (Linux distro + kernel + whether this is WSL2 + the WINDOWS HOST OS caption/version when on WSL2), GPU/VRAM, RAM, disk usage, running services, loaded models. THE verb for 'system status', 'system health', 'what OS / Windows version am I on', 'is the GPU/memory/disk ok'. Local state only -- NEVER a web search, and NEVER answer the OS/host from training data: read it HERE (the `os` field). Single source of truth for these live numbers."
 examples   = ["what OS / Windows version am I actually running", "how's my system doing right now", "check GPU and VRAM usage", "is my disk getting full"]
 tier = "rare"
 cmd        = "mios-system-status"
@@ -4518,7 +4518,7 @@ max_result_chars = 5000   # the full dashboard JSON (GPU/RAM/disk/services/model
 hidden = true
 section    = "System"
 sig        = ""
-desc       = "READ the cached system/environment inventory (shared store): identity, the host OS + whether this is WSL2 + the Windows host, host hardware, which MiOS stack services are up/down, loaded ollama models, and the installed launchable-app inventory by category. Read this to know the ENVIRONMENT and WHAT IS INSTALLED/RUNNING instead of guessing the OS or the apps. Cached (may be slightly stale -> sys_env_refresh). Read-only."
+desc       = "READ the cached system/environment inventory (shared store): identity, the host OS + whether this is WSL2 + the Windows host, host hardware, which MiOS stack services are up/down, loaded models, and the installed launchable-app inventory by category. Read this to know the ENVIRONMENT and WHAT IS INSTALLED/RUNNING instead of guessing the OS or the apps. Cached (may be slightly stale -> sys_env_refresh). Read-only."
 model_name = "sys_env_snapshot"
 examples   = ["what OS / environment am I running on", "what's installed and running on this box", "list the MiOS services and loaded models", "give me the environment inventory"]
 tier = "rare"
@@ -4595,7 +4595,7 @@ hidden = true
 section    = "System"
 sig        = 'filter?, sort="rss"?, limit=20?'
 desc       = "List running OS PROCESSES, optionally filtered by name; sorted by rss (memory) / cpu / pid. Use to see which processes are running and what they consume. For container/service state use container_status / service_status instead."
-examples   = ["what's using the most memory", "list processes named ollama", "show top CPU processes", "is python still running"]
+examples   = ["what's using the most memory", "list processes named podman", "show top CPU processes", "is python still running"]
 tier = "rare"
 cmd        = "mios-sysview proc --sort {sort=rss} --limit {limit=20}{filter?--filter}"
 max_result_chars = 6000   # fit the default 20-process list whole (1500 cut it mid-process -> fabricated entries)
@@ -4914,7 +4914,7 @@ hidden = true
 section    = "Discovery / resolution"
 sig        = "key"
 desc       = "DELETE a durable memory you previously stored (Letta/MemGPT core_memory_remove) by its `key`. Use when a stored fact is wrong or obsolete and should be removed entirely. Pair: remember (write) / recall (read) / memory_update (edit). Returns {ok, op, key}."
-examples   = ["forget what I told you about my old address", "delete the stored memory under that key", "remove the obsolete fact about the SurrealDB port", "wipe that remembered preference"]
+examples   = ["forget what I told you about my old address", "delete the stored memory under that key", "remove the obsolete fact about the old database port", "wipe that remembered preference"]
 tier = "rare"
 permission = "write"
 cmd        = "mios-remember forget --key {key!}"
@@ -5551,8 +5551,8 @@ tool_backend_model       = "granite4.1:8b"
 ingress_key              = ""
 
 
-# WS-9 unified agent-plane datastore (PostgreSQL + pgvector, FOSS). ADDITIVE
-# alongside [surrealdb] until the staged cutover (concepts/postgres-pgvector-
+# WS-9 unified agent-plane datastore (PostgreSQL + pgvector, FOSS). The sole
+# agent datastore since the WS-A3 cutover (concepts/postgres-pgvector-
 # unification.md). Read by mios_pg / `mios-db --pg` + the quadlet (MIOS_PG_* via
 # userenv.sh). Port from [ports].pgvector. Local-only defaults.
 [pgvector]
@@ -5562,13 +5562,13 @@ pass        = "mios"
 db          = "mios"
 data_dir    = "/var/lib/mios/pgvector"
 schema_init = "/usr/share/mios/postgres/schema-init.sql"
-embed_model = "nomic-embed-text"   # 768-dim, OWUI/Ollama-compat (vector(768))
+embed_model = "nomic-embed-text"   # 768-dim, OWUI-compat (vector(768))
 enable      = true
-# WS-9c cutover backend: "surreal" (legacy) | "dual" (write BOTH, read surreal --
-# SAFE default, exercises PG live without risking reads) | "postgres" (PG primary
+# WS-9c cutover backend: "dual" (write BOTH, read the legacy DB --
+# exercises PG live without risking reads) | "postgres" (PG primary
 # + native <=> recall). FLIPPED to "postgres" (WS-9c cutover: agent-pipe
 # + mios-remember/skills/daemon/kg all read+write pgvector; mechanism verified live,
-# a chat ran pg-primary). Set back to "dual" to re-enable the SurrealDB safety net
+# a chat ran pg-primary). Set back to "dual" to re-enable the dual-write safety net
 # during a soak. Minor deferred read paths (eviction/hitl-edge/miner-SPM/daemon
 # batch+async/person-owns) degrade gracefully until finished.
 db_backend  = "postgres"
@@ -5711,7 +5711,7 @@ backup_keep    = 7
 listen_loopback = true
 
 # ── WS-10 mios-llm-light: the llama.cpp multi-model lane (upstream llama-swap proxy) ──
-# Additive engine step toward the ollama -> llama.cpp conversion for fleet-wide
+# Additive engine step toward the llama.cpp fleet-wide
 # KV-cache (concepts/llamacpp-engine-conversion.md). GATED OFF (enable=false) +
 # the quadlet's ConditionPathExists(models/.ready) keeps it inert until GGUFs are
 # provisioned. The agent-pipe is ALREADY ready: point a [nodes.*]/[agents.*]
@@ -6017,12 +6017,12 @@ opencode_version    = "latest"           # or pin to a tag
 # service (:8633), NOT a Hermes ACP subprocess (the ACP framing above is the
 # RETIRED path). These keys are the SSOT for automation/39-opencode.sh + the
 # gateway unit + tools/lib/userenv.sh (MIOS_OPENCODE_*). ONE canonical model id
-# across: [agents.opencode].model, opencode.json's model key, the ollama
-# Modelfile build name:tag.
+# across: [agents.opencode].model, opencode.json's model key, and the
+# mios-opencode build name:tag.
 opencode_model      = "mios-opencode:latest"
 # opencode provider name as declared in opencode.json; the gateway builds the
 # `-m <provider>/<model>` selector from this.
-opencode_provider   = "ollama"
+opencode_provider   = "local"
 # opencode binary install path (fetched at build). Gateway unit + installer
 # reference this via MIOS_OPENCODE_BIN. Lives under the unified agent-plane
 # tree /usr/lib/mios/agents/ alongside hermes-agent + opencode-gateway.
@@ -6049,9 +6049,9 @@ opencode_gateway_timeout_s = 90    # opencode `run` HANGS (returns nothing even 
 # these AND every one of those together.
 agent_venv          = "/usr/lib/mios/agents/.venv"
 agent_install_dir   = "/usr/lib/mios/agents/hermes-agent"
-# Inference backend Hermes-Agent forwards to. The ollama container's
-# OpenAI-compatible surface; swap to vllm / llama.cpp by editing this.
-hermes_backend_url  = "http://localhost:${MIOS_PORT_LLM_LIGHT}/v1"   # mios-llm-light (ALL llama.cpp; ollama :11434 retired G5)
+# Inference backend Hermes-Agent forwards to. mios-llm-light's
+# OpenAI-compatible surface; swap to vllm / another llama.cpp lane by editing this.
+hermes_backend_url  = "http://localhost:${MIOS_PORT_LLM_LIGHT}/v1"   # mios-llm-light (ALL llama.cpp, OpenAI /v1)
 # SSOT for the default chat model. The 4-model-set reasoning base
 # (qwen3.5:4b, ~3.4 GB resident) -- was granite4.1:3b, repointed in the
 # consolidation (granite was dropped from the fleet). Same value as
@@ -6100,8 +6100,8 @@ prompt_shortcut     = "@"
 # qwen2.5-coder:14b, llama3.2-vision:11b, granite4.1:3b/30b, gpt-oss:20b,
 # qwen3-vl:4b, gemma4:e4b) was REMOVED from the fleet per the 3-4-model cap.
 #
-# The list below also names the derived mios-* role tags. Those are produced by
-# `ollama create <tag> -f <Modelfile>` in automation/38-llamacpp-prep.sh and REUSE
+# The list below also names the derived mios-* role tags. Those are derived tags
+# defined in automation/38-llamacpp-prep.sh and REUSE
 # the 3 LLM base blobs (under /usr/share/mios/llamacpp/models) -- they add ~no disk, so
 # listing them only guarantees they are present after a build. Total baked: the
 # 3 LLM bases + nomic (~9.8 GB) + the (blob-sharing) mios-* tags.
@@ -6153,7 +6153,7 @@ swa_full       = false                            # append --swa-full to SWA lan
 # [[ai.catalog]] -- array of model entries the mios.html dropdown
 # renders for [ai].model selection. Adding a row here adds an option
 # in the UI; build-mios.ps1's Read-Model + mios-hermes-firstboot's
-# custom_providers list both iterate this array. `id` is the Ollama
+# custom_providers list both iterate this array. `id` is the model
 # tag, `label` is the human display text, `ram_gb` is the rule-of-
 # thumb RAM floor (informational; surfaces under each <option>).
 # Keep ordered small -> large; first entry is the no-RAM-info fallback.
@@ -6268,7 +6268,7 @@ big_ram_model    = "mistral-magistral-small-2509"   # 16GB+ dGPU class. qwen3-co
 
 # Vision-grounding model -- read by /usr/libexec/mios/mios-pc-vision
 # for screenshot -> click-coordinate translation. Hermes's main text
-# model is separate; vision lane runs on its own Ollama tag.
+# model is separate; vision lane runs on its own model tag.
 # DROPPED FROM THE FLEET the 4-model set (qwen3.5:4b / qwen3:1.7b /
 # qwen2.5-coder:7b / nomic-embed-text) carries NO vision model. The previous
 # pick (llama3.2-vision:11b, ~8 GB) is no longer baked/pulled. These slots ship
@@ -6286,7 +6286,7 @@ vision_grounding_endpoint = "http://localhost:${MIOS_PORT_LLM_LIGHT}/v1"   # mio
 chat_vision_model         = "qwen3-vl:4b"
 
 # GUI click-grounding VLM lane (Phase-2 desktop control: screenshot ->
-# click coordinates). Ollama CANNOT run the grounding heads (GUI-Actor /
+# click coordinates). The llama.cpp light lane CANNOT run the grounding heads (GUI-Actor /
 # Holo1.5 / UI-TARS / Qwen3-VL) -> they need vLLM. RE-SCOPED the
 # mios-llm-heavy-alt Quadlet is now the GENERIC gated vLLM lane (see [ai.vllm] below),
 # serving a HEAVY TEXT reasoner by DEFAULT (operator "vLLM heavy lane"); to serve
@@ -6299,7 +6299,7 @@ grounding_model    = "mios-grounding"
 # Used by mios-log-watcher.service (journal triage), the cron-director
 # (gating scheduled tasks on system state), and any agent / shim
 # wanting <500 ms classification without round-tripping the big text
-# model. Loaded continuously via OLLAMA_KEEP_ALIVE=-1.
+# model. Loaded continuously (keep_alive = -1).
 # Operator directive "we could have a micro-LLM be running
 # in the background on 1 core(2 threads) ... daemon for logs and log
 # collection and presenting ... could even be a cron director".
@@ -6320,7 +6320,7 @@ grounding_model    = "mios-grounding"
 #                      chat-quality needed. Endpoint stays the CPU lane (:11435).
 micro_model              = "lfm2:700m"   # Liquid AI LFM2-700M (dense 'lfm2' arch merged mainline llama.cpp; ~0.7-1.0GB resident, ~2x faster CPU decode than Qwen; beats Qwen3-0.6B on MMLU/GSM8K/IFEval). Family-diversity off Qwen. Background classify/expand/gate only (Pythonic tool-call format, not JSON-tool agent). Served by mios-llm-light :11450; the qwen3:1.7b alias still resolves.
 sys_agent_model          = "mios-sys-agent"
-micro_endpoint           = "http://localhost:8450/v1"   # mios-llm-light (ALL llama.cpp; ollama :11435 retired G5)
+micro_endpoint           = "http://localhost:8450/v1"   # mios-llm-light (ALL llama.cpp, OpenAI /v1)
 micro_keep_alive_seconds = -1
 
 # ----------------------------------------------------------------------------
@@ -7776,7 +7776,7 @@ k3s_api            = 8443     # K3s Kubernetes API
 guacamole_web      = 8080     # mios-guacamole browser desktop
 ceph_dashboard     = 8444     # Ceph dashboard
 rdp                = 8389     # GNOME Remote Desktop / xRDP
-pgvector           = 8432     # PostgreSQL + pgvector unified agent DB (WS-9, FOSS; additive alongside surrealdb until cutover)
+pgvector           = 8432     # PostgreSQL + pgvector unified agent DB (WS-9, FOSS; sole agent DB since the WS-A3 cutover)
 llm_light          = 8450    # mios-llm-light: the primary llama.cpp multi-model + KV-paging lane (WS-10, FOSS; served via the upstream llama-swap proxy image)
 cpu_node           = 8458    # mios-cpu-node: the always-on / gaming-immune CPU llama-server lane (granite brain on -ngl 0). Rendered into mios-cpu-node.container's --port (was a DEAD key -> empty --port -> llama.cpp stoi crash-loop; SSOT-wired).
 agent_pipe         = 8640     # 'MiOS' standalone Agent Pipe (router + refine + critic; fronts hermes for every gateway)
@@ -7911,10 +7911,10 @@ user = "mios-hermes"
 uid  = 820
 gid  = 820
 
-# Migration note: [services.surrealdb] (UID 821) is retired. Datastore is now mios-pgvector.
+# Migration note: the legacy datastore service (UID 821) is retired. Datastore is now mios-pgvector.
 
 # WS-9 unified agent-plane Postgres+pgvector. AI tier (mios-ai) so agents read it
-# like surrealdb; own uid for /var/lib ownership stability. 826 = next free after
+# like the legacy DB; own uid for /var/lib ownership stability. 826 = next free after
 # mios-adguard (825) in the 810-829 sidecar range.
 [services.pgvector]
 user = "mios-pgvector"
@@ -7933,7 +7933,7 @@ user = "mios-agent-pipe"
 uid  = 822
 gid  = 822
 
-# Migration note: [services.ollama_cpu] (UID 823) is retired. Inference is now handled by mios-llm-light.
+# Migration note: the retired CPU-inference service (UID 823) is gone; inference is now handled by mios-llm-light.
 
 # [services.webtools] -- the consolidated web-tools container (mios-webtools:
 # firecrawl + crawl4ai + camoufox). Renamed from [services.crawl4ai] on the
@@ -8615,7 +8615,7 @@ qt_platform     = "xcb"     # Qt apps: "xcb" (X11) | "wayland" | "wayland;xcb"
 # the Windows host's loopback, so Network=host is safe. Under
 # networking_mode=mirrored the WSL VM's loopback IS the Windows host's
 # loopback, and Network=host produces EADDRINUSE death-spirals
-# (operator-confirmed ollama/sshd/hermes etc. all looped
+# (operator-confirmed sshd/hermes etc. all looped
 # auto-restart with "address already in use"). Switch to "bridge" when
 # migrating to mirrored mode -- the parent units already declare
 # mios.network, so the only change is to NOT install the host-network
@@ -9177,12 +9177,12 @@ features = ["ai", "virtualization", "k3s"]
 # ----------------------------------------------------------------------------
 [quadlets.enable]
 # AI chain (architecture, operator-directed):
-#   ollama (container)         -- LLM + embeddings inference backend.
-#                                 OpenAI-compatible /v1 surface on :11434.
+#   mios-llm-light (container) -- LLM + embeddings inference backend
+#                                 (llama.cpp behind llama-swap; OpenAI /v1).
 #   hermes-agent (DIRECT)      -- installed natively on the root
 #                                 filesystem (NOT containerized), runs as
-#                                 a host systemd service, uses the ollama
-#                                 container (and vllm/llama.cpp when
+#                                 a host systemd service, uses the
+#                                 mios-llm-light lane (and vllm/sglang when
 #                                 present) as its inference backend.
 #                                 See automation/38-hermes-agent.sh +
 #                                 usr/lib/systemd/system/hermes-agent.service.
@@ -10264,7 +10264,6 @@ AutoUpdate = "registry"
 ContainerName = "mios-open-webui"
 Environment = [
   "OPENAI_API_BASE_URL=http://host.containers.internal:${MIOS_PORT_AGENT_PIPE:-8640}/v1",
-  "ENABLE_OLLAMA=False",
   "OLLAMA_BASE_URL=http://host.containers.internal:${MIOS_PORT_LLM_LIGHT:-8450}",
   "WEBUI_NAME=\"MiOS AI\"",
   "WEBUI_SECRET_KEY=mios-stable-secret-change-me",

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AI-hint: Standalone assert-script unit test for mios_evict (WS-A3 parameterized-pg eviction). Pure stdlib, no server.py/DB/pytest. Verifies the WHERE fragment is PARAMETERIZED pg (named %(...)s placeholders, COALESCE not ??, no SurrealQL time::now()/record-ids), TTL added only with_ttl, the count/select/delete SQL shapes (count(*) AS c, LIMIT %(limit)s, DELETE ... id = ANY(%(ids)s)), pg dict-row parsing (count + bigint ids), and plan_sweep arithmetic.
+# AI-hint: Standalone assert-script unit test for mios_evict (WS-A3 parameterized-pg eviction). Pure stdlib, no server.py/DB/pytest. Verifies the WHERE fragment is PARAMETERIZED pg (named %(...)s placeholders, COALESCE not ??, no legacy time::now()/record-ids), TTL added only with_ttl, the count/select/delete SQL shapes (count(*) AS c, LIMIT %(limit)s, DELETE ... id = ANY(%(ids)s)), pg dict-row parsing (count + bigint ids), and plan_sweep arithmetic.
 # AI-related: ./mios_evict.py
 # AI-functions: check, main
 """Unit tests for mios_evict (WS-A3 parameterized-pg cutover)."""
@@ -21,12 +21,12 @@ def check(name, cond, detail=""):
 
 def t_where_parameterized():
     w = ev.evict_where(with_ttl=False)
-    check("where: COALESCE not SurrealQL ??", "COALESCE" in w and "??" not in w)
+    check("where: COALESCE not legacy ??", "COALESCE" in w and "??" not in w)
     check("where: parameterized min_access", "%(min_access)s" in w)
     check("where: protects hot/satisfied/pinned",
           all(s in w for s in ("<> 'hot'", "COALESCE(satisfied", "COALESCE(pinned")))
     check("where: no TTL when with_ttl=False", "ttl_days" not in w and "make_interval" not in w)
-    check("where: no SurrealQL time::now()", "time::now()" not in w)
+    check("where: no legacy time::now()", "time::now()" not in w)
     wt = ev.evict_where(with_ttl=True)
     check("where: TTL predicate parameterized", "make_interval(days => %(ttl_days)s)" in wt)
     check("where: no interpolated literal Nd", "90d" not in wt)
@@ -44,7 +44,7 @@ def t_sql_shapes():
     dsql = ev.delete_ids_sql(TABLE)
     check("delete: parameterized ANY (not record-id concat)",
           dsql == "DELETE FROM knowledge WHERE id = ANY(%(ids)s)", dsql)
-    check("delete: no SurrealQL 'DELETE knowledge:'", "knowledge:" not in dsql)
+    check("delete: no legacy 'DELETE knowledge:'", "knowledge:" not in dsql)
 
 
 def t_params():

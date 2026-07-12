@@ -40,7 +40,7 @@ landed in commit `507a7fa` (`fix(audit): apply 2026-05-05 audit findings
 >   `etc/...`) now all live under `usr/share/containers/systemd/`. The LAW 1 /
 >   LAW 3 / LAW 6 *findings* still hold as written; only the on-disk path of the
 >   evidence moved.
-> - **AI-plane migration.** The early **Ollama / SurrealDB / Qdrant** stack has
+> - **AI-plane migration.** The early **Ollama / legacy datastore / Qdrant** stack has
 >   since been fully removed. Inference and embeddings now run on
 >   **`mios-llm-light`** (`:11450`, llama.cpp behind the upstream `mios-llm-light`
 >   proxy image, serving everyday models, the `mios-opencode` coder model, and

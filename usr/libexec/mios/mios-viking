@@ -51,7 +51,7 @@ def _pg_rows(inner_sql: str, params: "list | None" = None) -> list:
     """WS-A3: read rows as list[dict] from the live pgvector store via
     `mios-db --pg-json`, which binds values OUT-OF-BAND ($1..$n) -- the inner
     SELECT uses placeholders, never f-string-spliced values. (The retired
-    SurrealDB knowledge-ns transport _db_sql is gone.) Degrade-open -> []."""
+    legacy knowledge-ns transport _db_sql is gone.) Degrade-open -> []."""
     try:
         env = {"sql": (f"SELECT coalesce(json_agg(row_to_json(t)),'[]') "
                        f"FROM ({inner_sql}) t;"),
@@ -139,7 +139,7 @@ def _cat_skill(node: str, tier: str) -> dict:
 
 def _cat_knowledge(node: str, tier: str) -> dict:
     rid = node.split("/", 1)[1] if "/" in node else node
-    try:  # pg id is an integer (SurrealDB used a record-ref knowledge:<x>)
+    try:  # pg id is an integer (the legacy DB used a record-ref knowledge:<x>)
         _id = int(str(rid).split(":")[-1])
     except (ValueError, TypeError):
         return {"ok": False, "error": f"bad knowledge id: {rid}"}

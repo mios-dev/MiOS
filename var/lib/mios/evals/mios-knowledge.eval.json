@@ -1,7 +1,7 @@
 {
   "name": "mios-knowledge",
   "metadata": {
-    "description": "Tests an LLM's MiOS engineering knowledge across packages, kargs, build pipeline, signing, AI surface (LAW 5), defense-in-depth, and upstream tech (bootc/composefs/ucore-hci/cosign/CDI/LocalAI).",
+    "description": "Tests an LLM's MiOS engineering knowledge across packages, kargs, build pipeline, signing, AI surface (LAW 5), defense-in-depth, and upstream tech (bootc/composefs/ucore-hci/cosign/CDI).",
     "kb_version": "2026.05.04",
     "mios_version": "v0.2.4"
   },
@@ -12,7 +12,7 @@
       "properties": {
         "question": {"type": "string"},
         "reference": {"type": "string", "description": "MiOS file or upstream doc that the answer should cite."},
-        "topic": {"type": "string", "enum": ["packages", "kargs", "build", "ci-signing", "ai-surface", "security", "deploy", "bootc", "composefs", "cdi", "localai", "laws"]},
+        "topic": {"type": "string", "enum": ["packages", "kargs", "build", "ci-signing", "ai-surface", "security", "deploy", "bootc", "composefs", "cdi", "laws"]},
         "must_mention": {"type": "string", "description": "Substring the candidate must mention (case-insensitive). Used by the string_check grader."}
       },
       "required": ["question", "reference", "topic", "must_mention"]

@@ -130,14 +130,14 @@ def t_recall_tuning() -> None:
 
 
 def t_rid_to_pg_id() -> None:
-    # surreal record-string -> trailing bigint
-    _check("rid: surreal numeric tail", P.rid_to_pg_id("knowledge:123") == 123)
+    # legacy record-string -> trailing bigint
+    _check("rid: legacy numeric tail", P.rid_to_pg_id("knowledge:123") == 123)
     _check("rid: pending_action tail", P.rid_to_pg_id("pending_action:42") == 42)
     # bare bigint (int or str) -> itself
     _check("rid: bare int", P.rid_to_pg_id(789) == 789)
     _check("rid: bare numeric str", P.rid_to_pg_id("456") == 456)
     # non-numeric / missing -> None (caller skips the pg write)
-    _check("rid: alpha surreal id -> None", P.rid_to_pg_id("knowledge:abc") is None)
+    _check("rid: alpha legacy id -> None", P.rid_to_pg_id("knowledge:abc") is None)
     _check("rid: None -> None", P.rid_to_pg_id(None) is None)
     _check("rid: empty -> None", P.rid_to_pg_id("") is None)
 

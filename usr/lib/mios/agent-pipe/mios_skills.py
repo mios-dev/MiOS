@@ -104,9 +104,9 @@ async def _skill_fetch(name: str) -> Optional[dict]:
         f"description, support, confidence "
         f"FROM skill WHERE name = {json.dumps(name)} LIMIT 1;"
     )
-    # R15/G10: read pg when primary -- the surreal `skill` table is empty after
+    # R15/G10: read pg when primary -- the legacy `skill` table is empty after
     # the agent-plane migration (the promoted skills live in pgvector), so a raw
-    # _db_post here made the agent skill-blind. Falls back to surreal in dual.
+    # _db_post here made the agent skill-blind. Falls back to the legacy path in dual.
     r = await _db_read(sql, pg_sql=(
         "SELECT id, name, body, status, source, version, "
         "description, support, confidence FROM skill "
@@ -131,8 +131,8 @@ async def _skill_list(*, status: str = "promoted",
         f"FROM skill WHERE {clause} "
         f"ORDER BY name LIMIT {int(limit)};"
     )
-    # R15/G10: pg-native list when primary (surreal skill table is empty; the
-    # promoted skills are in pgvector). Param-bound clause; surreal fallback.
+    # R15/G10: pg-native list when primary (legacy skill table is empty; the
+    # promoted skills are in pgvector). Param-bound clause; legacy fallback.
     pg_where, pg_params = [], {}
     if status and status != "all":
         pg_where.append("status = %(status)s"); pg_params["status"] = status
@@ -526,7 +526,7 @@ def _skill_render_args(args: dict, params: dict) -> dict:
 
 
 # P4-A0: open->close carry for the pg outcome mirror. Under pg-primary the
-# SurrealDB CREATE in _skill_invocation_open is short-circuited (returns None),
+# legacy CREATE in _skill_invocation_open is short-circuited (returns None),
 # so skill outcomes would persist to NOTHING and the skill miner's success-rate
 # has no data. Keyed by the (real OR synthesized) inv_id; popped at close.
 _SKILL_INV_META: dict = {}
@@ -540,7 +540,7 @@ async def _skill_invocation_open(skill_id: str,
     _skill_invocation_close with ended_at + success.
 
     Hand-built CREATE -- _db_create json.dumps-quotes every value,
-    but SurrealDB 3.0+ requires record<...> references UNQUOTED
+    but the legacy backend requires record<...> references UNQUOTED
     (`skill = skill:abc123`, not `skill = "skill:abc123"`). The
     quoted form produces a coerce error response that the caller
     can't interpret as success."""
@@ -574,10 +574,10 @@ async def _skill_invocation_open(skill_id: str,
             rows = last.get("result") or []
             if isinstance(rows, list) and rows and isinstance(rows[0], dict):
                 inv_id = rows[0].get("id")
-    # P4-A0: under pg-primary the SurrealDB CREATE is short-circuited (r=None) so
+    # P4-A0: under pg-primary the legacy CREATE is short-circuited (r=None) so
     # inv_id is None and the outcome would persist to NOTHING -- the skill miner's
     # success-rate then has no data. Synthesize an id + remember {skill,session}
-    # so _skill_invocation_close can mirror the outcome row to pg. (SurrealDB/dual
+    # so _skill_invocation_close can mirror the outcome row to pg. (legacy/dual
     # keeps the real record id; this is purely additive.)
     if not inv_id:
         inv_id = "skill_invocation:pg-" + uuid.uuid4().hex
@@ -589,7 +589,7 @@ async def _skill_invocation_close(inv_id: Optional[str],
                                   success: bool) -> None:
     if not inv_id:
         return
-    # P4-A0: persist the OUTCOME to pg (the SurrealDB UPDATE below no-ops under
+    # P4-A0: persist the OUTCOME to pg (the legacy UPDATE below no-ops under
     # pg-primary). One row per completed invocation: {skill, success, session_id}.
     # _pg_mirror is drift-tolerant (filters to live columns) + degrade-open, so a
     # schema/type mismatch can never break the close.

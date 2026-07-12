@@ -27,7 +27,7 @@ The 'MiOS' KB is authored against these specifications. Each link is the
 - Streaming: `stream: true` returns SSE chunks with `delta` shape
 - Tools: `tools[].type = "function"`, then `function: {name, description, parameters, strict?}`
 - Structured outputs: `response_format: {type: "json_schema", json_schema: {name, schema, strict}}`
-- This is the form supported by **every** OpenAI-compatible local runtime (LocalAI, Ollama, vLLM, LM Studio, llama.cpp server, LiteLLM, OpenRouter)
+- This is the form supported by **every** OpenAI-compatible local runtime (Ollama, vLLM, LM Studio, llama.cpp server, LiteLLM, OpenRouter)
 
 ### 1.3 Vector Stores / File Search
 
@@ -298,13 +298,12 @@ the deployed image via the `ctx` scratch stage and the
 - Admin overrides: `/etc/cdi/`
 - Universal layer for NVIDIA, AMD ROCm/KFD, Intel iGPU passthrough into containers
 
-### 3.15 LocalAI (the 'MiOS' canonical local LLM endpoint)
+### 3.15 llama.cpp + llama-swap (the 'MiOS' canonical local LLM lane)
 
-- Project: https://github.com/mudler/LocalAI
-- Docs: https://localai.io/
+- Project: https://github.com/ggerganov/llama.cpp -- swap proxy: https://github.com/mostlygeek/llama-swap
 - API surfaces (OpenAI-compatible): `/v1/models`, `/v1/chat/completions` (SSE + tools), `/v1/embeddings`, `/v1/completions`
-- 'MiOS' canonical endpoint: `MIOS_AI_ENDPOINT` (the retired `mios-ai.container` front door is now served by the Hermes gateway on `:8642`)
-- Backends: llama.cpp, vLLM-ish, transformers, gpt4all, exllama, etc.
+- 'MiOS' canonical endpoint: `MIOS_AI_ENDPOINT` (the `mios-llm-light` lane on `:8450`, fronted by the Hermes gateway on `:8642`)
+- Backends: GGUF models auto-swapped by llama-swap; heavy GPU lanes add vLLM / SGLang
 
 ### 3.16 Other local OpenAI-compatible runtimes (for Day-0 portability)
 
@@ -404,7 +403,7 @@ referenced but not yet scraped to chunk-level detail):
 
 ### 4.3 OpenAI API surfaces NOT supported by typical local runtimes
 
-If your KB consumer is local-only (LocalAI, Ollama, vLLM, LM Studio,
+If your KB consumer is local-only (Ollama, vLLM, LM Studio,
 llama.cpp), these surfaces require either OpenAI cloud, Azure OpenAI, or
 a translation proxy (LiteLLM):
 
@@ -623,7 +622,7 @@ with `README.md` §"Day-0 local-model compatibility".
 | --- | --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
 | OpenAI cloud | `https://api.openai.com/v1` | [ok] | [ok] | [ok] | [ok] | [ok] | [ok] | [ok] | [ok] | [ok] |
 | Azure OpenAI | (your resource) | [ok] | [ok] | [ok] | [ok] | [ok] | [!] region | [ok] | [ok] | [ok] |
-| **'MiOS' LocalAI** (canonical, LAW 5) | `http://localhost:8642/v1` | [ok] | [ok] | [ok] | [!] ignored |  |  |  |  |  |
+| **'MiOS' llm-light** (canonical, LAW 5) | `http://localhost:8642/v1` | [ok] | [ok] | [ok] | [!] ignored |  |  |  |  |  |
 | Ollama | `http://localhost:11434/v1` | [ok] | [ok] | [ok] | [!] ignored |  |  |  |  | external |
 | vLLM | `http://localhost:8000/v1` | [ok] | [ok] | [ok] | [ok] via xgrammar |  | partial |  |  | external |
 | LM Studio | `http://localhost:1234/v1` | [ok] | [ok] | [ok] | [!] ignored |  |  |  |  |  |

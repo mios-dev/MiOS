@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AI-hint: CLI tool for managing Ed25519 identity keys for MiOS agents, used to provision, rotate, and verify signed passport envelopes for authenticated SurrealDB operations like tool calls and skill invocations.
+# AI-hint: CLI tool for managing Ed25519 identity keys for MiOS agents, used to provision, rotate, and verify signed passport envelopes for authenticated agent-DB operations like tool calls and skill invocations.
 # AI-related: mios-daemon, mios-db, mios-skills, mios-kg
 # AI-functions: additionally
 """mios-passport -- Phase C.3 Agent Passport (Ed25519 signing) CLI.
@@ -9,7 +9,7 @@ Per-agent identity tokens. Every agent in the MiOS stack
 director, future MCP clients) gets an Ed25519 keypair under
 /var/lib/mios/agent-passports/<agent>/{private.key,public.key}.
 
-Security-relevant SurrealDB writes (tool_call, skill_invocation,
+Security-relevant agent-DB writes (tool_call, skill_invocation,
 firewall_block events) carry a passport envelope of the shape:
 
   {agent, ts, nonce, op_hash, alg, kid, sig}
@@ -28,7 +28,7 @@ Subcommands:
                        [passport].agents. Writes
                        <key_dir>/<agent>/private.key (0600 owner
                        sysuser) + public.key (0644 world-readable)
-                       + registers the public key in SurrealDB
+                       + registers the public key in the agent DB
                        (agent_keypair table). Idempotent unless
                        --force (which rotates).
 
@@ -46,7 +46,7 @@ Subcommands:
   verify --envelope @file [--payload @file]
                        Parse a passport envelope. Resolve the
                        public key for envelope.agent (filesystem
-                       first; falls back to SurrealDB agent_keypair
+                       first; falls back to the agent-DB agent_keypair
                        row). Verify the Ed25519 signature. Exits
                        0 on valid + 2 on invalid + 3 on missing
                        key.
@@ -64,7 +64,7 @@ Subcommands:
 
   public-key <agent>   Print the raw PEM-encoded public key. Use
                        this to ship a key to an external verifier
-                       without parsing SurrealDB.
+                       without parsing the agent DB.
 
 Fully local + offline. Uses python3-cryptography (in the Fedora
 base image) -- NOT a pip install.
@@ -108,8 +108,8 @@ if _env_agents:
 else:
     AGENTS = list(DEFAULT_AGENTS)
 
-# pgvector store via the pure-python mios-pg-query wire client (SurrealDB,
-# BSL 1.1, retired). Loopback trust -- no auth/psql/podman; works for the
+# pgvector store via the pure-python mios-pg-query wire client (the legacy
+# BSL 1.1 store is retired). Loopback trust -- no auth/psql/podman; works for the
 # confined mios-ai service user. Same client mios-rag / mios-db --pg use.
 PG_QUERY_BIN = os.environ.get(
     "MIOS_PG_QUERY_BIN", "/usr/libexec/mios/mios-pg-query")
@@ -155,7 +155,7 @@ def op_hash(table: str, fields: dict) -> str:
     """Hash the (table, fields) pair to bind a passport signature
     to the exact data. Strips the passport field itself (would be
     circular) + any field-name in `excluded` the caller knows is
-    server-side computed (e.g. surrealdb's `id`)."""
+    server-side computed (e.g. the DB's `id`)."""
     payload = dict(fields or {})
     payload.pop("passport", None)
     canon = f"{table}:{canonical_json(payload)}"
@@ -177,7 +177,7 @@ def _load_private(agent: str) -> ed25519.Ed25519PrivateKey:
 
 def _load_public(agent: str) -> ed25519.Ed25519PublicKey:
     """Load the agent's public key. Tries the filesystem first
-    (offline / fast path) then falls back to the SurrealDB
+    (offline / fast path) then falls back to the agent-DB
     agent_keypair row so a verifier without filesystem access to
     /var/lib/mios/agent-passports/ can still validate."""
     fs_path = os.path.join(_agent_dir(agent), "public.key")

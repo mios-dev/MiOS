@@ -473,12 +473,12 @@ async def scheduler_state_logic() -> JSONResponse:
         "priority_dimensions": ["complexity", "urgency", "resource_need(lane)"],
         "memory_manager_tiers": {
             "core_working": "per-conversation scratchpad (_SCRATCHPADS)",
-            # Reflect the ACTUAL recall backend (was a stale hardcoded "SurrealDB"
+            # Reflect the ACTUAL recall backend (was a stale hardcoded legacy
             # string even after the pgvector cutover -- the kernel must not
             # misreport its own memory backend). _PG_PRIMARY when db_backend=postgres.
             "recall": ("pgvector knowledge table (embed + HNSW cosine recall)"
                        if _PG_PRIMARY else
-                       "SurrealDB knowledge table (embed + cosine recall)"),
+                       "legacy knowledge table (embed + cosine recall)"),
             "archival": "episodic SKILL.md + viking:// VFS",
         },
         # Capacity-aware admission controller (P1): live

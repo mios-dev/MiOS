@@ -11,7 +11,7 @@ Mirrors the testing_criteria from mios-knowledge.eval.json:
   - score_model: an LLM grader rates 0.0 / 0.5 / 1.0 (cloud or local)
 
 Day-0 compatible. Set MIOS_AI_ENDPOINT to:
-  http://localhost:8642/v1   (MiOS LocalAI — canonical)
+  http://localhost:8642/v1   (MiOS llm-light — canonical)
   http://localhost:11434/v1  (Ollama)
   http://localhost:8000/v1   (vLLM)
   http://localhost:1234/v1   (LM Studio)

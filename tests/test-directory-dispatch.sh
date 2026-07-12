@@ -3,7 +3,7 @@
 # AI-related: /usr/libexec/mios/mios-directory-lookup, /etc/mios/hermes/api.env, mios-directory-lookup, mios-agent
 # Confirm directory_lookup dispatches end-to-end via agent-pipe.
 # Sends a minimal chat that should hint directory_lookup; we check
-# the SurrealDB event_log for a refine row with directory_lookup in
+# the pgvector event log for a refine row with directory_lookup in
 # hint_tools.
 set -euo pipefail
 

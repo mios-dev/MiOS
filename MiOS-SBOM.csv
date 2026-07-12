@@ -385,7 +385,6 @@ oci-image,quay.io/centos-bootc/bootc-image-builder:latest,oci-tool,BIB: disk ima
 oci-image,quay.io/centos-bootc/centos-bootc:stream10,oci-tool,Rechunker fallback context,MIOS_IMG_RECHUNK in mios-build-local.ps1
 oci-image,docker.io/library/alpine:latest,oci-tool,Helper image fallback,FallbackHash / FallbackConvert in mios-build-local.ps1
 oci-image,anchore/syft:latest,oci-tool,CycloneDX/SPDX SBOM generator,Justfile sbom + automation/90-generate-sbom.sh
-oci-image,docker.io/localai/localai:latest,oci-quadlet,Local OpenAI-compatible inference (mios-ai),etc/containers/systemd/mios-ai.container - LAW 5
 oci-image,quay.io/ceph/ceph:latest,oci-quadlet,Ceph storage cluster (mios-ceph),etc/containers/systemd/mios-ceph.container
 oci-image,docker.io/rancher/k3s:latest,oci-quadlet,Kubernetes control plane (mios-k3s),etc/containers/systemd/mios-k3s.container
 oci-image,docker.io/ollama/ollama:latest,oci-quadlet,Ollama inference server,usr/share/containers/systemd/ollama.container

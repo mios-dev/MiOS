@@ -1,11 +1,11 @@
-<!-- AI-hint: Concept brief on why and how MiOS unified its agent-plane datastore onto PostgreSQL + pgvector (the FOSS "back to SQL" agent-memory stack), defining the standard schema, the shared mios-pg-query client seam, and the now-completed cutover off SurrealDB.
+<!-- AI-hint: Concept brief on why and how MiOS unified its agent-plane datastore onto PostgreSQL + pgvector (the FOSS "back to SQL" agent-memory stack), defining the standard schema, the shared mios-pg-query client seam, and the now-completed cutover off legacy datastore.
      AI-related: mios-remember, mios-db, mios-pg-query, mios-daemon, mios-skills, mios-pgvector, mios-services, mios-ai, mios-sync-env, mios-pgvector.container, mios-pgvector.service, mios-llm-light -->
 # PostgreSQL + pgvector Unification (WS-9) — the agent-plane datastore
 
 > Status: DONE / standing architecture (drafted 2026-06-04; cutover completed
-> 2026-06-05). The agent-plane datastore was migrated off **SurrealDB (BSL 1.1,
+> 2026-06-05). The agent-plane datastore was migrated off **the legacy datastore (BSL 1.1,
 > source-available — not OSI-FOSS)** onto **PostgreSQL + pgvector (OSI-FOSS)**,
-> done the standard ("native") way. SurrealDB is now fully **removed**; `mios.toml`
+> done the standard ("native") way. The legacy datastore is now fully **removed**; `mios.toml`
 > `[pgvector].db_backend = "postgres"`. Schema artifact:
 > `usr/share/mios/postgres/schema-init.sql`. Section 8 keeps the staged-migration
 > history as record.
@@ -61,7 +61,7 @@ pgvector" for agent state + memory + retrieval:
   (`:11450`), 768-dim, stored in `vector(768)`. The same engine that does chat does
   embeddings — there is no separate embedding backend to keep alive.
 
-This is also why pgvector replaced **two** legacy components at once: SurrealDB (the
+This is also why pgvector replaced **two** legacy components at once: the legacy datastore (the
 relational/JSONB agent store) **and** Qdrant (a vestigial standalone vector store).
 One engine now does relational + JSONB (document) + vector — the standard "back to
 SQL" agent-memory stack — so there is one failure domain, one backup, one set of
@@ -73,7 +73,7 @@ credentials, and one license class to reason about.
 `agent_memory` (mios-remember), `event`, `tool_call`, `session`, `skill` /
 `skill_invocation`, `sys_env`, `pending_action` (WS-6 HITL), `run_template` (WS-6),
 `scratch` (folds the in-process `_SCRATCHPADS` → restart-survivable), `kanban`
-(authoritative; retired Hermes' SQLite + the former SurrealDB shadow), plus the
+(authoritative; retired Hermes' SQLite + the former legacy datastore shadow), plus the
 identity/graph tables `directory_entry`, `person`, `agent_keypair`, `alias`,
 `resolves_to`, `app_install`, and `log_digest`. **OWUI**
 (`DATABASE_URL`+`VECTOR_DB=pgvector`) and **Guacamole** (already Postgres) can point
@@ -96,7 +96,7 @@ JSONB. The DDL runs once, on first init, via the container's
 ## 4. The shared `mios-pg-query` client (the migration seam)
 
 A single psycopg-based client replaced the **~9 callers that each reimplemented the
-SurrealDB `/sql` POST** (one of which hardcoded `root:root`). Every query goes
+the legacy datastore `/sql` POST** (one of which hardcoded `root:root`). Every query goes
 through it → it centralizes credentials (from `mios.toml`/secret, no literals),
 gives one place to swap engines, and was the seam the cutover happened behind.
 Agent-pipe's `_db_post`/`_db_create`/`_recall_knowledge`, `mios-remember`,
@@ -126,7 +126,7 @@ SSOT creds, no hardcodes).
 - Engine selector: `[pgvector].db_backend` (env `MIOS_DB_BACKEND`). Now set to
   **`postgres`** — Postgres is primary and native `<=>` HNSW recall is live. The
   `surreal` and `dual` values remain only as historical/rollback documentation; the
-  SurrealDB path itself is gone.
+  the legacy datastore path itself is gone.
 
 Build (operator): `just build` bakes the quadlet + sysusers and pulls the pgvector
 bound-image. Verify: `mios-db --pg "SELECT extversion FROM pg_extension WHERE
@@ -136,7 +136,7 @@ extname='vector';"` and that the agent-plane tables exist (`mios-db --pg '\dt'`)
 
 This closed a consistency gap: MiOS is FOSS, and its unified datastore is now
 **OSI-FOSS** (PostgreSQL License + pgvector's PostgreSQL License) instead of
-SurrealDB's BSL 1.1 — the same source-available license class flagged for the
+the legacy datastore's BSL 1.1 — the same source-available license class flagged for the
 Wide-Moat OCU and declined for the same reason.
 
 ## 7. Sources
@@ -154,24 +154,24 @@ The cutover was staged, reversible, and default-on per directive. It is complete
 this section documents how it was done.
 
 **Plan (2026-06-04).** 1) Stand up the Postgres+pgvector quadlet
-(`docker.io/pgvector/pgvector:pg17`) alongside SurrealDB — additive, breaks nothing;
+(`docker.io/pgvector/pgvector:pg17`) alongside the legacy datastore — additive, breaks nothing;
 run `schema-init.sql`. 2) Build the psycopg client + port the read/write helpers
-behind it (SurrealQL → SQL), keeping SurrealDB reads as a fallback during cutover.
+behind it (the legacy query dialect → SQL), keeping the legacy datastore reads as a fallback during cutover.
 3) Replace `_recall_knowledge`'s SELECT-60-then-Python-cosine with native pgvector
 `<=>` HNSW (+ optional tsvector hybrid). 4) Move scratchpad + kanban to Postgres
 tables (persistence + authoritative). 5) Point OWUI/Guacamole at Postgres. 6)
-Backfill existing SurrealDB rows (export → INSERT) and verify counts + a recall
-smoke test. 7) Retire SurrealDB once parity was confirmed.
+Backfill existing legacy datastore rows (export → INSERT) and verify counts + a recall
+smoke test. 7) Retire the legacy datastore once parity was confirmed.
 
 **Additive step (2026-06-04): DONE.** Stood up the container + client foundation
-without touching the then-live SurrealDB path. Added `mios_pg.py` (client
+without touching the then-live legacy datastore path. Added `mios_pg.py` (client
 foundation; `test_mios_pg.py` 18/18), the `mios-db --pg` mode, the SSOT entries,
 and the identity/tmpfiles/userenv/render wiring. Nothing live moved yet.
 
 **Cutover code (WS-9c, 2026-06-04): DONE, default `dual`.** Wired a backend
 selector (`[pgvector].db_backend`, env `MIOS_DB_BACKEND`): `surreal` | `dual` |
 `postgres`. `dual` (the safe live-migration default) mirrored writes to both stores
-while reads stayed on SurrealDB, so Postgres was exercised and verifiable live
+while reads stayed on the legacy datastore, so Postgres was exercised and verifiable live
 without risking the read path. `mios_pg.py` gained `insert()` + native `recall()`
 (one-connection `SET hnsw.ef_search` + `<=>` SELECT), jsonb handling, and a 30 s
 connect-failure backoff (`test_mios_pg.py` 23/23). `server.py` added
@@ -184,7 +184,7 @@ native recall when Postgres is primary (degrade-open to the fallback otherwise).
 agent-pipe + mios-remember/skills/daemon/kg now read **and** write pgvector and
 native `<=>` recall is live (verified live; a chat ran pg-primary). A few minor
 deferred read paths (eviction / HITL-edge / miner-SPM / daemon batch+async /
-person-owns) degrade gracefully. After the soak, **SurrealDB was retired** — its
+person-owns) degrade gracefully. After the soak, **the legacy datastore was retired** — its
 quadlet and BSL image were dropped, leaving pgvector as the single agent-plane
 datastore described above. (Setting `db_backend` back to `dual`/`surreal` is now
-documentation only; there is no SurrealDB process to fall back to.)
+documentation only; there is no legacy datastore process to fall back to.)

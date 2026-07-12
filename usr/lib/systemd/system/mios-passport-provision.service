@@ -35,7 +35,7 @@ ExecStart=/usr/libexec/mios/mios-passport provision
 # passport private.key (0600) must be owned by mios-ai or the service can't read
 # it. Chowning to the OLD mios-agent-pipe left it unreadable by the mios-ai
 # service (operator-confirmed 2026-05-31: "passport: failed to load private key:
-# Permission denied" -> agent-pipe couldn't sign its SurrealDB writes). hermes /
+# Permission denied" -> agent-pipe couldn't sign its agent-DB writes). hermes /
 # mios-daemon stay on their own sysusers below until their services are likewise
 # cut over to mios-ai.
 ExecStartPost=-/usr/bin/chown -R mios-ai:mios-ai /var/lib/mios/agent-passports/agent-pipe

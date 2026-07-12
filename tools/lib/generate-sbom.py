@@ -92,8 +92,6 @@ OCI_IMAGES = [
      "FallbackHash / FallbackConvert in mios-build-local.ps1"),
     ("anchore/syft:latest",                             "oci-tool",      "CycloneDX/SPDX SBOM generator",
      "Justfile sbom + automation/90-generate-sbom.sh"),
-    ("docker.io/localai/localai:latest",                "oci-quadlet",   "Local OpenAI-compatible inference (mios-ai)",
-     "etc/containers/systemd/mios-ai.container - LAW 5"),
     ("quay.io/ceph/ceph:latest",                        "oci-quadlet",   "Ceph storage cluster (mios-ceph)",
      "etc/containers/systemd/mios-ceph.container"),
     ("docker.io/rancher/k3s:latest",                    "oci-quadlet",   "Kubernetes control plane (mios-k3s)",

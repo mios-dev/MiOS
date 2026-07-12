@@ -297,7 +297,7 @@ etc/mios/*
 !/etc/mios/system-prompts/**
 !/etc/mios/ai/
 !/etc/mios/ai/system-prompt.md
-# opencode Ollama-provider config (canonical SoT). mios-hermes-firstboot
+# opencode provider config (canonical SoT). mios-hermes-firstboot
 # deploys to each user home that runs opencode.
 !/etc/mios/opencode/
 !/etc/mios/opencode/opencode.json
@@ -336,7 +336,7 @@ usr/*
 
 # usr/bin -- only MiOS-owned CLIs. Glob covers all mios-* operator
 # verbs (mios-dash, mios-update, mios-rebuild, mios-build, mios-deploy,
-# mios-pull, mios-flatpaks, mios-vfio-*, mios-backup, mios-ollama, plus
+# mios-pull, mios-flatpaks, mios-vfio-*, mios-backup, plus
 # future additions). Each is a thin shell wrapper around the underlying
 # mechanism (bootc / podman / git-against-/.git / the local Forgejo at
 # localhost:3000) so operators don't have to remember the long
@@ -347,8 +347,6 @@ usr/bin/*
 # iommu-groups doesn't carry the mios- prefix (it's the canonical Linux
 # verb name) but ships alongside mios-vfio-* as part of the MiOS CLI.
 !/usr/bin/iommu-groups
-# (mios-ollama is an OpenAI-compat wrapper around upstream `ollama`;
-# matches the !/usr/bin/mios-* pattern above but listed for clarity.)
 # Agent-CLI shortcuts: thin bash wrappers that delegate to /usr/bin/mios
 # (the OpenAI-compatible Python client). Three names, one behavior:
 #   @<prompt>       -- shell-position-free shortcut (also handled by
@@ -785,7 +783,7 @@ logs/
 **/*.swo
 
 # Baked/downloaded model weights + tokenizer caches. Emitted at BUILD time by
-# automation (like usr/share/ollama/models) or fetched at runtime -- multi-GB,
+# automation (like usr/share/mios/llamacpp/models) or fetched at runtime -- multi-GB,
 # never git source. llamacpp/models is 5.8G, vllm/model 954M on a live host.
 **/*.gguf
 **/*.safetensors

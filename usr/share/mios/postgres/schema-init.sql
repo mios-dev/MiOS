@@ -1,7 +1,7 @@
 -- AI-hint: Initializes the PostgreSQL schema for the agent-plane, establishing the knowledge table with pgvector support for 768-dim embeddings and GIN indexes for hybrid-search across Q&A pairs.
 -- AI-related: mios-remember, mios-skills, mios-daemon, mios-directory-lookup
 -- MiOS agent-plane schema for PostgreSQL + pgvector (WS-9, 2026-06-04).
--- FOSS-pure replacement for the SurrealDB (BSL 1.1) agent store. Standard
+-- FOSS-pure replacement for the legacy (BSL 1.1) agent store. Standard
 -- "back to SQL" agent-memory pattern (Letta/MemGPT/Memori/OWUI all converge
 -- here): relational columns + JSONB for flexible/document fields + a vector(768)
 -- column with an HNSW cosine index wherever semantic recall is needed.
@@ -254,7 +254,7 @@ CREATE TABLE IF NOT EXISTS scratch (
     ts       timestamptz DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS scratch_chat ON scratch (chat_id, ts DESC);
--- Reconcile the SurrealDB-era scratch shape (source/topic/body) the mios-daemon
+-- Reconcile the legacy-era scratch shape (source/topic/body) the mios-daemon
 -- nudger mirrors verbatim into pg (_db_create('scratch', {source,topic,body}) ->
 -- INSERT INTO scratch(source,topic,body)). Both writers coexist additively:
 -- the pipe scratchpad uses chat_id/agent/lane/phase/note, the daemon uses
@@ -267,7 +267,7 @@ ALTER TABLE scratch ADD COLUMN IF NOT EXISTS owner_user text;
 CREATE INDEX IF NOT EXISTS scratch_owner ON scratch (owner_user);
 
 -- ── kanban: task queue (authoritative here; retires Hermes' kanban.db + the
---    SurrealDB shadow) ─────────────────────────────────────────────────────────
+--    legacy shadow) ────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS kanban (
     id       text PRIMARY KEY,
     title    text,
@@ -277,7 +277,7 @@ CREATE TABLE IF NOT EXISTS kanban (
 );
 CREATE INDEX IF NOT EXISTS kanban_status ON kanban (status);
 
--- ── PKG (personal knowledge graph): app-resolution. Flattens the SurrealDB
+-- ── PKG (personal knowledge graph): app-resolution. Flattens the legacy
 --    `alias ->resolves_to-> app_install` GRAPH into relational join tables so
 --    kg_lookup becomes a JOIN. Populated by the PKG writer (WS-9c follow-up:
 --    convert the writer + the agent-pipe kg_lookup reads to these tables). ─────
@@ -308,7 +308,7 @@ CREATE TABLE IF NOT EXISTS resolves_to (
 );
 CREATE INDEX IF NOT EXISTS resolves_to_phrase ON resolves_to (phrase);
 
--- ── directory_entry: mios-daemon's directory-map index (R15: was SurrealDB).
+-- ── directory_entry: mios-daemon's directory-map index (R15: was the legacy DB).
 --    Read by mios-directory-lookup (the directory_lookup verb). The indexer
 --    DELETE-by-root then batch-UPSERTs on path. Substring search via pg_trgm
 --    GIN on lower(basename|path) (the reader uses strpos/ILIKE). mtime is the
@@ -335,7 +335,7 @@ CREATE INDEX IF NOT EXISTS idx_direntry_basename_trgm
 CREATE INDEX IF NOT EXISTS idx_direntry_path_trgm
     ON directory_entry USING gin (lower(path) gin_trgm_ops);
 
--- ── log_digest: mios-daemon's consolidated log analysis (R15: was SurrealDB).
+-- ── log_digest: mios-daemon's consolidated log analysis (R15: was the legacy DB).
 --    Append-only summaries from the classify/rollup loops. ─────────────────────
 CREATE TABLE IF NOT EXISTS log_digest (
     id           bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -349,8 +349,8 @@ CREATE TABLE IF NOT EXISTS log_digest (
 CREATE INDEX IF NOT EXISTS log_digest_ts ON log_digest (ts DESC);
 
 
--- ===== WS-9: tables ported from SurrealDB -> pgvector (2026-06-13) =====
--- person: one row per operator on this host (PKG; was SurrealDB `person`).
+-- ===== WS-9: tables ported from the legacy DB -> pgvector (2026-06-13) =====
+-- person: one row per operator on this host (PKG; was the legacy `person`).
 -- Read by `mios-kg who`, written by `mios-kg bootstrap`. Singleton in the
 -- single-operator case; username is the natural upsert key. No embeddings.
 CREATE TABLE IF NOT EXISTS person (
@@ -420,7 +420,7 @@ WHERE btrim(owner_user) <> ''
 ON CONFLICT (name) DO NOTHING;
 
 -- ── agent_keypair: Ed25519 agent-passport public-key registry (mios-passport;
---    R15: was SurrealDB). provision/rotate INSERTs a row + retires prior live
+--    R15: was the legacy DB). provision/rotate INSERTs a row + retires prior live
 --    rows; verify reads the live PEM as a filesystem fallback. public_key_pem
 --    is the raw multi-line PEM text. ed25519 keys carry no embedding (no emb). ─
 CREATE TABLE IF NOT EXISTS agent_keypair (

@@ -1,12 +1,12 @@
-<!-- AI-hint: WS-A3 completion record -- the SurrealDB->Postgres+pgvector cutover for the agent CLIs: the mios-pg-query extended-protocol (--exec-json) parameter-binding keystone, parameterized knowledge eviction, the canonical pg kanban queue, the per-tool CLI SQL-injection fixes + dead-SurrealQL deletions, the drift-check 10 regression lock, and the explicitly-named deferred residuals (mios-daemon dead SurrealQL + read-gating, mios-viking migration).
+<!-- AI-hint: WS-A3 completion record -- the legacy datastore->Postgres+pgvector cutover for the agent CLIs: the mios-pg-query extended-protocol (--exec-json) parameter-binding keystone, parameterized knowledge eviction, the canonical pg kanban queue, the per-tool CLI SQL-injection fixes + dead legacy query dialect deletions, the drift-check 10 regression lock, and the explicitly-named deferred residuals (mios-daemon dead legacy query dialect + read-gating, mios-viking migration).
      AI-related: ../../../../../usr/libexec/mios/mios-pg-query, ../../../../../usr/libexec/mios/mios-db, ../../../../../usr/lib/mios/agent-pipe/mios_evict.py, ../../../../../automation/38-drift-checks.sh -->
-# WS-A3 — SurrealDB → Postgres cutover: parameterized eviction, canonical kanban, CLI SQL-safety
+# WS-A3 — the legacy datastore → Postgres cutover: parameterized eviction, canonical kanban, CLI SQL-safety
 
 Status: **offline-complete + gated** (operator live-tests in the VM). 2026-06-20.
 
-SurrealDB (`:8000`, BSL 1.1) is retired; the agent datastore is Postgres+pgvector.
-Any code still emitting SurrealQL **silently no-ops** on pg (the connection fails,
-the error is swallowed, a 30s backoff arms) — so dead SurrealQL is not just cruft,
+the legacy datastore (`:8000`, BSL 1.1) is retired; the agent datastore is Postgres+pgvector.
+Any code still emitting the legacy query dialect **silently no-ops** on pg (the connection fails,
+the error is swallowed, a 30s backoff arms) — so dead legacy query dialect is not just cruft,
 it is a *silently broken feature*. And every value that was f-string-spliced into
 SQL (mitigated only by hand-rolled `_pgesc`/`_pgq` single-quote doubling) was a
 SQL-injection surface. WS-A3 closes both.
@@ -34,15 +34,15 @@ vectors / text bind out-of-band. 36 byte-level wire asserts in
 ## Done
 
 - **Parameterized eviction** (`mios_evict.py` + server.py `_db_count`/
-  `_evict_select_ids`/`_evict_delete_ids`/`_evict_knowledge`): was SurrealQL
+  `_evict_select_ids`/`_evict_delete_ids`/`_evict_knowledge`): was the legacy query dialect
   (`??`, `time::now() - Nd`, record-id `DELETE a,b;`) → never ran on pg → the
   knowledge table never evicted. Now parameterized pg (`COALESCE`, `now() -
   make_interval`, `id = ANY(%(ids)s)`). 25 asserts.
-- **Canonical kanban** (server.py `_shadow_queue_tasks`): wrote to SurrealDB
+- **Canonical kanban** (server.py `_shadow_queue_tasks`): wrote to the legacy datastore
   `kanban_shadow` (dead) whose pg mirror targeted a non-existent table → the
   refined multi-task queue was invisible. Now a parameterized upsert into the
   canonical pg `kanban` (`INSERT … ON CONFLICT (id) DO UPDATE`).
-- **CLI SQL-safety** — parameterized via the envelope + dead SurrealQL deleted:
+- **CLI SQL-safety** — parameterized via the envelope + dead legacy query dialect deleted:
   `mios-remember`, `mios-kg`, `mios-rag`, `mios-ingest`, `mios-directory-lookup`,
   `mios-skills` (this also un-breaks the SPM miner, which in the default `dual`
   mode read the retired `:8000` and *never mined a skill*), `mios-day0-reset`
@@ -63,7 +63,7 @@ vectors / text bind out-of-band. 36 byte-level wire asserts in
 Every libexec tool is cut over; the gate enforces it everywhere with no
 exceptions. The former residuals, all now done:
 
-1. ~~**mios-daemon dead SurrealQL**~~ — DONE: both surreal transports (`_db_post`,
+1. ~~**mios-daemon dead legacy query dialect**~~ — DONE: both surreal transports (`_db_post`,
    `_db_post_sync`) are behavior-preserving no-op stubs (the backend was already
    dead → `[]`/`None`, now without the per-call 3s timeout + 30s backoff);
    `_db_create` is mirror-only (`_pg_insert` + `return ""`, so the dead

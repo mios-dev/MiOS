@@ -22,7 +22,7 @@ Goal: achieve full AIOS + MiOS capabilities and fix all outages. This unifies th
 - **Real, fix next:** `code-server` (`:8800` shows down — verify port/bind), `ttyd-bash`/`ttyd-ps` (`:7681/7682`, disabled), `mios-daemon` (down), `Dash-AI` (`:9119`), `webtools` crawl4ai/firecrawl (stuck activating — unbuilt images).
 - **Launch visibility** — Windows-app launch lands in WSLg Session-0 (no window); robust fix = broker uses operator's live interactive-session interop, or KasmVNC desktop.
 - **SGLang VRAM volatility** — shared 4090; health_gate fallback to CPU when contended (working as designed).
-- **By-design down (not outages):** Ceph, K3s, ha-node (bare-metal/cluster), Guacamole/Skills-Miner/CrowdSec (opt-in), SurrealDB (retired→pgvector), wsl-init/wslg-permissions (masked).
+- **By-design down (not outages):** Ceph, K3s, ha-node (bare-metal/cluster), Guacamole/Skills-Miner/CrowdSec (opt-in), the legacy datastore (retired→pgvector), wsl-init/wslg-permissions (masked).
 
 ### A.3 — SOURCE fixes so a clean install self-assembles (operator push)
 Root cause of nearly every gap above: the dev-VM overlay skipped `automation/36-tools.sh` (mios-tools) → `userenv.sh` resolver missing → `/etc/mios/install.env` never rendered → services on bare defaults. Fixes:

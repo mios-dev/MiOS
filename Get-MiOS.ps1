@@ -556,7 +556,7 @@ MiOS surfaces at install time.
 * Outbound network calls from a default deployment are limited to:
     - Fedora / RPMFusion / Flathub mirrors during build / bootc upgrade
     - GitHub Container Registry (ghcr.io) during image fetch
-    - User-chosen Quadlet workloads (Forgejo, LocalAI, Ollama, Guacamole,...)
+    - User-chosen Quadlet workloads (Forgejo, Ollama, Guacamole,...)
     - The local AI runtime at MIOS_AI_ENDPOINT (default localhost)
 * Operators can audit by inspecting /etc/containers/systemd/,
   /usr/lib/systemd/system/, and the active firewalld policy.

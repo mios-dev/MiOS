@@ -352,7 +352,7 @@ paths boot to a working desktop on the developer's daily-driver. The
 bare-metal install path works but expects you to know what `bootc switch`
 does before you run it.
 
-On the AI side, the migration off the early Ollama/SurrealDB/Qdrant stack is
+On the AI side, the migration off the early Ollama/legacy-datastore/Qdrant stack is
 complete: inference + embeddings now run on the `mios-llm-light` lane (`:11450`)
 with gated heavy GPU lanes, and the unified agent datastore is
 PostgreSQL+pgvector. Ollama survives only as an upstream *API-compat reference*

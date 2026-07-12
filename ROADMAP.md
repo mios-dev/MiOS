@@ -81,7 +81,7 @@
 - `WS-UISHELL` — Native QML shell surfaces
 - `WS-NAME2` — Naming/SSOT reconciliation residual (extends WS-NAME/T-165)
 - `WS-UKI` — verity-rooted UKI build + fapolicyd enforce-promotion (extends WS-H/H7)
-- `WS-A3F` — central-path SurrealDB→pg primary flip (extends surreal→pg cutover)
+- `WS-A3F` — central-path legacy-datastore→pg primary flip (extends surreal→pg cutover)
 - `WS-OSCTL2` — hwnd-threaded target-window resolution for pc_type (extends CU-01)
 
 **Part 19: Deploy the stated heavy dGPU lane (model provisioning) (2026-07-10)**
@@ -285,7 +285,7 @@ Gates: 🖥️ operator-VM/bare-metal · 🔌 needs egress · ✅ done this sess
 - **Files:** `usr/lib/systemd/system/mios-open-webui-firstboot.*` (or the hermes-firstboot chain), `usr/lib/systemd/system/mios-agent-pipe.service`.
 - **Accept:** after re-running firstboot on an empty model table, the `MiOS AI` row exists with `{{USER_LOCATION}}`. **Operator precondition (document prominently):** browser geolocation requires a **secure context** — OWUI over `https://…ts.net` or `http://localhost:3030`, NOT `http://<LAN-IP>` (silently blocked). **Deps:** none.
 
-### E2 — strip a trailing `(lat, long)` suffix in `_client_env` (cosmetic)  **[P3]**  ·  ### E3 — fix the stale `agent.json` "SurrealDB-state chain" description (post-pgvector)  **[P3]**
+### E2 — strip a trailing `(lat, long)` suffix in `_client_env` (cosmetic)  **[P3]**  ·  ### E3 — fix the stale `agent.json` "legacy-datastore-state chain" description (post-pgvector)  **[P3]**
 
 ---
 
@@ -398,7 +398,7 @@ MCP exposes the tool surface; A2A federates peer agents. Phases below are
 ordered by operator-impact-per-line-of-code, not by formal completeness.
 
 > **Migration note (2026-06-13):** The agent plane has moved off the early
-> Ollama / SurrealDB / Qdrant stack. Inference + embeddings now run on
+> Ollama / legacy-datastore / Qdrant stack. Inference + embeddings now run on
 > `mios-llm-light` (`:11450`, llama.cpp behind the upstream `mios-llm-light` proxy);
 > the unified datastore is PostgreSQL + pgvector. Ollama survives only as an
 > *upstream API-compat reference* (the lanes speak the OpenAI/Ollama-compatible
@@ -993,7 +993,7 @@ The orchestration substrate the roadmap builds on:
   the CPU-pinned daemon-agent tails logs and supplements context.
 
 > Inference, embeddings, and the agent datastore are **fully local**. The
-> earlier Ollama backend, SurrealDB datastore, and Qdrant vector store have been
+> earlier Ollama backend, legacy datastore, and Qdrant vector store have been
 > retired — the engines now speak the OpenAI/Ollama-*compatible* API, which is
 > the only sense in which "Ollama" still appears. Naming throughout is
 > `mios-<component>` (the old `CloudWS`/`cloudws-*` project name is retired).
@@ -2790,7 +2790,7 @@ Source docs: `AIOS-GAP-IMPLEMENTATION-PLAN-2026-06-14.md`, `AIOS-MIOS-MASTER-PLA
 - **Status:** IN-PROGRESS / intentionally-deferred — `automation/lib/ws7-uki-fapolicyd-build.sh` + `[security.fapolicyd_observe]` shipped, gated off; enforce-promotion blocked on the 4 defects.
 - **Source:** ws7-uki-fapolicyd.md + multi-agent-buildout-plan.md (WS-7)
 
-## WS-A3F — central-path SurrealDB→pg primary flip (extends surreal→pg cutover)
+## WS-A3F — central-path legacy-datastore→pg primary flip (extends surreal→pg cutover)
 - **Goal:** Complete the ONE surreal→pg surface the CLI/daemon cutover deliberately deferred: the CENTRAL path (server.py + OWUI pipe) pg-primary flip, fixing the un-mirrored write sites (`execute_skill last_used_at`, `_skill_invocation_close`, `hitl_approve` audit UPDATE, 4 OWUI-pipe writes in `mios_agent_pipe.py`) and making the `_skill_attribute_tool_call` RELATE-edge schema decision (add `tool_call_emissions` table vs. `emitted_by_invocation` column).
 - **Why:** The "surreal→pg LANDED" claim is accurate for the CLI/daemon halves but overstates the central path — those writes flip live only when `[pgvector].db_backend` goes dual→postgres / the `_PG_PRIMARY` gate flips, an operator VM-session step with real un-mirrored write bugs behind it.
 - **Status:** IN-PROGRESS — CLI/daemon cutover DONE; central-path flip + un-mirrored write fixes are operator-VM-gated and not applied. Includes an open schema decision.
@@ -2811,7 +2811,7 @@ Pure architecture / shipped-state records / audit ledgers. These are the design-
 - **architecture.md** — end-to-end bootc image / FHS / CDI-VFIO / AI-surface layout reference. Pure reference.
 - **roadmap-snapshot-decomposition-2026-06-22.md** — the source snapshot + correction ledger the current ROADMAP/TASKS were generated against (ROADMAP cites it directly). Reference.
 - **unified-ai-pipeline-2026-06-16.md** — reference for the shipped one-`:8640` orchestrator / thin-client / tool-loop / anti-fabrication pipeline. Live-verified, SSOT is the code.
-- **postgres-pgvector-unification.md** — DONE record (pgvector is the shipped unified datastore; SurrealDB/Qdrant retired). → maps to the shipped datastore.
+- **postgres-pgvector-unification.md** — DONE record (pgvector is the shipped unified datastore; legacy-datastore/Qdrant retired). → maps to the shipped datastore.
 - **ws-a3-surreal-to-pg-cutover.md** — DONE record for the CLI/daemon cutover. (Central-path flip carried forward as WS-A3F.)
 - **ws-0-preflight-findings-2026-06-20.md** — baseline-reconciliation audit; confirms plan premises already satisfied. Reference.
 - **ws-subsystems-activation-2026-06-20.md** — operator activation playbook for the default-off WS-* subsystems (RLS, signed principal, egress firewall, reputation, mTLS, self-improve — all shipped). Reference.

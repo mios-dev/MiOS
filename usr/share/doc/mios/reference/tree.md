@@ -229,7 +229,7 @@ deployed `/` IS a git working tree of `mios.git` (`mios_root_git`).
 │   │   ├─ paths.sh                      runtime FHS path constants (mirror of build-time)
 │   │   ├─ agent-pipe/                   MiOS-Agent-Pipe FastAPI orchestrator (:8640)
 │   │   │   ├─ server.py                     router + refine + council/swarm fan-out + critic/polish
-│   │   │   ├─ mios_pg.py                    PostgreSQL + pgvector client (replaces the retired SurrealDB writes)
+│   │   │   ├─ mios_pg.py                    PostgreSQL + pgvector client (replaces the retired legacy datastore writes)
 │   │   │   ├─ mios_owui.py                  Open WebUI scaffold strip / think-block shaping
 │   │   │   ├─ mios_sched.py                 cron-director scheduling hook
 │   │   │   ├─ mios_evict.py                 tiered-memory eviction
@@ -410,7 +410,7 @@ named by *function*, not by upstream tool:
 `mios-llm-light` (the upstream proxy image `ghcr.io/mostlygeek/llama-swap`) and the
 OpenAI/Ollama-compatible API are legitimate **upstream references** -- the
 engines speak that API so any OpenAI-API client talks to them unchanged. The
-MiOS *unit identity*, however, is `mios-llm-light`; the early Ollama / SurrealDB
+MiOS *unit identity*, however, is `mios-llm-light`; the early Ollama / the legacy datastore
 / Qdrant stack has been fully removed (Ollama survives only as that API-compat
 reference and in historical migration notes; pgvector is the sole vector store).
 
@@ -485,7 +485,7 @@ build-script document. It is regenerated on each build, so additions /
 deletions in the source tree show up here on the next regen; treat the curated,
 annotated sections above as the canonical guide and this snapshot as a complete
 file inventory. Component names reflect the current naming convention
-(`mios-<component>` lowercase-kebab; the legacy `cloudws-*` / Ollama / SurrealDB
+(`mios-<component>` lowercase-kebab; the legacy `cloudws-*` / Ollama / the legacy datastore
 artifacts have been renamed or removed in the live tree).
 
 ```

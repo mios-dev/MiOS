@@ -818,7 +818,7 @@
       "name": "sys_env",
       "kind": "verb",
       "tier": "read",
-      "description": "READ the cached system/environment inventory (shared store): identity, the host OS + whether this is WSL2 + the Windows host, host hardware, which MiOS stack services are up/down, loaded ollama models"
+      "description": "READ the cached system/environment inventory (shared store): identity, the host OS + whether this is WSL2 + the Windows host, host hardware, which MiOS stack services are up/down, loaded models, and t"
     },
     {
       "name": "sys_env_refresh",
@@ -842,7 +842,7 @@
       "name": "system_status",
       "kind": "verb",
       "tier": "read",
-      "description": "Live LOCAL machine health dashboard (JSON): OS (Linux distro + kernel + whether this is WSL2 + the WINDOWS HOST OS caption/version when on WSL2), GPU/VRAM, RAM, disk usage, running services, loaded ol"
+      "description": "Live LOCAL machine health dashboard (JSON): OS (Linux distro + kernel + whether this is WSL2 + the WINDOWS HOST OS caption/version when on WSL2), GPU/VRAM, RAM, disk usage, running services, loaded mo"
     },
     {
       "name": "text_create",

@@ -70,12 +70,12 @@ answered:
 | **mios-pgvector** (`mios-pgvector.container`) | `:5432` | PostgreSQL + `pgvector` -- the unified agent-plane datastore (memory, events, tool calls, sessions, skills, scratch, knowledge, embeddings). |
 
 > **Migration note (current).** Earlier builds described an Ollama inference
-> container and a SurrealDB/Qdrant agent store. Those are **retired**: inference
+> container and a the legacy datastore/Qdrant agent store. Those are **retired**: inference
 > and embeddings now run on the `mios-llm-*` lanes above, and the agent datastore
 > is PostgreSQL + `pgvector` (`usr/share/mios/postgres/schema-init.sql`). Ollama
 > survives in this doc only as an *upstream API-compatibility reference* -- the
 > MiOS lanes speak the same OpenAI/Ollama-compatible `/v1` protocol -- never as a
-> live MiOS backend. LocalAI / vLLM / other engines remain *optional* backends,
+> live MiOS backend. vLLM / other engines remain *optional* backends,
 > off by default, flipped on in `mios.toml [ai]`.
 
 ## Conventions

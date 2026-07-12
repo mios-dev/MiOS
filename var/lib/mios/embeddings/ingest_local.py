@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AI-hint: Processes chunks.jsonl by generating embeddings via OpenAI-compatible local endpoints (LocalAI, Ollama, vLLM) and upserting the resulting vectors into the pgvector PostgreSQL database for RAG retrieval.
+# AI-hint: Processes chunks.jsonl by generating embeddings via OpenAI-compatible local endpoints (llama.cpp, Ollama, vLLM) and upserting the resulting vectors into the pgvector PostgreSQL database for RAG retrieval.
 # AI-related: mios-kb, localhost:8080, localhost:11450, localhost:8000, localhost:1234, localhost:4000, localhost:5432
 # AI-functions: embed_batch, stable_id, vector_literal, main
 """
@@ -7,7 +7,7 @@ ingest_local.py — Embed chunks.jsonl against any OpenAI-API-compatible
 /v1/embeddings endpoint (LAW 5) and upsert into pgvector.
 
 Day-0 compatible. Works against:
-  - MiOS LocalAI         (http://localhost:8642/v1)  ← canonical (LAW 5)
+  - MiOS llm-light       (http://localhost:8642/v1)  ← canonical (LAW 5)
   - Ollama               (http://localhost:11434/v1)
   - vLLM                 (http://localhost:8000/v1)
   - LM Studio            (http://localhost:1234/v1)
@@ -16,7 +16,7 @@ Day-0 compatible. Works against:
 
 Env vars (matches MiOS LAW 5: UNIFIED-AI-REDIRECTS):
   MIOS_AI_ENDPOINT    — default http://localhost:8642/v1
-  MIOS_AI_KEY         — default empty (LocalAI accepts empty key)
+  MIOS_AI_KEY         — default empty (local runtime accepts empty key)
   MIOS_AI_EMBED_MODEL — default nomic-embed-text (canonical mios.toml [ai].embed_model)
 
 pgvector:

@@ -168,7 +168,6 @@ cat > "${ARTIFACT_DIR}/manifest.json" << MANIFEST
   "foss_ai_apis": [
     "Ollama",
     "llama.cpp",
-    "LocalAI",
     "vLLM"
   ],
   "license": "Personal Property - 'MiOS' Project",
@@ -184,7 +183,7 @@ cat > "${ARTIFACT_DIR}/README.md" << README
 
 **Generated:** $(date -u +%Y-%m-%d)
 **Compression:** ${REPO_SIZE_HUMAN} → ${COMPRESSED_HUMAN} (${COMPRESSION_RATIO} reduction)
-**Target:** FOSS AI APIs (Ollama, llama.cpp, LocalAI, vLLM)
+**Target:** FOSS AI APIs (Ollama, llama.cpp, vLLM)
 
 ## Artifacts in This Package
 
@@ -206,7 +205,7 @@ cat > "${ARTIFACT_DIR}/README.md" << README
    - Knowledge source weights
 
 4. **README-AI-INTEGRATION.md** (8.0 KB)
-   - Integration guide for Ollama, llama.cpp, LocalAI, vLLM
+   - Integration guide for Ollama, llama.cpp, vLLM
    - Quick-start commands per runtime
    - RAG configuration notes
 

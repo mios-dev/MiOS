@@ -1,5 +1,5 @@
 #!/bin/bash
-# AI-hint: Read-only health dashboard: lists systemd --failed units, prints active/enabled state for the full mios-* + hermes/ollama/owui/searxng/forge service set, tails hermes-firstboot and hermes-agent journals, and checks the canonical agent ports (8640/8642/8000/114
+# AI-hint: Read-only health dashboard: lists systemd --failed units, prints active/enabled state for the full mios-* + hermes/owui/searxng/forge service set, tails hermes-firstboot and hermes-agent journals, and checks the canonical agent ports (8640/8642/8000/114
 # AI-related: mios-agent-pipe, mios-daemon, mios-open-webui, mios-searxng, mios-forge, mios-skills-miner, mios-passport-provision, mios-hermes-firstboot
 # Comprehensive service-health probe across MiOS surfaces.
 set -euo pipefail

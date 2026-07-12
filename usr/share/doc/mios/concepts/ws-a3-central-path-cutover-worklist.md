@@ -1,6 +1,6 @@
-<!-- AI-hint: WS-A3 follow-up worklist -- the precise, code-grounded SurrealDB->pg cutover checklist for the CENTRAL chat path (agent-pipe server.py + the OWUI pipe), which is intentionally NOT edited blind (live path; edits are inert until the dual->postgres flip, so they must be done WITH the VM build/boot loop and verified live as each gate flips). Corrects two audit overstatements, lists genuinely-broken vs cosmetic-redundant sites with exact pg translations + per-site risk, and the one activating decision.
+<!-- AI-hint: WS-A3 follow-up worklist -- the precise, code-grounded the legacy datastore->pg cutover checklist for the CENTRAL chat path (agent-pipe server.py + the OWUI pipe), which is intentionally NOT edited blind (live path; edits are inert until the dual->postgres flip, so they must be done WITH the VM build/boot loop and verified live as each gate flips). Corrects two audit overstatements, lists genuinely-broken vs cosmetic-redundant sites with exact pg translations + per-site risk, and the one activating decision.
      AI-related: ../../../../../usr/lib/mios/agent-pipe/server.py, ../../../../../usr/share/mios/owui/pipes/mios_agent_pipe.py, ../../../../../usr/share/mios/postgres/schema-init.sql, ./ws-a3-surreal-to-pg-cutover.md -->
-# WS-A3 — central-path (server.py + OWUI pipe) SurrealDB→pg cutover worklist
+# WS-A3 — central-path (server.py + OWUI pipe) the legacy datastore→pg cutover worklist
 
 Status: **audited + planned, NOT yet applied.** The CLI/daemon halves of WS-A3 are
 done ([[ws-a3-surreal-to-pg-cutover]]); this is the remaining central-path surface.
@@ -20,7 +20,7 @@ Pick how to go pg-primary, then verify a chat end-to-end:
 - **Option A (recommended, matches the daemon fix):** flip the READ/UPDATE gates
   `_PG_PRIMARY` → `_PG_ENABLED` in server.py `_db_read`/`_db_update` (so dual-mode
   reads/updates use the pg translation). Non-regressive (missing translation →
-  SurrealDB → `[]`, same as now). Then the un-mirrored writes below still need
+  the legacy datastore → `[]`, same as now). Then the un-mirrored writes below still need
   their pg path added.
 - **Option B:** flip `[pgvector].db_backend` `dual`→`postgres`. Activates
   `_PG_PRIMARY`; writes already mirrored via `_db_create`/`_pg_mirror` go pg-only;

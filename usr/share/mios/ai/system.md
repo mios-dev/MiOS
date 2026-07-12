@@ -158,7 +158,7 @@ next MiOS forever (Day-0 → Day-1 → Day-N).
   `tool_choice=delegate_task` on fan-outable prompts; **MiOS-OpenCoder**
   (`mios-opencode-gateway.service` :8633) is a first-class `/v1` council peer. The unified agent datastore is
   **PostgreSQL + pgvector** (`mios-pgvector`) — memory, sessions, events, skills,
-  knowledge/RAG vectors. Optional drop-in alternatives (LocalAI, LiteLLM) flip on
+  knowledge/RAG vectors. Optional drop-in alternatives (vLLM, LiteLLM) flip on
   in `mios.toml [ai]`.
 - **Container / orchestration:** Podman Quadlets, K3s, Ceph, Pacemaker/Corosync,
   CrowdSec (sovereign mode).

@@ -3,7 +3,7 @@
 # AI-functions: _check, t_parse_scope, t_requires_approval, t_gate_outcome, t_block_result, main
 """Standalone unit test for mios_hitl (WS-6 HITL decision helpers).
 
-Pure stdlib + the sibling module only -- no server.py / SurrealDB. The live
+Pure stdlib + the sibling module only -- no server.py / DB. The live
 pending_action I/O + approval endpoints are verified by the operator on
 MiOS-DEV; this covers the deterministic decision logic.
 

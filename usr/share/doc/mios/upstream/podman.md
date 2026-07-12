@@ -147,5 +147,5 @@ pipeline produces.
 - `usr/share/doc/mios/reference/api.md` — the OpenAI-compatible AI surface the
   inference-lane Quadlets serve.
 - `usr/share/containers/systemd/mios-llm-light.container` — the primary
-  inference Quadlet (was the Ollama/LocalAI unit; now llama.cpp via the
+  inference Quadlet (was the Ollama unit; now llama.cpp via the
   upstream llama-swap proxy image on :11450).

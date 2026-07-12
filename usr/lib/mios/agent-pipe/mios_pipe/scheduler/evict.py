@@ -1,4 +1,4 @@
-# AI-hint: WS-A3 pure, DB-free logic for the knowledge-table eviction sweep -- now PARAMETERIZED POSTGRES (the cutover). Builds parameterized pg SQL (named %(min_access)s/%(ttl_days)s/%(limit)s/%(ids)s placeholders -- NO string interpolation, injection-safe) + parses pg dict-rows, replacing the old SurrealQL fragments that NO-OP'd under db_backend=postgres (the SurrealQL DELETE/count never reached pg). server.py owns the mios_pg I/O + the loop; this module owns the deterministic SQL-building + parsing + the blast-radius arithmetic so it unit-tests in isolation.
+# AI-hint: WS-A3 pure, DB-free logic for the knowledge-table eviction sweep -- now PARAMETERIZED POSTGRES (the cutover). Builds parameterized pg SQL (named %(min_access)s/%(ttl_days)s/%(limit)s/%(ids)s placeholders -- NO string interpolation, injection-safe) + parses pg dict-rows, replacing the old legacy query fragments that NO-OP'd under db_backend=postgres (the legacy DELETE/count never reached pg). server.py owns the mios_pg I/O + the loop; this module owns the deterministic SQL-building + parsing + the blast-radius arithmetic so it unit-tests in isolation.
 # AI-related: ./mios_pg.py, ./server.py, /usr/share/mios/postgres/schema-init.sql, ./test_mios_evict.py
 # AI-functions: evict_where, order_by, count_sql, select_ids_sql, delete_ids_sql, evict_params, parse_count, parse_ids, plan_sweep
 """mios_evict -- pure helpers for the knowledge-table eviction sweep (WS-A3).
@@ -8,9 +8,9 @@ unit-tests in isolation (sibling-module pattern). server.py owns the actual
 Postgres I/O (mios_pg.execute), the config knobs, and the background loop.
 
 WS-A3 cutover: this emits PARAMETERIZED Postgres (named placeholders bound by
-mios_pg) -- the previous SurrealQL (`??`, `time::now() - Nd`, record-id
-`DELETE a, b;`) silently no-op'd once db_backend='postgres' (SurrealDB :8000 is
-retired), so eviction never ran. The knowledge table is append-only; eviction
+mios_pg) -- the previous legacy query fragments (`??`, record-id
+`DELETE a, b;`) silently no-op'd once db_backend='postgres' (the legacy :8000
+backend is retired), so eviction never ran. The knowledge table is append-only; eviction
 removes only STALE, never-recalled, neutral-outcome rows and NEVER a
 hot/satisfied/pinned/recently-accessed one.
 """

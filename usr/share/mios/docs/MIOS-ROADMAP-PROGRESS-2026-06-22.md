@@ -17,7 +17,7 @@ means *active + live-fired*, not "built + gated-OFF" (the WS-G standard).
 | **FED-G3** live membership reload | mtime-watch + `POST /a2a/peers/reload` (auth-gated) | watch ON (30s); authed reload OK; unauth→401 |
 | **FED-G4** signed AgentCard | `securitySchemes` + Ed25519 JWS `signatures[]` (passport key) | card: `securitySchemes:['bearer']`, `signatures:1` |
 | **D1** remote/edge join | template existed (A1); verified auto-join/drop via FED-G3 | `/etc` overlay remote node → `effective_up:true`, peers 3→4; removed → 3 |
-| **B2** tiering page-in bump | added the missing `access_count`/`recall_hits`/`last_access`/hot bump to the **live pgvector** recall path (it lived only in the dead SurrealDB path) | after recalls, 5 rows `access_count>0` (was 0) |
+| **B2** tiering page-in bump | added the missing `access_count`/`recall_hits`/`last_access`/hot bump to the **live pgvector** recall path (it lived only in the dead legacy datastore path) | after recalls, 5 rows `access_count>0` (was 0) |
 | **C0** code-server `:8080→:8800` | repo was correct; deployed + surfaced the pod dependency | `:8800` bound, `:8080` freed |
 | **E1** OWUI location firstboot | wired `mios-owui-apply-system-prompt` into `mios-hermes-firstboot` | in the firstboot chain (idempotent) |
 | **F1** OWUI RAG embedding | engine `ollama`(→`/api/embed` 404) → `openai`(→`/v1/embeddings`) + embed `--parallel 4` | `:11450/v1/embeddings` 768-dim verified; **residual below** |

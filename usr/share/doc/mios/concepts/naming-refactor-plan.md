@@ -65,11 +65,11 @@ coherent; the work is mostly *convergence* + one real defect.
   `mios-guacamole-postgres`, and `mios-crowdsec-dashboard` (the CloudWS/inline-named
   units now carry `mios-` stems). The inference lanes were renamed by **function**,
   not upstream-tool name — see "Inference-engine rename" below.
-- **Legacy backends REMOVED (postdates the original T26 plan).** Ollama, SurrealDB,
+- **Legacy backends REMOVED (postdates the original T26 plan).** Ollama, the legacy datastore,
   and Qdrant are gone from the live system (containers, firstboot, model-bake,
   Modelfiles, CLI shims). Inference + embeddings run on `mios-llm-light` (:11450);
   the unified agent datastore is **PostgreSQL + pgvector** (`mios-pgvector`, :5432).
-  Remaining `[surrealdb]`/`[services.ollama_cpu]`/qdrant traces in `mios.toml` are
+  Remaining legacy-datastore/`[services.ollama_cpu]`/qdrant traces in `mios.toml` are
   stale snapshot residue pending an SSOT sweep — treat them as migration history,
   not live state (Phase 3 SSOT reconciliation below covers the cleanup).
 - **Still pending:** Phase 1c `ContainerName=` audit on the renamed units, the
@@ -116,8 +116,8 @@ literals/names) except documented Law-6 root exceptions. UID tiers: 1000 operato
 800–809 privileged, **810–829 sidecars (sequential, never reuse)**, 850/860
 AI/SYS buckets. Live sidecar allocations (from `[services.*]`): forge 816,
 open-webui 817, searxng 818, ceph 819, hermes 820, agent-pipe 822, crawl4ai 824,
-adguard 825, pgvector 826, llamacpp 827, codemode 828. (UID 821 was SurrealDB; it
-is now free following the SurrealDB removal.)
+adguard 825, pgvector 826, llamacpp 827, codemode 828. (UID 821 was the legacy datastore; it
+is now free following the legacy datastore removal.)
 
 **Models/agents/nodes:** model tags lowercase-kebab `mios-<role>[-<lane>]`, NO
 `:latest` in config (let `_norm_model_tag` add it); raw bases verbatim (upstream).
@@ -151,8 +151,8 @@ canonical — the model to copy). Persona strings Title-case `MiOS <Role>`.
 - Agent id `mios-daemon-agent`→`daemon-agent` (grep-replace failover/model/env/registry refs) — PENDING.
 
 ### Phase 3 — RISKY (operator-gated; needs image rebuild + chown migration; via aliasing)
-- **SSOT cleanup of the removed backends:** sweep the residual `[surrealdb]`,
-  `[services.surrealdb]` (UID 821), `[services.ollama_cpu]`, `enable_ollama`, the
+- **SSOT cleanup of the removed backends:** sweep the residual legacy-datastore config
+  + service sections (UID 821), `[services.ollama_cpu]`, `enable_ollama`, the
   ollama seed/runtime-dir keys, and qdrant traces out of `mios.toml`/`profile.toml`,
   keeping a brief migration note. The `knowledge`/`agent_memory`/etc. tables now live
   in `usr/share/mios/postgres/schema-init.sql` on PostgreSQL + pgvector.

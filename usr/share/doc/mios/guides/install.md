@@ -127,7 +127,7 @@ export MIOS_AI_MODEL=qwen2.5:32b   # or any served model with tool-calling suppo
 ```
 
 Note: on a MiOS host, inference and embeddings are served by `mios-llm-light`
-(`llama.cpp` via `mios-llm-light`), not by Ollama — Ollama, SurrealDB, and Qdrant
+(`llama.cpp` via `mios-llm-light`), not by Ollama — Ollama, the legacy datastore, and Qdrant
 have all been retired from the live stack. The Ollama-compatible API and the
 upstream `mios-llm-light` image remain legitimate *interop* references, which is why
 this recipe still works against any Ollama-compatible endpoint you point it at.

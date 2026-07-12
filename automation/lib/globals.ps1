@@ -122,7 +122,7 @@ $script:MIOS_VAR_AI_DIR                 = "$($script:MIOS_VAR_DIR)/ai"
 $script:MIOS_VAR_MCP_DIR                = "$($script:MIOS_VAR_DIR)/mcp"
 $script:MIOS_VAR_BACKUPS_DIR            = "$($script:MIOS_VAR_DIR)/backups"
 $script:MIOS_VAR_CACHE_DIR              = "$($script:MIOS_VAR_DIR)/cache"
-# LocalAI bind targets
+# AI inference bind targets
 $script:MIOS_SRV_AI_DIR                 = '/srv/ai'
 $script:MIOS_SRV_AI_MODELS_DIR          = "$($script:MIOS_SRV_AI_DIR)/models"
 $script:MIOS_SRV_AI_OUTPUTS_DIR         = "$($script:MIOS_SRV_AI_DIR)/outputs"

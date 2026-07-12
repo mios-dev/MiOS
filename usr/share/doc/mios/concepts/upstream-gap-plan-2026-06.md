@@ -3,7 +3,7 @@
 # MiOS Upstream-Gap Research + Implementation Plan — 2026-06-07
 
 > **Status (re-baselined 2026-06-13):** This is a living research/roadmap doc. The inference and
-> datastore facts below are current as of the migration off the early Ollama/SurrealDB/Qdrant stack:
+> datastore facts below are current as of the migration off the early Ollama/legacy datastore/Qdrant stack:
 > local inference and embeddings now run on the **`mios-llm-light`** lane (`:11450`), the heavy GPU
 > lanes are **`mios-llm-heavy`** (SGLang, `:11441`) and **`mios-llm-heavy-alt`** (vLLM, `:11440`),
 > and the unified agent datastore is **PostgreSQL + pgvector** (`mios-pgvector`, `:5432`). Ollama

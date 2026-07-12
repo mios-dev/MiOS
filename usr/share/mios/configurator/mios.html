@@ -2551,7 +2551,7 @@
   <summary>pgvector — unified agent datastore <span class="phase-badge">Phase 10 — Boot</span></summary>
   <div class="section-body">
     <p style="color: var(--muted); font-size: 12px; margin: 0 0 12px;">
-      Unified PostgreSQL + pgvector agent-plane datastore (FOSS replacement for SurrealDB).
+      Unified PostgreSQL + pgvector agent-plane datastore (FOSS replacement for the retired legacy DB).
       Stores agent_memory, events, tool_calls, sessions, skills, scratch, knowledge, and system environment.
     </p>
     <div class="grid">
@@ -2567,7 +2567,7 @@
         <input type="text" id="f-pg-db" data-key="pgvector.db" placeholder="mios">
         <label for="f-pg-enable">enable (master toggle)</label>
         <input type="text" id="f-pg-enable" data-key="pgvector.enable" data-type="bool" placeholder="true">
-        <label for="f-pg-backend">db_backend (surreal | dual | postgres)</label>
+        <label for="f-pg-backend">db_backend (dual | postgres)</label>
         <input type="text" id="f-pg-backend" data-key="pgvector.db_backend" placeholder="postgres">
       </fieldset>
       <fieldset>
