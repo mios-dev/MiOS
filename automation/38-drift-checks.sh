@@ -80,7 +80,7 @@ echo "[38-drift-checks]   root: $ROOT"
 
 # --- (1) Retired local :11434 lane in active config. -------------------------
 # Mirror of 99-postcheck.sh check 12b, on the SOURCE tree (PR-time). The local
-# ollama lane on :11434 was retired (everything moved to mios-llm-light :11450);
+# ollama lane on :11434 was retired (everything moved to mios-llm-light :8450);
 # a stale local ref silently 404s a refine / sys-agent / DCI call. Only LOCAL
 # forms match -- remote tailnet :11434 lane templates are legitimate.
 check_dead_lane() {
@@ -100,7 +100,7 @@ check_dead_lane() {
     done
     if [[ -n "$hits" ]]; then
         printf '%s' "$hits" >&2
-        _violation "retired local :11434 lane in active source config (use the live lane, e.g. mios-llm-light :11450)"
+        _violation "retired local :11434 lane in active source config (use the live lane, e.g. mios-llm-light :8450)"
     else
         echo "[38-drift-checks]   (1) no retired :11434 lane in active config"
     fi
@@ -2887,6 +2887,258 @@ PY
     fi
 }
 
+# ============================================================================
+# v0.3.0 ARCHITECTURAL-LAW enforcers (Phase B). Each mirrors a law registered in
+# mios.toml [laws]; the allowlists are READ FROM THE SSOT, never hardcoded.
+# ============================================================================
+
+# --- (35, Law 2 NO-MKDIR-IN-VAR) imperative /var mkdir in a build step. --------
+# Every /var/ path MUST be declared via usr/lib/tmpfiles.d/*.conf, NEVER mkdir'd
+# in a numbered image-build step (an imperatively-created /var dir is wiped by the
+# OCI /var reset and is invisible to tmpfiles ownership). SCOPE is deliberately the
+# numbered build surface ONLY -- automation/[0-9]*.sh + Containerfile{,.minimal};
+# the MiOS-DEV overlay tools (overlay-builder.sh, tools/mios-overlay.sh, ...)
+# legitimately mkdir a HOST /var and are out of scope. Full-comment lines are
+# stripped so a "must NOT mkdir /var" note never false-fails.
+check_no_mkdir_in_var() {
+    # Match a real imperative `mkdir ... /var/<path>`: a whitespace/quote path
+    # boundary immediately before /var/ is required, so a `mkdir .../var/...`
+    # DIAGNOSTIC STRING (like this gate's own message) is NOT self-flagged.
+    local pat='mkdir[^;&|#]*['\''"[:space:]]/var/'
+    local hits="" f active m
+    for f in "$ROOT"/automation/[0-9]*.sh "$ROOT/Containerfile" "$ROOT/Containerfile.minimal"; do
+        [[ -f "$f" ]] || continue
+        active=$(sed -E '/^[[:space:]]*#/d' "$f")
+        m=$(printf '%s\n' "$active" | grep -nE "$pat" || true)
+        [[ -n "$m" ]] && hits+="    ${f#"$ROOT"/}:"$'\n'"$(printf '%s\n' "$m" | sed 's/^/      /')"$'\n'
+    done
+    if [[ -n "$hits" ]]; then
+        printf '%s' "$hits" >&2
+        _violation "an imperative 'mkdir .../var/...' in a numbered build step (Law 2 NO-MKDIR-IN-VAR) -- declare the path in usr/lib/tmpfiles.d/*.conf instead"
+    else
+        echo "[38-drift-checks]   (35) no imperative /var mkdir in numbered automation/Containerfiles (Law 2)"
+    fi
+}
+
+# Read a "...container" array (root / no_group_delegate) from the
+# [security.privileged_quadlets] section of mios.toml -- the Law-6 allowlist SSOT.
+_privileged_quadlet_array() {
+    sed -n '/^\[security\.privileged_quadlets\]/,/^\[/p' "$1" 2>/dev/null \
+        | sed -n "/^$2[[:space:]]*=[[:space:]]*\[/,/^]/p" \
+        | grep -oE '"[^"]+\.container"' | tr -d '"'
+}
+
+# --- (36, Law 6 UNPRIVILEGED-QUADLETS) per-Quadlet privilege contract. ---------
+# Every *.container under usr/share/containers/systemd (+ etc overlay) MUST declare
+# User=. User=root/User=0 is allowed ONLY for a basename listed in mios.toml
+# [security.privileged_quadlets].root (the documented root exceptions). Group= +
+# Delegate=yes are required UNLESS the basename is in [...].no_group_delegate. Both
+# allowlists are READ FROM THE TOML (never hardcoded) so they can never drift from
+# the SSOT. Offline mirror of postcheck item 13.
+check_quadlet_privilege() {
+    local toml="$ROOT/usr/share/mios/mios.toml"
+    if [[ ! -f "$toml" ]]; then
+        echo "[38-drift-checks]   (36) mios.toml absent -- skipped"
+        return 0
+    fi
+    local root_allow ngd_allow
+    root_allow="$(_privileged_quadlet_array "$toml" root)"
+    ngd_allow="$(_privileged_quadlet_array "$toml" no_group_delegate)"
+    if [[ -z "$root_allow" ]]; then
+        echo "[38-drift-checks]   WARNING: [security.privileged_quadlets].root empty/unreadable -- skipping quadlet-privilege check" >&2
+        return 0
+    fi
+    local bad="" f base user
+    for d in "$ROOT/usr/share/containers/systemd" "$ROOT/etc/containers/systemd"; do
+        [[ -d "$d" ]] || continue
+        while IFS= read -r f; do
+            [[ -f "$f" ]] || continue
+            base="$(basename "$f")"
+            if ! grep -qE '^[[:space:]]*User=' "$f"; then
+                bad+="    $base: missing User= (Law 6 requires User=)"$'\n'
+                continue
+            fi
+            user="$(grep -hE '^[[:space:]]*User=' "$f" | head -1 | sed -E 's/^[[:space:]]*User=//' | tr -d '[:space:]')"
+            if [[ "$user" == "root" || "$user" == "0" ]]; then
+                if ! printf '%s\n' "$root_allow" | grep -qxF "$base"; then
+                    bad+="    $base: User=$user but NOT in [security.privileged_quadlets].root"$'\n'
+                fi
+            fi
+            if ! printf '%s\n' "$ngd_allow" | grep -qxF "$base"; then
+                grep -qE '^[[:space:]]*Group='        "$f" || bad+="    $base: missing Group= (Law 6)"$'\n'
+                grep -qE '^[[:space:]]*Delegate=yes'  "$f" || bad+="    $base: missing Delegate=yes (Law 6)"$'\n'
+            fi
+        done < <(find "$d" -type f -name '*.container' 2>/dev/null)
+    done
+    if [[ -n "$bad" ]]; then
+        printf '%s' "$bad" >&2
+        _violation "a Quadlet violates Law 6 (UNPRIVILEGED-QUADLETS): missing User=, an undocumented User=root/0 (add to [security.privileged_quadlets].root with a justification), or a missing Group=/Delegate=yes (exempt via [...].no_group_delegate)"
+    else
+        echo "[38-drift-checks]   (36) every Quadlet declares User=; root only where allowlisted; Group=/Delegate=yes present (Law 6)"
+    fi
+}
+
+# --- (37, Law 9 ONE-CANONICAL-NAME) MIOS_* consumer-closure (referenced subset emitted).
+# Shells automation/lib/mios_var_closure.py, which runs the userenv.sh resolver and
+# proves every MIOS_* a consumer references is emitted. SOFT-first: it needs a real
+# python3 + a Linux/CI resolver run; on a bare host the emitter can report emitted=0,
+# so a non-zero exit here WARNS but NEVER fails the build (the hard gate is CI/bake).
+check_var_closure() {
+    local tool="$ROOT/automation/lib/mios_var_closure.py"
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "[38-drift-checks]   (37) SOFT: python3 missing -- var-closure needs Linux/CI, skipped" >&2
+        return 0
+    fi
+    if [[ ! -f "$tool" ]]; then
+        echo "[38-drift-checks]   (37) SOFT: mios_var_closure.py absent -- skipped" >&2
+        return 0
+    fi
+    if MIOS_ROOT="$ROOT" python3 "$tool" >/dev/null 2>"$ROOT/.varclosure.err"; then
+        rm -f "$ROOT/.varclosure.err" 2>/dev/null || true
+        echo "[38-drift-checks]   (37) MIOS_* referenced-set is a subset of emitted-set (var-closure holds, Law 9)"
+    else
+        sed 's/^/    /' "$ROOT/.varclosure.err" >&2 2>/dev/null || true
+        rm -f "$ROOT/.varclosure.err" 2>/dev/null || true
+        echo "[38-drift-checks]   (37) SOFT WARNING: var-closure reported an issue (needs real python3 + Linux resolver; NOT failing the build)" >&2
+    fi
+}
+
+# --- (38, Law 4 BOOTC-CONTAINER-LINT) lint is the FINAL instruction. -----------
+# The last non-blank/non-comment line of Containerfile AND Containerfile.minimal
+# MUST be exactly 'RUN bootc container lint'. If a layer follows the lint, it can
+# reintroduce a violation the lint already cleared.
+check_lint_is_final() {
+    local bad="" cf last want="RUN bootc container lint"
+    for cf in "$ROOT/Containerfile" "$ROOT/Containerfile.minimal"; do
+        [[ -f "$cf" ]] || continue
+        last="$(grep -vE '^[[:space:]]*(#|$)' "$cf" | tail -1)"
+        if [[ "$last" != "$want" ]]; then
+            bad+="    ${cf#"$ROOT"/}: final instruction is [$last], expected [$want]"$'\n'
+        fi
+    done
+    if [[ -n "$bad" ]]; then
+        printf '%s' "$bad" >&2
+        _violation "a Containerfile's final instruction is not 'RUN bootc container lint' (Law 4 BOOTC-CONTAINER-LINT) -- lint MUST be the last layer"
+    else
+        echo "[38-drift-checks]   (38) Containerfile + Containerfile.minimal end with 'RUN bootc container lint' (Law 4)"
+    fi
+}
+
+# --- (39, Law 12 BAKE-NOT-FETCH) firstboot degrades open. ----------------------
+# A firstboot script must never brick boot on an egress/provision failure. The
+# clearest boot-blocker: `set -e` (errexit) ACTIVE with NO degrade-open escape
+# anywhere in the file (no `|| true` / `|| :` / `|| exit 0`, no `set +e`, no
+# `trap ... EXIT/ERR`, no standalone `exit 0`). Conservative by design: any
+# degrade signal -> treated as degrade-open (pass); a script without set -e (e.g.
+# mios-ai-firstboot, which guards every curl) passes. Only the unambiguous
+# no-escape case fails.
+check_firstboot_degrade_open() {
+    local bad="" f base
+    for f in "$ROOT"/usr/libexec/mios/*firstboot*; do
+        [[ -f "$f" ]] || continue
+        case "$f" in *.pyc) continue ;; esac
+        base="$(basename "$f")"
+        # errexit active? (set -e / -euo / -eu / set -o errexit)
+        if grep -qE '^[[:space:]]*set[[:space:]]+-[a-zA-Z]*e|^[[:space:]]*set[[:space:]]+-o[[:space:]]+errexit' "$f"; then
+            if grep -qE '\|\|[[:space:]]*(true|:|exit[[:space:]]+0)|set[[:space:]]+\+e|trap[[:space:]].*(EXIT|ERR)|^[[:space:]]*exit[[:space:]]+0' "$f"; then
+                : # degrade-open escape present -> ok
+            else
+                bad+="    $base: 'set -e' active with NO degrade-open escape (|| true / set +e / trap EXIT / exit 0) -- can brick boot on an egress/provision failure"$'\n'
+            fi
+        fi
+    done
+    if [[ -n "$bad" ]]; then
+        printf '%s' "$bad" >&2
+        _violation "a *firstboot* script does not degrade open (Law 12 BAKE-NOT-FETCH): 'set -e' is active with no recovery path -- guard the provision/egress steps (|| exit 0 / degrade) so a fetch failure never blocks boot"
+    else
+        echo "[38-drift-checks]   (39) every *firstboot* script degrades open (no unguarded set -e; Law 12)"
+    fi
+}
+
+# --- (40, Law 5 UNIFIED-AI-REDIRECTS) vendor cloud URL in active config. --------
+# Offline mirror of 99-postcheck item 12: active AI-plane config MUST NOT hardcode
+# a vendor cloud URL (openai/anthropic/google/cohere/mistral/cursor/copilot/cline)
+# -- every agent + tool targets MIOS_AI_ENDPOINT. Comment lines are stripped (a
+# documented alternative in a comment is legitimate), identical to item 12. Sibling
+# of check_dead_lane (the retired-local-lane half of item 12b). Reuses SCAN_DIRS.
+check_vendor_urls() {
+    local pattern='https?://(api\.openai\.com|api\.anthropic\.com|generativelanguage\.googleapis\.com|api\.cohere\.|api\.mistral\.|api\.cline\.bot|api\.cursor\.com|api\.githubcopilot\.com)'
+    local hits="" f active
+    for d in "${SCAN_DIRS[@]}"; do
+        [[ -d "$d" ]] || continue
+        while IFS= read -r f; do
+            [[ -f "$f" ]] || continue
+            active=$(sed -E '/^[[:space:]]*(#|\/\/)/d' "$f")
+            if printf '%s\n' "$active" | grep -qE "$pattern"; then
+                hits+="    $f"$'\n'
+            fi
+        done < <(find "$d" -type f \( -name '*.container' -o -name '*.service' \
+            -o -name '*.json' -o -name '*.toml' -o -name '*.conf' -o -name '*.yaml' \
+            -o -name '*.yml' \) 2>/dev/null)
+    done
+    if [[ -n "$hits" ]]; then
+        printf '%s' "$hits" >&2
+        _violation "a vendor cloud URL is hardcoded in active AI-plane config (Law 5 UNIFIED-AI-REDIRECTS) -- route through MIOS_AI_ENDPOINT"
+    else
+        echo "[38-drift-checks]   (40) no vendor cloud URL in active config (Law 5)"
+    fi
+}
+
+# --- (41, Law 13 NATIVE-DROPINS) resolver twin parity (python vs bash). ---------
+# The Python (mios_toml.py) and bash (userenv.sh) resolvers MUST agree on the
+# layered overlay -- tier-major precedence, where a vendor mios.d fragment can never
+# outrank a higher tier. This feeds a tiny vendor + vendor.d + host + user fixture to
+# BOTH resolvers and diffs the resolved MIOS_AI_* set. SOFT-first: needs a real
+# python3 (+ bash); a mismatch OR a missing python3 WARNS but never fails the build
+# (the hard gate is CI/bake on Linux).
+check_resolver_twin_parity() {
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "[38-drift-checks]   (41) SOFT: python3 missing -- resolver twin-parity needs Linux/CI, skipped" >&2
+        return 0
+    fi
+    local ue="$ROOT/usr/lib/mios/userenv.sh" mt="$ROOT/usr/lib/mios/mios_toml.py"
+    if [[ ! -f "$ue" || ! -f "$mt" ]]; then
+        echo "[38-drift-checks]   (41) SOFT: a resolver is absent -- skipped" >&2
+        return 0
+    fi
+    local fix
+    fix="$(mktemp -d 2>/dev/null)" || { echo "[38-drift-checks]   (41) SOFT: mktemp failed -- skipped" >&2; return 0; }
+    mkdir -p "$fix/vendor.d" "$fix/.config/mios"
+    printf '[ai]\nendpoint = "http://vendor:1000"\nmodel = "vendor-model"\nembed_model = "vendor-embed"\n' > "$fix/vendor.toml"
+    printf '[ai]\nendpoint = "http://vendor-frag:1050"\n'                                                 > "$fix/vendor.d/50-frag.toml"
+    printf '[ai]\nendpoint = "http://host:2000"\nmodel = "host-model"\n'                                  > "$fix/host.toml"
+    printf '[ai]\nmodel = "user-model"\n'                                                                 > "$fix/.config/mios/mios.toml"
+    local sel='^MIOS_AI_(ENDPOINT|MODEL|EMBED_MODEL)=' bash_out py_out
+    bash_out="$(env -i PATH="$PATH" HOME="$fix" XDG_CONFIG_HOME="$fix/.config" \
+        MIOS_VENDOR_TOML="$fix/vendor.toml" MIOS_VENDOR_TOML_D="$fix/vendor.d" \
+        MIOS_HOST_TOML="$fix/host.toml" MIOS_HOST_TOML_D="$fix/host.d" \
+        bash -c ". '$ue' >/dev/null 2>&1; env" 2>/dev/null | grep -E "$sel" | sort)"
+    py_out="$(env -i PATH="$PATH" \
+        MIOS_VENDOR_TOML="$fix/vendor.toml" MIOS_VENDOR_TOML_D="$fix/vendor.d" \
+        MIOS_HOST_TOML="$fix/host.toml" MIOS_HOST_TOML_D="$fix/host.d" \
+        MIOS_USER_TOML="$fix/.config/mios/mios.toml" MIOS_USER_TOML_D="$fix/.config/mios/mios.d" \
+        MIOS_ROOT_LIB="$ROOT/usr/lib/mios" python3 -c '
+import os, sys
+sys.path.insert(0, os.environ["MIOS_ROOT_LIB"])
+import mios_toml
+ai = mios_toml.section(mios_toml.load_merged(), "ai")
+for k in sorted(ai):
+    print("MIOS_AI_" + k.upper().replace("-", "_") + "=" + str(ai[k]))
+' 2>/dev/null | grep -E "$sel" | sort)"
+    rm -rf "$fix" 2>/dev/null || true
+    if [[ -z "$bash_out" && -z "$py_out" ]]; then
+        echo "[38-drift-checks]   (41) SOFT: resolvers produced no MIOS_AI_* (python3/tomllib unavailable?) -- skipped" >&2
+        return 0
+    fi
+    if [[ "$bash_out" == "$py_out" ]]; then
+        echo "[38-drift-checks]   (41) resolver twin parity: userenv.sh and mios_toml.py agree on the layered MIOS_AI_* set (Law 13)"
+    else
+        echo "[38-drift-checks]   (41) SOFT WARNING: resolver twin-parity mismatch (Law 13 NATIVE-DROPINS) -- NOT failing the build:" >&2
+        echo "        userenv.sh -> $(printf '%s' "$bash_out" | tr '\n' ' ')" >&2
+        echo "        mios_toml  -> $(printf '%s' "$py_out"   | tr '\n' ' ')" >&2
+    fi
+}
+
 main() {
     check_dead_lane
     check_retired_models
@@ -2922,6 +3174,13 @@ main() {
     check_drift_build_catalog
     check_canonical_bools
     check_etc_duplicates
+    check_no_mkdir_in_var
+    check_quadlet_privilege
+    check_var_closure
+    check_lint_is_final
+    check_firstboot_degrade_open
+    check_vendor_urls
+    check_resolver_twin_parity
 
     echo "[38-drift-checks] ---------------------------------------------------------"
     if [[ "$VIOLATIONS" -eq 0 ]]; then

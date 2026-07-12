@@ -422,7 +422,7 @@ log "  no vendor URLs in active config"
 
 # 12b. UNIFIED-AI-REDIRECTS (Law 5) -- retired LOCAL inference lanes.
 # WS-0B drift-gate: the local ollama lane on :11434 was retired (G5/G17 ->
-# everything moved to mios-llm-light :11450). Active config in the AI plane
+# everything moved to mios-llm-light :8450). Active config in the AI plane
 # must NOT dial the dead local port; a stale ref silently 404s a refine /
 # sys-agent / DCI call. Scope: the SAME dirs as the vendor-URL check, and ONLY
 # the LOCAL forms (localhost / 127.0.0.1 / host.containers.internal) -- REMOTE
@@ -445,7 +445,7 @@ for d in "${_law5_dirs[@]}"; do
 done
 if [[ -n "$_dead_lane_hits" ]]; then
     printf '%s' "$_dead_lane_hits" >&2
-    die "UNIFIED-AI-REDIRECTS: retired local :11434 lane in active config (use the live lane, e.g. mios-llm-light :11450)"
+    die "UNIFIED-AI-REDIRECTS: retired local :11434 lane in active config (use the live lane, e.g. mios-llm-light :8450)"
 fi
 log "  no retired local :11434 lane in active config"
 
@@ -621,6 +621,76 @@ server.serve_forever()
 else
     log "  [!] python3 missing -- skipping benchmark run"
 fi
+
+# 16. BARE-SAFE-ENV (Architectural Law 10).
+# system-sync-env.sh renders /etc/mios/install.env as BARE KEY=value lines that
+# must be safe under all three parsers (systemd EnvironmentFile=, bash `source`,
+# podman --env-file). Render --dry-run and assert: no double-quoted values (`="`),
+# every non-comment line is a bare KEY=value, no secret NAMES leak in, and the
+# whole render sources clean under `set -u`. (This is the build gate behind
+# system-sync-env's own non-fatal R4 self-test.)
+log "Validating BARE-SAFE-ENV (Law 10): system-sync-env --dry-run is bare KEY=value..."
+_sync_env="/usr/libexec/mios/system-sync-env.sh"
+[[ -x "$_sync_env" ]] || _sync_env="$(dirname "${BASH_SOURCE[0]}")/../usr/libexec/mios/system-sync-env.sh"
+if [[ -f "$_sync_env" ]]; then
+    if ! _env_render="$(bash "$_sync_env" --dry-run 2>/dev/null)"; then
+        die "BARE-SAFE-ENV: 'system-sync-env.sh --dry-run' failed to render install.env"
+    fi
+    # (a) no double-quoted values (breaks podman --env-file)
+    if printf '%s\n' "$_env_render" | grep -nE '="' >&2; then
+        die "BARE-SAFE-ENV: install.env render contains a double-quoted value (breaks podman --env-file)"
+    fi
+    # (b) every non-comment/non-blank line is a bare KEY=value
+    _law10_bad="$(printf '%s\n' "$_env_render" | grep -vE '^[[:space:]]*(#|$)' | grep -vE '^[A-Za-z_][A-Za-z0-9_]*=' || true)"
+    if [[ -n "$_law10_bad" ]]; then
+        printf '%s\n' "$_law10_bad" >&2
+        die "BARE-SAFE-ENV: install.env render has a non-bare 'KEY=value' line"
+    fi
+    # (c) no secret NAMES in the derived env
+    if printf '%s\n' "$_env_render" | grep -nE '^(MIOS_USER_PASSWORD_HASH|MIOS_FORGE_ADMIN_PASSWORD|MIOS_GITHUB_TOKEN)=' >&2; then
+        die "BARE-SAFE-ENV: a secret name leaked into install.env (secrets live ONLY in /etc/mios/secrets.env)"
+    fi
+    # (d) sources clean under set -u
+    _law10_tmp="$(mktemp)"
+    printf '%s\n' "$_env_render" > "$_law10_tmp"
+    if ! bash -u -c ". '$_law10_tmp'" >/dev/null 2>&1; then
+        rm -f "$_law10_tmp"
+        die "BARE-SAFE-ENV: install.env render does not source clean under 'set -u'"
+    fi
+    rm -f "$_law10_tmp"
+    log "  [ok] install.env render is bare KEY=value, secret-free, and set -u clean"
+else
+    log "  [!] system-sync-env.sh not found -- skipping BARE-SAFE-ENV render check"
+fi
+
+# 17. SECRETS-NEVER-IN-ENV (Architectural Law 11).
+# Password hashes/tokens live ONLY in /etc/shadow + /etc/mios/secrets.env (0600).
+# Scan every *.env / *secrets* file in the deployed config roots: if it carries one
+# of the three secret NAMES (MIOS_USER_PASSWORD_HASH / MIOS_FORGE_ADMIN_PASSWORD /
+# MIOS_GITHUB_TOKEN) OR a unix-crypt hash literal ($6$.../$y$...), the carrying file
+# MUST be mode 0600 -- otherwise a group/world-readable file leaks a secret.
+# Comment lines are stripped so a doc mention of a secret name never trips the gate.
+log "Validating SECRETS-NEVER-IN-ENV (Law 11): secret-bearing env files are 0600..."
+_law11_secret_re='(MIOS_USER_PASSWORD_HASH|MIOS_FORGE_ADMIN_PASSWORD|MIOS_GITHUB_TOKEN)=|[$]6[$]|[$]y[$]'
+_law11_dirs=(/etc /run/secrets /usr/share/mios /usr/lib/mios /var/lib/mios)
+_law11_bad=""
+for d in "${_law11_dirs[@]}"; do
+    [[ -d "$d" ]] || continue
+    while IFS= read -r f; do
+        [[ -f "$f" ]] || continue
+        if sed -E '/^[[:space:]]*#/d' "$f" 2>/dev/null | grep -qE "$_law11_secret_re"; then
+            mode="$(stat -c '%a' "$f" 2>/dev/null || echo '???')"
+            if [[ "$mode" != "600" ]]; then
+                _law11_bad+="$f (mode $mode, must be 0600)"$'\n'
+            fi
+        fi
+    done < <(find "$d" -type f \( -name '*.env' -o -name '*secrets*' \) 2>/dev/null)
+done
+if [[ -n "$_law11_bad" ]]; then
+    printf '%s' "$_law11_bad" >&2
+    die "SECRETS-NEVER-IN-ENV: a secret-bearing env file is not mode 0600 (secret leak; move it to /etc/mios/secrets.env @ 0600)"
+fi
+log "  [ok] every secret-bearing env file is mode 0600 (or none present)"
 
 log "Validation SUCCESSFUL"
 exit 0
