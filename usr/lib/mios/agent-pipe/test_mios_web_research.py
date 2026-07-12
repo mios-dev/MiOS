@@ -24,6 +24,16 @@ if not os.path.isfile(_toml):
 if "MIOS_TOML" not in os.environ and os.path.isfile(_toml):
     os.environ["MIOS_TOML"] = _toml
 
+# The anchor-stopword screen resolves mios.toml [search] via the overlay-config
+# loader, which needs the installed /usr/lib/mios on sys.path (absent in a source
+# checkout / CI drift-gate -> degrades to an EMPTY screen). Provide the CSV env
+# override -- the loader's first, DB-independent SSOT branch -- so the screen is
+# populated hermetically regardless of the ambient config machinery.
+os.environ.setdefault(
+    "MIOS_WEB_ANCHOR_STOPWORDS",
+    "the,and,for,with,from,that,this,are,was,were,has,have,you,your,our",
+)
+
 import mios_web_research as W
 
 

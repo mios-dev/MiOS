@@ -14,6 +14,20 @@ import stat
 
 _fails = 0
 
+
+def _gatekeeper_path():
+    """Resolve the MCP gatekeeper script: the installed path in-image, else the
+    source-tree copy. The CI drift-gate runs this test from a source checkout
+    BEFORE any install, so /usr/libexec is not populated; fall back to the repo's
+    usr/libexec/mios/mcp-server-runner (three levels up from the agent-pipe dir)."""
+    p = "/usr/libexec/mios/mcp-server-runner"
+    if os.path.isfile(p):
+        return p
+    src = os.path.normpath(os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "..", "..", "..", "libexec", "mios", "mcp-server-runner"))
+    return src if os.path.isfile(src) else p
+
 def check(name, cond, detail=""):
     global _fails
     if not cond:
@@ -50,7 +64,7 @@ def t_gatekeeper_traversal_blocking():
     """Verify the gatekeeper script blocks directory traversal patterns."""
     # Write a minimal test harness that sources the gatekeeper's _block_traversal
     # function and tests it
-    gatekeeper = "/usr/libexec/mios/mcp-server-runner"
+    gatekeeper = _gatekeeper_path()
     if not os.path.isfile(gatekeeper):
         check("gatekeeper-traversal: gatekeeper exists", False, "file not found")
         return
@@ -104,7 +118,7 @@ def t_gatekeeper_traversal_blocking():
 
 def t_gatekeeper_write_path_validation():
     """Verify the gatekeeper's _validate_write_path function."""
-    gatekeeper = "/usr/libexec/mios/mcp-server-runner"
+    gatekeeper = _gatekeeper_path()
     if not os.path.isfile(gatekeeper):
         check("gatekeeper-write-path: gatekeeper exists", False, "file not found")
         return
