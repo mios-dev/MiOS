@@ -3156,13 +3156,22 @@ check_version_ssot() {
     local ssot vfile carg bad=""
     ssot="$(grep -m1 -E '^[[:space:]]*mios_version' "$toml" 2>/dev/null | sed -E 's/[^"]*"([^"]*)".*/\1/')"
     vfile="$(tr -d '[:space:]' < "$ROOT/VERSION" 2>/dev/null)"
-    carg="$(grep -m1 -E '^ARG[[:space:]]+MIOS_VERSION=' "$ROOT/Containerfile" 2>/dev/null | sed -E 's/^ARG[[:space:]]+MIOS_VERSION=//; s/[[:space:]].*//')"
+    # The Containerfile is NOT copied into the OCI build context (/tmp/build holds
+    # only automation/usr/etc/VERSION/tools), so guard its read: an unguarded grep
+    # on a missing file exits 2 and, under this script's `set -euo pipefail`, would
+    # abort the whole drift-gate (that is exactly what broke the reinstall build).
+    # Only the source-tree gate has the Containerfile; the build-context gate relies
+    # on the VERSION file + os-release[7], which ARE present and equally SSOT-bound.
+    carg=""
+    if [[ -f "$ROOT/Containerfile" ]]; then
+        carg="$(grep -m1 -E '^ARG[[:space:]]+MIOS_VERSION=' "$ROOT/Containerfile" 2>/dev/null | sed -E 's/^ARG[[:space:]]+MIOS_VERSION=//; s/[[:space:]].*//' || true)"
+    fi
     if [[ -z "$ssot" ]]; then
         _violation "version SSOT: mios.toml [meta].mios_version is empty/unparseable"
         return
     fi
     [[ "$vfile" != "$ssot" ]] && bad+="    VERSION file = [$vfile], expected [$ssot]"$'\n'
-    [[ "$carg"  != "$ssot" ]] && bad+="    Containerfile ARG MIOS_VERSION default = [$carg], expected [$ssot]"$'\n'
+    [[ -n "$carg" && "$carg" != "$ssot" ]] && bad+="    Containerfile ARG MIOS_VERSION default = [$carg], expected [$ssot]"$'\n'
     # os-release: the 7 version-bearing fields are build-projected from the same
     # SSOT (49-finalize.sh); the committed values must already match so the repo
     # never carries a stale OS version and the projection has a correct base.
