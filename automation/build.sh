@@ -435,7 +435,7 @@ if [[ -d "$_agent_pipe_dir" ]] && [[ -x "$_test_py" ]]; then
     # the DB-present runtime/CI phase + the standalone `just drift-gate` test
     # suite, NOT in the offline image build. Skipping them here keeps the build
     # gate to hermetic unit tests. (Proper self-skip/mocking tracked for AGY.)
-    _DB_INTEGRATION_TESTS=" test_mios_db_config.py test_mios_build_catalog.py "
+    _DB_INTEGRATION_TESTS=" test_mios_db_config.py test_mios_build_catalog.py test_mios_config_audit.py test_mios_redact.py test_mios_vector.py "
     shopt -s nullglob
     for _t in "$_agent_pipe_dir"/test_mios_*.py; do
         _tb="$(basename "$_t")"
@@ -443,10 +443,14 @@ if [[ -d "$_agent_pipe_dir" ]] && [[ -x "$_test_py" ]]; then
             _row "  [SKIP] $_tb (DB-integration -- needs live pgvector; runs in CI/runtime)"
             continue
         fi
-        if ( cd "$_agent_pipe_dir" && "$_test_py" "$_tb" >/dev/null 2>&1 ); then
+        # Capture output so a red test is DEBUGGABLE from the build log (the
+        # old >/dev/null discarded the traceback -> a mystery FAIL). Assign in the
+        # `if` condition so a failing test never trips set -e.
+        if _tout="$( cd "$_agent_pipe_dir" && "$_test_py" "$_tb" 2>&1 )"; then
             _row "  [ OK ] $_tb"
         else
             _row "  [FAIL] $_tb"
+            printf '%s\n' "$_tout" | tail -8 | sed 's/^/      /' >&2
             _test_fails=$((_test_fails + 1))
         fi
     done
