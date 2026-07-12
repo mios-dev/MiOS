@@ -216,8 +216,15 @@ jobs:
           # with this exact error mid-bake).
           # TMPDIR on /mnt too -- buildah's commit scratch must not spill onto
           # the small / (install-robustness).
+          # The bound-images bake (20+ sidecar pulls into one layer) overruns a
+          # standard runner's disk and fails buildah's commit (exit 125 / closed
+          # pipe). Skip it on PR validation -- build.sh + `bootc container lint`
+          # still fully validate the image. On push/tag the image is PUBLISHED and
+          # must be bootc-installable, so bake (that build may need a large-disk /
+          # self-hosted runner; the Forgejo build is the bit-for-bit publisher).
           sudo TMPDIR=/mnt/tmp podman build \
               "${BUILD_ARGS[@]}" \
+              --build-arg MIOS_BAKE_BOUND_IMAGES=${{ github.event_name == 'pull_request' && '0' || '1' }} \
               -f Containerfile \
               -t "localhost/mios:latest" \
               -t "localhost/mios:${{ steps.tag.outputs.image_tag }}" \
@@ -387,7 +394,8 @@ jobs:
         run: |
           # sudo: rootful podman avoids user-namespace UID exhaustion in
           # the bake step (same fix as the main build step above).
-          sudo TMPDIR=/mnt/tmp podman build -t mios:smoke -f Containerfile .
+          # PR-only smoke: skip the disk-heavy bound-images bake (see build job).
+          sudo TMPDIR=/mnt/tmp podman build --build-arg MIOS_BAKE_BOUND_IMAGES=0 -t mios:smoke -f Containerfile .
 
       - name: Smoke RUN (image runs; key MiOS components present + agent-pipe compiles)
         run: |

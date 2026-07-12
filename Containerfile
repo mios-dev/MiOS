@@ -153,10 +153,21 @@ RUN --network=host set -ex; \
 # build.sh, above); the ${VAR:-default} fallback form is resolved here
 # defensively. Any bound image that fails to bake fails the build LOUD --
 # better than shipping an image whose every deployment artifact 404s.
+# MIOS_BAKE_BOUND_IMAGES=0 skips the bake below. Baking 20+ sidecar images into
+# one layer can exceed a disk-constrained runner's capacity and fail buildah's
+# commit (exit 125 / "closed pipe" while storing the layer -- see the ~15-21 image
+# threshold note further down). CI passes 0: build.sh + `bootc container lint` still
+# fully validate the MiOS image; the bound images just resolve/pull at bootc DEPLOY
+# time instead of being pre-baked. Real (large-disk) builds keep the default (1).
+ARG MIOS_BAKE_BOUND_IMAGES=1
 RUN --network=host set -eux; \
+    install -d -m 0755 /usr/lib/containers/storage; \
+    if [ "${MIOS_BAKE_BOUND_IMAGES:-1}" != "1" ]; then \
+        echo "SKIP bound-images bake (MIOS_BAKE_BOUND_IMAGES=${MIOS_BAKE_BOUND_IMAGES:-1}) -- disk-constrained build (e.g. a GitHub CI runner): bound sidecar images resolve at bootc deploy time, not baked here."; \
+        exit 0; \
+    fi; \
     mkdir -p /tmp/inner-podman; \
     echo -e '[storage]\ndriver = "overlay"\n[storage.options.overlay]\nmountopt = "nodev"' > /tmp/inner-podman/storage.conf; \
-    install -d -m 0755 /usr/lib/containers/storage; \
     baked=0; failed=0; \
     for q in /usr/lib/bootc/bound-images.d/*.container; do \
         [ -e "$q" ] || continue; \
