@@ -20,7 +20,7 @@ register_common_masks
 #   /ctx/usr/share/mios/mios.toml -- see _resolve_mios_toml in lib/packages.sh.
 export MIOS_TOML="${MIOS_TOML:-/ctx/usr/share/mios/mios.toml}"
 BUILD_LOG="/tmp/mios-build.log"
-VERSION_STR="$(cat "${SCRIPT_DIR}/../VERSION" 2>/dev/null || cat /ctx/VERSION 2>/dev/null || echo 'v0.2.4')"
+VERSION_STR="$(cat "${SCRIPT_DIR}/../VERSION" 2>/dev/null || cat /ctx/VERSION 2>/dev/null || grep -m1 -E '^[[:space:]]*mios_version' "${MIOS_TOML:-${SCRIPT_DIR}/../usr/share/mios/mios.toml}" 2>/dev/null | sed -E 's/[^"]*"([^"]*)".*/\1/')"
 
 # ── Redirect all output through mask filter and tee to log ──────────────────
 exec > >(mask_filter | tee -a "$BUILD_LOG") 2>&1

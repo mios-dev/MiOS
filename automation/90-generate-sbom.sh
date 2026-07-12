@@ -25,7 +25,7 @@ if ! command -v syft &> /dev/null; then
     fi
 fi
 
-VERSION=$(cat /ctx/VERSION 2>/dev/null || echo "v0.2.4")
+VERSION=$(cat /ctx/VERSION 2>/dev/null || grep -m1 -E '^[[:space:]]*mios_version' "${MIOS_TOML:-/ctx/usr/share/mios/mios.toml}" 2>/dev/null | sed -E 's/[^"]*"([^"]*)".*/\1/')
 
 echo "[90-generate-sbom] Scanning root filesystem..."
 

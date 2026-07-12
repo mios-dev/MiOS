@@ -3145,6 +3145,32 @@ for k in sorted(ai):
     fi
 }
 
+# --- (42, Law 7 NO-HARDCODE / Law 8 SSOT-PROJECTION) version single-source. ----
+# The version literal lives in exactly ONE place: mios.toml [meta].mios_version.
+# The repo-root VERSION file (COPY'd into the image; read into the OCI version
+# LABEL + the SBOM) and the Containerfile `ARG MIOS_VERSION=` fallback default are
+# PROJECTIONS of it and must match byte-for-byte -- a drifted copy ships an image
+# mislabelled against the SSOT (e.g. VERSION=0.2.4 while the SSOT says 0.3.0).
+check_version_ssot() {
+    local toml="$ROOT/usr/share/mios/mios.toml"
+    local ssot vfile carg bad=""
+    ssot="$(grep -m1 -E '^[[:space:]]*mios_version' "$toml" 2>/dev/null | sed -E 's/[^"]*"([^"]*)".*/\1/')"
+    vfile="$(tr -d '[:space:]' < "$ROOT/VERSION" 2>/dev/null)"
+    carg="$(grep -m1 -E '^ARG[[:space:]]+MIOS_VERSION=' "$ROOT/Containerfile" 2>/dev/null | sed -E 's/^ARG[[:space:]]+MIOS_VERSION=//; s/[[:space:]].*//')"
+    if [[ -z "$ssot" ]]; then
+        _violation "version SSOT: mios.toml [meta].mios_version is empty/unparseable"
+        return
+    fi
+    [[ "$vfile" != "$ssot" ]] && bad+="    VERSION file = [$vfile], expected [$ssot]"$'\n'
+    [[ "$carg"  != "$ssot" ]] && bad+="    Containerfile ARG MIOS_VERSION default = [$carg], expected [$ssot]"$'\n'
+    if [[ -n "$bad" ]]; then
+        printf '%s' "$bad" >&2
+        _violation "version drift from SSOT mios.toml [meta].mios_version=[$ssot] (Law 7 NO-HARDCODE / Law 8 SSOT-PROJECTION) -- VERSION file + Containerfile ARG default must match the SSOT"
+    else
+        echo "[38-drift-checks]   (42) VERSION + Containerfile ARG MIOS_VERSION == mios.toml [meta].mios_version ([$ssot]) (Laws 7/8)"
+    fi
+}
+
 main() {
     check_dead_lane
     check_retired_models
@@ -3187,6 +3213,7 @@ main() {
     check_firstboot_degrade_open
     check_vendor_urls
     check_resolver_twin_parity
+    check_version_ssot
 
     echo "[38-drift-checks] ---------------------------------------------------------"
     if [[ "$VIOLATIONS" -eq 0 ]]; then
