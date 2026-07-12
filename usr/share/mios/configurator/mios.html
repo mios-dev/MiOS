@@ -1181,7 +1181,7 @@
             <input type="text" id="f-node-dgpu-model" data-key="nodes.local-dgpu.model" placeholder="mios-heavy">
             <label for="f-node-dgpu-lane">lane (compute bucket: gpu | cpu | igpu | npu | accelerator | mobile)</label>
             <input type="text" id="f-node-dgpu-lane" data-key="nodes.local-dgpu.lane" placeholder="gpu">
-            <label for="f-node-dgpu-api">api (engine protocol: openai | llamacpp | ollama | vllm | sglang)</label>
+            <label for="f-node-dgpu-api">api (engine protocol: openai | llamacpp | vllm | sglang)</label>
             <input type="text" id="f-node-dgpu-api" data-key="nodes.local-dgpu.api" placeholder="openai">
             <label for="f-node-dgpu-hg">health_gate (probe + auto-join/drop)</label>
             <input type="text" id="f-node-dgpu-hg" data-key="nodes.local-dgpu.health_gate" data-type="bool" placeholder="true">
@@ -1538,7 +1538,7 @@
             <input type="text" id="f-agd-hg" data-key="agents._defaults.health_gate" data-type="bool" placeholder="false">
             <label for="f-agd-transport">transport (http | cli subprocess shim)</label>
             <input type="text" id="f-agd-transport" data-key="agents._defaults.transport" placeholder="http">
-            <label for="f-agd-api">api (openai | llamacpp | ollama | vllm | sglang)</label>
+            <label for="f-agd-api">api (openai | llamacpp | vllm | sglang)</label>
             <input type="text" id="f-agd-api" data-key="agents._defaults.api" placeholder="(empty)">
             <label for="f-agd-maxperm">max_permission (risk-tier ceiling; "" = no ceiling)</label>
             <input type="text" id="f-agd-maxperm" data-key="agents._defaults.max_permission" placeholder="(empty)">
