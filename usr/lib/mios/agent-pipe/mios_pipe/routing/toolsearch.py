@@ -25,6 +25,7 @@ planes that depend on them) so the importable surface is byte-identical.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hashlib
 import json
 import logging
@@ -179,7 +180,13 @@ async def _mcp_embed_new_tools() -> None:
     hot path -- called at the end of a server probe). Degrade-open: an embed outage just
     leaves the tool on its name-keyword priority fallback, never breaks the surface."""
     try:
-        async with _MCP_CLIENT_LOCK:
+        # The MCP registry lock is dependency-injected via configure() (server.py
+        # supplies it). When it is unset -- a probe firing before configure(), or a
+        # hermetic unit test -- degrade-open on the LOCK, not the embedding: a bare
+        # `async with None` raises TypeError, which the except below would swallow,
+        # silently disabling MCP embedding entirely. nullcontext keeps the snapshot
+        # unsynchronized-but-correct instead of crash-and-skip.
+        async with (_MCP_CLIENT_LOCK or contextlib.nullcontext()):
             items = [(k, dict(v)) for k, v in _MCP_CLIENT_TOOLS.items()
                      if k not in _MCP_EMBEDDINGS]
         for k, info in items:
