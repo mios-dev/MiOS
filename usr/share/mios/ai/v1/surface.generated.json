@@ -514,6 +514,7 @@
     "_DISPATCH_TOML",
     "_EK_FIELD_REF_RE",
     "_EK_REF_RE",
+    "_EMBED_FAIL_LOG_INTERVAL",
     "_EMPTY_BULLET_RE",
     "_EMPTY_LINK_RE",
     "_ENDPOINT_BLADE",
@@ -852,6 +853,8 @@
     "_dispatch_sandbox_profile",
     "_dispatch_toml",
     "_effective_perm",
+    "_embed_fail_last_log",
+    "_embed_fail_suppressed",
     "_embed_one",
     "_embf",
     "_emit_dispatch_dedup_event",
@@ -1395,6 +1398,6 @@
   ],
   "counts": {
     "routes": 86,
-    "provided": 1304
+    "provided": 1307
   }
 }

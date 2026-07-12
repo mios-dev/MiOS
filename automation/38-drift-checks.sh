@@ -1635,11 +1635,16 @@ for d in scan_dirs:
                 if m:
                     after_requires_targets.extend(m.group(2).split())
             
-            # Check venv consumer edge:
-            if "/usr/lib/mios/agents/.venv/" in content:
-                if "mios-ai-firstboot.service" not in after_requires_targets:
-                    violations.append(f"{f} uses agents venv but lacks 'After=... mios-ai-firstboot.service'")
-            
+            # Venv-consumer edge: SUPERSEDED by Law 12 (BAKE-NOT-FETCH). The agents
+            # venv is BAKED into the OCI image (automation/38-hermes-agent.sh), present
+            # independent of mios-ai-firstboot's model fetch, so the plane units no
+            # longer order After=mios-ai-firstboot -- that edge only blocked the whole
+            # AI plane behind a multi-GB boot-time download. mios-ai-firstboot itself
+            # restarts the plane (systemctl restart mios-agent-pipe mios-gateway-agent)
+            # once the models land, so readiness is handled by restart-on-completion +
+            # the firstboot degrade-open (check 39), not a hard ordering edge. The
+            # baked-venv invariant is enforced at build (Law 12 postcheck), not here.
+
             # Check webtools local image/pod consumer edge:
             is_local_img = "Image=localhost/" in content
             is_webtools_pod = f == "mios-webtools.pod"
