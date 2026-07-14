@@ -48,8 +48,10 @@ build_image_retry() {
             log "built + verified $img"
             return 0
         fi
+        log "WARN: $img build attempt $a/$attempts failed -- cleaning up intermediate container/image debris"
+        podman image prune --force >/dev/null 2>&1 || true
         if [ "$a" -lt "$attempts" ]; then
-            log "WARN: $img build attempt $a/$attempts failed (transient network under install load?) -- retrying in $((a*10))s"
+            log "retrying in $((a*10))s"
             sleep $((a*10))
         fi
     done

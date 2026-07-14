@@ -37,5 +37,9 @@ fi
 log "building $IMG from $CF ..."
 # --network=host: the build's apt/npm/agy fetches need working egress; the podman
 # build netns otherwise attempts unroutable IPv6 on some substrates (WSL testbed).
-podman build --network=host -t "$IMG" -f "$CF" "$CTX"
+if ! podman build --network=host -t "$IMG" -f "$CF" "$CTX"; then
+    log "ERROR: $IMG build failed. Cleaning up intermediate containers/images..."
+    podman image prune --force >/dev/null 2>&1 || true
+    exit 1
+fi
 log "built $IMG"

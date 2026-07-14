@@ -245,6 +245,7 @@ if id mios-ai >/dev/null 2>&1 && command -v podman >/dev/null 2>&1; then
                 log "code-run sandbox image built"
             else
                 log "WARN: sandbox image build failed (no egress?) -- run_sandboxed_code disabled until retry"
+                sudo -u mios-ai env XDG_RUNTIME_DIR="/run/user/${_aiuid}" podman image prune --force >/dev/null 2>&1 || true
             fi
         fi
     fi
