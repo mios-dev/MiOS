@@ -1,0 +1,127 @@
+#!/usr/bin/env bash
+# mios-bake-group -- bake ONE group of the bound sidecar images into the
+# additional image store at /usr/lib/containers/storage.
+#
+# WHY THIS EXISTS (commit-fit):
+#   The full bound-images bake is split across several calls -- one RUN per group
+#   in the Containerfile -- so each `buildah commit` serializes only THAT group's
+#   layer diff instead of the whole ~40-60GB store at once. A single monolithic
+#   commit overran disk-constrained CI runners: `exit 125` / "io: read/write on
+#   closed pipe" while storing the layer (buildah writes ~2-3x the layer's diff
+#   to temp during commit -- containers/podman#22342). Every image is STILL baked
+#   (Law 12 BAKE-NOT-FETCH / Law 3 BOUND-IMAGES); only the layer boundaries move.
+#   Heavy GPU-engine images (the "heavy" group) commit FIRST, while the store is
+#   smallest, so the largest indivisible diff lands with the most free space.
+#
+# Usage:  mios-bake-group <group-name>
+#   Group order + per-group substring tokens come from the SSOT
+#   (usr/share/mios/mios.toml [build].bake_groups / [build].bake_group.<name>).
+#   Each bound image is assigned to the FIRST group whose tokens substring-match
+#   its rendered Image= ref; anything unmatched falls into the LAST group (the
+#   catch-all). This call pulls only the images assigned to <group-name>.
+#
+# Env:
+#   MIOS_BAKE_BOUND_IMAGES=0   skip entirely (disk-constrained / PR-validation
+#                              builds; sidecars resolve at bootc DEPLOY time).
+#   MIOS_TOML   SSOT path              (default /usr/share/mios/mios.toml)
+#   STORE       additional image store (default /usr/lib/containers/storage)
+#   SCRATCH     transient pull/commit scratch, kept OUT of the committed layer
+#               via the Containerfile --mount=type=cache (default
+#               /var/tmp/mios-bakescratch)
+#   BDIR        bound-images dir       (default /usr/lib/bootc/bound-images.d)
+set -euo pipefail
+
+GROUP="${1:?usage: mios-bake-group <group-name>}"
+MIOS_TOML="${MIOS_TOML:-/usr/share/mios/mios.toml}"
+STORE="${STORE:-/usr/lib/containers/storage}"
+SCRATCH="${SCRATCH:-/var/tmp/mios-bakescratch}"
+BDIR="${BDIR:-/usr/lib/bootc/bound-images.d}"
+# Digests are SBOM data (build-time-recorded), NEVER hardcoded in the SSOT: the
+# SSOT ref is :latest (newest intent); the resolved digest is captured HERE, at
+# pull time, into the SBOM provenance manifest.
+SBOM_DIR="${SBOM_DIR:-/usr/share/mios/artifacts/sbom}"
+
+install -d -m 0755 "$STORE"
+
+if [ "${MIOS_BAKE_BOUND_IMAGES:-1}" != "1" ]; then
+    echo "SKIP bound-images bake (MIOS_BAKE_BOUND_IMAGES=${MIOS_BAKE_BOUND_IMAGES:-1}) group=${GROUP} -- disk-constrained build (e.g. a GitHub CI runner): bound sidecar images resolve at bootc deploy time, not baked here."
+    exit 0
+fi
+
+# Inner store config with file-level dedup: the CUDA/torch engine images (vLLM,
+# SGLang, llama-swap:cuda) share GBs of byte-identical layers; hard-linking
+# stores each blob once AND shrinks each group's commit diff. use_hard_links is
+# REQUIRED on ext4 (the GHA build disk) -- reflink-only dedup silently no-ops
+# there. convert_images makes it apply to the non-chunked upstream images.
+install -d -m 0700 "$SCRATCH"
+rm -rf "${SCRATCH:?}/run" 2>/dev/null || true
+install -d -m 0700 "$SCRATCH/tmp" "$SCRATCH/run"
+CONF="$SCRATCH/storage.conf"
+cat > "$CONF" <<'SC'
+[storage]
+driver = "overlay"
+[storage.options]
+use_hard_links = "true"
+[storage.options.overlay]
+mountopt = "nodev"
+[storage.options.pull_options]
+enable_partial_images = "true"
+convert_images = "true"
+use_hard_links = "true"
+SC
+
+# --- Read which images belong to THIS group from the pre-projected plan.d lists ---
+PLAN_DIR="${MIOS_PLAN_DIR:-${ROOT:-}/usr/lib/mios/bake/plan.d}"
+PLAN_FILE=""
+shopt -s nullglob
+for f in "$PLAN_DIR"/*-"$GROUP".list; do
+    PLAN_FILE="$f"
+    break
+done
+shopt -u nullglob
+
+if [ -z "$PLAN_FILE" ] || [ ! -f "$PLAN_FILE" ]; then
+    echo "ERROR: bake-plan file for group $GROUP not found in $PLAN_DIR"
+    exit 1
+fi
+
+IMAGES=()
+while IFS= read -r _line; do
+    _line="$(echo "$_line" | sed 's/#.*//; s/^[[:space:]]*//; s/[[:space:]]*$//')"
+    [ -n "$_line" ] && IMAGES+=("$_line")
+done < "$PLAN_FILE"
+
+if [ "${#IMAGES[@]}" -eq 0 ]; then
+    echo "bound-images: group=${GROUP} -- no images assigned; nothing to bake."
+    exit 0
+fi
+
+echo "bound-images: group=${GROUP} -> ${#IMAGES[@]} image(s)"
+baked=0; failed=0
+for img in "${IMAGES[@]}"; do
+    echo "bound-image: baking $img"
+    _pulled=0
+    for _try in 1 2 3; do
+        if CONTAINERS_STORAGE_CONF="$CONF" TMPDIR="$SCRATCH/tmp" \
+             podman --root "$STORE" --runroot "$SCRATCH/run" pull "$img"; then
+            _pulled=1; break
+        fi
+        echo "  bound-image pull attempt ${_try}/3 failed for $img -- retrying in 3s"; sleep 3
+    done
+    if [ "$_pulled" = 1 ]; then
+        baked=$((baked + 1))
+        # Record the RESOLVED manifest digest to the SBOM provenance manifest --
+        # this is where the :latest ref's concrete identity is captured (digests
+        # are SBOM, not a hardcoded literal in mios.toml).
+        _digest="$(CONTAINERS_STORAGE_CONF="$CONF" podman --root "$STORE" image inspect "$img" --format '{{.Digest}}' 2>/dev/null || true)"
+        install -d -m 0755 "$SBOM_DIR"
+        printf '%s\t%s\t%s\n' "$img" "${_digest:-unknown}" "$GROUP" >> "$SBOM_DIR/bound-images.tsv"
+    else
+        echo "ERROR: failed to bake bound image $img after 3 attempts"; failed=$((failed + 1))
+    fi
+    # drop transient decompress scratch so it never enters the committed layer
+    rm -rf "${SCRATCH:?}/tmp"/* 2>/dev/null || true
+done
+
+echo "bound-images: group=${GROUP} baked=${baked} failed=${failed}"
+test "$failed" -eq 0

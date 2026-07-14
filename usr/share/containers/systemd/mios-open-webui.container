@@ -43,7 +43,7 @@ Environment="AUTOCOMPLETE_GENERATION_PROMPT_TEMPLATE=Continue the user partial i
 EnvironmentFile=/etc/mios/hermes/api.env
 EnvironmentFile=/etc/mios/install.env
 Group=817
-Image=ghcr.io/open-webui/open-webui:main@sha256:a26effeb220e132482bf7e0560b3404843e7bc40d23051144e062960df8df6b0
+Image=ghcr.io/open-webui/open-webui:main
 Label=org.opencontainers.image.title=mios-open-webui
 Label=org.opencontainers.image.url=http://localhost:${MIOS_PORT_OPEN_WEBUI}/
 Label=io.podman_desktop.openInBrowser=http://localhost:${MIOS_PORT_OPEN_WEBUI}/

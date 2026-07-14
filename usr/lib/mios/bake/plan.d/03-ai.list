@@ -1,0 +1,6 @@
+ghcr.io/mostlygeek/llama-swap:cuda
+docker.io/library/postgres:latest
+ghcr.io/open-webui/open-webui:main
+docker.io/pgvector/pgvector:0.8.3-pg17
+docker.io/searxng/searxng:latest
+docker.io/redis:7-alpine

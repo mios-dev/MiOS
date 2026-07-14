@@ -175,7 +175,7 @@ install -d -m 0755 "${BDIR}"
 shopt -s nullglob
 for QDIR in /usr/share/containers/systemd /etc/containers/systemd; do
     [[ -d "${QDIR}" ]] || continue
-    for q in "${QDIR}"/*.container "${QDIR}"/*/*.container; do
+    for q in "${QDIR}"/*.container "${QDIR}"/*/*.container "${QDIR}"/*.image "${QDIR}"/*/*.image; do
         [[ -f "$q" ]] || continue
         name="$(basename "$q")"
         ln -sf "${q}" "${BDIR}/${name}"

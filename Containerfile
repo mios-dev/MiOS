@@ -159,77 +159,51 @@ RUN --network=host set -ex; \
 # threshold note further down). CI passes 0: build.sh + `bootc container lint` still
 # fully validate the MiOS image; the bound images just resolve/pull at bootc DEPLOY
 # time instead of being pre-baked. Real (large-disk) builds keep the default (1).
+# Bake the bound sidecar images into the additional image store (Law 12
+# BAKE-NOT-FETCH / Law 3 BOUND-IMAGES): every deployment artifact ships the
+# sidecars offline-complete. The bake is SHARDED into one RUN per group
+# (usr/share/mios/mios.toml [build].bake_groups, projected order) so each
+# `buildah commit` serializes only that group's layer diff -- a single
+# monolithic ~40-60GB commit overran disk-constrained runners (exit 125 /
+# "io: read/write on closed pipe" while storing the layer; buildah writes
+# ~2-3x the layer diff to temp during commit, containers/podman#22342). The
+# heavy GPU-engine group commits FIRST, while the store is smallest, so the
+# largest indivisible diff lands with the most free space. --mount=type=cache
+# keeps pull/decompress scratch OUT of the committed layer, and the helper
+# hard-links duplicate CUDA/torch blobs to shrink each group's diff. Every
+# image is still baked -- this only moves layer boundaries, not membership.
+# MIOS_BAKE_BOUND_IMAGES=0 skips the bake (PR / CI-validation builds; sidecars
+# resolve at bootc deploy time); the published image ALWAYS bakes (default 1).
+# NEVER --squash (it would coalesce every group back into one giant commit).
+# All bake logic lives in usr/libexec/mios/mios-bake-group (Law 7: no inline
+# Quadlet scraping here).
 ARG MIOS_BAKE_BOUND_IMAGES=1
-RUN --network=host set -eux; \
-    install -d -m 0755 /usr/lib/containers/storage; \
-    if [ "${MIOS_BAKE_BOUND_IMAGES:-1}" != "1" ]; then \
-        echo "SKIP bound-images bake (MIOS_BAKE_BOUND_IMAGES=${MIOS_BAKE_BOUND_IMAGES:-1}) -- disk-constrained build (e.g. a GitHub CI runner): bound sidecar images resolve at bootc deploy time, not baked here."; \
-        exit 0; \
-    fi; \
-    mkdir -p /tmp/inner-podman; \
-    echo -e '[storage]\ndriver = "overlay"\n[storage.options.overlay]\nmountopt = "nodev"' > /tmp/inner-podman/storage.conf; \
-    baked=0; failed=0; \
-    for q in /usr/lib/bootc/bound-images.d/*.container; do \
-        [ -e "$q" ] || continue; \
-        img="$(sed -n 's/^Image=//p' "$q" | head -1 | tr -d ' \r')"; \
-        img="$(printf '%s' "$img" | sed -E 's/\$\{[A-Za-z_][A-Za-z0-9_]*:-([^}]*)\}/\1/g')"; \
-        [ -n "$img" ] || continue; \
-        case "$img" in *'$'*) echo "SKIP unrendered Image=$img ($q)"; continue ;; esac; \
-        first="${img%%/*}"; \
-        case "$first" in *.*|*:*) ;; \
-            localhost) \
-                # localhost/<name> is podman's prefix for un-pushed \
-                # locally-built images. There is no actual registry at \
-                # `localhost` -- `podman pull localhost/foo` ALWAYS \
-                # fails with "pinging container registry localhost". \
-                # Quadlets reference localhost/ images because their \
-                # consumers expect to find them in the OCI store at \
-                # runtime; they're produced by a DIFFERENT MiOS build \
-                # phase (e.g. automation/45-coderun-sandbox-build.sh \
-                # builds mios-coderun-sandbox). Skip the bake here; \
-                # the producer phase is the SoT. Operator-flagged \
-                # 2026-05-17: bound-images bake exited 1 with \
-                # failed=1; culprit was localhost/mios-coderun-sandbox \
-                # :latest pulled from a non-existent localhost registry. \
-                echo "SKIP localhost/ bound image $img (built by a different phase, not pulled from a registry)"; \
-                continue ;; \
-            *) echo "ERROR: bound image '$img' has a short name (no registry in '$first'). Fix the source -- typically /usr/share/mios/mios.toml [image.sidecars] -- to include a registry prefix (docker.io/, quay.io/, ghcr.io/, codeberg.org/, ...). Quadlet: $q"; \
-               failed=$((failed + 1)); continue ;; \
-        esac; \
-        echo "bound-image: baking $img"; \
-        _pulled=0; \
-        for _try in 1 2 3; do \
-            if CONTAINERS_STORAGE_CONF=/tmp/inner-podman/storage.conf podman --root /usr/lib/containers/storage pull "$img"; then _pulled=1; break; fi; \
-            echo "  bound-image pull attempt $_try/3 failed for $img -- retrying in 3s"; sleep 3; \
-        done; \
-        if [ "$_pulled" = 1 ]; then \
-            baked=$((baked + 1)); \
-        else \
-            echo "ERROR: failed to bake bound image $img after 3 attempts"; failed=$((failed + 1)); \
-        fi; \
-    done; \
-    echo "bound-images: baked=$baked failed=$failed"; \
-    test "$failed" -eq 0; \
-    \
-    # additionalimagestores must be world-READABLE (the host shares this \
-    # store with every unprivileged user via /etc/containers/storage.conf's \
-    # additionalimagestores entry). podman pull's defaults leave the per- \
-    # backend subdirs (overlay-images, overlay-containers, overlay-layers, \
-    # libpod) at mode 0700 -- root-only. Unprivileged podman invocations \
-    # (flatpak shim, `mios` operator shell, anything forking podman) then \
-    # die with: "configure storage: open .../overlay-images/images.lock: \
-    # permission denied". \
-    # \
-    # Only chmod the main storage directory here -- do not touch the per-driver \
-    # subdirectories (overlay, libpod, etc.). Mutating permissions of these \
-    # directories inside the build container causes buildah commit failures \
-    # (exit 125 / error committing container) when the image count grows (e.g. >15-21 images). \
-    # The deep recursion happens at boot via mios-additionalimagestores-perms.service \
-    # (preset-enabled, commit f5a1ac9) which runs chmod -R go+rX on the running \
-    # host where layer sizes and build-time commit limits do not matter. \
-    echo "bound-images: chmod 0755 the main storage directory"; \
-    chmod 0755 /usr/lib/containers/storage; \
-    rm -rf /tmp/inner-podman
+RUN --network=host --mount=type=cache,target=/var/tmp/mios-bakescratch \
+    MIOS_BAKE_BOUND_IMAGES="${MIOS_BAKE_BOUND_IMAGES}" bash /usr/libexec/mios/mios-bake-group vllm
+RUN --network=host --mount=type=cache,target=/var/tmp/mios-bakescratch \
+    MIOS_BAKE_BOUND_IMAGES="${MIOS_BAKE_BOUND_IMAGES}" bash /usr/libexec/mios/mios-bake-group sglang
+RUN --network=host --mount=type=cache,target=/var/tmp/mios-bakescratch \
+    MIOS_BAKE_BOUND_IMAGES="${MIOS_BAKE_BOUND_IMAGES}" bash /usr/libexec/mios/mios-bake-group ai
+RUN --network=host --mount=type=cache,target=/var/tmp/mios-bakescratch \
+    MIOS_BAKE_BOUND_IMAGES="${MIOS_BAKE_BOUND_IMAGES}" bash /usr/libexec/mios/mios-bake-group infra
+RUN --network=host --mount=type=cache,target=/var/tmp/mios-bakescratch \
+    MIOS_BAKE_BOUND_IMAGES="${MIOS_BAKE_BOUND_IMAGES}" bash /usr/libexec/mios/mios-bake-group extra
+# additionalimagestores must be world-READABLE (the host shares this store with
+# every unprivileged user via /etc/containers/storage.conf's additionalimagestores
+# entry). podman pull's defaults leave the per-backend subdirs (overlay-images,
+# overlay-containers, overlay-layers, libpod) at mode 0700 -- root-only.
+# Unprivileged podman invocations (flatpak shim, `mios` operator shell, anything
+# forking podman) then die with: "configure storage: open
+# .../overlay-images/images.lock: permission denied".
+#
+# Only chmod the MAIN storage directory here -- do not touch the per-driver
+# subdirectories (overlay, libpod, etc.). Mutating permissions of those inside
+# the build container causes buildah commit failures (exit 125) as the image
+# count grows (>15-21 images). The deep recursion happens at boot via
+# mios-additionalimagestores-perms.service (preset-enabled, commit f5a1ac9),
+# which runs chmod -R go+rX on the running host where build-time commit limits
+# do not matter.
+RUN chmod 0755 /usr/lib/containers/storage
 
 RUN ostree container commit
 # bootc container lint MUST be the final instruction (ARCHITECTURAL LAW 4).

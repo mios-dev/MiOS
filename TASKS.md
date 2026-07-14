@@ -1,6 +1,6 @@
 # MiOS -- Master Tasks (SINGULAR monolith)
 
-> The one canonical task list. **227 tasks** (106 done, 121 open/in-progress). Absorbs the former `*-PLAN-*.md` + `concepts/*` backlogs. Each task carries **Who / What / Where / When / How** + Done-When.
+> The one canonical task list. **235 tasks** (106 done, 129 open/in-progress). Absorbs the former `*-PLAN-*.md` + `concepts/*` backlogs. Each task carries **Who / What / Where / When / How** + Done-When.
 
 | ID | Pri | Status | Domain | Title |
 |---|---|---|---|---|
@@ -231,6 +231,14 @@
 | T-245 | P2 | planned | Build/Install/Xbox/DB | VECTOR-03 -- V3 Build catalog: package/build/xbox/debloat tables |
 | T-246 | P2 | planned | Accounts/Identity/DB | VECTOR-04 -- V4 Accounts/users: DB-owned ids + prefs + bidirecti |
 | T-247 | P3 | planned | SSOT/DB/Configurator | VECTOR-05 -- V5 Invert authority: DB=SSOT, TOML=generated export |
+| T-248 | P1 | in-progress | Build/Bake | BAKE-01 -- `[build.bake]` core allow-list + bake-plan projection ( |
+| T-249 | P1 | planned | Build/Activation | BLADE-01 -- Universal-core + blade-type activation gate (`Conditi |
+| T-250 | P1 | planned | Build/Consolidation | MIOSSYS-01 -- mios-sys + mios-cuda shared-base consolidation (~18 |
+| T-251 | P2 | in-progress | SBOM/Provenance | SBOM-01 -- build-time provenance beyond images (model/pkg hashes) |
+| T-252 | P2 | in-progress | Release/CI | RELTOP-01 -- credential-driven registry selection (GHCR else Forg |
+| T-253 | P2 | planned | AI-plane/Deps | DEPRED-01 -- Hermes->agent-pipe collapse + sidecar consolidation |
+| T-254 | P1 | planned | Deploy/Windows | MDRIVE-01 -- Hyper-V Gen 2 .vhdx off M: + sovereign Ceph OSD on M |
+| T-255 | P1 | in-progress | Docs/Meta | DOCS -- ADR system (done) + generated roadmap index + lean thematic roadmap + Diátaxis |
 
 ---
 
@@ -4134,4 +4142,72 @@ T-094 (CONV-01 SSOT)
 **Done When:**
 - [ ] the V7 surface is DB-driven per the WS-VECTOR law (DB read at runtime, TOML fail-open) with no functionality loss
 - [ ] emb/HNSW recall works where the phase adds vectors; drift-gate (regenerate+diff) green; `just drift-gate` + `test_mios_*` pass
+
+
+## T-248: BAKE-01 -- Two-gate `[build.bake]` core allow-list + projected bake-plan + `.image` whales  [P1]
+> **Priority:** P1 | **Status:** in-progress (Phase 0 sharded bake DONE this session; structural bake-gate planned) | **Effort:** L | **Domain:** Build/Bake | **Who:** build agent | **Source:** WS-BAKEGATE / Part 21; core bake-gate + universal-core study; `Containerfile`/`mios-bake-group` shipped this session
+**Instructions (WHAT + HOW):** Phase 0 is DONE -- the monolithic bound-images `RUN` (exit-125 on disk-constrained runners) was sharded heavy-first into `usr/libexec/mios/mios-bake-group` (new) + `mios.toml [build].bake_groups` (L8470-8475) + five per-group `RUN`s in `Containerfile` (L181-190, `--mount=type=cache`, never `--squash`). Remaining structural work: add a `[build.bake]` SSOT section (a `core` allow-list = fixed SSOT-independent membership; `groups`/`group_members.*`); add `tools/generate-bake-plan.py` invoked by new `automation/16-bake-plan.sh` (after `15-render-quadlets.sh`) that reads through `usr/lib/mios/mios_toml.py` and emits CORE members UNCONDITIONALLY (the one branch where "core overrides SSOT" lives) + à-la-carte members iff enable-true into `/usr/lib/mios/bake/plan.d/NN-<group>.list`; add `.image` Quadlets for the whales (`mios-llm-heavy.image` + `mios-llm-heavy-alt.image`) symlinked by `08-system-files-overlay.sh` (~L178); add a regenerate-and-diff drift-check asserting both whales in `core`, all fully-qualified, referenced ⊆ emitted. Deletes the Containerfile's inline Quadlet scraping (Law 7/8).
+**Where (files):** `usr/share/mios/mios.toml` (`[build.bake]`), `tools/generate-bake-plan.py` (new), `automation/16-bake-plan.sh` (new), `automation/08-system-files-overlay.sh`, `automation/38-drift-checks.sh`, `usr/share/containers/systemd/mios-llm-heavy.image` + `mios-llm-heavy-alt.image` (new), `usr/libexec/mios/mios-bake-group`, `Containerfile`
+**When (deps/order):** Phase 0 done; structural next. Interlocks with T-250 (bake groups collapse toward sys/cuda) + T-251 (digest-free SSOT).
+**Done When:**
+- [ ] `just drift-gate` regenerates `plan.d/*.list` and diffs clean; the check FAILS if a whale leaves `core`, a core member is not fully-qualified, or referenced ⊄ emitted; the Containerfile carries no inline Quadlet `sed`-scraping.
+
+## T-249: BLADE-01 -- Universal-core + blade-type activation gate (one image, role by flag)  [P1]
+> **Priority:** P1 | **Status:** planned | **Effort:** L | **Domain:** Build/Activation | **Who:** build/systemd agent | **Source:** WS-BLADE / Part 21; universal-core / blade-type study (§3)
+**Instructions (WHAT + HOW):** Add `[blade]` SSOT (`type` archetype: hybrid/compute/endpoint/controller/headless; `[blade.archetypes]` capability expansions; `[blade.requires]` service→capability "nodeSelector" map). Demote `usr/libexec/mios/role-apply` from imperative actor to a marker-writing resolver (materialize `/etc/mios/blade.d/<cap>` + `/run/mios/blade.env`; keep autodetect). Generate one `usr/share/mios/dropins/blade-<cap>.conf` (`ConditionPathExists=/etc/mios/blade.d/<cap>`) per capability from `[blade.requires]` (Law-8 generator + drift-check) and wire `automation/41-mios-dropin-fanout.sh`. Deploy-time selection: karg `mios.blade=<type>` (generated `kargs.d/05-mios-blade.toml`) / Ignition / Afterburn / autodetect; `mios blade set|add-capability|status` verb (marker touch + daemon-reload, no reboot). Fold `[profile].role/features` into `[blade]`; add `mios-{compute,endpoint,controller}.target`; greenboot check. Keep `[blades.*]`/`[nodes.*]` as the orthogonal fleet-dispatch Axis B. No image variants -- baked everywhere, started by role.
+**Where (files):** `usr/share/mios/mios.toml` (`[blade]`), `usr/libexec/mios/role-apply`, `usr/share/mios/dropins/blade-<cap>.conf`, `automation/41-mios-dropin-fanout.sh`, `usr/lib/bootc/kargs.d/05-mios-blade.toml`, `usr/lib/systemd/system/mios-{compute,endpoint,controller}.target`, `usr/lib/greenboot/check/required.d/10-mios-role.sh`, `mios blade` verb
+**When (deps/order):** Complements T-248 (bake vs activation orthogonality) + T-250 (activation `Condition*` unchanged by consolidation).
+**Done When:**
+- [ ] one universal image: on a `controller` blade `mios-llm-heavy.service` is condition-skipped (zero VRAM), on a `gpu-serving` blade it starts; `mios blade add-capability gpu-serving` lights it hot with no reboot; the drop-in generator is drift-gated.
+
+## T-250: MIOSSYS-01 -- mios-sys + mios-cuda shared-base consolidation of the sidecar fleet  [P1]
+> **Priority:** P1 | **Status:** planned | **Effort:** XL | **Domain:** Build/Consolidation | **Who:** build agent | **Source:** WS-MIOSSYS / Part 21; MiOS-Sys consolidation study; [[mios-release-topology]]
+**Instructions (WHAT + HOW):** Replace the ~18-image sidecar fleet (~60GB, zero shared base blobs) with TWO images of one base lineage, both `FROM ${BASE_IMAGE}` (ucore-hci:stable-nvidia): `localhost/mios-sys` (CUDA-free, ~6-8GB) + `localhost/mios-cuda` (shared CUDA/torch/flashinfer L2 + `vllm-venv`/`sglang-venv` + `llama-server`, ~15-18GB). Use Model A (one IMAGE, many CONTAINERS -- shared `Image=`, per-service `Exec=`, per-unit `User=`/`Group=`/`Condition*` unchanged). New `automation/57-mios-sys-build.sh` (+ generated `usr/share/mios/{sys,cuda}/Containerfile`); `[image.sys]`/`[image.cuda]` blocks; `MIOS_SYS_IMAGE`/`MIOS_CUDA_IMAGE` through `userenv.sh` + BOTH allowlists in `automation/15-render-quadlets.sh` (envsubst L73 + bash-fallback ~L87-127) + `38-ssot-lint.sh`. Per-member Quadlet delta is a pure SSOT edit (repoint `Image=`, add `Exec=`); `[build].bake_groups` → sys/cuda/extra. Migrate in Waves 0-3 (Wave 1 Go-binary tier; Wave 2 interpreted + k3s/runner binaries; Wave 3 mios-cuda + DB tier behind a smoke test). Ceph = KEEP-SEPARATE.
+**Where (files):** `usr/share/mios/mios.toml` (`[image.sys]`/`[image.cuda]`/`[build].bake_groups`), `automation/57-mios-sys-build.sh` (new), `usr/share/mios/{sys,cuda}/Containerfile` (generated), `automation/15-render-quadlets.sh`, `automation/38-ssot-lint.sh`, `automation/14-generate-quadlets.sh`, `usr/libexec/mios/mios-bake-group`, `Containerfile`, the ~18 `usr/share/containers/systemd/*.container` members
+**When (deps/order):** Locked ops decisions: newest-packages tagged-at-build; ALL core consolidates; k3s binary consolidated (HA-compatible, privileged activation unchanged) + Pacemaker/corosync HA CORE; on-CVE/on-release rebuild; mios-cuda bake-scope deferred to Wave 3. Enabler of T-252 GitHub-equality; complements T-248 Phase 0 (sharding kept as safety margin).
+**Done When:**
+- [ ] the bound-image store drops to ~25GB with the largest single commit capped at the ~12GB CUDA/torch group; `generate-pod-quadlets.py --check` validates the regenerated `Image=`/`Exec=`; every `User=`/root-exception byte-identical (Law 6 untouched); a WSL blade still won't start pxe-hub though its binary is baked.
+
+## T-251: SBOM-01 -- Extend build-time provenance beyond images (model/package hashes)  [P2]
+> **Priority:** P2 | **Status:** in-progress (image digests DONE this session; model/package hashes remaining) | **Effort:** M | **Domain:** SBOM/Provenance | **Who:** build agent | **Source:** WS-SBOM / Part 21; [[mios-sbom-not-hardcode]]
+**Instructions (WHAT + HOW):** DONE for images -- ALL 12 hand-pinned `@sha256` digests stripped from `mios.toml` (0 remaining), 27 Quadlets regenerated digest-free (0 `@sha256` in rendered Quadlets; digest-drift gate green), and `mios-bake-group` records each resolved digest to `/usr/share/mios/artifacts/sbom/bound-images.tsv` (L173-178). Remaining: apply the same principle -- resolve/verify at build, record to SBOM, never hand-pin -- to model checksums (`automation/38-llamacpp-prep.sh`), package version-hashes, and the per-app upstream `checksums.txt`/`.asc` verification the WS-MIOSSYS Wave fetchers add. SSOT keeps version/tag INTENT only (`:latest`/`:version`), never a literal digest/checksum.
+**Where (files):** `automation/38-llamacpp-prep.sh`, `automation/90-generate-sbom.sh`, the WS-MIOSSYS `automation/NN-*.sh` app fetchers, `usr/share/mios/mios.toml`
+**When (deps/order):** images DONE; interlocks with T-250 (digest-lock floating `:latest` sources at Wave 0) + T-252 (newest packages, tagged at build).
+**Done When:**
+- [ ] no hand-maintained `@sha256`/checksum literal remains in `mios.toml` or scripts for a runtime-pinned artifact; each resolved hash appears in the SBOM; the digest/checksum drift-checks validate build-resolved values.
+
+## T-252: RELTOP-01 -- Credential-driven registry selection (GHCR else local/Forgejo)  [P2]
+> **Priority:** P2 | **Status:** in-progress (CI capacity-gate DONE this session; registry-selection remaining) | **Effort:** S | **Domain:** Release/CI | **Who:** CI/build agent | **Source:** WS-RELTOP / Part 21; [[mios-release-topology]]
+**Instructions (WHAT + HOW):** DONE for CI -- GitHub Actions and the Forgejo runner are declared EQUAL bit-for-bit publishers; build is LOCAL-first; `mios-ci.yml` `PUBLISH: 'false'` (L38) is a CAPACITY gate (a standard ubuntu-24.04 runner can't hold the ~60GB store) gating the `MIOS_BAKE_BOUND_IMAGES` build-arg (L243) + rechunk/push/cosign (L270+), to flip once a runner can hold the bake (or after T-250 shrinks it). Remaining: wire the "default to GitHub/GHCR push+pull when creds present, else local/Forgejo" registry-selection into the build driver / `install.env` credential detection (both workflows currently hardcode `ghcr`).
+**Where (files):** `.github/workflows/mios-ci.yml`, `.forgejo/workflows/build-mios.yml`, `automation/build.sh` / `install.env`
+**When (deps/order):** CI gate DONE; the `PUBLISH:'true'` flip is unblocked by T-250.
+**Done When:**
+- [ ] a build with GHCR creds pushes/pulls GHCR, with none targets local/Forgejo; both CI runners + the local build share one selection path; no hardcoded registry outside it.
+
+## T-253: DEPRED-01 -- Hermes->agent-pipe collapse + sidecar consolidation  [P2]
+> **Priority:** P2 | **Status:** planned | **Effort:** L | **Domain:** AI-plane/Deps | **Who:** agent-pipe backend engineer | **Source:** WS-DEPRED / Part 21; dependency-reduction study (§6)
+**Instructions (WHAT + HOW):** Collapse MiOS-Hermes (`:8642`) into agent-pipe (`:8640`, already ~70% done): (1) repoint `MIOS_AI_ENDPOINT` `:8642`→`:8640` in `automation/lib/globals.sh:133` (+ `mios.toml [ai]/[hermes]`; add `8640` to `[security.nohc_allowlist]`); (2) retire the prefilter `:8641` hop (`mios-delegation-prefilter.service`); (3) absorb `gateway_sessions` (port `gateway-agent/session.py` into agent-pipe, opt-in replay); (4) decide browser/CDP (MCP `browser_*` verbs preferred; keep `mios-hermes-browser` :9222 as pure executor); (5) retire/alias `mios-gateway-agent.service`. Sidecar consolidations: fold Guacamole DB into pgvector (delete `mios-guacamole-postgres`), delete `mios-crowdsec-dashboard` (Quadlet + pin), cockpit-link socat → `systemd-socket-proxyd`, replace open-webui (`:8033`) with a Quickshell SSE `/v1` client (gate OWUI to `edge-endpoint`, then remove).
+**Where (files):** `automation/lib/globals.sh`, `usr/share/mios/mios.toml` (`[ai]`/`[hermes]`/`[security.nohc_allowlist]`), `mios-delegation-prefilter.service`, `usr/lib/mios/gateway-agent/session.py` + agent-pipe `server.py`, `mios-hermes-browser.service`, `mios-gateway-agent.service`, `mios-guacamole-postgres.container`, `mios-crowdsec-dashboard.container`, `mios-cockpit-link` unit
+**When (deps/order):** Browser/CDP + `hermes` CLI/Discord decisions are OPEN QUESTIONS; pairs with T-249 (OWUI gated to edge-endpoint) + T-250 (fewer images to consolidate).
+**Done When:**
+- [ ] every front-end resolves `MIOS_AI_ENDPOINT` to `:8640`; `:8641`/`:8642` retired or thin-aliased; Guacamole runs on a pgvector DB/role; `mios-crowdsec-dashboard` + `mios-guacamole-postgres` gone; a native SSE client streams `/v1/chat/completions`.
+
+## T-254: MDRIVE-01 -- Hyper-V Gen 2 .vhdx off M: + sovereign Ceph OSD on M:  [P1] [VM]
+> **Priority:** P1 | **Status:** planned | **Effort:** L | **Domain:** Deploy/Windows | **Who:** deploy agent | **Source:** WS-MDRIVE / Part 21; run-off-M: deployment study
+**Instructions (WHAT + HOW):** Deploy the universal image as a Hyper-V Generation 2 VM booting a `.vhdx` on `M:\MiOS-images\`, cut by `bootc install`/bootc-image-builder (`just vhdx`, `Justfile:217`, already factory-populates `/var` + `/var/home` -- the fix for the raw `wsl --import` deadlock). Add a `vhdx-m` Justfile recipe + `C:\mios-bootstrap\deploy-mios-hyperv-m.ps1` (load tar, cut vhdx if missing, `New-VM -Generation 2` off M: with `Set-VMFirmware -SecureBootTemplate MicrosoftUEFICertificateAuthority`, attach Ceph OSD vhdx, `netsh portproxy :8640`, DDA/GPU-P). Sovereign storage: a 2nd dynamic `.vhdx` on M: as the single-node Ceph OSD backing `/var/home` (`var-home.mount` `Type=ceph`); relax `ConditionVirtualization=no` on `ceph-bootstrap.service`/`mios-ceph-bootstrap.service` to a config-flag gate (`[storage.cephfs].enable` / `/run/mios/ceph-enabled`); the local 20GiB `/var/home` ext4 partition (carved by `config/artifacts/vhdx.toml`) is the automatic `nofail`+`ConditionPathExists` fallback. dGPU via DDA (recommended; iGPU carries Windows desktop) or GPU-P. WSL2 `--import-in-place` is an explicit disposable preview only (no populated `/var` → not the sovereign target). Root cause: a bootc image bakes NOTHING into `/var` (Law 2); only the installer populates it.
+**Where (files):** `Justfile` (new `vhdx-m`), `config/artifacts/vhdx.toml`, `usr/lib/systemd/system/ceph-bootstrap.service` + `mios-ceph-bootstrap.service`, `usr/libexec/mios/ceph-bootstrap.sh`, `usr/share/mios/mios.toml [storage.cephfs].enable`, `usr/lib/systemd/system-preset/95-mios-wsl.preset` (optional), `C:\mios-bootstrap\deploy-mios-hyperv-m.ps1` (new)
+**When (deps/order):** Re-establish a Linux podman once (BIB/`bootc install` need it); GPU-policy/Ceph-now-vs-later/OSD-sizing/`ConditionVirtualization`-scope are operator decisions. VM/operator-gated.
+**Done When:**
+- [ ] a MiOS Gen 2 VM boots off `M:\MiOS-images\mios-0.3.0.vhdx` with a populated `/var/home`, `bootc status` healthy, and `curl http://localhost:8640/v1/models` answering from Windows; with the OSD vhdx + `[storage.cephfs].enable=true`, `findmnt /var/home` reports `type ceph` and survives a root-vhdx rebuild; `bootc upgrade`/`rollback` work in-guest.
+
+## T-255: DOCS -- Planning-docs refactor (ADR system + generated index + lean thematic roadmap + Diátaxis)  [P1]
+> **Priority:** P1 | **Status:** in-progress (DOCS-01 done; DOCS-02..06 planned) | **Effort:** L | **Domain:** Docs/Meta | **Who:** docs/tooling agent | **Source:** WS-DOCS / Part 21; planning-docs refactor plan + ADR-0007
+**What/Why:** Solidify the refactor into cohesive, AI-agent-native docs matching upstream patterns (MADR ADRs · KEP-style WS metadata · Diátaxis · Keep-a-Changelog+SemVer · OpenAI-Model-Spec-style rules doc · `llms.txt`/`AGENTS.md`) so a future agent starts a workstream from ONE self-contained file. DOCS-01 ✅ shipped the ADR system (`usr/share/doc/mios/adr/`, ADR-0001..0007 + README); DOCS-02..06 add the generated index+drift-check, the lean thematic roadmap (Parts 1-20 archived), the honest status-lifecycle retag, the Diátaxis reorg, and the generated MiOS Spec (laws+conventions rendered from the SSOT, ADR-0007).
+**Where (files):** `usr/share/doc/mios/adr/*` (done), `tools/roadmap-index.py` (new), `tools/generate-mios-spec.py` (new), `automation/38-drift-checks.sh`, `ROADMAP.md`, `TASKS.md`, `usr/share/doc/mios/roadmap/history/*`, `usr/share/doc/mios/spec/*`, `CHANGELOG.md`, `llms.txt`, `AGENTS.md`
+**When (deps/order):** DOCS-01 done → DOCS-02 (schema+generator) → DOCS-03 (lean roadmap+archive) → DOCS-04 (retag) + DOCS-05 (Diátaxis) + DOCS-06 (MiOS Spec).
+**Done When:**
+- [x] ADR system: README + ADR-0001..0007 accepted; every Part-21 WS backed by an ADR; governance model recorded (ADR-0007).
+- [ ] `just drift-gate` regenerates the roadmap index + the MiOS Spec byte-identically + fails on a bad ADR/law/`ssot_key` ref; ToC lists all Parts.
+- [ ] `ROADMAP.md` is theme-grouped active-only (~≤600 lines) with Parts 1-20 losslessly archived; no WS lost.
+- [ ] no WS tagged `done` that is gated-off/never-fired; Diátaxis quadrants + `llms.txt` route an agent in ≤3 hops.
 

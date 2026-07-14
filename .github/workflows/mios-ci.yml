@@ -23,6 +23,19 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: mios-dev/mios
+  # GitHub Actions and the self-hosted Forgejo runner are EQUAL, bit-for-bit
+  # build/publish environments (build LOCAL-first on MiOS-DEV; default registry is
+  # GHCR when credentials are present, else the local/Forgejo registry). PUBLISH
+  # gates whether THIS (GitHub) runner also BAKES the bound images + pushes/signs.
+  # It is 'false' ONLY because a standard ubuntu-24.04 runner (~66GB /mnt) cannot
+  # yet hold the ~60GB baked store -- a CAPACITY gate, NOT a demotion of GitHub.
+  # While false, GitHub still fully build+lint validates; the baked image is
+  # produced by a runner that CAN bake (local MiOS-DEV, or the 707GB Forgejo
+  # runner, .forgejo/workflows/build-mios.yml) and published to the default
+  # registry. Flip to 'true' once a GitHub runner can hold the full image (a
+  # large-disk runner, or after the MiOS-Sys consolidation shrinks the bake) so
+  # GitHub bakes + pushes + signs as a full equal.
+  PUBLISH: 'false'
 
 jobs:
   # WS-0A drift gate: source-tree fitness-functions that need NO built image.
@@ -216,15 +229,18 @@ jobs:
           # with this exact error mid-bake).
           # TMPDIR on /mnt too -- buildah's commit scratch must not spill onto
           # the small / (install-robustness).
-          # The bound-images bake (20+ sidecar pulls into one layer) overruns a
-          # standard runner's disk and fails buildah's commit (exit 125 / closed
-          # pipe). Skip it on PR validation -- build.sh + `bootc container lint`
-          # still fully validate the image. On push/tag the image is PUBLISHED and
-          # must be bootc-installable, so bake (that build may need a large-disk /
-          # self-hosted runner; the Forgejo build is the bit-for-bit publisher).
+          # When PUBLISH=false this GitHub build+lint VALIDATES only: a standard
+          # ubuntu-24.04 runner (~66GB /mnt) cannot hold the ~60GB baked
+          # bound-images store -- one buildah commit overruns it (exit 125 /
+          # "closed pipe"). GitHub and Forgejo are EQUALS; this is a capacity gate,
+          # not a demotion. The baked image comes from a runner that CAN bake
+          # (local MiOS-DEV first, or the 707GB Forgejo runner) and lands in the
+          # default registry (GHCR when creds are present, else local/Forgejo). Set
+          # PUBLISH='true' (env, top of file) so GitHub bakes+pushes too once it can
+          # hold the full image (large-disk runner, or after MiOS-Sys shrinks it).
           sudo TMPDIR=/mnt/tmp podman build \
               "${BUILD_ARGS[@]}" \
-              --build-arg MIOS_BAKE_BOUND_IMAGES=${{ github.event_name == 'pull_request' && '0' || '1' }} \
+              --build-arg MIOS_BAKE_BOUND_IMAGES=${{ env.PUBLISH == 'true' && '1' || '0' }} \
               -f Containerfile \
               -t "localhost/mios:latest" \
               -t "localhost/mios:${{ steps.tag.outputs.image_tag }}" \
@@ -250,7 +266,8 @@ jobs:
                   exit 1
               }
 
-      - name: Rechunk for smaller Day-2 deltas (every push)
+      - name: Rechunk for smaller Day-2 deltas (publish only)
+        if: env.PUBLISH == 'true'
         run: |
           set -euo pipefail
           # hhd-dev/rechunk produces 5-10x smaller bootc-upgrade
@@ -277,7 +294,7 @@ jobs:
 
       - name: Compute registry tags
         id: meta
-        if: github.event_name != 'pull_request'
+        if: env.PUBLISH == 'true'
         run: |
           BASE="${REGISTRY}/${IMAGE_NAME}"
           TAGS=()
@@ -298,13 +315,13 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Log in to GHCR (push step)
-        if: github.event_name != 'pull_request'
+        if: env.PUBLISH == 'true'
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | \
               sudo podman login -u "${{ github.actor }}" --password-stdin "${REGISTRY}"
 
       - name: Push to GHCR
-        if: github.event_name != 'pull_request'
+        if: env.PUBLISH == 'true'
         run: |
           set -euo pipefail
           while IFS= read -r tag; do
@@ -315,7 +332,7 @@ jobs:
           done <<< "${{ steps.meta.outputs.tags }}"
 
       - name: Install cosign
-        if: github.event_name != 'pull_request'
+        if: env.PUBLISH == 'true'
         uses: sigstore/cosign-installer@v3
 
       # Sign EVERY pushed image (including :latest from main), not just v* tags
@@ -324,7 +341,7 @@ jobs:
       # job's `permissions: id-token: write` (already set -- the v-tag .sig
       # objects in GHCR prove keyless signing works)..
       - name: Cosign keyless sign (all pushes incl. :latest)
-        if: github.event_name != 'pull_request'
+        if: env.PUBLISH == 'true'
         env:
           COSIGN_EXPERIMENTAL: '1'
         run: |

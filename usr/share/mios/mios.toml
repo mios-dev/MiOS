@@ -6521,6 +6521,8 @@ description = "adw-gtk3 theme extension (light variant, kept for apps that auto-
 # MIOS_IMAGE_NAME, MIOS_IMAGE_TAG, MIOS_LOCAL_TAG.
 # ----------------------------------------------------------------------------
 [image]
+sys            = "localhost/mios-sys"
+cuda           = "localhost/mios-cuda"
 ref            = "ghcr.io/mios-dev/mios:latest"
 branch         = "main"
 # Base OCI image. The script auto-picks NVIDIA vs non-NVIDIA at install
@@ -7817,9 +7819,9 @@ k3s                = "docker.io/rancher/k3s:v1.32.1-k3s1"
 ceph_version       = "v19"
 ceph               = "quay.io/ceph/ceph:v19"
 forge_version      = "12"
-forge              = "codeberg.org/forgejo/forgejo:12@sha256:dbb0f88677f0c65cd1b66fb83504225aa5a04c4bc4a5ffdf9fc9a3a6d5bb1c68"
+forge              = "codeberg.org/forgejo/forgejo:12"
 searxng_version    = "latest"
-searxng            = "docker.io/searxng/searxng:latest@sha256:c6d6af406d214a24edee971b98b92d05a83ee9707ff9a59a56471f9cfce5eee2"
+searxng            = "docker.io/searxng/searxng:latest"
 # web-tools POD ("consolidate containers to share similar
 # services together" + "co-locate the real firecrawl stack" + "make it a pod").
 # mios-webtools is now a podman POD (usr/share/containers/systemd/
@@ -7847,15 +7849,15 @@ searxng            = "docker.io/searxng/searxng:latest@sha256:c6d6af406d214a24ed
 hermes_version     = "latest"
 hermes             = "docker.io/nousresearch/hermes-agent:latest"
 open_webui_version = "latest"
-open_webui         = "ghcr.io/open-webui/open-webui:main@sha256:a26effeb220e132482bf7e0560b3404843e7bc40d23051144e062960df8df6b0"
+open_webui         = "ghcr.io/open-webui/open-webui:main"
 # hermes_workspace sidecar REMOVED -- replaced by the
 # hermes-agent's built-in dashboard at port 9119.
 code_server_version = "latest"
-code_server        = "ghcr.io/coder/code-server:latest@sha256:e1f03b5faaefd63ba6c7173a5290c6ec0526ac907f23acfe6bc949dd965279e4"
+code_server        = "ghcr.io/coder/code-server:latest"
 guacamole_version  = "latest"
 guacamole          = "docker.io/guacamole/guacamole:latest"
 forge_runner_version = "7"
-forge_runner      = "code.forgejo.org/forgejo/runner:7@sha256:f66c6bed9e8ff5a886cf5b302a52317d8e05c392ddcc8d9f34398142ee2a5822"
+forge_runner      = "code.forgejo.org/forgejo/runner:7"
 crowdsec_version   = "latest"
 crowdsec           = "docker.io/crowdsecurity/crowdsec:latest"
 postgres_version   = "latest"
@@ -7864,22 +7866,26 @@ guacd_version      = "latest"
 guacd              = "docker.io/guacamole/guacd:latest"
 pxe_hub_version    = "latest"
 pxe_hub            = "quay.io/poseidon/matchbox:latest"
-bib_alpine         = "docker.io/library/alpine:latest@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b"
+bib_alpine         = "docker.io/library/alpine:latest"
 # WS-9 unified agent-plane DB. pgvector/pgvector bundles the `vector` extension
 # on upstream postgres (FOSS: PostgreSQL License). Pinned to an EXACT pgvector
 # release + PG major (NOT the floating `pgX` tag) for reproducible builds and so
 # hnsw.iterative_scan (pgvector 0.8.0+) is guaranteed present. Bump via Renovate
 # or operator; pair version+image (the tag below carries both).
 pgvector_version   = "0.8.3-pg17"
-pgvector           = "docker.io/pgvector/pgvector:0.8.3-pg17@sha256:be400b50812ab2cc908ed78593fda2e51e3b45fe774fa637f1c7b16e68531d95"
+pgvector           = "docker.io/pgvector/pgvector:0.8.3-pg17"
 # mios-llm-light lane image. The upstream llama-swap proxy (FOSS, MIT) bundles
 # llama-server + on-demand model swap. Tag carries the CUDA build; verify version.
 llm_light_version  = "cuda"
-llm_light          = "ghcr.io/mostlygeek/llama-swap:cuda@sha256:1fd71f3766de94413616f264bb5c01d741829d7bb40d2cec663e3344bcdddd56"
+llm_light          = "ghcr.io/mostlygeek/llama-swap:cuda"
 adguard_version    = "latest"
 # AdGuard Home -- open-source (GPLv3) DNS sinkhole + recursive resolver. Single
 # Go binary container; serves DNS on :53 and the web UI/API on :3053.
-adguard            = "docker.io/adguard/adguardhome:latest@sha256:e6f2b8bcda06064ab055b44933a4f0e983c35558b9cdb8d2e7ab1efcee36d890"
+adguard            = "docker.io/adguard/adguardhome:latest"
+vllm_version       = "latest"
+vllm               = "docker.io/vllm/vllm-openai:latest"
+sglang_version     = "latest"
+sglang             = "docker.io/lmsysorg/sglang:latest"
 
 # ----------------------------------------------------------------------------
 # [services.<svc>] -- per-service identity (UID / GID / username) baked
@@ -8453,12 +8459,62 @@ oscap_skip_rules        = []                           # list of rule IDs (e.g. 
 [build]
 rechunk_max_layers = 67   # hhd-dev/rechunk: max OCI layer count post-rechunk
 ai_ram_floor_gb    = 12   # informational; logged by postcheck
+curl_trigger_fallback = true
+
+# --- bound-images bake sharding (commit-fit; consumed by
+#     usr/libexec/mios/mios-bake-group, one Containerfile RUN per group) ---
+# The bound-images bake is split into per-group RUNs so no single buildah commit
+# serializes the whole ~40-60GB store at once (that monolithic commit overran
+# disk-constrained CI runners: exit 125 / "closed pipe" while storing the layer).
+# Groups commit in `groups` ORDER; the heavy GPU-engine group commits FIRST,
+# while the store is smallest. Tokens are substring-matched against each rendered
+# bound-image Image= ref; each image is assigned to the FIRST matching group, and
+# anything unmatched falls into the LAST group ("extra", the catch-all). Every
+# image is still baked -- this only moves layer boundaries, not membership.
+# The two CUDA GPU engines (vLLM ~25GB, SGLang ~22GB) each get their OWN group so
+# no single commit serializes more than ONE whale (~25GB) -- bundling both would
+# leave a ~49GB commit, barely better than the monolith. They commit first.
+[build.bake]
+core = [
+  "localhost/mios-sys",
+  "localhost/mios-cuda",
+  "docker.io/library/redis:7-alpine",
+  "docker.io/pgvector/pgvector:0.8.3-pg17",
+  "docker.io/searxng/searxng:latest",
+  "ghcr.io/mostlygeek/llama-swap:cuda",
+  "ghcr.io/open-webui/open-webui:main",
+  "docker.io/guacamole/guacd:latest",
+  "docker.io/guacamole/guacamole:latest",
+  "code.forgejo.org/forgejo/runner:7",
+  "docker.io/crowdsecurity/crowdsec:latest",
+  "docker.io/library/postgres:latest",
+  "quay.io/poseidon/matchbox:latest",
+  "docker.io/library/alpine:latest",
+  "docker.io/adguard/adguardhome:latest",
+  "docker.io/vllm/vllm-openai:latest",
+  "docker.io/lmsysorg/sglang:latest",
+  "docker.io/rancher/k3s:v1.32.1-k3s1",
+  "quay.io/ceph/ceph:v19",
+  "codeberg.org/forgejo/forgejo:12",
+  "docker.io/nousresearch/hermes-agent:latest",
+  "ghcr.io/coder/code-server:latest",
+  "localhost/mios-crawl4ai-slim:latest",
+  "localhost/mios-firecrawl:v1.0.0"
+]
+groups = ["vllm", "sglang", "ai", "infra", "extra"]
+
+[build.bake.group_members]
+vllm = ["vllm"]
+sglang = ["sglang"]
+ai = ["pgvector", "postgres", "searxng", "redis", "open-webui", "llama-swap", "hermes", "crawl4ai", "firecrawl", "webtools"]
+infra = ["k3s", "ceph", "forgejo", "guacamole", "guacd", "matchbox", "adguard", "crowdsec", "code-server", "jaeger", "socat"]
+extra = []
+
 # mios-build-driver fallback: when the local `podman build` trigger is
 # unavailable (podman missing), trigger the Forgejo CI build over HTTP via curl
 # (workflow_dispatch on build-mios.yml). Endpoints resolve from install.env
 # (MIOS_HOSTNAME + MIOS_PORT_FORGE_HTTP). Degrade-open: the driver treats the
 # fallback as enabled when this key is absent; set false to hard-fail instead.
-curl_trigger_fallback = true
 
 # ----------------------------------------------------------------------------
 # [network.quadlet] -- internal podman bridge for sidecar containers.
@@ -9730,7 +9786,7 @@ ContainerName = "mios-cockpit-link"
 EnvironmentFile = "/etc/mios/install.env"
 Exec = "tcp-listen:${MIOS_PORT_COCKPIT_LINK:-8091},bind=0.0.0.0,fork,reuseaddr tcp:host.containers.internal:9090"
 Group = "65534"
-Image = "docker.io/alpine/socat:latest@sha256:44e7b87dfeddb0f999ce75eedfa140dc97ea5bf7decbd04b2cef6adb5cc331fe"
+Image = "docker.io/alpine/socat:latest"
 Label = [
   "org.opencontainers.image.title=mios-cockpit-link",
   "org.opencontainers.image.url=https://localhost:9090/",
@@ -10100,7 +10156,7 @@ Environment = [
 ]
 Exec = "--model /models --served-model-name ${MIOS_VLLM_SERVED_NAME:-mios-heavy} --host 0.0.0.0 --port ${MIOS_PORT_VLLM:-11441} --gpu-memory-utilization ${MIOS_VLLM_GPU_UTIL:-0.45} --max-model-len ${MIOS_VLLM_MAX_MODEL_LEN:-262144} --kv-cache-dtype ${MIOS_VLLM_KV_CACHE_DTYPE:-fp8} --quantization ${MIOS_VLLM_QUANTIZATION:-compressed-tensors} --enable-prefix-caching --enforce-eager --enable-auto-tool-choice --tool-call-parser ${MIOS_VLLM_TOOL_CALL_PARSER:-hermes}"
 Group = "${MIOS_VLLM_GID:-815}"
-Image = "${MIOS_VLLM_IMAGE:-docker.io/vllm/vllm-openai:latest}"
+Image = "systemd-mios-llm-heavy"
 Label = [
   "org.opencontainers.image.title=mios-llm-heavy",
   "org.opencontainers.image.url=http://localhost:11441/v1/models",
@@ -10141,7 +10197,7 @@ Environment = [
 ]
 Exec = "--model /models --served-model-name ${MIOS_SGLANG_SERVED_NAME:-mios-heavy} --host 0.0.0.0 --port ${MIOS_PORT_SGLANG:-11442} --mem-fraction-static ${MIOS_SGLANG_MEM_FRACTION:-0.85} --max-model-len ${MIOS_SGLANG_MAX_MODEL_LEN:-262144} --kv-cache-dtype ${MIOS_SGLANG_KV_CACHE_DTYPE:-fp8} --tool-call-parser ${MIOS_SGLANG_TOOL_PARSER:-qwen25} --enable-hierarchical-cache --enable-unified-radix-tree"
 Group = "${MIOS_VLLM_GID:-815}"
-Image = "${MIOS_SGLANG_IMAGE:-docker.io/lmsysorg/sglang:latest}"
+Image = "systemd-mios-llm-heavy-alt"
 Label = [
   "org.opencontainers.image.title=mios-llm-heavy-alt",
   "org.opencontainers.image.url=http://localhost:11442/v1/models",
@@ -10302,7 +10358,7 @@ EnvironmentFile = [
   "/etc/mios/hermes/api.env",
   "/etc/mios/install.env"
 ]
-Image = "ghcr.io/open-webui/open-webui:main@sha256:a26effeb220e132482bf7e0560b3404843e7bc40d23051144e062960df8df6b0"
+Image = "ghcr.io/open-webui/open-webui:main"
 Group = "${MIOS_OPEN_WEBUI_GID:-817}"
 Label = [
   "org.opencontainers.image.title=mios-open-webui",
@@ -10608,7 +10664,7 @@ Description = "'MiOS' web-tools redis (firecrawl queue + ratelimit store)"
 [containers.mios-otelcol.Container]
 ContainerName = "mios-otelcol"
 Group = "${MIOS_OTELCOL_GID:-829}"
-Image = "docker.io/jaegertracing/all-in-one:latest@sha256:ab6f1a1f0fb49ea08bcd19f6b84f6081d0d44b364b6de148e1798eb5816bacac"
+Image = "docker.io/jaegertracing/all-in-one:latest"
 Environment = [
   "COLLECTOR_OTLP_ENABLED=true"
 ]
@@ -10665,3 +10721,16 @@ autounattend.debloat_profile  = "gaming"
 autounattend.xbox.enable     = "true"
 colors.accent                = "#4B105C"
 branding.living_wallpaper    = "true"
+
+# ----------------------------------------------------------------------------
+# [blade] -- node activation capabilities and targets (WS-BLADE)
+# Defines archetype role types and mapping of units to requirements.
+# ----------------------------------------------------------------------------
+[blade]
+type = "hybrid"
+
+[blade.archetypes]
+hybrid = ["gpu-serving", "controller"]
+
+[blade.requires]
+mios-llm-heavy = ["gpu-serving"]

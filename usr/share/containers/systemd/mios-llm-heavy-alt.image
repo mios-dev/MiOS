@@ -1,0 +1,3 @@
+# /usr/share/containers/systemd/mios-llm-heavy-alt.image
+[Image]
+Image=${MIOS_SGLANG_IMAGE:-docker.io/lmsysorg/sglang:latest}

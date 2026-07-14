@@ -15,7 +15,7 @@ ContainerName=mios-cockpit-link
 EnvironmentFile=/etc/mios/install.env
 Exec=tcp-listen:${MIOS_PORT_COCKPIT_LINK},bind=0.0.0.0,fork,reuseaddr tcp:host.containers.internal:9090
 Group=65534
-Image=docker.io/alpine/socat:latest@sha256:44e7b87dfeddb0f999ce75eedfa140dc97ea5bf7decbd04b2cef6adb5cc331fe
+Image=docker.io/alpine/socat:latest
 Label=org.opencontainers.image.title=mios-cockpit-link
 Label=org.opencontainers.image.url=https://localhost:9090/
 Label=org.opencontainers.image.documentation=https://cockpit-project.org/documentation.html

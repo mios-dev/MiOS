@@ -3194,6 +3194,30 @@ check_version_ssot() {
     fi
 }
 
+check_bake_plan() {
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "[38-drift-checks]   WARNING: python3 missing -- skipping bake plan check" >&2
+        return 0
+    fi
+    if python3 "$ROOT/tools/generate-bake-plan.py" --check; then
+        echo "[38-drift-checks]   (35) bake-plan lists in sync with mios.toml [build.bake] SSOT"
+    else
+        _violation "bake-plan lists are STALE vs mios.toml -- regenerate with python3 tools/generate-bake-plan.py"
+    fi
+}
+
+check_roadmap_index() {
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "[38-drift-checks]   WARNING: python3 missing -- skipping roadmap index check" >&2
+        return 0
+    fi
+    if python3 "$ROOT/tools/roadmap-index.py" --check; then
+        echo "[38-drift-checks]   (36) roadmap index in sync with frontmatter metadata"
+    else
+        _violation "roadmap index is STALE or cites invalid laws/ADRs/ssot_keys -- regenerate with python3 tools/roadmap-index.py"
+    fi
+}
+
 main() {
     check_dead_lane
     check_retired_models
@@ -3237,6 +3261,8 @@ main() {
     check_vendor_urls
     check_resolver_twin_parity
     check_version_ssot
+    check_bake_plan
+    check_roadmap_index
 
     echo "[38-drift-checks] ---------------------------------------------------------"
     if [[ "$VIOLATIONS" -eq 0 ]]; then
