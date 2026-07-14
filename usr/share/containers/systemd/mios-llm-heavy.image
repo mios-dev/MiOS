@@ -1,3 +1,6 @@
 # /usr/share/containers/systemd/mios-llm-heavy.image
 [Image]
 Image=${MIOS_VLLM_IMAGE:-docker.io/vllm/vllm-openai:latest}
+
+[Service]
+TimeoutStartSec=1200

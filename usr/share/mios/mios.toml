@@ -10156,7 +10156,7 @@ Environment = [
 ]
 Exec = "--model /models --served-model-name ${MIOS_VLLM_SERVED_NAME:-mios-heavy} --host 0.0.0.0 --port ${MIOS_PORT_VLLM:-11441} --gpu-memory-utilization ${MIOS_VLLM_GPU_UTIL:-0.45} --max-model-len ${MIOS_VLLM_MAX_MODEL_LEN:-262144} --kv-cache-dtype ${MIOS_VLLM_KV_CACHE_DTYPE:-fp8} --quantization ${MIOS_VLLM_QUANTIZATION:-compressed-tensors} --enable-prefix-caching --enforce-eager --enable-auto-tool-choice --tool-call-parser ${MIOS_VLLM_TOOL_CALL_PARSER:-hermes}"
 Group = "${MIOS_VLLM_GID:-815}"
-Image = "systemd-mios-llm-heavy"
+Image = "mios-llm-heavy.image"
 Label = [
   "org.opencontainers.image.title=mios-llm-heavy",
   "org.opencontainers.image.url=http://localhost:11441/v1/models",
@@ -10197,7 +10197,7 @@ Environment = [
 ]
 Exec = "--model /models --served-model-name ${MIOS_SGLANG_SERVED_NAME:-mios-heavy} --host 0.0.0.0 --port ${MIOS_PORT_SGLANG:-11442} --mem-fraction-static ${MIOS_SGLANG_MEM_FRACTION:-0.85} --max-model-len ${MIOS_SGLANG_MAX_MODEL_LEN:-262144} --kv-cache-dtype ${MIOS_SGLANG_KV_CACHE_DTYPE:-fp8} --tool-call-parser ${MIOS_SGLANG_TOOL_PARSER:-qwen25} --enable-hierarchical-cache --enable-unified-radix-tree"
 Group = "${MIOS_VLLM_GID:-815}"
-Image = "systemd-mios-llm-heavy-alt"
+Image = "mios-llm-heavy-alt.image"
 Label = [
   "org.opencontainers.image.title=mios-llm-heavy-alt",
   "org.opencontainers.image.url=http://localhost:11442/v1/models",

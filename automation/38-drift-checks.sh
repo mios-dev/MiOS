@@ -1855,6 +1855,10 @@ else:
                 "image.sidecars.llm_light": "MIOS_LLM_LIGHT_IMAGE",
                 "image.sidecars.adguard_version": "MIOS_ADGUARD_VERSION",
                 "image.sidecars.adguard": "MIOS_ADGUARD_IMAGE",
+                "image.sidecars.vllm_version": "MIOS_VLLM_VERSION",
+                "image.sidecars.vllm": "MIOS_VLLM_IMAGE",
+                "image.sidecars.sglang_version": "MIOS_SGLANG_VERSION",
+                "image.sidecars.sglang": "MIOS_SGLANG_IMAGE",
                 # services
                 "services.forge.user": "MIOS_FORGE_USER",
                 "services.forge.uid": "MIOS_FORGE_UID",

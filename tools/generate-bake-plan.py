@@ -143,6 +143,8 @@ def main(argv):
     for img, base_name in images_to_bake:
         parts = img.split("/", 1)
         first = parts[0]
+        if img.startswith("systemd-"):
+            continue
         if not ("." in first or ":" in first or first == "localhost"):
             errors.append(f"Referenced image '{img}' in {base_name} is not fully-qualified")
 
