@@ -3,4 +3,4 @@
 Image=${MIOS_VLLM_IMAGE:-docker.io/vllm/vllm-openai:latest}
 
 [Service]
-TimeoutStartSec=1200
+TimeoutStartSec=3600
