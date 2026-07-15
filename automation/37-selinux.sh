@@ -29,6 +29,7 @@ fcontext -a -t accountsd_var_lib_t '/usr/share/accountsservice/interfaces(/.*)?'
 fcontext -a -t ceph_var_lib_t '/var/lib/ceph(/.*)?'
 fcontext -a -t ceph_log_t '/var/log/ceph(/.*)?'
 fcontext -a -t xdm_var_lib_t '/var/lib/gnome-remote-desktop(/.*)?'
+port -a -t websm_port_t -p tcp 8090
 EOSEM
     restorecon -v /boot/bootupd-state.json 2>/dev/null || true
     restorecon -R /usr/share/accountsservice 2>/dev/null || true

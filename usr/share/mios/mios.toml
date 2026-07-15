@@ -7287,6 +7287,7 @@ enable = true   # default ON; toggle via /configurator.html (configurator.packag
 # into cockpit-system) -- do not re-add it; install_packages_strict skips
 # the unknown name but it is dead weight.
 pkgs = [
+    "sscg",
     "cockpit",
     "cockpit-system",
     "cockpit-ws",
@@ -9801,6 +9802,7 @@ WantedBy = "multi-user.target default.target"
 
 [containers.mios-cockpit-link.Service]
 Delegate = "yes"
+EnvironmentFile = "/etc/mios/install.env"
 Restart = "on-failure"
 RestartSec = "15s"
 TimeoutStartSec = "60s"

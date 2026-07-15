@@ -209,6 +209,13 @@ elif [ ! -e /home ]; then
     log "  Path: created /home -> /var/home symlink"
 fi
 
+# Ensure all files under /usr/libexec/mios are executable.
+# Files authored on Windows or checked out without core.filemode will lose the executable bit.
+if [[ -d /usr/libexec/mios ]]; then
+    log "  setting executable permissions on /usr/libexec/mios/*"
+    find /usr/libexec/mios -type f -exec chmod +x {} + || true
+fi
+
 log "08-overlay: relabeling overlaid files"
 restorecon -RFv /usr/ 2>/dev/null || true
 restorecon -RFv /etc/ 2>/dev/null || true

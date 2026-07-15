@@ -50,23 +50,18 @@ _resolve_mios_toml() {
     return 1
 }
 
-# get_packages_from_toml <section> [<toml-path>]
-# Emits a space-separated package list from [packages.<section>].pkgs.
-# Empty output (return 0) means the section isn't defined in TOML or
-# the pkgs array is empty.
-get_packages_from_toml() {
+_get_pkgs_from_single_toml() {
     local category="$1"
-    local toml_path
-    toml_path="${2:-$(_resolve_mios_toml)}" || return 1
-    [[ -f "$toml_path" ]] || return 1
-
+    local file="$2"
+    [[ -f "$file" ]] || return 1
+    
     local auth
     auth=$(awk '/^[[:space:]]*build_catalog_authoritative[[:space:]]*=/ {
         if ($0 ~ /=[[:space:]]*true/) print "true"
-    }' "$toml_path" 2>/dev/null)
+    }' "$file" 2>/dev/null)
 
     if [[ "$auth" == "true" ]]; then
-        local mat_json="$(dirname "$toml_path")/package_sets.json"
+        local mat_json="$(dirname "$file")/package_sets.json"
         if [[ -f "$mat_json" ]]; then
             local pkgs
             pkgs=$(python3 -c "import json; d = json.load(open('$mat_json')); print(' '.join(next(p['pkgs'] for p in d if p['name'] == '$category')))" 2>/dev/null)
@@ -77,15 +72,6 @@ get_packages_from_toml() {
         fi
     fi
 
-    # Tolerant TOML scrape: catches both
-    #   [packages.foo]
-    #   pkgs = ["a","b"]
-    # and the inline-table shape
-    #   pkgs = [
-    #       "a",
-    #       "b",
-    #   ]
-    # Returns empty if [packages.<category>] table is absent or has no pkgs.
     awk -v section="packages.${category}" '
         /^\[/ {
             in_section = 0
@@ -101,24 +87,52 @@ get_packages_from_toml() {
             collecting = 1
         }
         collecting {
-            # Strip # comments per-line BEFORE the downstream comma-split.
-            # Otherwise a comment containing an internal comma (e.g.
-            # "# plugins, so the operator-facing UX is the") is split by
-            # `tr , \n`, and the post-comma fragment -- now without its
-            # leading # -- survives the later comment-strip and leaks in as
-            # a bogus package token (masked only by dnf --skip-unavailable).
             line = $0
             sub(/#.*$/, "", line)
             print line
             if (line ~ /\]/) { collecting = 0 }
         }
-    ' "$toml_path" \
+    ' "$file" \
         | tr -d '[]' \
         | tr ',' '\n' \
         | sed -E 's/[[:space:]]*"([^"]*)"[[:space:]]*$/\1/' \
         | sed '/^[[:space:]]*$/d' \
         | sed -E 's/[[:space:]]*#.*$//' \
         | tr '\n' ' '
+}
+
+# get_packages_from_toml <section> [<toml-path>]
+# Emits a space-separated package list from [packages.<section>].pkgs.
+# Empty output (return 0) means the section isn't defined in TOML or
+# the pkgs array is empty. Cascades overrides.
+get_packages_from_toml() {
+    local category="$1"
+    local file="${2:-}"
+    
+    if [[ -n "$file" ]]; then
+        _get_pkgs_from_single_toml "$category" "$file"
+        return $?
+    fi
+    
+    local cand
+    for cand in \
+        "${MIOS_TOML:-}" \
+        "${HOME:-/root}/.config/mios/mios.toml" \
+        "/etc/mios/mios.toml" \
+        "/ctx/mios-bootstrap/mios.toml" \
+        "/usr/share/mios/mios.toml" \
+        "/ctx/usr/share/mios/mios.toml"; do
+        [[ -n "$cand" && -f "$cand" ]] || continue
+        if grep -q "^\[packages\.${category}\]" "$cand" 2>/dev/null; then
+            local pkgs
+            pkgs=$(_get_pkgs_from_single_toml "$category" "$cand")
+            if [[ -n "${pkgs// }" ]]; then
+                echo "$pkgs"
+                return 0
+            fi
+        fi
+    done
+    return 1
 }
 
 # get_packages <section>
@@ -166,22 +180,34 @@ source "${_PKG_DIR}/common.sh"
 # build phases before python is layered in).
 _is_section_enabled() {
     local section="$1"
-    local toml result
-    toml=$(_resolve_mios_toml) || return 0  # no toml at all -> default enabled
-    result=$(awk -v sect="[packages.$section]" '
-        $0 == sect { in_section = 1; next }
-        /^\[/ && in_section { in_section = 0 }
-        in_section && /^[[:space:]]*enable[[:space:]]*=/ {
-            # match "enable = false" or "enable = true" (any whitespace).
-            # Anything other than literal "false" is treated as enabled
-            # (covers "true", missing-quote variants, comments after the
-            # value, etc.) since the schema default is true.
-            if ($0 ~ /=[[:space:]]*false[[:space:]]*($|#)/) print "false"
-            else print "true"
-            exit
-        }
-    ' "$toml" 2>/dev/null)
-    [[ "$result" != "false" ]]
+    local cand result
+    for cand in \
+        "${MIOS_TOML:-}" \
+        "${HOME:-/root}/.config/mios/mios.toml" \
+        "/etc/mios/mios.toml" \
+        "/ctx/mios-bootstrap/mios.toml" \
+        "/usr/share/mios/mios.toml" \
+        "/ctx/usr/share/mios/mios.toml"; do
+        [[ -n "$cand" && -f "$cand" ]] || continue
+        if grep -q "^\[packages\.${section}\]" "$cand" 2>/dev/null; then
+            result=$(awk -v sect="[packages.$section]" '
+                $0 == sect { in_section = 1; next }
+                /^\[/ && in_section { in_section = 0 }
+                in_section && /^[[:space:]]*enable[[:space:]]*=/ {
+                    if ($0 ~ /=[[:space:]]*false[[:space:]]*($|#)/) print "false"
+                    else print "true"
+                    exit
+                }
+            ' "$cand" 2>/dev/null)
+            if [[ "$result" == "false" ]]; then
+                return 1
+            elif [[ "$result" == "true" ]]; then
+                return 0
+            fi
+            return 0
+        fi
+    done
+    return 0
 }
 
 # install_packages <section>

@@ -39,5 +39,5 @@ firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_ADGUARD_DNS:-53}/tcp  
 firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_ADGUARD_DNS:-53}/udp   # mios-adguard DNS (UDP: normal queries)
 firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_SSH}/tcp             # host admin sshd (hardened off :22; was --add-service=ssh, which opened only 22 and locked out the 49955 sshd)
 firewall-offline-cmd --zone=public --add-service=ssh                            # :22 kept open for Forgejo git-ssh squatting the host port (Forge port drift -- drop once Forge moves to ${MIOS_PORT_FORGE_SSH})
-firewall-offline-cmd --zone=public --add-service=cockpit                       # ${MIOS_PORT_COCKPIT} (host service)
+firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_COCKPIT}/tcp          # ${MIOS_PORT_COCKPIT} (host service)
 firewall-offline-cmd --zone=public --add-service=mios-pxe
