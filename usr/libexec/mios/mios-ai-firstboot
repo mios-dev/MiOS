@@ -34,6 +34,30 @@ fi
 VENV=/usr/lib/mios/agents/.venv
 MODELS=/usr/share/mios/llamacpp/models
 
+# WSL persistence link logic (preserves downloaded weights across developer env refreshes)
+if [ "$(systemd-detect-virt 2>/dev/null)" = "wsl" ]; then
+    install -d -m 0755 /var/lib/mios/llamacpp/models /var/lib/mios/vllm/model 2>/dev/null
+    if [ -d "$MODELS" ] && [ ! -L "$MODELS" ]; then
+        if [ -n "$(ls -A "$MODELS" 2>/dev/null)" ]; then
+            mv -f "$MODELS"/* /var/lib/mios/llamacpp/models/ 2>/dev/null || true
+        fi
+        rmdir "$MODELS" 2>/dev/null || rm -rf "$MODELS" 2>/dev/null || true
+    fi
+    if [ ! -e "$MODELS" ]; then
+        ln -sf /var/lib/mios/llamacpp/models "$MODELS"
+    fi
+    _vdir="/usr/share/mios/vllm/model"
+    if [ -d "$_vdir" ] && [ ! -L "$_vdir" ]; then
+        if [ -n "$(ls -A "$_vdir" 2>/dev/null)" ]; then
+            mv -f "$_vdir"/* /var/lib/mios/vllm/model/ 2>/dev/null || true
+        fi
+        rmdir "$_vdir" 2>/dev/null || rm -rf "$_vdir" 2>/dev/null || true
+    fi
+    if [ ! -e "$_vdir" ]; then
+        ln -sf /var/lib/mios/vllm/model "$_vdir"
+    fi
+fi
+
 # ── 1. shared agent venv (hermes pins Python <3.14) ──────────────────────────
 if [ ! -x "${VENV}/bin/hermes" ]; then
     if ! command -v python3.13 >/dev/null 2>&1; then
