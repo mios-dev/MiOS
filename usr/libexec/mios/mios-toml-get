@@ -26,12 +26,21 @@ def main(argv):
     args = argv[1:]
     if not args or args[0] in ("-h", "--help"):
         sys.stderr.write(
-            "usage: mios-toml-get <section[.sub]> <key> [default]   # scalar\n"
-            "       mios-toml-get --section <a.b>                    # sub-table as JSON\n"
-            "       mios-toml-get --dump <a.b> <key> [<key> ...]     # k=v lines\n")
+            "usage: mios-toml-get [--vendor] <section[.sub]> <key> [default]   # scalar\n"
+            "       mios-toml-get [--vendor] --section <a.b>                    # sub-table as JSON\n"
+            "       mios-toml-get [--vendor] --dump <a.b> <key> [<key> ...]     # k=v lines\n")
         return 2
 
-    data = mios_toml.load_merged()
+    use_vendor = False
+    if args and args[0] == "--vendor":
+        use_vendor = True
+        args = args[1:]
+
+    if not args:
+        sys.stderr.write("mios-toml-get: missing arguments after --vendor\n")
+        return 2
+
+    data = mios_toml.load_vendor() if use_vendor else mios_toml.load_merged()
 
     if args[0] == "--section":
         if len(args) < 2:

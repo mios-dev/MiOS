@@ -181,7 +181,7 @@ MIOS_LOGIN_PASSWORD="$(bash "$_mios_login_helper" password 2>/dev/null)"
 # NEVER a bare literal fallback -- a hardcoded version silently drifts from the
 # real image once it bumps (matches the non-fabricating _dash_field 'version'
 # path). '?' is the honest degrade-open marker.
-[[ -z "${MIOS_VERSION:-}" ]] && MIOS_VERSION="$(cat /usr/share/mios/VERSION 2>/dev/null || cat /etc/mios/VERSION 2>/dev/null || _mios_toml_value 'meta' 'mios_version' '?')"
+[[ -z "${MIOS_VERSION:-}" ]] && MIOS_VERSION="$(cat /usr/share/mios/VERSION 2>/dev/null || cat /etc/mios/VERSION 2>/dev/null || "$_MIOS_TOML_GET" --vendor meta mios_version '?')"
 
 # ── Frame helpers ────────────────────────────────────────────────────────────
 # Repeat a single char N times.
