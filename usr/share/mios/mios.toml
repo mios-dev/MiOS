@@ -5559,7 +5559,7 @@ ingress_key              = ""
 # unification.md). Read by mios_pg / `mios-db --pg` + the quadlet (MIOS_PG_* via
 # userenv.sh). Port from [ports].pgvector. Local-only defaults.
 [pgvector]
-host        = "localhost"
+host        = "127.0.0.1"
 user        = "mios"
 pass        = "mios"
 db          = "mios"
