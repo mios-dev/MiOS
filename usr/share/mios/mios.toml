@@ -9899,7 +9899,7 @@ Delegate = "yes"
 EnvironmentFile = "/etc/mios/install.env"
 Restart = "on-failure"
 RestartSec = "10s"
-TimeoutStartSec = "300s"
+TimeoutStartSec = "1800s"
 
 [containers.mios-cpu-node.Unit]
 After = "network-online.target"
@@ -10120,7 +10120,7 @@ Wants = "network-online.target"
 [containers.mios-k3s.Container]
 ContainerName = "mios-k3s"
 Environment = "K3S_TOKEN=mios-cluster-secret"
-Exec = "server --disable=traefik"
+Exec = "server --disable=traefik --kubelet-arg=cgroup-driver=cgroupfs"
 Group = "root"
 Image = "${MIOS_K3S_IMAGE:-docker.io/rancher/k3s:v1.32.1-k3s1}"
 Pod = "mios-system.pod"

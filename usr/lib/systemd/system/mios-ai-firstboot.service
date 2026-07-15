@@ -22,7 +22,7 @@ Type=oneshot
 RemainAfterExit=yes
 # Cap a hung fetch (multi-GB model download) at 10min so it can't wedge the unit
 # forever; the timer re-fires the run afterwards. (Was 2400s.)
-TimeoutStartSec=600
+TimeoutStartSec=1800
 # The script reads MIOS_LLAMACPP_BAKE_MODELS (the GGUF download spec) +
 # MIOS_AI_* from the env bridge. Without this, a fresh systemd boot has an
 # EMPTY environment -> bake_models reads empty -> "GGUFs not baked" -> the

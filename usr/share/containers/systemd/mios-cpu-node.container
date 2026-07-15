@@ -33,4 +33,4 @@ Delegate=yes
 EnvironmentFile=/etc/mios/install.env
 Restart=on-failure
 RestartSec=10s
-TimeoutStartSec=300s
+TimeoutStartSec=1800s

@@ -11,7 +11,7 @@ Wants=network-online.target
 [Container]
 ContainerName=mios-k3s
 Environment=K3S_TOKEN=mios-cluster-secret
-Exec=server --disable=traefik
+Exec=server --disable=traefik --kubelet-arg=cgroup-driver=cgroupfs
 Group=root
 Image=docker.io/rancher/k3s:v1.32.1-k3s1
 Pod=mios-system.pod
