@@ -18,7 +18,7 @@ Pod=mios-system.pod
 PodmanArgs=--privileged
 User=root
 Volume=/var/lib/rancher/k3s:/var/lib/rancher/k3s:Z
-Volume=/usr/share/mios/k3s-manifests:/var/lib/rancher/k3s/server/manifests:ro
+Volume=/usr/share/mios/k3s-manifests:/var/lib/rancher/k3s/server/manifests:O
 
 [Install]
 WantedBy=multi-user.target

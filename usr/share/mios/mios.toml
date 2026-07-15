@@ -10128,7 +10128,7 @@ PodmanArgs = "--privileged"
 User = "root"
 Volume = [
   "/var/lib/rancher/k3s:/var/lib/rancher/k3s:Z",
-  "/usr/share/mios/k3s-manifests:/var/lib/rancher/k3s/server/manifests:ro"
+  "/usr/share/mios/k3s-manifests:/var/lib/rancher/k3s/server/manifests:O"
 ]
 
 [containers.mios-k3s.Install]

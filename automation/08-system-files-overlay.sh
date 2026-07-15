@@ -216,10 +216,18 @@ if [[ -d /usr/libexec/mios ]]; then
     find /usr/libexec/mios -type f -exec chmod +x {} + || true
 fi
 
-# 2. Link k3s-manifests to k3s/generated directory
-if [[ ! -e "/usr/share/mios/k3s-manifests" ]]; then
-    ln -sf "k3s/generated" "/usr/share/mios/k3s-manifests"
-    log "  Path: created symlink /usr/share/mios/k3s-manifests -> k3s/generated"
+# 2. Link k3s-manifests to k3s/generated directory (ONLY in container/nested deployment mode, NOT in FHS mode)
+if [[ "${MIOS_INSTALL_MODE:-}" != "fhs" ]]; then
+    if [[ ! -e "/usr/share/mios/k3s-manifests" ]]; then
+        ln -sf "k3s/generated" "/usr/share/mios/k3s-manifests"
+        log "  Path: created symlink /usr/share/mios/k3s-manifests -> k3s/generated"
+    fi
+else
+    # In FHS mode, ensure it's a clean, non-symlinked directory to prevent duplicate pod execution in K3s
+    if [[ -L "/usr/share/mios/k3s-manifests" ]]; then
+        rm -f "/usr/share/mios/k3s-manifests"
+    fi
+    mkdir -p "/usr/share/mios/k3s-manifests"
 fi
 
 log "08-overlay: relabeling overlaid files"
