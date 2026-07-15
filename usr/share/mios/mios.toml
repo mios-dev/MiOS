@@ -6990,6 +6990,7 @@ pkgs = [
     "fapolicyd",
     "crowdsec",
     "usbguard",
+    "python3.13",
 ]
 
 [packages.moby]
