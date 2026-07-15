@@ -77,6 +77,13 @@ fi
 log "Normalizing systemd unit permissions..."
 find /usr/lib/systemd -type f \( -name "*.service" -o -name "*.socket" -o -name "*.timer" \) -exec chmod 644 {} + 2>/dev/null || true
 
+log "Normalizing libexec permissions..."
+chmod 755 /usr/libexec/mios/* 2>/dev/null || true
+
+log "Fixing sudoers permissions..."
+chown -R root:root /etc/sudoers.d 2>/dev/null || true
+chmod 440 /etc/sudoers.d/* 2>/dev/null || true
+
 log "Triggering systemd-tmpfiles to initialize /var..."
 systemd-tmpfiles --create --prefix=/var 2>/dev/null || true
 

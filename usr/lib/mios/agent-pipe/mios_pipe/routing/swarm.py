@@ -609,7 +609,7 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
         # contents"): the union of the fetched web content across facets, so the
         # synthesis works from the real FACTS/titles/scores even when an agent
         # punts ("too far in the future") or FAILS empty -- the failure mode
-        # where the node holding the gold grounding (Forza Horizon 6 #1 etc.)
+        # where the node holding the gold grounding (FakeGame 6 #1 etc.)
         # died and the synthesis then FABRICATED sources. Deduped + capped.
         _synth_cap = int(os.environ.get("MIOS_SWARM_SYNTH_RESEARCH_CAP", "7000")
                          or 7000)

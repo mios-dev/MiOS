@@ -389,7 +389,7 @@ def _build_refine_system() -> str:
     "Strict version grounding rule: Do NOT guess, assume, or append specific version numbers,\n"
     "release versions, or hardware specifications (e.g. '4', '5', '6', '2026') unless they\n"
     "are explicitly requested by the user or present in the chat history/context. Keep generic brand\n"
-    "or product names (e.g. 'forza horizon' or 'photoshop') EXACTLY as requested in the refined query\n"
+    "or product names (e.g. 'spotify' or 'photoshop') EXACTLY as requested in the refined query\n"
     "so that downstream search/resolver tools can check the actual installed system inventory.\n"
     )
 
@@ -430,7 +430,7 @@ _REFINE_SYSTEM_LITE = (
     "    Do NOT guess, assume, or append specific version numbers, release\n"
     "    versions, or hardware specifications (e.g. '4', '5', '6', '2026') unless\n"
     "    explicitly requested or present in the context. Keep generic brand or\n"
-    "    product names (e.g. 'forza horizon' or 'photoshop') EXACTLY as requested\n"
+    "    product names (e.g. 'spotify' or 'photoshop') EXACTLY as requested\n"
     "    so downstream resolver/search tools can match local system inventory.\n"
     "    Do NOT invent/guess CLI arguments (like '--big-picture'). If a mode has\n"
     "    a native URI scheme (e.g. steam://open/bigpicture), use it as the app target.\n"
@@ -533,8 +533,8 @@ _REFINE_SYSTEM_LITE = (
     "    name) and `args` (its\n"
     "    arguments). For the target, use ONLY the bare app / window / URL NAME\n"
     "    the user named -- STRIP conversational filler ('for me', 'on my pc',\n"
-    "    'please', 'now', 'real quick'): 'focus Forza Horizon 6 for me on my pc'\n"
-    "    -> tool=focus_window args={title:'Forza Horizon 6'}. Use dispatch ONLY\n"
+    "    'please', 'now', 'real quick'): 'focus Spotify for me on my pc'\n"
+    "    -> tool=focus_window args={title:'Spotify'}. Use dispatch ONLY\n"
     "    when the target is a concrete identifier that can be passed straight\n"
     "    to the verb -- if the target is vague ('the best browser', 'highest-\n"
     "    rated game') or the request needs lookup / research / several steps,\n"
@@ -1153,7 +1153,7 @@ async def refine_intent(user_text: str,
     # game" and the launcher picked Ubisoft as nearest substring.
     _ut = (user_text or "").strip()
     # OS-control dispatch is EXEMPT from the length guard (operator
-    # trace: "Open notepad"->council, "Focus Forza Horizon 6"
+    # trace: "Open notepad"->council, "Focus Spotify"
     # ->web). A concrete window/app action is legitimately ONE step even
     # when OWUI's RAG/memory enhancement pads the surrounding turn past
     # 100 chars (it rewrites the turn as "<context...>\n\nQuery: <cmd>",
@@ -1193,9 +1193,9 @@ async def refine_intent(user_text: str,
                 _wordy = True
                 break
         # OS-control verbs (focus/close/move/launch) resolve a multi-word target
-        # by substring/fuzzy match, so a wordy title ("Forza Horizon 6 for me on
+        # by substring/fuzzy match, so a wordy title ("FakeGame 6 for me on
         # my pc") is FINE -- do NOT demote them to the research council (operator
-        # "focus Forza Horizon 6" went to the council + failed). Only
+        # "focus FakeGame 6" went to the council + failed). Only
         # a wordy NON-OS dispatch is the vague descriptor the launcher can't take.
         if _wordy and not _is_os:
             log.info(

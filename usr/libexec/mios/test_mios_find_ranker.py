@@ -216,10 +216,10 @@ class MultiTokenFuzzyMatching(unittest.TestCase):
     ]
 
     def test_multi_token_query_requires_all_tokens_to_match(self):
-        # "forza horizon" contains two tokens >=4 chars: "forza" and "horizon".
-        # "forza" matches "forge" (edit dist 2), but "horizon" matches nothing.
+        # "foreg fake" contains two tokens >=4 chars: "foreg" and "fake".
+        # "foreg" matches "forge" (edit dist 1), but "fake" matches nothing.
         # It must NOT match because not all query tokens have a match.
-        winner, code, _ = run_ranker("forza horizon", self.ENTRIES, _NO_RANKER_CFG)
+        winner, code, _ = run_ranker("foreg fake", self.ENTRIES, _NO_RANKER_CFG)
         self.assertEqual(code, 1)
         self.assertIsNone(winner)
 

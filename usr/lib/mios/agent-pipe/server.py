@@ -3527,9 +3527,9 @@ _COMPOUND_CONNECTIVE_ALT = "|".join(re.escape(p) for p in _COMPOUND_CONNECTIVES)
 # (mios.toml `section`). A request that maps to ONE of these is a single
 # DETERMINISTIC machine action -- it must fire that one verb through the
 # broker and STOP, NOT fan out to the research council.
-# trace: "Launch Forza Horizon 6" ran a 4-agent web-search swarm that
+# trace: "Launch FakeGame 6" ran a 4-agent web-search swarm that
 # fabricated window coordinates AND never stopped after the launch had
-# already succeeded; "Close Forza" narrated a made-up `mios-window -mode
+# already succeeded; "Close FakeGame" narrated a made-up `mios-window -mode
 # graceful` call (a command form that doesn't exist). Membership is whatever
 # mios.toml tags as the launch section -- NO hardcoded English verb list here.
 _OS_CONTROL_SECTION = os.environ.get(

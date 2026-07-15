@@ -128,7 +128,7 @@ _FAB01_SYNTH = (
     "Here are the games installed on your system:\n\n"
     "🤝 apps output (truncated for brevity):\n"
     '{"success": true, "tool": "apps", "apps": ['
-    '{"name": "Forza Horizon 5", "version": "1.0.0"}, '
+    '{"name": "FakeGame 5", "version": "1.0.0"}, '
     '{"name": "Sea of Thieves", "version": "1.0.0"}, '
     '{"name": "Cyberpunk 2077", "version": "1.0.0"}, '
     '{"name": "Minecraft", "version": "1.0.0"}]}'
@@ -139,7 +139,7 @@ def t_fab01_synth_strips_fired_verb_block():
     ans = _NL._guard_fabricated_execution(
         _FAB01_SYNTH, surfaced_raw_evidence=False, m2=[], enable=True)
     check("FAB-01: fabricated '🤝 apps output' block stripped (fired-membership "
-          "does NOT save it)", "🤝" not in ans and "Forza Horizon 5" not in ans, ans)
+          "does NOT save it)", "🤝" not in ans and "FakeGame 5" not in ans, ans)
     check("FAB-01: real synthesized prose survives the strip",
           ans.strip().startswith("Here are the games installed"), ans)
 

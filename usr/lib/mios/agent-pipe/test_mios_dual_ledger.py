@@ -92,11 +92,11 @@ def t_parse_research_claims():
     check("parse-claims: source correct", claims1[0]["source"] == "Google Blog")
 
     # Test Markdown/fallback parsing
-    text_out = "Claim: Forza Horizon 6 has a new teaser Source: Playground Games Website"
+    text_out = "Claim: FakeGame 6 has a new teaser Source: Mock Games Website"
     claims2 = de.parse_research_claims(text_out)
     check("parse-claims: text line parsed", len(claims2) == 1, str(claims2))
-    check("parse-claims: text claim text", claims2[0]["claim"] == "Forza Horizon 6 has a new teaser")
-    check("parse-claims: text source", claims2[0]["source"] == "Playground Games Website")
+    check("parse-claims: text claim text", claims2[0]["claim"] == "FakeGame 6 has a new teaser")
+    check("parse-claims: text source", claims2[0]["source"] == "Mock Games Website")
 
     # Test bracket fallback
     bracket_out = "The CPU temperature is 45C [sys_logs] and fan is at 80% [hardware_monitor]."

@@ -12,7 +12,7 @@
 
 | ID | Turn | Real tool state | What shipped in the FINAL answer | Why the guard missed |
 |----|------|-----------------|----------------------------------|----------------------|
-| **FAB-01** | T-113 "what games are installed?" | `apps` verb **fired**, returned Linux flatpaks (ptyxis, flatseal, DOSBox…) | A *second* `🤝 apps output (truncated for brevity):` block with **invented** games (Forza Horizon 5, Sea of Thieves, Cyberpunk 2077, Minecraft, Zelda TotK) each `"version":"1.0.0"` | Guard strips a `🤝 <verb> output` block only when `<verb> ∉ _fired`. Here `apps` **was** fired, so the fabricated *duplicate* survived. |
+| **FAB-01** | T-113 "what games are installed?" | `apps` verb **fired**, returned Linux flatpaks (ptyxis, flatseal, DOSBox…) | A *second* `🤝 apps output (truncated for brevity):` block with **invented** games (FakeGame 5, Sea of Thieves, Cyberpunk 2077, Minecraft, Zelda TotK) each `"version":"1.0.0"` | Guard strips a `🤝 <verb> output` block only when `<verb> ∉ _fired`. Here `apps` **was** fired, so the fabricated *duplicate* survived. |
 | **FAB-02** | T-114 "2024 games" | Real Wikipedia/Polygon fetched | Real data **+** a fabricated "Major 2025 Announcements" section (Starfield DLC, FIFA 26, GoW Ragnarök expansion, Minecraft 1.21), an admission "*widely reported but not captured in the excerpt*", and an IGN citation never fetched | Guard fires only when **zero** sources were fetched **and** a markdown table exists. Here sources *were* fetched (so `_real_norm` non-empty) and the invented section was prose/bullets citing an outlet **by name** (no off-list `http://` URL) → both fire-conditions false. |
 
 The shared root cause: **both guards key on the wrong axis.** FAB-01's guard
