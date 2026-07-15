@@ -6744,7 +6744,7 @@ mem_fraction       = 0.85           # --mem-fraction-static: the ~16GB AWQ weigh
 tool_parser        = "qwen25"       # --tool-call-parser: Qwen3-2507 emits Qwen <tool_call> blocks (qwen25 parser handles them); SGLang's qwen25 parser fits the Qwen3 family.
 reasoning_parser   = ""             # Qwen3-30B-A3B-INSTRUCT-2507 is NON-thinking (no <think>) -> no reasoning parser. For CoT, bake Qwen/Qwen3-30B-A3B-Thinking-2507 and set reasoning_parser = "qwen3".
 max_model_len      = 262144         # 256k NATIVE (operator-requested). Feasible on the shared 4090 via HiCache CPU KV-offload + fp8 KV (the note above); vLLM alone can't hold 256k KV in ~4GB, SGLang can by spilling to RAM.
-kv_cache_dtype     = "fp8"          # --kv-cache-dtype fp8_e5m2: ~2x KV capacity; REQUIRED with HiCache to reach 256k.
+kv_cache_dtype     = "fp8_e5m2"     # --kv-cache-dtype fp8_e5m2: ~2x KV capacity; REQUIRED with HiCache to reach 256k.
 hierarchical_cache = true           # --enable-hierarchical-cache (HiCache): spill inactive KV to CPU RAM -- the mechanism that makes 256k fit
 unified_radix_tree = true           # --enable-unified-radix-tree (UnifiedRadixTree): enable radx-tree KV cache optimization
 
@@ -10195,7 +10195,7 @@ Environment = [
   "NCCL_SOCKET_IFNAME=lo",
   "HOME=/tmp"
 ]
-Exec = "python3 -m sglang.launch_server --model /models --served-model-name ${MIOS_SGLANG_SERVED_NAME:-mios-heavy} --host 0.0.0.0 --port ${MIOS_PORT_SGLANG:-11442} --mem-fraction-static ${MIOS_SGLANG_MEM_FRACTION:-0.85} --max-model-len ${MIOS_SGLANG_MAX_MODEL_LEN:-262144} --kv-cache-dtype ${MIOS_SGLANG_KV_CACHE_DTYPE:-fp8} --tool-call-parser ${MIOS_SGLANG_TOOL_PARSER:-qwen25} --enable-hierarchical-cache --enable-unified-radix-tree"
+Exec = "python3 -m sglang.launch_server --model /models --served-model-name ${MIOS_SGLANG_SERVED_NAME:-mios-heavy} --host 0.0.0.0 --port ${MIOS_PORT_SGLANG:-11442} --mem-fraction-static ${MIOS_SGLANG_MEM_FRACTION:-0.85} --max-model-len ${MIOS_SGLANG_MAX_MODEL_LEN:-262144} --kv-cache-dtype ${MIOS_SGLANG_KV_CACHE_DTYPE:-fp8_e5m2} --tool-call-parser ${MIOS_SGLANG_TOOL_PARSER:-qwen25} --enable-hierarchical-cache --enable-unified-radix-tree"
 Group = "${MIOS_VLLM_GID:-815}"
 Image = "mios-llm-heavy-alt.image"
 Label = [
