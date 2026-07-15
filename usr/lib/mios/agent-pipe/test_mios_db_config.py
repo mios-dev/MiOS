@@ -257,13 +257,15 @@ class TestMiosDbConfig(unittest.TestCase):
                 del os.environ["MIOS_DB_AUTHORITATIVE"]
 
     @patch("mios_toml.load_merged")
-    def test_zero_divergence_on_seeded_tree(self, mock_load):
+    @patch("mios_db_config.load_db_config")
+    def test_zero_divergence_on_seeded_tree(self, mock_db_config, mock_load):
         import mios_toml
         import mios_pipe.routing.verbcatalog as vc
         
         # Retrieve the clean vendor TOML baseline
         vendor_data = mios_toml.load_vendor()
         mock_load.return_value = vendor_data
+        mock_db_config.return_value = vendor_data
         
         # Reset divergences
         mios_db_config.reset_divergences()

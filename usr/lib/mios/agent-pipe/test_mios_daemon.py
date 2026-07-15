@@ -34,9 +34,16 @@ class TestMiosDaemonGateAndDedup(unittest.IsolatedAsyncioTestCase):
         target_module._lane_sem_key = lambda cfg: "test-lane"
         target_module._strip_agent_chrome = lambda text: text
         
+        # Disable RR preemption for daemon gate and dedup tests
+        self.old_rr_enable = target_module.RR_ENABLE
+        target_module.RR_ENABLE = False
+        
         class MockSloShed(Exception):
             pass
         target_module._SloShed = MockSloShed
+
+    async def asyncTearDown(self):
+        target_module.RR_ENABLE = self.old_rr_enable
 
     @patch("mios_pipe.routing.agent_call._get_cpu_load")
     @patch("mios_pipe.routing.agent_call._get_gpu_vram_usage")

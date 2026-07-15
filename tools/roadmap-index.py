@@ -118,15 +118,17 @@ def main(argv):
     idx = 0
     while idx < len(lines):
         line = lines[idx]
-        if line.startswith("# Part ") or line.startswith("## Part "):
-            # We only count # Part (top-level) for Table of Contents and grouping
-            if line.startswith("# Part "):
-                current_part = line[2:].strip()
+        if line.startswith("# ") and not line.startswith("## "):
+            header_name = line[2:].strip()
+            # Ignore document title, archived title, and appendix
+            if not any(header_name.lower().startswith(x) for x in ["mios -- master roadmap", "mios roadmap", "archived mios roadmap", "appendix"]):
+                current_part = header_name
                 if current_part not in parts_order:
                     parts_order.append(current_part)
                     part_workstreams[current_part] = []
-            idx += 1
-            continue
+                idx += 1
+                continue
+
             
         if line.startswith("## WS-"):
             header_text = line[2:].strip()

@@ -33,7 +33,7 @@ EnvironmentFile=-/etc/mios/install.env
 # FAIL (and drive the bounded Restart below) until PG is up. ${MIOS_PORT_PGVECTOR}
 # expands from the EnvironmentFile above; /usr/bin/pg_isready ships with the
 # postgresql client (absolute path -- PATH is not guaranteed in the unit context).
-ExecStartPre=/usr/bin/pg_isready -q -h 127.0.0.1 -p ${MIOS_PORT_PGVECTOR} -U mios -d mios
+ExecStartPre=/usr/bin/podman exec mios-pgvector pg_isready -q -h 127.0.0.1 -p 8432 -U mios -d mios
 ExecStart=/usr/libexec/mios/mios-sys-env refresh
 # R6: on-failure (the only Restart= allowed with Type=oneshot) waits out a cold
 # pgvector; StartLimit* in [Unit] caps the retries.
