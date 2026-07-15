@@ -31,10 +31,15 @@ SPEC="${MIOS_LLAMACPP_BAKE_MODELS:-}"
 SEED_DIR="/usr/share/mios/llamacpp/models"
 
 if [[ -z "$SPEC" ]]; then
-    log "[38-llamacpp] MIOS_LLAMACPP_BAKE_MODELS empty -- skipping GGUF bake (opt-in; the mios-llm-light lane stays gated/inert)"
+    log "[38-llamacpp] MIOS_LLAMACPP_BAKE_MODELS empty -- creating symlink to /var/lib/mios/llamacpp/models for runtime downloads"
+    rm -rf "$SEED_DIR" 2>/dev/null || true
+    ln -sf /var/lib/mios/llamacpp/models "$SEED_DIR"
     exit 0
 fi
 
+if [[ -L "$SEED_DIR" ]]; then
+    rm -f "$SEED_DIR"
+fi
 install -d -m 0755 "$SEED_DIR"
 
 baked=0

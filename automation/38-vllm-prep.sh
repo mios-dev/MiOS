@@ -32,8 +32,14 @@ MODEL="${MIOS_VLLM_BAKE_MODEL:-}"
 SEED_DIR="/usr/share/mios/vllm/model"
 
 if [[ -z "$MODEL" ]]; then
-    log "[38-vllm] MIOS_VLLM_BAKE_MODEL empty -- skipping vLLM heavy-lane bake (opt-in; the lane stays gated/inert)"
+    log "[38-vllm] MIOS_VLLM_BAKE_MODEL empty -- creating symlink to /var/lib/mios/vllm/model for runtime downloads"
+    rm -rf "$SEED_DIR" 2>/dev/null || true
+    ln -sf /var/lib/mios/vllm/model "$SEED_DIR"
     exit 0
+fi
+
+if [[ -L "$SEED_DIR" ]]; then
+    rm -f "$SEED_DIR"
 fi
 if [[ -d "$SEED_DIR" ]] && [[ -n "$(ls -A "$SEED_DIR" 2>/dev/null)" ]]; then
     log "[38-vllm] seed already present at ${SEED_DIR}; skipping re-bake"
