@@ -459,7 +459,7 @@ if not scored:
 # -- but DO NOT bounce back to the operator demanding re-query
 # (operator directive 2026-05-16: "should be snappy").
 best = scored[0][1]
-print(best["launch"])
+print(best["launch"].replace("\\", "\\\\"))
 if len(scored) > 1:
     n_alt = min(4, len(scored) - 1)
     print(f'(picked best of {len(scored)}; {n_alt} alternatives:)',

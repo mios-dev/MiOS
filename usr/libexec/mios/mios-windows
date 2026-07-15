@@ -188,14 +188,40 @@ _mios_launch_via_executor() {  # <app-name-or-windows-path> [args...]
     _app="$1"
     shift
     _args="$*"
+    _hint="${MIOS_LAUNCH_TITLE_HINT:-}"
+    if [ -z "$_hint" ]; then
+        case "$_app" in
+            shell:appsFolder*|shell:AppsFolder*)
+                _part="${_app##*\\}"
+                if [ "$_part" = "$_app" ]; then
+                    _part="$(echo "$_app" | sed -E 's/^shell:[aA]pps[fF]older//')"
+                fi
+                _entry="${_part##*!}"
+                if [ -n "$_entry" ] && [ "$_entry" != "$_part" ] && [ "$_entry" != "App" ] && [ "$_entry" != "app" ]; then
+                    _hint="$_entry"
+                else
+                    # Extract clean token: e.g. WindowsCalculator, SpotifyMusic
+                    _hint="$(echo "$_part" | cut -d! -f1 | cut -d. -f2 | cut -d_ -f1)"
+                fi
+                ;;
+            *://*)
+                _hint=""
+                ;;
+            *)
+                _base="${_app##*\\}"
+                _base="${_base##*/}"
+                _hint="${_base%.*}"
+                ;;
+        esac
+    fi
     # `verify` = the human title hint (MIOS_LAUNCH_TITLE_HINT, e.g. "Forza
     # Horizon 6") so the executor matches the WINDOW by title, not by a steam://
     # URI / shell:appsFolder string that never appears in a window title
     # (operator 2026-05-30). Falls back to `app` when no hint is set.
-    _resp="$(python3 - "$_app" "$_xe" "$_args" <<'PYEOF'
+    _resp="$(python3 - "$_app" "$_xe" "$_args" "$_hint" <<'PYEOF'
 import sys, os, json, urllib.request
 try:
-    payload = json.dumps({"app": sys.argv[1], "args": sys.argv[3], "center": True, "verify": os.environ.get("MIOS_LAUNCH_TITLE_HINT","")}).encode()
+    payload = json.dumps({"app": sys.argv[1], "args": sys.argv[3], "center": True, "verify": sys.argv[4]}).encode()
     req = urllib.request.Request(sys.argv[2] + "/launch", data=payload, headers={'Content-Type': 'application/json'}, method="POST")
     with urllib.request.urlopen(req, timeout=45) as r:
         print(r.read().decode())
@@ -534,11 +560,15 @@ PSEOF
             # "Microsoft Flight Simulator 2024 ... launching it directly
             # hasn'\''t been working" because the .exe doesn'\''t exist
             # at a predictable filesystem path for UWP packages.
-            shell:appsFolder\\*|shell:AppsFolder\\*)
+            shell:appsFolder*|shell:AppsFolder*)
                 # UWP / Store / Xbox apps. In-session executor first (it launches
                 # shell: URIs via explorer.exe + shows the window on the desktop);
                 # the broker/interop ps path is the fallback (Start-Process can't
                 # grok shell: URIs, so explorer.exe is the handler there too).
+                # Auto-heal dropped backslashes (e.g. shell:appsFolderSpotifyAB... -> shell:appsFolder\SpotifyAB...)
+                if [[ "$app" != *'\'* && "$app" != */* ]]; then
+                    app="$(echo "$app" | sed -E 's/^(shell:appsFolder)(.*)/\1\\\2/I')"
+                fi
                 if _mios_launch_via_executor "$app" "$@"; then exit 0; fi
                 _PS="$(_build_uri_center_ps "Start-Process -FilePath explorer.exe -ArgumentList '$app'" "${MIOS_LAUNCH_TITLE_HINT:-}")"
                 exec "$0" ps "$_PS"

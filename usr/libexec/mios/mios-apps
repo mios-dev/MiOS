@@ -312,10 +312,10 @@ if [ -z "$_WIN_NATIVE" ] && [ "$(_is_wsl)" = "1" ] && command -v mios-windows >/
             # which Windows rejects.
             case "$win_id" in
                 *://*)
-                    cmd="mios-windows ps \"Start-Process '$win_id'\""
+                    cmd="mios-windows launch \"$win_id\""
                     ;;
                 *)
-                    cmd="mios-windows ps \"Start-Process -FilePath 'shell:AppsFolder\\$win_id'\""
+                    cmd="mios-windows launch \"shell:AppsFolder\\$win_id\""
                     ;;
             esac
             emit windows-app "$short" "$win_name ($win_id)" "$cmd"
