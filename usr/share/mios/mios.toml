@@ -10277,7 +10277,7 @@ Delegate = "yes"
 EnvironmentFile = "/etc/mios/install.env"
 Restart = "on-failure"
 RestartSec = "10s"
-TimeoutStartSec = "180s"
+TimeoutStartSec = "1800s"
 
 [containers.mios-llm-light.Unit]
 # After mios-cdi-detect.service: the PRIMARY always-on lane hardcodes
