@@ -9,6 +9,14 @@ Wants=network-online.target
 
 [Container]
 AutoUpdate=registry
+Environment=POSTGRESQL_HOSTNAME=localhost
+Environment=POSTGRESQL_PORT=${MIOS_PORT_PGVECTOR}
+Environment=POSTGRESQL_DATABASE=mios
+Environment=POSTGRESQL_USERNAME=mios
+Environment=POSTGRESQL_PASSWORD=mios
+Environment=GUACD_HOSTNAME=localhost
+Environment=GUACD_PORT=4822
+EnvironmentFile=/etc/mios/install.env
 Group=810
 Image=docker.io/guacamole/guacamole:latest
 Label=org.opencontainers.image.url=http://localhost:${MIOS_PORT_GUACAMOLE_WEB}/guacamole/

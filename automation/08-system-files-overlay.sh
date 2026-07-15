@@ -216,6 +216,12 @@ if [[ -d /usr/libexec/mios ]]; then
     find /usr/libexec/mios -type f -exec chmod +x {} + || true
 fi
 
+# 2. Link k3s-manifests to k3s/generated directory
+if [[ ! -e "/usr/share/mios/k3s-manifests" ]]; then
+    ln -sf "k3s/generated" "/usr/share/mios/k3s-manifests"
+    log "  Path: created symlink /usr/share/mios/k3s-manifests -> k3s/generated"
+fi
+
 log "08-overlay: relabeling overlaid files"
 restorecon -RFv /usr/ 2>/dev/null || true
 restorecon -RFv /etc/ 2>/dev/null || true

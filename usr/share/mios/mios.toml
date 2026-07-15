@@ -7993,8 +7993,7 @@ members     = [
   "mios-pxe-hub",
   "mios-k3s",
   "mios-guacamole",
-  "mios-guacd",
-  "mios-guacamole-postgres"
+  "mios-guacd"
 ]
 doc = """Consolidated system services pod."""
 
@@ -9276,7 +9275,7 @@ mios-code-server      = false
 mios-crowdsec-dashboard    = false
 mios-guacamole        = true
 mios-pxe-hub          = true
-mios-guacamole-postgres    = true
+mios-guacamole-postgres    = false
 mios-guacd                 = true
 mios-adguard          = true
 
@@ -10040,10 +10039,10 @@ Wants = "network-online.target mios-forgejo-runner-firstboot.service"
 [containers.mios-guacamole-postgres.Container]
 AutoUpdate = "registry"
 ContainerName = "mios-guacamole-postgres"
-Group = "mios-postgres"
+Group = "${MIOS_POSTGRES_GID:-812}"
 Image = "docker.io/library/postgres:latest"
 Pod = "mios-system.pod"
-User = "mios-postgres"
+User = "${MIOS_POSTGRES_UID:-812}"
 
 [containers.mios-guacamole-postgres.Install]
 WantedBy = "multi-user.target default.target"
@@ -10061,6 +10060,16 @@ Wants = "network-online.target"
 
 [containers.mios-guacamole.Container]
 AutoUpdate = "registry"
+Environment = [
+  "POSTGRESQL_HOSTNAME=localhost",
+  "POSTGRESQL_PORT=${MIOS_PORT_PGVECTOR:-8432}",
+  "POSTGRESQL_DATABASE=${MIOS_PG_DB:-mios}",
+  "POSTGRESQL_USERNAME=${MIOS_PG_USER:-mios}",
+  "POSTGRESQL_PASSWORD=${MIOS_PG_PASS:-mios}",
+  "GUACD_HOSTNAME=localhost",
+  "GUACD_PORT=4822"
+]
+EnvironmentFile = "/etc/mios/install.env"
 Group = "${MIOS_GUACAMOLE_GID:-810}"
 Image = "docker.io/guacamole/guacamole:latest"
 Label = [
@@ -10088,10 +10097,10 @@ Wants = "network-online.target"
 [containers.mios-guacd.Container]
 AutoUpdate = "registry"
 ContainerName = "mios-guacd"
-Group = "mios-guacd"
+Group = "${MIOS_GUACD_GID:-811}"
 Image = "docker.io/guacamole/guacd:latest"
 Pod = "mios-system.pod"
-User = "mios-guacd"
+User = "${MIOS_GUACD_UID:-811}"
 
 [containers.mios-guacd.Install]
 WantedBy = "multi-user.target default.target"
