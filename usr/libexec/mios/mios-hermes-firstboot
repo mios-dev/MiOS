@@ -1111,6 +1111,25 @@ fi
 #   5. missing critical top-level schema keys (model:, auxiliary:, delegation:) --
 #      stock `hermes setup` writes a minimal stub that drops every MiOS
 #      customisation, then Hermes falls back to default config and the
+#      operator's TUI session has# ── Operator CLI config (~/.hermes/config.yaml) ─────────────────────────
+# The `hermes` CLI runs as the operator (not the mios-hermes sysuser)
+# and reads ~/.hermes/config.yaml. Seed it with the SAME TOML-derived
+# config as the gateway so the CLI is pre-configured against local
+# Ollama and never drops into the interactive `hermes setup` wizard.
+# Resolve the operator from mios.toml [identity].username; this is a
+# plain copy of the gateway config -- one SSOT, two consumers.
+# We seed it for the configured user, the default 'mios' user, and 'root'
+# to ensure it is always configured no matter how the operator connects.
+#
+# Re-seed conditions:
+#   1. file missing
+#   2. carries the broken `hermes setup` wizard placeholder
+#      (0.0.0.0:11434 / 127.0.0.1:11434 / https://localhost without TLS)
+#   3. the gateway config was just (re)written this run (_should_seed=1)
+#   4. fails YAML parse (corrupted / hand-edited badly)
+#   5. missing critical top-level schema keys (model:, auxiliary:, delegation:) --
+#      stock `hermes setup` writes a minimal stub that drops every MiOS
+#      customisation, then Hermes falls back to default config and the
 #      operator's TUI session has no auxiliary lanes, no delegation, no
 #      reasoning_effort, etc. (operator-confirmed 2026-05-15: setup wizard
 #      replaced /var/home/mios/.hermes/config.yaml with a 69-line stub
@@ -1121,7 +1140,7 @@ fi
 # CLI config, edit it AND remove the file's "MiOS-managed" marker
 # comment -- firstboot then leaves it alone.
 _op_user="$(_mios_toml_value 'identity' 'username' 'mios')"
-_op_home="$(getent passwd "$_op_user" 2>/dev/null | cut -d: -f6)"
+
 _op_cfg_should_reseed() {
     local f="$1"
     [[ ! -f "$f" ]] && return 0
@@ -1162,136 +1181,41 @@ sys.exit(0)
 EOF
     return 1
 }
-if [[ -n "$_op_home" && -d "$_op_home" ]]; then
-    _op_cfg_dir="${_op_home}/.hermes"
-    _op_cfg="${_op_cfg_dir}/config.yaml"
-    if _op_cfg_should_reseed "$_op_cfg"; then
-        mkdir -p "$_op_cfg_dir"
-        # THIN-CLIENT transform (operator 2026-06-18 "UNIFY THE MiOS AI PIPELINE").
-        # Start from the full gateway config (keeps auxiliary/delegation/approvals/
-        # agent/display + the correct on-box aux lanes) but point the MAIN model at
-        # the agent-pipe ORCHESTRATOR (:8640 MiOS-Agent), empty the toolsets, and
-        # disable the per-session MCP spawn. The orchestrator runs the tool loop
-        # SERVER-SIDE (refine -> route -> broker-exec + read-back verify -> polish),
-        # so the REPL never runs a leaf granite loop -- the fabrication root cause
-        # (claimed launch but typed into chat / same_tool_failure_halt). This makes
-        # the `hermes` REPL identical to the already-unified @/mios CLI + desktop app.
-        # Aux lanes (compression/title/...) legitimately stay on the leaf (:11450).
-        if MIOS_AGENT_ENDPOINT="$_AGENT_ENDPOINT" MIOS_AGENT_MODEL="$_AGENT_MODEL" \
-           python3 - "$HERMES_DATA_CFG" "$_op_cfg" <<'EOF'
-import sys, os, yaml
-src, dst = sys.argv[1], sys.argv[2]
-with open(src) as fh:
-    d = yaml.safe_load(fh) or {}
-ep = os.environ["MIOS_AGENT_ENDPOINT"].rstrip("/")
-model = os.environ["MIOS_AGENT_MODEL"]
-m = d.get("model") if isinstance(d.get("model"), dict) else {}
-m["provider"] = "custom:mios-orchestrator"   # resolves against custom_providers below
-m["default"]  = model
-m["base_url"] = ep
-m["api_key"]  = ""
-m.pop("fallback_model", None)                # orchestrator owns fallback server-side
-d["model"] = m
-cps = d.get("custom_providers")
-if not isinstance(cps, list):
-    cps = []
-if not any(isinstance(c, dict) and c.get("name") == "mios-orchestrator" for c in cps):
-    cps.append({"name": "mios-orchestrator", "base_url": ep, "api_key": ""})
-d["custom_providers"] = cps
-d["toolsets"] = []                           # tools run SERVER-SIDE in the orchestrator
-mcp = d.get("mcp_servers")
-if isinstance(mcp, dict):
-    for v in mcp.values():
-        if isinstance(v, dict):
-            v["enabled"] = False             # no per-session MCP spawn for the thin REPL
-with open(dst, "w") as fh:
-    yaml.safe_dump(d, fh, sort_keys=False, default_flow_style=False)
-print("ok")
-EOF
-        then
-            chown -R "$_op_user":"$_op_user" "$_op_cfg_dir" 2>/dev/null || true
-            chmod 0700 "$_op_cfg_dir" 2>/dev/null || true
-            chmod 0600 "$_op_cfg" 2>/dev/null || true
-            _log "seeded operator CLI config $_op_cfg as THIN orchestrator client (${_AGENT_MODEL} @ ${_AGENT_ENDPOINT})"
-        else
-            # Degrade-open: if the transform fails (no python/yaml), fall back to the
-            # legacy leaf copy so the CLI still has a working config rather than none.
-            cp -f "$HERMES_DATA_CFG" "$_op_cfg"
-            chown -R "$_op_user":"$_op_user" "$_op_cfg_dir" 2>/dev/null || true
-            chmod 0700 "$_op_cfg_dir" 2>/dev/null || true
-            chmod 0600 "$_op_cfg" 2>/dev/null || true
-            _log "WARN: thin-client transform failed -- copied leaf config to $_op_cfg as fallback"
-        fi
-    else
-        _log "operator CLI config $_op_cfg already current (thin :8640 client) -- not overwriting"
-    fi
 
-    # ── Operator CLI key material (~/.hermes/.env) ──────────────────────
-    # config.yaml above seeds the PROVIDER half (custom:local-llm). But
-    # the bare interactive `hermes` CLI ALSO has a startup config-detection
-    # gate that trips with "no API keys or providers found -- run: hermes
-    # setup" when it sees no API_SERVER_KEY / OPENAI_API_KEY in its
-    # environment (operator-confirmed 2026-06-14: `hermes` -> setup wizard
-    # despite a seeded config.yaml at /var/home/mios/.hermes/config.yaml).
-    #
-    # WHY the gateway service didn't hit this: mios-gateway-agent.service loads
-    # /etc/mios/hermes/api.env via EnvironmentFile=, so API_SERVER_KEY /
-    # OPENAI_API_KEY are in the SERVICE's os.environ. The interactive CLI
-    # runs as the operator and does NOT read /etc/mios/hermes/api.env --
-    # it auto-loads ~/.hermes/.env. Seed THAT with the SAME key material
-    # the service uses (single SSOT: the api.env this script generated
-    # above) so the CLI's "configured?" gate passes and it never drops
-    # into `hermes setup`.
-    #
-    # Architectural Law 5 (UNIFIED-AI-REDIRECTS) is preserved: the seeded
-    # config.yaml pins provider=custom:local-llm at ${_AI_BACKEND}/v1
-    # with api_key:"" (the local lane is keyless). This .env carries only
-    # the gateway's OWN key (so the CLI can also auth to the local :8642
-    # gateway) -- NO cloud provider, NO vendor URL is introduced.
-    #
-    # Idempotent + version-aware: re-seed when the .env is missing OR no
-    # longer carries the current API_SERVER_KEY (key rotation / drift).
-    # Operators take ownership by deleting the "MiOS-managed" marker line;
-    # firstboot then leaves the file alone.
-    _op_env="${_op_cfg_dir}/.env"
-    _api_key_val=""
-    if [[ -r "$ENV_FILE" ]]; then
-        _api_key_val="$(awk -F= '/^API_SERVER_KEY=/{print $2; exit}' "$ENV_FILE" 2>/dev/null)"
-    fi
-    _op_env_should_seed() {
-        local f="$1"
-        [[ ! -f "$f" ]] && return 0
-        grep -q 'MiOS-managed' "$f" 2>/dev/null || return 1        # operator-owned, leave alone
-        # Re-seed if the current key isn't present (rotation/drift).
-        [[ -n "$_api_key_val" ]] && ! grep -qF "API_SERVER_KEY=${_api_key_val}" "$f" 2>/dev/null && return 0
-        return 1
-    }
-    if [[ -z "$_api_key_val" ]]; then
-        _log "WARN: no API_SERVER_KEY in $ENV_FILE -- skipping operator CLI .env seed"
-    elif _op_env_should_seed "$_op_env"; then
-        mkdir -p "$_op_cfg_dir"
-        umask 0077
-        cat > "$_op_env" <<EOF
-# ${_op_env} -- MiOS-managed by mios-hermes-firstboot.
-# Auto-loaded by the interactive \`hermes\` CLI so it never drops into the
-# \`hermes setup\` wizard ("no API keys or providers found"). Mirrors the
-# key material in /etc/mios/hermes/api.env (the gateway service's
-# EnvironmentFile=). The provider itself is the LOCAL lane -- see
-# ${_op_cfg} (provider: custom:local-llm -> ${_AI_BACKEND}/v1).
-# To take ownership: delete this "MiOS-managed" marker line and edit.
-API_SERVER_KEY=${_api_key_val}
-OPENAI_API_KEY=${_api_key_val}
-EOF
-        umask 0022
-        chown "$_op_user":"$_op_user" "$_op_env" 2>/dev/null || true
-        chmod 0600 "$_op_env" 2>/dev/null || true
-        _log "seeded operator CLI key material $_op_env (user=$_op_user, local lane)"
-    else
-        _log "operator CLI .env $_op_env already current -- not overwriting"
-    fi
-else
-    _log "operator home for '$_op_user' not found -- skipping CLI config seed"
+# ── Operator CLI key material (~/.hermes/.env) ──────────────────────
+# config.yaml above seeds the PROVIDER half (custom:local-llm). But
+# the bare interactive `hermes` CLI ALSO has a startup config-detection
+# gate that trips with "no API keys or providers found -- run: hermes
+# setup" when it sees no API_SERVER_KEY / OPENAI_API_KEY in its
+# environment (operator-confirmed 2026-06-14: `hermes` -> setup wizard
+# despite a seeded config.yaml at /var/home/mios/.hermes/config.yaml).
+#
+# WHY the gateway service didn't hit this: mios-gateway-agent.service loads
+# /etc/mios/hermes/api.env via EnvironmentFile=, so API_SERVER_KEY /
+# OPENAI_API_KEY are in the SERVICE's os.environ. The interactive CLI
+# runs as the operator and does NOT read /etc/mios/hermes/api.env --
+# it auto-loads ~/.hermes/.env. Seed THAT with the SAME key material
+# the service uses (single SSOT: the api.env this script generated
+# above) so the CLI's "configured?" gate passes and it never drops
+# into `hermes setup`.
+#
+# Architectural Law 5 (UNIFIED-AI-REDIRECTS) is preserved: the seeded
+# config.yaml pins provider=custom:local-llm at ${_AI_BACKEND}/v1
+# with api_key:"" (the local lane is keyless). This .env carries only
+# the gateway's OWN key (so the CLI can also auth to the local :8642
+# gateway) -- NO cloud provider, NO vendor URL is introduced.
+_api_key_val=""
+if [[ -r "$ENV_FILE" ]]; then
+    _api_key_val="$(awk -F= '/^API_SERVER_KEY=/{print $2; exit}' "$ENV_FILE" 2>/dev/null)"
 fi
+_op_env_should_seed() {
+    local f="$1"
+    [[ ! -f "$f" ]] && return 0
+    grep -q 'MiOS-managed' "$f" 2>/dev/null || return 1        # operator-owned, leave alone
+    # Re-seed if the current key isn't present (rotation/drift).
+    [[ -n "$_api_key_val" ]] && ! grep -qF "API_SERVER_KEY=${_api_key_val}" "$f" 2>/dev/null && return 0
+    return 1
+}
 
 # ── Hermes persona / grounding (SOUL.md) ────────────────────────────────
 # Hermes-Agent reloads $HERMES_HOME/SOUL.md fresh on EVERY message -- it
@@ -1344,16 +1268,6 @@ _soul_should_seed() {
 # operator-specific defaults (Discord channel/guild, etc.) as
 # authoritative context without us having to wedge them into the
 # vendor SOUL source. Empty values are simply omitted.
-#
-# CRITICAL: Hermes-Agent's prompt_builder has an `html_comment_
-# injection` guard that REFUSES to load ANY context file containing
-# HTML comments (<!-- ... -->). The earlier version of this block
-# used <!-- markers --> and broke SOUL.md loading entirely
-# ("WARNING agent.prompt_builder: Context file SOUL.md blocked:
-# html_comment_injection") -- the model then ran with NO MiOS
-# persona at all. The delimiter is plain ASCII text inside a fenced
-# code-block so it's still grep-able for the strip+re-append cycle
-# but the `<!--` token never appears in the rendered SOUL.
 SOUL_CTX_MARKER="### MIOS-RUNTIME-CONTEXT-BEGIN (managed by mios-hermes-firstboot; do not edit between markers)"
 SOUL_CTX_END="### MIOS-RUNTIME-CONTEXT-END"
 _build_soul_runtime_ctx() {
@@ -1376,83 +1290,24 @@ _build_soul_runtime_ctx() {
     printf '%s' "$out"
 }
 
-# Strip any prior appended context (everything from SOUL_CTX_MARKER on)
-# and re-append the current value. Idempotent: same context input = no
-# byte change after the strip+append. Used after the body-seed decision
-# so the context tracks mios.toml even when the body is "already current".
 _refresh_soul_ctx() {
     local target="$1" ctx="$2"
     [[ -f "$target" ]] || return 0
     local _tmp
     _tmp="$(mktemp)"
-    # Print up to (not including) the marker line; if marker absent,
-    # awk passes the whole file through.
     awk -v m="${SOUL_CTX_MARKER}" '
         { if (index($0, m) > 0) { exit } else { print } }
     ' "$target" > "$_tmp"
-    # Trim trailing blank lines from the body so the append is clean.
     awk 'BEGIN{n=0} { lines[NR]=$0; if ($0 != "") last=NR } END { for(i=1;i<=last;i++) print lines[i] }' "$_tmp" > "${_tmp}.trim"
     mv -f "${_tmp}.trim" "$_tmp"
     if [[ -n "$ctx" ]]; then
         printf '%s' "$ctx" >> "$_tmp"
     fi
-    # Preserve target perms/ownership
     cat "$_tmp" > "$target"
     rm -f "$_tmp"
 }
-if [[ -z "$SOUL_SRC" ]]; then
-    _log "WARN: hermes-soul.md source not found -- skipping SOUL.md seed"
-else
-    _soul_ctx="$(_build_soul_runtime_ctx)"
-    # Gateway service copy ($HERMES_HOME/SOUL.md, owned by mios-hermes).
-    _soul_svc="${HERMES_DATA}/SOUL.md"
-    if _soul_should_seed "$_soul_svc"; then
-        cp -f "$SOUL_SRC" "$_soul_svc"
-        chown 850:850 "$_soul_svc" 2>/dev/null || true
-        chmod 0644 "$_soul_svc" 2>/dev/null || true
-        _log "seeded $_soul_svc (hardened MiOS persona + grounding against fabricated output)"
-    else
-        _log "$_soul_svc body already current -- refreshing runtime context only"
-    fi
-    # ALWAYS reconcile the appended runtime context (Discord default
-    # channel, etc.) regardless of body-seed decision so a mios.toml
-    # edit propagates without a full re-seed.
-    _refresh_soul_ctx "$_soul_svc" "$_soul_ctx"
-
-    # Operator `hermes` CLI copy (reuses _op_user / _op_home from above).
-    if [[ -n "${_op_home:-}" && -d "${_op_home:-}" ]]; then
-        _soul_op="${_op_home}/.hermes/SOUL.md"
-        if _soul_should_seed "$_soul_op"; then
-            mkdir -p "${_op_home}/.hermes"
-            cp -f "$SOUL_SRC" "$_soul_op"
-            chown "$_op_user":"$_op_user" "$_soul_op" 2>/dev/null || true
-            chmod 0644 "$_soul_op" 2>/dev/null || true
-            _log "seeded operator SOUL.md $_soul_op (user=$_op_user)"
-        else
-            _log "operator SOUL.md $_soul_op body already current -- refreshing runtime context only"
-        fi
-        _refresh_soul_ctx "$_soul_op" "$_soul_ctx"
-    fi
-fi
 
 # ─── MiOS-managed Hermes skills ────────────────────────────────────────────
-# Hermes builds a system-prompt skill index from $HERMES_HOME/skills/<name>/
-# SKILL.md (and $HERMES_HOME/skills/<category>/<name>/SKILL.md). The model
-# sees each skill's frontmatter description in the index and decides when
-# to skill_view its body for the full playbook.
-#
-# MiOS ships skills under /usr/share/mios/hermes/skills/<name>/SKILL.md so
-# the OS can teach hermes patterns that the stock model wouldn't pick up
-# on its own (currently: parallel-fanout, which nudges the orchestrator
-# toward delegate_task on parallelizable work -- needed because
-# qwen3-coder:30b naturally serialised via terminal even when prompted).
-#
-# Seed each MiOS-shipped skill into BOTH the gateway service home AND the
-# operator's `hermes` CLI home, mirroring the SOUL.md seeding pattern.
-# Re-seed only when the target either doesn't exist OR is byte-identical-
-# minus-mtime to a previous MiOS shipment (marker check). Operators take
-# ownership by deleting the "MiOS-managed" marker comment in the file --
-# firstboot then leaves it alone forever.
 SKILLS_SRC_DIR=""
 for _c in /usr/share/mios/hermes/skills \
           "${MIOS_REPO:-}/usr/share/mios/hermes/skills"; do
@@ -1466,8 +1321,6 @@ _skill_should_seed() {
     return 0                                                   # MiOS-managed and stale -> reseed
 }
 _seed_one_skill() {
-    # $1=src SKILL.md, $2=dest dir (e.g., $HERMES_HOME/skills/parallel-fanout),
-    # $3=owner uid:gid string for chown.
     local src="$1" dest_dir="$2" owner="$3"
     local target="${dest_dir}/SKILL.md"
     if _skill_should_seed "$target" "$src"; then
@@ -1480,31 +1333,151 @@ _seed_one_skill() {
         _log "skill ${target} already current (or operator-customised) -- not overwriting"
     fi
 }
-if [[ -z "$SKILLS_SRC_DIR" ]]; then
-    _log "WARN: hermes skills source dir not found -- skipping skills seed"
-else
-    # Each subdir of SKILLS_SRC_DIR is one skill; its SKILL.md is the entry.
+
+# ─── Seed Gateway Copies ───────────────────────────────────────────────────
+_soul_ctx="$(_build_soul_runtime_ctx)"
+_soul_svc="${HERMES_DATA}/SOUL.md"
+if [[ -n "$SOUL_SRC" ]]; then
+    if _soul_should_seed "$_soul_svc"; then
+        cp -f "$SOUL_SRC" "$_soul_svc"
+        chown 850:850 "$_soul_svc" 2>/dev/null || true
+        chmod 0644 "$_soul_svc" 2>/dev/null || true
+        _log "seeded $_soul_svc (hardened MiOS persona + grounding against fabricated output)"
+    else
+        _log "$_soul_svc body already current -- refreshing runtime context only"
+    fi
+    _refresh_soul_ctx "$_soul_svc" "$_soul_ctx"
+fi
+
+if [[ -n "$SKILLS_SRC_DIR" ]]; then
     for _skill_src in "${SKILLS_SRC_DIR}"/*/SKILL.md; do
         [[ -e "$_skill_src" ]] || continue
         _skill_name="$(basename "$(dirname "$_skill_src")")"
-        # Gateway service copy ($HERMES_HOME/skills/<name>/SKILL.md).
-        # Owner = the hermes-agent sysuser (uid 850, NOT the stale 820).
         _seed_one_skill "$_skill_src" \
                         "${HERMES_DATA}/skills/${_skill_name}" \
                         "850:850"
-        # Operator `hermes` CLI copy (~/.hermes/skills/<name>/SKILL.md).
-        if [[ -n "${_op_home:-}" && -d "${_op_home:-}" ]]; then
-            _seed_one_skill "$_skill_src" \
-                            "${_op_home}/.hermes/skills/${_skill_name}" \
-                            "${_op_user}:${_op_user}"
-        fi
     done
-    # Tell hermes to drop its in-process skills-prompt cache so the
-    # newly-seeded skills appear in the next chat turn's system prompt
-    # without a service restart. The cache key is mtime/size of every
-    # SKILL.md in $HERMES_HOME/skills, so touching a marker file in the
-    # skills dir invalidates the disk snapshot. The simpler hammer: if
-    # any skill was actually seeded above, restart the service.
+fi
+
+# ─── Seed Operator/User CLI Copies ──────────────────────────────────────────
+# Seed for all operator users (the configured user, mios, and root)
+for _u in $(printf '%s\n' "$_op_user" "mios" "root" | sort -u); do
+    _u_home="$(getent passwd "$_u" 2>/dev/null | cut -d: -f6)"
+    [[ -z "$_u_home" || ! -d "$_u_home" ]] && continue
+
+    _u_cfg_dir="${_u_home}/.hermes"
+    _u_cfg="${_u_cfg_dir}/config.yaml"
+    _u_env="${_u_cfg_dir}/.env"
+    _soul_op="${_u_cfg_dir}/SOUL.md"
+
+    # Seed config.yaml
+    if _op_cfg_should_reseed "$_u_cfg"; then
+        mkdir -p "$_u_cfg_dir"
+        if MIOS_AGENT_ENDPOINT="$_AGENT_ENDPOINT" MIOS_AGENT_MODEL="$_AGENT_MODEL" \
+           python3 - "$HERMES_DATA_CFG" "$_u_cfg" <<'EOF'
+import sys, os, yaml
+src, dst = sys.argv[1], sys.argv[2]
+with open(src) as fh:
+    d = yaml.safe_load(fh) or {}
+ep = os.environ["MIOS_AGENT_ENDPOINT"].rstrip("/")
+model = os.environ["MIOS_AGENT_MODEL"]
+m = d.get("model") if isinstance(d.get("model"), dict) else {}
+m["provider"] = "custom:mios-orchestrator"   # resolves against custom_providers below
+m["default"]  = model
+m["base_url"] = ep
+m["api_key"]  = ""
+m.pop("fallback_model", None)                # orchestrator owns fallback server-side
+d["model"] = m
+cps = d.get("custom_providers")
+if not isinstance(cps, list):
+    cps = []
+if not any(isinstance(c, dict) and c.get("name") == "mios-orchestrator" for c in cps):
+    cps.append({"name": "mios-orchestrator", "base_url": ep, "api_key": ""})
+d["custom_providers"] = cps
+d["toolsets"] = []                           # tools run SERVER-SIDE in the orchestrator
+mcp = d.get("mcp_servers")
+if isinstance(mcp, dict):
+    for v in mcp.values():
+        if isinstance(v, dict):
+            v["enabled"] = False             # no per-session MCP spawn for the thin REPL
+with open(dst, "w") as fh:
+    yaml.safe_dump(d, fh, sort_keys=False, default_flow_style=False)
+print("ok")
+EOF
+        then
+            chown -R "${_u}":"${_u}" "$_u_cfg_dir" 2>/dev/null || true
+            chmod 0700 "$_u_cfg_dir" 2>/dev/null || true
+            chmod 0600 "$_u_cfg" 2>/dev/null || true
+            _log "seeded operator CLI config $_u_cfg as THIN orchestrator client (${_AGENT_MODEL} @ ${_AGENT_ENDPOINT})"
+        else
+            cp -f "$HERMES_DATA_CFG" "$_u_cfg"
+            chown -R "${_u}":"${_u}" "$_u_cfg_dir" 2>/dev/null || true
+            chmod 0700 "$_u_cfg_dir" 2>/dev/null || true
+            chmod 0600 "$_u_cfg" 2>/dev/null || true
+            _log "WARN: thin-client transform failed -- copied leaf config to $_u_cfg as fallback"
+        fi
+    else
+        _log "operator CLI config $_u_cfg already current (thin :8640 client) -- not overwriting"
+    fi
+
+    # Seed .env
+    if [[ -z "$_api_key_val" ]]; then
+        _log "WARN: no API_SERVER_KEY in $ENV_FILE -- skipping operator CLI .env seed for $_u"
+    elif _op_env_should_seed "$_u_env"; then
+        mkdir -p "$_u_cfg_dir"
+        umask 0077
+        cat > "$_u_env" <<EOF
+# ${_u_env} -- MiOS-managed by mios-hermes-firstboot.
+# Auto-loaded by the interactive \`hermes\` CLI so it never drops into the
+# \`hermes setup\` wizard ("no API keys or providers found"). Mirrors the
+# key material in /etc/mios/hermes/api.env (the gateway service's
+# EnvironmentFile=). The provider itself is the LOCAL lane -- see
+# ${_u_cfg} (provider: custom:local-llm -> ${_AI_BACKEND}/v1).
+# To take ownership: delete this "MiOS-managed" marker line and edit.
+API_SERVER_KEY=${_api_key_val}
+OPENAI_API_KEY=${_api_key_val}
+EOF
+        umask 0022
+        chown "${_u}":"${_u}" "$_u_env" 2>/dev/null || true
+        chmod 0600 "$_u_env" 2>/dev/null || true
+        _log "seeded operator CLI key material $_u_env (user=$_u, local lane)"
+    else
+        _log "operator CLI .env $_u_env already current -- not overwriting"
+    fi
+
+    # Seed SOUL.md
+    if [[ -n "$SOUL_SRC" ]]; then
+        if _soul_should_seed "$_soul_op"; then
+            mkdir -p "$_u_cfg_dir"
+            cp -f "$SOUL_SRC" "$_soul_op"
+            chown "${_u}":"${_u}" "$_soul_op" 2>/dev/null || true
+            chmod 0644 "$_soul_op" 2>/dev/null || true
+            _log "seeded operator SOUL.md $_soul_op (user=$_u)"
+        else
+            _log "operator SOUL.md $_soul_op body already current -- refreshing runtime context only"
+        fi
+        _refresh_soul_ctx "$_soul_op" "$_soul_ctx"
+    fi
+
+    # Seed skills
+    if [[ -n "$SKILLS_SRC_DIR" ]]; then
+        for _skill_src in "${SKILLS_SRC_DIR}"/*/SKILL.md; do
+            [[ -e "$_skill_src" ]] || continue
+            _skill_name="$(basename "$(dirname "$_skill_src")")"
+            _seed_one_skill "$_skill_src" \
+                            "${_u_cfg_dir}/skills/${_skill_name}" \
+                            "${_u}:${_u}"
+        done
+    fi
+done
+
+# Tell hermes to drop its in-process skills-prompt cache so the
+# newly-seeded skills appear in the next chat turn's system prompt
+# without a service restart. The cache key is mtime/size of every
+# SKILL.md in $HERMES_HOME/skills, so touching a marker file in the
+# skills dir invalidates the disk snapshot. The simpler hammer: if
+# any skill was actually seeded above, restart the service.
+if [[ -n "$SKILLS_SRC_DIR" ]]; then
     if systemctl is-active --quiet mios-gateway-agent.service \
        && find "${HERMES_DATA}/skills" -newer "${HERMES_DATA}/SOUL.md" -name SKILL.md 2>/dev/null | grep -q .; then
         _log "skill content changed -- restarting mios-gateway-agent.service to refresh skills index"
