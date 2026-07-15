@@ -32,10 +32,30 @@ RemainAfterExit=yes
 # AdGuard DNS needs BOTH 53/tcp and 53/udp (UDP is the normal query path).
 ExecStart=/bin/bash -c '\
     set +e; \
-    for p in 3000 3030 8080 8642 8888 9090 9119 11450 5432 19090 3053 53; do \
-        /usr/bin/firewall-cmd --add-port=$${p}/tcp --permanent >/dev/null 2>&1; \
+    if [ -f /etc/mios/install.env ]; then source /etc/mios/install.env; fi; \
+    ports=(\
+        "${MIOS_PORT_FORGE_HTTP:-8300}" \
+        "${MIOS_PORT_OPEN_WEBUI:-8033}" \
+        "${MIOS_PORT_CODE_SERVER:-8800}" \
+        "${MIOS_PORT_HERMES:-8642}" \
+        "${MIOS_PORT_SEARXNG:-8899}" \
+        "${MIOS_PORT_COCKPIT:-8090}" \
+        "${MIOS_PORT_HERMES_DASHBOARD:-8119}" \
+        "${MIOS_PORT_LLM_LIGHT:-8450}" \
+        "${MIOS_PORT_PGVECTOR:-8432}" \
+        "${MIOS_PORT_COCKPIT_LINK:-8091}" \
+        "${MIOS_PORT_ADGUARD_UI:-8053}" \
+        "${MIOS_PORT_SSH:-8222}" \
+        "${MIOS_PORT_FORGE_SSH:-8301}" \
+        "${MIOS_PORT_VLLM:-8441}" \
+        "${MIOS_PORT_SGLANG:-8442}" \
+        "${MIOS_PORT_CPU_NODE:-8458}" \
+        53 \
+    ); \
+    for p in "$${ports[@]}"; do \
+        /usr/bin/firewall-cmd --permanent --add-port=$${p}/tcp >/dev/null 2>&1; \
     done; \
-    /usr/bin/firewall-cmd --add-port=53/udp --permanent >/dev/null 2>&1; \
+    /usr/bin/firewall-cmd --permanent --add-port=53/udp >/dev/null 2>&1; \
     /usr/bin/firewall-cmd --reload >/dev/null 2>&1; \
     echo "MiOS firewalld ports: $$(/usr/bin/firewall-cmd --list-ports 2>/dev/null)"; \
     exit 0'
