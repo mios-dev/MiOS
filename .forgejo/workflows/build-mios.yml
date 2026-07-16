@@ -89,10 +89,7 @@ jobs:
         # nothing and unblocks the FROM in Containerfile. Skipped silently
         # if the secrets aren't configured (build can still succeed if
         # GHCR's anonymous pool happens to have headroom that minute).
-        if: env.GHCR_TOKEN != ''
-        env:
-          GHCR_USER: ${{ secrets.GHCR_USER }}
-          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+        if: ${{ secrets.GHCR_TOKEN != '' }}
         run: |
           echo "$GHCR_TOKEN" | podman login ghcr.io \
               -u "$GHCR_USER" --password-stdin
@@ -155,10 +152,7 @@ jobs:
           echo "Apply now: sudo bootc upgrade --apply"
 
       - name: Optional - mirror to GHCR
-        if: ${{ env.GHCR_TOKEN != '' }}
-        env:
-          GHCR_USER: ${{ secrets.GHCR_USER }}
-          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+        if: ${{ secrets.GHCR_TOKEN != '' }}
         run: |
           set -euo pipefail
           podman login -u "${GHCR_USER}" -p "${GHCR_TOKEN}" ghcr.io

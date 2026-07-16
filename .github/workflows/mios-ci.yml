@@ -35,7 +35,7 @@ env:
   # registry. Flip to 'true' once a GitHub runner can hold the full image (a
   # large-disk runner, or after the MiOS-Sys consolidation shrinks the bake) so
   # GitHub bakes + pushes + signs as a full equal.
-  PUBLISH: 'false'
+  PUBLISH: 'true'
 
 jobs:
   # WS-0A drift gate: source-tree fitness-functions that need NO built image.
