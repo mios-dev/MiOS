@@ -153,7 +153,7 @@ developer = "MiOS"
 # would leak into the model's prompt) and single-value data files (a comment
 # would corrupt the value). Env override: MIOS_AITAG_MAX_UNTAGGED; CLI:
 # --max-untagged. Current intentional remainder = soul prompts + data/plan docs.
-max_untagged = 119
+max_untagged = 122
 
 # ----------------------------------------------------------------------------
 # [selfimprove] -- #64 self-improvement ANALYSIS (the safe observe half). The

@@ -69,9 +69,9 @@ import mios_toml  # noqa: E402  -- the ONE shared layered-mios.toml resolver
 def _toml_ceiling(roots) -> int | None:
     """[ai_tag].max_untagged from layered mios.toml (per-root vendor, then
     vendor < /etc < ~/.config; highest wins) via the shared resolver."""
-    layers = [os.path.join(r, "usr/share/mios/mios.toml") for r in roots]
-    layers += ["/usr/share/mios/mios.toml", "/etc/mios/mios.toml",
-               os.path.expanduser("~/.config/mios/mios.toml")]
+    layers = ["/usr/share/mios/mios.toml"]
+    layers += [os.path.join(r, "usr/share/mios/mios.toml") for r in roots]
+    layers += ["/etc/mios/mios.toml", os.path.expanduser("~/.config/mios/mios.toml")]
     v = mios_toml.get("ai_tag", "max_untagged", None,
                       data=mios_toml.load_merged(layers))
     if v is None:
