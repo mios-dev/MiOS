@@ -111,6 +111,16 @@ else
     log "aleasto/waydroid COPR already present -- skipping"
 fi
 
+# ── Hyprland (solopasha) ─────────────────────────────────────────────────
+if ! [ -f /etc/yum.repos.d/_copr:copr.fedorainfracloud.org:solopasha:hyprland.repo ]; then
+    log "enabling solopasha/hyprland COPR (explicit fedora-44-x86_64 chroot)"
+    if ! $DNF_BIN "${DNF_SETOPT[@]}" copr enable -y solopasha/hyprland fedora-44-x86_64 2>/dev/null; then
+        warn "solopasha/hyprland COPR enable failed -- skipping"
+    fi
+else
+    log "solopasha/hyprland COPR already present -- skipping"
+fi
+
 # ── Tailscale ────────────────────────────────────────────────────────────
 # ucore:stable ships tailscale but its version can lag. Using the official
 # Tailscale repo keeps it at the latest stable regardless of ucore cadence.

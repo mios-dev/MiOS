@@ -7008,9 +7008,7 @@ pkgs = [
 
 [packages.sbom-tools]
 enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
-pkgs = [
-    "syft",
-]
+pkgs = []
 
 [packages.k3s-selinux-build]
 enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
@@ -7461,7 +7459,7 @@ pkgs = [
 [packages.hyprland]
 enable = true
 pkgs = [
-    "hyprland",
+    "hyprland-git",
     "xorg-x11-server-Xwayland",
     "wayland-protocols-devel",
     "grim",
@@ -7534,7 +7532,6 @@ pkgs = [
     "lsof",
     "iotop",
     "socat",
-    "syft",
     "oras-cli",
 ]
 
