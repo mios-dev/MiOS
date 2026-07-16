@@ -5,8 +5,12 @@
 # AI-related: usr/share/mios/mios.toml, tools/generate-bake-plan.py, usr/libexec/mios/mios-bake-group, automation/38-drift-checks.sh
 set -euo pipefail
 
+_self="${BASH_SOURCE[0]}"
+_self_dir="$(cd "$(dirname "$_self")" && pwd)"
+ROOT="$(cd "$_self_dir/.." && pwd)"
+
 # shellcheck source=lib/common.sh
-source "$(dirname "$0")/lib/common.sh" 2>/dev/null || {
+source "$_self_dir/lib/common.sh" 2>/dev/null || {
     printf '[MiOS Bake] WARN: lib/common.sh unavailable -- skipping\n' >&2
     exit 0
 }
