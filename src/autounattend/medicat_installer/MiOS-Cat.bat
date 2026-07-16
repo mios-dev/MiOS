@@ -8,16 +8,8 @@ if not exist "%toml_path%" set "toml_path=%~dp0..\..\..\..\..\mios.toml"
 
 set "drivepath=D"
 set "medicatver=21.12"
-for /f "usebackq tokens=*" %%i in ("powershell -NoProfile -Command "$v = (Get-Volume | Where-Object { @echo off
-title MiOS-Cat Dedicated USB Installer
-cd /d %~dp0
-set "maindir=%CD%"
-:: Resolve dynamic configuration from mios.toml (SSOT)
-set "toml_path=%~dp0..\..\..\..\mios.toml"
-if not exist "%toml_path%" set "toml_path=%~dp0..\..\..\..\..\mios.toml"
-
-set "drivepath=D"
-set "medicatver=21.12"
+for /f "usebackq tokens=*" %%i in (`powershell -NoProfile -Command "$v = (Get-Volume ^| Where-Object { $_.DriveType -eq 'Fixed' -and $_.SizeRemaining -gt 25GB } ^| Sort-Object SizeRemaining -Descending ^| Select-Object -First 1); if ($v) { $v.DriveLetter + ':\MiOS\medicat_stage' } else { $env:TEMP + '\medicat_stage' }"`) do set "stage_dir=%%i"
+mkdir "%stage_dir%" >nul 2>&1
 set "file=M:\MediCat.USB.v21.12.7z"
 set "bg_color=#282262"
 set "fg_color=#E7DFD3"
@@ -510,8 +502,6 @@ copy "%maindir%\resources\theme\uefi\background.jpg" "%drivepath%:\System\Antivi
 
 :: Write autorun.inf for USB drive branding and custom icon
 echo Injecting custom USB drive branding and icons...
-attrib -r -h -s "%drivepath%:\autorun.inf" >nul 2>&1
-attrib -r -h -s "%drivepath%:\icon.ico" >nul 2>&1
 (
 echo [Autorun]
 echo Icon=icon.ico
@@ -751,3 +741,5 @@ echo ==========================================================
 echo Drive %drivepath%: is now ready to boot into MiOS-Cat!
 echo ==========================================================
 pause
+
+
