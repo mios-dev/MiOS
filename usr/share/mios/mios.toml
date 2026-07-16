@@ -7475,6 +7475,7 @@ pkgs = [
     "qt6-qtbase-devel",
     "qt6-qtdeclarative-devel",
     "qt6-qtwayland-devel",
+    "qt6-qtshadertools-devel",
     "libpipewire-devel"
 ]
 

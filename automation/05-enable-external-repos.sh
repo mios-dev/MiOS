@@ -25,6 +25,47 @@ set -euo pipefail
 # shellcheck source=lib/common.sh
 source "$(dirname "$0")/lib/common.sh"
 
+# enable_copr <repo-name> [<fallback-chroot>]
+# Enables a COPR repository. Auto-detects the active Fedora version to handle
+# custom OS ID (MiOS) modifications gracefully.
+enable_copr() {
+    local repo="$1"
+    local fallback_chroot="${2:-}"
+    
+    log "enabling COPR repo: $repo"
+    # 1. Try native auto-detection first
+    if $DNF_BIN "${DNF_SETOPT[@]}" copr enable -y "$repo" 2>/dev/null; then
+        return 0
+    fi
+    
+    # 2. If it fails (e.g. because ID=mios), try to detect the underlying Fedora version
+    local fedora_ver=""
+    if [ -f /etc/os-release ]; then
+        fedora_ver=$(grep -oP 'platform:f\K[0-9]+' /etc/os-release || true)
+    fi
+    if [ -z "$fedora_ver" ] && command -v rpm &>/dev/null; then
+        fedora_ver=$(rpm -q --qf '%{VERSION}' fedora-release 2>/dev/null | grep -oE '[0-9]+' | head -1 || true)
+    fi
+    
+    # 3. If we found a version, retry with that chroot
+    if [ -n "$fedora_ver" ]; then
+        log "detected Fedora version $fedora_ver, retrying COPR with explicit chroot"
+        if $DNF_BIN "${DNF_SETOPT[@]}" copr enable -y "$repo" "fedora-${fedora_ver}-x86_64" 2>/dev/null; then
+            return 0
+        fi
+    fi
+    
+    # 4. If a default fallback was provided, try that
+    if [ -n "$fallback_chroot" ]; then
+        log "retrying COPR with fallback chroot: $fallback_chroot"
+        if $DNF_BIN "${DNF_SETOPT[@]}" copr enable -y "$repo" "$fallback_chroot" 2>/dev/null; then
+            return 0
+        fi
+    fi
+    
+    return 1
+}
+
 REPO_DIR=/etc/yum.repos.d
 
 # Best-effort policy. Every external repo enable here is non-critical:
@@ -103,20 +144,14 @@ fi
 
 # ── Waydroid (Aleasto) ───────────────────────────────────────────────────
 if ! [ -f /etc/yum.repos.d/_copr:copr.fedorainfracloud.org:aleasto:waydroid.repo ]; then
-    log "enabling aleasto/waydroid COPR (GNOME 50 fix)"
-    if ! $DNF_BIN "${DNF_SETOPT[@]}" copr enable -y aleasto/waydroid 2>/dev/null; then
-        warn "aleasto/waydroid COPR enable failed -- skipping (GNOME 50 fix unavailable)"
-    fi
+    enable_copr "aleasto/waydroid" "fedora-44-x86_64" || warn "aleasto/waydroid COPR enable failed -- skipping (GNOME 50 fix unavailable)"
 else
     log "aleasto/waydroid COPR already present -- skipping"
 fi
 
 # ── Hyprland (solopasha) ─────────────────────────────────────────────────
 if ! [ -f /etc/yum.repos.d/_copr:copr.fedorainfracloud.org:solopasha:hyprland.repo ]; then
-    log "enabling solopasha/hyprland COPR (explicit fedora-44-x86_64 chroot)"
-    if ! $DNF_BIN "${DNF_SETOPT[@]}" copr enable -y solopasha/hyprland fedora-44-x86_64 2>/dev/null; then
-        warn "solopasha/hyprland COPR enable failed -- skipping"
-    fi
+    enable_copr "solopasha/hyprland" "fedora-44-x86_64" || warn "solopasha/hyprland COPR enable failed -- skipping"
 else
     log "solopasha/hyprland COPR already present -- skipping"
 fi

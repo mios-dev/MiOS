@@ -13,6 +13,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # before (degrade-open).
 # shellcheck source=lib/common.sh
 source "${SCRIPT_DIR}/lib/common.sh" 2>/dev/null || true
+source "${SCRIPT_DIR}/lib/packages.sh"
+install_packages "ai"
 
 echo "[56-bake-surfer] Preparing surfer directory..."
 SURFER_BUILD_DIR="/tmp/surfer-build"
