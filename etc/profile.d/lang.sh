@@ -9,20 +9,20 @@ unset LANG_backup
 # explicit user configuration. We simply check if locale emits any
 # warnings, and assume that the settings are invalid if it does.
 if [ -n "$(/usr/bin/locale 2>&1 1>/dev/null)" ]; then
-    [ -z "$LANG" ] || LANG=C.UTF-8
+    [ -z "$LANG" ] || LANG=C.utf8
     unset LC_ALL
-    LC_CTYPE="C.UTF-8"
-    LC_NUMERIC="C.UTF-8"
-    LC_TIME="C.UTF-8"
-    LC_COLLATE="C.UTF-8"
-    LC_MONETARY="C.UTF-8"
-    LC_MESSAGES="C.UTF-8"
-    LC_PAPER="C.UTF-8"
-    LC_NAME="C.UTF-8"
-    LC_ADDRESS="C.UTF-8"
-    LC_TELEPHONE="C.UTF-8"
-    LC_MEASUREMENT="C.UTF-8"
-    LC_IDENTIFICATION="C.UTF-8"
+    LC_CTYPE="C.utf8"
+    LC_NUMERIC="C.utf8"
+    LC_TIME="C.utf8"
+    LC_COLLATE="C.utf8"
+    LC_MONETARY="C.utf8"
+    LC_MESSAGES="C.utf8"
+    LC_PAPER="C.utf8"
+    LC_NAME="C.utf8"
+    LC_ADDRESS="C.utf8"
+    LC_TELEPHONE="C.utf8"
+    LC_MEASUREMENT="C.utf8"
+    LC_IDENTIFICATION="C.utf8"
 else
     LANG_backup="${LANG}"
 fi

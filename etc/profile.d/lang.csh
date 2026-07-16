@@ -10,21 +10,21 @@ unset LANG_backup
 set locale_error=`(/usr/bin/locale >/dev/null) |& cat`
 if ("${locale_error}" != "") then
     if (${?LANG}) then
-        setenv LANG C.UTF-8
+        setenv LANG C.utf8
     endif
     unsetenv LC_ALL
-    setenv LC_CTYPE C.UTF-8
-    setenv LC_NUMERIC C.UTF-8
-    setenv LC_TIME C.UTF-8
-    setenv LC_COLLATE C.UTF-8
-    setenv LC_MONETARY C.UTF-8
-    setenv LC_MESSAGES C.UTF-8
-    setenv LC_PAPER C.UTF-8
-    setenv LC_NAME C.UTF-8
-    setenv LC_ADDRESS C.UTF-8
-    setenv LC_TELEPHONE C.UTF-8
-    setenv LC_MEASUREMENT C.UTF-8
-    setenv LC_IDENTIFICATION C.UTF-8
+    setenv LC_CTYPE C.utf8
+    setenv LC_NUMERIC C.utf8
+    setenv LC_TIME C.utf8
+    setenv LC_COLLATE C.utf8
+    setenv LC_MONETARY C.utf8
+    setenv LC_MESSAGES C.utf8
+    setenv LC_PAPER C.utf8
+    setenv LC_NAME C.utf8
+    setenv LC_ADDRESS C.utf8
+    setenv LC_TELEPHONE C.utf8
+    setenv LC_MEASUREMENT C.utf8
+    setenv LC_IDENTIFICATION C.utf8
 else
     if (${?LANG}) then
         set LANG_backup=${LANG}
