@@ -807,3 +807,11 @@ etc/profile.d/80-systemd-osc-context.sh
 # explicit operator authorization. Tracked so it survives builds.
 !/etc/sudoers.d/
 !/etc/sudoers.d/10-mios-hermes
+
+# Whitelist Windows host installer directory
+!/src/
+/src/*
+!/src/autounattend/
+/src/autounattend/*
+!/src/autounattend/medicat_installer/
+

@@ -16,6 +16,10 @@ echo "==> Applying 'MiOS' system service fixes..."
 if [ -f /etc/usbguard/usbguard-daemon.conf ]; then
     chmod 0600 /etc/usbguard/usbguard-daemon.conf
 fi
+if [ -f /etc/usbguard/rules.conf ]; then
+    chmod 0600 /etc/usbguard/rules.conf
+fi
+
 
 # 2. Fix 203/EXEC for custom 'MiOS' services
 # Log trace: mios-role.service & mios-cdi-detect.service exited 203/EXEC
