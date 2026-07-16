@@ -29,18 +29,22 @@ VERSION=$(cat /ctx/VERSION 2>/dev/null || grep -m1 -E '^[[:space:]]*mios_version
 echo "[90-generate-sbom] Scanning root filesystem..."
 
 # Generate CycloneDX (JSON) - Primary for AI and automation
-syft scan dir:/ \
+if ! syft scan dir:/ \
     --output cyclonedx-json \
     --file "${ARTIFACT_DIR}/mios-sbom-${VERSION}.cyclonedx.json" \
     --exclude "/ctx" \
-    --exclude "/var/cache"
+    --exclude "/var/cache"; then
+    echo "[90-generate-sbom] WARN: CycloneDX SBOM generation failed (non-fatal)."
+fi
 
 # Generate SPDX (Tag-Value) - Standard compliance
-syft scan dir:/ \
+if ! syft scan dir:/ \
     --output spdx-tag-value \
     --file "${ARTIFACT_DIR}/mios-sbom-${VERSION}.spdx.txt" \
     --exclude "/ctx" \
-    --exclude "/var/cache"
+    --exclude "/var/cache"; then
+    echo "[90-generate-sbom] WARN: SPDX SBOM generation failed (non-fatal)."
+fi
 
 echo "[90-generate-sbom] SBOMs generated in ${ARTIFACT_DIR}:"
 ls -lh "$ARTIFACT_DIR"

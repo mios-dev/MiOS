@@ -149,11 +149,11 @@ else
     log "aleasto/waydroid COPR already present -- skipping"
 fi
 
-# ── Hyprland (solopasha) ─────────────────────────────────────────────────
-if ! [ -f /etc/yum.repos.d/_copr:copr.fedorainfracloud.org:solopasha:hyprland.repo ]; then
-    enable_copr "solopasha/hyprland" "fedora-44-x86_64" || warn "solopasha/hyprland COPR enable failed -- skipping"
+# ── Hyprland (nett00n) ───────────────────────────────────────────────────
+if ! [ -f /etc/yum.repos.d/_copr:copr.fedorainfracloud.org:nett00n:hyprland.repo ]; then
+    enable_copr "nett00n/hyprland" "fedora-44-x86_64" || warn "nett00n/hyprland COPR enable failed -- skipping"
 else
-    log "solopasha/hyprland COPR already present -- skipping"
+    log "nett00n/hyprland COPR already present -- skipping"
 fi
 
 # ── Tailscale ────────────────────────────────────────────────────────────

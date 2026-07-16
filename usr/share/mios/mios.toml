@@ -7459,7 +7459,7 @@ pkgs = [
 [packages.hyprland]
 enable = true
 pkgs = [
-    "hyprland-git",
+    "hyprland",
     "xorg-x11-server-Xwayland",
     "wayland-protocols-devel",
     "grim",
@@ -7476,7 +7476,14 @@ pkgs = [
     "qt6-qtdeclarative-devel",
     "qt6-qtwayland-devel",
     "qt6-qtshadertools-devel",
-    "libpipewire-devel"
+    "qt6-qtbase-private-devel",
+    "pipewire-devel",
+    "cli11-devel",
+    "libdrm-devel",
+    "cpptrace-devel",
+    "mesa-libgbm-devel",
+    "polkit-devel",
+    "jemalloc-devel"
 ]
 
 [packages.utils]
