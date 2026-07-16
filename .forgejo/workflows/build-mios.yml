@@ -26,6 +26,9 @@ on:
 jobs:
   build:
     runs-on: mios-self-hosted
+    env:
+      GHCR_USER: ${{ secrets.GHCR_USER }}
+      GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
     steps:
       - name: Checkout (live working tree of /)
         uses: actions/checkout@v4
