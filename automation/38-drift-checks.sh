@@ -3215,6 +3215,10 @@ check_roadmap_index() {
         echo "[38-drift-checks]   WARNING: python3 missing -- skipping roadmap index check" >&2
         return 0
     fi
+    if [[ ! -f "$ROOT/ROADMAP.md" ]]; then
+        echo "[38-drift-checks]   (36) ROADMAP.md not found -- skipping roadmap index check"
+        return 0
+    fi
     if python3 "$ROOT/tools/roadmap-index.py" --check; then
         echo "[38-drift-checks]   (36) roadmap index in sync with frontmatter metadata"
     else
