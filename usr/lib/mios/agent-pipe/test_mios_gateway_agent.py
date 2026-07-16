@@ -46,6 +46,10 @@ class MockPsycopg:
 class TestGatewayAgent(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        try:
+            import smolagents
+        except ImportError:
+            raise unittest.SkipTest("missing smolagents library")
         # Override psycopg lazy loader inside session_db with a mock
         MockPsycopg.setup_mock()
         sys.modules["psycopg"] = MockPsycopg

@@ -110,6 +110,7 @@ jobs:
           fi
           podman build \
               "${BUILD_ARGS[@]}" \
+              --retry 5 --retry-delay 3s \
               -f Containerfile \
               -t "localhost/mios:latest" \
               -t "localhost/mios:${{ steps.tag.outputs.image_tag }}" \

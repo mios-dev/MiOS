@@ -131,6 +131,15 @@ if [ ! -f "${MODELS}/.ready" ]; then
     install -d -m 0755 "${MODELS}" /var/lib/mios/llamacpp/slots 2>/dev/null
     SPEC="${MIOS_LLAMACPP_BAKE_MODELS:-}"
     if [ -z "$SPEC" ]; then
+        log "GGUFs not baked + [llamacpp].bake_models empty -- using Day-0 default post-deploy model (lfm2-700m.gguf + embeddinggemma-300m-qat-q8_0.gguf) to ensure embeddings + basic inference function"
+        # VRAM/size tradeoffs:
+        # - lfm2-700m (micro/CPU lane reasoning, ~0.7GB size, ~0.7GB VRAM): Extremely lightweight and fast, but python-specific tool call formatting.
+        # - embeddinggemma-300m-qat-q8_0 (Google EmbeddingGemma QAT, ~0.5GB size, ~0.5GB VRAM): Tiny footprint, native 768d vector compatibility.
+        # - granite-4.1-8b (brain, ~5.5GB size, ~8GB VRAM with 32k KV): Full tool-use reasoning capabilities, but heavy to download/run on low-end.
+        SPEC="lfm2-700m.gguf=LiquidAI/LFM2-700M-GGUF:LFM2-700M-Q4_K_M.gguf,embeddinggemma-300m-qat-q8_0.gguf=ggml-org/embeddinggemma-300m-qat-q8_0-GGUF:embeddinggemma-300m-qat-Q8_0.gguf"
+    fi
+
+    if [ -z "$SPEC" ]; then
         log "GGUFs not baked + [llamacpp].bake_models empty -- mios-llm-light lane stays inert (set bake_models + rebuild, or seed ${MODELS} manually)"
     else
         fetched=0; total=0

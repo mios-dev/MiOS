@@ -1,7 +1,22 @@
 # AI-hint: stdlib unit test for secrets and PII redaction (AGY-8).
 # Verifies redaction of API keys, email addresses, and MIOS_* env credentials.
 import unittest
-import psycopg
+try:
+    import psycopg
+except ImportError:
+    psycopg = None
+
+def setUpModule():
+    if psycopg is None:
+        raise unittest.SkipTest("no live pgvector -- integration test")
+    port = os.environ.get("MIOS_PORT_PGVECTOR", "8432")
+    conn_str = f"postgresql://mios:mios@localhost:{port}/mios"
+    try:
+        with psycopg.connect(conn_str, connect_timeout=1):
+            pass
+    except Exception:
+        raise unittest.SkipTest("no live pgvector -- integration test")
+
 from mios_pipe.redact import redact
 from mios_pg import execute as pg_execute
 

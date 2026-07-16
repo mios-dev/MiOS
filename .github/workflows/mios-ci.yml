@@ -240,6 +240,7 @@ jobs:
           # hold the full image (large-disk runner, or after MiOS-Sys shrinks it).
           sudo TMPDIR=/mnt/tmp podman build \
               "${BUILD_ARGS[@]}" \
+              --retry 5 --retry-delay 3s \
               --build-arg MIOS_BAKE_BOUND_IMAGES=${{ env.PUBLISH == 'true' && '1' || '0' }} \
               -f Containerfile \
               -t "localhost/mios:latest" \

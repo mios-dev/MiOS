@@ -9299,6 +9299,7 @@ MIOS_URL_CROWDSEC_REPO = "https://packagecloud.io/crowdsec/crowdsec/config_file.
 MIOS_URL_BIBATA_API = "https://api.github.com/repos/ful1e5/Bibata_Cursor/releases/latest"
 MIOS_URL_BIBATA_DL = "https://github.com/ful1e5/Bibata_Cursor/releases/download/v{}/Bibata-Modern-Classic.tar.xz"
 MIOS_URL_BIBATA_SUM = "https://github.com/ful1e5/Bibata_Cursor/releases/download/v{}/sha256-{}.txt"
+
 [finetune]
 # Fine-tune subsystem -- distil a strong LOCAL teacher model into a small, fast
 # MiOS role model via LoRA/SFT, then ship the adapter as a GGUF for the llama.cpp

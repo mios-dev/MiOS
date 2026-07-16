@@ -3,11 +3,23 @@ import sys
 import os
 import unittest
 import json
-import psycopg
-from psycopg.rows import dict_row
+try:
+    import psycopg
+    from psycopg.rows import dict_row
+except ImportError:
+    psycopg = None
+    dict_row = None
 
-# Ensure /usr/lib/mios is in path
-sys.path.insert(0, "/usr/lib/mios")
+def setUpModule():
+    if psycopg is None:
+        raise unittest.SkipTest("no live pgvector -- integration test")
+    port = os.environ.get("MIOS_PORT_PGVECTOR", "8432")
+    conn_str = f"postgresql://mios:mios@localhost:{port}/mios"
+    try:
+        with psycopg.connect(conn_str, connect_timeout=1):
+            pass
+    except Exception:
+        raise unittest.SkipTest("no live pgvector -- integration test")
 
 class TestMiosConfigAudit(unittest.TestCase):
 
