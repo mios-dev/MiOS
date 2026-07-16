@@ -763,7 +763,8 @@ exempt_files = [
     ".*build-mios\\.ps1$",
     ".*Get-MiOS\\.ps1$",
     ".*patch_pods\\.py$",
-    ".*mios-fix-wslg\\.ps1$"
+    ".*mios-fix-wslg\\.ps1$",
+    ".*MiOS-Cat-FileChecker\\.ps1$"
 ]
 exempt_patterns = [
     "0\\.0\\.0\\.0",
