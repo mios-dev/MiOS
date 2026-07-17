@@ -602,6 +602,14 @@ transform:translateZ(0)}
    iframe. ttyd auto-fits its terminal to the iframe box, so there is no custom
    xterm, no FitAddon, no 1-column "rotated" text. Shorter box than a website. */
 .card.term.exp .embed-box{height:360px}
+/* System Config status card (WS-CONFIG): a read-only health summary, not a
+   clickable disclosure -- neutralise the service-card hover-lift + reuse the
+   modal .kv rows for the key/value lines. */
+#cfgcard{cursor:default;border-left-color:var(--info)}
+#cfgcard:hover{transform:none;border-color:var(--line);border-left-color:var(--info)}
+#cfgcard .kv{margin:5px 0}
+#cfgcard .kv code{word-break:break-word}
+#cfgcard .meta{margin-top:13px}
 </style></head><body>
 <div class="bar">
   <a href="/" id="logoLink" style="color:inherit;text-decoration:none;display:flex;align-items:center;"><h1>Mi<b>OS</b> <sup style="font-size:10px;color:var(--warn);font-weight:400">build18</sup></h1></a>
@@ -636,6 +644,17 @@ transform:translateZ(0)}
 </div>
 
 <div class="hoststrip" id="host"></div>
+
+<section id="cfgsec">
+  <div class="h"><h2 class="ac-info">System Config</h2><span class="n" id="cfgn"></span></div>
+  <div class="grid" id="cfggrid">
+    <div class="card" id="cfgcard">
+      <div class="row"><span class="name">Configuration</span><span class="dot" id="cfgdot"></span></div>
+      <div id="cfgbody"><div class="kv">loading&hellip;</div></div>
+      <div class="meta"><a href="/configure" id="cfgedit">Edit in Settings &#8594;</a></div>
+    </div>
+  </div>
+</section>
 
 <section>
   <div class="h"><h2 class="ac-warn">Terminals</h2><span class="n" id="termn"></span>
@@ -806,6 +825,31 @@ function tick(){fetch("/portal/stats",{cache:"no-store"}).then(function(r){
   .then(function(j){if(j)render(j);}).catch(function(){$("foot").textContent="stats unavailable";});
   tickSwarm();}
 function arm(){if(timer)clearInterval(timer);if(OPTS.refresh)timer=setInterval(tick,OPTS.refresh);}
+// System Config card: a small read-only summary from /portal/config/status.
+// Degrade-open -- an unauth (401 -> r.ok false) or failed fetch shows a graceful
+// "config status unavailable" state, never an error crash (the main tick()
+// still owns the session-expiry redirect to /login).
+function renderConfig(j){
+  var dot=$("cfgdot"),body=$("cfgbody"),n=$("cfgn");
+  if(!body)return;
+  if(!j||j.error){
+    if(dot)dot.className="dot";
+    if(n)n.textContent="unavailable";
+    body.innerHTML='<div class="kv">config status unavailable</div>';
+    return;}
+  var ok=j.theme=="PASS",bad=j.theme=="FAIL";
+  if(dot)dot.className="dot "+(ok?"ok":(bad?"bad":""));
+  if(n)n.textContent=ok?"theme PASS":(bad?"theme FAIL":"theme unknown");
+  body.innerHTML=
+    '<div class="kv"><b>User</b><code>'+esc(j.user||"?")+'</code></div>'+
+    '<div class="kv"><b>Version</b><code>'+esc(j.version||"?")+'</code></div>'+
+    '<div class="kv"><b>Sections</b><code>'+esc(j.sections==null?"?":j.sections)+'</code></div>'+
+    '<div class="kv"><b>Override</b><code>'+(j.override?"present":"none")+'</code></div>'+
+    '<div class="kv"><b>Theme</b><code title="'+esc(j.theme_summary||"")+'">'+esc(j.theme||"unknown")+'</code></div>';}
+function tickConfig(){
+  fetch("/portal/config/status",{cache:"no-store"})
+    .then(function(r){return r.ok?r.json():null;})
+    .then(renderConfig).catch(function(){renderConfig(null);});}
 function detail(p){
   fetch("/portal/service/"+p,{cache:"no-store"}).then(function(r){return r.json();}).then(function(d){
     $("sheet").innerHTML='<button class="x" onclick="closeM()">&times;</button>'+
@@ -915,6 +959,10 @@ $("logoLink").onclick = function(e) {
   e.preventDefault();
   showView("dashboard", true);
 };
+// "Edit in Settings ->" opens the configurator via the same in-app view switch
+// as the gear; falls back to a real /configure navigation if JS is unavailable.
+var _cfgEdit=$("cfgedit");
+if(_cfgEdit)_cfgEdit.onclick=function(e){e.preventDefault();showView("settings",true);};
 window.onpopstate = function(e) {
   if (location.pathname === "/configure") {
     showView("settings", false);
@@ -929,7 +977,7 @@ if (initPath === "/configure") {
   showView("dashboard", false);
 }
 
-tick();arm();
+tick();arm();tickConfig();
 </script></body></html>"""
 
 
@@ -1678,6 +1726,104 @@ async def post_portal_config(request: Request, background_tasks: BackgroundTasks
     except Exception as e:
         log.error("Failed to save config: %s", e)
         return JSONResponse({"error": str(e)}, status_code=500)
+
+
+# ── System Config status (WS-CONFIG polish) ───────────────────────────
+# A small READ-ONLY health summary of the live layered mios.toml + the theme
+# projection, surfaced as the dashboard's "System Config" card. It NEVER writes:
+# it only READS the config layers (via tomllib -- the same parser the Portal
+# already uses; no new deps) and shells out to `mios-theme-render check`, a
+# drift-gate that byte-diffs the committed theme artifacts against the SSOT
+# projection (it does not mutate on `check`). Every probe is independently
+# degrade-open so a single failure yields a safe placeholder ("unknown"/none)
+# instead of erroring the dashboard fetch.
+_THEME_RENDER_BIN = os.environ.get(
+    "MIOS_THEME_RENDER", "/usr/libexec/mios/mios-theme-render")
+
+
+def _portal_user_toml_path() -> str:
+    """The user-layer override path, resolved exactly like mios_toml's USER
+    layer: $MIOS_USER_TOML, else $XDG_CONFIG_HOME/mios/mios.toml, else
+    ~/.config/mios/mios.toml. Read-only -- used only to report presence."""
+    return (os.environ.get("MIOS_USER_TOML")
+            or os.path.join(
+                os.environ.get("XDG_CONFIG_HOME",
+                               os.path.expanduser("~/.config")),
+                "mios", "mios.toml"))
+
+
+def _portal_theme_check() -> dict:
+    """Run ``mios-theme-render check`` and report the projection state WITHOUT
+    ever writing. Returns {state, exit, summary}: state is 'PASS' (exit 0),
+    'FAIL' (non-zero exit), or 'unknown' (the check could not be run at all --
+    degrade-open, never raises). summary is the first PASS/FAIL line emitted."""
+    import subprocess
+    try:
+        proc = subprocess.run([_THEME_RENDER_BIN, "check"],
+                              capture_output=True, text=True, timeout=12)
+    except Exception:  # noqa: BLE001 -- binary absent / timeout -> unknown
+        return {"state": "unknown", "exit": None, "summary": ""}
+    blob = (proc.stdout or "") + "\n" + (proc.stderr or "")
+    summary = ""
+    for line in blob.splitlines():
+        if "PASS:" in line or "FAIL:" in line:
+            summary = line.strip()
+            break
+    return {"state": "PASS" if proc.returncode == 0 else "FAIL",
+            "exit": proc.returncode, "summary": summary}
+
+
+def _portal_config_status() -> dict:
+    """READ-ONLY summary for the dashboard's System Config card: the resolved
+    identity user + deploy version, the top-level section count, whether a
+    user-layer override is present, and the theme-projection state. Reuses the
+    Portal's layered tomllib load (the mios_toml vendor<host<user overlay,
+    falling back to the single-file read) -- no new deps, NO writes anywhere.
+    Degrade-open throughout: any probe failure yields a safe placeholder."""
+    merged: dict = {}
+    try:
+        import sys as _sys
+        if "/usr/lib/mios" not in _sys.path:
+            _sys.path.insert(0, "/usr/lib/mios")
+        import mios_toml
+        merged = mios_toml.load_merged() or {}
+    except Exception:  # noqa: BLE001 -- fall back to the single-file tomllib read
+        merged = _portal_toml() or {}
+    identity = merged.get("identity") if isinstance(
+        merged.get("identity"), dict) else {}
+    meta = merged.get("meta") if isinstance(merged.get("meta"), dict) else {}
+    user = str(identity.get("mios_user") or identity.get("username") or "")
+    version = str(meta.get("mios_version") or "")
+    sections = sum(1 for v in merged.values() if isinstance(v, dict))
+    user_path = _portal_user_toml_path()
+    try:
+        override = os.path.isfile(user_path)
+    except Exception:  # noqa: BLE001
+        override = False
+    theme = _portal_theme_check()
+    return {"user": user, "version": version, "sections": sections,
+            "override": override, "override_path": user_path,
+            "theme": theme.get("state", "unknown"),
+            "theme_exit": theme.get("exit"),
+            "theme_summary": theme.get("summary", "")}
+
+
+@portal_router.get("/portal/config/status")
+async def get_portal_config_status(request: Request):
+    """GET /portal/config/status -> small READ-ONLY JSON summary of live config
+    health (resolved user/version, top-level section count, user-override
+    presence, theme-projection PASS/FAIL) for the dashboard's System Config
+    card. Auth-gated; NEVER writes; degrade-open (a probe failure yields a
+    placeholder, not an error). The blocking reads + subprocess run off the
+    event loop via asyncio.to_thread."""
+    if not _portal_authed(request):
+        return JSONResponse({"error": "auth required"}, status_code=401)
+    try:
+        status = await asyncio.to_thread(_portal_config_status)
+        return JSONResponse(status)
+    except Exception as e:  # noqa: BLE001 -- never crash the dashboard fetch
+        log.warning("portal config status unavailable: %s", e)
+        return JSONResponse({"error": "unavailable"})
 
 
 @portal_router.get("/configure", response_class=HTMLResponse)
