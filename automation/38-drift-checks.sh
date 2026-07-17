@@ -3430,10 +3430,16 @@ PY
 }
 
 check_shellcheck() {
-    if ! bash "$ROOT/automation/lint-shell.sh"; then
-        _violation "shellcheck linting failed with errors -- please run automation/lint-shell.sh or check logs"
-    else
+    local rc=0
+    bash "$ROOT/automation/lint-shell.sh" || rc=$?
+    if [[ $rc -eq 0 ]]; then
         echo "[38-drift-checks]   (44) shellcheck: shell scripts conform to error-level linting"
+    elif [[ $rc -eq 2 ]]; then
+        # shellcheck absent -> SKIPPED, not a pass (no false-green). Non-gating so a
+        # linter-less env still builds; install shellcheck to actually gate.
+        echo "[38-drift-checks]   (44) WARNING: shellcheck absent -- shell linting SKIPPED (install shellcheck to gate)" >&2
+    else
+        _violation "shellcheck linting failed with errors -- please run automation/lint-shell.sh or check logs"
     fi
 }
 
