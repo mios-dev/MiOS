@@ -1,11 +1,11 @@
-# AI-hint: Desktop entry for the MiOS Configurator GUI, providing a launcher for the tool that modifies system-wide settings in /etc/mios/mios.toml including identity, AI models, and package management.
-# AI-related: /etc/mios/mios.toml, /usr/libexec/mios/mios-configurator-launch, mios-configurator-launch
+# AI-hint: Desktop entry for MiOS Settings — the one unified configuration surface. Launches mios-configurator-launch, which opens the configurator embedded in the MiOS Portal (http://localhost:8640/configure) and falls back to the standalone HTML editor only when the Portal is unreachable. All settings serialise to the mios.toml SSOT (identity, AI models, packages, flatpaks, desktop).
+# AI-related: /etc/mios/mios.toml, /usr/libexec/mios/mios-configurator-launch, mios-configurator-launch, http://localhost:8640/configure
 [Desktop Entry]
 Type=Application
 Version=1.0
-Name=MiOS Configurator
-GenericName=System Configuration Editor
-Comment=Edit /etc/mios/mios.toml — identity, AI, packages, flatpaks, desktop
+Name=MiOS Settings
+GenericName=System Settings
+Comment=One unified surface for every MiOS setting — identity, AI, packages, flatpaks, desktop (writes the mios.toml SSOT)
 Exec=/usr/libexec/mios/mios-configurator-launch
 Icon=preferences-system
 Categories=System;Settings;PackageManager;

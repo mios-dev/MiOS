@@ -1,18 +1,24 @@
 #!/usr/bin/env bash
-# AI-hint: Launches the MiOS HTML configurator in a browser (prioritizing Epiphany for File System Access API) while ensuring the local mios.toml is accessible via a pre-staged path in ~/Downloads.
-# AI-related: /usr/libexec/mios/mios-configurator-launch, /usr/share/mios/configurator/mios.html, /etc/mios/mios.toml, /usr/share/mios/mios.toml, mios-configurator, mios-open-url, mios-rebuild
-# /usr/libexec/mios/mios-configurator-launch -- open the MiOS HTML
-# configurator in a sensible browser, with the layered mios.toml
-# pre-staged in ~/Downloads so File System Access API can bind to it
-# (or fall back to the standard <input type="file">).
+# AI-hint: Opens the unified MiOS Settings surface. PRIMARY target is the configurator embedded in the MiOS Portal at http://localhost:8640/configure (probed with curl); only when the Portal is unreachable does it fall back to the standalone HTML configurator staged in ~/Downloads and opened via file:// (offline / USB, ADR-0008).
+# AI-related: /usr/libexec/mios/mios-configurator-launch, /usr/share/mios/configurator/mios.html, http://localhost:8640/configure, /etc/mios/mios.toml, /usr/share/mios/mios.toml, mios-configurator, mios-open-url, mios-rebuild
+# /usr/libexec/mios/mios-configurator-launch -- open the MiOS Settings
+# surface (the configurator) for editing the unified user-definitions
+# dotfile (/etc/mios/mios.toml).
 #
-# Targets, in order of preference:
-#   1. Epiphany flatpak (org.gnome.Epiphany)   -- best FSA support;
-#      WSLg routes the window to the Windows desktop.
-#   2. xdg-open                                -- whatever the host
-#      desktop has set as default browser.
-#   3. Plain echo of the URL                   -- last resort if
-#      nothing else is available.
+# Target priority:
+#   1. http://localhost:8640/configure -- the MiOS Portal ALREADY embeds
+#      this configurator as its unified Settings surface (a Settings gear
+#      opens GET /portal/configurator, which serves the same mios.html
+#      with the SSOT theme injected; GET /configure opens the shell
+#      straight to it). This is the PRIMARY target and is probed first.
+#   2. file:// standalone (LAST-RESORT) -- only when :8640/configure is
+#      unreachable. The layered mios.toml is pre-staged in ~/Downloads so
+#      the File System Access API can bind to it (or fall back to the
+#      standard <input type="file">). This is the offline / USB /
+#      air-gapped fallback (ADR-0008); it is demoted, never removed.
+#
+# Browser selection (for whichever URL is chosen) is operator-defined via
+# mios-open-url; xdg-open and a plain echo are the last resorts.
 #
 # Invoked from:
 #   - /usr/share/applications/mios-configurator.desktop (GNOME Dock /
@@ -26,29 +32,37 @@ set -euo pipefail
 
 HTML=/usr/share/mios/configurator/mios.html
 DL_DIR="${HOME}/Downloads"
-mkdir -p "$DL_DIR"
 
-# Flatpak's xdg-download permission bind-mounts the host's resolved
-# `xdg-user-dir DOWNLOAD` into the sandbox. On a freshly created user
-# without ~/.config/user-dirs.dirs, xdg-user-dir falls back to $HOME
-# (NOT $HOME/Downloads), so the bind-mount covers the home root rather
-# than the actual Downloads dir -- and Epiphany then sees
-# file:///var/home/mios/Downloads/mios-configurator.html as a missing
-# path inside its sandbox view. Resolution: seed user-dirs.dirs so the
-# bind-mount targets ~/Downloads precisely. Operator-flagged 2026-05-11
-# (Epiphany "Unable to display this website" on `mios config`).
-if [[ ! -f "${HOME}/.config/user-dirs.dirs" ]]; then
-    mkdir -p "${HOME}/.config"
-    if command -v xdg-user-dirs-update >/dev/null 2>&1; then
-        xdg-user-dirs-update --force >/dev/null 2>&1 || true
-    fi
-    # If the helper didn't exist (no xdg-user-dirs RPM on the dev VM) or
-    # produced nothing, hand-roll a minimal user-dirs.dirs that points
-    # XDG_DOWNLOAD_DIR at ~/Downloads. Flatpak only needs DOWNLOAD for
-    # the configurator flow; the other entries match the standard
-    # Fedora skel.
+# ── LAST-RESORT offline staging ──────────────────────────────────────
+# Only invoked when the embedded Portal Settings surface is unreachable.
+# Stages a writable mios.toml seed + the standalone HTML in ~/Downloads
+# so File System Access API (or the <input type="file"> fallback) can
+# bind to them, then the caller opens file://. Kept fully working as the
+# offline / USB / air-gapped fallback (ADR-0008).
+stage_offline() {
+    mkdir -p "$DL_DIR"
+
+    # Flatpak's xdg-download permission bind-mounts the host's resolved
+    # `xdg-user-dir DOWNLOAD` into the sandbox. On a freshly created user
+    # without ~/.config/user-dirs.dirs, xdg-user-dir falls back to $HOME
+    # (NOT $HOME/Downloads), so the bind-mount covers the home root rather
+    # than the actual Downloads dir -- and Epiphany then sees
+    # file:///var/home/mios/Downloads/mios-configurator.html as a missing
+    # path inside its sandbox view. Resolution: seed user-dirs.dirs so the
+    # bind-mount targets ~/Downloads precisely. Operator-flagged 2026-05-11
+    # (Epiphany "Unable to display this website" on `mios config`).
     if [[ ! -f "${HOME}/.config/user-dirs.dirs" ]]; then
-        cat > "${HOME}/.config/user-dirs.dirs" <<EOF
+        mkdir -p "${HOME}/.config"
+        if command -v xdg-user-dirs-update >/dev/null 2>&1; then
+            xdg-user-dirs-update --force >/dev/null 2>&1 || true
+        fi
+        # If the helper didn't exist (no xdg-user-dirs RPM on the dev VM) or
+        # produced nothing, hand-roll a minimal user-dirs.dirs that points
+        # XDG_DOWNLOAD_DIR at ~/Downloads. Flatpak only needs DOWNLOAD for
+        # the configurator flow; the other entries match the standard
+        # Fedora skel.
+        if [[ ! -f "${HOME}/.config/user-dirs.dirs" ]]; then
+            cat > "${HOME}/.config/user-dirs.dirs" <<EOF
 XDG_DESKTOP_DIR="\$HOME/Desktop"
 XDG_DOWNLOAD_DIR="\$HOME/Downloads"
 XDG_TEMPLATES_DIR="\$HOME/Templates"
@@ -58,30 +72,38 @@ XDG_MUSIC_DIR="\$HOME/Music"
 XDG_PICTURES_DIR="\$HOME/Pictures"
 XDG_VIDEOS_DIR="\$HOME/Videos"
 EOF
-        chmod 0644 "${HOME}/.config/user-dirs.dirs"
-    fi
-fi
-
-# Stage a writable mios.toml seed (highest layer wins).
-if [[ ! -f "$DL_DIR/mios.toml" ]]; then
-    for src in "$HOME/.config/mios/mios.toml" /etc/mios/mios.toml /usr/share/mios/mios.toml; do
-        if [[ -r "$src" ]]; then
-            cp "$src" "$DL_DIR/mios.toml"
-            chmod 0644 "$DL_DIR/mios.toml"
-            break
+            chmod 0644 "${HOME}/.config/user-dirs.dirs"
         fi
-    done
-fi
+    fi
 
-# Stage the HTML where Flatpak's home-portal exposes it.
-if [[ -r "$HTML" ]]; then
-    cp "$HTML" "$DL_DIR/mios-configurator.html"
-fi
+    # Stage a writable mios.toml seed (highest layer wins).
+    if [[ ! -f "$DL_DIR/mios.toml" ]]; then
+        for src in "$HOME/.config/mios/mios.toml" /etc/mios/mios.toml /usr/share/mios/mios.toml; do
+            if [[ -r "$src" ]]; then
+                cp "$src" "$DL_DIR/mios.toml"
+                chmod 0644 "$DL_DIR/mios.toml"
+                break
+            fi
+        done
+    fi
 
+    # Stage the HTML where Flatpak's home-portal exposes it.
+    if [[ -r "$HTML" ]]; then
+        cp "$HTML" "$DL_DIR/mios-configurator.html"
+    fi
+}
+
+# ── PRIMARY: probe the embedded Portal Settings surface first ────────
+# A reachable :8640/configure is the authoritative unified surface; when
+# it answers we open it directly and SKIP the offline Downloads-staging
+# above entirely. Only an unreachable Portal drops us to the file://
+# offline fallback.
 CODE=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 1 "http://localhost:8640/configure" || echo "000")
+
 if [[ "$CODE" == "303" || "$CODE" == "200" ]]; then
     URL="http://localhost:8640/configure"
 else
+    stage_offline
     URL="file://$DL_DIR/mios-configurator.html"
     [[ ! -f "$DL_DIR/mios-configurator.html" ]] && URL="file://$HTML"
 fi
@@ -93,7 +115,7 @@ fi
 if command -v mios-open-url >/dev/null 2>&1; then
     mios-open-url "$URL" >/dev/null 2>&1 &
     disown
-    echo "MiOS Configurator opened via mios-open-url: $URL"
+    echo "MiOS Settings opened via mios-open-url: $URL"
     exit 0
 fi
 
@@ -101,12 +123,12 @@ fi
 if command -v xdg-open >/dev/null 2>&1; then
     exec xdg-open "$URL" >/dev/null 2>&1 &
     disown
-    echo "MiOS Configurator opened via xdg-open: $URL"
+    echo "MiOS Settings opened via xdg-open: $URL"
     exit 0
 fi
 
 # Last resort: print the URL so the operator can copy/paste.
-echo "MiOS Configurator URL (no browser found):"
+echo "MiOS Settings URL (no browser found):"
 echo "  $URL"
-echo "Edit ~/Downloads/mios.toml and re-run mios-rebuild to apply."
+echo "Open it in a browser to edit your configuration."
 exit 0
