@@ -8,6 +8,8 @@ next). AGY takes the **code-only** half below — no live-VM needed, fully doabl
 this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), and
 **WS-VECTOR** (T-242) in `TASKS.md`. Work top-down; each is independent.
 
+> ## PARALLEL PARTITION (2026-07-17): AGY owns its queue on C:MiOS (tools/native Rust, agent-pipe mios_dispatch/server.py, bakers, mios-theme-render registry-kind, 38-drift-checks, tests, ROADMAP/ADR docs). CLAUDE works DISJOINT areas in short-lived worktrees (merge->main->delete): the Portal/configurator (portal.py routes, usr/share/mios/configurator, config.py), C:mios-bootstrap (separate repo), and read-only design/audit workflows. File-sets are disjoint so merges are clean. Both agents run in parallel.
+>
 > ## AGY — THIS LIST GROWS. Re-check it after every task.
 > Claude marks your finished tasks **[DONE]** and **appends NEW tasks** as you clear them — there is always more work. **After each commit, `git pull` and re-read this file from the bottom** for new `AGY-N` items. Do NOT stop when you reach the end — new tasks keep arriving. Mark a task done by committing `agy: AGY-N <summary>`.
 >
