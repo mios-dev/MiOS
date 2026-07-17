@@ -61,6 +61,7 @@ HCRON=/var/lib/mios/hermes/cron
 sec()  { printf "\n── %s ──\n" "$*"; }
 ok()   { printf "  ✓  %s\n" "$*"; }
 note() { printf "     %s\n" "$*"; }
+# TD-1: eval-safe, input=internal hardcoded commands, not agent-controlled
 run()  { if [ "$DRY_RUN" = 1 ]; then printf "  [dry-run] %s\n" "$*"; else eval "$@"; fi; }
 
 echo "════════════════════════════════════════════════════════════════"

@@ -3230,6 +3230,61 @@ check_roadmap_index() {
     fi
 }
 
+check_cli_eval_safety() {
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "[38-drift-checks]   WARNING: python3 missing -- skipping CLI eval safety check" >&2
+        return 0
+    fi
+    if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
+import os, sys, re
+root = os.environ["MIOS_DRIFT_ROOT"]
+dir_to_scan = os.path.join(root, "usr/libexec/mios")
+viol = []
+
+if os.path.isdir(dir_to_scan):
+    for fn in os.listdir(dir_to_scan):
+        path = os.path.join(dir_to_scan, fn)
+        if not os.path.isfile(path) or fn.endswith((".py", ".pyc", ".json", ".generated")):
+            continue
+        try:
+            with open(path, "r", encoding="utf-8", errors="ignore") as fh:
+                first_line = fh.readline()
+                if not ("bash" in first_line or "sh" in first_line):
+                    continue
+                fh.seek(0)
+                lines = fh.readlines()
+        except OSError:
+            continue
+        
+        for idx, line in enumerate(lines):
+            stripped = line.strip()
+            if stripped.startswith("#"):
+                continue
+            
+            code_part = line.split("#")[0].strip()
+            if re.search(r'\beval\b', code_part):
+                has_comment = False
+                if idx > 0:
+                    prev_line = lines[idx - 1].strip()
+                    if re.match(r'^#\s*TD-1:\s*eval-safe,\s*input=.+,\s*not agent-controlled', prev_line):
+                        has_comment = True
+                
+                if not has_comment:
+                    viol.append(f"{fn}:{idx+1} has unverified eval: {line.strip()}")
+
+if viol:
+    for v in viol:
+        sys.stderr.write(f"  {v}\n")
+    sys.exit(1)
+sys.exit(0)
+PY
+    then
+        echo "[38-drift-checks]   (43) CLI verbs in usr/libexec/mios/ are eval-safe (TD-1)"
+    else
+        _violation "unverified eval in usr/libexec/mios/ -- verbs must not eval agent-controlled inputs; pre-existing safe evals must have a preceding # TD-1: eval-safe, input=<source>, not agent-controlled comment"
+    fi
+}
+
 main() {
     check_dead_lane
     check_retired_models
@@ -3275,6 +3330,7 @@ main() {
     check_version_ssot
     check_bake_plan
     check_roadmap_index
+    check_cli_eval_safety
 
     echo "[38-drift-checks] ---------------------------------------------------------"
     if [[ "$VIOLATIONS" -eq 0 ]]; then
