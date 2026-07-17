@@ -559,6 +559,18 @@ Flash: the MiOS-Cat USB is BUILDING now (Ventoy + MediCat + Fedora + kickstart -
 ## STOP CONDITION (Claude -> AGY)
 When the drift-gate is FULLY GREEN and no open AGY-N task above remains: STOP -- do NOT idle-spin or invent busywork. Commit your work, mark the tasks done, and report "queue drained, drift-gate green" so I stop feeding. I'll send more only if the roadmap opens new work.
 
+### AGY-84 REFINEMENT (Claude, VERIFIED against HEAD 3551d6d5) -- do NOT naive-emit ~500 vars
+The drift-check "referenced but NOT emitted (a consumer would lose its var)" is OVER-BROAD. I read two representatives and confirmed the premise is false for the bulk:
+- `server.py:804` `MIOS_ACI_HEAD_FRAC` = `_cfg_num(_ACI_TOML,"MIOS_ACI_HEAD_FRAC","head_frac",0.6,float)` -> reads `[aci].head_frac` from mios.toml SSOT with default; env is an OPTIONAL override. Consumer canNOT lose its var.
+- `test_mios_template.py:48` `MIOS_NONEXISTENT_ENV` = deliberate test sentinel ("default absent -> fallback"). Must NEVER be emitted.
+**Fix the CHECK to its true intent (flag only a var a consumer would GENUINELY lose), by category:**
+- **A. SSOT-section reads (bulk):** `_cfg_num`/`_cfg_bool`/`_cfg_str`/`_toml_section(...)` with an env-name arg AND a default -> COMPLIANT (var IS SSOT-sourced). Recognize these; do not flag. This is most of server.py / mios_pipe/**/config.py / kernel.
+- **B. test/negative sentinels:** anything referenced ONLY under `test_*.py`, `tests/`, `*-negatives.sh`, or the `38-ssot-lint.sh` fixtures (MIOS_NONEXISTENT_ENV, MIOS_NO_SUCH_VAR_XYZ, MIOS_FOO, MIOS_FIXTURE_*, MIOS_AI_TEST_TEMP, MIOS_BENCH, MIOS_EGRESS_TOOL, MIOS_MTLS_TOOL, MIOS_AUTONOMOUS_PRIORITY, MIOS_ANSWER_CHUNK_CHARS...) -> EXCLUDE from the scan.
+- **C. regex prefix fragments:** trailing `_` or `__` captures (MIOS_A2O_, MIOS_AGENT_, MIOS_PORT_, MIOS_NATIVE_LOOP_, MIOS_DRIVE__, MIOS_COLS__, MIOS_CELL_H__ ...) -> tighten the extraction regex so it does NOT capture partial identifiers / `${MIOS_x_}${suffix}` interpolation stems.
+- **D. Windows PowerShell vars:** any hit in `*.ps1` (Get-MiOS.ps1, build-mios.ps1, mios-pipeline.ps1) is a WinPS var -> NOT a Linux env key; userenv.sh (bash) neither can nor should emit it. Route to the PS globals.ps1 SSOT lane; EXCLUDE `.ps1` from the "must be emitted by userenv.sh" scan.
+- **E. genuine residue:** after A-D, the SMALL set of real bash/systemd consumers that read `${MIOS_X}` with NO default and NO SSOT-section read -> THESE emit from the auto-derived key library (WS-NAME), sourced from mios.toml, reconciling MIOS_AI_VLLM_* <-> short MIOS_VLLM_*.
+**Done (unchanged):** 0 GENUINE referenced-but-not-emitted; A-D no longer flagged; twins identical (drift-27); add a negative test PER category (a Cat-A `_cfg_num` var, a Cat-B sentinel, a Cat-D `.ps1` var) proving they're correctly NOT flagged, and one Cat-E var proving a real orphan IS flagged until emitted.
+
 ### Reporting back
 Commit each task as `agy: <task-id> <summary>` and push to `main`. Claude is monitoring
 `main` for your commits + will integrate/verify. If blocked, leave a `TODO(agy):` note in
