@@ -3168,6 +3168,61 @@ check_resolver_twin_equivalence() {
     fi
 }
 
+# --- (46, Law 14 PREP) template conformance (ratcheting). --------------------
+check_template_conformance() {
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "[38-drift-checks]   (46) SOFT: python3 missing -- template conformance check skipped" >&2
+        return 0
+    fi
+    local errors
+    if ! errors=$(MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
+import glob, os, sys
+root = os.environ.get("MIOS_DRIFT_ROOT", ".")
+baseline_path = os.path.join(root, "usr/share/mios/templates/conformance-grandfathered.list")
+grandfathered = set()
+if os.path.isfile(baseline_path):
+    with open(baseline_path, "r", encoding="utf-8") as f:
+        for line in f:
+            grandfathered.add(line.strip())
+patterns = [
+    "usr/libexec/mios/mios-*",
+    "usr/lib/mios/agent-pipe/mios_pipe/*.py",
+    "usr/lib/mios/agent-pipe/test_mios_*.py",
+    "usr/lib/systemd/system/*.service",
+    "usr/share/containers/systemd/*.container",
+    "usr/share/doc/mios/adr/*.md"
+]
+violations = []
+for pat in patterns:
+    for p in glob.glob(os.path.join(root, pat)):
+        p_rel = os.path.relpath(p, root).replace("\\", "/")
+        if p_rel in grandfathered or p_rel.endswith("README.md"):
+            continue
+        try:
+            with open(p, "r", encoding="utf-8", errors="ignore") as fh:
+                head = [fh.readline() for _ in range(5)]
+            content = "".join(head)
+            if "AI-hint:" not in content:
+                violations.append(f"{p_rel} missing 'AI-hint:' header comment")
+            elif p_rel.endswith(".py") or "usr/libexec/mios/" in p_rel:
+                if "AI-related:" not in content:
+                    violations.append(f"{p_rel} missing 'AI-related:' header comment")
+        except Exception as e:
+            violations.append(f"{p_rel} read failed: {e}")
+if violations:
+    for v in violations:
+        print(f"    {v}", file=sys.stderr)
+    sys.exit(1)
+PY
+); then
+        printf '%s\n' "$errors" >&2
+        _violation "template conformance check failed -- new files must follow their templates"
+    else
+        echo "[38-drift-checks]   (46) template conformance: all new files conform to templates"
+    fi
+}
+
+
 # --- (42, Law 7 NO-HARDCODE / Law 8 SSOT-PROJECTION) version single-source. ----
 # The version literal lives in exactly ONE place: mios.toml [meta].mios_version.
 # The repo-root VERSION file (COPY'd into the image; read into the OCI version
@@ -3413,6 +3468,7 @@ main() {
     check_vendor_urls
     check_resolver_twin_parity
     check_resolver_twin_equivalence
+    check_template_conformance
     check_version_ssot
     check_bake_plan
     check_roadmap_index
