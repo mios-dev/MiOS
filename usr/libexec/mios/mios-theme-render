@@ -175,6 +175,24 @@ def cmd_render(names):
 def cmd_check(names):
     merged = mios_toml.load_merged(_LAYERS)
     drift = []
+    # COMPLETENESS floor (full-gate only): every *.tmpl on disk must be claimed by a
+    # [dotfiles.registry.*] surface. Otherwise dropping a surface's registry block would
+    # silently de-gate its artifact (the drift loop below only iterates REGISTERED
+    # surfaces) -- an orphaned template is a coverage hole. A named subset is an
+    # intentional narrowing, so the sweep runs only on the full gate.
+    if not names:
+        registered = {os.path.normpath(SURFACES[n][0]) for n in SURFACES}
+        for td in {os.path.dirname(p) for p in registered}:
+            td_abs = os.path.join(ROOT, td)
+            if not os.path.isdir(td_abs):
+                continue
+            for fn in sorted(os.listdir(td_abs)):
+                if not fn.endswith(".tmpl"):
+                    continue
+                rel = os.path.normpath(os.path.join(td, fn))
+                if rel not in registered:
+                    drift.append(f"ORPHAN TEMPLATE {rel}: no [dotfiles.registry.*] surface "
+                                 "references it -- a surface was de-registered (silent de-gate)")
     for name in (names or SURFACES):
         tmpl_rel, art_rel, section = _entry(name)
         tmpl_abs, art_abs = os.path.join(ROOT, tmpl_rel), os.path.join(ROOT, art_rel)

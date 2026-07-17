@@ -10955,9 +10955,10 @@ windows = "%LOCALAPPDATA%/btop/btop.conf"
 template = "usr/share/mios/theme/templates/gitconfig.tmpl"
 target   = "etc/skel/.gitconfig"
 section  = "gitconfig"
-[dotfiles.registry.gitconfig.apply.target]
-linux   = "~/.gitconfig"
-windows = "%USERPROFILE%/.gitconfig"
+# No [.apply.target]: gitconfig is skel-seed + drift-gated ONLY. Live-HOME `apply` is
+# intentionally withheld until per-key merge lands -- a whole-file overwrite of the
+# user's ~/.gitconfig would clobber their real identity/credentials/signing config.
+# render -> etc/skel/.gitconfig seeds NEW users from [gitconfig]+[identity] SSOT.
 
 [shell]
 [editor]
