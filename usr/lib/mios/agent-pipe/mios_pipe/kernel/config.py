@@ -398,3 +398,86 @@ KV_SLOT_PERSIST = (
     or str(_MEMORY_TOML.get("kv_slot_persist", "true")).strip().lower() in {"1", "true", "yes", "on"}
 )
 
+
+def quote_key(k: str) -> str:
+    import re
+    if re.match(r"^[A-Za-z0-9_-]+$", k):
+        return k
+    escaped = k.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+    return f'"{escaped}"'
+
+
+def to_toml(d: dict, prefix: list = None) -> str:
+    if prefix is None:
+        prefix = []
+        
+    lines = []
+    
+    # 1. Output non-dict and non-list-of-dict keys first (simple values and lists of scalars)
+    for k, v in sorted(d.items()):
+        if isinstance(v, dict):
+            continue
+        if isinstance(v, list) and len(v) > 0 and isinstance(v[0], dict):
+            continue
+            
+        k_str = quote_key(k)
+        # Format simple value
+        if isinstance(v, bool):
+            lines.append(f"{k_str} = {str(v).lower()}")
+        elif isinstance(v, (int, float)):
+            lines.append(f"{k_str} = {v}")
+        elif isinstance(v, str):
+            escaped = v.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+            lines.append(f'{k_str} = "{escaped}"')
+        elif isinstance(v, list):
+            list_str = []
+            for item in v:
+                if isinstance(item, str):
+                    escaped_item = item.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+                    list_str.append(f'"{escaped_item}"')
+                elif isinstance(item, bool):
+                    list_str.append(str(item).lower())
+                else:
+                    list_str.append(str(item))
+            lines.append(f"{k_str} = [{', '.join(list_str)}]")
+            
+    # 2. Output dictionaries (sub-tables) next
+    for k, v in sorted(d.items()):
+        if isinstance(v, dict):
+            new_prefix = prefix + [k]
+            sect_name = ".".join(quote_key(p) for p in new_prefix)
+            lines.append(f"\n[{sect_name}]")
+            lines.append(to_toml(v, new_prefix))
+            
+    # 3. Output lists of dictionaries (array of tables) last
+    for k, v in sorted(d.items()):
+        if isinstance(v, list) and len(v) > 0 and isinstance(v[0], dict):
+            new_prefix = prefix + [k]
+            sect_name = ".".join(quote_key(p) for p in new_prefix)
+            for item in v:
+                lines.append(f"\n[[{sect_name}]]")
+                lines.append(to_toml(item, new_prefix))
+                
+    return "\n".join(lines)
+
+
+def write_user_config(cfg: dict, dest_path: str = None) -> None:
+    """Atomically write the dictionary to the user-layer config file."""
+    if dest_path is None:
+        try:
+            import sys
+            if "/usr/lib/mios" not in sys.path:
+                sys.path.insert(0, "/usr/lib/mios")
+            import mios_toml
+            dest_path = mios_toml.USER
+        except Exception:
+            dest_path = os.path.expanduser("~/.config/mios/mios.toml")
+            
+    os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+    temp_path = dest_path + ".tmp"
+    toml_str = to_toml(cfg)
+    with open(temp_path, "w", encoding="utf-8", newline="\n") as f:
+        f.write(toml_str)
+    os.replace(temp_path, dest_path)
+
+

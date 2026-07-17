@@ -31,7 +31,7 @@ import time
 from typing import Any, Optional
 
 import httpx
-from fastapi import APIRouter, Request, WebSocket
+from fastapi import APIRouter, Request, WebSocket, BackgroundTasks
 from fastapi.responses import (HTMLResponse, JSONResponse, RedirectResponse,
                                Response)
 
@@ -1569,6 +1569,39 @@ async def portal_configurator_iframe(request: Request):
     return await portal_configure_page_logic(request)
 
 
+def run_db_reseed_bg():
+    import tempfile
+    import subprocess
+    import sys
+    
+    if "/usr/lib/mios" not in sys.path:
+        sys.path.insert(0, "/usr/lib/mios")
+    import mios_toml
+    from mios_pipe.kernel.config import to_toml
+    
+    tmp_path = None
+    try:
+        merged = mios_toml.load_merged()
+        with tempfile.NamedTemporaryFile(suffix=".toml", delete=False, mode="w", encoding="utf-8") as tmp:
+            tmp.write(to_toml(merged))
+            tmp_path = tmp.name
+            
+        env = os.environ.copy()
+        env["MIOS_TOML"] = tmp_path
+        
+        seeder_path = os.environ.get("MIOS_SEED_DB_CONFIG", "/usr/libexec/mios/seed-db-config.py")
+        
+        subprocess.run([sys.executable, seeder_path], env=env, check=True)
+    except Exception as e:
+        log.error("Failed to run background db-config re-seed: %s", e)
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            try:
+                os.remove(tmp_path)
+            except Exception:
+                pass
+
+
 @portal_router.get("/portal/config")
 async def get_portal_config(request: Request):
     """GET /portal/config -> return the live layered mios.toml as text/plain."""
@@ -1579,42 +1612,11 @@ async def get_portal_config(request: Request):
     if "/usr/lib/mios" not in sys.path:
         sys.path.insert(0, "/usr/lib/mios")
     import mios_toml
-    
-    # Helper to serialize dictionary to TOML string
-    def dict_to_toml(d: dict, prefix: str = "") -> str:
-        lines = []
-        for k, v in sorted(d.items()):
-            if not isinstance(v, dict):
-                if isinstance(v, bool):
-                    lines.append(f"{k} = {str(v).lower()}")
-                elif isinstance(v, (int, float)):
-                    lines.append(f"{k} = {v}")
-                elif isinstance(v, str):
-                    escaped = v.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
-                    lines.append(f'{k} = "{escaped}"')
-                elif isinstance(v, list):
-                    list_str = []
-                    for item in v:
-                        if isinstance(item, str):
-                            escaped_item = item.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
-                            list_str.append(f'"{escaped_item}"')
-                        elif isinstance(item, bool):
-                            list_str.append(str(item).lower())
-                        else:
-                            list_str.append(str(item))
-                    lines.append(f"{k} = [{', '.join(list_str)}]")
-        
-        for k, v in sorted(d.items()):
-            if isinstance(v, dict):
-                sect_name = f"{prefix}.{k}" if prefix else k
-                lines.append(f"\n[{sect_name}]")
-                lines.append(dict_to_toml(v, sect_name))
-        
-        return "\n".join(lines)
+    from mios_pipe.kernel.config import to_toml
     
     try:
         merged_config = mios_toml.load_merged()
-        toml_text = dict_to_toml(merged_config)
+        toml_text = to_toml(merged_config)
         return Response(content=toml_text, media_type="text/plain")
     except Exception as e:
         log.error("Failed to load/serialize layered config: %s", e)
@@ -1622,9 +1624,9 @@ async def get_portal_config(request: Request):
 
 
 @portal_router.post("/portal/config")
-async def post_portal_config(request: Request):
+async def post_portal_config(request: Request, background_tasks: BackgroundTasks):
     """POST /portal/config -> Receive replacement TOML, write to USER TOML layer,
-    and trigger db-config re-seeding."""
+    and trigger db-config re-seeding in background."""
     if not _portal_authed(request):
         return JSONResponse({"error": "auth required"}, status_code=401)
     
@@ -1638,82 +1640,23 @@ async def post_portal_config(request: Request):
         import tomli as _toml  # type: ignore
     
     try:
-        _toml.loads(toml_text)
+        parsed_config = _toml.loads(toml_text)
     except Exception as e:
         log.warning("Invalid TOML posted to /portal/config: %s", e)
         return JSONResponse({"error": f"Invalid TOML: {e}"}, status_code=400)
     
-    import sys
-    if "/usr/lib/mios" not in sys.path:
-        sys.path.insert(0, "/usr/lib/mios")
-    import mios_toml
-    
-    user_toml_path = mios_toml.USER
+    from mios_pipe.kernel.config import write_user_config
     
     try:
-        # Write safely
-        os.makedirs(os.path.dirname(user_toml_path), exist_ok=True)
-        temp_path = user_toml_path + ".tmp"
-        with open(temp_path, "w", encoding="utf-8") as f:
-            f.write(toml_text)
-        os.replace(temp_path, user_toml_path)
+        # Write user config file atomically
+        write_user_config(parsed_config)
         
-        # Trigger db-config re-seeding using the newly merged config
-        import tempfile
-        import subprocess
+        # Add background task for DB re-seeding (non-blocking, degrade-open)
+        background_tasks.add_task(run_db_reseed_bg)
         
-        # Helper to serialize dictionary to TOML string
-        def dict_to_toml(d: dict, prefix: str = "") -> str:
-            lines = []
-            for k, v in sorted(d.items()):
-                if not isinstance(v, dict):
-                    if isinstance(v, bool):
-                        lines.append(f"{k} = {str(v).lower()}")
-                    elif isinstance(v, (int, float)):
-                        lines.append(f"{k} = {v}")
-                    elif isinstance(v, str):
-                        escaped = v.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
-                        lines.append(f'{k} = "{escaped}"')
-                    elif isinstance(v, list):
-                        list_str = []
-                        for item in v:
-                            if isinstance(item, str):
-                                escaped_item = item.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
-                                list_str.append(f'"{escaped_item}"')
-                            elif isinstance(item, bool):
-                                list_str.append(str(item).lower())
-                            else:
-                                list_str.append(str(item))
-                        lines.append(f"{k} = [{', '.join(list_str)}]")
-            
-            for k, v in sorted(d.items()):
-                if isinstance(v, dict):
-                    sect_name = f"{prefix}.{k}" if prefix else k
-                    lines.append(f"\n[{sect_name}]")
-                    lines.append(dict_to_toml(v, sect_name))
-            
-            return "\n".join(lines)
-            
-        with tempfile.NamedTemporaryFile(suffix=".toml", delete=False, mode="w", encoding="utf-8") as tmp:
-            tmp.write(dict_to_toml(mios_toml.load_merged()))
-            tmp_path = tmp.name
-        
-        env = os.environ.copy()
-        env["MIOS_TOML"] = tmp_path
-        
-        seeder_path = os.environ.get("MIOS_SEED_DB_CONFIG", "/usr/libexec/mios/seed-db-config.py")
-        
-        try:
-            subprocess.run([sys.executable, seeder_path], env=env, check=True)
-        finally:
-            try:
-                os.remove(tmp_path)
-            except Exception:
-                pass
-                
         return JSONResponse({"status": "ok"})
     except Exception as e:
-        log.error("Failed to save config or re-seed database: %s", e)
+        log.error("Failed to save config: %s", e)
         return JSONResponse({"error": str(e)}, status_code=500)
 
 
