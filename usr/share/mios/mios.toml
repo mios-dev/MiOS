@@ -9113,6 +9113,120 @@ title_color  = "white"
 output_color = "cyan"
 
 # ----------------------------------------------------------------------------
+# [btop] -- the operator-tunable btop system-monitor settings SSOT. Every
+# key here is PROJECTED into the btop config file by mios-theme-render
+# (surface "btop-conf" -> etc/btop/btop.conf) exactly the way [colors] is
+# projected into themes/mios.theme. This is the SINGLE source: the operator
+# tunes btop HERE (or via the Portal/configurator that writes here), then
+# `mios-sync-theme` re-renders the conf. The rendered etc/btop/btop.conf is
+# the FHS/Law-1 canonical artifact on Linux AND the artifact the Windows
+# bootstrap stages to M:\MiOS\btop (install-host-tools.ps1), so btop is
+# UNIFIED across Linux+Windows from one source instead of two hand-copies.
+#
+# Reconciliation note: the previous Linux (etc/btop) and Windows
+# (mios-bootstrap/src/btop) confs were byte-identical EXCEPT shown_boxes
+# (Linux "proc" vs Windows "cpu mem"). Because btop on Windows IS the dev
+# VM's Linux btop (dispatched via WSL) -- same binary, one config -- that
+# divergence is collapsed to the single canonical value below. The launch
+# preset stays a launcher concern (mios-btop.sh forces `btop -p 4`).
+#
+# The palette (theme[*] colors) is NOT here -- it lives in [colors] and is
+# projected to the sibling themes/mios.theme surface. color_theme="mios" is
+# a fixed binding held literally in the template.
+# ----------------------------------------------------------------------------
+[btop]
+# Presets accessible via `p` 0-9 inside btop. Format: <boxes>:<mode>:<theme>
+# where mode = 0 (full) or 1 (compact). Slot 4 (proc only) is the MiOS
+# canonical launch (mios-btop.sh runs `btop -p 4` on plain invocation).
+#   0 cpu compact  1 cpu full  2 cpu+mem compact  3 cpu+mem full
+#   4 proc only  <- canonical  5 cpu+mem+net+proc full
+presets              = "cpu:1:default,cpu:0:default,cpu mem:1:default,cpu mem:0:default,proc:0:default,cpu mem net proc:0:default user mios"
+
+# Boxes shown at launch. UNIFIED value (was proc on Linux / cpu mem on
+# Windows). Matches the canonical proc-only preset so a plain `btop`
+# (invoked without -p, e.g. the Windows WSL dispatch) renders the operator's
+# canonical view.
+shown_boxes          = "proc"
+
+# Update interval in milliseconds. Operator: "not 500ms update speed" -- the
+# displayed value was 2000ms; lock to 500ms so btop refreshes 2x/sec OOTB.
+update_ms            = 500
+
+# Transparent background -- preserves the terminal's acrylic backdrop.
+theme_background     = false
+truecolor            = true       # 24-bit truecolor
+force_tty            = false      # real terminal, not tty mode
+vim_keys             = false      # add "v" mark on volatile values
+rounded_corners      = true       # rounded box corners (matches MiOS frame chars)
+
+# Graph symbols: "braille", "block", or "tty".
+graph_symbol         = "block"
+graph_symbol_cpu     = "block"
+graph_symbol_gpu     = "block"
+graph_symbol_mem     = "block"
+graph_symbol_net     = "block"
+graph_symbol_proc    = "block"
+
+# Process box.
+proc_sorting         = "cpu lazy"
+proc_reversed        = false
+proc_tree            = false      # command-line tree view
+proc_colors          = true       # colliding cpu colors in tree mode
+proc_gradient        = true       # per-process cpu/mem usage graph
+proc_filter_kernel   = false
+proc_per_core        = false
+proc_mem_bytes       = true       # show memory in process box
+proc_cpu_graphs      = true       # show cpu graph in process box
+proc_info_smaps      = false      # use smaps for process info (Linux)
+proc_left            = false      # command on the left
+proc_filter          = ""         # active "/" filter string
+
+# CPU box. Minimal single-graph layout for the 80x20 portal.
+cpu_graph_upper      = "total"
+cpu_graph_lower      = "total"
+cpu_invert_lower     = true
+cpu_single_graph     = true
+cpu_bottom           = false
+show_uptime          = true
+check_temp           = true       # cpu temperatures (per-core if available)
+cpu_sensor           = "Auto"     # which sensor to use for cpu temperature
+show_coretemp        = true       # all cores in cpu temp
+cpu_core_map         = ""         # cpu core map order override
+custom_cpu_name      = ""         # custom cpu model name
+show_cpu_freq        = true       # cpu frequency display
+clock_format         = "%X"       # clock format in cpu box top
+background_update     = true      # update graphs even when paused
+custom_filters       = ""
+
+# Memory / disk box.
+show_swap            = true
+swap_disk            = true
+show_disks           = true
+only_physical        = true
+use_fstab            = false
+zfs_hide_datasets    = false
+disk_free_priv       = false      # disk meter graph (off for compact 80x20 fit)
+show_io_stat         = false
+io_mode              = false
+io_graph_combined    = false
+io_graph_speeds      = ""
+
+# Network box (hidden via shown_boxes -- still configured for when re-enabled).
+net_download         = 100
+net_upload           = 100
+net_auto             = true
+net_sync             = false
+net_iface            = ""
+
+# Battery status (when applicable).
+show_battery         = true
+selected_battery     = "Auto"
+show_battery_watts   = true
+
+# btop log verbosity: ERROR | WARNING | INFO | DEBUG.
+log_level            = "WARNING"
+
+# ----------------------------------------------------------------------------
 # [dashboard] -- the framed top-of-terminal banner shown by BOTH the
 # Windows-side Show-MiosDashboard (M:\MiOS\powershell\profile.ps1)
 # and the Linux-side mios-dashboard (/usr/libexec/mios/mios-dashboard.sh).

@@ -1434,14 +1434,18 @@ PY
     fi
 }
 
-# --- (25, Phase-1 palette SSOT) Theme-surface projection gate. -----------------
-# Every committed theme surface (btop, oh-my-posh, quickshell, fastfetch, the
-# app-shell CSS, the terminal OSC fallbacks) is PROJECTED from mios.toml
-# [colors]/[theme] via mios-theme-render's token-substitution templates. This
-# gate regenerates each surface from the SSOT and FAILS on any diff, so a palette
-# value can NEVER drift from the SSOT (re-run `mios-sync-theme` to refresh --
-# it is the one global runtime theme command). Same regenerate-and-diff shape as
-# checks 8/12/13/14, over the theme surfaces.
+# --- (25, Phase-1 palette SSOT) Theme+settings-surface projection gate. --------
+# Every committed theme surface (the btop theme, oh-my-posh, quickshell,
+# fastfetch, the app-shell CSS, the terminal OSC fallbacks) is PROJECTED from
+# mios.toml [colors]/[theme] via mios-theme-render's token-substitution
+# templates. The SAME engine also projects SETTINGS surfaces: the btop-conf
+# surface derives the WHOLE etc/btop/btop.conf from mios.toml [btop] (unified
+# Linux+Windows; the Windows bootstrap stages this rendered artifact). This gate
+# regenerates each surface from the SSOT and FAILS on any diff, so a palette hex
+# OR a btop setting can NEVER drift from the SSOT -- a hand-edited btop.conf reds
+# the PR exactly like a hand-edited theme. Re-run `mios-sync-theme` to refresh
+# (the one global runtime theme command). Same regenerate-and-diff shape as
+# checks 8/12/13/14, over the theme + settings surfaces.
 check_theme_projection() {
     if ! command -v python3 >/dev/null 2>&1; then
         echo "[38-drift-checks]   WARNING: python3 missing -- skipping theme-projection check" >&2
@@ -1454,7 +1458,7 @@ check_theme_projection() {
     fi
     if MIOS_THEME_ROOT="$ROOT" python3 "$tool" check >/dev/null 2>"$ROOT/.theme.err"; then
         rm -f "$ROOT/.theme.err" 2>/dev/null || true
-        echo "[38-drift-checks]   (25) every committed theme surface projects from mios.toml [colors] SSOT"
+        echo "[38-drift-checks]   (25) every committed theme + settings surface projects from mios.toml [colors]/[btop] SSOT"
     else
         sed 's/^/    /' "$ROOT/.theme.err" >&2 2>/dev/null || true
         rm -f "$ROOT/.theme.err" 2>/dev/null || true

@@ -546,8 +546,22 @@ select_by_numa() {
     # Parse selected nodes
     for node in $numa_selection; do
         local cpus="${NUMA_MAP[$node]}"
-        # Expand range (e.g., "0-7" to individual CPUs)
-        eval "local cpu_array=({$cpus})"
+        # Expand range (e.g., "0-7" to individual CPUs) safely without eval
+        local cpu_list
+        cpu_list=$(python3 -c "
+import sys
+parts = []
+for p in sys.argv[1].split(','):
+    p = p.strip()
+    if not p: continue
+    if '-' in p:
+        start, end = map(int, p.split('-'))
+        parts.extend(range(start, end + 1))
+    else:
+        parts.append(int(p))
+print(' '.join(map(str, parts)))
+" "$cpus")
+        local cpu_array=($cpu_list)
         ISOLATED_CPUS+=("${cpu_array[@]}")
     done
     

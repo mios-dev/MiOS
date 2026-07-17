@@ -1,0 +1,164 @@
+# AI-hint: GENERATED btop config -- do NOT hand-edit. Projected from the mios.toml [btop] SSOT by mios-theme-render (surface "btop-conf" -> etc/btop/btop.conf), the SAME way [colors] projects into themes/mios.theme. Edit mios.toml [btop] and re-run mios-sync-theme to refresh. UNIFIED Linux+Windows: the Windows bootstrap (install-host-tools.ps1) stages THIS rendered artifact to M:\MiOS\btop, so both platforms derive from one source instead of two divergent hand-copies.
+# AI-related: usr/libexec/mios/mios-theme-render, usr/libexec/mios/mios-sync-theme, usr/share/mios/mios.toml, etc/profile.d/mios-btop.sh
+#? Config file for btop v. 1.4.x -- MiOS preset (80x20 portal)
+#
+# Operator: "btop can run if a preset can fit the dimensions provided -- just
+# need a profile preset (make it match the entire MiOS themes and color
+# palette)". This preset trims the default config to fit the 80x20 MiOS
+# canonical terminal size and packs cpu/mem/proc into the smallest layout
+# that still shows meaningful info.
+
+# Color theme -- MiOS palette via the sibling themes/mios.theme surface.
+color_theme = "mios"
+
+# Transparent background -- preserves the terminal's acrylic backdrop.
+theme_background = @MIOS:btop_theme_background@
+
+# Sets if 24-bit truecolor should be used.
+truecolor = @MIOS:btop_truecolor@
+
+# Force tty mode (off -- we have a real terminal).
+force_tty = @MIOS:btop_force_tty@
+
+# Presets accessible via `p` 0-9 inside btop. Format: <boxes>:<mode>:<theme>
+# where mode = 0 (full) or 1 (compact).
+#
+# Slot 4 (proc only) is the MiOS default; mios-btop.sh launches
+# `btop -p 4` on plain invocation.
+#
+#   0  cpu compact
+#   1  cpu full
+#   2  cpu+mem compact
+#   3  cpu+mem full
+#   4  proc only             <- canonical launch via `btop -p 4`
+#   5  cpu+mem+net+proc full
+presets = "@MIOS:btop_presets@"
+
+# Set to True to add "v" mark when value is volatile.
+vim_keys = @MIOS:btop_vim_keys@
+
+# Rounded corners on boxes (matches MiOS frame chars).
+rounded_corners = @MIOS:btop_rounded_corners@
+
+# Default symbols for graphs: "braille", "block", "tty".
+graph_symbol = "@MIOS:btop_graph_symbol@"
+
+# Individual graph symbol (for cpu graph).
+graph_symbol_cpu = "@MIOS:btop_graph_symbol_cpu@"
+graph_symbol_gpu = "@MIOS:btop_graph_symbol_gpu@"
+graph_symbol_mem = "@MIOS:btop_graph_symbol_mem@"
+graph_symbol_net = "@MIOS:btop_graph_symbol_net@"
+graph_symbol_proc = "@MIOS:btop_graph_symbol_proc@"
+
+# Boxes shown at launch -- matches preset 4 (proc only) so plain
+# `btop` invocations (without -p) still render the operator's
+# canonical view.
+shown_boxes = "@MIOS:btop_shown_boxes@"
+
+# Update time in milliseconds. Operator: "not 500ms update speed" -- the
+# displayed value was 2000ms. Lock to 500ms here so btop refreshes 2x/sec
+# on the dev VM out of the box.
+update_ms = @MIOS:btop_update_ms@
+
+# Process sort column (when proc box re-enabled).
+proc_sorting = "@MIOS:btop_proc_sorting@"
+
+# Reverse sort.
+proc_reversed = @MIOS:btop_proc_reversed@
+
+# Show command line of processes.
+proc_tree = @MIOS:btop_proc_tree@
+
+# Show colliding cpu colors in tree mode.
+proc_colors = @MIOS:btop_proc_colors@
+
+# Show graph for each process (cpu / mem usage).
+proc_gradient = @MIOS:btop_proc_gradient@
+
+# Filter via "/" key.
+proc_filter_kernel = @MIOS:btop_proc_filter_kernel@
+
+# Display PID by default.
+proc_per_core = @MIOS:btop_proc_per_core@
+
+# Show memory in process box.
+proc_mem_bytes = @MIOS:btop_proc_mem_bytes@
+
+# Show CPU graph in process box.
+proc_cpu_graphs = @MIOS:btop_proc_cpu_graphs@
+
+# Use psutil for process info (Linux).
+proc_info_smaps = @MIOS:btop_proc_info_smaps@
+
+# Show command in process box.
+proc_left = @MIOS:btop_proc_left@
+
+# Display CPU as percentage (true) or single core load (false).
+proc_filter = "@MIOS:btop_proc_filter@"
+
+# CPU graph height (rows). Minimal for 80x20.
+cpu_graph_upper = "@MIOS:btop_cpu_graph_upper@"
+cpu_graph_lower = "@MIOS:btop_cpu_graph_lower@"
+cpu_invert_lower = @MIOS:btop_cpu_invert_lower@
+cpu_single_graph = @MIOS:btop_cpu_single_graph@
+cpu_bottom = @MIOS:btop_cpu_bottom@
+
+# Show top of CPU box.
+show_uptime = @MIOS:btop_show_uptime@
+
+# Show cpu temperatures (per-core if available).
+check_temp = @MIOS:btop_check_temp@
+
+# Which sensor to use for cpu temperature.
+cpu_sensor = "@MIOS:btop_cpu_sensor@"
+
+# Show all cores in cpu temp.
+show_coretemp = @MIOS:btop_show_coretemp@
+
+# CPU core map order: layout/numa/etc.
+cpu_core_map = "@MIOS:btop_cpu_core_map@"
+
+# Custom cpu model name in cpu percentage box.
+custom_cpu_name = "@MIOS:btop_custom_cpu_name@"
+
+# Cpu freq display: True/False.
+show_cpu_freq = @MIOS:btop_show_cpu_freq@
+
+# Update graphs for processes / cpu freq even when paused.
+clock_format = "@MIOS:btop_clock_format@"
+
+# Background update while paused.
+background_update = @MIOS:btop_background_update@
+
+# Filter all-zero CPU.
+custom_filters = "@MIOS:btop_custom_filters@"
+
+# Memory box -- compact.
+show_swap = @MIOS:btop_show_swap@
+swap_disk = @MIOS:btop_swap_disk@
+show_disks = @MIOS:btop_show_disks@
+only_physical = @MIOS:btop_only_physical@
+use_fstab = @MIOS:btop_use_fstab@
+zfs_hide_datasets = @MIOS:btop_zfs_hide_datasets@
+
+# Disable disk meter graph for compact 80x20 fit.
+disk_free_priv = @MIOS:btop_disk_free_priv@
+show_io_stat = @MIOS:btop_show_io_stat@
+io_mode = @MIOS:btop_io_mode@
+io_graph_combined = @MIOS:btop_io_graph_combined@
+io_graph_speeds = "@MIOS:btop_io_graph_speeds@"
+
+# Network box (hidden via shown_boxes -- still configured for when re-enabled).
+net_download = @MIOS:btop_net_download@
+net_upload = @MIOS:btop_net_upload@
+net_auto = @MIOS:btop_net_auto@
+net_sync = @MIOS:btop_net_sync@
+net_iface = "@MIOS:btop_net_iface@"
+
+# Show battery status (when applicable).
+show_battery = @MIOS:btop_show_battery@
+selected_battery = "@MIOS:btop_selected_battery@"
+show_battery_watts = @MIOS:btop_show_battery_watts@
+
+# Logging level.
+log_level = "@MIOS:btop_log_level@"

@@ -20,7 +20,7 @@ echo -e "${GREEN}╚════════════════════
 # Check if running as root/sudo
 if [ "$EUID" -eq 0 ]; then
     SUDO=""
-    USER_HOME=$(eval echo ~${SUDO_USER})
+    USER_HOME=$(getent passwd "${SUDO_USER}" | cut -d: -f6)
     ACTUAL_USER=${SUDO_USER}
 else
     SUDO="sudo"

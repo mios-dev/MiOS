@@ -503,6 +503,7 @@ if [ -r "$_GAMES_CACHE" ]; then
         case "$_hit_cmd" in
             mios-windows*)
                 export MIOS_LAUNCH_TITLE_HINT="$_hit_name"
+                # TD-1: eval-safe, input=internal games cache formatted commands (e.g. mios-windows launch ...), not agent-controlled
                 eval exec "$_hit_cmd" '"$@"'
                 ;;
             *)
@@ -717,8 +718,10 @@ if [ -n "$_DESC_CHAIN" ]; then
         # bare `eval` tripped set -e). Now a miss just advances to the next
         # candidate, and after all Linux candidates fail we reach the Windows
         # generative fallback below.
-        # Evaluate the launch command with proper quoting to preserve arguments
-        if eval "$_LAUNCH" '"$@"'; then
+        # TD-1: Replace unsafe eval with shlex split to prevent command injection of agent-controlled input
+        local -a _launch_arr
+        mapfile -t _launch_arr < <(python3 -c "import sys, shlex; print('\n'.join(shlex.split(sys.argv[1])))" "$_LAUNCH")
+        if "${_launch_arr[@]}" "$@"; then
             exit 0
         fi
         echo "mios-launch: try $_i failed; next" >&2

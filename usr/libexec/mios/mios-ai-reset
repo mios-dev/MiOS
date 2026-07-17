@@ -87,6 +87,7 @@ _do() {
     if [ "$DRY_RUN" = 1 ]; then
         printf "  [dry-run] %s\n" "$*"
     else
+        # TD-1: eval-safe, input=internal hardcoded paths and variables, not agent-controlled
         eval "$@"
     fi
 }

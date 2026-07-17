@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AI-hint: The GLOBAL runtime theme projector -- renders EVERY committed theme surface (btop, oh-my-posh, quickshell, fastfetch, the app-shell CSS, the terminal OSC fallbacks) from the mios.toml [colors]/[theme] SSOT via token-substitution templates, so a palette edit refreshes all of them from ONE command instead of hand-editing hex in a dozen files. Modes: `render` writes artifacts from templates; `check` regenerates in-memory and diffs the committed artifact (the drift-gate half -- exit 1 on drift); `capture` templatizes an existing artifact by replacing each SSOT palette hex with an @MIOS:token@ sentinel and self-verifies the round-trip is byte-identical (refuses to write a lossy template). Same three-layer vendor<host<user overlay as mios-sync-theme; canonicalizes collided values to the semantic token (bg over ansi_0) and never tokenizes #FFFFFF/#000000. Pairs with mios-sync-theme (the one global refresh) and 38-drift-checks check 21 (regenerate-and-diff gate) so a committed theme surface can NEVER drift from the palette SSOT.
+# AI-hint: The GLOBAL runtime theme projector -- renders EVERY committed theme surface (the btop theme, oh-my-posh, quickshell, fastfetch, the app-shell CSS, the terminal OSC fallbacks) from the mios.toml [colors]/[theme] SSOT via token-substitution templates, so a palette edit refreshes all of them from ONE command instead of hand-editing hex in a dozen files. Also projects SETTINGS surfaces (a surface with a 3rd registry element naming a mios.toml section): the btop-conf surface derives the WHOLE etc/btop/btop.conf from [btop] the same way, via @MIOS:btop_<key>@ tokens -- unified Linux+Windows, no hand-maintained conf. Modes: `render` writes artifacts from templates; `check` regenerates in-memory and diffs the committed artifact (the drift-gate half -- exit 1 on drift); `capture` templatizes an existing artifact by replacing each SSOT palette hex with an @MIOS:token@ sentinel and self-verifies the round-trip is byte-identical (refuses to write a lossy template). Same three-layer vendor<host<user overlay as mios-sync-theme; canonicalizes collided values to the semantic token (bg over ansi_0) and never tokenizes #FFFFFF/#000000. Pairs with mios-sync-theme (the one global refresh) and 38-drift-checks check 21 (regenerate-and-diff gate) so a committed theme surface can NEVER drift from the palette SSOT.
 # AI-related: ./mios-sync-theme, ../../share/mios/mios.toml, ../../share/mios/theme/templates, ../../../automation/38-drift-checks.sh, ../../share/mios/quickshell/Theme.qml
 # AI-functions: _token_map, _resolve, _render_text, cmd_render, cmd_check, cmd_capture, main
 """Global runtime theme projection: render/check/capture theme surfaces from the mios.toml palette SSOT."""
@@ -42,12 +42,56 @@ SURFACES = {
     "fastfetch":  ("usr/share/mios/theme/templates/fastfetch-config.jsonc.tmpl", "usr/share/mios/fastfetch/config.jsonc"),
     "app-shell":  ("usr/share/mios/theme/templates/mios-app-shell.css.tmpl", "usr/share/mios/branding/mios-app-shell.css"),
     "term-osc":   ("usr/share/mios/theme/templates/mios-colors.sh.tmpl",    "etc/profile.d/mios-colors.sh"),
+    # SETTINGS surface (3rd element = the mios.toml section whose scalar keys
+    # project as @MIOS:<section>_<key>@ tokens, conf-formatted). btop-conf
+    # derives the WHOLE btop config from [btop] the same way the color
+    # surfaces derive from [colors] -- ONE SSOT, unified Linux+Windows,
+    # drift-gated by check 25 (the Windows bootstrap stages this artifact).
+    "btop-conf":  ("usr/share/mios/theme/templates/btop.conf.tmpl", "etc/btop/btop.conf", "btop"),
 }
 
 
 def _resolve():
     """token -> hex, from the shared layered SSOT resolver (SSOT over canonical defaults)."""
     return mios_toml.colors(mios_toml.load_merged(_LAYERS))
+
+
+def _entry(name):
+    """(tmpl_rel, art_rel, section_or_None) for a surface. Color surfaces stay
+    2-tuples; a SETTINGS surface adds a 3rd element naming the mios.toml
+    section whose scalar keys project as @MIOS:<section>_<key>@ tokens."""
+    e = SURFACES[name]
+    return e[0], e[1], (e[2] if len(e) > 2 else None)
+
+
+def _fmt_conf(v):
+    """Format a TOML scalar for a btop-style conf: bool -> capitalized
+    True/False (btop's on-disk form), ints bare, strings verbatim (the
+    template supplies the surrounding quotes)."""
+    if isinstance(v, bool):
+        return "True" if v else "False"
+    return str(v)
+
+
+def _settings(merged, section):
+    """<section>_<key> -> conf-formatted token, from a flat mios.toml [section].
+    Nested sub-tables / arrays are skipped (only flat scalars become tokens)."""
+    out = {}
+    for k, v in mios_toml.section(merged, section).items():
+        if isinstance(v, (dict, list)):
+            continue
+        out["{}_{}".format(section, k)] = _fmt_conf(v)
+    return out
+
+
+def _resolved_for(merged, section):
+    """Token map for a surface: the [colors] palette, plus (for a settings
+    surface) the section's conf-formatted keys. Section keys never collide
+    with palette tokens (they carry the <section>_ prefix)."""
+    r = dict(mios_toml.colors(merged))
+    if section:
+        r.update(_settings(merged, section))
+    return r
 
 
 def _token_map(resolved):
@@ -76,15 +120,15 @@ def _read(path):
 
 
 def cmd_render(names):
-    resolved = _resolve()
+    merged = mios_toml.load_merged(_LAYERS)
     n = 0
     for name in (names or SURFACES):
-        tmpl_rel, art_rel = SURFACES[name]
+        tmpl_rel, art_rel, section = _entry(name)
         tmpl_abs = os.path.join(ROOT, tmpl_rel)
         if not os.path.isfile(tmpl_abs):
             sys.stderr.write(f"[mios-theme-render] skip {name}: no template ({tmpl_rel}) -- run `capture {name}`\n")
             continue
-        out = _render_text(_read(tmpl_abs), resolved)
+        out = _render_text(_read(tmpl_abs), _resolved_for(merged, section))
         art_abs = os.path.join(ROOT, art_rel)
         os.makedirs(os.path.dirname(art_abs), exist_ok=True)
         with open(art_abs, "w", encoding="utf-8", newline="") as fh:
@@ -95,17 +139,17 @@ def cmd_render(names):
 
 
 def cmd_check(names):
-    resolved = _resolve()
+    merged = mios_toml.load_merged(_LAYERS)
     drift = []
     for name in (names or SURFACES):
-        tmpl_rel, art_rel = SURFACES[name]
+        tmpl_rel, art_rel, section = _entry(name)
         tmpl_abs, art_abs = os.path.join(ROOT, tmpl_rel), os.path.join(ROOT, art_rel)
         if not os.path.isfile(tmpl_abs):
             continue  # unregistered/not-yet-captured surface -> not gated
         if not os.path.isfile(art_abs):
             drift.append(f"{name}: artifact missing ({art_rel})")
             continue
-        want = _render_text(_read(tmpl_abs), resolved)
+        want = _render_text(_read(tmpl_abs), _resolved_for(merged, section))
         got = _read(art_abs)
         if want != got:
             # first differing line, for a legible message
@@ -140,7 +184,11 @@ def cmd_capture(names):
             sys.stderr.write(f"[mios-theme-render] capture: unknown surface {name!r}\n")
             rc = 2
             continue
-        tmpl_rel, art_rel = SURFACES[name]
+        tmpl_rel, art_rel, section = _entry(name)
+        if section:
+            sys.stderr.write(f"[mios-theme-render] capture {name}: settings surface "
+                             f"([{section}] projection) is hand-authored, not hex-captured -- skipping\n")
+            continue
         art_abs = os.path.join(ROOT, art_rel)
         if not os.path.isfile(art_abs):
             sys.stderr.write(f"[mios-theme-render] capture {name}: artifact absent ({art_rel})\n")

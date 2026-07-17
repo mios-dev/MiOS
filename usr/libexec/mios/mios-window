@@ -381,7 +381,7 @@ case "$sub" in
     left|right|top|bottom|top-left|top-right|bottom-left|bottom-right|maximize-pos)
         pat="${1:-}"; [[ -z "$pat" ]] && { echo "mios-window $sub: missing <title-pattern>" >&2; exit 64; }
         hwnd="$(_resolve_hwnd "$pat")" || exit 1
-        _layout="$(mios-pc-control screen-layout 2>/dev/null)"
+        # TD-1: eval-safe, input=internal integers and layout bounds, not agent-controlled
         eval "$(echo "$_layout" | python3 - "$sub" "$hwnd" <<'PYEOF'
 import sys, json
 try:

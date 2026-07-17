@@ -27,7 +27,7 @@ if [ -n "${SUDO_USER:-}" ]; then
     REAL_HOME=$(getent passwd "$SUDO_USER" | cut -d: -f6)
 else
     REAL_USER="${USER:-$(whoami)}"
-    REAL_HOME="${HOME:-$(eval echo ~$REAL_USER)}"
+    REAL_HOME="${HOME:-$(getent passwd "$REAL_USER" | cut -d: -f6)}"
 fi
 
 readonly OUTPUT_DIR="$REAL_HOME/profiler-output"
