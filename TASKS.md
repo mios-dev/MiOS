@@ -4144,13 +4144,13 @@ T-094 (CONV-01 SSOT)
 - [ ] emb/HNSW recall works where the phase adds vectors; drift-gate (regenerate+diff) green; `just drift-gate` + `test_mios_*` pass
 
 ## T-246: VECTOR-04 -- V4 Accounts/users: DB-owned ids + prefs + bidirectional write-back  [P2]
-> **Priority:** P2 | **Status:** planned | **Effort:** L | **Domain:** Accounts/Identity/DB | **Who:** identity/accounts agent | **Source:** WS-VECTOR ultracode survey 2026-07-10; usr/share/doc/mios/reference/everything-db-driven.md
+> **Priority:** P2 | **Status:** completed (implemented DB sequences, allocation helpers, preferences table, and bidirectional sync daemon) | **Effort:** L | **Domain:** Accounts/Identity/DB | **Who:** identity/accounts agent | **Source:** WS-VECTOR ultracode survey 2026-07-10; usr/share/doc/mios/reference/everything-db-driven.md
 **Instructions (WHAT + HOW):** Complete the account plane: account.home_dir/shell, a uid_alloc SEQUENCE + allocate_uid()/allocate_gid() so ids are DB-owned, account_preference (layer-scoped, emb) so per-user dotfiles RENDER from the DB (retire static etc/skel); bidirectional write-back -- Linux pam/getent (NSS from account already), Windows SAM watcher (extend MiOS-AccountSync.ps1). Reconcile the /etc/shadow parallel store via pam write-back so the two credential planes don't drift.
 **Where (files):** usr/share/mios/postgres/schema-init.sql, automation/17-accounts-db.sh, usr/libexec/mios/mios-ai-firstboot (account seeder), C:\mios-bootstrap\srcutounattend\MiOS-AccountSync.ps1, etc/skel
 **When (deps/order):** After V0/V1. Builds on the shipped WS-ACCT account table + NSS getpwnam.
 **Done When:**
-- [ ] the V6 surface is DB-driven per the WS-VECTOR law (DB read at runtime, TOML fail-open) with no functionality loss
-- [ ] emb/HNSW recall works where the phase adds vectors; drift-gate (regenerate+diff) green; `just drift-gate` + `test_mios_*` pass
+- [x] the V6 surface is DB-driven per the WS-VECTOR law (DB read at runtime, TOML fail-open) with no functionality loss
+- [x] emb/HNSW recall works where the phase adds vectors; drift-gate (regenerate+diff) green; `just drift-gate` + `test_mios_*` pass
 
 ## T-247: VECTOR-05 -- V5 Invert authority: DB=SSOT, TOML=generated export, event-sourced  [P3]
 > **Priority:** P3 | **Status:** planned | **Effort:** XL | **Domain:** SSOT/DB/Configurator | **Who:** platform architect | **Source:** WS-VECTOR ultracode survey 2026-07-10; usr/share/doc/mios/reference/everything-db-driven.md
