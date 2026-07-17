@@ -323,6 +323,42 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 
 ---
 
+## AGY-45..49 — NEW (2026-07-16, batch 2) — remaining tech-debt (TD-3/4/5) + ADR-0010/0011 follow-ons
+
+> ✅ **AGY — the shared C:\MiOS tree is now CLEAN** (Claude committed its btop/docs/SBOM/AGY-queue work as commits `c8acac11`, `0bdb67e3`, `e0a5b68e`, `c5b5d599`). These build on YOUR AGY-41/AGY-44 + the AGY-40..44 batch above. Same hard rule as the STOP banner: **stage explicit paths for YOUR task only, `git status` before every commit, never `git add -A`.**
+
+## AGY-45  (WS-DEBT / TD-3, **P1**) — resolver-twin equivalence gate (bind mios_toml.py ⇄ userenv.sh so they can't drift)
+**Who:** you (Python + bash + drift-gate). **When:** parallel-safe; independent.
+**What + How:** TD-3's worst instance: `usr/lib/mios/mios_toml.py` (Python resolver) and `usr/lib/mios/userenv.sh` (bash resolver) must produce byte-identical env with **no generator binding them** — pure hand-sync, drift-prone. Add `check_resolver_twin_equivalence` to `automation/38-drift-checks.sh` (next free number): (1) resolve a representative key sample via BOTH resolvers (dump `MIOS_*` env from `mios_toml.py`, and from `source userenv.sh` in a subshell), (2) diff the two dumps, (3) FAIL on any key whose value/presence differs. Read-only, no live services. Complements drift-27 (userenv.sh == tools/lib/userenv.sh copy) by catching Python-vs-bash divergence. Allowlist any INTENTIONAL delta with a reason (per the "don't blind-delete load-bearing" caution).
+**Where:** `automation/38-drift-checks.sh`, a small `tools/dump-env-*.{sh,py}` helper if needed, allowlist note.
+**Done When:** the twin-equivalence check is green on HEAD, reds an injected value divergence, intentional deltas allowlisted with reasons; `bash -n`/`py_compile` clean; `just drift-gate` green.
+
+## AGY-46  (WS-DEBT / TD-4, **P2**) — make the build's silent NON_FATAL swallow VISIBLE + pin the syft installer
+**Who:** you (bash). **When:** `git pull` first — `90-generate-sbom.sh` was just committed by Claude (`0bdb67e3`); edit it additively, keep its degrade-open + exit-0 contract.
+**What + How:** two TD-4 items: (1) `automation/build.sh` `NON_FATAL_SCRIPTS` swallows non-zero from ~23 phases silently. Add an END-OF-BUILD SUMMARY listing which non-fatal phases exited non-zero (name + code), to the build log AND a machine-readable marker under the SBOM artifacts dir, so a persistently-failing phase is visible (not silently green). Do NOT change which scripts are non-fatal — only surface outcomes. (2) In `90-generate-sbom.sh` the syft installer is an unpinned `curl … | sh` (supply-chain risk) — pin it to a specific syft version/tag from SSOT (`[build.bake_refs]` if AGY-40 created it, else a new key) and/or verify a checksum; keep it degrade-open.
+**Where:** `automation/build.sh`, `automation/90-generate-sbom.sh`, `usr/share/mios/mios.toml` (pin ref).
+**Done When:** a build with a deliberately-failing non-fatal phase surfaces it in the summary + marker (still exits 0); the syft installer is pinned/verified; degrade-open preserved; `bash -n` clean; `just drift-gate` green.
+
+## AGY-47  (WS-DEBT / TD-5 / T-273, **P1**) — scoped decomposition: extract ONE cohesive unit out of the server.py / mios_dispatch.py god-module
+**Who:** you (Python). **When:** parallel-safe; the safe first bite of T-273.
+**What + How:** `server.py` (8,961 ln) + `mios_dispatch.py` (the security-critical verb→bash chokepoint) are god-modules. Do NOT attempt a full split — extract exactly ONE cohesive, well-bounded unit into a NEW sibling module with a sibling test and a ONE-WAY import (must NOT import `server.py` — drift-check 6). Prefer the highest-value/lowest-risk seam: the **verb argument validation/sanitization** helper (the input-safety layer feeding dispatch — synergizes with AGY-41's eval removal), else the `_db_*` helpers or the auth-middleware. Move the code, leave a thin re-export shim at the old call site (callers unchanged), add `test_mios_<unit>.py` (drift-check 11 requires the sibling). Behavior byte-identical.
+**Where:** `usr/lib/mios/agent-pipe/server.py` (or `mios_dispatch.py`), new `usr/lib/mios/agent-pipe/mios_<unit>.py` + `test_mios_<unit>.py`.
+**Done When:** the unit lives in its own sibling+test module with no `server.py` import edge; the full `test_mios_*` suite green; behavior unchanged; checks 6 + 11 pass; `just drift-gate` green. Stage only your files.
+
+## AGY-48  (WS-TEMPLATE / ADR-0011 / Law-14 prep, **P2**) — prove the AGY-44 scaffolder + ratchet the conformance check to NEW files
+**Who:** you (Python + bash). **When:** after AGY-44 (its templates + `mios-new` + advisory check are committed).
+**What + How:** AGY-44 delivered `usr/share/mios/templates/*` + `usr/libexec/mios/mios-new` + an ADVISORY `check_template_conformance`. Advance toward Law-14 WITHOUT a global flip: (1) prove round-trip — pick 2-3 RECENTLY-added files of a templated type and confirm `mios new <type>` reproduces their canonical header/structure; fix the template if not. (2) Make `check_template_conformance` **ratcheting**: FAIL only for files ADDED after a baseline commit that lack their type's template header (grandfather existing via a baseline list) — new files must conform, the estate isn't retro-broken. Still do NOT add an id-14 `[laws]` row (operator-gated).
+**Where:** `usr/share/mios/templates/*`, `usr/libexec/mios/mios-new`, `automation/38-drift-checks.sh`, a baseline allowlist file.
+**Done When:** `mios new` reproduces the exemplars; the check reds a new non-conforming file of a known type and passes on HEAD (baseline grandfathered); `[laws]` untouched; `just drift-gate` green.
+
+## AGY-49  (WS-DOTFILES / ADR-0010, **P2**) — prove the SSOT-dotfiles generalization on a SECOND surface ([gitconfig] → etc/skel/.gitconfig)
+**Who:** you (Python + TOML). **When:** after the btop settings-surface landed (committed) — reuse that exact mechanism.
+**What + How:** btop proved `mios-theme-render`'s settings-surface (project any `mios.toml` section to a build-tree file, drift-gated). Widen ADR-0010 coverage with a SECOND dotfile: a `[gitconfig]` section of **non-identity** git settings (`core.editor`, `init.defaultBranch`, `pull.rebase`, `[alias].*`…), projected via a new template to **`etc/skel/.gitconfig`** (the vendor skel that seeds HOME — a build-tree target the current engine already supports; the live-HOME `apply` verb is Claude's ADR-0010 engine work, NOT this task). Per Law 9, do NOT store `user.name`/`user.email` in `[gitconfig]` — the template must reference `[identity]` for those (single-sourced). Register the surface in `mios-theme-render` SURFACES, add the template, confirm drift-check 25 auto-gates it (as for btop).
+**Where:** `usr/share/mios/mios.toml` (new `[gitconfig]` referencing `[identity]`), `usr/share/mios/theme/templates/gitconfig.tmpl` (new), `usr/libexec/mios/mios-theme-render` (register surface), `etc/skel/.gitconfig` (rendered), `automation/38-drift-checks.sh` (confirm check 25 covers it).
+**Done When:** `render` produces `etc/skel/.gitconfig` from `[gitconfig]`+`[identity]`; `check` includes it and passes; tampering it reds drift-check 25; no identity value stored outside `[identity]` (Law 9); `just drift-gate` green.
+
+---
+
 ### Reporting back
 Commit each task as `agy: <task-id> <summary>` and push to `main`. Claude is monitoring
 `main` for your commits + will integrate/verify. If blocked, leave a `TODO(agy):` note in
