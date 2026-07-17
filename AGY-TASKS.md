@@ -359,6 +359,18 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 
 ---
 
+## AGY-50  (WS-CONFIG / T-267 / CONFIG-01, **P1**) — server-side read/write of mios.toml for the unified config surface
+**Who:** you (Python, agent-pipe). **When:** now or right after AGY-47 (server.py decomposition) — this adds two routes + a config writer. Claude is landing the CLIENT half in `usr/share/mios/configurator/mios.html` (inert/degrade-to-download until these routes exist), so ship these and the loop closes.
+**What + How:** the Portal already embeds the configurator (`GET /portal/configurator` serves mios.html into the shell iframe), but mios.html can only save via browser download — there is NO server read/write of the SSOT. Add two routes:
+- **`GET /portal/config`** → return the live LAYERED `mios.toml` (vendor<host<user) as `text/plain` TOML for the form to seed from. Reuse the existing read path (the `tomllib.load` the Portal already does for `[colors]`/`[ports]`, `mios_pipe/kernel/config.py`).
+- **`POST /portal/config`** → body = raw TOML; validate it parses; PERSIST to the **user layer `~/.config/mios/mios.toml`** by default (host `/etc/mios/mios.toml` only when the session is a privileged/admin operator). Return a JSON status. **Persist-only — do NOT trigger `mios build`** (apply stays an explicit operator action).
+- Add the **writer** to `mios_pipe/kernel/config.py` (currently read-only): write the correct layer file atomically (temp+rename), preserving SSOT cascade semantics.
+- **Auth:** reuse the portal session (`_portal_authed`) + honor `[security].api_require_auth`; when unauthorized/disabled return 403/404 so the client gracefully falls back to browser-download (the client half is built to degrade).
+- Wire the routes in `mios_pipe/routing/portal.py` + the thin `@app`/router entry in `server.py` (coordinate with your AGY-47 decomposition).
+**Where:** `usr/lib/mios/agent-pipe/mios_pipe/kernel/config.py` (writer), `usr/lib/mios/agent-pipe/mios_pipe/routing/portal.py` (routes), `usr/lib/mios/agent-pipe/server.py` (wiring), a `test_mios_config_write.py`.
+**Done When:** `GET /portal/config` returns the live TOML; `POST /portal/config` persists to `~/.config/mios/mios.toml` atomically, auth-gated, no build triggered; unauthorized → 403 so the client degrades to download; tests green; `just drift-gate` green. Stage only your files.
+**OPEN (operator may adjust):** the write-layer default (per-user vs host), and whether a future 'Apply' action should trigger `mios build` (out of scope here — persist-only for now).
+
 ### Reporting back
 Commit each task as `agy: <task-id> <summary>` and push to `main`. Claude is monitoring
 `main` for your commits + will integrate/verify. If blocked, leave a `TODO(agy):` note in
