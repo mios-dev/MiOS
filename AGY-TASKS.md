@@ -399,6 +399,15 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 **Where:** new `tests/drift-gate-negatives.sh` (or extend the existing test harness), referenced from `Justfile`/CI if appropriate.
 **Done When:** each of the 4 new gates has a negative test that reds on an injected violation + greens after restore; the harness runs clean end-to-end; `just drift-gate` still green. Stage only your files.
 
+## AGY-55  (WS-CONFIG / T-267 hardening, **P2**) — test + refactor the /portal/config endpoints AGY-50 shipped
+**Who:** you (Python, agent-pipe). **When:** after AGY-50 (done + pushed) — polish it. Claude's carve-out `usr/share/mios/configurator/**` still applies (the HTML client is Claude's), but the agent-pipe routes are yours.
+**What + How:** AGY-50 landed `GET`/`POST /portal/config` (functional — auth-gated, validates TOML, atomic temp+rename write to `mios_toml.USER`) but with gaps to close:
+1. **No dedicated test.** Add `test_mios_config_write.py` covering: `GET /portal/config` returns the layered TOML; `POST` persists to the USER layer (mock `mios_toml.USER` to a temp path, assert the file content round-trips); `POST` of invalid TOML → 400; both endpoints unauthenticated → 401.
+2. **Duplicated hand-rolled serializer.** `dict_to_toml` is copy-pasted in BOTH the GET (portal.py ~1584) and POST (~1666) handlers. Extract ONE `to_toml()` serializer + the USER-layer atomic writer into `mios_pipe/kernel/config.py` (the config kernel — this is where the original design put the writer) and call them from both handlers. Verify the serializer round-trips the scalar/section/array shapes the configurator form uses (the `[data-key]` inputs).
+3. **Synchronous DB-reseed on POST.** The POST triggers a `seed-db-config` subprocess synchronously after the write — make it NON-BLOCKING (FastAPI `BackgroundTask` / fire-and-forget) and degrade-open (a reseed failure must NOT fail the POST — the file write already succeeded), so a slow reseed never hangs the operator's Save.
+**Where:** new `usr/lib/mios/agent-pipe/test_mios_config_write.py`, `usr/lib/mios/agent-pipe/mios_pipe/kernel/config.py` (extracted `to_toml` + writer), `usr/lib/mios/agent-pipe/mios_pipe/routing/portal.py` (call the extracted helpers; make reseed background).
+**Done When:** the endpoint test passes (GET / POST / invalid-400 / unauth-401); one `to_toml`+writer in `config.py` used by both handlers; the DB-reseed is background + degrade-open; `just drift-gate` green. Stage only your files.
+
 ### Reporting back
 Commit each task as `agy: <task-id> <summary>` and push to `main`. Claude is monitoring
 `main` for your commits + will integrate/verify. If blocked, leave a `TODO(agy):` note in
