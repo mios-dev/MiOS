@@ -392,11 +392,11 @@ sbom:
 
 # Initialize user-space configuration (seeds ~/.config/mios/mios.toml).
 init-user-space:
-    @./tools/init-user-space.sh
+    @./usr/libexec/mios/user-setup.sh
 
 # Re-initialize user-space (overwrite mios.toml with vendor template).
 reinit-user-space:
-    @./tools/init-user-space.sh --force
+    @./usr/libexec/mios/user-setup.sh --force
 
 # Show user-space configuration paths
 show-user-space:
