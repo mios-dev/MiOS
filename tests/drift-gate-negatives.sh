@@ -1,0 +1,136 @@
+#!/usr/bin/env bash
+# AI-hint: Negative-test harness for the new drift gates (AGY-54). Inject violations, assert they fail, restore, and assert pass.
+# AI-related: tests/drift-gate-negatives.sh, automation/38-drift-checks.sh
+# AI-functions: main, test_version_ssot, test_resolver_equivalence, test_eval_safety, test_shellcheck_failure
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+# Ensure we use the correct path variables for drift checks
+export PATH="${ROOT}/.gemini/antigravity-ide/brain/65e96314-c09e-454f-843e-7baf8bdd3df7/scratch:${PATH}"
+
+log() {
+    echo -e "\033[1;34m[drift-gate-negatives]\033[0m $1"
+}
+
+die() {
+    echo -e "\033[1;31m[drift-gate-negatives] ERROR:\033[0m $1" >&2
+    exit 1
+}
+
+# 1. Test check_version_ssot
+test_version_ssot() {
+    log "Testing check_version_ssot..."
+    local version_file="${ROOT}/VERSION"
+    local orig_val
+    orig_val="$(cat "$version_file")"
+
+    # Inject violation
+    echo "9.9.9" > "$version_file"
+
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/38-drift-checks.sh" check_version_ssot >/dev/null 2>&1; then
+        echo "$orig_val" > "$version_file"
+        die "check_version_ssot passed despite version drift violation!"
+    fi
+
+    # Restore and verify green
+    echo "$orig_val" > "$version_file"
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/38-drift-checks.sh" check_version_ssot >/dev/null 2>&1 \
+        || die "check_version_ssot failed after restoration!"
+    log "check_version_ssot negative test passed."
+}
+
+# 2. Test check_resolver_twin_equivalence
+test_resolver_equivalence() {
+    log "Testing check_resolver_twin_equivalence..."
+    local userenv_file="${ROOT}/usr/lib/mios/userenv.sh"
+    local orig_val
+    orig_val="$(cat "$userenv_file")"
+
+    # Inject violation
+    echo 'export MIOS_AI_TEST_TEMP="invalid-drift-val"' >> "$userenv_file"
+
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/38-drift-checks.sh" check_resolver_twin_equivalence >/dev/null 2>&1; then
+        echo "$orig_val" > "$userenv_file"
+        die "check_resolver_twin_equivalence passed despite mismatch!"
+    fi
+
+    # Restore and verify green
+    echo "$orig_val" > "$userenv_file"
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/38-drift-checks.sh" check_resolver_twin_equivalence >/dev/null 2>&1 \
+        || die "check_resolver_twin_equivalence failed after restoration!"
+    log "check_resolver_twin_equivalence negative test passed."
+}
+
+# 3. Test check_cli_eval_safety
+test_eval_safety() {
+    log "Testing check_cli_eval_safety..."
+    local temp_verb="${ROOT}/usr/libexec/mios/mios-test-temp-eval"
+
+    # Clean up any leftover
+    rm -f "$temp_verb"
+
+    # Inject violation: add eval "$1" to a verb script
+    cat << 'EOF' > "$temp_verb"
+#!/usr/bin/env bash
+# AI-hint: Temporary script for negative testing.
+# AI-related: tests/drift-gate-negatives.sh
+eval "$1"
+EOF
+    chmod +x "$temp_verb"
+
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/38-drift-checks.sh" check_cli_eval_safety >/dev/null 2>&1; then
+        rm -f "$temp_verb"
+        die "check_cli_eval_safety passed despite eval injection!"
+    fi
+
+    # Restore and verify green
+    rm -f "$temp_verb"
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/38-drift-checks.sh" check_cli_eval_safety >/dev/null 2>&1 \
+        || die "check_cli_eval_safety failed after restoration!"
+    log "check_cli_eval_safety negative test passed."
+}
+
+# 4. Test check_shellcheck
+test_shellcheck_failure() {
+    log "Testing check_shellcheck..."
+    
+    # We set up a temporary directory with a mock shellcheck binary to simulate a lint failure
+    local tmp_bin_dir
+    tmp_bin_dir="$(mktemp -d)"
+    cat << 'EOF' > "${tmp_bin_dir}/shellcheck"
+#!/bin/sh
+echo "Injected shellcheck failure"
+exit 1
+EOF
+    chmod +x "${tmp_bin_dir}/shellcheck"
+
+    # Run linter with mock shellcheck in PATH
+    local old_path="$PATH"
+    export PATH="${tmp_bin_dir}:${PATH}"
+
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/38-drift-checks.sh" check_shellcheck >/dev/null 2>&1; then
+        export PATH="$old_path"
+        rm -rf "$tmp_bin_dir"
+        die "check_shellcheck passed despite shellcheck failure!"
+    fi
+
+    # Restore and verify green (degrades to skipped or passes on clean)
+    export PATH="$old_path"
+    rm -rf "$tmp_bin_dir"
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/38-drift-checks.sh" check_shellcheck >/dev/null 2>&1 \
+        || die "check_shellcheck failed after restoration!"
+    log "check_shellcheck negative test passed."
+}
+
+main() {
+    log "Starting negative-test suite..."
+    test_version_ssot
+    test_resolver_equivalence
+    test_eval_safety
+    test_shellcheck_failure
+    log "All negative tests completed successfully!"
+}
+
+main "$@"
