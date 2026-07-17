@@ -719,7 +719,6 @@ if [ -n "$_DESC_CHAIN" ]; then
         # candidate, and after all Linux candidates fail we reach the Windows
         # generative fallback below.
         # TD-1: Replace unsafe eval with shlex split to prevent command injection of agent-controlled input
-        local -a _launch_arr
         mapfile -t _launch_arr < <(python3 -c "import sys, shlex; print('\n'.join(shlex.split(sys.argv[1])))" "$_LAUNCH")
         if "${_launch_arr[@]}" "$@"; then
             exit 0
