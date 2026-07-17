@@ -1,0 +1,122 @@
+#!/usr/bin/env python3
+# AI-hint: Conformance check verifying that source files match template specifications.
+# AI-related: usr/share/mios/templates/, automation/38-drift-checks.sh
+# AI-functions: main, walk, check_file, load_grandfathered
+
+import os
+import sys
+import re
+import argparse
+import importlib.machinery
+import importlib.util
+
+ROOT = os.environ.get("MIOS_THEME_ROOT") or os.path.abspath(
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..")
+)
+os.environ["MIOS_TOML_ROOT"] = ROOT
+os.environ["MIOS_THEME_ROOT"] = ROOT
+
+sys.path.insert(0, os.path.join(ROOT, "usr/lib/mios"))
+import mios_toml
+
+def _load_tagger():
+    tagger_path = os.path.join(ROOT, "usr/libexec/mios/mios-ai-tag")
+    if os.path.isfile(tagger_path):
+        loader = importlib.machinery.SourceFileLoader("mios_ai_tag", tagger_path)
+        spec = importlib.util.spec_from_loader("mios_ai_tag", loader)
+        mod = importlib.util.module_from_spec(spec)
+        loader.exec_module(mod)
+        return mod
+    return None
+
+def load_grandfathered():
+    gf_path = os.path.join(ROOT, "usr/share/mios/templates/conformance-grandfathered.list")
+    if not os.path.isfile(gf_path):
+        return set()
+    with open(gf_path, "r", encoding="utf-8") as f:
+        return {ln.strip() for ln in f if ln.strip()}
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--root", default=ROOT)
+    ap.add_argument("--max-unconforming", type=int, default=None)
+    args = ap.parse_args()
+
+    root = args.root
+    tagger = _load_tagger()
+    if not tagger:
+        sys.stderr.write("Warning: mios-ai-tag not found, skipping conformance check.\n")
+        return 0
+
+    grandfathered = load_grandfathered()
+
+    # Load templates config
+    merged = mios_toml.load_merged()
+    templates_cfg = merged.get("templates", {})
+
+    # Compile regexes
+    compiled_templates = []
+    for tname, tcfg in templates_cfg.items():
+        if "match" in tcfg:
+            compiled_templates.append({
+                "name": tname,
+                "pattern": re.compile(tcfg["match"]),
+                "required_header": tcfg.get("required_header", True),
+                "required_markers": tcfg.get("required_markers", []),
+            })
+
+    unconforming = []
+    checked_count = 0
+
+    # Walk all files using tagger's walk
+    for p in tagger.walk([root]):
+        # Resolve path relative to root
+        rel_path = os.path.relpath(p, root).replace("\\", "/")
+        if rel_path in grandfathered:
+            continue
+
+        checked_count += 1
+        try:
+            with open(p, "r", encoding="utf-8", errors="replace") as f:
+                content = f.read()
+            head = content[:8192]
+        except OSError:
+            continue
+
+        # Check template conformance
+        for ct in compiled_templates:
+            if ct["pattern"].search(rel_path):
+                # Check header if required
+                if ct["required_header"]:
+                    if not tagger.existing_hint(head):
+                        unconforming.append((rel_path, f"Missing AI-hint header (required by {ct['name']})"))
+                        break
+                # Check required markers
+                for marker in ct["required_markers"]:
+                    if marker not in content:
+                        unconforming.append((rel_path, f"Missing required body marker {marker!r} (required by {ct['name']})"))
+                        break
+                break
+
+    # Determine ceiling
+    ceiling = args.max_unconforming
+    if ceiling is None:
+        ceiling = merged.get("ai_tag", {}).get("max_unconforming", 0)
+
+    unconforming_count = len(unconforming)
+    over = unconforming_count > ceiling
+
+    print(f"[conformance] checked={checked_count} unconforming={unconforming_count} ceiling={ceiling}")
+    if unconforming:
+        sys.stderr.write("Non-conforming files:\n")
+        for p, err in unconforming:
+            sys.stderr.write(f"    {p}: {err}\n")
+
+    if over:
+        sys.stderr.write(f"FAIL: {unconforming_count} unconforming files exceeds ceiling {ceiling}\n")
+        return 1
+
+    return 0
+
+if __name__ == "__main__":
+    sys.exit(main())

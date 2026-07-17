@@ -1,0 +1,1121 @@
+#!/usr/bin/env python3
+# AI-hint: The GLOBAL runtime theme + dotfiles projector -- renders EVERY committed theme surface (the btop theme, oh-my-posh, quickshell, fastfetch, the app-shell CSS, the terminal OSC fallbacks) from the mios.toml [colors]/[theme] SSOT via token-substitution templates,
+# AI-related: /etc/mios/mios.toml, mios-sync-theme, mios-bak, mios-theme-render, surface.target, s.target, apply.target
+"""Global runtime theme + dotfiles projection: render/check/capture/apply theme+dotfile surfaces from the mios.toml SSOT."""
+
+from __future__ import annotations
+
+import collections
+import datetime
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+
+# Repo/system root: default two dirs up from usr/libexec/mios/, overridable.
+_SELF = os.path.abspath(__file__)
+ROOT = os.environ.get("MIOS_THEME_ROOT") or os.path.abspath(os.path.join(os.path.dirname(_SELF), "..", "..", ".."))
+
+# Three-layer overlay (lowest first). Repo-relative vendor + absolute host/user.
+_VENDOR = os.environ.get("MIOS_VENDOR_TOML") or os.path.join(ROOT, "usr/share/mios/mios.toml")
+_HOST = os.environ.get("MIOS_HOST_TOML", "/etc/mios/mios.toml")
+_USER = os.environ.get("MIOS_USER_TOML") or os.path.join(
+    os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")), "mios/mios.toml")
+_LAYERS = [_VENDOR, _HOST, _USER]
+
+# Layered SSOT loading + the canonical palette defaults come from the ONE shared
+# resolver (the Python peer of tools/lib/userenv.sh) -- no local deep_merge/DEFAULTS copy.
+sys.path.insert(0, os.path.join(ROOT, "usr/lib/mios"))
+import mios_toml  # noqa: E402
+
+# Values too generic to tokenize (used as plain colors everywhere, not as palette refs).
+_EXCLUDE = {"#FFFFFF", "#000000"}
+
+_HEX = re.compile(r"#[0-9A-Fa-f]{6}\b")
+_SENTINEL = re.compile(r"@MIOS:([a-z0-9_.-]+)@")
+
+# A surface descriptor (ADR-0010). `kind` is the WRITE-SEMANTICS axis, orthogonal
+# to `section` (the token source): absent kind => "template" so the 8 existing
+# color/settings surfaces are byte-for-byte unchanged. `fixture` (merge kinds
+# only) names the checked-in base + expected-merge pair the offline drift-gate
+# diffs against; `policy` steers merge write-behavior (ini-merge, later).
+_Fixture = collections.namedtuple("_Fixture", "base expected")
+_Surface = collections.namedtuple("_Surface", "name template target section kind fixture policy")
+
+
+def _resolve():
+    """token -> hex, from the shared layered SSOT resolver (SSOT over canonical defaults)."""
+    return mios_toml.colors(mios_toml.load_merged(_LAYERS))
+
+
+def _fmt_conf(v):
+    """Format a TOML scalar for a btop-style conf: bool -> capitalized
+    True/False (btop's on-disk form), ints bare, strings verbatim (the
+    template supplies the surrounding quotes)."""
+    if isinstance(v, bool):
+        return "True" if v else "False"
+    return str(v)
+
+
+def _settings(merged, section):
+    """<section>_<key> -> conf-formatted token, from a flat mios.toml [section].
+    Nested sub-tables / arrays are skipped (only flat scalars become tokens)."""
+    out = {}
+    for k, v in mios_toml.section(merged, section).items():
+        if isinstance(v, (dict, list)):
+            continue
+        out["{}_{}".format(section, k)] = _fmt_conf(v)
+    return out
+
+
+def _resolved_for(merged, section):
+    """Token map for a surface: the [colors] palette, plus (for a settings
+    surface) the section's conf-formatted keys. Section keys never collide
+    with palette tokens (they carry the <section>_ prefix)."""
+    r = dict(mios_toml.colors(merged))
+    # Always include [identity] section keys
+    r.update(_settings(merged, "identity"))
+    if section:
+        r.update(_settings(merged, section))
+    return r
+
+
+def _token_map(resolved):
+    """value(UPPER) -> canonical token. Semantic names win over ansi_* (dict order)."""
+    m = {}
+    for tok, val in resolved.items():
+        u = val.upper()
+        if u in _EXCLUDE:
+            continue
+        m.setdefault(u, tok)
+    return m
+
+
+def _walk_path(d, path):
+    parts = path.split(".")
+    curr = d
+    for p in parts:
+        if isinstance(curr, dict) and p in curr:
+            curr = curr[p]
+        else:
+            return None
+    return curr
+
+
+def _resolve_arbitrary_token(tok, merged):
+    # Try dotted path first (e.g. "identity.fullname" or "colors.bg")
+    val = _walk_path(merged, tok)
+    if val is not None:
+        return _fmt_conf(val)
+    
+    # Try converting underscore to dots as a fallback (e.g., "identity_fullname" -> "identity.fullname")
+    if "_" in tok:
+        parts = tok.split("_")
+        for i in range(1, len(parts)):
+            sec = "_".join(parts[:i])
+            key = "_".join(parts[i:])
+            val = _walk_path(merged, f"{sec}.{key}")
+            if val is not None:
+                return _fmt_conf(val)
+    return None
+
+
+def _render_text(tmpl_text, resolved, merged=None):
+    def sub(match):
+        tok = match.group(1)
+        if tok not in resolved:
+            if merged is not None:
+                val = _resolve_arbitrary_token(tok, merged)
+                if val is not None:
+                    return val
+            raise KeyError(f"unknown theme/dotfile token @MIOS:{tok}@ (not in [colors] or arbitrary key lookup)")
+        return resolved[tok]
+    return _SENTINEL.sub(sub, tmpl_text)
+
+
+def _read(path):
+    with open(path, "r", encoding="utf-8", newline="") as fh:
+        return fh.read()
+
+
+# --- json-merge primitives (ADR-0010) ----------------------------------------
+# A json-merge surface owns only a SUBTREE of a foreign JSON document (VS Code /
+# Windows Terminal settings.json). The MiOS-owned subtree is spliced onto the
+# foreign doc so every key MiOS does NOT emit is byte-preserved. Both the offline
+# fixture.base (drift-gate) and the live settings.json (apply) are read as JSONC
+# and must round-trip through a STRING-AWARE comment/trailing-comma strip that
+# never mangles a `//` inside a string value (e.g. an `https://` URL). A base
+# that will not parse is REFUSED (exit 2, write NOTHING) -- MiOS never corrupts
+# an unreadable foreign file.
+
+def _jsonc_to_json(text):
+    """STRING-AWARE JSONC -> strict-JSON: strip `//` line comments, `/* */` block
+    comments, and trailing commas WITHOUT touching a `//`/`/*` or a `, }`/`, ]`
+    that lives INSIDE a string literal (so `https://x` and a comma in a value
+    survive). Returns text json.loads can parse. A single-pass scanner tracks
+    string/escape state so no regex ever runs over string contents."""
+    out = []
+    i, n = 0, len(text)
+    in_string = escape = False
+    while i < n:
+        c = text[i]
+        if in_string:
+            out.append(c)
+            if escape:
+                escape = False
+            elif c == "\\":
+                escape = True
+            elif c == '"':
+                in_string = False
+            i += 1
+            continue
+        if c == '"':
+            in_string = True
+            out.append(c)
+            i += 1
+            continue
+        if c == "/" and i + 1 < n and text[i + 1] == "/":
+            i += 2
+            while i < n and text[i] not in "\r\n":
+                i += 1
+            continue
+        if c == "/" and i + 1 < n and text[i + 1] == "*":
+            i += 2
+            while i + 1 < n and not (text[i] == "*" and text[i + 1] == "/"):
+                i += 1
+            i += 2  # consume the closing */
+            continue
+        if c in "}]":
+            # JSONC trailing comma: drop a comma that (skipping whitespace)
+            # immediately precedes this closer. String-safe: we are not in_string.
+            j = len(out) - 1
+            while j >= 0 and out[j] in " \t\r\n":
+                j -= 1
+            if j >= 0 and out[j] == ",":
+                del out[j]
+            out.append(c)
+            i += 1
+            continue
+        out.append(c)
+        i += 1
+    return "".join(out)
+
+
+def _detect_indent(text):
+    r"""Infer the indent unit of a pretty-printed JSON/JSONC document from the
+    leading whitespace of its first indented, non-blank line: a leading tab ->
+    "\t", else the space count. Defaults to 2 spaces so json.dump reproduces the
+    base document's shape."""
+    for raw in text.splitlines():
+        if not raw.strip():
+            continue
+        lead = raw[:len(raw) - len(raw.lstrip())]
+        if not lead:
+            continue
+        return "\t" if lead[0] == "\t" else len(lead)
+    return 2
+
+
+# Array-merge-by-key (ADR-0010). By DEFAULT _json_deep_merge REPLACES a list
+# wholesale at the owned pointer (index-merge is unsafe for most arrays). But a
+# few foreign JSON docs keep a COLLECTION keyed by a stable field -- e.g. Windows
+# Terminal's top-level `schemes` array, each element `{name, background, ...}`.
+# Wholesale-replacing it would DELETE the operator's OTHER schemes. For the JSON
+# pointers listed here ONLY, the two lists are merged BY KEY instead. The map is
+# keyed by JSON pointer (e.g. "/schemes"), so every OTHER array -- and every
+# current surface, NONE of which has a `/schemes` array (vscode-colors owns only
+# objects) -- keeps the byte-identical wholesale-replace path. Extend this map to
+# add a new keyed-array pointer; leave it be and nothing changes.
+_ARRAY_MERGE_KEYS = {
+    "/schemes": "name",  # Windows Terminal color schemes, keyed by scheme name
+}
+
+
+def _keyed_object_list(a, b, key):
+    """True iff both lists are safe to merge BY `key`: every element is a dict
+    that carries `key`. If ANY element is a non-dict or lacks the key, the caller
+    falls back to the default wholesale-replace (so a heterogeneous/opaque array
+    is never silently index-merged). Empty lists trivially qualify."""
+    return all(isinstance(x, dict) and key in x for x in a) and \
+        all(isinstance(x, dict) and key in x for x in b)
+
+
+def _array_merge_by_key(base_list, owned_list, key):
+    """Merge two lists of objects BY a stable `key` field (neither input mutated):
+    a foreign (base) element whose key is NOT in `owned_list` is PRESERVED in base
+    order; an owned element whose key matches a foreign one deep-merges OVER it in
+    place (owned wins, foreign sub-keys of that element preserved); an owned-only
+    element is APPENDED after the foreign ones. The caller has already verified
+    every element is a dict carrying `key` (see _keyed_object_list)."""
+    owned_by_key = {}
+    owned_order = []
+    for item in owned_list:
+        k = item[key]
+        if k not in owned_by_key:
+            owned_order.append(k)
+        owned_by_key[k] = item  # last owned element wins for a duplicate key
+    out, matched = [], set()
+    for item in base_list:
+        k = item[key]
+        if k in owned_by_key:
+            out.append(_json_deep_merge(item, owned_by_key[k]))  # owned updates foreign
+            matched.add(k)
+        else:
+            out.append(item)  # foreign-only element preserved
+    for k in owned_order:
+        if k not in matched:
+            out.append(owned_by_key[k])  # owned-only element appended
+    return out
+
+
+def _json_deep_merge(base, owned, pointer=""):
+    """Deep-merge the MiOS-`owned` subtree onto `base` (insertion-ordered):
+    recurse where BOTH sides are objects; a MiOS-owned leaf/array/object-over-
+    non-object wins; arrays are REPLACED wholesale at the owned pointer (index-
+    merge is unsafe) EXCEPT at a pointer listed in _ARRAY_MERGE_KEYS whose two
+    lists are keyed-object lists -- there they merge BY KEY (foreign elements
+    preserved, owned wins per key); any key `owned` does not carry is preserved in
+    base's order. New owned keys append after the foreign keys. `pointer` is the
+    JSON pointer of the CURRENT node ("" at the root), extended per recursion so
+    the array-merge lookup is position-exact."""
+    if isinstance(base, dict) and isinstance(owned, dict):
+        merged = dict(base)  # foreign keys keep base's insertion order
+        for k, v in owned.items():
+            child = pointer + "/" + k
+            if k in merged and isinstance(merged[k], dict) and isinstance(v, dict):
+                merged[k] = _json_deep_merge(merged[k], v, child)
+            elif (child in _ARRAY_MERGE_KEYS and isinstance(merged.get(k), list)
+                  and isinstance(v, list)
+                  and _keyed_object_list(merged[k], v, _ARRAY_MERGE_KEYS[child])):
+                merged[k] = _array_merge_by_key(merged[k], v, _ARRAY_MERGE_KEYS[child])
+            else:
+                merged[k] = v
+        return merged
+    return owned  # owned wins at a non-object pointer (leaf/array replace)
+
+
+def _json_merge(owned_text, base_text):
+    """Splice the MiOS-owned JSON subtree (owned_text) onto base_text (a foreign
+    JSONC document), returning pretty JSON text (base indent, ensure_ascii=False,
+    trailing newline). Foreign keys byte-preserved; owned wins; arrays replaced
+    wholesale EXCEPT at an _ARRAY_MERGE_KEYS pointer (merged by key -- foreign
+    elements preserved). A base that will not parse => exit 2, write NOTHING (never corrupt
+    an unreadable foreign file). An owned subtree that will not parse is a MiOS
+    template bug => exit 3."""
+    try:
+        owned = json.loads(_jsonc_to_json(owned_text))
+    except (json.JSONDecodeError, ValueError) as e:
+        sys.stderr.write(f"[mios-dotfiles-render] FATAL: MiOS-owned json-merge subtree did not "
+                         f"parse as JSON (template bug): {e}\n")
+        raise SystemExit(3)
+    try:
+        base = json.loads(_jsonc_to_json(base_text))
+    except (json.JSONDecodeError, ValueError) as e:
+        sys.stderr.write(f"[mios-dotfiles-render] REFUSED: json-merge base did not parse as "
+                         f"JSON(C) ({e}) -- writing NOTHING (never corrupt an unreadable file)\n")
+        raise SystemExit(2)
+    merged = _json_deep_merge(base, owned)
+    return json.dumps(merged, indent=_detect_indent(base_text), ensure_ascii=False) + "\n"
+
+
+# --- ini-merge primitives (ADR-0010, AGY-58) ---------------------------------
+# An ini-merge surface (git config) owns EXACTLY the keys its template emits
+# (user.name/email, core.editor, init.defaultBranch, pull.rebase, alias.{co,br,
+# ci,st}). Those owned keys are UPSERTED into a foreign gitconfig -- SEEDED if
+# absent (append to the section block, or a fresh [section] at EOF), or REPLACED
+# in place per the write policy if present -- while every line NOT in the owned
+# set (credential.helper, user.signingkey, commit.gpgsign, [remote ...]) is byte-
+# preserved. A git-config key is addressed by (section, subsection, key): git
+# treats section + key names case-insensitively and the subsection case-
+# sensitively, so the index lowercases section/key and keeps subsection verbatim.
+# The rendered template is BOTH the ownership manifest (its (section,key) lines)
+# AND the values; the un-rendered template recovers each line's @MIOS:token@ ->
+# the mios.toml (section,key) that feeds it (for the operator_set policy test).
+
+_INI_SECTION = re.compile(r'^\s*\[\s*([A-Za-z0-9.-]+)\s*(?:"(.*)")?\s*\]\s*$')
+_INI_KV = re.compile(r'^(\s*)([A-Za-z][A-Za-z0-9-]*)(\s*=\s*)(.*)$')
+
+
+def _eol_of(raw):
+    """The trailing newline of a raw line ('' if the line has none -- e.g. a
+    final line with no terminator)."""
+    return raw[len(raw.rstrip("\r\n")):]
+
+
+def _parse_ini(text):
+    """Parse a git-config/INI document into an ORDERED line-model + an index.
+    model: list of per-physical-line dicts. Every line keeps `raw` verbatim (so
+    a foreign line round-trips byte-for-byte); a kv line additionally carries
+    lead/key/sep/val/eol so an OWNED value can be replaced in place without
+    disturbing its neighbours. index: {(section_lower, subsection_or_None,
+    key_lower) -> model idx} for each kv line, so a PRESENT owned key is found
+    and a foreign key is left untouched. Section headers and #/; comments are
+    preserved as opaque `other` lines. Uses splitlines(keepends=True) so each
+    line's own terminator (CRLF/LF/none) survives the round-trip."""
+    model = []
+    index = {}
+    cur_sec, cur_sub = None, None
+    for raw in text.splitlines(keepends=True):
+        content = raw.rstrip("\r\n")
+        msec = _INI_SECTION.match(content)
+        if msec:
+            cur_sec = msec.group(1).lower()
+            cur_sub = msec.group(2)  # verbatim (case-sensitive), or None
+            model.append({"raw": raw, "type": "section",
+                          "section": cur_sec, "subsection": cur_sub})
+            continue
+        stripped = content.lstrip()
+        mkv = _INI_KV.match(content)
+        if mkv and cur_sec is not None and not stripped.startswith(("#", ";")):
+            key = mkv.group(2)
+            model.append({"raw": raw, "type": "kv", "section": cur_sec,
+                          "subsection": cur_sub, "key": key, "lead": mkv.group(1),
+                          "sep": mkv.group(3), "val": mkv.group(4), "eol": _eol_of(raw)})
+            index[(cur_sec, cur_sub, key.lower())] = len(model) - 1
+            continue
+        # blank line, #/; comment, or a line that is not a kv assignment (or one
+        # that precedes any section header): opaque, never owned.
+        model.append({"raw": raw, "type": "other"})
+    return model, index
+
+
+def _render_ini(model):
+    """Serialise a line-model back to text (each record's `raw` is verbatim)."""
+    return "".join(rec["raw"] for rec in model)
+
+
+def _index_of(model):
+    """{(section_lower, subsection, key_lower) -> idx} for the live model,
+    rebuilt after each seed so positions stay aligned (last write wins for a
+    multivar key -- irrelevant here, the owned set is single-valued)."""
+    return {(r["section"], r["subsection"], r["key"].lower()): i
+            for i, r in enumerate(model) if r["type"] == "kv"}
+
+
+def _default_eol(model, fallback="\n"):
+    """The document's line terminator, inferred from the first line that has one
+    (so seeded lines match the file's CRLF/LF convention). Empty doc -> LF."""
+    for rec in model:
+        eol = _eol_of(rec["raw"])
+        if eol:
+            return eol
+    return fallback
+
+
+def _make_kv_rec(section, subsection, key_spelling, value, eol, lead="\t"):
+    """A new kv line-record in MiOS canonical git style (`\\tkey = value`),
+    preserving the template's key spelling (e.g. defaultBranch)."""
+    return {"raw": "{}{} = {}{}".format(lead, key_spelling, value, eol),
+            "type": "kv", "section": section, "subsection": subsection,
+            "key": key_spelling, "lead": lead, "sep": " = ", "val": value, "eol": eol}
+
+
+def _replace_value(rec, new_val):
+    """Replace a kv line's value IN PLACE, preserving its leading whitespace,
+    key spelling, separator, and terminator."""
+    rec["val"] = new_val
+    rec["raw"] = "{}{}{}{}{}".format(rec["lead"], rec["key"], rec["sep"], new_val, rec["eol"])
+
+
+def _section_bounds(model, section, subsection):
+    """(header_idx, block_end) for the FIRST matching [section]/[section "sub"]
+    block (block_end = the next section header idx, or len(model)), or None if
+    the section is absent."""
+    start = None
+    for i, rec in enumerate(model):
+        if (rec["type"] == "section" and rec["section"] == section
+                and rec["subsection"] == subsection):
+            start = i
+            break
+    if start is None:
+        return None
+    end = len(model)
+    for j in range(start + 1, len(model)):
+        if model[j]["type"] == "section":
+            end = j
+            break
+    return start, end
+
+
+def _seed_into_section(model, start, end, new_rec):
+    """Insert `new_rec` after the LAST non-blank line of an existing section
+    block [start, end) (so it lands with the section's other keys, before any
+    trailing blank line)."""
+    insert_at = start + 1
+    for j in range(start + 1, end):
+        if model[j]["raw"].rstrip("\r\n").strip() != "":
+            insert_at = j + 1
+    model.insert(insert_at, new_rec)
+
+
+def _append_new_section(model, section, subsection, new_rec, eol):
+    """Append a fresh `[section]` (or `[section "sub"]`) block + its owned key at
+    EOF, separated from prior content by one blank line (git/template style)."""
+    if model and _eol_of(model[-1]["raw"]) == "":
+        model[-1]["raw"] += eol  # a final line with no terminator would join the header
+    if model:
+        model.append({"raw": eol, "type": "other"})  # blank separator
+    header = ('[{} "{}"]{}'.format(section, subsection, eol) if subsection is not None
+              else "[{}]{}".format(section, eol))
+    model.append({"raw": header, "type": "section",
+                  "section": section, "subsection": subsection})
+    model.append(new_rec)
+
+
+def _token_to_ssot(token, merged, section):
+    """Reverse a @MIOS:<sec>_<key>@ token to the mios.toml (section, key) that
+    feeds it. The gitconfig template's value tokens are identity_* (always
+    injected by _resolved_for) or <section>_* (the surface's settings section);
+    returns None for anything else (e.g. a bare palette token), so a literal
+    owned value is never treated as operator-set."""
+    for sec in ("identity", section):
+        if sec and token.startswith(sec + "_"):
+            key = token[len(sec) + 1:]
+            if key and key in mios_toml.section(merged, sec):
+                return (sec, key)
+    return None
+
+
+def _build_owned_kv(surface, merged):
+    """{(section_lower, subsection, key_lower) -> {'value','key','ssot'}} for
+    EXACTLY the keys the surface's template emits, in template order. `value` is
+    the rendered value; `key` is the template's key spelling (seeded verbatim);
+    `ssot` is the mios.toml (section, key) the value token came from, or None for
+    a literal (used only by the seed-or-enforce policy's operator_set test)."""
+    resolved = _resolved_for(merged, surface.section)
+    tmpl_abs = os.path.join(ROOT, surface.template)
+    rmodel, rindex = _parse_ini(_render_text(_read(tmpl_abs), resolved, merged))
+    tmodel, tindex = _parse_ini(_read(tmpl_abs))  # un-rendered: recover @MIOS:token@
+    owned = collections.OrderedDict()
+    for gkey, idx in rindex.items():
+        rec = rmodel[idx]
+        toks = _SENTINEL.findall(tmodel[tindex[gkey]]["val"]) if gkey in tindex else []
+        ssot = _token_to_ssot(toks[0], merged, surface.section) if len(toks) == 1 else None
+        owned[gkey] = {"value": rec["val"], "key": rec["key"], "ssot": ssot}
+    return owned
+
+
+def _operator_set(merged, section, key):
+    """True iff the operator EXPLICITLY set [section].key in a host/user overlay
+    -- the merged value differs from the vendor default AND is non-empty. The
+    seed-or-enforce policy ENFORCES such an operator choice over an existing
+    foreign value, but SKIPS a mere vendor default (never stomps a foreign value
+    with a shipped default)."""
+    mv = mios_toml.section(merged, section).get(key)
+    vv = mios_toml.section(mios_toml.load_vendor(), section).get(key)
+    mv = "" if mv is None else _fmt_conf(mv)
+    vv = "" if vv is None else _fmt_conf(vv)
+    return mv != "" and mv != vv
+
+
+def _should_write_present(policy, entry, merged):
+    """Write policy for a PRESENT owned key. seed-or-enforce (default): enforce
+    ONLY an operator-set SSOT value, else SKIP (safety-first). `enforce`: always
+    overwrite. `seed-only`: never overwrite an existing value."""
+    if policy == "enforce":
+        return True
+    if policy == "seed-only":
+        return False
+    ssot = entry.get("ssot")  # seed-or-enforce
+    return bool(ssot) and _operator_set(merged, ssot[0], ssot[1])
+
+
+def _ini_upsert(model, owned_kv, policy, merged):
+    """Upsert each owned key into `model` (mutated in place): ABSENT -> seed
+    (into the existing section block, else a fresh [section] at EOF); PRESENT ->
+    replace the value in place IFF the policy admits it. Everything not in
+    owned_kv is left byte-identical. Returns the number of writes."""
+    policy = policy or "seed-or-enforce"
+    eol = _default_eol(model)
+    writes = 0
+    for gkey, entry in owned_kv.items():
+        section, subsection, _keyl = gkey
+        idx = _index_of(model).get(gkey)  # re-index: an earlier seed shifts positions
+        if idx is None:
+            new_rec = _make_kv_rec(section, subsection, entry["key"], entry["value"], eol)
+            bounds = _section_bounds(model, section, subsection)
+            if bounds is None:
+                _append_new_section(model, section, subsection, new_rec, eol)
+            else:
+                _seed_into_section(model, bounds[0], bounds[1], new_rec)
+            writes += 1
+        elif _should_write_present(policy, entry, merged):
+            _replace_value(model[idx], entry["value"])
+            writes += 1
+    return writes
+
+
+def _ini_merge(owned_kv, base_text, policy, merged):
+    """Upsert the owned git keys into base_text (a foreign gitconfig), returning
+    the merged text. Foreign lines byte-preserved; owned keys seeded/enforced per
+    policy. Unlike json-merge there is no parse-refusal path: an INI never fails
+    to parse -- an unrecognised line is simply opaque + preserved."""
+    model, _index = _parse_ini(base_text)
+    _ini_upsert(model, owned_kv, policy, merged)
+    return _render_ini(model)
+
+
+# --- kind dispatch (ADR-0010) ------------------------------------------------
+# `derive_fn(surface, merged) -> committed-artifact bytes` is the uniform shape
+# cmd_render writes and cmd_check byte-diffs (OFFLINE -- a merge surface's derive
+# reads its checked-in fixture.base, NEVER a live foreign file).
+# `live_apply_fn(surface, merged, current) -> bytes` is what cmd_apply writes to
+# the operator's LIVE HOME (`current` = the live file's content, or None).
+
+def _derive_template(surface, merged):
+    """template: the whole rendered file (today's behavior, verbatim)."""
+    return _render_text(_read(os.path.join(ROOT, surface.template)),
+                        _resolved_for(merged, surface.section),
+                        merged)
+
+
+def _derive_json_merge(surface, merged):
+    """json-merge (offline gate): the MiOS-owned subtree spliced onto the
+    checked-in fixture.base -- the expected committed merge output."""
+    owned = _render_text(_read(os.path.join(ROOT, surface.template)),
+                         _resolved_for(merged, surface.section),
+                         merged)
+    base_text = _read(os.path.join(ROOT, surface.fixture.base))
+    return _json_merge(owned, base_text)
+
+
+def _apply_live_template(surface, merged, current):
+    """template apply: today's whole-file overwrite (ignores the live content)."""
+    return _render_text(_read(os.path.join(ROOT, surface.template)),
+                        _resolved_for(merged, surface.section),
+                        merged)
+
+
+def _apply_live_json_merge(surface, merged, current):
+    """json-merge apply: the MiOS-owned subtree spliced onto the LIVE file
+    content (or an empty object when the file does not exist yet)."""
+    owned = _render_text(_read(os.path.join(ROOT, surface.template)),
+                         _resolved_for(merged, surface.section),
+                         merged)
+    return _json_merge(owned, current if current is not None else "{}")
+
+
+def _derive_ini_merge(surface, merged):
+    """ini-merge (offline gate): the owned git keys upserted into the checked-in
+    fixture.base -- the expected committed merge output `check` byte-diffs."""
+    owned = _build_owned_kv(surface, merged)
+    base_text = _read(os.path.join(ROOT, surface.fixture.base))
+    return _ini_merge(owned, base_text, surface.policy, merged)
+
+
+def _apply_live_ini_merge(surface, merged, current):
+    """ini-merge apply: the owned git keys upserted into the LIVE gitconfig (or
+    an empty doc when the file does not exist yet), so the operator's foreign
+    credential/signing/remote lines survive a theme/identity refresh."""
+    owned = _build_owned_kv(surface, merged)
+    return _ini_merge(owned, current if current is not None else "", surface.policy, merged)
+
+
+def _derive_registry(surface, merged):
+    """registry (offline gate): the MiOS-owned Registry values parsed from
+    the template, canonicalized as a sorted, pretty-printed JSON string."""
+    text = _render_text(_read(os.path.join(ROOT, surface.template)),
+                        _resolved_for(merged, surface.section),
+                        merged)
+    try:
+        data = json.loads(text)
+    except Exception as e:
+        sys.stderr.write(f"[mios-dotfiles-render] FATAL: Registry json manifest did not parse: {e}\n")
+        raise SystemExit(3)
+
+    for key in list(data.keys()):
+        if key.startswith("//"):
+            data.pop(key)
+            continue
+        ku = key.upper()
+        if not (ku.startswith("HKCU\\") or ku.startswith("HKEY_CURRENT_USER\\")):
+            sys.stderr.write(f"[mios-dotfiles-render] FATAL: [dotfiles.registry.{surface.name}] "
+                             f"registry path {key!r} is not under HKCU -- only HKCU paths allowed\n")
+            raise SystemExit(3)
+
+    return json.dumps(data, sort_keys=True, indent=2, ensure_ascii=False) + "\n"
+
+
+def _apply_live_registry(surface, merged, current=None, dry_run=False):
+    """registry apply: on Windows, applies each key/value pair under HKCU.
+    Non-Windows: logs a warning/info and skips gracefully.
+    Backs up the registry keys to %USERPROFILE%/.mios-bak/ before writing."""
+    if os.name != "nt":
+        print(f"[mios-dotfiles-render] apply {surface.name}: registry surface is Windows-only -- skipping")
+        return
+
+    text = _render_text(_read(os.path.join(ROOT, surface.template)),
+                        _resolved_for(merged, surface.section),
+                        merged)
+    try:
+        data = json.loads(text)
+    except Exception as e:
+        sys.stderr.write(f"[mios-dotfiles-render] FATAL: Registry json manifest did not parse: {e}\n")
+        raise SystemExit(3)
+
+    for key in list(data.keys()):
+        if key.startswith("//"):
+            data.pop(key)
+            continue
+        ku = key.upper()
+        if not (ku.startswith("HKCU\\") or ku.startswith("HKEY_CURRENT_USER\\")):
+            sys.stderr.write(f"[mios-dotfiles-render] FATAL: [dotfiles.registry.{surface.name}] "
+                             f"registry path {key!r} is not under HKCU -- only HKCU paths allowed\n")
+            raise SystemExit(3)
+
+    if dry_run:
+        for key, val_dict in data.items():
+            for name, val in val_dict.items():
+                print(f"[mios-dotfiles-render] diff {surface.name}: WOULD-write registry {key}\\{name} = {val}")
+        return
+
+    backup_dir = os.path.expandvars(r"%USERPROFILE%\.mios-bak")
+    os.makedirs(backup_dir, exist_ok=True)
+
+    for key, val_dict in data.items():
+        slug = key.replace("\\", "_").replace(":", "_").lower()
+        backup_file = os.path.join(backup_dir, f"{surface.name}_{slug}.reg")
+        try:
+            subprocess.run(["reg", "export", key, backup_file, "/y"],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            print(f"[mios-dotfiles-render] apply {surface.name}: backed up existing registry to {backup_file}")
+        except Exception:
+            pass
+
+        for name, val in val_dict.items():
+            if isinstance(val, bool):
+                reg_type = "REG_DWORD"
+                reg_val = "1" if val else "0"
+            elif isinstance(val, int):
+                reg_type = "REG_DWORD"
+                reg_val = str(val)
+            else:
+                reg_type = "REG_SZ"
+                reg_val = str(val)
+
+            try:
+                subprocess.run(["reg", "add", key, "/v", name, "/t", reg_type, "/d", reg_val, "/f"],
+                               check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            except Exception as e:
+                sys.stderr.write(f"[mios-dotfiles-render] FATAL: failed to write registry {key}\\{name}: {e}\n")
+                raise SystemExit(2)
+
+            try:
+                out = subprocess.check_output(["reg", "query", key, "/v", name],
+                                              stderr=subprocess.DEVNULL).decode("utf-8", errors="ignore")
+                verified = False
+                for line in out.splitlines():
+                    parts = line.split()
+                    if len(parts) >= 3 and parts[0] == name:
+                        actual_type = parts[1]
+                        actual_val_str = parts[-1]
+                        if actual_type == "REG_DWORD":
+                            actual_val = int(actual_val_str, 16)
+                            expected_val = int(reg_val)
+                            if actual_val == expected_val:
+                                verified = True
+                        else:
+                            if actual_val_str == reg_val:
+                                verified = True
+                if not verified:
+                    sys.stderr.write(f"[mios-dotfiles-render] FATAL: registry write verification failed for {key}\\{name}\n")
+                    raise SystemExit(2)
+            except Exception as e:
+                sys.stderr.write(f"[mios-dotfiles-render] FATAL: registry read-back failed for {key}\\{name}: {e}\n")
+                raise SystemExit(2)
+
+            print(f"[mios-dotfiles-render] apply {surface.name}: wrote registry {key}\\{name} = {val}")
+
+
+# Merge kinds require a fixture pair (no ungated merge surface). json-merge
+# (JSON settings docs) + ini-merge (git config) splice a MiOS-owned subtree/key-
+# set onto a foreign file, preserving every foreign key; registry / skip are
+# declared valid by ADR-0010 but LAND LATER, so an unimplemented kind fails the
+# same fail-loud exit-3 path as an unknown one.
+_MERGE_KINDS = frozenset({"json-merge", "ini-merge", "registry"})
+_KINDS = {
+    "template":   (_derive_template, _apply_live_template),
+    "json-merge": (_derive_json_merge, _apply_live_json_merge),
+    "ini-merge":  (_derive_ini_merge, _apply_live_ini_merge),
+    "registry":   (_derive_registry, _apply_live_registry),
+}
+
+
+# The surface registry is now SSOT-authored in mios.toml [dotfiles.registry.*]
+# (ADR-0010) instead of a hardcoded literal, so the surface map itself is
+# operator-editable via the Portal (ADR-0009) and can carry a per-platform
+# live-HOME `apply` target, a `kind` (write-semantics), and a merge `fixture`.
+# _load_surfaces() transcribes that namespace into a name -> _Surface(...) map;
+# because an absent `kind` defaults to "template", the 8 color/settings surfaces
+# render/check/capture byte-for-byte identically. A surface is projected + drift-
+# gated once its .tmpl exists; add one by authoring its
+# [dotfiles.registry.<name>] table then running `mios-theme-render capture
+# <name>` (template surfaces) or authoring its fixture pair (merge surfaces).
+def _load_surfaces():
+    """name -> _Surface(name,template,target,section,kind,fixture,policy) from
+    mios.toml [dotfiles.registry.*], in authoring order. Template surfaces are
+    element-for-element equal to the former hardcoded SURFACES literal. Fails
+    LOUD (exit 3) on: an empty/absent registry (the backstop for a botched
+    migration -- a vacuously-'green' gate is impossible: no registry -> no run);
+    a surface name containing a '.'; a missing template/target; an UNKNOWN (or
+    not-yet-implemented) kind; a merge kind missing its fixture.base/expected
+    (no ungated merge surface -- preserves the no-vacuous-green stance)."""
+    reg = mios_toml.section(mios_toml.load_merged(_LAYERS), "dotfiles.registry")
+    out = {}
+    for name, cfg in reg.items():
+        if not isinstance(cfg, dict):
+            continue  # a stray scalar under [dotfiles.registry] is not a surface
+        if "." in name:
+            sys.stderr.write(f"[mios-dotfiles-render] FATAL: surface name {name!r} contains a "
+                             "'.', which breaks the mios_toml dotted-walk -- rename it\n")
+            raise SystemExit(3)
+        tmpl, art = cfg.get("template"), cfg.get("target")
+        if not tmpl or not art:
+            sys.stderr.write(f"[mios-dotfiles-render] FATAL: [dotfiles.registry.{name}] is "
+                             "missing a template/target\n")
+            raise SystemExit(3)
+        # SETTINGS surface: `section` names the mios.toml section whose scalar
+        # keys project as @MIOS:<section>_<key>@ tokens (conf-formatted), the way
+        # btop-conf derives the WHOLE btop config from [btop].
+        section = cfg.get("section")
+        # kind = WRITE-SEMANTICS axis (ADR-0010). Absent => template (byte-identity
+        # backstop). Unknown/unimplemented => exit 3, same posture as missing template.
+        kind = cfg.get("kind") or "template"
+        if kind not in _KINDS:
+            sys.stderr.write(f"[mios-dotfiles-render] FATAL: [dotfiles.registry.{name}] has unknown "
+                             f"kind {kind!r} -- supported: {', '.join(sorted(_KINDS))} "
+                             "(ini-merge/registry/skip land later)\n")
+            raise SystemExit(3)
+        # A merge kind MUST declare its drift-gate fixture pair (checked-in base +
+        # expected merge output) -- no ungated merge surface.
+        fixture = None
+        if kind in _MERGE_KINDS:
+            fx = cfg.get("fixture") if isinstance(cfg.get("fixture"), dict) else {}
+            base, expected = fx.get("base"), fx.get("expected")
+            if not base or not expected:
+                sys.stderr.write(f"[mios-dotfiles-render] FATAL: [dotfiles.registry.{name}] kind="
+                                 f"{kind} MUST declare fixture.base + fixture.expected (the "
+                                 "drift-gate base + expected merge output) -- no ungated merge "
+                                 "surface\n")
+                raise SystemExit(3)
+            fixture = _Fixture(base, expected)
+        out[name] = _Surface(name, tmpl, art, section, kind, fixture, cfg.get("policy"))
+    if not out:
+        sys.stderr.write("[mios-dotfiles-render] FATAL: mios.toml [dotfiles.registry.*] is "
+                         "empty/absent -- no surface can be projected. If you just added the "
+                         "registry, ensure the `registry = \"\"` scalar stub was DELETED (a "
+                         "scalar cannot also be the parent table of [dotfiles.registry.*]).\n")
+        raise SystemExit(3)
+    return out
+
+
+SURFACES = _load_surfaces()
+
+
+def _committed_path(surface):
+    """The repo-relative committed artifact the render/check drift-gate OWNS for a
+    surface: a template surface owns its `target`; a merge surface owns its
+    `fixture.expected` (the checked-in expected merge output that `check` diffs --
+    the live foreign file is never read offline)."""
+    if surface.kind in _MERGE_KINDS:
+        return surface.fixture.expected
+    return surface.target
+
+
+def _entry(name):
+    """(tmpl_rel, art_rel, section_or_None) for a surface -- the unchanged 3-tuple
+    the template render/check/capture/apply call sites consume. Color surfaces
+    carry section=None; a SETTINGS surface's `section` names the mios.toml section
+    whose scalar keys project as @MIOS:<section>_<key>@ tokens."""
+    s = SURFACES[name]
+    return s.template, s.target, s.section
+
+
+def cmd_render(names):
+    merged = mios_toml.load_merged(_LAYERS)
+    n = 0
+    for name in (names or SURFACES):
+        surface = SURFACES[name]
+        tmpl_abs = os.path.join(ROOT, surface.template)
+        if not os.path.isfile(tmpl_abs):
+            sys.stderr.write(f"[mios-dotfiles-render] skip {name}: no template ({surface.template}) -- run `capture {name}`\n")
+            continue
+        out = _KINDS[surface.kind][0](surface, merged)  # derive_fn -> committed bytes
+        art_rel = _committed_path(surface)
+        art_abs = os.path.join(ROOT, art_rel)
+        os.makedirs(os.path.dirname(art_abs), exist_ok=True)
+        with open(art_abs, "w", encoding="utf-8", newline="") as fh:
+            fh.write(out)
+        print(f"[mios-dotfiles-render] rendered {name} -> {art_rel}")
+        n += 1
+    return 0
+
+
+def cmd_check(names):
+    merged = mios_toml.load_merged(_LAYERS)
+    drift = []
+    # COMPLETENESS floor (full-gate only): every *.tmpl on disk must be claimed by a
+    # [dotfiles.registry.*] surface. Otherwise dropping a surface's registry block would
+    # silently de-gate its artifact (the drift loop below only iterates REGISTERED
+    # surfaces) -- an orphaned template is a coverage hole. A named subset is an
+    # intentional narrowing, so the sweep runs only on the full gate.
+    if not names:
+        registered = {os.path.normpath(SURFACES[n].template) for n in SURFACES}
+        for td in {os.path.dirname(p) for p in registered}:
+            td_abs = os.path.join(ROOT, td)
+            if not os.path.isdir(td_abs):
+                continue
+            for fn in sorted(os.listdir(td_abs)):
+                if not fn.endswith(".tmpl"):
+                    continue
+                rel = os.path.normpath(os.path.join(td, fn))
+                if rel not in registered:
+                    drift.append(f"ORPHAN TEMPLATE {rel}: no [dotfiles.registry.*] surface "
+                                 "references it -- a surface was de-registered (silent de-gate)")
+    for name in (names or SURFACES):
+        surface = SURFACES[name]
+        tmpl_abs = os.path.join(ROOT, surface.template)
+        art_rel = _committed_path(surface)
+        art_abs = os.path.join(ROOT, art_rel)
+        if not os.path.isfile(tmpl_abs):
+            continue  # unregistered/not-yet-captured surface -> not gated
+        if not os.path.isfile(art_abs):
+            drift.append(f"{name}: artifact missing ({art_rel})")
+            continue
+        want = _KINDS[surface.kind][0](surface, merged)  # derive_fn -> committed bytes
+        got = _read(art_abs)
+        if want != got:
+            # first differing line, for a legible message
+            wl, gl = want.splitlines(), got.splitlines()
+            ln = next((i for i in range(max(len(wl), len(gl)))
+                       if i >= len(wl) or i >= len(gl) or wl[i] != gl[i]), 0)
+            drift.append(f"{name}: {art_rel} drifted from SSOT projection "
+                         f"(line {ln+1}: committed={gl[ln].strip() if ln < len(gl) else '<eof>'!r} "
+                         f"projected={wl[ln].strip() if ln < len(wl) else '<eof>'!r})")
+    for d in drift:
+        sys.stderr.write(f"    {d}\n")
+    if drift:
+        sys.stderr.write(f"[mios-dotfiles-render] FAIL: {len(drift)} theme surface(s) drifted -- "
+                         "re-run `mios-sync-theme` (or fix the template) so every surface projects from [colors] SSOT\n")
+        return 1
+    print(f"[mios-dotfiles-render] PASS: {sum(os.path.isfile(os.path.join(ROOT, SURFACES[n].template)) for n in SURFACES)} "
+          "theme surface(s) match the SSOT projection")
+    return 0
+
+
+def cmd_capture(names):
+    if not names:
+        sys.stderr.write("[mios-dotfiles-render] capture needs a surface name (or 'all')\n")
+        return 2
+    if names == ["all"]:
+        names = list(SURFACES)
+    merged = mios_toml.load_merged(_LAYERS)
+    resolved = _resolved_for(merged, None)
+    tmap = _token_map(resolved)
+    rc = 0
+    for name in names:
+        if name not in SURFACES:
+            sys.stderr.write(f"[mios-dotfiles-render] capture: unknown surface {name!r}\n")
+            rc = 2
+            continue
+        surface = SURFACES[name]
+        # capture is TEMPLATE-ONLY: a merge surface's committed artifact is a
+        # deterministic merge output (fixture.expected), not a hex-tokenizable file.
+        if surface.kind != "template":
+            sys.stderr.write(f"[mios-dotfiles-render] capture {name}: kind={surface.kind} surface is "
+                             "not hex-captured (template-only) -- skipping\n")
+            continue
+        tmpl_rel, art_rel, section = _entry(name)
+        if section:
+            sys.stderr.write(f"[mios-dotfiles-render] capture {name}: settings surface "
+                             f"([{section}] projection) is hand-authored, not hex-captured -- skipping\n")
+            continue
+        art_abs = os.path.join(ROOT, art_rel)
+        if not os.path.isfile(art_abs):
+            sys.stderr.write(f"[mios-dotfiles-render] capture {name}: artifact absent ({art_rel})\n")
+            rc = 1
+            continue
+        original = _read(art_abs)
+        n_sub = [0]
+
+        def sub(m):
+            tok = tmap.get(m.group(0).upper())
+            if tok is None:
+                return m.group(0)
+            n_sub[0] += 1
+            return f"@MIOS:{tok}@"
+
+        tmpl_text = _HEX.sub(sub, original)
+        # Self-verify: rendering the template must reproduce the artifact byte-for-byte.
+        rendered = _render_text(tmpl_text, resolved, merged)
+        if rendered != original:
+            sys.stderr.write(f"[mios-dotfiles-render] capture {name}: LOSSY round-trip "
+                             "(likely lowercase hex or a non-canonical palette form) -- NOT writing template. "
+                             "Normalize the artifact's palette hex to the SSOT canonical form and retry.\n")
+            rc = 1
+            continue
+        tmpl_abs = os.path.join(ROOT, tmpl_rel)
+        os.makedirs(os.path.dirname(tmpl_abs), exist_ok=True)
+        with open(tmpl_abs, "w", encoding="utf-8", newline="") as fh:
+            fh.write(tmpl_text)
+        print(f"[mios-dotfiles-render] captured {name}: {n_sub[0]} token(s) -> {tmpl_rel} (round-trip verified)")
+    return rc
+
+
+# --- live-HOME apply/diff (ADR-0010) -----------------------------------------
+# Additive verbs that render a surface and write it to the operator's LIVE HOME
+# (per-platform [dotfiles.registry.<name>.apply.target]), NEVER touching the
+# build-tree artifact the render/check drift-gate owns. Byte-fidelity + safety
+# are paramount: the destination is opened newline='' (no CRLF translation, so
+# the bytes match the render/check path exactly); an existing file -- even
+# foreign/binary content -- is backed up RAW (shutil.copy2, mode+mtime) before
+# any overwrite, never silently destroyed; and a target that resolves outside
+# HOME, through a symlink, cross-drive, or with an unexpanded variable is
+# REFUSED rather than written to a wrong path. A json-merge surface MERGES its
+# owned subtree onto the live file (foreign keys preserved) instead of a whole-
+# file overwrite; the same backup + HOME-scope refusals apply.
+
+class _TargetError(Exception):
+    """A HOME apply target that must NOT be written (e.g. an unexpanded var)."""
+
+
+def _os_key():
+    """The [.apply.target] sub-key for the running platform."""
+    return "windows" if os.name == "nt" else "linux"
+
+
+def _apply_target(name, merged):
+    """The raw per-platform live-HOME target string for a surface, or None if
+    the surface declares no [.apply.target] for this platform (system surfaces
+    like app-shell/term-osc, or a surface with only the other OS's target)."""
+    cfg = mios_toml.section(merged, "dotfiles.registry").get(name)
+    if not isinstance(cfg, dict):
+        return None
+    v = mios_toml.section(cfg, "apply.target").get(_os_key())
+    return v if isinstance(v, str) and v else None
+
+
+def _resolve_target(raw):
+    """Expand ~ and env vars, then REFUSE (never write) if any var stayed
+    unexpanded -- a missing var would otherwise yield a wrong absolute path
+    (a literal '~', '%VAR%', or '$VAR' left in place)."""
+    p = os.path.expanduser(os.path.expandvars(raw))
+    if p.startswith("~"):
+        raise _TargetError(f"{raw!r}: leading ~ did not expand (no HOME/USERPROFILE?)")
+    if "%" in p or "$" in p:
+        raise _TargetError(f"{raw!r}: an environment variable did not expand -> {p!r}")
+    return os.path.abspath(p)
+
+
+def _unsafe_reason(dest):
+    """Why `dest` is unsafe to write, or None if it is safe. Refuses a symlink
+    destination, anything outside HOME (logical OR symlink-resolved), and a
+    cross-drive path (commonpath raises ValueError on Windows). Never follows a
+    symlink out of HOME."""
+    if os.path.islink(dest):
+        return "destination is a symlink -- refusing (never written through)"
+    home_logical = os.path.abspath(os.path.expanduser("~"))
+    home_real = os.path.realpath(home_logical)
+    try:
+        if os.path.commonpath([home_logical, os.path.abspath(dest)]) != home_logical:
+            return f"resolves outside HOME ({dest})"
+        if os.path.commonpath([home_real, os.path.realpath(dest)]) != home_real:
+            return f"resolves outside HOME via a symlink ({os.path.realpath(dest)})"
+    except ValueError:
+        return "not under HOME (cross-drive)"
+    return None
+
+
+def _utc_stamp():
+    """Backup infix timestamp, e.g. 20260717T104501Z (UTC, filesystem-safe)."""
+    return datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+
+def cmd_apply(names, dry_run):
+    """Render each named surface (default: all) and write it to its live-HOME
+    target, backing up any existing file first. A template surface writes the
+    whole rendered file; a json-merge surface MERGES its owned subtree onto the
+    live file (foreign keys preserved). `diff` / --dry-run writes nothing (prints
+    WOULD-write / up-to-date). A surface with no HOME target for this platform is
+    a no-op skip."""
+    merged = mios_toml.load_merged(_LAYERS)
+    verb = "diff" if dry_run else "apply"
+    rc = 0
+    for name in (names or SURFACES):
+        if name not in SURFACES:
+            sys.stderr.write(f"[mios-dotfiles-render] {verb}: unknown surface {name!r}\n")
+            rc = 2
+            continue
+        surface = SURFACES[name]
+        raw = _apply_target(name, merged)
+        if not raw:
+            print(f"[mios-dotfiles-render] {verb} {name}: no {_os_key()} HOME target -- skipping")
+            continue
+        if surface.kind == "registry":
+            _apply_live_registry(surface, merged, dry_run=dry_run)
+            continue
+        tmpl_abs = os.path.join(ROOT, surface.template)
+        if not os.path.isfile(tmpl_abs):
+            sys.stderr.write(f"[mios-dotfiles-render] {verb} {name}: no template ({surface.template}) -- skipping\n")
+            continue
+        try:
+            dest = _resolve_target(raw)
+        except _TargetError as e:
+            sys.stderr.write(f"[mios-dotfiles-render] {verb} {name}: REFUSED -- {e}\n")
+            rc = 2
+            continue
+        reason = _unsafe_reason(dest)
+        if reason:
+            sys.stderr.write(f"[mios-dotfiles-render] {verb} {name}: REFUSED -- {dest}: {reason}\n")
+            rc = 2
+            continue
+        current = _read(dest) if os.path.isfile(dest) else None
+        rendered = _KINDS[surface.kind][1](surface, merged, current)  # live_apply_fn
+        if current == rendered:
+            print(f"[mios-dotfiles-render] {verb} {name}: up-to-date ({dest})")
+            continue
+        if dry_run:
+            how = "create" if current is None else "update (existing backed up first)"
+            print(f"[mios-dotfiles-render] {verb} {name}: WOULD-write {dest} [{how}]")
+            continue
+        if os.path.exists(dest):
+            bak = f"{dest}.mios-bak.{_utc_stamp()}"
+            shutil.copy2(dest, bak)  # raw bytes + mode/mtime: foreign content preserved exactly
+            print(f"[mios-dotfiles-render] apply {name}: backed up existing -> {bak}")
+        os.makedirs(os.path.dirname(dest), exist_ok=True)
+        with open(dest, "w", encoding="utf-8", newline="") as fh:
+            fh.write(rendered)
+        print(f"[mios-dotfiles-render] apply {name}: wrote {dest}")
+    return rc
+
+
+def main(argv):
+    if len(argv) < 2 or argv[1] in ("-h", "--help"):
+        sys.stderr.write(
+            "usage: mios-dotfiles-render <render|check|capture|apply|diff> [surface...]\n"
+            "  render [names]   write build-tree artifacts from templates (default: all registered)\n"
+            "  check  [names]   diff committed artifact vs SSOT projection (drift-gate; exit 1 on drift)\n"
+            "  capture <names|all>  templatize existing artifact(s), self-verifying the round-trip\n"
+            "  apply  [names] [--dry-run]  write rendered surface(s) to LIVE HOME (backs up existing)\n"
+            "  diff   [names]   show what `apply` WOULD write to live HOME (writes nothing)\n")
+        return 2
+    cmd, rest = argv[1], argv[2:]
+    if cmd == "render":
+        return cmd_render(rest)
+    if cmd == "check":
+        return cmd_check(rest)
+    if cmd == "capture":
+        return cmd_capture(rest)
+    if cmd == "apply":
+        dry = "--dry-run" in rest
+        return cmd_apply([a for a in rest if a != "--dry-run"], dry)
+    if cmd == "diff":
+        return cmd_apply(rest, True)
+    sys.stderr.write(f"[mios-dotfiles-render] unknown command {cmd!r}\n")
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

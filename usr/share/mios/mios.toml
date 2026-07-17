@@ -1,5 +1,5 @@
 # AI-hint: The primary configuration file defining the MiOS user profile, providing the base defaults for identity, system environment, and service configurations used by tools via the userenv.sh resolver.
-# AI-related: tools/lib/userenv.sh, userenv.sh, automation/08-system-files-overlay.sh, /usr/share/mios/mios.toml, /etc/mios/mios.toml, /etc/mios/hermes/discord.env, /usr/share/mios/configurator/mios.html, /etc/mios/hermes/api.env., /usr/libexec/mios/mios-powershell, /usr/libexec/mios/mios-computer-use
+# AI-related: tools/lib/userenv.sh, userenv.sh, tools/generate-k3s-manifests.sh, automation/08-system-files-overlay.sh, /usr/share/mios/mios.toml, /etc/mios/mios.toml, /etc/mios/hermes/discord.env, /usr/share/mios/configurator/mios.html, /etc/mios/hermes/api.env., /usr/libexec/mios/mios-powershell
 # mios-bootstrap/mios.toml -- 'MiOS' User Profile (single source of user truth)
 #
 # THIS IS THE ONE FILE YOU EDIT. Every script in 'mios.git' and
@@ -11130,3 +11130,158 @@ alias_co            = "checkout"
 alias_br            = "branch"
 alias_ci            = "commit"
 alias_st            = "status"
+
+# ----------------------------------------------------------------------------
+# [templates] -- global template schema configurations.
+# ----------------------------------------------------------------------------
+[templates.adr]
+match = "^usr/share/doc/mios/adr/\\d{4}-.*\\.md$"
+comment = "md"
+required_header = true
+required_markers = ["## Status", "## Context", "## Decision", "## Rationale", "## Consequences"]
+generated = false
+scaffold = true
+
+[templates.bash]
+match = "^(?:tools/|usr/bin/|usr/libexec/mios/|automation/)[\\w./-]+\\.sh$"
+comment = "hash"
+required_header = true
+required_markers = []
+generated = false
+scaffold = true
+
+[templates.bash-verb]
+match = "^usr/libexec/mios/mios-[\\w-]+\\.sh$"
+comment = "hash"
+required_header = true
+required_markers = []
+generated = false
+scaffold = true
+
+[templates.drift-check]
+match = "^automation/\\d{2}-.*\\.sh$"
+comment = "hash"
+required_header = true
+required_markers = ["check_"]
+generated = false
+scaffold = true
+
+[templates.python-module]
+match = "^usr/lib/mios/agent-pipe/mios_pipe/[\\w-]+\\.py$"
+comment = "hash"
+required_header = true
+required_markers = []
+generated = false
+scaffold = true
+
+[templates.python-test]
+match = "^usr/lib/mios/agent-pipe/test_mios_[\\w-]+\\.py$"
+comment = "hash"
+required_header = true
+required_markers = []
+generated = false
+scaffold = true
+
+[templates.python-tool]
+match = "^usr/libexec/mios/mios-[\\w-]+\\.py$"
+comment = "hash"
+required_header = true
+required_markers = []
+generated = false
+scaffold = true
+
+[templates.rust]
+match = "^tools/native/[\\w./-]+\\.rs$|^src/mios-rs/[\\w./-]+\\.rs$"
+comment = "slash"
+required_header = true
+required_markers = []
+generated = false
+scaffold = true
+
+[templates.typescript]
+match = "^[\\w./-]+\\.ts$"
+comment = "slash"
+required_header = true
+required_markers = []
+generated = false
+scaffold = true
+
+[templates.powershell]
+match = "^[\\w./-]+\\.ps1$"
+comment = "hash"
+required_header = true
+required_markers = []
+generated = false
+scaffold = true
+
+[templates.toml-config]
+match = "^[\\w./-]+\\.toml$"
+comment = "hash"
+required_header = true
+required_markers = []
+generated = false
+scaffold = true
+
+[templates.yaml]
+match = "^[\\w./-]+\\.yaml$|^[\\w./-]+\\.yml$"
+comment = "hash"
+required_header = true
+required_markers = []
+generated = false
+scaffold = true
+
+[templates.json-schema]
+match = "^[\\w./-]+\\.json$"
+comment = "hash"
+required_header = false
+required_markers = []
+generated = false
+scaffold = true
+
+[templates.markdown-doc]
+match = "^usr/share/doc/mios/[\\w./-]+\\.md$|^README\\.md$"
+comment = "md"
+required_header = true
+required_markers = []
+generated = false
+scaffold = true
+
+[templates.roadmap]
+match = "^ROADMAP\\.md$"
+comment = "md"
+required_header = true
+required_markers = ["### Workstream Status Rollup", "# Desktop & UX", "# Fleet & Federation"]
+generated = false
+scaffold = true
+
+[templates.roadmap-ws]
+match = "^usr/share/doc/mios/roadmap/[\\w-]+\\.md$"
+comment = "md"
+required_header = true
+required_markers = ["## WS-", "acceptance:"]
+generated = false
+scaffold = true
+
+[templates.systemd-unit]
+match = "^usr/share/mios/systemd/[\\w-]+\\.service$"
+comment = "hash"
+required_header = true
+required_markers = ["[Unit]", "[Service]", "[Install]"]
+generated = false
+scaffold = true
+
+[templates.quadlet]
+match = "^usr/share/mios/systemd/[\\w-]+\\.(?:container|pod|network|volume)$"
+comment = "hash"
+required_header = true
+required_markers = ["[Unit]", "[Container]", "[Install]"]
+generated = true
+scaffold = true
+
+[templates.automation-step]
+match = "^automation/\\d{2}-.*\\.sh$"
+comment = "hash"
+required_header = true
+required_markers = []
+generated = false
+scaffold = true

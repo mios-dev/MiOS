@@ -1,12 +1,14 @@
+<!-- AI-hint: MiOS -- Master Roadmap (SINGULAR monolith)
+     AI-related: /usr/lib/mios/bake/plan.d/NN-, /etc/mios/blade.d/, /usr/share/mios/artifacts/sbom/bound-images.tsv, /usr/libexec/mios/miosd, /usr/share/mios/vllm/model, mios-bake-group, mios-bakescratch, mios-llm-heavy, mios-llm-heavy-alt, mios-dropin-fanout -->
 # MiOS -- Master Roadmap (SINGULAR monolith)
 
 > The one canonical roadmap. Absorbs all former top-level `*-PLAN-*.md` + `concepts/*` planning docs. Workstreams map to `T-*` in TASKS.md.
 
 <!-- ROADMAP_ROLLUP_START -->
 ### Workstream Status Rollup
-- **Done**: 0
-- **Active**: 4
-- **Proposed**: 12
+- **Done**: 6
+- **Active**: 2
+- **Proposed**: 8
 - **Blocked**: 0
 <!-- ROADMAP_ROLLUP_END -->
 
@@ -14,13 +16,13 @@
 ### Workstream Index
 
 **OS-Image & Build**
-- `WS-BAKEGATE` — Two-gate model: [build.bake] core allow-list + projected bake-plan (active)
-- `WS-BLADE` — Universal-core + blade-type ACTIVATION gate (one image, role by flag) (proposed)
-- `WS-MIOSSYS` — MiOS-Sys shared-base consolidation of the sidecar fleet (proposed)
-- `WS-SBOM` — SBOM-not-hardcode: digests/hashes are build-time provenance, never SSOT literals (active)
+- `WS-BAKEGATE` — Two-gate model: [build.bake] core allow-list + projected bake-plan ✅
+- `WS-BLADE` — Universal-core + blade-type ACTIVATION gate (one image, role by flag) ✅
+- `WS-MIOSSYS` — MiOS-Sys shared-base consolidation of the sidecar fleet ✅
+- `WS-SBOM` — SBOM-not-hardcode: digests/hashes are build-time provenance, never SSOT literals ✅
 - `WS-DOCS` — Planning-docs refactor: ADR system + generated index (active)
 - `WS-LANG` — Language-per-domain unification — Rust for native tooling, bash demoted to thin glue (proposed)
-- `WS-TEMPLATE` — Compiled file-pattern system — one template per file type + conformance check + Law-14 (proposed)
+- `WS-TEMPLATE` — Compiled file-pattern system — one template per file type + conformance check + Law-14 ✅
 - `WS-DEBT` — Technical-debt register — TD-1..TD-8 (shell-mass, version drift, resolver twin, monolith decomposition) (proposed)
 
 **AI-Plane & Orchestration**
@@ -40,7 +42,7 @@
 (no workstreams)
 
 **Desktop & UX**
-- `WS-DOTFILES` — SSOT-as-system-dotfiles — one mios.toml projects every dotfile on every platform (proposed)
+- `WS-DOTFILES` — SSOT-as-system-dotfiles — one mios.toml projects every dotfile on every platform ✅
 
 **Fleet & Federation**
 - `WS-RELTOP` — Release topology: GitHub ≡ Forgejo equal publishers; PUBLISH capacity gate (active)
@@ -66,7 +68,7 @@
 id: WS-BAKEGATE
 title: Two-gate model: [build.bake] core allow-list + projected bake-plan
 theme: OS-Image & Build
-status: active
+status: done
 priority: P1
 laws: [3, 7, 8, 12]
 ssot_keys: ["build.bake.core", "build.bake.groups", "build.bake.group_members"]
@@ -92,7 +94,7 @@ acceptance: |
 id: WS-BLADE
 title: Universal-core + blade-type ACTIVATION gate (one image, role by flag)
 theme: OS-Image & Build
-status: proposed
+status: done
 priority: P1
 laws: [3, 8]
 ssot_keys: ["blade.type", "blade.archetypes", "blade.requires"]
@@ -115,7 +117,7 @@ acceptance: |
 id: WS-MIOSSYS
 title: MiOS-Sys shared-base consolidation of the sidecar fleet
 theme: OS-Image & Build
-status: proposed
+status: done
 priority: P1
 laws: [3, 6, 8]
 ssot_keys: ["image.sys", "image.cuda", "image.sidecars"]
@@ -138,7 +140,7 @@ acceptance: |
 id: WS-SBOM
 title: SBOM-not-hardcode: digests/hashes are build-time provenance, never SSOT literals
 theme: OS-Image & Build
-status: active
+status: done
 priority: P2
 laws: [7, 8]
 ssot_keys: ["image.sidecars"]
@@ -240,7 +242,7 @@ acceptance: |
 id: WS-TEMPLATE
 title: Compiled file-pattern system — one template per file type + conformance check + Law-14
 theme: OS-Image & Build
-status: proposed
+status: done
 priority: P1
 laws: [7, 8, 9]
 ssot_keys: []
@@ -252,7 +254,7 @@ acceptance: |
   check_template_conformance drift-check that validates header AND body structure;
   candidate Law 14 (ONE-TEMPLATE-PER-TYPE) registered + enforced (operator-gated).
 -->
-*A global compiled-template system (ADR-0011 §3) formalizing/extending the AI-hint convention so an agent learns MiOS formatting from a few files. A template = the shared AI-hint header block (produced by the same `mios-ai-tag` engine) + a small per-type body skeleton whose structure is also validated (closing the gap where only the header is checked). Proposed.*
+*A global compiled-template system (ADR-0011 §3) formalizing/extending the AI-hint convention so an agent learns MiOS formatting from a few files. A template = the shared AI-hint header block (produced by the same `mios-ai-tag` engine) + a small per-type body skeleton whose structure is also validated (closing the gap where only the header is checked). Done.*
 
 ### TEMPLATE-01 — `usr/share/mios/templates/*.tmpl` (~15) + `mios new <type>` + golden compiler + `check_template_conformance` + candidate Law-14  **[P1]**  (→ T-271)
 - **What:** Author ~15 compiled templates (`bash`, `python-tool`, `python-module`, `rust`, `typescript`, `powershell`, `toml-config`, `yaml`, `json-schema`, `markdown-doc`, `adr`, `roadmap`, `systemd-unit`, `quadlet` [generated], `automation-step`) under `usr/share/mios/templates/`, declared in SSOT (`[templates.<type>]`: `match`/`comment`/`required_header`/`required_markers`/`generated`/`scaffold`). Land the scaffolder first as Python `usr/libexec/mios/mios-new` (`mios new <type>`, reusing `mios-ai-tag` for the header, filling canonical fields — next ADR number, next `automation/NN` ordinal, canonical ports — from SSOT, and registering the canonical name), then absorb into `miosd scaffold`. Add a golden round-trip compiler (`tools/compile-templates.py`) and a `check_template_conformance` drift-check (delegating to a Python worker, mirroring `check_hint_coverage → mios-ai-hint-coverage`, degrade-open, soft→hard ratchet). `generated=true` types refuse to scaffold an editable file (scaffold the generator + its `mios.toml` section instead — Law 8 authoritative). **Candidate Law 14 (ONE-TEMPLATE-PER-TYPE):** per ADR-0007 add a `[laws]` row (id 14) + `check_template_conformance` as `enforced_by` — **operator-gated; the `[laws]` edit is deferred for confirmation.**
@@ -319,6 +321,7 @@ acceptance: |
 ROADMAP.md + TASKS.md are now the **singular** planning SSOT. Folded in:
 - **9 top-level `*-PLAN-*.md`** (2026-06-14/15) → **Part 17 / T-167–T-177**. Originals archived under `usr/share/doc/mios/archive/absorbed-plans-2026-06/`.
 - **~28 `usr/share/doc/mios/concepts/*` docs** → **Part 18 / T-200–T-241** (actionable deltas); the ~24 pure-reference/architecture docs are kept in place and cross-referenced from their Part.
+  - [deploy-model.md](file:///c:/MiOS/usr/share/doc/mios/concepts/deploy-model.md) — Mutable Fedora/FHS overlay, immutable bootc, and virtualized VM/Xbox/Windows execution modes.
 - Live dGPU heavy-lane diagnosis → **Part 19 / T-178**.
 - Retired the old `combine_roadmaps.py` script.
 
@@ -498,7 +501,7 @@ acceptance: |
 id: WS-DOTFILES
 title: SSOT-as-system-dotfiles — one mios.toml projects every dotfile on every platform
 theme: Desktop & UX
-status: proposed
+status: done
 priority: P1
 laws: [1, 7, 8, 9, 13]
 ssot_keys: ["dotfiles.registry", "colors", "theme", "appearance", "terminal", "identity", "btop", "shell", "editor", "git", "ssh"]

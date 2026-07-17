@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # AI-hint: Negative-test harness for the new drift gates (AGY-54). Inject violations, assert they fail, restore, and assert pass.
-# AI-related: tests/drift-gate-negatives.sh, automation/38-drift-checks.sh
-# AI-functions: main, test_version_ssot, test_resolver_equivalence, test_eval_safety, test_shellcheck_failure
+# AI-related: /usr/lib/mios/userenv.sh, /usr/libexec/mios/mios-test-temp-eval, /usr/share/mios/referenced_names.txt, mios-test-temp-eval
+# AI-functions: log, die, test_version_ssot, test_resolver_equivalence, test_eval_safety, test_shellcheck_failure, test_names_registry_closure, test_root_toml_subset, main
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -74,8 +74,6 @@ test_eval_safety() {
     # Inject violation: add eval "$1" to a verb script
     cat << 'EOF' > "$temp_verb"
 #!/usr/bin/env bash
-# AI-hint: Temporary script for negative testing.
-# AI-related: tests/drift-gate-negatives.sh
 eval "$1"
 EOF
     chmod +x "$temp_verb"
@@ -124,12 +122,61 @@ EOF
     log "check_shellcheck negative test passed."
 }
 
+# 5. Test check_names_registry (names registry / closure)
+test_names_registry_closure() {
+    log "Testing check_names_registry..."
+    local ref_file="${ROOT}/usr/share/mios/referenced_names.txt"
+    local orig_val
+    orig_val="$(cat "$ref_file")"
+
+    # Inject violation: add a dummy fake environment variable reference
+    echo "MIOS_FAKE_TEST_VARIABLE_DRIP" >> "$ref_file"
+
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" bash "${ROOT}/automation/38-drift-checks.sh" check_names_registry >/dev/null 2>&1; then
+        echo "$orig_val" > "$ref_file"
+        die "check_names_registry passed despite stale referenced_names.txt!"
+    fi
+
+    # Restore and verify green
+    echo "$orig_val" > "$ref_file"
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" bash "${ROOT}/automation/38-drift-checks.sh" check_names_registry >/dev/null 2>&1 \
+        || die "check_names_registry failed after restoration!"
+    log "check_names_registry negative test passed."
+}
+
+# 6. Test check_root_toml_subset
+test_root_toml_subset() {
+    log "Testing check_root_toml_subset..."
+    local root_toml="${ROOT}/mios.toml"
+    local orig_val
+    orig_val="$(cat "$root_toml")"
+
+    # Inject violation: add a new unrecognized key not in canonical toml
+    cat << 'EOF' >> "$root_toml"
+[meta.nonexistent_drift_test_section]
+fake_key_drift_assertion = "drift"
+EOF
+
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" bash "${ROOT}/automation/38-drift-checks.sh" check_root_toml_subset >/dev/null 2>&1; then
+        echo "$orig_val" > "$root_toml"
+        die "check_root_toml_subset passed despite invalid key injection!"
+    fi
+
+    # Restore and verify green
+    echo "$orig_val" > "$root_toml"
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" bash "${ROOT}/automation/38-drift-checks.sh" check_root_toml_subset >/dev/null 2>&1 \
+        || die "check_root_toml_subset failed after restoration!"
+    log "check_root_toml_subset negative test passed."
+}
+
 main() {
     log "Starting negative-test suite..."
     test_version_ssot
     test_resolver_equivalence
     test_eval_safety
     test_shellcheck_failure
+    test_names_registry_closure
+    test_root_toml_subset
     log "All negative tests completed successfully!"
 }
 

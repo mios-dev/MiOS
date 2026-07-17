@@ -1,22 +1,42 @@
 #!/usr/bin/env python3
 import os
 import sys
+import re
+import glob
+
 try:
     import tomllib
 except ImportError:
     try:
         import tomli as tomllib
     except ImportError:
-        # Fallback if no toml library is found
         print("Error: neither tomllib nor tomli is installed.", file=sys.stderr)
         sys.exit(1)
 
-# Define sections to walk recursively
 TARGET_SECTIONS = [
     "ports", "ai", "identity", "locale", "auth", "network", "desktop", 
     "branding", "image", "bootstrap", "profile", "colors", "observability", 
     "sandbox", "security", "code_mode", "hermes", "routing", "agents", "a2a"
 ]
+
+SHORT_ALIAS_PREFIX = {
+    "ai.vllm":   "MIOS_VLLM",
+    "ai.sglang": "MIOS_SGLANG",
+}
+SHORT_ALIAS_IRREGULAR = {
+    "ai.vllm.v1_engine":            "MIOS_VLLM_USE_V1",
+    "ai.sglang.unified_radix_tree": "MIOS_SGLANG_ENABLE_UNIFIED_RADIX_TREE",
+    "ai.sglang.hierarchical_cache": "MIOS_SGLANG_ENABLE_HIERARCHICAL_CACHE",
+}
+
+def _alias_for(path):
+    a = SHORT_ALIAS_IRREGULAR.get(path)
+    if a is not None:
+        return a
+    for pfx, rep in SHORT_ALIAS_PREFIX.items():
+        if path.startswith(pfx + "."):
+            return rep + path[len(pfx):].upper().replace(".", "_").replace("-", "_")
+    return None
 
 def walk(d, prefix=""):
     results = []
@@ -26,28 +46,63 @@ def walk(d, prefix=""):
     for k, v in d.items():
         path = f"{prefix}.{k}" if prefix else k
         
-        # Skip specific paths we know are not environment config keys
         if path == "routing.domains":
             continue
             
         if isinstance(v, dict):
             results.extend(walk(v, path))
         else:
-            # It is a leaf config key
-            # Generate canonical env var name:
-            # MIOS_ + path upper-snake-cased
-            env_name = "MIOS_" + path.upper().replace(".", "_").replace("-", "_")
+            alias = _alias_for(path)
+            env_name = alias if alias else "MIOS_" + path.upper().replace(".", "_").replace("-", "_")
             results.append((path, env_name))
     return results
 
+def generate_referenced_vars(root):
+    emitter_suffixes = (
+        "usr/lib/mios/userenv.sh", "tools/lib/userenv.sh",
+        "usr/libexec/mios/system-sync-env.sh",
+        "usr/share/mios/names.generated.txt",
+        "usr/share/doc/mios/reference/naming-unification.md",
+    )
+    var_re = re.compile(r"MIOS_[A-Z0-9_]+")
+    consumer_globs = ("*.container", "*.service", "*.timer", "*.py", "*.sh", "*.toml",
+                      "*.ps1", "*.psm1", "*.yaml", "*.yml", "Justfile", ".env.mios", "*.tmpl",
+                      "Containerfile", "Containerfile.*", "*.nft", "*.sql")
+    
+    refs = set()
+    for dirpath, _dirs, files in os.walk(root):
+        if "/.git" in dirpath.replace("\\", "/"):
+            continue
+        for fn in files:
+            path = os.path.join(dirpath, fn)
+            rel = os.path.relpath(path, root).replace("\\", "/")
+            if any(rel.endswith(s) for s in emitter_suffixes):
+                continue
+            if not any(glob.fnmatch.fnmatch(fn, g) for g in consumer_globs):
+                continue
+            try:
+                with open(path, encoding="utf-8", errors="ignore") as fh:
+                    for line in fh:
+                        for m in var_re.finditer(line):
+                            v = m.group(0)
+                            if re.match(rf"\s*(export\s+)?{v}=", line):
+                                continue
+                            refs.add(v)
+            except (OSError, UnicodeError):
+                continue
+    
+    ref_file = os.path.join(root, "usr/share/mios/referenced_names.txt")
+    os.makedirs(os.path.dirname(ref_file), exist_ok=True)
+    with open(ref_file, "w", encoding="utf-8") as f:
+        for r in sorted(refs):
+            f.write(f"{r}\n")
+
 def main():
-    toml_path = os.environ.get("MIOS_TOML", "usr/share/mios/mios.toml")
+    root = os.environ.get("MIOS_DRIFT_ROOT") or os.getcwd()
+    toml_path = os.path.join(root, "usr/share/mios/mios.toml")
     if not os.path.isfile(toml_path):
-        # Try running from WSL mount point or different directory
         if os.path.isfile("usr/share/mios/mios.toml"):
             toml_path = "usr/share/mios/mios.toml"
-        elif os.path.isfile("/mnt/c/MiOS/usr/share/mios/mios.toml"):
-            toml_path = "/mnt/c/MiOS/usr/share/mios/mios.toml"
         else:
             print(f"Error: mios.toml not found at {toml_path}", file=sys.stderr)
             return 1
@@ -60,13 +115,12 @@ def main():
         if sec in data:
             all_pairs.extend(walk(data[sec], sec))
             
-    # Sort by path for deterministic output
     all_pairs.sort(key=lambda x: x[0])
     
-    # Print one section.key  MIOS_SECTION_KEY per line
     for path, env_name in all_pairs:
         print(f"{path}  {env_name}")
         
+    generate_referenced_vars(root)
     return 0
 
 if __name__ == "__main__":

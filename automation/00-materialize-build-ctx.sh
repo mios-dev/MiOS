@@ -1,6 +1,7 @@
 #!/bin/bash
 # AI-hint: Gated build context materializer. Runs materialize-build-ctx.py if build_catalog_authoritative is true.
-# AI-related: usr/libexec/mios/materialize-build-ctx.py, /ctx
+# AI-related: /usr/libexec/mios/materialize-build-ctx.py
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/common.sh"

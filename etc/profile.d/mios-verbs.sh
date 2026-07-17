@@ -1,5 +1,5 @@
 # AI-hint: Defines the `mios()` shell function to intercept and route canonical verbs (mini, dash, build, config, etc.) to specific `/usr/libexec/mios/` helpers while allowing non-standard arguments to pass to the AI agent.
-# AI-related: mios-dashboard.sh, /usr/libexec/mios/mios-dashboard.sh, /usr/libexec/mios/mios-build-driver, /usr/libexec/mios/mios-configurator-launch, mios-dashboard, mios-build-driver, mios-configurator-launch, mios-verbs, mios-motd, mios-update
+# AI-related: mios-dashboard.sh, /usr/libexec/mios/mios-dashboard.sh, /usr/libexec/mios/mios-build-driver, /usr/libexec/mios/mios-configurator-launch, /usr/libexec/mios/mios-dotfiles, mios-dashboard, mios-build-driver, mios-configurator-launch, mios-verbs, mios-motd
 # AI-functions: mios, _mios_complete, command_not_found_handle
 # /etc/profile.d/mios-verbs.sh
 #
@@ -112,7 +112,7 @@ mios() {
             # Project the SSOT dotfiles (mios.toml [colors]/[theme] + the btop/
             # gitconfig/VS Code/Windows Terminal settings surfaces, ADR-0010) to
             # the operator's LIVE HOME via the mios-dotfiles backend, which
-            # orchestrates mios-theme-render (backup-safe + HOME-scoped writes).
+            # orchestrates mios-dotfiles-render (backup-safe + HOME-scoped writes).
             # status/diff are read-only; sync/apply write (each backed up first).
             if [[ -x /usr/libexec/mios/mios-dotfiles ]]; then
                 /usr/libexec/mios/mios-dotfiles "$@"

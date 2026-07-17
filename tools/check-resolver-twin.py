@@ -6,6 +6,7 @@
 import os
 import sys
 import re
+import json
 import subprocess
 import shlex
 
@@ -16,7 +17,6 @@ def main():
         root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     
     # Configure env to isolate layer TOML paths to standard test files
-    # to avoid pollution from personal configs, but matching drift environment
     os.environ["MIOS_VENDOR_TOML"] = os.path.join(root, "usr/share/mios/mios.toml")
     os.environ["MIOS_HOST_TOML"] = os.path.join(root, "etc/mios/mios.toml")
     os.environ["MIOS_USER_TOML"] = os.path.join(root, "nonexistent.toml")
@@ -32,6 +32,7 @@ def main():
         sys.exit(1)
 
     env = os.environ.copy()
+    env["MSYS_NO_PATHCONV"] = "1"
 
     # Select the correct bash executable
     bash_exe = "bash"
@@ -41,36 +42,32 @@ def main():
                 bash_exe = path
                 break
 
-    # Source userenv.sh in isolated shell and capture exported MIOS_ env vars
-    cmd = [bash_exe, "-c", f"source {shlex.quote(os.path.join(root, 'usr/lib/mios/userenv.sh'))} && env"]
+    # Source userenv.sh in isolated shell and capture exported MIOS_ env vars using JSON
+    cmd = [
+        bash_exe, "-c",
+        f"source {shlex.quote(os.path.join(root, 'usr/lib/mios/userenv.sh'))} && "
+        "python -c \"import os, json; print(json.dumps({k: v for k, v in os.environ.items() if k.startswith('MIOS_')}))\""
+    ]
     try:
         out = subprocess.check_output(cmd, env=env, stderr=subprocess.STDOUT).decode("utf-8")
+        bash_vars = json.loads(out)
     except subprocess.CalledProcessError as e:
         print("Error: userenv.sh execution failed:\n", e.output.decode("utf-8", errors="ignore"), file=sys.stderr)
         sys.exit(1)
+    except json.JSONDecodeError as e:
+        print(f"Error: Failed to parse env JSON: {e}\nOutput was:\n{out}", file=sys.stderr)
+        sys.exit(1)
 
-    bash_vars = {}
-    for line in out.splitlines():
-        if "=" in line:
-            k, v = line.split("=", 1)
-            if k.startswith("MIOS_"):
-                bash_vars[k] = v
-
-    # Extract slots, Process_val, and aliases from userenv.sh
+    # Extract dynamic functions from userenv.sh
     userenv_path = os.path.join(root, "usr/lib/mios/userenv.sh")
     with open(userenv_path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    slots_match = re.search(r'slots = \text*\[\s*\n(.*?)\n\]', content, re.DOTALL) or re.search(r'slots = \[\s*\n(.*?)\n\]', content, re.DOTALL)
-    if not slots_match:
-        print("Error: slots list not found in userenv.sh", file=sys.stderr)
+    get_aliases_match = re.search(r'(def get_aliases\(.*?\):\n.*?)(?=\ndef walk)', content, re.DOTALL)
+    if not get_aliases_match:
+        print("Error: get_aliases not found in userenv.sh", file=sys.stderr)
         sys.exit(1)
-    
-    local_vars = {}
-    exec("slots = [" + slots_match.group(1) + "]", {}, local_vars)
-    slots = local_vars["slots"]
 
-    # Compute stack offset for ports
     merged_data = mios_toml.load_merged()
     stack_id = mios_toml.get("ports", "stack_id")
     try:
@@ -78,56 +75,26 @@ def main():
     except ValueError:
         stack_offset = 0
 
-    def process_val(dotted, v):
-        if isinstance(v, bool):
-            return "true" if v else "false"
-        if dotted.startswith("ports.") and dotted != "ports.stack_id":
-            try:
-                if int(v) != 53:
-                    return int(v) + stack_offset
-            except (ValueError, TypeError):
-                pass
-        if isinstance(v, list):
-            return ",".join(str(x) for x in v)
-        return v
+    local_vars = {"stack_offset": stack_offset}
+    try:
+        exec(get_aliases_match.group(1), {"re": re}, local_vars)
+        get_aliases = local_vars["get_aliases"]
+    except Exception as e:
+        print(f"Error: Failed to exec get_aliases from userenv.sh: {e}", file=sys.stderr)
+        sys.exit(1)
 
-    # Extract aliases and walk configuration from userenv.sh
-    aliases_prefix_match = re.search(r'SHORT_ALIAS_PREFIX = \{(.*?)\}', content, re.DOTALL)
-    aliases_irregular_match = re.search(r'SHORT_ALIAS_IRREGULAR = \{(.*?)\}', content, re.DOTALL)
-    SHORT_ALIAS_PREFIX = {}
-    SHORT_ALIAS_IRREGULAR = {}
-    if aliases_prefix_match:
-        exec("prefix = {" + aliases_prefix_match.group(1) + "}", {}, local_vars)
-        SHORT_ALIAS_PREFIX = local_vars["prefix"]
-    if aliases_irregular_match:
-        exec("irregular = {" + aliases_irregular_match.group(1) + "}", {}, local_vars)
-        SHORT_ALIAS_IRREGULAR = local_vars["irregular"]
+    process_val_match = re.search(r'(def process_val\(.*?\):\n.*?)(?=\nall_pairs =)', content, re.DOTALL)
+    if not process_val_match:
+        print("Error: process_val not found in userenv.sh", file=sys.stderr)
+        sys.exit(1)
 
-    def alias_for(path):
-        a = SHORT_ALIAS_IRREGULAR.get(path)
-        if a is not None:
-            return a
-        for pfx, rep in SHORT_ALIAS_PREFIX.items():
-            if path.startswith(pfx + "."):
-                return rep + path[len(pfx):].upper().replace(".", "_").replace("-", "_")
-        return None
+    try:
+        exec(process_val_match.group(1), {"int": int, "isinstance": isinstance, "list": list, "str": str, "ValueError": ValueError, "TypeError": TypeError, "stack_offset": stack_offset}, local_vars)
+        process_val = local_vars["process_val"]
+    except Exception as e:
+        print(f"Error: Failed to exec process_val from userenv.sh: {e}", file=sys.stderr)
+        sys.exit(1)
 
-    mostly_dead_match = re.search(r'WALK_MOSTLY_DEAD = \{(.*?)\}', content, re.DOTALL)
-    emit_keep_match = re.search(r'WALK_EMIT_KEEP = \{(.*?)\}', content, re.DOTALL)
-    WALK_MOSTLY_DEAD = set()
-    WALK_EMIT_KEEP = set()
-    if mostly_dead_match:
-        exec("mostly_dead = {" + mostly_dead_match.group(1) + "}", {}, local_vars)
-        WALK_MOSTLY_DEAD = local_vars["mostly_dead"]
-    if emit_keep_match:
-        exec("emit_keep = {" + emit_keep_match.group(1) + "}", {}, local_vars)
-        WALK_EMIT_KEEP = local_vars["emit_keep"]
-
-    # Reconstruct toml_vars expected exports dict
-    toml_vars = {}
-
-    # 1. Walked variables
-    TARGET_SECTIONS = ["ai", "image", "bootstrap", "profile", "sandbox", "security", "hermes", "a2a", "converge"]
     def walk(d, prefix=""):
         results = []
         if not isinstance(d, dict):
@@ -139,53 +106,65 @@ def main():
             if isinstance(v, dict):
                 results.extend(walk(v, path))
             else:
-                env_name = "MIOS_" + path.upper().replace(".", "_").replace("-", "_")
-                results.append((path, env_name, v))
+                results.append((path, v))
         return results
 
+    # Reconstruct toml_vars expected exports dict
+    toml_vars = {}
+    
+    # 1. Walked variables
     all_pairs = []
-    for sec in TARGET_SECTIONS:
-        sec_data = mios_toml.section(merged_data, sec)
-        if sec_data:
-            all_pairs.extend(walk(sec_data, sec))
+    EXCLUDED_SECTIONS = {"containers", "verbs", "recipes", "packages", "dotfiles", "btop", "theme", "install_phases", "messages"}
+    for sec, val in merged_data.items():
+        if isinstance(val, dict) and sec not in EXCLUDED_SECTIONS:
+            all_pairs.extend(walk(val, sec))
 
-    canonical_exports = {}
-    for path, env_name, val in all_pairs:
-        canonical_exports[env_name] = (path, val)
+    WALK_MOSTLY_DEAD = {"ai", "image", "bootstrap", "profile", "sandbox", "security"}
+    WALK_EMIT_KEEP = {
+        "MIOS_AI_BAKE_MODELS", "MIOS_AI_DIR", "MIOS_AI_EMBED_MODEL", "MIOS_AI_ENDPOINT",
+        "MIOS_AI_JOURNAL", "MIOS_AI_MCP_DIR", "MIOS_AI_MEMORY_DIR", "MIOS_AI_MODEL",
+        "MIOS_AI_MODELS_DIR", "MIOS_AI_RAM_FLOOR_GB", "MIOS_AI_SCRATCH_DIR",
+        "MIOS_IMAGE_NAME", "MIOS_IMAGE_REF", "MIOS_IMAGE_TAG",
+        "MIOS_BOOTSTRAP_MODE", "MIOS_PROFILE_FEATURES", "MIOS_PROFILE_ROLE",
+        "MIOS_SANDBOX_ENABLE", "MIOS_SECURITY_ALLOWLIST_HOSTS", "MIOS_SECURITY_PROVENANCE_TAINT",
+    }
 
-    for env_name, (path, val) in sorted(canonical_exports.items()):
-        if alias_for(path):
-            continue
-        if path.split(".", 1)[0] in WALK_MOSTLY_DEAD and env_name not in WALK_EMIT_KEEP:
-            continue
+    exports_map = {}
+    for path, val in all_pairs:
         val_processed = process_val(path, val)
-        if val_processed is not None and val_processed != "":
-            toml_vars[env_name] = str(val_processed)
-
-    # 1b. Short heavy-lane aliases
-    for path, env_name, val in all_pairs:
-        alias = alias_for(path)
-        if alias:
-            vp = process_val(path, val)
-            if vp is not None and vp != "":
-                toml_vars[alias] = str(vp)
-
-    # 2. Slots variables
-    for dotted, env_name in slots:
-        sect, key = dotted.rsplit(".", 1)
-        v = mios_toml.get(sect, key, data=merged_data)
-        if v is None or v == "":
+        if val_processed is None or val_processed == "":
             continue
-        val_processed = process_val(dotted, v)
-        if val_processed is not None and val_processed != "":
-            toml_vars[env_name] = str(val_processed)
+        canonical = "MIOS_" + path.upper().replace(".", "_").replace("-", "_")
+        sec_name = path.split(".", 1)[0]
+        if sec_name in WALK_MOSTLY_DEAD and canonical not in WALK_EMIT_KEEP:
+            pass
+        else:
+            exports_map[canonical] = str(val_processed)
+            
+        for leg in get_aliases(path):
+            exports_map[leg] = str(val_processed)
 
-    # 3. [env] table verbatim exports
+    # 2. [env] table verbatim exports
     env_tbl = mios_toml.section(merged_data, "env")
-    for k, v in env_tbl.items():
-        val_processed = process_val("env." + k, v)
-        if val_processed is not None and val_processed != "":
-            toml_vars[k] = str(val_processed)
+    if isinstance(env_tbl, dict):
+        for k, v in sorted(env_tbl.items()):
+            vp = process_val("env." + k, v)
+            if vp is not None and vp != "":
+                exports_map[k] = str(vp)
+
+    # 3. Add referenced variables if not present
+    ref_path = os.path.join(root, "usr/share/mios/referenced_names.txt")
+    if os.path.isfile(ref_path):
+        try:
+            with open(ref_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    v = line.strip()
+                    if v and v not in exports_map:
+                        exports_map[v] = ""
+        except Exception:
+            pass
+
+    toml_vars = exports_map
 
     # 4. Post-load transforms (pgvector listen_loopback -> MIOS_PG_BIND_ADDR)
     loopback = mios_toml.get("pgvector", "listen_loopback")
@@ -193,19 +172,24 @@ def main():
         loopback = True
     toml_vars["MIOS_PG_BIND_ADDR"] = "127.0.0.1" if loopback else "0.0.0.0"
 
-    # Compare
-    mismatches = []
-    for k, expected in sorted(toml_vars.items()):
-        actual = bash_vars.get(k)
-        if actual != expected:
-            mismatches.append(f"Var {k}: Toml resolved {expected!r}, Bash resolved {actual!r}")
-
     ignore_vars = {
         "MIOS_VENDOR_TOML", "MIOS_HOST_TOML", "MIOS_USER_TOML",
         "MIOS_VENDOR_TOML_D", "MIOS_HOST_TOML_D", "MIOS_USER_TOML_D",
         "MIOS_DRIFT_ROOT", "MIOS_DRIFT_CHECK_ROOT", "MIOS_DRIFT_CHECK_SOFT",
         "MIOS_TOML_ROOT", "MIOS_ROOT_LIB"
     }
+
+    # Compare
+    mismatches = []
+    for k, expected in sorted(toml_vars.items()):
+        if k in ignore_vars:
+            continue
+        actual = bash_vars.get(k)
+        if actual != expected:
+            if expected == "" and (actual is None or actual == ""):
+                continue
+            mismatches.append(f"Var {k}: Toml resolved {expected!r}, Bash resolved {actual!r}")
+
     for k, actual in sorted(bash_vars.items()):
         if k in ignore_vars:
             continue

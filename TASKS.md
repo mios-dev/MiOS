@@ -1,3 +1,5 @@
+<!-- AI-hint: MiOS -- Master Tasks (SINGULAR monolith)
+     AI-related: /etc/profile.d/mios-xdg-cephfs.sh, /etc/mios/ai/v1/caller-keys.json, /etc/mios/ai/v1/a2a-peers.json, /usr/share/mios/ai/v1/mcp.json, /etc/mios/ai/v1/mcp.json, /usr/libexec/mios/mios-mcp-server, /etc/mios/hermes/config.local.yaml, /etc/mios/gateway/, /usr/libexec/mios/mios-cephfs-provision, /etc/mios/llamacpp/mios-llm-light.yaml -->
 # MiOS -- Master Tasks (SINGULAR monolith)
 
 > The one canonical task list. **253 tasks** (106 done, 147 open/in-progress). Absorbs the former `*-PLAN-*.md` + `concepts/*` backlogs. Each task carries **Who / What / Where / When / How** + Done-When.
@@ -249,11 +251,11 @@
 | T-263 | P2 | planned | Deploy/Cat/Mirrors | CATREPO-04 -- Offline dnf/flatpak/pip mirrors on MiOS-Data + `cat update` self-refresh |
 | T-264 | P2 | planned | Deploy/Cat/Flatten | CATFLAT-01 -- Dead-weight purge + leave-nothing-behind (drop bundled binaries) |
 | T-265 | P2 | planned | Deploy/Cat/Docs | CATFLAT-02 -- ADR root breadcrumb (ADR.md + cat\ADR-0008.md) + spec cross-ref |
-| T-266 | P3 | planned | Deploy/Cat/SSOT | CATFLAT-03 -- mios.toml seed-copy consolidation (63/68 KB seeds vs 597 KB SSOT) |
+| T-266 | P3 | done-by-code | Deploy/Cat/SSOT | CATFLAT-03 -- mios.toml seed-copy consolidation (63/68 KB seeds vs 597 KB SSOT) |
 | T-267 | P1 | planned | Config/Portal | CONFIG-01 -- Fold mios.html into the MiOS Portal at :8640/ (one web + API door) |
-| T-268 | P1 | planned | Build/SSOT/Version | DEBT-01 -- Collapse version/SSOT to one value (TD-2: 3x mios.toml + 0.2.4 root + 37x headers) |
-| T-269 | P1 | planned | Build/Security | DEBT-02 -- shellcheck CI gate + kill the 9 eval-on-agent-args verbs (TD-1) |
-| T-270 | P1 | planned | Dotfiles/SSOT | DOTFILES-01 -- [dotfiles.registry.*] + mios-dotfiles-render + apply verb + both-sides gate (ADR-0010) |
+| T-268 | P1 | done-by-code | Build/SSOT/Version | DEBT-01 -- Collapse version/SSOT to one value (TD-2: 3x mios.toml + 0.2.4 root + 37x headers) |
+| T-269 | P1 | done-by-code | Build/Security | DEBT-02 -- shellcheck CI gate + kill the 9 eval-on-agent-args verbs (TD-1) |
+| T-270 | P1 | done-by-code | Dotfiles/SSOT | DOTFILES-01 -- [dotfiles.registry.*] + mios-dotfiles-render + apply verb + both-sides gate (ADR-0010) |
 | T-271 | P1 | planned | Build/Templates | TEMPLATE-01 -- Compiled file-pattern system + mios new + conformance check + Law-14 (ADR-0011) |
 | T-272 | P1 | planned | Build/Lang | LANG-01 -- Stand up Rust workspace + port first fragile bash tool (drift-runner/verb dispatcher) |
 | T-273 | P2 | planned | AI-Plane/Refactor | DEBT-03 -- Split mios_dispatch.py + finish server.py decomposition (TD-5) |
@@ -2368,7 +2370,6 @@ T-084 (STRG-01 SSOT)
 
 # Part 10: Converged-Resource Architecture Tasks (CONV-01..CONV-15)
 
-<!-- AI-hint: Tasks T-094..T-108. All gated by [converge] block in mios.toml (all defaults no-op). Uphold Law 5 (MIOS_AI_ENDPOINT) and Law 6 (USER 65534 in all containers). Additive: zero existing tasks modified. -->
 
 ---
 
@@ -4310,12 +4311,12 @@ T-094 (CONV-01 SSOT)
 - [ ] an agent reaches the ADR index from either repo root in ≤2 hops; the breadcrumb is generated + drift-gate green; the baked ADRs under `/usr` are unmoved.
 
 ## T-266: CATFLAT-03 -- mios.toml seed-copy consolidation (flag → fix)  [P3]
-> **Priority:** P3 | **Status:** planned | **Effort:** M | **Domain:** Deploy/Cat/SSOT | **Who:** SSOT agent | **Source:** WS-CATFLAT / ADR-0008; MiOS-Cat unification plan §5.2
+> **Priority:** P3 | **Status:** done-by-code | **Effort:** M | **Domain:** Deploy/Cat/SSOT | **Who:** SSOT agent | **Source:** WS-CATFLAT / ADR-0008; MiOS-Cat unification plan §5.2
 **Instructions (WHAT + HOW):** Resolve the `mios.toml` seed-copy question: the SSOT is `C:\MiOS\usr\share\mios\mios.toml` (597 KB); the root `C:\MiOS\mios.toml` (63 KB) and `C:\mios-bootstrap\mios.toml` (68 KB) are seed/derived copies. Determine which is canonical vs generated, document the seed→SSOT relationship, and (if seeds are generated) wire their regeneration + a drift-check. MiOS-Cat must read ONLY the 597 KB SSOT (paired with T-258). This is the root cause of the T-258 dangling-read bug — confirm the relationship before/with repointing.
 **Where (files):** `C:\MiOS\usr\share\mios\mios.toml` (SSOT), `C:\MiOS\mios.toml` + `C:\mios-bootstrap\mios.toml` (seeds), the seed generator (if any), `automation/38-drift-checks.sh`
 **When (deps/order):** Pairs with T-258 (SSOT repoint). Lowest priority; the T-258 fix can land with a documented assumption and this closes it.
 **Done When:**
-- [ ] one documented SSOT + explicitly-generated seeds (or a documented decision to keep them); MiOS-Cat reads only the 597 KB SSOT; a drift-check guards seed↔SSOT drift.
+- [x] one documented SSOT + explicitly-generated seeds (or a documented decision to keep them); MiOS-Cat reads only the 597 KB SSOT; a drift-check guards seed↔SSOT drift.
 
 ## T-267: CONFIG-01 -- Fold `mios.html` into the MiOS Portal at `:8640/` (one web + API front door)  [P1]
 > **Priority:** P1 | **Status:** planned | **Effort:** L | **Domain:** Config/Portal | **Who:** agent-pipe / Portal backend engineer | **Source:** WS-CONFIG / ADR-0009; unified config surface (operator constraint #2/#3)
@@ -4326,28 +4327,28 @@ T-094 (CONV-01 SSOT)
 - [ ] the configurator is a view within the Portal at `:8640/`; `GET /` (Portal) and `/v1/*` (OpenAI API) share the one door; every deployment type's config reads/writes `mios.toml` through the surface; the shareable link and the USB are the same surface online and offline.
 
 ## T-268: DEBT-01 -- Collapse version/SSOT to one value (TD-2)  [P1]
-> **Priority:** P1 | **Status:** planned | **Effort:** M | **Domain:** Build/SSOT/Version | **Who:** SSOT/build agent | **Source:** WS-DEBT / ADR-0011; combined tech-debt map §1 (TD-2, re-measured)
+> **Priority:** P1 | **Status:** done-by-code | **Effort:** M | **Domain:** Build/SSOT/Version | **Who:** SSOT/build agent | **Source:** WS-DEBT / ADR-0011; combined tech-debt map §1 (TD-2, re-measured)
 **Instructions (WHAT + HOW):** Kill the version/SSOT triplication measured live: there are **3× `mios.toml`** — canonical `usr/share/mios/mios.toml` (10,869 ln) plus two diverged roots `C:\MiOS\mios.toml` (says **0.2.4**) and `C:\mios-bootstrap\mios.toml` — while `VERSION` and SSOT `mios_version` are both **0.3.0**, compounded by **37× hardcoded `v0.2.4`** (and 29× `v0.2.0`) in `automation/*.sh` headers. Collapse to one projected version token: strip the literal `vX.Y.Z` from all script headers (project from `[meta].mios_version` at render time — Law 7); make the two root `mios.toml` **generated projections of the SSOT** (or delete them), documenting the seed→SSOT relationship (pairs with T-266); add two drift-checks — "no literal version in headers" and "root `mios.toml` ⊆ SSOT". Near-zero-risk, highest-reach: a build resolving the wrong 7×-smaller copy silently ships a stale manifest. Directly closes the Law 9 / ADR-0009 violation. NOTE: the two `C:\mios-bootstrap` MiOS-Cat launcher files are owned by a concurrent agent — do not touch `cat\MiOS-Cat.bat`/`.ps1`.
 **Where (files):** `C:\MiOS\VERSION`, `C:\MiOS\mios.toml`, `C:\mios-bootstrap\mios.toml`, `C:\MiOS\usr\share\mios\mios.toml` (`[meta].mios_version`), all `automation/*.sh` headers, `automation/38-drift-checks.sh` (two new checks)
 **When (deps/order):** Phase −1, near-zero-risk; unblocks WS-LANG (T-272) and the rest of WS-DEBT. Interlocks with T-266 (seed-copy provenance).
 **Done When:**
-- [ ] one authoritative version token; no literal `v0.2.4`/`v0.2.0` remains in `automation/*.sh` headers; the two root `mios.toml` are generated-or-deleted and drift-gated (`root ⊆ SSOT`); a build can no longer resolve a stale copy.
+- [x] one authoritative version token; no literal `v0.2.4`/`v0.2.0` remains in `automation/*.sh` headers; the two root `mios.toml` are generated-or-deleted and drift-gated (`root ⊆ SSOT`); a build can no longer resolve a stale copy.
 
 ## T-269: DEBT-02 -- shellcheck CI gate + kill the 9 `eval`-on-agent-args verbs (TD-1)  [P1]
-> **Priority:** P1 | **Status:** planned | **Effort:** M | **Domain:** Build/Security | **Who:** build/security agent | **Source:** WS-DEBT / ADR-0011; combined tech-debt map §1 (TD-1) + §5 Phase −1
+> **Priority:** P1 | **Status:** done-by-code | **Effort:** M | **Domain:** Build/Security | **Who:** build/security agent | **Source:** WS-DEBT / ADR-0011; combined tech-debt map §1 (TD-1) + §5 Phase −1
 **Instructions (WHAT + HOW):** Enforce the conventions the repo already documents but never gates. (1) Add a `shellcheck -S warning` CI job over `automation/` + `usr/libexec/mios/` bash (today `shellcheck` exists only as `# shellcheck source=` comments — no lint job). (2) Enforce `set -euo pipefail` on the **23 runtime verbs** that have no `set -e`. (3) Audit and eliminate the **9 verbs that `eval` on agent-derived args** — the injection surface on the agent-facing OS-control plane (highest-severity security debt on the verb chokepoint). Replace each `eval` with an explicit arg-array dispatch / `case` allowlist. This is TD-1, the top-ranked debt (spans build + runtime + the agent-facing surface).
 **Where (files):** `.github/workflows/mios-ci.yml` (new shellcheck job), `Justfile` (a `just shellcheck` recipe), the 23 unguarded + 9 `eval` verbs under `usr/libexec/mios/mios-*`
 **When (deps/order):** Phase −1, no new toolchain. Interlocks with T-272 (the Rust verb-dispatcher port removes the `eval` surface structurally).
 **Done When:**
-- [ ] CI fails on a shellcheck warning; the 23 verbs carry `set -euo pipefail`; **zero** verbs `eval` on agent-derived args; each former `eval` site is an explicit allowlisted dispatch.
+- [x] CI fails on a shellcheck warning; the 23 verbs carry `set -euo pipefail`; **zero** verbs `eval` on agent-derived args; each former `eval` site is an explicit allowlisted dispatch.
 
 ## T-270: DOTFILES-01 -- `[dotfiles.registry.*]` + `mios-dotfiles-render` + `apply` verb + both-sides gate  [P1]
-> **Priority:** P1 | **Status:** planned | **Effort:** L | **Domain:** Dotfiles/SSOT | **Who:** SSOT/theme agent | **Source:** WS-DOTFILES / ADR-0010; SSOT-as-dotfiles design dossier
+> **Priority:** P1 | **Status:** done-by-code | **Effort:** L | **Domain:** Dotfiles/SSOT | **Who:** SSOT/theme agent | **Source:** WS-DOTFILES / ADR-0010; SSOT-as-dotfiles design dossier
 **Instructions (WHAT + HOW):** Generalize the LANDED palette+btop projection into `mios.toml` = the cross-platform system dotfiles. **Landed proof (this session, DONE):** `usr/libexec/mios/mios-theme-render` gained a **settings-surface** concept, `[btop]` (~60 keys) projects the whole `etc/btop/btop.conf` unified Linux+Windows, and drift-check 25 (`check_theme_projection`) auto-extended and is proven green. **This task (planned):** (1) Promote the hardcoded Python `SURFACES` dict into an SSOT-authored `[dotfiles.registry.<surface>]` map — per-platform `target.<os>`; `kind` = template/json-merge/registry/command/skip; `format`; `sources`; `platforms`; `condition` — transcribing the existing color+btop surfaces first (pure refactor, check 25 stays green). (2) Fork `mios-theme-render` → `mios-dotfiles-render`: registry from `mios_toml.load_merged()`, `@MIOS:<section>.<key>@` arbitrary-key tokens, format-aware `merge` preserving foreign keys (WT/VS Code `settings.json` never clobbered), per-platform target resolution, and a new **`apply`/`diff` verb writing to live HOME** (`~/.config`, `%USERPROFILE%`, `%LOCALAPPDATA%`). (3) Add the new domains `[shell]`/`[editor]`/`[git]`(→`[identity]`, Law 9)/`[ssh]`(`secret_ref`, raw keys never in SSOT). (4) Generalize `check_theme_projection` (check 25) → `check_dotfiles_projection` over the full registry; add the Windows runtime half `Test-MiOSProjection`; collapse the scattered `Install-MiOS*` bodies into thin registry-driven `Sync-MiOSDotfiles` calls; add a `mios dotfiles apply/diff/drift` verb (`[verbs.dotfiles_*]`).
 **Where (files):** `usr/share/mios/mios.toml` (`[dotfiles.registry.*]`, `[shell]`/`[editor]`/`[git]`/`[ssh]`; existing `[colors]`/`[theme]`/`[appearance]`/`[terminal]`/`[identity]`/`[btop]` stay as content), `usr/libexec/mios/mios-theme-render` (reference; forks to `mios-dotfiles-render`, kept as back-compat alias), `usr/libexec/mios/mios-sync-theme`, `usr/lib/mios/mios_toml.py` + `tools/lib/userenv.sh`, `automation/38-drift-checks.sh` (check 25 → `check_dotfiles_projection`), `C:\mios-bootstrap\Get-MiOS.ps1` (`Sync-MiOSDotfiles`/`Test-MiOSProjection`), `usr/bin/mios`
 **When (deps/order):** No hard dep (palette+btop already land). Interlocks with T-267 (the Portal edits the `[dotfiles.registry.*]` map) and ADR-0005/0008 (the overlay carries across deployments). OPEN QUESTIONS: secrets store per platform; a deployment-type enum for `condition` (ADR-0010).
 **Done When:**
-- [ ] the color+btop surfaces are registry-driven with check 25 green; a `[theme].opacity` edit projects to Linux CSS + the WT `json-merge` block + the WSL bridge with foreign keys intact and both gates pass; `mios dotfiles apply` writes live HOME; no `Install-MiOS*` value is hand-typed that has an SSOT home.
+- [x] the color+btop surfaces are registry-driven with check 25 green; a `[theme].opacity` edit projects to Linux CSS + the WT `json-merge` block + the WSL bridge with foreign keys intact and both gates pass; `mios dotfiles apply` writes live HOME; no `Install-MiOS*` value is hand-typed that has an SSOT home.
 
 ## T-271: TEMPLATE-01 -- Compiled file-pattern system + `mios new` + conformance check + Law-14  [P1]
 > **Priority:** P1 | **Status:** planned | **Effort:** L | **Domain:** Build/Templates | **Who:** tooling/docs agent | **Source:** WS-TEMPLATE / ADR-0011; combined tech-debt map §3

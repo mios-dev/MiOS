@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: Runner for shellcheck across automation, tools, and libexec shell scripts. Degrades open if shellcheck is absent.
+# AI-related: /usr/libexec/mios/mios-
 set -euo pipefail
 
 # SCRIPT_DIR is the location of this script
@@ -43,8 +44,8 @@ if [ ${#files[@]} -eq 0 ]; then
 fi
 
 echo "[lint-shell] Linting ${#files[@]} shell scripts..."
-if ! shellcheck --severity=error "${files[@]}"; then
-    echo "[lint-shell] FAIL: shellcheck found error-level issues." >&2
+if ! shellcheck --severity=warning "${files[@]}"; then
+    echo "[lint-shell] FAIL: shellcheck found issues (warning level or higher)." >&2
     exit 1
 fi
 

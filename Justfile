@@ -1,6 +1,6 @@
 # AI-hint: The Justfile defines the primary build, deployment, and lifecycle automation for MiOS, providing targets for preflight checks, overlay initialization, ISO creation, and OCI image building via podman.
-# AI-related: ./tools/lib/userenv.sh, /usr/libexec/mios/flight-control.sh, /usr/share/mios/build-logs/latest-build.log, /etc/mios/install.env, /etc/mios/forge/admin-password, mios-overlay, mios-qcow2-XXXXXX, mios-vhdx-XXXXXX, mios-wsl2-export, mios-rootfs
-# 'MiOS' v0.2.4 - Linux Build Targets
+# AI-related: ./tools/lib/userenv.sh, /usr/libexec/mios/flight-control.sh, /usr/share/mios/build-logs/latest-build.log, /etc/mios/install.env, /etc/mios/forge/admin-password, /usr/lib/mios/agent-pipe, /usr/lib/mios/agents/.venv/bin/python3, /usr/libexec/mios/user-setup.sh, mios-overlay, mios-qcow2-XXXXXX
+# 'MiOS' v0.3.0 - Linux Build Targets
 # Requires: podman, just
 # Usage: just build | just iso | just all
 #
@@ -28,7 +28,7 @@ true'`
 
 MIOS_REGISTRY_DEFAULT := "ghcr.io/MiOS-DEV/mios" # @verb:GET_REGISTRY
 IMAGE_NAME := env_var_or_default("MIOS_IMAGE_NAME", MIOS_REGISTRY_DEFAULT) # @verb:GET_IMAGE
-MIOS_VAR_VERSION := "v0.2.4" # @verb:GET_VERSION
+MIOS_VAR_VERSION := "v0.3.0" # @verb:GET_VERSION
 VERSION := `cat VERSION 2>/dev/null || echo {{MIOS_VAR_VERSION}}`
 LOCAL := env_var_or_default("MIOS_LOCAL_TAG", "localhost/mios:latest") # @verb:SET_LOCAL
 MIOS_IMG_BIB := "quay.io/centos-bootc/bootc-image-builder:latest" # @verb:GET_BIB
@@ -469,4 +469,10 @@ forge:
 # Run the converged rechunk pipeline (CONV-14)
 rechunk-conv: build
     @bash automation/build/rechunk.sh
+
+
+# Scaffold a new file from templates
+new type name:
+    python3 usr/libexec/mios/mios-new {{type}} {{name}}
+
 

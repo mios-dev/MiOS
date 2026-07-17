@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: Parses layered TOML configuration files (vendor, host, and user) to export unified MIOS_ environment variables for identity, locale, network, AI, and image build settings used by all system tools and scripts.
-# AI-related: ./tools/lib/userenv.sh, /etc/mios/mios.toml, /usr/share/mios/mios.toml, /usr/share/mios/env.defaults, mios-bootstrap, mios-colors, mios-opencode-gateway, mios-llm-heavy-alt, mios-llm-heavy, mios-webtools
+# AI-related: ./tools/lib/userenv.sh, /etc/mios/mios.toml, /usr/share/mios/mios.toml, /usr/share/mios/env.defaults, /usr/lib/mios/mios.d, mios-bootstrap, mios-colors, mios-opencode-gateway, mios-llm-heavy-alt, mios-llm-heavy
 # AI-functions: _mios_load_unified, _mios_legacy_get
 # tools/lib/userenv.sh -- read the unified 'MiOS' user config and export
 # MIOS_* environment variables. Sourced by Justfile, /etc/profile.d, every
@@ -70,17 +70,28 @@ MIOS_HOST_TOML="${MIOS_HOST_TOML:-/etc/mios/mios.toml}"
 MIOS_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/mios"
 MIOS_USER_TOML="${MIOS_CONFIG_DIR}/mios.toml"
 
-# Removed: vendor env.defaults sourcing block. As of - mios.toml is
-# THE singular SSOT for every operator-tunable infrastructure constant
-# (ports, sidecar pins, service identities, runtime paths, build
-# tunables); env.defaults has been deleted. The Python TOML merger
-# below is the only source of MIOS_* env-var emission.
+MIOS_ROOT="${MIOS_ROOT:-}"
+if [[ -z "$MIOS_ROOT" ]]; then
+    if [[ "$MIOS_VENDOR_TOML" == *usr/share/mios/mios.toml ]]; then
+        MIOS_ROOT="${MIOS_VENDOR_TOML%/usr/share/mios/mios.toml}"
+        MIOS_ROOT="${MIOS_ROOT:-.}"
+    else
+        MIOS_ROOT="."
+    fi
+fi
 
 # 1. TOML overlay (vendor -> host -> per-user). Use python tomllib (3.11+
 # stdlib; tomli fallback for older). The Python block prints shell-safe
 # 'export' lines that the surrounding shell evals.
 _mios_load_unified() {
-    command -v python3 >/dev/null 2>&1 || return 0
+    local py_cmd=""
+    if python3 -c "import sys" >/dev/null 2>&1; then
+        py_cmd="python3"
+    elif python -c "import sys" >/dev/null 2>&1; then
+        py_cmd="python"
+    else
+        return 0
+    fi
     # Drop-in discovery (R1): each tier = monolith + its mios.d/*.toml fragments.
     # Vendor fragments live in /usr/lib/mios/mios.d (Law 1 USR-OVER-ETC); admin/
     # user fragments sit in a mios.d/ beside their monolith. Tier-major precedence
@@ -92,7 +103,9 @@ _mios_load_unified() {
     local exports
     exports=$(MIOS_VENDOR_TOML="$MIOS_VENDOR_TOML" MIOS_HOST_TOML="$MIOS_HOST_TOML" \
               MIOS_USER_TOML="$MIOS_USER_TOML" MIOS_VENDOR_TOML_D="$vendor_d" \
-              MIOS_HOST_TOML_D="$host_d" MIOS_USER_TOML_D="$user_d" python3 - <<'PY'
+              MIOS_HOST_TOML_D="$host_d" MIOS_USER_TOML_D="$user_d" MIOS_ROOT="$MIOS_ROOT" \
+              PYTHONIOENCODING="utf-8" \
+              "$py_cmd" - <<'PY'
 import os, sys, shlex, re, glob
 try:
     import tomllib
@@ -102,14 +115,27 @@ except ImportError:
     except ImportError:
         sys.exit(0)
 
+ROOT = os.environ.get("MIOS_ROOT", ".")
+
+def normalize_path(p):
+    if not p:
+        return p
+    if os.name == "nt" or sys.platform == "win32":
+        m = re.match(r"^/([a-zA-Z])/(.*)", p)
+        if m:
+            return f"{m.group(1)}:/{m.group(2)}"
+    return p
+
+ROOT = normalize_path(ROOT)
+
 def _frags(d):
     if not d or not os.path.isdir(d):
         return []
     return sorted(glob.glob(os.path.join(d, "*.toml")), key=os.path.basename)
 
-layers = ([os.environ.get("MIOS_VENDOR_TOML", "")] + _frags(os.environ.get("MIOS_VENDOR_TOML_D", ""))
-          + [os.environ.get("MIOS_HOST_TOML", "")] + _frags(os.environ.get("MIOS_HOST_TOML_D", ""))
-          + [os.environ.get("MIOS_USER_TOML", "")] + _frags(os.environ.get("MIOS_USER_TOML_D", "")))
+layers = ([normalize_path(os.environ.get("MIOS_VENDOR_TOML", ""))] + [normalize_path(x) for x in _frags(normalize_path(os.environ.get("MIOS_VENDOR_TOML_D", "")))]
+          + [normalize_path(os.environ.get("MIOS_HOST_TOML", ""))] + [normalize_path(x) for x in _frags(normalize_path(os.environ.get("MIOS_HOST_TOML_D", "")))]
+          + [normalize_path(os.environ.get("MIOS_USER_TOML", ""))] + [normalize_path(x) for x in _frags(normalize_path(os.environ.get("MIOS_USER_TOML_D", "")))])
 
 def deep_merge(dst, src):
     for k, v in src.items():
@@ -137,21 +163,339 @@ def get(d, dotted):
         d = d[p]
     return d
 
-# Sections whose leaves are canonically EXPORTED as long-form MIOS_<SECTION>_<KEY>
-# env vars (the managed key library). A section belongs here ONLY if at least one
-# of its long forms has a real consumer, OR it seeds the short-alias derivation
-# below (ai -> MIOS_VLLM_*/MIOS_SGLANG_*). Sections whose entire long-form
-# projection was DEAD (0 non-emitter consumers -- proven by the drift-check 29
-# closure gate) are intentionally ABSENT: ports/colors/identity/auth/network/
-# desktop/branding/observability/routing/agents. Their consumers read either the
-# short slot names below (MIOS_PORT_*, MIOS_COLOR_*, MIOS_USER, ...) or the layered
-# TOML directly -- never the MIOS_<SECTION>_<KEY> shadow. Dropping them removed 212
-# emitter-only vars with zero functionality loss.
-TARGET_SECTIONS = [
-    "ai", "image", "bootstrap", "profile",
-    "sandbox", "security", "hermes", "a2a",
-    "converge"
-]
+aliases = []
+    
+def get_aliases(dotted_path):
+    aliases = []
+    
+    if dotted_path.startswith("ai.vllm."):
+        suffix = dotted_path[len("ai.vllm."):].upper().replace(".", "_").replace("-", "_")
+        if suffix == "V1_ENGINE":
+            aliases.append("MIOS_VLLM_USE_V1")
+        else:
+            aliases.append(f"MIOS_VLLM_{suffix}")
+    elif dotted_path.startswith("ai.sglang."):
+        suffix = dotted_path[len("ai.sglang."):].upper().replace(".", "_").replace("-", "_")
+        if suffix == "UNIFIED_RADIX_TREE":
+            aliases.append("MIOS_SGLANG_ENABLE_UNIFIED_RADIX_TREE")
+        elif suffix == "HIERARCHICAL_CACHE":
+            aliases.append("MIOS_SGLANG_ENABLE_HIERARCHICAL_CACHE")
+        else:
+            aliases.append(f"MIOS_SGLANG_{suffix}")
+
+    elif dotted_path == "identity.username":
+        aliases.extend(["MIOS_USER", "MIOS_DEFAULT_USER"])
+    elif dotted_path == "identity.fullname":
+        aliases.append("MIOS_USER_FULLNAME")
+    elif dotted_path == "identity.hostname":
+        aliases.extend(["MIOS_HOSTNAME", "MIOS_DEFAULT_HOST"])
+    elif dotted_path == "identity.shell":
+        aliases.extend(["MIOS_USER_SHELL", "MIOS_DEFAULT_SHELL"])
+    elif dotted_path == "identity.groups":
+        aliases.extend(["MIOS_USER_GROUPS", "MIOS_DEFAULT_GROUPS"])
+    elif dotted_path == "identity.default_password":
+        aliases.append("MIOS_DEFAULT_PASSWORD")
+
+    elif dotted_path == "locale.timezone":
+        aliases.extend(["MIOS_TIMEZONE", "MIOS_DEFAULT_TIMEZONE"])
+    elif dotted_path == "locale.keyboard_layout":
+        aliases.extend(["MIOS_KEYBOARD", "MIOS_DEFAULT_KEYBOARD"])
+    elif dotted_path == "locale.language":
+        aliases.extend(["MIOS_LOCALE", "MIOS_DEFAULT_LOCALE"])
+
+    elif dotted_path == "auth.ssh_key_action":
+        aliases.append("MIOS_SSH_KEY_ACTION")
+    elif dotted_path == "auth.password_policy":
+        aliases.append("MIOS_PASSWORD_POLICY")
+
+    elif dotted_path == "network.firewalld_default_zone":
+        aliases.append("MIOS_FIREWALLD_ZONE")
+
+    elif dotted_path.startswith("portal."):
+        suffix = dotted_path[len("portal."):].upper().replace(".", "_").replace("-", "_")
+        if suffix == "PUBLIC_HOST":
+            aliases.append("MIOS_PUBLIC_HOST")
+        else:
+            aliases.append(f"MIOS_PORTAL_{suffix}")
+
+    elif dotted_path.startswith("a2a."):
+        name = dotted_path[len("a2a."):].upper().replace(".", "_")
+        if name == "DISCOVER_PORT":
+            aliases.append("MIOS_A2A_DISCOVER_PORT")
+        elif name == "PUBLIC_DOMAIN":
+            aliases.append("MIOS_PUBLIC_DOMAIN")
+        else:
+            aliases.append(f"MIOS_A2A_{name}")
+
+    elif dotted_path == "agents.hermes.endpoint":
+        aliases.append("MIOS_HERMES_WORKER_ENDPOINT")
+
+    elif dotted_path.startswith("ai.") and not dotted_path.startswith("ai.vllm.") and not dotted_path.startswith("ai.sglang."):
+        suffix = dotted_path[len("ai."):].upper().replace(".", "_").replace("-", "_")
+        if suffix == "API_KEY" or suffix == "KEY":
+            aliases.append("MIOS_AI_KEY")
+        elif suffix == "EMBED_MODEL":
+            aliases.append("MIOS_VERB_EMBED_MODEL")
+        elif suffix == "STACK_MODEL":
+            aliases.append("MIOS_STACK_MODEL")
+        elif suffix == "CHAT_VISION_MODEL":
+            aliases.append("MIOS_AGENT_PIPE_VISION_MODEL")
+        elif suffix == "AGENT_VENV":
+            aliases.append("MIOS_HERMES_VENV")
+        elif suffix == "AGENT_INSTALL_DIR":
+            aliases.append("MIOS_HERMES_DIR")
+        elif suffix == "MICRO_MODEL":
+            aliases.append("MIOS_MICRO_MODEL")
+        elif suffix == "MICRO_ENDPOINT":
+            aliases.append("MIOS_MICRO_ENDPOINT")
+        elif suffix == "OPENCODE_GATEWAY_WORKDIR":
+            aliases.append("MIOS_OPENCODE_WORKDIR")
+        elif suffix == "OPENCODE_GATEWAY_TIMEOUT_S":
+            aliases.append("MIOS_OPENCODE_TIMEOUT_S")
+        elif suffix.startswith("OPENCODE_"):
+            aliases.append(f"MIOS_{suffix}")
+        elif suffix in {"ENDPOINT", "MODEL", "SYSTEM_PROMPT_FILE", "TOKENIZER_BACKEND", 
+                        "TOKENIZER_ENCODING", "TOKENIZER_CACHE_DIR", "TOKENIZER_PATH", 
+                        "HERMES_AGENT_REPO", "HERMES_AGENT_REF", "HERMES_BACKEND_URL", 
+                        "MCP_REGISTRY"}:
+            aliases.append(f"MIOS_{suffix}")
+
+    elif dotted_path.startswith("build."):
+        name = dotted_path[len("build."):].upper().replace(".", "_")
+        if name in {"LOCAL_TAG", "AI_RAM_FLOOR_GB", "RECHUNK_MAX_LAYERS"}:
+            aliases.append(f"MIOS_{name}")
+        else:
+            aliases.append(f"MIOS_BUILD_{name}")
+
+    elif dotted_path.startswith("code_mode."):
+        name = dotted_path[len("code_mode."):].upper()
+        aliases.append(f"MIOS_CODEMODE_{name}")
+
+    elif dotted_path.startswith("colors."):
+        name = dotted_path[len("colors."):].upper()
+        if name.startswith("ANSI_"):
+            aliases.append(f"MIOS_{name}")
+        else:
+            aliases.append(f"MIOS_COLOR_{name}")
+
+    elif dotted_path.startswith("frontier."):
+        name = dotted_path[len("frontier."):].upper()
+        if name == "STREAM_TO_REASONING":
+            aliases.append("MIOS_A2O_STREAM_REASONING")
+        else:
+            aliases.append(f"MIOS_A2O_{name}")
+
+    elif dotted_path.startswith("paths."):
+        name = dotted_path[len("paths."):].upper()
+        if name == "MIOS_TOML":
+            aliases.append("MIOS_TOML")
+        elif name == "WSL_FIRSTBOOT_DONE":
+            aliases.append("MIOS_WSLBOOT_DONE")
+        else:
+            aliases.append(f"MIOS_{name}")
+
+    elif dotted_path.startswith("pgvector."):
+        name = dotted_path[len("pgvector."):].upper()
+        if name == "DB_BACKEND":
+            aliases.append("MIOS_DB_BACKEND")
+        elif name == "RLS_ENABLE":
+            aliases.append("MIOS_DB_RLS_ENABLE")
+        else:
+            aliases.append(f"MIOS_PG_{name}")
+
+    elif dotted_path.startswith("routing.") and not dotted_path.startswith("routing.domains."):
+        name = dotted_path[len("routing."):].upper().replace(".", "_")
+        aliases.append(f"MIOS_{name}")
+
+    elif dotted_path == "polish.timeout_seconds":
+        aliases.append("MIOS_POLISH_TIMEOUT_S")
+
+    elif dotted_path == "refine.timeout_seconds":
+        aliases.append("MIOS_REFINE_TIMEOUT_S")
+
+    elif dotted_path == "security.fapolicyd_observe.enable":
+        aliases.append("MIOS_FAPOLICYD_OBSERVE_ENABLE")
+
+    elif dotted_path == "uki.verity_uki_build":
+        aliases.append("MIOS_UKI_VERITY_BUILD")
+
+    elif dotted_path.startswith("verity."):
+        name = dotted_path[len("verity."):].upper()
+        aliases.append(f"MIOS_{name}")
+
+    elif dotted_path == "user.hostname":
+        aliases.append("MIOS_HOSTNAME")
+
+    elif dotted_path == "user.name":
+        aliases.append("MIOS_USER_FULLNAME")
+
+    elif dotted_path == "flatpaks.install":
+        aliases.append("MIOS_FLATPAKS")
+
+    elif dotted_path.startswith("llamacpp."):
+        name = dotted_path[len("llamacpp."):].upper()
+        if name == "CPU_NODE_THREADS":
+            aliases.append("MIOS_CPU_NODE_THREADS")
+        else:
+            aliases.append(f"MIOS_LLAMACPP_{name}")
+
+    elif dotted_path == "meta.mios_version":
+        aliases.append("MIOS_VERSION")
+
+    elif dotted_path.startswith("network.quadlet."):
+        name = dotted_path[len("network.quadlet."):].upper()
+        if name == "CORE_GATEWAY":
+            aliases.append("MIOS_CORE_NET_GATEWAY")
+        elif name == "CORE_SUBNET":
+            aliases.append("MIOS_CORE_NET_SUBNET")
+        elif name == "NETWORK":
+            aliases.append("MIOS_QUADLET_NETWORK")
+        elif name == "SUBNET":
+            aliases.append("MIOS_QUADLET_SUBNET")
+
+    elif dotted_path == "fs_watcher.watch_dirs":
+        aliases.append("MIOS_FS_WATCHER_DIRS")
+
+    elif dotted_path.startswith("ports."):
+        name = dotted_path[len("ports."):].upper().replace(".", "_").replace("-", "_")
+        if name == "SSH":
+            aliases.extend(["MIOS_PORT_SSH", "MIOS_SSH_PORT"])
+        elif name == "FORGE_HTTP":
+            aliases.extend(["MIOS_PORT_FORGE_HTTP", "MIOS_FORGE_HTTP_PORT"])
+        elif name == "FORGE_SSH":
+            aliases.extend(["MIOS_PORT_FORGE_SSH", "MIOS_FORGE_SSH_PORT"])
+        elif name == "COCKPIT":
+            aliases.extend(["MIOS_PORT_COCKPIT", "MIOS_COCKPIT_PORT"])
+        elif name == "SEARXNG":
+            aliases.extend(["MIOS_PORT_SEARXNG", "MIOS_SEARXNG_PORT"])
+        elif name == "HERMES":
+            aliases.extend(["MIOS_PORT_HERMES", "MIOS_HERMES_PORT"])
+        elif name == "K3S_API":
+            aliases.append("MIOS_K3S_API_PORT")
+        elif name == "GUACAMOLE_WEB":
+            aliases.append("MIOS_GUACAMOLE_PORT")
+        elif name == "CEPH_DASHBOARD":
+            aliases.append("MIOS_CEPH_DASHBOARD_PORT")
+        elif name == "RDP":
+            aliases.append("MIOS_RDP_PORT")
+        else:
+            aliases.append(f"MIOS_PORT_{name}")
+
+    elif dotted_path.startswith("image.sidecars."):
+        name = dotted_path[len("image.sidecars."):].upper().replace(".", "_").replace("-", "_")
+        if name.endswith("_VERSION"):
+            base = name[:-len("_VERSION")]
+            aliases.append(f"MIOS_{base}_VERSION")
+        else:
+            aliases.append(f"MIOS_{name}_IMAGE")
+
+    elif dotted_path.startswith("services."):
+        parts = dotted_path.split(".")
+        if len(parts) >= 3:
+            service = parts[1].upper().replace("-", "_")
+            key = "_".join(parts[2:]).upper().replace("-", "_")
+            if service == "WEBTOOLS":
+                if key in {"USER", "UID", "GID"}:
+                    aliases.extend([f"MIOS_WEBTOOLS_{key}", f"MIOS_CRAWL4AI_{key}"])
+                elif key == "CDP_URL":
+                    aliases.append("MIOS_CRAWL_CDP_URL")
+                elif key == "CAMOUFOX":
+                    aliases.append("MIOS_CRAWL_CAMOUFOX")
+                elif key == "MIN_CHARS":
+                    aliases.append("MIOS_CRAWL_MIN_CHARS")
+                elif key.startswith("FIRECRAWL_") or key.startswith("CRAWL4AI_"):
+                    aliases.append(f"MIOS_{key}")
+            else:
+                aliases.append(f"MIOS_{service}_{key}")
+
+    elif dotted_path.startswith("storage.cephfs."):
+        key = dotted_path[len("storage.cephfs."):].upper().replace(".", "_").replace("-", "_")
+        if key == "XDG_CACHE_HOME_OVERRIDE":
+            aliases.append("MIOS_XDG_CACHE_LOCAL_PATH")
+        else:
+            aliases.append(f"MIOS_CEPHFS_{key}")
+
+    elif dotted_path.startswith("wsl2."):
+        key = dotted_path[len("wsl2."):].upper().replace(".", "_").replace("-", "_")
+        if key == "DESKTOP_COMPAT_GDK_BACKEND":
+            aliases.append("MIOS_WSLG_GDK_BACKEND")
+        elif key == "DESKTOP_COMPAT_MOZ_WAYLAND":
+            aliases.append("MIOS_WSLG_MOZ_WAYLAND")
+        elif key == "DESKTOP_COMPAT_QT_PLATFORM":
+            aliases.append("MIOS_WSLG_QT_PLATFORM")
+        elif key == "DEV_VM_QUADLET_NETWORK_MODE":
+            aliases.append("MIOS_QUADLET_DEV_NETWORK_MODE")
+        else:
+            aliases.append(f"MIOS_WSL2_{key}")
+
+    elif dotted_path.startswith("converge."):
+        key = dotted_path[len("converge."):].upper().replace(".", "_").replace("-", "_")
+        aliases.append(f"MIOS_CONV_{key}")
+
+    elif dotted_path.startswith("image.") and not dotted_path.startswith("image.sidecars."):
+        key = dotted_path[len("image."):].upper().replace(".", "_").replace("-", "_")
+        if key == "BRANCH":
+            aliases.append("MIOS_BRANCH")
+        elif key == "BASE":
+            aliases.append("MIOS_BASE_IMAGE")
+        elif key == "BIB":
+            aliases.append("MIOS_BIB_IMAGE")
+        elif key == "LOCAL_TAG":
+            aliases.append("MIOS_LOCAL_TAG")
+        elif key in {"REF", "NAME", "TAG"}:
+            aliases.append(f"MIOS_IMAGE_{key}")
+
+    elif dotted_path.startswith("desktop."):
+        key = dotted_path[len("desktop."):].upper().replace(".", "_").replace("-", "_")
+        if key == "COLOR_SCHEME":
+            aliases.append("MIOS_COLOR_SCHEME")
+        elif key == "FLATPAKS":
+            aliases.append("MIOS_FLATPAKS")
+        elif key == "SESSION":
+            aliases.append(f"MIOS_DESKTOP_{key}")
+
+    elif dotted_path.startswith("bootstrap.dev_vm."):
+        key = dotted_path[len("bootstrap.dev_vm."):].upper().replace(".", "_").replace("-", "_")
+        if key == "MACHINE_NAME":
+            aliases.append("MIOS_BUILDER_DISTRO")
+        elif key == "WSL_DISTRO":
+            aliases.append("MIOS_WSL_DISTRO")
+        elif key == "DISK_SIZE_GB":
+            aliases.append("MIOS_DEV_VM_DISK_GB")
+        elif key == "GPU_PASSTHROUGH":
+            aliases.append("MIOS_DEV_VM_GPU")
+        elif key == "HOST_RESERVE_CPU_PCT":
+            aliases.append("MIOS_DEV_VM_CPU_RESERVE_PCT")
+        elif key == "HOST_RESERVE_CPU_MIN":
+            aliases.append("MIOS_DEV_VM_CPU_RESERVE_MIN")
+        elif key == "HOST_RESERVE_MEMORY_PCT":
+            aliases.append("MIOS_DEV_VM_MEMORY_RESERVE_PCT")
+        elif key == "HOST_RESERVE_MEMORY_GB":
+            aliases.append("MIOS_DEV_VM_MEMORY_RESERVE_GB")
+        elif key == "HOST_RESERVE_DISK_GB":
+            aliases.append("MIOS_DEV_VM_DISK_RESERVE_GB")
+        elif key in {"BASE_IMAGE", "CPUS", "MEMORY_MB"}:
+            aliases.append(f"MIOS_DEV_VM_{key}")
+    elif dotted_path.startswith("bootstrap.host_storage."):
+        key = dotted_path[len("bootstrap.host_storage."):].upper().replace(".", "_").replace("-", "_")
+        if key == "SHRINK_MB":
+            aliases.append("MIOS_DATA_DISK_MB")
+        elif key == "DRIVE_LETTER":
+            aliases.append("MIOS_DATA_DISK_LETTER")
+    elif dotted_path.startswith("bootstrap.") and not dotted_path.startswith("bootstrap.dev_vm.") and not dotted_path.startswith("bootstrap.host_storage."):
+        key = dotted_path[len("bootstrap."):].upper().replace(".", "_").replace("-", "_")
+        if key == "MIOS_REPO":
+            aliases.append("MIOS_REPO_URL")
+        elif key == "BOOTSTRAP_REPO":
+            aliases.append("MIOS_BOOTSTRAP_REPO_URL")
+        elif key == "MODE":
+            aliases.append(f"MIOS_BOOTSTRAP_{key}")
+
+    elif dotted_path.startswith("reliability."):
+        key = dotted_path[len("reliability."):].upper().replace(".", "_").replace("-", "_")
+        aliases.append(f"MIOS_RELIABILITY_{key}")
+        
+    return aliases
 
 def walk(d, prefix=""):
     results = []
@@ -164,19 +508,8 @@ def walk(d, prefix=""):
         if isinstance(v, dict):
             results.extend(walk(v, path))
         else:
-            env_name = "MIOS_" + path.upper().replace(".", "_").replace("-", "_")
-            results.append((path, env_name, v))
+            results.append((path, v))
     return results
-
-all_pairs = []
-for sec in TARGET_SECTIONS:
-    if sec in merged:
-        all_pairs.extend(walk(merged[sec], sec))
-
-# Build a dictionary of canonical exports
-canonical_exports = {}
-for path, env_name, val in all_pairs:
-    canonical_exports[env_name] = (path, val)
 
 stack_id = get(merged, "ports.stack_id")
 try:
@@ -185,10 +518,6 @@ except ValueError:
     stack_offset = 0
 
 def process_val(dotted, v):
-    # Canonical value form: TOML booleans emit lowercase true/false, never Python
-    # str(True)="True"/"False". The shell drift-gates + service branches compare
-    # `== "true"` -- a capital True silently defeats them. One edit here normalizes
-    # every bool across BOTH the long walk-print and the short-alias derivation.
     if isinstance(v, bool):
         return "true" if v else "false"
     if dotted.startswith("ports.") and dotted != "ports.stack_id":
@@ -201,448 +530,61 @@ def process_val(dotted, v):
         return ",".join(str(x) for x in v)
     return v
 
-# The SHORT canonical name for the heavy lanes: consumers read MIOS_VLLM_*/
-# MIOS_SGLANG_*, NOT the MIOS_AI_VLLM_*/MIOS_AI_SGLANG_* section-walk long form.
-# Defined BEFORE the walk-print so the print can de-duplicate: a value that has a
-# short alias emits under that ONE name only (no long shadow twin). REGULAR keys
-# collapse via a section prefix-rewrite; only genuine key RENAMES stay explicit.
-SHORT_ALIAS_PREFIX = {            # dotted prefix -> short env prefix
-    "ai.vllm":   "MIOS_VLLM",
-    "ai.sglang": "MIOS_SGLANG",
-}
-SHORT_ALIAS_IRREGULAR = {         # key renamed, not just prefix-dropped
-    "ai.vllm.v1_engine":            "MIOS_VLLM_USE_V1",
-    "ai.sglang.unified_radix_tree": "MIOS_SGLANG_ENABLE_UNIFIED_RADIX_TREE",
-    "ai.sglang.hierarchical_cache": "MIOS_SGLANG_ENABLE_HIERARCHICAL_CACHE",
-}
-def _alias_for(path):
-    a = SHORT_ALIAS_IRREGULAR.get(path)
-    if a is not None:
-        return a
-    for pfx, rep in SHORT_ALIAS_PREFIX.items():
-        if path.startswith(pfx + "."):
-            return rep + path[len(pfx):].upper().replace(".", "_").replace("-", "_")
-    return None
+all_pairs = []
+EXCLUDED_SECTIONS = {"containers", "verbs", "recipes", "packages", "dotfiles", "btop", "theme", "install_phases", "messages"}
+for sec, val in merged.items():
+    if isinstance(val, dict) and sec not in EXCLUDED_SECTIONS:
+        all_pairs.extend(walk(val, sec))
 
-# Wave 3: image/bootstrap/profile/sandbox/security are MOSTLY-dead sections -- only
-# these long forms have a real (non-emitter) consumer, proven by the drift-check 29
-# closure gate (mios_var_closure.py). Emit exactly those; drop the rest of those
-# sections' shadows. Sections NOT listed here emit all their (alias-de-duped) longs.
+exports_map = {}
 WALK_MOSTLY_DEAD = {"ai", "image", "bootstrap", "profile", "sandbox", "security"}
 WALK_EMIT_KEEP = {
-    # ai (kept in TARGET_SECTIONS to seed the vllm/sglang aliases; only these
-    # MIOS_AI_* longs have a real consumer -- the rest are dead shadows)
     "MIOS_AI_BAKE_MODELS", "MIOS_AI_DIR", "MIOS_AI_EMBED_MODEL", "MIOS_AI_ENDPOINT",
     "MIOS_AI_JOURNAL", "MIOS_AI_MCP_DIR", "MIOS_AI_MEMORY_DIR", "MIOS_AI_MODEL",
     "MIOS_AI_MODELS_DIR", "MIOS_AI_RAM_FLOOR_GB", "MIOS_AI_SCRATCH_DIR",
-    # image / bootstrap / profile / sandbox / security
     "MIOS_IMAGE_NAME", "MIOS_IMAGE_REF", "MIOS_IMAGE_TAG",
     "MIOS_BOOTSTRAP_MODE", "MIOS_PROFILE_FEATURES", "MIOS_PROFILE_ROLE",
     "MIOS_SANDBOX_ENABLE", "MIOS_SECURITY_ALLOWLIST_HOSTS", "MIOS_SECURITY_PROVENANCE_TAINT",
 }
 
-# Print canonical exports -- ONE name per value. Skip any path that has a short
-# alias (emitted below); the MIOS_AI_VLLM_*/MIOS_AI_SGLANG_* long shadow is never
-# emitted, so nothing carries two separately-managed names for the same value.
-for env_name, (path, val) in sorted(canonical_exports.items()):
-    if _alias_for(path):
-        continue
-    if path.split(".", 1)[0] in WALK_MOSTLY_DEAD and env_name not in WALK_EMIT_KEEP:
-        continue
+for path, val in all_pairs:
     val_processed = process_val(path, val)
-    if val_processed is not None and val_processed != "":
-        print(f"export {env_name}={shlex.quote(str(val_processed))}")
-
-# Emit the short heavy-lane aliases (the single canonical name for those values).
-for path, env_name, val in all_pairs:
-    alias = _alias_for(path)
-    if alias:
-        vp = process_val(path, val)
-        if vp is not None and vp != "":
-            print(f"export {alias}={shlex.quote(str(vp))}")
-
-# Print legacy compat exports
-slots = [
-    # identity
-    ("identity.username",       "MIOS_USER"),
-    ("identity.fullname",       "MIOS_USER_FULLNAME"),
-    ("identity.hostname",       "MIOS_HOSTNAME"),
-    ("identity.shell",          "MIOS_USER_SHELL"),
-    ("identity.groups",         "MIOS_USER_GROUPS"),
-    # locale
-    ("locale.timezone",         "MIOS_TIMEZONE"),
-    ("locale.keyboard_layout",  "MIOS_KEYBOARD"),
-    ("locale.language",         "MIOS_LOCALE"),
-    # auth
-    ("auth.ssh_key_action",     "MIOS_SSH_KEY_ACTION"),
-    ("auth.password_policy",    "MIOS_PASSWORD_POLICY"),
-    # network
-    ("network.firewalld_default_zone", "MIOS_FIREWALLD_ZONE"),
-    # ai
-    ("ai.stack_model",          "MIOS_STACK_MODEL"),
-    ("ai.embed_model",          "MIOS_VERB_EMBED_MODEL"),
-    ("ai.chat_vision_model",    "MIOS_AGENT_PIPE_VISION_MODEL"),
-    ("ai.api_key",              "MIOS_AI_KEY"),
-    ("ai.system_prompt_file",   "MIOS_SYSTEM_PROMPT_FILE"),
-    ("ai.micro_model",          "MIOS_MICRO_MODEL"),
-    ("ai.micro_endpoint",       "MIOS_MICRO_ENDPOINT"),
-    ("ai.tokenizer_backend",    "MIOS_TOKENIZER_BACKEND"),
-    ("ai.tokenizer_encoding",   "MIOS_TOKENIZER_ENCODING"),
-    ("ai.tokenizer_cache_dir",  "MIOS_TOKENIZER_CACHE_DIR"),
-    ("ai.tokenizer_path",       "MIOS_TOKENIZER_PATH"),
-    ("ai.hermes_agent_repo",    "MIOS_HERMES_AGENT_REPO"),
-    ("ai.hermes_agent_ref",     "MIOS_HERMES_AGENT_REF"),
-    ("ai.hermes_backend_url",   "MIOS_HERMES_BACKEND_URL"),
-    ("ai.mcp_registry",         "MIOS_MCP_REGISTRY"),
-    # desktop
-    ("desktop.color_scheme",    "MIOS_COLOR_SCHEME"),
-    ("desktop.flatpaks",        "MIOS_FLATPAKS"),
-    # branding
-    # image
-    ("image.branch",            "MIOS_BRANCH"),
-    ("image.base",              "MIOS_BASE_IMAGE"),
-    ("image.bib",               "MIOS_BIB_IMAGE"),
-    ("image.local_tag",         "MIOS_LOCAL_TAG"),
-    # bootstrap
-    ("bootstrap.mios_repo",     "MIOS_REPO_URL"),
-    ("bootstrap.bootstrap_repo","MIOS_BOOTSTRAP_REPO_URL"),
-    # profile
-    # colors
-    ("colors.bg",               "MIOS_COLOR_BG"),
-    ("colors.fg",               "MIOS_COLOR_FG"),
-    ("colors.accent",           "MIOS_COLOR_ACCENT"),
-    ("colors.cursor",           "MIOS_COLOR_CURSOR"),
-    ("colors.success",          "MIOS_COLOR_SUCCESS"),
-    ("colors.warning",          "MIOS_COLOR_WARNING"),
-    ("colors.error",            "MIOS_COLOR_ERROR"),
-    ("colors.info",             "MIOS_COLOR_INFO"),
-    ("colors.muted",            "MIOS_COLOR_MUTED"),
-    ("colors.subtle",           "MIOS_COLOR_SUBTLE"),
-    ("colors.earth",            "MIOS_COLOR_EARTH"),
-    ("colors.silver",           "MIOS_COLOR_SILVER"),
-    ("colors.ansi_0_black",            "MIOS_ANSI_0_BLACK"),
-    ("colors.ansi_1_red",              "MIOS_ANSI_1_RED"),
-    ("colors.ansi_2_green",            "MIOS_ANSI_2_GREEN"),
-    ("colors.ansi_3_yellow",           "MIOS_ANSI_3_YELLOW"),
-    ("colors.ansi_4_blue",             "MIOS_ANSI_4_BLUE"),
-    ("colors.ansi_5_magenta",          "MIOS_ANSI_5_MAGENTA"),
-    ("colors.ansi_6_cyan",             "MIOS_ANSI_6_CYAN"),
-    ("colors.ansi_7_white",            "MIOS_ANSI_7_WHITE"),
-    ("colors.ansi_8_bright_black",     "MIOS_ANSI_8_BRIGHT_BLACK"),
-    ("colors.ansi_9_bright_red",       "MIOS_ANSI_9_BRIGHT_RED"),
-    ("colors.ansi_10_bright_green",    "MIOS_ANSI_10_BRIGHT_GREEN"),
-    ("colors.ansi_11_bright_yellow",   "MIOS_ANSI_11_BRIGHT_YELLOW"),
-    ("colors.ansi_12_bright_blue",     "MIOS_ANSI_12_BRIGHT_BLUE"),
-    ("colors.ansi_13_bright_magenta",  "MIOS_ANSI_13_BRIGHT_MAGENTA"),
-    ("colors.ansi_14_bright_cyan",     "MIOS_ANSI_14_BRIGHT_CYAN"),
-    ("colors.ansi_15_bright_white",    "MIOS_ANSI_15_BRIGHT_WHITE"),
-    # ports
-    ("ports.ssh",                      "MIOS_PORT_SSH"),
-    ("code_mode.uid",                  "MIOS_CODEMODE_UID"),
-    ("code_mode.gid",                  "MIOS_CODEMODE_GID"),
-    ("ports.forge_http",               "MIOS_PORT_FORGE_HTTP"),
-    ("ports.forge_ssh",                "MIOS_PORT_FORGE_SSH"),
-    ("ports.cockpit",                  "MIOS_PORT_COCKPIT"),
-    ("ports.cockpit_link",             "MIOS_PORT_COCKPIT_LINK"),
-    ("ports.searxng",                  "MIOS_PORT_SEARXNG"),
-    ("ports.crawl4ai",                 "MIOS_PORT_CRAWL4AI"),
-    ("ports.firecrawl",                "MIOS_PORT_FIRECRAWL"),
-    ("ports.hermes",                   "MIOS_PORT_HERMES"),
-    ("ports.hermes_worker",            "MIOS_PORT_HERMES_WORKER"),
-    ("ports.hermes_dashboard",         "MIOS_PORT_HERMES_DASHBOARD"),
-    ("ports.open_webui",               "MIOS_PORT_OPEN_WEBUI"),
-    ("ports.code_server",              "MIOS_PORT_CODE_SERVER"),
-    ("ports.k3s_api",                  "MIOS_K3S_API_PORT"),
-    ("ports.guacamole_web",            "MIOS_GUACAMOLE_PORT"),
-    ("ports.ceph_dashboard",           "MIOS_CEPH_DASHBOARD_PORT"),
-    ("ports.rdp",                      "MIOS_RDP_PORT"),
-    ("ports.pgvector",                 "MIOS_PORT_PGVECTOR"),
-    ("ports.llm_light",                "MIOS_PORT_LLM_LIGHT"),
-    ("ports.cpu_node",                 "MIOS_PORT_CPU_NODE"),
-    ("ports.agent_pipe",               "MIOS_PORT_AGENT_PIPE"),
-    ("ports.adguard_dns",              "MIOS_PORT_ADGUARD_DNS"),
-    ("ports.adguard_ui",               "MIOS_PORT_ADGUARD_UI"),
-    ("ports.opencode_gateway",         "MIOS_PORT_OPENCODE_GATEWAY"),
-    ("ports.vllm",                     "MIOS_PORT_VLLM"),
-    ("ports.sglang",                   "MIOS_PORT_SGLANG"),
-    ("ports.prefilter",                "MIOS_PORT_PREFILTER"),
-    ("ports.arbiter",                  "MIOS_PORT_ARBITER"),
-    ("ports.daemon_agent",             "MIOS_PORT_DAEMON_AGENT"),
-    ("ports.model_router",             "MIOS_PORT_MODEL_ROUTER"),
-    ("ports.oscontrol",                "MIOS_PORT_OSCONTROL"),
-    ("ports.mcp",                      "MIOS_PORT_MCP"),
-    # T-123
-    ("agents.hermes.endpoint",         "MIOS_HERMES_WORKER_ENDPOINT"),
-    ("a2a.public_domain",              "MIOS_PUBLIC_DOMAIN"),
-    # T-124
-    ("routing.model_modalities_embeddings", "MIOS_MODEL_MODALITIES_EMBEDDINGS"),
-    ("routing.model_modalities_image",      "MIOS_MODEL_MODALITIES_IMAGE"),
-    ("routing.integer_param_keywords",      "MIOS_INTEGER_PARAM_KEYWORDS"),
-    ("routing.boolean_param_keywords",      "MIOS_BOOLEAN_PARAM_KEYWORDS"),
-    # opencode + shared agent-plane
-    ("ai.opencode_install_url",        "MIOS_OPENCODE_INSTALL_URL"),
-    ("ai.opencode_version",            "MIOS_OPENCODE_VERSION"),
-    ("ai.opencode_model",              "MIOS_OPENCODE_MODEL"),
-    ("ai.opencode_provider",           "MIOS_OPENCODE_PROVIDER"),
-    ("ai.opencode_bin",                "MIOS_OPENCODE_BIN"),
-    ("ai.opencode_config",             "MIOS_OPENCODE_CONFIG"),
-    ("ai.opencode_gateway_workdir",    "MIOS_OPENCODE_WORKDIR"),
-    ("ai.opencode_gateway_timeout_s",  "MIOS_OPENCODE_TIMEOUT_S"),
-    ("ai.agent_venv",                  "MIOS_HERMES_VENV"),
-    ("ai.agent_install_dir",           "MIOS_HERMES_DIR"),
-    # vLLM + SGLang heavy-lane short aliases (MIOS_VLLM_*/MIOS_SGLANG_*) are now
-    # derived table-driven from the canonical walk -- see SHORT_ALIAS_* above.
-    # The [ai.vllm]/[ai.sglang] toml keys are unchanged; only these redundant
-    # hand-tuples were removed (WS-NAME collapse).
-    # legacy aliases for ports
-    ("ports.forge_http",               "MIOS_FORGE_HTTP_PORT"),
-    ("ports.forge_ssh",                "MIOS_FORGE_SSH_PORT"),
-    ("ports.searxng",                  "MIOS_SEARXNG_PORT"),
-    ("ports.hermes",                   "MIOS_HERMES_PORT"),
-    ("ports.cockpit",                  "MIOS_COCKPIT_PORT"),
-    ("ports.ssh",                      "MIOS_SSH_PORT"),
-    # MIOS_DEFAULT_* aliases
-    ("identity.username",              "MIOS_DEFAULT_USER"),
-    ("identity.hostname",              "MIOS_DEFAULT_HOST"),
-    ("identity.shell",                 "MIOS_DEFAULT_SHELL"),
-    ("identity.groups",                "MIOS_DEFAULT_GROUPS"),
-    ("identity.default_password",      "MIOS_DEFAULT_PASSWORD"),
-    ("portal.public_host",             "MIOS_PUBLIC_HOST"),
-    ("locale.timezone",                "MIOS_DEFAULT_TIMEZONE"),
-    ("locale.language",                "MIOS_DEFAULT_LOCALE"),
-    ("locale.keyboard_layout",         "MIOS_DEFAULT_KEYBOARD"),
-    # storage.cephfs
-    ("storage.cephfs.enable",                  "MIOS_CEPHFS_ENABLE"),
-    ("storage.cephfs.monitors",                "MIOS_CEPHFS_MONITORS"),
-    ("storage.cephfs.fs_name",                 "MIOS_CEPHFS_FS_NAME"),
-    ("storage.cephfs.tenant_id",               "MIOS_CEPHFS_TENANT_ID"),
-    ("storage.cephfs.data_pool_hot",           "MIOS_CEPHFS_DATA_POOL_HOT"),
-    ("storage.cephfs.data_pool_bulk",          "MIOS_CEPHFS_DATA_POOL_BULK"),
-    ("storage.cephfs.xdg_cache_home_override", "MIOS_XDG_CACHE_LOCAL_PATH"),
-    ("storage.cephfs.mount_options",           "MIOS_CEPHFS_MOUNT_OPTIONS"),
-    ("storage.cephfs.keyring_dir",             "MIOS_CEPHFS_KEYRING_DIR"),
-    ("storage.cephfs.automount_enable",        "MIOS_CEPHFS_AUTOMOUNT_ENABLE"),
-    ("storage.cephfs.automount_idle_timeout_s","MIOS_CEPHFS_AUTOMOUNT_IDLE_TIMEOUT_S"),
-    # meta
-    ("meta.mios_version",              "MIOS_VERSION"),
-    # ai bake list
-    # bootstrap
-    ("bootstrap.dev_vm.machine_name",  "MIOS_BUILDER_DISTRO"),
-    ("bootstrap.dev_vm.wsl_distro",    "MIOS_WSL_DISTRO"),
-    ("bootstrap.dev_vm.base_image",    "MIOS_DEV_VM_BASE_IMAGE"),
-    ("bootstrap.dev_vm.cpus",          "MIOS_DEV_VM_CPUS"),
-    ("bootstrap.dev_vm.memory_mb",     "MIOS_DEV_VM_MEMORY_MB"),
-    ("bootstrap.dev_vm.disk_size_gb",  "MIOS_DEV_VM_DISK_GB"),
-    ("bootstrap.dev_vm.gpu_passthrough","MIOS_DEV_VM_GPU"),
-    ("bootstrap.dev_vm.host_reserve.cpu_pct",    "MIOS_DEV_VM_CPU_RESERVE_PCT"),
-    ("bootstrap.dev_vm.host_reserve.cpu_min",    "MIOS_DEV_VM_CPU_RESERVE_MIN"),
-    ("bootstrap.dev_vm.host_reserve.memory_pct", "MIOS_DEV_VM_MEMORY_RESERVE_PCT"),
-    ("bootstrap.dev_vm.host_reserve.memory_gb",  "MIOS_DEV_VM_MEMORY_RESERVE_GB"),
-    ("bootstrap.dev_vm.host_reserve.disk_gb",    "MIOS_DEV_VM_DISK_RESERVE_GB"),
-    ("bootstrap.host_storage.shrink_mb",   "MIOS_DATA_DISK_MB"),
-    ("bootstrap.host_storage.drive_letter","MIOS_DATA_DISK_LETTER"),
-    # wsl2
-    ("wsl2.desktop_compat.gdk_backend",       "MIOS_WSLG_GDK_BACKEND"),
-    ("wsl2.desktop_compat.moz_wayland",       "MIOS_WSLG_MOZ_WAYLAND"),
-    ("wsl2.desktop_compat.qt_platform",       "MIOS_WSLG_QT_PLATFORM"),
-    ("wsl2.dev_vm.quadlet_network_mode",      "MIOS_QUADLET_DEV_NETWORK_MODE"),
-    # image.sidecars
-    ("image.sidecars.sys_version",     "MIOS_SYS_VERSION"),
-    ("image.sidecars.sys",             "MIOS_SYS_IMAGE"),
-    ("image.sidecars.cuda_version",    "MIOS_CUDA_VERSION"),
-    ("image.sidecars.cuda",            "MIOS_CUDA_IMAGE"),
-    ("image.sidecars.k3s_version",     "MIOS_K3S_VERSION"),
-    ("image.sidecars.k3s",             "MIOS_K3S_IMAGE"),
-    ("image.sidecars.ceph_version",    "MIOS_CEPH_VERSION"),
-    ("image.sidecars.ceph",            "MIOS_CEPH_IMAGE"),
-    ("image.sidecars.forge_version",   "MIOS_FORGE_VERSION"),
-    ("image.sidecars.forge",           "MIOS_FORGE_IMAGE"),
-    ("image.sidecars.searxng_version", "MIOS_SEARXNG_VERSION"),
-    ("image.sidecars.searxng",         "MIOS_SEARXNG_IMAGE"),
-    ("image.sidecars.hermes_version",  "MIOS_HERMES_VERSION"),
-    ("image.sidecars.hermes",          "MIOS_HERMES_IMAGE"),
-    ("image.sidecars.open_webui_version", "MIOS_OPEN_WEBUI_VERSION"),
-    ("image.sidecars.open_webui",      "MIOS_OPEN_WEBUI_IMAGE"),
-    ("image.sidecars.code_server_version", "MIOS_CODE_SERVER_VERSION"),
-    ("image.sidecars.code_server",     "MIOS_CODE_SERVER_IMAGE"),
-    ("image.sidecars.guacamole_version","MIOS_GUACAMOLE_VERSION"),
-    ("image.sidecars.guacamole",       "MIOS_GUACAMOLE_IMAGE"),
-    ("image.sidecars.forge_runner_version","MIOS_FORGE_RUNNER_VERSION"),
-    ("image.sidecars.forge_runner",    "MIOS_FORGE_RUNNER_IMAGE"),
-    ("image.sidecars.crowdsec_version","MIOS_CROWDSEC_VERSION"),
-    ("image.sidecars.crowdsec",        "MIOS_CROWDSEC_IMAGE"),
-    ("image.sidecars.postgres_version","MIOS_POSTGRES_VERSION"),
-    ("image.sidecars.postgres",        "MIOS_POSTGRES_IMAGE"),
-    ("image.sidecars.guacd_version",   "MIOS_GUACD_VERSION"),
-    ("image.sidecars.guacd",           "MIOS_GUACD_IMAGE"),
-    ("image.sidecars.pxe_hub_version", "MIOS_PXE_HUB_VERSION"),
-    ("image.sidecars.pxe_hub",         "MIOS_PXE_HUB_IMAGE"),
-    ("image.sidecars.bib_alpine",      "MIOS_BIB_ALPINE_IMAGE"),
-    ("image.sidecars.pgvector_version","MIOS_PGVECTOR_VERSION"),
-    ("image.sidecars.pgvector",        "MIOS_PGVECTOR_IMAGE"),
-    ("image.sidecars.llm_light_version","MIOS_LLM_LIGHT_VERSION"),
-    ("image.sidecars.llm_light",       "MIOS_LLM_LIGHT_IMAGE"),
-    ("image.sidecars.adguard_version", "MIOS_ADGUARD_VERSION"),
-    ("image.sidecars.adguard",         "MIOS_ADGUARD_IMAGE"),
-    ("image.sidecars.vllm_version",    "MIOS_VLLM_VERSION"),
-    ("image.sidecars.vllm",            "MIOS_VLLM_IMAGE"),
-    ("image.sidecars.sglang_version",  "MIOS_SGLANG_VERSION"),
-    ("image.sidecars.sglang",          "MIOS_SGLANG_IMAGE"),
-    # services
-    ("services.forge.user",            "MIOS_FORGE_USER"),
-    ("services.forge.uid",             "MIOS_FORGE_UID"),
-    ("services.forge.gid",             "MIOS_FORGE_GID"),
-    ("services.searxng.user",          "MIOS_SEARXNG_USER"),
-    ("services.searxng.uid",           "MIOS_SEARXNG_UID"),
-    ("services.searxng.gid",           "MIOS_SEARXNG_GID"),
-    ("services.ceph.user",             "MIOS_CEPH_USER"),
-    ("services.ceph.uid",              "MIOS_CEPH_UID"),
-    ("services.ceph.gid",              "MIOS_CEPH_GID"),
-    ("services.hermes.user",           "MIOS_HERMES_USER"),
-    ("services.hermes.uid",            "MIOS_HERMES_UID"),
-    ("services.hermes.gid",            "MIOS_HERMES_GID"),
-    ("services.open_webui.user",       "MIOS_OPEN_WEBUI_USER"),
-    ("services.open_webui.uid",        "MIOS_OPEN_WEBUI_UID"),
-    ("services.open_webui.gid",        "MIOS_OPEN_WEBUI_GID"),
-    ("services.pgvector.user",         "MIOS_PGVECTOR_USER"),
-    ("services.pgvector.uid",          "MIOS_PGVECTOR_UID"),
-    ("services.pgvector.gid",          "MIOS_PGVECTOR_GID"),
-    ("services.llamacpp.user",         "MIOS_LLAMACPP_USER"),
-    ("services.llamacpp.uid",          "MIOS_LLAMACPP_UID"),
-    ("services.llamacpp.gid",          "MIOS_LLAMACPP_GID"),
-    ("services.agent_pipe.user",       "MIOS_AGENT_PIPE_USER"),
-    ("services.agent_pipe.uid",        "MIOS_AGENT_PIPE_UID"),
-    ("services.agent_pipe.gid",        "MIOS_AGENT_PIPE_GID"),
-    ("services.webtools.user",         "MIOS_WEBTOOLS_USER"),
-    ("services.webtools.uid",          "MIOS_WEBTOOLS_UID"),
-    ("services.webtools.gid",          "MIOS_WEBTOOLS_GID"),
-    ("services.webtools.user",         "MIOS_CRAWL4AI_USER"),
-    ("services.webtools.uid",          "MIOS_CRAWL4AI_UID"),
-    ("services.webtools.gid",          "MIOS_CRAWL4AI_GID"),
-    ("services.webtools.cdp_url",      "MIOS_CRAWL_CDP_URL"),
-    ("services.webtools.camoufox",     "MIOS_CRAWL_CAMOUFOX"),
-    ("services.webtools.min_chars",    "MIOS_CRAWL_MIN_CHARS"),
-    ("services.webtools.firecrawl_workers", "MIOS_FIRECRAWL_WORKERS"),
-    ("services.webtools.firecrawl_bull_key", "MIOS_FIRECRAWL_BULL_KEY"),
-    ("services.webtools.firecrawl_log_level", "MIOS_FIRECRAWL_LOG_LEVEL"),
-    ("services.adguard.user",          "MIOS_ADGUARD_USER"),
-    ("services.adguard.uid",           "MIOS_ADGUARD_UID"),
-    ("services.adguard.gid",           "MIOS_ADGUARD_GID"),
-    # security
-    ("security.fapolicyd_observe.enable", "MIOS_FAPOLICYD_OBSERVE_ENABLE"),
-    ("uki.verity_uki_build",             "MIOS_UKI_VERITY_BUILD"),
-    ("verity.antifab_enable",            "MIOS_ANTIFAB_ENABLE"),
-    ("verity.antifab_min_entities",      "MIOS_ANTIFAB_MIN_ENTITIES"),
-    ("verity.antifab_ground_min",        "MIOS_ANTIFAB_GROUND_MIN"),
-    # fs_watcher
-    ("fs_watcher.watch_dirs",          "MIOS_FS_WATCHER_DIRS"),
-    # refine / polish
-    ("refine.timeout_seconds",         "MIOS_REFINE_TIMEOUT_S"),
-    ("polish.timeout_seconds",         "MIOS_POLISH_TIMEOUT_S"),
-    # ttyd
-    ("ports.ttyd_bash",                "MIOS_PORT_TTYD_BASH"),
-    ("ports.ttyd_powershell",          "MIOS_PORT_TTYD_POWERSHELL"),
-    # pgvector
-    ("pgvector.db_backend",            "MIOS_DB_BACKEND"),
-    ("pgvector.rls_enable",            "MIOS_DB_RLS_ENABLE"),
-    ("pgvector.host",                  "MIOS_PG_HOST"),
-    ("pgvector.user",                  "MIOS_PG_USER"),
-    ("pgvector.pass",                  "MIOS_PG_PASS"),
-    ("pgvector.db",                    "MIOS_PG_DB"),
-    ("pgvector.data_dir",              "MIOS_PG_DATA_DIR"),
-    ("pgvector.schema_init",           "MIOS_PG_SCHEMA_INIT"),
-    ("pgvector.embed_model",           "MIOS_PG_EMBED_MODEL"),
-    ("pgvector.enable",                "MIOS_PG_ENABLE"),
-    ("pgvector.pool_enable",           "MIOS_PG_POOL_ENABLE"),
-    ("pgvector.pool_min",              "MIOS_PG_POOL_MIN"),
-    ("pgvector.pool_max",              "MIOS_PG_POOL_MAX"),
-    ("pgvector.hnsw_iterative_scan",      "MIOS_PG_HNSW_ITERATIVE_SCAN"),
-    ("pgvector.hnsw_max_scan_tuples",     "MIOS_PG_HNSW_MAX_SCAN_TUPLES"),
-    ("pgvector.hnsw_scan_mem_multiplier", "MIOS_PG_HNSW_SCAN_MEM_MULTIPLIER"),
-    ("pgvector.backup_enable",         "MIOS_PG_BACKUP_ENABLE"),
-    ("pgvector.backup_dir",            "MIOS_PG_BACKUP_DIR"),
-    ("pgvector.backup_keep",           "MIOS_PG_BACKUP_KEEP"),
-    ("pgvector.listen_loopback",       "MIOS_PG_LISTEN_LOOPBACK"),
-    # llamacpp
-    ("llamacpp.cpu_node_threads",      "MIOS_CPU_NODE_THREADS"),
-    ("llamacpp.bake_models",           "MIOS_LLAMACPP_BAKE_MODELS"),
-    # paths
-    ("paths.ai_dir",                   "MIOS_AI_DIR"),
-    ("paths.ai_models_dir",            "MIOS_AI_MODELS_DIR"),
-    ("paths.ai_mcp_dir",               "MIOS_AI_MCP_DIR"),
-    ("paths.ai_scratch_dir",           "MIOS_AI_SCRATCH_DIR"),
-    ("paths.ai_memory_dir",            "MIOS_AI_MEMORY_DIR"),
-    ("paths.ai_journal",               "MIOS_AI_JOURNAL"),
-    ("paths.install_env",              "MIOS_INSTALL_ENV"),
-    ("paths.profile_toml_vendor",      "MIOS_PROFILE_TOML_VENDOR"),
-    ("paths.profile_toml_host",        "MIOS_PROFILE_TOML_HOST"),
-    ("paths.wsl_firstboot_done",       "MIOS_WSLBOOT_DONE"),
-    ("paths.mios_toml",                "MIOS_TOML"),
-    # build
-    ("build.rechunk_max_layers",       "MIOS_RECHUNK_MAX_LAYERS"),
-    ("build.ai_ram_floor_gb",          "MIOS_AI_RAM_FLOOR_GB"),
-    ("build.bake_refs.quickshell",     "MIOS_BUILD_BAKE_REFS_QUICKSHELL"),
-    ("build.bake_refs.surfer",         "MIOS_BUILD_BAKE_REFS_SURFER"),
-    ("build.bake_refs.hyprland",       "MIOS_BUILD_BAKE_REFS_HYPRLAND"),
-    ("build.bake_refs.lookingglass",   "MIOS_BUILD_BAKE_REFS_LOOKINGGLASS"),
-    # network.quadlet
-    ("network.quadlet.network",        "MIOS_QUADLET_NETWORK"),
-    ("network.quadlet.subnet",         "MIOS_QUADLET_SUBNET"),
-    ("network.quadlet.core_subnet",    "MIOS_CORE_NET_SUBNET"),
-    ("network.quadlet.core_gateway",   "MIOS_CORE_NET_GATEWAY"),
-    # frontier
-    ("frontier.orch_engine",        "MIOS_A2O_ORCH_ENGINE"),
-    ("frontier.orch_model",         "MIOS_A2O_ORCH_MODEL"),
-    ("frontier.orch_effort",        "MIOS_A2O_ORCH_EFFORT"),
-    ("frontier.lane_a_engine",      "MIOS_A2O_LANE_A_ENGINE"),
-    ("frontier.lane_a_model",       "MIOS_A2O_LANE_A_MODEL"),
-    ("frontier.lane_a_effort",      "MIOS_A2O_LANE_A_EFFORT"),
-    ("frontier.lane_a_role",        "MIOS_A2O_LANE_A_ROLE"),
-    ("frontier.lane_b_engine",      "MIOS_A2O_LANE_B_ENGINE"),
-    ("frontier.lane_b_model",       "MIOS_A2O_LANE_B_MODEL"),
-    ("frontier.lane_b_effort",      "MIOS_A2O_LANE_B_EFFORT"),
-    ("frontier.lane_b_role",        "MIOS_A2O_LANE_B_ROLE"),
-    ("frontier.lane_b_fallback_engine", "MIOS_A2O_LANE_B_FALLBACK_ENGINE"),
-    ("frontier.lane_b_fallback_model",  "MIOS_A2O_LANE_B_FALLBACK_MODEL"),
-    ("frontier.lane_b_fallback_effort", "MIOS_A2O_LANE_B_FALLBACK_EFFORT"),
-    ("frontier.lane_b_prefer_fallback", "MIOS_A2O_LANE_B_PREFER_FALLBACK"),
-    ("frontier.claude_effort_flag", "MIOS_A2O_CLAUDE_EFFORT_FLAG"),
-    ("frontier.agy_effort_flag",    "MIOS_A2O_AGY_EFFORT_FLAG"),
-    ("frontier.gemini_effort_flag", "MIOS_A2O_GEMINI_EFFORT_FLAG"),
-    ("frontier.stream_to_reasoning", "MIOS_A2O_STREAM_REASONING"),
-    ("frontier.stream_path",         "MIOS_A2O_STREAM_PATH"),
-    # legacy/lightweight fallback section keys
-    ("user.name",               "MIOS_USER_FULLNAME"),
-    ("user.hostname",           "MIOS_HOSTNAME"),
-    ("build.local_tag",         "MIOS_LOCAL_TAG"),
-    ("flatpaks.install",        "MIOS_FLATPAKS"),
-]
-
-for dotted, env in slots:
-    v = get(merged, dotted)
-    if v is None or v == "":
+    if val_processed is None or val_processed == "":
         continue
-    val_processed = process_val(dotted, v)
-    if val_processed is not None and val_processed != "":
-        print(f"export {env}={shlex.quote(str(val_processed))}")
+    
+    canonical = "MIOS_" + path.upper().replace(".", "_").replace("-", "_")
+    
+    sec_name = path.split(".", 1)[0]
+    if sec_name in WALK_MOSTLY_DEAD and canonical not in WALK_EMIT_KEEP:
+        pass
+    else:
+        exports_map[canonical] = val_processed
+            
+    for leg in get_aliases(path):
+        exports_map[leg] = val_processed
 
-# [env] -- the operator free-form injection table, documented "exported verbatim".
-# Keys are already MIOS_-prefixed, so emit each one unchanged: this makes
-# mios.toml [env] the LIVE SSOT for values like the vendor download URLs
-# (MIOS_URL_*). Consumers' inline ${VAR:-default} become fallbacks only, not the
-# source of truth -- editing mios.toml [env] now actually takes effect.
 _env_tbl = merged.get("env")
 if isinstance(_env_tbl, dict):
     for _k, _v in sorted(_env_tbl.items()):
         _vp = process_val("env." + _k, _v)
         if _vp is not None and _vp != "":
-            print(f"export {_k}={shlex.quote(str(_vp))}")
+            exports_map[_k] = _vp
+
+for env_name, val_processed in sorted(exports_map.items()):
+    print(f"export {env_name}={shlex.quote(str(val_processed))}")
+
+ref_path = os.path.join(ROOT, "usr/share/mios/referenced_names.txt")
+if os.path.isfile(ref_path):
+    try:
+        with open(ref_path, "r", encoding="utf-8") as f:
+            for line in f:
+                v = line.strip()
+                if v and v not in exports_map:
+                    print(f"export {v}=\"${{{v}:-}}\"")
+    except Exception:
+        pass
 PY
     )
-    # `[[ ... ]] && cmd` returns 1 when the test is false. Under `set -e`
-    # in the caller (mios-build-driver: `set -euo pipefail`), that
-    # propagates as a fatal exit even though "no exports to apply" is the
-    # expected state for a fresh install with no toml content yet. Use
     # `if`-form so set -e treats the test as a conditional, not a fatal.
     if [[ -n "$exports" ]]; then
         eval "$exports"

@@ -44,11 +44,11 @@ _DIR = os.path.dirname(_SELF)
 # resolve the identical mios.toml overlay + repo-relative templates.
 ROOT = os.environ.get("MIOS_THEME_ROOT") or os.path.abspath(
     os.path.join(_DIR, "..", "..", ".."))
-_ENGINE = os.path.join(_DIR, "mios-theme-render")
+_ENGINE = os.path.join(_DIR, "mios-dotfiles-render")
 
-# Every per-surface engine line is "[mios-theme-render] <diff|apply> <surface>: <rest>".
+# Every per-surface engine line is "[mios-dotfiles-render] <diff|apply> <surface>: <rest>".
 # (Surface names are [A-Za-z0-9_-]; the registry never emits a dotted surface.)
-_LINE = re.compile(r"^\[mios-theme-render\] (?:diff|apply) ([A-Za-z0-9_-]+): (.*)$")
+_LINE = re.compile(r"^\[mios-dotfiles-render\] (?:diff|apply) ([A-Za-z0-9_-]+): (.*)$")
 
 # Per-surface outcome classes (derived from the engine's own wording).
 OK, SKIP, CHANGE, REFUSE, UNKNOWN = "ok", "skip", "change", "refuse", "unknown"

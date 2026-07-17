@@ -1,5 +1,5 @@
 # AI-hint: GitHub Actions workflow for building, tagging, and pushing MiOS OCI images to ghcr.io using podman to ensure bit-for-bit parity between GitHub and Forgejo build environments.
-# AI-related: /etc/mios/install.env, /usr/lib/mios/agent-pipe/server.py, mios-ci, mios-dev, mios-pc-control, mios-launcher-daemon, mios-flatpak-icon-sanitize, mios-wsl-interop-priority, mios-wsl-interop-priority.service
+# AI-related: /etc/mios/install.env, /usr/lib/mios/agent-pipe/server.py, /usr/lib/mios/agent-pipe, /usr/libexec/mios/mios-bench, mios-ci, mios-dev, mios-pc-control, mios-launcher-daemon, mios-flatpak-icon-sanitize, mios-wsl-interop-priority
 name: mios-ci
 
 # In-repo build: MiOS owns the Containerfile and Justfile, so CI builds
@@ -49,6 +49,14 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Install shellcheck
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y shellcheck
+
+      - name: Shell linting (lint-shell.sh)
+        run: bash ./automation/lint-shell.sh
 
       - name: SSOT-render conformance lint (38-ssot-lint.sh)
         run: bash ./automation/38-ssot-lint.sh

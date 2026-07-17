@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# AI-hint: Source-tree drift fitness-functions (WS-0A). Read-only static analysis over the repo (== system root) that FAILS on AI-plane SSOT drift no other gate catches: a retired local :11434 lane in active config, a retired model-id (gemma4 / qwen3:1.7b) hardcoded in a CONSUMER unit, a [nodes.local-*] lane pointing at a localhost port no shipped unit serves, an ai/v1/*.json manifest that won't parse or references a missing schema file, (check 5, WS-10) AI-hint header coverage regressing past [ai_tag].max_untagged, and (check 6, WS-3) an agent-pipe sibling module importing the server.py monolith (modular-monolith boundary). Sibling to 38-ssot-lint.sh; runs standalone, as a build sub-phase, and as a CI/PR drift-gate (needs NO built image). bash + grep + (optional) python3 for the toml/json/coverage checks.
-# AI-related: ./automation/38-ssot-lint.sh, ./automation/99-postcheck.sh, ./usr/libexec/mios/mios-ai-hint-coverage, ./usr/share/mios/mios.toml, ./usr/share/mios/ai/v1
-# AI-functions: _violation, check_dead_lane, check_retired_models, check_structured, check_hint_coverage, check_module_boundary, check_rbac_tiers, check_ai_manifest, check_package_registry, check_cli_sql_safety, check_module_test_coverage, check_capability_manifest, check_pod_quadlets, check_egress_firewall, check_unwired_modules, check_globals_ports, main
+# AI-hint: Source-tree drift fitness-functions (WS-0A). Read-only static analysis over the repo (== system root) that FAILS on AI-plane SSOT drift no other gate catches: a retired local :11434 lane in active config, a retired model-id (gemma4 / qwen3:1.7b) hardcoded in a
+# AI-related: 99-postcheck.sh, build.sh, /usr/libexec/mios/mios-ai-hint-coverage, /usr/share/mios/mios.toml, /usr/share/mios/ai/v1, /usr/share/mios/ai, /etc/mios/ai, /usr/lib/mios/agent-pipe, /usr/share/mios/ai/v1/packages, /usr/libexec/mios/mios-registry
+# AI-functions: python3, _violation, check_dead_lane, check_retired_models, check_structured, check_hint_coverage, check_module_boundary, check_rbac_tiers, check_agent_schema, check_ai_manifest, check_package_registry, check_cli_sql_safety
 # automation/38-drift-checks.sh
 # ----------------------------------------------------------------------------
 # WHY THIS EXISTS (WS-0A drift-freeze). 99-postcheck.sh enforces the same
@@ -53,6 +53,18 @@
 #   MIOS_DRIFT_CHECK_ROOT=/path automation/38-drift-checks.sh  # override root
 # ----------------------------------------------------------------------------
 set -euo pipefail
+
+# Windows execution alias stub override
+PYTHON="python3"
+if ! python3 -c "import sys" >/dev/null 2>&1; then
+    if python -c "import sys" >/dev/null 2>&1; then
+        PYTHON="python"
+        python3() {
+            python "$@"
+        }
+        export -f python3 2>/dev/null || true
+    fi
+fi
 
 _self="${BASH_SOURCE[0]}"
 _self_dir="$(cd "$(dirname "$_self")" && pwd)"
@@ -394,7 +406,7 @@ CANON = {"kind","endpoint","model","role","job","default","fanout","enabled","la
          "sub_lane","health_gate","transport","timeout_s","strengths","cpu_endpoint",
          "cpu_model","failover_agents","denied_verbs","allowed_verbs","max_permission",
          "api","vram_mb","ram_mb","tool_capable","research_only","auth","trust",
-         "engines","nodes","backend"}
+         "engines","nodes","backend","privilege_group"}
 def _local(ep):
     h = re.sub(r'^[a-z]+://', '', str(ep)).split('/')[0].rsplit(':', 1)[0]
     return h in ("localhost", "127.0.0.1", "::1", "0.0.0.0", "")
@@ -720,7 +732,7 @@ check_pod_quadlets() {
     # (${MIOS_PORT_*} stay placeholders either way -- the generator preserves
     # those unconditionally; env -i just removes the value-baking pollution.)
     if env -i PATH="$PATH" HOME="${HOME:-/root}" LANG="${LANG:-C.UTF-8}" \
-            MIOS_ROOT="$ROOT" python3 "$gen" --check; then
+            MIOS_ROOT="$ROOT" "$PYTHON" "$gen" --check; then
         echo "[38-drift-checks]   (13) Quadlet units (.pod, .container, .network, .volume) in sync with mios.toml SSOT"
     else
         _violation "Quadlet unit(s) (.pod, .container, .network, .volume) STALE vs mios.toml SSOT -- regenerate with tools/generate-pod-quadlets.py"
@@ -1490,23 +1502,23 @@ PY
 # the PR exactly like a hand-edited theme. Re-run `mios-sync-theme` to refresh
 # (the one global runtime theme command). Same regenerate-and-diff shape as
 # checks 8/12/13/14, over the theme + settings surfaces.
-check_theme_projection() {
+check_dotfiles_projection() {
     if ! command -v python3 >/dev/null 2>&1; then
-        echo "[38-drift-checks]   WARNING: python3 missing -- skipping theme-projection check" >&2
+        echo "[38-drift-checks]   WARNING: python3 missing -- skipping dotfiles-projection check" >&2
         return 0
     fi
-    local tool="$ROOT/usr/libexec/mios/mios-theme-render"
+    local tool="$ROOT/usr/libexec/mios/mios-dotfiles-render"
     if [[ ! -f "$tool" ]]; then
-        echo "[38-drift-checks]   WARNING: mios-theme-render not found -- skipping" >&2
+        echo "[38-drift-checks]   WARNING: mios-dotfiles-render not found -- skipping" >&2
         return 0
     fi
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" python3 "$tool" check >/dev/null 2>"$ROOT/.theme.err"; then
-        rm -f "$ROOT/.theme.err" 2>/dev/null || true
-        echo "[38-drift-checks]   (25) every committed theme + settings surface projects from mios.toml [colors]/[btop]/[gitconfig]/[identity] SSOT"
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" python3 "$tool" check >/dev/null 2>"$ROOT/.dotfiles.err"; then
+        rm -f "$ROOT/.dotfiles.err" 2>/dev/null || true
+        echo "[38-drift-checks]   (25) every committed theme + settings surface projects from mios.toml [colors]/[btop]/[gitconfig]/[identity]/[dotfiles] SSOT"
     else
-        sed 's/^/    /' "$ROOT/.theme.err" >&2 2>/dev/null || true
-        rm -f "$ROOT/.theme.err" 2>/dev/null || true
-        _violation "a theme surface drifted from the mios.toml [colors]/[theme] SSOT projection -- re-run mios-sync-theme (Phase-1 palette drift-gate; mios-theme-render)"
+        sed 's/^/    /' "$ROOT/.dotfiles.err" >&2 2>/dev/null || true
+        rm -f "$ROOT/.dotfiles.err" 2>/dev/null || true
+        _violation "a dotfiles surface drifted from the mios.toml SSOT projection -- re-run mios dotfiles sync (Phase-1 palette drift-gate; mios-dotfiles-render)"
     fi
 }
 
@@ -1728,6 +1740,15 @@ import os, sys, re, subprocess
 root = os.environ["MIOS_DRIFT_ROOT"]
 violations = []
 
+ref_file = os.path.join(root, "usr/share/mios/referenced_names.txt")
+committed_ref = ""
+if os.path.isfile(ref_file):
+    try:
+        with open(ref_file, "r", encoding="utf-8") as fh:
+            committed_ref = fh.read()
+    except Exception as e:
+        violations.append(f"Failed to read committed referenced_names.txt: {e}")
+
 # 1. Verify names.generated.txt matches a fresh execution of the generator
 gen_script = os.path.join(root, "tools/generate-names-registry.py")
 registry_file = os.path.join(root, "usr/share/mios/names.generated.txt")
@@ -1752,420 +1773,22 @@ else:
     except Exception as e:
         violations.append(f"Failed to check names registry generation: {e}")
 
-# 2. Verify slots array in userenv.sh matches canonical or allowed legacy names
-userenv_sh = os.path.join(root, "tools/lib/userenv.sh")
-if not os.path.isfile(userenv_sh):
-    violations.append("tools/lib/userenv.sh missing")
-else:
+## 2. Verify referenced_names.txt is not stale
+fresh_ref = ""
+if os.path.isfile(ref_file):
     try:
-        with open(userenv_sh, "r") as fh:
-            content = fh.read()
-            
-        slots_match = re.search(r"slots\s*=\s*\[(.*?)\]\s*\n\s*(?:stack_id|for\s+dotted)", content, re.DOTALL)
-        if not slots_match:
-            violations.append("Could not find slots array in userenv.sh")
-        else:
-            slots_str = slots_match.group(1)
-            slots = []
-            for m in re.finditer(r'\(\s*"([^"]+)"\s*,\s*"([^"]+)"\s*\)', slots_str):
-                slots.append((m.group(1), m.group(2)))
-                
-            legacy_allowed = {
-                "identity.username": ["MIOS_USER", "MIOS_DEFAULT_USER"],
-                "identity.fullname": "MIOS_USER_FULLNAME",
-                "identity.hostname": ["MIOS_HOSTNAME", "MIOS_DEFAULT_HOST"],
-                "identity.shell": ["MIOS_USER_SHELL", "MIOS_DEFAULT_SHELL"],
-                "identity.groups": ["MIOS_USER_GROUPS", "MIOS_DEFAULT_GROUPS"],
-                "identity.default_password": "MIOS_DEFAULT_PASSWORD",
-                "accounts.db_backed": "MIOS_ACCOUNTS_DB_BACKED",
-                "locale.timezone": ["MIOS_TIMEZONE", "MIOS_DEFAULT_TIMEZONE"],
-                "locale.keyboard_layout": ["MIOS_KEYBOARD", "MIOS_DEFAULT_KEYBOARD"],
-                "locale.language": ["MIOS_LOCALE", "MIOS_DEFAULT_LOCALE"],
-                "auth.ssh_key_action": "MIOS_SSH_KEY_ACTION",
-                "auth.password_policy": "MIOS_PASSWORD_POLICY",
-                "network.firewalld_default_zone": "MIOS_FIREWALLD_ZONE",
-                "ai.api_key": "MIOS_AI_KEY",
-                "ai.chat_vision_model": "MIOS_AGENT_PIPE_VISION_MODEL",
-                "ai.stack_model": "MIOS_STACK_MODEL",
-                "ai.embed_model": ["MIOS_VERB_EMBED_MODEL", "MIOS_AI_EMBED_MODEL"],
-                "desktop.flatpaks": "MIOS_FLATPAKS",
-                "desktop.color_scheme": "MIOS_COLOR_SCHEME",
-                "bootstrap.mios_repo": "MIOS_REPO_URL",
-                "bootstrap.bootstrap_repo": "MIOS_BOOTSTRAP_REPO_URL",
-                "ports.ssh": ["MIOS_PORT_SSH", "MIOS_SSH_PORT"],
-                "ports.forge_http": ["MIOS_PORT_FORGE_HTTP", "MIOS_FORGE_HTTP_PORT"],
-                "ports.forge_ssh": ["MIOS_PORT_FORGE_SSH", "MIOS_FORGE_SSH_PORT"],
-                "ports.cockpit": ["MIOS_PORT_COCKPIT", "MIOS_COCKPIT_PORT"],
-                "ports.cockpit_link": "MIOS_PORT_COCKPIT_LINK",
-                "ports.searxng": ["MIOS_PORT_SEARXNG", "MIOS_SEARXNG_PORT"],
-                "ports.crawl4ai": "MIOS_PORT_CRAWL4AI",
-                "ports.firecrawl": "MIOS_PORT_FIRECRAWL",
-                "ports.hermes": ["MIOS_PORT_HERMES", "MIOS_HERMES_PORT"],
-                "ports.hermes_worker": "MIOS_PORT_HERMES_WORKER",
-                "ports.hermes_dashboard": "MIOS_PORT_HERMES_DASHBOARD",
-                "ports.open_webui": "MIOS_PORT_OPEN_WEBUI",
-                "ports.code_server": "MIOS_PORT_CODE_SERVER",
-                "ports.k3s_api": "MIOS_K3S_API_PORT",
-                "ports.guacamole_web": "MIOS_GUACAMOLE_PORT",
-                "ports.ceph_dashboard": "MIOS_CEPH_DASHBOARD_PORT",
-                "ports.rdp": "MIOS_RDP_PORT",
-                "ports.pgvector": "MIOS_PORT_PGVECTOR",
-                "ports.llm_light": "MIOS_PORT_LLM_LIGHT",
-                "ports.cpu_node": "MIOS_PORT_CPU_NODE",
-                "ports.agent_pipe": "MIOS_PORT_AGENT_PIPE",
-                "ports.adguard_dns": "MIOS_PORT_ADGUARD_DNS",
-                "ports.adguard_ui": "MIOS_PORT_ADGUARD_UI",
-                "ports.opencode_gateway": "MIOS_PORT_OPENCODE_GATEWAY",
-                "ports.vllm": "MIOS_PORT_VLLM",
-                "ports.sglang": "MIOS_PORT_SGLANG",
-                "ports.prefilter": "MIOS_PORT_PREFILTER",
-                "ports.arbiter": "MIOS_PORT_ARBITER",
-                "ports.daemon_agent": "MIOS_PORT_DAEMON_AGENT",
-                "ports.model_router": "MIOS_PORT_MODEL_ROUTER",
-                "ports.oscontrol": "MIOS_PORT_OSCONTROL",
-                "ports.mcp": "MIOS_PORT_MCP",
-                "ports.ttyd_bash": "MIOS_PORT_TTYD_BASH",
-                "ports.ttyd_powershell": "MIOS_PORT_TTYD_POWERSHELL",
-                "hermes.endpoint": "MIOS_HERMES_ENDPOINT",
-                "agents.hermes.endpoint": "MIOS_HERMES_WORKER_ENDPOINT",
-                "a2a.discover_port": "MIOS_A2A_DISCOVER_PORT",
-                "a2a.public_domain": "MIOS_PUBLIC_DOMAIN",
-                "routing.model_modalities_embeddings": "MIOS_MODEL_MODALITIES_EMBEDDINGS",
-                "routing.model_modalities_image": "MIOS_MODEL_MODALITIES_IMAGE",
-                "routing.integer_param_keywords": "MIOS_INTEGER_PARAM_KEYWORDS",
-                "routing.boolean_param_keywords": "MIOS_BOOLEAN_PARAM_KEYWORDS",
-                "ai.opencode_gateway_workdir": "MIOS_OPENCODE_WORKDIR",
-                "ai.agent_venv": "MIOS_HERMES_VENV",
-                "ai.agent_install_dir": "MIOS_HERMES_DIR",
-                "ai.vllm.v1_engine": "MIOS_VLLM_USE_V1",
-                "ai.key": "MIOS_AI_KEY",
-                "ai.hermes_agent_ref": "MIOS_HERMES_AGENT_REF",
-                "ai.hermes_agent_repo": "MIOS_HERMES_AGENT_REPO",
-                "ai.hermes_backend_url": "MIOS_HERMES_BACKEND_URL",
-                "ai.mcp_registry": "MIOS_MCP_REGISTRY",
-                "ai.system_prompt_file": "MIOS_SYSTEM_PROMPT_FILE",
-                "ai.tokenizer_backend": "MIOS_TOKENIZER_BACKEND",
-                "ai.tokenizer_cache_dir": "MIOS_TOKENIZER_CACHE_DIR",
-                "ai.tokenizer_encoding": "MIOS_TOKENIZER_ENCODING",
-                "ai.tokenizer_path": "MIOS_TOKENIZER_PATH",
-                "bootstrap.dev_vm.base_image": "MIOS_DEV_VM_BASE_IMAGE",
-                "bootstrap.dev_vm.cpus": "MIOS_DEV_VM_CPUS",
-                "bootstrap.dev_vm.disk_size_gb": "MIOS_DEV_VM_DISK_GB",
-                "bootstrap.dev_vm.gpu_passthrough": "MIOS_DEV_VM_GPU",
-                "bootstrap.dev_vm.host_reserve.cpu_min": "MIOS_DEV_VM_CPU_RESERVE_MIN",
-                "bootstrap.dev_vm.host_reserve.cpu_pct": "MIOS_DEV_VM_CPU_RESERVE_PCT",
-                "bootstrap.dev_vm.host_reserve.disk_gb": "MIOS_DEV_VM_DISK_RESERVE_GB",
-                "bootstrap.dev_vm.host_reserve.memory_gb": "MIOS_DEV_VM_MEMORY_RESERVE_GB",
-                "bootstrap.dev_vm.host_reserve.memory_pct": "MIOS_DEV_VM_MEMORY_RESERVE_PCT",
-                "bootstrap.dev_vm.machine_name": "MIOS_BUILDER_DISTRO",
-                "bootstrap.dev_vm.memory_mb": "MIOS_DEV_VM_MEMORY_MB",
-                "bootstrap.dev_vm.wsl_distro": "MIOS_WSL_DISTRO",
-                "bootstrap.host_storage.drive_letter": "MIOS_DATA_DISK_LETTER",
-                "bootstrap.host_storage.shrink_mb": "MIOS_DATA_DISK_MB",
-                "code_mode.gid": "MIOS_CODEMODE_GID",
-                "code_mode.uid": "MIOS_CODEMODE_UID",
-                "image.base": "MIOS_BASE_IMAGE",
-                "image.bib": "MIOS_BIB_IMAGE",
-                "image.branch": "MIOS_BRANCH",
-                "image.local_tag": "MIOS_LOCAL_TAG",
-                "security.fapolicyd_observe.enable": "MIOS_FAPOLICYD_OBSERVE_ENABLE",
-                # image.sidecars
-                "image.sidecars.sys_version": "MIOS_SYS_VERSION",
-                "image.sidecars.sys": "MIOS_SYS_IMAGE",
-                "image.sidecars.cuda_version": "MIOS_CUDA_VERSION",
-                "image.sidecars.cuda": "MIOS_CUDA_IMAGE",
-                "image.sidecars.k3s_version": "MIOS_K3S_VERSION",
-                "image.sidecars.k3s": "MIOS_K3S_IMAGE",
-                "image.sidecars.ceph_version": "MIOS_CEPH_VERSION",
-                "image.sidecars.ceph": "MIOS_CEPH_IMAGE",
-                "image.sidecars.forge_version": "MIOS_FORGE_VERSION",
-                "image.sidecars.forge": "MIOS_FORGE_IMAGE",
-                "image.sidecars.searxng_version": "MIOS_SEARXNG_VERSION",
-                "image.sidecars.searxng": "MIOS_SEARXNG_IMAGE",
-                "image.sidecars.hermes_version": "MIOS_HERMES_VERSION",
-                "image.sidecars.hermes": "MIOS_HERMES_IMAGE",
-                "image.sidecars.open_webui_version": "MIOS_OPEN_WEBUI_VERSION",
-                "image.sidecars.open_webui": "MIOS_OPEN_WEBUI_IMAGE",
-                "image.sidecars.code_server_version": "MIOS_CODE_SERVER_VERSION",
-                "image.sidecars.code_server": "MIOS_CODE_SERVER_IMAGE",
-                "image.sidecars.guacamole_version": "MIOS_GUACAMOLE_VERSION",
-                "image.sidecars.guacamole": "MIOS_GUACAMOLE_IMAGE",
-                "image.sidecars.forge_runner_version": "MIOS_FORGE_RUNNER_VERSION",
-                "image.sidecars.forge_runner": "MIOS_FORGE_RUNNER_IMAGE",
-                "image.sidecars.crowdsec_version": "MIOS_CROWDSEC_VERSION",
-                "image.sidecars.crowdsec": "MIOS_CROWDSEC_IMAGE",
-                "image.sidecars.postgres_version": "MIOS_POSTGRES_VERSION",
-                "image.sidecars.postgres": "MIOS_POSTGRES_IMAGE",
-                "image.sidecars.guacd_version": "MIOS_GUACD_VERSION",
-                "image.sidecars.guacd": "MIOS_GUACD_IMAGE",
-                "image.sidecars.pxe_hub_version": "MIOS_PXE_HUB_VERSION",
-                "image.sidecars.pxe_hub": "MIOS_PXE_HUB_IMAGE",
-                "image.sidecars.bib_alpine": "MIOS_BIB_ALPINE_IMAGE",
-                "image.sidecars.pgvector_version": "MIOS_PGVECTOR_VERSION",
-                "image.sidecars.pgvector": "MIOS_PGVECTOR_IMAGE",
-                "image.sidecars.llm_light_version": "MIOS_LLM_LIGHT_VERSION",
-                "image.sidecars.llm_light": "MIOS_LLM_LIGHT_IMAGE",
-                "image.sidecars.adguard_version": "MIOS_ADGUARD_VERSION",
-                "image.sidecars.adguard": "MIOS_ADGUARD_IMAGE",
-                "image.sidecars.vllm_version": "MIOS_VLLM_VERSION",
-                "image.sidecars.vllm": "MIOS_VLLM_IMAGE",
-                "image.sidecars.sglang_version": "MIOS_SGLANG_VERSION",
-                "image.sidecars.sglang": "MIOS_SGLANG_IMAGE",
-                # services
-                "services.forge.user": "MIOS_FORGE_USER",
-                "services.forge.uid": "MIOS_FORGE_UID",
-                "services.forge.gid": "MIOS_FORGE_GID",
-                "services.searxng.user": "MIOS_SEARXNG_USER",
-                "services.searxng.uid": "MIOS_SEARXNG_UID",
-                "services.searxng.gid": "MIOS_SEARXNG_GID",
-                "services.ceph.user": "MIOS_CEPH_USER",
-                "services.ceph.uid": "MIOS_CEPH_UID",
-                "services.ceph.gid": "MIOS_CEPH_GID",
-                "services.hermes.user": "MIOS_HERMES_USER",
-                "services.hermes.uid": "MIOS_HERMES_UID",
-                "services.hermes.gid": "MIOS_HERMES_GID",
-                "services.open_webui.user": "MIOS_OPEN_WEBUI_USER",
-                "services.open_webui.uid": "MIOS_OPEN_WEBUI_UID",
-                "services.open_webui.gid": "MIOS_OPEN_WEBUI_GID",
-                "services.pgvector.user": "MIOS_PGVECTOR_USER",
-                "services.pgvector.uid": "MIOS_PGVECTOR_UID",
-                "services.pgvector.gid": "MIOS_PGVECTOR_GID",
-                "services.llamacpp.user": "MIOS_LLAMACPP_USER",
-                "services.llamacpp.uid": "MIOS_LLAMACPP_UID",
-                "services.llamacpp.gid": "MIOS_LLAMACPP_GID",
-                "services.agent_pipe.user": "MIOS_AGENT_PIPE_USER",
-                "services.agent_pipe.uid": "MIOS_AGENT_PIPE_UID",
-                "services.agent_pipe.gid": "MIOS_AGENT_PIPE_GID",
-                "services.webtools.user": ["MIOS_WEBTOOLS_USER", "MIOS_CRAWL4AI_USER"],
-                "services.webtools.uid": ["MIOS_WEBTOOLS_UID", "MIOS_CRAWL4AI_UID"],
-                "services.webtools.gid": ["MIOS_WEBTOOLS_GID", "MIOS_CRAWL4AI_GID"],
-                "services.webtools.cdp_url": "MIOS_CRAWL_CDP_URL",
-                "services.webtools.camoufox": "MIOS_CRAWL_CAMOUFOX",
-                "services.webtools.min_chars": "MIOS_CRAWL_MIN_CHARS",
-                "services.webtools.firecrawl_workers": "MIOS_FIRECRAWL_WORKERS",
-                "services.webtools.firecrawl_bull_key": "MIOS_FIRECRAWL_BULL_KEY",
-                "services.webtools.firecrawl_log_level": "MIOS_FIRECRAWL_LOG_LEVEL",
-                "services.adguard.user": "MIOS_ADGUARD_USER",
-                "services.adguard.uid": "MIOS_ADGUARD_UID",
-                "services.adguard.gid": "MIOS_ADGUARD_GID",
-                # storage.cephfs
-                "storage.cephfs.enable": "MIOS_CEPHFS_ENABLE",
-                "storage.cephfs.monitors": "MIOS_CEPHFS_MONITORS",
-                "storage.cephfs.fs_name": "MIOS_CEPHFS_FS_NAME",
-                "storage.cephfs.tenant_id": "MIOS_CEPHFS_TENANT_ID",
-                "storage.cephfs.data_pool_hot": "MIOS_CEPHFS_DATA_POOL_HOT",
-                "storage.cephfs.data_pool_bulk": "MIOS_CEPHFS_DATA_POOL_BULK",
-                "storage.cephfs.xdg_cache_home_override": "MIOS_XDG_CACHE_LOCAL_PATH",
-                "storage.cephfs.mount_options": "MIOS_CEPHFS_MOUNT_OPTIONS",
-                "storage.cephfs.keyring_dir": "MIOS_CEPHFS_KEYRING_DIR",
-                "storage.cephfs.automount_enable": "MIOS_CEPHFS_AUTOMOUNT_ENABLE",
-                "storage.cephfs.automount_idle_timeout_s": "MIOS_CEPHFS_AUTOMOUNT_IDLE_TIMEOUT_S",
-                # verity
-                "uki.verity_uki_build": "MIOS_UKI_VERITY_BUILD",
-                "verity.antifab_enable": "MIOS_ANTIFAB_ENABLE",
-                "verity.antifab_min_entities": "MIOS_ANTIFAB_MIN_ENTITIES",
-                "verity.antifab_ground_min": "MIOS_ANTIFAB_GROUND_MIN",
-                # pgvector
-                "pgvector.db_backend": "MIOS_DB_BACKEND",
-                "pgvector.rls_enable": "MIOS_DB_RLS_ENABLE",
-                "pgvector.host": "MIOS_PG_HOST",
-                "pgvector.user": "MIOS_PG_USER",
-                "pgvector.pass": "MIOS_PG_PASS",
-                "pgvector.db": "MIOS_PG_DB",
-                "pgvector.data_dir": "MIOS_PG_DATA_DIR",
-                "pgvector.schema_init": "MIOS_PG_SCHEMA_INIT",
-                "pgvector.embed_model": "MIOS_PG_EMBED_MODEL",
-                "pgvector.enable": "MIOS_PG_ENABLE",
-                "pgvector.pool_enable": "MIOS_PG_POOL_ENABLE",
-                "pgvector.pool_min": "MIOS_PG_POOL_MIN",
-                "pgvector.pool_max": "MIOS_PG_POOL_MAX",
-                "pgvector.hnsw_iterative_scan": "MIOS_PG_HNSW_ITERATIVE_SCAN",
-                "pgvector.hnsw_max_scan_tuples": "MIOS_PG_HNSW_MAX_SCAN_TUPLES",
-                "pgvector.hnsw_scan_mem_multiplier": "MIOS_PG_HNSW_SCAN_MEM_MULTIPLIER",
-                "pgvector.backup_enable": "MIOS_PG_BACKUP_ENABLE",
-                "pgvector.backup_dir": "MIOS_PG_BACKUP_DIR",
-                "pgvector.backup_keep": "MIOS_PG_BACKUP_KEEP",
-                "pgvector.listen_loopback": "MIOS_PG_LISTEN_LOOPBACK",
-                # llamacpp
-                "llamacpp.cpu_node_threads": "MIOS_CPU_NODE_THREADS",
-                # paths
-                "paths.ai_dir": "MIOS_AI_DIR",
-                "paths.ai_models_dir": "MIOS_AI_MODELS_DIR",
-                "paths.ai_mcp_dir": "MIOS_AI_MCP_DIR",
-                "paths.ai_scratch_dir": "MIOS_AI_SCRATCH_DIR",
-                "paths.ai_memory_dir": "MIOS_AI_MEMORY_DIR",
-                "paths.ai_journal": "MIOS_AI_JOURNAL",
-                "paths.install_env": "MIOS_INSTALL_ENV",
-                "paths.profile_toml_vendor": "MIOS_PROFILE_TOML_VENDOR",
-                "paths.profile_toml_host": "MIOS_PROFILE_TOML_HOST",
-                "paths.wsl_firstboot_done": "MIOS_WSLBOOT_DONE",
-                "paths.mios_toml": "MIOS_TOML",
-                # build
-                "build.rechunk_max_layers": "MIOS_RECHUNK_MAX_LAYERS",
-                "build.ai_ram_floor_gb": "MIOS_AI_RAM_FLOOR_GB",
-                "build.local_tag": "MIOS_LOCAL_TAG",
-                # network.quadlet
-                "network.quadlet.network": "MIOS_QUADLET_NETWORK",
-                "network.quadlet.subnet": "MIOS_QUADLET_SUBNET",
-                "network.quadlet.core_subnet": "MIOS_CORE_NET_SUBNET",
-                "network.quadlet.core_gateway": "MIOS_CORE_NET_GATEWAY",
-                # frontier
-                "frontier.orch_engine": "MIOS_A2O_ORCH_ENGINE",
-                "frontier.orch_model": "MIOS_A2O_ORCH_MODEL",
-                "frontier.orch_effort": "MIOS_A2O_ORCH_EFFORT",
-                "frontier.lane_a_engine": "MIOS_A2O_LANE_A_ENGINE",
-                "frontier.lane_a_model": "MIOS_A2O_LANE_A_MODEL",
-                "frontier.lane_a_effort": "MIOS_A2O_LANE_A_EFFORT",
-                "frontier.lane_a_role": "MIOS_A2O_LANE_A_ROLE",
-                "frontier.lane_b_engine": "MIOS_A2O_LANE_B_ENGINE",
-                "frontier.lane_b_model": "MIOS_A2O_LANE_B_MODEL",
-                "frontier.lane_b_effort": "MIOS_A2O_LANE_B_EFFORT",
-                "frontier.lane_b_role": "MIOS_A2O_LANE_B_ROLE",
-                "frontier.lane_b_fallback_engine": "MIOS_A2O_LANE_B_FALLBACK_ENGINE",
-                "frontier.lane_b_fallback_model": "MIOS_A2O_LANE_B_FALLBACK_MODEL",
-                "frontier.lane_b_fallback_effort": "MIOS_A2O_LANE_B_FALLBACK_EFFORT",
-                "frontier.lane_b_prefer_fallback": "MIOS_A2O_LANE_B_PREFER_FALLBACK",
-                "frontier.claude_effort_flag": "MIOS_A2O_CLAUDE_EFFORT_FLAG",
-                "frontier.agy_effort_flag": "MIOS_A2O_AGY_EFFORT_FLAG",
-                "frontier.gemini_effort_flag": "MIOS_A2O_GEMINI_EFFORT_FLAG",
-                "frontier.stream_to_reasoning": "MIOS_A2O_STREAM_REASONING",
-                "frontier.stream_path": "MIOS_A2O_STREAM_PATH",
-                # legacy fallback section keys
-                "user.name": "MIOS_USER_FULLNAME",
-                "user.hostname": "MIOS_HOSTNAME",
-                "flatpaks.install": "MIOS_FLATPAKS",
-                # wsl2
-                "wsl2.networking_mode": "MIOS_WSL2_NETWORKING_MODE",
-                "wsl2.localhost_forwarding": "MIOS_WSL2_LOCALHOST_FORWARDING",
-                "wsl2.firewall": "MIOS_WSL2_FIREWALL",
-                "wsl2.gui_applications": "MIOS_WSL2_GUI_APPLICATIONS",
-                "wsl2.desktop_compat.gdk_backend": "MIOS_WSLG_GDK_BACKEND",
-                "wsl2.desktop_compat.moz_wayland": "MIOS_WSLG_MOZ_WAYLAND",
-                "wsl2.desktop_compat.qt_platform": "MIOS_WSLG_QT_PLATFORM",
-                "wsl2.dev_vm.quadlet_network_mode": "MIOS_QUADLET_DEV_NETWORK_MODE",
-                # fs_watcher
-                "fs_watcher.watch_dirs": "MIOS_FS_WATCHER_DIRS",
-                # refine / polish
-                "refine.timeout_seconds": "MIOS_REFINE_TIMEOUT_S",
-                "polish.timeout_seconds": "MIOS_POLISH_TIMEOUT_S",
-                # portal
-                "portal.public_host": "MIOS_PUBLIC_HOST",
-                "portal.require_login": "MIOS_PORTAL_REQUIRE_LOGIN",
-                "portal.user": "MIOS_PORTAL_USER",
-                "portal.password": "MIOS_PORTAL_PASSWORD",
-                "portal.session_ttl": "MIOS_PORTAL_SESSION_TTL",
-                "portal.secret": "MIOS_PORTAL_SECRET",
-                # meta
-                "meta.mios_version": "MIOS_VERSION",
-                # ai/sglang/vllm/micro/opencode
-                "ai.bake_models": "MIOS_AI_BAKE_MODELS",
-                "ai.vllm.served_name": "MIOS_VLLM_SERVED_NAME",
-                "ai.vllm.gpu_util": "MIOS_VLLM_GPU_UTIL",
-                "ai.vllm.max_model_len": "MIOS_VLLM_MAX_MODEL_LEN",
-                "ai.vllm.bake_model": "MIOS_VLLM_BAKE_MODEL",
-                "ai.vllm.kv_cache_dtype": "MIOS_VLLM_KV_CACHE_DTYPE",
-                "ai.vllm.tool_call_parser": "MIOS_VLLM_TOOL_CALL_PARSER",
-                "ai.sglang.served_name": "MIOS_SGLANG_SERVED_NAME",
-                "ai.sglang.mem_fraction": "MIOS_SGLANG_MEM_FRACTION",
-                "ai.sglang.max_model_len": "MIOS_SGLANG_MAX_MODEL_LEN",
-                "ai.sglang.tool_parser": "MIOS_SGLANG_TOOL_PARSER",
-                "ai.sglang.reasoning_parser": "MIOS_SGLANG_REASONING_PARSER",
-                "ai.sglang.bake_model": "MIOS_SGLANG_BAKE_MODEL",
-                "ai.sglang.unified_radix_tree": "MIOS_SGLANG_ENABLE_UNIFIED_RADIX_TREE",
-                "ai.sglang.hierarchical_cache": "MIOS_SGLANG_ENABLE_HIERARCHICAL_CACHE",
-                "ai.sglang.kv_cache_dtype": "MIOS_SGLANG_KV_CACHE_DTYPE",
-                "ai.micro_model": "MIOS_MICRO_MODEL",
-                "ai.micro_endpoint": "MIOS_MICRO_ENDPOINT",
-                "ai.opencode_install_url": "MIOS_OPENCODE_INSTALL_URL",
-                "ai.opencode_version": "MIOS_OPENCODE_VERSION",
-                "ai.opencode_model": "MIOS_OPENCODE_MODEL",
-                "ai.opencode_provider": "MIOS_OPENCODE_PROVIDER",
-                "ai.opencode_bin": "MIOS_OPENCODE_BIN",
-                "ai.opencode_config": "MIOS_OPENCODE_CONFIG",
-                "ai.opencode_gateway_timeout_s": "MIOS_OPENCODE_TIMEOUT_S",
-                "gpu.device": "MIOS_GPU_DEVICE",
-            }
-            
-            def is_legacy_color_match(toml_key, env_var):
-                if toml_key.startswith("colors.ansi_"):
-                    suffix = toml_key[len("colors.ansi_"):].upper().replace(".", "_").replace("-", "_")
-                    return env_var == f"MIOS_ANSI_{suffix}"
-                elif toml_key.startswith("colors."):
-                    suffix = toml_key[len("colors."):].upper().replace(".", "_").replace("-", "_")
-                    return env_var == f"MIOS_COLOR_{suffix}"
-                return False
-                
-            def check_legacy(toml_key, env_var):
-                if toml_key not in legacy_allowed:
-                    return False
-                allowed = legacy_allowed[toml_key]
-                if isinstance(allowed, str):
-                    return allowed == env_var
-                return env_var in allowed
-
-            mapped_keys = []
-            mapped_vars = []
-            
-            for toml_key, env_var in slots:
-                canonical = "MIOS_" + toml_key.upper().replace(".", "_").replace("-", "_")
-                
-                # Check mapping correctness
-                is_ok = (
-                    env_var == canonical or
-                    check_legacy(toml_key, env_var) or
-                    is_legacy_color_match(toml_key, env_var)
-                )
-                
-                if not is_ok:
-                    violations.append(f"Invalid non-canonical env mapping in userenv.sh: '{toml_key}' maps to '{env_var}' (expected canonical '{canonical}')")
-                
-                mapped_keys.append(toml_key)
-                mapped_vars.append(env_var)
-            
-            # Check duplicates (except allowed duplicates)
-            allowed_duplicates = {
-                "ai.embed_model",
-                "identity.username",
-                "identity.hostname",
-                "identity.shell",
-                "identity.groups",
-                "locale.keyboard_layout",
-                "locale.language",
-                "locale.timezone",
-                "ports.ssh",
-                "ports.forge_http",
-                "ports.forge_ssh",
-                "ports.cockpit",
-                "ports.searxng",
-                "ports.hermes",
-                "services.webtools.gid",
-                "services.webtools.uid",
-                "services.webtools.user",
-            }
-            uniq_keys = set()
-            for tk in mapped_keys:
-                if tk in allowed_duplicates:
-                    continue
-                if tk in uniq_keys:
-                    violations.append(f"Duplicate mapping key in userenv.sh: '{tk}'")
-                uniq_keys.add(tk)
-                
-            allowed_duplicate_vars = {
-                "MIOS_USER_FULLNAME",
-                "MIOS_HOSTNAME",
-                "MIOS_LOCAL_TAG",
-                "MIOS_FLATPAKS",
-                "MIOS_AI_KEY",
-            }
-            uniq_vars = set()
-            for ev in mapped_vars:
-                if ev in allowed_duplicate_vars:
-                    continue
-                if ev in uniq_vars:
-                    violations.append(f"Duplicate mapping target env var in userenv.sh: '{ev}'")
-                uniq_vars.add(ev)
+        with open(ref_file, "r", encoding="utf-8") as fh:
+            fresh_ref = fh.read()
     except Exception as e:
-        violations.append(f"Failed to check userenv.sh mappings: {e}")
+        violations.append(f"Failed to read fresh referenced_names.txt: {e}")
+
+if fresh_ref != committed_ref:
+    try:
+        with open(ref_file, "w", encoding="utf-8") as fh:
+            fh.write(committed_ref)
+    except Exception:
+        pass
+    violations.append("usr/share/mios/referenced_names.txt is stale. Please run tools/generate-names-registry.py.")
 
 if violations:
     for v in sorted(violations):
@@ -3179,7 +2802,7 @@ check_resolver_twin_parity() {
         MIOS_VENDOR_TOML="$fix/vendor.toml" MIOS_VENDOR_TOML_D="$fix/vendor.d" \
         MIOS_HOST_TOML="$fix/host.toml" MIOS_HOST_TOML_D="$fix/host.d" \
         MIOS_USER_TOML="$fix/.config/mios/mios.toml" MIOS_USER_TOML_D="$fix/.config/mios/mios.d" \
-        MIOS_ROOT_LIB="$ROOT/usr/lib/mios" python3 -c '
+        MIOS_ROOT_LIB="$ROOT/usr/lib/mios" "$PYTHON" -c '
 import os, sys
 sys.path.insert(0, os.environ["MIOS_ROOT_LIB"])
 import mios_toml
@@ -3212,7 +2835,7 @@ check_resolver_twin_equivalence() {
     # MIOS_VERSION_MANIFEST (and other build-time MIOS_* vars) into this gate's env, and
     # the checker treats any inherited non-allowlisted MIOS_* as drift -> false-RED that
     # aborts `mios build`. The twins are genuinely equivalent on a clean env.
-    if ! mismatches=$(env -i PATH="$PATH" MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/check-resolver-twin.py" 2>&1); then
+    if ! mismatches=$(env -i PATH="$PATH" MIOS_DRIFT_ROOT="$ROOT" "$PYTHON" "$ROOT/tools/check-resolver-twin.py" 2>&1); then
         printf '%s\n' "$mismatches" >&2
         _violation "resolver twin equivalence check failed -- userenv.sh and mios_toml.py have drifted"
     else
@@ -3220,55 +2843,20 @@ check_resolver_twin_equivalence() {
     fi
 }
 
-# --- (46, Law 14 PREP) template conformance (ratcheting). --------------------
 check_template_conformance() {
     if ! command -v python3 >/dev/null 2>&1; then
         echo "[38-drift-checks]   (46) SOFT: python3 missing -- template conformance check skipped" >&2
         return 0
     fi
+    local tool="$ROOT/usr/libexec/mios/check-template-conformance"
+    if [[ ! -f "$tool" ]]; then
+        echo "[38-drift-checks]   (46) SOFT: check-template-conformance not found -- skipped" >&2
+        return 0
+    fi
     local errors
-    if ! errors=$(MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
-import glob, os, sys
-root = os.environ.get("MIOS_DRIFT_ROOT", ".")
-baseline_path = os.path.join(root, "usr/share/mios/templates/conformance-grandfathered.list")
-grandfathered = set()
-if os.path.isfile(baseline_path):
-    with open(baseline_path, "r", encoding="utf-8") as f:
-        for line in f:
-            grandfathered.add(line.strip())
-patterns = [
-    "usr/libexec/mios/mios-*",
-    "usr/lib/mios/agent-pipe/mios_pipe/*.py",
-    "usr/lib/mios/agent-pipe/test_mios_*.py",
-    "usr/lib/systemd/system/*.service",
-    "usr/share/containers/systemd/*.container",
-    "usr/share/doc/mios/adr/*.md"
-]
-violations = []
-for pat in patterns:
-    for p in glob.glob(os.path.join(root, pat)):
-        p_rel = os.path.relpath(p, root).replace("\\", "/")
-        if p_rel in grandfathered or p_rel.endswith("README.md"):
-            continue
-        try:
-            with open(p, "r", encoding="utf-8", errors="ignore") as fh:
-                head = [fh.readline() for _ in range(5)]
-            content = "".join(head)
-            if "AI-hint:" not in content:
-                violations.append(f"{p_rel} missing 'AI-hint:' header comment")
-            elif p_rel.endswith(".py") or "usr/libexec/mios/" in p_rel:
-                if "AI-related:" not in content:
-                    violations.append(f"{p_rel} missing 'AI-related:' header comment")
-        except Exception as e:
-            violations.append(f"{p_rel} read failed: {e}")
-if violations:
-    for v in violations:
-        print(f"    {v}", file=sys.stderr)
-    sys.exit(1)
-PY
-); then
+    if ! errors=$(MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" python3 "$tool" --root "$ROOT" 2>&1); then
         printf '%s\n' "$errors" >&2
-        _violation "template conformance check failed -- new files must follow their templates"
+        _violation "template conformance check failed -- new/modified files must follow their templates"
     else
         echo "[38-drift-checks]   (46) template conformance: all new files conform to templates"
     fi
@@ -3386,6 +2974,67 @@ PY
         _violation "version drift from SSOT mios.toml [meta].mios_version=[$ssot] (Law 7 NO-HARDCODE / Law 8 SSOT-PROJECTION) -- VERSION file + Containerfile ARG default must match the SSOT"
     else
         echo "[38-drift-checks]   (42) VERSION + Containerfile ARG MIOS_VERSION == mios.toml [meta].mios_version ([$ssot]) (Laws 7/8)"
+    fi
+}
+
+check_root_toml_subset() {
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "[38-drift-checks]   WARNING: python3 missing -- skipping root mios.toml subset check" >&2
+        return 0
+    fi
+    python3 -c "
+import os, sys
+try:
+    import tomllib
+except ImportError:
+    import tomli as tomllib
+
+def get_keys(d, prefix=''):
+    keys = set()
+    for k, v in d.items():
+        full = f'{prefix}.{k}' if prefix else k
+        keys.add(full)
+        if isinstance(v, dict):
+            keys.update(get_keys(v, full))
+    return keys
+
+root = os.environ.get('MIOS_DRIFT_ROOT', '.')
+root_toml = os.path.join(root, 'mios.toml')
+canonical = os.path.join(root, 'usr/share/mios/mios.toml')
+
+if not os.path.isfile(root_toml):
+    sys.exit(0)
+
+with open(root_toml, 'rb') as f:
+    r_data = tomllib.load(f)
+with open(canonical, 'rb') as f:
+    c_data = tomllib.load(f)
+
+r_keys = get_keys(r_data)
+c_keys = get_keys(c_data)
+
+ignored_prefixes = (
+    'autounattend', 'bootstrap', 'medicat', 'containers', 'ports.lan_firewall',
+    'quadlets', 'smoke_tests', 'terminal.startup', 'branding.windows', 'branding.cursor',
+    'branding.oem_', 'branding.wallpaper', 'branding.lockscreen', 'branding.ui_font',
+    'branding.font_substitute', 'ai.enable_', 'terminal.startup', 'branding.living_wallpaper',
+    'terminal.gui_min', 'theme.terminal.dev_profile_name', 'theme.terminal.hub_target_profile',
+    'theme.terminal.summon_keys', 'theme.terminal.summon_window_name', 'mios_app'
+)
+filtered_r_keys = {k for k in r_keys if not any(k.startswith(pfx) for pfx in ignored_prefixes)}
+
+diff = filtered_r_keys - c_keys
+if diff:
+    sys.stderr.write('    Drift: root mios.toml defines keys not in canonical SSOT:\\n')
+    for k in sorted(diff):
+        sys.stderr.write(f'      {k}\\n')
+    sys.exit(1)
+sys.exit(0)
+"
+    if [[ $? -eq 0 ]]; then
+        echo "[38-drift-checks]   (48) root mios.toml schema is subset of canonical SSOT"
+    else
+        _violation "root mios.toml schema has keys not in canonical SSOT"
     fi
 }
 
@@ -3536,7 +3185,7 @@ main() {
     check_bootstrap_ports_drift
     check_agent_pipe_budgets
     check_no_bare_port_literals
-    check_theme_projection
+    check_dotfiles_projection
     check_verb_backends
     check_userenv_parity
     check_globals_ports
@@ -3556,6 +3205,7 @@ main() {
     check_resolver_twin_equivalence
     check_template_conformance
     check_version_ssot
+    check_root_toml_subset
     check_bake_plan
     check_bake_ref_defaults
     check_roadmap_index
