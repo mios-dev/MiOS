@@ -23,8 +23,11 @@ def _toml_section(section: str) -> dict:
     or from PostgreSQL config tables (behind the db_authoritative sentinel)."""
     try:
         import sys
-        if "/usr/lib/mios" not in sys.path:
-            sys.path.insert(0, "/usr/lib/mios")
+        lib_path = "/usr/lib/mios"
+        if not os.path.exists(lib_path):
+            lib_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+        if lib_path not in sys.path:
+            sys.path.insert(0, lib_path)
         import mios_db_config
         out = mios_db_config.section(None, section) or {}
     except Exception as e:
@@ -65,8 +68,11 @@ def _dispatch_toml() -> dict:
     or from PostgreSQL config tables (behind the db_authoritative sentinel)."""
     try:
         import sys
-        if "/usr/lib/mios" not in sys.path:
-            sys.path.insert(0, "/usr/lib/mios")
+        lib_path = "/usr/lib/mios"
+        if not os.path.exists(lib_path):
+            lib_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+        if lib_path not in sys.path:
+            sys.path.insert(0, lib_path)
         import mios_db_config
         return mios_db_config.section(None, "dispatch") or {}
     except Exception as e:

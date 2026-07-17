@@ -138,30 +138,9 @@ def _load_agent_registry() -> dict[str, dict]:
     returns a single hermes entry pointing at MIOS_AGENT_PIPE_
     BACKEND so the legacy path still works."""
     registry: dict[str, dict] = {}
-    # LAYERED overlay (operator overlay wins): vendor <- /etc <- ~/.config.
-    # A host can set a PRIVATE / per-host agent field -- e.g. the ai-local
-    # phone's tailnet `endpoint` -- in /etc/mios/mios.toml WITHOUT baking it
-    # into the PUBLIC vendor mios.toml (which ships it empty for privacy).
-    # Each [agents.<name>] is merged field-by-field, so an overlay can set just
-    # `endpoint` and inherit the rest. Mirrors the firstboot toml-layer reader.
-    _base = os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml")
-    _layers = [_base, "/etc/mios/mios.toml",
-               os.path.expanduser("~/.config/mios/mios.toml")]
     try:
-        try:
-            import tomllib  # py311+
-        except ImportError:
-            import tomli as tomllib  # fallback (Fedora <= py310)
-        agents: dict = {}
-        for _p in _layers:
-            try:
-                with open(_p, "rb") as _f:
-                    _d = tomllib.load(_f)
-            except (OSError, tomllib.TOMLDecodeError):
-                continue
-            for _n, _cfg in (_d.get("agents") or {}).items():
-                if isinstance(_cfg, dict):
-                    agents.setdefault(_n, {}).update(_cfg)
+        raw_agents = _toml_section("agents") or {}
+        agents = {k: v.copy() for k, v in raw_agents.items() if isinstance(v, dict)}
         # Unified agent template (roadmap WS-A1): every [agents.<name>] inherits
         # [agents._defaults], overriding only what differs -- ONE merge path so an
         # agent can never silently miss a safety field (the opencode merged_chars=0
