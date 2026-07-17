@@ -99,6 +99,16 @@ def _load_one(path):
 
 def load_merged(layers=None):
     """Full three-layer overlay (vendor < host < user), highest wins."""
+    if layers is None:
+        try:
+            import mios_db_config
+            if mios_db_config.is_db_authoritative():
+                db_cfg = mios_db_config.load_db_config()
+                if db_cfg:
+                    return db_cfg
+        except Exception:
+            pass
+
     merged = {}
     for p in (layers if layers is not None else layer_paths()):
         deep_merge(merged, _load_one(p))
@@ -131,6 +141,18 @@ def section(data, name):
 
 def get(sect, key, default=None, data=None):
     """One [sect].key value from the merged overlay (or a supplied `data`)."""
+    if data is None:
+        try:
+            import mios_db_config
+            if mios_db_config.is_db_authoritative():
+                db_cfg = mios_db_config.load_db_config()
+                if db_cfg:
+                    sect_dict = section(db_cfg, sect)
+                    if key in sect_dict:
+                        return sect_dict[key]
+        except Exception:
+            pass
+
     d = data if data is not None else load_merged()
     return section(d, sect).get(key, default)
 
@@ -153,5 +175,16 @@ PALETTE_DEFAULTS = {
 
 def colors(data=None):
     """Resolved palette: mios.toml [colors] over PALETTE_DEFAULTS (SSOT wins)."""
+    if data is None:
+        try:
+            import mios_db_config
+            if mios_db_config.is_db_authoritative():
+                db_cfg = mios_db_config.load_db_config()
+                if db_cfg:
+                    c = section(db_cfg, "colors")
+                    return {k: str(c.get(k, v)) for k, v in PALETTE_DEFAULTS.items()}
+        except Exception:
+            pass
+
     c = section(data if data is not None else load_merged(), "colors")
     return {k: str(c.get(k, v)) for k, v in PALETTE_DEFAULTS.items()}
