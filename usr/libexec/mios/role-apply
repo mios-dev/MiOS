@@ -8,12 +8,17 @@
 # : FORMAL TARGET TRANSITION. Uses systemd .target units for roles.
 # ============================================================================
 set -euo pipefail
-# shellcheck source=/usr/lib/mios/paths.sh
-source /usr/lib/mios/paths.sh
+if [[ -f "/usr/lib/mios/paths.sh" ]]; then
+    source /usr/lib/mios/paths.sh
+else
+    source "$(dirname "$0")/../../lib/mios/paths.sh"
+fi
 
 ROLE_CONF="${MIOS_ETC_DIR}/role.conf"
 STATE_DIR="${MIOS_VAR_DIR}"
+BLADE_D="${MIOS_ETC_DIR}/blade.d"
 mkdir -p "$STATE_DIR"
+mkdir -p "$BLADE_D"
 
 log() { printf '[mios-role] %s\n' "$*"; }
 
@@ -33,18 +38,20 @@ if [[ -n "$MACH_ID" ]]; then
 fi
 
 # Standard user home management
-for u in $(awk -F: '$3 >= 1000 && $3 < 65000 {print $1}' /etc/passwd); do
-    home=$(getent passwd "$u" | cut -d: -f6)
-    if [[ ! -d "$home" ]]; then
-        mkdir -p "$home"
-        cp -a /etc/skel/. "$home/" 2>/dev/null || true
-        uid=$(id -u "$u"); gid=$(id -g "$u")
-        chown -R "${uid}:${gid}" "$home"
-    fi
-    for g in wheel libvirt kvm video render input dialout; do
-        usermod -aG "$g" "$u" 2>/dev/null || true
+if [[ -f /etc/passwd ]]; then
+    for u in $(awk -F: '$3 >= 1000 && $3 < 65000 {print $1}' /etc/passwd); do
+        home=$(getent passwd "$u" | cut -d: -f6)
+        if [[ ! -d "$home" ]]; then
+            mkdir -p "$home"
+            cp -a /etc/skel/. "$home/" 2>/dev/null || true
+            uid=$(id -u "$u"); gid=$(id -g "$u")
+            chown -R "${uid}:${gid}" "$home"
+        fi
+        for g in wheel libvirt kvm video render input dialout; do
+            usermod -aG "$g" "$u" 2>/dev/null || true
+        done
     done
-done
+fi
 
 # ----------------------------------------------------------------------------
 # PHASE 2: Environment & Hardware Detection
@@ -66,17 +73,17 @@ if lspci -d 10de: 2>/dev/null | grep -qi "GB20\|GB10"; then
 fi
 
 # ----------------------------------------------------------------------------
-# PHASE 3: Role Resolution
+# PHASE 3: Role & Capability Resolution
 # ----------------------------------------------------------------------------
 ROLE=""
-PROFILE=""
 FEATURES=""
 
 if [[ -r /proc/cmdline ]]; then
     for tok in $(< /proc/cmdline); do
         case "$tok" in
+            mios.blade=*)   ROLE="${tok#mios.blade=}" ;;
+            # Backwards compatibility kargs
             mios.role=*)     ROLE="${tok#mios.role=}" ;;
-            mios.profile=*)  PROFILE="${tok#mios.profile=}" ;;
             mios.features=*) FEATURES="${tok#mios.features=}" ;;
         esac
     done
@@ -87,7 +94,12 @@ if [[ -z "$ROLE" && -r "$ROLE_CONF" ]]; then
     . "$ROLE_CONF"
 fi
 
-# Auto-Role selection
+# If ROLE is still empty, load default type from mios.toml [blade].type
+if [[ -z "$ROLE" ]]; then
+    ROLE=$(python3 -c "import sys, os; sys.path.insert(0, os.environ.get('MIOS_USR_DIR', '/usr/lib/mios')); import mios_toml; print(mios_toml.get('blade', 'type', default='hybrid'))" 2>/dev/null || echo "")
+fi
+
+# Auto-Role selection based on environment
 if [[ -z "$ROLE" ]]; then
     if [[ "$VIRT" == "wsl" || -e /dev/dxg ]]; then
         ROLE="headless"
@@ -101,50 +113,82 @@ if [[ -z "$ROLE" ]]; then
     fi
 fi
 
-ROLE="${ROLE:-desktop}"
-PROFILE="${PROFILE:-workstation}"
-FEATURES="${FEATURES:-}"
+ROLE="${ROLE:-hybrid}"
+log "Resolved blade archetype role: $ROLE"
 
-log "resolved role=$ROLE profile=$PROFILE features=$FEATURES"
+# Clean up existing markers
+rm -f "$BLADE_D"/* 2>/dev/null || true
+
+# Resolve capabilities from mios.toml [blade.archetypes]
+CAPS=$(python3 -c "
+import sys, os
+sys.path.insert(0, os.environ.get('MIOS_USR_DIR', '/usr/lib/mios'))
+import mios_toml
+d = mios_toml.load_merged()
+blade = d.get('blade', {})
+btype = '$ROLE'
+archetypes = blade.get('archetypes', {})
+caps = archetypes.get(btype, [])
+print(' '.join(caps))
+" 2>/dev/null || echo "")
+
+for cap in $CAPS; do
+    if [[ -n "$cap" ]]; then
+        touch "$BLADE_D/$cap"
+        log "Materialized capability marker: $cap"
+    fi
+done
+
+# Touch additional features requested via config
+if [[ -n "$FEATURES" ]]; then
+    IFS=',' read -r -a FEAT_ARR <<< "$FEATURES"
+    for f in "${FEAT_ARR[@]}"; do
+        if [[ -n "$f" ]]; then
+            touch "$BLADE_D/$f"
+            log "Materialized additional capability marker: $f"
+        fi
+    done
+fi
+
+# Gather all active markers for env writing
+ALL_CAPS=""
+if [[ -d "$BLADE_D" ]]; then
+    ALL_CAPS=$(ls -A "$BLADE_D" | tr '\n' ',' | sed 's/,$//')
+fi
+
+# Write /run/mios/blade.env
+mkdir -p /run/mios
+cat > /run/mios/blade.env <<EOF
+MIOS_BLADE_TYPE="$ROLE"
+MIOS_BLADE_CAPS="$ALL_CAPS"
+EOF
 
 # ----------------------------------------------------------------------------
-# PHASE 4: Target Selection (Formal systemd management)
+# PHASE 4: Target Selection & Execution
 # ----------------------------------------------------------------------------
 TARGET="mios-headless.target"
 case "$ROLE" in
-    desktop)  TARGET="mios-desktop.target" ;;
-    headless) TARGET="mios-headless.target" ;;
-    k3s*)     TARGET="mios-k3s-master.target" ;;
-    ha*)      TARGET="mios-ha-node.target" ;;
-    *)        log "WARN: unknown role '$ROLE' - defaulting to headless" ;;
+    hybrid)     TARGET="mios-hybrid.target" ;;
+    compute)    TARGET="mios-compute.target" ;;
+    endpoint)   TARGET="mios-endpoint.target" ;;
+    controller) TARGET="mios-controller.target" ;;
+    headless)   TARGET="mios-headless.target" ;;
+    desktop)    TARGET="mios-desktop.target" ;;
+    # Backwards compatibility names
+    k3s*)       TARGET="mios-k3s-master.target" ;;
+    ha*)        TARGET="mios-ha-node.target" ;;
+    *)          log "WARN: unknown role '$ROLE' - defaulting to headless" ;;
 esac
 
 log "Setting default target to $TARGET"
-# We set the default target for the NEXT boot
 systemctl set-default --no-block "$TARGET" 2>/dev/null || true
-
-# CRITICAL FIX: Instead of 'isolate' (which creates deadlocks in early boot),
-# we start the target asynchronously. This ensures that systemd eventually
-# pulls in the role dependencies without hijacking the current transaction.
 log "Triggering role target: $TARGET"
 systemctl start --no-block "$TARGET" 2>/dev/null || true
-
-# Feature gates (Optional side-cars)
-IFS=',' read -r -a FEAT_ARR <<< "$FEATURES"
-for f in "${FEAT_ARR[@]}"; do
-    case "$f" in
-        ceph-mon)    systemctl start --no-block "ceph-mon@$(hostname -s).service" 2>/dev/null || true ;;
-        gamescope)   systemctl start --no-block gamescope-session.target 2>/dev/null || true ;;
-        waydroid)    systemctl start --no-block waydroid-container.service 2>/dev/null || true ;;
-        pxe-hub)     systemctl start --no-block mios-pxe-hub.service 2>/dev/null || true ;;
-    esac
-done
 
 # Record active state for diagnostics
 cat > "$STATE_DIR/role.active" <<EOF
 ROLE=$ROLE
-PROFILE=$PROFILE
-FEATURES=$FEATURES
+FEATURES=$ALL_CAPS
 VIRT=$VIRT
 BLACKWELL=$IS_BLACKWELL
 TARGET=$TARGET

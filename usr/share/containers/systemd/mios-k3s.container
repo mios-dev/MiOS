@@ -2,7 +2,7 @@
 # /usr/share/containers/systemd/mios-k3s.container
 
 [Unit]
-After=network-online.target
+After=network-online.target mios-webtools-firstboot.service
 ConditionVirtualization=!wsl
 ConditionVirtualization=!container
 Description='MiOS' K3s Service (Podman-native)
@@ -11,9 +11,9 @@ Wants=network-online.target
 [Container]
 ContainerName=mios-k3s
 Environment=K3S_TOKEN=mios-cluster-secret
-Exec=server --disable=traefik --kubelet-arg=cgroup-driver=cgroupfs
+Exec=k3s server --disable=traefik --kubelet-arg=cgroup-driver=cgroupfs
 Group=root
-Image=docker.io/rancher/k3s:v1.32.1-k3s1
+Image=localhost/mios-sys:latest
 Pod=mios-system.pod
 PodmanArgs=--privileged
 User=root

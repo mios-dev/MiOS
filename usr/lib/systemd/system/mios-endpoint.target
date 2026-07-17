@@ -1,0 +1,10 @@
+# AI-hint: Defines the endpoint systemd target for MiOS, representing an edge/client node.
+# AI-related: mios-endpoint, mios-headless.target
+[Unit]
+Description='MiOS' Endpoint Role
+Requires=multi-user.target
+After=multi-user.target
+Conflicts=mios-desktop.target mios-headless.target
+AllowIsolate=yes
+[Install]
+WantedBy=multi-user.target

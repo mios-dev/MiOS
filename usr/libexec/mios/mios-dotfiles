@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: The operator-facing `mios dotfiles` verb backend (ADR-0010) -- projects
+# AI-related: usr/bin/mios, usr/libexec/mios/mios-theme-render, usr/share/mios/mios.toml
 # the SSOT dotfiles (the theme surfaces + settings surfaces derived from
 # mios.toml: btop, oh-my-posh, quickshell, fastfetch, VS Code colors, the live
 # gitconfig, Windows Terminal, the Windows registry) to the operator's LIVE HOME by

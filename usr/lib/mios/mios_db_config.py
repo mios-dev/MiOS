@@ -46,7 +46,9 @@ def is_db_authoritative() -> bool:
     val = os.environ.get("MIOS_DB_AUTHORITATIVE")
     if val is not None:
         return val.lower() in ("true", "1", "yes")
-    return bool(mios_toml.get("ai", "db_authoritative", default=False))
+    # Load from files only to prevent infinite recursion loop
+    file_data = mios_toml.load_merged(layers=mios_toml.layer_paths())
+    return bool(mios_toml.get("ai", "db_authoritative", default=False, data=file_data))
 
 def load_db_config() -> dict:
     # Synchronously connect to PG database using psycopg

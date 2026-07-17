@@ -1,0 +1,10 @@
+# AI-hint: Defines the controller systemd target for MiOS, representing the cluster controller.
+# AI-related: mios-controller, mios-headless.target
+[Unit]
+Description='MiOS' Controller Role
+Requires=multi-user.target
+After=multi-user.target
+Conflicts=mios-desktop.target mios-headless.target
+AllowIsolate=yes
+[Install]
+WantedBy=multi-user.target

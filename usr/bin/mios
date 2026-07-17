@@ -421,6 +421,7 @@ KNOWN_VERBS = {
     "iommu-groups": ["/usr/libexec/mios/hardware-iommu-groups.sh"],
     "env":    ["/usr/libexec/mios/system-env.sh"],
     "sync-env": ["/usr/libexec/mios/system-sync-env.sh"],
+    "blade":  ["/usr/libexec/mios/mios-blade"],
     "flatpaks": ["/usr/libexec/mios/flatpaks-manage.sh"],
     "user":   ["/usr/libexec/mios/user-setup.sh"],
     "flight": ["/usr/libexec/mios/flight-control.sh"],
@@ -573,6 +574,7 @@ def main(argv: list[str]) -> int:
             "  mios iommu-groups                    list raw IOMMU groups and devices\n"
             "  mios env                             inspect layered MIOS_* environment\n"
             "  mios sync-env                        regenerate install.env from mios.toml\n"
+            "  mios blade                           manage blade roles and activation capabilities\n"
             "  mios flatpaks                        manage system-wide Flatpaks\n"
             "  mios theme                           sync bibata/GTK/Qt themes\n"
             "  mios user                            initialize user space (dotfiles/XDG)\n"

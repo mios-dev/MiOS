@@ -1,4 +1,5 @@
 # AI-hint: stdlib unit test for mios-account-sync daemon (AGY-83).
+# AI-related: usr/libexec/mios/mios-account-sync, usr/lib/mios/agent-pipe/test_mios_account_sync.py
 # Tests user and group synchronization, bidirectional shadow password write-back,
 # and supplementary group management hermetically without root permissions.
 import sys

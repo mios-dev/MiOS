@@ -2,7 +2,7 @@
 # /usr/share/containers/systemd/mios-searxng.container
 
 [Unit]
-After=network-online.target
+After=network-online.target mios-webtools-firstboot.service
 ConditionPathIsDirectory=/etc/mios/searxng
 Description='MiOS' SearXNG metasearch (privacy-respecting search proxy)
 Wants=network-online.target
@@ -18,8 +18,9 @@ Environment=GRANIAN_WORKERS=2
 Environment=GRANIAN_BLOCKING_THREADS=8
 Environment=SEARXNG_LOG_LEVEL=WARNING
 EnvironmentFile=/etc/mios/install.env
+Exec=/opt/searxng-venv/bin/python3 -m searxng.webapp
 Group=818
-Image=docker.io/searxng/searxng:latest
+Image=localhost/mios-sys:latest
 Label=org.opencontainers.image.title=mios-searxng
 Label=org.opencontainers.image.url=http://localhost:${MIOS_PORT_SEARXNG}/
 Label=org.opencontainers.image.documentation=https://docs.searxng.org/

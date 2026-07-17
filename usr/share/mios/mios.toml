@@ -6524,8 +6524,6 @@ description = "adw-gtk3 theme extension (light variant, kept for apps that auto-
 # MIOS_IMAGE_NAME, MIOS_IMAGE_TAG, MIOS_LOCAL_TAG.
 # ----------------------------------------------------------------------------
 [image]
-sys            = "localhost/mios-sys"
-cuda           = "localhost/mios-cuda"
 ref            = "ghcr.io/mios-dev/mios:latest"
 branch         = "main"
 # Base OCI image. The script auto-picks NVIDIA vs non-NVIDIA at install
@@ -7816,6 +7814,10 @@ mcp                = 8460    # MCP host server (/mcp + A2A /.well-known; served 
 # read either via MIOS_<svc>_VERSION / MIOS_<svc>_IMAGE.
 # ----------------------------------------------------------------------------
 [image.sidecars]
+sys_version        = "latest"
+sys                = "localhost/mios-sys:latest"
+cuda_version       = "latest"
+cuda               = "localhost/mios-cuda:latest"
 k3s_version        = "v1.32.1-k3s1"
 # rancher/k3s lives ONLY on docker.io (no quay.io/ghcr.io mirror). The
 # `docker.io/` prefix is mandatory: without it, podman treats the value
@@ -7896,6 +7898,24 @@ vllm_version       = "latest"
 vllm               = "docker.io/vllm/vllm-openai:latest"
 sglang_version     = "latest"
 sglang             = "docker.io/lmsysorg/sglang:latest"
+
+# ----------------------------------------------------------------------------
+# [image.sys] / [image.cuda] -- SSOT sections for the consolidated shared bases
+# ----------------------------------------------------------------------------
+[image.sys]
+base = "ghcr.io/ublue-os/ucore-hci:stable-nvidia"
+packages = [
+  "python3", "python3-pip", "python3-devel",
+  "nodejs", "npm",
+  "chromium", "chromium-common", "chromium-sandbox",
+  "socat", "valkey", "guacd", "git", "make", "gcc-c++"
+]
+
+[image.cuda]
+base = "ghcr.io/ublue-os/ucore-hci:stable-nvidia"
+packages = [
+  "python3", "python3-pip", "python3-devel"
+]
 
 # ----------------------------------------------------------------------------
 # [services.<svc>] -- per-service identity (UID / GID / username) baked
@@ -8517,13 +8537,11 @@ core = [
   "localhost/mios-crawl4ai-slim:latest",
   "localhost/mios-firecrawl:v1.0.0"
 ]
-groups = ["vllm", "sglang", "ai", "infra", "extra"]
+groups = ["sys", "cuda", "extra"]
 
 [build.bake.group_members]
-vllm = ["vllm"]
-sglang = ["sglang"]
-ai = ["pgvector", "postgres", "searxng", "redis", "open-webui", "llama-swap", "hermes", "crawl4ai", "firecrawl", "webtools"]
-infra = ["k3s", "ceph", "forgejo", "guacamole", "guacd", "matchbox", "adguard", "crowdsec", "code-server", "jaeger", "socat"]
+sys = ["sys"]
+cuda = ["cuda"]
 extra = []
 
 # mios-build-driver fallback: when the local `podman build` trigger is
@@ -9856,8 +9874,9 @@ Subnet = "${MIOS_CORE_NET_SUBNET:-10.89.0.0/24}"
 [containers.mios-adguard.Container]
 AddCapability = "CAP_NET_BIND_SERVICE"
 ContainerName = "mios-adguard"
+Exec = "AdGuardHome --no-check-update --work-dir /opt/adguardhome/work --config /opt/adguardhome/conf/AdGuardHome.yaml"
 Group = "${MIOS_ADGUARD_GID:-825}"
-Image = "${MIOS_ADGUARD_IMAGE:-docker.io/adguard/adguardhome:latest}"
+Image = "${MIOS_SYS_IMAGE:-localhost/mios-sys:latest}"
 Label = [
   "org.opencontainers.image.title=mios-adguard",
   "org.opencontainers.image.url=https://github.com/AdguardTeam/AdGuardHome",
@@ -9880,7 +9899,7 @@ RestartSec = "10s"
 TimeoutStartSec = "300s"
 
 [containers.mios-adguard.Unit]
-After = "network-online.target mios-adguard-firstboot.service"
+After = "network-online.target mios-adguard-firstboot.service mios-webtools-firstboot.service"
 ConditionPathExists = "/etc/mios/adguard/AdGuardHome.yaml"
 Description = "'MiOS' AdGuard Home (DNS ad/tracker/malware sinkhole + resolver)"
 Requires = "mios-adguard-firstboot.service"
@@ -9915,9 +9934,9 @@ Wants = "network-online.target"
 [containers.mios-cockpit-link.Container]
 ContainerName = "mios-cockpit-link"
 EnvironmentFile = "/etc/mios/install.env"
-Exec = "tcp-listen:${MIOS_PORT_COCKPIT_LINK:-8091},bind=0.0.0.0,fork,reuseaddr tcp:host.containers.internal:9090"
+Exec = "socat tcp-listen:${MIOS_PORT_COCKPIT_LINK:-8091},bind=0.0.0.0,fork,reuseaddr tcp:host.containers.internal:9090"
 Group = "65534"
-Image = "docker.io/alpine/socat:latest"
+Image = "${MIOS_SYS_IMAGE:-localhost/mios-sys:latest}"
 Label = [
   "org.opencontainers.image.title=mios-cockpit-link",
   "org.opencontainers.image.url=https://localhost:9090/",
@@ -9938,7 +9957,7 @@ RestartSec = "15s"
 TimeoutStartSec = "60s"
 
 [containers.mios-cockpit-link.Unit]
-After = "network-online.target cockpit.socket"
+After = "network-online.target cockpit.socket mios-webtools-firstboot.service"
 ConditionPathExists = "/usr/lib/systemd/system/cockpit.socket"
 ConditionVirtualization = [
   "!wsl",
@@ -9961,9 +9980,9 @@ Environment = [
   "GIT_CONFIG_VALUE_0=/mnt/mios-root"
 ]
 EnvironmentFile = "/etc/mios/install.env"
-Exec = "--bind-addr 0.0.0.0:${MIOS_PORT_CODE_SERVER:-8800}"
+Exec = "code-server --bind-addr 0.0.0.0:${MIOS_PORT_CODE_SERVER:-8800}"
 Group = "0"
-Image = "ghcr.io/coder/code-server:latest"
+Image = "${MIOS_SYS_IMAGE:-localhost/mios-sys:latest}"
 Label = [
   "org.opencontainers.image.title=mios-code-server",
   "org.opencontainers.image.url=http://localhost:${MIOS_PORT_CODE_SERVER:-8800}/",
@@ -10012,7 +10031,7 @@ HealthRetries = "3"
 # light lane + the VRAM/KV co-fit finding. Raise once CPU RAM headroom is proven.
 Exec = "--model /models/granite-4.1-8b.gguf --host 0.0.0.0 --port ${MIOS_PORT_CPU_NODE:-11451} --ctx-size 32768 --flash-attn on --cache-type-k q4_0 --cache-type-v q4_0 --parallel 1 --threads ${MIOS_CPU_NODE_THREADS:-14} --n-gpu-layers 0 --jinja --alias mios-cpu --slot-save-path ${MIOS_LLAMACPP_SLOT_DIR:-/var/lib/mios/llamacpp/slots}"
 Group = "${MIOS_LLAMACPP_GID:-827}"
-Image = "${MIOS_LLM_LIGHT_IMAGE:-ghcr.io/mostlygeek/llama-swap:cuda}"
+Image = "${MIOS_CUDA_IMAGE:-localhost/mios-cuda:latest}"
 Label = "org.opencontainers.image.title=mios-cpu-node"
 Pod = "mios-ai.pod"
 User = "${MIOS_LLAMACPP_UID:-827}"
@@ -10032,7 +10051,7 @@ RestartSec = "10s"
 TimeoutStartSec = "1800s"
 
 [containers.mios-cpu-node.Unit]
-After = "network-online.target"
+After = "network-online.target mios-webtools-firstboot.service"
 ConditionPathExists = "/usr/share/mios/llamacpp/models/granite-4.1-8b.gguf"
 Description = "'MiOS' CPU inference node (always-on / gaming-immune last-resort lane)"
 Wants = "network-online.target"
@@ -10040,8 +10059,9 @@ Wants = "network-online.target"
 [containers.mios-crowdsec-dashboard.Container]
 AutoUpdate = "registry"
 ContainerName = "mios-crowdsec-dashboard"
+Exec = "crowdsec"
 Group = "0"
-Image = "docker.io/crowdsecurity/crowdsec:latest"
+Image = "${MIOS_SYS_IMAGE:-localhost/mios-sys:latest}"
 Pod = "mios-system.pod"
 User = "0"
 Volume = "/var/lib/crowdsec:/var/lib/crowdsec:Z"
@@ -10055,7 +10075,7 @@ Restart = "on-failure"
 RestartSec = "10"
 
 [containers.mios-crowdsec-dashboard.Unit]
-After = "network-online.target crowdsec.service"
+After = "network-online.target crowdsec.service mios-webtools-firstboot.service"
 ConditionPathExists = "/etc/crowdsec/config.yaml"
 Description = "'MiOS' CrowdSec Dashboard"
 Wants = "network-online.target"
@@ -10084,8 +10104,9 @@ Environment = [
   "FORGEJO__log__MODE=console"
 ]
 EnvironmentFile = "/etc/mios/install.env"
+Exec = "forgejo web"
 Group = "0"
-Image = "codeberg.org/forgejo/forgejo:12"
+Image = "${MIOS_SYS_IMAGE:-localhost/mios-sys:latest}"
 Label = [
   "org.opencontainers.image.title=mios-forge",
   "org.opencontainers.image.url=http://localhost:${MIOS_PORT_FORGE_HTTP:-8300}/",
@@ -10110,7 +10131,7 @@ RestartSec = "10s"
 TimeoutStartSec = "300s"
 
 [containers.mios-forge.Unit]
-After = "network-online.target"
+After = "network-online.target mios-webtools-firstboot.service"
 ConditionPathIsDirectory = "/etc/mios/forge"
 ConditionVirtualization = [
   "|!container",
@@ -10121,16 +10142,15 @@ Wants = "network-online.target"
 
 [containers.mios-forgejo-runner.Container]
 ContainerName = "mios-forgejo-runner"
-Entrypoint = "/bin/forgejo-runner"
 Environment = [
   "FORGEJO_RUNNER_NAME=mios-self-hosted",
   "FORGEJO_RUNNER_LABELS=mios-self-hosted,podman,bootc,fedora-44",
   "FORGEJO_RUNNER_DEFAULT_LABELS=mios-self-hosted"
 ]
 EnvironmentFile = "/etc/mios/forge/runner-token"
-Exec = "daemon"
+Exec = "forgejo-runner daemon"
 Group = "0"
-Image = "code.forgejo.org/forgejo/runner:7"
+Image = "${MIOS_SYS_IMAGE:-localhost/mios-sys:latest}"
 Label = [
   "org.opencontainers.image.title=mios-forgejo-runner",
   "org.opencontainers.image.documentation=https://forgejo.org/docs/latest/admin/actions/",
@@ -10156,7 +10176,7 @@ RestartSec = "15s"
 TimeoutStartSec = "300s"
 
 [containers.mios-forgejo-runner.Unit]
-After = "network-online.target mios-forge.service mios-forgejo-runner-firstboot.service"
+After = "network-online.target mios-forge.service mios-forgejo-runner-firstboot.service mios-webtools-firstboot.service"
 ConditionPathExists = "/srv/mios/forge-runner/.runner"
 ConditionVirtualization = [
   "|!container",
@@ -10228,8 +10248,9 @@ Wants = "network-online.target"
 [containers.mios-guacd.Container]
 AutoUpdate = "registry"
 ContainerName = "mios-guacd"
+Exec = "guacd -b 0.0.0.0 -f"
 Group = "${MIOS_GUACD_GID:-811}"
-Image = "docker.io/guacamole/guacd:latest"
+Image = "${MIOS_SYS_IMAGE:-localhost/mios-sys:latest}"
 Pod = "mios-system.pod"
 User = "${MIOS_GUACD_UID:-811}"
 
@@ -10242,7 +10263,7 @@ Restart = "on-failure"
 RestartSec = "10"
 
 [containers.mios-guacd.Unit]
-After = "network-online.target"
+After = "network-online.target mios-webtools-firstboot.service"
 ConditionVirtualization = "!container"
 Description = "'MiOS' Apache Guacamole Daemon"
 Wants = "network-online.target"
@@ -10250,9 +10271,9 @@ Wants = "network-online.target"
 [containers.mios-k3s.Container]
 ContainerName = "mios-k3s"
 Environment = "K3S_TOKEN=mios-cluster-secret"
-Exec = "server --disable=traefik --kubelet-arg=cgroup-driver=cgroupfs"
+Exec = "k3s server --disable=traefik --kubelet-arg=cgroup-driver=cgroupfs"
 Group = "root"
-Image = "${MIOS_K3S_IMAGE:-docker.io/rancher/k3s:v1.32.1-k3s1}"
+Image = "${MIOS_SYS_IMAGE:-localhost/mios-sys:latest}"
 Pod = "mios-system.pod"
 PodmanArgs = "--privileged"
 User = "root"
@@ -10269,7 +10290,7 @@ Delegate = "yes"
 Restart = "always"
 
 [containers.mios-k3s.Unit]
-After = "network-online.target"
+After = "network-online.target mios-webtools-firstboot.service"
 ConditionVirtualization = [
   "!wsl",
   "!container"
@@ -10296,9 +10317,9 @@ Environment = [
   "NCCL_SOCKET_IFNAME=lo",
   "HOME=/tmp"
 ]
-Exec = "--model /models --served-model-name ${MIOS_VLLM_SERVED_NAME:-mios-heavy} --host 0.0.0.0 --port ${MIOS_PORT_VLLM:-11441} --gpu-memory-utilization ${MIOS_VLLM_GPU_UTIL:-0.45} --max-model-len ${MIOS_VLLM_MAX_MODEL_LEN:-262144} --kv-cache-dtype ${MIOS_VLLM_KV_CACHE_DTYPE:-fp8} --quantization ${MIOS_VLLM_QUANTIZATION:-compressed-tensors} --enable-prefix-caching --enforce-eager --enable-auto-tool-choice --tool-call-parser ${MIOS_VLLM_TOOL_CALL_PARSER:-hermes}"
+Exec = "/opt/vllm-venv/bin/python3 -m vllm.entrypoints.openai.api_server --model /models --served-model-name ${MIOS_VLLM_SERVED_NAME:-mios-heavy} --host 0.0.0.0 --port ${MIOS_PORT_VLLM:-11441} --gpu-memory-utilization ${MIOS_VLLM_GPU_UTIL:-0.45} --max-model-len ${MIOS_VLLM_MAX_MODEL_LEN:-262144} --kv-cache-dtype ${MIOS_VLLM_KV_CACHE_DTYPE:-fp8} --quantization ${MIOS_VLLM_QUANTIZATION:-compressed-tensors} --enable-prefix-caching --enforce-eager --enable-auto-tool-choice --tool-call-parser ${MIOS_VLLM_TOOL_CALL_PARSER:-hermes}"
 Group = "${MIOS_VLLM_GID:-815}"
-Image = "mios-llm-heavy.image"
+Image = "${MIOS_CUDA_IMAGE:-localhost/mios-cuda:latest}"
 Label = [
   "org.opencontainers.image.title=mios-llm-heavy",
   "org.opencontainers.image.url=http://localhost:11441/v1/models",
@@ -10319,7 +10340,7 @@ RestartSec = "15"
 TimeoutStartSec = "600s"
 
 [containers.mios-llm-heavy.Unit]
-After = "network-online.target mios-cdi-detect.service"
+After = "network-online.target mios-cdi-detect.service mios-webtools-firstboot.service"
 ConditionPathExists = "/usr/share/mios/vllm/model/config.json"
 Description = "'MiOS' vLLM heavy lane (OpenAI /v1, PagedAttention + APC; gated)"
 Wants = "network-online.target"
@@ -10337,9 +10358,9 @@ Environment = [
   "NCCL_SOCKET_IFNAME=lo",
   "HOME=/tmp"
 ]
-Exec = "python3 -m sglang.launch_server --model /models --served-model-name ${MIOS_SGLANG_SERVED_NAME:-mios-heavy} --host 0.0.0.0 --port ${MIOS_PORT_SGLANG:-11442} --mem-fraction-static ${MIOS_SGLANG_MEM_FRACTION:-0.85} --max-model-len ${MIOS_SGLANG_MAX_MODEL_LEN:-262144} --kv-cache-dtype ${MIOS_SGLANG_KV_CACHE_DTYPE:-fp8_e5m2} --tool-call-parser ${MIOS_SGLANG_TOOL_PARSER:-qwen25} --enable-hierarchical-cache --enable-unified-radix-tree"
+Exec = "/opt/sglang-venv/bin/python3 -m sglang.launch_server --model /models --served-model-name ${MIOS_SGLANG_SERVED_NAME:-mios-heavy} --host 0.0.0.0 --port ${MIOS_PORT_SGLANG:-11442} --mem-fraction-static ${MIOS_SGLANG_MEM_FRACTION:-0.85} --max-model-len ${MIOS_SGLANG_MAX_MODEL_LEN:-262144} --kv-cache-dtype ${MIOS_SGLANG_KV_CACHE_DTYPE:-fp8_e5m2} --tool-call-parser ${MIOS_SGLANG_TOOL_PARSER:-qwen25} --enable-hierarchical-cache --enable-unified-radix-tree"
 Group = "${MIOS_VLLM_GID:-815}"
-Image = "mios-llm-heavy-alt.image"
+Image = "${MIOS_CUDA_IMAGE:-localhost/mios-cuda:latest}"
 Label = [
   "org.opencontainers.image.title=mios-llm-heavy-alt",
   "org.opencontainers.image.url=http://localhost:11442/v1/models",
@@ -10360,7 +10381,7 @@ RestartSec = "15"
 TimeoutStartSec = "600s"
 
 [containers.mios-llm-heavy-alt.Unit]
-After = "network-online.target mios-cdi-detect.service"
+After = "network-online.target mios-cdi-detect.service mios-webtools-firstboot.service"
 ConditionPathExists = "/usr/share/mios/vllm/model/config.json"
 Description = "'MiOS' SGLang heavy lane (OpenAI /v1, HiCache CPU KV-offload; gated)"
 Wants = "network-online.target"
@@ -10386,7 +10407,7 @@ HealthStartPeriod = "60s"
 HealthRetries = "3"
 Exec = "--config /app/config.yaml --listen 0.0.0.0:${MIOS_PORT_LLM_LIGHT:-11450}"
 Group = "${MIOS_LLAMACPP_GID:-827}"
-Image = "${MIOS_LLM_LIGHT_IMAGE:-ghcr.io/mostlygeek/llama-swap:cuda}"
+Image = "${MIOS_CUDA_IMAGE:-localhost/mios-cuda:latest}"
 Label = [
   "org.opencontainers.image.title=mios-llm-light",
   "org.opencontainers.image.documentation=https://github.com/mostlygeek/llama-swap"
@@ -10418,7 +10439,7 @@ TimeoutStartSec = "1800s"
 # NVIDIA GPU starts CPU-only instead of podman hard-failing on an absent
 # nvidia.com/gpu device (which was failing the whole install on GPU-less/
 # undetected-dGPU hosts). Mirrors mios-llm-heavy/worker@. Hardware-agnostic.
-After = "network-online.target mios-cdi-detect.service"
+After = "network-online.target mios-cdi-detect.service mios-webtools-firstboot.service"
 ConditionPathExists = "/usr/share/mios/llamacpp/models/.ready"
 Description = "'MiOS' LLM-Light (llama.cpp multi-model + KV-paging lane, served via the upstream llama-swap proxy, FOSS)"
 Wants = "network-online.target"
@@ -10434,7 +10455,7 @@ Environment = [
 EnvironmentFile = "-/run/mios/swarm/%i.env"
 Exec = "--model /models/${WORKER_MODEL} --host 0.0.0.0 --port ${WORKER_PORT} --n-gpu-layers ${WORKER_NGL:-99} --ctx-size ${WORKER_CTX:-8192} --slot-save-path ${MIOS_LLAMACPP_SLOT_DIR:-/var/lib/mios/llamacpp/slots}/%i --parallel 1 --cont-batching --jinja --alias ${WORKER_MODEL}"
 Group = "${MIOS_LLAMACPP_GID:-827}"
-Image = "${MIOS_LLM_LIGHT_IMAGE:-ghcr.io/mostlygeek/llama-swap:cuda}"
+Image = "${MIOS_CUDA_IMAGE:-localhost/mios-cuda:latest}"
 Label = "org.opencontainers.image.title=mios-llm-worker-%i"
 Pod = "mios-ai.pod"
 User = "${MIOS_LLAMACPP_UID:-827}"
@@ -10453,7 +10474,7 @@ RestartSec = "10s"
 TimeoutStartSec = "180s"
 
 [containers."mios-llm-worker@".Unit]
-After = "network-online.target mios-cdi-detect.service"
+After = "network-online.target mios-cdi-detect.service mios-webtools-firstboot.service"
 ConditionPathExists = [
   "/run/mios/swarm/%i.env",
   "/usr/share/mios/llamacpp/models/.ready"
@@ -10500,7 +10521,8 @@ EnvironmentFile = [
   "/etc/mios/hermes/api.env",
   "/etc/mios/install.env"
 ]
-Image = "ghcr.io/open-webui/open-webui:main"
+Image = "${MIOS_SYS_IMAGE:-localhost/mios-sys:latest}"
+Exec = "open-webui serve"
 Group = "${MIOS_OPEN_WEBUI_GID:-817}"
 Label = [
   "org.opencontainers.image.title=mios-open-webui",
@@ -10545,7 +10567,7 @@ TimeoutStartSec = "300s"
 # needs no GPU; without ordering after cdi-detect it can start before
 # mios-gpu-passthrough rewrites that to the CPU-only reset -> podman "CDI device
 # not found" flap on a GPU-less/non-NVIDIA host. Mirrors mios-llm-light.
-After = "network-online.target mios-gateway-agent.service mios-cdi-detect.service"
+After = "network-online.target mios-gateway-agent.service mios-cdi-detect.service mios-webtools-firstboot.service"
 ConditionPathExists = "/etc/mios/hermes/api.env"
 Description = "'MiOS' Open WebUI"
 Wants = "network-online.target mios-gateway-agent.service mios-cdi-detect.service"
@@ -10595,9 +10617,9 @@ Wants = "network-online.target"
 
 [containers.mios-pxe-hub.Container]
 AutoUpdate = "registry"
-Exec = "/matchbox -address 0.0.0.0:8081 -data-path /var/lib/matchbox/data -assets-path /var/lib/matchbox/assets"
+Exec = "/usr/bin/matchbox -address 0.0.0.0:8081 -data-path /var/lib/matchbox/data -assets-path /var/lib/matchbox/assets"
 Group = "0"
-Image = "quay.io/poseidon/matchbox:latest"
+Image = "${MIOS_SYS_IMAGE:-localhost/mios-sys:latest}"
 Pod = "mios-system.pod"
 User = "0"
 Volume = [
@@ -10614,7 +10636,7 @@ Restart = "on-failure"
 RestartSec = "10"
 
 [containers.mios-pxe-hub.Unit]
-After = "network-online.target"
+After = "network-online.target mios-webtools-firstboot.service"
 ConditionVirtualization = [
   "!wsl",
   "!container"
@@ -10636,7 +10658,8 @@ Environment = [
 ]
 EnvironmentFile = "/etc/mios/install.env"
 Group = "${MIOS_SEARXNG_GID:-818}"
-Image = "docker.io/searxng/searxng:latest"
+Image = "${MIOS_SYS_IMAGE:-localhost/mios-sys:latest}"
+Exec = "/opt/searxng-venv/bin/python3 -m searxng.webapp"
 Label = [
   "org.opencontainers.image.title=mios-searxng",
   "org.opencontainers.image.url=http://localhost:${MIOS_PORT_SEARXNG:-8899}/",
@@ -10661,7 +10684,7 @@ RestartSec = "10s"
 TimeoutStartSec = "300s"
 
 [containers.mios-searxng.Unit]
-After = "network-online.target"
+After = "network-online.target mios-webtools-firstboot.service"
 ConditionPathIsDirectory = "/etc/mios/searxng"
 Description = "'MiOS' SearXNG metasearch (privacy-respecting search proxy)"
 Wants = "network-online.target"
@@ -10676,8 +10699,9 @@ Environment = [
   "MIOS_CRAWL_CAMOUFOX=${MIOS_CRAWL_CAMOUFOX:-true}",
   "MIOS_CRAWL_MIN_CHARS=${MIOS_CRAWL_MIN_CHARS:-200}"
 ]
+Exec = "/opt/crawl4ai-venv/bin/python3 /usr/lib/mios/crawl4ai/mios-crawl4ai-service.py"
 Group = "0"
-Image = "${MIOS_CRAWL4AI_IMAGE:-localhost/mios-crawl4ai-slim:latest}"
+Image = "${MIOS_SYS_IMAGE:-localhost/mios-sys:latest}"
 Label = [
   "org.opencontainers.image.title=mios-webtools-crawl4ai",
   "io.podman_desktop.openInBrowser=http://localhost:11235/healthz"
@@ -10718,14 +10742,14 @@ Environment = [
 ]
 Exec = "pnpm run start:production"
 Group = "0"
-Image = "${MIOS_FIRECRAWL_IMAGE:-localhost/mios-firecrawl:v1.0.0}"
+Image = "${MIOS_SYS_IMAGE:-localhost/mios-sys:latest}"
 Label = [
   "org.opencontainers.image.title=mios-webtools-firecrawl-api",
   "io.podman_desktop.openInBrowser=http://localhost:3002/"
 ]
 Pod = "mios-webtools.pod"
 User = "0"
-WorkingDir = "/app"
+WorkingDir = "/opt/firecrawl"
 
 [containers.mios-webtools-firecrawl-api.Install]
 WantedBy = "multi-user.target default.target"
@@ -10760,11 +10784,11 @@ Environment = [
 ]
 Exec = "pnpm run workers"
 Group = "0"
-Image = "${MIOS_FIRECRAWL_IMAGE:-localhost/mios-firecrawl:v1.0.0}"
+Image = "${MIOS_SYS_IMAGE:-localhost/mios-sys:latest}"
 Label = "org.opencontainers.image.title=mios-webtools-firecrawl-worker"
 Pod = "mios-webtools.pod"
 User = "0"
-WorkingDir = "/app"
+WorkingDir = "/opt/firecrawl"
 
 [containers.mios-webtools-firecrawl-worker.Install]
 WantedBy = "multi-user.target default.target"
@@ -10784,9 +10808,9 @@ Wants = "mios-webtools-redis.service"
 [containers.mios-webtools-redis.Container]
 AutoUpdate = "registry"
 ContainerName = "mios-webtools-redis"
-Exec = "redis-server --bind 127.0.0.1 --port 6380 --appendonly no"
+Exec = "valkey-server --bind 127.0.0.1 --port 6380 --appendonly no"
 Group = "0"
-Image = "docker.io/redis:7-alpine"
+Image = "${MIOS_SYS_IMAGE:-localhost/mios-sys:latest}"
 Label = "org.opencontainers.image.title=mios-webtools-redis"
 Pod = "mios-webtools.pod"
 User = "0"
@@ -10801,12 +10825,15 @@ RestartSec = "10s"
 TimeoutStartSec = "60s"
 
 [containers.mios-webtools-redis.Unit]
+After = "network-online.target mios-webtools-firstboot.service"
 Description = "'MiOS' web-tools redis (firecrawl queue + ratelimit store)"
+Wants = "network-online.target"
 
 [containers.mios-otelcol.Container]
 ContainerName = "mios-otelcol"
+Exec = "jaeger"
 Group = "${MIOS_OTELCOL_GID:-829}"
-Image = "docker.io/jaegertracing/all-in-one:latest"
+Image = "${MIOS_SYS_IMAGE:-localhost/mios-sys:latest}"
 Environment = [
   "COLLECTOR_OTLP_ENABLED=true"
 ]
@@ -10828,7 +10855,7 @@ RestartSec = "10s"
 TimeoutStartSec = "300s"
 
 [containers.mios-otelcol.Unit]
-After = "network-online.target"
+After = "network-online.target mios-webtools-firstboot.service"
 Description = "'MiOS' OpenTelemetry Collector and Jaeger Trace Viewer"
 Wants = "network-online.target"
 

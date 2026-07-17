@@ -1,0 +1,4 @@
+quay.io/ceph/ceph:v19
+docker.io/guacamole/guacamole:latest
+docker.io/vllm/vllm-openai:latest
+docker.io/pgvector/pgvector:0.8.3-pg17

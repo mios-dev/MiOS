@@ -752,6 +752,50 @@ check_egress_firewall() {
     fi
 }
 
+check_blade_dropins() {
+    # WS-BLADE: verify committed blade capability drop-ins are in sync with mios.toml [blade.requires]
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "[38-drift-checks]   WARNING: python3 missing -- skipping blade dropins check" >&2
+        return 0
+    fi
+    local gen="$ROOT/tools/generate-blade-dropins.py"
+    if [[ ! -f "$gen" ]]; then
+        echo "[38-drift-checks]   WARNING: blade dropins generator absent -- skipping" >&2
+        return 0
+    fi
+    local tmp_root; tmp_root="$(mktemp -d)"
+    if MIOS_ROOT="$tmp_root" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" python3 "$gen" >/dev/null 2>&1; then
+        local committed_dir="$ROOT/usr/share/mios/dropins"
+        local generated_dir="$tmp_root/usr/share/mios/dropins"
+        local ok=1
+        
+        local f gen_file com_file
+        for f in "$generated_dir"/*; do
+            [[ -e "$f" ]] || continue
+            gen_file="$(basename "$f")"
+            com_file="$committed_dir/$gen_file"
+            if [[ ! -f "$com_file" ]]; then
+                ok=0
+                echo "      Missing drop-in: $gen_file is missing from $committed_dir" >&2
+            elif ! diff -q "$com_file" "$f" >/dev/null 2>&1; then
+                ok=0
+                echo "      Divergence in drop-in: $gen_file has drifted" >&2
+            fi
+        done
+        
+        rm -rf "$tmp_root"
+        if [[ $ok -eq 1 ]]; then
+            echo "[38-drift-checks]   (44) blade capability drop-ins in sync with mios.toml [blade.requires]"
+        else
+            _violation "usr/share/mios/dropins/ is STALE vs mios.toml [blade.requires] -- regenerate with tools/generate-blade-dropins.py (WS-BLADE)"
+        fi
+    else
+        rm -rf "$tmp_root"
+        _violation "blade drop-in generation failed during drift check"
+    fi
+}
+
+
 # (16, NO-HARDCODE law / Architectural Law 7) The mios-hardcode-lint gate: FAILS on a
 # date/timestamp in a COMMENT or DOCSTRING (the timeless-comment rule) or an AI-Hint
 # header crash-risk (a stranded BOM, or a header above a shebang). Comment-aware
@@ -1826,6 +1870,10 @@ else:
                 "image.local_tag": "MIOS_LOCAL_TAG",
                 "security.fapolicyd_observe.enable": "MIOS_FAPOLICYD_OBSERVE_ENABLE",
                 # image.sidecars
+                "image.sidecars.sys_version": "MIOS_SYS_VERSION",
+                "image.sidecars.sys": "MIOS_SYS_IMAGE",
+                "image.sidecars.cuda_version": "MIOS_CUDA_VERSION",
+                "image.sidecars.cuda": "MIOS_CUDA_IMAGE",
                 "image.sidecars.k3s_version": "MIOS_K3S_VERSION",
                 "image.sidecars.k3s": "MIOS_K3S_IMAGE",
                 "image.sidecars.ceph_version": "MIOS_CEPH_VERSION",
@@ -3479,6 +3527,7 @@ main() {
     check_no_hardcode
     check_pod_quadlets
     check_egress_firewall
+    check_blade_dropins
     check_unwired_modules
     check_cephfs_ssot
     check_converge_ssot

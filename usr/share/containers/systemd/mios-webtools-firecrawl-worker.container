@@ -22,11 +22,11 @@ Environment=LOGGING_LEVEL=INFO
 Environment=NODE_ENV=production
 Exec=pnpm run workers
 Group=0
-Image=localhost/mios-firecrawl:v1.0.0
+Image=localhost/mios-sys:latest
 Label=org.opencontainers.image.title=mios-webtools-firecrawl-worker
 Pod=mios-webtools.pod
 User=0
-WorkingDir=/app
+WorkingDir=/opt/firecrawl
 
 [Install]
 WantedBy=multi-user.target default.target

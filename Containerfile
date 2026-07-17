@@ -179,13 +179,7 @@ RUN --network=host set -ex; \
 # Quadlet scraping here).
 ARG MIOS_BAKE_BOUND_IMAGES=1
 RUN --network=host --mount=type=cache,target=/var/tmp/mios-bakescratch \
-    MIOS_BAKE_BOUND_IMAGES="${MIOS_BAKE_BOUND_IMAGES}" bash /usr/libexec/mios/mios-bake-group vllm
-RUN --network=host --mount=type=cache,target=/var/tmp/mios-bakescratch \
-    MIOS_BAKE_BOUND_IMAGES="${MIOS_BAKE_BOUND_IMAGES}" bash /usr/libexec/mios/mios-bake-group sglang
-RUN --network=host --mount=type=cache,target=/var/tmp/mios-bakescratch \
-    MIOS_BAKE_BOUND_IMAGES="${MIOS_BAKE_BOUND_IMAGES}" bash /usr/libexec/mios/mios-bake-group ai
-RUN --network=host --mount=type=cache,target=/var/tmp/mios-bakescratch \
-    MIOS_BAKE_BOUND_IMAGES="${MIOS_BAKE_BOUND_IMAGES}" bash /usr/libexec/mios/mios-bake-group infra
+    MIOS_BAKE_BOUND_IMAGES="${MIOS_BAKE_BOUND_IMAGES}" bash /usr/libexec/mios/57-mios-sys-build.sh
 RUN --network=host --mount=type=cache,target=/var/tmp/mios-bakescratch \
     MIOS_BAKE_BOUND_IMAGES="${MIOS_BAKE_BOUND_IMAGES}" bash /usr/libexec/mios/mios-bake-group extra
 # additionalimagestores must be world-READABLE (the host shares this store with

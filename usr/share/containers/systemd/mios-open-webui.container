@@ -2,7 +2,7 @@
 # /usr/share/containers/systemd/mios-open-webui.container
 
 [Unit]
-After=network-online.target mios-gateway-agent.service mios-cdi-detect.service
+After=network-online.target mios-gateway-agent.service mios-cdi-detect.service mios-webtools-firstboot.service
 ConditionPathExists=/etc/mios/hermes/api.env
 Description='MiOS' Open WebUI
 Wants=network-online.target mios-gateway-agent.service mios-cdi-detect.service
@@ -42,8 +42,9 @@ Environment="FOLLOW_UP_GENERATION_PROMPT_TEMPLATE=Suggest 3 short follow up acti
 Environment="AUTOCOMPLETE_GENERATION_PROMPT_TEMPLATE=Continue the user partial input naturally, in their language. Output ONLY the completion text, no quotes, no preamble. Input so far: {{PROMPT}}"
 EnvironmentFile=/etc/mios/hermes/api.env
 EnvironmentFile=/etc/mios/install.env
+Exec=open-webui serve
 Group=817
-Image=ghcr.io/open-webui/open-webui:main
+Image=localhost/mios-sys:latest
 Label=org.opencontainers.image.title=mios-open-webui
 Label=org.opencontainers.image.url=http://localhost:${MIOS_PORT_OPEN_WEBUI}/
 Label=io.podman_desktop.openInBrowser=http://localhost:${MIOS_PORT_OPEN_WEBUI}/

@@ -2,7 +2,7 @@
 # /usr/share/containers/systemd/mios-forgejo-runner.container
 
 [Unit]
-After=network-online.target mios-forge.service mios-forgejo-runner-firstboot.service
+After=network-online.target mios-forge.service mios-forgejo-runner-firstboot.service mios-webtools-firstboot.service
 ConditionPathExists=/srv/mios/forge-runner/.runner
 ConditionVirtualization=|!container
 ConditionVirtualization=|wsl
@@ -13,14 +13,13 @@ Wants=network-online.target mios-forgejo-runner-firstboot.service
 
 [Container]
 ContainerName=mios-forgejo-runner
-Entrypoint=/bin/forgejo-runner
 Environment=FORGEJO_RUNNER_NAME=mios-self-hosted
 Environment=FORGEJO_RUNNER_LABELS=mios-self-hosted,podman,bootc,fedora-44
 Environment=FORGEJO_RUNNER_DEFAULT_LABELS=mios-self-hosted
 EnvironmentFile=/etc/mios/forge/runner-token
-Exec=daemon
+Exec=forgejo-runner daemon
 Group=0
-Image=code.forgejo.org/forgejo/runner:7
+Image=localhost/mios-sys:latest
 Label=org.opencontainers.image.title=mios-forgejo-runner
 Label=org.opencontainers.image.documentation=https://forgejo.org/docs/latest/admin/actions/
 Label=io.podman_desktop.openInBrowser=http://localhost:${MIOS_PORT_FORGE_HTTP}/-/admin/actions/runners

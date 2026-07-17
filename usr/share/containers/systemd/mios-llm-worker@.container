@@ -2,7 +2,7 @@
 # /usr/share/containers/systemd/mios-llm-worker@.container
 
 [Unit]
-After=network-online.target mios-cdi-detect.service
+After=network-online.target mios-cdi-detect.service mios-webtools-firstboot.service
 ConditionPathExists=/run/mios/swarm/%i.env
 ConditionPathExists=/usr/share/mios/llamacpp/models/.ready
 Description='MiOS' swarm worker %i (single-model llama-server, FOSS)
@@ -17,7 +17,7 @@ Environment=LD_LIBRARY_PATH=/usr/lib/wsl/lib:/usr/local/cuda/lib64
 EnvironmentFile=-/run/mios/swarm/%i.env
 Exec=--model /models/${WORKER_MODEL} --host 0.0.0.0 --port ${WORKER_PORT} --n-gpu-layers 99 --ctx-size 8192 --slot-save-path /var/lib/mios/llamacpp/slots/%i --parallel 1 --cont-batching --jinja --alias ${WORKER_MODEL}
 Group=827
-Image=ghcr.io/mostlygeek/llama-swap:cuda
+Image=localhost/mios-cuda:latest
 Label=org.opencontainers.image.title=mios-llm-worker-%i
 Pod=mios-ai.pod
 User=827

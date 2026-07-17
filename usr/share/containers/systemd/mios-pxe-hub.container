@@ -2,7 +2,7 @@
 # /usr/share/containers/systemd/mios-pxe-hub.container
 
 [Unit]
-After=network-online.target
+After=network-online.target mios-webtools-firstboot.service
 ConditionVirtualization=!wsl
 ConditionVirtualization=!container
 Description='MiOS' PXE Boot Hub
@@ -10,9 +10,9 @@ Wants=network-online.target
 
 [Container]
 AutoUpdate=registry
-Exec=/matchbox -address 0.0.0.0:8081 -data-path /var/lib/matchbox/data -assets-path /var/lib/matchbox/assets
+Exec=/usr/bin/matchbox -address 0.0.0.0:8081 -data-path /var/lib/matchbox/data -assets-path /var/lib/matchbox/assets
 Group=0
-Image=quay.io/poseidon/matchbox:latest
+Image=localhost/mios-sys:latest
 Pod=mios-system.pod
 User=0
 Volume=/var/lib/mios/pxe/config:/var/lib/matchbox/data:Z

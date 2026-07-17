@@ -315,7 +315,8 @@ image.base_no_nvidia  MIOS_IMAGE_BASE_NO_NVIDIA
 image.base_nvidia  MIOS_IMAGE_BASE_NVIDIA
 image.bib  MIOS_IMAGE_BIB
 image.branch  MIOS_IMAGE_BRANCH
-image.cuda  MIOS_IMAGE_CUDA
+image.cuda.base  MIOS_IMAGE_CUDA_BASE
+image.cuda.packages  MIOS_IMAGE_CUDA_PACKAGES
 image.local_tag  MIOS_IMAGE_LOCAL_TAG
 image.machine_os_repo  MIOS_IMAGE_MACHINE_OS_REPO
 image.machine_os_tag  MIOS_IMAGE_MACHINE_OS_TAG
@@ -333,6 +334,8 @@ image.sidecars.code_server  MIOS_IMAGE_SIDECARS_CODE_SERVER
 image.sidecars.code_server_version  MIOS_IMAGE_SIDECARS_CODE_SERVER_VERSION
 image.sidecars.crowdsec  MIOS_IMAGE_SIDECARS_CROWDSEC
 image.sidecars.crowdsec_version  MIOS_IMAGE_SIDECARS_CROWDSEC_VERSION
+image.sidecars.cuda  MIOS_IMAGE_SIDECARS_CUDA
+image.sidecars.cuda_version  MIOS_IMAGE_SIDECARS_CUDA_VERSION
 image.sidecars.forge  MIOS_IMAGE_SIDECARS_FORGE
 image.sidecars.forge_runner  MIOS_IMAGE_SIDECARS_FORGE_RUNNER
 image.sidecars.forge_runner_version  MIOS_IMAGE_SIDECARS_FORGE_RUNNER_VERSION
@@ -359,9 +362,12 @@ image.sidecars.searxng  MIOS_IMAGE_SIDECARS_SEARXNG
 image.sidecars.searxng_version  MIOS_IMAGE_SIDECARS_SEARXNG_VERSION
 image.sidecars.sglang  MIOS_IMAGE_SIDECARS_SGLANG
 image.sidecars.sglang_version  MIOS_IMAGE_SIDECARS_SGLANG_VERSION
+image.sidecars.sys  MIOS_IMAGE_SIDECARS_SYS
+image.sidecars.sys_version  MIOS_IMAGE_SIDECARS_SYS_VERSION
 image.sidecars.vllm  MIOS_IMAGE_SIDECARS_VLLM
 image.sidecars.vllm_version  MIOS_IMAGE_SIDECARS_VLLM_VERSION
-image.sys  MIOS_IMAGE_SYS
+image.sys.base  MIOS_IMAGE_SYS_BASE
+image.sys.packages  MIOS_IMAGE_SYS_PACKAGES
 image.tag  MIOS_IMAGE_TAG
 locale.keyboard_layout  MIOS_LOCALE_KEYBOARD_LAYOUT
 locale.language  MIOS_LOCALE_LANGUAGE

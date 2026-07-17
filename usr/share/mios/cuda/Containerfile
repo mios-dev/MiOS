@@ -1,0 +1,37 @@
+# AI-hint: Containerfile to build the unified localhost/mios-cuda image (WS-MIOSSYS).
+# AI-related: usr/share/mios/cuda/Containerfile, automation/57-mios-sys-build.sh
+ARG BASE_IMAGE=ghcr.io/ublue-os/ucore-hci:stable-nvidia
+
+# --- Stage 0: vLLM source from official vLLM image ---
+FROM docker.io/vllm/vllm-openai:latest AS vllm-src
+
+# --- Stage 1: SGLang source from official SGLang image ---
+FROM docker.io/lmsysorg/sglang:latest AS sglang-src
+
+# --- Stage 2: Llama-swap source ---
+FROM ghcr.io/mostlygeek/llama-swap:cuda AS llamaswap-src
+
+# --- Final/Main CUDA Base Image Stage ---
+FROM ${BASE_IMAGE}
+
+# Install CUDA packages and runtime dependencies
+RUN dnf install -y \
+      python3 \
+      python3-pip \
+      python3-devel \
+      && dnf clean all
+
+# Copy vLLM environment to /opt/vllm-venv
+COPY --from=vllm-src /usr/local /opt/vllm-venv
+
+# Copy SGLang environment to /opt/sglang-venv
+COPY --from=sglang-src /usr/local /opt/sglang-venv
+
+# Copy llama-swap and llama-server binaries
+COPY --from=llamaswap-src /usr/bin/llama-server /usr/bin/llama-server
+COPY --from=llamaswap-src /usr/bin/llama-swap /usr/bin/llama-swap
+
+# Create /app directory and set up symlinks to match upstream paths expected by configs
+RUN mkdir -p /app \
+    && ln -sf /usr/bin/llama-server /app/llama-server \
+    && ln -sf /usr/bin/llama-swap /app/llama-swap

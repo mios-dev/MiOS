@@ -447,6 +447,10 @@ slots = [
     ("wsl2.desktop_compat.qt_platform",       "MIOS_WSLG_QT_PLATFORM"),
     ("wsl2.dev_vm.quadlet_network_mode",      "MIOS_QUADLET_DEV_NETWORK_MODE"),
     # image.sidecars
+    ("image.sidecars.sys_version",     "MIOS_SYS_VERSION"),
+    ("image.sidecars.sys",             "MIOS_SYS_IMAGE"),
+    ("image.sidecars.cuda_version",    "MIOS_CUDA_VERSION"),
+    ("image.sidecars.cuda",            "MIOS_CUDA_IMAGE"),
     ("image.sidecars.k3s_version",     "MIOS_K3S_VERSION"),
     ("image.sidecars.k3s",             "MIOS_K3S_IMAGE"),
     ("image.sidecars.ceph_version",    "MIOS_CEPH_VERSION"),

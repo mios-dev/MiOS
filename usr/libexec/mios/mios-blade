@@ -1,0 +1,128 @@
+#!/usr/bin/env bash
+# AI-hint: Command-line interface to manage MiOS blade roles and activation capabilities (WS-BLADE).
+# AI-related: usr/bin/mios, usr/libexec/mios/role-apply, /etc/mios/role.conf, /etc/mios/blade.d/
+set -euo pipefail
+
+ROLE_CONF="${MIOS_ETC_DIR:-/etc/mios}/role.conf"
+BLADE_D="${MIOS_ETC_DIR:-/etc/mios}/blade.d"
+
+log() { printf '[mios-blade] %s\n' "$*"; }
+
+show_help() {
+    echo "Usage: mios blade <command> [args]"
+    echo ""
+    echo "Commands:"
+    echo "  set <type>          Set the active blade type archetype"
+    echo "  add-capability <cap> Add a capability to this node"
+    echo "  status              Show active blade type, capabilities, and systemd target"
+    echo "  help                Show this help"
+}
+
+if [[ $# -lt 1 ]]; then
+    show_help
+    exit 1
+fi
+
+cmd="$1"
+shift
+
+case "$cmd" in
+    set)
+        if [[ $# -lt 1 ]]; then
+            echo "Error: missing blade type" >&2
+            exit 1
+        fi
+        type="$1"
+        # Write/update role.conf
+        mkdir -p "$(dirname "$ROLE_CONF")"
+        if [[ -f "$ROLE_CONF" ]]; then
+            # Replace existing ROLE line or append
+            if grep -q "^ROLE=" "$ROLE_CONF"; then
+                sed -i "s/^ROLE=.*/ROLE=\"$type\"/" "$ROLE_CONF"
+            else
+                echo "ROLE=\"$type\"" >> "$ROLE_CONF"
+            fi
+        else
+            echo "ROLE=\"$type\"" > "$ROLE_CONF"
+        fi
+        log "Set blade type archetype to '$type' in $ROLE_CONF"
+        # Re-run role-apply to materialize capabilities and targets
+        if [[ -f "/usr/libexec/mios/role-apply" ]]; then
+            /usr/libexec/mios/role-apply
+        else
+            "$(dirname "$0")/role-apply"
+        fi
+        systemctl daemon-reload 2>/dev/null || true
+        ;;
+    add-capability)
+        if [[ $# -lt 1 ]]; then
+            echo "Error: missing capability name" >&2
+            exit 1
+        fi
+        cap="$1"
+        mkdir -p "$BLADE_D"
+        touch "$BLADE_D/$cap"
+        log "Added capability marker '$cap' to $BLADE_D"
+        
+        # Persist in role.conf as part of FEATURES
+        mkdir -p "$(dirname "$ROLE_CONF")"
+        if [[ -f "$ROLE_CONF" ]]; then
+            if grep -q "^FEATURES=" "$ROLE_CONF"; then
+                # Read current features, append cap if not present
+                feats=$(grep "^FEATURES=" "$ROLE_CONF" | cut -d'"' -f2)
+                if [[ ! ",$feats," =~ ",$cap," ]]; then
+                    if [[ -n "$feats" ]]; then
+                        feats="$feats,$cap"
+                    else
+                        feats="$cap"
+                    fi
+                    sed -i "s/^FEATURES=.*/FEATURES=\"$feats\"/" "$ROLE_CONF"
+                fi
+            else
+                echo "FEATURES=\"$cap\"" >> "$ROLE_CONF"
+            fi
+        else
+            echo "FEATURES=\"$cap\"" > "$ROLE_CONF"
+        fi
+        systemctl daemon-reload 2>/dev/null || true
+        ;;
+    status)
+        # Read active state from /var/lib/mios/role.active or /run/mios/blade.env
+        if [[ -f /run/mios/blade.env ]]; then
+            source /run/mios/blade.env
+            echo "Blade Type: $MIOS_BLADE_TYPE"
+            echo "Capabilities: ${MIOS_BLADE_CAPS//,/ }"
+        elif [[ -f /var/lib/mios/role.active ]]; then
+            source /var/lib/mios/role.active
+            echo "Blade Type: $ROLE"
+            echo "Capabilities: $FEATURES"
+        else
+            echo "Blade state not active or initialized."
+        fi
+        
+        # Show actual markers in /etc/mios/blade.d/
+        echo "Active Capability Markers:"
+        if [[ -d "$BLADE_D" ]]; then
+            for f in "$BLADE_D"/*; do
+                if [[ -f "$f" ]]; then
+                    echo "  - $(basename "$f")"
+                fi
+            done
+        else
+            echo "  (none)"
+        fi
+        
+        # Show systemd default target
+        if command -v systemctl >/dev/null 2>&1; then
+            echo "Systemd Default Target: $(systemctl get-default 2>/dev/null || echo 'unknown')"
+        fi
+        ;;
+    help|--help|-h)
+        show_help
+        ;;
+    *)
+        echo "Error: unknown command '$cmd'" >&2
+        show_help
+        exit 1
+        ;;
+esac

@@ -2,7 +2,7 @@
 # /usr/share/containers/systemd/mios-cpu-node.container
 
 [Unit]
-After=network-online.target
+After=network-online.target mios-webtools-firstboot.service
 ConditionPathExists=/usr/share/mios/llamacpp/models/granite-4.1-8b.gguf
 Description='MiOS' CPU inference node (always-on / gaming-immune last-resort lane)
 Wants=network-online.target
@@ -18,7 +18,7 @@ HealthInterval=30s
 HealthRetries=3
 HealthStartPeriod=120s
 HealthTimeout=10s
-Image=ghcr.io/mostlygeek/llama-swap:cuda
+Image=localhost/mios-cuda:latest
 Label=org.opencontainers.image.title=mios-cpu-node
 Pod=mios-ai.pod
 User=827

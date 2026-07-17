@@ -1,0 +1,80 @@
+# AI-hint: Containerfile to build the unified localhost/mios-sys image (WS-MIOSSYS).
+# AI-related: usr/share/mios/sys/Containerfile, automation/57-mios-sys-build.sh
+ARG BASE_IMAGE=ghcr.io/ublue-os/ucore-hci:stable-nvidia
+
+# --- Go compiler builder stage for Firecrawl's Go HTML-to-markdown library ---
+FROM docker.io/library/golang:1.22 AS go-builder
+RUN git clone --depth 1 --branch v1.0.0 https://github.com/mendableai/firecrawl.git /tmp/firecrawl \
+    && cd /tmp/firecrawl/apps/api/src/lib/go-html-to-md \
+    && go build -o html-to-markdown.so -buildmode=c-shared html-to-markdown.go
+
+# --- Main/Final Image Stage ---
+FROM ${BASE_IMAGE}
+
+# Install core runtime packages (including chromium for headless crawling, and guacd for remote desktop)
+RUN dnf install -y \
+      python3 \
+      python3-pip \
+      python3-devel \
+      nodejs \
+      npm \
+      chromium \
+      chromium-common \
+      chromium-sandbox \
+      socat \
+      valkey \
+      guacd \
+      git \
+      make \
+      gcc-c++ \
+      && dnf clean all
+
+# Download static Go/Rust/C++ binaries (Wave 1 & Wave 2)
+# 1. AdGuard Home
+RUN curl -sSfL "https://github.com/AdguardTeam/AdGuardHome/releases/latest/download/AdGuardHome_linux_amd64.tar.gz" | tar -C /usr/bin --strip-components=2 -xzf - ./AdGuardHome/AdGuardHome
+# 2. Matchbox
+RUN curl -sSfL "https://github.com/poseidon/matchbox/releases/download/v0.10.0/matchbox-v0.10.0-linux-amd64.tar.gz" | tar -C /usr/bin --strip-components=1 -xzf - matchbox-v0.10.0-linux-amd64/matchbox
+# 3. Forgejo
+RUN curl -sSfL -o /usr/bin/forgejo "https://codeberg.org/forgejo/forgejo/releases/download/v12.0.0/forgejo-12.0.0-linux-amd64" && chmod +x /usr/bin/forgejo
+# 4. Forgejo Runner
+RUN curl -sSfL -o /usr/bin/forgejo-runner "https://codeberg.org/forgejo/runner/releases/download/v6.0.0/forgejo-runner-6.0.0-linux-amd64" && chmod +x /usr/bin/forgejo-runner
+# 5. Jaeger
+RUN curl -sSfL "https://github.com/jaegertracing/jaeger/releases/download/v2.0.0/jaeger-2.0.0-linux-amd64.tar.gz" | tar -C /usr/bin --strip-components=1 -xzf - jaeger-2.0.0-linux-amd64/jaeger
+# 6. CrowdSec
+RUN curl -sSfL "https://github.com/crowdsecurity/crowdsec/releases/download/v1.6.3/crowdsec-v1.6.3-linux-amd64.tgz" | tar -C /usr/bin --strip-components=1 -xzf - crowdsec-v1.6.3/crowdsec crowdsec-v1.6.3/cscli
+# 7. K3s
+RUN curl -sSfL -o /usr/bin/k3s "https://github.com/k3s-io/k3s/releases/download/v1.32.1%2Bk3s1/k3s" && chmod +x /usr/bin/k3s
+# 8. code-server
+RUN curl -sSfL -O https://github.com/coder/code-server/releases/download/v4.96.2/code-server-4.96.2-amd64.rpm && dnf install -y ./code-server-4.96.2-amd64.rpm && rm -f ./code-server-4.96.2-amd64.rpm
+
+# Setup virtualenvs and install interpreted runtime stacks (Wave 2)
+# 9. SearXNG
+RUN git clone --depth 1 https://github.com/searxng/searxng.git /opt/searxng \
+    && python3 -m venv /opt/searxng-venv \
+    && /opt/searxng-venv/bin/pip install --no-cache-dir -r /opt/searxng/requirements.txt \
+    && /opt/searxng-venv/bin/pip install -e /opt/searxng
+
+# 10. Open WebUI
+RUN python3 -m venv /opt/open-webui-venv \
+    && /opt/open-webui-venv/bin/pip install --no-cache-dir open-webui \
+    && ln -s /opt/open-webui-venv/bin/open-webui /usr/bin/open-webui
+
+# 11. Crawl4AI
+RUN python3 -m venv /opt/crawl4ai-venv \
+    && /opt/crawl4ai-venv/bin/pip install --no-cache-dir \
+         crawl4ai \
+         "camoufox[geoip]" \
+         fastapi \
+         "uvicorn[standard]" \
+         pydantic \
+         playwright \
+    && /opt/crawl4ai-venv/bin/python3 -m camoufox fetch
+
+# 12. Firecrawl
+RUN git clone --depth 1 --branch v1.0.0 https://github.com/mendableai/firecrawl.git /opt/firecrawl \
+    && npm install -g pnpm@9.15.4 \
+    && cd /opt/firecrawl/apps/api \
+    && pnpm install --frozen-lockfile \
+    && pnpm run build:nosentry
+COPY --from=go-builder /tmp/firecrawl/apps/api/src/lib/go-html-to-md/html-to-markdown.so /opt/firecrawl/apps/api/dist/src/lib/go-html-to-md/html-to-markdown.so
+ENV PUPPETEER_EXECUTABLE_PATH="/usr/bin/chromium"

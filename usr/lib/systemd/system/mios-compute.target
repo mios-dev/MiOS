@@ -1,0 +1,10 @@
+# AI-hint: Defines the compute systemd target for MiOS, representing a compute/worker node.
+# AI-related: mios-compute, mios-headless.target
+[Unit]
+Description='MiOS' Compute Role
+Requires=multi-user.target
+After=multi-user.target
+Conflicts=mios-desktop.target mios-headless.target
+AllowIsolate=yes
+[Install]
+WantedBy=multi-user.target

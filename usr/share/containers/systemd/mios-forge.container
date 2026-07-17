@@ -2,7 +2,7 @@
 # /usr/share/containers/systemd/mios-forge.container
 
 [Unit]
-After=network-online.target
+After=network-online.target mios-webtools-firstboot.service
 ConditionPathIsDirectory=/etc/mios/forge
 ConditionVirtualization=|!container
 ConditionVirtualization=|wsl
@@ -31,8 +31,9 @@ Environment=FORGEJO__security__INSTALL_LOCK=true
 Environment=FORGEJO__log__LEVEL=Info
 Environment=FORGEJO__log__MODE=console
 EnvironmentFile=/etc/mios/install.env
+Exec=forgejo web
 Group=0
-Image=codeberg.org/forgejo/forgejo:12
+Image=localhost/mios-sys:latest
 Label=org.opencontainers.image.title=mios-forge
 Label=org.opencontainers.image.url=http://localhost:${MIOS_PORT_FORGE_HTTP}/
 Label=org.opencontainers.image.documentation=https://forgejo.org/docs/latest/

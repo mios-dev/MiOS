@@ -2,7 +2,7 @@
 # /usr/share/containers/systemd/mios-guacd.container
 
 [Unit]
-After=network-online.target
+After=network-online.target mios-webtools-firstboot.service
 ConditionVirtualization=!container
 Description='MiOS' Apache Guacamole Daemon
 Wants=network-online.target
@@ -10,8 +10,9 @@ Wants=network-online.target
 [Container]
 AutoUpdate=registry
 ContainerName=mios-guacd
+Exec=guacd -b 0.0.0.0 -f
 Group=811
-Image=docker.io/guacamole/guacd:latest
+Image=localhost/mios-sys:latest
 Pod=mios-system.pod
 User=811
 
