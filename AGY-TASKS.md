@@ -475,6 +475,24 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 **Where:** `usr/share/mios/mios.toml` ([shell]/[editor]/[ssh] + registry surfaces), `usr/share/mios/theme/templates/*`, fixtures.
 **Done When:** each new surface renders + drift-gates (check PASS N+); ssh-config apply preserves foreign Host blocks (test); no secret stored in SSOT; `just drift-gate` green. Stage only your files.
 
+## AGY-63  (WS-DEBT / TD-5, **P1**) — extract the VRAM scheduler out of server.py
+**Who:** you (Python). ON MAIN, no branches; explicit paths. Extract the VRAM/GPU scheduling logic from `usr/lib/mios/agent-pipe/server.py` into a NEW sibling `mios_vram.py` + `test_mios_vram.py`, ONE-WAY import (must NOT import server.py -- drift-check 6), thin re-export shim at the old call site, behavior byte-identical. **Done When:** sibling+test exist, no server.py import edge, `test_mios_*` green, checks 6+11 pass, `just drift-gate` green. NOT Claude's lane (Claude owns portal.py/config.py/mios-theme-render).
+
+## AGY-64  (WS-DEBT / TD-5, **P1**) — extract the _db_* helpers out of server.py
+**Who:** you (Python). Same pattern: pull the `_db_*` DB-access helpers from `server.py` into `mios_serverdb.py` + `test_mios_serverdb.py`, one-way import, re-export shim, behavior identical. **Done When:** sibling+test, no server.py edge, suite green, drift-gate green.
+
+## AGY-65  (WS-LANG / ADR-0011, **P2**) — port the drift-runner entry to Rust (2nd native tool)
+**Who:** you (Rust). After AGY-51/61 (workspace + version-check). Add a `tools/native/mios-drift` crate that runs the image-free source drift checks (or wraps/dispatches the bash `38-drift-checks.sh` phases), static musl build, bash gate stays the degrade-open fallback. **Done When:** `cargo build --release` yields the binary (if toolchain present); it agrees with the bash gate on HEAD; fallback intact; drift-gate green.
+
+## AGY-66  (test-coverage, **P2**) — close drift-6/drift-11 gaps across agent-pipe
+**Who:** you (Python). Audit `usr/lib/mios/agent-pipe/mios_*.py`: every module MUST have a sibling `test_mios_*.py` (drift-11) and NONE may import `server.py` (drift-6). Add minimal sibling tests where missing; break any server.py import edge into a shared helper. **Done When:** checks 6+11 pass with zero exceptions; full `test_mios_*` suite green.
+
+## AGY-67  (WS-DEBT / TD-1, **P1 security**) — add `set -e` to the unguarded verbs
+**Who:** you (bash). ~23 runtime verbs in `usr/libexec/mios/` run without `set -euo pipefail`. Add it (guard for the ones that legitimately need to continue-on-error with explicit `|| true`). Also re-confirm ALL `eval`-on-agent-args are gone (grep `eval ` in `usr/libexec/mios/`; AGY-41 fixed the set -- verify none re-appeared). **Done When:** every verb has `set -euo pipefail` or a documented exception; no agent-arg `eval`; `bash -n` clean; drift-gate green.
+
+## AGY-68  (WS-DEBT / TD-3, **P2**) — the resolver-twin GENERATOR (bind mios_toml.py <-> userenv.sh)
+**Who:** you (Python + bash). AGY-45 added the equivalence GATE; now add the GENERATOR that emits `usr/lib/mios/userenv.sh` (the bash resolver) FROM `mios_toml.py` (or a shared spec), so the twin can't drift by construction (TD-3's root fix). Keep the AGY-45 gate green; keep `tools/lib/userenv.sh` in sync (drift-27). **Done When:** the generator regenerates userenv.sh deterministically == the committed one; twins stay byte-identical; drift-45 + drift-27 green.
+
 ### Reporting back
 Commit each task as `agy: <task-id> <summary>` and push to `main`. Claude is monitoring
 `main` for your commits + will integrate/verify. If blocked, leave a `TODO(agy):` note in
