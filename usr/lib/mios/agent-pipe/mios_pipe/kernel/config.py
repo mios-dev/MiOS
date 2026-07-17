@@ -461,6 +461,90 @@ def to_toml(d: dict, prefix: list = None) -> str:
     return "\n".join(lines)
 
 
+# ── WS-CONFIG server-side SAFETY validation ──────────────────────────────
+# Run by POST /portal/config AFTER the parse-check and BEFORE the atomic write.
+# This is deliberately a small SAFETY NET (a handful of critical invariants),
+# NOT a full schema -- mios.toml is intentionally flexible, so anything not on
+# this allowlist is left alone. It exists to stop a save that would BRICK the
+# deploy: dropping a critical section the live config has, an absurd payload
+# size, a blanked identity, or a nonsense port. Returns (ok, errors) where
+# `ok` is True with an empty list only when the config is safe to write.
+_VALIDATE_MAX_BYTES = 2 * 1024 * 1024  # 2 MB payload cap
+# Sections whose LOSS bricks the deploy. If the live config carries one of
+# these, the replacement must carry it too.
+_VALIDATE_CRITICAL_SECTIONS = ("identity", "ports")
+
+
+def validate_config(toml_text: str, live_config: dict = None):
+    """SAFETY-validate a posted mios.toml replacement.
+
+    Args:
+        toml_text: the raw replacement TOML text (already parse-checked by the
+            caller, but re-parsed here so this helper is standalone/testable).
+        live_config: the current live merged config dict (used ONLY to detect a
+            DROPPED critical section). Omit / pass None to skip the drop check
+            (degrade-open: if the live config can't be read we don't block).
+
+    Returns:
+        (ok: bool, errors: list[str]). ``ok`` is True with an empty ``errors``
+        list when the config is safe to write.
+    """
+    errors: list = []
+
+    # (b) size cap -- reject an absurd payload before doing any more work.
+    try:
+        size = len(toml_text.encode("utf-8"))
+    except Exception:
+        size = len(toml_text or "")
+    if size > _VALIDATE_MAX_BYTES:
+        return (False, [f"Config too large: {size} bytes exceeds the "
+                        f"{_VALIDATE_MAX_BYTES}-byte (2 MB) safety cap."])
+
+    # Parse standalone so the helper is testable in isolation.
+    try:
+        import tomllib as _toml
+    except ImportError:
+        import tomli as _toml  # type: ignore
+    try:
+        parsed = _toml.loads(toml_text)
+    except Exception as e:
+        return (False, [f"Invalid TOML: {e}"])
+
+    # (a) do not DROP a critical section the live config currently has.
+    live = live_config if isinstance(live_config, dict) else {}
+    for sec in _VALIDATE_CRITICAL_SECTIONS:
+        live_sec = live.get(sec)
+        if isinstance(live_sec, dict) and live_sec:
+            new_sec = parsed.get(sec)
+            if not isinstance(new_sec, dict) or not new_sec:
+                errors.append(
+                    f"Refusing to drop critical [{sec}] section -- it is "
+                    f"present in the live config and losing it bricks the deploy.")
+
+    # (c1) identity.mios_user must not be blanked when present.
+    identity = parsed.get("identity")
+    if isinstance(identity, dict) and "mios_user" in identity:
+        mu = identity.get("mios_user")
+        if not isinstance(mu, str) or not mu.strip():
+            errors.append("[identity].mios_user must be a non-empty string.")
+
+    # (c2) every [ports].* scalar must be an integer in 1..65535.
+    ports = parsed.get("ports")
+    if isinstance(ports, dict):
+        for k, v in ports.items():
+            if isinstance(v, (dict, list)):
+                continue  # nested table -- not a port scalar; leave it alone
+            # bool is an int subclass in Python -- exclude it explicitly.
+            if isinstance(v, bool) or not isinstance(v, int):
+                errors.append(
+                    f"[ports].{k} must be an integer 1-65535 (got {v!r}).")
+            elif not (1 <= v <= 65535):
+                errors.append(
+                    f"[ports].{k} = {v} is out of the valid 1-65535 range.")
+
+    return (len(errors) == 0, errors)
+
+
 def write_user_config(cfg: dict, dest_path: str = None) -> None:
     """Atomically write the dictionary to the user-layer config file."""
     if dest_path is None:

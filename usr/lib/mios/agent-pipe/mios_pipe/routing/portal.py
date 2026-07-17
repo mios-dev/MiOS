@@ -1644,9 +1644,29 @@ async def post_portal_config(request: Request, background_tasks: BackgroundTasks
     except Exception as e:
         log.warning("Invalid TOML posted to /portal/config: %s", e)
         return JSONResponse({"error": f"Invalid TOML: {e}"}, status_code=400)
-    
-    from mios_pipe.kernel.config import write_user_config
-    
+
+    from mios_pipe.kernel.config import write_user_config, validate_config
+
+    # WS-CONFIG safety net: AFTER the parse-check, BEFORE the write. Load the
+    # live merged config so validate_config can reject a DROPPED critical
+    # section ([identity]/[ports]). Degrade-open -- if the live config can't be
+    # read we pass None and the drop-check is skipped rather than block a save.
+    live_config = None
+    try:
+        import sys
+        if "/usr/lib/mios" not in sys.path:
+            sys.path.insert(0, "/usr/lib/mios")
+        import mios_toml
+        live_config = mios_toml.load_merged()
+    except Exception as e:
+        log.warning("validate_config: could not load live config for drop-check: %s", e)
+
+    ok, errors = validate_config(toml_text, live_config)
+    if not ok:
+        log.warning("Rejected unsafe config POST (422): %s", errors)
+        return JSONResponse({"error": "validation failed", "errors": errors},
+                            status_code=422)
+
     try:
         # Write user config file atomically
         write_user_config(parsed_config)

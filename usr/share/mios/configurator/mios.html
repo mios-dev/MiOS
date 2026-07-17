@@ -663,6 +663,56 @@
     .profile-hero, .nav-card:hover { box-shadow: 0 6px 20px rgba(0,0,0,.32); }
   }
   :root[data-theme="light"] .profile-hero { box-shadow: 0 6px 20px rgba(0,0,0,.14); }
+
+  /* ── WS-CONFIG save preview (diff + confirm) ── theme-aware via system
+     colors so it reads in both light and dark. Hidden until Save is clicked. */
+  .save-preview {
+    position: fixed; inset: 0; z-index: 1000; display: none;
+    align-items: center; justify-content: center;
+    background: rgba(0,0,0,.5); padding: 16px;
+  }
+  .save-preview.open { display: flex; }
+  .save-preview-card {
+    background: Canvas; color: CanvasText;
+    border: 1px solid rgba(128,128,128,.45); border-radius: 10px;
+    box-shadow: 0 12px 40px rgba(0,0,0,.45);
+    width: min(760px, 100%); max-height: 86vh;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .save-preview-head {
+    font-weight: 700; font-size: 15px; padding: 14px 18px;
+    border-bottom: 1px solid rgba(128,128,128,.28);
+  }
+  .save-preview-summary { padding: 10px 18px 0; font-size: 13px; opacity: .85; }
+  .save-preview-diff {
+    margin: 10px 18px; padding: 10px 12px; overflow: auto; flex: 1 1 auto;
+    background: rgba(128,128,128,.10); border-radius: 6px;
+    font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+    font-size: 12px; line-height: 1.5; white-space: pre;
+  }
+  .save-preview-diff .d-add { color: #2da44e; }
+  .save-preview-diff .d-del { color: #e5534b; }
+  .save-preview-diff .d-ctx { opacity: .55; }
+  .save-preview-diff .d-none { opacity: .7; font-style: italic; }
+  .save-preview-errors {
+    margin: 0 18px 6px; padding: 10px 12px; border-radius: 6px;
+    background: rgba(229,83,75,.14); border: 1px solid rgba(229,83,75,.5);
+    color: #e5534b; font-size: 13px;
+  }
+  .save-preview-errors ul { margin: 6px 0 0; padding-left: 20px; }
+  .save-preview-actions {
+    display: flex; gap: 10px; justify-content: flex-end;
+    padding: 12px 18px; border-top: 1px solid rgba(128,128,128,.28);
+  }
+  .save-preview-actions button {
+    padding: 8px 16px; border-radius: 6px; cursor: pointer;
+    border: 1px solid rgba(128,128,128,.45);
+    background: rgba(128,128,128,.12); color: inherit; font-size: 14px;
+  }
+  .save-preview-actions button.primary {
+    background: #2563eb; border-color: #2563eb; color: #fff;
+  }
+  .save-preview-actions button[disabled] { opacity: .5; cursor: not-allowed; }
 </style>
 </head>
 <body>
@@ -3429,6 +3479,22 @@
 
 <div id="status" class="status info" style="display:none"></div>
 
+<!-- WS-CONFIG save preview: shows a line-diff of the pending edit vs the
+     currently-loaded config and any server 422 validation errors before the
+     save actually fires. Populated + toggled by showSavePreview()/performSave(). -->
+<div id="save-preview" class="save-preview" role="dialog" aria-modal="true" aria-labelledby="save-preview-head">
+  <div class="save-preview-card">
+    <div class="save-preview-head" id="save-preview-head">Review changes</div>
+    <div class="save-preview-summary" id="save-preview-summary"></div>
+    <pre class="save-preview-diff" id="save-preview-diff"></pre>
+    <div class="save-preview-errors" id="save-preview-errors" style="display:none"></div>
+    <div class="save-preview-actions">
+      <button type="button" id="save-preview-cancel">Cancel</button>
+      <button type="button" id="save-preview-confirm" class="primary">Confirm save</button>
+    </div>
+  </div>
+</div>
+
 <footer>
   <p>Spec: <code>https://toml.io/en/v1.0.0</code> · After saving, run <code>sudo mios-sync-env</code> to regenerate <code>/etc/mios/install.env</code> from the layered <code>mios.toml</code>, then <code>systemctl restart mios-agent-pipe hermes-agent mios-llm-light</code> if AI keys changed. <code>mios-env --explain</code> shows which layer supplied each resolved <code>MIOS_*</code> value.</p>
 </footer>
@@ -4039,6 +4105,17 @@ function emitTomlValue(v) {
 
 // ── Form ↔ data binding ──────────────────────────────────────────
 let DATA = {};
+
+// WS-CONFIG: the serialized TOML of the CURRENTLY-LOADED config -- the diff
+// baseline for the Save preview. Snapshotted (via snapshotLoaded()) every time
+// DATA is (re)loaded from a source: boot defaults, the live Portal config
+// (seedFromServer), Defaults, a picked/opened file, and after a successful
+// save. Kept in the emitToml() representation so the preview compares apples to
+// apples (both sides run through the same client serializer).
+let LOADED_TOML = "";
+function snapshotLoaded() {
+  try { LOADED_TOML = emitToml(DATA); } catch (e) { LOADED_TOML = ""; }
+}
 
 // Split "section.maybe.subsection.key" -> ["section.maybe.subsection", "key"]
 // so [bootstrap.host_storage].shrink_mb maps to DATA["bootstrap.host_storage"]["shrink_mb"]
@@ -4754,6 +4831,7 @@ function seedFromServer() {
       }
       DATA = parsed;
       refreshFromData();
+      snapshotLoaded();   // WS-CONFIG diff baseline = the live Portal config
       showStatus("Loaded the live mios.toml from the Portal.", "ok");
     })
     .catch(() => { /* route not live yet (AGY-50) -> keep inline defaults */ });
@@ -4843,6 +4921,7 @@ async function readFileHandle(handle) {
   const text = await f.text();
   DATA = parseToml(text);
   refreshFromData();
+  snapshotLoaded();   // WS-CONFIG diff baseline = the bound file
   showStatus(`Bound to ${handle.name} (${text.length} bytes). Save will overwrite in place.`, "ok");
 }
 
@@ -4882,6 +4961,7 @@ document.getElementById("file-open").addEventListener("change", async e => {
     const text = await f.text();
     DATA = parseToml(text);
     refreshFromData();
+    snapshotLoaded();   // WS-CONFIG diff baseline = the opened file
     FILE_HANDLE = null;   // legacy path -> no handle
     showStatus(`Loaded ${f.name} (${text.length} bytes). Save will go through Downloads.`, "info");
   } catch (err) {
@@ -4892,22 +4972,136 @@ document.getElementById("file-open").addEventListener("change", async e => {
 document.getElementById("btn-defaults").addEventListener("click", () => {
   DATA = parseToml(DEFAULTS_TOML);
   refreshFromData();
+  snapshotLoaded();   // WS-CONFIG diff baseline = built-in defaults
   FILE_HANDLE = null;
   showStatus("Loaded built-in defaults (schema 1.1.0). Pick a target file to bind a handle.", "info");
 });
 
-document.getElementById("btn-save").addEventListener("click", async () => {
+// ── WS-CONFIG save preview (diff + confirm) ──────────────────────────────
+// Save no longer fires immediately. It first shows the operator a line-diff of
+// the pending edit vs the CURRENTLY-LOADED config (LOADED_TOML baseline) in a
+// confirm panel, and surfaces any server 422 validation errors inline. Confirm
+// runs performSave() -- the former one-click Save body, unchanged in behaviour
+// (POST /portal/config when embedded, then FSA / <a download> graceful
+// degrade). Under file:// (offline) there is no server, so the diff is against
+// the loaded defaults and Save still falls through to the download path.
+let PENDING_TOML = "";
+
+// Minimal LCS line-diff: old vs new serialized TOML. Returns a list of
+// {t:" "|"+"|"-", line} entries. Both sides are emitToml() output so a no-op
+// edit round-trips to zero changes.
+function lineDiff(oldText, newText) {
+  const a = (oldText || "").split("\n");
+  const b = (newText || "").split("\n");
+  const n = a.length, m = b.length;
+  // dp[i][j] = LCS length of a[i:] and b[j:]. Int32Array keeps this cheap even
+  // for a few-hundred-line config.
+  const dp = [];
+  for (let i = 0; i <= n; i++) dp.push(new Int32Array(m + 1));
+  for (let i = n - 1; i >= 0; i--) {
+    for (let j = m - 1; j >= 0; j--) {
+      dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1
+                               : Math.max(dp[i + 1][j], dp[i][j + 1]);
+    }
+  }
+  const out = [];
+  let i = 0, j = 0;
+  while (i < n && j < m) {
+    if (a[i] === b[j]) { out.push({ t: " ", line: a[i] }); i++; j++; }
+    else if (dp[i + 1][j] >= dp[i][j + 1]) { out.push({ t: "-", line: a[i] }); i++; }
+    else { out.push({ t: "+", line: b[j] }); j++; }
+  }
+  while (i < n) { out.push({ t: "-", line: a[i] }); i++; }
+  while (j < m) { out.push({ t: "+", line: b[j] }); j++; }
+  return out;
+}
+
+// Render the diff as HTML, collapsing long unchanged runs to hunks (keeps a
+// little context around each change so the operator can see which section).
+function renderDiffHtml(diff) {
+  const CTX = 2;
+  const keep = new Array(diff.length).fill(false);
+  for (let k = 0; k < diff.length; k++) {
+    if (diff[k].t !== " ") {
+      for (let j = Math.max(0, k - CTX); j <= Math.min(diff.length - 1, k + CTX); j++) keep[j] = true;
+    }
+  }
+  const out = [];
+  let gap = false;
+  for (let k = 0; k < diff.length; k++) {
+    if (keep[k]) {
+      gap = false;
+      const d = diff[k];
+      const cls = d.t === "+" ? "d-add" : d.t === "-" ? "d-del" : "d-ctx";
+      const prefix = d.t === " " ? "  " : d.t + " ";
+      out.push(`<span class="${cls}">${escapeHtml(prefix + d.line)}</span>`);
+    } else if (!gap) {
+      out.push(`<span class="d-ctx">   ...</span>`);
+      gap = true;
+    }
+  }
+  return out.join("\n");
+}
+
+function hideSavePreview() {
+  const panel = document.getElementById("save-preview");
+  if (panel) panel.classList.remove("open");
+}
+
+function renderSaveErrors(errs) {
+  const box = document.getElementById("save-preview-errors");
+  if (!box) return;
+  if (!errs || !errs.length) { box.style.display = "none"; box.innerHTML = ""; return; }
+  box.innerHTML = "<b>The Portal rejected this config (nothing was written):</b>" +
+    "<ul>" + errs.map(e => `<li>${escapeHtml(e)}</li>`).join("") + "</ul>";
+  box.style.display = "block";
+}
+
+// Build the diff, populate the panel, and open it. Called by the Save button.
+function showSavePreview() {
   gatherFromForm();
   renderRaw();
-  const toml = emitToml(DATA);
+  PENDING_TOML = emitToml(DATA);
+  const diff = lineDiff(LOADED_TOML, PENDING_TOML);
+  const changed = diff.filter(d => d.t !== " ").length;
+  const added = diff.filter(d => d.t === "+").length;
+  const removed = diff.filter(d => d.t === "-").length;
 
-  // Path 0 (STEP 6): embedded behind the Portal -- POST the serialized
-  // TOML to the live layered config so "Save" writes the running system
-  // in one click. POST /portal/config (relative to location.origin; no
-  // hardcoded host). INERT until AGY builds the route (AGY-50): any
-  // non-2xx / network error falls THROUGH to the File-System-Access /
-  // <a download> paths below (graceful degrade). NEVER attempted under
-  // file:// (offline USB fallback, ADR-0008).
+  const summary = document.getElementById("save-preview-summary");
+  const diffEl = document.getElementById("save-preview-diff");
+  const baseLabel = MIOS_EMBEDDED ? "the currently-loaded config"
+                                  : "the loaded config (offline defaults)";
+  if (changed === 0) {
+    if (summary) summary.textContent = `No changes vs ${baseLabel}. Save anyway?`;
+    if (diffEl) diffEl.innerHTML = `<span class="d-none">(no differences)</span>`;
+  } else {
+    if (summary) {
+      summary.textContent =
+        `${changed} changed line${changed === 1 ? "" : "s"} ` +
+        `(+${added} / -${removed}) vs ${baseLabel}.`;
+    }
+    if (diffEl) diffEl.innerHTML = renderDiffHtml(diff);
+  }
+  renderSaveErrors(null);
+  const confirmBtn = document.getElementById("save-preview-confirm");
+  if (confirmBtn) confirmBtn.disabled = false;
+  const panel = document.getElementById("save-preview");
+  if (panel) panel.classList.add("open");
+}
+
+// The actual write. Behaviour is the pre-WS-CONFIG one-click Save, EXCEPT a 422
+// (safety-validation failure) is surfaced inline in the panel and does NOT fall
+// through to a local write -- the operator fixes it and retries. Any other
+// non-2xx / network error still degrades to the FSA / download paths.
+async function performSave(toml) {
+  const finishSave = () => { LOADED_TOML = toml; hideSavePreview(); };
+
+  // Path 0 (STEP 6): embedded behind the Portal -- POST the serialized TOML to
+  // the live layered config. POST /portal/config (relative to location.origin;
+  // no hardcoded host). A 422 means the server's safety net rejected it (no
+  // write happened) -> show the errors inline and stop. Other non-2xx / network
+  // errors fall THROUGH to the FSA / <a download> paths (graceful degrade).
+  // NEVER attempted under file:// (offline USB fallback, ADR-0008).
   if (MIOS_EMBEDDED) {
     try {
       const resp = await fetch("/portal/config", {
@@ -4917,8 +5111,20 @@ document.getElementById("btn-save").addEventListener("click", async () => {
         body: toml
       });
       if (resp.ok) {
+        finishSave();
         showStatus(`Saved to MiOS — wrote the live mios.toml via the Portal (${toml.length} bytes).`, "ok");
         return;
+      }
+      if (resp.status === 422) {
+        let errs = ["The server rejected the config."];
+        try {
+          const data = await resp.json();
+          if (data && Array.isArray(data.errors) && data.errors.length) errs = data.errors;
+          else if (data && data.error) errs = [String(data.error)];
+        } catch (e) { /* non-JSON body -> keep the generic message */ }
+        renderSaveErrors(errs);
+        showStatus("Portal rejected the config — see the validation errors.", "err");
+        return;   // stay open; nothing written
       }
       showStatus(`Portal save unavailable (HTTP ${resp.status}) — saving locally instead.`, "info");
     } catch (err) {
@@ -4930,6 +5136,7 @@ document.getElementById("btn-save").addEventListener("click", async () => {
   if (FILE_HANDLE) {
     try {
       await writeFileHandle(FILE_HANDLE, toml);
+      finishSave();
       showStatus(`Wrote ${FILE_HANDLE.name} in place (${toml.length} bytes).`, "ok");
       return;
     } catch (err) {
@@ -4937,10 +5144,9 @@ document.getElementById("btn-save").addEventListener("click", async () => {
     }
   }
 
-  // Path 2: FSA available but no handle bound -- "Save As" picker
-  // with suggestedName so the OS save dialog opens already pointing
-  // at "mios.toml". Operator confirms once and the handle binds for
-  // the rest of the session.
+  // Path 2: FSA available but no handle bound -- "Save As" picker with
+  // suggestedName so the OS save dialog opens already pointing at "mios.toml".
+  // Operator confirms once and the handle binds for the rest of the session.
   if (HAS_FSA) {
     try {
       const handle = await window.showSaveFilePicker({
@@ -4949,28 +5155,48 @@ document.getElementById("btn-save").addEventListener("click", async () => {
       });
       FILE_HANDLE = handle;
       await writeFileHandle(handle, toml);
+      finishSave();
       showStatus(`Saved to ${handle.name} (${toml.length} bytes). Subsequent saves overwrite in place.`, "ok");
       return;
     } catch (err) {
       if (err.name !== "AbortError") {
         showStatus(`Save As failed: ${err.message} -- falling back to Downloads.`, "err");
       } else {
-        return;
+        return;   // operator cancelled the OS dialog -- leave the panel open
       }
     }
   }
 
-  // Path 3: legacy <a download>. Saves to Downloads. Browser appends
-  // " (1)" if the same name already exists -- the operator must
-  // rename and move the file manually. This is what the FSA paths
-  // above are designed to avoid.
+  // Path 3: legacy <a download>. Saves to Downloads. Browser appends " (1)" if
+  // the same name already exists -- the operator must rename + move the file
+  // manually. This is what the FSA paths above are designed to avoid.
   const blob = new Blob([toml], { type: "text/plain" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = "mios.toml";
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  finishSave();
   showStatus("Downloaded mios.toml -- drop it at one of the paths above.", "ok");
+}
+
+document.getElementById("btn-save").addEventListener("click", () => { showSavePreview(); });
+document.getElementById("save-preview-cancel").addEventListener("click", () => { hideSavePreview(); });
+document.getElementById("save-preview-confirm").addEventListener("click", async (ev) => {
+  const btn = ev.currentTarget;
+  btn.disabled = true;
+  try { await performSave(PENDING_TOML); }
+  finally { btn.disabled = false; }
+});
+// Dismiss on backdrop click or Escape.
+document.getElementById("save-preview").addEventListener("click", (ev) => {
+  if (ev.target === ev.currentTarget) hideSavePreview();
+});
+document.addEventListener("keydown", (ev) => {
+  if (ev.key === "Escape") {
+    const panel = document.getElementById("save-preview");
+    if (panel && panel.classList.contains("open")) hideSavePreview();
+  }
 });
 
 // ── Auto-upgrade data-type="bool" text inputs to pill-style toggle switches ──
@@ -5009,6 +5235,7 @@ document.querySelectorAll("[data-key]").forEach(el => {
 // First paint with defaults + per-platform path banner
 DATA = parseToml(DEFAULTS_TOML);
 refreshFromData();
+snapshotLoaded();   // WS-CONFIG diff baseline = boot defaults (until a load overrides)
 renderPathBanner();
 
 // STEP 4 -- apply the embed-aware context (hide the standalone chrome and
