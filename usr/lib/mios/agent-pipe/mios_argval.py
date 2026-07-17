@@ -2,7 +2,7 @@
 # AI-related: ./mios_dispatch.py, ./test_mios_argval.py
 # AI-functions: configure, _arg_with_synonyms, _validate_enum_args
 
-from typing import Optional
+from typing import Optional, Any
 
 _VERB_CATALOG = {}
 _VERB_ARG_SYNONYMS = {}
@@ -14,18 +14,26 @@ def configure(verb_catalog=None, verb_arg_synonyms=None) -> None:
     if verb_arg_synonyms is not None:
         _VERB_ARG_SYNONYMS = verb_arg_synonyms
 
-def _arg_with_synonyms(tool: str, canonical: str, args: dict) -> str:
+def _arg_with_synonyms(tool: str, canonical: str, args: dict) -> Any:
     """Resolve an arg by canonical name first, then by mios.toml-
-    declared synonyms for the verb. Returns the first non-empty string
-    value found, or '' if none match. SSOT: mios.toml
+    declared synonyms for the verb. Returns the first non-empty string,
+    list, or tuple found, or '' if none match. SSOT: mios.toml
     [verbs.<tool>.synonyms]."""
     v = args.get(canonical)
-    if v is not None and str(v).strip():
-        return str(v)
+    if v is not None:
+        if isinstance(v, (list, tuple)):
+            if len(v) > 0:
+                return v
+        elif str(v).strip():
+            return str(v)
     for alias in (_VERB_ARG_SYNONYMS.get(tool, {}).get(canonical) or []):
         v = args.get(alias)
-        if v is not None and str(v).strip():
-            return str(v)
+        if v is not None:
+            if isinstance(v, (list, tuple)):
+                if len(v) > 0:
+                    return v
+            elif str(v).strip():
+                return str(v)
     return ""
 
 def _validate_enum_args(tool: str, args: dict) -> Optional[str]:

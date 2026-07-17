@@ -211,7 +211,8 @@ DONE vs PLANNED (honest):
   token source): `template` renders the whole file as before; `json-merge` splices
   a MiOS-owned JSON subtree onto a foreign JSON doc via a STRING-AWARE JSONC parse
   (`//` inside a value/URL never mangled), a deep merge (owned leaf/array wins,
-  arrays replaced wholesale, every foreign key byte-preserved), and a base-indent
+  arrays replaced wholesale — except at a keyed pointer, see array-merge-by-key
+  below — every foreign key byte-preserved), and a base-indent
   `json.dump`. The gate is OFFLINE: a merge surface declares a `fixture.base` +
   `fixture.expected` pair and `check` diffs `derive(owned, fixture.base)` against
   the committed `fixture.expected` (it NEVER reads the operator's live file);
@@ -246,6 +247,22 @@ DONE vs PLANNED (honest):
   base carries FOREIGN `[credential]`/`user.signingkey`/`[remote "origin"]` lines
   that survive the merge. The existing `gitconfig` (template) surface is
   unchanged and byte-identical.
+- **DONE 2026-07-17 (array-merge-by-key + `windows-terminal` surface):** a minimal
+  extension to the `json-merge` deep merge for foreign docs that keep a COLLECTION
+  in an array keyed by a stable field. `_json_deep_merge` now threads a JSON
+  pointer; at a pointer listed in `_ARRAY_MERGE_KEYS` (`{"/schemes": "name"}`)
+  whose two sides are both lists of objects all carrying the merge key, the lists
+  merge BY KEY (foreign element preserved in base order; owned element with the
+  same key deep-merges over it; owned-only element appended) instead of the
+  default wholesale-replace. Every OTHER pointer — and every element that is a
+  non-dict or lacks the key — falls back to the byte-identical wholesale-replace,
+  so `vscode-colors` and all prior surfaces are unchanged. The landed proof is the
+  `windows-terminal` surface (kind=`json-merge`, Windows-only `apply.target` the WT
+  `LocalState/settings.json`): MiOS owns ONLY a `"MiOS"` scheme in the top-level
+  `schemes` array (colors from `[colors]` SSOT via `@MIOS:token@`, `black..white`
+  from the `ansi_0..15` slots) + `profiles.defaults.colorScheme`; its
+  `fixture.base` carries a FOREIGN `"Campbell"` scheme and foreign top-level keys
+  (`copyOnSelect`, `launchMode`, `profiles.list`) that all survive the merge.
 - **PLANNED (WS-DOTFILES / T-270):** the `mios-dotfiles-render` fork + the
   `check 25 → check_dotfiles_projection` rename (deliberately NOT done here —
   larger, higher-risk, out of scope for the byte-preserving transcription);

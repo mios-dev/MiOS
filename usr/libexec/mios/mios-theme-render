@@ -185,17 +185,78 @@ def _detect_indent(text):
     return 2
 
 
-def _json_deep_merge(base, owned):
+# Array-merge-by-key (ADR-0010). By DEFAULT _json_deep_merge REPLACES a list
+# wholesale at the owned pointer (index-merge is unsafe for most arrays). But a
+# few foreign JSON docs keep a COLLECTION keyed by a stable field -- e.g. Windows
+# Terminal's top-level `schemes` array, each element `{name, background, ...}`.
+# Wholesale-replacing it would DELETE the operator's OTHER schemes. For the JSON
+# pointers listed here ONLY, the two lists are merged BY KEY instead. The map is
+# keyed by JSON pointer (e.g. "/schemes"), so every OTHER array -- and every
+# current surface, NONE of which has a `/schemes` array (vscode-colors owns only
+# objects) -- keeps the byte-identical wholesale-replace path. Extend this map to
+# add a new keyed-array pointer; leave it be and nothing changes.
+_ARRAY_MERGE_KEYS = {
+    "/schemes": "name",  # Windows Terminal color schemes, keyed by scheme name
+}
+
+
+def _keyed_object_list(a, b, key):
+    """True iff both lists are safe to merge BY `key`: every element is a dict
+    that carries `key`. If ANY element is a non-dict or lacks the key, the caller
+    falls back to the default wholesale-replace (so a heterogeneous/opaque array
+    is never silently index-merged). Empty lists trivially qualify."""
+    return all(isinstance(x, dict) and key in x for x in a) and \
+        all(isinstance(x, dict) and key in x for x in b)
+
+
+def _array_merge_by_key(base_list, owned_list, key):
+    """Merge two lists of objects BY a stable `key` field (neither input mutated):
+    a foreign (base) element whose key is NOT in `owned_list` is PRESERVED in base
+    order; an owned element whose key matches a foreign one deep-merges OVER it in
+    place (owned wins, foreign sub-keys of that element preserved); an owned-only
+    element is APPENDED after the foreign ones. The caller has already verified
+    every element is a dict carrying `key` (see _keyed_object_list)."""
+    owned_by_key = {}
+    owned_order = []
+    for item in owned_list:
+        k = item[key]
+        if k not in owned_by_key:
+            owned_order.append(k)
+        owned_by_key[k] = item  # last owned element wins for a duplicate key
+    out, matched = [], set()
+    for item in base_list:
+        k = item[key]
+        if k in owned_by_key:
+            out.append(_json_deep_merge(item, owned_by_key[k]))  # owned updates foreign
+            matched.add(k)
+        else:
+            out.append(item)  # foreign-only element preserved
+    for k in owned_order:
+        if k not in matched:
+            out.append(owned_by_key[k])  # owned-only element appended
+    return out
+
+
+def _json_deep_merge(base, owned, pointer=""):
     """Deep-merge the MiOS-`owned` subtree onto `base` (insertion-ordered):
     recurse where BOTH sides are objects; a MiOS-owned leaf/array/object-over-
     non-object wins; arrays are REPLACED wholesale at the owned pointer (index-
-    merge is unsafe); any key `owned` does not carry is preserved in base's order.
-    New owned keys append after the foreign keys."""
+    merge is unsafe) EXCEPT at a pointer listed in _ARRAY_MERGE_KEYS whose two
+    lists are keyed-object lists -- there they merge BY KEY (foreign elements
+    preserved, owned wins per key); any key `owned` does not carry is preserved in
+    base's order. New owned keys append after the foreign keys. `pointer` is the
+    JSON pointer of the CURRENT node ("" at the root), extended per recursion so
+    the array-merge lookup is position-exact."""
     if isinstance(base, dict) and isinstance(owned, dict):
         merged = dict(base)  # foreign keys keep base's insertion order
         for k, v in owned.items():
+            child = pointer + "/" + k
             if k in merged and isinstance(merged[k], dict) and isinstance(v, dict):
-                merged[k] = _json_deep_merge(merged[k], v)
+                merged[k] = _json_deep_merge(merged[k], v, child)
+            elif (child in _ARRAY_MERGE_KEYS and isinstance(merged.get(k), list)
+                  and isinstance(v, list)
+                  and _keyed_object_list(merged[k], v, _ARRAY_MERGE_KEYS[child])):
+                merged[k] = _array_merge_by_key(merged[k], v, _ARRAY_MERGE_KEYS[child])
             else:
                 merged[k] = v
         return merged
@@ -206,7 +267,8 @@ def _json_merge(owned_text, base_text):
     """Splice the MiOS-owned JSON subtree (owned_text) onto base_text (a foreign
     JSONC document), returning pretty JSON text (base indent, ensure_ascii=False,
     trailing newline). Foreign keys byte-preserved; owned wins; arrays replaced
-    wholesale. A base that will not parse => exit 2, write NOTHING (never corrupt
+    wholesale EXCEPT at an _ARRAY_MERGE_KEYS pointer (merged by key -- foreign
+    elements preserved). A base that will not parse => exit 2, write NOTHING (never corrupt
     an unreadable foreign file). An owned subtree that will not parse is a MiOS
     template bug => exit 3."""
     try:

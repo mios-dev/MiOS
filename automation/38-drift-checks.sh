@@ -1456,7 +1456,7 @@ check_theme_projection() {
         echo "[38-drift-checks]   WARNING: mios-theme-render not found -- skipping" >&2
         return 0
     fi
-    if MIOS_THEME_ROOT="$ROOT" python3 "$tool" check >/dev/null 2>"$ROOT/.theme.err"; then
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" python3 "$tool" check >/dev/null 2>"$ROOT/.theme.err"; then
         rm -f "$ROOT/.theme.err" 2>/dev/null || true
         echo "[38-drift-checks]   (25) every committed theme + settings surface projects from mios.toml [colors]/[btop]/[gitconfig]/[identity] SSOT"
     else
@@ -3353,6 +3353,17 @@ check_bake_plan() {
     fi
 }
 
+check_bake_ref_defaults() {
+    local empty_refs
+    empty_refs="$(git grep -E 'MIOS_BUILD_BAKE_REFS_[A-Z0-9_]+:-\}' automation/ 2>/dev/null || true)"
+    if [[ -n "$empty_refs" ]]; then
+        _violation "found empty defaults for bake-refs in automation scripts:"$'\n'"${empty_refs}"
+    else
+        echo "[38-drift-checks]   (47) all baker scripts have non-empty defaults for their bake-refs"
+    fi
+}
+
+
 check_roadmap_index() {
     if ! command -v python3 >/dev/null 2>&1; then
         echo "[38-drift-checks]   WARNING: python3 missing -- skipping roadmap index check" >&2
@@ -3439,6 +3450,19 @@ check_shellcheck() {
 }
 
 main() {
+    if [[ $# -eq 1 && -n "$1" ]]; then
+        if declare -f "$1" >/dev/null; then
+            "$1"
+            if [[ "$VIOLATIONS" -eq 0 ]]; then
+                exit 0
+            fi
+            exit 1
+        else
+            echo "Unknown check function: $1" >&2
+            exit 2
+        fi
+    fi
+
     check_dead_lane
     check_retired_models
     check_structured
@@ -3484,6 +3508,7 @@ main() {
     check_template_conformance
     check_version_ssot
     check_bake_plan
+    check_bake_ref_defaults
     check_roadmap_index
     check_cli_eval_safety
     check_shellcheck

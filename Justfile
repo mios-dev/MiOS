@@ -90,6 +90,9 @@ drift-gate:
         if "$py_exec" test_mios_docgen.py >/dev/null 2>&1; then echo "  [ OK ] test_mios_docgen.py"; else echo "  [FAIL] test_mios_docgen.py" >&2; exit 1; fi
     @echo "[drift-gate] 38-drift-checks.sh (AI-plane source drift fitness-functions)"
     bash ./automation/38-drift-checks.sh
+    @echo "[drift-gate] tests/drift-gate-negatives.sh (negative-test harness for the new gates)"
+    bash ./tests/drift-gate-negatives.sh
+
 
 # Build OCI image locally
 build: preflight flight-status

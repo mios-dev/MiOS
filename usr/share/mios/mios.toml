@@ -11013,6 +11013,34 @@ expected = "usr/share/mios/theme/fixtures/gitconfig.expected.gitconfig"
 linux   = "~/.gitconfig"
 windows = "%USERPROFILE%/.gitconfig"
 
+# JSON-MERGE surface (ADR-0010 `kind` axis) -- the Windows Terminal color scheme.
+# MiOS owns ONLY the "MiOS" color scheme + profiles.defaults.colorScheme of a
+# foreign settings.json. WT keeps its schemes in a TOP-LEVEL `schemes` ARRAY of
+# `{name, background, foreground, black..white, ...}` objects, so a wholesale
+# array-replace would DELETE the operator's other schemes; kind=json-merge here
+# relies on the ARRAY-MERGE-BY-KEY path (mios-theme-render _ARRAY_MERGE_KEYS maps
+# the "/schemes" pointer to the "name" key) so a foreign scheme (e.g. Campbell)
+# is PRESERVED, the "MiOS" scheme is added/updated in place, and every foreign
+# top-level key (copyOnSelect, launchMode, profiles.list, ...) is byte-preserved.
+# The colors come from the [colors] SSOT via @MIOS:token@ (background=bg,
+# foreground=fg, cursorColor=cursor, black..brightWhite from the ansi_0..15
+# slots). The drift-gate is OFFLINE: `check` merges the owned subtree onto the
+# checked-in fixture.base and byte-diffs the committed fixture.expected -- it
+# NEVER reads the operator's live settings.json. `apply` merges onto the LIVE
+# WT LocalState settings.json (backing it up first). WT is Windows-only, so only
+# [.apply.target].windows is declared (no linux target -> `apply` no-ops on Linux,
+# exactly like quickshell no-ops on Windows). `target` is the committed gated
+# artifact (= fixture.expected); the real live destination is [.apply.target].
+[dotfiles.registry.windows-terminal]
+template = "usr/share/mios/theme/templates/windows-terminal-settings.json.tmpl"
+target   = "usr/share/mios/theme/fixtures/windows-terminal-settings.expected.json"
+kind     = "json-merge"
+[dotfiles.registry.windows-terminal.fixture]
+base     = "usr/share/mios/theme/fixtures/windows-terminal-settings.base.json"
+expected = "usr/share/mios/theme/fixtures/windows-terminal-settings.expected.json"
+[dotfiles.registry.windows-terminal.apply.target]
+windows = "%LOCALAPPDATA%/Packages/Microsoft.WindowsTerminal_8wekyb3d8bbwe/LocalState/settings.json"
+
 [shell]
 [editor]
 [git]
