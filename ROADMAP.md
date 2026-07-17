@@ -208,6 +208,10 @@ acceptance: |
 <!--
 id: WS-LANG
 title: Language-per-domain unification — Rust for native tooling, bash demoted to thin glue
+
+> [!NOTE]
+> **Implementation Note (AGY-51):** The native Rust workspace has been scaffolded at `tools/native/` (containing the `mios-version-check` crate). Since no Rust toolchain is present in the host environment, the binary compilation is deferred via `TODO(agy): cargo build`.
+-->
 theme: OS-Image & Build
 status: proposed
 priority: P1

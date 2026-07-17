@@ -130,6 +130,10 @@ bash tool — the **drift-runner** (highest win, lowest coupling; several checks
 already Python-in-bash) or the **verb dispatcher** — running old+new side-by-side and
 diffing to identical before deleting the bash.
 
+> [!NOTE]
+> **Implementation Note (AGY-51):** The native cargo workspace was stood up at `tools/native/` with `mios-version-check` as the first tool. In the absence of a host Rust toolchain, a `TODO(agy): cargo build` is recorded.
+
+
 ## Rationale
 
 - **The migration surface is logic-dense orchestration/validation, not high-volume
