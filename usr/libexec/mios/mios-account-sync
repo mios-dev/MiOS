@@ -15,6 +15,50 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] mios
 logger = logging.getLogger("mios-account-sync")
 
 PG_QUERY = os.environ.get("MIOS_PG_QUERY_BIN", "/usr/libexec/mios/mios-pg-query")
+STATE_FILE = "/var/lib/mios/account-sync-state.json"
+
+def load_state() -> dict[str, str]:
+    import json
+    if os.path.isfile(STATE_FILE):
+        try:
+            with open(STATE_FILE, "r") as f:
+                return json.load(f)
+        except Exception as e:
+            logger.error(f"Failed to load state file: {e}")
+    return {}
+
+def save_state(state: dict[str, str]):
+    import json
+    try:
+        os.makedirs(os.path.dirname(STATE_FILE), exist_ok=True)
+        with open(STATE_FILE, "w") as f:
+            json.dump(state, f, indent=2)
+    except Exception as e:
+        logger.error(f"Failed to write state file: {e}")
+
+def update_db_password(username: str, new_hash: str):
+    envelope = {
+        "statements": [
+            {
+                "sql": "UPDATE account SET password_hash = $1 WHERE name = $2",
+                "params": [new_hash, username]
+            },
+            {
+                "sql": "UPDATE mios_identity.aliases SET password_hash_sha512 = $1 WHERE alias_username = $2",
+                "params": [new_hash, username]
+            }
+        ]
+    }
+    import json
+    try:
+        p = subprocess.run([PG_QUERY, "--exec-json"], input=json.dumps(envelope), capture_output=True, text=True, timeout=10)
+        if p.returncode != 0:
+            logger.error(f"Failed to write back password for {username} to DB: {p.stderr}")
+        else:
+            logger.info(f"Successfully wrote back password for {username} to DB.")
+    except Exception as e:
+        logger.error(f"Failed to execute write-back query: {e}")
+
 
 def query_db_accounts() -> list[dict]:
     """Queries both legacy accounts and canonical aliases from pgvector."""
@@ -122,6 +166,8 @@ def sync_accounts():
         return
     
     shadow_hashes = get_local_shadow_hashes()
+    state = load_state()
+    state_changed = False
     
     # Track usernames that are active in the database
     active_db_users = set()
@@ -151,6 +197,20 @@ def sync_accounts():
         except KeyError:
             user_exists = False
             
+        db_hash = db_user["password_hash"]
+        local_hash = shadow_hashes.get(name, "")
+        last_seen_hash = state.get(name)
+        
+        # Bidirectional password write-back logic
+        if user_exists and last_seen_hash and local_hash and local_hash != last_seen_hash:
+            logger.info(f"Local password hash change detected for {name}. Writing back to DB...")
+            update_db_password(name, local_hash)
+            state[name] = local_hash
+            db_hash = local_hash
+            state_changed = True
+        elif db_hash and db_hash != local_hash:
+            pass
+            
         if not user_exists:
             # Create user account
             cmd = ["useradd", "-m"]
@@ -163,13 +223,16 @@ def sync_accounts():
                 cmd += ["-s", db_user["shell"]]
             if db_user["display"]:
                 cmd += ["-c", db_user["display"]]
-            if db_user["password_hash"]:
-                cmd += ["-p", db_user["password_hash"]]
+            if db_hash:
+                cmd += ["-p", db_hash]
             cmd.append(name)
             
             try:
                 logger.info(f"Creating local user account: {name}")
                 subprocess.run(cmd, check=True)
+                if db_hash:
+                    state[name] = db_hash
+                    state_changed = True
             except subprocess.CalledProcessError as e:
                 logger.error(f"Failed to create user {name}: {e}")
                 continue
@@ -187,9 +250,11 @@ def sync_accounts():
             if db_user["display"] and local_user.pw_gecos != db_user["display"]:
                 update_cmd += ["-c", db_user["display"]]
                 needs_update = True
-            if db_user["password_hash"] and shadow_hashes.get(name) != db_user["password_hash"]:
-                update_cmd += ["-p", db_user["password_hash"]]
+            if db_hash and local_hash != db_hash:
+                update_cmd += ["-p", db_hash]
                 needs_update = True
+                state[name] = db_hash
+                state_changed = True
                 
             if needs_update:
                 update_cmd.append(name)
@@ -198,6 +263,12 @@ def sync_accounts():
                     subprocess.run(update_cmd, check=True)
                 except subprocess.CalledProcessError as e:
                     logger.error(f"Failed to update user {name}: {e}")
+
+        # Sync first-time seen existing users into state
+        if user_exists and name not in state and local_hash:
+            state[name] = local_hash
+            state_changed = True
+
         
         # Synchronize supplementary groups
         target_groups = set()
@@ -250,6 +321,9 @@ def sync_accounts():
                     subprocess.run(["usermod", "-L", local_user.pw_name], check=True)
                 except subprocess.CalledProcessError as e:
                     logger.error(f"Failed to lock user {local_user.pw_name}: {e}")
+
+    if state_changed:
+        save_state(state)
 
 def main():
     if "--daemon" in sys.argv:
