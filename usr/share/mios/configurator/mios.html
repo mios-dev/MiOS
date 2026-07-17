@@ -756,9 +756,15 @@
         <span class="grp-title">Review &amp; download</span><span class="grp-note">write mios.toml, then run <code>mios build</code></span>
       </div>
       <div class="card review-card">
-        <p class="review-hint">Everything you set here serialises to a single <code>mios.toml</code> (the MiOS SSOT). Save it to <code>~/.config/mios/mios.toml</code> (per-user, highest precedence), then run <code>mios build</code>. Nothing leaves the browser — the file is generated client-side.</p>
+        <!-- STEP 4 (embed-aware): .embed-hide = standalone/offline (file://) copy,
+             hidden when served same-origin over HTTP behind the Portal (which owns
+             persistence). .embed-only = revealed only when embedded. Toggled purely
+             on location.protocol by applyEmbedContext(); no markup is removed. -->
+        <p class="review-hint embed-hide">Everything you set here serialises to a single <code>mios.toml</code> (the MiOS SSOT). Save it to <code>~/.config/mios/mios.toml</code> (per-user, highest precedence), then run <code>mios build</code>. Nothing leaves the browser — the file is generated client-side.</p>
+        <p class="review-hint embed-only" style="display:none">Everything you set here serialises to the live <code>mios.toml</code> (the MiOS SSOT). <b>Save to MiOS</b> writes it straight to the running system, then run <code>mios build</code> to apply.</p>
         <div class="review-actions">
-          <button type="button" class="primary big" id="btn-download-main">Download mios.toml</button>
+          <button type="button" class="primary big embed-hide" id="btn-download-main">Download mios.toml</button>
+          <button type="button" class="primary big embed-only" id="btn-save-mios" style="display:none">Save to MiOS</button>
           <span class="review-hint">or use <b>Save</b> in the top bar to write in place.</span>
         </div>
         <div class="raw-slot" data-slot="raw"><!-- Raw TOML preview section moves here --></div>
@@ -4708,6 +4714,30 @@ let FILE_HANDLE = null;
 const HAS_FSA = typeof window.showSaveFilePicker === "function" &&
                 typeof window.showOpenFilePicker === "function";
 
+// ── Embed-aware context (CLIENT-LANE of WS-CONFIG) ───────────────
+// The MiOS Portal at :8640 embeds this same mios.html as its unified
+// Settings surface (a Settings gear opens GET /portal/configurator;
+// /configure opens the shell straight to it). Served same-origin over
+// HTTP we are behind the Portal, which OWNS persistence of the live
+// layered mios.toml. Opened from file:// we are the offline USB /
+// air-gapped standalone editor (ADR-0008) and keep every standalone
+// affordance. The whole client lane is gated STRICTLY on
+// location.protocol.
+const MIOS_EMBEDDED = location.protocol !== "file:";
+
+// STEP 4 -- swap the standalone chrome for the embedded chrome. Only
+// mutates the DOM when embedded; under file:// it is a pure no-op so ALL
+// standalone chrome (the suggested-path banner + the Download hero /
+// onboarding copy) stays visible. Removes NO markup -- pure show/hide.
+function applyEmbedContext() {
+  if (!MIOS_EMBEDDED) return;                 // file:// -> leave everything visible
+  document.documentElement.classList.add("mios-embedded");
+  const banner = document.getElementById("path-banner");
+  if (banner) banner.style.display = "none";  // offline suggested-path banner
+  document.querySelectorAll(".embed-hide").forEach(el => { el.style.display = "none"; });
+  document.querySelectorAll(".embed-only").forEach(el => { el.style.display = ""; });
+}
+
 function detectPlatform() {
   // Heuristic from navigator.platform / userAgentData. Used only to
   // suggest the right per-platform path in the banner; never as a
@@ -4935,6 +4965,12 @@ DATA = parseToml(DEFAULTS_TOML);
 refreshFromData();
 renderPathBanner();
 
+// STEP 4 -- apply the embed-aware context (hide the standalone chrome and
+// reveal "Save to MiOS" when served behind the Portal over HTTP). No-op
+// under file://, so the offline editor is unchanged. Must run AFTER
+// renderPathBanner() so it wins over the banner's inline display:block.
+applyEmbedContext();
+
 // ── Profile-card SPA shell (replaces the tab reparenter) ─────────────────
 // initShell() MOVES the original field markup out of the hidden #pool into
 // the redesigned home cards + one Advanced sub-page per <details.section>.
@@ -5132,6 +5168,10 @@ function initShell() {
   const saveBtn = document.getElementById("btn-save");
   const dl = document.getElementById("btn-download-main");
   if (dl && saveBtn) dl.addEventListener("click", () => saveBtn.click());
+  // STEP 4 -- the embedded "Save to MiOS" affordance routes through the
+  // same Save handler (which gets PATH-0: POST /portal/config when embedded).
+  const saveMios = document.getElementById("btn-save-mios");
+  if (saveMios && saveBtn) saveMios.addEventListener("click", () => saveBtn.click());
 
   // ── 7. First-run onboarding wizard (skippable coach flow) ───────────────
   const STEPS = [
