@@ -10886,7 +10886,78 @@ data_partition = ""
 models = []
 
 [dotfiles]
-registry = ""
+
+# ----------------------------------------------------------------------------
+# [dotfiles.registry.<surface>] -- the SSOT projection registry (ADR-0010).
+# REPLACES the former hardcoded Python SURFACES dict in
+# usr/libexec/mios/mios-theme-render, so the surface map itself is
+# operator-editable via the Portal (ADR-0009). Each surface carries:
+#   template = repo-relative token-substitution template (.tmpl)
+#   target   = repo-relative committed artifact the render/check gate owns
+#   section  = (SETTINGS surfaces only) the mios.toml [section] whose scalar
+#              keys project as @MIOS:<section>_<key>@ tokens (conf-formatted)
+# The registry REFERENCES the existing content sections ([colors], [btop],
+# [gitconfig], [identity]); it does NOT re-home them (Law 9).
+# The optional [.apply.target] sub-table names the LIVE-HOME destination per
+# platform for the additive `apply`/`diff` verbs (HOME-eligible surfaces only;
+# the system surfaces app-shell + term-osc have none). Surface names MUST NOT
+# contain a dot (the surface key is a dotted-walk leaf). Order matches the
+# former SURFACES literal so render/check/capture log order is unchanged.
+# ----------------------------------------------------------------------------
+[dotfiles.registry.btop]
+template = "usr/share/mios/theme/templates/btop-mios.theme.tmpl"
+target   = "etc/btop/themes/mios.theme"
+[dotfiles.registry.btop.apply.target]
+linux   = "~/.config/btop/themes/mios.theme"
+windows = "%LOCALAPPDATA%/btop/themes/mios.theme"
+
+[dotfiles.registry.oh-my-posh]
+template = "usr/share/mios/theme/templates/oh-my-posh.omp.json.tmpl"
+target   = "usr/share/mios/oh-my-posh/mios.omp.json"
+[dotfiles.registry.oh-my-posh.apply.target]
+linux   = "~/.config/oh-my-posh/mios.omp.json"
+windows = "%LOCALAPPDATA%/oh-my-posh/mios.omp.json"
+
+[dotfiles.registry.quickshell]
+template = "usr/share/mios/theme/templates/quickshell-Theme.qml.tmpl"
+target   = "usr/share/mios/quickshell/Theme.qml"
+[dotfiles.registry.quickshell.apply.target]
+linux = "~/.config/quickshell/Theme.qml"
+
+[dotfiles.registry.fastfetch]
+template = "usr/share/mios/theme/templates/fastfetch-config.jsonc.tmpl"
+target   = "usr/share/mios/fastfetch/config.jsonc"
+[dotfiles.registry.fastfetch.apply.target]
+linux   = "~/.config/fastfetch/config.jsonc"
+windows = "%LOCALAPPDATA%/fastfetch/config.jsonc"
+
+[dotfiles.registry.app-shell]
+template = "usr/share/mios/theme/templates/mios-app-shell.css.tmpl"
+target   = "usr/share/mios/branding/mios-app-shell.css"
+
+[dotfiles.registry.term-osc]
+template = "usr/share/mios/theme/templates/mios-colors.sh.tmpl"
+target   = "etc/profile.d/mios-colors.sh"
+
+# SETTINGS surface: `section` names the [btop] table whose ~60 scalar keys
+# derive the WHOLE etc/btop/btop.conf via @MIOS:btop_<key>@ tokens.
+[dotfiles.registry.btop-conf]
+template = "usr/share/mios/theme/templates/btop.conf.tmpl"
+target   = "etc/btop/btop.conf"
+section  = "btop"
+[dotfiles.registry.btop-conf.apply.target]
+linux   = "~/.config/btop/btop.conf"
+windows = "%LOCALAPPDATA%/btop/btop.conf"
+
+# SETTINGS surface: `section` names the [gitconfig] table; [identity] is always
+# injected too (username/fullname), so etc/skel/.gitconfig derives from SSOT.
+[dotfiles.registry.gitconfig]
+template = "usr/share/mios/theme/templates/gitconfig.tmpl"
+target   = "etc/skel/.gitconfig"
+section  = "gitconfig"
+[dotfiles.registry.gitconfig.apply.target]
+linux   = "~/.gitconfig"
+windows = "%USERPROFILE%/.gitconfig"
 
 [shell]
 [editor]

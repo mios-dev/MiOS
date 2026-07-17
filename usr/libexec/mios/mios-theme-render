@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 # AI-hint: The GLOBAL runtime theme projector -- renders EVERY committed theme surface (the btop theme, oh-my-posh, quickshell, fastfetch, the app-shell CSS, the terminal OSC fallbacks) from the mios.toml [colors]/[theme] SSOT via token-substitution templates, so a palette edit refreshes all of them from ONE command instead of hand-editing hex in a dozen files. Also projects SETTINGS surfaces (a surface with a 3rd registry element naming a mios.toml section): the btop-conf surface derives the WHOLE etc/btop/btop.conf from [btop] the same way, via @MIOS:btop_<key>@ tokens -- unified Linux+Windows, no hand-maintained conf. Modes: `render` writes artifacts from templates; `check` regenerates in-memory and diffs the committed artifact (the drift-gate half -- exit 1 on drift); `capture` templatizes an existing artifact by replacing each SSOT palette hex with an @MIOS:token@ sentinel and self-verifies the round-trip is byte-identical (refuses to write a lossy template). Same three-layer vendor<host<user overlay as mios-sync-theme; canonicalizes collided values to the semantic token (bg over ansi_0) and never tokenizes #FFFFFF/#000000. Pairs with mios-sync-theme (the one global refresh) and 38-drift-checks check 21 (regenerate-and-diff gate) so a committed theme surface can NEVER drift from the palette SSOT.
 # AI-related: ./mios-sync-theme, ../../share/mios/mios.toml, ../../share/mios/theme/templates, ../../../automation/38-drift-checks.sh, ../../share/mios/quickshell/Theme.qml
-# AI-functions: _token_map, _resolve, _render_text, cmd_render, cmd_check, cmd_capture, main
+# AI-functions: _load_surfaces, _token_map, _resolve, _render_text, cmd_render, cmd_check, cmd_capture, cmd_apply, main
 """Global runtime theme projection: render/check/capture theme surfaces from the mios.toml palette SSOT."""
 
 from __future__ import annotations
 
+import datetime
 import os
 import re
+import shutil
 import sys
 
 # Repo/system root: default two dirs up from usr/libexec/mios/, overridable.
@@ -32,24 +34,53 @@ _EXCLUDE = {"#FFFFFF", "#000000"}
 _HEX = re.compile(r"#[0-9A-Fa-f]{6}\b")
 _SENTINEL = re.compile(r"@MIOS:([a-z0-9_]+)@")
 
-# The surface registry: name -> (template repo-path, artifact repo-path).
-# A surface is projected + drift-gated once its .tmpl exists. Add a surface by
-# running `mios-theme-render capture <name>` (self-verifying round-trip).
-SURFACES = {
-    "btop":       ("usr/share/mios/theme/templates/btop-mios.theme.tmpl",   "etc/btop/themes/mios.theme"),
-    "oh-my-posh": ("usr/share/mios/theme/templates/oh-my-posh.omp.json.tmpl", "usr/share/mios/oh-my-posh/mios.omp.json"),
-    "quickshell": ("usr/share/mios/theme/templates/quickshell-Theme.qml.tmpl", "usr/share/mios/quickshell/Theme.qml"),
-    "fastfetch":  ("usr/share/mios/theme/templates/fastfetch-config.jsonc.tmpl", "usr/share/mios/fastfetch/config.jsonc"),
-    "app-shell":  ("usr/share/mios/theme/templates/mios-app-shell.css.tmpl", "usr/share/mios/branding/mios-app-shell.css"),
-    "term-osc":   ("usr/share/mios/theme/templates/mios-colors.sh.tmpl",    "etc/profile.d/mios-colors.sh"),
-    # SETTINGS surface (3rd element = the mios.toml section whose scalar keys
-    # project as @MIOS:<section>_<key>@ tokens, conf-formatted). btop-conf
-    # derives the WHOLE btop config from [btop] the same way the color
-    # surfaces derive from [colors] -- ONE SSOT, unified Linux+Windows,
-    # drift-gated by check 25 (the Windows bootstrap stages this artifact).
-    "btop-conf":  ("usr/share/mios/theme/templates/btop.conf.tmpl", "etc/btop/btop.conf", "btop"),
-    "gitconfig":  ("usr/share/mios/theme/templates/gitconfig.tmpl", "etc/skel/.gitconfig", "gitconfig"),
-}
+# The surface registry is now SSOT-authored in mios.toml [dotfiles.registry.*]
+# (ADR-0010) instead of a hardcoded literal, so the surface map itself is
+# operator-editable via the Portal (ADR-0009) and can carry a per-platform
+# live-HOME `apply` target. _load_surfaces() transcribes that namespace into
+# the SAME in-memory shape the old literal had -- name -> (template, artifact
+# [, section]) -- element-for-element, so render/check/capture stay byte-for-
+# byte identical. A surface is projected + drift-gated once its .tmpl exists;
+# add one by authoring its [dotfiles.registry.<name>] table then running
+# `mios-theme-render capture <name>` (self-verifying round-trip).
+def _load_surfaces():
+    """name -> (template_rel, artifact_rel[, section]) from mios.toml
+    [dotfiles.registry.*], in authoring order. Element-for-element equal to the
+    former hardcoded SURFACES literal. Fails LOUD (exit 3) on an empty/absent
+    registry -- the backstop for a botched migration (e.g. a leftover
+    `registry = ""` scalar making tomllib raise a redefinition error that
+    mios_toml._load_one SWALLOWS, silently collapsing the whole vendor mios.toml
+    to {}). A vacuously-'green' gate is impossible: no registry -> no run."""
+    reg = mios_toml.section(mios_toml.load_merged(_LAYERS), "dotfiles.registry")
+    out = {}
+    for name, cfg in reg.items():
+        if not isinstance(cfg, dict):
+            continue  # a stray scalar under [dotfiles.registry] is not a surface
+        if "." in name:
+            sys.stderr.write(f"[mios-theme-render] FATAL: surface name {name!r} contains a "
+                             "'.', which breaks the mios_toml dotted-walk -- rename it\n")
+            raise SystemExit(3)
+        tmpl, art = cfg.get("template"), cfg.get("target")
+        if not tmpl or not art:
+            sys.stderr.write(f"[mios-theme-render] FATAL: [dotfiles.registry.{name}] is "
+                             "missing a template/target\n")
+            raise SystemExit(3)
+        section = cfg.get("section")
+        # SETTINGS surface: a 3rd element naming the mios.toml section whose
+        # scalar keys project as @MIOS:<section>_<key>@ tokens (conf-formatted),
+        # the way btop-conf derives the WHOLE btop config from [btop]. Color
+        # surfaces stay 2-tuples so _entry()/_token_map are unchanged.
+        out[name] = (tmpl, art, section) if section else (tmpl, art)
+    if not out:
+        sys.stderr.write("[mios-theme-render] FATAL: mios.toml [dotfiles.registry.*] is "
+                         "empty/absent -- no surface can be projected. If you just added the "
+                         "registry, ensure the `registry = \"\"` scalar stub was DELETED (a "
+                         "scalar cannot also be the parent table of [dotfiles.registry.*]).\n")
+        raise SystemExit(3)
+    return out
+
+
+SURFACES = _load_surfaces()
 
 
 def _resolve():
@@ -224,13 +255,135 @@ def cmd_capture(names):
     return rc
 
 
+# --- live-HOME apply/diff (ADR-0010) -----------------------------------------
+# Additive verbs that render a surface and write it to the operator's LIVE HOME
+# (per-platform [dotfiles.registry.<name>.apply.target]), NEVER touching the
+# build-tree artifact the render/check drift-gate owns. Byte-fidelity + safety
+# are paramount: the destination is opened newline='' (no CRLF translation, so
+# the bytes match the render/check path exactly); an existing file -- even
+# foreign/binary content -- is backed up RAW (shutil.copy2, mode+mtime) before
+# any overwrite, never silently destroyed; and a target that resolves outside
+# HOME, through a symlink, cross-drive, or with an unexpanded variable is
+# REFUSED rather than written to a wrong path.
+
+class _TargetError(Exception):
+    """A HOME apply target that must NOT be written (e.g. an unexpanded var)."""
+
+
+def _os_key():
+    """The [.apply.target] sub-key for the running platform."""
+    return "windows" if os.name == "nt" else "linux"
+
+
+def _apply_target(name, merged):
+    """The raw per-platform live-HOME target string for a surface, or None if
+    the surface declares no [.apply.target] for this platform (system surfaces
+    like app-shell/term-osc, or a surface with only the other OS's target)."""
+    cfg = mios_toml.section(merged, "dotfiles.registry").get(name)
+    if not isinstance(cfg, dict):
+        return None
+    v = mios_toml.section(cfg, "apply.target").get(_os_key())
+    return v if isinstance(v, str) and v else None
+
+
+def _resolve_target(raw):
+    """Expand ~ and env vars, then REFUSE (never write) if any var stayed
+    unexpanded -- a missing var would otherwise yield a wrong absolute path
+    (a literal '~', '%VAR%', or '$VAR' left in place)."""
+    p = os.path.expanduser(os.path.expandvars(raw))
+    if p.startswith("~"):
+        raise _TargetError(f"{raw!r}: leading ~ did not expand (no HOME/USERPROFILE?)")
+    if "%" in p or "$" in p:
+        raise _TargetError(f"{raw!r}: an environment variable did not expand -> {p!r}")
+    return os.path.abspath(p)
+
+
+def _unsafe_reason(dest):
+    """Why `dest` is unsafe to write, or None if it is safe. Refuses a symlink
+    destination, anything outside HOME (logical OR symlink-resolved), and a
+    cross-drive path (commonpath raises ValueError on Windows). Never follows a
+    symlink out of HOME."""
+    if os.path.islink(dest):
+        return "destination is a symlink -- refusing (never written through)"
+    home_logical = os.path.abspath(os.path.expanduser("~"))
+    home_real = os.path.realpath(home_logical)
+    try:
+        if os.path.commonpath([home_logical, os.path.abspath(dest)]) != home_logical:
+            return f"resolves outside HOME ({dest})"
+        if os.path.commonpath([home_real, os.path.realpath(dest)]) != home_real:
+            return f"resolves outside HOME via a symlink ({os.path.realpath(dest)})"
+    except ValueError:
+        return "not under HOME (cross-drive)"
+    return None
+
+
+def _utc_stamp():
+    """Backup infix timestamp, e.g. 20260717T104501Z (UTC, filesystem-safe)."""
+    return datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+
+def cmd_apply(names, dry_run):
+    """Render each named surface (default: all) and write it to its live-HOME
+    target, backing up any existing file first. `diff` / --dry-run writes
+    nothing (prints WOULD-write / up-to-date). A surface with no HOME target for
+    this platform is a no-op skip."""
+    merged = mios_toml.load_merged(_LAYERS)
+    verb = "diff" if dry_run else "apply"
+    rc = 0
+    for name in (names or SURFACES):
+        if name not in SURFACES:
+            sys.stderr.write(f"[mios-theme-render] {verb}: unknown surface {name!r}\n")
+            rc = 2
+            continue
+        tmpl_rel, art_rel, section = _entry(name)
+        raw = _apply_target(name, merged)
+        if not raw:
+            print(f"[mios-theme-render] {verb} {name}: no {_os_key()} HOME target -- skipping")
+            continue
+        tmpl_abs = os.path.join(ROOT, tmpl_rel)
+        if not os.path.isfile(tmpl_abs):
+            sys.stderr.write(f"[mios-theme-render] {verb} {name}: no template ({tmpl_rel}) -- skipping\n")
+            continue
+        try:
+            dest = _resolve_target(raw)
+        except _TargetError as e:
+            sys.stderr.write(f"[mios-theme-render] {verb} {name}: REFUSED -- {e}\n")
+            rc = 2
+            continue
+        reason = _unsafe_reason(dest)
+        if reason:
+            sys.stderr.write(f"[mios-theme-render] {verb} {name}: REFUSED -- {dest}: {reason}\n")
+            rc = 2
+            continue
+        rendered = _render_text(_read(tmpl_abs), _resolved_for(merged, section))
+        current = _read(dest) if os.path.isfile(dest) else None
+        if current == rendered:
+            print(f"[mios-theme-render] {verb} {name}: up-to-date ({dest})")
+            continue
+        if dry_run:
+            how = "create" if current is None else "update (existing backed up first)"
+            print(f"[mios-theme-render] {verb} {name}: WOULD-write {dest} [{how}]")
+            continue
+        if os.path.exists(dest):
+            bak = f"{dest}.mios-bak.{_utc_stamp()}"
+            shutil.copy2(dest, bak)  # raw bytes + mode/mtime: foreign content preserved exactly
+            print(f"[mios-theme-render] apply {name}: backed up existing -> {bak}")
+        os.makedirs(os.path.dirname(dest), exist_ok=True)
+        with open(dest, "w", encoding="utf-8", newline="") as fh:
+            fh.write(rendered)
+        print(f"[mios-theme-render] apply {name}: wrote {dest}")
+    return rc
+
+
 def main(argv):
     if len(argv) < 2 or argv[1] in ("-h", "--help"):
         sys.stderr.write(
-            "usage: mios-theme-render <render|check|capture> [surface...]\n"
-            "  render [names]   write artifacts from templates (default: all registered)\n"
+            "usage: mios-theme-render <render|check|capture|apply|diff> [surface...]\n"
+            "  render [names]   write build-tree artifacts from templates (default: all registered)\n"
             "  check  [names]   diff committed artifact vs SSOT projection (drift-gate; exit 1 on drift)\n"
-            "  capture <names|all>  templatize existing artifact(s), self-verifying the round-trip\n")
+            "  capture <names|all>  templatize existing artifact(s), self-verifying the round-trip\n"
+            "  apply  [names] [--dry-run]  write rendered surface(s) to LIVE HOME (backs up existing)\n"
+            "  diff   [names]   show what `apply` WOULD write to live HOME (writes nothing)\n")
         return 2
     cmd, rest = argv[1], argv[2:]
     if cmd == "render":
@@ -239,6 +392,11 @@ def main(argv):
         return cmd_check(rest)
     if cmd == "capture":
         return cmd_capture(rest)
+    if cmd == "apply":
+        dry = "--dry-run" in rest
+        return cmd_apply([a for a in rest if a != "--dry-run"], dry)
+    if cmd == "diff":
+        return cmd_apply(rest, True)
     sys.stderr.write(f"[mios-theme-render] unknown command {cmd!r}\n")
     return 2
 

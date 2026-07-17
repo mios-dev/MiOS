@@ -22,11 +22,15 @@ Accepted — 2026-07-16 (Laws 1, 7, 8, 9, 13). The decision is in force; it is a
 **generalization of a pattern MiOS has already proven end-to-end**, not a
 greenfield. Honest DONE-vs-PLANNED split is in Consequences: the palette and the
 `[btop]` settings surface are **DONE** (projected + drift-gated this session);
-the general `[dotfiles.registry.*]` map, the live-HOME `apply` verb, and the new
-`[shell]`/`[editor]`/`[git]`/`[ssh]` domains are **PLANNED** (WS-DOTFILES). This
-ADR builds on ADR-0009 (the Portal is the surface that edits `mios.toml`) and
-carries across every deployment via ADR-0005 (M: VHDX) and ADR-0008 (MiOS-Repo
-shadow-config).
+the SSOT `[dotfiles.registry.*]` map and the live-HOME `apply`/`diff` verbs
+**landed 2026-07-17** as a byte-preserving transcription of the 8 existing
+surfaces — `mios-theme-render` now reads its surface map from `mios.toml`
+(fail-loud, exit 3, on an empty registry) and check 25 stays green; the
+`mios-dotfiles-render` fork (arbitrary-key tokens, format-aware merge), the
+Windows runtime gate, and the new `[shell]`/`[editor]`/`[git]`/`[ssh]` content
+domains remain **PLANNED** (WS-DOTFILES / T-270). This ADR builds on ADR-0009
+(the Portal is the surface that edits `mios.toml`) and carries across every
+deployment via ADR-0005 (M: VHDX) and ADR-0008 (MiOS-Repo shadow-config).
 
 ## Context
 
@@ -183,14 +187,27 @@ DONE vs PLANNED (honest):
   + drift-check 25; the `[btop]` settings surface (~60 keys) derives the whole
   `etc/btop/btop.conf` (unified Linux+Windows) and check 25 auto-extended and is
   proven green — the landed proof of concept for this ADR.
-- **PLANNED (WS-DOTFILES):** the SSOT `[dotfiles.registry.*]` map (transcribe the
-  existing surfaces first — pure refactor, check 25 stays green); the generalized
-  `mios-dotfiles-render` (arbitrary-key tokens, format-aware merge, per-platform
-  targets); the live-HOME `apply`/`diff` verb and a `mios dotfiles` CLI; the
-  `check_dotfiles_projection` + Windows `Test-MiOSProjection` gates; the new
-  `[shell]`/`[editor]`/`[git]`/`[ssh]` domains + the GTK-CSS hole; and `secret_ref`
-  indirection for ssh keys/tokens. Until these land, the *decision* is accepted and
-  the pattern is proven, but only the palette + `btop` are actually projected.
+- **DONE 2026-07-17 (byte-preserving transcription):** the SSOT
+  `[dotfiles.registry.*]` map now expresses all 8 current surfaces (btop,
+  oh-my-posh, quickshell, fastfetch, app-shell, term-osc, btop-conf, gitconfig);
+  `mios-theme-render` reads its surface map from that namespace instead of a
+  hardcoded Python dict (`_load_surfaces()`, element-for-element equal, so
+  render/check/capture output is byte-identical and check 25 stays green),
+  fail-loud (exit 3) on an empty/absent registry; and the additive live-HOME
+  `apply`/`diff` verbs write a rendered surface to its per-platform
+  `[.apply.target]` HOME path, backing up any existing file (`.mios-bak.<UTCZ>`,
+  raw bytes via `shutil.copy2`) before overwrite and refusing a target that
+  resolves outside HOME / through a symlink / with an unexpanded variable. The map
+  is now operator-editable via the Portal (ADR-0009); adding a surface is a
+  `mios.toml` edit, not a code change.
+- **PLANNED (WS-DOTFILES / T-270):** the `mios-dotfiles-render` fork + the
+  `check 25 → check_dotfiles_projection` rename (deliberately NOT done here —
+  larger, higher-risk, out of scope for the byte-preserving transcription);
+  arbitrary-key `@MIOS:<section>.<key>@` tokens + format-aware `json-merge`
+  (WT/VS Code); the Windows `Test-MiOSProjection` runtime gate and `Get-MiOS.ps1`
+  `Sync-MiOSDotfiles`; a `mios dotfiles` CLI verb; the new
+  `[shell]`/`[editor]`/`[git]`/`[ssh]` content domains + the GTK-CSS hole; and
+  `secret_ref` indirection for ssh keys/tokens.
 
 Costs:
 - Engine-generalization risk, mitigated by the existing `capture` round-trip
@@ -201,13 +218,19 @@ Costs:
 
 ## Implementation
 
-- `usr/share/mios/mios.toml` — add `[dotfiles.registry.<surface>]` tables; keep
-  `[colors]`/`[theme]`/`[appearance]`/`[terminal]`/`[identity]`/`[btop]` as the
-  content; add `[shell]`/`[editor]`/`[git]`(→`[identity]`)/`[ssh]`(`secret_ref`).
+- `usr/share/mios/mios.toml` — **[DONE]** the `[dotfiles.registry.<surface>]`
+  tables (8 surfaces; each `template`/`target`[/`section`] + an optional
+  `[.apply.target]`); `[colors]`/`[theme]`/`[appearance]`/`[terminal]`/`[identity]`
+  /`[btop]`/`[gitconfig]` stay the content the registry *references* (Law 9).
+  **[PLANNED]** filling the `[shell]`/`[editor]`/`[git]`(→`[identity]`)/`[ssh]`
+  (`secret_ref`) stubs with content.
 - `usr/libexec/mios/mios-theme-render` — the reference projector (palette + the
-  `[btop]` settings surface, LANDED); forks to `mios-dotfiles-render` (registry-
-  driven, arbitrary-key, format-aware merge, live-HOME `apply`); kept as a
-  back-compat alias for the color+btop subset.
+  `[btop]` settings surface, LANDED). **[DONE 2026-07-17]** its surface map is now
+  loaded from `mios.toml [dotfiles.registry.*]` (`_load_surfaces()`, fail-loud on
+  empty), and it gained the additive live-HOME `apply`/`diff` verbs (backup +
+  HOME-scope/symlink/unresolved-var refusals). **[PLANNED]** the
+  `mios-dotfiles-render` fork (arbitrary-key, format-aware merge); this file stays
+  the back-compat alias for the color+btop+settings subset.
 - `usr/libexec/mios/mios-sync-theme` — the one Linux global refresh; extended to
   call `mios-dotfiles-render render` after the theme bridge.
 - `usr/lib/mios/mios_toml.py` + `tools/lib/userenv.sh` — the layered resolver, fed
