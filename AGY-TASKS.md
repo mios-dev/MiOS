@@ -463,6 +463,18 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 **Where:** a new test harness for `mios-theme-render` + optionally a `check_*` hook in `automation/38-drift-checks.sh` (coordinate; Claude may also touch that file).
 **Done When:** every listed property has a passing negative-test; the harness runs clean + hermetic; `just drift-gate` (or the theme gate) stays green. Stage only your files.
 
+## AGY-61  (WS-LANG / ADR-0011, **P2**) — after tools/native/ (AGY-51): port the FIRST real tool to Rust
+**Who:** you (Rust). **When:** after AGY-51 (the cargo workspace scaffold). Work ON MAIN, no branches; stage explicit paths.
+**What + How:** with the `tools/native/` cargo workspace in place, port ONE small, pure, high-value tool to a static Rust binary: the **version-SSOT checker** (read VERSION + mios.toml [meta].mios_version + each Containerfile ARG, compare, exit non-zero on drift -- the logic AGY-43 put in bash gate 42/check_version_ssot). Crate `mios-version-check`; cross-compile `x86_64-unknown-linux-musl`; keep the bash gate as the degrade-open fallback (if the binary is absent, bash still runs). Document the toolchain + the build wiring (a cached Containerfile stage -> COPY to /usr/libexec/mios/, per ADR-0011 sec 2).
+**Where:** `tools/native/mios-version-check/`, a note in ADR-0011/ROADMAP WS-LANG.
+**Done When:** `cargo build --release` (if toolchain present) yields a static binary matching the bash gate's verdict on HEAD + a seeded drift; bash fallback intact; `just drift-gate` green. Stage only your files.
+
+## AGY-62  (WS-DOTFILES / ADR-0010 domains, **P2**) — add the [shell]/[editor]/[ssh] dotfile surfaces via the kind engine
+**Who:** you (Python + TOML). **When:** the engine (kinds template/json-merge/ini-merge/registry) is done -- just AUTHOR surfaces, no engine change. NOT Claude's lane (Claude owns mios-sync-theme + the `mios dotfiles` verb; you own the surfaces in mios.toml + templates).
+**What + How:** flesh out the stub `[shell]`/`[editor]`/`[ssh]` sections + add their dotfile surfaces to `[dotfiles.registry.*]`: (a) `shell-aliases` (template or ini-merge into ~/.bashrc.d/mios or a sourced fragment -- prefer a SOURCED fragment file over editing ~/.bashrc so foreign content is untouched); (b) `ssh-config` (ini-merge into ~/.ssh/config owning ONLY a MiOS `Host mios-*` block, preserving all foreign Host blocks; store NO secrets -- reference a secret_ref, never a raw key, per Law 9); (c) optionally an `[editor]`-driven surface. Each needs template + fixture.base (with FOREIGN content) + fixture.expected; use the SAME safe-merge patterns as gitconfig-live. Do NOT touch mios-theme-render, mios-sync-theme, portal.py, or tools/native.
+**Where:** `usr/share/mios/mios.toml` ([shell]/[editor]/[ssh] + registry surfaces), `usr/share/mios/theme/templates/*`, fixtures.
+**Done When:** each new surface renders + drift-gates (check PASS N+); ssh-config apply preserves foreign Host blocks (test); no secret stored in SSOT; `just drift-gate` green. Stage only your files.
+
 ### Reporting back
 Commit each task as `agy: <task-id> <summary>` and push to `main`. Claude is monitoring
 `main` for your commits + will integrate/verify. If blocked, leave a `TODO(agy):` note in
