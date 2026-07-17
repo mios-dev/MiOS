@@ -4738,6 +4738,27 @@ function applyEmbedContext() {
   document.querySelectorAll(".embed-only").forEach(el => { el.style.display = ""; });
 }
 
+// STEP 5 -- seed the form from the live layered mios.toml when embedded.
+// GET /portal/config (relative to location.origin; no hardcoded host).
+// INERT until AGY builds the route (AGY-50): any non-2xx / network error /
+// empty body degrades SILENTLY to the inline DEFAULTS_TOML already loaded
+// at boot. NEVER attempted under file:// (offline USB fallback, ADR-0008).
+function seedFromServer() {
+  if (!MIOS_EMBEDDED) return;                 // file:// -> inline defaults only
+  fetch("/portal/config", { credentials: "same-origin" })
+    .then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.text(); })
+    .then(text => {
+      const parsed = parseToml(text);
+      if (!parsed || typeof parsed !== "object" || !Object.keys(parsed).length) {
+        throw new Error("empty config");
+      }
+      DATA = parsed;
+      refreshFromData();
+      showStatus("Loaded the live mios.toml from the Portal.", "ok");
+    })
+    .catch(() => { /* route not live yet (AGY-50) -> keep inline defaults */ });
+}
+
 function detectPlatform() {
   // Heuristic from navigator.platform / userAgentData. Used only to
   // suggest the right per-platform path in the banner; never as a
@@ -4880,6 +4901,31 @@ document.getElementById("btn-save").addEventListener("click", async () => {
   renderRaw();
   const toml = emitToml(DATA);
 
+  // Path 0 (STEP 6): embedded behind the Portal -- POST the serialized
+  // TOML to the live layered config so "Save" writes the running system
+  // in one click. POST /portal/config (relative to location.origin; no
+  // hardcoded host). INERT until AGY builds the route (AGY-50): any
+  // non-2xx / network error falls THROUGH to the File-System-Access /
+  // <a download> paths below (graceful degrade). NEVER attempted under
+  // file:// (offline USB fallback, ADR-0008).
+  if (MIOS_EMBEDDED) {
+    try {
+      const resp = await fetch("/portal/config", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/toml" },
+        body: toml
+      });
+      if (resp.ok) {
+        showStatus(`Saved to MiOS — wrote the live mios.toml via the Portal (${toml.length} bytes).`, "ok");
+        return;
+      }
+      showStatus(`Portal save unavailable (HTTP ${resp.status}) — saving locally instead.`, "info");
+    } catch (err) {
+      showStatus("Portal save route unreachable — saving locally instead.", "info");
+    }
+  }
+
   // Path 1: bound file handle -- direct in-place overwrite.
   if (FILE_HANDLE) {
     try {
@@ -4970,6 +5016,11 @@ renderPathBanner();
 // under file://, so the offline editor is unchanged. Must run AFTER
 // renderPathBanner() so it wins over the banner's inline display:block.
 applyEmbedContext();
+
+// STEP 5 -- when embedded, seed the form from the live layered mios.toml
+// (GET /portal/config). Inert/degrades-to-defaults until AGY-50; never
+// runs under file://.
+seedFromServer();
 
 // ── Profile-card SPA shell (replaces the tab reparenter) ─────────────────
 // initShell() MOVES the original field markup out of the hidden #pool into
