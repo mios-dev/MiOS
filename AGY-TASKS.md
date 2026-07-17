@@ -371,6 +371,34 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 **Done When:** `GET /portal/config` returns the live TOML; `POST /portal/config` persists to `~/.config/mios/mios.toml` atomically, auth-gated, no build triggered; unauthorized → 403 so the client degrades to download; tests green; `just drift-gate` green. Stage only your files.
 **OPEN (operator may adjust):** the write-layer default (per-user vs host), and whether a future 'Apply' action should trigger `mios build` (out of scope here — persist-only for now).
 
+## AGY-51..54 — NEW (2026-07-16, batch 3) — WS-LANG first Rust proof, deeper TD-5, bake-ref audit, gate negative-tests
+
+> ✅ **AGY — verified great work through AGY-45** (bakers, eval+guard, shellcheck gate, version-SSOT gate, resolver-twin gate all landed + green). Same rules: stage explicit paths for YOUR task only, `git status` before every commit, never `git add -A`. Claude's carve-out `usr/share/mios/configurator/**` + `usr/share/mios/portal/**` is still active (WS-CONFIG) — do not touch those; AGY-50 is your server half of it.
+
+## AGY-51  (WS-LANG / ADR-0011 / T-272, **P2**) — scaffold the native-tooling workspace + port the FIRST tool to Rust
+**Who:** you (Rust + bash). **When:** parallel-safe; the concrete first step of the language unification.
+**What + How:** ADR-0011 wants resilient native tooling in Rust with bash demoted to thin glue. Plant the seed: (1) create a cargo workspace at **`tools/native/`** (NOT `C:\MiOS\src\` — that is occupied by `mios-launch.cs`; `tools/native/` is the flagged default, operator may prefer `src/mios-rs/` — leave a note). (2) Port ONE tiny, pure, well-bounded tool to Rust: the **version-SSOT comparator** your AGY-43 gate implements in bash (read `VERSION` + `mios.toml [meta].mios_version` + Containerfile ARG, compare, exit non-zero on drift) — a `mios-version-check` binary. (3) Keep the AGY-43 bash gate as the SHIM/fallback (degrade-open: if the Rust binary is absent, the bash path still runs). (4) Cross-compile to a static `x86_64-unknown-linux-musl` binary; document the toolchain + how the build embeds it. If no Rust toolchain is present in your env, scaffold the workspace + crate + a `TODO(agy): cargo build` and stop there.
+**Where:** new `tools/native/` (Cargo.toml workspace + `mios-version-check/` crate), a note in `usr/share/doc/mios/adr/0011-*.md` or `ROADMAP.md` WS-LANG on the chosen location.
+**Done When:** `cargo build --release` (if toolchain present) yields a static `mios-version-check` that matches the bash gate's verdict on HEAD (green) and a seeded drift (red); the bash gate still works as fallback; workspace location documented + flagged; `just drift-gate` green. Stage only your files.
+
+## AGY-52  (WS-DEBT / TD-5 / T-273, **P1**) — extract a SECOND cohesive unit from the AI-plane god-modules
+**Who:** you (Python). **When:** AFTER AGY-47 (which extracts the first unit) — do not overlap the same seam.
+**What + How:** continue the decomposition AGY-47 starts. Extract a SECOND cohesive, well-bounded unit from `server.py` (8,961 ln) or split one of the other oversized flat modules (`mios_pipe/routing/chat.py` ~107 KB, `native_loop.py` ~89 KB, `federation/a2a.py` ~88 KB, `mios_dispatch.py` ~84 KB) into a NEW sibling module + sibling test with a ONE-WAY import (no `server.py` import — drift-check 6; sibling test — drift-check 11). Thin re-export shim at the old call site; behavior byte-identical.
+**Where:** the chosen source module + a new `usr/lib/mios/agent-pipe/mios_<unit>.py` + `test_mios_<unit>.py`.
+**Done When:** the unit lives in its own sibling+test module, no `server.py` import edge, full `test_mios_*` suite green, behavior unchanged, checks 6 + 11 pass, `just drift-gate` green. Stage only your files.
+
+## AGY-53  (WS-DEBT / TD-4, **P2**) — bake-ref defaults audit (AGY-40 follow-up: no empty pin)
+**Who:** you (bash + TOML). **When:** quick quality pass; `git pull` first.
+**What + How:** a Claude verify of your AGY-40 found `automation/53-bake-lookingglass-client.sh` defaults its ref to **EMPTY** (`LG_BRANCH="${MIOS_BUILD_BAKE_REFS_LOOKINGGLASS:-}"`), so `git clone --branch ""` would fail if the SSOT value is unset. Audit EVERY baker + `[build.bake_refs]` key: (1) each baker's `${MIOS_BUILD_BAKE_REFS_*:-DEFAULT}` must have a NON-EMPTY real tag/commit DEFAULT (not `:-}`); (2) each `[build.bake_refs]` key in `mios.toml` must carry a real value; (3) optionally add a drift-check that reds if any baker has an empty bake-ref default. Fix lookingglass (give it a real pinned ref/tag) + any peer with the same gap.
+**Where:** `automation/53-bake-lookingglass-client.sh` + any other `automation/*bake*.sh`, `usr/share/mios/mios.toml [build.bake_refs]`, optionally `automation/38-drift-checks.sh`.
+**Done When:** no baker defaults to an empty ref; every `[build.bake_refs]` key has a real value; `bash -n` clean; `just drift-gate` green.
+
+## AGY-54  (WS-DEBT / test coverage, **P2**) — negative-tests for the new drift-gates
+**Who:** you (bash). **When:** after AGY-45 (all four new gates exist).
+**What + How:** you added `check_shellcheck` (AGY-42), `check_version_ssot` (AGY-43), `check_resolver_twin_equivalence`/`_parity` (AGY-45), and the eval-injection guard (AGY-41). Formalize their fail-behavior into a repeatable **negative-test harness** (`tests/drift-gate-negatives.sh` or extend an existing test runner): for EACH gate, inject a minimal violation in a temp copy / with a guarded on-disk edit, assert the gate exits non-zero + names the offending file/line, then restore and assert green. Prove each safety net actually catches its class (not just passes on a clean tree).
+**Where:** new `tests/drift-gate-negatives.sh` (or extend the existing test harness), referenced from `Justfile`/CI if appropriate.
+**Done When:** each of the 4 new gates has a negative test that reds on an injected violation + greens after restore; the harness runs clean end-to-end; `just drift-gate` still green. Stage only your files.
+
 ### Reporting back
 Commit each task as `agy: <task-id> <summary>` and push to `main`. Claude is monitoring
 `main` for your commits + will integrate/verify. If blocked, leave a `TODO(agy):` note in
