@@ -272,6 +272,7 @@ FAILED_SCRIPTS=()
 WARNED_SCRIPTS=()
 FAIL_LOG=()
 WARN_LOG=()
+WARNED_JSON=()
 
 # ── Execute all numbered scripts ─────────────────────────────────────────────
 for script in "${ALL_SCRIPTS[@]}"; do
@@ -300,6 +301,7 @@ for script in "${ALL_SCRIPTS[@]}"; do
         WARN_FAIL=$(( WARN_FAIL + 1 ))
         WARNED_SCRIPTS+=("$SCRIPT_NAME")
         WARN_LOG+=("${SCRIPT_NAME} (${STEP_ELAPSED}s) exit=${SCRIPT_EXIT}")
+        WARNED_JSON+=("{\"script\":\"${SCRIPT_NAME}\",\"exit_code\":${SCRIPT_EXIT}}")
     else
         _step_result "fail" "$SCRIPT_NAME" "$STEP_ELAPSED"
         SCRIPT_FAIL=$(( SCRIPT_FAIL + 1 ))
@@ -555,6 +557,32 @@ gzip -9f "$MIOS_BUILD_CHAIN_LOG" "$MIOS_BUILD_LOG" 2>/dev/null || true
 gzip -9f "$MIOS_LOG_DIR"/dnf5.log* "$MIOS_LOG_DIR/hawkey.log" 2>/dev/null || true
 _row "  Unified chain log: ${MIOS_BUILD_CHAIN_LOG}.gz"
 _row "  Step count in chain: $(ls /tmp/mios-step-*.log 2>/dev/null | wc -l)"
+
+# Write machine-readable marker of non-fatal failures under SBOM artifacts dir
+SBOM_ARTIFACTS_DIR="${MIOS_USR_DIR:-/usr/share/mios}/artifacts/sbom"
+mkdir -p "$SBOM_ARTIFACTS_DIR" 2>/dev/null || true
+MARKER_FILE="${SBOM_ARTIFACTS_DIR}/non-fatal-failures.json"
+if [[ -d "$SBOM_ARTIFACTS_DIR" ]]; then
+    if [[ ${#WARNED_JSON[@]} -gt 0 ]]; then
+        (
+            echo "["
+            local i=0
+            local len=${#WARNED_JSON[@]}
+            for item in "${WARNED_JSON[@]}"; do
+                i=$((i + 1))
+                if [[ $i -eq $len ]]; then
+                    echo "  $item"
+                else
+                    echo "  $item,"
+                fi
+            done
+            echo "]"
+        ) > "$MARKER_FILE"
+    else
+        echo "[]" > "$MARKER_FILE"
+    fi
+    _row "  Non-fatal failures marker: ${MARKER_FILE}"
+fi
 
 # ── Cleanup ─────────────────────────────────────────────────────────────────
 $DNF_BIN "${DNF_SETOPT[@]}" clean all 2>/dev/null || true

@@ -29,9 +29,14 @@ fi
 # fall back to the official installer IFF the build has egress. No egress / no
 # syft -> WARN + skip (degrade-open; the bound-images.tsv provenance still exists).
 if ! command -v syft &>/dev/null; then
-    echo "[90-generate-sbom] syft not found; attempting official install (needs egress)..."
+    SYFT_PIN=$(python3 -c "import sys; sys.path.insert(0, '/usr/lib/mios'); import mios_toml; print(mios_toml.get('build.bake_refs', 'syft') or '')" 2>/dev/null)
+    if [ -z "$SYFT_PIN" ]; then
+        SYFT_PIN=$(grep -m1 -E '^[[:space:]]*syft[[:space:]]*=' "${MIOS_TOML:-/usr/share/mios/mios.toml}" 2>/dev/null | cut -d'"' -f2 || true)
+    fi
+    SYFT_PIN="${SYFT_PIN:-v1.19.0}"
+    echo "[90-generate-sbom] syft not found; attempting official install (version=${SYFT_PIN}, needs egress)..."
     curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh 2>/dev/null \
-        | sh -s -- -b /usr/local/bin >/dev/null 2>&1 || true
+        | sh -s -- -b /usr/local/bin "${SYFT_PIN}" >/dev/null 2>&1 || true
 fi
 if ! command -v syft &>/dev/null; then
     echo "[90-generate-sbom] WARN: syft unavailable (no egress or install failed) -- skipping SBOM (non-fatal)."

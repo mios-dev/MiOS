@@ -8473,6 +8473,7 @@ quickshell = "v0.3.0"
 surfer     = "17d9a1577170880cdac13dca7c3d6871716fc046"
 hyprland   = "main"
 lookingglass = "B7"
+syft = "v1.19.0"
 
 # --- bound-images bake sharding (commit-fit; consumed by
 #     usr/libexec/mios/mios-bake-group, one Containerfile RUN per group) ---
