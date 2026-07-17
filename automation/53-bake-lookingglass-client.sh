@@ -39,7 +39,8 @@ fi
 # Resolve latest Looking Glass release branch from upstream. Project policy:
 # every dependency tracks :latest from its source. LG uses letter-numbered
 # release branches (B6, B7, ...); pick the highest by version sort.
-if [[ -z "${LG_BRANCH:-}" ]]; then
+LG_BRANCH="${MIOS_BUILD_BAKE_REFS_LOOKINGGLASS:-}"
+if [[ -z "$LG_BRANCH" ]]; then
     LG_BRANCH=$(git ls-remote --heads https://github.com/gnif/LookingGlass.git 'B*' 2>/dev/null \
         | awk -F/ '{print $NF}' \
         | sort -V \
@@ -49,40 +50,55 @@ fi
 record_version looking-glass "$LG_BRANCH" "https://github.com/gnif/LookingGlass/tree/${LG_BRANCH}"
 BUILD_DIR="/tmp/LookingGlass-build"
 
-# --- Clone -----------------------------------------------------------------
-log "cloning Looking Glass $LG_BRANCH"
-rm -rf "$BUILD_DIR"
-if ! git clone --depth 1 --branch "$LG_BRANCH" --recurse-submodules \
-        https://github.com/gnif/LookingGlass.git "$BUILD_DIR"; then
-    warn "SKIP: git clone failed (network or branch issue)"
-    exit 0
-fi
+# --- Clone + Build ----------------------------------------------------------
+LG_OK=""
+for attempt in 1 2 3; do
+    log "Compilation attempt $attempt/3..."
+    rm -rf "$BUILD_DIR"
+    
+    if ! git clone --depth 1 --branch "$LG_BRANCH" --recurse-submodules \
+            https://github.com/gnif/LookingGlass.git "$BUILD_DIR"; then
+        warn "git clone failed on attempt $attempt"
+        sleep $((attempt * 8))
+        continue
+    fi
+    
+    log "configuring client build"
+    mkdir -p "$BUILD_DIR/client/build"
+    cd "$BUILD_DIR/client/build"
+    if ! cmake -DCMAKE_INSTALL_PREFIX=/usr \
+               -DCMAKE_INSTALL_LIBDIR=/usr/lib \
+               -DCMAKE_BUILD_TYPE=Release \
+               -DENABLE_LIBDECOR=ON \
+               -DENABLE_PIPEWIRE=ON \
+               -DENABLE_PULSEAUDIO=OFF \
+               -DENABLE_BACKTRACE=OFF \
+               ..; then
+        warn "cmake configure failed on attempt $attempt"
+        sleep $((attempt * 8))
+        continue
+    fi
+    
+    log "building looking-glass-client (jobs=$(nproc))"
+    if ! make -j"$(nproc)"; then
+        warn "make failed on attempt $attempt"
+        sleep $((attempt * 8))
+        continue
+    fi
+    
+    log "installing binary to /usr/bin/looking-glass-client"
+    install -Dm0755 looking-glass-client /usr/bin/looking-glass-client
+    
+    if [[ -x /usr/bin/looking-glass-client ]]; then
+        LG_OK=1
+        break
+    fi
+done
 
-# --- Configure + build client ---------------------------------------------
-log "configuring client build"
-mkdir -p "$BUILD_DIR/client/build"
-cd "$BUILD_DIR/client/build"
-if ! cmake -DCMAKE_INSTALL_PREFIX=/usr \
-           -DCMAKE_INSTALL_LIBDIR=/usr/lib \
-           -DCMAKE_BUILD_TYPE=Release \
-           -DENABLE_LIBDECOR=ON \
-           -DENABLE_PIPEWIRE=ON \
-           -DENABLE_PULSEAUDIO=OFF \
-           -DENABLE_BACKTRACE=OFF \
-           ..; then
-    warn "SKIP: cmake configure failed - check -devel packages"
-    exit 0
+if [[ -z "$LG_OK" ]]; then
+    warn "looking-glass-client build failed after 3 attempts."
+    exit 1
 fi
-
-log "building looking-glass-client (jobs=$(nproc))"
-if ! make -j"$(nproc)"; then
-    warn "SKIP: make failed"
-    exit 0
-fi
-
-# --- Install binary + desktop file ----------------------------------------
-log "installing binary to /usr/bin/looking-glass-client"
-install -Dm0755 looking-glass-client /usr/bin/looking-glass-client
 
 # Ship a .desktop entry
 install -Dm0644 /dev/stdin /usr/share/applications/looking-glass.desktop <<'DESK'

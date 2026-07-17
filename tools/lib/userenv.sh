@@ -577,6 +577,10 @@ slots = [
     # build
     ("build.rechunk_max_layers",       "MIOS_RECHUNK_MAX_LAYERS"),
     ("build.ai_ram_floor_gb",          "MIOS_AI_RAM_FLOOR_GB"),
+    ("build.bake_refs.quickshell",     "MIOS_BUILD_BAKE_REFS_QUICKSHELL"),
+    ("build.bake_refs.surfer",         "MIOS_BUILD_BAKE_REFS_SURFER"),
+    ("build.bake_refs.hyprland",       "MIOS_BUILD_BAKE_REFS_HYPRLAND"),
+    ("build.bake_refs.lookingglass",   "MIOS_BUILD_BAKE_REFS_LOOKINGGLASS"),
     # network.quadlet
     ("network.quadlet.network",        "MIOS_QUADLET_NETWORK"),
     ("network.quadlet.subnet",         "MIOS_QUADLET_SUBNET"),

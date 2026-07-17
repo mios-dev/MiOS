@@ -19,16 +19,16 @@
 - `WS-MIOSSYS` — MiOS-Sys shared-base consolidation of the sidecar fleet (proposed)
 - `WS-SBOM` — SBOM-not-hardcode: digests/hashes are build-time provenance, never SSOT literals (active)
 - `WS-DOCS` — Planning-docs refactor: ADR system + generated index (active)
-- `WS-LANG` — Language-per-domain unification: Rust for native tooling, bash demoted to thin glue (proposed)
-- `WS-TEMPLATE` — Compiled file-pattern system: one template per file type + conformance check + Law-14 (proposed)
-- `WS-DEBT` — Technical-debt register (TD-1..TD-8): shell-mass, version drift, resolver twin, monolith decomposition (proposed)
+- `WS-LANG` — Language-per-domain unification — Rust for native tooling, bash demoted to thin glue (proposed)
+- `WS-TEMPLATE` — Compiled file-pattern system — one template per file type + conformance check + Law-14 (proposed)
+- `WS-DEBT` — Technical-debt register — TD-1..TD-8 (shell-mass, version drift, resolver twin, monolith decomposition) (proposed)
 
 **AI-Plane & Orchestration**
 - `WS-DEPRED` — AI-plane dependency reduction (Hermes→agent-pipe collapse + sidecar consolidations) (proposed)
 
 **Deployment & Sovereignty**
 - `WS-MDRIVE` — Sovereign "run off M:" deployment (Hyper-V Gen 2 .vhdx + Ceph OSD on M:) (proposed)
-- `WS-CAT` — MiOS-Cat unified entry point (one tri-launcher, six verbs; every install path a sub-system) (proposed)
+- `WS-CAT` — MiOS-Cat unified entry point (one tri-launcher, six verbs, all-platform) (proposed)
 - `WS-CATREPO` — Small MiOS-Repo shadow-config + separate MiOS-Data bulk store (512GB+) + model embedding (proposed)
 - `WS-CATFLAT` — MiOS-Cat tree flatten, de-dup, leave-nothing-behind (proposed)
 - `WS-CONFIG` — Unified config surface: mios.toml ⇄ Portal + configurator + /v1 at :8640/ (proposed)
@@ -40,7 +40,7 @@
 (no workstreams)
 
 **Desktop & UX**
-- `WS-DOTFILES` — SSOT-as-system-dotfiles: one mios.toml projects every dotfile on every platform (proposed)
+- `WS-DOTFILES` — SSOT-as-system-dotfiles — one mios.toml projects every dotfile on every platform (proposed)
 
 **Fleet & Federation**
 - `WS-RELTOP` — Release topology: GitHub ≡ Forgejo equal publishers; PUBLISH capacity gate (active)

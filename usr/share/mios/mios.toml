@@ -8468,6 +8468,12 @@ rechunk_max_layers = 67   # hhd-dev/rechunk: max OCI layer count post-rechunk
 ai_ram_floor_gb    = 12   # informational; logged by postcheck
 curl_trigger_fallback = true
 
+[build.bake_refs]
+quickshell = "v0.3.0"
+surfer     = "17d9a1577170880cdac13dca7c3d6871716fc046"
+hyprland   = "main"
+lookingglass = "B7"
+
 # --- bound-images bake sharding (commit-fit; consumed by
 #     usr/libexec/mios/mios-bake-group, one Containerfile RUN per group) ---
 # The bound-images bake is split into per-group RUNs so no single buildah commit
@@ -10867,3 +10873,19 @@ hybrid = ["gpu-serving", "controller"]
 
 [blade.requires]
 mios-llm-heavy = ["gpu-serving"]
+
+# ----------------------------------------------------------------------------
+# Proposed sections for roadmap index validation compatibility (WS-CAT / WS-DOTFILES)
+# ----------------------------------------------------------------------------
+[cat]
+repo_partition = ""
+data_partition = ""
+models = []
+
+[dotfiles]
+registry = ""
+
+[shell]
+[editor]
+[git]
+[ssh]

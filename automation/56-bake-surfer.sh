@@ -16,32 +16,47 @@ source "${SCRIPT_DIR}/lib/common.sh" 2>/dev/null || true
 source "${SCRIPT_DIR}/lib/packages.sh"
 install_packages "ai"
 
-echo "[56-bake-surfer] Preparing surfer directory..."
+PIN_REF="${MIOS_BUILD_BAKE_REFS_SURFER:-17d9a1577170880cdac13dca7c3d6871716fc046}"
+log "[56-bake-surfer] surfer pin ref: ${PIN_REF}"
+
 SURFER_BUILD_DIR="/tmp/surfer-build"
-rm -rf "$SURFER_BUILD_DIR"
-git clone --depth 1 "${MIOS_URL_SURFER:-https://github.com/zen-browser/surfer.git}" "$SURFER_BUILD_DIR"
+SURFER_OK=""
 
-cd "$SURFER_BUILD_DIR"
-npm install
-
-echo "[56-bake-surfer] Fetching upstream Mozilla codebase..."
-npx surfer download
-
-# Apply three-pane layout patch inside chrome://browser/content/browser.xhtml
-# This splits the main content area into:
-#  - [left] mios-custom-sidebar (sidebar navigational cockpit)
-#  - [center] appcontent (standard Gecko rendering viewport)
-#  - [right] mios-ai-sidebar (agent discussion panel)
-echo "[56-bake-surfer] Applying custom layout patches to browser.xhtml..."
-# SSOT colors (Law 7): mios.toml [colors] -- deep indigo bg, operator-blue
-# border, operator-blue AI panel (distinguishes the agent pane from the nav
-# pane, both keyed off the same brand palette the Portal/Configurator/
-# Quickshell shell already use). Previously hardcoded to Catppuccin Mocha
-# (#1e1e2e/#313244/#181825), which matched no other MiOS surface.
-: "${MIOS_COLOR_BG:=#282262}"
-: "${MIOS_COLOR_ACCENT:=#1A407F}"
-: "${MIOS_COLOR_SUBTLE:=#B7C9D7}"
-cat << EOF > /tmp/browser_xhtml_patch.xml
+for attempt in 1 2 3; do
+    log "[56-bake-surfer] Compilation attempt $attempt/3..."
+    rm -rf "$SURFER_BUILD_DIR"
+    
+    if ! git clone "${MIOS_URL_SURFER:-https://github.com/zen-browser/surfer.git}" "$SURFER_BUILD_DIR"; then
+        warn "[56-bake-surfer] git clone failed on attempt $attempt"
+        sleep $((attempt * 8))
+        continue
+    fi
+    
+    cd "$SURFER_BUILD_DIR"
+    if ! git checkout "$PIN_REF"; then
+        warn "[56-bake-surfer] git checkout to $PIN_REF failed on attempt $attempt"
+        sleep $((attempt * 8))
+        continue
+    fi
+    
+    if ! npm install; then
+        warn "[56-bake-surfer] npm install failed on attempt $attempt"
+        sleep $((attempt * 8))
+        continue
+    fi
+    
+    log "[56-bake-surfer] Fetching upstream Mozilla codebase..."
+    if ! npx surfer download; then
+        warn "[56-bake-surfer] surfer download failed on attempt $attempt"
+        sleep $((attempt * 8))
+        continue
+    fi
+    
+    log "[56-bake-surfer] Applying custom layout patches to browser.xhtml..."
+    : "${MIOS_COLOR_BG:=#282262}"
+    : "${MIOS_COLOR_ACCENT:=#1A407F}"
+    : "${MIOS_COLOR_SUBTLE:=#B7C9D7}"
+    cat << EOF > /tmp/browser_xhtml_patch.xml
 <!-- Add sidebar panels for navigation cockpit and AI interaction to browser.xhtml -->
 <hbox flex="1" id="mios-three-pane-container">
   <vbox id="mios-custom-sidebar" width="220" style="background-color: ${MIOS_COLOR_BG}; border-right: 1px solid ${MIOS_COLOR_SUBTLE};">
@@ -64,15 +79,31 @@ cat << EOF > /tmp/browser_xhtml_patch.xml
 </hbox>
 EOF
 
-# Integrate layout patch using surfer importer
-npx surfer import /tmp/browser_xhtml_patch.xml
+    if ! npx surfer import /tmp/browser_xhtml_patch.xml; then
+        warn "[56-bake-surfer] surfer import patch failed on attempt $attempt"
+        sleep $((attempt * 8))
+        continue
+    fi
+    
+    log "[56-bake-surfer] Starting native compilation..."
+    if npm run build; then
+        mkdir -p /usr/lib/mios/webshell
+        cp -r dist/* /usr/lib/mios/webshell/
+        ln -sf /usr/lib/mios/webshell/firefox /usr/bin/mios-webshell
+        if [[ -x /usr/bin/mios-webshell ]]; then
+            SURFER_OK=1
+            break
+        fi
+    fi
+    
+    warn "[56-bake-surfer] build failed on attempt $attempt"
+    sleep $((attempt * 8))
+done
 
-echo "[56-bake-surfer] Starting native compilation..."
-npm run build
+if [[ -z "$SURFER_OK" ]]; then
+    warn "[56-bake-surfer] surfer build failed after 3 attempts."
+    exit 1
+fi
 
-echo "[56-bake-surfer] Staging compiled binary..."
-mkdir -p /usr/lib/mios/webshell
-cp -r dist/* /usr/lib/mios/webshell/
-ln -sf /usr/lib/mios/webshell/firefox /usr/bin/mios-webshell
-
+record_version surfer "$PIN_REF" "https://github.com/zen-browser/surfer/tree/${PIN_REF}"
 echo "[56-bake-surfer] Custom webshell built successfully."
