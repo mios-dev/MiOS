@@ -206,15 +206,15 @@ F-011 (surface streaming, MVP done), F-012 (selftest, done) — shippable
 - [x] `--append-system-prompt` confirmed on the installed claude CLI (else fall back to a first-message seed)
 
 ## F-024: Lane-B `agy`→`claude` degrade-open fallback
-> **Priority:** P1 | **Status:** in-progress | **Effort:** S | **Domain:** War-Room/Harness | **Source:** F-022 (Gemini account quota-blocked until ~2026-07-07) — Lane B currently has no automatic fallback; the operator/orchestrator must manually redirect finalize work to `claude` while the quota is exhausted.
+> **Priority:** P1 | **Status:** done | **Effort:** S | **Domain:** War-Room/Harness | **Source:** F-022 (Gemini account quota-blocked until ~2026-07-07) — Lane B currently has no automatic fallback; the operator/orchestrator must manually redirect finalize work to `claude` while the quota is exhausted.
 
-**Instructions:** When F-023's anti-fabrication detector marks an `agy` dispatch FAILED for a quota/resource-exhaustion reason, `cmd_lane b`/`cmd_dispatch` should be able to transparently retry the same prompt on the `claude` engine (using Lane B's effort mapping, since claude has a confirmed effort flag per F-010) rather than leaving the task FAILED with no recourse. Flag-gated (e.g. `MIOS_A2O_LANE_B_FALLBACK_ENGINE=claude`, empty = today's behavior: report FAILED and stop) so a working `agy` is never routed through claude unnecessarily. Being implemented by the code lane; not yet in `mios-a2o`.
+**Instructions:** When F-023's anti-fabrication detector marks an `agy` dispatch FAILED for a quota/resource-exhaustion reason, `cmd_lane b`/`cmd_dispatch` should be able to transparently retry the same prompt on the `claude` engine (using Lane B's effort mapping, since claude has a confirmed effort flag per F-010) rather than leaving the task FAILED with no recourse. Flag-gated (e.g. `MIOS_A2O_LANE_B_FALLBACK_ENGINE=claude`, empty = today's behavior: report FAILED and stop) so a working `agy` is never routed through claude unnecessarily. **(Applied: the `_agy_post` block in `usr/share/mios/agents/mios-a2o` resolves `EXEC_FALLBACK` at generation time, escaping double quotes and dollar signs; on quota hits, it runs the fallback execution, captures output, and sets the final status to `DONE` with log notifications. Tested and verified in `tests/test-a2o-fallback.sh`.)**
 
 **Files:** `usr/share/mios/agents/mios-a2o` (`cmd_lane`, `cmd_dispatch`, the F-023 `_agy_post` failure detector).
 **Deps:** F-022 (root cause), F-023 (failure detection this hooks into).
 **Done When:**
-- [ ] a quota-exhausted Lane-B dispatch automatically retries on `claude` when the fallback flag is set, and the task ends DONE (not FAILED) with a note that it ran on the fallback engine
-- [ ] with the fallback flag unset, behavior is byte-identical to F-023 today (FAILED, real reason surfaced)
+- [x] a quota-exhausted Lane-B dispatch automatically retries on `claude` when the fallback flag is set, and the task ends DONE (not FAILED) with a note that it ran on the fallback engine
+- [x] with the fallback flag unset, behavior is byte-identical to F-023 today (FAILED, real reason surfaced)
 
 ---
 

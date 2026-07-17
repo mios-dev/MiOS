@@ -156,6 +156,13 @@ cmd_dispatch(){
   # runner line below is byte-identical to before (the ${_agy_post} prefix vanishes).
   local _agy_post=""
   if [ "$eng" = agy ]; then
+    local EXEC_FALLBACK=""
+    if [ -n "$LANE_B_FALLBACK_ENGINE" ]; then
+      local raw_exec
+      raw_exec="$(exec_line "$LANE_B_FALLBACK_ENGINE" "$work" "$LANE_B_FALLBACK_MODEL" "$LANE_B_FALLBACK_EFFORT" "")"
+      EXEC_FALLBACK="${raw_exec//\$/\\\$}"
+      EXEC_FALLBACK="${EXEC_FALLBACK//\"/\\\"}"
+    fi
     _agy_post="$(cat <<AGYCHK
 if [ "\$rc" = 0 ]; then
   _a2o_fail=0
@@ -164,15 +171,34 @@ if [ "\$rc" = 0 ]; then
   if [ "\$_a2o_fail" = 1 ]; then
     rc=1
     _a2o_reason=""
-    if [ -f "$AGY_DEBUG_LOG" ]; then
-      if grep -qiE 'RESOURCE_EXHAUSTED|quota reached' "$AGY_DEBUG_LOG"; then
+    _is_quota=0
+    if [ -f "$AGY_DEBUG_LOG" ] && grep -qiE 'RESOURCE_EXHAUSTED|quota reached' "$AGY_DEBUG_LOG"; then
+      _is_quota=1
+    fi
+
+    if [ "\$_is_quota" = 1 ] && [ -n "$EXEC_FALLBACK" ]; then
+      printf '%s\n' "=== [mios-a2o] agy quota failure detected -- retrying on fallback engine '$LANE_B_FALLBACK_ENGINE' ===" | tee -a "$LOGS/$name.log"
+      # Run fallback
+      PROMPT="\$(cat "$PROMPTS/$name.txt")"
+      eval "$EXEC_FALLBACK" 2>&1 | tee -a "$LOGS/$name.log"
+      rc=\${PIPESTATUS[0]}
+      if [ "\$rc" = 0 ]; then
+        printf '%s\n' "=== [mios-a2o] fallback engine '$LANE_B_FALLBACK_ENGINE' completed task successfully ===" | tee -a "$LOGS/$name.log"
+        _a2o_fail=0
+      else
+        _a2o_reason="fallback engine '$LANE_B_FALLBACK_ENGINE' failed rc=\$rc"
+      fi
+    fi
+
+    if [ "\$_a2o_fail" = 1 ]; then
+      if [ "\$_is_quota" = 1 ]; then
         _a2o_resets="\$(grep -oE 'Resets in [^.:]*' "$AGY_DEBUG_LOG" | head -1)"
         if [ -n "\$_a2o_resets" ]; then _a2o_reason="agy: quota exhausted (429), \${_a2o_resets,,}"; else _a2o_reason="agy: quota exhausted (429)"; fi
       fi
       [ -n "\$_a2o_reason" ] || _a2o_reason="\$(grep -oiE 'INVALID_ARGUMENT[^:]*|Failed to resolve model flag[^:]*|agent executor error[^:]*|model unreachable[^:]*|RESOURCE_EXHAUSTED[^:]*' "$AGY_DEBUG_LOG" | head -1)"
+      [ -n "\$_a2o_reason" ] || _a2o_reason="agy: no response (empty output; agy exited 0; see $AGY_DEBUG_LOG)"
+      printf '%s\n' "=== [mios-a2o] agy failure detected (exited 0 but produced no valid response) ===" "\$_a2o_reason" | tee -a "$LOGS/$name.log"
     fi
-    [ -n "\$_a2o_reason" ] || _a2o_reason="agy: no response (empty output; agy exited 0; see $AGY_DEBUG_LOG)"
-    printf '%s\n' "=== [mios-a2o] agy failure detected (exited 0 but produced no valid response) ===" "\$_a2o_reason" | tee -a "$LOGS/$name.log"
   fi
 fi
 AGYCHK
