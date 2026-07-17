@@ -19,6 +19,7 @@
     "GET /portal/app/webresearch/render -> _render",
     "GET /portal/app/webresearch/stream -> _stream",
     "GET /portal/config -> get_portal_config",
+    "GET /portal/config/status -> get_portal_config_status",
     "GET /portal/configurator -> portal_configurator_iframe",
     "GET /portal/icon-192.png -> portal_icon_192",
     "GET /portal/icon-512.png -> portal_icon_512",
@@ -1396,7 +1397,7 @@
     "websockets"
   ],
   "counts": {
-    "routes": 88,
+    "routes": 89,
     "provided": 1304
   }
 }
