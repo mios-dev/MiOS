@@ -11041,6 +11041,21 @@ expected = "usr/share/mios/theme/fixtures/windows-terminal-settings.expected.jso
 [dotfiles.registry.windows-terminal.apply.target]
 windows = "%LOCALAPPDATA%/Packages/Microsoft.WindowsTerminal_8wekyb3d8bbwe/LocalState/settings.json"
 
+# REGISTRY surface (ADR-0010 `kind` axis) -- proof-surface for Windows Registry.
+# MiOS owns HKCU\Console\MiOS color/settings values. It uses Registry apply logic
+# on Windows and skips on Linux. fixture.base and fixture.expected are used
+# for offline drift gating.
+[dotfiles.registry.windows-registry]
+template = "usr/share/mios/theme/templates/windows-registry.json.tmpl"
+target   = "usr/share/mios/theme/fixtures/windows-registry.expected.json"
+kind     = "registry"
+section  = "colors"
+[dotfiles.registry.windows-registry.fixture]
+base     = "usr/share/mios/theme/fixtures/windows-registry.base.json"
+expected = "usr/share/mios/theme/fixtures/windows-registry.expected.json"
+[dotfiles.registry.windows-registry.apply.target]
+windows  = "HKCU\\Console\\MiOS"
+
 [shell]
 [editor]
 [git]

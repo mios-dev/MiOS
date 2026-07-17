@@ -12,6 +12,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 
 # Repo/system root: default two dirs up from usr/libexec/mios/, overridable.
@@ -576,16 +577,131 @@ def _apply_live_ini_merge(surface, merged, current):
     return _ini_merge(owned, current if current is not None else "", surface.policy, merged)
 
 
+def _derive_registry(surface, merged):
+    """registry (offline gate): the MiOS-owned Registry values parsed from
+    the template, canonicalized as a sorted, pretty-printed JSON string."""
+    text = _render_text(_read(os.path.join(ROOT, surface.template)),
+                        _resolved_for(merged, surface.section))
+    try:
+        data = json.loads(text)
+    except Exception as e:
+        sys.stderr.write(f"[mios-theme-render] FATAL: Registry json manifest did not parse: {e}\n")
+        raise SystemExit(3)
+
+    for key in list(data.keys()):
+        if key.startswith("//"):
+            data.pop(key)
+            continue
+        ku = key.upper()
+        if not (ku.startswith("HKCU\\") or ku.startswith("HKEY_CURRENT_USER\\")):
+            sys.stderr.write(f"[mios-theme-render] FATAL: [dotfiles.registry.{surface.name}] "
+                             f"registry path {key!r} is not under HKCU -- only HKCU paths allowed\n")
+            raise SystemExit(3)
+
+    return json.dumps(data, sort_keys=True, indent=2, ensure_ascii=False) + "\n"
+
+
+def _apply_live_registry(surface, merged, current=None, dry_run=False):
+    """registry apply: on Windows, applies each key/value pair under HKCU.
+    Non-Windows: logs a warning/info and skips gracefully.
+    Backs up the registry keys to %USERPROFILE%/.mios-bak/ before writing."""
+    if os.name != "nt":
+        print(f"[mios-theme-render] apply {surface.name}: registry surface is Windows-only -- skipping")
+        return
+
+    text = _render_text(_read(os.path.join(ROOT, surface.template)),
+                        _resolved_for(merged, surface.section))
+    try:
+        data = json.loads(text)
+    except Exception as e:
+        sys.stderr.write(f"[mios-theme-render] FATAL: Registry json manifest did not parse: {e}\n")
+        raise SystemExit(3)
+
+    for key in list(data.keys()):
+        if key.startswith("//"):
+            data.pop(key)
+            continue
+        ku = key.upper()
+        if not (ku.startswith("HKCU\\") or ku.startswith("HKEY_CURRENT_USER\\")):
+            sys.stderr.write(f"[mios-theme-render] FATAL: [dotfiles.registry.{surface.name}] "
+                             f"registry path {key!r} is not under HKCU -- only HKCU paths allowed\n")
+            raise SystemExit(3)
+
+    if dry_run:
+        for key, val_dict in data.items():
+            for name, val in val_dict.items():
+                print(f"[mios-theme-render] diff {surface.name}: WOULD-write registry {key}\\{name} = {val}")
+        return
+
+    backup_dir = os.path.expandvars(r"%USERPROFILE%\.mios-bak")
+    os.makedirs(backup_dir, exist_ok=True)
+
+    for key, val_dict in data.items():
+        slug = key.replace("\\", "_").replace(":", "_").lower()
+        backup_file = os.path.join(backup_dir, f"{surface.name}_{slug}.reg")
+        try:
+            subprocess.run(["reg", "export", key, backup_file, "/y"],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            print(f"[mios-theme-render] apply {surface.name}: backed up existing registry to {backup_file}")
+        except Exception:
+            pass
+
+        for name, val in val_dict.items():
+            if isinstance(val, bool):
+                reg_type = "REG_DWORD"
+                reg_val = "1" if val else "0"
+            elif isinstance(val, int):
+                reg_type = "REG_DWORD"
+                reg_val = str(val)
+            else:
+                reg_type = "REG_SZ"
+                reg_val = str(val)
+
+            try:
+                subprocess.run(["reg", "add", key, "/v", name, "/t", reg_type, "/d", reg_val, "/f"],
+                               check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            except Exception as e:
+                sys.stderr.write(f"[mios-theme-render] FATAL: failed to write registry {key}\\{name}: {e}\n")
+                raise SystemExit(2)
+
+            try:
+                out = subprocess.check_output(["reg", "query", key, "/v", name],
+                                              stderr=subprocess.DEVNULL).decode("utf-8", errors="ignore")
+                verified = False
+                for line in out.splitlines():
+                    parts = line.split()
+                    if len(parts) >= 3 and parts[0] == name:
+                        actual_type = parts[1]
+                        actual_val_str = parts[-1]
+                        if actual_type == "REG_DWORD":
+                            actual_val = int(actual_val_str, 16)
+                            expected_val = int(reg_val)
+                            if actual_val == expected_val:
+                                verified = True
+                        else:
+                            if actual_val_str == reg_val:
+                                verified = True
+                if not verified:
+                    sys.stderr.write(f"[mios-theme-render] FATAL: registry write verification failed for {key}\\{name}\n")
+                    raise SystemExit(2)
+            except Exception as e:
+                sys.stderr.write(f"[mios-theme-render] FATAL: registry read-back failed for {key}\\{name}: {e}\n")
+                raise SystemExit(2)
+
+            print(f"[mios-theme-render] apply {surface.name}: wrote registry {key}\\{name} = {val}")
+
+
 # Merge kinds require a fixture pair (no ungated merge surface). json-merge
 # (JSON settings docs) + ini-merge (git config) splice a MiOS-owned subtree/key-
 # set onto a foreign file, preserving every foreign key; registry / skip are
 # declared valid by ADR-0010 but LAND LATER, so an unimplemented kind fails the
 # same fail-loud exit-3 path as an unknown one.
-_MERGE_KINDS = frozenset({"json-merge", "ini-merge"})
+_MERGE_KINDS = frozenset({"json-merge", "ini-merge", "registry"})
 _KINDS = {
     "template":   (_derive_template, _apply_live_template),
     "json-merge": (_derive_json_merge, _apply_live_json_merge),
     "ini-merge":  (_derive_ini_merge, _apply_live_ini_merge),
+    "registry":   (_derive_registry, _apply_live_registry),
 }
 
 
@@ -897,6 +1013,9 @@ def cmd_apply(names, dry_run):
         raw = _apply_target(name, merged)
         if not raw:
             print(f"[mios-theme-render] {verb} {name}: no {_os_key()} HOME target -- skipping")
+            continue
+        if surface.kind == "registry":
+            _apply_live_registry(surface, merged, dry_run=dry_run)
             continue
         tmpl_abs = os.path.join(ROOT, surface.template)
         if not os.path.isfile(tmpl_abs):

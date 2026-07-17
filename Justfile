@@ -92,6 +92,10 @@ drift-gate:
     bash ./automation/38-drift-checks.sh
     @echo "[drift-gate] tests/drift-gate-negatives.sh (negative-test harness for the new gates)"
     bash ./tests/drift-gate-negatives.sh
+    @echo "[drift-gate] tests/test-theme-merge.py (negative-test harness for dotfiles merge kinds)"
+    @py_exec="python3"; [ -x /usr/lib/mios/agents/.venv/bin/python3 ] && py_exec="/usr/lib/mios/agents/.venv/bin/python3"; \
+        "$py_exec" ./tests/test-theme-merge.py
+
 
 
 # Build OCI image locally
