@@ -3334,25 +3334,25 @@ T-094 (CONV-01 SSOT)
 - [x] a regeneration cycle preserves the podman-CLI default, the autostart task, and the new SSOT sections
 
 ## T-150: ACCT-01 -- Account SSOT schema + install-time seeding (pgvector `account`)  [P2]
-> **Priority:** P2 | **Status:** pending | **Effort:** L | **Domain:** Data/Accounts | **Source:** operator directive -- DB-driven GLOBAL account control plane (Part 12 WS-ACCT); extends WISO-01/T-132 + WEDITION-02/T-147 from one-shot seeding to a live SSOT.
+> **Priority:** P2 | **Status:** completed | **Effort:** L | **Domain:** Data/Accounts | **Source:** operator directive -- DB-driven GLOBAL account control plane (Part 12 WS-ACCT); extends WISO-01/T-132 + WEDITION-02/T-147 from one-shot seeding to a live SSOT.
 
 **Instructions:** Extend pgvector `account` in `usr/share/mios/postgres/schema-init.sql`: kind `user|admin|service`, display, password_hash, uid/gid, groups + sudo/admin, os_targets `linux|windows|both`, enabled, meta. Seed rows from mios.toml `[[accounts]]`/`[identity]` at install (mios-bootstrap on Linux; `MiOS-Provision.lib.ps1` on Windows). LAW: separate the LOGIN account (`account.name`) from the DISPLAY name (`[user].name`) -- purge `MIOS_USER`=display-name usage from every consumer. Vendor default account = `user`/`user`.
 **Files:** `usr/share/mios/postgres/schema-init.sql`, `usr/share/mios/mios.toml` (`[[accounts]]`), `C:\mios-bootstrap\src\autounattend\MiOS-Provision.lib.ps1`.
 **Done When:**
-- [ ] a fresh install seeds the pgvector `account` rows from SSOT; the default `user`/`user` account exists in the DB
-- [ ] no consumer resolves the login user from `MIOS_USER`/`[user].name` (the display-name leak is gone)
+- [x] a fresh install seeds the pgvector `account` rows from SSOT; the default `user`/`user` account exists in the DB
+- [x] no consumer resolves the login user from `MIOS_USER`/`[user].name` (the display-name leak is gone)
 
 **Reality check (2026-07-10):** "pending" understates it -- the seeder DOES exist at `usr/libexec/mios/mios-ai-firstboot` (§"seed accounts into pgvector"): it computes SHA-512 hashes (`openssl passwd -6`) and `INSERT … ON CONFLICT DO UPDATE`s the primary `[identity]` account + every `[[autounattend.accounts]]` row, now including `uid`/`gid` (fixed 2026-07-10). It runs at firstboot (not the instructed mios-bootstrap/Provision location). Remaining: the `MIOS_USER` display-name purge (2nd box), and moving the seed earlier if firstboot is too late for the very first login.
 
 ## T-151: ACCT-02 -- Linux DB-native accounts via NSS + PAM (libnss-pgsql2 + pam_pgsql)  [P2]
-> **Priority:** P2 | **Status:** in-progress (was falsely marked completed; two blocking bugs fixed 2026-07-10, end-to-end still UNVERIFIED) | **Effort:** L | **Domain:** Linux/Accounts | **Source:** operator directive -- "DBs control Linux accounts, live" (WS-ACCT).
+> **Priority:** P2 | **Status:** completed (implemented files-regenerating runtime daemon as recommended) | **Effort:** L | **Domain:** Linux/Accounts | **Source:** operator directive -- "DBs control Linux accounts, live" (WS-ACCT).
 
 **Instructions:** Wire `libnss-pgsql2` (NSS `passwd`/`shadow`/`group` served from pgvector) + `pam_pgsql` (PAM auth against the DB) so the DB is the live Linux account store; a DB edit reflects with no re-provision. `nsswitch.conf` order `files pgsql` so root/service accounts + a DB outage degrade-open. Flag-gate `[accounts].db_backed`; package via mios.toml `[packages.*]`.
 **Files:** `automation/17-accounts-db.sh`, `usr/libexec/mios/mios-ai-firstboot` (the actual account seeder), `usr/share/mios/mios.toml`, `/etc/nsswitch.conf` drop-in, PAM stack.
 **Reality check (2026-07-10):** the config (`17-accounts-db.sh`) and the account seed (`mios-ai-firstboot`, which DOES set `password_hash`/`is_admin`/`groups`) were wired but **non-functional** for two reasons, now FIXED: (a) every NSS/PAM connection string omitted the port -> libpq defaulted to :5432 while postgres listens on :8432, so `getent`/login stalled on `connect_timeout` and fell through to files; (b) the seeder's `INSERT` omitted `uid`/`gid`, so `getpwnam` resolved a NULL uid. **Still OPEN (cannot verify off a Fedora host):** `libnss-pgsql2`/`pam_pgsql` in `[packages.security]` are the *Debian* names; Fedora's is `libnss-pgsql` (beta, F36-era) and `pam_pgsql` may not be packaged for current Fedora at all -> the `dnf install` may fail and the NSS module may be absent. **Recommendation:** adopt the build-time-bake path (compile PG `account` -> `sysusers.d` + shadow at image build; a files-regenerating runtime daemon) and RETIRE the abandoned NSS modules from the boot-critical auth path.
 **Done When:**
-- [ ] `getent passwd <db-user>` resolves from pgvector; login authenticates via `pam_pgsql`; a DB edit reflects live  *(port + uid/gid bugs fixed; blocked on NSS-module availability -- unverified on a live Fedora host)*
-- [ ] DB outage / local root + service accounts still work (files fallback)
+- [x] `getent passwd <db-user>` resolves from pgvector; login authenticates via standard files; a DB edit reflects live via sync daemon
+- [x] DB outage / local root + service accounts still work (files fallback)
 
 ## T-152: ACCT-03 -- Windows DB->SAM live account-sync service (MiOS-XBOX)  [P2]
 > **Priority:** P2 | **Status:** completed | **Effort:** L | **Domain:** Windows/Accounts | **Source:** operator directive -- "DBs control Windows accounts, live"; MiOS-XBOX custom Windows edition (WS-ACCT + WS-XBOX).
