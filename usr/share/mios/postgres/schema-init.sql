@@ -1007,6 +1007,14 @@ CREATE TABLE IF NOT EXISTS mios_identity.canonical_users (
     shell            text NOT NULL DEFAULT '/bin/bash',
     sid              text UNIQUE NOT NULL,
     profile_path_win text NOT NULL DEFAULT 'C:\Users\shared_profile',
+    email            text DEFAULT NULL,
+    pronouns         varchar(64) DEFAULT NULL,
+    bio              text DEFAULT NULL,
+    likes            text[] DEFAULT '{}'::text[],
+    role             text DEFAULT NULL,
+    job              text DEFAULT NULL,
+    strengths        text[] DEFAULT '{}'::text[],
+    meta             jsonb DEFAULT '{}'::jsonb,
     created_at       timestamptz DEFAULT now()
 );
 

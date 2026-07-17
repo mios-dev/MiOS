@@ -315,6 +315,15 @@ env_pwhash = os.environ.get("MIOS_USER_PASSWORD_HASH")
 
 accounts = []
 
+def pg_array(lst):
+    if not lst:
+        return "{}"
+    escaped = []
+    for item in lst:
+        item_str = str(item).replace('"', '\\"')
+        escaped.append(f'"{item_str}"')
+    return "{" + ",".join(escaped) + "}"
+
 # 3. Add default 'user'/'user' account first (vendor default)
 user_pw = "user"
 user_hash = subprocess.run(["openssl", "passwd", "-6", user_pw], capture_output=True, text=True).stdout.strip()
@@ -329,11 +338,19 @@ accounts.append({
     "enabled": True,
     "uid": None,
     "gid": None,
-    "raw_password": user_pw
+    "raw_password": user_pw,
+    "email": "user@localhost",
+    "pronouns": None,
+    "bio": "Default operator account",
+    "likes": [],
+    "role": "operator",
+    "job": "System Operator",
+    "strengths": []
 })
 
 # 4. Extract identity account
 ident = merged.get("identity", {})
+user_sec = merged.get("user", {})
 if isinstance(ident, dict) and ident.get("username"):
     username = ident.get("username")
     fullname = ident.get("fullname", "User")
@@ -345,6 +362,12 @@ if isinstance(ident, dict) and ident.get("username"):
     if not pwhash and default_pw:
         pwhash = subprocess.run(["openssl", "passwd", "-6", default_pw], capture_output=True, text=True).stdout.strip()
         
+    likes = user_sec.get("likes", [])
+    if isinstance(likes, str):
+        likes = [l.strip() for l in likes.split(",") if l.strip()]
+    elif not isinstance(likes, list):
+        likes = []
+        
     accounts.append({
         "name": username,
         "display": fullname,
@@ -354,13 +377,16 @@ if isinstance(ident, dict) and ident.get("username"):
         "os_targets": "both",
         "password_hash": pwhash,
         "enabled": True,
-        # uid/gid the NSS getpwnam path needs (17-accounts-db.sh). The primary
-        # interactive operator maps to the login uid the sysusers layer allocates
-        # (10-mios.conf: mios = 1000); without these the DB row resolves to a NULL
-        # uid and login via the pgsql NSS module silently fails.
         "uid": 1000,
         "gid": 1000,
-        "raw_password": default_pw if not env_pwhash else None
+        "raw_password": default_pw if not env_pwhash else None,
+        "email": ident.get("email"),
+        "pronouns": user_sec.get("pronouns"),
+        "bio": user_sec.get("bio"),
+        "likes": likes,
+        "role": "operator",
+        "job": "Primary Operator",
+        "strengths": []
     })
 
 # 5. Extract additional accounts
@@ -383,6 +409,12 @@ if isinstance(autounattend, dict):
             if password:
                 pwhash = subprocess.run(["openssl", "passwd", "-6", password], capture_output=True, text=True).stdout.strip()
                 
+            likes = a.get("likes", [])
+            if isinstance(likes, str):
+                likes = [l.strip() for l in likes.split(",") if l.strip()]
+            elif not isinstance(likes, list):
+                likes = []
+                
             accounts.append({
                 "name": name,
                 "display": display,
@@ -392,12 +424,58 @@ if isinstance(autounattend, dict):
                 "os_targets": "both",
                 "password_hash": pwhash,
                 "enabled": True,
-                # Secondary accounts are Windows-targeted (SAM has no uid); leave
-                # uid/gid unset unless the SSOT entry supplies them.
                 "uid": a.get("uid"),
                 "gid": a.get("gid"),
-                "raw_password": password
+                "raw_password": password,
+                "email": a.get("email"),
+                "pronouns": a.get("pronouns"),
+                "bio": a.get("bio"),
+                "likes": likes,
+                "role": "user",
+                "job": "Local User",
+                "strengths": []
             })
+
+# 5b. Extract AI agents from [agents] section
+agents = merged.get("agents", {})
+if isinstance(agents, dict):
+    for agent_name, agent_cfg in agents.items():
+        if agent_name.startswith("_"):
+            continue
+        if not isinstance(agent_cfg, dict):
+            continue
+            
+        display = agent_name.capitalize() + " Agent"
+        role = agent_cfg.get("role", "")
+        job = agent_cfg.get("job", "")
+        strengths = agent_cfg.get("strengths", [])
+        if isinstance(strengths, str):
+            strengths = [s.strip() for s in strengths.split(",") if s.strip()]
+        elif not isinstance(strengths, list):
+            strengths = []
+            
+        enabled = agent_cfg.get("enabled", True)
+        
+        accounts.append({
+            "name": "agent-" + agent_name,
+            "display": display,
+            "kind": "service",
+            "groups": "agents",
+            "is_admin": False,
+            "os_targets": "linux",
+            "password_hash": None,
+            "enabled": enabled,
+            "uid": None,
+            "gid": 1001,
+            "raw_password": None,
+            "email": f"{agent_name}@mios.local",
+            "pronouns": "it/its",
+            "bio": job,
+            "likes": [],
+            "role": role,
+            "job": job,
+            "strengths": strengths
+        })
 
 # 6. Build statements for mios-pg-query
 statements = []
@@ -443,15 +521,25 @@ for a in accounts:
 
     sql_identity = """
     WITH inserted_user AS (
-        INSERT INTO mios_identity.canonical_users (display_name, uid, gid, homedir, shell, sid, profile_path_win)
-        VALUES ($1, COALESCE($2, nextval('uid_alloc')::integer), COALESCE($3, 1000), $4, $5, $6, $7)
+        INSERT INTO mios_identity.canonical_users (
+            display_name, uid, gid, homedir, shell, sid, profile_path_win,
+            email, pronouns, bio, likes, role, job, strengths
+        )
+        VALUES ($1, COALESCE($2, nextval('uid_alloc')::integer), COALESCE($3, 1000), $4, $5, $6, $7, $11, $12, $13, $14, $15, $16, $17)
         ON CONFLICT (uid) DO UPDATE SET
             display_name = EXCLUDED.display_name,
             gid = EXCLUDED.gid,
             homedir = EXCLUDED.homedir,
             shell = EXCLUDED.shell,
             sid = EXCLUDED.sid,
-            profile_path_win = EXCLUDED.profile_path_win
+            profile_path_win = EXCLUDED.profile_path_win,
+            email = EXCLUDED.email,
+            pronouns = EXCLUDED.pronouns,
+            bio = EXCLUDED.bio,
+            likes = EXCLUDED.likes,
+            role = EXCLUDED.role,
+            job = EXCLUDED.job,
+            strengths = EXCLUDED.strengths
         RETURNING id
     )
     INSERT INTO mios_identity.aliases (canonical_id, alias_username, password_hash_sha512, password_hash_ntlm)
@@ -464,18 +552,27 @@ for a in accounts:
     sid_val = None
     if uid_val is not None:
         sid_val = f"S-1-5-21-3623811015-3361044348-30300820-{uid_val}"
+    else:
+        sid_val = None
 
     params_identity = [
         a["display"],
         uid_val,
         a["gid"],
         "/var/home/" + a["name"],
-        "/bin/bash",
+        "/bin/bash" if a["kind"] != "service" else "/sbin/nologin",
         sid_val,
         "C:\\Users\\" + a["name"],
         a["name"],
         a["password_hash"] or "",
-        ntlm_hash
+        ntlm_hash,
+        a.get("email"),
+        a.get("pronouns"),
+        a.get("bio"),
+        pg_array(a.get("likes")),
+        a.get("role"),
+        a.get("job"),
+        pg_array(a.get("strengths"))
     ]
     statements.append({"sql": sql_identity, "params": params_identity})
 
