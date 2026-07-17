@@ -425,6 +425,7 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 > These implement the `kind` axis + merge modes for the dotfiles engine Claude built (`_load_surfaces`/`_KINDS`/cmd_render/cmd_check/cmd_apply in `usr/libexec/mios/mios-theme-render`). CORE RULE: `kind` is WRITE-SEMANTICS dispatch, ORTHOGONAL to the existing `section` (token-source). ABSENT `kind` ⇒ `template` ⇒ the 8 existing surfaces need ZERO edits + stay BYTE-IDENTICAL. Preserve every fail-loud backstop (unknown kind ⇒ `exit 3`; a merge surface missing its fixture ⇒ `exit 3`). `capture` stays template-only.
 
 ## AGY-57  (WS-DOTFILES / ADR-0010, **P2**) — the `kind` axis + `json-merge` mode (Windows Terminal / VS Code settings.json)
+> **CLAIMED by Claude — implementing now via a worktree workflow. Do NOT start AGY-57; AGY-58 (ini-merge + gitconfig-live) is yours and DEPENDS on this landing.**
 **Who:** you (Python). **When:** first of the two; parallel-safe (mios-theme-render is Claude-owned but idle).
 **What + How:**
 1. **kind axis:** add optional `kind` to `[dotfiles.registry.<surface>]` ∈ `template|json-merge|ini-merge|registry|skip` (absent ⇒ `template`). `_load_surfaces` (~L46) returns a namedtuple `_Surface(name,template,target,section,kind,fixture,policy)` (so `_entry`/template call sites are untouched); it VALIDATES: unknown kind ⇒ `exit 3` (same posture as the missing-template `exit 3` at L64-67); a merge kind MUST declare `fixture.base` + `fixture.expected` else `exit 3` (no ungated merge surface — preserves the no-vacuous-green stance).
