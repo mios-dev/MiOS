@@ -11056,10 +11056,40 @@ expected = "usr/share/mios/theme/fixtures/windows-registry.expected.json"
 [dotfiles.registry.windows-registry.apply.target]
 windows  = "HKCU\\Console\\MiOS"
 
+[dotfiles.registry.shell-aliases]
+template = "usr/share/mios/theme/templates/shell-aliases.tmpl"
+target   = "etc/skel/.bashrc.d/mios"
+kind     = "template"
+section  = "shell"
+[dotfiles.registry.shell-aliases.apply.target]
+linux    = "~/.bashrc.d/mios"
+windows  = "%USERPROFILE%/.bashrc.d/mios"
+
+[dotfiles.registry.ssh-config]
+template = "usr/share/mios/theme/templates/ssh-config.tmpl"
+target   = "usr/share/mios/theme/fixtures/ssh-config.expected"
+kind     = "ini-merge"
+section  = "ssh"
+[dotfiles.registry.ssh-config.fixture]
+base     = "usr/share/mios/theme/fixtures/ssh-config.base"
+expected = "usr/share/mios/theme/fixtures/ssh-config.expected"
+[dotfiles.registry.ssh-config.apply.target]
+linux    = "~/.ssh/config"
+windows  = "%USERPROFILE%/.ssh/config"
+
 [shell]
+alias_ll = "ls -la"
+alias_gs = "git status"
+alias_gp = "git push"
+
 [editor]
 [git]
+
 [ssh]
+host          = "mios-*"
+user          = "agent"
+port          = 2222
+identity_file = "~/.ssh/agent_ssh_key"
 
 # ----------------------------------------------------------------------------
 # [gitconfig] -- the operator-tunable git settings SSOT.
