@@ -1130,23 +1130,7 @@ CREATE OR REPLACE TRIGGER alias_sync_trigger
     FOR EACH ROW EXECUTE FUNCTION notify_alias_changes();
 
 
--- ===== WS-ACCT: Database-owned UID/GID Allocation and Preferences (T-246) =====
-CREATE SEQUENCE IF NOT EXISTS uid_alloc START WITH 1000;
-
-CREATE OR REPLACE FUNCTION allocate_uid()
-RETURNS integer AS $$
-BEGIN
-    RETURN nextval('uid_alloc')::integer;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE OR REPLACE FUNCTION allocate_gid()
-RETURNS integer AS $$
-BEGIN
-    RETURN 1000;
-END;
-$$ LANGUAGE plpgsql;
-
+-- ===== WS-ACCT: Database-owned Preferences (T-246) =====
 CREATE TABLE IF NOT EXISTS mios_identity.account_preferences (
     id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     canonical_id UUID REFERENCES mios_identity.canonical_users(id) ON DELETE CASCADE,
