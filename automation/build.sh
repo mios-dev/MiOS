@@ -566,8 +566,8 @@ if [[ -d "$SBOM_ARTIFACTS_DIR" ]]; then
     if [[ ${#WARNED_JSON[@]} -gt 0 ]]; then
         (
             echo "["
-            local i=0
-            local len=${#WARNED_JSON[@]}
+            i=0
+            len=${#WARNED_JSON[@]}
             for item in "${WARNED_JSON[@]}"; do
                 i=$((i + 1))
                 if [[ $i -eq $len ]]; then
