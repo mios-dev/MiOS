@@ -1,0 +1,32 @@
+<!-- AI-hint: Describe the key decision made in this ADR here. -->
+<!-- AI-related: /usr/share/doc/mios/adr/README.md -->
+---
+adr: {{id}}
+title: {{title}}
+status: {{status}}
+date: {{date}}
+deciders: [operator, ai-pair]
+tags: []
+laws: []
+ssot_keys: []
+related_ws: []
+supersedes: []
+superseded_by: []
+---
+
+# ADR-{{id}}: {{title}}
+
+## Status
+{{status}} — {{date}}
+
+## Context
+Describe the context, problem, forces, and alignment constraints here.
+
+## Decision
+Detail the decision and the concrete architectural commits made.
+
+## Rationale
+Why was this decision chosen over alternatives?
+
+## Consequences
+What are the outcomes, trade-offs, and done criteria?

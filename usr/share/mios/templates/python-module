@@ -1,0 +1,13 @@
+# AI-hint: Describe the module's behavior and capability here.
+# AI-related: /usr/lib/mios/agent-pipe/mios_pipe/{{name}}.py, /usr/lib/mios/agent-pipe/test_mios_{{name}}.py
+# AI-functions: {{name}}_helper
+
+import logging
+
+logger = logging.getLogger("mios.{{name}}")
+
+def {{name}}_helper():
+    """
+    Helper function description.
+    """
+    pass

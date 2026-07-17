@@ -1,0 +1,23 @@
+# AI-hint: Describe the container's purpose and its generator relation here.
+# /usr/share/containers/systemd/mios-{{name}}.container
+
+[Unit]
+Description=MiOS {{name}} Container
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+ContainerName=mios-{{name}}
+Image={{image}}
+Pod=mios-system.pod
+User={{uid}}
+Group={{gid}}
+
+[Install]
+WantedBy=multi-user.target default.target
+
+[Service]
+Delegate=yes
+Restart=on-failure
+RestartSec=10s
+TimeoutStartSec=300s

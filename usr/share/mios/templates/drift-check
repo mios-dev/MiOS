@@ -1,0 +1,16 @@
+# --- ({{id}}) {{description}} --------------------
+# AI-hint: Drift check verifying {{description}} under the source-tree drift fitness-functions.
+# AI-related: automation/38-drift-checks.sh
+# AI-functions: check_{{name}}
+#
+check_{{name}}() {
+    local hits=""
+    # Implement read-only static analysis scan here.
+    # Populate 'hits' with files failing the check, and raise violation on failure.
+    if [[ -n "$hits" ]]; then
+        printf '%s' "$hits" >&2
+        _violation "drift violation in {{name}}: {{description}}"
+    else
+        echo "[38-drift-checks]   ({{id}}) check passed: {{name}}"
+    fi
+}

@@ -1,0 +1,14 @@
+# AI-hint: Sibling unit test for the {{name}} python module, ensuring compliance with drift-check 11.
+# AI-related: /usr/lib/mios/agent-pipe/mios_pipe/{{name}}.py, /usr/lib/mios/agent-pipe/test_mios_{{name}}.py
+# AI-functions: Test{{PascalName}}
+
+import unittest
+from mios_pipe.{{name}} import {{name}}_helper
+
+class Test{{PascalName}}(unittest.TestCase):
+    def test_helper(self):
+        # Implement test assertions here
+        self.assertIsNotNone({{name}}_helper)
+
+if __name__ == "__main__":
+    unittest.main()

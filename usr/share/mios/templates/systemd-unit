@@ -1,0 +1,20 @@
+# AI-hint: systemd unit file for the mios-{{name}} service.
+# AI-related: /usr/lib/systemd/system/mios-{{name}}.service, /usr/share/mios/mios.toml
+#
+
+[Unit]
+Description=MiOS {{name}} Service
+After=network.target mios-pgvector.service
+Wants=network.target
+
+[Service]
+Type=simple
+User=mios-{{name}}
+Group=mios-{{name}}
+WorkingDirectory=/usr/lib/mios/agent-pipe
+ExecStart=/usr/bin/python3 -m mios_pipe.{{name}}
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

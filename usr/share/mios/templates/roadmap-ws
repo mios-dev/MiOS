@@ -1,0 +1,22 @@
+## WS-{{id}} — {{title}}
+<!--
+id: WS-{{id}}
+title: {{title}}
+theme: {{theme}}
+status: {{status}}
+priority: {{priority}}
+laws: []
+ssot_keys: []
+adr: []
+deps: []
+acceptance: |
+  Describe the acceptance criteria here.
+-->
+*{{description}}*
+
+### {{id}}-01 — {{task_title}}  **[{{priority}}]**  (→ T-{{task_id}})
+- **What:** Detail the task description.
+- **Why:** Explain the rationale.
+- **Files:** List of modified/new files.
+- **Accept:** Criteria for completion.
+- **Deps:** Task dependencies.

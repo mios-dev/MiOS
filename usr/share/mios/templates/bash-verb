@@ -1,0 +1,54 @@
+#!/bin/bash
+# AI-hint: Describe the capability of this bash verb script here.
+# AI-related: /usr/share/mios/templates/bash-verb, /usr/share/mios/mios.toml
+# AI-functions: main, parse_args, log_info, log_error
+#
+# {{name}} -- Verb script template.
+# Designed for direct, repeatable host execution.
+#
+
+set -euo pipefail
+
+# Print helpers
+log_info() {
+    printf '[%s] INFO: %s\n' "{{name}}" "$*" >&2
+}
+
+log_error() {
+    printf '[%s] ERROR: %s\n' "{{name}}" "$*" >&2
+}
+
+parse_args() {
+    # Parse options and arguments
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -h|--help)
+                show_help
+                exit 0
+                ;;
+            *)
+                log_error "Unknown option: $1"
+                exit 1
+                ;;
+        esac
+    done
+}
+
+show_help() {
+    cat <<EOF
+Usage: {{name}} [options]
+
+Options:
+  -h, --help    Show this help message
+EOF
+}
+
+main() {
+    log_info "Initializing {{name}}..."
+    # Implement task logic here
+}
+
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    parse_args "$@"
+    main
+fi

@@ -1,0 +1,125 @@
+#!/usr/bin/env python3
+# AI-hint: Command-line utility to scaffold new MiOS files from canonical templates, interpolating names, dates, and settings.
+# AI-related: /usr/share/mios/templates/, /usr/share/mios/mios.toml
+# AI-functions: main, render_template, get_dest_path
+
+import sys
+import os
+import re
+from datetime import datetime
+
+TEMPLATES_DIR = os.environ.get("MIOS_TEMPLATES_DIR", "/usr/share/mios/templates")
+# Support local development fallback
+if not os.path.exists(TEMPLATES_DIR):
+    # Try repository-relative path
+    repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
+    TEMPLATES_DIR = os.path.join(repo_root, "usr/share/mios/templates")
+
+def to_pascal_case(s):
+    # e.g., my-helper-module -> MyHelperModule
+    return "".join(w.capitalize() for w in re.split(r"[-_]", s))
+
+def render_template(content, name, type_name):
+    date_str = datetime.now().strftime("%Y-%m-%d")
+    pascal_name = to_pascal_case(name)
+    
+    # Simple substitution
+    content = content.replace("{{name}}", name)
+    content = content.replace("{{PascalName}}", pascal_name)
+    content = content.replace("{{date}}", date_str)
+    
+    # Handle specific types' defaults
+    if type_name == "adr":
+        # Extract next ID if name matches digit pattern
+        match = re.match(r"^(\d+)", name)
+        adr_id = match.group(1) if match else "0000"
+        title = name[len(adr_id):].strip("-_ ").replace("-", " ").replace("_", " ").capitalize()
+        content = content.replace("{{id}}", adr_id)
+        content = content.replace("{{title}}", title)
+        content = content.replace("{{status}}", "accepted")
+    elif type_name == "drift-check":
+        content = content.replace("{{id}}", "99")
+        content = content.replace("{{description}}", "static check for " + name)
+    elif type_name == "quadlet":
+        content = content.replace("{{image}}", "docker.io/library/" + name + ":latest")
+        content = content.replace("{{uid}}", "1000")
+        content = content.replace("{{gid}}", "1000")
+    elif type_name == "systemd-unit":
+        pass
+    elif type_name == "roadmap-ws":
+        content = content.replace("{{id}}", name.upper())
+        content = content.replace("{{title}}", name.replace("-", " ").capitalize())
+        content = content.replace("{{theme}}", "OS-Image & Build")
+        content = content.replace("{{status}}", "proposed")
+        content = content.replace("{{priority}}", "P2")
+        content = content.replace("{{description}}", "Description of " + name)
+        content = content.replace("{{task_title}}", "Task 1 for " + name)
+        content = content.replace("{{task_id}}", "999")
+        
+    return content
+
+def get_dest_path(name, type_name, repo_root):
+    if type_name == "bash-verb":
+        return os.path.join(repo_root, "usr/libexec/mios", name)
+    elif type_name == "python-module":
+        return os.path.join(repo_root, "usr/lib/mios/agent-pipe/mios_pipe", f"{name}.py")
+    elif type_name == "python-test":
+        return os.path.join(repo_root, "usr/lib/mios/agent-pipe/test_mios_{}.py".format(name))
+    elif type_name == "systemd-unit":
+        return os.path.join(repo_root, "usr/lib/systemd/system", f"mios-{name}.service")
+    elif type_name == "quadlet":
+        return os.path.join(repo_root, "usr/share/containers/systemd", f"mios-{name}.container")
+    elif type_name == "adr":
+        return os.path.join(repo_root, "usr/share/doc/mios/adr", f"{name}.md")
+    else:
+        # drift-check and roadmap-ws do not have a single separate destination file path
+        # by default, so we can write to stdout or a temporary file.
+        return None
+
+def main():
+    if len(sys.argv) < 3:
+        print("Usage: mios-new <type> <name>")
+        print("Types: bash-verb, drift-check, python-module, python-test, systemd-unit, quadlet, adr, roadmap-ws")
+        sys.exit(1)
+        
+    type_name = sys.argv[1]
+    name = sys.argv[2]
+    
+    template_path = os.path.join(TEMPLATES_DIR, type_name)
+    if not os.path.exists(template_path):
+        print(f"Error: Template for '{type_name}' not found at {template_path}")
+        sys.exit(1)
+        
+    with open(template_path, "r", encoding="utf-8") as f:
+        template_content = f.read()
+        
+    rendered = render_template(template_content, name, type_name)
+    
+    # Determine destination root
+    repo_root = os.environ.get("MIOS_DRIFT_CHECK_ROOT")
+    if not repo_root:
+        # Try finding repo root based on this script location
+        repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
+        
+    dest_path = get_dest_path(name, type_name, repo_root)
+    
+    if dest_path:
+        os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+        if os.path.exists(dest_path):
+            print(f"Error: Target file already exists at {dest_path}")
+            sys.exit(1)
+        with open(dest_path, "w", encoding="utf-8", newline="\n") as f:
+            f.write(rendered)
+        # If it's a script/verb, make it executable
+        if type_name == "bash-verb":
+            try:
+                os.chmod(dest_path, 0o755)
+            except Exception:
+                pass
+        print(f"Scaffolded new {type_name} at: {dest_path}")
+    else:
+        # Output to stdout for drift-check and roadmap-ws
+        print(rendered)
+
+if __name__ == "__main__":
+    main()
