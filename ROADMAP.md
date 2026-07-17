@@ -6,7 +6,7 @@
 ### Workstream Status Rollup
 - **Done**: 0
 - **Active**: 4
-- **Proposed**: 4
+- **Proposed**: 12
 - **Blocked**: 0
 <!-- ROADMAP_ROLLUP_END -->
 
@@ -19,12 +19,19 @@
 - `WS-MIOSSYS` — MiOS-Sys shared-base consolidation of the sidecar fleet (proposed)
 - `WS-SBOM` — SBOM-not-hardcode: digests/hashes are build-time provenance, never SSOT literals (active)
 - `WS-DOCS` — Planning-docs refactor: ADR system + generated index (active)
+- `WS-LANG` — Language-per-domain unification: Rust for native tooling, bash demoted to thin glue (proposed)
+- `WS-TEMPLATE` — Compiled file-pattern system: one template per file type + conformance check + Law-14 (proposed)
+- `WS-DEBT` — Technical-debt register (TD-1..TD-8): shell-mass, version drift, resolver twin, monolith decomposition (proposed)
 
 **AI-Plane & Orchestration**
 - `WS-DEPRED` — AI-plane dependency reduction (Hermes→agent-pipe collapse + sidecar consolidations) (proposed)
 
 **Deployment & Sovereignty**
 - `WS-MDRIVE` — Sovereign "run off M:" deployment (Hyper-V Gen 2 .vhdx + Ceph OSD on M:) (proposed)
+- `WS-CAT` — MiOS-Cat unified entry point (one tri-launcher, six verbs; every install path a sub-system) (proposed)
+- `WS-CATREPO` — Small MiOS-Repo shadow-config + separate MiOS-Data bulk store (512GB+) + model embedding (proposed)
+- `WS-CATFLAT` — MiOS-Cat tree flatten, de-dup, leave-nothing-behind (proposed)
+- `WS-CONFIG` — Unified config surface: mios.toml ⇄ Portal + configurator + /v1 at :8640/ (proposed)
 
 **Storage & Data**
 (no workstreams)
@@ -33,7 +40,7 @@
 (no workstreams)
 
 **Desktop & UX**
-(no workstreams)
+- `WS-DOTFILES` — SSOT-as-system-dotfiles: one mios.toml projects every dotfile on every platform (proposed)
 
 **Fleet & Federation**
 - `WS-RELTOP` — Release topology: GitHub ≡ Forgejo equal publishers; PUBLISH capacity gate (active)
@@ -196,6 +203,111 @@ acceptance: |
 - **Accept:** each doc sits in exactly one Diátaxis quadrant; `llms.txt` resolves an agent to the current-state entry points in ≤3 hops.
 - **Deps:** DOCS-03.
 
+
+## WS-LANG — Language-per-domain unification (Rust for native tooling; bash demoted to thin glue)
+<!--
+id: WS-LANG
+title: Language-per-domain unification — Rust for native tooling, bash demoted to thin glue
+theme: OS-Image & Build
+status: proposed
+priority: P1
+laws: [7, 8, 9]
+ssot_keys: []
+adr: [11]
+deps: [WS-DEBT]
+acceptance: |
+  the correctness-critical orchestration/validation logic (drift-runner, resolver
+  core, build driver, verb dispatcher, installer core) moves into one memory-safe
+  Rust `miosd` binary invoked by unchanged thin RUNs; the 66 OS-touching steps stay
+  shell-thin; the AI plane stays Python; Batch/C# eliminated. Law 8 strengthened.
+-->
+*Language-per-domain contract (ADR-0011 §2): **Rust** default native tier for tooling/orchestration/validation; **bash** stays thin glue only (the 66 `automation/NN-*.sh` steps, held to the `bash` template); **Python** for the AI plane; **Bun/TS** for the web Portal; TOML SSOT · YAML pipelines · Markdown docs. Go rejected as a second native tier (documented escape hatch only); Batch eliminated; C# `mios-launch.cs` folded into the Rust installer core. All proposed; nothing landed.*
+
+### LANG-01 — Stand up the Rust workspace + port the first fragile bash tool (drift-runner or verb dispatcher)  **[P1]**  (→ T-272)
+- **What:** Create the cargo workspace (subcommands `build|drift|verb|resolve|render|cat|scaffold|fmt` → one `miosd` static musl binary) built once in an early cached Containerfile stage and `COPY`'d to `/usr/libexec/mios/miosd`, invoked by **thin RUNs** so the immutable-image contract holds. Port the **first** fragile bash tool — the drift-runner (highest resilience win, lowest coupling; several checks are already Python-in-bash) or the verb dispatcher (removes the 9-verb `eval`-on-agent-args surface) — running old+new side-by-side and diffing to identical before deleting the bash. Collapse the `mios_toml.py` ⇄ `userenv.sh` resolver twin into one crate (`--shell` KEY=VAL emitter + pyo3 face) to end the Law-13 parity drift.
+- **Why:** The correctness-critical logic is trapped in fragile bash/batch (44-check drift file in ~3.1k-ln bash, 579-ln build driver, ~150 verb scripts, the resolver twin with no generator binding it). Rust yields a static, single-digit-MB, memory-safe binary cross-compiling to Windows — and one native language serves the "learn from a few files" goal (Law 8) better than two.
+- **Files:** the new cargo workspace (location OPEN — `C:\MiOS\src\` is occupied by `mios-launch.cs`+`autounattend/`; candidate `C:\MiOS\tools\native\` or `src\mios-rs\`), `Containerfile` (early Rust stage + `COPY`), `automation/build.sh` (→ thin shim), `automation/38-drift-checks.sh` (checks ported one at a time), `usr/lib/mios/mios_toml.py` + `tools/lib/userenv.sh` (collapse to the crate), the ~150 verb backends.
+- **Accept:** `miosd` bakes in a cached stage and is invoked by unchanged thin RUNs; the first ported tool runs byte-identical to the bash it replaces, then the bash is deleted; the resolver twin is one crate with pyo3 + `--shell` faces and `check_userenv_parity` is retired.
+- **Deps:** WS-DEBT Phase −1 (shellcheck gate + one version token + one TOML reader unblock the port). ADR-0011. **OPEN QUESTIONS:** native-workspace location; Go escape-hatch; pyo3-vs-subprocess for the AI-plane resolver binding.
+
+
+## WS-TEMPLATE — Compiled file-pattern system (one template per file type + conformance check + Law-14)
+<!--
+id: WS-TEMPLATE
+title: Compiled file-pattern system — one template per file type + conformance check + Law-14
+theme: OS-Image & Build
+status: proposed
+priority: P1
+laws: [7, 8, 9]
+ssot_keys: []
+adr: [11]
+deps: []
+acceptance: |
+  ~15 compiled templates (one per authored file type) under usr/share/mios/templates/,
+  a `mios new <type>` scaffolder, a golden round-trip compiler, and a
+  check_template_conformance drift-check that validates header AND body structure;
+  candidate Law 14 (ONE-TEMPLATE-PER-TYPE) registered + enforced (operator-gated).
+-->
+*A global compiled-template system (ADR-0011 §3) formalizing/extending the AI-hint convention so an agent learns MiOS formatting from a few files. A template = the shared AI-hint header block (produced by the same `mios-ai-tag` engine) + a small per-type body skeleton whose structure is also validated (closing the gap where only the header is checked). Proposed.*
+
+### TEMPLATE-01 — `usr/share/mios/templates/*.tmpl` (~15) + `mios new <type>` + golden compiler + `check_template_conformance` + candidate Law-14  **[P1]**  (→ T-271)
+- **What:** Author ~15 compiled templates (`bash`, `python-tool`, `python-module`, `rust`, `typescript`, `powershell`, `toml-config`, `yaml`, `json-schema`, `markdown-doc`, `adr`, `roadmap`, `systemd-unit`, `quadlet` [generated], `automation-step`) under `usr/share/mios/templates/`, declared in SSOT (`[templates.<type>]`: `match`/`comment`/`required_header`/`required_markers`/`generated`/`scaffold`). Land the scaffolder first as Python `usr/libexec/mios/mios-new` (`mios new <type>`, reusing `mios-ai-tag` for the header, filling canonical fields — next ADR number, next `automation/NN` ordinal, canonical ports — from SSOT, and registering the canonical name), then absorb into `miosd scaffold`. Add a golden round-trip compiler (`tools/compile-templates.py`) and a `check_template_conformance` drift-check (delegating to a Python worker, mirroring `check_hint_coverage → mios-ai-hint-coverage`, degrade-open, soft→hard ratchet). `generated=true` types refuse to scaffold an editable file (scaffold the generator + its `mios.toml` section instead — Law 8 authoritative). **Candidate Law 14 (ONE-TEMPLATE-PER-TYPE):** per ADR-0007 add a `[laws]` row (id 14) + `check_template_conformance` as `enforced_by` — **operator-gated; the `[laws]` edit is deferred for confirmation.**
+- **Why:** The AI-hint header + `mios-theme-render` prove the pattern but enforce it piecemeal (header only, no body structure). One compiled, golden-tested template per type makes every file *born from* and *validated against* enforced ground truth — so an agent learns all MiOS formatting from `templates/*.tmpl` + `[templates]`/`[ai_tag]`/`[laws]`. Law 8 mechanically enforced; Law 7/9 via the scaffolder filling canonical fields + registering the name.
+- **Files:** `usr/share/mios/templates/*.tmpl` (new, ~15), `usr/share/mios/mios.toml` (`[templates]` schema; candidate `[laws]` id-14 row — operator-gated), `usr/libexec/mios/mios-new` (new; folds into `miosd scaffold`), `usr/libexec/mios/mios-ai-tag` (header machinery, reused), `tools/compile-templates.py` (new), `automation/38-drift-checks.sh` (`check_template_conformance`), `usr/bin/mios`/`Justfile` (`mios new`/`just new`).
+- **Accept:** `mios new <type> <name>` produces a conformant file that passes `check_template_conformance` + the golden compiler; a template that can't produce a conformant file fails the build; the header check becomes the header-subset of conformance; Law-14 is proposed with its enforcement wired but the `[laws]` row awaits operator sign-off.
+- **Deps:** none hard (Python-first, offline-deterministic); folds into WS-LANG's `miosd` once the Rust workspace exists. ADR-0011. **OPEN QUESTION:** Law-14 confirmation + the next free drift-check number.
+
+
+## WS-DEBT — Technical-debt register (TD-1..TD-8)
+<!--
+id: WS-DEBT
+title: Technical-debt register — TD-1..TD-8 (shell-mass, version drift, resolver twin, monolith decomposition)
+theme: OS-Image & Build
+status: proposed
+priority: P1
+laws: [7, 8, 9]
+ssot_keys: []
+adr: [11]
+deps: []
+acceptance: |
+  the eight ranked debts (TD-1..TD-8) are tracked with owners + remediation tasks;
+  the top three (TD-1 enforce documented conventions, TD-2 collapse version/SSOT to
+  one value, TD-3 one TOML reader) land first as near-zero-risk Phase −1 wins that
+  unblock the WS-LANG/WS-TEMPLATE work.
+-->
+*The technical-debt register grounding ADR-0011, re-measured against the live `C:\MiOS` + `C:\mios-bootstrap` trees (server.py=8,961 ln; 44 drift-checks; 3× mios.toml with root=0.2.4 vs SSOT/VERSION=0.3.0; C#/.NET already in-tree at `C:\MiOS\src\mios-launch.cs`). Ranked by severity × reach; the top three are the near-zero-risk Phase −1 prerequisites. All proposed.*
+
+- **TD-1 (Critical) — Fragile-shell mass, conventions documented but not enforced.** ~15k LOC bash across the build chain + ~116 bash verbs; `shellcheck` is only `# shellcheck source=` comments (no CI lint job); 23 verbs lack `set -e`; **9 `eval` on agent-derived args** (injection surface); the 44-check gate is itself fragile bash+grep. → **T-269**.
+- **TD-2 (Critical) — Version/SSOT duplication at conflicting values.** 3× `mios.toml` (canonical 10,869 ln vs two ~1.4k-ln roots); `VERSION`/SSOT `mios_version`=0.3.0 but root `C:\MiOS\mios.toml`=**0.2.4**; **37× hardcoded `v0.2.4`** headers; cross-repo divergence of `Get-MiOS.ps1`/`build-mios.ps1`/`mios.toml`/`CLAUDE.md`. Violates Law 9 / ADR-0009. → **T-268**.
+- **TD-3 (High) — Hand-rolled parsing of structured formats.** `[packages.*]`/`mios_version`/`enable=` parsed with bespoke `awk`/`grep -m1`/`sed`; JSON via inline `python3 -c`; the **Law-13 resolver twin** (`mios_toml.py` ⇄ `userenv.sh`) must produce byte-identical env with no generator binding them. → folded into WS-LANG (T-272, resolver-core crate).
+- **TD-4 (High) — Network-at-build-time, unpinned, WARN-gated-forever.** `55-bake-quickshell.sh`/`56-bake-surfer.sh` clone default branches + build; `build.sh` `NON_FATAL_SCRIPTS` swallows non-zero from ~23 phases. (Remediation: WARN→FAIL on the critical path + pin the bakes; `automation/90-generate-sbom.sh` deliberately out of scope here.)
+- **TD-5 (High) — AI-plane decomposition half-finished.** `server.py` is an 8,961-ln god-module; the `mios_pipe/` refactor never reached the 4 largest flat modules incl. `mios_dispatch.py` (the security-critical verb→bash chokepoint); 558 `except Exception` + 9 bare `except:`. → **T-273**.
+- **TD-6 (High) — Installer language sprawl + Batch crash-class + quadruplication.** `MiOS-Cat.bat` 1,288 ln / 238 `goto`; MiOS-Cat exists 4×; `build-mios.ps1` 615 KB; the unaccounted C# `mios-launch.cs`. → WS-LANG (installer core → `miosd cat`; retire `.bat`+C#). *(MiOS-Cat files owned by a concurrent agent — not touched here.)*
+- **TD-7 (Medium) — Ordinal-filename + substring coupling in the chain.** Duplicate ordinals (three `35-*`, five `38-*`); fatal/non-fatal policy is hand-maintained blobs matched by `grep -qF`. → WS-LANG (build driver owns order/gating/DAG).
+- **TD-8 (Low-Med) — Doc/metric over-claim drift + working-tree cruft.** `server.py` "~26k" (actual 8.1k) with no re-derivation gate; ~15 MB gitignored-but-present cruft confuses agents. → the metric-re-derivation gate under WS-TEMPLATE/WS-DEBT.
+
+### DEBT-01 — Phase −1: collapse version/SSOT to one value (TD-2)  **[P1]**  (→ T-268)
+- **What:** Strip literal `vX.Y.Z` from all `automation/*.sh` headers; make the two root `mios.toml` (`C:\MiOS\mios.toml` 0.2.4, `C:\mios-bootstrap\mios.toml`) generated projections of the SSOT or delete them; add drift-checks "no literal version in headers" + "root ⊆ SSOT". Near-zero-risk; the highest-reach silent-failure class (a build resolving the wrong copy gets a stale, 7×-smaller manifest).
+- **Why:** Every build and every reader can currently bind the wrong version fact. Directly closes a Law 9 / ADR-0009 violation and unblocks the rest.
+- **Files:** `C:\MiOS\VERSION`, `C:\MiOS\mios.toml`, `C:\mios-bootstrap\mios.toml`, `usr/share/mios/mios.toml`, all `automation/*.sh` headers, `automation/38-drift-checks.sh` (new checks).
+- **Accept:** one authoritative version token; no literal `v0.2.4`/`v0.2.0` in headers; the root `mios.toml` copies are generated-or-deleted and drift-gated; a build can no longer resolve a stale copy.
+- **Deps:** none. ADR-0011.
+
+### DEBT-02 — Phase −1: shellcheck CI gate + kill the 9 `eval`-on-agent-args verbs (TD-1)  **[P1]**  (→ T-269)
+- **What:** Add a `shellcheck -S warning` CI job over `automation/` + `usr/libexec/mios/` bash; enforce `set -euo pipefail` on the 23 unguarded verbs; audit + eliminate the 9 `eval`-on-agent-derived-args sites (the injection surface on the agent-facing OS-control plane).
+- **Why:** The repo documents the conventions (`# shellcheck source=`, `set -e` intent) but never enforces them; the `eval` sites are the highest-severity security debt on the verb chokepoint.
+- **Files:** `.github/workflows/mios-ci.yml`, `Justfile`, the 23 unguarded + 9 `eval` verbs under `usr/libexec/mios/`.
+- **Accept:** CI fails on a shellcheck warning; the 23 verbs carry `set -euo pipefail`; zero verbs `eval` on agent-derived args.
+- **Deps:** none. ADR-0011. Interlocks with WS-LANG (the verb dispatcher port removes the `eval` surface structurally).
+
+### DEBT-03 — Split `mios_dispatch.py` + finish the server.py decomposition (TD-5)  **[P2]**  (→ T-273)
+- **What:** Split `mios_dispatch.py` (the security-critical verb→bash chokepoint every verb passes through) out of the 8,961-ln `server.py` monolith into `mios_pipe/`; continue the flat-module extraction (VRAM scheduler, `_db_*`, auth middleware, agent streaming); replace the 9 bare `except:`; add a new gate "no Python file > 800 lines".
+- **Why:** The `mios_pipe/` refactor (103 files, 100% hint-tagged) never reached the 4 largest flat modules; the debt is the monolith + the highest-privilege dispatch chokepoint, not the language (Python stays — Law 6).
+- **Files:** `usr/lib/mios/agent-pipe/server.py`, `usr/lib/mios/agent-pipe/mios_dispatch.py`, `usr/lib/mios/agent-pipe/mios_pipe/**`, `automation/38-drift-checks.sh` (>800-line gate).
+- **Accept:** `mios_dispatch.py` is extracted and live (`check_unwired_modules` confirms); `server.py` shrinks toward a <800-line composition root; no bare `except:`; the line-length gate is green.
+- **Deps:** independent track (Python, pure refactor). ADR-0011.
+
+
 ---
 
 ## Appendix: Absorbed sources (2026-07-10 consolidation)
@@ -258,6 +370,115 @@ acceptance: |
 - **Deps:** re-establish a Linux podman once (BIB/`bootc install` need it); operator decisions on GPU policy (DDA vs GPU-P), Ceph-now-vs-later, OSD sizing, and the `ConditionVirtualization` scope (prefer the flag-file gate over a blanket removal so transient CI VMs don't auto-enable Ceph). VM/operator-gated.
 
 
+## WS-CAT — MiOS-Cat unified entry point (one tri-launcher, six verbs, all-platform)
+<!--
+id: WS-CAT
+title: MiOS-Cat unified entry point (one tri-launcher, six verbs, all-platform)
+theme: Deployment & Sovereignty
+status: proposed
+priority: P1
+laws: [1, 7, 8, 9, 12]
+ssot_keys: ["cat", "cat.repo_partition", "cat.data_partition", "editions", "colors"]
+adr: [8]
+deps: [WS-MDRIVE]
+acceptance: |
+  one tri-launcher (.ps1/.sh/.bat) exposes stage/install/build/update/provision/manual
+  identically across shells; every legacy entry point becomes a verb back-end;
+  `cat install` is headless-identical; the [cat] SSOT block resolves (no dangling
+  drivepath/medicatver/cache_path reads).
+-->
+
+### CAT-01..04 — Flatten + single-owner · verb dispatch + tri-launcher parity · `[cat]` SSOT + dangling-read fix · fold the web one-liners  **[P1]**  (→ T-256..T-259)
+- **What:** Make MiOS-Cat the ONE front door for all of MiOS. (1) `mios-bootstrap` owns MiOS-Cat canonically at `cat/` — `git mv` the deep `src\autounattend\medicat_installer\` nest up to `cat\`, **delete** the byte-identical `C:\MiOS` copy (Law 1 / two-repo rule). (2) One tri-launcher (`MiOS-Cat.{ps1,sh,bat}`) dispatches six SSOT-projected verbs — **stage · install · build · update · provision · manual** — under which every existing entry point (`Get-MiOS.ps1` irm|iex, `bootstrap.{ps1,sh}` curl, the UUP/autounattend ISO pipeline, `mios-kickstart.cfg`, the `just` build) becomes a *sub-system*, not a peer; port the advanced `.bat` logic (MiOS-Repo staging, WinPE DISM, self-update) into the canonical `.ps1` (Law 9 parity), reduce `.bat` to the WinPE/cmd shim. (3) Add a `[cat]` block to `mios.toml` (`drivepath`/`medicatver`/`cache_path`/`repo_partition`/`data_partition`/`models`) and repoint MiOS-Cat to resolve the real 597 KB SSOT — fixing the dangling reads that silently hardcode today (Law 7/8). (4) Collapse `Get-MiOS.ps1`/`bootstrap.{ps1,sh}`/`install.*` bodies to thin `cat install` shims and wire the bidirectional `irm⇄curl` handoff (same front door, two shells).
+- **Why:** ~6 parallel install/deploy entry points, none authoritative; the MiOS-Cat tree buried 3–5 levels deep and byte-identical across both repos (a Law-1 problem — `C:\MiOS/usr/` *is* `/usr`); and `drivepath`/`medicatver`/`cache_path` reference keys absent from any `mios.toml` → silent hardcoded fallbacks. One owner, one verb vocabulary, one SSOT is the Law 9 closure on the entry surface.
+- **Files:** `C:\mios-bootstrap\cat\MiOS-Cat.{ps1,sh,bat}` + `cat\lib\`, `C:\mios-bootstrap\{Get-MiOS,bootstrap,install}.ps1` + `bootstrap.sh`, `C:\MiOS\src\autounattend\medicat_installer\**` (delete), `usr/share/mios/mios.toml` (`[cat]`), `automation/38-drift-checks.sh` (new `[cat]`/`[colors]`-resolve check).
+- **Accept:** one MiOS-Cat home; `C:\MiOS` free of the installer (`diff` finds no cross-repo dup); `cat install` is headless-identical across `.ps1`/`.sh`/`.bat`; `irm …/cat | iex` and `curl …/cat.sh | sh` reach the same verb set; no MiOS-Cat value is hardcoded that has an SSOT home.
+- **Deps:** `WS-MDRIVE` supplies the deployment mechanism (`cat install --target hyperv|wsl` delegates to `just vhdx-m` / `deploy-mios-hyperv-m.ps1` / `just wsl2` verbatim — MiOS-Cat only fronts it). ADR-0008.
+
+
+## WS-CATREPO — Small MiOS-Repo shadow-config + separate MiOS-Data bulk store (512GB+) + model embedding
+<!--
+id: WS-CATREPO
+title: Small MiOS-Repo shadow-config + separate MiOS-Data bulk store (512GB+) + model embedding
+theme: Deployment & Sovereignty
+status: proposed
+priority: P1
+laws: [8, 12]
+ssot_keys: ["cat.repo_partition", "cat.data_partition", "cat.models", "ai.bake_models", "ai.vllm.bake_model"]
+adr: [8]
+deps: [WS-CAT, WS-BAKEGATE]
+acceptance: |
+  a SMALL always-present MiOS-Repo partition carries the shadow-config brain
+  (mios.toml + mios.html + Portal + MiOS-Cat + a small repos-clone); a SEPARATE
+  MiOS-Data store (created only on 512GB+ disks) carries the bulk (OCI tar +
+  just-all artifacts + model weights + dnf/flatpak/pip mirrors); `cat provision`
+  brings a host up fully-featured with ZERO network (Law 12).
+-->
+
+### CATREPO-01 — Small MiOS-Repo shadow-config partition (always) + degrade-open fallback  **[P1]**  (→ T-260)
+- **What:** `cat stage` populates a SMALL always-present `MiOS-Repo` partition (P3, target ~≤16 GB) with the **shadow-config brain**: `mios.toml` (SSOT), `mios.html` (configurator), the MiOS Portal assets, a self-contained MiOS-Cat copy, and a **small repos-clone** (config/source — not the binary payload). This is the offline embodiment of the ADR-0009 shareable-link surface. Each payload class is degrade-open (online `git clone` → offline copy from `MiOS-Repo/repos/`). **Fix the kickstart path mismatch:** the `.bat` stages repos to one path but `mios-kickstart.cfg` looks under another — align both to a canonical `MiOS-Repo/repos/`. Ventoy-bootable ISOs/WIMs stay on the Ventoy data partition.
+- **Why:** The brain (config + Portal + Cat + a small clone) is tiny and belongs on every stick; forcing the 78 GB bulk onto the same "MiOS-Repo" tier bloated every USB and broke the small case. Keeping MiOS-Repo small + always-present is what makes "a link + a stick + a computer" honest.
+- **Files:** `cat\MiOS-Cat.{ps1,sh}` (`cat stage`), `usr/share/mios/mios.toml` (`[cat].repo_partition`), `mios-kickstart.cfg` (`%post` repo path), the `MiOS-Repo/` layout.
+- **Accept:** a small stick carries the shadow-config brain and a fully offline bare-metal kickstart install succeeds from `MiOS-Repo/repos/`.
+- **Deps:** `WS-CAT` (verb engine + `[cat]` SSOT). ADR-0008.
+
+### CATREPO-02..04 — Separate MiOS-Data bulk store (512GB+) + model embedding + `cat provision` (Law 12) + offline mirrors  **[P1]**  (→ T-261..T-263)
+- **What:** On disks ≥ 512 GB (`Get-Disk` gate), `cat stage` creates a **separate** `MiOS-Data` store carrying the **bulk**: the ~78 GB `podman save` OCI tar (offline `podman load`), the `just all` disk artifacts (`raw/iso/qcow2/vhdx/wsl2`, incl. the ADR-0005 VHDX), the `mios.toml`-defined **model weights**, and the offline `dnf`/`flatpak`/`pip` **mirrors** (`reposync`+`createrepo_c`, `flatpak create-usb`, `pip download`). Read the model SSOT keys (`[ai].bake_models` L5744/L6116, `[ai.vllm].bake_model` L6724, `[ai.sglang].bake_model` L6742), fetch+checksum into `MiOS-Data/models/` (never invent — Law 8; resolved-not-hardcoded — WS-SBOM pattern). `cat provision` copies weights to `/usr/share/mios/vllm/model` (+ the GGUF dir) offline. `cat update` re-pulls both stores when online and re-stamps `manifest.json`.
+- **Why:** Law 12 (BAKE-NOT-FETCH) realized as offline provisioning — the OCI image bakes engines only (weights a-la-carte per ADR-0001/0002); MiOS-Data is the offline weight+package store so a host deploys fully-featured with zero network — the sovereignty guarantee. Separating bulk from the always-present brain means a 512 GB+ stick is fully offline while a small stick still deploys (degrade-open).
+- **Files:** `cat\MiOS-Cat.{ps1,sh}` (`cat stage`/`cat provision`/`cat update`), `usr/share/mios/mios.toml` (`[cat].data_partition`, `[cat].models` → `[ai].bake_models`), `MiOS-Data/{images,models,dnf,flatpak,pip}/`, `automation/38-llamacpp-prep.sh` (checksum pattern).
+- **Accept:** on 512 GB+, offline `podman load` + `bootc switch` from USB works; a deployed host's heavy lane comes up with zero network (the `config.json` weight gate present); an offline build/first-boot resolves all packages from USB.
+- **Deps:** `WS-CAT`; `WS-BAKEGATE` (the bake-plan that defines what artifacts exist). Model-redistribution licensing is an OPEN QUESTION (ADR-0008 Consequences) — if disallowed, MiOS-Data stores a fetch manifest + checksums instead of weights. ADR-0008.
+
+
+## WS-CATFLAT — MiOS-Cat tree flatten, de-dup, leave-nothing-behind
+<!--
+id: WS-CATFLAT
+title: MiOS-Cat tree flatten, de-dup, leave-nothing-behind
+theme: Deployment & Sovereignty
+status: proposed
+priority: P2
+laws: [1, 8, 9]
+ssot_keys: ["cat"]
+adr: [8]
+deps: [WS-CAT]
+acceptance: |
+  cat/ tracks source only; ~6 MB+ tracked cruft gone; no cross-repo double-track;
+  a generated ADR root breadcrumb reaches the ADR index in ≤2 hops; drift-gate green.
+-->
+
+### CATFLAT-01..03 — Dead-weight purge + leave-nothing-behind · ADR root breadcrumb · seed-copy consolidation  **[P2]**  (→ T-264..T-266)
+- **What:** (1) Delete tracked cruft (`Get-MiOS.ps1.bom-bak`, `commit*.patch`, `temp{,2}.txt`, `scratch.ps1`) after verifying no live consumer (flatten-campaign guardrail); drop committed Ventoy/7z/MediCat binaries (downloaded artifacts, not source) and keep the fetch-on-demand logic; fold MediCat i18n down to MiOS strings. (2) Generate an ADR root breadcrumb — `C:\MiOS\ADR.md` + `cat\ADR-0008.md` — from SSOT (Law 8, drift-checked), linked from `llms.txt`/`AGENTS.md`, so the record is discoverable near each repo root without moving the baked ADRs out from `/usr` (Law 1). (3) Resolve the `mios.toml` seed-copy question — the 63 KB `C:\MiOS\mios.toml` + 68 KB `C:\mios-bootstrap\mios.toml` seeds vs the 597 KB SSOT (which is canonical, which is generated); document + regenerate seeds; MiOS-Cat reads only the SSOT.
+- **Why:** Leave-nothing-behind: `cat/` should track source only; the ADRs stay baked (Law 1) but need a root-discoverable pointer; the seed copies are the root cause of the dangling-read bug WS-CAT fixes and must be pinned down.
+- **Files:** `C:\mios-bootstrap\cat\**` (cruft purge, i18n), `C:\MiOS\ADR.md` (generated), `cat\ADR-0008.md` (generated), `llms.txt`, `AGENTS.md`, `C:\MiOS\mios.toml` + `C:\mios-bootstrap\mios.toml` (seed provenance), the ADR breadcrumb generator (`roadmap-index.py`-class, Law 8).
+- **Accept:** `cat/` tracks source only (~6 MB+ cruft gone); an agent reaches the ADR index from repo root in ≤2 hops; one documented SSOT + generated seeds; drift-gate green.
+- **Deps:** `WS-CAT` (single-owner flatten must land first). ADR-0008.
+
+
+## WS-CONFIG — Unified config surface: mios.toml ⇄ Portal + configurator + /v1 at :8640/
+<!--
+id: WS-CONFIG
+title: Unified config surface: mios.toml ⇄ Portal + configurator + /v1 at :8640/
+theme: Deployment & Sovereignty
+status: proposed
+priority: P1
+laws: [5, 7, 8]
+ssot_keys: ["portal", "ports.agent_pipe"]
+adr: [9]
+deps: []
+acceptance: |
+  mios.html configurator folds INTO the MiOS Portal, served at GET / on :8640
+  alongside the OpenAI /v1 API; the Portal is the shareable-link front door; every
+  deployment type/config reads/writes mios.toml through it (Laws 7/8).
+-->
+
+### CONFIG-01 — Fold `mios.html` into the MiOS Portal at `:8640/` (one web + API front door)  **[P1]**  (→ T-267)
+- **What:** Fold the standalone configurator `mios.html` (`usr/share/mios/configurator/`) INTO the MiOS Portal as a configurator *view*, so `mios.toml` + `mios.html` + the Portal are ONE config surface served at `:8640/` by agent-pipe: `GET /` serves the Portal (with the configurator folded in) and `/v1/*` serves the OpenAI API — the SAME single front door (the ADR-0006 convergence). Wire read/write of `mios.toml` from the configurator view through `mios_portal.py`; the Portal "needs config too" resolves as *it is configured through the surface it is*. The Portal (`:8640/`, or its `[portal].public_host` hosted equivalent) is the shareable web LINK that bootstraps the whole pipeline (open → configure → deploy); the USB MiOS-Repo shadow-config (WS-CATREPO / ADR-0008) is its offline embodiment.
+- **Why:** Two web surfaces (a standalone configurator + the Portal) meant two things to serve/secure and an ambiguous "where do I configure MiOS?" The Portal is already served by agent-pipe at `GET /` on `:8640`, and ADR-0006 already collapsed the API plane to `/v1` at the same port — folding the configurator in is the natural closure. Everything projecting from one `mios.toml` (Law 8) is what makes "one config surface" honest; addressed by key never literal (Law 7).
+- **Files:** `usr/lib/mios/agent-pipe/mios_portal.py` (configurator view + `mios.toml` read/write), `usr/lib/mios/agent-pipe/server.py` (`GET /` + `/v1/*` one door), `usr/share/mios/portal/` (absorb the configurator UI), `usr/share/mios/configurator/mios.html` (folded in / retired standalone), `usr/share/mios/mios.toml [portal]` (L220), `tools/mios-portal-app/` (Android client → same `:8640/`).
+- **Accept:** the configurator is a view within the Portal at `:8640/`; `GET /` (Portal) and `/v1/*` (OpenAI API) share the one door; every deployment type's config reads/writes `mios.toml` through the surface; the shareable link + the USB are the same surface online and offline.
+- **Deps:** none hard (the Portal + `:8640` `/v1` already exist). Converges with `WS-DEPRED` (the single `:8640` front-door collapse) and is governed by ADR-0007. ADR-0009.
+
+
 # Storage & Data
 
 *(no active workstreams)*
@@ -268,7 +489,33 @@ acceptance: |
 
 # Desktop & UX
 
-*(no active workstreams)*
+## WS-DOTFILES — SSOT-as-system-dotfiles (projection registry + engine + both-sides gate)
+<!--
+id: WS-DOTFILES
+title: SSOT-as-system-dotfiles — one mios.toml projects every dotfile on every platform
+theme: Desktop & UX
+status: proposed
+priority: P1
+laws: [1, 7, 8, 9, 13]
+ssot_keys: ["dotfiles.registry", "colors", "theme", "appearance", "terminal", "identity", "btop", "shell", "editor", "git", "ssh"]
+adr: [10]
+deps: []
+acceptance: |
+  Every declared dotfile on Linux/Windows/WSL is render-generated from mios.toml
+  via [dotfiles.registry.*] + mios-dotfiles-render and check-gated both sides;
+  no dotfile is hand-typed; the operator overlay projects the same on every
+  deployment. Extends (not replaces) the LANDED mios-theme-render + check-25
+  palette/btop projection.
+-->
+*Generalizes the LANDED palette+btop projection into `mios.toml` = the cross-platform system dotfiles-as-code (ADR-0010). The proof of concept is already in the tree: `usr/libexec/mios/mios-theme-render` gained a **settings-surface** concept this session, `[btop]` (~60 keys) projects the whole `etc/btop/btop.conf` unified Linux+Windows, and drift-check 25 (`check_theme_projection`) auto-extended and is proven green. Everything below (the SSOT `[dotfiles.registry.*]` map, the live-HOME `apply` verb, the new `[shell]`/`[editor]`/`[git]`/`[ssh]` domains) is proposed.*
+
+### DOTFILES-01 — `[dotfiles.registry.*]` map + `mios-dotfiles-render` (arbitrary-key, format-aware merge, live-HOME `apply`) + both-sides gate  **[P1]**  (→ T-270)
+- **What:** Promote the hardcoded Python `SURFACES` dict into an SSOT-authored `[dotfiles.registry.<surface>]` map (per-platform `target.<os>`; `kind` = template/json-merge/registry/command/skip; `format`; `sources`; `platforms`; `condition`). Transcribe the existing color+btop surfaces first (pure refactor, check 25 stays green), then fork `mios-theme-render` → `mios-dotfiles-render`: registry from `mios_toml.load_merged()`, `@MIOS:<section>.<key>@` tokens, format-aware `merge` that preserves foreign keys (WT/VS Code `settings.json` never clobbered), per-platform target resolution, and a new **`apply`/`diff` verb writing to live HOME** (`~/.config`, `%USERPROFILE%`, `%LOCALAPPDATA%`). Add the new domains `[shell]`/`[editor]`/`[git]`(→`[identity]`, Law 9)/`[ssh]`(`secret_ref`). Generalize `check_theme_projection` (check 25) → `check_dotfiles_projection` over the full registry; add the Windows runtime half `Test-MiOSProjection`; collapse the scattered `Install-MiOS*` bodies into thin registry-driven `Sync-MiOSDotfiles` calls; add a `mios dotfiles apply/diff/drift` verb (`[verbs.dotfiles_*]`).
+- **Why:** MiOS proved operator-defined-SSOT-projection for the palette + `[btop]` end-to-end, but every other dotfile (WT `settings.json`, `.gitconfig`, VS Code, shell rc, GTK, ssh) is hand-maintained or projected imperatively, and the `SURFACES` tuples can't express a per-platform target. This is the literal completion of the pattern (Law 8), layered (Law 1/13), one canonical name per surface (Law 9), no literals (Law 7).
+- **Files:** `usr/share/mios/mios.toml` (`[dotfiles.registry.*]`, `[shell]`/`[editor]`/`[git]`/`[ssh]`), `usr/libexec/mios/mios-theme-render` (reference; forks to `mios-dotfiles-render`), `usr/libexec/mios/mios-sync-theme`, `usr/lib/mios/mios_toml.py` + `tools/lib/userenv.sh`, `automation/38-drift-checks.sh` (check 25 → `check_dotfiles_projection`), `Get-MiOS.ps1` (`Sync-MiOSDotfiles`/`Test-MiOSProjection`), `usr/bin/mios`.
+- **Accept:** the color+btop surfaces are registry-driven with check 25 green; a `[theme].opacity` edit projects to Linux CSS + the WT `json-merge` block + the WSL bridge with foreign keys intact and both gates pass; `mios dotfiles apply` writes live HOME; no `Install-MiOS*` value is hand-typed that has an SSOT home.
+- **Deps:** none hard; interlocks with WS-CONFIG (the Portal edits the `[dotfiles.registry.*]` map) and ADR-0005/0008 (the overlay carries across deployments). Secrets (`secret_ref`) and a deployment-type enum for `condition` are OPEN QUESTIONS (ADR-0010).
+
 
 # Fleet & Federation
 

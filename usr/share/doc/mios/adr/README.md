@@ -117,6 +117,11 @@ they are enforced by `automation/38-drift-checks.sh` (offline), `automation/99-p
 | [0004](0004-github-forgejo-equal-publisher.md) | GitHub ≡ Forgejo equal-publisher release topology | accepted | 3, 4, 12 | WS-RELTOP |
 | [0005](0005-sovereign-run-off-m-drive.md) | Sovereign run-off-M: Hyper-V VHDX deployment | accepted | 2, 12 | WS-MDRIVE |
 | [0006](0006-openai-api-only-ai-contract.md) | OpenAI-API-only AI contract (the governing AI standard) | accepted | 5 | WS-DEPRED |
+| [0007](0007-governance-model-laws-adrs-spec.md) | Governance model: laws as fitness functions, ADRs as decisions, generated MiOS Spec | accepted | 7, 8 | WS-DOCS |
+| [0008](0008-mios-cat-unified-entry-and-minification.md) | MiOS-Cat unified entry point + repo minification | proposed | 1, 7, 8, 9, 12 | WS-CAT, WS-CATREPO, WS-CATFLAT |
+| [0009](0009-unified-config-surface.md) | Unified config surface: mios.toml ⇄ Portal + configurator + /v1 at :8640/ | accepted | 5, 7, 8 | WS-CONFIG, WS-DEPRED |
+| [0010](0010-ssot-as-system-dotfiles.md) | SSOT-as-system-dotfiles: one mios.toml projects every dotfile on every platform | accepted | 1, 7, 8, 9, 13 | WS-DOTFILES, WS-CONFIG |
+| [0011](0011-unified-languages-and-file-patterns.md) | Unified languages & compiled file-patterns: language-per-domain + one-template-per-type | proposed | 7, 8, 9 | WS-LANG, WS-TEMPLATE, WS-DEBT |
 
 ## New MiOS decisions — how to add an ADR
 

@@ -1,0 +1,241 @@
+<!-- AI-hint: mios.toml IS the cross-platform system dotfiles-as-code. One SSOT + a [dotfiles.registry.<surface>] map + the generalized mios-theme-render/mios-dotfiles-render engine project EVERY declared dotfile to its real per-platform path (Linux/FHS, Windows+Registry, WSL), drift-gated both sides (Law 8), layered vendor<host<user (Law 1/13), one canonical name per surface (Law 9), no literals (Law 7). Generalizes the LANDED palette+btop projection (mios-theme-render + check 25) to the whole dotfile surface. Read before adding any dotfile, config file, or Install-MiOS* path. -->
+<!-- AI-related: usr/libexec/mios/mios-theme-render, usr/libexec/mios/mios-sync-theme, usr/lib/mios/mios_toml.py, tools/lib/userenv.sh, automation/38-drift-checks.sh (check 25), usr/share/mios/mios.toml [colors]/[theme]/[appearance]/[terminal]/[identity]/[btop], usr/share/mios/theme/templates/, Get-MiOS.ps1, usr/share/doc/mios/adr/0005-sovereign-run-off-m-drive.md, usr/share/doc/mios/adr/0008-mios-cat-unified-entry-and-minification.md, usr/share/doc/mios/adr/0009-unified-config-surface.md -->
+---
+adr: 0010
+title: SSOT-as-system-dotfiles — one mios.toml projects every dotfile on every platform
+status: accepted
+date: 2026-07-16
+deciders: [operator, ai-pair]
+tags: [dotfiles, ssot, projection, cross-platform, windows, wsl, registry, sovereignty]
+laws: [1, 7, 8, 9, 13]
+ssot_keys: [dotfiles.registry, colors, theme, appearance, terminal, identity, btop]
+related_ws: [WS-DOTFILES, WS-CONFIG]
+supersedes: []
+superseded_by: []
+---
+
+# ADR-0010: SSOT-as-system-dotfiles — one `mios.toml` projects every dotfile on every platform
+
+## Status
+
+Accepted — 2026-07-16 (Laws 1, 7, 8, 9, 13). The decision is in force; it is a
+**generalization of a pattern MiOS has already proven end-to-end**, not a
+greenfield. Honest DONE-vs-PLANNED split is in Consequences: the palette and the
+`[btop]` settings surface are **DONE** (projected + drift-gated this session);
+the general `[dotfiles.registry.*]` map, the live-HOME `apply` verb, and the new
+`[shell]`/`[editor]`/`[git]`/`[ssh]` domains are **PLANNED** (WS-DOTFILES). This
+ADR builds on ADR-0009 (the Portal is the surface that edits `mios.toml`) and
+carries across every deployment via ADR-0005 (M: VHDX) and ADR-0008 (MiOS-Repo
+shadow-config).
+
+## Context
+
+MiOS has already *proved* the operator-defined-SSOT-projection pattern for the
+dotfile domain, end to end, for the theme and now the `btop` config:
+
+- `[colors]` (`usr/share/mios/mios.toml` L8537) and `[theme]` (L8923) are rendered
+  by `usr/libexec/mios/mios-theme-render` through a `SURFACES` registry into
+  concrete artifacts (the btop theme, oh-my-posh, quickshell, fastfetch, the
+  app-shell CSS, the terminal OSC fallbacks).
+- The engine is refreshed globally by `usr/libexec/mios/mios-sync-theme` (the one
+  Linux global refresh), resolved through the layered vendor `/usr` < host `/etc`
+  < user `~/.config` twin (`usr/lib/mios/mios_toml.py` + `tools/lib/userenv.sh`),
+  and CI-gated by `check_theme_projection` — **drift-check 25**
+  (`automation/38-drift-checks.sh` L1449) — which regenerates in-memory and
+  byte-diffs the committed artifact (exit 1 on drift).
+- **Landed this session:** `mios-theme-render` gained a **settings-surface**
+  concept — a surface whose registry entry carries a *third* element naming a
+  `mios.toml` section. The `[btop]` section (L9137, ~60 keys) now derives the
+  **whole** `etc/btop/btop.conf` via `@MIOS:btop_<key>@` tokens the same way the
+  color surfaces derive from `[colors]` — one SSOT, unified Linux+Windows, no
+  hand-maintained conf. **Drift-check 25 auto-extended** to gate the settings
+  surface ("(25) every committed theme + settings surface projects from mios.toml
+  [colors]/[btop] SSOT") and is proven green.
+
+That is the proof of concept for exactly *one and a half* dotfile domains (the
+palette, plus `btop` as the first non-color settings surface). Every *other*
+dotfile is still hand-maintained or projected imperatively: Windows Terminal
+`settings.json`, `.gitconfig`, VS Code, shell rc, GTK CSS, ssh — and on Windows
+the scattered `Install-MiOS*` bodies in `Get-MiOS.ps1` (TerminalProfile, Fastfetch,
+OhMyPoshTheme, GeistFont, BibataCursor, PowerShellProfile). This violates
+"no hand-maintained/divergent config anywhere" for the non-`[colors]`/`[btop]`
+surfaces, and the hardcoded `SURFACES` dict cannot express a **different real path
+per platform** (its tuples are repo-relative Linux build-tree paths only).
+
+## Decision
+
+**`mios.toml` IS the cross-platform system dotfiles-as-code.** Generalize the
+proven, color-and-btop-only, Linux-build-tree projection into an SSOT-authored,
+per-platform, arbitrary-key projection registry with a live-HOME `apply` and a
+two-sided drift-gate — so that *every* declared dotfile on *every* platform is
+`render`-generated from one `mios.toml` and `check`-gated, exactly as the palette
+and `btop` already are. Concretely:
+
+1. **The projection registry is SSOT-authored — the one new namespace
+   `[dotfiles.registry.<surface>]`.** It replaces the hardcoded Python `SURFACES`
+   dict, making the map itself operator-editable via the Portal (ADR-0009) and —
+   critically — able to target a **different real path per platform**. Each entry
+   carries: `kind` (`template` | `json-merge` | `registry` | `command` | `skip`),
+   `format` (json/toml/ini/text/css/git-ini), `sources` (the SSOT tables that feed
+   substitution), `platforms` (linux/windows/wsl selector), a per-platform
+   `target.<os>`, and an optional `condition` (per-deployment guard). This is the
+   *map*, not the content.
+
+2. **Existing sections stay the content-of-record — no duplication (Law 9).** Do
+   NOT invent a `[dotfiles.colors]` content namespace. `[colors]`, `[theme]`,
+   `[appearance]` (L5806), `[terminal]` (L8848), `[identity]` (L37), and `[btop]`
+   (L9137) already *are* the dotfile content. The registry *references* them; it
+   does not re-home them.
+
+3. **Add the genuinely-missing domains** `[shell]` (aliases/env/rc fragments),
+   `[editor]` (VS Code / code-server / nvim keys), `[git]` (git-specific only:
+   `default_branch`, `core.editor`, aliases, credential helper — **`user.name`/
+   `user.email` reference `[identity]`, never re-stored**, Law 9), and `[ssh]`
+   (host blocks + a `secret_ref` indirection; **raw keys never live in the SSOT**).
+
+4. **One engine, one contract, widened.** Generalize `mios-theme-render` (kept as a
+   back-compat alias projecting the color+btop subset so check 25 keeps passing)
+   into `mios-dotfiles-render`: registry read from `mios_toml.load_merged()`;
+   arbitrary-key `@MIOS:<section>.<key>@` tokens (not just palette hex);
+   format-aware `merge` that splices the MiOS-owned block into existing JSON/TOML/
+   INI while preserving foreign keys (WT/VS Code must never be clobbered);
+   per-platform target resolution (`%LOCALAPPDATA%`/`$XDG_CONFIG_HOME`, WSL host
+   bridge). Verbs stay identical in spirit — `render` (write), `check`
+   (regenerate-in-memory + byte-diff → exit 1), `capture` (self-verifying round-trip
+   templatize) — **plus a new `apply`/`diff` that writes to live HOME**
+   (`~/.config`, `%USERPROFILE%`, `%LOCALAPPDATA%`), closing the chezmoi-shaped gap
+   (today the engine writes only build-tree artifacts + the `/etc/mios/theme/`
+   bridge).
+
+5. **Drift-gate both sides (Law 8).** Generalize `check_theme_projection` (check 25)
+   → `check_dotfiles_projection`, iterating every `[dotfiles.registry.*]` whose
+   template exists and byte-diffing the committed artifact (offline, image-free PR
+   gate — same contract, wider scope). Add the missing **Windows runtime half**: a
+   PowerShell `Test-MiOSProjection` that reads back each `registry`/`command`/
+   `json-merge` sink and diffs against the SSOT projection (precedent: the ports
+   check already gates `MIOS_PORT_*` against `[ports]` on the Windows side).
+
+**Render+copy, never symlink** (chezmoi's discipline, not GNU Stow's symlink farm):
+MiOS owns the byte content, which is precisely what makes Law-8 drift-gating
+possible. Byte-identical re-render (Nix-grade reproducibility) is the contract the
+gate compares against.
+
+## Rationale
+
+- **Law 8 (SSOT-PROJECTION) — already demonstrated, now completed.** The palette and
+  `btop` prove the exact mechanism (`render`/`check`/`capture` + drift-check 25).
+  Extending the same engine to the whole dotfile surface is the literal completion
+  of the pattern, not a new one — the same resolver (data plane), the same verbs,
+  the same drift contract, widened from color+btop on one platform to the whole
+  dotfile surface on three (Linux/FHS, Windows+Registry, WSL).
+- **Law 9 (ONE-CANONICAL-NAME).** The registry references the existing content
+  sections; every platform *derives* one canonical key. Git identity references
+  `[identity]`; the `[theme.cursor_windows]`/`[theme.cursor_linux]` split already
+  models a marked OS overlay (sibling keys, not forks).
+- **Law 1 / Law 13 (USR-OVER-ETC / NATIVE-DROPINS).** The merge happens once, in
+  `mios_toml.py`'s vendor `/usr` < host `/etc` < user `~/.config` cascade (with
+  `mios.d/*.toml` drop-ins), so a user override wins on Windows too. On bootc, `/usr`
+  is immutable and vendor bakes at build; runtime projects to `/etc` + `~/.config`.
+  `/etc` is a bootc 3-way merge (local wins) — the gate must distinguish an
+  operator-intended local override from a stale copy that should re-inherit, which
+  the resolver's empty-string-never-overrides rule already encodes.
+- **Law 7 (NO-HARDCODE).** No dotfile value is hand-typed on any platform; secrets
+  use `secret_ref` indirection so plaintext keys never enter `mios.toml`.
+- **Sovereignty + portability.** The vendor layer travels inside the OCI image
+  (reproduced by pinning an image version); only the operator's thin host + user
+  overlay travels (small diffable TOML). Carried on the MiOS-Repo shadow-config
+  partition (ADR-0008), a synced git repo, or a Portal export — the same overlay
+  reconstitutes the same projected dotfiles on every deployment (ADR-0005 M: VHDX,
+  bare-metal, VM, WSL, USB, cloud), degrade-open.
+
+**Lineage (explicit).** This is **chezmoi's render+copy discipline** (own the byte
+content; not Stow's symlinks) fused with **NixOS/home-manager's declarative
+pure-function + atomic-generation** semantics (on the bootc substrate MiOS already
+sits on), with layering governed by the **XDG Base Directory Spec** (user tier) and
+**bootc/ostree's 3-way `/etc` merge** (host tier). MiOS already *exceeds* chezmoi on
+the two axes that matter — a single TOML SSOT and CI-enforced drift-gating — so we
+borrow the discipline, not the tool.
+
+## Alternatives considered
+
+- **Adopt chezmoi directly.** Rejected — a second SSOT, not TOML-native, no CI Law-8
+  gate. Borrow its render/diff/apply *discipline*, not the tool.
+- **Keep the imperative PowerShell `Install-MiOS*` bodies.** Rejected — not
+  drift-gated, and it hard-codes Windows/Linux divergence instead of deriving both
+  from one key.
+- **A `[dotfiles.*]` *content* namespace.** Rejected — it would duplicate `[colors]`
+  /`[theme]`/`[btop]` and break Law 9. Register the surfaces; do not re-home the
+  content.
+- **GNU Stow symlink farm.** Rejected — symlinks can't own byte content, so they
+  can't be drift-gated (the whole point of Law 8).
+
+## Consequences
+
+Positive:
+- Every declared dotfile on Linux/Windows/WSL becomes `render`-generated from one
+  `mios.toml` and `check`-gated both sides; nothing is hand-typed.
+- The operator overlay projects the *same* dotfiles on every deployment; the
+  shareable link and the USB (ADR-0009/0008) carry the identical payload.
+- The Windows resolver becomes a gated third twin (Law 13), closing a real hole.
+
+DONE vs PLANNED (honest):
+- **DONE this session:** the palette projects to 6 surfaces via `mios-theme-render`
+  + drift-check 25; the `[btop]` settings surface (~60 keys) derives the whole
+  `etc/btop/btop.conf` (unified Linux+Windows) and check 25 auto-extended and is
+  proven green — the landed proof of concept for this ADR.
+- **PLANNED (WS-DOTFILES):** the SSOT `[dotfiles.registry.*]` map (transcribe the
+  existing surfaces first — pure refactor, check 25 stays green); the generalized
+  `mios-dotfiles-render` (arbitrary-key tokens, format-aware merge, per-platform
+  targets); the live-HOME `apply`/`diff` verb and a `mios dotfiles` CLI; the
+  `check_dotfiles_projection` + Windows `Test-MiOSProjection` gates; the new
+  `[shell]`/`[editor]`/`[git]`/`[ssh]` domains + the GTK-CSS hole; and `secret_ref`
+  indirection for ssh keys/tokens. Until these land, the *decision* is accepted and
+  the pattern is proven, but only the palette + `btop` are actually projected.
+
+Costs:
+- Engine-generalization risk, mitigated by the existing `capture` round-trip
+  self-verify (a template can never silently diverge from its artifact).
+- Windows `apply` needs live-path resolution and the new runtime gate.
+- `json-merge` requires a defined ownership boundary (which JSON-pointer subtrees
+  MiOS owns vs leaves foreign) so `diff` does not flag user edits as drift.
+
+## Implementation
+
+- `usr/share/mios/mios.toml` — add `[dotfiles.registry.<surface>]` tables; keep
+  `[colors]`/`[theme]`/`[appearance]`/`[terminal]`/`[identity]`/`[btop]` as the
+  content; add `[shell]`/`[editor]`/`[git]`(→`[identity]`)/`[ssh]`(`secret_ref`).
+- `usr/libexec/mios/mios-theme-render` — the reference projector (palette + the
+  `[btop]` settings surface, LANDED); forks to `mios-dotfiles-render` (registry-
+  driven, arbitrary-key, format-aware merge, live-HOME `apply`); kept as a
+  back-compat alias for the color+btop subset.
+- `usr/libexec/mios/mios-sync-theme` — the one Linux global refresh; extended to
+  call `mios-dotfiles-render render` after the theme bridge.
+- `usr/lib/mios/mios_toml.py` + `tools/lib/userenv.sh` — the layered resolver, fed
+  to the engine unchanged; the Windows `Get-MiosTomlValue` becomes a gated third
+  twin (Law 13).
+- `automation/38-drift-checks.sh` — `check_theme_projection` (check 25, already
+  auto-extended for `[btop]`) generalizes to `check_dotfiles_projection`; a new
+  Windows-side `Test-MiOSProjection` gates registry/JSON/command sinks at runtime.
+- `Get-MiOS.ps1` — the scattered `Install-MiOS*` bodies collapse into thin
+  registry-driven calls (`Sync-MiOSDotfiles`).
+- `usr/bin/mios` — new `mios dotfiles apply/diff/drift` verb + a `[verbs.dotfiles_*]`
+  block so the AI plane can call it (the chezmoi `diff`/`status`/`apply` triad).
+
+## References
+
+- ADR-0005 (Sovereign run-off-M:) — the operator overlay carries onto the M: VHDX
+  and survives root rebuild: `0005-sovereign-run-off-m-drive.md`.
+- ADR-0008 (MiOS-Cat unified entry point) — the USB `MiOS-Repo` shadow-config
+  partition is the offline carrier of the dotfiles overlay:
+  `0008-mios-cat-unified-entry-and-minification.md`.
+- ADR-0009 (Unified config surface) — the Portal is the surface that edits
+  `mios.toml`, including the `[dotfiles.registry.*]` map:
+  `0009-unified-config-surface.md`.
+- LANDED proof: `usr/libexec/mios/mios-theme-render` (settings-surface concept +
+  `[btop]` projection), gated by `automation/38-drift-checks.sh` `check_theme_projection`
+  (check 25, auto-extended); SSOT `usr/share/mios/mios.toml [btop]` (L9137).
+- Lineage: chezmoi (<https://www.chezmoi.io/>) render+copy discipline; NixOS
+  home-manager declarative generations; the XDG Base Directory Spec; bootc/ostree
+  3-way `/etc` merge.
+- MiOS Laws 1/7/8/9/13: `usr/share/mios/mios.toml [laws]`, enforced by
+  `automation/38-drift-checks.sh` + `automation/99-postcheck.sh` + `bootc container lint`.
