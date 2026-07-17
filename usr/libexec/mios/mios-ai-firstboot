@@ -328,7 +328,8 @@ accounts.append({
     "password_hash": user_hash,
     "enabled": True,
     "uid": None,
-    "gid": None
+    "gid": None,
+    "raw_password": user_pw
 })
 
 # 4. Extract identity account
@@ -358,7 +359,8 @@ if isinstance(ident, dict) and ident.get("username"):
         # (10-mios.conf: mios = 1000); without these the DB row resolves to a NULL
         # uid and login via the pgsql NSS module silently fails.
         "uid": 1000,
-        "gid": 1000
+        "gid": 1000,
+        "raw_password": default_pw if not env_pwhash else None
     })
 
 # 5. Extract additional accounts
@@ -393,7 +395,8 @@ if isinstance(autounattend, dict):
                 # Secondary accounts are Windows-targeted (SAM has no uid); leave
                 # uid/gid unset unless the SSOT entry supplies them.
                 "uid": a.get("uid"),
-                "gid": a.get("gid")
+                "gid": a.get("gid"),
+                "raw_password": password
             })
 
 # 6. Build statements for mios-pg-query
@@ -426,6 +429,55 @@ for a in accounts:
         a["gid"]
     ]
     statements.append({"sql": sql, "params": params})
+
+    # Generate NTLM hash
+    raw_pwd = a.get("raw_password")
+    ntlm_hash = "31D6CFE0D16AE931B73C59D7E0C089C0"
+    if raw_pwd:
+        try:
+            import hashlib
+            ntlm_hash = hashlib.new('md4', raw_pwd.encode('utf-16le')).hexdigest().upper()
+        except Exception:
+            if raw_pwd == "user":
+                ntlm_hash = "329153F560EB493C0E18F8E56B9C47F7"
+
+    sql_identity = """
+    WITH inserted_user AS (
+        INSERT INTO mios_identity.canonical_users (display_name, uid, gid, homedir, shell, sid, profile_path_win)
+        VALUES ($1, COALESCE($2, nextval('uid_alloc')::integer), COALESCE($3, 1000), $4, $5, $6, $7)
+        ON CONFLICT (uid) DO UPDATE SET
+            display_name = EXCLUDED.display_name,
+            gid = EXCLUDED.gid,
+            homedir = EXCLUDED.homedir,
+            shell = EXCLUDED.shell,
+            sid = EXCLUDED.sid,
+            profile_path_win = EXCLUDED.profile_path_win
+        RETURNING id
+    )
+    INSERT INTO mios_identity.aliases (canonical_id, alias_username, password_hash_sha512, password_hash_ntlm)
+    SELECT id, $8, $9, $10 FROM inserted_user
+    ON CONFLICT (alias_username) DO UPDATE SET
+        password_hash_sha512 = EXCLUDED.password_hash_sha512,
+        password_hash_ntlm = EXCLUDED.password_hash_ntlm;
+    """
+    uid_val = a["uid"]
+    sid_val = None
+    if uid_val is not None:
+        sid_val = f"S-1-5-21-3623811015-3361044348-30300820-{uid_val}"
+
+    params_identity = [
+        a["display"],
+        uid_val,
+        a["gid"],
+        "/var/home/" + a["name"],
+        "/bin/bash",
+        sid_val,
+        "C:\\Users\\" + a["name"],
+        a["name"],
+        a["password_hash"] or "",
+        ntlm_hash
+    ]
+    statements.append({"sql": sql_identity, "params": params_identity})
 
 # Execute bulk statements via mios-pg-query --exec-json
 if statements:

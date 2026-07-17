@@ -1,0 +1,22 @@
+# AI-hint: Systemd unit that executes /usr/libexec/mios/mios-account-sync in daemon mode to keep local Linux accounts synchronized with PostgreSQL accounts and aliases.
+# AI-related: /usr/libexec/mios/mios-account-sync, mios-pgvector.service, multi-user.target
+
+[Unit]
+Description='MiOS' live PostgreSQL-to-OS user account sync daemon
+Documentation=file:///usr/libexec/mios/mios-account-sync
+After=mios-pgvector.service
+Requires=mios-pgvector.service
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/mios/install.env
+# Ensure postgres container is ready before launching the daemon
+ExecStartPre=/usr/bin/podman exec mios-pgvector pg_isready -q -h 127.0.0.1 -p 8432 -U mios -d mios
+ExecStart=/usr/libexec/mios/mios-account-sync --daemon
+Restart=always
+RestartSec=10s
+
+[Install]
+WantedBy=multi-user.target

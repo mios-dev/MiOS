@@ -995,6 +995,135 @@ CREATE OR REPLACE TRIGGER domain_verb_audit_trigger
     FOR EACH ROW EXECUTE FUNCTION log_domain_verb_change();
 
 
+-- ===== WS-ACCT: PostgresOS identity schema (T-150 / ACCT-01) =====
+CREATE SCHEMA IF NOT EXISTS mios_identity;
+
+CREATE TABLE IF NOT EXISTS mios_identity.canonical_users (
+    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    display_name     text NOT NULL,
+    uid              integer UNIQUE NOT NULL CHECK (uid >= 1000),
+    gid              integer NOT NULL DEFAULT 1000,
+    homedir          text NOT NULL DEFAULT '/var/home/shared_profile',
+    shell            text NOT NULL DEFAULT '/bin/bash',
+    sid              text UNIQUE NOT NULL,
+    profile_path_win text NOT NULL DEFAULT 'C:\Users\shared_profile',
+    created_at       timestamptz DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS mios_identity.aliases (
+    id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    canonical_id         UUID REFERENCES mios_identity.canonical_users(id) ON DELETE CASCADE,
+    alias_username       varchar(32) UNIQUE NOT NULL,
+    password_hash_sha512 text NOT NULL,
+    password_hash_ntlm   char(32) NOT NULL,
+    is_active            boolean DEFAULT true,
+    created_at           timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_alias_lookup ON mios_identity.aliases (alias_username) WHERE is_active = true;
+
+-- ===== WS-SEC: PostgresOS security schema (T-151 / ACCT-02) =====
+CREATE SCHEMA IF NOT EXISTS mios_security;
+
+CREATE TABLE IF NOT EXISTS mios_security.fido2_keys (
+    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    canonical_id  UUID REFERENCES mios_identity.canonical_users(id) ON DELETE CASCADE,
+    key_name      text NOT NULL,
+    credential_id text NOT NULL,
+    public_key    text NOT NULL,
+    is_active     boolean DEFAULT true,
+    created_at    timestamptz DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS mios_security.usb_rules (
+    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    device_id    text NOT NULL,
+    device_name  text NOT NULL,
+    authorized   boolean DEFAULT false,
+    allowed_uids integer[] DEFAULT NULL,
+    last_seen    timestamptz
+);
+
+CREATE TABLE IF NOT EXISTS mios_security.headscale_users (
+    id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    canonical_id       UUID REFERENCES mios_identity.canonical_users(id) ON DELETE CASCADE,
+    headscale_username varchar(64) UNIQUE NOT NULL,
+    created_at         timestamptz DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS mios_security.headscale_preauth_keys (
+    id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    headscale_user_id UUID REFERENCES mios_security.headscale_users(id) ON DELETE CASCADE,
+    key_value         varchar(128) UNIQUE NOT NULL,
+    expiration        timestamptz NOT NULL,
+    reusable          boolean DEFAULT false,
+    used              boolean DEFAULT false
+);
+
+CREATE TABLE IF NOT EXISTS mios_security.headscale_acl_rules (
+    id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    src        text NOT NULL,
+    dst        text NOT NULL,
+    action     varchar(16) DEFAULT 'accept',
+    created_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS mios_security.keepass_vaults (
+    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    canonical_id   UUID REFERENCES mios_identity.canonical_users(id) ON DELETE CASCADE,
+    vault_path     text NOT NULL,
+    keyfile_blob   bytea DEFAULT NULL,
+    fido2_required boolean DEFAULT true
+);
+
+
+-- ===== WS-ACCT: Trigger Notifications for Account Sync (T-151 / T-152) =====
+CREATE OR REPLACE FUNCTION notify_account_changes()
+RETURNS TRIGGER AS $$
+BEGIN
+    PERFORM pg_notify('account_sync', json_build_object(
+        'table', TG_TABLE_NAME,
+        'action', TG_OP,
+        'name', COALESCE(NEW.name, OLD.name),
+        'uid', COALESCE(NEW.uid, OLD.uid),
+        'gid', COALESCE(NEW.gid, OLD.gid),
+        'display', COALESCE(NEW.display, OLD.display),
+        'groups', COALESCE(NEW.groups, OLD.groups),
+        'is_admin', COALESCE(NEW.is_admin, OLD.is_admin),
+        'os_targets', COALESCE(NEW.os_targets, OLD.os_targets),
+        'password_hash', COALESCE(NEW.password_hash, OLD.password_hash),
+        'enabled', COALESCE(NEW.enabled, OLD.enabled)
+    )::text);
+    RETURN COALESCE(NEW, OLD);
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE TRIGGER account_sync_trigger
+    AFTER INSERT OR UPDATE OR DELETE ON account
+    FOR EACH ROW EXECUTE FUNCTION notify_account_changes();
+
+CREATE OR REPLACE FUNCTION notify_alias_changes()
+RETURNS TRIGGER AS $$
+BEGIN
+    PERFORM pg_notify('account_sync', json_build_object(
+        'table', TG_TABLE_NAME,
+        'action', TG_OP,
+        'alias_username', COALESCE(NEW.alias_username, OLD.alias_username),
+        'password_hash_sha512', COALESCE(NEW.password_hash_sha512, OLD.password_hash_sha512),
+        'password_hash_ntlm', COALESCE(NEW.password_hash_ntlm, OLD.password_hash_ntlm),
+        'is_active', COALESCE(NEW.is_active, OLD.is_active),
+        'canonical_id', COALESCE(NEW.canonical_id, OLD.canonical_id)
+    )::text);
+    RETURN COALESCE(NEW, OLD);
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE TRIGGER alias_sync_trigger
+    AFTER INSERT OR UPDATE OR DELETE ON mios_identity.aliases
+    FOR EACH ROW EXECUTE FUNCTION notify_alias_changes();
+
+
+
+
 
 
 

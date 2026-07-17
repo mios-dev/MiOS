@@ -1,0 +1,271 @@
+#!/usr/bin/env python3
+# AI-hint: Daemon script that synchronizes PostgreSQL-defined accounts and aliases with the host UNIX user accounts (/etc/passwd, /etc/shadow, and /etc/group).
+# AI-related: /usr/libexec/mios/mios-account-sync, mios-account-sync.service, mios-pg-query, account (pgvector table), aliases (pgvector table)
+
+import os
+import sys
+import time
+import subprocess
+import pwd
+import grp
+import logging
+
+# Setup logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] mios-account-sync: %(message)s")
+logger = logging.getLogger("mios-account-sync")
+
+PG_QUERY = os.environ.get("MIOS_PG_QUERY_BIN", "/usr/libexec/mios/mios-pg-query")
+
+def query_db_accounts() -> list[dict]:
+    """Queries both legacy accounts and canonical aliases from pgvector."""
+    sql = """
+    SELECT 
+        name AS username, 
+        password_hash, 
+        uid, 
+        gid, 
+        display, 
+        home_dir, 
+        shell, 
+        groups, 
+        is_admin, 
+        enabled
+    FROM account 
+    WHERE enabled = true AND (os_targets = 'both' OR os_targets = 'linux')
+    UNION
+    SELECT 
+        a.alias_username AS username, 
+        a.password_hash_sha512 AS password_hash, 
+        c.uid, 
+        c.gid, 
+        c.display_name AS display, 
+        c.homedir AS home_dir, 
+        c.shell, 
+        '' AS groups, 
+        false AS is_admin, 
+        a.is_active AS enabled
+    FROM mios_identity.aliases a
+    JOIN mios_identity.canonical_users c ON a.canonical_id = c.id
+    WHERE a.is_active = true;
+    """
+    try:
+        p = subprocess.run([PG_QUERY, sql], capture_output=True, text=True, timeout=15)
+        if p.returncode != 0:
+            logger.error(f"PostgreSQL query failed: {(p.stderr or '').strip()}")
+            return []
+        
+        accounts = []
+        for line in p.stdout.splitlines():
+            if not line.strip():
+                continue
+            parts = line.split("\t")
+            if len(parts) < 10:
+                continue
+            
+            # Map string outputs to types
+            name = parts[0].strip()
+            pwhash = parts[1].strip() if parts[1].strip() != "None" else ""
+            uid = int(parts[2].strip()) if parts[2].strip() and parts[2].strip() != "None" else None
+            gid = int(parts[3].strip()) if parts[3].strip() and parts[3].strip() != "None" else None
+            display = parts[4].strip() if parts[4].strip() != "None" else ""
+            home_dir = parts[5].strip() if parts[5].strip() != "None" else f"/var/home/{name}"
+            shell = parts[6].strip() if parts[6].strip() != "None" else "/bin/bash"
+            groups = parts[7].strip() if parts[7].strip() != "None" else ""
+            is_admin = parts[8].strip().lower() in ("t", "true", "y", "yes", "1")
+            enabled = parts[9].strip().lower() in ("t", "true", "y", "yes", "1")
+            
+            accounts.append({
+                "name": name,
+                "password_hash": pwhash,
+                "uid": uid,
+                "gid": gid,
+                "display": display,
+                "home_dir": home_dir,
+                "shell": shell,
+                "groups": groups,
+                "is_admin": is_admin,
+                "enabled": enabled
+            })
+        return accounts
+    except Exception as e:
+        logger.error(f"Error querying database: {e}")
+        return []
+
+def get_local_shadow_hashes() -> dict[str, str]:
+    """Reads local shadow hashes from /etc/shadow."""
+    shadow = {}
+    if not os.path.isfile("/etc/shadow"):
+        return shadow
+    try:
+        with open("/etc/shadow", "r") as f:
+            for line in f:
+                parts = line.strip().split(":")
+                if len(parts) >= 2:
+                    shadow[parts[0]] = parts[1]
+    except Exception as e:
+        logger.error(f"Failed to read /etc/shadow: {e}")
+    return shadow
+
+def get_local_supplementary_groups(username: str) -> list[str]:
+    """Returns the supplementary groups for a given user."""
+    groups = []
+    for g in grp.getgrall():
+        if username in g.gr_mem:
+            groups.append(g.gr_name)
+    return groups
+
+def sync_accounts():
+    """Performs a single synchronization pass between PostgreSQL and local system files."""
+    db_accounts = query_db_accounts()
+    if not db_accounts:
+        logger.info("No accounts returned from database, skipping sync pass.")
+        return
+    
+    shadow_hashes = get_local_shadow_hashes()
+    
+    # Track usernames that are active in the database
+    active_db_users = set()
+    
+    for db_user in db_accounts:
+        name = db_user["name"]
+        active_db_users.add(name)
+        
+        # Determine target GID
+        gid = db_user["gid"] or 1000
+        
+        # Check if primary group exists, if not create it
+        try:
+            grp.getgrgid(gid)
+        except KeyError:
+            try:
+                logger.info(f"Creating local group {name} (GID {gid})")
+                subprocess.run(["groupadd", "-g", str(gid), name], check=True)
+            except subprocess.CalledProcessError as e:
+                logger.error(f"Failed to create group {name}: {e}")
+                continue
+        
+        # Check if local user exists
+        try:
+            local_user = pwd.getpwnam(name)
+            user_exists = True
+        except KeyError:
+            user_exists = False
+            
+        if not user_exists:
+            # Create user account
+            cmd = ["useradd", "-m"]
+            if db_user["uid"] is not None:
+                cmd += ["-u", str(db_user["uid"])]
+            cmd += ["-g", str(gid)]
+            if db_user["home_dir"]:
+                cmd += ["-d", db_user["home_dir"]]
+            if db_user["shell"]:
+                cmd += ["-s", db_user["shell"]]
+            if db_user["display"]:
+                cmd += ["-c", db_user["display"]]
+            if db_user["password_hash"]:
+                cmd += ["-p", db_user["password_hash"]]
+            cmd.append(name)
+            
+            try:
+                logger.info(f"Creating local user account: {name}")
+                subprocess.run(cmd, check=True)
+            except subprocess.CalledProcessError as e:
+                logger.error(f"Failed to create user {name}: {e}")
+                continue
+        else:
+            # Update user if attributes differ
+            update_cmd = ["usermod"]
+            needs_update = False
+            
+            if db_user["home_dir"] and local_user.pw_dir != db_user["home_dir"]:
+                update_cmd += ["-d", db_user["home_dir"]]
+                needs_update = True
+            if db_user["shell"] and local_user.pw_shell != db_user["shell"]:
+                update_cmd += ["-s", db_user["shell"]]
+                needs_update = True
+            if db_user["display"] and local_user.pw_gecos != db_user["display"]:
+                update_cmd += ["-c", db_user["display"]]
+                needs_update = True
+            if db_user["password_hash"] and shadow_hashes.get(name) != db_user["password_hash"]:
+                update_cmd += ["-p", db_user["password_hash"]]
+                needs_update = True
+                
+            if needs_update:
+                update_cmd.append(name)
+                try:
+                    logger.info(f"Updating local user account parameters: {name}")
+                    subprocess.run(update_cmd, check=True)
+                except subprocess.CalledProcessError as e:
+                    logger.error(f"Failed to update user {name}: {e}")
+        
+        # Synchronize supplementary groups
+        target_groups = set()
+        if db_user["groups"]:
+            target_groups.update([g.strip() for g in db_user["groups"].split(",") if g.strip()])
+        if db_user["is_admin"]:
+            target_groups.add("wheel")
+            
+        # Strip primary group from supplementary list if present
+        try:
+            primary_group_name = grp.getgrgid(gid).gr_name
+            target_groups.discard(primary_group_name)
+        except KeyError:
+            pass
+            
+        # Verify supplementary groups exist before adding, create if missing (e.g. wheel, libvirt)
+        valid_groups = []
+        for gname in target_groups:
+            try:
+                grp.getgrnam(gname)
+                valid_groups.append(gname)
+            except KeyError:
+                # Attempt to create missing group dynamically
+                try:
+                    logger.info(f"Creating missing supplementary group: {gname}")
+                    subprocess.run(["groupadd", gname], check=True)
+                    valid_groups.append(gname)
+                except subprocess.CalledProcessError:
+                    logger.error(f"Failed to resolve or create group {gname}, skipping membership mapping.")
+        
+        current_groups = set(get_local_supplementary_groups(name))
+        if set(valid_groups) != current_groups:
+            try:
+                logger.info(f"Syncing supplementary group memberships for {name} -> {valid_groups}")
+                # usermod -G replaces supplementary group list
+                subprocess.run(["usermod", "-G", ",".join(valid_groups), name], check=True)
+            except subprocess.CalledProcessError as e:
+                logger.error(f"Failed to set groups for user {name}: {e}")
+
+    # Lock accounts that are no longer active/enabled in pgvector (ignoring system/service accounts < 1000)
+    for local_user in pwd.getpwall():
+        if local_user.pw_uid < 1000 or local_user.pw_name in ("nobody", "nfsnobody"):
+            continue
+        if local_user.pw_name not in active_db_users:
+            # Check if account is already locked
+            pwd_hash = shadow_hashes.get(local_user.pw_name, "")
+            if pwd_hash and not (pwd_hash.startswith("!") or pwd_hash.startswith("*")):
+                try:
+                    logger.info(f"Locking disabled local account: {local_user.pw_name}")
+                    subprocess.run(["usermod", "-L", local_user.pw_name], check=True)
+                except subprocess.CalledProcessError as e:
+                    logger.error(f"Failed to lock user {local_user.pw_name}: {e}")
+
+def main():
+    if "--daemon" in sys.argv:
+        logger.info("Starting mios-account-sync in daemon mode (15s polling loop)...")
+        # Wait on startup for pgvector socket
+        time.sleep(2)
+        while True:
+            try:
+                sync_accounts()
+            except Exception as e:
+                logger.error(f"Unhandled error in sync loop: {e}")
+            time.sleep(15)
+    else:
+        logger.info("Executing single account sync pass...")
+        sync_accounts()
+        logger.info("Sync pass completed.")
+
+if __name__ == "__main__":
+    main()
