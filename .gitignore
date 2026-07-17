@@ -813,5 +813,4 @@ etc/profile.d/80-systemd-osc-context.sh
 /src/*
 !/src/autounattend/
 /src/autounattend/*
-!/src/autounattend/medicat_installer/
 

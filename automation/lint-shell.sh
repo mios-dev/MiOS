@@ -8,7 +8,7 @@ ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 if ! command -v shellcheck >/dev/null 2>&1; then
     # exit 2 == "skipped, NOT linted" so the drift-gate WARNs rather than printing a
-    # false-green conformance summary over nothing linted (audit 2026-07-17).
+    # false-green conformance summary over nothing linted.
     echo "[lint-shell] WARNING: shellcheck is missing -- shell linting SKIPPED (not a pass)" >&2
     exit 2
 fi

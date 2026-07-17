@@ -15,7 +15,7 @@
 # mios-agent-pipe.service, mios-delegation-prefilter.service, AND mios-opencode-
 # gateway.service all exec from. build.sh globs automation/[0-9][0-9]-*.sh, so a
 # second 38-* file would double-run; this single 38- driver is the SoT
-# and automation/39-opencode.sh is a retained no-op shim.
+# and automation/39-opencode.sh has been deleted (its logic is fully absorbed here).
 #
 # PHASE 1 -- Install Hermes-Agent DIRECTLY onto the MiOS root filesystem
 # - not as a container. Operator directive "Hermes-Agent
@@ -562,7 +562,7 @@ shopt -u nullglob
 # Why merged into THIS script instead of a separate stage 39: build.sh
 # globs automation/[0-9][0-9]-*.sh, and two 38-* drivers would BOTH run;
 # the historic 38- slot already owns the shared venv + Hermes, so the
-# single unified driver lives here and 39-opencode.sh is a no-op shim.
+# single unified driver lives here and the historical 39-opencode.sh is deleted.
 #
 # Still best-effort + non-fatal: a failed binary fetch leaves the gateway
 # unit no-op'ing cleanly via ConditionPathExists; `mios update` re-runs

@@ -3235,27 +3235,22 @@ PY
 # mislabelled against the SSOT (e.g. VERSION= - while the SSOT says - ).
 check_version_ssot() {
     local toml="$ROOT/usr/share/mios/mios.toml"
-    local ssot vfile carg bad=""
+    local ssot vfile bad=""
     ssot="$(grep -m1 -E '^[[:space:]]*mios_version' "$toml" 2>/dev/null | sed -E 's/[^"]*"([^"]*)".*/\1/')"
     vfile="$(tr -d '[:space:]' < "$ROOT/VERSION" 2>/dev/null)"
-    carg=""
-    if [[ -f "$ROOT/Containerfile" ]]; then
-        carg="$(grep -m1 -E '^ARG[[:space:]]+MIOS_VERSION=' "$ROOT/Containerfile" 2>/dev/null | sed -E 's/^ARG[[:space:]]+MIOS_VERSION=//; s/[[:space:]].*//' || true)"
-    fi
     if [[ -z "$ssot" ]]; then
         _violation "version SSOT: mios.toml [meta].mios_version is empty/unparseable"
         return
     fi
     [[ "$vfile" != "$ssot" ]] && bad+="    VERSION file = [$vfile], expected [$ssot]"$'\n'
-    [[ -n "$carg" && "$carg" != "$ssot" ]] && bad+="    Containerfile ARG MIOS_VERSION default = [$carg], expected [$ssot]"$'\n'
-    # audit-2026-07-17: also gate the OTHER Containerfiles -- Containerfile.minimal was
-    # drifting at 0.2.4 uncaught because only the main Containerfile was checked above.
+
+    # audit: gate all Containerfile files in the repository dynamically
     local _cf _cv
-    for _cf in "$ROOT"/Containerfile.minimal "$ROOT"/Containerfile.hummingbird; do
-        [[ -f "$_cf" ]] || continue
-        _cv="$(grep -m1 -E '^ARG[[:space:]]+MIOS_VERSION=' "$_cf" 2>/dev/null | sed -E 's/^ARG[[:space:]]+MIOS_VERSION=//; s/[[:space:]].*//' || true)"
-        [[ -n "$_cv" && "$_cv" != "$ssot" ]] && bad+="    $(basename "$_cf") ARG MIOS_VERSION default = [$_cv], expected [$ssot]"$'\n'
-    done
+    while read -r _cf; do
+        [[ -f "$ROOT/$_cf" ]] || continue
+        _cv="$(grep -m1 -E '^ARG[[:space:]]+MIOS_VERSION=' "$ROOT/$_cf" 2>/dev/null | sed -E 's/^ARG[[:space:]]+MIOS_VERSION=//; s/[[:space:]].*//' || true)"
+        [[ -n "$_cv" && "$_cv" != "$ssot" ]] && bad+="    $_cf ARG MIOS_VERSION default = [$_cv], expected [$ssot]"$'\n'
+    done < <(git ls-files "*Containerfile*" 2>/dev/null || find "$ROOT" -name "*Containerfile*" -type f)
 
     local osr="$ROOT/usr/lib/os-release" _f _v
     if [[ -f "$osr" ]]; then

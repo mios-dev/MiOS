@@ -6000,7 +6000,7 @@ hermes_agent_repo   = "https://github.com/NousResearch/hermes-agent.git"
 hermes_agent_ref    = "main"
 
 # opencode (https://opencode.ai) -- code-specialist agent CLI installed
-# directly onto the host by automation/39-opencode.sh. CURRENT path =
+# directly onto the host by automation/38-hermes-agent.sh. CURRENT path =
 # a first-class OpenAI /v1 council peer via mios-opencode-gateway.service
 # (:8633); the agent-pipe orchestrator dispatches code-heavy work to it
 # (see the /v1 gateway block below). LEGACY/retired = Hermes spawning it
@@ -6021,7 +6021,7 @@ opencode_version    = "latest"           # or pin to a tag
 # ── opencode /v1 gateway (front-door commitment,) ────────
 # opencode is a first-class OpenAI /v1 COUNCIL PEER via mios-opencode-gateway.
 # service (:8633), NOT a Hermes ACP subprocess (the ACP framing above is the
-# RETIRED path). These keys are the SSOT for automation/39-opencode.sh + the
+# RETIRED path). These keys are the SSOT for automation/38-hermes-agent.sh + the
 # gateway unit + tools/lib/userenv.sh (MIOS_OPENCODE_*). ONE canonical model id
 # across: [agents.opencode].model, opencode.json's model key, and the
 # mios-opencode build name:tag.

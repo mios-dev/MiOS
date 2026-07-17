@@ -20,6 +20,7 @@ _BOM = b'\xef\xbb\xbf'
 _EXEMPT = (
     '/var/lib/mios/', '/.git/', '/__pycache__/', '/node_modules/',
     '/usr/share/mios/knowledge/',          # generated knowledge snapshots
+    '/.claude/',                           # Claude worktrees
 )
 _CODE_EXT = ('.py', '.sh', '.bash', '.toml', '.yml', '.yaml', '.ps1', '.psm1')
 
