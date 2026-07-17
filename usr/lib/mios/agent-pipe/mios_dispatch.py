@@ -47,6 +47,8 @@ from fastapi.responses import JSONResponse
 
 import mios_sandbox
 import mios_ruleof2          # the Rule-of-Two architectural gate (pure evaluator)
+import mios_argval
+from mios_argval import _arg_with_synonyms, _validate_enum_args
 import mios_quarantine       # the CaMeL dual-context quarantine gate (stricter superset)
 import mios_hitl             # the unified HITL verdict resolver (mios_hitl.decide)
 from mios_jsonsalvage import loads_lenient as _loads_lenient
@@ -219,10 +221,12 @@ def configure(*, verb_catalog=None, verb_arg_synonyms=None,
         _AGENT_REGISTRY = agent_registry
     if verb_catalog is not None:
         _VERB_CATALOG = verb_catalog
+        mios_argval.configure(verb_catalog=verb_catalog)
     if letta_dispatch_handler is not None:
         _letta_dispatch_handler = letta_dispatch_handler
     if verb_arg_synonyms is not None:
         _VERB_ARG_SYNONYMS = verb_arg_synonyms
+        mios_argval.configure(verb_arg_synonyms=verb_arg_synonyms)
     if high_privilege_verbs is not None:
         _HIGH_PRIVILEGE_VERBS = high_privilege_verbs
     if launch_verbs is not None:
@@ -281,61 +285,7 @@ def configure(*, verb_catalog=None, verb_arg_synonyms=None,
 # _dispatch_mios_verb_inner gates on _validate_enum_args then resolves +
 # opt-in-wraps the broker cmd via _dispatch_sandbox_profile / _sandbox_wrap_cmd).
 # They read the injected verb catalog / arg-synonym map / sandbox knobs above.
-def _arg_with_synonyms(tool: str, canonical: str, args: dict) -> str:
-    """Resolve an arg by canonical name first, then by mios.toml-
-    declared synonyms for the verb. Returns the first non-empty string
-    value found, or '' if none match. SSOT: mios.toml
-    [verbs.<tool>.synonyms]."""
-    v = args.get(canonical)
-    if v is not None and str(v).strip():
-        return str(v)
-    for alias in (_VERB_ARG_SYNONYMS.get(tool, {}).get(canonical) or []):
-        v = args.get(alias)
-        if v is not None and str(v).strip():
-            return str(v)
-    return ""
-
-
-def _validate_enum_args(tool: str, args: dict) -> Optional[str]:
-    """Tool-Manager parameter validation (ref AIOS kernel C 3.7: "validate
-    parameters before execution to prevent tool crashes"). Reject a verb
-    arg whose value falls outside the enum DECLARED for it in mios.toml
-    [verbs.<tool>.params.<arg>.enum], BEFORE the command reaches the
-    broker -- previously such values passed through as a stray env var and
-    silently misbehaved.
-
-    Conservative + binding-clean: only acts on explicitly-declared enums;
-    every other arg passes untouched. The allowed set comes straight from
-    the SSOT (no hardcoded English/topic content). Returns an error string
-    (which dispatch_mios_verb surfaces in the same shape the planner's
-    reflection pass consumes, so it re-issues with a valid value), or None
-    when every declared enum is satisfied / the verb is unknown (the
-    existing unknown-verb path reports that)."""
-    if not isinstance(args, dict) or not args:
-        return None
-    vcfg = _VERB_CATALOG.get(tool)
-    if not vcfg:
-        return None
-    params = vcfg.get("params")
-    if not isinstance(params, dict):
-        return None
-    for argname, argcfg in params.items():
-        if not isinstance(argcfg, dict):
-            continue
-        enum = argcfg.get("enum")
-        if not isinstance(enum, list) or not enum:
-            continue
-        val = _arg_with_synonyms(tool, str(argname), args)
-        if val == "":
-            continue  # not supplied -> default applies; not our concern
-        allowed = [str(e) for e in enum]
-        if val not in allowed:
-            return (
-                f"verb {tool!r} arg {argname!r}={val!r} is not allowed "
-                f"(mios.toml [verbs.{tool}.params.{argname}].enum). "
-                f"Re-issue with one of: {allowed}."
-            )
-    return None
+# (Functions _arg_with_synonyms and _validate_enum_args are imported from mios_argval above)
 
 
 def _dispatch_sandbox_profile(tool: str) -> "mios_sandbox.SandboxProfile":
