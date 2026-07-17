@@ -220,12 +220,36 @@ DONE vs PLANNED (honest):
   `workbench.colorCustomizations` + a fixture pair carrying a FOREIGN key that
   survives the merge). Fail-loud preserved: unknown/unimplemented kind or a merge
   surface missing its fixture ⇒ exit 3; an unparseable base ⇒ exit 2, writes
-  nothing. `capture` stays template-only. `ini-merge`/`registry`/`skip` are
-  declared-valid but land later (AGY-58+).
+  nothing. `capture` stays template-only. `registry`/`skip` are declared-valid
+  but land later.
+- **DONE 2026-07-17 (`ini-merge` mode + `gitconfig-live` surface, AGY-58):** a
+  third `kind` that UPSERTS the MiOS-owned git-config keys (exactly what
+  `gitconfig.tmpl` emits: `user.name`/`email`, `core.editor`,
+  `init.defaultBranch`, `pull.rebase`, `alias.{co,br,ci,st}`) into a foreign
+  `~/.gitconfig`. `_parse_ini` keeps an ORDERED line-model + a
+  `{(section,subsection,key)->idx}` index (preserving `#`/`;` comments and
+  `[section "subsection"]` quoting; section/key case-insensitive, subsection
+  case-sensitive). Per owned key: ABSENT ⇒ seed (append to the section block, or
+  a fresh `[section]` at EOF); PRESENT ⇒ replace in place per the write policy.
+  Every line NOT in the owned set (`credential`, `user.signingkey`,
+  `commit.gpgsign`, `[remote …]`) is byte-preserved; foreign multivar keys are
+  left untouched (the owned set is single-valued). The `seed-or-enforce` policy
+  (default, safety-first) writes an ABSENT key (seed) and enforces a PRESENT key
+  ONLY when the operator explicitly set it in the SSOT
+  (`load_merged(sec,key) != load_vendor(sec,key)` AND non-empty), else SKIPs it —
+  so a vendor default never stomps an existing foreign value. This is the SAFE
+  unblock of the live-`apply` the `gitconfig` (template) surface withheld: the
+  new `gitconfig-live` surface (kind=`ini-merge`, reusing `gitconfig.tmpl`
+  verbatim, `apply.target` `~/.gitconfig` / `%USERPROFILE%/.gitconfig`) sets only
+  the ~9 owned keys instead of clobbering the user's identity/credentials/signing/
+  remotes. The gate is OFFLINE via a `fixture.base`/`fixture.expected` pair whose
+  base carries FOREIGN `[credential]`/`user.signingkey`/`[remote "origin"]` lines
+  that survive the merge. The existing `gitconfig` (template) surface is
+  unchanged and byte-identical.
 - **PLANNED (WS-DOTFILES / T-270):** the `mios-dotfiles-render` fork + the
   `check 25 → check_dotfiles_projection` rename (deliberately NOT done here —
   larger, higher-risk, out of scope for the byte-preserving transcription);
-  arbitrary-key `@MIOS:<section>.<key>@` tokens; the `ini-merge`/`registry` merge
+  arbitrary-key `@MIOS:<section>.<key>@` tokens; the `registry`/`skip` merge
   kinds; the Windows `Test-MiOSProjection` runtime gate and `Get-MiOS.ps1`
   `Sync-MiOSDotfiles`; a `mios dotfiles` CLI verb; the new
   `[shell]`/`[editor]`/`[git]`/`[ssh]` content domains + the GTK-CSS hole; and

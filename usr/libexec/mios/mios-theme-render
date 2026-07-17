@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-# AI-hint: The GLOBAL runtime theme + dotfiles projector -- renders EVERY committed theme surface (the btop theme, oh-my-posh, quickshell, fastfetch, the app-shell CSS, the terminal OSC fallbacks) from the mios.toml [colors]/[theme] SSOT via token-substitution templates, so a palette edit refreshes all of them from ONE command instead of hand-editing hex in a dozen files. Also projects SETTINGS surfaces (a surface with a `section` naming a mios.toml section): the btop-conf surface derives the WHOLE etc/btop/btop.conf from [btop] the same way, via @MIOS:btop_<key>@ tokens -- unified Linux+Windows, no hand-maintained conf. ADR-0010 `kind` axis: each [dotfiles.registry.<surface>] optionally declares kind in {template,json-merge,ini-merge,registry,skip} (ABSENT => template, so the color/settings surfaces are byte-identical). `kind` is WRITE-SEMANTICS dispatch, ORTHOGONAL to `section` (the token source): template writes the whole rendered file; json-merge splices a MiOS-OWNED JSON subtree into a foreign JSON doc (VS Code / Windows Terminal settings.json), preserving every foreign key. Modes: `render` writes artifacts from templates (for a merge surface, the committed artifact is the checked-in fixture.expected merge output); `check` regenerates in-memory and diffs the committed artifact (the drift-gate half -- exit 1 on drift; a merge surface diffs derive(owned,fixture.base) vs fixture.expected and NEVER reads a live foreign file); `capture` templatizes an existing artifact by replacing each SSOT palette hex with an @MIOS:token@ sentinel and self-verifies the round-trip is byte-identical (template-only; refuses to write a lossy template). `apply`/`diff` write a rendered surface to the operator's LIVE HOME (for json-merge, MERGING into the live file, backing it up first). Same three-layer vendor<host<user overlay as mios-sync-theme; canonicalizes collided values to the semantic token (bg over ansi_0) and never tokenizes #FFFFFF/#000000. Pairs with mios-sync-theme (the one global refresh) and 38-drift-checks check 25 (regenerate-and-diff gate) so a committed theme/dotfile surface can NEVER drift from the SSOT.
+# AI-hint: The GLOBAL runtime theme + dotfiles projector -- renders EVERY committed theme surface (the btop theme, oh-my-posh, quickshell, fastfetch, the app-shell CSS, the terminal OSC fallbacks) from the mios.toml [colors]/[theme] SSOT via token-substitution templates, so a palette edit refreshes all of them from ONE command instead of hand-editing hex in a dozen files. Also projects SETTINGS surfaces (a surface with a `section` naming a mios.toml section): the btop-conf surface derives the WHOLE etc/btop/btop.conf from [btop] the same way, via @MIOS:btop_<key>@ tokens -- unified Linux+Windows, no hand-maintained conf. ADR-0010 `kind` axis: each [dotfiles.registry.<surface>] optionally declares kind in {template,json-merge,ini-merge,registry,skip} (ABSENT => template, so the color/settings surfaces are byte-identical). `kind` is WRITE-SEMANTICS dispatch, ORTHOGONAL to `section` (the token source): template writes the whole rendered file; json-merge splices a MiOS-OWNED JSON subtree into a foreign JSON doc (VS Code / Windows Terminal settings.json), preserving every foreign key; ini-merge UPSERTS the MiOS-owned git-config keys (user.name/email, core.editor, init.defaultBranch, pull.rebase, alias.*) into a foreign ~/.gitconfig -- seeding absent keys, replacing present ones only per the seed-or-enforce policy -- while every foreign line (credential/signingkey/commit.gpgsign/remotes) is byte-preserved. Modes: `render` writes artifacts from templates (for a merge surface, the committed artifact is the checked-in fixture.expected merge output); `check` regenerates in-memory and diffs the committed artifact (the drift-gate half -- exit 1 on drift; a merge surface diffs derive(owned,fixture.base) vs fixture.expected and NEVER reads a live foreign file); `capture` templatizes an existing artifact by replacing each SSOT palette hex with an @MIOS:token@ sentinel and self-verifies the round-trip is byte-identical (template-only; refuses to write a lossy template). `apply`/`diff` write a rendered surface to the operator's LIVE HOME (for json-merge, MERGING into the live file, backing it up first). Same three-layer vendor<host<user overlay as mios-sync-theme; canonicalizes collided values to the semantic token (bg over ansi_0) and never tokenizes #FFFFFF/#000000. Pairs with mios-sync-theme (the one global refresh) and 38-drift-checks check 25 (regenerate-and-diff gate) so a committed theme/dotfile surface can NEVER drift from the SSOT.
 # AI-related: ./mios-sync-theme, ../../share/mios/mios.toml, ../../share/mios/theme/templates, ../../share/mios/theme/fixtures, ../../../automation/38-drift-checks.sh, ../../share/mios/quickshell/Theme.qml, ../../share/doc/mios/adr/0010-ssot-as-system-dotfiles.md
-# AI-functions: _load_surfaces, _token_map, _resolve, _render_text, _jsonc_to_json, _json_deep_merge, _json_merge, cmd_render, cmd_check, cmd_capture, cmd_apply, main
+# AI-functions: _load_surfaces, _token_map, _resolve, _render_text, _jsonc_to_json, _json_deep_merge, _json_merge, _parse_ini, _ini_upsert, _ini_merge, _operator_set, _build_owned_kv, cmd_render, cmd_check, cmd_capture, cmd_apply, main
 """Global runtime theme + dotfiles projection: render/check/capture/apply theme+dotfile surfaces from the mios.toml SSOT."""
 
 from __future__ import annotations
@@ -225,6 +225,243 @@ def _json_merge(owned_text, base_text):
     return json.dumps(merged, indent=_detect_indent(base_text), ensure_ascii=False) + "\n"
 
 
+# --- ini-merge primitives (ADR-0010, AGY-58) ---------------------------------
+# An ini-merge surface (git config) owns EXACTLY the keys its template emits
+# (user.name/email, core.editor, init.defaultBranch, pull.rebase, alias.{co,br,
+# ci,st}). Those owned keys are UPSERTED into a foreign gitconfig -- SEEDED if
+# absent (append to the section block, or a fresh [section] at EOF), or REPLACED
+# in place per the write policy if present -- while every line NOT in the owned
+# set (credential.helper, user.signingkey, commit.gpgsign, [remote ...]) is byte-
+# preserved. A git-config key is addressed by (section, subsection, key): git
+# treats section + key names case-insensitively and the subsection case-
+# sensitively, so the index lowercases section/key and keeps subsection verbatim.
+# The rendered template is BOTH the ownership manifest (its (section,key) lines)
+# AND the values; the un-rendered template recovers each line's @MIOS:token@ ->
+# the mios.toml (section,key) that feeds it (for the operator_set policy test).
+
+_INI_SECTION = re.compile(r'^\s*\[\s*([A-Za-z0-9.-]+)\s*(?:"(.*)")?\s*\]\s*$')
+_INI_KV = re.compile(r'^(\s*)([A-Za-z][A-Za-z0-9-]*)(\s*=\s*)(.*)$')
+
+
+def _eol_of(raw):
+    """The trailing newline of a raw line ('' if the line has none -- e.g. a
+    final line with no terminator)."""
+    return raw[len(raw.rstrip("\r\n")):]
+
+
+def _parse_ini(text):
+    """Parse a git-config/INI document into an ORDERED line-model + an index.
+    model: list of per-physical-line dicts. Every line keeps `raw` verbatim (so
+    a foreign line round-trips byte-for-byte); a kv line additionally carries
+    lead/key/sep/val/eol so an OWNED value can be replaced in place without
+    disturbing its neighbours. index: {(section_lower, subsection_or_None,
+    key_lower) -> model idx} for each kv line, so a PRESENT owned key is found
+    and a foreign key is left untouched. Section headers and #/; comments are
+    preserved as opaque `other` lines. Uses splitlines(keepends=True) so each
+    line's own terminator (CRLF/LF/none) survives the round-trip."""
+    model = []
+    index = {}
+    cur_sec, cur_sub = None, None
+    for raw in text.splitlines(keepends=True):
+        content = raw.rstrip("\r\n")
+        msec = _INI_SECTION.match(content)
+        if msec:
+            cur_sec = msec.group(1).lower()
+            cur_sub = msec.group(2)  # verbatim (case-sensitive), or None
+            model.append({"raw": raw, "type": "section",
+                          "section": cur_sec, "subsection": cur_sub})
+            continue
+        stripped = content.lstrip()
+        mkv = _INI_KV.match(content)
+        if mkv and cur_sec is not None and not stripped.startswith(("#", ";")):
+            key = mkv.group(2)
+            model.append({"raw": raw, "type": "kv", "section": cur_sec,
+                          "subsection": cur_sub, "key": key, "lead": mkv.group(1),
+                          "sep": mkv.group(3), "val": mkv.group(4), "eol": _eol_of(raw)})
+            index[(cur_sec, cur_sub, key.lower())] = len(model) - 1
+            continue
+        # blank line, #/; comment, or a line that is not a kv assignment (or one
+        # that precedes any section header): opaque, never owned.
+        model.append({"raw": raw, "type": "other"})
+    return model, index
+
+
+def _render_ini(model):
+    """Serialise a line-model back to text (each record's `raw` is verbatim)."""
+    return "".join(rec["raw"] for rec in model)
+
+
+def _index_of(model):
+    """{(section_lower, subsection, key_lower) -> idx} for the live model,
+    rebuilt after each seed so positions stay aligned (last write wins for a
+    multivar key -- irrelevant here, the owned set is single-valued)."""
+    return {(r["section"], r["subsection"], r["key"].lower()): i
+            for i, r in enumerate(model) if r["type"] == "kv"}
+
+
+def _default_eol(model, fallback="\n"):
+    """The document's line terminator, inferred from the first line that has one
+    (so seeded lines match the file's CRLF/LF convention). Empty doc -> LF."""
+    for rec in model:
+        eol = _eol_of(rec["raw"])
+        if eol:
+            return eol
+    return fallback
+
+
+def _make_kv_rec(section, subsection, key_spelling, value, eol, lead="\t"):
+    """A new kv line-record in MiOS canonical git style (`\\tkey = value`),
+    preserving the template's key spelling (e.g. defaultBranch)."""
+    return {"raw": "{}{} = {}{}".format(lead, key_spelling, value, eol),
+            "type": "kv", "section": section, "subsection": subsection,
+            "key": key_spelling, "lead": lead, "sep": " = ", "val": value, "eol": eol}
+
+
+def _replace_value(rec, new_val):
+    """Replace a kv line's value IN PLACE, preserving its leading whitespace,
+    key spelling, separator, and terminator."""
+    rec["val"] = new_val
+    rec["raw"] = "{}{}{}{}{}".format(rec["lead"], rec["key"], rec["sep"], new_val, rec["eol"])
+
+
+def _section_bounds(model, section, subsection):
+    """(header_idx, block_end) for the FIRST matching [section]/[section "sub"]
+    block (block_end = the next section header idx, or len(model)), or None if
+    the section is absent."""
+    start = None
+    for i, rec in enumerate(model):
+        if (rec["type"] == "section" and rec["section"] == section
+                and rec["subsection"] == subsection):
+            start = i
+            break
+    if start is None:
+        return None
+    end = len(model)
+    for j in range(start + 1, len(model)):
+        if model[j]["type"] == "section":
+            end = j
+            break
+    return start, end
+
+
+def _seed_into_section(model, start, end, new_rec):
+    """Insert `new_rec` after the LAST non-blank line of an existing section
+    block [start, end) (so it lands with the section's other keys, before any
+    trailing blank line)."""
+    insert_at = start + 1
+    for j in range(start + 1, end):
+        if model[j]["raw"].rstrip("\r\n").strip() != "":
+            insert_at = j + 1
+    model.insert(insert_at, new_rec)
+
+
+def _append_new_section(model, section, subsection, new_rec, eol):
+    """Append a fresh `[section]` (or `[section "sub"]`) block + its owned key at
+    EOF, separated from prior content by one blank line (git/template style)."""
+    if model and _eol_of(model[-1]["raw"]) == "":
+        model[-1]["raw"] += eol  # a final line with no terminator would join the header
+    if model:
+        model.append({"raw": eol, "type": "other"})  # blank separator
+    header = ('[{} "{}"]{}'.format(section, subsection, eol) if subsection is not None
+              else "[{}]{}".format(section, eol))
+    model.append({"raw": header, "type": "section",
+                  "section": section, "subsection": subsection})
+    model.append(new_rec)
+
+
+def _token_to_ssot(token, merged, section):
+    """Reverse a @MIOS:<sec>_<key>@ token to the mios.toml (section, key) that
+    feeds it. The gitconfig template's value tokens are identity_* (always
+    injected by _resolved_for) or <section>_* (the surface's settings section);
+    returns None for anything else (e.g. a bare palette token), so a literal
+    owned value is never treated as operator-set."""
+    for sec in ("identity", section):
+        if sec and token.startswith(sec + "_"):
+            key = token[len(sec) + 1:]
+            if key and key in mios_toml.section(merged, sec):
+                return (sec, key)
+    return None
+
+
+def _build_owned_kv(surface, merged):
+    """{(section_lower, subsection, key_lower) -> {'value','key','ssot'}} for
+    EXACTLY the keys the surface's template emits, in template order. `value` is
+    the rendered value; `key` is the template's key spelling (seeded verbatim);
+    `ssot` is the mios.toml (section, key) the value token came from, or None for
+    a literal (used only by the seed-or-enforce policy's operator_set test)."""
+    resolved = _resolved_for(merged, surface.section)
+    tmpl_abs = os.path.join(ROOT, surface.template)
+    rmodel, rindex = _parse_ini(_render_text(_read(tmpl_abs), resolved))
+    tmodel, tindex = _parse_ini(_read(tmpl_abs))  # un-rendered: recover @MIOS:token@
+    owned = collections.OrderedDict()
+    for gkey, idx in rindex.items():
+        rec = rmodel[idx]
+        toks = _SENTINEL.findall(tmodel[tindex[gkey]]["val"]) if gkey in tindex else []
+        ssot = _token_to_ssot(toks[0], merged, surface.section) if len(toks) == 1 else None
+        owned[gkey] = {"value": rec["val"], "key": rec["key"], "ssot": ssot}
+    return owned
+
+
+def _operator_set(merged, section, key):
+    """True iff the operator EXPLICITLY set [section].key in a host/user overlay
+    -- the merged value differs from the vendor default AND is non-empty. The
+    seed-or-enforce policy ENFORCES such an operator choice over an existing
+    foreign value, but SKIPS a mere vendor default (never stomps a foreign value
+    with a shipped default)."""
+    mv = mios_toml.section(merged, section).get(key)
+    vv = mios_toml.section(mios_toml.load_vendor(), section).get(key)
+    mv = "" if mv is None else _fmt_conf(mv)
+    vv = "" if vv is None else _fmt_conf(vv)
+    return mv != "" and mv != vv
+
+
+def _should_write_present(policy, entry, merged):
+    """Write policy for a PRESENT owned key. seed-or-enforce (default): enforce
+    ONLY an operator-set SSOT value, else SKIP (safety-first). `enforce`: always
+    overwrite. `seed-only`: never overwrite an existing value."""
+    if policy == "enforce":
+        return True
+    if policy == "seed-only":
+        return False
+    ssot = entry.get("ssot")  # seed-or-enforce
+    return bool(ssot) and _operator_set(merged, ssot[0], ssot[1])
+
+
+def _ini_upsert(model, owned_kv, policy, merged):
+    """Upsert each owned key into `model` (mutated in place): ABSENT -> seed
+    (into the existing section block, else a fresh [section] at EOF); PRESENT ->
+    replace the value in place IFF the policy admits it. Everything not in
+    owned_kv is left byte-identical. Returns the number of writes."""
+    policy = policy or "seed-or-enforce"
+    eol = _default_eol(model)
+    writes = 0
+    for gkey, entry in owned_kv.items():
+        section, subsection, _keyl = gkey
+        idx = _index_of(model).get(gkey)  # re-index: an earlier seed shifts positions
+        if idx is None:
+            new_rec = _make_kv_rec(section, subsection, entry["key"], entry["value"], eol)
+            bounds = _section_bounds(model, section, subsection)
+            if bounds is None:
+                _append_new_section(model, section, subsection, new_rec, eol)
+            else:
+                _seed_into_section(model, bounds[0], bounds[1], new_rec)
+            writes += 1
+        elif _should_write_present(policy, entry, merged):
+            _replace_value(model[idx], entry["value"])
+            writes += 1
+    return writes
+
+
+def _ini_merge(owned_kv, base_text, policy, merged):
+    """Upsert the owned git keys into base_text (a foreign gitconfig), returning
+    the merged text. Foreign lines byte-preserved; owned keys seeded/enforced per
+    policy. Unlike json-merge there is no parse-refusal path: an INI never fails
+    to parse -- an unrecognised line is simply opaque + preserved."""
+    model, _index = _parse_ini(base_text)
+    _ini_upsert(model, owned_kv, policy, merged)
+    return _render_ini(model)
+
+
 # --- kind dispatch (ADR-0010) ------------------------------------------------
 # `derive_fn(surface, merged) -> committed-artifact bytes` is the uniform shape
 # cmd_render writes and cmd_check byte-diffs (OFFLINE -- a merge surface's derive
@@ -261,14 +498,32 @@ def _apply_live_json_merge(surface, merged, current):
     return _json_merge(owned, current if current is not None else "{}")
 
 
-# Merge kinds require a fixture pair (no ungated merge surface). ini-merge /
-# registry / skip are declared valid by ADR-0010 but LAND LATER (AGY-58+); only
-# the two implemented kinds are dispatchable here, so an unimplemented kind fails
-# the same fail-loud exit-3 path as an unknown one.
-_MERGE_KINDS = frozenset({"json-merge"})
+def _derive_ini_merge(surface, merged):
+    """ini-merge (offline gate): the owned git keys upserted into the checked-in
+    fixture.base -- the expected committed merge output `check` byte-diffs."""
+    owned = _build_owned_kv(surface, merged)
+    base_text = _read(os.path.join(ROOT, surface.fixture.base))
+    return _ini_merge(owned, base_text, surface.policy, merged)
+
+
+def _apply_live_ini_merge(surface, merged, current):
+    """ini-merge apply: the owned git keys upserted into the LIVE gitconfig (or
+    an empty doc when the file does not exist yet), so the operator's foreign
+    credential/signing/remote lines survive a theme/identity refresh."""
+    owned = _build_owned_kv(surface, merged)
+    return _ini_merge(owned, current if current is not None else "", surface.policy, merged)
+
+
+# Merge kinds require a fixture pair (no ungated merge surface). json-merge
+# (JSON settings docs) + ini-merge (git config) splice a MiOS-owned subtree/key-
+# set onto a foreign file, preserving every foreign key; registry / skip are
+# declared valid by ADR-0010 but LAND LATER, so an unimplemented kind fails the
+# same fail-loud exit-3 path as an unknown one.
+_MERGE_KINDS = frozenset({"json-merge", "ini-merge"})
 _KINDS = {
     "template":   (_derive_template, _apply_live_template),
     "json-merge": (_derive_json_merge, _apply_live_json_merge),
+    "ini-merge":  (_derive_ini_merge, _apply_live_ini_merge),
 }
 
 

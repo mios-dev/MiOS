@@ -1,0 +1,10 @@
+[user]
+	email = someone@corp.example
+	signingkey = ABCD1234DEADBEEF
+[credential]
+	helper = store
+[commit]
+	gpgsign = true
+[remote "origin"]
+	url = git@github.com:someone/repo.git
+	fetch = +refs/heads/*:refs/remotes/origin/*

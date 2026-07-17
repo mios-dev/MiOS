@@ -10982,6 +10982,37 @@ expected = "usr/share/mios/theme/fixtures/vscode-settings.expected.json"
 linux   = "~/.config/Code/User/settings.json"
 windows = "%APPDATA%/Code/User/settings.json"
 
+# INI-MERGE surface (ADR-0010 `kind` axis, AGY-58) -- the SAFE live-apply of the
+# gitconfig the `gitconfig` (template) surface intentionally withheld. MiOS owns
+# EXACTLY the ~9 keys its template emits (user.name/email, core.editor,
+# init.defaultBranch, pull.rebase, alias.{co,br,ci,st}); kind=ini-merge UPSERTS
+# only those keys into a foreign ~/.gitconfig -- seeding absent keys, and (under
+# policy=seed-or-enforce) replacing a present one ONLY when the operator has
+# explicitly set it in the SSOT (host/user overlay), never stomping a foreign
+# value with a vendor default. Every foreign line (credential.helper,
+# user.signingkey, commit.gpgsign, [remote ...]) is byte-preserved, so a whole-
+# file overwrite can no longer clobber the user's identity/credentials/signing/
+# remotes. `template` REUSES the existing gitconfig.tmpl VERBATIM (its rendered
+# [section] key=value lines are BOTH the ownership manifest AND the values). The
+# drift-gate is OFFLINE: `check` upserts the owned keys onto the checked-in
+# fixture.base and byte-diffs the committed fixture.expected -- it NEVER reads the
+# operator's live ~/.gitconfig. `target` is the committed gated artifact
+# (= fixture.expected); the real per-platform live destination is [.apply.target].
+# The EXISTING `gitconfig` (kind=template, etc/skel/.gitconfig, no apply.target)
+# surface is UNCHANGED and stays byte-identical.
+[dotfiles.registry.gitconfig-live]
+template = "usr/share/mios/theme/templates/gitconfig.tmpl"
+target   = "usr/share/mios/theme/fixtures/gitconfig.expected.gitconfig"
+section  = "gitconfig"
+kind     = "ini-merge"
+policy   = "seed-or-enforce"
+[dotfiles.registry.gitconfig-live.fixture]
+base     = "usr/share/mios/theme/fixtures/gitconfig.base.gitconfig"
+expected = "usr/share/mios/theme/fixtures/gitconfig.expected.gitconfig"
+[dotfiles.registry.gitconfig-live.apply.target]
+linux   = "~/.gitconfig"
+windows = "%USERPROFILE%/.gitconfig"
+
 [shell]
 [editor]
 [git]

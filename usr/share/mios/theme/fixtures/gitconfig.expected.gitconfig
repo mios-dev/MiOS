@@ -1,0 +1,26 @@
+[user]
+	email = someone@corp.example
+	signingkey = ABCD1234DEADBEEF
+	name = User
+[credential]
+	helper = store
+[commit]
+	gpgsign = true
+[remote "origin"]
+	url = git@github.com:someone/repo.git
+	fetch = +refs/heads/*:refs/remotes/origin/*
+
+[core]
+	editor = nano
+
+[init]
+	defaultBranch = main
+
+[pull]
+	rebase = true
+
+[alias]
+	co = checkout
+	br = branch
+	ci = commit
+	st = status
