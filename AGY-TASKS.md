@@ -445,6 +445,22 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 **Where:** `usr/libexec/mios/mios-theme-render` (`_parse_ini`/`_ini_upsert`/`_operator_set` + the ini-merge `_KINDS` entry), `usr/share/mios/mios.toml` (the `gitconfig-live` surface), a fixtures pair.
 **Done When:** the existing `gitconfig` (template) surface is byte-identical; `apply gitconfig-live` into a live `~/.gitconfig` seeded with a FOREIGN `[credential]`/`user.signingkey`/remote PRESERVES them (assert) while setting the owned keys; `seed-or-enforce` SKIPS an existing foreign `user.email` unless operator_set; `check` gates via the fixture; a backup is written on change; unknown/missing-fixture ⇒ `exit 3`; `just drift-gate` green. Stage only your files.
 
+## AGY-59..60 — ADR-0010 finish (registry kind + merge-surface test coverage). Work ON MAIN, NO branches.
+
+> The `kind` axis + json-merge + ini-merge landed (Claude, ea756065 + 8f52ccfb): `mios-theme-render` has `_KINDS = {template, json-merge, ini-merge}` with fixture-gated merge surfaces (check PASS 10). These finish it. Stage explicit paths; NO `git add -A`; commit ON MAIN (no branches/worktrees).
+
+## AGY-59  (WS-DOTFILES / ADR-0010, **P2**) — the `registry` kind (Windows Registry apply) + a windows-registry proof surface
+**Who:** you (Python + PowerShell). **When:** after AGY-57/58 (landed).
+**What + How:** add `registry` to `_KINDS`. Semantics (per the design): `derive` = build a manifest of the MiOS-owned Registry values (from `_render_text(tmpl,...)` -> a small JSON/INI-ish manifest of `HKCU\Path\Name = value` entries), byte-diffed against `fixture.expected` for the offline gate (check NEVER touches the live Registry). `live_apply_fn` = **Linux/non-Windows: no-op SKIP** (log "registry surface -- Windows-only, skipping"); **Windows (`os.name=='nt'`)**: apply each owned value via `reg add`/PowerShell `Set-ItemProperty` under HKCU only (refuse HKLM/system hives), reading back to confirm; back up the prior values first (export the owned keys to a `.mios-bak` .reg). Fail-loud: a registry surface missing `fixture.base/expected` => exit 3 (same as other merge kinds). Add ONE proof `windows-registry` surface (e.g. a couple of `HKCU\Console` or a MiOS app setting) with template + fixture pair; `apply.target` names the HKCU path root.
+**Where:** `usr/libexec/mios/mios-theme-render` (`_KINDS` registry entry + `_registry_derive`/`_registry_apply`), `usr/share/mios/mios.toml` (the surface), a template + fixtures pair.
+**Done When:** the 10 existing surfaces stay byte-identical (`check` PASS 11); on Linux `apply <registry-surface>` is a clean no-op skip; the offline `check` gates it via the fixture; missing-fixture/unknown => exit 3; `py_compile` clean. Stage only your files.
+
+## AGY-60  (WS-DOTFILES / ADR-0010 hardening, **P2**) — negative-tests + a real unit test for the merge kinds
+**Who:** you (Python + bash). **When:** after AGY-57/58.
+**What + How:** the json-merge/ini-merge kinds have fixture drift-gating but no repeatable NEGATIVE test proving each safety property. Add `usr/lib/mios/agent-pipe/`-style OR a `tests/`-style harness (whichever fits the repo -- there is a `test_mios_*` convention for agent-pipe; for `mios-theme-render` use a `tests/` or a self-contained script) asserting: (1) an unknown `kind` => exit 3; (2) a merge surface missing `fixture.base/expected` => exit 3; (3) json-merge preserves a foreign top-level key + a `//`-in-string URL + a nested foreign key, and REFUSES an unparseable base (exit 2, no write); (4) ini-merge preserves credential/signingkey/[remote], seeds absent owned keys, and under `seed-or-enforce` SKIPS a present foreign value unless operator_set; (5) tampering any merge surface's `fixture.expected` reds `check`. Wire it where the drift-gate or CI can run it. Keep it hermetic (temp dirs, no real HOME/Registry writes).
+**Where:** a new test harness for `mios-theme-render` + optionally a `check_*` hook in `automation/38-drift-checks.sh` (coordinate; Claude may also touch that file).
+**Done When:** every listed property has a passing negative-test; the harness runs clean + hermetic; `just drift-gate` (or the theme gate) stays green. Stage only your files.
+
 ### Reporting back
 Commit each task as `agy: <task-id> <summary>` and push to `main`. Claude is monitoring
 `main` for your commits + will integrate/verify. If blocked, leave a `TODO(agy):` note in
