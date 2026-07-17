@@ -3153,6 +3153,21 @@ for k in sorted(ai):
     fi
 }
 
+# --- (45, Law 13 NATIVE-DROPINS) resolver twin equivalence (gating). ----------
+check_resolver_twin_equivalence() {
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "[38-drift-checks]   (45) SOFT: python3 missing -- resolver twin equivalence check skipped" >&2
+        return 0
+    fi
+    local mismatches
+    if ! mismatches=$(MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/check-resolver-twin.py" 2>&1); then
+        printf '%s\n' "$mismatches" >&2
+        _violation "resolver twin equivalence check failed -- userenv.sh and mios_toml.py have drifted"
+    else
+        echo "[38-drift-checks]   (45) resolver twin equivalence: userenv.sh and mios_toml.py are equivalent"
+    fi
+}
+
 # --- (42, Law 7 NO-HARDCODE / Law 8 SSOT-PROJECTION) version single-source. ----
 # The version literal lives in exactly ONE place: mios.toml [meta].mios_version.
 # The repo-root VERSION file (COPY'd into the image; read into the OCI version
@@ -3397,6 +3412,7 @@ main() {
     check_firstboot_degrade_open
     check_vendor_urls
     check_resolver_twin_parity
+    check_resolver_twin_equivalence
     check_version_ssot
     check_bake_plan
     check_roadmap_index
