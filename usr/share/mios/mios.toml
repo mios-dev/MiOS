@@ -39,6 +39,8 @@ username  = "user"
 fullname  = "User"
 hostname  = "user"
 shell     = "/bin/bash"
+name      = "User"
+email     = "user@localhost"
 # Home location for "local" / "near me" / weather / news asks. When the chat
 # surface forwards no geo (e.g. OWUI on a phone with location-sharing off), the
 # agent resolves place-dependent queries against THIS instead of the host
@@ -10890,3 +10892,16 @@ registry = ""
 [editor]
 [git]
 [ssh]
+
+# ----------------------------------------------------------------------------
+# [gitconfig] -- the operator-tunable git settings SSOT.
+# projected to etc/skel/.gitconfig via mios-theme-render.
+# ----------------------------------------------------------------------------
+[gitconfig]
+core_editor         = "nano"
+init_default_branch = "main"
+pull_rebase         = "true"
+alias_co            = "checkout"
+alias_br            = "branch"
+alias_ci            = "commit"
+alias_st            = "status"

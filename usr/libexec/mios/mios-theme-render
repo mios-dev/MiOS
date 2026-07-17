@@ -48,6 +48,7 @@ SURFACES = {
     # surfaces derive from [colors] -- ONE SSOT, unified Linux+Windows,
     # drift-gated by check 25 (the Windows bootstrap stages this artifact).
     "btop-conf":  ("usr/share/mios/theme/templates/btop.conf.tmpl", "etc/btop/btop.conf", "btop"),
+    "gitconfig":  ("usr/share/mios/theme/templates/gitconfig.tmpl", "etc/skel/.gitconfig", "gitconfig"),
 }
 
 
@@ -89,6 +90,8 @@ def _resolved_for(merged, section):
     surface) the section's conf-formatted keys. Section keys never collide
     with palette tokens (they carry the <section>_ prefix)."""
     r = dict(mios_toml.colors(merged))
+    # Always include [identity] section keys
+    r.update(_settings(merged, "identity"))
     if section:
         r.update(_settings(merged, section))
     return r

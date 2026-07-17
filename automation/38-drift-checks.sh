@@ -1458,7 +1458,7 @@ check_theme_projection() {
     fi
     if MIOS_THEME_ROOT="$ROOT" python3 "$tool" check >/dev/null 2>"$ROOT/.theme.err"; then
         rm -f "$ROOT/.theme.err" 2>/dev/null || true
-        echo "[38-drift-checks]   (25) every committed theme + settings surface projects from mios.toml [colors]/[btop] SSOT"
+        echo "[38-drift-checks]   (25) every committed theme + settings surface projects from mios.toml [colors]/[btop]/[gitconfig]/[identity] SSOT"
     else
         sed 's/^/    /' "$ROOT/.theme.err" >&2 2>/dev/null || true
         rm -f "$ROOT/.theme.err" 2>/dev/null || true

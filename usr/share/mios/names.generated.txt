@@ -302,10 +302,12 @@ hermes.enable  MIOS_HERMES_ENABLE
 hermes.endpoint  MIOS_HERMES_ENDPOINT
 hermes.model  MIOS_HERMES_MODEL
 identity.default_password  MIOS_IDENTITY_DEFAULT_PASSWORD
+identity.email  MIOS_IDENTITY_EMAIL
 identity.fullname  MIOS_IDENTITY_FULLNAME
 identity.groups  MIOS_IDENTITY_GROUPS
 identity.hostname  MIOS_IDENTITY_HOSTNAME
 identity.location  MIOS_IDENTITY_LOCATION
+identity.name  MIOS_IDENTITY_NAME
 identity.shell  MIOS_IDENTITY_SHELL
 identity.username  MIOS_IDENTITY_USERNAME
 image.base  MIOS_IMAGE_BASE

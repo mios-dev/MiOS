@@ -1,0 +1,22 @@
+# AI-hint: Git configuration template projected from [gitconfig] and [identity] SSOT sections.
+# AI-related: usr/share/mios/theme/templates/gitconfig.tmpl, etc/skel/.gitconfig
+#
+
+[user]
+	name = User
+	email = user@localhost
+
+[core]
+	editor = nano
+
+[init]
+	defaultBranch = main
+
+[pull]
+	rebase = true
+
+[alias]
+	co = checkout
+	br = branch
+	ci = commit
+	st = status
