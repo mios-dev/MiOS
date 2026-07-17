@@ -142,7 +142,7 @@ mios() {
     mios dash    -- FULL dashboard: ASCII banner + services + extended sys specs
     mios monitor -- resource monitor + unified stack table (refreshes every 5s)
     mios build   -- run /usr/libexec/mios/mios-build-driver (OCI image build)
-    mios config  -- launch the configurator (mios.html in default browser)
+    mios config  -- open the unified MiOS Settings surface (:8640/configure; offline HTML fallback)
     mios dev     -- nested bash session (you're already in MiOS-DEV)
     mios pull    -- git fetch + reset M:\ to origin/main
     mios update  -- mios pull + hint to re-run bootstrap from Windows
