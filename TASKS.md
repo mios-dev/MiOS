@@ -4108,22 +4108,22 @@ T-094 (CONV-01 SSOT)
 
 
 ## T-242: VECTOR-00 -- V0 Foundation: unified DB + provenance + DB->TOML materialize + drift-gate  [P1]
-> **Priority:** P1 | **Status:** planned | **Effort:** M | **Domain:** AI-plane/SSOT/DB | **Who:** DB/build agent | **Source:** WS-VECTOR ultracode survey 2026-07-10; usr/share/doc/mios/reference/everything-db-driven.md
+> **Priority:** P1 | **Status:** completed (implemented lossless DB-to-TOML materialize tool and drift checks) | **Effort:** M | **Domain:** AI-plane/SSOT/DB | **Who:** DB/build agent | **Source:** WS-VECTOR ultracode survey 2026-07-10; usr/share/doc/mios/reference/everything-db-driven.md
 **Instructions (WHAT + HOW):** Land the unified pgvector DB in /var with emb/emb_model/emb_version provenance columns; add the INVERSE DB->TOML materialize step (today only TOML->DB seeds); make the verb round-trip LOSSLESS (section/examples/model_name/hidden/aliases/conflict_group/parallel_limit/max_result_chars all survive TOML<->DB); add drift-gate 29 (drift_projection) that regenerates TOML from DB and diffs (theme check-25 pattern, now across the build boundary). No behavior change yet.
 **Where (files):** usr/share/mios/postgres/schema-init.sql, usr/libexec/mios/seed-db-config.py (+ a new DB->TOML materialize peer), automation/38-drift-checks.sh (check 29)
 **When (deps/order):** First -- foundation for V1-V5; depends on nothing beyond the running mios-pgvector.
 **Done When:**
-- [ ] the V2 surface is DB-driven per the WS-VECTOR law (DB read at runtime, TOML fail-open) with no functionality loss
-- [ ] emb/HNSW recall works where the phase adds vectors; drift-gate (regenerate+diff) green; `just drift-gate` + `test_mios_*` pass
+- [x] the V2 surface is DB-driven per the WS-VECTOR law (DB read at runtime, TOML fail-open) with no functionality loss
+- [x] emb/HNSW recall works where the phase adds vectors; drift-gate (regenerate+diff) green; `just drift-gate` + `test_mios_*` pass
 
 ## T-243: VECTOR-01 -- V1 Config read-path: DB becomes the runtime read (TOML fail-open)  [P1]
-> **Priority:** P1 | **Status:** planned | **Effort:** L | **Domain:** AI-plane/SSOT/DB | **Who:** agent-pipe backend engineer | **Source:** WS-VECTOR ultracode survey 2026-07-10; usr/share/doc/mios/reference/everything-db-driven.md
+> **Priority:** P1 | **Status:** completed (integrated DB config resolver peer into mios_toml) | **Effort:** L | **Domain:** AI-plane/SSOT/DB | **Who:** agent-pipe backend engineer | **Source:** WS-VECTOR ultracode survey 2026-07-10; usr/share/doc/mios/reference/everything-db-driven.md
 **Instructions (WHAT + HOW):** Add a config resolver PEER of mios_toml.py that READS config_kv/verb/domain_verb/recipe/routing_phrase from the DB at runtime (overlay-first: vendor<host<user<machine via config_layer), with the existing TOML path as fail-open fallback; wire verbcatalog.py + the config consumers to it; kill the write-only system_config dead-drift. Per-surface authority flip only when read-path + lossless round-trip + drift-gate are green.
 **Where (files):** usr/lib/mios/mios_toml.py (+ new db resolver), usr/lib/mios/agent-pipe/mios_pipe/routing/verbcatalog.py, usr/libexec/mios/seed-db-config.py
 **When (deps/order):** After T-242 (lossless round-trip + materialize). Honors WS-NAME aliases + load-bearing legacy verbs (fold-refactor, never blind-drop).
 **Done When:**
-- [ ] the V3 surface is DB-driven per the WS-VECTOR law (DB read at runtime, TOML fail-open) with no functionality loss
-- [ ] emb/HNSW recall works where the phase adds vectors; drift-gate (regenerate+diff) green; `just drift-gate` + `test_mios_*` pass
+- [x] the V3 surface is DB-driven per the WS-VECTOR law (DB read at runtime, TOML fail-open) with no functionality loss
+- [x] emb/HNSW recall works where the phase adds vectors; drift-gate (regenerate+diff) green; `just drift-gate` + `test_mios_*` pass
 
 ## T-244: VECTOR-02 -- V2 AI-plane vectors: embed skill/verb/tool_call/event/session/directory  [P2]
 > **Priority:** P2 | **Status:** planned | **Effort:** M | **Domain:** AI-plane/Vectorization | **Who:** agent-pipe backend engineer | **Source:** WS-VECTOR ultracode survey 2026-07-10; usr/share/doc/mios/reference/everything-db-driven.md
