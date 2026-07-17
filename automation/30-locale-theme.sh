@@ -1,7 +1,7 @@
 #!/bin/bash
 # AI-hint: Configures a unified dark theme across all UI toolkits (GTK3/4, Qt5/6, Electron, Flatpak) by applying dconf settings, environment variables, and global Flatpak overrides.
 # AI-related: mios-flatpak-init
-# 'MiOS' v0.2.4 -- 30-locale-theme: Unified dark theme for EVERY window type
+# 'MiOS' - 30-locale-theme: Unified dark theme for EVERY window type
 #
 # Coverage matrix (ALL must be dark):
 #   [ok] libadwaita / GTK4 apps (GNOME native) -- color-scheme=prefer-dark via dconf
@@ -18,22 +18,22 @@
 # MUST RUN BEFORE 30-user.sh (skel .bashrc must exist before useradd -m)
 set -euo pipefail
 
-echo "  'MiOS' v0.2.4 -- Universal Dark Theme"
+echo "  'MiOS' ${MIOS_VERSION:-} -- Universal Dark Theme"
 
 # ═══ SKEL .bashrc (MUST come BEFORE useradd -m) ═══
-# v0.2.0: Delivered via usr/share/skel/.bashrc overlay.
+# : Delivered via usr/share/skel/.bashrc overlay.
 echo "[30-locale-theme] Using /etc/skel/.bashrc from overlay..."
 
 # ═══ GTK3: adw-gtk3-dark for visual consistency with libadwaita ═══
-# v0.2.0: Delivered via etc/gtk-3.0/settings.ini overlay.
+# : Delivered via etc/gtk-3.0/settings.ini overlay.
 echo "[30-locale-theme] Using GTK3 theme from overlay..."
 
 # ═══ GTK4: libadwaita reads color-scheme, NOT GTK_THEME ═══
-# v0.2.0: Delivered via etc/gtk-4.0/settings.ini overlay.
+# : Delivered via etc/gtk-4.0/settings.ini overlay.
 echo "[30-locale-theme] Using GTK4 theme from overlay..."
 
 # ═══ System-wide env vars for ALL toolkits ═══
-# v0.2.0: Delivered via etc/environment.d/ overlay.
+# : Delivered via etc/environment.d/ overlay.
 echo "[30-locale-theme] Using environment.d from overlay..."
 
 # ═══ Flatpak overrides -- dark theme + cursor + fonts ═══
@@ -66,10 +66,10 @@ flatpak override --system --nofilesystem=/usr/share/icons 2>/dev/null || true
 flatpak override --system --nofilesystem=/usr/share/fonts 2>/dev/null || true
 
 # ═══ Skeleton autostart (Bottles from flathub-beta on first login) ═══
-# v0.2.0: Delivered via etc/skel/.config/autostart/ overlay.
+# : Delivered via etc/skel/.config/autostart/ overlay.
 
 # Ensure skel GTK3 also uses adw-gtk3-dark (for new user sessions)
-# v0.2.0: Delivered via etc/skel/.config/gtk-3.0/settings.ini overlay.
+# : Delivered via etc/skel/.config/gtk-3.0/settings.ini overlay.
 # ── Compile GSchema overrides (THE correct way to set GNOME defaults) ──
 if [ -f /usr/share/glib-2.0/schemas/90-mios.gschema.override ]; then
     echo "[30-locale-theme] Compiling GSchema overrides..."

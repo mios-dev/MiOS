@@ -1,11 +1,11 @@
 #!/bin/bash
 # AI-hint: Final image build script that purges stale boot files, clears /var/log and /var/cache, and removes specific files triggering bootc container lint warnings to ensure a clean, deployable system state.
-# 'MiOS' v0.2.4 -- 99-cleanup: Final image cleanup (mirrors ucore/cleanup.sh)
+# 'MiOS' - 99-cleanup: Final image cleanup (mirrors ucore/cleanup.sh)
 #
 # MANDATORY for bootc images. Every ublue-os image runs this pattern.
 # Without it, BIB deployment fails or the booted system has broken /var state.
 #
-# v0.2.0: Added targeted lint cleanup for dnf5.log, ldconfig aux-cache,
+# : Added targeted lint cleanup for dnf5.log, ldconfig aux-cache,
 # and any stray files in /var that trigger bootc container lint warnings.
 #
 # Reference: https://github.com/ublue-os/ucore/blob/main/cleanup.sh
@@ -33,7 +33,7 @@ echo "[99-cleanup] Cleaning lint triggers..."
 rm -f /var/log/lastlog /var/log/dnf5.log* 2>/dev/null || true
 rm -rf /var/cache/ldconfig 2>/dev/null || true
 rm -f /var/lib/systemd/random-seed 2>/dev/null || true
-# 'MiOS' v0.2.4: additional lint cleanup based on Cloud Build observations
+# 'MiOS' - : additional lint cleanup based on Cloud Build observations
 rm -rf /var/lib/glusterd 2>/dev/null || true
 rm -f /var/lib/containers/storage/db.sql 2>/dev/null || true
 rm -f /var/lib/flatpak/.changed 2>/dev/null || true

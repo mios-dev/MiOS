@@ -2,7 +2,7 @@
 # AI-hint: A script to toggle the system between a graphical (gdm.service) and headless (multi-user.target) state, providing status checks and automated service management for remote management.
 # AI-related: gdm.service, multi-user.target, display-manager.service, graphical.target
 # AI-functions: current_target, is_gdm_running, show_status, go_headless, go_gui
-# MiOS v0.2.0 -- mios-toggle-headless
+# MiOS - mios-toggle-headless
 # Toggle between GUI desktop (graphical.target) and headless (multi-user.target)
 # Works from TTY, terminal, SSH, or Cockpit console.
 # Usage: mios-toggle-headless [on|off|status]

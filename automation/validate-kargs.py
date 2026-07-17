@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # AI-hint: Validates .toml files in kargs.d/ and usr/lib/bootc/kargs.d/ against bootc schema rules, ensuring correct key structures, architecture matching, and no forbidden table headers.
 # AI-functions: _github_error, _github_warning, validate_file, _emit, collect_files, main
-# 'MiOS' v0.2.4 -- Bootc kargs.d validator
+# 'MiOS' - Bootc kargs.d validator
 """
 validate-kargs.py -- 'MiOS' kargs.d schema validator.
 

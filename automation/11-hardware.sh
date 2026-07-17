@@ -1,9 +1,9 @@
 #!/bin/bash
 # AI-hint: Configures GPU drivers by installing Mesa, AMD ROCm, and Intel compute runtimes, while performing a multi-stage check and fallback logic for NVIDIA kernel modules based on the current kernel version.
 # AI-related: mios-kver
-# 'MiOS' v0.2.4 -- 11-hardware: GPU drivers (Mesa + AMD ROCm + Intel + NVIDIA)
+# 'MiOS' - 11-hardware: GPU drivers (Mesa + AMD ROCm + Intel + NVIDIA)
 #
-# NVIDIA strategy (v0.2.0):
+# NVIDIA strategy ( - ):
 #   Primary:  ucore-hci:stable-nvidia ships pre-signed kmods for the base
 #             kernel. If modinfo finds them for `uname -r`, we keep them.
 #   Fallback: akmod rebuild from RPMFusion (requires matching kernel-devel).
@@ -15,11 +15,11 @@
 # have no kernel-version coupling.
 #
 # CHANGELOG:
-#   v0.2.0: Dropped COPY-layer fallback. ucore-hci IS already built from
+# : Dropped COPY-layer fallback. ucore-hci IS already built from
 #           ublue's akmods-nvidia pipeline - copying those same RPMs on top
 #           would create RPM conflicts, not redundancy. Kernel-mismatch
 #           recovery falls to akmod rebuild + graceful skip.
-#   v0.2.0: (attempted COPY-layer, reverted)
+# : (attempted COPY-layer, reverted)
 #   v2.0:   NVIDIA akmod baseline removed (ucore base provides pre-signed)
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -53,8 +53,8 @@ fi
 # ── NVIDIA fallback: akmod rebuild via RPMFusion ────────────────────────────
 # Only if ucore base missed (rare - the ucore:stable-nvidia tag guarantees
 # its own kernel matches). This path requires kernel-devel-$KVER which is the
-# exact failure mode that broke v2.2.x when ucore kernel (v0.2.0) didn't
-# match F44's kernel-devel (v0.2.0). If kernel-devel is unavailable, we log
+# exact failure mode that broke v2.2.x when ucore kernel ( - ) didn't
+# match F44's kernel-devel ( - ). If kernel-devel is unavailable, we log
 # and accept NVIDIA-less - the image still works for everything else, and
 # 34-gpu-detect.sh handles runtime blacklisting/unblacklisting.
 if [[ $NVIDIA_PRESENT -eq 0 ]]; then

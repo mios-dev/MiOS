@@ -1,12 +1,12 @@
 #!/bin/bash
 # AI-hint: Configures PAM via authselect, creates the primary system user with fixed UID 1000, and assigns group memberships (wheel, libvirt, docker) to ensure proper session permissions and container access.
 # AI-related: mios-custom, mios-home, mios-wheel, mios-nfs
-# 'MiOS' v0.2.4 -- 31-user: PAM, user creation, groups, sudoers
+# 'MiOS' - 31-user: PAM, user creation, groups, sudoers
 # Must run AFTER skel is populated (31-locale-theme writes skel/.bashrc)
 # and BEFORE any service that references the user.
 set -euo pipefail
 
-echo "  'MiOS' v0.2.4 -- User & Authentication"
+echo "  'MiOS' ${MIOS_VERSION:-} -- User & Authentication"
 
 # -- PAM FIX --
 echo "[31-user] Configuring PAM via authselect..."

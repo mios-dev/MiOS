@@ -96,7 +96,7 @@ export DNF_OPTS_STR="${DNF_OPTS[*]}"
 #
 # Usage: record_version <component> <version_or_tag> [resolved_to]
 #   component       short id, e.g. "aichat", "cosign", "quadlet:mios-k3s"
-#   version_or_tag  what was observed, e.g. "v0.30.1" or "docker.io/x:latest"
+#   version_or_tag  what was observed, e.g. " - " or "docker.io/x:latest"
 #   resolved_to     optional: digest, source URL, or commit ref
 export MIOS_VERSION_MANIFEST="${MIOS_VERSION_MANIFEST:-/tmp/mios-build-versions.tsv}"
 

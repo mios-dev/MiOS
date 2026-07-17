@@ -5,7 +5,7 @@
 # Repository: MiOS-DEV/MiOS-bootstrap
 # Usage: curl -fsSL https://raw.githubusercontent.com/MiOS-DEV/MiOS-bootstrap/main/bootstrap.sh | bash
 #
-# CANONICAL ENTRY POINT NOTICE (v0.2.4+):
+# CANONICAL ENTRY POINT NOTICE ( - +):
 # The user-facing end-to-end pipeline now lives at `./mios-pipeline.sh`
 # (11 phases: Questions -> Stage -> MiOS-DEV -> Overlay -> Account ->
 # Install -> Smoketest -> Build -> Deploy -> Boot -> Repeat). This

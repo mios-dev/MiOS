@@ -2,7 +2,7 @@
 # AI-hint: Displays a dynamic MOTD dashboard on TTY login, providing status indicators for system services (Cockpit, SSH, RDP, Guacamole, K3s) and clickable terminal links for remote management.
 # AI-related: mios-guacamole, cockpit.socket, mios-guacamole.service, podman.socket, libvirtd.socket, k3s.service
 # AI-functions: _ip, _l, _s
-# MiOS v0.2.0 -- MOTD Dashboard
+# MiOS - MOTD Dashboard
 # Shows management interfaces, service statuses, and clickable links.
 # Displayed on TTY login and terminal open via profile.d.
 [[ $- != *i* ]] && exit 0
@@ -17,7 +17,7 @@ _s() { systemctl is-active --quiet "$1" 2>/dev/null && printf "${G}●${N}" || p
 
 echo ""
 printf "${C}════════════════════════════════════════════════════════════${N}\n"
-printf "${W}  MiOS v0.2.0${N}  ${D}${HN} -- ${IP}${N}\n"
+printf "${W}  MiOS ${MIOS_VERSION:-}${N}  ${D}${HN} -- ${IP}${N}\n"
 printf "${C}════════════════════════════════════════════════════════════${N}\n"
 echo ""
 printf "${W}  Management${N}\n"

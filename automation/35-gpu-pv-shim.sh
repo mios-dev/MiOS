@@ -2,13 +2,13 @@
 # AI-hint: Configures Hyper-V GPU-PV (dxgkrnl) support by creating mount points, ld.so.conf entries, and a systemd service to detect and bridge host-side GPU drivers for Mesa D3D12 and NVIDIA CUDA.
 # AI-related: mios-gpu-pv, mios-gpu-pv-detect, mios-gpu-pv-detect.service, display-manager.service, local-fs.target, multi-user.target
 # AI-functions: log
-# automation/35-gpu-pv-shim.sh - 'MiOS' v0.2.4
+# automation/35-gpu-pv-shim.sh - 'MiOS' - 
 # ----------------------------------------------------------------------------
 # Automates guest-side shimming for Hyper-V GPU-PV (dxgkrnl).
 # Since dxgkrnl isn't mainlined yet, we provide the user-mode hooks
 # to bridge to host drivers mounted via WSL/Hyper-V.
 #
-# v0.2.0: Refactored to use common logging and build-safe symlinks.
+# : Refactored to use common logging and build-safe symlinks.
 # ----------------------------------------------------------------------------
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"

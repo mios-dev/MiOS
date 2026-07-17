@@ -1,7 +1,7 @@
 #!/bin/bash
 # AI-hint: Captures the MIOS_FLATPAKS build-time variable into a system-level environment file at ${MIOS_USR_DIR}/env.d/flatpaks.env to be consumed by the mios-flatpak-install tool during boot-time setup.
 # AI-related: /usr/lib/mios/env.d, mios-flatpak-install
-# 'MiOS' v0.2.4  37-flatpak-env: Capture Flatpak environment for boot-time install
+# 'MiOS' - 37-flatpak-env: Capture Flatpak environment for boot-time install
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 

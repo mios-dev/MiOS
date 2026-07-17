@@ -3,12 +3,20 @@
 import os
 import re
 
-HEADER = """<!--  'MiOS' Artifact | Proprietor: 'MiOS' Project | https://github.com/MiOS-DEV/mios -->
+def get_version():
+    try:
+        with open("VERSION", "r") as f:
+            return f.read().strip()
+    except Exception:
+        return "0.3.0"
+
+VERSION = get_version()
+HEADER = f"""<!--  'MiOS' Artifact | Proprietor: 'MiOS' Project | https://github.com/MiOS-DEV/mios -->
 #  'MiOS'
 > **Proprietor:** 'MiOS' Project
 > **Infrastructure:** Self-Building Infrastructure (Personal Property)
 > **License:** Licensed as personal property to 'MiOS' Project
-> **Source Reference:** MiOS-Core-v0.2.0
+> **Source Reference:** MiOS-Core-v{VERSION}
 ---"""
 
 FOOTER = """---

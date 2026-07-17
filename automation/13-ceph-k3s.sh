@@ -1,11 +1,11 @@
 #!/bin/bash
 # AI-hint: Installs Ceph client tools and the K3s Kubernetes orchestrator, handling version resolution and offline vendoring to provision the storage and container orchestration layer of the MiOS cluster.
 # AI-related: /usr/share/mios/k3s-manifests/, /usr/share/mios/vendored/k3s, /usr/share/mios/vendored/k3s-install.sh, /usr/share/mios/vendored/sha256sum-amd64.txt, /usr/libexec/mios/ceph-bootstrap.sh, mios-ceph-bootstrap, ceph-bootstrap.service, mios-ceph-bootstrap.service, k3s.service, var-home.mount
-# 'MiOS' v0.2.4 -- 13-ceph-k3s: Ceph distributed storage + K3s Kubernetes
+# 'MiOS' - 13-ceph-k3s: Ceph distributed storage + K3s Kubernetes
 # Cephadm runs ALL server daemons as Podman containers.
 # Only client tools + orchestrator binary are baked into the image.
 #
-# v0.2.0 FIXES:
+# FIXES:
 #   - K3s manifests stored in /usr/share/mios/k3s-manifests/ (not /var)
 #     First-boot service copies them to /var/lib/rancher/k3s/server/manifests/
 #     This fixes bootc lint: /var content must use tmpfiles.d entries

@@ -1,9 +1,9 @@
 #!/bin/bash
 # AI-hint: Configures Hyper-V Enhanced Session support by enabling hv_sock, configuring gnome-remote-desktop for Wayland-native RDP via vsock, and gating services like nvidia-powerd and waydroid for VM environments.
 # AI-related: mios-container, mios-hyperv-enhanced, mios-grd-setup, mios-no-audit, polkit.service, cockpit.socket, mios-hyperv-enhanced.service, dbus-broker.service, systemd-machined.service, dev-binderfs.mount
-# 'MiOS' v0.2.4 -- 38-vm-gating: VM service gating + Hyper-V Enhanced Session
+# 'MiOS' - 38-vm-gating: VM service gating + Hyper-V Enhanced Session
 #
-# v0.2.0 CRITICAL FIX: GNOME 50 / Mutter 50 completely removed the X11 backend.
+# CRITICAL FIX: GNOME 50 / Mutter 50 completely removed the X11 backend.
 # xorgxrdp is an X11 technology -- it CANNOT work with Wayland-only Mutter 50.
 # The old approach caused a GDM crash loop on Hyper-V, preventing boot.
 #

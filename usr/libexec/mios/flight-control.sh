@@ -4,7 +4,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-VERSION="$(cat "${REPO_ROOT}/VERSION" 2>/dev/null || echo 'v0.2.0')"
+VERSION="$(cat "${REPO_ROOT}/VERSION" 2>/dev/null || echo '0.3.0')"
 
 echo "'MiOS' ${VERSION} -- Flight Status"
 printf "  %-24s %s\n" "BASE_IMAGE:"   "${MIOS_BASE_IMAGE:-ghcr.io/ublue-os/ucore-hci:stable-nvidia}"

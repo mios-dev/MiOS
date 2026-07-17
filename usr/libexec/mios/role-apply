@@ -5,7 +5,7 @@
 # ============================================================================
 # mios role-apply: MiOS Unified Initialization & Role Engine
 # ============================================================================
-# v0.2.0: FORMAL TARGET TRANSITION. Uses systemd .target units for roles.
+# : FORMAL TARGET TRANSITION. Uses systemd .target units for roles.
 # ============================================================================
 set -euo pipefail
 # shellcheck source=/usr/lib/mios/paths.sh

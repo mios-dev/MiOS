@@ -1,7 +1,7 @@
 #!/bin/bash
 # AI-hint: Configures systemd services, enforces cgroup v2 compliance, fixes unit file permissions, and applies environment-specific gating for bare-metal, VM, and WSL2 deployments.
 # AI-related: mios-role, bootloader-update.service, podman-auto-update.timer, ceph-bootstrap.service, cockpit.socket, mios-role.service, var-home.mount, var-lib-containers.mount
-# 'MiOS' v0.2.4 -- 20-services: Enable systemd services + bare-metal/VM gating
+# 'MiOS' - 20-services: Enable systemd services + bare-metal/VM gating
 #
 # CHANGELOG v1.3:
 #   - systemd 260: cgroup v1 support REMOVED -- all services must use cgroup v2
@@ -15,7 +15,7 @@
 #   - Improved: Bare-metal vs VM vs WSL2 service gating
 set -euo pipefail
 
-echo "  'MiOS' v0.2.4 -- Service Configuration"
+echo "  'MiOS' ${MIOS_VERSION:-} -- Service Configuration"
 
 # ─── Fix systemd unit file permissions ────────────────────────────────────────
 # Container builds sometimes leave bad perms from COPY operations.

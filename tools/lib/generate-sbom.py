@@ -4,7 +4,7 @@
 # AI-functions: main
 # tools/lib/generate-sbom.py -- emit MiOS-SBOM.csv from mios.toml
 # [packages.<section>].pkgs + Quadlet Image= refs + base image refs +
-#.env.mios Flatpak defaults. As of v0.2.4 PACKAGES.md is
+#.env.mios Flatpak defaults. As of - PACKAGES.md is
 # documentation only; mios.toml is the runtime SSOT.
 
 import re
@@ -159,7 +159,7 @@ def main(out_path: Path):
 
     # 4. Default Flatpaks
     # SSOT: mios.toml [desktop].flatpaks (the canonical operator-tunable
-    # source). env.defaults was the legacy fallback (deleted in v0.2.4
+    # source). env.defaults was the legacy fallback (deleted in - 
     # when mios.toml became THE singular SSOT). The legacy ~/.env.mios
     # is still read for backward-compat with pre-migration installs.
     flat_seen = set()
@@ -193,7 +193,7 @@ def main(out_path: Path):
         except Exception as e:
             print(f"WARN: failed to parse {toml_path}: {e}", file=sys.stderr)
 
-    # Backward-compat fallback: legacy .env.mios (pre-v0.2.4 installs).
+    # Backward-compat fallback: legacy .env.mios (pre- - installs).
     for env_path in [".env.mios"]:
         p = ROOT / env_path
         if not p.is_file():

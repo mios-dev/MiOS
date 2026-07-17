@@ -3,7 +3,7 @@
 # AI-related: mios-serial
 # AI-functions: cleanup
 set -euo pipefail
-# 'MiOS' v0.2.4 -- Ephemeral QEMU boot test
+# 'MiOS' - Ephemeral QEMU boot test
 # Usage: bcvk-wrapper.sh <qcow2-path> [serial-log-path]
 #
 # Boots a QCOW2 image in headless QEMU with KVM, captures serial console,

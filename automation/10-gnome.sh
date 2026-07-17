@@ -1,7 +1,7 @@
 #!/bin/bash
 # AI-hint: Installs the core GNOME 50 desktop environment, including GDM, Wayland portals, and theme consistency for GTK/Qt, while configuring dconf profiles and disabling tracker indexing.
 # AI-related: mios-qt-adwaita, mios-cursor-ensure, mios-flatpak-install, mios-flatpak-install.service
-# 'MiOS' v0.2.4 -- 10-gnome: GNOME 50 desktop -- PURE BUILD-UP
+# 'MiOS' - 10-gnome: GNOME 50 desktop -- PURE BUILD-UP
 #
 # STRATEGY: ucore has ZERO GNOME packages. We install exactly what we need.
 # With install_weak_deps=False (set globally in 01-repos.sh), only hard deps
@@ -14,7 +14,7 @@
 # Wayland desktop with GDM, all portals, audio, Bluetooth, networking,
 # security, and proper theming across GTK3/GTK4/Qt.
 #
-# CHANGELOG v0.2.0:
+# CHANGELOG - :
 #   - MANDATORY Bibata cursor download -- retries 3x, FAILS BUILD if missing
 #   - dconf profiles for user + GDM added to 
 #   - Flatpak: 7 apps (added Flatseal + LocalSend)
@@ -126,7 +126,7 @@ done
 # the flatpak override all pointed XCURSOR_THEME at a theme that did not
 # exist on disk, and EVERY surface fell back to the default cursor
 # ("NOT BIBATA CURSOR ANYWHERE STILL"). A square/default cursor is
-# unacceptable per the original v0.2.0 MANDATORY policy -- restore it.
+# unacceptable per the original - MANDATORY policy -- restore it.
 if [ "$BIBATA_OK" -eq 0 ] || [ ! -d "$BIBATA_DIR/cursors" ]; then
     die "Bibata cursor download FAILED after 3 attempts ($BIBATA_URL) -- refusing to ship an image with a broken cursor. (Already-shipped images self-heal at runtime via mios-cursor-ensure into ~/.local/share/icons, but the BUILD must seed /usr/share/icons.)"
 fi

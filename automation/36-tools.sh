@@ -1,7 +1,7 @@
 #!/bin/bash
 # AI-hint: Sets executable permissions for the core mios- suite of CLI tools in /usr/bin/ and installs auxiliary scripts like mios-toggle-headless and mios-test to establish the primary MiOS command interface.
 # AI-related: /usr/libexec/mios/mios-dashboard.sh, /usr/lib/mios/userenv.sh., /usr/lib/mios/userenv.sh, mios-toggle-headless, mios-test, mios-dashboard, mios-dash, mios-env, mios-sync-env, mios-update
-# 'MiOS' v0.2.4 -- 36-tools: CLI tools and consolidated mios command
+# 'MiOS' - 36-tools: CLI tools and consolidated mios command
 # Installs all mios-* tools to /usr/bin/ and the master 'mios' CLI.
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -27,7 +27,7 @@ TOOLS=(
     mios-vfio-check
     iommu-groups
 )
-# Note: mios-status was removed (v0.2.4) -- it was a 1-line `exec` to
+# Note: mios-status was removed ( - ) -- it was a 1-line `exec` to
 # /usr/libexec/mios/mios-dashboard.sh identical to mios-dash. Keep
 # mios-dash as the single canonical dashboard verb.
 # Note: aichat / aichat-ng are installed by 37-aichat.sh (which fetches

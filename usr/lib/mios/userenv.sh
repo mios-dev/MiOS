@@ -70,7 +70,7 @@ MIOS_HOST_TOML="${MIOS_HOST_TOML:-/etc/mios/mios.toml}"
 MIOS_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/mios"
 MIOS_USER_TOML="${MIOS_CONFIG_DIR}/mios.toml"
 
-# Removed: vendor env.defaults sourcing block. As of v0.2.4 mios.toml is
+# Removed: vendor env.defaults sourcing block. As of - mios.toml is
 # THE singular SSOT for every operator-tunable infrastructure constant
 # (ports, sidecar pins, service identities, runtime paths, build
 # tunables); env.defaults has been deleted. The Python TOML merger

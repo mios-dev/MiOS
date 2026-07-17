@@ -1,7 +1,7 @@
 #!/bin/bash
 # AI-hint: Sets the initial hostname template in /usr/lib/hostname.default based on the MIOS_HOSTNAME build-arg to ensure a unique, stable mios-XXXXX identifier is generated during the first boot.
 # AI-related: mios-XXXXX, mios-init, mios-a3f9c, mios-ws-83427
-# 'MiOS' v0.2.4 -- 32-hostname: Unique per-instance hostname
+# 'MiOS' - 32-hostname: Unique per-instance hostname
 #
 # Strategy: Set a template hostname in the image. On first boot, systemd
 # generates /etc/machine-id. The mios-init service (35-init-service.sh)

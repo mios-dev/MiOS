@@ -1,7 +1,7 @@
 #!/bin/bash
 # AI-hint: Automates tracking of upstream dependency versions (Fedora, bootc, Cockpit, NVIDIA, CrowdSec, Waydroid) via GitHub API and Bodhi to identify available updates for the MiOS core components.
 # AI-functions: gh_api, get_latest_tag
-# 'MiOS' v0.2.0 -- Upstream Feed Monitor
+# 'MiOS' - Upstream Feed Monitor
 # ----------------------------------------------------------------------------
 # Automates checking for updates from core 'MiOS' dependencies.
 # Uses GitHub API and other feeds to identify new versions.

@@ -13,7 +13,7 @@
 # rules: dot-sourced scripts run in the caller's scope, so everything
 # below is visible to the caller without further ceremony). Override
 # any constant with an environment variable BEFORE dot-sourcing -- e.g.
-# `$env:MIOS_VERSION = '0.3.0-rc1'; . globals.ps1`.
+# `$env:MIOS_VERSION = ' - rc1'; . globals.ps1`.
 
 # ── VERSION ──────────────────────────────────────────────────────────
 function Resolve-MiosVersion {
@@ -28,7 +28,7 @@ function Resolve-MiosVersion {
             if ($v) { return $v }
         }
     }
-    return '0.2.4'
+    return '0.3.0'
 }
 $script:MIOS_VERSION = Resolve-MiosVersion
 

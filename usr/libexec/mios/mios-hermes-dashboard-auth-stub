@@ -3,7 +3,7 @@
 # AI-related: /usr/lib/mios/agents/.venv/lib64/python3.14/site-packages, /usr/lib/mios/agents/.venv/bin/python3, hermes-dashboard.service, hermes-agent.service
 # mios-hermes-dashboard-auth-stub
 #
-# Hermes-Agent v0.15.0 (build 2026.5.28) ships web_server.py with
+# Hermes-Agent - (build 2026.5.28) ships web_server.py with
 #   `from hermes_cli.dashboard_auth.routes import router`
 # but the wheel does NOT include the dashboard_auth package. Result:
 # hermes-dashboard.service crash-loops with ModuleNotFoundError.
@@ -59,7 +59,7 @@ with the real package."""
 EOF
 
 cat > "$PKG/routes.py" <<'EOF'
-"""MiOS stub: empty APIRouter so v0.15.0's web_server.py import resolves
+"""MiOS stub: empty APIRouter so - 's web_server.py import resolves
 without registering any Nous Portal OAuth endpoints. The gate middleware
 in web_server.py already decides whether to enforce auth; a routerless
 module just means no /auth/* routes exist -- correct for the local-first

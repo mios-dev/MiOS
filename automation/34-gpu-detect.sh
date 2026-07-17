@@ -1,7 +1,7 @@
 #!/bin/bash
 # AI-hint: A wrapper script that triggers the GPU detection service to block NVIDIA modules in VMs, enable hardware rendering on bare metal, and detect RTX 50-series VFIO reset bugs.
 # AI-related: /usr/libexec/mios/gpu-detect
-# 'MiOS' v0.2.4 -- 34-gpu-detect: Bridge to GPU detection service
+# 'MiOS' - 34-gpu-detect: Bridge to GPU detection service
 # Blocks NVIDIA modules in VMs, enables hardware renderer on bare metal,
 # detects RTX 50-series VFIO reset bug.
 # Actual logic lives in /usr/libexec/mios/gpu-detect (system_files overlay).

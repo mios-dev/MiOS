@@ -1,9 +1,9 @@
 #!/bin/bash
 # AI-hint: Phase-2 build sub-phase: now mostly logs that Cockpit/NVIDIA/Ceph .desktop entries are delivered via the 08-system-files overlay; the only active work is staging the MOTD/fastfetch dashboard (profile.d/mios-motd.sh fallback) for terminal sessions.
 # AI-related: profile.d/mios-motd.sh, /usr/libexec/mios/motd., mios-motd
-# 'MiOS' v0.2.4 -- 39-desktop-polish: Desktop entries, Cockpit webapp, MOTD
+# 'MiOS' - 39-desktop-polish: Desktop entries, Cockpit webapp, MOTD
 #
-# CHANGELOG v0.2.0:
+# CHANGELOG - :
 #   - FIX: mios-motd source path was /tmp/automation/automation/ (never exists).
 #     Scripts run from /ctx/automation/ in the buildroot. The bogus path + the
 #     `|| true` swallowed the failure silently, so /usr/libexec/mios-motd
@@ -29,7 +29,7 @@ echo "[39-desktop-polish] NVIDIA Settings desktop entry delivered via overlay."
 echo "[39-desktop-polish] Ceph Dashboard desktop entry delivered via overlay."
 
 # ═══ MOTD DASHBOARD ═══
-# v0.2.0: ARCHITECTURAL PURITY FIX. The MOTD script is now delivered via the
+# : ARCHITECTURAL PURITY FIX. The MOTD script is now delivered via the
 # system_files overlay to /usr/libexec/mios/motd. We no longer perform
 # manual 'install' calls here.
 echo "[39-desktop-polish] MOTD dashboard delivered via overlay."

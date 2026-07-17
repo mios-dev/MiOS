@@ -1,7 +1,7 @@
 #!/bin/bash
 # AI-hint: Configures boot-time console behavior by enabling getty@tty1, serial-getty@ttyS0, and emergency/rescue shells to ensure accessible text consoles and serial access for remote debugging.
 # AI-related: mios-console, mios-verbose, tty1.service, emergency.service, rescue.service, ttyS0.service
-# 'MiOS' v0.2.4 -- 98-boot-config: Boot console + service configuration
+# 'MiOS' - 98-boot-config: Boot console + service configuration
 # Plymouth disable is handled by usr/lib/bootc/kargs.d/10-mios-console.toml
 # Console verbosity is handled by usr/lib/bootc/kargs.d/00-mios.toml + 10-mios-verbose.toml
 set -euo pipefail

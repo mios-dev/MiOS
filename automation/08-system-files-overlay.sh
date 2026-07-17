@@ -2,12 +2,12 @@
 # AI-hint: Overlay script that maps the /ctx/ source directory onto the rootfs during build, specifically handling the /usr/local to /var/usrlocal symlink logic and syncing the system version file.
 # AI-related: /usr/share/mios/VERSION, /usr/libexec/mios/motd, /usr/libexec/mios/mios-dashboard.sh, /usr/share/mios/mios.toml, mios-dashboard, mios-infra, mios-bootstrap, wsl-init.service
 # ============================================================================
-# automation/08-system-files-overlay.sh - 'MiOS' v0.2.4
+# automation/08-system-files-overlay.sh - 'MiOS' - 
 # ----------------------------------------------------------------------------
 # Overlay /ctx/ onto the rootfs during the Containerfile build,
 # correctly handling the /usr/local -> /var/usrlocal symlink.
 #
-# v0.2.0 Architecture: Rootfs-Native
+# Architecture: Rootfs-Native
 #   - Sources now directly from /ctx/usr, /ctx/etc, /ctx/var, /ctx/home
 # ============================================================================
 set -euo pipefail
@@ -99,7 +99,7 @@ if [[ -f "${CTX}/usr/lib/wsl.conf" ]]; then
 fi
 
 # --- Stage 4: /var (intentionally empty) ----------------------------------
-# Removed in v0.2.4. /var population at build time violated LAW 2
+# Removed in - . /var population at build time violated LAW 2
 # (NO /VAR WRITES AT BUILD); all mandatory /var structure is now
 # declared in /usr/lib/tmpfiles.d/*.conf and realized by
 # systemd-tmpfiles --create at first boot. See:

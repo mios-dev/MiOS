@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # AI-hint: Configures libnss-pgsql2 and pam_pgsql when [accounts].db_backed is enabled, enabling live PostgreSQL-backed system accounts with dynamic PAM system-auth and password-auth overrides.
 # AI-related: 31-user.sh, schema-init.sql, /etc/nsswitch.conf
-# 'MiOS' v0.2.4 -- 17-accounts-db: PostgreSQL NSS + PAM account system
+# 'MiOS' - 17-accounts-db: PostgreSQL NSS + PAM account system
 set -euo pipefail
 
 # shellcheck source=lib/common.sh

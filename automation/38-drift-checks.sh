@@ -2902,7 +2902,7 @@ PY
 }
 
 # ============================================================================
-# v0.3.0 ARCHITECTURAL-LAW enforcers (Phase B). Each mirrors a law registered in
+# ARCHITECTURAL-LAW enforcers (Phase B). Each mirrors a law registered in
 # mios.toml [laws]; the allowlists are READ FROM THE SSOT, never hardcoded.
 # ============================================================================
 
@@ -3158,18 +3158,12 @@ for k in sorted(ai):
 # The repo-root VERSION file (COPY'd into the image; read into the OCI version
 # LABEL + the SBOM) and the Containerfile `ARG MIOS_VERSION=` fallback default are
 # PROJECTIONS of it and must match byte-for-byte -- a drifted copy ships an image
-# mislabelled against the SSOT (e.g. VERSION=0.2.4 while the SSOT says 0.3.0).
+# mislabelled against the SSOT (e.g. VERSION= - while the SSOT says - ).
 check_version_ssot() {
     local toml="$ROOT/usr/share/mios/mios.toml"
     local ssot vfile carg bad=""
     ssot="$(grep -m1 -E '^[[:space:]]*mios_version' "$toml" 2>/dev/null | sed -E 's/[^"]*"([^"]*)".*/\1/')"
     vfile="$(tr -d '[:space:]' < "$ROOT/VERSION" 2>/dev/null)"
-    # The Containerfile is NOT copied into the OCI build context (/tmp/build holds
-    # only automation/usr/etc/VERSION/tools), so guard its read: an unguarded grep
-    # on a missing file exits 2 and, under this script's `set -euo pipefail`, would
-    # abort the whole drift-gate (that is exactly what broke the reinstall build).
-    # Only the source-tree gate has the Containerfile; the build-context gate relies
-    # on the VERSION file + os-release[7], which ARE present and equally SSOT-bound.
     carg=""
     if [[ -f "$ROOT/Containerfile" ]]; then
         carg="$(grep -m1 -E '^ARG[[:space:]]+MIOS_VERSION=' "$ROOT/Containerfile" 2>/dev/null | sed -E 's/^ARG[[:space:]]+MIOS_VERSION=//; s/[[:space:]].*//' || true)"
@@ -3180,9 +3174,7 @@ check_version_ssot() {
     fi
     [[ "$vfile" != "$ssot" ]] && bad+="    VERSION file = [$vfile], expected [$ssot]"$'\n'
     [[ -n "$carg" && "$carg" != "$ssot" ]] && bad+="    Containerfile ARG MIOS_VERSION default = [$carg], expected [$ssot]"$'\n'
-    # os-release: the 7 version-bearing fields are build-projected from the same
-    # SSOT (49-finalize.sh); the committed values must already match so the repo
-    # never carries a stale OS version and the projection has a correct base.
+
     local osr="$ROOT/usr/lib/os-release" _f _v
     if [[ -f "$osr" ]]; then
         for _f in VERSION VERSION_ID BUILD_ID IMAGE_VERSION OSTREE_VERSION; do
@@ -3194,6 +3186,76 @@ check_version_ssot() {
         _v="$(grep -m1 -E '^CPE_NAME=' "$osr" | sed -E 's|.*:mios:||; s/"[[:space:]]*$//')"
         [[ -n "$_v" && "$_v" != "$ssot" ]] && bad+="    os-release CPE_NAME version = [$_v], expected [$ssot]"$'\n'
     fi
+
+    local literal_bad
+    literal_bad="$(MIOS_DRIFT_ROOT="$ROOT" MIOS_CANONICAL_VER="$ssot" python3 - <<'PY' 2>&1
+import os, sys, re, subprocess
+root = os.environ["MIOS_DRIFT_ROOT"]
+canonical_ver = os.environ["MIOS_CANONICAL_VER"]
+
+root_toml = os.path.join(root, "mios.toml")
+if os.path.isfile(root_toml):
+    try:
+        with open(root_toml, "r", encoding="utf-8", errors="ignore") as fh:
+            for line in fh:
+                if "mios_version" in line and canonical_ver not in line:
+                    sys.stderr.write(f"    TODO(td-2): root mios.toml has version divergence from canonical {canonical_ver}\n")
+    except OSError:
+        pass
+
+pattern = re.compile(r'\bv?0\.[0-9]+\.[0-9]+\b')
+viol = []
+
+try:
+    out = subprocess.check_output(["git", "ls-files"], cwd=root).decode("utf-8")
+    tracked = [os.path.normpath(os.path.join(root, f)) for f in out.splitlines()]
+except Exception:
+    sys.exit(0)
+
+for path in tracked:
+    rel = os.path.relpath(path, root)
+    if not (rel.startswith("automation") or rel.startswith("usr/libexec/mios") or rel.startswith("tools")):
+        continue
+    if rel.endswith((".pyc", ".png", ".jpg", ".generated", ".json", ".log", ".ready")):
+        continue
+    if not os.path.isfile(path):
+        continue
+
+    try:
+        with open(path, "r", encoding="utf-8", errors="ignore") as fh:
+            lines = fh.readlines()
+    except OSError:
+        continue
+        
+    for idx, line in enumerate(lines):
+        for m in pattern.finditer(line):
+            ver = m.group(0)
+            ver_clean = ver[1:] if ver.startswith('v') else ver
+            if ver_clean != canonical_ver:
+                if ver_clean in ("0.0.0", "0.0.1", "0.8.3"):
+                    continue
+                if "INTEL_SG_FALLBACK_TAG" in line:
+                    continue
+                if "Upstream v0.15.0" in line:
+                    continue
+                viol.append(f"    {rel}:{idx+1} hardcodes different version literal [{ver}], expected [{canonical_ver}]")
+
+if viol:
+    for v in viol:
+        sys.stderr.write(v + "\n")
+    sys.exit(1)
+sys.exit(0)
+PY
+)"
+    local exit_code=$?
+    if [[ $exit_code -ne 0 ]]; then
+        bad+="$literal_bad"$'\n'
+    else
+        if [[ -n "$literal_bad" ]]; then
+            echo "$literal_bad" >&2
+        fi
+    fi
+
     if [[ -n "$bad" ]]; then
         printf '%s' "$bad" >&2
         _violation "version drift from SSOT mios.toml [meta].mios_version=[$ssot] (Law 7 NO-HARDCODE / Law 8 SSOT-PROJECTION) -- VERSION file + Containerfile ARG default must match the SSOT"

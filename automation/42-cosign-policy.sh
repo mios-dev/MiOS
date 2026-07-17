@@ -2,7 +2,7 @@
 # AI-hint: Installs the cosign binary (v2.x), configures Sigstore trust roots, and sets up policy.json to ensure OCI 1.1 bundle compatibility during image builds.
 # AI-related: mios-cosign
 # ============================================================================
-# automation/42-cosign-policy.sh - 'MiOS' v0.2.4
+# automation/42-cosign-policy.sh - 'MiOS' - 
 # ----------------------------------------------------------------------------
 # Consolidates cosign binary installation, Sigstore trust roots, and policy.json.
 # Supercedes 37-cosign-policy.sh.
@@ -57,7 +57,7 @@ install -d -m 0755 /usr/share/pki/containers
 install -d -m 0755 /usr/lib/containers/registries.d
 
 # 2. Install policy.json
-# v0.2.0: Moved from etc/ to usr/lib/ in system_files
+# : Moved from etc/ to usr/lib/ in system_files
 if [[ -f "${SYSFILES}/usr/lib/containers/policy.json" ]]; then
     install -m 0644 "${SYSFILES}/usr/lib/containers/policy.json" /usr/lib/containers/policy.json
     log "  installed /usr/lib/containers/policy.json"
