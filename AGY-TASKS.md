@@ -538,6 +538,27 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 ## AGY-83  (accounts, **P1**) — finish V4 Accounts/users + tests
 **Who:** you. You've landed T-242/246/150/151 (PostgresOS account-sync, identity ingest, DB config resolver). Close the remaining V4 Accounts/users tasks + add sibling tests for the new sync modules (drift-11). **Done:** V4 Accounts/users complete; new modules have tests; suite green.
 
+## STATUS (Claude -> AGY, live coord -- 2026-07-17)
+Flash: the MiOS-Cat USB is BUILDING now (Ventoy + MediCat + Fedora + kickstart -> D:). Deploy leg works (mutable-Fedora + build-mios.sh overlay); MiOS-Sudo identity SSOT-merged (mios-bootstrap da67f47); your WS-BLADE/WS-MIOSSYS WIP is committed (c47ed570); I fixed test_mios_agentreg (f8b11a64, resolver-refactor migration). CI now runs FURTHER and exposes a PRE-EXISTING WS-NAME drift -- your #1 job is making the drift-gate fully GREEN. NOT Claude's lane (Claude owns the MiOS-Cat launcher/flash in mios-bootstrap).
+
+## AGY-84  (WS-NAME, **P1 -- CI GREEN**) -- the "referenced but NOT emitted" key-library drift
+**Who:** you. CI drift-check "FAIL -- referenced but NOT emitted (a consumer would lose its var)" lists HUNDREDS of MIOS_* vars referenced in code/toml/units but NOT emitted by the userenv key-library walk. Per WS-NAME: collapse the manual tuples into ONE auto-derived minimal global key library so EVERY referenced MIOS_* is emitted (reconcile canonical long-form MIOS_AI_VLLM_* vs short MIOS_VLLM_* consumer mismatch). **Done:** var-emission drift-check passes (0 referenced-but-not-emitted); userenv.sh twins stay identical (drift-27); no consumer loses its var.
+
+## AGY-85  (agent-schema, **P2**) -- privilege_group advisory
+**Who:** you. CI advisory: "[agents.hermes]/[agents.opencode] unknown key 'privilege_group' (not in the canonical agent schema)". Either ADD `privilege_group` to the canonical agent schema (if consumers use it) OR REMOVE it from those [agents.*]. **Done:** advisory gone; WS-A2 agent-schema contract still satisfied.
+
+## AGY-86  (CI, **P1**) -- full drift-gate GREEN at HEAD
+**Who:** you. After AGY-84/85, run automation/38-drift-checks.sh end-to-end at HEAD; fix ANY remaining red so the mios-ci drift-gate job passes; add a negative test per newly-fixed check. **Done:** `just drift-gate` fully green; CI drift-gate passes.
+
+## AGY-87  (docs, **P2**) -- the confirmed DEPLOY MODEL doc (AGY-79 follow-through)
+**Who:** you. Write usr/share/doc/mios/concepts/deploy-model.md: (1) mutable Fedora "MiOS server" + MiOS FHS overlay via build-mios.sh (primary bare-metal leg, operator-confirmed); (2) the MiOS-Sudo identity (renamed RID-500 built-in Administrator = the MiOS AI, SSOT-derived from [autounattend.service].svc_user/svc_description); (3) immutable bootc-install + VM (vhdx/qcow2) + Windows/Xbox modes. Cross-ref from ROADMAP + architecture.md. **Done:** doc committed + cross-reffed.
+
+## AGY-88  (build, **P2**) -- verify `just all` BIB matrix (AGY-69 follow-through)
+**Who:** you. In MiOS-DEV run `just all` (OCI + raw/iso/qcow2/vhdx/wsl2); record outputs+sizes; fix any failing BIB leg. **Done:** all 6 artifacts produced; verify green.
+
+## STOP CONDITION (Claude -> AGY)
+When the drift-gate is FULLY GREEN and no open AGY-N task above remains: STOP -- do NOT idle-spin or invent busywork. Commit your work, mark the tasks done, and report "queue drained, drift-gate green" so I stop feeding. I'll send more only if the roadmap opens new work.
+
 ### Reporting back
 Commit each task as `agy: <task-id> <summary>` and push to `main`. Claude is monitoring
 `main` for your commits + will integrate/verify. If blocked, leave a `TODO(agy):` note in
