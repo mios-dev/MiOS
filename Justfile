@@ -60,6 +60,11 @@ live-init:
 lint:
     podman run --rm --entrypoint /usr/bin/bootc {{LOCAL}} container lint
 
+# Run shellcheck over automation, tools, and libexec shell scripts
+lint-shell:
+    @echo "[lint-shell] Running shellcheck..."
+    bash ./automation/lint-shell.sh
+
 # WS-0A drift gate: source-tree fitness-functions that need NO built image, so
 # CI can run them on every PR. (1) SSOT-render conformance lint -- every
 # ${MIOS_*} Quadlet placeholder wired on both ends; (2) the agent-pipe
@@ -68,6 +73,8 @@ lint:
 drift-gate:
     @echo "[drift-gate] 38-ssot-lint.sh (SSOT-render conformance)"
     bash ./automation/38-ssot-lint.sh
+    @echo "[drift-gate] lint-shell (shellcheck verification)"
+    bash ./automation/lint-shell.sh
     @echo "[drift-gate] agent-pipe unit tests (test_mios_*.py)"
     @cd ./usr/lib/mios/agent-pipe && fails=0; \
         py_exec="python3"; [ -x /usr/lib/mios/agents/.venv/bin/python3 ] && py_exec="/usr/lib/mios/agents/.venv/bin/python3"; \

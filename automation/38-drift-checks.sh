@@ -3285,6 +3285,14 @@ PY
     fi
 }
 
+check_shellcheck() {
+    if ! bash "$ROOT/automation/lint-shell.sh"; then
+        _violation "shellcheck linting failed with errors -- please run automation/lint-shell.sh or check logs"
+    else
+        echo "[38-drift-checks]   (44) shellcheck: shell scripts conform to error-level linting"
+    fi
+}
+
 main() {
     check_dead_lane
     check_retired_models
@@ -3331,6 +3339,7 @@ main() {
     check_bake_plan
     check_roadmap_index
     check_cli_eval_safety
+    check_shellcheck
 
     echo "[38-drift-checks] ---------------------------------------------------------"
     if [[ "$VIOLATIONS" -eq 0 ]]; then
