@@ -107,6 +107,22 @@ mios() {
                 return 127
             fi
             ;;
+        dotfiles)
+            shift
+            # Project the SSOT dotfiles (mios.toml [colors]/[theme] + the btop/
+            # gitconfig/VS Code/Windows Terminal settings surfaces, ADR-0010) to
+            # the operator's LIVE HOME via the mios-dotfiles backend, which
+            # orchestrates mios-theme-render (backup-safe + HOME-scoped writes).
+            # status/diff are read-only; sync/apply write (each backed up first).
+            if [[ -x /usr/libexec/mios/mios-dotfiles ]]; then
+                /usr/libexec/mios/mios-dotfiles "$@"
+            elif [[ -x /mnt/m/usr/libexec/mios/mios-dotfiles ]]; then
+                /mnt/m/usr/libexec/mios/mios-dotfiles "$@"
+            else
+                echo "mios dotfiles: mios-dotfiles not found" >&2
+                return 127
+            fi
+            ;;
         dev)
             # Inside MiOS-DEV already -- `mios dev` is a no-op (drops
             # the operator into a fresh interactive bash if invoked
@@ -143,6 +159,7 @@ mios() {
     mios monitor -- resource monitor + unified stack table (refreshes every 5s)
     mios build   -- run /usr/libexec/mios/mios-build-driver (OCI image build)
     mios config  -- open the unified MiOS Settings surface (:8640/configure; offline HTML fallback)
+    mios dotfiles [status|diff|sync] -- project the SSOT dotfiles (theme, btop, gitconfig, VS Code / Windows Terminal) to your HOME
     mios dev     -- nested bash session (you're already in MiOS-DEV)
     mios pull    -- git fetch + reset M:\ to origin/main
     mios update  -- mios pull + hint to re-run bootstrap from Windows
@@ -165,7 +182,7 @@ export -f mios 2>/dev/null || true
 _mios_complete() {
     local cur="${COMP_WORDS[COMP_CWORD]}"
     if [[ $COMP_CWORD -eq 1 ]]; then
-        COMPREPLY=( $(compgen -W "mini dash build config dev pull update help monitor" -- "$cur") )
+        COMPREPLY=( $(compgen -W "mini dash build config dotfiles dev pull update help monitor" -- "$cur") )
     fi
 }
 complete -F _mios_complete mios

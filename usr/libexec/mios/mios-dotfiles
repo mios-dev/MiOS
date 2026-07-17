@@ -1,0 +1,254 @@
+#!/usr/bin/env python3
+# AI-hint: The operator-facing `mios dotfiles` verb backend (ADR-0010) -- projects
+# the SSOT dotfiles (the theme surfaces + settings surfaces derived from
+# mios.toml: btop, oh-my-posh, quickshell, fastfetch, VS Code colors, the live
+# gitconfig, Windows Terminal, the Windows registry) to the operator's LIVE HOME by
+# ORCHESTRATING usr/libexec/mios/mios-theme-render (the projection engine, which
+# owns the surface registry, the per-platform apply.target map, timestamped RAW
+# backups, json-/ini-merge, and the HOME-scope refusal backstop). This wrapper
+# RENDERS NOTHING itself and NEVER writes: `status`/`diff` shell the engine's
+# dry-run (`mios-theme-render diff`), `sync`/`apply` delegate every write + its
+# backup to the engine (`mios-theme-render apply`). It only adds a friendly
+# per-surface OK/skip/changed summary + a final tally on top of the engine's
+# authoritative output. Degrade-open: a surface with no apply.target for THIS
+# platform is a clean skip (the engine reports "no <os> HOME target -- skipping",
+# rc unaffected), never a failure. Paired with mios-sync-theme (`--apply-home`
+# chains into `sync`) + etc/profile.d/mios-verbs.sh (the `mios dotfiles` verb).
+# AI-related: ./mios-theme-render, ./mios-sync-theme, ../../share/mios/mios.toml, ../../../etc/profile.d/mios-verbs.sh, ../../share/doc/mios/adr/0010-ssot-as-system-dotfiles.md
+# AI-functions: _run_engine, _classify, _dest_of, _print_summary, cmd_status, cmd_diff, cmd_sync, main
+"""mios dotfiles: project the mios.toml SSOT dotfiles to the operator's live HOME (ADR-0010).
+
+Thin, read-only-by-default orchestrator over mios-theme-render:
+  status        list registered surfaces, which apply to THIS platform, and
+                whether each is up-to-date or would-change (engine dry-run).
+  diff [names]  show what `sync` WOULD write to live HOME (writes nothing).
+  sync [names]  apply every apply-eligible surface to live HOME (backup-safe,
+  apply         HOME-scoped -- both guaranteed by the engine, not us).
+An optional trailing surface-name list narrows diff/sync to those surfaces
+(passed straight through to the engine); default is every registered surface.
+"""
+from __future__ import annotations
+
+import collections
+import os
+import re
+import subprocess
+import sys
+
+_SELF = os.path.abspath(__file__)
+_DIR = os.path.dirname(_SELF)
+# Same repo/system root convention as mios-theme-render: MIOS_THEME_ROOT wins,
+# else three dirs up from usr/libexec/mios/ (i.e. "/" in a deployed system, the
+# worktree root in the repo). Propagated to the engine child so BOTH sides
+# resolve the identical mios.toml overlay + repo-relative templates.
+ROOT = os.environ.get("MIOS_THEME_ROOT") or os.path.abspath(
+    os.path.join(_DIR, "..", "..", ".."))
+_ENGINE = os.path.join(_DIR, "mios-theme-render")
+
+# Every per-surface engine line is "[mios-theme-render] <diff|apply> <surface>: <rest>".
+# (Surface names are [A-Za-z0-9_-]; the registry never emits a dotted surface.)
+_LINE = re.compile(r"^\[mios-theme-render\] (?:diff|apply) ([A-Za-z0-9_-]+): (.*)$")
+
+# Per-surface outcome classes (derived from the engine's own wording).
+OK, SKIP, CHANGE, REFUSE, UNKNOWN = "ok", "skip", "change", "refuse", "unknown"
+
+
+def _run_engine(verb, names):
+    """Shell `mios-theme-render <verb> [names]` once, capturing stdout+stderr
+    merged (the engine prints normal notes to stdout and REFUSED/errors to
+    stderr -- we want both, in order). Returns (rc, ordered {surface -> [rest,
+    ...]}, raw_lines). Never writes: `diff` is the engine's dry-run; `apply` is
+    the ONLY write path and it is the engine's, backup-safe + HOME-scoped."""
+    if not os.path.isfile(_ENGINE):
+        sys.stderr.write(f"[mios-dotfiles] projection engine not found: {_ENGINE}\n")
+        return 127, collections.OrderedDict(), []
+    env = dict(os.environ)
+    env["MIOS_THEME_ROOT"] = ROOT  # keep parent+child on the same SSOT root
+    cmd = [sys.executable, _ENGINE, verb] + list(names)
+    proc = subprocess.run(cmd, env=env, stdout=subprocess.PIPE,
+                          stderr=subprocess.STDOUT, text=True)
+    surfaces = collections.OrderedDict()
+    raw = proc.stdout.splitlines()
+    for line in raw:
+        m = _LINE.match(line.strip())
+        if m:
+            surfaces.setdefault(m.group(1), []).append(m.group(2))
+    return proc.returncode, surfaces, raw
+
+
+def _classify(rests):
+    """Map a surface's engine line(s) to an outcome class. Order matters: a
+    REFUSED backstop trumps everything; a platform/system skip is clean; a write
+    (`wrote`) or pending write (`WOULD-write`) is a change; else up-to-date."""
+    text = " || ".join(rests)
+    if "REFUSED" in text:
+        return REFUSE
+    if "skipping" in text:
+        return SKIP
+    if "wrote" in text or "WOULD-write" in text:
+        return CHANGE
+    if "up-to-date" in text:
+        return OK
+    return UNKNOWN
+
+
+def _dest_of(rests):
+    """Best-effort live-HOME destination for the summary, pulled from the engine
+    line. Registry surfaces name an HKCU key rather than a file path."""
+    for r in rests:
+        if "registry" in r:
+            return "(Windows registry HKCU\\Console\\MiOS)"
+        m = re.search(r"up-to-date \((.*)\)$", r)
+        if m:
+            return m.group(1)
+        m = re.search(r"WOULD-write (.*?) \[", r)
+        if m:
+            return m.group(1)
+        m = re.match(r"wrote (.*)$", r)
+        if m:
+            return m.group(1)
+    return ""
+
+
+# Human labels per class, per mode. `change` reads differently for a dry-run
+# (would-change) vs a real apply (applied); everything else is mode-neutral.
+_LABEL = {
+    "diff":  {OK: "up-to-date", SKIP: "skip", CHANGE: "would-change",
+              REFUSE: "REFUSED", UNKNOWN: "?"},
+    "apply": {OK: "up-to-date", SKIP: "skip", CHANGE: "applied",
+              REFUSE: "REFUSED", UNKNOWN: "?"},
+}
+
+
+def _print_summary(surfaces, mode):
+    """Print the per-surface OK/skip/changed table + a final tally. `mode` is
+    'diff' (dry-run wording) or 'apply' (write wording). Returns the tally dict."""
+    labels = _LABEL[mode]
+    tally = collections.OrderedDict((c, 0) for c in (OK, CHANGE, SKIP, REFUSE, UNKNOWN))
+    width = max((len(n) for n in surfaces), default=8)
+    for name, rests in surfaces.items():
+        cls = _classify(rests)
+        tally[cls] += 1
+        dest = _dest_of(rests)
+        note = ""
+        if cls == SKIP:
+            # Surface the engine's reason (e.g. "no windows HOME target").
+            joined = " ".join(rests)
+            note = joined.split(" -- ")[0] if " -- " in joined else joined
+        elif cls == REFUSE:
+            note = " ".join(rests)
+        elif dest:
+            note = dest
+        print(f"  {name:<{width}}  {labels[cls]:<12}  {note}")
+    verb = "would change" if mode == "diff" else "changed"
+    print(
+        f"\n  tally: {tally[CHANGE]} {verb}, {tally[OK]} up-to-date, "
+        f"{tally[SKIP]} skipped (not applicable here), {tally[REFUSE]} refused"
+        + (f", {tally[UNKNOWN]} unrecognized" if tally[UNKNOWN] else "")
+    )
+    return tally
+
+
+def _rc_for(engine_rc, tally):
+    """Verb exit code: a fatal engine error (rc 3 -- template/registry bug) is
+    propagated; a HOME-scope refusal is a soft failure (rc 1) so scripts notice
+    without aborting a run of many surfaces; otherwise success. Platform skips
+    NEVER fail (degrade-open)."""
+    if engine_rc == 3:
+        return 3
+    if tally.get(REFUSE):
+        return 1
+    return 0
+
+
+def cmd_status(names):
+    """List registered surfaces: which apply to THIS platform (and whether they
+    are up-to-date or would-change) and which are skipped here (other-OS/system
+    surfaces). Read-only -- shells the engine's dry-run, writes nothing."""
+    rc, surfaces, _raw = _run_engine("diff", names)
+    if not surfaces:
+        sys.stderr.write("[mios-dotfiles] no surfaces reported by the engine\n")
+        return rc or 1
+    applies = collections.OrderedDict(
+        (n, r) for n, r in surfaces.items() if _classify(r) != SKIP)
+    skipped = collections.OrderedDict(
+        (n, r) for n, r in surfaces.items() if _classify(r) == SKIP)
+    print(f"MiOS dotfiles -- SSOT projection status ({_os_label()})\n")
+    print(f"Applicable on this platform ({len(applies)}):")
+    tally = {}
+    if applies:
+        tally = _print_summary(applies, "diff")
+    else:
+        print("  (none)")
+    if skipped:
+        print(f"\nNot applicable here ({len(skipped)} -- other-OS/system surfaces):")
+        width = max(len(n) for n in skipped)
+        for name, rests in skipped.items():
+            reason = " ".join(rests)
+            reason = reason.split(" -- ")[0] if " -- " in reason else reason
+            print(f"  {name:<{width}}  {reason}")
+    print("\nRun `mios dotfiles diff` to preview, `mios dotfiles sync` to apply.")
+    return _rc_for(rc, tally)
+
+
+def cmd_diff(names):
+    """Dry-run: show what `sync` WOULD write to live HOME for every apply-eligible
+    surface. Writes nothing (engine dry-run)."""
+    rc, surfaces, _raw = _run_engine("diff", names)
+    if not surfaces:
+        sys.stderr.write("[mios-dotfiles] no surfaces reported by the engine\n")
+        return rc or 1
+    print(f"MiOS dotfiles -- would-write preview ({_os_label()}):\n")
+    tally = _print_summary(surfaces, "diff")
+    return _rc_for(rc, tally)
+
+
+def cmd_sync(names):
+    """Apply every apply-eligible surface (or the named subset) to live HOME via
+    the engine -- each write is backed up first + HOME-scoped by the engine."""
+    rc, surfaces, _raw = _run_engine("apply", names)
+    if not surfaces:
+        sys.stderr.write("[mios-dotfiles] no surfaces reported by the engine\n")
+        return rc or 1
+    print(f"MiOS dotfiles -- sync to live HOME ({_os_label()}):\n")
+    tally = _print_summary(surfaces, "apply")
+    if tally.get(REFUSE):
+        sys.stderr.write(
+            "[mios-dotfiles] one or more surfaces were REFUSED by the engine's "
+            "HOME-scope backstop (target resolves outside HOME) -- left untouched\n")
+    return _rc_for(rc, tally)
+
+
+def _os_label():
+    return "windows" if os.name == "nt" else "linux"
+
+
+_USAGE = (
+    "usage: mios dotfiles <status|diff|sync> [surface...]\n"
+    "  status        list surfaces + which apply here + up-to-date/would-change\n"
+    "  diff [names]  preview what sync WOULD write to your HOME (writes nothing)\n"
+    "  sync [names]  apply the SSOT dotfiles to your HOME (backup-safe, HOME-scoped)\n"
+    "  apply         alias for sync\n"
+    "\nWith no surface names, every registered surface is considered; a surface\n"
+    "with no apply target for this platform is a clean skip.\n"
+)
+
+
+def main(argv):
+    if len(argv) < 2 or argv[1] in ("-h", "--help", "help"):
+        sys.stdout.write(_USAGE)
+        return 0 if len(argv) >= 2 and argv[1] in ("-h", "--help", "help") else 2
+    cmd, names = argv[1], argv[2:]
+    if cmd == "status":
+        return cmd_status(names)
+    if cmd == "diff":
+        return cmd_diff(names)
+    if cmd in ("sync", "apply"):
+        return cmd_sync(names)
+    sys.stderr.write(f"[mios-dotfiles] unknown subcommand {cmd!r}\n\n")
+    sys.stderr.write(_USAGE)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

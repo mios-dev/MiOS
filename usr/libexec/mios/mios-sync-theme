@@ -12,8 +12,13 @@
 # usr/share/mios/branding/mios-app-shell.css, tools/lib/userenv.sh,
 # usr/lib/tmpfiles.d/mios-theme.conf, usr/lib/systemd/system/mios-sync-theme.service
 #
-# Usage: mios-sync-theme            # regenerate from the resolved TOML layers
-#        mios-sync-theme --check    # print what would be written, don't write
+# Usage: mios-sync-theme               # regenerate from the resolved TOML layers
+#        mios-sync-theme --check       # print what would be written, don't write
+#        mios-sync-theme --apply-home  # regenerate AND push the dotfile surfaces
+#                                      # to the operator's LIVE HOME (via
+#                                      # mios-dotfiles sync -- backup-safe,
+#                                      # HOME-scoped). Combine with --check for a
+#                                      # dry-run (mios-dotfiles diff).
 #
 # Same layering as userenv.sh: /usr/share/mios/mios.toml (vendor, lowest)
 # < /etc/mios/mios.toml (host) < ~/.config/mios/mios.toml (user, highest).
@@ -26,7 +31,17 @@ MIOS_USER_TOML="${MIOS_USER_TOML:-${MIOS_CONFIG_DIR}/mios.toml}"
 
 OUT_DIR="${MIOS_THEME_OUT_DIR:-/etc/mios/theme}"
 CHECK_ONLY=0
-[[ "${1:-}" == "--check" ]] && CHECK_ONLY=1
+APPLY_HOME=0
+# Lenient flag parse (backward-compatible: the sole caller, the systemd unit,
+# passes no args; unrecognized args are ignored just as the old single-$1 test
+# ignored $2+). --apply-home is additive and off by default.
+for _arg in "$@"; do
+    case "$_arg" in
+        --check)      CHECK_ONLY=1 ;;
+        --apply-home) APPLY_HOME=1 ;;
+        *)            : ;;  # ignore unknown args (preserve old contract)
+    esac
+done
 
 command -v python3 >/dev/null 2>&1 || {
     echo "[mios-sync-theme] python3 not found -- cannot resolve mios.toml, aborting" >&2
@@ -133,4 +148,22 @@ if [[ -f "$_render" ]] && command -v python3 >/dev/null 2>&1; then
     fi
 else
     echo "[mios-sync-theme] note: mios-theme-render/python3 unavailable -- extended surfaces not projected" >&2
+fi
+
+# Optional: also push the projected dotfile surfaces to the operator's LIVE HOME
+# via the mios-dotfiles verb backend (the SAME engine apply path), so the one
+# global theme refresh can ALSO land the dotfiles in $HOME. Off by default:
+# without --apply-home, sync-theme only refreshes the build-tree artifacts
+# (unchanged behavior). --check + --apply-home = a HOME dry-run (no writes).
+if [[ "$APPLY_HOME" == "1" ]]; then
+    _dotfiles="$(dirname "$0")/mios-dotfiles"
+    if [[ -f "$_dotfiles" ]] && command -v python3 >/dev/null 2>&1; then
+        if [[ "$CHECK_ONLY" == "1" ]]; then
+            python3 "$_dotfiles" diff || true
+        else
+            python3 "$_dotfiles" sync || echo "[mios-sync-theme] WARNING: --apply-home (mios-dotfiles sync) reported issues" >&2
+        fi
+    else
+        echo "[mios-sync-theme] note: mios-dotfiles/python3 unavailable -- --apply-home skipped" >&2
+    fi
 fi
