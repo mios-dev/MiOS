@@ -1,0 +1,14 @@
+{
+  "editor.fontSize": 14,
+  "telemetry.telemetryLevel": "off",
+  "update.channel": "https://updates.example.test//stable",
+  "workbench.colorCustomizations": {
+    "editor.background": "#282262",
+    "editor.lineHighlightBackground": "#222222",
+    "editor.foreground": "#E7DFD3",
+    "activityBar.background": "#1A407F",
+    "statusBar.background": "#1A407F",
+    "terminalCursor.foreground": "#F35C15"
+  },
+  "files.autoSave": "onFocusChange"
+}

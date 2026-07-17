@@ -1,0 +1,15 @@
+{
+  // Foreign user settings MiOS must NEVER clobber. This JSONC base exercises
+  // line + block comments, a trailing comma, and a `//` inside a string value
+  // (the update URL) -- none of which the string-aware strip may mangle.
+  "editor.fontSize": 14,
+  "telemetry.telemetryLevel": "off",
+  "update.channel": "https://updates.example.test//stable",
+  /* the operator hand-tuned one color; MiOS overrides editor.background but
+     must preserve this sibling foreign key inside colorCustomizations */
+  "workbench.colorCustomizations": {
+    "editor.background": "#111111",
+    "editor.lineHighlightBackground": "#222222"
+  },
+  "files.autoSave": "onFocusChange",
+}

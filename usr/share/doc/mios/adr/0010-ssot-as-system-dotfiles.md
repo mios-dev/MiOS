@@ -26,9 +26,12 @@ the SSOT `[dotfiles.registry.*]` map and the live-HOME `apply`/`diff` verbs
 **landed 2026-07-17** as a byte-preserving transcription of the 8 existing
 surfaces — `mios-theme-render` now reads its surface map from `mios.toml`
 (fail-loud, exit 3, on an empty registry) and check 25 stays green; the
-`mios-dotfiles-render` fork (arbitrary-key tokens, format-aware merge), the
-Windows runtime gate, and the new `[shell]`/`[editor]`/`[git]`/`[ssh]` content
-domains remain **PLANNED** (WS-DOTFILES / T-270). This ADR builds on ADR-0009
+per-surface `kind` axis + the `json-merge` mode **landed 2026-07-17** (the
+`vscode-colors` proof surface splices a MiOS-owned subtree into a foreign
+settings.json, foreign keys preserved). The `mios-dotfiles-render` fork
+(arbitrary-key `@MIOS:<section>.<key>@` tokens; the `ini-merge`/`registry`
+kinds), the Windows runtime gate, and the new `[shell]`/`[editor]`/`[git]`/`[ssh]`
+content domains remain **PLANNED** (WS-DOTFILES / T-270). This ADR builds on ADR-0009
 (the Portal is the surface that edits `mios.toml`) and carries across every
 deployment via ADR-0005 (M: VHDX) and ADR-0008 (MiOS-Repo shadow-config).
 
@@ -200,11 +203,30 @@ DONE vs PLANNED (honest):
   resolves outside HOME / through a symlink / with an unexpanded variable. The map
   is now operator-editable via the Portal (ADR-0009); adding a surface is a
   `mios.toml` edit, not a code change.
+- **DONE 2026-07-17 (`kind` axis + `json-merge` mode):** each
+  `[dotfiles.registry.<surface>]` may declare an optional `kind`
+  (`template`|`json-merge`|`ini-merge`|`registry`|`skip`; ABSENT ⇒ `template`, so
+  the 8 existing surfaces are byte-identical). `kind` is WRITE-SEMANTICS dispatch
+  (`_KINDS = {kind: (derive_fn, live_apply_fn)}`), orthogonal to `section` (the
+  token source): `template` renders the whole file as before; `json-merge` splices
+  a MiOS-owned JSON subtree onto a foreign JSON doc via a STRING-AWARE JSONC parse
+  (`//` inside a value/URL never mangled), a deep merge (owned leaf/array wins,
+  arrays replaced wholesale, every foreign key byte-preserved), and a base-indent
+  `json.dump`. The gate is OFFLINE: a merge surface declares a `fixture.base` +
+  `fixture.expected` pair and `check` diffs `derive(owned, fixture.base)` against
+  the committed `fixture.expected` (it NEVER reads the operator's live file);
+  `apply` merges the owned subtree onto the LIVE settings.json, backing it up
+  first. The landed proof is the `vscode-colors` surface (owned
+  `workbench.colorCustomizations` + a fixture pair carrying a FOREIGN key that
+  survives the merge). Fail-loud preserved: unknown/unimplemented kind or a merge
+  surface missing its fixture ⇒ exit 3; an unparseable base ⇒ exit 2, writes
+  nothing. `capture` stays template-only. `ini-merge`/`registry`/`skip` are
+  declared-valid but land later (AGY-58+).
 - **PLANNED (WS-DOTFILES / T-270):** the `mios-dotfiles-render` fork + the
   `check 25 → check_dotfiles_projection` rename (deliberately NOT done here —
   larger, higher-risk, out of scope for the byte-preserving transcription);
-  arbitrary-key `@MIOS:<section>.<key>@` tokens + format-aware `json-merge`
-  (WT/VS Code); the Windows `Test-MiOSProjection` runtime gate and `Get-MiOS.ps1`
+  arbitrary-key `@MIOS:<section>.<key>@` tokens; the `ini-merge`/`registry` merge
+  kinds; the Windows `Test-MiOSProjection` runtime gate and `Get-MiOS.ps1`
   `Sync-MiOSDotfiles`; a `mios dotfiles` CLI verb; the new
   `[shell]`/`[editor]`/`[git]`/`[ssh]` content domains + the GTK-CSS hole; and
   `secret_ref` indirection for ssh keys/tokens.
@@ -228,9 +250,12 @@ Costs:
   `[btop]` settings surface, LANDED). **[DONE 2026-07-17]** its surface map is now
   loaded from `mios.toml [dotfiles.registry.*]` (`_load_surfaces()`, fail-loud on
   empty), and it gained the additive live-HOME `apply`/`diff` verbs (backup +
-  HOME-scope/symlink/unresolved-var refusals). **[PLANNED]** the
-  `mios-dotfiles-render` fork (arbitrary-key, format-aware merge); this file stays
-  the back-compat alias for the color+btop+settings subset.
+  HOME-scope/symlink/unresolved-var refusals). **[DONE 2026-07-17]** the per-surface
+  `kind` axis (`_KINDS` dispatch) + the `json-merge` derive/apply (string-aware
+  JSONC parse, deep-merge preserving foreign keys, `fixture.base`/`fixture.expected`
+  offline gate) with the `vscode-colors` proof surface. **[PLANNED]** the
+  `mios-dotfiles-render` fork (arbitrary-key tokens; the `ini-merge`/`registry`
+  kinds); this file stays the back-compat alias for the color+btop+settings subset.
 - `usr/libexec/mios/mios-sync-theme` — the one Linux global refresh; extended to
   call `mios-dotfiles-render render` after the theme bridge.
 - `usr/lib/mios/mios_toml.py` + `tools/lib/userenv.sh` — the layered resolver, fed

@@ -10960,6 +10960,28 @@ section  = "gitconfig"
 # user's ~/.gitconfig would clobber their real identity/credentials/signing config.
 # render -> etc/skel/.gitconfig seeds NEW users from [gitconfig]+[identity] SSOT.
 
+# JSON-MERGE surface (ADR-0010 `kind` axis, the proof of the merge mode). MiOS
+# owns ONLY the workbench.colorCustomizations subtree of a VS Code settings.json;
+# kind=json-merge splices that owned subtree onto a foreign settings doc,
+# preserving every key MiOS does not emit (arrays replaced wholesale, foreign
+# keys byte-preserved). The drift-gate is OFFLINE: `check` merges the owned
+# subtree onto the checked-in fixture.base and byte-diffs the committed
+# fixture.expected -- it NEVER reads the operator's live settings.json. `apply`
+# merges the owned subtree onto the LIVE settings.json (backing it up first), so
+# the operator's font/telemetry/other keys survive a theme refresh. `target` is
+# the committed gated artifact (= fixture.expected); the real per-platform live
+# destination is [.apply.target].
+[dotfiles.registry.vscode-colors]
+template = "usr/share/mios/theme/templates/vscode-colorCustomizations.json.tmpl"
+target   = "usr/share/mios/theme/fixtures/vscode-settings.expected.json"
+kind     = "json-merge"
+[dotfiles.registry.vscode-colors.fixture]
+base     = "usr/share/mios/theme/fixtures/vscode-settings.base.json"
+expected = "usr/share/mios/theme/fixtures/vscode-settings.expected.json"
+[dotfiles.registry.vscode-colors.apply.target]
+linux   = "~/.config/Code/User/settings.json"
+windows = "%APPDATA%/Code/User/settings.json"
+
 [shell]
 [editor]
 [git]
