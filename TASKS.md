@@ -114,7 +114,7 @@
 | T-106 | P3 | done-by-code | Tool/MCP | CONV-13 -- Unified MCPClientPool |
 | T-107 | P3 | done-by-code | Image/CI | CONV-14 -- rechunk CI Step |
 | T-108 | P3 | partial | CI/Docs | CONV-15 -- Phase 4 Drift-Check Suite + Documentation |
-| T-031 | P1 | reopened | Orchestration | ORCH-04 -- ReAct+Reflexion Durable Loop  (RE-OPEN -- done-by-cod |
+| T-031 | P1 | done     | Orchestration | ORCH-04 -- ReAct+Reflexion Durable Loop                         |
 | T-109 | P1 | done | Observability/Orchestration | CHATQ-01 -- Refine/plan trace to reasoning channel + one-answer- |
 | T-110 | P1 | done | Observability | FV-01 -- Canonical typed-event schema + per-surface routing + su |
 | T-111 | P1 | done | Tool-calling | CHATQ-02 -- Constrained tool-calling + tools-on-final + verb-cat |
@@ -2828,8 +2828,8 @@ T-084 (STRG-01 SSOT)
 > everything-streams mandate: fixes route channels + de-dup, never suppress
 > visibility; final answer is the only thing in `delta.content`.
 
-## T-031: ORCH-04 -- ReAct+Reflexion Durable Loop  (RE-OPEN -- done-by-code was NOT live)
-> **Priority:** P1 | **Status:** reopened | **Effort:** M | **Domain:** Orchestration | **Source:** CQ4 -- the `done-by-code` claim is falsified: `[agent].reflexion_enable` reads a phantom TOML section (only `[agents]` plural exists) so it is always-true; `max_iter`/`max_retry`/`no_progress` are absent from `mios.toml`; the structured reflector is wired only into the DAG path; the exact-match repeat guard is evaded by one-token arg variation; no wall-clock/no-progress/failed-call bound. Live result = the non-terminating "Reflexion essay" loop.
+## T-031: ORCH-04 -- ReAct+Reflexion Durable Loop
+> **Priority:** P1 | **Status:** done | **Effort:** M | **Domain:** Orchestration | **Source:** CQ4 -- the `done-by-code` claim is falsified: `[agent].reflexion_enable` reads a phantom TOML section (only `[agents]` plural exists) so it is always-true; `max_iter`/`max_retry`/`no_progress` are absent from `mios.toml`; the structured reflector is wired only into the DAG path; the exact-match repeat guard is evaded by one-token arg variation; no wall-clock/no-progress/failed-call bound. Live result = the non-terminating "Reflexion essay" loop.
 
 **Instructions:** Execute Wave 4 of `MIOS-CHATQ-FV-WORKPLAN.md`: move `reflexion_enable` + loop budgets into a real `[agent_pipe]` SSOT block; replace the `server.py:835/3314` literals with SSOT reads; add a normalized no-progress signature + per-turn failed-`(tool,args)` blacklist + `max_consecutive_failures` escalation off the failure signal (not the give-up branch); enforce `wall_clock_budget_s`; wire the structured `reflect_on_step_failure` into the native/`@` path (emit-or-terminate, kept internal). Drift-gate every budget key has a code consumer.
 
