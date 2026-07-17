@@ -18,6 +18,7 @@
     "GET /portal/app/webresearch -> _page",
     "GET /portal/app/webresearch/render -> _render",
     "GET /portal/app/webresearch/stream -> _stream",
+    "GET /portal/config -> get_portal_config",
     "GET /portal/configurator -> portal_configurator_iframe",
     "GET /portal/icon-192.png -> portal_icon_192",
     "GET /portal/icon-512.png -> portal_icon_512",
@@ -72,6 +73,7 @@
     "POST /a2a/peers/reload -> a2a_peers_reload",
     "POST /dci/deliberate -> dci_deliberate",
     "POST /passport/verify -> passport_verify",
+    "POST /portal/config -> post_portal_config",
     "POST /portal/login -> portal_login",
     "POST /skills/run -> skills_run",
     "POST /v1/a2a/dispatch -> a2a_dispatch",
@@ -1394,7 +1396,7 @@
     "websockets"
   ],
   "counts": {
-    "routes": 86,
+    "routes": 88,
     "provided": 1304
   }
 }
