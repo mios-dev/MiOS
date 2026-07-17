@@ -493,6 +493,51 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 ## AGY-68  (WS-DEBT / TD-3, **P2**) — the resolver-twin GENERATOR (bind mios_toml.py <-> userenv.sh)
 **Who:** you (Python + bash). AGY-45 added the equivalence GATE; now add the GENERATOR that emits `usr/lib/mios/userenv.sh` (the bash resolver) FROM `mios_toml.py` (or a shared spec), so the twin can't drift by construction (TD-3's root fix). Keep the AGY-45 gate green; keep `tools/lib/userenv.sh` in sync (drift-27). **Done When:** the generator regenerates userenv.sh deterministically == the committed one; twins stay byte-identical; drift-45 + drift-27 green.
 
+## AGY-69  (WS-BAKEGATE/build, **P1**) — verify + GREEN the `just all` BIB matrix
+**Who:** you. In MiOS-DEV run `just all` (OCI + raw/iso/qcow2/vhdx/wsl2); record output paths+sizes under `/var/lib/mios/build/output`; fix any failing BIB leg. **Done:** all 6 artifacts produced; the header-sniff/verify target green. NOT Claude's lane (Claude owns the MiOS-Cat launcher + kickstart in mios-bootstrap).
+
+## AGY-70  (deploy, **P1**) — iso.toml REPLACEME → SSOT-projected creds
+**Who:** you. `config/artifacts/iso.toml` ships `$6$REPLACEME`/`AAAA_REPLACE` placeholders. Mirror the qcow2/vhdx env-substitution (`MIOS_USER_PASSWORD_HASH`/`MIOS_SSH_PUBKEY`) into the `iso` Justfile target, sourced from mios.toml `[identity]`. **Done:** no REPLACEME in the built ISO kickstart; creds from SSOT/env.
+
+## AGY-71  (deploy, **P1**) — bootc-install OFFLINE mode (immutable alternative)
+**Who:** you. Add a deploy mode that stages the MiOS OCI image as an `oci-archive` + a `bootc install to-disk` path, so a target can be installed as the IMMUTABLE MiOS (the alternative to the mutable-Fedora-overlay leg Claude is wiring in MiOS-Cat). NEW `usr/libexec/mios/mios-bootc-install` or a Justfile target. **Done:** a staged oci-archive installs a bootable immutable MiOS offline; documented.
+
+## AGY-72  (deploy/xbox, **P2**) — fix MiOS-Xbox in-guest provisioning
+**Who:** you. Last run finished status=incomplete (bootstrap exit=1; probed retired `:8080` vs canonical `:8642`; WSL2/VMP + MiOS-Host not staged). Fix the in-guest provisioning + prove a green end-to-end in the Hyper-V test VM. **Done:** Deploy-MiOSXbox VM boots + provisions MiOS green; zero `:8080` refs.
+
+## AGY-73  (WS-MIOSSYS, **P1**) — MiOS-Sys shared-base consolidation
+**Who:** you. Collapse the sidecar fleet onto a shared MiOS-Sys base to shrink the bake (unblocks GitHub PUBLISH). **Done:** shared base built; sidecars derive from it; bake size drops; drift-gate green.
+
+## AGY-74  (WS-BLADE, **P1**) — `[blade]` archetypes + Condition* activation
+**Who:** you. Per ROADMAP WS-BLADE: `[blade]`/`[blade.archetypes]`/`[blade.requires]` SSOT + generated `blade-<cap>.conf` drop-ins + karg selection; demote role-apply to a marker-writer. **Done:** one universal image; a `controller` blade condition-skips the vLLM unit at zero VRAM; drift-gated.
+
+## AGY-75  (WS-SBOM, **P1**) — digest-free SSOT + build-time SBOM
+**Who:** you. Digests/hashes/versions resolved+recorded at BUILD to the SBOM, never hand-pinned in mios.toml; `[image.sidecars]` carry `:latest` intent. **Done:** no `@sha256` in SSOT; SBOM records resolved digests; ADR-0003 satisfied.
+
+## AGY-76  (WS-TEMPLATE, **P2**) — compile-templates + conformance ratchet
+**Who:** you. `tools/compile-templates.py` + `[templates]` SSOT + a conformance check that ratchets (new files must use a template). **Done:** template system builds; ratchet gate green; N existing files migrated.
+
+## AGY-77  (drift, **P1**) — FULL drift-gate green at HEAD
+**Who:** you. Run all 40+ checks at current HEAD; fix any red (esp. version-SSOT across `Containerfile*`, quadlet digest drift, drift-6/11). **Done:** `just drift-gate` fully green; a negative test guards each newly-fixed check.
+
+## AGY-78  (TD-2, **P2**) — reconcile the 3× mios.toml
+**Who:** you. Three mios.toml copies at conflicting versions (0.3.0/0.2.4). Collapse to ONE SSOT + a single version; the others become generated/symlinked. **Done:** one authoritative mios.toml; version consistent everywhere; drift-gated.
+
+## AGY-79  (docs, **P2**) — the confirmed DEPLOY MODEL doc
+**Who:** you. Write `usr/share/doc/mios/concepts/deploy-model.md`: (1) mutable Fedora "MiOS server" + MiOS FHS overlay via build-mios.sh (primary bare-metal leg), (2) the immutable bootc-install mode, (3) VM (vhdx/qcow2) + Windows/Xbox modes — MiOS-Cat as the universal vector. **Done:** doc committed + cross-reffed from ROADMAP + architecture.md.
+
+## AGY-80  (WS-DEPRED, **P2**) — AI-plane dependency reduction
+**Who:** you. Hermes→agent-pipe collapse + sidecar consolidations to cut the AI-plane dependency surface. **Done:** identified sidecars retired/merged; endpoints still green; drift-gate green.
+
+## AGY-81  (WS-RELTOP, **P1**) — release topology verification
+**Who:** you. Verify GitHub≡Forgejo equal publishers; the PUBLISH capacity gate in mios-ci.yml; local-first build + registry fallback. **Done:** a dry-run publish path validated for both; PUBLISH gate documented + gated on bake size.
+
+## AGY-82  (WS-MDRIVE, **P2**) — "run off M:" Hyper-V vhdx deploy
+**Who:** you. The missing mechanism: `deploy-mios-hyperv-m.ps1` + a `vhdx-m` recipe (BIB vhdx → Hyper-V Gen2 VM on M: + Ceph OSD). **Done:** a MiOS vhdx boots as a Hyper-V VM off M:; documented.
+
+## AGY-83  (accounts, **P1**) — finish V4 Accounts/users + tests
+**Who:** you. You've landed T-242/246/150/151 (PostgresOS account-sync, identity ingest, DB config resolver). Close the remaining V4 Accounts/users tasks + add sibling tests for the new sync modules (drift-11). **Done:** V4 Accounts/users complete; new modules have tests; suite green.
+
 ### Reporting back
 Commit each task as `agy: <task-id> <summary>` and push to `main`. Claude is monitoring
 `main` for your commits + will integrate/verify. If blocked, leave a `TODO(agy):` note in
