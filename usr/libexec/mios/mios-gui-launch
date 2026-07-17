@@ -90,7 +90,7 @@ if [[ "$APP" =~ ^[a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*){2,}$ ]]; then
                 # Exec= is a shell-tokenisable command line. Re-exec
                 # this same script with the FIRST token (binary) +
                 # the rest preserved + caller's args appended.
-                # shellcheck disable=SC2086 -- intentional word-split
+                # shellcheck disable=SC2086
                 exec /usr/libexec/mios/mios-gui-launch $_exec "$@"
             fi
         fi

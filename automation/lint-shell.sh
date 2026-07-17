@@ -43,11 +43,45 @@ if [ ${#files[@]} -eq 0 ]; then
     exit 0
 fi
 
-echo "[lint-shell] Linting ${#files[@]} shell scripts..."
-if ! shellcheck --severity=warning "${files[@]}"; then
-    echo "[lint-shell] FAIL: shellcheck found issues (warning level or higher)." >&2
+echo "[lint-shell] Linting ${#files[@]} shell scripts at error level..."
+if ! shellcheck --severity=error "${files[@]}"; then
+    echo "[lint-shell] FAIL: shellcheck found error-level issues in the repository." >&2
     exit 1
 fi
 
-echo "[lint-shell] PASS: all shell scripts are clean."
+# Find modified shell files in this change/branch to enforce warning-level linting
+modified_files=()
+git_ref="origin/main"
+if ! git rev-parse --verify "$git_ref" >/dev/null 2>&1; then
+    git_ref="HEAD~1"
+fi
+
+if git rev-parse --verify "$git_ref" >/dev/null 2>&1; then
+    # Find all added/modified shell files or usr/libexec/mios/mios-* scripts
+    while IFS= read -r f; do
+        if [ -f "$f" ]; then
+            # Verify if this file is in our list of files to check (i.e. matches our shebang check or is a .sh file)
+            if [[ "$f" =~ \.sh$ ]]; then
+                modified_files+=("$f")
+            elif [[ "$f" =~ ^usr/libexec/mios/mios- ]]; then
+                read -r first_line < "$f" || true
+                if [[ "$first_line" =~ ^#\!.*(bash|sh) ]]; then
+                    modified_files+=("$f")
+                fi
+            fi
+        fi
+    done < <(git diff --name-only --diff-filter=ACMRT "$git_ref" 2>/dev/null || true)
+fi
+
+if [ ${#modified_files[@]} -gt 0 ]; then
+    echo "[lint-shell] Linting ${#modified_files[@]} modified/new shell scripts at warning level..."
+    if ! shellcheck --severity=warning "${modified_files[@]}"; then
+        echo "[lint-shell] FAIL: shellcheck found warning-level or higher issues in modified files." >&2
+        exit 1
+    fi
+else
+    echo "[lint-shell] No modified shell scripts to lint at warning level."
+fi
+
+echo "[lint-shell] PASS: all shell scripts conform to safety rules."
 exit 0

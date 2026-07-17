@@ -381,11 +381,12 @@ case "$sub" in
     left|right|top|bottom|top-left|top-right|bottom-left|bottom-right|maximize-pos)
         pat="${1:-}"; [[ -z "$pat" ]] && { echo "mios-window $sub: missing <title-pattern>" >&2; exit 64; }
         hwnd="$(_resolve_hwnd "$pat")" || exit 1
+        export LAYOUT_JSON="$_layout"
         # TD-1: eval-safe, input=internal integers and layout bounds, not agent-controlled
-        eval "$(echo "$_layout" | python3 - "$sub" "$hwnd" <<'PYEOF'
-import sys, json
+        eval "$(python3 - "$sub" "$hwnd" <<'PYEOF'
+import sys, json, os
 try:
-    layout = json.loads(sys.stdin.read())
+    layout = json.loads(os.environ.get('LAYOUT_JSON', '{}'))
     work = layout['screens'][0]['work']
     wx, wy, ww, wh = work['x'], work['y'], work['width'], work['height']
 except Exception:
@@ -409,6 +410,7 @@ print(f"mios-pc-control window-move {hwnd} {x} {y} >/dev/null;")
 print(f"mios-pc-control window-resize {hwnd} {w} {h} >/dev/null;")
 PYEOF
 )"
+        unset LAYOUT_JSON
         ;;
     left-half|right-half|top-half|bottom-half)
         # Half-screen snap regions. The rectangle is derived LIVE from the

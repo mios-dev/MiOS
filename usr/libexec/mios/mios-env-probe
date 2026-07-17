@@ -114,7 +114,7 @@ SVC_CROND=$(_svc_active crond.service)
 SVC_ATD=$(_svc_active atd.service)
 
 # Models loaded on the /v1 lane
-LLM_MODELS="$((curl -sS --max-time 2 http://127.0.0.1:${MIOS_PORT_LLM_LIGHT:-8450}/v1/models 2>/dev/null || true) \
+LLM_MODELS="$( (curl -sS --max-time 2 http://127.0.0.1:${MIOS_PORT_LLM_LIGHT:-8450}/v1/models 2>/dev/null || true) \
     | python3 -c 'import sys, json
 try:
   d = json.load(sys.stdin)
