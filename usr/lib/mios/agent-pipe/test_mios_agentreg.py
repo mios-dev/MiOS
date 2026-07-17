@@ -137,40 +137,26 @@ def t_load_node_pool():
 def t_health_gate_via_registry():
     # Drive _load_agent_registry through a real layered TOML so the _defaults
     # inheritance + health_gate safe-default + auth indexing are exercised.
-    import os
-    import tempfile
-    toml = (
-        "[agents._defaults]\n"
-        "role = \"general\"\n"
-        "strengths = [\"x\"]\n"
-        "\n"
-        "[agents.localworker]\n"
-        "endpoint = \"http://localhost:8643/v1\"\n"
-        "model = \"lm\"\n"
-        "\n"
-        "[agents.remoteworker]\n"
-        "endpoint = \"http://10.1.2.3:9000/v1\"\n"
-        "kind = \"remote-http\"\n"
-        "[agents.remoteworker.auth]\n"
-        "header_template = \"Authorization: Bearer tok123\"\n"
-    )
-    fd, path = tempfile.mkstemp(suffix=".toml")
-    os.close(fd)
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(toml)
-    _saved = os.environ.get("MIOS_TOML")
-    os.environ["MIOS_TOML"] = path
-    # Avoid /etc + ~/.config overlay interference by mocking open to raise FileNotFoundError for those paths
-    _set_open_mock(exclude_suffixes=["etc/mios/mios.toml", ".config/mios/mios.toml"])
+    # AGY refactor (d3f2622d): _load_agent_registry now reads [agents.*] via the
+    # _toml_section resolver, NOT a raw MIOS_TOML file. Feed the synthetic agents the
+    # same way the other tests do -- monkeypatch reg._toml_section -- so the _defaults
+    # inheritance + health_gate safe-default + per-agent auth indexing are exercised
+    # offline (the old MIOS_TOML temp-file path is silently ignored by the resolver).
+    agents = {
+        "_defaults": {"role": "general", "strengths": ["x"]},
+        "localworker": {"endpoint": "http://localhost:8643/v1", "model": "lm"},
+        "remoteworker": {
+            "endpoint": "http://10.1.2.3:9000/v1",
+            "kind": "remote-http",
+            "auth": {"header_template": "Authorization: Bearer tok123"},
+        },
+    }
+    _saved = reg._toml_section
+    reg._toml_section = lambda section: agents if section == "agents" else {}
     try:
         r = reg._load_agent_registry()
     finally:
-        _reset_open_mock()
-        os.remove(path)
-        if _saved is None:
-            os.environ.pop("MIOS_TOML", None)
-        else:
-            os.environ["MIOS_TOML"] = _saved
+        reg._toml_section = _saved
     check("registry: parsed both agents", "localworker" in r and "remoteworker" in r,
           str([k for k in r if k in ("localworker", "remoteworker")]))
     check("registry: _defaults inherited (role)", r["localworker"]["role"] == "general")
