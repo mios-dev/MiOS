@@ -60,7 +60,7 @@ COPY tools/                /ctx/tools/
 
 FROM ${BASE_IMAGE}
 
-ARG MIOS_VERSION=0.2.4
+ARG MIOS_VERSION=0.3.0
 ARG MIOS_VARIANT=minimal
 
 LABEL org.opencontainers.image.title="MiOS-Lite"

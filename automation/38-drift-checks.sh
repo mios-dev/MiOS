@@ -3248,6 +3248,14 @@ check_version_ssot() {
     fi
     [[ "$vfile" != "$ssot" ]] && bad+="    VERSION file = [$vfile], expected [$ssot]"$'\n'
     [[ -n "$carg" && "$carg" != "$ssot" ]] && bad+="    Containerfile ARG MIOS_VERSION default = [$carg], expected [$ssot]"$'\n'
+    # audit-2026-07-17: also gate the OTHER Containerfiles -- Containerfile.minimal was
+    # drifting at 0.2.4 uncaught because only the main Containerfile was checked above.
+    local _cf _cv
+    for _cf in "$ROOT"/Containerfile.minimal "$ROOT"/Containerfile.hummingbird; do
+        [[ -f "$_cf" ]] || continue
+        _cv="$(grep -m1 -E '^ARG[[:space:]]+MIOS_VERSION=' "$_cf" 2>/dev/null | sed -E 's/^ARG[[:space:]]+MIOS_VERSION=//; s/[[:space:]].*//' || true)"
+        [[ -n "$_cv" && "$_cv" != "$ssot" ]] && bad+="    $(basename "$_cf") ARG MIOS_VERSION default = [$_cv], expected [$ssot]"$'\n'
+    done
 
     local osr="$ROOT/usr/lib/os-release" _f _v
     if [[ -f "$osr" ]]; then
