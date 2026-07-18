@@ -155,8 +155,11 @@ jobs:
         if: ${{ secrets.GHCR_TOKEN != '' }}
         run: |
           set -euo pipefail
-          podman login -u "${GHCR_USER}" -p "${GHCR_TOKEN}" ghcr.io
-          podman tag  localhost/mios:latest "ghcr.io/mios-dev/mios:latest"
-          podman tag  localhost/mios:latest "ghcr.io/mios-dev/mios:${{ steps.tag.outputs.image_tag }}"
-          podman push "ghcr.io/mios-dev/mios:latest"
-          podman push "ghcr.io/mios-dev/mios:${{ steps.tag.outputs.image_tag }}"
+          export GHCR_TOKEN="${{ secrets.GHCR_TOKEN }}"
+          source ./tools/lib/userenv.sh
+          REG_HOST="${MIOS_IMAGE_NAME%%/*}"
+          podman login -u "${GHCR_USER}" -p "${GHCR_TOKEN}" "${REG_HOST}"
+          podman tag  localhost/mios:latest "${MIOS_IMAGE_NAME}:latest"
+          podman tag  localhost/mios:latest "${MIOS_IMAGE_NAME}:${{ steps.tag.outputs.image_tag }}"
+          podman push "${MIOS_IMAGE_NAME}:latest"
+          podman push "${MIOS_IMAGE_NAME}:${{ steps.tag.outputs.image_tag }}"

@@ -305,7 +305,8 @@ jobs:
         id: meta
         if: env.PUBLISH == 'true'
         run: |
-          BASE="${REGISTRY}/${IMAGE_NAME}"
+          source ./tools/lib/userenv.sh
+          BASE="${MIOS_IMAGE_NAME}"
           TAGS=()
           if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
               TAGS+=("${BASE}:latest")
@@ -326,8 +327,10 @@ jobs:
       - name: Log in to GHCR (push step)
         if: env.PUBLISH == 'true'
         run: |
+          source ./tools/lib/userenv.sh
+          REG_HOST="${MIOS_IMAGE_NAME%%/*}"
           echo "${{ secrets.GITHUB_TOKEN }}" | \
-              sudo podman login -u "${{ github.actor }}" --password-stdin "${REGISTRY}"
+              sudo podman login -u "${{ github.actor }}" --password-stdin "${REG_HOST}"
 
       - name: Push to GHCR
         if: env.PUBLISH == 'true'

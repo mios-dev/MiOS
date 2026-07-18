@@ -231,6 +231,7 @@ EOF
 
 
     # Image
+    [[ -n "${MIOS_IMAGE_NAME:-}" ]]   && emit MIOS_IMAGE_NAME "${MIOS_IMAGE_NAME}"
     [[ -n "${MIOS_IMAGE_REF:-}" ]]    && emit MIOS_IMAGE_REF "${MIOS_IMAGE_REF}"
     [[ -n "${MIOS_BRANCH:-}" ]]       && emit MIOS_BRANCH "${MIOS_BRANCH}"
     [[ -n "${MIOS_BASE_IMAGE:-}" ]]   && emit MIOS_BASE_IMAGE "${MIOS_BASE_IMAGE}"
