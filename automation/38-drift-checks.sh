@@ -2900,7 +2900,7 @@ check_version_ssot() {
         [[ -n "$_v" && "$_v" != "$ssot" ]] && bad+="    os-release CPE_NAME version = [$_v], expected [$ssot]"$'\n'
     fi
 
-    local literal_bad
+    local literal_bad exit_code=0
     literal_bad="$(MIOS_DRIFT_ROOT="$ROOT" MIOS_CANONICAL_VER="$ssot" python3 - <<'PY' 2>&1
 import os, sys, re, subprocess
 root = os.environ["MIOS_DRIFT_ROOT"]
@@ -2959,8 +2959,7 @@ if viol:
     sys.exit(1)
 sys.exit(0)
 PY
-)"
-    local exit_code=$?
+)" || exit_code=$?
     if [[ $exit_code -ne 0 ]]; then
         bad+="$literal_bad"$'\n'
     else
