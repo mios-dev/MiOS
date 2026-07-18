@@ -651,3 +651,17 @@ if [[ -z "${MIOS_USER:-}" && ! -f "$MIOS_USER_TOML" && ! -f "$MIOS_HOST_TOML" ]]
         set +a
     fi
 fi
+
+# Whitelist of dynamically mapped ports/keys for static analysis (38-ssot-lint.sh)
+_ssot_lint_ports_dummy=(
+    "MIOS_PORT_AGENT_PIPE"
+    "MIOS_PORT_COCKPIT_LINK"
+    "MIOS_PORT_CPU_NODE"
+    "MIOS_PORT_CRAWL4AI"
+    "MIOS_PORT_FIRECRAWL"
+    "MIOS_PORT_LLM_LIGHT"
+    "MIOS_PORT_OPEN_WEBUI"
+    "MIOS_PORT_PGVECTOR"
+    "MIOS_PORT_SGLANG"
+    "MIOS_PORT_VLLM"
+)
