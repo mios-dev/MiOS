@@ -275,7 +275,24 @@ def main():
             print(resp); _exit_on_verdict(resp)
             
         elif sub == "type":
-            resp = _http_request(f"{exec_ep}/input/type", "POST", {"text": " ".join(args)}, 15)
+            hwnd = None
+            text_args = []
+            i = 0
+            while i < len(args):
+                if args[i] in ("--handle", "--hwnd", "--window-handle"):
+                    if i + 1 < len(args):
+                        try:
+                            hwnd = int(args[i+1])
+                        except ValueError:
+                            pass
+                        i += 2
+                        continue
+                text_args.append(args[i])
+                i += 1
+            payload = {"text": " ".join(text_args)}
+            if hwnd is not None:
+                payload["hwnd"] = hwnd
+            resp = _http_request(f"{exec_ep}/input/type", "POST", payload, 15)
             print(resp); _exit_on_verdict(resp)   # honor the read-back verdict
 
         elif sub == "key":

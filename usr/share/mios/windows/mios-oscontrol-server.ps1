@@ -1,6 +1,6 @@
 # AI-hint: Windows-specific HTTP listener for the MiOS OS-control system that executes Win32 commands, manages window states (move/resize/focus), and provides window/screen metadata for remote agent interaction.
 # AI-related: mios-oscontrol-server, mios-daemon-agent, mios-igpu-server, mios-autocenter, mios-pc-control, mios-launch
-# AI-functions: Info, Ok, Warn, Get-VisibleWindows, Test-WindowPresent, Resolve-TargetWindows, Invoke-WindowOp, Invoke-MouseMove, Invoke-Click, Invoke-DoubleClick, Invoke-TypeText, Invoke-Key
+# AI-functions: Info, Ok, Warn, Get-VisibleWindows, Test-WindowPresent, Resolve-TargetWindows, Invoke-WindowOp, Invoke-MouseMove, Invoke-Click, Invoke-DoubleClick, Resolve-EditElement, Invoke-TypeText, Invoke-Key
 <#
   mios-oscontrol-server.ps1  --  MiOS OS-control executor (Windows node)
 
@@ -728,39 +728,145 @@ function Get-FocusedValueElement {
     return $null
 }
 
-function Invoke-TypeText($text) {
+function Resolve-EditElement($hwnd) {
+    if (-not $script:UIA_OK) { return $null }
+    try {
+        $win = [System.Windows.Automation.AutomationElement]::FromHandle([IntPtr]$hwnd)
+        if ($null -eq $win) { return $null }
+        $all = $win.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)
+        foreach ($el in $all) {
+            $cur = $el.Current
+            if ($cur.IsEnabled -and -not $cur.IsOffscreen) {
+                if ($cur.ControlType -eq [System.Windows.Automation.ControlType]::Edit -or $cur.ControlType -eq [System.Windows.Automation.ControlType]::Document) {
+                    $vp = $null
+                    if ($el.TryGetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern, [ref]$vp)) {
+                        if (-not $vp.Current.IsReadOnly) {
+                            return @{ el = $el; vp = $vp; type = 'value' }
+                        }
+                    }
+                    $tp = $null
+                    if ($el.TryGetCurrentPattern([System.Windows.Automation.TextPattern]::Pattern, [ref]$tp)) {
+                        return @{ el = $el; tp = $tp; type = 'text' }
+                    }
+                }
+            }
+        }
+        foreach ($el in $all) {
+            $cur = $el.Current
+            if ($cur.IsEnabled -and -not $cur.IsOffscreen) {
+                $vp = $null
+                if ($el.TryGetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern, [ref]$vp)) {
+                    if (-not $vp.Current.IsReadOnly) {
+                        return @{ el = $el; vp = $vp; type = 'value' }
+                    }
+                }
+                $tp = $null
+                if ($el.TryGetCurrentPattern([System.Windows.Automation.TextPattern]::Pattern, [ref]$tp)) {
+                    return @{ el = $el; tp = $tp; type = 'text' }
+                }
+            }
+        }
+    } catch { }
+    return $null
+}
+
+function Invoke-TypeText($text, $hwnd = $null) {
     $t = "$text"
-    # UIA-FIRST TYPING ("MIOS AI ONLY USES UIA"): set the text
-    # DIRECTLY through the focused control's ValuePattern -- NO keystroke injection.
-    # Keystroke typing (SendKeys) was the root of the operator's failures: the focus
-    # path tapped Alt which ACTIVATED the app MENUBAR so the first keystroke hit the
-    # menu not the document; SendKeys also dropped/raced chars and threw "Access is
-    # denied" under UIPI / a disconnected session. UIA SetValue has none of those
-    # problems. Keystroke is a FALLBACK only when the control exposes no writable UIA
-    # pattern (e.g. Win11 Notepad's Pane) -- and it is now menubar-safe (the focus op
-    # no longer taps Alt). Read-back (UIA value / foreground title) still verifies.
     $titleBefore = Get-FgTitleRaw
     $valBefore = Get-FocusedTextRaw
     $method = 'none'
+
+    if ($null -ne $hwnd -and $hwnd -ne 0) {
+        $target = Resolve-EditElement $hwnd
+        if ($null -eq $target) {
+            return @{ ok = $false; verified = $false; op = 'type'; method = 'none';
+                      reason = 'no_edit_control_in_target';
+                      detail = "No editable UIA control found in target window (hwnd=$hwnd)";
+                      chars = $t.Length }
+        }
+
+        try {
+            $h = [IntPtr]$hwnd
+            [void][OSCW32]::ShowWindow($h, 9)                 # SW_RESTORE
+            [void][OSCW32]::AllowSetForegroundWindow(-1)      # ASFW_ANY
+            [void][OSCW32]::SetForegroundWindow($h)
+            Start-Sleep -Milliseconds 120
+            $target.el.SetFocus()
+            Start-Sleep -Milliseconds 120
+        } catch {}
+
+        if ($target.type -eq 'value') {
+            try {
+                $target.vp.SetValue($t)
+                $method = 'uia_setvalue'
+                Start-Sleep -Milliseconds 120
+            } catch {
+                $method = 'none'
+            }
+        }
+
+        if ($method -eq 'none') {
+            Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
+            $escaped = ($t -replace '([+\^%~(){}\[\]])', '{$1}')
+            Start-Sleep -Milliseconds 250
+            try {
+                [System.Windows.Forms.SendKeys]::SendWait($escaped)
+                $method = 'keystroke'
+            } catch {
+                $msg = "$($_.Exception.Message)"
+                $detail = if ($msg -match 'Access is denied') {
+                    'input injection blocked -- the interactive desktop session is likely DISCONNECTED/locked, or an ELEVATED window holds the foreground (UIPI). Reconnect the session (or run the executor elevated) to enable typing.'
+                } else { $msg }
+                return @{ ok = $false; verified = $false; op = 'type'; method = 'keystroke';
+                          reason = 'input_injection_blocked'; detail = $detail;
+                          error = $msg; chars = $t.Length }
+            }
+            Start-Sleep -Milliseconds 400
+        }
+
+        $valAfter = $null
+        try {
+            if ($target.type -eq 'value') {
+                $valAfter = $target.vp.Current.Value
+            } else {
+                $valAfter = $target.tp.DocumentRange.GetText(4096)
+            }
+        } catch {}
+
+        $titleAfter = Get-FgTitleRaw
+        $verified = $false
+        $reason = 'text_not_delivered'
+        if (($null -ne $valAfter) -and $valAfter.Contains($t)) {
+            $verified = $true; $reason = 'uia_value_contains_text'
+        } elseif (($titleAfter -ne $titleBefore) -and $titleAfter.Contains($t)) {
+            $verified = $true; $reason = 'title_contains_text'
+        } else {
+            $reason = 'text_mismatch_partial_or_dropped'
+        }
+
+        $vc = ''
+        if ($null -ne $valAfter) { $vc = $valAfter.Substring(0, [Math]::Min(160, $valAfter.Length)) }
+        return @{ ok = $verified; verified = $verified; op = 'type'; method = $method;
+                  reason = $reason; chars = $t.Length; title_before = $titleBefore;
+                  title_after = $titleAfter; focused_text_after = $vc }
+    }
+
     $ve = Get-FocusedValueElement
     if ($null -ne $ve) {
         try {
-            $ve.vp.SetValue($t)         # direct UIA text set -- no keystrokes
+            $ve.vp.SetValue($t)
             $method = 'uia_setvalue'
             Start-Sleep -Milliseconds 120
         } catch { $method = 'none' }
     }
     if ($method -ne 'uia_setvalue') {
-        # KEYSTROKE FALLBACK (no writable UIA ValuePattern on the focused control).
         Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
         $escaped = ($t -replace '([+\^%~(){}\[\]])', '{$1}')
-        Start-Sleep -Milliseconds 250   # pre-type settle (avoid dropped leading chars)
+        Start-Sleep -Milliseconds 250
         try {
             [System.Windows.Forms.SendKeys]::SendWait($escaped)
             $method = 'keystroke'
         } catch {
-            # "Access is denied" => input injection blocked (disconnected/locked
-            # session, or an elevated foreground window under UIPI). Classify it.
             $msg = "$($_.Exception.Message)"
             $detail = if ($msg -match 'Access is denied') {
                 'input injection blocked -- the interactive desktop session is likely DISCONNECTED/locked, or an ELEVATED window holds the foreground (UIPI). Reconnect the session (or run the executor elevated) to enable typing.'
@@ -771,9 +877,7 @@ function Invoke-TypeText($text) {
         }
         Start-Sleep -Milliseconds 400
     }
-    # READ-BACK: STRICT -- success ONLY if the EXACT sent text appears in the focused
-    # control value OR the (changed) foreground title (a partial/dropped result must
-    # NOT pass). Never claim a type that did not land (operator "LIAR").
+
     $titleAfter = Get-FgTitleRaw
     $valAfter = Get-FocusedTextRaw
     $verified = $false
@@ -787,11 +891,13 @@ function Invoke-TypeText($text) {
     } else {
         $reason = 'text_mismatch_partial_or_dropped'
     }
+
     $vc = ''
     if ($null -ne $valAfter) { $vc = $valAfter.Substring(0, [Math]::Min(160, $valAfter.Length)) }
-    return @{ ok = $verified; verified = $verified; op = 'type'; method = $method; reason = $reason;
-             chars = $t.Length; title_before = $titleBefore; title_after = $titleAfter;
-             focused_text_after = $vc }
+    return @{ ok = $verified; verified = $verified; op = 'type'; method = $method;
+              reason = $reason; chars = $t.Length; title_before = $titleBefore;
+              title_after = $titleAfter; focused_text_after = $vc }
+}
 }
 
 function Invoke-Key($name) {
@@ -1152,7 +1258,7 @@ while ($listener.IsListening) {
         elseif ($method -eq 'POST' -and $path -like '/input/*') {
             $op = $path.Substring('/input/'.Length)
             $b  = Read-JsonBody $ctx
-            $x = 0; $y = 0; $text = ''; $name = ''; $combo = ''; $button = 'left'
+            $x = 0; $y = 0; $text = ''; $name = ''; $combo = ''; $button = 'left'; $hwnd = $null
             if ($b) {
                 if ($b.PSObject.Properties.Name -contains 'x')      { $x = [int]$b.x }
                 if ($b.PSObject.Properties.Name -contains 'y')      { $y = [int]$b.y }
@@ -1160,13 +1266,14 @@ while ($listener.IsListening) {
                 if ($b.PSObject.Properties.Name -contains 'name')   { $name = "$($b.name)" }
                 if ($b.PSObject.Properties.Name -contains 'combo')  { $combo = "$($b.combo)" }
                 if ($b.PSObject.Properties.Name -contains 'button') { $button = "$($b.button)" }
+                if ($b.PSObject.Properties.Name -contains 'hwnd')   { $hwnd = [int]$b.hwnd }
             }
             $r = $null
             switch ($op) {
                 'mouse-move'   { $r = Invoke-MouseMove $x $y }
                 'click'        { $r = Invoke-Click $x $y $button }
                 'double-click' { $r = Invoke-DoubleClick $x $y }
-                'type'         { $r = Invoke-TypeText $text }
+                'type'         { $r = Invoke-TypeText $text $hwnd }
                 'key'          { $r = Invoke-Key $name }
                 'key-combo'    { $r = Invoke-KeyCombo $combo }
                 default        { $r = @{ ok = $false; error = "unknown input op '$op'" } }

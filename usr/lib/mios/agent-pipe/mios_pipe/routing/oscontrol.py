@@ -648,13 +648,20 @@ async def _respond_os_control(
         _lw = _LAST_OPENED_WINDOW.get(_ckey) if _ckey else None
         if _lw:
             try:
-                await dispatch_mios_verb("focus_window", {"title": _lw},
-                                         session_id=session_id)
-                await asyncio.sleep(0.35)
-                log.info("standalone pc_type: context-focused this "
-                         "conversation's last-opened window %r before typing", _lw)
-            except Exception:  # noqa: BLE001 -- best-effort
-                pass
+                eps = {e.get("label"): e.get("url") for e in _load_oscontrol_endpoints() if e.get("url")}
+                _osc_url = next(iter(eps.values())) if eps else None
+                if _osc_url:
+                    _client = await _get_client()
+                    _resp = await _client.post(_osc_url + "/window/focus", json={"title": _lw}, timeout=5)
+                    if _resp.status_code == 200:
+                        _data = _resp.json()
+                        if _data.get("ok") and _data.get("matched"):
+                            _hw = _data["matched"][0].get("hwnd")
+                            if _hw:
+                                _args["hwnd"] = _hw
+                                log.info("standalone pc_type: context-focused and resolved hwnd %s for last-opened window %r before typing", _hw, _lw)
+            except Exception as _ex:  # noqa: BLE001
+                log.warning("failed to resolve target hwnd for standalone pc_type: %s", _ex)
     # FIRE -> VERIFY -> RE-ATTEMPT ("iGPU does MiOS OS
     # control ... the rest of the pipeline VERIFIES TRUE and attempts to
     # re-attempt"). For a WRITE OS-control verb: snapshot ALL open windows

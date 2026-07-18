@@ -4000,10 +4000,13 @@ examples   = ["type 'hello' into the focused windows app", "enter this text on t
 tier = "rare"
 permission = "write"
 conflict_group = "desktop_ui"  # WS-A7: keystrokes land in the focused window -- serialize vs open_app/focus_window
-cmd        = "mios-pc-control type {text}"
+cmd        = "mios-pc-control type {text}{hwnd?--handle}"
   [verbs.pc_type.params.text]
   type = "string"
   aliases = ["content", "input"]
+  [verbs.pc_type.params.hwnd]
+  type = "integer"
+  aliases = ["handle", "window_handle"]
 
 [verbs.pc_key]
 hidden = true
