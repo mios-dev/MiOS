@@ -344,7 +344,7 @@ auto-fired without an explicit dispatch.
 
 | File | Tasks |
 |---|---|
-| `usr/share/mios/agents/mios-a2o` | F-001 (done), F-002 (done), F-003 (done), F-005 (done), F-006 (done), F-011 (done, MVP), F-012 (done), F-017 (done), F-023 (done), F-024 (in-progress) |
+| `usr/share/mios/agents/mios-a2o` | F-001 (done), F-002 (done), F-003 (done), F-005 (done), F-006 (done), F-011 (done, MVP), F-012 (done), F-017 (done), F-023 (done), F-024 (done) |
 | `usr/share/mios/agents/mios-frontier` | F-002 (shim; no change expected) |
 | `usr/share/mios/mios.toml` (`[frontier]`, `[ports]`) | F-004 (done), F-008 (done), F-010 (done), F-016 (done) |
 | `usr/lib/systemd/system/mios-agents.service` | F-004 (done, role forwarding), F-009 (done) |

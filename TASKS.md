@@ -110,10 +110,10 @@
 | T-102 | P2 | done-by-code | Memory/Storage | CONV-09 -- Cold Eviction Module + zstd Export |
 | T-103 | P2 | done-by-code | Orchestration/Memory | CONV-10 -- sqlite-vec Scratchpad Wired into GatewayWorker |
 | T-104 | P2 | done-by-code | Storage/CI | CONV-11 -- Cold-Archive Retention Sweep + Drift-Check |
-| T-105 | P3 | partial | Image/Security | CONV-12 -- Hummingbird Distroless Containerfile |
+| T-105 | P3 | done    | Image/Security | CONV-12 -- Hummingbird Distroless Containerfile |
 | T-106 | P3 | done-by-code | Tool/MCP | CONV-13 -- Unified MCPClientPool |
 | T-107 | P3 | done-by-code | Image/CI | CONV-14 -- rechunk CI Step |
-| T-108 | P3 | partial | CI/Docs | CONV-15 -- Phase 4 Drift-Check Suite + Documentation |
+| T-108 | P3 | done    | CI/Docs | CONV-15 -- Phase 4 Drift-Check Suite + Documentation |
 | T-031 | P1 | done     | Orchestration | ORCH-04 -- ReAct+Reflexion Durable Loop                         |
 | T-109 | P1 | done | Observability/Orchestration | CHATQ-01 -- Refine/plan trace to reasoning channel + one-answer- |
 | T-110 | P1 | done | Observability | FV-01 -- Canonical typed-event schema + per-surface routing + su |
@@ -2691,7 +2691,7 @@ T-084 (STRG-01 SSOT)
 ---
 
 ## T-105: CONV-12 -- Hummingbird Distroless Containerfile
-> **Priority:** P3 | **Status:** partial | **Effort:** M | **Domain:** Image/Security | **Source:** Part 10 Â§10.4.3 -- done-by-code: Containerfile.hummingbird + distroless checks (eb654e3).
+> **Priority:** P3 | **Status:** done | **Effort:** M | **Domain:** Image/Security | **Source:** Part 10 Â§10.4.3 -- done-by-code: Containerfile.hummingbird + distroless checks (eb654e3).
 
 **Context:** `Containerfile.hummingbird` is a two-stage build that eliminates `dnf`, `bash`, and OS package cache from the runtime image, reducing the agent-pipe container's attack surface by ~200â€“400 MB. Law 6 invariant: final stage MUST set `USER 65534:65534`. Law 5 invariant: `MIOS_AI_ENDPOINT` is not sourced from `profile.d` (no shell); it arrives via the Quadlet `Environment=` directive.
 
@@ -2788,7 +2788,7 @@ T-084 (STRG-01 SSOT)
 ---
 
 ## T-108: CONV-15 -- Phase 4 Drift-Check Suite + Documentation
-> **Priority:** P3 | **Status:** partial | **Effort:** S | **Domain:** CI/Docs | **Source:** Part 10 Â§10.6 Phase 4 -- done-by-code: check_hummingbird + hummingbird-distroless.md (eb654e3, 3c7cb5f).
+> **Priority:** P3 | **Status:** done | **Effort:** S | **Domain:** CI/Docs | **Source:** Part 10 Â§10.6 Phase 4 -- done-by-code: check_hummingbird + hummingbird-distroless.md (eb654e3, 3c7cb5f).
 
 **Instructions:**
 1. Implement full `check_hummingbird` function in `automation/38-drift-checks.sh` (register in `main()` after `check_converge_ssot`):
