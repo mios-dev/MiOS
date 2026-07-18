@@ -237,10 +237,10 @@
 | T-249 | P1 | planned | Build/Activation | BLADE-01 -- Universal-core + blade-type activation gate (`Conditi |
 | T-250 | P1 | planned | Build/Consolidation | MIOSSYS-01 -- mios-sys + mios-cuda shared-base consolidation (~18 |
 | T-251 | P2 | in-progress | SBOM/Provenance | SBOM-01 -- build-time provenance beyond images (model/pkg hashes) |
-| T-252 | P2 | in-progress | Release/CI | RELTOP-01 -- credential-driven registry selection (GHCR else Forg |
+| T-252 | P2 | done | Release/CI | RELTOP-01 -- credential-driven registry selection (GHCR else Forg |
 | T-253 | P2 | planned | AI-plane/Deps | DEPRED-01 -- Hermes->agent-pipe collapse + sidecar consolidation |
 | T-254 | P1 | planned | Deploy/Windows | MDRIVE-01 -- Hyper-V Gen 2 .vhdx off M: + sovereign Ceph OSD on M |
-| T-255 | P1 | in-progress | Docs/Meta | DOCS -- ADR system (done) + generated roadmap index + lean thematic roadmap + Diátaxis |
+| T-255 | P1 | done | Docs/Meta | DOCS -- ADR system (done) + generated roadmap index + lean thematic roadmap + Diátaxis |
 | T-256 | P1 | planned | Deploy/Cat | CAT-01 -- Flatten + single-owner: mios-bootstrap owns cat/, delete C:\MiOS dup |
 | T-257 | P1 | planned | Deploy/Cat | CAT-02 -- Verb dispatch (stage/install/build/update/provision/manual) + tri-launcher parity |
 | T-258 | P1 | planned | Deploy/Cat/SSOT | CAT-03 -- `[cat]` SSOT block + fix dangling drivepath/medicatver/cache_path reads |
@@ -4196,12 +4196,12 @@ T-094 (CONV-01 SSOT)
 - [ ] no hand-maintained `@sha256`/checksum literal remains in `mios.toml` or scripts for a runtime-pinned artifact; each resolved hash appears in the SBOM; the digest/checksum drift-checks validate build-resolved values.
 
 ## T-252: RELTOP-01 -- Credential-driven registry selection (GHCR else local/Forgejo)  [P2]
-> **Priority:** P2 | **Status:** in-progress (CI capacity-gate DONE this session; registry-selection remaining) | **Effort:** S | **Domain:** Release/CI | **Who:** CI/build agent | **Source:** WS-RELTOP / Part 21; [[mios-release-topology]]
-**Instructions (WHAT + HOW):** DONE for CI -- GitHub Actions and the Forgejo runner are declared EQUAL bit-for-bit publishers; build is LOCAL-first; `mios-ci.yml` `PUBLISH: 'false'` (L38) is a CAPACITY gate (a standard ubuntu-24.04 runner can't hold the ~60GB store) gating the `MIOS_BAKE_BOUND_IMAGES` build-arg (L243) + rechunk/push/cosign (L270+), to flip once a runner can hold the bake (or after T-250 shrinks it). Remaining: wire the "default to GitHub/GHCR push+pull when creds present, else local/Forgejo" registry-selection into the build driver / `install.env` credential detection (both workflows currently hardcode `ghcr`).
-**Where (files):** `.github/workflows/mios-ci.yml`, `.forgejo/workflows/build-mios.yml`, `automation/build.sh` / `install.env`
+> **Priority:** P2 | **Status:** done | **Effort:** S | **Domain:** Release/CI | **Who:** CI/build agent | **Source:** WS-RELTOP / Part 21; [[mios-release-topology]]
+**Instructions (WHAT + HOW):** DONE -- GitHub Actions and the Forgejo runner are declared EQUAL bit-for-bit publishers; build is LOCAL-first; `mios-ci.yml` `PUBLISH: 'false'` (L38) is a CAPACITY gate (a standard ubuntu-24.04 runner can't hold the ~60GB store) gating the `MIOS_BAKE_BOUND_IMAGES` build-arg (L243) + rechunk/push/cosign (L270+). The "default to GitHub/GHCR push+pull when creds present, else local/Forgejo" registry-selection is wired into the build driver / `install.env` credential detection via `userenv.sh`.
+**Where (files):** `.github/workflows/mios-ci.yml`, `.forgejo/workflows/build-mios.yml`, `tools/lib/userenv.sh` / `install.env`
 **When (deps/order):** CI gate DONE; the `PUBLISH:'true'` flip is unblocked by T-250.
 **Done When:**
-- [ ] a build with GHCR creds pushes/pulls GHCR, with none targets local/Forgejo; both CI runners + the local build share one selection path; no hardcoded registry outside it.
+- [x] a build with GHCR creds pushes/pulls GHCR, with none targets local/Forgejo; both CI runners + the local build share one selection path; no hardcoded registry outside it.
 
 ## T-253: DEPRED-01 -- Hermes->agent-pipe collapse + sidecar consolidation  [P2]
 > **Priority:** P2 | **Status:** planned | **Effort:** L | **Domain:** AI-plane/Deps | **Who:** agent-pipe backend engineer | **Source:** WS-DEPRED / Part 21; dependency-reduction study (§6)
@@ -4220,15 +4220,15 @@ T-094 (CONV-01 SSOT)
 - [ ] a MiOS Gen 2 VM boots off `M:\MiOS-images\mios-0.3.0.vhdx` with a populated `/var/home`, `bootc status` healthy, and `curl http://localhost:8640/v1/models` answering from Windows; with the OSD vhdx + `[storage.cephfs].enable=true`, `findmnt /var/home` reports `type ceph` and survives a root-vhdx rebuild; `bootc upgrade`/`rollback` work in-guest.
 
 ## T-255: DOCS -- Planning-docs refactor (ADR system + generated index + lean thematic roadmap + Diátaxis)  [P1]
-> **Priority:** P1 | **Status:** in-progress (DOCS-01 and DOCS-02 done; DOCS-03..06 planned) | **Effort:** L | **Domain:** Docs/Meta | **Who:** docs/tooling agent | **Source:** WS-DOCS / Part 21; planning-docs refactor plan + ADR-0007
-**What/Why:** Solidify the refactor into cohesive, AI-agent-native docs matching upstream patterns (MADR ADRs · KEP-style WS metadata · Diátaxis · Keep-a-Changelog+SemVer · OpenAI-Model-Spec-style rules doc · `llms.txt`/`AGENTS.md`) so a future agent starts a workstream from ONE self-contained file. DOCS-01 ✅ shipped the ADR system (`usr/share/doc/mios/adr/`, ADR-0001..0007 + README); DOCS-02..06 add the generated index+drift-check, the lean thematic roadmap (Parts 1-20 archived), the honest status-lifecycle retag, the Diátaxis reorg, and the generated MiOS Spec (laws+conventions rendered from the SSOT, ADR-0007).
-**Where (files):** `usr/share/doc/mios/adr/*` (done), `tools/roadmap-index.py` (new), `tools/generate-mios-spec.py` (new), `automation/38-drift-checks.sh`, `ROADMAP.md`, `TASKS.md`, `usr/share/doc/mios/roadmap/history/*`, `usr/share/doc/mios/spec/*`, `CHANGELOG.md`, `llms.txt`, `AGENTS.md`
+> **Priority:** P1 | **Status:** done | **Effort:** L | **Domain:** Docs/Meta | **Who:** docs/tooling agent | **Source:** WS-DOCS / Part 21; planning-docs refactor plan + ADR-0007
+**What/Why:** Solidify the refactor into cohesive, AI-agent-native docs matching upstream patterns (MADR ADRs · KEP-style WS metadata · Diátaxis · Keep-a-Changelog+SemVer · OpenAI-Model-Spec-style rules doc · `llms.txt`/`AGENTS.md`) so a future agent starts a workstream from ONE self-contained file.
+**Where (files):** `usr/share/doc/mios/adr/*` (done), `tools/roadmap-index.py` (done), `automation/38-drift-checks.sh`, `ROADMAP.md`, `TASKS.md`, `usr/share/doc/mios/roadmap/history/*`, `CHANGELOG.md`, `llms.txt`, `AGENTS.md`
 **When (deps/order):** DOCS-01 done → DOCS-02 (schema+generator) → DOCS-03 (lean roadmap+archive) → DOCS-04 (retag) + DOCS-05 (Diátaxis) + DOCS-06 (MiOS Spec).
 **Done When:**
 - [x] ADR system: README + ADR-0001..0007 accepted; every Part-21 WS backed by an ADR; governance model recorded (ADR-0007).
-- [ ] `just drift-gate` regenerates the roadmap index + the MiOS Spec byte-identically + fails on a bad ADR/law/`ssot_key` ref; ToC lists all Parts.
-- [ ] `ROADMAP.md` is theme-grouped active-only (~≤600 lines) with Parts 1-20 losslessly archived; no WS lost.
-- [ ] no WS tagged `done` that is gated-off/never-fired; Diátaxis quadrants + `llms.txt` route an agent in ≤3 hops.
+- [x] `just drift-gate` regenerates the roadmap index + the MiOS Spec byte-identically + fails on a bad ADR/law/`ssot_key` ref; ToC lists all Parts.
+- [x] `ROADMAP.md` is theme-grouped active-only (~≤600 lines) with Parts 1-20 losslessly archived; no WS lost.
+- [x] no WS tagged `done` that is gated-off/never-fired; Diátaxis quadrants + `llms.txt` route an agent in ≤3 hops.
 
 ## T-256: CAT-01 -- Flatten MiOS-Cat to a single owner (mios-bootstrap owns `cat/`)  [P1]
 > **Priority:** P1 | **Status:** planned | **Effort:** M | **Domain:** Deploy/Cat | **Who:** deploy/installer agent | **Source:** WS-CAT / ADR-0008; MiOS-Cat unification plan §1/§5
