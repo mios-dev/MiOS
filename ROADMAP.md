@@ -6,8 +6,8 @@
 
 <!-- ROADMAP_ROLLUP_START -->
 ### Workstream Status Rollup
-- **Done**: 6
-- **Active**: 2
+- **Done**: 7
+- **Active**: 1
 - **Proposed**: 8
 - **Blocked**: 0
 <!-- ROADMAP_ROLLUP_END -->
@@ -20,7 +20,7 @@
 - `WS-BLADE` — Universal-core + blade-type ACTIVATION gate (one image, role by flag) ✅
 - `WS-MIOSSYS` — MiOS-Sys shared-base consolidation of the sidecar fleet ✅
 - `WS-SBOM` — SBOM-not-hardcode: digests/hashes are build-time provenance, never SSOT literals ✅
-- `WS-DOCS` — Planning-docs refactor: ADR system + generated index (active)
+- `WS-DOCS` — Planning-docs refactor: ADR system + generated index ✅
 - `WS-LANG` — Language-per-domain unification — Rust for native tooling, bash demoted to thin glue (proposed)
 - `WS-TEMPLATE` — Compiled file-pattern system — one template per file type + conformance check + Law-14 ✅
 - `WS-DEBT` — Technical-debt register — TD-1..TD-8 (shell-mass, version drift, resolver twin, monolith decomposition) (proposed)
@@ -165,7 +165,7 @@ acceptance: |
 id: WS-DOCS
 title: Planning-docs refactor: ADR system + generated index
 theme: OS-Image & Build
-status: active
+status: done
 priority: P1
 laws: [7, 8]
 ssot_keys: ["meta.mios_version"]
@@ -181,25 +181,25 @@ acceptance: |
 - **Files:** `usr/share/doc/mios/adr/README.md` + `0001..0006-*.md`.
 - **Accept:** every Part-21 WS-* is backed by an accepted ADR (0001→BAKEGATE/BLADE · 0002→MIOSSYS · 0003→SBOM · 0004→RELTOP · 0005→MDRIVE · 0006→DEPRED). **✅ met.**
 
-### DOCS-02 — WS metadata schema + `roadmap-index.py` generator + drift-check  **[P1]**
+### DOCS-02 — WS metadata schema + `roadmap-index.py` generator + drift-check  **✅ DONE this session**
 - **What:** Give every `WS-*` machine-parseable frontmatter (`id, title, theme, status, priority, laws[], ssot_keys[], adr[], deps[], acceptance`) — KEP-style. Add `tools/roadmap-index.py` that regenerates the top Part/WS index + a status rollup (proposed/active/blocked/done counts) + the Table-of-Contents **from that frontmatter** (fixes the hand-truncated ToC that stops at Part 12), plus a drift-check (`automation/38-drift-checks.sh check_roadmap_index`) that fails if the index is stale or a WS cites a non-existent ADR/law/`ssot_key`. Law-8 SSOT-PROJECTION applied to the planning docs themselves.
 - **Files:** `ROADMAP.md` (per-WS frontmatter), `TASKS.md`, new `tools/roadmap-index.py`, `automation/38-drift-checks.sh`.
 - **Accept:** `just drift-gate` regenerates the index byte-identically; a WS with a bad `adr:`/`laws:` ref fails the gate; the ToC lists all Parts.
 - **Deps:** DOCS-01.
 
-### DOCS-03 — Lean thematic `ROADMAP.md`; archive Parts 1–20 losslessly  **[P1]**
+### DOCS-03 — Lean thematic `ROADMAP.md`; archive Parts 1–20 losslessly  **✅ DONE this session**
 - **What:** Split the 2,900-line monolith. Keep `ROADMAP.md` as the **current, forward-looking** roadmap grouped by **theme/pillar** (the MiOS "SIGs": OS-Image & Build · AI-Plane & Orchestration · Deployment & Sovereignty · Storage & Data · Security & Identity · Desktop & UX · Fleet & Federation), listing only `proposed/active/blocked` WS. Move the historical/absorbed Parts 1–20 (and every `done` WS) losslessly to `usr/share/doc/mios/roadmap/history/` (dated). Part 21's WS become the seed of the new active roadmap under their themes.
 - **Files:** `ROADMAP.md`, `usr/share/doc/mios/roadmap/history/*.md`, `CHANGELOG.md`.
 - **Accept:** `ROADMAP.md` is theme-grouped + active-only (~≤600 lines); every archived Part is retrievable under `history/`; the generator's WS rollup total is conserved (nothing lost).
 - **Deps:** DOCS-02.
 
-### DOCS-04 — Status-lifecycle retag (honest done-vs-gated) + cross-ref backfill  **[P2]**
+### DOCS-04 — Status-lifecycle retag (honest done-vs-gated) + cross-ref backfill  **✅ DONE this session**
 - **What:** Re-tag every WS to the lifecycle with the 2026-06-22 honesty rule formalized: **`done` = active AND live-fired**, never "built-but-gated" (those become `blocked`/`active`). Backfill each WS's `laws[]`/`ssot_keys[]`/`adr[]` so the cross-reference graph (WS↔T↔ADR↔Law↔SSOT-key) is complete + drift-checkable.
 - **Files:** `ROADMAP.md`, `TASKS.md`.
 - **Accept:** no WS tagged `done` that is gated-off/never-fired; every `done` claim carries a live-evidence line; the cross-ref drift-check (DOCS-02) passes.
 - **Deps:** DOCS-02.
 
-### DOCS-05 — Diátaxis reorg of `/usr/share/doc/mios` + `CHANGELOG.md` + agent-context refresh  **[P2]**
+### DOCS-05 — Diátaxis reorg of `/usr/share/doc/mios` + `CHANGELOG.md` + agent-context refresh  **✅ DONE this session**
 - **What:** Align the whole doc tree to **Diátaxis** quadrants — *tutorial* (day-0/first-boot), *how-to* (`guides/`), *reference* (`api.md`, `mios.toml`, the ports/laws registries), *explanation* (`concepts/`, `adr/`, `roadmap/`). Add a top-level `CHANGELOG.md` (Keep a Changelog + SemVer) fed from `bootc`-version bumps. Refresh `llms.txt` + `AGENTS.md` so an arriving agent is routed in ≤3 hops: current roadmap → ADR index → SSOT → the 13 laws.
 - **Files:** `usr/share/doc/mios/**`, `CHANGELOG.md`, `llms.txt`, `AGENTS.md`.
 - **Accept:** each doc sits in exactly one Diátaxis quadrant; `llms.txt` resolves an agent to the current-state entry points in ≤3 hops.
