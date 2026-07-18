@@ -147,7 +147,7 @@ class Tail:
 
     def stream(self) -> None:
         proc = subprocess.Popen(
-            ["journalctl", "-u", "mios-gateway-agent.service",
+            ["journalctl", "-u", "mios-agent-pipe.service",
              "-f", "-n", "0", "--no-pager", "-o", "cat"],
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,

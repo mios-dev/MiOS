@@ -6,9 +6,9 @@
 
 <!-- ROADMAP_ROLLUP_START -->
 ### Workstream Status Rollup
-- **Done**: 8
+- **Done**: 9
 - **Active**: 0
-- **Proposed**: 8
+- **Proposed**: 7
 - **Blocked**: 0
 <!-- ROADMAP_ROLLUP_END -->
 
@@ -26,7 +26,7 @@
 - `WS-DEBT` — Technical-debt register — TD-1..TD-8 (shell-mass, version drift, resolver twin, monolith decomposition) (proposed)
 
 **AI-Plane & Orchestration**
-- `WS-DEPRED` — AI-plane dependency reduction (Hermes→agent-pipe collapse + sidecar consolidations) (proposed)
+- `WS-DEPRED` — AI-plane dependency reduction (Hermes→agent-pipe collapse + sidecar consolidations) ✅
 
 **Deployment & Sovereignty**
 - `WS-MDRIVE` — Sovereign "run off M:" deployment (Hyper-V Gen 2 .vhdx + Ceph OSD on M:) (proposed)
@@ -334,7 +334,7 @@ A master index sits at the top of each file; every task carries **Who / What / W
 id: WS-DEPRED
 title: AI-plane dependency reduction (Hermes→agent-pipe collapse + sidecar consolidations)
 theme: AI-Plane & Orchestration
-status: proposed
+status: done
 priority: P2
 laws: [5, 7, 8]
 ssot_keys: ["ai.endpoint", "hermes.endpoint"]

@@ -8553,9 +8553,12 @@ async def _usage_completeness_mw(request: Request, call_next):
         data = _loads_lenient(body.decode("utf-8", "replace"))
         if isinstance(data, dict) and data.get("object") == "chat.completion":
             _changed = False
-            if not data.get("usage"):
-                _ans = ((data.get("choices") or [{}])[0].get("message") or {}).get("content") or ""
-                data["usage"] = _usage_estimate("", _ans)
+            from mios_tokenize import _normalize_usage
+            _usage = data.get("usage")
+            _ans = ((data.get("choices") or [{}])[0].get("message") or {}).get("content") or ""
+            _normalized = _normalize_usage(_usage or _usage_estimate("", _ans))
+            if _usage != _normalized:
+                data["usage"] = _normalized
                 _changed = True
             # A5 council honesty: stamp the TRUE dispatch mode (single-agent vs council)
             # on every chat response, centrally. Contextvar set by the fan-out path;

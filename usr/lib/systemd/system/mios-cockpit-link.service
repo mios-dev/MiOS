@@ -1,0 +1,19 @@
+# AI-hint: Service file for mios-cockpit-link proxy. Uses systemd-socket-proxyd to proxy to host Cockpit socket.
+# AI-related: usr/lib/systemd/system/mios-cockpit-link.socket
+[Unit]
+Description='MiOS' Cockpit Link Proxy Service
+After=network.target cockpit.socket mios-cockpit-link.socket
+Requires=mios-cockpit-link.socket
+ConditionVirtualization=!container
+
+[Service]
+ExecStart=/usr/lib/systemd/systemd-socket-proxyd 127.0.0.1:9090
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=full
+ProtectHome=yes
+User=nobody
+Group=nobody
+
+[Install]
+WantedBy=multi-user.target

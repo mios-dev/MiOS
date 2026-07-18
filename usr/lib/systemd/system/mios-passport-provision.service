@@ -18,7 +18,7 @@ Documentation=file:///usr/libexec/mios/mios-passport
 ConditionPathExists=/usr/libexec/mios/mios-passport
 After=mios-pgvector.service
 Wants=mios-pgvector.service
-Before=mios-agent-pipe.service mios-gateway-agent.service mios-daemon.service
+Before=mios-agent-pipe.service mios-daemon.service
 
 [Service]
 Type=oneshot

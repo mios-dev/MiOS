@@ -10,7 +10,7 @@ Documentation=https://github.com/MiOS-DEV/MiOS
 # container Quadlets were removed; hermes-agent.service is the runtime
 # now.
 After=local-fs.target systemd-tmpfiles-setup.service
-Before=mios-gateway-agent.service multi-user.target
+Before=mios-agent-pipe.service multi-user.target
 # NO ConditionPathExists=!/etc/mios/hermes/api.env. The old gate made
 # this unit a true once-ever oneshot -- but the script does TWO jobs:
 # (1) mint api.env (genuinely once), and (2) seed/heal

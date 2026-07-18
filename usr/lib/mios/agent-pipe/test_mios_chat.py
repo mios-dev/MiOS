@@ -288,10 +288,10 @@ def main():
     # degrade-open, no network.
     _test_microreply()
 
-    # CASE 8 -- the refine-driven orchestration helpers (action-hint gate,
-    # knowledge-gap judge, multi-task queue writer), moved INTO mios_chat
-    # (injection reversed). Data-driven + guard/degrade paths, no network, no DB.
     _test_refine_orchestration()
+
+    # CASE 9 -- developer role normalization validation
+    _test_developer_role()
 
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
@@ -510,6 +510,23 @@ def _test_refine_orchestration():
               asyncio.run(mc._needs_external_knowledge("zxq-token")) is False)
     finally:
         mc.httpx = orig_httpx
+
+
+def _test_developer_role():
+    from mios_pipe.routing.provider_translate import oai_msgs_to_gemini, oai_msgs_to_anthropic
+    msgs = [
+        {"role": "developer", "content": "You are a helpful assistant."},
+        {"role": "user", "content": "Hello"}
+    ]
+    # Anthropic translation test
+    system_str, anthropic_messages = oai_msgs_to_anthropic(msgs)
+    check("developer role -> anthropic system text matches", system_str == "You are a helpful assistant.", f"sys={system_str}")
+    check("developer role -> anthropic content ignores developer role", len(anthropic_messages) == 1 and anthropic_messages[0]["role"] == "user", f"msgs={anthropic_messages}")
+    
+    # Gemini translation test
+    system_parts, gemini_contents = oai_msgs_to_gemini(msgs)
+    check("developer role -> gemini system parts match", system_parts == {"parts": [{"text": "You are a helpful assistant."}]}, f"sys_parts={system_parts}")
+    check("developer role -> gemini contents ignore developer role", len(gemini_contents) == 1, f"gemini={gemini_contents}")
 
 
 if __name__ == "__main__":

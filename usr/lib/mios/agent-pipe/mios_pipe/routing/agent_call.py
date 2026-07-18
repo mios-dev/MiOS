@@ -454,8 +454,8 @@ async def _call_agent_complete(name, cfg, body, headers, client,
                 log.warning("Conversation token budget exceeded (%d > %d) for session %s. Trimming history.", used, conv_ceil, session_id)
                 msgs = body.get("messages")
                 if isinstance(msgs, list) and len(msgs) > 5:
-                    system_msgs = [m for m in msgs if isinstance(m, dict) and m.get("role") == "system"]
-                    recent_msgs = [m for m in msgs if isinstance(m, dict) and m.get("role") != "system"][-4:]
+                    system_msgs = [m for m in msgs if isinstance(m, dict) and m.get("role") in ("system", "developer")]
+                    recent_msgs = [m for m in msgs if isinstance(m, dict) and m.get("role") not in ("system", "developer")][-4:]
                     body["messages"] = system_msgs + recent_msgs
                 
         if _autonomous_var.get():
@@ -468,8 +468,8 @@ async def _call_agent_complete(name, cfg, body, headers, client,
                     log.warning("Autonomous source %s token budget exceeded (%d > %d). Trimming history.", src, used, auto_ceil)
                     msgs = body.get("messages")
                     if isinstance(msgs, list) and len(msgs) > 5:
-                        system_msgs = [m for m in msgs if isinstance(m, dict) and m.get("role") == "system"]
-                        recent_msgs = [m for m in msgs if isinstance(m, dict) and m.get("role") != "system"][-4:]
+                        system_msgs = [m for m in msgs if isinstance(m, dict) and m.get("role") in ("system", "developer")]
+                        recent_msgs = [m for m in msgs if isinstance(m, dict) and m.get("role") not in ("system", "developer")][-4:]
                         body["messages"] = system_msgs + recent_msgs
 
         # 3. Host Pressure Gate

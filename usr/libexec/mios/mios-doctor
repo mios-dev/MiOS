@@ -61,11 +61,11 @@ else
     warn "no /etc/sudoers.d/10-mios-hermes (agent has no sudo)"
 fi
 
-echo "── ── ──  mios-gateway-agent service"
-state=$(systemctl is-active mios-gateway-agent.service 2>&1)
-if [ "$state" = "active" ]; then ok "mios-gateway-agent.service active"
-else fail "mios-gateway-agent.service: $state"; fi
-nnp=$(systemctl show mios-gateway-agent.service -p NoNewPrivileges --value 2>/dev/null)
+echo "── ── ──  mios-agent-pipe service"
+state=$(systemctl is-active mios-agent-pipe.service 2>&1)
+if [ "$state" = "active" ]; then ok "mios-agent-pipe.service active"
+else fail "mios-agent-pipe.service: $state"; fi
+nnp=$(systemctl show mios-agent-pipe.service -p NoNewPrivileges --value 2>/dev/null)
 if [ "$nnp" = "no" ]; then ok "NoNewPrivileges=no (sudo escalation possible)"
 else warn "NoNewPrivileges=$nnp (sudo from agent will fail)"; fi
 

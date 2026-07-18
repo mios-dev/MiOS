@@ -22,7 +22,7 @@ import httpx
 
 import mios_tokenize
 from mios_jsonsalvage import loads_lenient as _loads_lenient
-from mios_grounding import _env_grounding
+from mios_grounding import _env_grounding, _env_grounding_static, _env_grounding_dynamic
 from mios_routing import _deterministic_action_route
 # Heavy-path critic->refiner consumes the DCI Challenger critic directly (sibling,
 # one-way boundary -- mios_dci never imports this module nor server). DCI_ENABLED /
@@ -687,30 +687,27 @@ async def refine_intent(user_text: str,
     # proved the qwen3 micros ignore /no_think (modelfile
     # thinking-mode override) and dump the answer into message.reasoning,
     # leaving message.content EMPTY.
-    system = (_REFINE_SYSTEM_LITE
-              + "\n" + _env_grounding()
-              + "\nRegistered sub-agents:\n" + agents_summary)
-    # OS-control verb catalog (SSOT) so the micro can map a single concrete
-    # app/window/URL action to exactly ONE verb for intent=dispatch -- no
-    # hardcoded keyword->verb table (operator binding: capabilities live in
-    # mios.toml, not command literals in code).
+    static_parts = [
+        _REFINE_SYSTEM_LITE,
+        _env_grounding_static(),
+        f"Registered sub-agents:\n{agents_summary}"
+    ]
     if _OS_CONTROL_VERBS_RENDERED:
-        system += ("\n\nAction-verb catalog (for intent=dispatch -- map a single\n"
-                   "concrete app / window / URL action, OR a recurring 'every N' /\n"
-                   "'each day' standing request, to exactly ONE of these):\n"
-                   + _OS_CONTROL_VERBS_RENDERED)
-    # The REAL verb names : refine was HALLUCINATING
-    # hint_tools -- "journalctl_tail", "flight_search", "system_service_status",
-    # "alert_monitor", "log_search" -- none of which exist, so _read_tool_enrich
-    # fired nothing + the turn fell back to web garbage. Give it the actual
-    # catalog so hint_tools (and any dispatch tool) are REAL names it can pick
-    # from, not plausible inventions. SSOT-derived from _VERB_CATALOG.
+        static_parts.append(
+            "Action-verb catalog (for intent=dispatch -- map a single\n"
+            "concrete app / window / URL action, OR a recurring 'every N' /\n"
+            "'each day' standing request, to exactly ONE of these):\n"
+            + _OS_CONTROL_VERBS_RENDERED
+        )
     if _VERB_CATALOG:
-        system += ("\n\nVALID verb names -- for `hint_tools` (and `tool`) use ONLY "
-                   "these EXACT names; NEVER invent a plausible-sounding name (no "
-                   "'journalctl_tail', 'flight_search', 'system_service_status'). "
-                   "If none fits, leave hint_tools empty:\n"
-                   + ", ".join(sorted(_VERB_CATALOG.keys())))
+        static_parts.append(
+            "VALID verb names -- for `hint_tools` (and `tool`) use ONLY "
+            "these EXACT names; NEVER invent a plausible-sounding name (no "
+            "'journalctl_tail', 'flight_search', 'system_service_status'). "
+            "If none fits, leave hint_tools empty:\n"
+            + ", ".join(sorted(_VERB_CATALOG.keys()))
+        )
+    system = "\n\n".join(static_parts) + "\n\n" + _env_grounding_dynamic()
     msgs = [{"role": "system", "content": system}]
     # Last 2 turns of history, tightly capped -- the OWUI pipe already
     # enhances the prompt before it reaches us, so re-feeding long

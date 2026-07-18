@@ -30,9 +30,9 @@ if [ -r /etc/mios/install.env ]; then
     set +u; set -a; . /etc/mios/install.env 2>/dev/null || true; set +a
     [ "$_mios_had_u" = 1 ] && set -u
 fi
-_PORT_HERMES="${MIOS_PORT_HERMES:-8642}"
-_PORT_PREFILTER="${MIOS_PORT_PREFILTER:-8641}"
+_PORT_AGENT_PIPE="${MIOS_PORT_AGENT_PIPE:-8640}"
 _PORT_LLM_LIGHT="${MIOS_PORT_LLM_LIGHT:-8450}"
+
 
 MODE="${1:-brief}"
 case "$MODE" in
@@ -103,8 +103,7 @@ OS_PRETTY="$(grep -m1 PRETTY_NAME= /etc/os-release 2>/dev/null | sed 's/^.*=//; 
 _svc_active() {
     if systemctl is-active --quiet "$1"; then echo up; else echo down; fi
 }
-SVC_HERMES=$(_svc_active mios-gateway-agent.service)
-SVC_PREFILTER=$(_svc_active mios-delegation-prefilter.service)
+SVC_AGENT_PIPE=$(_svc_active mios-agent-pipe.service)
 SVC_OWUI=$(_svc_active mios-open-webui.service)
 SVC_LLM_LIGHT=$(_svc_active mios-llm-light.service)
 SVC_PGVECTOR=$(_svc_active mios-pgvector.service)
@@ -152,7 +151,7 @@ brief)
 - Linux HW: $CPU_CORES cores / ${RAM_GB} GB RAM / GPU: $GPU_LINE${WIN_LINE:+
 - Windows host (via WSL interop): $WIN_LINE}
 - Operator (mios.toml [identity]): $OPERATOR_FULL ($OPERATOR_NAME) on $HOSTNAME_TOML
-- Stack services: hermes=$SVC_HERMES prefilter=$SVC_PREFILTER owui=$SVC_OWUI llm_light=$SVC_LLM_LIGHT pgvector=$SVC_PGVECTOR searxng=$SVC_SEARXNG browser=$SVC_BROWSER crond=$SVC_CROND atd=$SVC_ATD
+- Stack services: agent_pipe=$SVC_AGENT_PIPE owui=$SVC_OWUI llm_light=$SVC_LLM_LIGHT pgvector=$SVC_PGVECTOR searxng=$SVC_SEARXNG browser=$SVC_BROWSER crond=$SVC_CROND atd=$SVC_ATD
 - Models loaded (llm-light): $LLM_MODELS
 - Launchable: $N_FLATPAK flatpaks, $N_HOST_GUI host GUIs, $N_WIN_GUI windows shortcuts, $N_WIN_APP **all-windows apps** (Get-StartApps), $N_SHIM MiOS shims, $N_CLI CLIs, $N_URL service URLs
 - Discovery + launch: \`mios-apps\` (inventory) and \`mios-launch <name>\` (universal launcher)
@@ -184,8 +183,7 @@ $(if [ -n "$WIN_BLOCK" ]; then printf '\n## Windows host (the machine WSL lives 
 ## MiOS stack services
 | service                              | state |
 |--------------------------------------|-------|
-| mios-gateway-agent.service           | $SVC_HERMES |
-| mios-delegation-prefilter.service    | $SVC_PREFILTER |
+| mios-agent-pipe.service              | $SVC_AGENT_PIPE |
 | mios-open-webui.service              | $SVC_OWUI |
 | mios-llm-light.service               | $SVC_LLM_LIGHT |
 | mios-pgvector.service                | $SVC_PGVECTOR |
@@ -196,8 +194,7 @@ $(if [ -n "$WIN_BLOCK" ]; then printf '\n## Windows host (the machine WSL lives 
 
 ## AI inference
 - Models loaded (llm-light): \`$LLM_MODELS\`
-- Hermes gateway: http://localhost:${_PORT_HERMES}/v1
-- Prefilter (force delegate_task on fan-out): http://localhost:${_PORT_PREFILTER}/v1
+- Agent-Pipe gateway: http://localhost:${_PORT_AGENT_PIPE}/v1
 - Backend llm-light: http://localhost:${_PORT_LLM_LIGHT}
 
 ## Launchable inventory
@@ -231,7 +228,7 @@ json)
         EP_OS="$OS_PRETTY" EP_IS_WSL="$IS_WSL" EP_WSL_DISTRO="$WSL_DISTRO" \
         EP_CPU="$CPU_MODEL" EP_CPU_CORES="$CPU_CORES" EP_RAM="$RAM_GB" \
         EP_GPU="$GPU_LINE" \
-        EP_SVC_HERMES="$SVC_HERMES" EP_SVC_PREFILTER="$SVC_PREFILTER" \
+        EP_SVC_AGENT_PIPE="$SVC_AGENT_PIPE" \
         EP_SVC_OWUI="$SVC_OWUI" EP_SVC_LLM_LIGHT="$SVC_LLM_LIGHT" \
         EP_SVC_PGVECTOR="$SVC_PGVECTOR" \
         EP_SVC_SEARXNG="$SVC_SEARXNG" EP_SVC_BROWSER="$SVC_BROWSER" \
@@ -265,8 +262,7 @@ print(json.dumps({
         "gpu": os.environ.get("EP_GPU", ""),
     },
     "services": {
-        "hermes_agent":         os.environ.get("EP_SVC_HERMES", ""),
-        "delegation_prefilter": os.environ.get("EP_SVC_PREFILTER", ""),
+        "agent_pipe":           os.environ.get("EP_SVC_AGENT_PIPE", ""),
         "open_webui":           os.environ.get("EP_SVC_OWUI", ""),
         "llm_light":            os.environ.get("EP_SVC_LLM_LIGHT", ""),
         "pgvector":             os.environ.get("EP_SVC_PGVECTOR", ""),

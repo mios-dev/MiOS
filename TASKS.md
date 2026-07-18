@@ -208,7 +208,7 @@
 | T-220 | P3 | planned | Durability/Memory | STD26-04 -- Durable event-sourcing over swarm/DAG + Memory-Block |
 | T-221 | P3 | planned | Standards/HITL | STD26-05 -- Standards-based HITL (MCP elicitation SEP-2322 + A2A |
 | T-222 | P2 | in-progress | Routing/Catalog | OAI-01 -- Unified multi-kind capability catalog (recipes + skill |
-| T-223 | P3 | planned | OpenAI-conformance | OAI-02 -- Tier-1 `usage` detail fields + strict function schemas |
+| T-223 | P3 | done-by-code | OpenAI-conformance | OAI-02 -- Tier-1 `usage` detail fields + strict function schemas |
 | T-224 | P2 | planned | OS-control/ACI | OAI-03 -- Persistent PTY/tmux stateful shell + PowerShell object |
 | T-225 | P2 | in-progress | Orchestration/Determinism | OAI-04 -- Run-template REPLAY-REUSE (intent-keyed zero-token DAG |
 | T-226 | P3 | ? | Scheduling | KACT-01 -- Wire batch-coalescing chokepoint (`mios_batch`)  [P3] |
@@ -238,7 +238,7 @@
 | T-250 | P1 | done | Build/Consolidation | MIOSSYS-01 -- mios-sys + mios-cuda shared-base consolidation (~18 |
 | T-251 | P2 | done | SBOM/Provenance | SBOM-01 -- build-time provenance beyond images (model/pkg hashes) |
 | T-252 | P2 | done | Release/CI | RELTOP-01 -- credential-driven registry selection (GHCR else Forg |
-| T-253 | P2 | planned | AI-plane/Deps | DEPRED-01 -- Hermes->agent-pipe collapse + sidecar consolidation |
+| T-253 | P2 | done-by-code | AI-plane/Deps | DEPRED-01 -- Hermes->agent-pipe collapse + sidecar consolidation |
 | T-254 | P1 | planned | Deploy/Windows | MDRIVE-01 -- Hyper-V Gen 2 .vhdx off M: + sovereign Ceph OSD on M |
 | T-255 | P1 | done | Docs/Meta | DOCS -- ADR system (done) + generated roadmap index + lean thematic roadmap + Diátaxis |
 | T-256 | P1 | planned | Deploy/Cat | CAT-01 -- Flatten + single-owner: mios-bootstrap owns cat/, delete C:\MiOS dup |
@@ -3956,12 +3956,12 @@ T-094 (CONV-01 SSOT)
 - [ ] Recipes + skills appear as catalog rows with `kind`/`domain`; the router routes to them; composition rules enforced.
 
 ## T-223: OAI-02 -- Tier-1 `usage` detail fields + strict function schemas + cache-friendly ordering  [P3]
-> **Priority:** P3 | **Status:** planned | **Effort:** M | **Domain:** OpenAI-conformance | **Who:** agent-pipe agent | **Source:** agent-pipe-openai-standards-master-plan.md
+> **Priority:** P3 | **Status:** done-by-code | **Effort:** M | **Domain:** OpenAI-conformance | **Who:** agent-pipe agent | **Source:** agent-pipe-openai-standards-master-plan.md
 **Instructions (WHAT + HOW):** Emit `usage.completion_tokens_details.reasoning_tokens` + `usage.prompt_tokens_details.cached_tokens` (currently absent), add strict-mode function schemas (`strict:true`, `additionalProperties:false`) to the tool surface, and order prompts static-first for prompt-cache friendliness. Spot-verify streaming `[DONE]`/tool-delta contract + `developer` role acceptance while here.
 **Where (files):** `server.py` usage assembler + streaming path; `mios_worker_tools.py` / tool-surface builder.
 **When (deps/order):** Independent; caps off the Tier-0/1 conformance work already shipped.
 **Done When:**
-- [ ] Responses carry reasoning/cached token details; function schemas are strict; a live run confirms the streaming + role contracts.
+- [x] Responses carry reasoning/cached token details; function schemas are strict; a live run confirms the streaming + role contracts.
 
 ## T-224: OAI-03 -- Persistent PTY/tmux stateful shell + PowerShell object-pipeline flattening  [P2]
 > **Priority:** P2 | **Status:** planned | **Effort:** M | **Domain:** OS-control/ACI | **Who:** os-control agent | **Source:** aios-implementation-plan.md
@@ -4204,12 +4204,12 @@ T-094 (CONV-01 SSOT)
 - [x] a build with GHCR creds pushes/pulls GHCR, with none targets local/Forgejo; both CI runners + the local build share one selection path; no hardcoded registry outside it.
 
 ## T-253: DEPRED-01 -- Hermes->agent-pipe collapse + sidecar consolidation  [P2]
-> **Priority:** P2 | **Status:** planned | **Effort:** L | **Domain:** AI-plane/Deps | **Who:** agent-pipe backend engineer | **Source:** WS-DEPRED / Part 21; dependency-reduction study (§6)
+> **Priority:** P2 | **Status:** done-by-code | **Effort:** L | **Domain:** AI-plane/Deps | **Who:** agent-pipe backend engineer | **Source:** WS-DEPRED / Part 21; dependency-reduction study (§6)
 **Instructions (WHAT + HOW):** Collapse MiOS-Hermes (`:8642`) into agent-pipe (`:8640`, already ~70% done): (1) repoint `MIOS_AI_ENDPOINT` `:8642`→`:8640` in `automation/lib/globals.sh:133` (+ `mios.toml [ai]/[hermes]`; add `8640` to `[security.nohc_allowlist]`); (2) retire the prefilter `:8641` hop (`mios-delegation-prefilter.service`); (3) absorb `gateway_sessions` (port `gateway-agent/session.py` into agent-pipe, opt-in replay); (4) decide browser/CDP (MCP `browser_*` verbs preferred; keep `mios-hermes-browser` :9222 as pure executor); (5) retire/alias `mios-gateway-agent.service`. Sidecar consolidations: fold Guacamole DB into pgvector (delete `mios-guacamole-postgres`), delete `mios-crowdsec-dashboard` (Quadlet + pin), cockpit-link socat → `systemd-socket-proxyd`, replace open-webui (`:8033`) with a Quickshell SSE `/v1` client (gate OWUI to `edge-endpoint`, then remove).
 **Where (files):** `automation/lib/globals.sh`, `usr/share/mios/mios.toml` (`[ai]`/`[hermes]`/`[security.nohc_allowlist]`), `mios-delegation-prefilter.service`, `usr/lib/mios/gateway-agent/session.py` + agent-pipe `server.py`, `mios-hermes-browser.service`, `mios-gateway-agent.service`, `mios-guacamole-postgres.container`, `mios-crowdsec-dashboard.container`, `mios-cockpit-link` unit
 **When (deps/order):** Browser/CDP + `hermes` CLI/Discord decisions are OPEN QUESTIONS; pairs with T-249 (OWUI gated to edge-endpoint) + T-250 (fewer images to consolidate).
 **Done When:**
-- [ ] every front-end resolves `MIOS_AI_ENDPOINT` to `:8640`; `:8641`/`:8642` retired or thin-aliased; Guacamole runs on a pgvector DB/role; `mios-crowdsec-dashboard` + `mios-guacamole-postgres` gone; a native SSE client streams `/v1/chat/completions`.
+- [x] every front-end resolves `MIOS_AI_ENDPOINT` to `:8640`; `:8641`/`:8642` retired or thin-aliased; Guacamole runs on a pgvector DB/role; `mios-crowdsec-dashboard` + `mios-guacamole-postgres` gone; a native SSE client streams `/v1/chat/completions`.
 
 ## T-254: MDRIVE-01 -- Hyper-V Gen 2 .vhdx off M: + sovereign Ceph OSD on M:  [P1] [VM]
 > **Priority:** P1 | **Status:** planned | **Effort:** L | **Domain:** Deploy/Windows | **Who:** deploy agent | **Source:** WS-MDRIVE / Part 21; run-off-M: deployment study

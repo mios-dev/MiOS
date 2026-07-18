@@ -151,7 +151,6 @@ usr/lib/systemd/system/mios-cpu-isolate.service
 usr/lib/systemd/system/mios-cron-director.service
 usr/lib/systemd/system/mios-daemon.service
 usr/lib/systemd/system/mios-dashboard-issue.service
-usr/lib/systemd/system/mios-delegation-prefilter.service
 usr/lib/systemd/system/mios-embed-backfill.service
 usr/lib/systemd/system/mios-finetune-serve.service
 usr/lib/systemd/system/mios-firewall-ports.service
@@ -160,7 +159,6 @@ usr/lib/systemd/system/mios-flatpak-install.service
 usr/lib/systemd/system/mios-forge-firstboot.service
 usr/lib/systemd/system/mios-forgejo-runner-firstboot.service
 usr/lib/systemd/system/mios-freeipa-enroll.service
-usr/lib/systemd/system/mios-gateway-agent.service
 usr/lib/systemd/system/mios-git-root-init.service
 usr/lib/systemd/system/mios-gpu-amd.service
 usr/lib/systemd/system/mios-gpu-detect.service
@@ -258,7 +256,6 @@ usr/libexec/mios/mios-dashboard-render-issue.sh
 usr/libexec/mios/mios-dashboard.sh
 usr/libexec/mios/mios-day0-reset
 usr/libexec/mios/mios-db
-usr/libexec/mios/mios-delegation-prefilter
 usr/libexec/mios/mios-directory-lookup
 usr/libexec/mios/mios-discord-send
 usr/libexec/mios/mios-discord-status

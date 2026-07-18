@@ -18,8 +18,8 @@
 # (no off-host calls, no API keys, no cost).
 Description='MiOS' Hermes-Browser (ChromeDev w/ CDP for Hermes-Agent)
 Documentation=https://chromedevtools.github.io/devtools-protocol/
-After=mios-gateway-agent.service
-Wants=mios-gateway-agent.service
+After=mios-agent-pipe.service
+Wants=mios-agent-pipe.service
 # ChromeDev flatpak must be installed (system or user scope). If
 # missing, the unit no-ops cleanly instead of crash-looping; operator
 # fixes by `flatpak install flathub com.google.ChromeDev`.

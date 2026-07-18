@@ -108,7 +108,7 @@ def oai_msgs_to_anthropic(msgs: list) -> tuple:
         if not isinstance(m, dict):
             continue
         role = m.get("role")
-        if role == "system":
+        if role in ("system", "developer"):
             if m.get("content"):
                 system_parts.append(str(m["content"]))
         elif role == "tool":
@@ -166,7 +166,7 @@ def oai_msgs_to_gemini(msgs: list) -> tuple:
         if not isinstance(m, dict):
             continue
         role = m.get("role")
-        if role == "system":
+        if role in ("system", "developer"):
             if m.get("content"):
                 system_parts.append(str(m["content"]))
         elif role == "tool":

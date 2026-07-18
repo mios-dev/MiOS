@@ -7,8 +7,8 @@ Documentation=file:///usr/lib/mios/agent-pipe/server.py
 # into the image) + pgvector, NOT the boot-time model fetch; ordering behind
 # firstboot's multi-GB download blocked the router for the whole download. firstboot
 # `systemctl restart --no-block`s this unit once models land, so the edge is redundant.
-After=network-online.target mios-gateway-agent.service mios-pgvector.service mios-passport-provision.service
-Wants=network-online.target mios-gateway-agent.service mios-passport-provision.service
+After=network-online.target mios-pgvector.service mios-passport-provision.service
+Wants=network-online.target mios-passport-provision.service
 # R6: the pipe touches pgvector on every route, so upgrade the DB edge from After=
 # (ordering only) to a hard Requires= -- a missing DB should hold/fail the unit.
 Requires=mios-pgvector.service

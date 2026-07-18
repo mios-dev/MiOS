@@ -199,7 +199,7 @@ def extract_prompt_from_payload(payload: dict) -> str:
 def extract_system_prompt_from_payload(payload: dict) -> Optional[str]:
     messages = payload.get("messages") or []
     for msg in messages:
-        if msg.get("role") == "system":
+        if msg.get("role") in ("system", "developer"):
             return msg.get("content")
     return None
 

@@ -64,10 +64,10 @@ def plan_compaction(messages: List[dict], budget: int, *,
     keep_recent = max(0, int(keep_recent))
     # Partition: forced-keep (system) vs the ordered non-system stream.
     nonsys_idx = [i for i, m in enumerate(msgs)
-                  if not (keep_system and m.get("role") == "system")]
+                  if not (keep_system and m.get("role") in ("system", "developer"))]
     recent_keep = set(nonsys_idx[-keep_recent:]) if keep_recent else set()
     forced_keep = {i for i, m in enumerate(msgs)
-                   if keep_system and m.get("role") == "system"} | recent_keep
+                   if keep_system and m.get("role") in ("system", "developer")} | recent_keep
 
     used = sum(mios_tokenize.count_text(msgs[i].get("content") or "") for i in forced_keep)
     keep_idx = set(forced_keep)

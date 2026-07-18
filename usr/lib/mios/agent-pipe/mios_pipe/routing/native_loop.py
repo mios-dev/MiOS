@@ -458,10 +458,13 @@ async def _respond_native_loop_direct(
                              "message": {"role": "assistant", "content": _idans},
                              "finish_reason": "stop"}],
                 "usage": _usage_estimate(last_user_text, _idans)})
+    from mios_grounding import _env_grounding_static, _env_grounding_dynamic
     _sys = "\n\n".join(p for p in (
         _agent_contract(),
         (_capability_grounding(_VERB_CATALOG) if NATIVE_LOOP_CAPABILITY_GROUNDING else ""),
-        _env_grounding(), persona_system) if p and p.strip())
+        _env_grounding_static(),
+        persona_system,
+        _env_grounding_dynamic()) if p and p.strip())
     _sys += (
         "\n\nAGENTIC SEARCH & RETRY RULES:\n"
         "- If a web search (either pre-fetched or from a previous tool call) returns no results, "
@@ -664,6 +667,7 @@ async def _respond_native_loop_direct(
                 "and group under themes. Each task MUST be a single self-contained "
                 "objective with NO data dependency on the others -- the synthesizer "
                 "merges the results."),
+            "strict": True,
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -674,17 +678,19 @@ async def _respond_native_loop_direct(
                             "type": "object",
                             "properties": {
                                 "objective": {"type": "string", "description": "The generative task for this node."},
-                                "output_format": {"type": "string", "description": "What this node should return."},
-                                "tool_guidance": {"type": "string", "description": "Which tools/sources this node should prefer."},
-                                "boundaries": {"type": "string", "description": "What this node should NOT do (anti-overlap)."},
-                                "local_state": {"type": "boolean", "description": "true if this facet reads THIS machine's live state."},
-                                "web": {"type": "boolean", "description": "true if this facet needs web research."},
+                                "output_format": {"type": ["string", "null"], "description": "What this node should return."},
+                                "tool_guidance": {"type": ["string", "null"], "description": "Which tools/sources this node should prefer."},
+                                "boundaries": {"type": ["string", "null"], "description": "What this node should NOT do (anti-overlap)."},
+                                "local_state": {"type": ["boolean", "null"], "description": "true if this facet reads THIS machine's live state."},
+                                "web": {"type": ["boolean", "null"], "description": "true if this facet needs web research."},
                             },
-                            "required": ["objective"],
+                            "required": ["objective", "output_format", "tool_guidance", "boundaries", "local_state", "web"],
+                            "additionalProperties": False,
                         },
                     },
                 },
                 "required": ["tasks"],
+                "additionalProperties": False,
             },
         },
     }]
@@ -1490,10 +1496,11 @@ async def _format_local_state(question: str, grounding: str,
     """One faithful-enumeration pass over the live local-state tool output."""
     if not grounding or not grounding.strip():
         return None
-    system = _LOCAL_STATE_SYSTEM + "\n" + _env_grounding()
+    from mios_grounding import _env_grounding_static, _env_grounding_dynamic
+    system = _LOCAL_STATE_SYSTEM + "\n" + _env_grounding_static()
     if persona_system and persona_system.strip():
-        system += ("\n\nSTYLE/PERSONA (voice / tone / length / language ONLY; "
-                   "never add content):\n" + persona_system.strip()[:1500])
+        system += "\n" + persona_system
+    system += "\n" + _env_grounding_dynamic()
     user_msg = (f"User question (reply in this language):\n{question}\n\n"
                 f"LIVE TOOL OUTPUT (authoritative ground truth for THIS "
                 f"machine):\n{grounding[:30000]}")

@@ -2,10 +2,10 @@
 # /usr/share/containers/systemd/mios-guacamole.container
 
 [Unit]
-After=network-online.target mios-guacamole-postgres.service
+After=network-online.target mios-pgvector.service
 ConditionVirtualization=!container
 Description='MiOS' Apache Guacamole Web
-Wants=network-online.target
+Wants=network-online.target mios-pgvector.service
 
 [Container]
 AutoUpdate=registry

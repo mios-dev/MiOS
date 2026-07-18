@@ -129,7 +129,7 @@ from mios_routing import _deterministic_action_route
 from mios_sse import _sse_chunk, _sse_status, _stream_answer
 from mios_swarm import _agent_dag_from_tasks, _respond_agent_dag
 import mios_tokenize
-from mios_tokenize import _usage_estimate
+from mios_tokenize import _usage_estimate, _normalize_usage
 from mios_verity import polish_response
 from mios_vision import _client_tools_complete, _has_client_tools, _vision_complete
 from mios_web_research import _web_research_enrich
@@ -862,6 +862,33 @@ async def _budget_release_inflight(turn_token: Optional[str]) -> None:
         log.debug("budget inflight release failed for %s", turn_token, exc_info=True)
 
 
+# T-253: gateway_sessions helper functions to load/save stateful chat history
+async def _get_gateway_session(session_id: str) -> list[dict]:
+    try:
+        sql = "SELECT messages FROM gateway_sessions WHERE session_id = %(session_id)s"
+        rows = await _mios_pg.execute(sql, {"session_id": session_id}, fetch=True)
+        if rows:
+            messages = rows[0].get("messages")
+            if isinstance(messages, str):
+                return json.loads(messages)
+            return messages or []
+    except Exception as e:
+        log.warning("Database error fetching gateway session %s: %s", session_id, e)
+    return []
+
+async def _save_gateway_session(session_id: str, messages: list[dict]) -> None:
+    try:
+        sql = """
+            INSERT INTO gateway_sessions (session_id, messages, updated_at)
+            VALUES (%(session_id)s, %(messages)s, CURRENT_TIMESTAMP)
+            ON CONFLICT (session_id)
+            DO UPDATE SET messages = EXCLUDED.messages, updated_at = CURRENT_TIMESTAMP
+        """
+        await _mios_pg.execute(sql, {"session_id": session_id, "messages": json.dumps(messages)})
+    except Exception as e:
+        log.warning("Database error saving gateway session %s: %s", session_id, e)
+
+
 async def chat_completions_logic(request: Request) -> Any:
     try:
         body_bytes = await request.body()
@@ -884,12 +911,28 @@ async def chat_completions_logic(request: Request) -> Any:
                                "param": "messages", "code": None}},
             status_code=400)
 
+    gateway_cfg = _toml_section("gateway") or {}
+    meta = body.get("metadata") or {}
+    session_id = str(meta.get("chat_id") or meta.get("session_id") or "")
+    session_replay_opt_in = (
+        bool(request.headers.get("x-mios-session-replay")) or
+        bool(meta.get("session_replay")) or
+        bool(gateway_cfg.get("session_replay", False))
+    )
+
+    if session_replay_opt_in and session_id:
+        history = await _get_gateway_session(session_id)
+        if history:
+            if len(history) < len(messages):
+                messages = history + messages[len(history):]
+            body["messages"] = messages
+
     # Strip duplicate canonical/default system prompts sent by the client
     # to prevent prompt duplication on the orchestrator.
     if isinstance(messages, list):
         filtered_messages = []
         for m in messages:
-            if isinstance(m, dict) and m.get("role") == "system":
+            if isinstance(m, dict) and m.get("role") in ("system", "developer"):
                 content = str(m.get("content") or "")
                 if ("# MiOS Grounding / Knowledge Base" in content
                         or "Operate under `/MiOS.md`." in content
@@ -1074,8 +1117,8 @@ async def chat_completions_logic(request: Request) -> Any:
                     
                     # Replace the evicted messages with a single system message containing the summary
                     new_messages = []
-                    system_msgs = [m for m in plan.to_keep if m.get("role") == "system"]
-                    other_msgs = [m for m in plan.to_keep if m.get("role") != "system"]
+                    system_msgs = [m for m in plan.to_keep if m.get("role") in ("system", "developer")]
+                    other_msgs = [m for m in plan.to_keep if m.get("role") not in ("system", "developer")]
                     
                     new_messages.extend(system_msgs)
                     new_messages.append({
@@ -1241,7 +1284,7 @@ async def chat_completions_logic(request: Request) -> Any:
     _persona_system = "\n\n".join(
         str(m.get("content") or "").strip()
         for m in messages
-        if isinstance(m, dict) and m.get("role") == "system"
+        if isinstance(m, dict) and m.get("role") in ("system", "developer")
         and str(m.get("content") or "").strip()
     )[:2000]
 
@@ -1556,7 +1599,38 @@ async def chat_completions_logic(request: Request) -> Any:
                 yield _sse_chunk("Error: Kernel not configured", chat_id=chat_id, model=model)
                 yield _sse_done()
                 
-        return StreamingResponse(_stream_refine_and_dispatch(), media_type="text/event-stream")
+        _res_stream = StreamingResponse(_stream_refine_and_dispatch(), media_type="text/event-stream")
+        if session_replay_opt_in and session_id:
+            original_iterator = _res_stream.body_iterator
+            async def _session_saving_iterator():
+                assistant_reply = []
+                async for chunk in original_iterator:
+                    yield chunk
+                    try:
+                        chunk_str = chunk.decode("utf-8", errors="replace")
+                        for line in chunk_str.splitlines():
+                            if line.startswith("data: "):
+                                data_str = line[6:].strip()
+                                if data_str and data_str != "[DONE]":
+                                    data_json = json.loads(data_str)
+                                    choices = data_json.get("choices")
+                                    if choices and isinstance(choices, list):
+                                        delta = choices[0].get("delta")
+                                        if delta and "content" in delta:
+                                            assistant_reply.append(delta["content"])
+                                        elif "message" in choices[0]:
+                                            content = choices[0]["message"].get("content")
+                                            if content:
+                                                assistant_reply.append(content)
+                    except Exception:
+                        pass
+                if assistant_reply:
+                    reply_str = "".join(assistant_reply)
+                    save_history = list(messages)
+                    save_history.append({"role": "assistant", "content": reply_str})
+                    await _save_gateway_session(session_id, save_history)
+            _res_stream.body_iterator = _session_saving_iterator()
+        return _res_stream
 
     refined = None
     if not _incoming_turn:
@@ -1670,7 +1744,17 @@ async def chat_completions_logic(request: Request) -> Any:
         log.info("kernel dispatch: routing mode=%s", _kdec.mode)
         ctx = locals().copy()
         try:
-            return await _KERNEL.dispatcher.run(_kdec, **ctx)
+            res = await _KERNEL.dispatcher.run(_kdec, **ctx)
+            if session_replay_opt_in and session_id and isinstance(res, JSONResponse):
+                try:
+                    res_body = json.loads(res.body.decode("utf-8"))
+                    reply_content = res_body["choices"][0]["message"]["content"]
+                    save_history = list(messages)
+                    save_history.append({"role": "assistant", "content": reply_content})
+                    await _save_gateway_session(session_id, save_history)
+                except Exception as e:
+                    log.warning("failed to save JSON response to session %s: %s", session_id, e)
+            return res
         finally:
             await _budget_release_inflight(_budget_turn_token)
     raise RuntimeError("Kernel not configured")
@@ -1726,7 +1810,7 @@ async def responses_api_logic(request: Request) -> Any:
                     "status": "completed", "role": "assistant",
                     "content": [{"type": "output_text", "text": answer}]}],
         "output_text": answer,
-        "usage": cc.get("usage") or _usage_estimate("", answer),
+        "usage": _normalize_usage(cc.get("usage") or _usage_estimate("", answer)),
     })
 
 

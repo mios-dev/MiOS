@@ -413,7 +413,7 @@ def _client_tools_inject_identity(messages: list) -> list:
     _contract = _agent_contract()
     lead = (_contract + "\n\n" + _CLIENT_TOOLS_IDENTITY) if _contract else _CLIENT_TOOLS_IDENTITY
     msgs = [dict(m) for m in messages if isinstance(m, dict)]
-    if msgs and msgs[0].get("role") == "system":
+    if msgs and msgs[0].get("role") in ("system", "developer"):
         base = str(msgs[0].get("content") or "")
         msgs[0]["content"] = lead + "\n\n" + base
         return msgs

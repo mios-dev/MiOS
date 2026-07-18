@@ -201,9 +201,7 @@ def _probe_services() -> dict:
     # MiOS-specific health roll-up. is-active returns the state string
     # (active / inactive / failed) for each unit, one per line.
     mios_units = [
-        "mios-gateway-agent.service",
         "mios-open-webui.service",
-        "mios-delegation-prefilter.service",
         "mios-hermes-tail.service",
         "mios-llm-light.service",
         "mios-pgvector.service",

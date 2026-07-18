@@ -206,6 +206,37 @@ def truncate_to_tokens(text: str, max_tokens: int) -> str:
     return s[:budget].rstrip()
 
 
+def _normalize_usage(usage: Optional[dict]) -> dict:
+    if not usage or not isinstance(usage, dict):
+        return {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0,
+            "prompt_tokens_details": {"cached_tokens": 0},
+            "completion_tokens_details": {"reasoning_tokens": 0}
+        }
+    pt = usage.get("prompt_tokens") or 0
+    ct = usage.get("completion_tokens") or 0
+    tt = usage.get("total_tokens") or (pt + ct)
+    pt_details = usage.get("prompt_tokens_details")
+    if not isinstance(pt_details, dict):
+        pt_details = {"cached_tokens": 0}
+    elif "cached_tokens" not in pt_details:
+        pt_details = {**pt_details, "cached_tokens": 0}
+    ct_details = usage.get("completion_tokens_details")
+    if not isinstance(ct_details, dict):
+        ct_details = {"reasoning_tokens": 0}
+    elif "reasoning_tokens" not in ct_details:
+        ct_details = {**ct_details, "reasoning_tokens": 0}
+    return {
+        "prompt_tokens": pt,
+        "completion_tokens": ct,
+        "total_tokens": tt,
+        "prompt_tokens_details": pt_details,
+        "completion_tokens_details": ct_details
+    }
+
+
 def _usage_estimate(prompt: str, completion: str) -> dict:
     """OpenAI `usage` object (Tier-0 conformance; OWUI + clients read it). MiOS is
     a multi-call pipeline, so this reports a ~4-chars/token estimate of the
@@ -214,4 +245,4 @@ def _usage_estimate(prompt: str, completion: str) -> dict:
     number. A future per-stage back-end usage aggregation can replace it."""
     pt = max(1, count_text(prompt))       # WS-A5 tokenizer seam (was //4)
     ct = max(1, count_text(completion))
-    return {"prompt_tokens": pt, "completion_tokens": ct, "total_tokens": pt + ct}
+    return _normalize_usage({"prompt_tokens": pt, "completion_tokens": ct})

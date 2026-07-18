@@ -518,18 +518,9 @@ def _env_block() -> str:
             + body + "\n</env>")
 
 
-def _env_grounding() -> str:
-    """Identity guard + self-architecture + temporal + client-environment grounding
-    for the orchestrator's OWN system prompts (refine / synthesis / polish / swarm /
-    council / native-loop). Single helper so every grounded prompt site threads the
-    identity + arch + forwarded OWUI environment (time, timezone, location, locale,
- name) in one place. Leads with a STRUCTURED <env> block (research
-    parseable key:value for small models) followed by the detailed prose guidance +
-    anti-fabrication rules -- the prose is kept so nothing regresses."""
-    e = _env_block()
+def _env_grounding_static() -> str:
     g = _identity_guard()
     a = _arch_grounding()
-    t = _temporal_grounding()
     c = _client_grounding()
     anti_stale = (
         "WARNING: Avoid stale information! If the query asks about current events, "
@@ -542,7 +533,38 @@ def _env_grounding() -> str:
         "or product names (e.g. 'spotify' or 'photoshop') EXACTLY as requested so the "
         "system's local resolver can match against the actual installed local inventory."
     )
-    return (e + "\n" if e else "") + g + "\n" + a + "\n" + t + "\n" + anti_stale + ("\n" + c if c else "")
+    parts = []
+    if g:
+        parts.append(g)
+    if a:
+        parts.append(a)
+    if anti_stale:
+        parts.append(anti_stale)
+    if c:
+        parts.append(c)
+    return "\n".join(parts)
+
+
+def _env_grounding_dynamic() -> str:
+    t = _temporal_grounding()
+    e = _env_block()
+    parts = []
+    if t:
+        parts.append(t)
+    if e:
+        parts.append(e)
+    return "\n".join(parts)
+
+
+def _env_grounding() -> str:
+    """Identity guard + self-architecture + temporal + client-environment grounding
+    for the orchestrator's OWN system prompts (refine / synthesis / polish / swarm /
+    council / native-loop). Single helper so every grounded prompt site threads the
+    identity + arch + forwarded OWUI environment (time, timezone, location, locale,
+    name) in one place. Leads with a STRUCTURED <env> block (research
+    parseable key:value for small models) followed by the detailed prose guidance +
+    anti-fabrication rules -- the prose is kept so nothing regresses."""
+    return _env_grounding_static() + "\n" + _env_grounding_dynamic()
 
 
 _OWUI_VAR_KEYS = (
@@ -734,7 +756,7 @@ def _client_env(body: dict, headers: Optional[Any] = None) -> dict:
     if not out["location"]:
         try:
             for _m in (body.get("messages") or []):
-                if not (isinstance(_m, dict) and _m.get("role") == "system"):
+                if not (isinstance(_m, dict) and _m.get("role") in ("system", "developer")):
                     continue
                 _sys = _m.get("content")
                 if not isinstance(_sys, str) or not _sys:

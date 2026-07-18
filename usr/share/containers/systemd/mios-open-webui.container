@@ -2,10 +2,10 @@
 # /usr/share/containers/systemd/mios-open-webui.container
 
 [Unit]
-After=network-online.target mios-gateway-agent.service mios-cdi-detect.service mios-webtools-firstboot.service
+After=network-online.target mios-agent-pipe.service mios-cdi-detect.service mios-webtools-firstboot.service
 ConditionPathExists=/etc/mios/hermes/api.env
 Description='MiOS' Open WebUI
-Wants=network-online.target mios-gateway-agent.service mios-cdi-detect.service
+Wants=network-online.target mios-agent-pipe.service mios-cdi-detect.service
 
 [Container]
 AutoUpdate=registry

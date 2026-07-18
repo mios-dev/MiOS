@@ -31,10 +31,6 @@ enable mios-libexec-perms.path
 # open, silently breaking ALL Windows->WSL bridging (3033/8642/8899/
 # 9090). Idempotent.
 enable mios-firewall-ports.service
-# MiOS delegation prefilter -- forces delegate_task on fan-outable user
-# prompts so cascade delegation actually fires, regardless of the
-# main model's serial-tool bias. Sits between OWUI and Hermes on :8641.
-enable mios-delegation-prefilter.service
 enable sshd.service
 enable NetworkManager.service
 enable podman.socket
@@ -102,10 +98,12 @@ enable greenboot-rpm-ostree-grub2-check-fallback.service
 enable greenboot-status.service
 enable redboot-auto-reboot.service
 enable cockpit.socket
+enable mios-cockpit-link.socket
+enable mios-cockpit-link.service
 enable mios-searxng.service
 enable mios-crawl4ai.service
 enable mios-hermes-firstboot.service
-enable mios-gateway-agent.service
+enable mios-agent-pipe.service
 enable mios-opencode-gateway.service
 # Headless ChromeDev with CDP on :9222 -- backs Hermes's browser tool
 # (operator directive 2026-05-15). Service ConditionPathExists-gates
