@@ -612,6 +612,15 @@ An adversarial audit vetted 8 of your workstreams (ALL needs-refinement). Claude
 
 **Done:** all 4 blockers fixed; the masking fixtures/generators corrected so the green gate becomes meaningful; build-time/round-trip assertions added; drift-gate green FOR THE RIGHT REASON. Full 29-item follow-up batch + refinements arrive via Claude's finalization master-plan.
 
+## AGY-93  (finalization roadmap -- the full owner=agy batch; work by phase, AFTER AGY-92 blockers)
+The MiOS Finalization Master Plan (deduped across all 6 investigations: audit, MiOS-Mini, container-runtime, registry, verbosity, deploy) is persisted at `C:\MiOS\docs\agy\mios-finalization-plan.md` -- Definition of Done + critical path + phased plan + per-owner queues. Your owner=agy queue, IN ORDER (AGY-92 P0 blockers come first):
+- **P0:** (a) reconcile the `MIOS_TOML` (legacy) <-> `MIOS_VENDOR/HOST/USER_TOML` (resolver) env schism across `38-drift-checks.sh` (L522/L779/L1973/L2007) + `57-mios-sys-build.sh` -- this GATES every agent-pipe migration below; (b) reconcile `mios-ci.yml` PUBLISH literal vs its lines 26-38 capacity-gate comment (a red build blocks merges).
+- **P1 agent-pipe correctness:** migrate the raw-`MIOS_TOML` consumers (oscontrol L162; routing L83/L135; verbcatalog L67/L610) + portal readers (L118/L989/L996/L290) to `_toml_section`/`load_merged`; fix user-layer DELTA write (stop freezing vendor defaults into the user layer); `db_authoritative` PER-SECTION fallback (never an empty agent registry); `to_toml` datetime serialization; memoize resolution (no PG reconnect per `_toml_section`/`get`); then land the anti-regression gate + an offline `test_mios_toml.py` covering the db branch.
+- **P1 registry:** AGY-89 globals non-clobber (BOTH sh/ps1 twins) + a MIOS_IMAGE_NAME/REF twin-parity drift check; event-gate GHCR push/sign (never on PRs); harden empty-`MIOS_IMAGE_NAME` on GitHub + Forgejo (set `MIOS_VENDOR_TOML` before sourcing userenv, or `: "${MIOS_IMAGE_NAME:=${REGISTRY}/${IMAGE_NAME}}"`).
+- **P1 templates:** fix conformance match-paths to `usr/lib/systemd/system` + `usr/share/containers/systemd` (where the ~73 units/~22 quadlets live); rebaseline `conformance-grandfathered.list` to the ~23 real offenders; wire `tools/compile-templates.py` into the drift-gate or delete it.
+- **P1 docs (AGY-91):** author the 4 concept docs from `C:\MiOS\docs\agy\{doc-container-runtime,doc-foss-upstream,image-resolution,doc-mios-mini}.md`, template-conformant (check-46 green), cross-reffed; then run the full green gate.
+**Done:** each phase's drift-impact stays green; the AGY-92 blockers clear; report progress per phase. This supersedes the "full batch arrives later" note in AGY-92.
+
 ### Reporting back
 Commit each task as `agy: <task-id> <summary>` and push to `main`. Claude is monitoring
 `main` for your commits + will integrate/verify. If blocked, leave a `TODO(agy):` note in
