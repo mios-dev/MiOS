@@ -621,6 +621,15 @@ The MiOS Finalization Master Plan (deduped across all 6 investigations: audit, M
 - **P1 docs (AGY-91):** author the 4 concept docs from `C:\MiOS\docs\agy\{doc-container-runtime,doc-foss-upstream,image-resolution,doc-mios-mini}.md`, template-conformant (check-46 green), cross-reffed; then run the full green gate.
 **Done:** each phase's drift-impact stays green; the AGY-92 blockers clear; report progress per phase. This supersedes the "full batch arrives later" note in AGY-92.
 
+## AGY-94  (audit follow-ups -- full vetting is IN: 11 workstreams, 70 findings, ALL needs-refinement)
+The adversarial audit completed all 11 workstreams. Beyond the AGY-92 P0 blockers, the full ~40-item follow-up list is at `C:\MiOS\docs\agy\agy-audit-followups.md`. Highest-signal NEW findings to prioritize:
+- **REGRESSION (P1): substrate condition-gating LOST** -- the virt-gate / bare-metal-only / mios-virt-gate / mios-wsl2 drop-in fanout is broken: `41-mios-dropin-fanout.sh` writes to the WRONG path (not the image `/usr/lib/systemd/system`) and the GATES fanout loop was dropped, so gated units may no longer gate. Restore the fanout (or an SSOT table + committed static `.d`) + add a post-build assertion that fanned drop-ins exist in the final image + a drift-check on orphaned committed dropins with no generator source.
+- **SHIPS INERT (P1): [accounts].db_backed** -- SSOT=true but NO bridge auto-derives `MIOS_ACCOUNTS_DB_BACKED`; verify `tools/lib/userenv.sh` exports it at build, else `17-accounts-db.sh` always disables the service (default false) -> the entire accounts-DB workstream ships inert.
+- **(P2) reproducibility:** the from-source mios-sys/mios-cuda build git-clones are UNPINNED (no tags/digests) + no retry/backoff; `automation/manifest.json` still embeds `'MiOS' v0.2.4` headers (stale post-de-hardcode -- escapes the version gate only because .json is excluded).
+- **(P2) resolver/lint hardening:** single-source the duplicated walk/EXCLUDED_SECTIONS/WALK_* logic between `check-resolver-twin.py` + `userenv.sh`; broaden `lint-shell.sh` to cover `automation/lib` + `tools/lib` + `usr/libexec` shebang files (core build libs common.sh/packages.sh/globals.sh are currently UNLINTED); extend eval-safety to the userenv twins' `eval "$exports"`; memoize `is_db_authoritative()`/`load_db_config()` (no PG reconnect + full-TOML re-walk per call).
+- **(P2) after AGY-90/91 land:** re-audit that the applied verbosity edits match the changelist verbatim, that check-30's DESCRIPTION was fixed (not its logic), and that check-46 stays green.
+**Done:** fold into the AGY-93 phased plan (these are its P1/P2 detail); the 2 regressions first; report per-phase.
+
 ### Reporting back
 Commit each task as `agy: <task-id> <summary>` and push to `main`. Claude is monitoring
 `main` for your commits + will integrate/verify. If blocked, leave a `TODO(agy):` note in
