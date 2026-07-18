@@ -70,12 +70,18 @@ def generate_referenced_vars(root):
                       "Containerfile", "Containerfile.*", "*.nft", "*.sql")
     
     refs = set()
-    for dirpath, _dirs, files in os.walk(root):
-        if "/.git" in dirpath.replace("\\", "/"):
-            continue
-        for fn in files:
-            path = os.path.join(dirpath, fn)
+    import subprocess
+    tracked_files = []
+    try:
+        res = subprocess.run(["git", "ls-files"], capture_output=True, text=True, check=True, cwd=root)
+        tracked_files = [os.path.join(root, f) for f in res.stdout.splitlines() if os.path.isfile(os.path.join(root, f))]
+    except Exception:
+        pass
+        
+    if tracked_files:
+        for path in tracked_files:
             rel = os.path.relpath(path, root).replace("\\", "/")
+            fn = os.path.basename(path)
             if any(rel.endswith(s) for s in emitter_suffixes):
                 continue
             if not any(glob.fnmatch.fnmatch(fn, g) for g in consumer_globs):
@@ -90,6 +96,27 @@ def generate_referenced_vars(root):
                             refs.add(v)
             except (OSError, UnicodeError):
                 continue
+    else:
+        for dirpath, _dirs, files in os.walk(root):
+            if "/.git" in dirpath.replace("\\", "/"):
+                continue
+            for fn in files:
+                path = os.path.join(dirpath, fn)
+                rel = os.path.relpath(path, root).replace("\\", "/")
+                if any(rel.endswith(s) for s in emitter_suffixes):
+                    continue
+                if not any(glob.fnmatch.fnmatch(fn, g) for g in consumer_globs):
+                    continue
+                try:
+                    with open(path, encoding="utf-8", errors="ignore") as fh:
+                        for line in fh:
+                            for m in var_re.finditer(line):
+                                v = m.group(0)
+                                if re.match(rf"\s*(export\s+)?{v}=", line):
+                                    continue
+                                refs.add(v)
+                except (OSError, UnicodeError):
+                    continue
     
     ref_file = os.path.join(root, "usr/share/mios/referenced_names.txt")
     os.makedirs(os.path.dirname(ref_file), exist_ok=True)
