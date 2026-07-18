@@ -652,27 +652,6 @@ if [[ -z "${MIOS_USER:-}" && ! -f "$MIOS_USER_TOML" && ! -f "$MIOS_HOST_TOML" ]]
     fi
 fi
 
-# Credential-driven registry-selection logic (RELTOP-01)
-if [[ -r "/etc/mios/secrets.env" ]]; then
-    # shellcheck disable=SC1090
-    source "/etc/mios/secrets.env" 2>/dev/null || true
-fi
-
-_has_registry_creds=false
-for token in "${GHCR_TOKEN:-}" "${GH_TOKEN:-}" "${GITHUB_TOKEN:-}" "${MIOS_GITHUB_TOKEN:-}"; do
-    if [[ -n "$token" ]]; then
-        _has_registry_creds=true
-        break
-    fi
-done
-
-if [[ "$_has_registry_creds" == "true" ]]; then
-    export MIOS_IMAGE_NAME="${MIOS_IMAGE_NAME:-ghcr.io/mios-dev/mios}"
-else
-    export MIOS_IMAGE_NAME="localhost/mios"
-fi
-export MIOS_IMAGE_REF="${MIOS_IMAGE_NAME}:${MIOS_IMAGE_TAG:-latest}"
-
 # Whitelist of dynamically mapped ports/keys for static analysis (38-ssot-lint.sh)
 _ssot_lint_ports_dummy=(
     "MIOS_PORT_AGENT_PIPE"
