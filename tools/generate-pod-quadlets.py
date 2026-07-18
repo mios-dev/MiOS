@@ -278,6 +278,12 @@ def main(argv: "list[str]") -> int:
     networks = load_networks(TOML)
     volumes = load_volumes(TOML)
 
+    # Parity check: every key in enabled_map must map to a real container
+    for name in enabled_map:
+        if name not in containers:
+            print(f"[pod-gen] ERROR: key '{name}' in [quadlets.enable] does not map to any container in [containers]", file=sys.stderr)
+            return 1
+
     if not pods and not containers and not networks and not volumes:
         print("[pod-gen] no Quadlets in SSOT -- nothing to do")
         return 0

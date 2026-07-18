@@ -118,4 +118,4 @@ else
     log "      and kvmfr will use the public cert shipped by ublue-os-akmods-addons"
 fi
 
-log "kvmfr kmod BAKED IN"
+log "kvmfr.ko installed under /usr/lib/modules/$KVER/extra/kvmfr/"

@@ -38,4 +38,4 @@ fi
 
 MIOS_ROOT="$ROOT" MIOS_TOML="$TOML_FILE" MIOS_POD_OUT="$OUT_DIR" python3 "$GEN_SCRIPT"
 
-echo "[14-generate-quadlets] Done."
+echo "[14-generate-quadlets] Quadlets generated into ${OUT_DIR}."

@@ -7,7 +7,7 @@
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 
-log "Enabling unified system initialization..."
+log "Symlinking mios-role.service, mios-podman-gc.timer, mios-webtools-firstboot.service into multi-user.target.wants"
 
 # Enable units using build-safe symlinks
 WANTS=/usr/lib/systemd/system/multi-user.target.wants
@@ -26,4 +26,4 @@ do
     fi
 done
 
-log "Initialization system services enabled."
+log "mios-role/podman-gc/webtools-firstboot units enabled via multi-user.target.wants symlinks"

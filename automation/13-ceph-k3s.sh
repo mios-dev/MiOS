@@ -93,9 +93,9 @@ if [[ -n "$K3S_TAG" ]]; then
             install -m 0755 -t /usr/bin/ k3s-install.sh
 
             # Record to binaries SBOM (RELTOP-01 / T-251)
-            local sbom_dir="/usr/share/mios/artifacts/sbom"
+            sbom_dir="/usr/share/mios/artifacts/sbom"
             mkdir -p "$sbom_dir"
-            local sha=""
+            sha=""
             if command -v sha256sum >/dev/null 2>&1; then
                 sha="$(sha256sum /usr/bin/k3s | awk '{print $1}')"
             fi
@@ -130,6 +130,6 @@ chmod 755 /usr/libexec/mios/ceph-bootstrap.sh 2>/dev/null || true
 # var-lib-containers.mount all live in  and are enabled
 # AFTER the COPY step in the Containerfile.
 
-echo "[13-ceph-k3s] Ceph + K3s stack installed."
+echo "[13-ceph-k3s] Ceph client + cephadm installed; K3s binary install per tag ${K3S_TAG:-none} (see status above)."
 echo "[13-ceph-k3s]   Ceph Dashboard:  https://<host>:8443 (after bootstrap)"
 echo "[13-ceph-k3s]   K3s API server:  https://<host>:6443 (after boot)"

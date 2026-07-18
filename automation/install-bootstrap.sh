@@ -114,7 +114,7 @@ prompt_yesno() {
 # ============================================================================
 main() {
     require_root
-    log_phase "'MiOS' Bootstrap Installer (Full Build Mode)"
+    log_phase "'MiOS' Bootstrap Installer (clone repo + install full [packages.*] manifest + FHS overlay)"
 
     local hostkind=$(detect_host_kind)
     if [[ "$hostkind" == "unsupported" ]]; then
@@ -173,7 +173,7 @@ main() {
     git clone --depth=1 --branch "$DEFAULT_BRANCH" "$MIOS_REPO" "${MIOS_STAGE}"
     log_ok "Repository cloned to ${MIOS_STAGE}"
 
-    log_info "Applying non-destructive FHS overlay from staging area..."
+    log_info "Rsyncing usr/etc/var/srv from ${MIOS_STAGE} into / (rsync -aH, overwrites on content diff)"
     for d in usr etc var srv; do
         if [[ -d "${MIOS_STAGE}/${d}" ]]; then
             log_info "  Merging ${d}/ ..."
@@ -202,6 +202,7 @@ main() {
     log_info "Sourcing package resolver from ${MIOS_STAGE}/automation/lib/packages.sh"
     # shellcheck source=automation/lib/packages.sh
     export MIOS_TOML="$toml_path"
+    export MIOS_VENDOR_TOML="${MIOS_VENDOR_TOML:-$MIOS_TOML}"
     source "${MIOS_STAGE}/automation/lib/packages.sh"
 
     # Aggregate every declared section so a fresh-host ignition matches the

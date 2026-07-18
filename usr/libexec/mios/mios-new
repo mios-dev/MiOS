@@ -59,27 +59,102 @@ def render_template(content, name, type_name):
     return content
 
 def get_dest_path(name, type_name, repo_root):
-    if type_name == "bash-verb":
+    if type_name == "adr":
+        if not re.match(r"^\d{4}-", name):
+            name = "0012-" + name
+        if not name.endswith(".md"):
+            name += ".md"
+        return os.path.join(repo_root, "usr/share/doc/mios/adr", name)
+    elif type_name == "roadmap-ws":
+        if not name.endswith(".md"):
+            name += ".md"
+        return os.path.join(repo_root, "usr/share/doc/mios/roadmap", name)
+    elif type_name == "markdown-doc":
+        if not name.endswith(".md"):
+            name += ".md"
+        return os.path.join(repo_root, "usr/share/doc/mios", name)
+    elif type_name == "roadmap":
+        return os.path.join(repo_root, "ROADMAP.md")
+    elif type_name == "automation-step":
+        if not re.match(r"^\d{2}-", name):
+            name = "99-" + name
+        if not name.endswith(".sh"):
+            name += ".sh"
+        return os.path.join(repo_root, "automation", name)
+    elif type_name == "drift-check":
+        return None
+    elif type_name == "bash-verb":
+        if not name.startswith("mios-"):
+            name = "mios-" + name
+        if not name.endswith(".sh"):
+            name += ".sh"
+        return os.path.join(repo_root, "usr/libexec/mios", name)
+    elif type_name == "bash-tool":
+        if not name.startswith("mios-"):
+            name = "mios-" + name
+        return os.path.join(repo_root, "usr/libexec/mios", name)
+    elif type_name == "bash":
+        if not name.endswith(".sh"):
+            name += ".sh"
         return os.path.join(repo_root, "usr/libexec/mios", name)
     elif type_name == "python-module":
-        return os.path.join(repo_root, "usr/lib/mios/agent-pipe/mios_pipe", f"{name}.py")
+        if not name.endswith(".py"):
+            name += ".py"
+        return os.path.join(repo_root, "usr/lib/mios/agent-pipe/mios_pipe", name)
     elif type_name == "python-test":
-        return os.path.join(repo_root, "usr/lib/mios/agent-pipe/test_mios_{}.py".format(name))
+        if not name.startswith("test_mios_"):
+            name = "test_mios_" + name
+        if not name.endswith(".py"):
+            name += ".py"
+        return os.path.join(repo_root, "usr/lib/mios/agent-pipe", name)
+    elif type_name == "python-tool":
+        if not name.startswith("mios-"):
+            name = "mios-" + name
+        if not name.endswith(".py"):
+            name += ".py"
+        return os.path.join(repo_root, "usr/libexec/mios", name)
+    elif type_name == "rust":
+        if not name.endswith(".rs"):
+            name += ".rs"
+        return os.path.join(repo_root, "tools/native", name)
+    elif type_name == "typescript":
+        if not name.endswith(".ts"):
+            name += ".ts"
+        return os.path.join(repo_root, "tools", name)
+    elif type_name == "powershell":
+        if not name.endswith(".ps1"):
+            name += ".ps1"
+        return os.path.join(repo_root, "tools", name)
+    elif type_name == "toml-config":
+        if not name.endswith(".toml"):
+            name += ".toml"
+        return os.path.join(repo_root, "usr/share/mios", name)
+    elif type_name == "yaml":
+        if not (name.endswith(".yaml") or name.endswith(".yml")):
+            name += ".yaml"
+        return os.path.join(repo_root, "usr/share/mios", name)
+    elif type_name == "json-schema":
+        if not name.endswith(".json"):
+            name += ".json"
+        return os.path.join(repo_root, "usr/share/mios", name)
     elif type_name == "systemd-unit":
-        return os.path.join(repo_root, "usr/lib/systemd/system", f"mios-{name}.service")
+        if not name.startswith("mios-"):
+            name = "mios-" + name
+        if not name.endswith(".service"):
+            name += ".service"
+        return os.path.join(repo_root, "usr/lib/systemd/system", name)
     elif type_name == "quadlet":
-        return os.path.join(repo_root, "usr/share/containers/systemd", f"mios-{name}.container")
-    elif type_name == "adr":
-        return os.path.join(repo_root, "usr/share/doc/mios/adr", f"{name}.md")
-    else:
-        # drift-check and roadmap-ws do not have a single separate destination file path
-        # by default, so we can write to stdout or a temporary file.
-        return None
+        if not name.startswith("mios-"):
+            name = "mios-" + name
+        if not any(name.endswith(ext) for ext in [".container", ".pod", ".network", ".volume", ".image"]):
+            name += ".container"
+        return os.path.join(repo_root, "usr/share/containers/systemd", name)
+    return None
 
 def main():
     if len(sys.argv) < 3:
         print("Usage: mios-new <type> <name>")
-        print("Types: bash-verb, drift-check, python-module, python-test, systemd-unit, quadlet, adr, roadmap-ws")
+        print("Types: adr, roadmap-ws, markdown-doc, roadmap, automation-step, drift-check, bash-verb, bash-tool, bash, python-module, python-test, python-tool, rust, typescript, powershell, toml-config, yaml, json-schema, systemd-unit, quadlet")
         sys.exit(1)
         
     type_name = sys.argv[1]
@@ -111,14 +186,14 @@ def main():
         with open(dest_path, "w", encoding="utf-8", newline="\n") as f:
             f.write(rendered)
         # If it's a script/verb, make it executable
-        if type_name == "bash-verb":
+        if type_name in ("bash-verb", "bash-tool", "bash"):
             try:
                 os.chmod(dest_path, 0o755)
             except Exception:
                 pass
         print(f"Scaffolded new {type_name} at: {dest_path}")
     else:
-        # Output to stdout for drift-check and roadmap-ws
+        # Output to stdout for drift-check and roadmap-ws if destination is None
         print(rendered)
 
 if __name__ == "__main__":

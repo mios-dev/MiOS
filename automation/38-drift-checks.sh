@@ -521,6 +521,7 @@ check_package_registry() {
     fi
     if MIOS_AGENT_PIPE_DIR="$ROOT/usr/lib/mios/agent-pipe" \
        MIOS_TOML="$ROOT/usr/share/mios/mios.toml" \
+       MIOS_VENDOR_TOML="$ROOT/usr/share/mios/mios.toml" \
        MIOS_PACKAGES_DIR="$ROOT/usr/share/mios/ai/v1/packages" \
        python3 "$ROOT/usr/libexec/mios/mios-registry" verify >/dev/null 2>"$ROOT/.pkgreg.err"; then
         rm -f "$ROOT/.pkgreg.err" 2>/dev/null || true
@@ -597,6 +598,38 @@ check_module_test_coverage() {
         _violation "an agent-pipe pure module has NO sibling unit test -- author test_<module>.py (stdlib assert-script, the sibling-module pattern); isolation-tested logic is the point of the extraction (WS-0A)"
     else
         echo "[38-drift-checks]   (11) every agent-pipe mios_*.py has a sibling unit test"
+    fi
+}
+
+# (51, B11) Anti-regression: raw TOML readers in agent-pipe forbidden.
+# Fail when an agent-pipe module reads mios.toml via raw MIOS_TOML / hardcoded path.
+check_raw_toml_readers() {
+    local dir="$ROOT/usr/lib/mios/agent-pipe"
+    if [[ ! -d "$dir" ]]; then
+        echo "[38-drift-checks]   (51) raw TOML readers -- skipped"
+        return 0
+    fi
+    local violations="" f base
+    while IFS= read -r f; do
+        [[ -f "$f" ]] || continue
+        base="$(basename "$f")"
+        case "$base" in test_*) continue ;; esac
+        
+        # Check 1: raw read of MIOS_TOML env var
+        if grep -q -E "os\.environ(\.get)?\([\"']MIOS_TOML[\"']\)" "$f"; then
+            violations+="    $base (reads MIOS_TOML env var directly)"$'\n'
+        fi
+        # Check 2: hardcoded mios.toml path opens
+        if grep -E "open\(" "$f" | grep -q -E "mios\.toml"; then
+            violations+="    $base (hardcoded open of mios.toml)"$'\n'
+        fi
+    done < <(find "$dir" -maxdepth 2 -type f -name '*.py' 2>/dev/null)
+
+    if [[ -n "$violations" ]]; then
+        printf '%s' "$violations" >&2
+        _violation "found raw MIOS_TOML / mios.toml file readers. Use mios_toml.load_merged() / load_vendor() instead of manual file opens or raw env lookups (B11)"
+    else
+        echo "[38-drift-checks]   (51) no raw MIOS_TOML readers in agent-pipe"
     fi
 }
 
@@ -776,7 +809,7 @@ check_blade_dropins() {
         return 0
     fi
     local tmp_root; tmp_root="$(mktemp -d)"
-    if MIOS_ROOT="$tmp_root" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" python3 "$gen" >/dev/null 2>&1; then
+    if MIOS_ROOT="$tmp_root" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" MIOS_VENDOR_TOML="$ROOT/usr/share/mios/mios.toml" python3 "$gen" >/dev/null 2>&1; then
         local committed_dir="$ROOT/usr/share/mios/dropins"
         local generated_dir="$tmp_root/usr/share/mios/dropins"
         local ok=1
@@ -1325,7 +1358,7 @@ PY
     then
         echo "[38-drift-checks]   (22) bootstrap mios.toml [ports] table matches main repository"
     else
-        _violation "bootstrap mios.toml [ports] table diverges from main repository mios.toml (drift detected)"
+        _violation "bootstrap mios.toml [ports] table diverges from main repository mios.toml"
     fi
 }
 
@@ -1387,7 +1420,7 @@ PY
     then
         echo "[38-drift-checks]   (23) all [agent_pipe] budget variables have code consumers"
     else
-        _violation "some [agent_pipe] keys do not have code consumers inside the agent-pipe codebase (T-108 drift detected)"
+        _violation "some [agent_pipe] keys have no code consumer in the agent-pipe codebase (T-108)"
     fi
 }
 
@@ -1486,7 +1519,7 @@ PY
     then
         echo "[38-drift-checks]   (24) no bare port literals remain in execution paths"
     else
-        _violation "bare port literals detected in execution paths (T-121/T-125 drift detected)"
+        _violation "bare port literals in execution paths (T-121/T-125)"
     fi
 }
 
@@ -1662,6 +1695,111 @@ PY
     fi
 }
 
+# (52, D5) Add twin-parity drift check for globals.{sh,ps1} MIOS_IMAGE_NAME default (and base/bib images).
+# Ensure default image references in automation/lib/globals.sh and globals.ps1 align with mios.toml [image] SSOT.
+check_globals_image_parity() {
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "[38-drift-checks]   WARNING: python3 missing -- skipping globals-image-parity check" >&2
+        return 0
+    fi
+    if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
+import os, sys, re
+root = os.environ["MIOS_DRIFT_ROOT"]
+try:
+    import tomllib as _toml
+except ImportError:
+    try:
+        import tomli as _toml  # type: ignore
+    except ImportError:
+        sys.exit(0)
+toml = os.path.join(root, "usr/share/mios/mios.toml")
+if not os.path.isfile(toml):
+    sys.exit(0)
+with open(toml, "rb") as fh:
+    img = (_toml.load(fh).get("image", {}) or {})
+
+expected_name = img.get("name", "ghcr.io/mios-dev/mios")
+expected_base = img.get("base", "ghcr.io/ublue-os/ucore-hci:stable-nvidia")
+expected_bib = img.get("bib", "quay.io/centos-bootc/bootc-image-builder:latest")
+
+bad = []
+# Check globals.sh
+sh = os.path.join(root, "automation/lib/globals.sh")
+if os.path.isfile(sh):
+    with open(sh, encoding="utf-8") as fh:
+        content = fh.read()
+        
+        # Check MIOS_IMAGE_NAME
+        m = re.search(r'MIOS_IMAGE_NAME:=([^}]+)\}', content)
+        if m:
+            got = m.group(1).strip('"\' ')
+            if got != expected_name:
+                bad.append(f"globals.sh default MIOS_IMAGE_NAME={got} != mios.toml [image].name={expected_name}")
+        else:
+            bad.append("globals.sh is missing default MIOS_IMAGE_NAME definition")
+            
+        # Check MIOS_BASE_IMAGE
+        m = re.search(r'MIOS_BASE_IMAGE:=([^}]+)\}', content)
+        if m:
+            got = m.group(1).strip('"\' ')
+            if got != expected_base:
+                bad.append(f"globals.sh default MIOS_BASE_IMAGE={got} != mios.toml [image].base={expected_base}")
+        else:
+            bad.append("globals.sh is missing default MIOS_BASE_IMAGE definition")
+
+        # Check MIOS_BIB_IMAGE
+        m = re.search(r'MIOS_BIB_IMAGE:=([^}]+)\}', content)
+        if m:
+            got = m.group(1).strip('"\' ')
+            if got != expected_bib:
+                bad.append(f"globals.sh default MIOS_BIB_IMAGE={got} != mios.toml [image].bib={expected_bib}")
+        else:
+            bad.append("globals.sh is missing default MIOS_BIB_IMAGE definition")
+
+# Check globals.ps1
+ps1 = os.path.join(root, "automation/lib/globals.ps1")
+if os.path.isfile(ps1):
+    with open(ps1, encoding="utf-8") as fh:
+        content = fh.read()
+        
+        # Check defaultImageName
+        m = re.search(r'\$defaultImageName\s*=\s*([^#\r\n]+)', content)
+        if m:
+            got = m.group(1).strip('"\' ')
+            if got != expected_name:
+                bad.append(f"globals.ps1 defaultImageName={got} != mios.toml [image].name={expected_name}")
+        else:
+            bad.append("globals.ps1 is missing $defaultImageName definition")
+            
+        # Check MIOS_BASE_IMAGE
+        m = re.search(r'MIOS_BASE_IMAGE[^\r\n]+else\s*\{\s*([^}]+)\}', content)
+        if m:
+            got = m.group(1).strip('"\' ')
+            if got != expected_base:
+                bad.append(f"globals.ps1 default MIOS_BASE_IMAGE={got} != mios.toml [image].base={expected_base}")
+        else:
+            bad.append("globals.ps1 is missing default MIOS_BASE_IMAGE definition")
+
+        # Check MIOS_BIB_IMAGE
+        m = re.search(r'MIOS_BIB_IMAGE[^\r\n]+else\s*\{\s*([^}]+)\}', content)
+        if m:
+            got = m.group(1).strip('"\' ')
+            if got != expected_bib:
+                bad.append(f"globals.ps1 default MIOS_BIB_IMAGE={got} != mios.toml [image].bib={expected_bib}")
+        else:
+            bad.append("globals.ps1 is missing default MIOS_BIB_IMAGE definition")
+
+for b in bad:
+    sys.stderr.write(f"    {b}\n")
+sys.exit(1 if bad else 0)
+PY
+    then
+        echo "[38-drift-checks]   (52) default image references in globals.{sh,ps1} equal mios.toml [image] SSOT"
+    else
+        _violation "default image reference in automation/lib/globals.sh or globals.ps1 drifted from mios.toml [image] SSOT"
+    fi
+}
+
 # --- (29, DAG-integrity drift-gate) consumer-before-producer = build error. ----
 check_dag_integrity() {
     if ! command -v python3 >/dev/null 2>&1; then
@@ -1797,9 +1935,9 @@ if violations:
 sys.exit(0)
 PY
     then
-        echo "[38-drift-checks]   (30) names registry matches generate-names-registry.py and userenv.sh maps cleanly"
+        echo "[38-drift-checks]   (30) names registry matches generate-names-registry.py"
     else
-        _violation "naming registry drift / userenv translation table violation (flatten check 30)"
+        _violation "naming registry drift / tools/generate-names-registry.py stale (run tools/generate-names-registry.py to regenerate; check 30)"
     fi
 }
 
@@ -1971,6 +2109,7 @@ def check_roundtrip(root):
 
     seed_path = os.path.join(root, "usr/libexec/mios/seed-db-config.py")
     os.environ["MIOS_TOML"] = os.path.join(root, "usr/share/mios/mios.toml")
+    os.environ["MIOS_VENDOR_TOML"] = os.environ["MIOS_TOML"]
 
     seed_globals = {"__name__": "__main__", "psycopg": mock_psycopg, "__file__": seed_path}
     try:
@@ -2136,7 +2275,7 @@ check_canonical_bools() {
         echo "[38-drift-checks]   WARNING: python3 missing -- skipping canonical-bool check" >&2
         return 0
     fi
-    if MIOS_TOML="$ROOT/usr/share/mios/mios.toml" python3 - <<'PY'
+    if MIOS_TOML="$ROOT/usr/share/mios/mios.toml" MIOS_VENDOR_TOML="$ROOT/usr/share/mios/mios.toml" python3 - <<'PY'
 import sys
 import os
 
@@ -2415,6 +2554,7 @@ def check_roundtrip(root):
 
     seed_path = os.path.join(root, "usr/libexec/mios/seed-db-config.py")
     os.environ["MIOS_TOML"] = os.path.join(root, "usr/share/mios/mios.toml")
+    os.environ["MIOS_VENDOR_TOML"] = os.environ["MIOS_TOML"]
 
     # Run seed script
     seed_globals = {"__name__": "__main__", "psycopg": mock_psycopg, "__file__": seed_path}
@@ -2843,6 +2983,9 @@ check_resolver_twin_equivalence() {
     fi
 }
 
+# --- (46, Law 14 ONE-TEMPLATE-PER-TYPE) template conformance check. ---------
+# Validates that all files of known types carry the required AI-hint header
+# and match template structure guidelines, gating new files (grandfathered via list).
 check_template_conformance() {
     if ! command -v python3 >/dev/null 2>&1; then
         echo "[38-drift-checks]   (46) SOFT: python3 missing -- template conformance check skipped" >&2
@@ -2859,6 +3002,351 @@ check_template_conformance() {
         _violation "template conformance check failed -- new/modified files must follow their templates"
     else
         echo "[38-drift-checks]   (46) template conformance: all new files conform to templates"
+    fi
+}
+
+# (53, A2) Add kargs projection drift check
+# Re-renders kargs.d files from mios.toml [kargs] to a tmp dir and verifies no content drift with committed files.
+check_kargs_projection() {
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "[38-drift-checks]   WARNING: python3 missing -- skipping kargs projection check" >&2
+        return 0
+    fi
+    
+    local tmp_dir
+    tmp_dir="$(mktemp -d)"
+    
+    # Copy committed kargs.d files to tmp_dir
+    mkdir -p "$tmp_dir"
+    cp -r "$ROOT/usr/lib/bootc/kargs.d/"* "$tmp_dir/"
+    
+    # Run render logic pointing to tmp_dir
+    MIOS_TOML="$ROOT/usr/share/mios/mios.toml" KARGS_DIR="$tmp_dir" bash "$ROOT/automation/22-kargs-render.sh" >/dev/null 2>&1
+    
+    # Run validate-kargs.py on the rendered tmp_dir
+    if ! python3 "$ROOT/automation/validate-kargs.py" "$tmp_dir" >/dev/null 2>&1; then
+        rm -rf "$tmp_dir"
+        _violation "rendered kargs.d files failed validate-kargs.py schema validation"
+        return
+    fi
+    
+    # Compare with committed files (both files and content)
+    local diffs=""
+    local f base
+    for f in "$tmp_dir"/*.toml; do
+        [[ -f "$f" ]] || continue
+        base="$(basename "$f")"
+        if [[ ! -f "$ROOT/usr/lib/bootc/kargs.d/$base" ]]; then
+            diffs+="    Extra rendered file: $base"$'\n'
+        elif ! diff -u "$ROOT/usr/lib/bootc/kargs.d/$base" "$f" >/dev/null 2>&1; then
+            diffs+="    Content drift in $base (run automation/22-kargs-render.sh to update or align config)"$'\n'
+        fi
+    done
+    
+    for f in "$ROOT/usr/lib/bootc/kargs.d"/*.toml; do
+        [[ -f "$f" ]] || continue
+        base="$(basename "$f")"
+        if [[ ! -f "$tmp_dir/$base" ]]; then
+            diffs+="    Missing rendered file: $base"$'\n'
+        fi
+    done
+    
+    rm -rf "$tmp_dir"
+    
+    if [[ -n "$diffs" ]]; then
+        printf '%s' "$diffs" >&2
+        _violation "kargs.d projection check failed. Rendered files do not match committed usr/lib/bootc/kargs.d files."
+    else
+        echo "[38-drift-checks]   (53) kargs.d matches mios.toml [kargs] projection"
+    fi
+}
+
+# (54, A13) Add greenboot configuration check
+# Verifies that greenboot services enablement commands are defined in 46-greenboot.sh,
+# and check scripts under etc/greenboot/ have executable permission.
+check_greenboot() {
+    # 1. Verify that 46-greenboot.sh contains correct symlink commands for greenboot-healthcheck and greenboot-set-rollback-trigger
+    if ! grep -q "greenboot-healthcheck.service" "$ROOT/automation/46-greenboot.sh" || \
+       ! grep -q "greenboot-set-rollback-trigger.service" "$ROOT/automation/46-greenboot.sh"; then
+        _violation "greenboot services enablement commands are missing in automation/46-greenboot.sh"
+    fi
+    
+    # 2. Verify check scripts under etc/greenboot are executable
+    local non_execs=""
+    local f
+    if [[ -d "$ROOT/etc/greenboot" ]]; then
+        while read -r f; do
+            [[ -f "$f" ]] || continue
+            local relpath
+            relpath="$(realpath --relative-to="$ROOT" "$f")"
+            local mode
+            mode="$(git ls-files -s "$relpath" | awk '{print $1}')"
+            if [[ -n "$mode" && "$mode" != "100755" ]]; then
+                non_execs+="    $relpath has git mode $mode (expected 100755)"$'\n'
+            fi
+        done < <(find "$ROOT/etc/greenboot" -name "*.sh")
+    fi
+    
+    if [[ -n "$non_execs" ]]; then
+        printf '%s' "$non_execs" >&2
+        _violation "greenboot check scripts must be executable (mode 100755)"
+    else
+        echo "[38-drift-checks]   (54) greenboot services and scripts are correctly configured"
+    fi
+}
+
+# (55, A8) Add chrony NTP configuration check
+# Re-renders chrony.conf from mios.toml [network.ntp] to a temp file and compares with committed etc/chrony.conf.
+check_chrony_projection() {
+    local tmp_file
+    tmp_file="$(mktemp)"
+    
+    # Run the chrony renderer pointing to the temp file
+    MIOS_TOML="$ROOT/usr/share/mios/mios.toml" CHRONY_CONF="$tmp_file" bash "$ROOT/automation/24-chrony-render.sh" >/dev/null 2>&1
+    
+    if [[ ! -f "$ROOT/etc/chrony.conf" ]]; then
+        rm -f "$tmp_file"
+        _violation "committed etc/chrony.conf is missing"
+        return
+    fi
+    
+    if ! diff -u "$ROOT/etc/chrony.conf" "$tmp_file" >/dev/null 2>&1; then
+        diff -u "$ROOT/etc/chrony.conf" "$tmp_file" >&2
+        rm -f "$tmp_file"
+        _violation "etc/chrony.conf check failed. Rendered NTP config does not match committed etc/chrony.conf."
+    else
+        echo "[38-drift-checks]   (55) chrony.conf matches mios.toml [network.ntp] projection"
+        rm -f "$tmp_file"
+    fi
+}
+
+# (56, A9) Add NUT UPS configuration check
+# Re-renders nut configs from mios.toml [power.ups] to a temp dir and compares with committed etc/ups/ config files.
+check_nut_projection() {
+    local tmp_dir
+    tmp_dir="$(mktemp -d)"
+    
+    # Run the NUT renderer pointing to the temp dir
+    MIOS_TOML="$ROOT/usr/share/mios/mios.toml" UPS_CONF_DIR="$tmp_dir" bash "$ROOT/automation/25-nut-render.sh" >/dev/null 2>&1
+    
+    local diffs=""
+    local f base
+    for f in "$tmp_dir"/*.conf; do
+        [[ -f "$f" ]] || continue
+        base="$(basename "$f")"
+        if [[ ! -f "$ROOT/etc/ups/$base" ]]; then
+            diffs+="    Extra rendered NUT config: $base"$'\n'
+        elif ! diff -u "$ROOT/etc/ups/$base" "$f" >/dev/null 2>&1; then
+            diffs+="    Content drift in etc/ups/$base"$'\n'
+        fi
+    done
+    
+    for f in "$ROOT/etc/ups"/*.conf; do
+        [[ -f "$f" ]] || continue
+        base="$(basename "$f")"
+        if [[ ! -f "$tmp_dir/$base" ]]; then
+            diffs+="    Missing rendered NUT config: $base"$'\n'
+        fi
+    done
+    
+    rm -rf "$tmp_dir"
+    
+    if [[ -n "$diffs" ]]; then
+        printf '%s' "$diffs" >&2
+        _violation "etc/ups/ configuration check failed. Rendered NUT configs do not match committed etc/ups/ files."
+    else
+        echo "[38-drift-checks]   (56) etc/ups/ configurations match mios.toml [power.ups] projection"
+    fi
+}
+
+# (57, E5) Add fluff-token drift lint
+# Bans "successfully", bare "Done", "BAKED IN", and trailing "!" in operator echoes.
+check_fluff_tokens() {
+    local bad=""
+    local f
+    
+    # We scan all .sh files in automation/ and automation/lib/
+    while read -r f; do
+        [[ -f "$f" ]] || continue
+        local bname
+        bname="$(basename "$f")"
+        if [[ "$bname" == "38-drift-checks.sh" || "$bname" == "build-mios.sh" || "$bname" == "99-postcheck.sh" || "$f" =~ /firstboot/ ]]; then
+            continue
+        fi
+        
+        local line_num=0
+        while read -r line || [[ -n "$line" ]]; do
+            line_num=$((line_num + 1))
+            [[ "$line" =~ ^[[:space:]]*# ]] && continue
+            
+            if [[ "$line" =~ (echo|log|warn|die)[[:space:]] ]]; then
+                if [[ "$line" =~ successfully ]]; then
+                    bad+="    $f:$line_num: contains 'successfully'"$'\n'
+                fi
+                if [[ "$line" =~ "BAKED IN" ]]; then
+                    bad+="    $f:$line_num: contains 'BAKED IN'"$'\n'
+                fi
+                if [[ "$line" =~ \"Done\" ]] || [[ "$line" =~ \"Done.\" ]] || [[ "$line" =~ \'Done\' ]] || [[ "$line" =~ \'Done.\' ]]; then
+                    bad+="    $f:$line_num: contains bare 'Done'"$'\n'
+                fi
+                if [[ "$line" =~ ![[:space:]]*[\"\'][[:space:]]*$ ]]; then
+                    bad+="    $f:$line_num: contains trailing '!'"$'\n'
+                fi
+            fi
+        done < "$f"
+    done < <(find "$ROOT/automation" -name "*.sh")
+    
+    if [[ -n "$bad" ]]; then
+        printf '%s' "$bad" >&2
+        _violation "fluff tokens detected in pipeline logs (E5)"
+    else
+        echo "[38-drift-checks]   (57) fluff-token drift check passed"
+    fi
+}
+
+# (58, E6) Add coordination-hygiene lint
+# Fails if AGY-TASKS.md or TASKS.md contain AppData, Temp, or session-id-shaped paths (UUIDs / session folder names).
+check_coordination_hygiene() {
+    local bad=""
+    local f
+    for f in "$ROOT/AGY-TASKS.md" "$ROOT/TASKS.md"; do
+        [[ -f "$f" ]] || continue
+        
+        local line_num=0
+        while read -r line || [[ -n "$line" ]]; do
+            line_num=$((line_num + 1))
+            # Match UUID pattern (8-4-4-4-12 hex chars)
+            if [[ "$line" =~ AppData ]] || [[ "$line" =~ \bTemp\b ]] || [[ "$line" =~ [0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12} ]]; then
+                # Exclude the git log or workflow files if they appear, but this is md files
+                bad+="    $f:$line_num: contains AppData/Temp/session-id path"$'\n'
+            fi
+        done < "$f"
+    done
+    
+    if [[ -n "$bad" ]]; then
+        printf '%s' "$bad" >&2
+        _violation "coordination-hygiene lint failed (E6)"
+    else
+        echo "[38-drift-checks]   (58) coordination-hygiene lint passed"
+    fi
+}
+
+# --- (59, C8) compile-templates validation check. ---------------------------
+# Verifies that all templates in usr/share/mios/templates compile and validate cleanly.
+check_templates_compilation() {
+    local python_exe
+    if command -v py &>/dev/null; then
+        python_exe=py
+    elif command -v python3 &>/dev/null; then
+        python_exe=python3
+    else
+        python_exe=python
+    fi
+    
+    if ! "$python_exe" "$ROOT/tools/compile-templates.py" >/dev/null; then
+        "$python_exe" "$ROOT/tools/compile-templates.py" >&2
+        _violation "compile-templates validation failed. One or more templates in usr/share/mios/templates are syntactically invalid."
+    else
+        echo "[38-drift-checks]   (59) all templates compile and validate successfully"
+    fi
+}
+
+# --- (60, F11) impossible/EOL regressions check. ----------------------------
+# Fails on "mdevctl vGPU" claim in docs, reintroduced glusterfs* packages, or on-host Tang binding.
+check_impossible_eol_regressions() {
+    local bad=""
+    
+    # 1. Check for glusterfs packages in mios.toml
+    local toml="$ROOT/usr/share/mios/mios.toml"
+    if grep -E '"glusterfs"' "$toml" &>/dev/null || grep -E '"glusterfs-fuse"' "$toml" &>/dev/null || grep -E '"glusterfs-server"' "$toml" &>/dev/null; then
+        bad+="    Found glusterfs packages in mios.toml"$'\n'
+    fi
+    
+    # 2. Check for "mdevctl vGPU" claims in concepts docs, rejecting if not accompanied by impossible/out-of-scope/unsupported
+    local f
+    while read -r f; do
+        [[ -f "$f" ]] || continue
+        [[ "$(basename "$f")" == "mios-mini-architecture.md" ]] && continue
+        
+        if grep -F "mdevctl vGPU" "$f" &>/dev/null; then
+            if ! grep -E "mdevctl vGPU.*(impossible|unsupported|out of scope|reject)" "$f" &>/dev/null; then
+                bad+="    $f: contains 'mdevctl vGPU' claim without rejecting it"$'\n'
+            fi
+        fi
+    done < <(find "$ROOT/usr/share/doc/mios/concepts" -name "*.md")
+    
+    # 3. Check for on-host Tang binding configurations
+    if grep -E '"tang"' "$toml" &>/dev/null; then
+        bad+="    Found tang package in mios.toml (on-host Tang is prohibited)"$'\n'
+    fi
+    
+    if [[ -n "$bad" ]]; then
+        printf '%s' "$bad" >&2
+        _violation "impossible/EOL regression check failed (F11)"
+    else
+        echo "[38-drift-checks]   (60) impossible/EOL regression checks passed"
+    fi
+}
+
+# --- (61, G11) deploy-plane drift check. -------------------------------------
+# Asserts that the kickstart file has the required exports and offline overrides,
+# that the base image Fedora version matches the expected installer major version,
+# and that ventoy.json correctly binds the Fedora ISO to the kickstart template.
+check_deploy_plane() {
+    local bad=""
+    local bootstrap_root="/c/mios-bootstrap"
+    
+    local ks_file="$bootstrap_root/cat/resources/ventoy/mios-kickstart.cfg"
+    if [[ ! -f "$ks_file" ]]; then
+        ks_file="$ROOT/../mios-bootstrap/cat/resources/ventoy/mios-kickstart.cfg"
+    fi
+    
+    if [[ -f "$ks_file" ]]; then
+        if ! grep -q "MIOS_FHS_TOTAL_ROOT_MERGE=1" "$ks_file"; then
+            bad+="    mios-kickstart.cfg: missing MIOS_FHS_TOTAL_ROOT_MERGE=1 export"$'\n'
+        fi
+        if ! grep -q "BOOTSTRAP_REPO" "$ks_file" || ! grep -q "MIOS_REPO" "$ks_file"; then
+            bad+="    mios-kickstart.cfg: missing BOOTSTRAP_REPO or MIOS_REPO offline overrides"$'\n'
+        fi
+    else
+        echo "[38-drift-checks]   (61) WARNING: mios-kickstart.cfg not found, skipping kickstart exports assertion"
+    fi
+
+    local ventoy_json="$bootstrap_root/cat/resources/ventoy/ventoy.json"
+    if [[ ! -f "$ventoy_json" ]]; then
+        ventoy_json="$ROOT/../mios-bootstrap/cat/resources/ventoy/ventoy.json"
+    fi
+    
+    if [[ -f "$ventoy_json" ]]; then
+        if ! grep -q "Fedora-Server.iso" "$ventoy_json" || ! grep -q "mios-kickstart.cfg" "$ventoy_json"; then
+            bad+="    ventoy.json: missing Fedora-Server.iso/mios-kickstart.cfg binding in kickstart section"$'\n'
+        fi
+    else
+        echo "[38-drift-checks]   (61) WARNING: ventoy.json not found, skipping ISO-kickstart binding check"
+    fi
+
+    local toml="$ROOT/usr/share/mios/mios.toml"
+    local base_image_version
+    local base_image
+    base_image=$(grep -E '^[[:space:]]*base_image[[:space:]]*=' "$toml" | head -n1 | cut -d'"' -f2)
+    if [[ -n "$base_image" ]]; then
+        base_image_version=$(echo "$base_image" | grep -oE '[0-9]+$')
+        if [[ -n "$base_image_version" ]]; then
+            if [[ -f "$ks_file" ]]; then
+                if grep -oE 'Fedora-Server-[0-9]+' "$ks_file" | grep -qv "Fedora-Server-${base_image_version}" &>/dev/null; then
+                    local mismatched_version
+                    mismatched_version=$(grep -oE 'Fedora-Server-[0-9]+' "$ks_file" | head -n1)
+                    bad+="    kickstart/base_image: version mismatch (${mismatched_version} vs Fedora ${base_image_version})"$'\n'
+                fi
+            fi
+        fi
+    fi
+
+    if [[ -n "$bad" ]]; then
+        printf '%s' "$bad" >&2
+        _violation "deploy-plane drift check failed (G11)"
+    else
+        echo "[38-drift-checks]   (61) deploy-plane checks passed"
     fi
 }
 
@@ -3209,6 +3697,19 @@ check_sbom_metadata() {
     fi
 }
 
+check_hyprland_conf_heredoc() {
+    # Extract heredoc from 54-bake-hyprland.sh
+    local tmp; tmp="$(mktemp)"
+    sed -n '/cat << '\''EOF'\'' > \/usr\/share\/mios\/hyprland\/hyprland.conf/,/^EOF$/p' "$ROOT/automation/54-bake-hyprland.sh" | sed '1d;$d' > "$tmp"
+    if diff -u "$ROOT/usr/share/mios/hyprland/hyprland.conf" "$tmp" >/dev/null; then
+        echo "[38-drift-checks]   (50) Hyprland configuration template is in sync with baker script heredoc"
+        rm -f "$tmp"
+    else
+        rm -f "$tmp"
+        _violation "usr/share/mios/hyprland/hyprland.conf has drifted from the inline heredoc in automation/54-bake-hyprland.sh -- sync them (B4)"
+    fi
+}
+
 main() {
     if [[ $# -eq 1 && -n "$1" ]]; then
         if declare -f "$1" >/dev/null; then
@@ -3234,6 +3735,7 @@ main() {
     check_package_registry
     check_cli_sql_safety
     check_module_test_coverage
+    check_raw_toml_readers
     check_capability_manifest
     check_surface_parity
     check_no_hardcode
@@ -3252,6 +3754,7 @@ main() {
     check_verb_backends
     check_userenv_parity
     check_globals_ports
+    check_globals_image_parity
     check_dag_integrity
     check_names_registry
     check_drift_projection
@@ -3267,6 +3770,15 @@ main() {
     check_resolver_twin_parity
     check_resolver_twin_equivalence
     check_template_conformance
+    check_kargs_projection
+    check_greenboot
+    check_chrony_projection
+    check_nut_projection
+    check_fluff_tokens
+    check_coordination_hygiene
+    check_templates_compilation
+    check_impossible_eol_regressions
+    check_deploy_plane
     check_version_ssot
     check_root_toml_subset
     check_bake_plan
@@ -3274,6 +3786,7 @@ main() {
     check_roadmap_index
     check_cli_eval_safety
     check_sbom_metadata
+    check_hyprland_conf_heredoc
     check_shellcheck
 
     echo "[38-drift-checks] ---------------------------------------------------------"

@@ -16,7 +16,8 @@ except ImportError:
 TARGET_SECTIONS = [
     "ports", "ai", "identity", "locale", "auth", "network", "desktop", 
     "branding", "image", "bootstrap", "profile", "colors", "observability", 
-    "sandbox", "security", "code_mode", "hermes", "routing", "agents", "a2a"
+    "sandbox", "security", "code_mode", "hermes", "routing", "agents", "a2a",
+    "power", "mini"
 ]
 
 SHORT_ALIAS_PREFIX = {

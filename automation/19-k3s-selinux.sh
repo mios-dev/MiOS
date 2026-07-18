@@ -2,7 +2,7 @@
 # AI-hint: Automates the retrieval, compilation, and installation of the k3s SELinux policy for Fedora 44, ensuring K3s compatibility by staging the compiled .pp file in the immutable /usr tree.
 set -euo pipefail
 
-echo "==> Compiling and Installing K3s SELinux Policy for Fedora 44..."
+echo "==> Compiling K3s SELinux policy (k3s.pp) for Fedora 44 and staging it in /usr/share/selinux/packages/mios/..."
 
 # shellcheck source=lib/packages.sh
 source "$(dirname "$0")/lib/packages.sh"

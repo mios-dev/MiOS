@@ -33,7 +33,7 @@ fi
 WANTS=/usr/lib/systemd/system/multi-user.target.wants
 install -d -m 0755 "${WANTS}"
 
-log "Enabling Podman Machine and cloud-init services..."
+log "Symlinking sshd.service, podman.socket, qemu-guest-agent.service, cloud-init.service, cloud-final.service into multi-user.target.wants"
 for unit in \
     sshd.service \
     podman.socket \

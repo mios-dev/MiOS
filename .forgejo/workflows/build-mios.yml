@@ -157,6 +157,14 @@ jobs:
           set -euo pipefail
           export GHCR_TOKEN="${{ secrets.GHCR_TOKEN }}"
           source ./tools/lib/userenv.sh
+          if [[ -z "${MIOS_IMAGE_NAME:-}" ]]; then
+              echo "ERROR: MIOS_IMAGE_NAME is empty" >&2
+              exit 1
+          fi
+          if [[ "$MIOS_IMAGE_NAME" != */* ]]; then
+              echo "ERROR: MIOS_IMAGE_NAME must contain a registry host (e.g. ghcr.io/...)" >&2
+              exit 1
+          fi
           REG_HOST="${MIOS_IMAGE_NAME%%/*}"
           podman login -u "${GHCR_USER}" -p "${GHCR_TOKEN}" "${REG_HOST}"
           podman tag  localhost/mios:latest "${MIOS_IMAGE_NAME}:latest"

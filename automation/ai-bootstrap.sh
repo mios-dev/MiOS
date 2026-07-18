@@ -52,7 +52,7 @@ else
 fi
 
 # 5. Refresh environment configs and dotfiles.
-echo "[ai-bootstrap] Persisting environment state..."
+echo "[ai-bootstrap] Refreshing environment configs and dotfiles via tools/refresh-env.py..."
 if [[ -f "tools/refresh-env.py" ]]; then
     python3 tools/refresh-env.py
 else
@@ -62,7 +62,7 @@ fi
 echo "[ai-bootstrap] Workspace initialization complete."
 
 # 6. Seed RAG context for downstream agents.
-echo "[ai-bootstrap] Seeding latest 'MiOS' context for initialized agents..."
+echo "[ai-bootstrap] Copying artifacts/repo-rag-snapshot.json.gz into .ai/foundation/shared-tmp/ and agents/research/..."
 if [[ -f "artifacts/repo-rag-snapshot.json.gz" ]]; then
     mkdir -p .ai/foundation/shared-tmp/
     cp artifacts/repo-rag-snapshot.json.gz .ai/foundation/shared-tmp/latest-context.json.gz

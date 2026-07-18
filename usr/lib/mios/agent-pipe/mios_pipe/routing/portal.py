@@ -116,13 +116,8 @@ PORTAL_PUBLIC_HOST = (os.environ.get("MIOS_PUBLIC_HOST", "").strip()
 # unless an explicit MIOS_PORTAL_SECRET is set.
 def _portal_toml() -> dict:
     try:
-        try:
-            import tomllib
-        except ImportError:
-            import tomli as tomllib  # type: ignore
-        with open(os.environ.get("MIOS_TOML",
-                                 "/usr/share/mios/mios.toml"), "rb") as f:
-            return tomllib.load(f)
+        import mios_toml
+        return mios_toml.load_merged()
     except Exception:
         return {}
 
@@ -282,13 +277,9 @@ def _discover_portal_services() -> list[dict]:
                  "ttyd_bash": ("Terminal · Bash", "http", "terminal"),
                  "ttyd_powershell": ("Terminal · PowerShell", "http", "terminal")}
     try:
-        try:
-            import tomllib
-        except ImportError:
-            import tomli as tomllib  # type: ignore
-        ports = tomllib.load(open(
-            os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml"),
-            "rb")).get("ports") or {}
+        import mios_toml
+        merged = mios_toml.load_merged()
+        ports = mios_toml.section(merged, "ports")
     except Exception:
         ports = {}
     for key, (label, scheme, kind) in host_svcs.items():
@@ -989,13 +980,8 @@ def _portal_theme_css() -> str:
     stands. Per the no-hardcode rule: the toml is the source, the static
     block is just the documented fallback."""
     try:
-        try:
-            import tomllib
-        except ImportError:
-            import tomli as tomllib  # type: ignore
-        path = os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml")
-        with open(path, "rb") as f:
-            c = tomllib.load(f).get("colors") or {}
+        import mios_toml
+        c = mios_toml.colors()
     except Exception:
         return ""
     roles = {"--bg": c.get("bg"), "--fg": c.get("fg"),
@@ -1636,6 +1622,7 @@ def run_db_reseed_bg():
             
         env = os.environ.copy()
         env["MIOS_TOML"] = tmp_path
+        env["MIOS_VENDOR_TOML"] = tmp_path
         
         seeder_path = os.environ.get("MIOS_SEED_DB_CONFIG", "/usr/libexec/mios/seed-db-config.py")
         

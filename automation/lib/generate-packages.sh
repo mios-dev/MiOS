@@ -29,5 +29,5 @@ if [[ ! -x "$_gen" && ! -f "$_gen" ]]; then
     export MIOS_PACKAGES_DIR="${MIOS_PACKAGES_DIR:-$_root/usr/share/mios/ai/v1/packages}"
 fi
 
-echo "[generate-packages] package_registry ON -- materializing the registry..."
+echo "[generate-packages] package_registry ON -- running mios-registry generate to write ai/v1/packages/<author>/<name>/<version>/mios-pkg.toml + registry.json..."
 python3 "$_gen" generate

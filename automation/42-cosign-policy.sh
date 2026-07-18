@@ -50,9 +50,9 @@ if ! command -v cosign >/dev/null 2>&1; then
     install -m 0755 /tmp/cosign-dl/cosign-linux-amd64 /usr/bin/cosign
 
     # Record to binaries SBOM (RELTOP-01 / T-251)
-    local sbom_dir="/usr/share/mios/artifacts/sbom"
+    sbom_dir="/usr/share/mios/artifacts/sbom"
     mkdir -p "$sbom_dir"
-    local sha=""
+    sha=""
     if command -v sha256sum >/dev/null 2>&1; then
         sha="$(sha256sum /usr/bin/cosign | awk '{print $1}')"
     fi

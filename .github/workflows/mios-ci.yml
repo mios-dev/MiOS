@@ -21,8 +21,6 @@ on:
   workflow_dispatch:
 
 env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: mios-dev/mios
   # GitHub Actions and the self-hosted Forgejo runner are EQUAL, bit-for-bit
   # build/publish environments (build LOCAL-first on MiOS-DEV; default registry is
   # GHCR when credentials are present, else the local/Forgejo registry). PUBLISH
@@ -35,7 +33,7 @@ env:
   # registry. Flip to 'true' once a GitHub runner can hold the full image (a
   # large-disk runner, or after the MiOS-Sys consolidation shrinks the bake) so
   # GitHub bakes + pushes + signs as a full equal.
-  PUBLISH: 'true'
+  PUBLISH: 'false'
 
 jobs:
   # WS-0A drift gate: source-tree fitness-functions that need NO built image.
@@ -276,7 +274,7 @@ jobs:
               }
 
       - name: Rechunk for smaller Day-2 deltas (publish only)
-        if: env.PUBLISH == 'true'
+        if: env.PUBLISH == 'true' && github.event_name != 'pull_request'
         run: |
           set -euo pipefail
           # hhd-dev/rechunk produces 5-10x smaller bootc-upgrade
@@ -303,9 +301,17 @@ jobs:
 
       - name: Compute registry tags
         id: meta
-        if: env.PUBLISH == 'true'
+        if: env.PUBLISH == 'true' && github.event_name != 'pull_request'
         run: |
           source ./tools/lib/userenv.sh
+          if [[ -z "${MIOS_IMAGE_NAME:-}" ]]; then
+              echo "ERROR: MIOS_IMAGE_NAME is empty" >&2
+              exit 1
+          fi
+          if [[ "$MIOS_IMAGE_NAME" != */* ]]; then
+              echo "ERROR: MIOS_IMAGE_NAME must contain a registry host (e.g. ghcr.io/...)" >&2
+              exit 1
+          fi
           BASE="${MIOS_IMAGE_NAME}"
           TAGS=()
           if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
@@ -325,15 +331,23 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Log in to GHCR (push step)
-        if: env.PUBLISH == 'true'
+        if: env.PUBLISH == 'true' && github.event_name != 'pull_request'
         run: |
           source ./tools/lib/userenv.sh
+          if [[ -z "${MIOS_IMAGE_NAME:-}" ]]; then
+              echo "ERROR: MIOS_IMAGE_NAME is empty" >&2
+              exit 1
+          fi
+          if [[ "$MIOS_IMAGE_NAME" != */* ]]; then
+              echo "ERROR: MIOS_IMAGE_NAME must contain a registry host (e.g. ghcr.io/...)" >&2
+              exit 1
+          fi
           REG_HOST="${MIOS_IMAGE_NAME%%/*}"
           echo "${{ secrets.GITHUB_TOKEN }}" | \
               sudo podman login -u "${{ github.actor }}" --password-stdin "${REG_HOST}"
 
       - name: Push to GHCR
-        if: env.PUBLISH == 'true'
+        if: env.PUBLISH == 'true' && github.event_name != 'pull_request'
         run: |
           set -euo pipefail
           while IFS= read -r tag; do
@@ -344,7 +358,7 @@ jobs:
           done <<< "${{ steps.meta.outputs.tags }}"
 
       - name: Install cosign
-        if: env.PUBLISH == 'true'
+        if: env.PUBLISH == 'true' && github.event_name != 'pull_request'
         uses: sigstore/cosign-installer@v3
 
       # Sign EVERY pushed image (including :latest from main), not just v* tags
@@ -353,7 +367,7 @@ jobs:
       # job's `permissions: id-token: write` (already set -- the v-tag .sig
       # objects in GHCR prove keyless signing works)..
       - name: Cosign keyless sign (all pushes incl. :latest)
-        if: env.PUBLISH == 'true'
+        if: env.PUBLISH == 'true' && github.event_name != 'pull_request'
         env:
           COSIGN_EXPERIMENTAL: '1'
         run: |

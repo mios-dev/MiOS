@@ -18,23 +18,23 @@
 # MUST RUN BEFORE 30-user.sh (skel .bashrc must exist before useradd -m)
 set -euo pipefail
 
-echo "  'MiOS' ${MIOS_VERSION:-} -- Universal Dark Theme"
+echo "  'MiOS' ${MIOS_VERSION:-} -- locale + dark theme (dconf/GTK/Qt/Flatpak)"
 
 # ═══ SKEL .bashrc (MUST come BEFORE useradd -m) ═══
 # : Delivered via usr/share/skel/.bashrc overlay.
-echo "[30-locale-theme] Using /etc/skel/.bashrc from overlay..."
+echo "[30-locale-theme] /etc/skel/.bashrc provided by usr/share/skel overlay (no action here)."
 
 # ═══ GTK3: adw-gtk3-dark for visual consistency with libadwaita ═══
 # : Delivered via etc/gtk-3.0/settings.ini overlay.
-echo "[30-locale-theme] Using GTK3 theme from overlay..."
+echo "[30-locale-theme] GTK3 theme provided by etc/gtk-3.0/settings.ini overlay (no action here)."
 
 # ═══ GTK4: libadwaita reads color-scheme, NOT GTK_THEME ═══
 # : Delivered via etc/gtk-4.0/settings.ini overlay.
-echo "[30-locale-theme] Using GTK4 theme from overlay..."
+echo "[30-locale-theme] GTK4 theme provided by etc/gtk-4.0/settings.ini overlay (no action here)."
 
 # ═══ System-wide env vars for ALL toolkits ═══
 # : Delivered via etc/environment.d/ overlay.
-echo "[30-locale-theme] Using environment.d from overlay..."
+echo "[30-locale-theme] Toolkit env vars provided by etc/environment.d/ overlay (no action here)."
 
 # ═══ Flatpak overrides -- dark theme + cursor + fonts ═══
 # Bake-time seed of the GLOBAL flatpak override. Runtime
@@ -89,4 +89,4 @@ if [ -d /etc/dconf/db ]; then
     find /etc/dconf/db -maxdepth 1 -type f -exec mv -f {} /usr/share/dconf/db/ \; 2>/dev/null || true
 fi
 
-echo "[30-locale-theme] Dark theme configured for all toolkits."
+echo "[30-locale-theme] Applied system Flatpak dark/cursor overrides, compiled 90-mios.gschema.override, ran dconf update."

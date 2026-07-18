@@ -372,10 +372,13 @@ image.tag  MIOS_IMAGE_TAG
 locale.keyboard_layout  MIOS_LOCALE_KEYBOARD_LAYOUT
 locale.language  MIOS_LOCALE_LANGUAGE
 locale.timezone  MIOS_LOCALE_TIMEZONE
+mini.gpu.arbitration  MIOS_MINI_GPU_ARBITRATION
+mini.gpu.assignments.mios-guest  MIOS_MINI_GPU_ASSIGNMENTS_MIOS_GUEST
 network.allow_cockpit  MIOS_NETWORK_ALLOW_COCKPIT
 network.allow_libvirt_bridge  MIOS_NETWORK_ALLOW_LIBVIRT_BRIDGE
 network.allow_ssh  MIOS_NETWORK_ALLOW_SSH
 network.firewalld_default_zone  MIOS_NETWORK_FIREWALLD_DEFAULT_ZONE
+network.ntp.servers  MIOS_NETWORK_NTP_SERVERS
 network.quadlet.core_gateway  MIOS_NETWORK_QUADLET_CORE_GATEWAY
 network.quadlet.core_subnet  MIOS_NETWORK_QUADLET_CORE_SUBNET
 network.quadlet.network  MIOS_NETWORK_QUADLET_NETWORK
@@ -430,6 +433,10 @@ ports.stack_id  MIOS_PORTS_STACK_ID
 ports.ttyd_bash  MIOS_PORTS_TTYD_BASH
 ports.ttyd_powershell  MIOS_PORTS_TTYD_POWERSHELL
 ports.vllm  MIOS_PORTS_VLLM
+power.ups.desc  MIOS_POWER_UPS_DESC
+power.ups.driver  MIOS_POWER_UPS_DRIVER
+power.ups.name  MIOS_POWER_UPS_NAME
+power.ups.port  MIOS_POWER_UPS_PORT
 profile.features  MIOS_PROFILE_FEATURES
 profile.role  MIOS_PROFILE_ROLE
 routing.boolean_param_keywords  MIOS_ROUTING_BOOLEAN_PARAM_KEYWORDS
@@ -454,6 +461,10 @@ routing.web_search_trigger_contexts  MIOS_ROUTING_WEB_SEARCH_TRIGGER_CONTEXTS
 routing.web_search_trigger_phrases  MIOS_ROUTING_WEB_SEARCH_TRIGGER_PHRASES
 sandbox.enable  MIOS_SANDBOX_ENABLE
 security.allowlist_hosts  MIOS_SECURITY_ALLOWLIST_HOSTS
+security.disk_encryption.backend  MIOS_SECURITY_DISK_ENCRYPTION_BACKEND
+security.disk_encryption.mode  MIOS_SECURITY_DISK_ENCRYPTION_MODE
+security.disk_encryption.pcrs  MIOS_SECURITY_DISK_ENCRYPTION_PCRS
+security.disk_encryption.recovery  MIOS_SECURITY_DISK_ENCRYPTION_RECOVERY
 security.egress.allow  MIOS_SECURITY_EGRESS_ALLOW
 security.egress.mode  MIOS_SECURITY_EGRESS_MODE
 security.fapolicyd_observe.enable  MIOS_SECURITY_FAPOLICYD_OBSERVE_ENABLE

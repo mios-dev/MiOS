@@ -18,7 +18,7 @@ AUTH=$(awk '/^[[:space:]]*build_catalog_authoritative[[:space:]]*=/ {
 }' "$TOML_PATH" 2>/dev/null)
 
 if [[ "$AUTH" == "true" ]]; then
-    echo "[00-materialize-build-ctx] build_catalog_authoritative=true. Running database materialization..."
+    echo "[00-materialize-build-ctx] build_catalog_authoritative=true; running /usr/libexec/mios/materialize-build-ctx.py to materialize build-context files into ${MIOS_BUILD_CTX}"
     # The default location of materialized files is next to mios.toml
     export MIOS_BUILD_CTX="${MIOS_BUILD_CTX:-$(dirname "$TOML_PATH")}"
     if /usr/libexec/mios/materialize-build-ctx.py; then

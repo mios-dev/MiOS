@@ -195,6 +195,8 @@ def get_aliases(dotted_path):
         aliases.extend(["MIOS_USER_GROUPS", "MIOS_DEFAULT_GROUPS"])
     elif dotted_path == "identity.default_password":
         aliases.append("MIOS_DEFAULT_PASSWORD")
+    elif dotted_path == "accounts.db_backed":
+        aliases.append("MIOS_ACCOUNTS_DB_BACKED")
 
     elif dotted_path == "locale.timezone":
         aliases.extend(["MIOS_TIMEZONE", "MIOS_DEFAULT_TIMEZONE"])

@@ -40,6 +40,13 @@ back to the operator. Everything below describes *this repo's* slice of that
 whole: how a paste on Windows or a `curl | bash` on Linux becomes a booted,
 agentic MiOS host that can then rebuild itself.
 
+### Four Load-Bearing Architectural Invariants (Corrections)
+To ensure agents reason correctly about the system substrate, the following four corrections to standard draft assumptions must be strictly adhered to:
+1. **`/var` Persists by Default**: On bootc/ostree systems, `/var` is a persistent location rather than a volatile tmpfs. This guarantees continuity for large models, database state, and virtual machine disks.
+2. **Unified Kernel Image (UKI) vs MOK Conflation**: The bootloader and kernel signing chain is a Unified Kernel Image (`shim -> systemd-boot -> signed UKI`) where kernel command line parameters (kargs) are baked and signed into the UKI itself. This is distinct from Machine Owner Key (MOK) module signing, which only governs out-of-tree runtime driver signature checks.
+3. **Graphics Virtualization (venus vs CUDA)**: The `venus` VirtIO GPU protocol is strictly a graphics/Vulkan transport. It does not support CUDA execution inside a microVM; running CUDA workloads inside a virtualized guest requires whole-device VFIO hardware passthrough.
+4. **GPU Fractioning / mediated vGPU Limit**: GPU fractioning (using `mdevctl` or SR-IOV) is technically impossible without loading a physical host-side PF driver. Therefore, on a driver-free host, the only supported option is whole-device passthrough via `vfio-pci`; vGPU fractioning requires an explicit, invariant-breaking opt-in.
+
 ## 1. Repo identity
 
 * **Project:** MiOS — pronounced *MyOS* (short for *My OS*). Research project,

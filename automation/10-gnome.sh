@@ -28,7 +28,7 @@ source "${SCRIPT_DIR}/lib/packages.sh"
 # ═════════════════════════════════════════════════════════════════════════════
 # GNOME 50 -- Install from mios.toml [packages.gnome] (build-up, NOT strip-down)
 # ═════════════════════════════════════════════════════════════════════════════
-echo "[10-gnome] Installing GNOME 50 desktop (pure build-up)..."
+echo "[10-gnome] Installing GNOME 50 packages from mios.toml [packages.gnome]..."
 install_packages "gnome"
 
 # Optional GNOME Core Apps (empty pkgs[] in [packages.gnome-core-apps] by default)
@@ -39,13 +39,13 @@ install_packages_optional "gnome-core-apps"
 # Removing localsearch breaks Nautilus search + Activities Overview.
 # Hide via autostart overrides in usr/share/xdg/autostart/
 # ═════════════════════════════════════════════════════════════════════════════
-echo "[10-gnome] Disabling localsearch/tracker indexing (keep package, hide autostart)..."
+echo "[10-gnome] localsearch/tracker indexing disabled via static autostart override files in the usr/share/xdg/autostart/ overlay (package retained)"
 
 # ═════════════════════════════════════════════════════════════════════════════
 # Qt Adwaita theming -- required for Qt apps to match GNOME look
 # Managed via usr/lib/environment.d/60-mios-qt-adwaita.conf
 # ═════════════════════════════════════════════════════════════════════════════
-echo "[10-gnome] Setting Qt Adwaita environment variables (managed via overlay)..."
+echo "[10-gnome] Qt Adwaita theming provided by usr/lib/environment.d/60-mios-qt-adwaita.conf overlay"
 
 # Geist + Symbols-Only Nerd Font now install via automation/09-fonts.sh
 # UNCONDITIONALLY (BEFORE this script runs). The font fetch was moved
@@ -111,9 +111,9 @@ for attempt in 1 2 3; do
         fi
         if tar -xf /tmp/bibata.tar.xz -C /usr/share/icons/; then
             # Record to binaries SBOM (RELTOP-01 / T-251)
-            local sbom_dir="/usr/share/mios/artifacts/sbom"
+            sbom_dir="/usr/share/mios/artifacts/sbom"
             mkdir -p "$sbom_dir"
-            local sha=""
+            sha=""
             if command -v sha256sum >/dev/null 2>&1; then
                 sha="$(sha256sum /tmp/bibata.tar.xz | awk '{print $1}')"
             fi

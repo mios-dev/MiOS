@@ -58,6 +58,33 @@
 # role     = "desktop"     # desktop | headless | k3s-master | ha-node
 # features = []            # extras: ceph-mon, gamescope, waydroid, pxe-hub
 
+# ---- Security / Disk Encryption --------------------------------------------
+# TPM2-backed LUKS disk encryption (WS-VECTOR V1 / T-246).
+[security.disk_encryption]
+# mode     = "tpm2"                          # Encryption mode: "tpm2", "clevis", "none"
+# pcrs     = [7]                             # TPM2 PCR registers (7 = Secure Boot)
+# recovery = true                            # Generate and store a LUKS recovery key
+# backend  = "systemd-cryptenroll"           # Enrollment backend: "systemd-cryptenroll", "clevis"
+
+# ---- Network / NTP Configuration -------------------------------------------
+# NTP servers configuration (Chrony)
+[network.ntp]
+# servers = ["0.pool.ntp.org", "1.pool.ntp.org", "2.pool.ntp.org", "3.pool.ntp.org"]
+
+# ---- Power / UPS Configuration ---------------------------------------------
+# UPS configuration (Network UPS Tools)
+[power.ups]
+# name   = "mios-ups"
+# driver = "usbhid-ups"
+# port   = "auto"
+# desc   = "MiOS Uninterruptible Power Supply"
+
+# ---- MiOS-Mini GPU Arbitration / Guest Assignment --------------------------
+# GPU arbitration and guest assignment (WS-F5)
+[mini.gpu]
+# assignments = { mios-guest = ["0000:01:00.0"] }
+# arbitration = "static"   # GPU arbitration model: "static" or "dynamic"
+
 # ---- Free-form environment overrides ---------------------------------------
 # Replaces ~/.config/mios/env. Each KEY = "VALUE" pair is exported as a
 # regular env var by /etc/profile.d/mios-env.sh on interactive login (and by

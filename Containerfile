@@ -82,6 +82,7 @@ RUN --mount=type=bind,from=ctx,source=/ctx,target=/ctx,ro \
            -o -name "*.rules" \) \
         -exec sed -i 's/\r$//' {} +; \
     export MIOS_TOML=/tmp/build/usr/share/mios/mios.toml; \
+    export MIOS_VENDOR_TOML=/tmp/build/usr/share/mios/mios.toml; \
     bash /tmp/build/automation/lib/packages.sh >/dev/null 2>&1 || true; \
     source /tmp/build/automation/lib/packages.sh; \
     # Purge any stale/corrupt repo metadata left in the buildkit cache mount

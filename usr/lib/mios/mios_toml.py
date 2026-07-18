@@ -20,7 +20,7 @@ except ImportError:  # py < 3.11
 # overridable so a caller (or a test/CI on a non-FHS host) can retarget without
 # editing this file. VENDOR is repo-relative when MIOS_TOML_ROOT is set.
 _ROOT = os.environ.get("MIOS_TOML_ROOT", "")
-VENDOR = os.environ.get("MIOS_VENDOR_TOML") or (
+VENDOR = os.environ.get("MIOS_VENDOR_TOML") or os.environ.get("MIOS_TOML") or (
     os.path.join(_ROOT, "usr/share/mios/mios.toml") if _ROOT else "/usr/share/mios/mios.toml")
 HOST = os.environ.get("MIOS_HOST_TOML", "/etc/mios/mios.toml")
 USER = os.environ.get("MIOS_USER_TOML") or os.path.join(
@@ -43,7 +43,7 @@ def _tier_dirs():
     + systemd's /usr/lib vendor convention), NOT beside the /usr/share monolith;
     admin/user fragments sit in a mios.d/ beside their monolith."""
     root = os.environ.get("MIOS_TOML_ROOT", "")
-    vendor = os.environ.get("MIOS_VENDOR_TOML") or (
+    vendor = os.environ.get("MIOS_VENDOR_TOML") or os.environ.get("MIOS_TOML") or (
         os.path.join(root, "usr/share/mios/mios.toml") if root else "/usr/share/mios/mios.toml")
     host = os.environ.get("MIOS_HOST_TOML", "/etc/mios/mios.toml")
     user = os.environ.get("MIOS_USER_TOML") or os.path.join(
@@ -97,21 +97,34 @@ def _load_one(path):
         return {}
 
 
+_LOAD_MERGED_CACHE = None
+
+def clear_cache():
+    global _LOAD_MERGED_CACHE
+    _LOAD_MERGED_CACHE = None
+
 def load_merged(layers=None):
     """Full three-layer overlay (vendor < host < user), highest wins."""
+    global _LOAD_MERGED_CACHE
+    if layers is None and _LOAD_MERGED_CACHE is not None:
+        return _LOAD_MERGED_CACHE
+
+    merged = {}
+    for p in (layers if layers is not None else layer_paths()):
+        deep_merge(merged, _load_one(p))
+
     if layers is None:
         try:
             import mios_db_config
             if mios_db_config.is_db_authoritative():
                 db_cfg = mios_db_config.load_db_config()
                 if db_cfg:
-                    return db_cfg
+                    deep_merge(merged, db_cfg)
         except Exception:
             pass
 
-    merged = {}
-    for p in (layers if layers is not None else layer_paths()):
-        deep_merge(merged, _load_one(p))
+    if layers is None:
+        _LOAD_MERGED_CACHE = merged
     return merged
 
 

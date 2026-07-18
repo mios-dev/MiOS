@@ -64,15 +64,10 @@ def _load_verb_catalog() -> dict:
     prompt + the arg-synonym dispatcher + (future) MCP tools/list."""
     global _DB_UNREACHABLE
     cat: dict = {}
-    toml_path = os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml")
     try:
-        try:
-            import tomllib
-        except ImportError:
-            import tomli as tomllib
-        with open(toml_path, "rb") as f:
-            data = tomllib.load(f)
-        verbs = data.get("verbs") or {}
+        import mios_toml
+        merged = mios_toml.load_merged()
+        verbs = mios_toml.section(merged, "verbs")
         defaults = verbs.get("_defaults") or {}
         if isinstance(verbs, dict):
             for vname, vcfg in verbs.items():
@@ -601,25 +596,9 @@ def _load_recipe_catalog() -> dict:
     and it appears here + in every consumer automatically (self-iterating)."""
     out: dict = {}
     try:
-        import tomllib
-    except ImportError:
-        try:
-            import tomli as tomllib  # type: ignore
-        except ImportError:
-            return out
-    toml_path = os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml")
-    for p in (toml_path, "/etc/mios/mios.toml"):  # /etc overlay wins
-        try:
-            with open(p, "rb") as f:
-                recs = (tomllib.load(f).get("recipes") or {})
-        except tomllib.TOMLDecodeError:
-            # WS-A1: a MALFORMED toml is a real SSOT defect -> fail-loud when
-            # opted in; otherwise skip this file (degrade, today's behaviour).
-            if CATALOG_FAIL_MODE == "fail":
-                raise
-            continue
-        except OSError:
-            continue  # absent /etc overlay is normal -> always skip
+        import mios_toml
+        merged = mios_toml.load_merged()
+        recs = mios_toml.section(merged, "recipes")
         for name, cfg in recs.items():
             if isinstance(cfg, dict):
                 out[name] = {
@@ -627,6 +606,11 @@ def _load_recipe_catalog() -> dict:
                     "args": list(cfg.get("args") or []),
                     "permission": str(cfg.get("permission", "read")),
                 }
+    except Exception as e:
+        if log is not None:
+            log.warning("recipe catalog load failed: %s", e)
+        if CATALOG_FAIL_MODE == "fail":
+            raise
     return out
 
 

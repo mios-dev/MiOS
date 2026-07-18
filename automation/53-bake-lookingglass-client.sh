@@ -127,4 +127,4 @@ else
     exit 0
 fi
 
-log "Looking Glass client BAKED IN"
+log "looking-glass-client installed at /usr/bin/looking-glass-client"

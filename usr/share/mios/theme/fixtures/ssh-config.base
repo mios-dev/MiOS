@@ -1,3 +1,3 @@
-[Host "github.com"]
-	User = git
-	IdentityFile = ~/.ssh/github_key
+Host github.com
+	User git
+	IdentityFile ~/.ssh/github_key

@@ -97,9 +97,9 @@ if command -v unzip >/dev/null 2>&1; then
         unzip -o -q /tmp/nerd-symbols.zip "*.ttf" "*.otf" -d /usr/share/fonts/nerd-symbols 2>/dev/null || true
 
         # Record to binaries SBOM (RELTOP-01 / T-251)
-        local sbom_dir="/usr/share/mios/artifacts/sbom"
+        sbom_dir="/usr/share/mios/artifacts/sbom"
         mkdir -p "$sbom_dir"
-        local sha=""
+        sha=""
         if command -v sha256sum >/dev/null 2>&1; then
             sha="$(sha256sum /tmp/nerd-symbols.zip | awk '{print $1}')"
         fi

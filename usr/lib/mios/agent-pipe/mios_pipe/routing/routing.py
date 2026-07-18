@@ -80,14 +80,10 @@ def _load_routing_domains() -> tuple[dict, bool]:
  chosen domain's `verbs`. SSOT (fix the 82-tool mis-routing
     via schema-routing, NO english prose rules). FAIL-SAFE: router disabled / no
     domains / load error -> ({}, False) -> full-surface behaviour, nothing lost."""
-    toml_path = os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml")
     try:
-        try:
-            import tomllib
-        except ImportError:
-            import tomli as tomllib
-        with open(toml_path, "rb") as f:
-            rt = (tomllib.load(f).get("routing") or {})
+        import mios_toml
+        merged = mios_toml.load_merged()
+        rt = mios_toml.section(merged, "routing")
         enable = str(rt.get("router_enable", "false")).lower() in {"true", "1", "yes", "on"}
         domains: dict = {}
         for dom, cfg in (rt.get("domains") or {}).items():
@@ -132,14 +128,10 @@ def _load_routing_phrases(key: str) -> list:
     lowercased + de-duplicated, longest-first (so multi-word phrases strip before
     their substrings). NO hardcoded English in code -- the lists are SSOT data.
     FAIL-SAFE: any error -> []."""
-    toml_path = os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml")
     try:
-        try:
-            import tomllib
-        except ImportError:
-            import tomli as tomllib
-        with open(toml_path, "rb") as f:
-            rt = (tomllib.load(f).get("routing") or {})
+        import mios_toml
+        merged = mios_toml.load_merged()
+        rt = mios_toml.section(merged, "routing")
         return sorted(
             {str(p).lower().strip() for p in (rt.get(key) or []) if str(p).strip()},
             key=len, reverse=True)

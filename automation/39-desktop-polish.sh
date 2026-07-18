@@ -17,7 +17,7 @@
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-echo "[39-desktop-polish] Final desktop polish..."
+echo "[39-desktop-polish] staging profile.d/mios-motd.sh terminal MOTD; desktop entries delivered by 08-system-files overlay"
 
 # ═══ COCKPIT DESKTOP ENTRY -- uses cockpit-desktop (no TLS warnings) ═══
 echo "[39-desktop-polish] Cockpit desktop entry delivered via overlay."
@@ -40,4 +40,4 @@ echo "[39-desktop-polish] Fastfetch config delivered via overlay."
 # ═══ PROFILE.D -- fastfetch + MOTD on terminal/TTY open ═══
 echo "[39-desktop-polish] Profile.d MOTD script delivered via overlay."
 
-echo "[39-desktop-polish] Desktop polish complete."
+echo "[39-desktop-polish] MOTD/desktop-entry overlay delivery reported"

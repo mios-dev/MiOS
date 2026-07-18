@@ -544,10 +544,10 @@ Configuration:
 
 Installation Details:
   âœ" 'MiOS' structure merged to system root (FHS-compliant)
-  âœ" User account created with full permissions
+  âœ" User account created in groups wheel,libvirt,kvm,video,render,input,dialout with NOPASSWD sudoers drop-in
   âœ" User-space initialized (XDG directories, configs, dotfiles)
-  âœ" Python virtual environment created
-  âœ" System configuration installed
+  âœ" Python virtual environment created at .local/share/mios/venv (skipped if python3 absent)
+  âœ" /etc templates merged via rsync --ignore-existing
   âœ" Build files installed to ${MIOS_SHARE_DIR}
 
 Next Steps:

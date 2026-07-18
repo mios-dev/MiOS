@@ -7,9 +7,9 @@
 # Actual logic lives in /usr/libexec/mios/gpu-detect (system_files overlay).
 set -euo pipefail
 
-echo "[34-gpu-detect] Configuring GPU auto-detect service..."
+echo "[34-gpu-detect] gpu-detect unit + /usr/libexec/mios/gpu-detect supplied by system_files overlay; this step performs no configuration."
 
 # Unit and script are delivered via system_files overlay.
 # Enablement is handled via usr/lib/systemd/system-preset/90-mios.preset
 
-echo "[34-gpu-detect] GPU detection service enabled."
+echo "[34-gpu-detect] gpu-detect.service enablement delivered via usr/lib/systemd/system-preset/90-mios.preset (not enabled by this script)."

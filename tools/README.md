@@ -133,6 +133,11 @@ its own layout.
 | `refresh-env.py` | Sync `.ai-environment.json` with editor (`.vscode/settings.json`) preferences |
 | `log-to-bootstrap.sh` | Sync AI/RAG artifacts + wiki docs to the `mios-bootstrap` repo for distribution |
 | `mios-upstream-monitor.sh` | Track upstream versions (Fedora, bootc, Cockpit, NVIDIA, CrowdSec, Waydroid, …) for available updates |
+| `compile-templates.py` | Golden round-trip template validator to verify all templates parse and compile cleanly |
+
+### Template Conformance Gate (Check 46) & Golden Compiler (Check 59)
+- **Check 46 (`check_template_conformance`)**: Enforces that all code and documentation files follow the unified template rules (ADR-0011) and carry the appropriate `AI-hint:` metadata header.
+- **Check 59 (`check_templates_compilation` / `compile-templates.py`)**: Validates that the templates themselves compile cleanly and are syntactically correct, preventing broken template definitions from slipping into the codebase.
 
 ---
 

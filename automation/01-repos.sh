@@ -89,7 +89,7 @@ echo "[01-repos] Phase 1: Pre-upgrading core systemd/filesystem..."
 # no repo configured at this stage; skip them cleanly instead of aborting.
 $DNF_BIN "${DNF_SETOPT[@]}" upgrade -y --allowerasing --skip-unavailable \
     dnf rpm fedora-release fedora-repos filesystem systemd glibc dbus-broker 2>&1 || {
-    echo "[01-repos] NOTE: Pre-upgrade had warnings, continuing..."
+    echo "[01-repos] NOTE: dnf upgrade of systemd/glibc/dbus-broker/filesystem returned non-zero; continuing"
 }
 
 # Packages whose repos are not yet configured (crowdsec) or whose ucore version
@@ -123,5 +123,5 @@ fi
 # Clean metadata so subsequent scripts start from a consistent cache state
 $DNF_BIN clean metadata 2>/dev/null || true
 
-echo "[01-repos] Verifying core package versions..."
+echo "[01-repos] Querying installed versions of systemd glibc dbus-broker filesystem via rpm -q"
 rpm -q systemd glibc dbus-broker filesystem || true

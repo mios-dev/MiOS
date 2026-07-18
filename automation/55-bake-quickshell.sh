@@ -61,7 +61,7 @@ fi
 
 record_version quickshell "$PIN_REF" "https://github.com/quickshell-mirror/quickshell/tree/${PIN_REF}"
 
-echo "[55-bake-quickshell] Writing default quickshell panels..."
+echo "[55-bake-quickshell] Writing default panel /usr/share/mios/quickshell/Config.qml..."
 mkdir -p /usr/share/mios/quickshell
 cat << 'EOF' > /usr/share/mios/quickshell/Config.qml
 import QtQuick
@@ -118,4 +118,4 @@ ShellRoot {
 }
 EOF
 chmod 0644 /usr/share/mios/quickshell/Config.qml
-echo "[55-bake-quickshell] Quickshell successfully compiled and deployed."
+echo "[55-bake-quickshell] Installed /usr/bin/quickshell and wrote /usr/share/mios/quickshell/Config.qml."

@@ -1,0 +1,119 @@
+#!/usr/bin/env python3
+# AI-hint: Enrolls LUKS keys using systemd-cryptenroll or clevis based on mios.toml [security.disk_encryption] SSOT.
+
+import os
+import sys
+import shutil
+import subprocess
+import tomllib
+
+def main():
+    # 1. Read config
+    toml_path = os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml")
+    if not os.path.exists(toml_path):
+        print("No mios.toml found, no-op.")
+        return 0
+        
+    try:
+        with open(toml_path, "rb") as f:
+            config = tomllib.load(f)
+    except Exception as e:
+        print(f"Failed to parse TOML: {e}", file=sys.stderr)
+        return 1
+        
+    sec = config.get("security", {})
+    de = sec.get("disk_encryption", {})
+    
+    mode = de.get("mode", "none")
+    if mode == "none" or not mode:
+        print("LUKS enrollment disabled in configuration (mode=none).")
+        return 0
+        
+    # 2. Check for TPM2 availability (WS-A5: "proven no-op on TPM-less VM")
+    if mode == "tpm2":
+        if not os.path.exists("/dev/tpmrm0") and not os.path.exists("/dev/tpm0"):
+            print("TPM2 hardware device not detected (/dev/tpmrm0 or /dev/tpm0 missing). No-op.")
+            return 0
+            
+    # 3. Find LUKS device
+    crypttab_path = "/etc/crypttab"
+    if not os.path.exists(crypttab_path):
+        print("No /etc/crypttab found. Root filesystem is likely not encrypted with LUKS. No-op.")
+        return 0
+        
+    luks_devices = []
+    with open(crypttab_path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            parts = line.split()
+            if len(parts) >= 2:
+                dev_src = parts[1]
+                if dev_src.startswith("UUID="):
+                    uuid_val = dev_src.split("=", 1)[1]
+                    dev_path = f"/dev/disk/by-uuid/{uuid_val}"
+                    if os.path.exists(dev_path):
+                        luks_devices.append((parts[0], dev_path))
+                elif dev_src.startswith("PARTUUID="):
+                    puuid_val = dev_src.split("=", 1)[1]
+                    dev_path = f"/dev/disk/by-partuuid/{puuid_val}"
+                    if os.path.exists(dev_path):
+                        luks_devices.append((parts[0], dev_path))
+                elif os.path.exists(dev_src):
+                    luks_devices.append((parts[0], dev_src))
+                    
+    if not luks_devices:
+        print("No active/valid LUKS source devices found in /etc/crypttab. No-op.")
+        return 0
+        
+    # 4. Enroll keys
+    backend = de.get("backend", "systemd-cryptenroll")
+    pcrs = de.get("pcrs", [7])
+    pcr_str = ",".join(str(p) for p in pcrs)
+    recovery = de.get("recovery", True)
+    
+    for name, dev in luks_devices:
+        print(f"Enrolling LUKS device {name} ({dev}) using {backend}...")
+        if backend == "systemd-cryptenroll":
+            if not shutil.which("systemd-cryptenroll"):
+                print("Error: systemd-cryptenroll binary not found", file=sys.stderr)
+                return 1
+                
+            cmd = ["systemd-cryptenroll"]
+            if mode == "tpm2":
+                cmd.extend([f"--tpm2-device=auto", f"--tpm2-pcrs={pcr_str}"])
+            
+            if recovery:
+                cmd.append("--recovery-key")
+                
+            cmd.append(dev)
+            
+            try:
+                subprocess.run(cmd, check=True)
+                print(f"Successfully enrolled {dev} with systemd-cryptenroll")
+            except subprocess.CalledProcessError as e:
+                print(f"Failed systemd-cryptenroll on {dev}: {e}", file=sys.stderr)
+                return 1
+                
+        elif backend == "clevis":
+            if not shutil.which("clevis"):
+                print("Error: clevis binary not found", file=sys.stderr)
+                return 1
+                
+            cfg = {"pcr_ids": pcr_str}
+            import json
+            cfg_json = json.dumps(cfg)
+            
+            cmd = ["clevis", "luks", "bind", "-d", dev, "tpm2", cfg_json]
+            try:
+                subprocess.run(cmd, check=True)
+                print(f"Successfully bound {dev} using clevis")
+            except subprocess.CalledProcessError as e:
+                print(f"Failed clevis bind on {dev}: {e}", file=sys.stderr)
+                return 1
+                
+    return 0
+
+if __name__ == "__main__":
+    sys.exit(main())

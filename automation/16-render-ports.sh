@@ -47,4 +47,4 @@ flag && /=/ {
     print "MIOS_PORT_" key "=" val
 }' "$TOML_FILE" >> "$ENV_FILE"
 
-echo "[16-render-ports] Done."
+echo "[16-render-ports] Wrote MIOS_PORT_* to $ENV_FILE (stack_id*10000 offset applied, port 53 excluded)."

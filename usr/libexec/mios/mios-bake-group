@@ -33,6 +33,7 @@ set -euo pipefail
 
 GROUP="${1:?usage: mios-bake-group <group-name>}"
 MIOS_TOML="${MIOS_TOML:-/usr/share/mios/mios.toml}"
+export MIOS_VENDOR_TOML="${MIOS_VENDOR_TOML:-$MIOS_TOML}"
 STORE="${STORE:-/usr/lib/containers/storage}"
 SCRATCH="${SCRATCH:-/var/tmp/mios-bakescratch}"
 BDIR="${BDIR:-/usr/lib/bootc/bound-images.d}"

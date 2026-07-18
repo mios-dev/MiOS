@@ -83,5 +83,5 @@ else
     echo "[lint-shell] No modified shell scripts to lint at warning level."
 fi
 
-echo "[lint-shell] PASS: all shell scripts conform to safety rules."
+echo "[lint-shell] PASS: shellcheck reports no error-level issues repo-wide and no warning-level issues in modified/new scripts."
 exit 0

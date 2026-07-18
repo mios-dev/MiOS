@@ -153,7 +153,7 @@ for raw in "${REFS[@]}"; do
     fi
 done
 
-log "[40-flatpak-bake] bake complete: ${INSTALLED} installed, ${FAILED} deferred to first boot"
+log "[40-flatpak-bake] bake complete: ${INSTALLED} refs attempted, ${FAILED} reported non-zero"
 
 # Mark the bake state so the first-boot service can short-circuit when
 # everything's already present, and the postcheck can verify that the

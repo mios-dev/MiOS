@@ -97,20 +97,7 @@ if [[ -r "/etc/mios/secrets.env" ]]; then
     # shellcheck disable=SC1090
     source "/etc/mios/secrets.env" 2>/dev/null || true
 fi
-
-_has_registry_creds=false
-for token in "${GHCR_TOKEN:-}" "${GH_TOKEN:-}" "${GITHUB_TOKEN:-}" "${MIOS_GITHUB_TOKEN:-}"; do
-    if [[ -n "$token" ]]; then
-        _has_registry_creds=true
-        break
-    fi
-done
-
-if [[ "$_has_registry_creds" == "true" ]]; then
-    export MIOS_IMAGE_NAME="${MIOS_IMAGE_NAME:-ghcr.io/mios-dev/mios}"
-else
-    export MIOS_IMAGE_NAME="localhost/mios"
-fi
+: "${MIOS_IMAGE_NAME:=ghcr.io/mios-dev/mios}"
 
 : "${MIOS_IMAGE_TAG:=latest}"
 : "${MIOS_IMAGE_REF:=${MIOS_IMAGE_NAME}:${MIOS_IMAGE_TAG}}"

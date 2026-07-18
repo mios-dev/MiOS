@@ -557,6 +557,123 @@ def _ini_merge(owned_kv, base_text, policy, merged):
     return _render_ini(model)
 
 
+# --- ssh-merge primitives (ADR-0010 / AGY-92) ---------------------------------
+def _parse_ssh_config(text):
+    model = []
+    index = {}
+    cur_host = None
+    for raw in text.splitlines(keepends=True):
+        content = raw.rstrip("\r\n").strip()
+        if not content:
+            model.append({"raw": raw, "type": "other"})
+            continue
+        if content.startswith(("#", ";")):
+            model.append({"raw": raw, "type": "other"})
+            continue
+        parts = content.split(None, 1)
+        if len(parts) >= 1 and parts[0].lower() == "host":
+            cur_host = parts[1].strip().lower() if len(parts) > 1 else ""
+            model.append({"raw": raw, "type": "host", "host": cur_host})
+            continue
+        mkv = content.split(None, 1)
+        if len(mkv) >= 1 and cur_host is not None:
+            key = mkv[0]
+            val = mkv[1].strip() if len(mkv) > 1 else ""
+            lead_len = len(raw) - len(raw.lstrip())
+            lead = raw[:lead_len]
+            model.append({
+                "raw": raw, "type": "kv", "host": cur_host, "key": key,
+                "lead": lead, "val": val, "eol": _eol_of(raw)
+            })
+            index[(cur_host, key.lower())] = len(model) - 1
+            continue
+        model.append({"raw": raw, "type": "other"})
+    return model, index
+
+def _index_of_ssh(model):
+    return {(r["host"], r["key"].lower()): i
+            for i, r in enumerate(model) if r["type"] == "kv"}
+
+def _ssh_host_bounds(model, host):
+    start = None
+    for i, rec in enumerate(model):
+        if rec["type"] == "host" and rec["host"] == host:
+            start = i
+            break
+    if start is None:
+        return None
+    end = len(model)
+    for j in range(start + 1, len(model)):
+        if model[j]["type"] == "host":
+            end = j
+            break
+    return start, end
+
+def _ssh_upsert(model, owned_kv, policy, merged):
+    policy = policy or "seed-or-enforce"
+    eol = _default_eol(model)
+    for gkey, entry in owned_kv.items():
+        host, keyl = gkey
+        idx = _index_of_ssh(model).get(gkey)
+        if idx is None:
+            new_rec = {"raw": f"\t{entry['key']} {entry['value']}{eol}",
+                       "type": "kv", "host": host, "key": entry["key"],
+                       "lead": "\t", "val": entry["value"], "eol": eol}
+            bounds = _ssh_host_bounds(model, host)
+            if bounds is None:
+                if model and _eol_of(model[-1]["raw"]) == "":
+                    model[-1]["raw"] += eol
+                if model:
+                    model.append({"raw": eol, "type": "other"})
+                model.append({"raw": f"Host {entry['host_spelling']}{eol}", "type": "host", "host": host})
+                model.append(new_rec)
+            else:
+                insert_at = bounds[0] + 1
+                for j in range(bounds[0] + 1, bounds[1]):
+                    if model[j]["raw"].rstrip("\r\n").strip() != "":
+                        insert_at = j + 1
+                model.insert(insert_at, new_rec)
+        elif _should_write_present(policy, entry, merged):
+            rec = model[idx]
+            rec["val"] = entry["value"]
+            rec["raw"] = "{}{} {}{}".format(rec["lead"], rec["key"], entry["value"], rec["eol"])
+
+def _build_owned_kv_ssh(surface, merged):
+    resolved = _resolved_for(merged, surface.section)
+    tmpl_abs = os.path.join(ROOT, surface.template)
+    rtext = _render_text(_read(tmpl_abs), resolved, merged)
+    rmodel, rindex = _parse_ssh_config(rtext)
+    ttext = _read(tmpl_abs)
+    tmodel, tindex = _parse_ssh_config(ttext)
+    owned = collections.OrderedDict()
+    for gkey, idx in rindex.items():
+        rec = rmodel[idx]
+        toks = _SENTINEL.findall(tmodel[tindex[gkey]]["val"]) if gkey in tindex else []
+        ssot = _token_to_ssot(toks[0], merged, surface.section) if len(toks) == 1 else None
+        host_idx = -1
+        for j in range(idx, -1, -1):
+            if rmodel[j]["type"] == "host":
+                host_idx = j
+                break
+        host_spelling = rmodel[host_idx]["raw"].rstrip("\r\n").split(None, 1)[1] if host_idx >= 0 else gkey[0]
+        owned[gkey] = {"value": rec["val"], "key": rec["key"], "ssot": ssot, "host_spelling": host_spelling}
+    return owned
+
+def _derive_ssh_merge(surface, merged):
+    owned = _build_owned_kv_ssh(surface, merged)
+    base_text = _read(os.path.join(ROOT, surface.fixture.base))
+    model, _index = _parse_ssh_config(base_text)
+    _ssh_upsert(model, owned, surface.policy, merged)
+    return _render_ini(model)
+
+def _apply_live_ssh_merge(surface, merged, current):
+    owned = _build_owned_kv_ssh(surface, merged)
+    base_text = current if current is not None else ""
+    model, _index = _parse_ssh_config(base_text)
+    _ssh_upsert(model, owned, surface.policy, merged)
+    return _render_ini(model)
+
+
 # --- kind dispatch (ADR-0010) ------------------------------------------------
 # `derive_fn(surface, merged) -> committed-artifact bytes` is the uniform shape
 # cmd_render writes and cmd_check byte-diffs (OFFLINE -- a merge surface's derive
@@ -734,12 +851,13 @@ def _apply_live_registry(surface, merged, current=None, dry_run=False):
 # set onto a foreign file, preserving every foreign key; registry / skip are
 # declared valid by ADR-0010 but LAND LATER, so an unimplemented kind fails the
 # same fail-loud exit-3 path as an unknown one.
-_MERGE_KINDS = frozenset({"json-merge", "ini-merge", "registry"})
+_MERGE_KINDS = frozenset({"json-merge", "ini-merge", "registry", "ssh-merge"})
 _KINDS = {
     "template":   (_derive_template, _apply_live_template),
     "json-merge": (_derive_json_merge, _apply_live_json_merge),
     "ini-merge":  (_derive_ini_merge, _apply_live_ini_merge),
     "registry":   (_derive_registry, _apply_live_registry),
+    "ssh-merge":  (_derive_ssh_merge, _apply_live_ssh_merge),
 }
 
 

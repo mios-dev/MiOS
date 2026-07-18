@@ -126,7 +126,7 @@ ws7_install_fapolicyd_observe() {
             || warn "[ws7] could not render carve-out rules (degrade-open)"
     fi
 
-    log "[ws7] fapolicyd observe posture installed. fapolicyd will LOG, never block."
+    log "[ws7] wrote fapolicyd permissive=1 config to /etc/fapolicyd/fapolicyd.conf; fapolicyd logs matches, does not deny"
     log "[ws7] promotion to enforce is operator-gated -- see ws7-uki-fapolicyd.md"
 }
 

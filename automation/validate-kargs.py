@@ -185,7 +185,7 @@ def main(argv: list[str] | None = None) -> int:
         repo_root = Path(__file__).parent.parent
         default_dirs = [
             repo_root / "kargs.d",
-            repo_root / "system_files" / "usr" / "lib" / "bootc" / "kargs.d",
+            repo_root / "usr" / "lib" / "bootc" / "kargs.d",
         ]
         candidates = collect_files(default_dirs)
 

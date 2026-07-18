@@ -6,6 +6,7 @@ set -euo pipefail
 # This script is located at /usr/libexec/mios/57-mios-sys-build.sh on the target system
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MIOS_TOML="${MIOS_TOML:-/usr/share/mios/mios.toml}"
+export MIOS_VENDOR_TOML="${MIOS_VENDOR_TOML:-$MIOS_TOML}"
 STORE="${STORE:-/usr/lib/containers/storage}"
 SCRATCH="${SCRATCH:-/var/tmp/mios-bakescratch}"
 

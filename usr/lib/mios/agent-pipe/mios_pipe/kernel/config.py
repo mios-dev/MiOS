@@ -414,6 +414,7 @@ def quote_key(k: str) -> str:
 
 
 def to_toml(d: dict, prefix: list = None) -> str:
+    import datetime
     if prefix is None:
         prefix = []
         
@@ -435,6 +436,8 @@ def to_toml(d: dict, prefix: list = None) -> str:
         elif isinstance(v, str):
             escaped = v.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
             lines.append(f'{k_str} = "{escaped}"')
+        elif isinstance(v, (datetime.datetime, datetime.date, datetime.time)):
+            lines.append(f"{k_str} = {v.isoformat()}")
         elif isinstance(v, list):
             list_str = []
             for item in v:
@@ -443,9 +446,17 @@ def to_toml(d: dict, prefix: list = None) -> str:
                     list_str.append(f'"{escaped_item}"')
                 elif isinstance(item, bool):
                     list_str.append(str(item).lower())
-                else:
+                elif isinstance(item, (int, float)):
                     list_str.append(str(item))
+                elif isinstance(item, (datetime.datetime, datetime.date, datetime.time)):
+                    list_str.append(item.isoformat())
+                else:
+                    raise TypeError(f"Unsupported list item type: {type(item)}")
             lines.append(f"{k_str} = [{', '.join(list_str)}]")
+        elif v is None:
+            continue
+        else:
+            raise TypeError(f"Unsupported TOML type: {type(v)}")
             
     # 2. Output dictionaries (sub-tables) next
     for k, v in sorted(d.items()):
@@ -538,6 +549,8 @@ def validate_config(toml_text: str, live_config: dict = None):
     ports = parsed.get("ports")
     if isinstance(ports, dict):
         for k, v in ports.items():
+            if k == "stack_id":
+                continue
             if isinstance(v, (dict, list)):
                 continue  # nested table -- not a port scalar; leave it alone
             # bool is an int subclass in Python -- exclude it explicitly.
@@ -553,11 +566,37 @@ def validate_config(toml_text: str, live_config: dict = None):
 
 def write_user_config(cfg: dict, dest_path: str = None) -> None:
     """Atomically write the dictionary to the user-layer config file."""
+    base_cfg = {}
+    try:
+        import sys
+        if "/usr/lib/mios" not in sys.path:
+            sys.path.insert(0, "/usr/lib/mios")
+        import mios_toml
+        vendor, vendor_d, host, host_d, user, user_d = mios_toml._tier_dirs()
+        paths = ([vendor] + mios_toml._frags(vendor_d)
+                 + [host] + mios_toml._frags(host_d))
+        for p in paths:
+            mios_toml.deep_merge(base_cfg, mios_toml._load_one(p))
+    except Exception:
+        pass
+
+    def _dict_diff(new_dict: dict, base_dict: dict) -> dict:
+        diff = {}
+        for k, v in new_dict.items():
+            if k not in base_dict:
+                diff[k] = v
+            elif isinstance(v, dict) and isinstance(base_dict[k], dict):
+                sub_diff = _dict_diff(v, base_dict[k])
+                if sub_diff:
+                    diff[k] = sub_diff
+            elif v != base_dict[k]:
+                diff[k] = v
+        return diff
+
+    delta_cfg = _dict_diff(cfg, base_cfg)
+
     if dest_path is None:
         try:
-            import sys
-            if "/usr/lib/mios" not in sys.path:
-                sys.path.insert(0, "/usr/lib/mios")
             import mios_toml
             dest_path = mios_toml.USER
         except Exception:
@@ -565,9 +604,21 @@ def write_user_config(cfg: dict, dest_path: str = None) -> None:
             
     os.makedirs(os.path.dirname(dest_path), exist_ok=True)
     temp_path = dest_path + ".tmp"
-    toml_str = to_toml(cfg)
+    toml_str = to_toml(delta_cfg)
     with open(temp_path, "w", encoding="utf-8", newline="\n") as f:
         f.write(toml_str)
     os.replace(temp_path, dest_path)
+
+    # Invalidate configuration caches on write
+    try:
+        import mios_toml
+        mios_toml.clear_cache()
+    except Exception:
+        pass
+    try:
+        import mios_db_config
+        mios_db_config.clear_cache()
+    except Exception:
+        pass
 
 

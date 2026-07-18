@@ -82,7 +82,7 @@ if (Test-Path '/etc/mios/secrets.env') {
     } catch {}
 }
 
-$defaultImageName = if ($hasGhcrCreds) { 'ghcr.io/mios-dev/mios' } else { 'localhost/mios' }
+$defaultImageName = 'ghcr.io/mios-dev/mios'
 
 $script:MIOS_IMAGE_NAME   = if ($env:MIOS_IMAGE_NAME)   { $env:MIOS_IMAGE_NAME }   else { $defaultImageName }
 $script:MIOS_IMAGE_TAG    = if ($env:MIOS_IMAGE_TAG)    { $env:MIOS_IMAGE_TAG }    else { 'latest' }

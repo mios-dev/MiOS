@@ -691,5 +691,56 @@ if [[ -n "$_law11_bad" ]]; then
 fi
 log "  [ok] every secret-bearing env file is mode 0600 (or none present)"
 
+# 18. BOUND-IMAGES-RESOLVE (AGY-92 / B1).
+# Every Quadlet (.container or .image) linked under /usr/lib/bootc/bound-images.d/
+# must target a valid file, and the Image= it declares must exist in the built/baked
+# image registry (/usr/share/mios/artifacts/sbom/bound-images.tsv).
+log "Validating BOUND-IMAGES-RESOLVE: bound-images.d symlinks resolve to baked images..."
+_lbi_dir="/usr/lib/bootc/bound-images.d"
+_lbi_tsv="/usr/share/mios/artifacts/sbom/bound-images.tsv"
+if [[ -d "$_lbi_dir" ]]; then
+    declare -A _lbi_baked=()
+    if [[ -f "$_lbi_tsv" ]]; then
+        while IFS=$'\t' read -r img_ref digest group || [[ -n "$img_ref" ]]; do
+            [[ -z "$img_ref" || "$img_ref" == "image" ]] && continue
+            _lbi_baked["$img_ref"]=1
+        done < "$_lbi_tsv"
+    fi
+    # Local base images are always valid
+    _lbi_baked["localhost/mios-sys:latest"]=1
+    _lbi_baked["localhost/mios-cuda:latest"]=1
+
+    while IFS= read -r link || [[ -n "$link" ]]; do
+        [[ -L "$link" ]] || continue
+        target="$(readlink -f "$link")"
+        if [[ ! -f "$target" ]]; then
+            die "BOUND-IMAGES-RESOLVE: symlink $(basename "$link") points to nonexistent file: $target"
+        fi
+        img_line="$(grep -i '^[[:space:]]*Image=' "$target" | head -n1 || true)"
+        if [[ -n "$img_line" ]]; then
+            raw_ref="${img_line#*=}"
+            raw_ref="${raw_ref%%#*}"
+            raw_ref="$(echo "$raw_ref" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+            resolved_ref="$raw_ref"
+            if [[ "$raw_ref" =~ \$\{[A-Za-z0-9_]+:-(.+)\} ]]; then
+                resolved_ref="${BASH_REMATCH[1]}"
+            elif [[ "$raw_ref" =~ \$\{[A-Za-z0-9_]+\} ]]; then
+                var_name="${raw_ref:2:${#raw_ref}-3}"
+                resolved_ref="${!var_name:-}"
+            elif [[ "$raw_ref" =~ \$[A-Za-z0-9_]+ ]]; then
+                var_name="${raw_ref:1}"
+                resolved_ref="${!var_name:-}"
+            fi
+            resolved_ref="${resolved_ref//\"/}"
+            resolved_ref="${resolved_ref//\'/}"
+            [[ -z "$resolved_ref" ]] && continue
+            if [[ "$resolved_ref" != "localhost/mios"* && -z "${_lbi_baked[$resolved_ref]:-}" ]]; then
+                die "BOUND-IMAGES-RESOLVE: Image '$resolved_ref' (declared in $target) was not baked. Check your bake plan or plan.d groups."
+            fi
+        fi
+    done < <(find "$_lbi_dir" -type l 2>/dev/null)
+    log "  [ok] every bound-images.d symlink resolves to a baked image"
+fi
+
 log "Validation SUCCESSFUL"
 exit 0

@@ -156,6 +156,7 @@ developer = "MiOS"
 # would corrupt the value). Env override: MIOS_AITAG_MAX_UNTAGGED; CLI:
 # --max-untagged. Current intentional remainder = soul prompts + data/plan docs.
 max_untagged = 122
+max_unconforming = 0
 
 # ----------------------------------------------------------------------------
 # [selfimprove] -- #64 self-improvement ANALYSIS (the safe observe half). The
@@ -299,6 +300,30 @@ firewalld_default_zone = "drop"
 allow_ssh              = true
 allow_cockpit          = true   # opens 9090/tcp
 allow_libvirt_bridge   = true   # for VM networking
+
+# NTP servers configuration (Chrony)
+[network.ntp]
+servers = [
+    "0.pool.ntp.org",
+    "1.pool.ntp.org",
+    "2.pool.ntp.org",
+    "3.pool.ntp.org",
+]
+
+# UPS configuration (Network UPS Tools)
+# Set name = "" to disable NUT (boots inert)
+[power.ups]
+name   = ""
+driver = "usbhid-ups"
+port   = "auto"
+desc   = "MiOS Uninterruptible Power Supply"
+
+# MiOS-Mini GPU arbitration and guest assignment (WS-F5)
+[mini.gpu]
+# Rule: Each GPU (PCI/IOMMU address) must be assigned to exactly one owner/guest.
+# Forbid assigning the same PCI address to multiple active guests to prevent hardware conflicts.
+assignments = { mios-guest = ["0000:01:00.0"] }
+arbitration = "static"   # GPU arbitration model: "static" (pre-bind at boot), "dynamic" (libvirt hotplug/detach)
 
 # ----------------------------------------------------------------------------
 # [ai] -- Local AI surface (Architectural Law 5: UNIFIED-AI-REDIRECTS).
@@ -1023,6 +1048,15 @@ write_allowed_paths = ["/tmp/mios-mcp", "/var/lib/mios/ai"]
 [security.egress]
 mode  = "off"
 allow = []
+
+# ----------------------------------------------------------------------------
+# [security.disk_encryption] -- TPM2-backed LUKS disk encryption (WS-VECTOR V1 / T-246).
+# ----------------------------------------------------------------------------
+[security.disk_encryption]
+mode     = "tpm2"                          # Encryption mode: "tpm2", "clevis", "none"
+pcrs     = [7]                             # TPM2 PCR registers to measure boot state (7 = Secure Boot)
+recovery = true                            # Generate and store a LUKS recovery key
+backend  = "systemd-cryptenroll"           # Enrollment backend: "systemd-cryptenroll", "clevis"
 
 # ----------------------------------------------------------------------------
 # [security.mtls] -- #54 zero-trust TRANSPORT (mutual TLS) PKI. Provision with
@@ -7197,9 +7231,8 @@ pkgs = [
     "swtpm",
     "swtpm-tools",
     "dnsmasq",
-    "mdevctl",
+    "mdevctl",                        # keep only for legitimate SR-IOV/mdev inventory; NOT a vGPU path (ref F3)
     "libguestfs-tools",
-    "virt-v2v",
     "qemu-device-display-virtio-gpu",
     "virt-firmware",
     "python3-cryptography",
@@ -7406,9 +7439,6 @@ enable = true   # default ON; toggle via /configurator.html (configurator.packag
 pkgs = [
     "nfs-utils",
     "rpcbind",
-    "glusterfs",
-    "glusterfs-fuse",
-    "glusterfs-server",
     "ceph-common",
     "iscsi-initiator-utils",
     "targetcli",
@@ -10777,6 +10807,8 @@ autounattend.debloat_profile  = "minimal"
 autounattend.xbox.enable     = "false"
 colors.accent                = "#1A407F"
 branding.living_wallpaper    = "false"
+mini.gpu.arbitration         = "static"
+mini.gpu.assignments         = { mios-guest = ["0000:01:00.0"] }
 
 [editions.mios-xbox]
 autounattend.uup_channel     = "dev"
@@ -10786,6 +10818,8 @@ autounattend.debloat_profile  = "gaming"
 autounattend.xbox.enable     = "true"
 colors.accent                = "#282262"
 branding.living_wallpaper    = "true"
+mini.gpu.arbitration         = "static"
+mini.gpu.assignments         = { mios-guest = ["0000:01:00.0"] }
 
 [editions.mios-xbox-arm]
 autounattend.uup_channel     = "dev"
@@ -10795,6 +10829,8 @@ autounattend.debloat_profile  = "gaming"
 autounattend.xbox.enable     = "true"
 colors.accent                = "#4B105C"
 branding.living_wallpaper    = "true"
+mini.gpu.arbitration         = "static"
+mini.gpu.assignments         = { mios-guest = ["0000:01:00.0"] }
 
 # ----------------------------------------------------------------------------
 # [blade] -- node activation capabilities and targets (WS-BLADE)
@@ -11000,7 +11036,7 @@ windows  = "%USERPROFILE%/.bashrc.d/mios"
 [dotfiles.registry.ssh-config]
 template = "usr/share/mios/theme/templates/ssh-config.tmpl"
 target   = "usr/share/mios/theme/fixtures/ssh-config.expected"
-kind     = "ini-merge"
+kind     = "ssh-merge"
 section  = "ssh"
 [dotfiles.registry.ssh-config.fixture]
 base     = "usr/share/mios/theme/fixtures/ssh-config.base"
@@ -11047,8 +11083,16 @@ required_markers = ["## Status", "## Context", "## Decision", "## Rationale", "#
 generated = false
 scaffold = true
 
-[templates.bash]
-match = "^(?:tools/|usr/bin/|usr/libexec/mios/|automation/)[\\w./-]+\\.sh$"
+[templates.drift-check]
+match = "^automation/38-drift-checks\\.sh$"
+comment = "hash"
+required_header = true
+required_markers = ["check_"]
+generated = false
+scaffold = true
+
+[templates.automation-step]
+match = "^automation/\\d{2}-.*\\.sh$"
 comment = "hash"
 required_header = true
 required_markers = []
@@ -11063,11 +11107,19 @@ required_markers = []
 generated = false
 scaffold = true
 
-[templates.drift-check]
-match = "^automation/\\d{2}-.*\\.sh$"
+[templates.bash-tool]
+match = "^usr/libexec/mios/mios-[\\w-]+$|^usr/bin/[\\w-]+$"
 comment = "hash"
 required_header = true
-required_markers = ["check_"]
+required_markers = []
+generated = false
+scaffold = true
+
+[templates.bash]
+match = "^(?:tools/|usr/bin/|usr/libexec/mios/|automation/)[\\w./-]+\\.sh$"
+comment = "hash"
+required_header = true
+required_markers = []
 generated = false
 scaffold = true
 
@@ -11143,14 +11195,6 @@ required_markers = []
 generated = false
 scaffold = true
 
-[templates.markdown-doc]
-match = "^usr/share/doc/mios/[\\w./-]+\\.md$|^README\\.md$"
-comment = "md"
-required_header = true
-required_markers = []
-generated = false
-scaffold = true
-
 [templates.roadmap]
 match = "^ROADMAP\\.md$"
 comment = "md"
@@ -11167,8 +11211,16 @@ required_markers = ["## WS-", "acceptance:"]
 generated = false
 scaffold = true
 
+[templates.markdown-doc]
+match = "^usr/share/doc/mios/[\\w./-]+\\.md$|^README\\.md$"
+comment = "md"
+required_header = true
+required_markers = []
+generated = false
+scaffold = true
+
 [templates.systemd-unit]
-match = "^usr/share/mios/systemd/[\\w-]+\\.service$"
+match = "^usr/lib/systemd/system/[\\w-]+\\.service$"
 comment = "hash"
 required_header = true
 required_markers = ["[Unit]", "[Service]", "[Install]"]
@@ -11176,17 +11228,23 @@ generated = false
 scaffold = true
 
 [templates.quadlet]
-match = "^usr/share/mios/systemd/[\\w-]+\\.(?:container|pod|network|volume)$"
-comment = "hash"
-required_header = true
-required_markers = ["[Unit]", "[Container]", "[Install]"]
-generated = true
-scaffold = true
-
-[templates.automation-step]
-match = "^automation/\\d{2}-.*\\.sh$"
+match = "^usr/share/containers/systemd/[\\w-]+\\.(?:container|pod|network|volume|image)$"
 comment = "hash"
 required_header = true
 required_markers = []
-generated = false
+generated = true
 scaffold = true
+
+# ----------------------------------------------------------------------------
+# [kargs] -- Immutable kernel boot arguments, rendered into kargs.d fragments
+# at image build time. (WS-VECTOR V1 / T-245).
+# ----------------------------------------------------------------------------
+[kargs]
+iommu          = "on"                      # Enable IOMMU: "on", "amd", "intel"
+vfio_ids       = ""                        # PCI IDs to bind to vfio-pci (comma-separated, e.g. "10de:1db6")
+hugepages      = ""                        # Hugepages count to reserve (empty to disable)
+isolcpus       = ""                        # CPUs to isolate from scheduler (empty to disable)
+nohz_full      = ""                        # CPUs for adaptive-ticks (empty to disable)
+rcu_nocbs      = ""                        # CPUs to offload RCU callbacks (empty to disable)
+THP            = ""                        # Transparent Huge Pages configuration: "always", "madvise", "never" or empty
+

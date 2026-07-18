@@ -67,6 +67,7 @@ enable bootloader-update.service
 enable crond.service
 enable atd.service
 enable mios-role.service
+enable mios-luks-enroll.service
 enable mios-gpu-detect.service
 enable mios-selinux-init.service
 enable mios-sriov-init.service

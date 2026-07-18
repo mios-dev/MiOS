@@ -164,7 +164,7 @@ allow xdm_t cache_home_t:file { create write read open getattr setattr };'
             echo "[37-selinux] mios_${name}: Staged"
             SELINUX_OK=$((SELINUX_OK + 1))
         else
-            echo "[37-selinux] mios_${name}: SKIPPED (type missing in current policy)"
+            echo "[37-selinux] mios_${name}: SKIPPED (checkmodule or semodule_package failed -- e.g. a required SELinux type is absent from the current policy)"
             SELINUX_FAIL=$((SELINUX_FAIL + 1))
         fi
         rm -f "/tmp/mios_${name}".{te,mod,pp}

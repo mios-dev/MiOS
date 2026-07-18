@@ -7,6 +7,7 @@ import os
 import json
 import logging
 import mios_toml
+from typing import Any
 
 log = logging.getLogger("mios-db-config")
 
@@ -42,15 +43,32 @@ def get_pg_config() -> dict:
         "dbname": e.get("MIOS_PG_DB", "mios"),
     }
 
+_IS_DB_AUTHORITATIVE_CACHE = None
+_LOAD_DB_CONFIG_CACHE = None
+
+def clear_cache():
+    global _IS_DB_AUTHORITATIVE_CACHE, _LOAD_DB_CONFIG_CACHE
+    _IS_DB_AUTHORITATIVE_CACHE = None
+    _LOAD_DB_CONFIG_CACHE = None
+
 def is_db_authoritative() -> bool:
+    global _IS_DB_AUTHORITATIVE_CACHE
+    if _IS_DB_AUTHORITATIVE_CACHE is not None:
+        return _IS_DB_AUTHORITATIVE_CACHE
     val = os.environ.get("MIOS_DB_AUTHORITATIVE")
     if val is not None:
-        return val.lower() in ("true", "1", "yes")
-    # Load from files only to prevent infinite recursion loop
-    file_data = mios_toml.load_merged(layers=mios_toml.layer_paths())
-    return bool(mios_toml.get("ai", "db_authoritative", default=False, data=file_data))
+        res = val.lower() in ("true", "1", "yes")
+    else:
+        # Load from files only to prevent infinite recursion loop
+        file_data = mios_toml.load_merged(layers=mios_toml.layer_paths())
+        res = bool(mios_toml.get("ai", "db_authoritative", default=False, data=file_data))
+    _IS_DB_AUTHORITATIVE_CACHE = res
+    return res
 
 def load_db_config() -> dict:
+    global _LOAD_DB_CONFIG_CACHE
+    if _LOAD_DB_CONFIG_CACHE is not None:
+        return _LOAD_DB_CONFIG_CACHE
     # Synchronously connect to PG database using psycopg
     try:
         import psycopg
@@ -169,6 +187,7 @@ def load_db_config() -> dict:
     except Exception as e:
         log.debug("Failed to load configuration from database: %s", e)
         return {}
+    _LOAD_DB_CONFIG_CACHE = data
     return data
 
 def _normalize_for_compare(val):

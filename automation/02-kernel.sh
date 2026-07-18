@@ -42,4 +42,4 @@ if [[ ! -d "/usr/lib/modules/$KVER/build" ]]; then
     echo "[02-kernel] WARNING: /usr/lib/modules/$KVER/build missing -- akmod may fail"
 fi
 
-echo "[02-kernel] Kernel extras for $KVER installed successfully."
+echo "[02-kernel] Kernel extras for $KVER installed."

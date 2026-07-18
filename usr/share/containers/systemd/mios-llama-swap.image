@@ -1,6 +1,0 @@
-# /usr/share/containers/systemd/mios-llama-swap.image
-[Image]
-Image=${MIOS_LLM_LIGHT_IMAGE:-ghcr.io/mostlygeek/llama-swap:cuda}
-
-[Service]
-TimeoutStartSec=3600

@@ -1,9 +1,9 @@
 # AI-hint: Configures kernel arguments for IOMMU, VFIO-PCI, and nested virtualization to enable hardware passthrough and virtualization features in the MiOS boot process.
+# Generated from mios.toml [kargs] SSOT
 kargs = [
+    "rd.driver.pre=vfio-pci",
+    "kvm-intel.nested=1",
     "intel_iommu=on",
     "amd_iommu=on",
-    "iommu=pt",
-    "rd.driver.pre=vfio-pci",
-    "vfio-pci.ids=",
-    "kvm-intel.nested=1"
+    "iommu=pt"
 ]

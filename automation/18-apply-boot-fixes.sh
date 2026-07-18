@@ -9,7 +9,7 @@
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 
-echo "==> Applying 'MiOS' system service fixes..."
+echo "==> Restoring +x on /usr/libexec/mios and /usr/bin/mios-* binaries, setting /etc/usbguard/*.conf to 0600, and running systemd-sysusers for systemd-resolve..."
 
 # 1. Fix USBGuard Permissions
 # Log trace: Permissions for /etc/usbguard/usbguard-daemon.conf should be 0600
@@ -51,7 +51,7 @@ fi
 # 6. OCI Container and WSL2 Service Gating
 # Custom 'MiOS' services that require hardware access or full system init
 # skip OCI containers and WSL2 via drop-ins in system_files overlay.
-echo "==> Service gating drop-ins active via overlay"
+echo "==> OCI/WSL2 service gating: no action here; ConditionVirtualization drop-ins ship in the system_files overlay"
 
 # 7. WSL2 Compatibility Gating (Legacy section kept for unit-specific fallbacks)
 

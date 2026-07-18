@@ -106,4 +106,4 @@ if [[ -z "$SURFER_OK" ]]; then
 fi
 
 record_version surfer "$PIN_REF" "https://github.com/zen-browser/surfer/tree/${PIN_REF}"
-echo "[56-bake-surfer] Custom webshell built successfully."
+echo "[56-bake-surfer] Installed /usr/lib/mios/webshell/ and symlinked /usr/bin/mios-webshell."

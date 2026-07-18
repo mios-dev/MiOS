@@ -55,7 +55,7 @@ systemd-tmpfiles --create
 echo "[INFO] Reloading systemd"
 systemctl daemon-reload
 
-echo "[INFO] Enabling 'MiOS' services (Quadlets pulled in via systemd preset)"
+echo "[INFO] Quadlet .container units laid down under /etc/containers/systemd; systemd generator instantiates them on next daemon-reload/boot"
 
 echo "[ OK ] 'MiOS' system installer complete."
 echo "       Log out and back in (or reboot) to pick up profile changes."

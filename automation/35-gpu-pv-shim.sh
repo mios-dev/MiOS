@@ -37,7 +37,7 @@ if [ ! -e /dev/dxg ]; then
     exit 0
 fi
 
-log "Hyper-V dxgkrnl detected!"
+log "/dev/dxg present (Hyper-V dxgkrnl)"
 if [ -z "$(ls -A /usr/lib/wsl/lib)" ]; then
     log "HINT: /usr/lib/wsl/lib is empty. GPU acceleration requires host drivers."
     log "HINT: Copy drivers from Windows: C:\Windows\System32\lxss\lib -> /usr/lib/wsl/lib"
@@ -70,4 +70,4 @@ WANTS=/usr/lib/systemd/system/multi-user.target.wants
 install -d -m 0755 "${WANTS}"
 ln -sf ../mios-gpu-pv-detect.service "${WANTS}/mios-gpu-pv-detect.service"
 
-log "GPU-PV shim integration complete."
+log "GPU-PV shim installed: /usr/lib/wsl/{lib,drivers}, ld.so.conf.d/mios-gpu-pv.conf, mios-gpu-pv-detect.service enabled"

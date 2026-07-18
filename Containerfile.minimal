@@ -102,6 +102,7 @@ RUN --mount=type=bind,from=ctx,source=/ctx,target=/ctx,ro \
            -o -name "*.rules" \) \
         -exec sed -i 's/\r$//' {} +; \
     export MIOS_TOML=/tmp/build/usr/share/mios/mios.toml; \
+    export MIOS_VENDOR_TOML=/tmp/build/usr/share/mios/mios.toml; \
     export MIOS_VARIANT=minimal; \
     source /tmp/build/automation/lib/packages.sh; \
     ${DNF_BIN:-dnf5} clean metadata 2>/dev/null || true; \

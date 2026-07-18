@@ -18,7 +18,7 @@
 #   vmconnect → vsock:3389 → gnome-remote-desktop (Wayland RDP) → login
 set -euo pipefail
 
-echo "[38-vm-gating] Configuring VM-specific service gating..."
+echo "[38-vm-gating] chmod cockpit.socket.d/listen.conf, append hv_sock to modules-load.d/mios.conf, enable mios-hyperv-enhanced.service"
 
 # ═══ GDM / nvidia-powerd / Waydroid + binder gating ═══
 # Drop-ins for gdm, nvidia-powerd, waydroid-container, dev-binderfs.mount are

@@ -75,13 +75,13 @@ then
 fi
 
 # Record Safetensors files recursively to models SBOM (RELTOP-01 / T-251)
-local sbom_dir="/usr/share/mios/artifacts/sbom"
+sbom_dir="/usr/share/mios/artifacts/sbom"
 mkdir -p "$sbom_dir"
-local sbom_file="${sbom_dir}/models.tsv"
+sbom_file="${sbom_dir}/models.tsv"
 if [[ -d "$SEED_DIR" ]]; then
     find "$SEED_DIR" -type f | while read -r filepath; do
-        local relpath="${filepath#$SEED_DIR/}"
-        local sha=""
+        relpath="${filepath#$SEED_DIR/}"
+        sha=""
         if command -v sha256sum >/dev/null 2>&1; then
             sha="$(sha256sum "$filepath" | awk '{print $1}')"
         fi

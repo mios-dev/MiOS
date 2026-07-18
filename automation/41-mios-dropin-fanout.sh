@@ -33,7 +33,35 @@ with open(toml_path, "rb") as f:
 blade = d.get("blade") or {}
 requires = blade.get("requires") or {}
 
+def is_service_enabled(d, service_name):
+    svc = service_name
+    if svc.endswith(".service"):
+        svc = svc[:-8]
+    containers = d.get("containers") or {}
+    if svc in containers:
+        cfg = containers[svc]
+        if isinstance(cfg, dict) and cfg.get("enable") is False:
+            return False
+    services = d.get("services") or {}
+    if svc in services:
+        cfg = services[svc]
+        if isinstance(cfg, dict) and cfg.get("enable") is False:
+            return False
+    short_svc = svc[5:] if svc.startswith("mios-") else svc
+    if short_svc in containers:
+        cfg = containers[short_svc]
+        if isinstance(cfg, dict) and cfg.get("enable") is False:
+            return False
+    if short_svc in services:
+        cfg = services[short_svc]
+        if isinstance(cfg, dict) and cfg.get("enable") is False:
+            return False
+    return True
+
 for service, caps in requires.items():
+    if not is_service_enabled(d, service):
+        print(f"[dropin-fanout] Skipping disabled service {service}")
+        continue
     if isinstance(caps, str):
         caps = [caps]
     

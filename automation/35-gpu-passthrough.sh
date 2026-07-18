@@ -54,4 +54,4 @@ if command -v semanage >/dev/null 2>&1 && [[ -d /etc/selinux/targeted ]]; then
   fi
 fi
 
-log "GPU passthrough services enabled successfully"
+log "GPU passthrough units symlinked into multi-user.target.wants"

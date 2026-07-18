@@ -76,9 +76,9 @@ for entry in "${_entries[@]}"; do
         log "[38-llamacpp] baked ${repo}:${file} -> ${dest} (${_url})"
 
         # Record to models SBOM (RELTOP-01 / T-251)
-        local sbom_dir="/usr/share/mios/artifacts/sbom"
+        sbom_dir="/usr/share/mios/artifacts/sbom"
         mkdir -p "$sbom_dir"
-        local sha=""
+        sha=""
         if command -v sha256sum >/dev/null 2>&1; then
             sha="$(sha256sum "${SEED_DIR}/${dest}" | awk '{print $1}')"
         fi

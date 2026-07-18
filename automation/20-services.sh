@@ -36,7 +36,7 @@ echo "[20-services] Fixed systemd unit file permissions"
 
 # ─── WSL2 & Container Service Gating ─────────────────────────────────────────
 # These services skip OCI/WSL2 via drop-ins in system_files overlay.
-echo "[20-services] WSL2/Container skip drop-ins active via overlay"
+echo "[20-services] WSL2/OCI service-skip drop-ins delivered via system_files overlay (not by this step)"
 
 # ─── nvidia-powerd: skip in ALL VMs (no physical NVIDIA GPU) ─────────────────
 # Drop-in handled via overlay.
@@ -44,4 +44,4 @@ echo "[20-services] WSL2/Container skip drop-ins active via overlay"
 # ─── TuneD: set throughput-performance profile ──────────────────────────────
 tuned-adm profile throughput-performance 2>/dev/null || true
 
-echo "[20-services] Service configuration baseline complete. v1.4"
+echo "[20-services] chmod 644 applied to unit files; TuneD profile set to throughput-performance"

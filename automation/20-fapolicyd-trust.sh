@@ -3,7 +3,7 @@
 # AI-related: fapolicyd.service
 set -euo pipefail
 
-echo "==> Configuring fapolicyd for fs-verity/ComposeFS..."
+echo "==> Setting fapolicyd trust backend to 'file,rpmdb' in /usr/lib and /etc fapolicyd.conf..."
 
 # shellcheck source=lib/common.sh
 source "$(dirname "$0")/lib/common.sh"
@@ -21,4 +21,4 @@ done
 
 # Enable the service
 systemctl enable fapolicyd.service
-echo "==> fapolicyd configured successfully."
+echo "==> Set trust = file,rpmdb in fapolicyd.conf and enabled fapolicyd.service."

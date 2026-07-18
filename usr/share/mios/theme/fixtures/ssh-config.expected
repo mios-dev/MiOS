@@ -1,8 +1,8 @@
-[Host "github.com"]
-	User = git
-	IdentityFile = ~/.ssh/github_key
+Host github.com
+	User git
+	IdentityFile ~/.ssh/github_key
 
-[host "mios-*"]
-	User = agent
-	Port = 2222
-	IdentityFile = ~/.ssh/agent_ssh_key
+Host mios-*
+	User agent
+	Port 2222
+	IdentityFile ~/.ssh/agent_ssh_key

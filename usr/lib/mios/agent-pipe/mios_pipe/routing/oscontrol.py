@@ -155,33 +155,22 @@ def _load_oscontrol_endpoints() -> list:
     if _OSCONTROL_ENDPOINTS_CACHE is not None:
         return _OSCONTROL_ENDPOINTS_CACHE
     try:
-        try:
-            import tomllib  # py311+
-        except ImportError:
-            import tomli as tomllib  # noqa: F401  (older fedoras)
-        base = os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml")
-        layers = [base, "/etc/mios/mios.toml",
-                  os.path.expanduser("~/.config/mios/mios.toml")]
+        import mios_toml
+        merged = mios_toml.load_merged()
+        sec = mios_toml.section(merged, "os_control")
+        if not isinstance(sec, dict):
+            sec = {}
         cfg: dict = {}
-        for p in layers:
-            try:
-                with open(p, "rb") as f:
-                    d = tomllib.load(f)
-            except (OSError, Exception):  # noqa: BLE001
-                continue
-            sec = d.get("os_control") or {}
-            if not isinstance(sec, dict):
-                continue
-            # Top-level executor_endpoint overlays.
-            if "executor_endpoint" in sec:
-                cfg.setdefault("__exec__", {}).update(
-                    {"endpoint": str(sec.get("executor_endpoint") or "")})
-            # Per-node overlays (sec.nodes.<name>).
-            nodes = sec.get("nodes") or {}
-            if isinstance(nodes, dict):
-                for nname, ncfg in nodes.items():
-                    if isinstance(ncfg, dict):
-                        cfg.setdefault(nname, {}).update(ncfg)
+        # Top-level executor_endpoint overlays.
+        if "executor_endpoint" in sec:
+            cfg.setdefault("__exec__", {}).update(
+                {"endpoint": str(sec.get("executor_endpoint") or "")})
+        # Per-node overlays (sec.nodes.<name>).
+        nodes = sec.get("nodes") or {}
+        if isinstance(nodes, dict):
+            for nname, ncfg in nodes.items():
+                if isinstance(ncfg, dict):
+                    cfg.setdefault(nname, {}).update(ncfg)
         out: list = []
         if "__exec__" in cfg:
             url = (cfg["__exec__"].get("endpoint") or "").rstrip("/")

@@ -29,7 +29,7 @@ fi
 WANTS=/usr/lib/systemd/system/multi-user.target.wants
 install -d -m 0755 "${WANTS}"
 
-log "Enabling NVIDIA CDI units..."
+log "Symlinking nvidia-cdi-refresh.path, nvidia-cdi-refresh.service, nvidia-persistenced.service into multi-user.target.wants"
 for unit in \
     nvidia-cdi-refresh.path \
     nvidia-cdi-refresh.service \
