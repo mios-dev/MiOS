@@ -1,5 +1,5 @@
 # AI-hint: Configures kernel arguments for IOMMU activation and VFIO PCI passthrough support to enable hardware device passthrough to virtual machines on x86_64 systems.
-# 'MiOS' v0.2.4 -- VFIO / PCI Passthrough generic hooks
+# 'MiOS' v0.3.0 -- VFIO / PCI Passthrough generic hooks
 match-architectures = ["x86_64"]
 kargs = [
     "intel_iommu=on",

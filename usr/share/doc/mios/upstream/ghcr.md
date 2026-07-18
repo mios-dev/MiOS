@@ -71,7 +71,7 @@ build-time bound images, and the published output.
 | Ref | Purpose |
 | --- | --- |
 | `ghcr.io/mios-dev/mios:latest` | Production image — `bootc switch`/`bootc upgrade` target |
-| `ghcr.io/mios-dev/mios:v0.2.4` | Pinned release (current `VERSION`) |
+| `ghcr.io/mios-dev/mios:v0.3.0` | Pinned release (current `VERSION`) |
 | `ghcr.io/mios-dev/mios@sha256:…` | Digest-pinned (most reproducible/secure) |
 | `localhost/mios:latest` | Local build target (`MIOS_LOCAL_TAG`, `Justfile`) |
 | `ghcr.io/ublue-os/ucore-hci:stable-nvidia` | Upstream base image (`MIOS_BASE_IMAGE`, `Justfile`) |

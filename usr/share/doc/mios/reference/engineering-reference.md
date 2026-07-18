@@ -152,7 +152,7 @@ identifier used in paths, env vars, package names, and code.
 ├── push-to-github.ps1             # CI helper
 ├── *.md                           # README, CLAUDE, GEMINI, AGENTS, MiOS,
 │                                  #   CONTRIBUTING, AGREEMENTS, llms.txt, ...
-└── VERSION                        # Single line: "v0.2.x"
+└── VERSION                        # Single line: "v0.3.0"
 ```
 
 Most operator-tunable surface (packages, ports, AI lanes, services, agent

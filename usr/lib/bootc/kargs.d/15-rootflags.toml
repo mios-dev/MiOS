@@ -1,5 +1,5 @@
 # AI-hint: Configures kernel arguments for the root filesystem mount, specifically enforcing discard=async and noatime flags to optimize filesystem performance and maintenance on x86_64 systems.
-# 'MiOS' v0.2.4 -- Root filesystem mount flags
+# 'MiOS' v0.3.0 -- Root filesystem mount flags
 match-architectures = ["x86_64"]
 kargs = [
     "rootflags=discard=async,noatime"

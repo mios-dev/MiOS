@@ -6796,7 +6796,7 @@ unified_radix_tree = true           # --enable-unified-radix-tree (UnifiedRadixT
 # editor for the same TOML. PACKAGES.md (now under
 # usr/share/doc/mios/reference/PACKAGES.md) is human-readable
 # documentation only -- the legacy fenced ```packages-<cat>``` fallback
-# was removed in v0.2.4.
+# was removed in v0.3.0.
 #
 #   sections        sections to install on a deployed MiOS host (image-time).
 #   dev_overlay     subset to install on the Windows-side MiOS-DEV podman
@@ -6984,7 +6984,7 @@ sections = [
 ]
 
 # ----------------------------------------------------------------------------
-# [packages.<section>] -- DEFINITIVE SSOT (v0.2.4+)
+# [packages.<section>] -- DEFINITIVE SSOT (v0.3.0+)
 #
 # Every DNF package the build pulls is enumerated below. PACKAGES.md is
 # now a documentation shim that points operators at this file (it stayed

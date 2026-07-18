@@ -1,6 +1,6 @@
 # AI-hint: Defines kernel arguments for the MiOS bootloader to enforce SecureBlue-derived hardening, including memory protections, IOMMU strictness, and side-channel mitigations for x86_64 architectures.
 # 'MiOS' -- Extended SecureBlue-derived kernel hardening
-# v0.2.0 roadmap implementation pass
+# v0.3.0 roadmap implementation pass
 match-architectures = ["x86_64"]
 kargs = [
     "page_poison=1",

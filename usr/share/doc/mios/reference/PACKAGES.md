@@ -36,7 +36,7 @@ package is present; the machine-readable source of truth is `mios.toml`.
 ## SSOT is mios.toml (PACKAGES.md is documentation only)
 
 **This file is documentation, not the source of truth.** As of MiOS
-v0.2.4 (2026-05-05) the legacy fenced ```packages-<section>```
+v0.3.0 (2026-07-18) the legacy fenced ```packages-<section>```
 fallback has been **removed from the runtime path entirely**. The
 definitive package surface lives in `mios.toml [packages.<section>].pkgs`,
 resolved through the layered overlay chain (highest precedence first):
@@ -101,7 +101,7 @@ Steam ships exclusively as a Flatpak (`com.valvesoftware.Steam`).
 
 ---
 
-# 'MiOS' v0.2.4 -- Package Manifest
+# 'MiOS' v0.3.0 -- Package Manifest
 
 This file is the human-readable rationale for the RPM substrate; the
 machine-readable **single source of truth** is `mios.toml`
@@ -111,7 +111,7 @@ in `mios.toml`. Apps go in `mios.toml` `[desktop].flatpaks`; long-lived
 services go in `etc/containers/systemd/`.
 
 (The fenced ```packages-<section>``` blocks below mirror the TOML sections for
-quick review. Since v0.2.4 they are documentation only and no longer parsed at
+quick review. Since v0.3.0 they are documentation only and no longer parsed at
 build time.)
 
 **CHANGELOG v0.2.0:**

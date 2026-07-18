@@ -346,7 +346,7 @@ repo root for tool discovery -- they all defer to
 
 ## Status
 
-'MiOS' is in active development at `v0.2.x`. The build pipeline is stable,
+'MiOS' is in active development at `v0.3.0`. The build pipeline is stable,
 the image lints clean against `bootc container lint`, and the WSL2 + ISO
 paths boot to a working desktop on the developer's daily-driver. The
 bare-metal install path works but expects you to know what `bootc switch`

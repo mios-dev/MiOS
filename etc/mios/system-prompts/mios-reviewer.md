@@ -36,7 +36,7 @@ unified/unprivileged-AI guarantees.
    resolved by `automation/lib/packages.sh:get_packages`. CI
    cross-references this. The companion `usr/share/doc/mios/reference/PACKAGES.md`
    is documentation only; the legacy fenced-block fallback was removed
-   in v0.2.4.
+   in v0.3.0.
 2. **Containerfile invariants** — final RUN remains `bootc container lint`;
    no `--squash-all`; kernel rule (`kernel`/`kernel-core` excluded) intact;
    `dnf install_weak_deps=False` (underscore form).
