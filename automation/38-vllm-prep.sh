@@ -74,6 +74,21 @@ then
     exit 0
 fi
 
+# Record Safetensors files recursively to models SBOM (RELTOP-01 / T-251)
+local sbom_dir="/usr/share/mios/artifacts/sbom"
+mkdir -p "$sbom_dir"
+local sbom_file="${sbom_dir}/models.tsv"
+if [[ -d "$SEED_DIR" ]]; then
+    find "$SEED_DIR" -type f | while read -r filepath; do
+        local relpath="${filepath#$SEED_DIR/}"
+        local sha=""
+        if command -v sha256sum >/dev/null 2>&1; then
+            sha="$(sha256sum "$filepath" | awk '{print $1}')"
+        fi
+        printf '%s\t%s\t%s\t%s\t%s\n' "$relpath" "safetensors" "$MODEL" "$relpath" "${sha:-unknown}" >> "$sbom_file"
+    done
+fi
+
 seed_size="$(du -sh "$SEED_DIR" 2>/dev/null | awk '{print $1}')"
 log "[38-vllm] baked ${MODEL} -> ${SEED_DIR} (${seed_size:-?})"
 exit 0

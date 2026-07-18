@@ -110,6 +110,15 @@ for attempt in 1 2 3; do
             echo "[10-gnome]   WARN: Bibata sha256 sidecar unavailable -- skipping integrity check"
         fi
         if tar -xf /tmp/bibata.tar.xz -C /usr/share/icons/; then
+            # Record to binaries SBOM (RELTOP-01 / T-251)
+            local sbom_dir="/usr/share/mios/artifacts/sbom"
+            mkdir -p "$sbom_dir"
+            local sha=""
+            if command -v sha256sum >/dev/null 2>&1; then
+                sha="$(sha256sum /tmp/bibata.tar.xz | awk '{print $1}')"
+            fi
+            printf '%s\t%s\t%s\n' "Bibata-Modern-Classic" "${BIBATA_VER}" "${sha:-unknown}" >> "${sbom_dir}/binaries.tsv"
+
             rm -f /tmp/bibata.tar.xz
             BIBATA_OK=1
             break

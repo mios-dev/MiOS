@@ -78,4 +78,14 @@ fi
 
 mv -f "${OMP_BIN}.new" "${OMP_BIN}"
 chmod 0755 "${OMP_BIN}"
+
+# Record to binaries SBOM (RELTOP-01 / T-251)
+local sbom_dir="/usr/share/mios/artifacts/sbom"
+mkdir -p "$sbom_dir"
+local sha=""
+if command -v sha256sum >/dev/null 2>&1; then
+    sha="$(sha256sum "${OMP_BIN}" | awk '{print $1}')"
+fi
+printf '%s\t%s\t%s\n' "oh-my-posh" "${OMP_TAG}" "${sha:-unknown}" >> "${sbom_dir}/binaries.tsv"
+
 log "[38-oh-my-posh] installed at ${OMP_BIN} (${OMP_TAG})"

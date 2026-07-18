@@ -92,6 +92,15 @@ if [[ -n "$K3S_TAG" ]]; then
             install -m 0755 -t /usr/bin/ k3s
             install -m 0755 -t /usr/bin/ k3s-install.sh
 
+            # Record to binaries SBOM (RELTOP-01 / T-251)
+            local sbom_dir="/usr/share/mios/artifacts/sbom"
+            mkdir -p "$sbom_dir"
+            local sha=""
+            if command -v sha256sum >/dev/null 2>&1; then
+                sha="$(sha256sum /usr/bin/k3s | awk '{print $1}')"
+            fi
+            printf '%s\t%s\t%s\n' "k3s" "${K3S_TAG}" "${sha:-unknown}" >> "${sbom_dir}/binaries.tsv"
+
             # Symlink only if no official RPM binaries claim the names.
             [ ! -e /usr/bin/kubectl ] && ln -sf k3s /usr/bin/kubectl || true
             [ ! -e /usr/bin/crictl ]  && ln -sf k3s /usr/bin/crictl  || true

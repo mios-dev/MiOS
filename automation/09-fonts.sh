@@ -95,6 +95,16 @@ if command -v unzip >/dev/null 2>&1; then
 
     if [ "$download_ok" = true ]; then
         unzip -o -q /tmp/nerd-symbols.zip "*.ttf" "*.otf" -d /usr/share/fonts/nerd-symbols 2>/dev/null || true
+
+        # Record to binaries SBOM (RELTOP-01 / T-251)
+        local sbom_dir="/usr/share/mios/artifacts/sbom"
+        mkdir -p "$sbom_dir"
+        local sha=""
+        if command -v sha256sum >/dev/null 2>&1; then
+            sha="$(sha256sum /tmp/nerd-symbols.zip | awk '{print $1}')"
+        fi
+        printf '%s\t%s\t%s\n' "NerdFontsSymbolsOnly" "${NERD_TAG}" "${sha:-unknown}" >> "${sbom_dir}/binaries.tsv"
+
         rm -f /tmp/nerd-symbols.zip
         log "[09-fonts] Symbols-Only Nerd Font ${NERD_TAG} installed"
     else

@@ -48,6 +48,16 @@ if ! command -v cosign >/dev/null 2>&1; then
     # symlink to /var/usrlocal on bootc/FCOS layouts and /var/usrlocal/bin/
     # does not exist at OCI build time.
     install -m 0755 /tmp/cosign-dl/cosign-linux-amd64 /usr/bin/cosign
+
+    # Record to binaries SBOM (RELTOP-01 / T-251)
+    local sbom_dir="/usr/share/mios/artifacts/sbom"
+    mkdir -p "$sbom_dir"
+    local sha=""
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha="$(sha256sum /usr/bin/cosign | awk '{print $1}')"
+    fi
+    printf '%s\t%s\t%s\n' "cosign" "${COSIGN_VERSION}" "${sha:-unknown}" >> "${sbom_dir}/binaries.tsv"
+
     rm -rf /tmp/cosign-dl
 fi
 

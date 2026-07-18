@@ -3145,6 +3145,70 @@ check_shellcheck() {
     fi
 }
 
+check_sbom_metadata() {
+    # Check that any generated sbom TSV metadata files are structurally sound.
+    local sbom_dir="$ROOT/usr/share/mios/artifacts/sbom"
+    local bad=()
+
+    if [[ -d "$sbom_dir" ]]; then
+        # Check models.tsv
+        if [[ -f "$sbom_dir/models.tsv" ]]; then
+            while IFS=$'\t' read -r name type repo file sha256 || [[ -n "$name" ]]; do
+                # Skip header
+                [[ "$name" == "name" ]] && continue
+                [[ -z "$name" ]] && continue
+                # Check for empty fields
+                if [[ -z "$type" || -z "$repo" || -z "$file" || -z "$sha256" ]]; then
+                    bad+=("models.tsv has empty fields in row for '$name'")
+                fi
+                # Check sha256 format
+                if [[ "$sha256" != "unknown" && ! "$sha256" =~ ^[0-9a-fA-F]{64}$ ]]; then
+                    bad+=("models.tsv row for '$name' has invalid sha256: '$sha256'")
+                fi
+            done < "$sbom_dir/models.tsv"
+        fi
+
+        # Check binaries.tsv
+        if [[ -f "$sbom_dir/binaries.tsv" ]]; then
+            while IFS=$'\t' read -r name version sha256 || [[ -n "$name" ]]; do
+                # Skip header
+                [[ "$name" == "name" ]] && continue
+                [[ -z "$name" ]] && continue
+                # Check for empty fields
+                if [[ -z "$version" || -z "$sha256" ]]; then
+                    bad+=("binaries.tsv has empty fields in row for '$name'")
+                fi
+                # Check sha256 format
+                if [[ "$sha256" != "unknown" && ! "$sha256" =~ ^[0-9a-fA-F]{64}$ ]]; then
+                    bad+=("binaries.tsv row for '$name' has invalid sha256: '$sha256'")
+                fi
+            done < "$sbom_dir/binaries.tsv"
+        fi
+
+        # Check bound-images.tsv
+        if [[ -f "$sbom_dir/bound-images.tsv" ]]; then
+            while IFS=$'\t' read -r image digest group || [[ -n "$image" ]]; do
+                # Skip header
+                [[ "$image" == "image" ]] && continue
+                [[ -z "$image" ]] && continue
+                # Check for empty fields
+                if [[ -z "$digest" || -z "$group" ]]; then
+                    bad+=("bound-images.tsv has empty fields in row for '$image'")
+                fi
+            done < "$sbom_dir/bound-images.tsv"
+        fi
+    fi
+
+    if [[ "${#bad[@]}" -eq 0 ]]; then
+        echo "[38-drift-checks]   (49) SBOM metadata manifests are structurally valid"
+    else
+        for err in "${bad[@]}"; do
+            echo "  [sbom-drift] $err" >&2
+        done
+        _violation "SBOM metadata manifests in usr/share/mios/artifacts/sbom/ contain invalid/empty fields (RELTOP-01 / T-251)"
+    fi
+}
+
 main() {
     if [[ $# -eq 1 && -n "$1" ]]; then
         if declare -f "$1" >/dev/null; then
@@ -3209,6 +3273,7 @@ main() {
     check_bake_ref_defaults
     check_roadmap_index
     check_cli_eval_safety
+    check_sbom_metadata
     check_shellcheck
 
     echo "[38-drift-checks] ---------------------------------------------------------"
