@@ -4,7 +4,10 @@
 # AI-functions: check, t_load_phrases, t_load_domains, t_deterministic_route, main
 """Unit tests for mios_routing (refactor R2)."""
 
+import sys
 import os
+sys.path.insert(0, "/usr/lib/mios")
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 import tempfile
 
 import mios_routing as r

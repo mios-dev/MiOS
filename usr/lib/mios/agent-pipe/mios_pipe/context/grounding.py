@@ -45,6 +45,16 @@ _current_date_str = None
 _check_inbound_principal = None
 
 
+def _get_client_env() -> dict:
+    if _client_env_var is None:
+        return {}
+    try:
+        val = _client_env_var.get()
+    except Exception:
+        return {}
+    return val if isinstance(val, dict) else {}
+
+
 def configure(*, client_env_var=None, current_date_str=None,
               check_inbound_principal=None) -> None:
     """Inject the server.py runtime refs the grounding cluster calls back into."""
@@ -118,7 +128,7 @@ def _temporal_grounding() -> str:
     to the process-local clock when no client context is present (Discord, raw
  API). "use detected environment details -- locations,
     timezones, locale, time"."""
-    env = _client_env_var.get() if isinstance(_client_env_var.get(), dict) else {}
+    env = _get_client_env()
     tz_name = (env.get("timezone") or "").strip()
     now_dt = None
     if tz_name:
@@ -265,7 +275,7 @@ def _client_grounding() -> str:
  API, location-sharing off) so nothing is fabricated.
     "OWUI provides entire environment details ... USE them in the pipeline";
     the location is what lets 'near me' resolve instead of a placeholder."""
-    env = _client_env_var.get() if isinstance(_client_env_var.get(), dict) else {}
+    env = _get_client_env()
     loc = (env.get("location") or "").strip()
     lang = (env.get("language") or "").strip()
     name = (env.get("user_name") or "").strip()
@@ -463,9 +473,10 @@ def _env_block() -> str:
     an undetermined key is OMITTED (never fabricated). cwd/surface/location come
     ONLY from this turn's context, never recall. Reuses the SAME getters +
     location-chain as _client_grounding so the structured + prose views agree."""
-    env = _client_env_var.get() if isinstance(_client_env_var.get(), dict) else {}
+    env = _get_client_env()
     rows: list = []
-    rows.append(("current_date", _current_date_str()))
+    _date = _current_date_str() if _current_date_str else time.strftime("%Y-%m-%d")
+    rows.append(("current_date", _date))
     _tz = _host_timezone()
     if _tz:
         rows.append(("timezone", _tz))
@@ -823,7 +834,7 @@ def _current_year() -> str:
     falling back to the live system clock. NEVER hardcode the year (operator
  "use env detect for current values for all AI functions / fall
     back to embedding the current year")."""
-    env = _client_env_var.get() if isinstance(_client_env_var.get(), dict) else {}
+    env = _get_client_env()
     for _src in (env.get("date"), env.get("datetime")):
         m = re.match(r"\s*(\d{4})", str(_src or ""))
         if m:

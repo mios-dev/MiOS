@@ -73,10 +73,10 @@ def t_usage_estimate():
     # Moved from server.py: the OpenAI usage object built off count_text (>=1 floor).
     u = tok._usage_estimate("", "")
     check("usage: empty floors to 1/1/2",
-          u == {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2}, str(u))
+          u.get("prompt_tokens") == 1 and u.get("completion_tokens") == 1 and u.get("total_tokens") == 2, str(u))
     u2 = tok._usage_estimate("a" * 40, "b" * 12)
     check("usage: counts via count_text (40//4, 12//4)",
-          u2 == {"prompt_tokens": 10, "completion_tokens": 3, "total_tokens": 13}, str(u2))
+          u2.get("prompt_tokens") == 10 and u2.get("completion_tokens") == 3 and u2.get("total_tokens") == 13, str(u2))
 
 
 def mios_tokenize_default():

@@ -11,6 +11,7 @@ from unittest.mock import patch
 
 # Ensure /usr/lib/mios is in python path
 sys.path.insert(0, "/usr/lib/mios")
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 import mios_toml
 
 class TestMiosToml(unittest.TestCase):
