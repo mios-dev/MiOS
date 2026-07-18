@@ -6,8 +6,8 @@
 
 <!-- ROADMAP_ROLLUP_START -->
 ### Workstream Status Rollup
-- **Done**: 7
-- **Active**: 1
+- **Done**: 8
+- **Active**: 0
 - **Proposed**: 8
 - **Blocked**: 0
 <!-- ROADMAP_ROLLUP_END -->
@@ -45,7 +45,7 @@
 - `WS-DOTFILES` — SSOT-as-system-dotfiles — one mios.toml projects every dotfile on every platform ✅
 
 **Fleet & Federation**
-- `WS-RELTOP` — Release topology: GitHub ≡ Forgejo equal publishers; PUBLISH capacity gate (active)
+- `WS-RELTOP` — Release topology: GitHub ≡ Forgejo equal publishers; PUBLISH capacity gate ✅
 <!-- ROADMAP_INDEX_END -->
 
 <!-- ROADMAP_TOC_START -->
@@ -531,7 +531,7 @@ acceptance: |
 id: WS-RELTOP
 title: Release topology: GitHub ≡ Forgejo equal publishers; PUBLISH capacity gate
 theme: Fleet & Federation
-status: active
+status: done
 priority: P2
 laws: [7, 8]
 ssot_keys: ["build.curl_trigger_fallback"]
@@ -543,7 +543,7 @@ acceptance: |
 
 **✅ DONE this session (for CI):** GitHub Actions (`.github/workflows/mios-ci.yml`) and the self-hosted Forgejo runner (`.forgejo/workflows/build-mios.yml`) are declared EQUAL, bit-for-bit build/publish environments (both `podman build`, identical OCI manifests) — neither subordinate. Build is LOCAL-first (MiOS-DEV, 707 GB, bakes the full fleet). `mios-ci.yml` carries a workflow-level `PUBLISH: 'false'` env (L38) — a **capacity** gate, NOT a demotion: a standard `ubuntu-24.04` runner (~66 GB `/mnt`) cannot hold the ~60 GB baked store (one `buildah commit` → exit 125), so GitHub build+lint VALIDATES only while the 707 GB Forgejo runner (and the local build) bake. `PUBLISH` gates the `MIOS_BAKE_BOUND_IMAGES` build-arg (L243) + the rechunk/push/cosign steps (L270+); flip to `'true'` once a runner can hold the bake — or, decisively, after WS-MIOSSYS shrinks the store to ~25 GB so a standard GitHub runner bakes+publishes as a full equal.
 
-### RELTOP-01 — Wire "default-to-GHCR-if-creds-else-local/Forgejo" registry selection into the build driver  **[P2]**
+### RELTOP-01 — Wire "default-to-GHCR-if-creds-else-local/Forgejo" registry selection into the build driver  **✅ DONE this session**
 - **What:** Implement the registry-selection logic that both workflows currently hardcode as `ghcr`: default to GitHub/GHCR push+pull when credentials are present, else the local/Forgejo registry. Locate it in the build driver / `install.env` credential detection so both CI environments and the local build resolve the registry the same way.
 - **Why:** The topology directive says registry preference is credential-driven, but `mios-ci.yml`/`build-mios.yml` currently hardcode GHCR; the selection belongs in one shared place, not duplicated per workflow.
 - **Files:** `.github/workflows/mios-ci.yml`, `.forgejo/workflows/build-mios.yml`, the build driver (`automation/build.sh` / `install.env` credential detection).
