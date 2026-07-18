@@ -233,9 +233,9 @@
 | T-245 | P2 | planned | Build/Install/Xbox/DB | VECTOR-03 -- V3 Build catalog: package/build/xbox/debloat tables |
 | T-246 | P2 | planned | Accounts/Identity/DB | VECTOR-04 -- V4 Accounts/users: DB-owned ids + prefs + bidirecti |
 | T-247 | P3 | planned | SSOT/DB/Configurator | VECTOR-05 -- V5 Invert authority: DB=SSOT, TOML=generated export |
-| T-248 | P1 | in-progress | Build/Bake | BAKE-01 -- `[build.bake]` core allow-list + bake-plan projection ( |
-| T-249 | P1 | planned | Build/Activation | BLADE-01 -- Universal-core + blade-type activation gate (`Conditi |
-| T-250 | P1 | planned | Build/Consolidation | MIOSSYS-01 -- mios-sys + mios-cuda shared-base consolidation (~18 |
+| T-248 | P1 | done | Build/Bake | BAKE-01 -- `[build.bake]` core allow-list + bake-plan projection ( |
+| T-249 | P1 | done | Build/Activation | BLADE-01 -- Universal-core + blade-type activation gate (`Conditi |
+| T-250 | P1 | done | Build/Consolidation | MIOSSYS-01 -- mios-sys + mios-cuda shared-base consolidation (~18 |
 | T-251 | P2 | done | SBOM/Provenance | SBOM-01 -- build-time provenance beyond images (model/pkg hashes) |
 | T-252 | P2 | done | Release/CI | RELTOP-01 -- credential-driven registry selection (GHCR else Forg |
 | T-253 | P2 | planned | AI-plane/Deps | DEPRED-01 -- Hermes->agent-pipe collapse + sidecar consolidation |
@@ -4172,20 +4172,20 @@ T-094 (CONV-01 SSOT)
 - [x] `just drift-gate` regenerates `plan.d/*.list` and diffs clean; the check FAILS if a whale leaves `core`, a core member is not fully-qualified, or referenced ⊄ emitted; the Containerfile carries no inline Quadlet `sed`-scraping.
 
 ## T-249: BLADE-01 -- Universal-core + blade-type activation gate (one image, role by flag)  [P1]
-> **Priority:** P1 | **Status:** planned | **Effort:** L | **Domain:** Build/Activation | **Who:** build/systemd agent | **Source:** WS-BLADE / Part 21; universal-core / blade-type study (§3)
+> **Priority:** P1 | **Status:** done | **Effort:** L | **Domain:** Build/Activation | **Who:** build/systemd agent | **Source:** WS-BLADE / Part 21; universal-core / blade-type study (§3)
 **Instructions (WHAT + HOW):** Add `[blade]` SSOT (`type` archetype: hybrid/compute/endpoint/controller/headless; `[blade.archetypes]` capability expansions; `[blade.requires]` service→capability "nodeSelector" map). Demote `usr/libexec/mios/role-apply` from imperative actor to a marker-writing resolver (materialize `/etc/mios/blade.d/<cap>` + `/run/mios/blade.env`; keep autodetect). Generate one `usr/share/mios/dropins/blade-<cap>.conf` (`ConditionPathExists=/etc/mios/blade.d/<cap>`) per capability from `[blade.requires]` (Law-8 generator + drift-check) and wire `automation/41-mios-dropin-fanout.sh`. Deploy-time selection: karg `mios.blade=<type>` (generated `kargs.d/05-mios-blade.toml`) / Ignition / Afterburn / autodetect; `mios blade set|add-capability|status` verb (marker touch + daemon-reload, no reboot). Fold `[profile].role/features` into `[blade]`; add `mios-{compute,endpoint,controller}.target`; greenboot check. Keep `[blades.*]`/`[nodes.*]` as the orthogonal fleet-dispatch Axis B. No image variants -- baked everywhere, started by role.
 **Where (files):** `usr/share/mios/mios.toml` (`[blade]`), `usr/libexec/mios/role-apply`, `usr/share/mios/dropins/blade-<cap>.conf`, `automation/41-mios-dropin-fanout.sh`, `usr/lib/bootc/kargs.d/05-mios-blade.toml`, `usr/lib/systemd/system/mios-{compute,endpoint,controller}.target`, `usr/lib/greenboot/check/required.d/10-mios-role.sh`, `mios blade` verb
 **When (deps/order):** Complements T-248 (bake vs activation orthogonality) + T-250 (activation `Condition*` unchanged by consolidation).
 **Done When:**
-- [ ] one universal image: on a `controller` blade `mios-llm-heavy.service` is condition-skipped (zero VRAM), on a `gpu-serving` blade it starts; `mios blade add-capability gpu-serving` lights it hot with no reboot; the drop-in generator is drift-gated.
+- [x] one universal image: on a `controller` blade `mios-llm-heavy.service` is condition-skipped (zero VRAM), on a `gpu-serving` blade it starts; `mios blade add-capability gpu-serving` lights it hot with no reboot; the drop-in generator is drift-gated.
 
 ## T-250: MIOSSYS-01 -- mios-sys + mios-cuda shared-base consolidation of the sidecar fleet  [P1]
-> **Priority:** P1 | **Status:** planned | **Effort:** XL | **Domain:** Build/Consolidation | **Who:** build agent | **Source:** WS-MIOSSYS / Part 21; MiOS-Sys consolidation study; [[mios-release-topology]]
+> **Priority:** P1 | **Status:** done | **Effort:** XL | **Domain:** Build/Consolidation | **Who:** build agent | **Source:** WS-MIOSSYS / Part 21; MiOS-Sys consolidation study; [[mios-release-topology]]
 **Instructions (WHAT + HOW):** Replace the ~18-image sidecar fleet (~60GB, zero shared base blobs) with TWO images of one base lineage, both `FROM ${BASE_IMAGE}` (ucore-hci:stable-nvidia): `localhost/mios-sys` (CUDA-free, ~6-8GB) + `localhost/mios-cuda` (shared CUDA/torch/flashinfer L2 + `vllm-venv`/`sglang-venv` + `llama-server`, ~15-18GB). Use Model A (one IMAGE, many CONTAINERS -- shared `Image=`, per-service `Exec=`, per-unit `User=`/`Group=`/`Condition*` unchanged). New `automation/57-mios-sys-build.sh` (+ generated `usr/share/mios/{sys,cuda}/Containerfile`); `[image.sys]`/`[image.cuda]` blocks; `MIOS_SYS_IMAGE`/`MIOS_CUDA_IMAGE` through `userenv.sh` + BOTH allowlists in `automation/15-render-quadlets.sh` (envsubst L73 + bash-fallback ~L87-127) + `38-ssot-lint.sh`. Per-member Quadlet delta is a pure SSOT edit (repoint `Image=`, add `Exec=`); `[build].bake_groups` → sys/cuda/extra. Migrate in Waves 0-3 (Wave 1 Go-binary tier; Wave 2 interpreted + k3s/runner binaries; Wave 3 mios-cuda + DB tier behind a smoke test). Ceph = KEEP-SEPARATE.
 **Where (files):** `usr/share/mios/mios.toml` (`[image.sys]`/`[image.cuda]`/`[build].bake_groups`), `automation/57-mios-sys-build.sh` (new), `usr/share/mios/{sys,cuda}/Containerfile` (generated), `automation/15-render-quadlets.sh`, `automation/38-ssot-lint.sh`, `automation/14-generate-quadlets.sh`, `usr/libexec/mios/mios-bake-group`, `Containerfile`, the ~18 `usr/share/containers/systemd/*.container` members
 **When (deps/order):** Locked ops decisions: newest-packages tagged-at-build; ALL core consolidates; k3s binary consolidated (HA-compatible, privileged activation unchanged) + Pacemaker/corosync HA CORE; on-CVE/on-release rebuild; mios-cuda bake-scope deferred to Wave 3. Enabler of T-252 GitHub-equality; complements T-248 Phase 0 (sharding kept as safety margin).
 **Done When:**
-- [ ] the bound-image store drops to ~25GB with the largest single commit capped at the ~12GB CUDA/torch group; `generate-pod-quadlets.py --check` validates the regenerated `Image=`/`Exec=`; every `User=`/root-exception byte-identical (Law 6 untouched); a WSL blade still won't start pxe-hub though its binary is baked.
+- [x] the bound-image store drops to ~25GB with the largest single commit capped at the ~12GB CUDA/torch group; `generate-pod-quadlets.py --check` validates the regenerated `Image=`/`Exec=`; every `User=`/root-exception byte-identical (Law 6 untouched); a WSL blade still won't start pxe-hub though its binary is baked.
 
 ## T-251: SBOM-01 -- Extend build-time provenance beyond images (model/package hashes)  [P2]
 > **Priority:** P2 | **Status:** done | **Effort:** M | **Domain:** SBOM/Provenance | **Who:** build agent | **Source:** WS-SBOM / Part 21; [[mios-sbom-not-hardcode]]
