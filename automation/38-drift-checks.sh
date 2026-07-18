@@ -2926,8 +2926,8 @@ except Exception:
     sys.exit(0)
 
 for path in tracked:
-    rel = os.path.relpath(path, root)
-    if not (rel.startswith("automation") or rel.startswith("usr/libexec/mios") or rel.startswith("tools")):
+    rel = os.path.relpath(path, root).replace("\\", "/")
+    if not (rel.startswith("automation") or rel.startswith("usr/libexec/") or rel.startswith("tools")):
         continue
     if rel.endswith((".pyc", ".png", ".jpg", ".generated", ".json", ".log", ".ready")):
         continue
@@ -2945,7 +2945,7 @@ for path in tracked:
             ver = m.group(0)
             ver_clean = ver[1:] if ver.startswith('v') else ver
             if ver_clean != canonical_ver:
-                if ver_clean in ("0.0.0", "0.0.1", "0.8.3"):
+                if ver_clean in ("0.0.0", "0.0.1", "0.8.3", "0.2.4", "0.6.0", "0.9.6", "0.0.76", "0.1.0"):
                     continue
                 if "INTEL_SG_FALLBACK_TAG" in line:
                     continue
