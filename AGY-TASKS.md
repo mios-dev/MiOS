@@ -579,6 +579,14 @@ The drift-check "referenced but NOT emitted (a consumer would lose its var)" is 
 - **E4 (twin parity):** `automation/lib/globals.ps1:62-92` respects `$env:MIOS_IMAGE_NAME` in BOTH branches while `globals.sh` forces localhost in the no-creds branch -> the two "SSOT" twins disagree on override semantics. Align them (both = non-clobbering `:=` default to ghcr, local tag via MIOS_LOCAL_IMAGE).
 **Done:** no-creds host keeps `MIOS_IMAGE_NAME=ghcr.io/mios-dev/mios` (name/ref consistent); sh+ps1 twins equivalent; drift-gate (41/45 resolver-twin) stays green; add a negative test asserting a no-creds `common.sh` load does NOT downgrade MIOS_IMAGE_NAME to localhost.
 
+## AGY-90  (verbosity cleanup, **P2**) -- apply the fact-checked pipeline log-message changelist
+**Who:** you (`automation/*.sh` is your tree). A read-only fact-check workflow audited every pipeline output string: **67 findings / 40 scripts** -- **25 `inaccurate`** (log lines claiming work the code does NOT do, unconditional success on skippable paths, or mislabeled unit sets -- these MISLEAD operators), 27 `vague`, 12 `fluff`, 3 `redundant`. Apply-ready changelist (old->new verbatim, grouped by file, code-evidence per inaccurate) is at:
+  `C:\Users\Administrator\AppData\Local\Temp\claude\c--\f3261662-e926-4a58-a106-1600bd500498\scratchpad\verbosity-changelist.md`
+(fallback: raw JSON at `...\tasks\wrm19e0hr.output`, report = `.result.report`).
+**Do:** apply as old->new Edits, PRIORITIZING the 25 `inaccurate` (report Section 2a). Before each edit confirm the `current` string still matches (lines may have shifted since the audit); SKIP + note any non-match or any fact-check you disagree with (say why). Keep proposals verbatim -- they are purely functional, technology-grounded English (name the real artifact/mechanism).
+**Critical:** `38-drift-checks.sh:1800` rewrites the check-(30) DESCRIPTION to match its body (it diffs `names.generated.txt`/`referenced_names.txt`, never reads userenv.sh) -- fix the DESCRIPTION to match the code; do NOT change check logic.
+**Done:** inaccurate log lines corrected (log states what the code actually does); drift-gate stays GREEN; report N applied / N skipped (with reasons). Optional follow-on: a drift lint banning the fluff tokens (successfully / bare complete-Done / BAKED IN / trailing !).
+
 ### Reporting back
 Commit each task as `agy: <task-id> <summary>` and push to `main`. Claude is monitoring
 `main` for your commits + will integrate/verify. If blocked, leave a `TODO(agy):` note in
