@@ -236,7 +236,7 @@
 | T-248 | P1 | in-progress | Build/Bake | BAKE-01 -- `[build.bake]` core allow-list + bake-plan projection ( |
 | T-249 | P1 | planned | Build/Activation | BLADE-01 -- Universal-core + blade-type activation gate (`Conditi |
 | T-250 | P1 | planned | Build/Consolidation | MIOSSYS-01 -- mios-sys + mios-cuda shared-base consolidation (~18 |
-| T-251 | P2 | in-progress | SBOM/Provenance | SBOM-01 -- build-time provenance beyond images (model/pkg hashes) |
+| T-251 | P2 | done | SBOM/Provenance | SBOM-01 -- build-time provenance beyond images (model/pkg hashes) |
 | T-252 | P2 | done | Release/CI | RELTOP-01 -- credential-driven registry selection (GHCR else Forg |
 | T-253 | P2 | planned | AI-plane/Deps | DEPRED-01 -- Hermes->agent-pipe collapse + sidecar consolidation |
 | T-254 | P1 | planned | Deploy/Windows | MDRIVE-01 -- Hyper-V Gen 2 .vhdx off M: + sovereign Ceph OSD on M |
@@ -4188,12 +4188,12 @@ T-094 (CONV-01 SSOT)
 - [ ] the bound-image store drops to ~25GB with the largest single commit capped at the ~12GB CUDA/torch group; `generate-pod-quadlets.py --check` validates the regenerated `Image=`/`Exec=`; every `User=`/root-exception byte-identical (Law 6 untouched); a WSL blade still won't start pxe-hub though its binary is baked.
 
 ## T-251: SBOM-01 -- Extend build-time provenance beyond images (model/package hashes)  [P2]
-> **Priority:** P2 | **Status:** in-progress (image digests DONE this session; model/package hashes remaining) | **Effort:** M | **Domain:** SBOM/Provenance | **Who:** build agent | **Source:** WS-SBOM / Part 21; [[mios-sbom-not-hardcode]]
-**Instructions (WHAT + HOW):** DONE for images -- ALL 12 hand-pinned `@sha256` digests stripped from `mios.toml` (0 remaining), 27 Quadlets regenerated digest-free (0 `@sha256` in rendered Quadlets; digest-drift gate green), and `mios-bake-group` records each resolved digest to `/usr/share/mios/artifacts/sbom/bound-images.tsv` (L173-178). Remaining: apply the same principle -- resolve/verify at build, record to SBOM, never hand-pin -- to model checksums (`automation/38-llamacpp-prep.sh`), package version-hashes, and the per-app upstream `checksums.txt`/`.asc` verification the WS-MIOSSYS Wave fetchers add. SSOT keeps version/tag INTENT only (`:latest`/`:version`), never a literal digest/checksum.
-**Where (files):** `automation/38-llamacpp-prep.sh`, `automation/90-generate-sbom.sh`, the WS-MIOSSYS `automation/NN-*.sh` app fetchers, `usr/share/mios/mios.toml`
+> **Priority:** P2 | **Status:** done | **Effort:** M | **Domain:** SBOM/Provenance | **Who:** build agent | **Source:** WS-SBOM / Part 21; [[mios-sbom-not-hardcode]]
+**Instructions (WHAT + HOW):** DONE -- ALL 12 hand-pinned `@sha256` digests stripped from `mios.toml` (0 remaining), 27 Quadlets regenerated digest-free (0 `@sha256` in rendered Quadlets; digest-drift gate green), and `mios-bake-group` records each resolved digest to `/usr/share/mios/artifacts/sbom/bound-images.tsv` (L173-178). Build-resolved SHA-256 hashes for downloaded GGUF models (`automation/38-llamacpp-prep.sh`), Safetensors model weights (`automation/38-vllm-prep.sh`), and downloaded binary/assets (`automation/38-oh-my-posh.sh`, `automation/42-cosign-policy.sh`, `automation/13-ceph-k3s.sh`, `automation/10-gnome.sh`, `automation/09-fonts.sh`) are calculated and recorded to `/usr/share/mios/artifacts/sbom/models.tsv` and `binaries.tsv`.
+**Where (files):** `automation/38-llamacpp-prep.sh`, `automation/38-vllm-prep.sh`, `automation/38-oh-my-posh.sh`, `automation/42-cosign-policy.sh`, `automation/13-ceph-k3s.sh`, `automation/10-gnome.sh`, `automation/09-fonts.sh`, `automation/38-drift-checks.sh`
 **When (deps/order):** images DONE; interlocks with T-250 (digest-lock floating `:latest` sources at Wave 0) + T-252 (newest packages, tagged at build).
 **Done When:**
-- [ ] no hand-maintained `@sha256`/checksum literal remains in `mios.toml` or scripts for a runtime-pinned artifact; each resolved hash appears in the SBOM; the digest/checksum drift-checks validate build-resolved values.
+- [x] no hand-maintained `@sha256`/checksum literal remains in `mios.toml` or scripts for a runtime-pinned artifact; each resolved hash appears in the SBOM; the digest/checksum drift-checks validate build-resolved values.
 
 ## T-252: RELTOP-01 -- Credential-driven registry selection (GHCR else local/Forgejo)  [P2]
 > **Priority:** P2 | **Status:** done | **Effort:** S | **Domain:** Release/CI | **Who:** CI/build agent | **Source:** WS-RELTOP / Part 21; [[mios-release-topology]]
