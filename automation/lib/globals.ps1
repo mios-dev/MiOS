@@ -59,7 +59,32 @@ $script:MIOS_SUBUID_START = if ($env:MIOS_SUBUID_START) { [int]$env:MIOS_SUBUID_
 $script:MIOS_SUBUID_COUNT = if ($env:MIOS_SUBUID_COUNT) { [int]$env:MIOS_SUBUID_COUNT } else { 65536 }
 
 # ── IMAGES ───────────────────────────────────────────────────────────
-$script:MIOS_IMAGE_NAME   = if ($env:MIOS_IMAGE_NAME)   { $env:MIOS_IMAGE_NAME }   else { 'ghcr.io/mios-dev/mios' }
+$hasGhcrCreds = $false
+foreach ($token in @($env:GHCR_TOKEN, $env:GH_TOKEN, $env:GITHUB_TOKEN, $env:MIOS_GITHUB_TOKEN)) {
+    if (-not [string]::IsNullOrWhiteSpace($token)) {
+        $hasGhcrCreds = $true
+        break
+    }
+}
+
+if (Test-Path '/etc/mios/secrets.env') {
+    try {
+        $content = Get-Content -Path '/etc/mios/secrets.env' -ErrorAction SilentlyContinue
+        foreach ($line in $content) {
+            if ($line -match '^\s*(GHCR_TOKEN|GH_TOKEN|GITHUB_TOKEN|MIOS_GITHUB_TOKEN)\s*=\s*(.*)') {
+                $val = $Matches[2].Trim("'", '"', " ")
+                if (-not [string]::IsNullOrWhiteSpace($val)) {
+                    $hasGhcrCreds = $true
+                    break
+                }
+            }
+        }
+    } catch {}
+}
+
+$defaultImageName = if ($hasGhcrCreds) { 'ghcr.io/mios-dev/mios' } else { 'localhost/mios' }
+
+$script:MIOS_IMAGE_NAME   = if ($env:MIOS_IMAGE_NAME)   { $env:MIOS_IMAGE_NAME }   else { $defaultImageName }
 $script:MIOS_IMAGE_TAG    = if ($env:MIOS_IMAGE_TAG)    { $env:MIOS_IMAGE_TAG }    else { 'latest' }
 $script:MIOS_IMAGE_REF    = if ($env:MIOS_IMAGE_REF)    { $env:MIOS_IMAGE_REF }    else { "$($script:MIOS_IMAGE_NAME):$($script:MIOS_IMAGE_TAG)" }
 $script:MIOS_LOCAL_IMAGE  = if ($env:MIOS_LOCAL_IMAGE)  { $env:MIOS_LOCAL_IMAGE }  else { 'localhost/mios:latest' }
