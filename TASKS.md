@@ -226,7 +226,7 @@
 | T-238 | P3 | ? | Naming/Hygiene | NAME2-03 -- Mutable-state casing pass + `ContainerName=` audit   |
 | T-239 | P3 | ? | Security/Boot | UKI-01 -- verity-rooted UKI build + fapolicyd enforce-promotion  |
 | T-240 | P2 | in-progress | Data/Migration | A3F-01 -- Central-path legacy-datastore→pg primary flip + un-mirrored w |
-| T-241 | P2 | in-progress | OS-control/Windows | OSCTL2-01 -- hwnd-threaded target-window resolution for `pc_type |
+| T-241 | P2 | done | OS-control/Windows | OSCTL2-01 -- hwnd-threaded target-window resolution for `pc_type |
 | T-242 | P1 | planned | AI-plane/SSOT/DB | VECTOR-00 -- V0 Foundation: unified DB + provenance + DB->TOML m |
 | T-243 | P1 | planned | AI-plane/SSOT/DB | VECTOR-01 -- V1 Config read-path: DB becomes the runtime read (T |
 | T-244 | P2 | planned | AI-plane/Vectorization | VECTOR-02 -- V2 AI-plane vectors: embed skill/verb/tool_call/eve |
@@ -4100,12 +4100,12 @@ T-094 (CONV-01 SSOT)
 - [ ] Central path writes go to pg with no un-mirrored sites; the RELATE-edge schema decision is applied; a live recall/skill round-trip passes with `db_backend=postgres`.
 
 ## T-241: OSCTL2-01 -- hwnd-threaded target-window resolution for `pc_type`  [P2] [VM]
-> **Priority:** P2 | **Status:** in-progress | **Effort:** M | **Domain:** OS-control/Windows | **Who:** os-control agent | **Source:** oscontrol-envgrounding-gaps-2026-06-20.md
+> **Priority:** P2 | **Status:** done | **Effort:** M | **Domain:** OS-control/Windows | **Who:** os-control agent | **Source:** oscontrol-envgrounding-gaps-2026-06-20.md
 **Instructions (WHAT + HOW):** Plumb an explicit target window handle through the type path: `Resolve-EditElement(FromHandle)` → `/input/type`, route compound focus through the WINDOWS executor, and pass the hwnd to `pc_type` so typing targets a specific resolved window instead of whatever UIA thinks is focused. The UIA `SetValue` write-branch (`Invoke-UIASetValue`/`Invoke-TypeText`) already shipped; `Invoke-TypeText($text)` currently takes no target hwnd. First verify whether CU-01/T-038 already covers this; if so, close as dup.
 **Where (files):** `usr/share/mios/windows/mios-oscontrol-server.ps1`; `server.py` `pc_type` dispatch.
 **When (deps/order):** Extends CU-01/T-038; operator-live-test-gated.
 **Done When:**
-- [ ] A type into a named/handle-resolved background window lands in that window (not the focused one); read-back verification passes.
+- [x] A type into a named/handle-resolved background window lands in that window (not the focused one); read-back verification passes.
 
 
 ## T-242: VECTOR-00 -- V0 Foundation: unified DB + provenance + DB->TOML materialize + drift-gate  [P1]
