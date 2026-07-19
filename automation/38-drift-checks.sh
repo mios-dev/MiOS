@@ -3525,6 +3525,34 @@ sys.exit(0)
     fi
 }
 
+# --- (62) mios.toml derived copies are pure projections of the canonical SSOT ------
+# The curated root mios.toml and the bootstrap repo's mios.toml carry [ports] + [colors]
+# projected VERBATIM from usr/share/mios/mios.toml (owned sections -- [autounattend],
+# [smoke_tests], [mios_app], [ports.lan_firewall], and the gate-48 ignored_prefixes -- are
+# never touched). mios-sync-toml regenerates them; this gate fails if either committed copy
+# hand-drifted from canonical. Fix: run `usr/libexec/mios/mios-sync-toml`. Complements gate 22
+# (bootstrap [ports] value parity) + gate 48 (root key-subset) with a whole-block projection
+# check. Vacuous-passes where python3 or the copies are absent (same posture as those gates).
+check_toml_projection() {
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "[38-drift-checks]   WARNING: python3 missing -- skipping toml-projection check" >&2
+        return 0
+    fi
+    local tool="$ROOT/usr/libexec/mios/mios-sync-toml"
+    if [[ ! -f "$tool" ]]; then
+        echo "[38-drift-checks]   WARNING: mios-sync-toml not found -- skipping" >&2
+        return 0
+    fi
+    if python3 "$tool" --check >/dev/null 2>"$ROOT/.synctoml.err"; then
+        rm -f "$ROOT/.synctoml.err" 2>/dev/null || true
+        echo "[38-drift-checks]   (62) mios.toml derived copies ([ports]/[colors]) project verbatim from the canonical SSOT"
+    else
+        sed 's/^/    /' "$ROOT/.synctoml.err" >&2 2>/dev/null || true
+        rm -f "$ROOT/.synctoml.err" 2>/dev/null || true
+        _violation "a mios.toml derived copy drifted from the canonical [ports]/[colors] projection -- re-run usr/libexec/mios/mios-sync-toml"
+    fi
+}
+
 check_bake_plan() {
     if ! command -v python3 >/dev/null 2>&1; then
         echo "[38-drift-checks]   WARNING: python3 missing -- skipping bake plan check" >&2
@@ -3781,6 +3809,7 @@ main() {
     check_deploy_plane
     check_version_ssot
     check_root_toml_subset
+    check_toml_projection
     check_bake_plan
     check_bake_ref_defaults
     check_roadmap_index

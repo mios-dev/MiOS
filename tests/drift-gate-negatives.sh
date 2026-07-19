@@ -169,6 +169,41 @@ EOF
     log "check_root_toml_subset negative test passed."
 }
 
+# 7. Test check_toml_projection
+test_toml_projection() {
+    log "Testing check_toml_projection..."
+    local root_toml="${ROOT}/mios.toml"
+    if [[ ! -f "$root_toml" ]]; then
+        log "root mios.toml absent -- skipping check_toml_projection negative test."
+        return 0
+    fi
+    local bak="${root_toml}.projtest.bak"
+    cp "$root_toml" "$bak"
+
+    # Inject drift into a PROJECTED section: mutate a [colors] value so the block no longer
+    # matches the canonical SSOT (mios-sync-toml --check must then report drift).
+    python3 - "$root_toml" << 'EOF'
+import sys
+p = sys.argv[1]
+t = open(p, encoding="utf-8").read()
+new = t.replace('accent      = "#1A407F"', 'accent      = "#DEAD00"', 1)
+if new == t:
+    new = t.replace('#1A407F', '#DEAD00', 1)   # fallback if spacing differs
+open(p, "w", encoding="utf-8").write(new)
+EOF
+
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" bash "${ROOT}/automation/38-drift-checks.sh" check_toml_projection >/dev/null 2>&1; then
+        mv "$bak" "$root_toml"
+        die "check_toml_projection passed despite injected [colors] drift!"
+    fi
+
+    # Restore and verify green.
+    mv "$bak" "$root_toml"
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" bash "${ROOT}/automation/38-drift-checks.sh" check_toml_projection >/dev/null 2>&1 \
+        || die "check_toml_projection failed after restoration!"
+    log "check_toml_projection negative test passed."
+}
+
 main() {
     log "Starting negative-test suite..."
     test_version_ssot
@@ -177,6 +212,7 @@ main() {
     test_shellcheck_failure
     test_names_registry_closure
     test_root_toml_subset
+    test_toml_projection
     log "All negative tests completed successfully!"
 }
 

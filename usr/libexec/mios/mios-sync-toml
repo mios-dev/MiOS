@@ -1,0 +1,157 @@
+#!/usr/bin/env python3
+# AI-hint: Projects the canonical-owned, drift-prone sections of mios.toml into the two
+# derived copies (curated root <checkout>/mios.toml + the bootstrap repo's mios.toml) so
+# they can never hand-drift. The toml sibling of mios-sync-theme: one command, and a
+# [ports]/[colors] edit in the canonical SSOT reaches both repo copies verbatim -- which
+# is exactly what keeps drift-gate 22 (bootstrap [ports] parity) and gate 48 (root subset)
+# green by construction. Owned sections ([autounattend], [smoke_tests], [mios_app], and the
+# gate-48 ignored_prefixes) and the derived copies' own [ports.lan_firewall] sub-table are
+# NEVER touched. Source of truth: usr/share/mios/mios.toml.
+# AI-related: usr/share/mios/mios.toml, mios.toml, ../mios-bootstrap/mios.toml,
+#   usr/lib/mios/mios_toml.py, usr/libexec/mios/mios-sync-theme, automation/38-drift-checks.sh,
+#   usr/lib/systemd/system/mios-sync-theme.service
+#
+# Usage: mios-sync-toml            # regenerate the projected sections in both derived copies
+#        mios-sync-toml --check    # report drift, write nothing, exit 1 if any copy is stale
+#
+# Same layering doctrine as mios-sync-theme: the canonical VENDOR copy
+# (usr/share/mios/mios.toml) is the source; the two committed derived copies are pure
+# projections of its PROJECTED sections. The Portal still writes only the user layer.
+
+import os
+import re
+import sys
+
+# Sections that are PURE PROJECTIONS from canonical -- safe to regenerate verbatim into the
+# derived copies. Verified (superset, no key drops, scalar-value parity): [ports] (35 canonical
+# scalars; the derived copies' [ports.lan_firewall] sub-table is preserved) and [colors]
+# (28 keys, identical sets). Extend this list only after confirming canonical ⊇ derived for the
+# section, so a projection can never DROP a key a consumer reads.
+PROJECTED = ["ports", "colors"]
+
+
+def repo_root():
+    """The mios.git checkout root (where usr/share/mios/mios.toml lives)."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    root = os.path.abspath(os.path.join(here, "..", "..", ".."))
+    if os.path.isfile(os.path.join(root, "usr", "share", "mios", "mios.toml")):
+        return root
+    if os.path.isfile(os.path.join("usr", "share", "mios", "mios.toml")):
+        return os.getcwd()
+    sys.exit("[mios-sync-toml] cannot locate the mios.git checkout root (usr/share/mios/mios.toml)")
+
+
+def bootstrap_repo(root, canon_text):
+    """Resolve the bootstrap repo the same way drift-gate 22 does: [bootstrap].bootstrap_repo,
+    remapped C:/x -> /mnt/c/x off-Windows, with a ../mios-bootstrap sibling fallback."""
+    m = re.search(r'(?m)^\s*bootstrap_repo\s*=\s*"([^"]*)"', canon_text)
+    raw = m.group(1) if m else "C:/mios-bootstrap"
+    cands = []
+    if os.name == "nt":
+        cands.append(raw)
+    else:
+        mm = re.match(r'^([A-Za-z]):/(.*)$', raw)
+        if mm:
+            cands.append("/mnt/%s/%s" % (mm.group(1).lower(), mm.group(2)))
+        cands.append(os.path.join(os.path.dirname(root), "mios-bootstrap"))
+    for c in cands:
+        if os.path.isfile(os.path.join(c, "mios.toml")):
+            return c
+    return None
+
+
+def section_span(lines, section):
+    """(start, end) index pair for [section]'s OWNED block: the '[section]' header line through
+    its last key/content line. None if the section is absent.
+
+    The end is the next '[' header (top-level OR sub-table) MINUS the trailing run of comment /
+    blank lines immediately above it -- because in this codebase every section is introduced by a
+    comment header ABOVE it, so that trailing run belongs to the NEXT section, not this one.
+    Including it was the bug that injected the [image.sidecars] header above [ports.lan_firewall]
+    and deleted the lan_firewall comments. For [ports] the span stops at [ports.lan_firewall];
+    the derived copies' lan_firewall sub-table + its comment header are left untouched."""
+    hdr = "[" + section + "]"
+    start = None
+    for i, ln in enumerate(lines):
+        if ln.strip() == hdr:
+            start = i
+            break
+    if start is None:
+        return None
+    end = len(lines)
+    for j in range(start + 1, len(lines)):
+        if lines[j].lstrip().startswith("["):
+            end = j
+            break
+    # Trim the trailing comment/blank run (the next section's header comment).
+    while end - 1 > start and (lines[end - 1].lstrip().startswith("#") or lines[end - 1].strip() == ""):
+        end -= 1
+    return (start, end)
+
+
+def _content(lines):
+    """Strip line terminators so comparison + reassembly are EOL-agnostic."""
+    return [ln.rstrip("\r\n") for ln in lines]
+
+
+def project(canon_lines, target_lines, target_eol):
+    """Replace each PROJECTED section's block in target with canonical's, using target_eol.
+    Returns (new_lines, changed)."""
+    changed = False
+    for sec in PROJECTED:
+        cspan = section_span(canon_lines, sec)
+        tspan = section_span(target_lines, sec)
+        if cspan is None or tspan is None:
+            continue
+        cblock = _content(canon_lines[cspan[0]:cspan[1]])
+        tblock = _content(target_lines[tspan[0]:tspan[1]])
+        if cblock != tblock:
+            new_block = [c + target_eol for c in cblock]
+            target_lines = target_lines[:tspan[0]] + new_block + target_lines[tspan[1]:]
+            changed = True
+    return target_lines, changed
+
+
+def main():
+    check = "--check" in sys.argv[1:]
+    root = repo_root()
+    canon_path = os.path.join(root, "usr", "share", "mios", "mios.toml")
+    with open(canon_path, "r", encoding="utf-8", newline="") as f:
+        canon_text = f.read()
+    canon_lines = canon_text.splitlines(keepends=True)
+
+    targets = [os.path.join(root, "mios.toml")]
+    bs = bootstrap_repo(root, canon_text)
+    if bs:
+        targets.append(os.path.join(bs, "mios.toml"))
+    else:
+        sys.stderr.write("[mios-sync-toml] note: bootstrap repo not found alongside; "
+                         "projecting the root copy only.\n")
+
+    stale = []
+    for tgt in targets:
+        if not os.path.isfile(tgt):
+            continue
+        with open(tgt, "r", encoding="utf-8", newline="") as f:
+            ttext = f.read()
+        target_eol = "\r\n" if "\r\n" in ttext else "\n"
+        tlines = ttext.splitlines(keepends=True)
+        new_lines, changed = project(canon_lines, tlines, target_eol)
+        label = ", ".join("[%s]" % s for s in PROJECTED)
+        if changed:
+            stale.append(tgt)
+            if check:
+                print("[mios-sync-toml] DRIFT: %s -- %s differ from canonical" % (tgt, label))
+            else:
+                with open(tgt, "w", encoding="utf-8", newline="") as f:
+                    f.write("".join(new_lines))
+                print("[mios-sync-toml] projected %s into %s" % (label, tgt))
+        else:
+            print("[mios-sync-toml] up-to-date: %s" % tgt)
+
+    if check and stale:
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
