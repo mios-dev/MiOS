@@ -116,7 +116,7 @@ large enough to hold it.
 6. **A `[cat]` SSOT block replaces the dangling reads; ADRs stay baked with a
    generated breadcrumb.** Add `[cat]` to `usr/share/mios/mios.toml`
    (`drivepath`, `medicatver`, `cache_path`, `repo_partition.label = "MiOS-Repo"`,
-   `data_partition.label = "MiOS-Data"`, `data_partition.min_disk_gb = 512`,
+   `data_partition.label = "MiOS-Data"`, `data_partition.min_disk_gb = 128`,
    `models` = a reference to `[ai].bake_models`); repoint MiOS-Cat to resolve the
    real 597 KB SSOT. The ADRs stay **baked** under `/usr/share/doc/mios/adr/`
    (Law 1 — a running MiOS carries its own *why*); a generated `C:\MiOS\ADR.md`
@@ -208,7 +208,7 @@ Negative / costs & open questions (gate the flip to `accepted`):
   reduced to the WinPE shim.
 - **`[cat]` SSOT (WS-CAT):** add `[cat]` to `usr/share/mios/mios.toml`
   (`drivepath`, `medicatver`, `cache_path`, `repo_partition.label`,
-  `data_partition.label`, `data_partition.min_disk_gb = 512`, `models`); a new
+  `data_partition.label`, `data_partition.min_disk_gb = 128`, `models`); a new
   `automation/38-drift-checks.sh` check that the `[cat]`/`[colors]` reads resolve.
 - **MiOS-Repo shadow-config (WS-CATREPO):** `cat stage` populates the small P3
   partition with `mios.toml` + `mios.html` + Portal assets + a self-contained

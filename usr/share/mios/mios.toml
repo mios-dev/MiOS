@@ -10888,7 +10888,7 @@ label              = "MiOS-Repo"
 # Created ONLY on disks >= min_disk_gb; skipped on smaller sticks (degrade-open).
 [cat.data_partition]
 label              = "MiOS-Data"
-min_disk_gb        = 512
+min_disk_gb        = 128
 
 [dotfiles]
 
