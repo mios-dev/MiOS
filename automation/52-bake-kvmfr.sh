@@ -58,6 +58,15 @@ if [[ ! -d "/usr/src/kernels/$KVER" ]]; then
     fi
 fi
 
+# --- Ensure the looking-glass-kvmfr COPR is enabled ------------------------
+# 05-enable-external-repos.sh enables the other COPRs but not this one, so
+# akmod-kvmfr previously came back "package missing" (rc=1). Enable it here,
+# best-effort (the akmod install below still degrades gracefully if it fails).
+log "ensuring hikariknight/looking-glass-kvmfr COPR is enabled"
+set +e
+$DNF_BIN "${DNF_SETOPT[@]}" copr enable -y hikariknight/looking-glass-kvmfr 2>/dev/null
+set -e
+
 # --- Install akmod-kvmfr (from hikariknight/looking-glass-kvmfr COPR) ------
 log "installing akmod-kvmfr"
 set +e

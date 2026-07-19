@@ -50,12 +50,27 @@ fi
 record_version looking-glass "$LG_BRANCH" "https://github.com/gnif/LookingGlass/tree/${LG_BRANCH}"
 BUILD_DIR="/tmp/LookingGlass-build"
 
+# --- Ensure the LG client build deps (12-virt.sh usually provides these; if the *-devel packages
+# were stripped, the fallback cmake dies on a missing pkg-config module -- e.g. fontconfig). Install
+# the documented Fedora LG-client set so the build can actually configure. -------------------------
+if command -v dnf5 >/dev/null 2>&1; then _DNF=dnf5; elif command -v dnf >/dev/null 2>&1; then _DNF=dnf; else _DNF=""; fi
+if [[ -n "$_DNF" ]]; then
+    log "ensuring Looking Glass client build deps (fontconfig-devel, etc.)"
+    "$_DNF" install -y --setopt=install_weak_deps=False \
+        fontconfig-devel spice-protocol nettle-devel libglvnd-devel libdecor-devel \
+        pipewire-devel wayland-devel wayland-protocols-devel libxkbcommon-x11-devel \
+        libXi-devel libXinerama-devel libXcursor-devel libXpresent-devel \
+        libXScrnSaver-devel libXrandr-devel binutils-devel dejavu-sans-mono-fonts \
+        >/dev/null 2>&1 || warn "some LG client build deps could not be installed (cmake will report specifics)"
+fi
+
 # --- Clone + Build ----------------------------------------------------------
 LG_OK=""
 for attempt in 1 2 3; do
     log "Compilation attempt $attempt/3..."
-    rm -rf "$BUILD_DIR"
-    
+    cd /                 # leave any prior attempt's build dir BEFORE removing it -- otherwise the
+    rm -rf "$BUILD_DIR"  # next git clone runs from a deleted CWD ("Unable to read current working directory").
+
     if ! git clone --depth 1 --branch "$LG_BRANCH" --recurse-submodules \
             https://github.com/gnif/LookingGlass.git "$BUILD_DIR"; then
         warn "git clone failed on attempt $attempt"
