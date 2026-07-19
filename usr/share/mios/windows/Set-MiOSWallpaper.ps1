@@ -80,19 +80,15 @@ for ($i = $Layers.Count - 1; $i -ge 0; $i--) {
     foreach ($k in $Tokens.Keys) { $src = $AnsiSrc[$k]; if ($c.ContainsKey($src) -and $c[$src]) { $resolved[$k] = $c[$src] } }
 }
 
-# Mode: auto follows the Windows apps light/dark theme (real DE light/dark sync).
-if ($Mode -eq 'auto') {
-    $useLight = 0
-    try {
-        $p = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize'
-        $useLight = [int](Get-ItemProperty -Path $p -Name 'AppsUseLightTheme' -ErrorAction Stop).AppsUseLightTheme
-    } catch { $useLight = 0 }
-    $Mode = if ($useLight -eq 1) { 'light' } else { 'dark' }
-}
+# Mode: 'auto' (default) omits the mode param so the page follows the host light/dark theme LIVE
+# via prefers-color-scheme (WebView2/Chromium tracks the OS theme; the page re-grades on change --
+# same media query works on Linux). Only an explicit -Mode dark|light pins it. This is the real
+# cross-platform theme sync: no reload needed when the user toggles Windows (or a Linux DE) theme.
+$modeQuery = if ($Mode -eq 'dark' -or $Mode -eq 'light') { "&mode=$Mode" } else { '' }
 
 # Build the query string (hex WITHOUT '#', matching the page's URLSearchParams parser).
 $pairs = foreach ($k in $Tokens.Keys) { "$k=" + ($resolved[$k] -replace '^#','') }
-$query = ($pairs -join '&') + "&mode=$Mode"
+$query = ($pairs -join '&') + $modeQuery
 $url   = "file:///C:/Windows/Web/MiOS/living-wallpaper.html?$query"
 
 # Write the SSOT-derived URL + ensure the master toggle exists (default ON).
