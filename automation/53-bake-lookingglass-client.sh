@@ -81,9 +81,13 @@ for attempt in 1 2 3; do
     log "configuring client build"
     mkdir -p "$BUILD_DIR/client/build"
     cd "$BUILD_DIR/client/build"
+    # GCC 16 flags a -Wmaybe-uninitialized in the bundled nanosvg.h submodule, and Looking Glass
+    # builds with -Werror -> fatal. Neutralise -Werror (and belt-and-braces silence that specific
+    # warning) via CMAKE_C_FLAGS so a newer compiler's stricter warnings can't fail a clean build.
     if ! cmake -DCMAKE_INSTALL_PREFIX=/usr \
                -DCMAKE_INSTALL_LIBDIR=/usr/lib \
                -DCMAKE_BUILD_TYPE=Release \
+               -DCMAKE_C_FLAGS='-Wno-error -Wno-error=maybe-uninitialized -Wno-maybe-uninitialized' \
                -DENABLE_LIBDECOR=ON \
                -DENABLE_PIPEWIRE=ON \
                -DENABLE_PULSEAUDIO=OFF \
