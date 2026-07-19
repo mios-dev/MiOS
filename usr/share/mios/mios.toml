@@ -705,6 +705,23 @@ laws = [
   { id = 11, slug = "SECRETS-NEVER-IN-ENV",  applies_to = "bootc", enforced_by = "99-postcheck.sh:item17" },
   { id = 12, slug = "BAKE-NOT-FETCH",        applies_to = "both",  enforced_by = "38-drift-checks.sh:check_dag_integrity,check_firstboot_degrade_open" },
   { id = 13, slug = "NATIVE-DROPINS",        applies_to = "both",  enforced_by = "38-drift-checks.sh:check_resolver_twin_parity" },
+  # Law 14 -- TARGET-LANGUAGES: ALL new applicable code, on EVERY platform (bootc, WSL, Windows),
+  # MUST use the roadmap's language-per-domain targets (ADR-0011 §2 / WS-LANG): Rust for native
+  # tooling/orchestration/services/validation; Python for the AI plane; Bun/TS for the web Portal;
+  # bash is thin GLUE ONLY. No NEW C#, Batch, PowerShell-as-program, or Go native code -- those are
+  # grandfathered-for-port, not a licence for more. Minimise languages; convert shell -> machine code.
+  { id = 14, slug = "TARGET-LANGUAGES",      applies_to = "both",  enforced_by = "38-drift-checks.sh:check_target_languages" },
+]
+
+[laws.target_languages]
+# Law 14 (TARGET-LANGUAGES) enforcement data -- the non-target-language sources GRANDFATHERED for
+# port to Rust (ADR-0011 §2 / WS-LANG). check_target_languages fails on any NEW .cs (outside this
+# list) or ANY .bat / .cmd / .go. This list may only SHRINK as ports land -- it must never grow.
+grandfathered_cs = [
+  "usr/share/mios/windows/MiOS-Launcher.cs",
+  "usr/share/mios/windows/MiOS-Wallpaper-Service.cs",
+  "usr/share/mios/windows/MiOS-Wallpaper.cs",
+  "usr/share/mios/windows/MiosServiceTool.cs",
 ]
 
 # ----------------------------------------------------------------------------

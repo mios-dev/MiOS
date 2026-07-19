@@ -3553,6 +3553,36 @@ check_toml_projection() {
     fi
 }
 
+# Law 14 (TARGET-LANGUAGES): all new applicable code, on EVERY platform, must use the roadmap
+# language-per-domain targets (ADR-0011 §2 / WS-LANG): Rust native tier; Python AI plane; Bun/TS
+# Portal; bash thin-glue only. No NEW C#/.bat/.cmd/.go. Existing C# is grandfathered-for-port.
+check_target_languages() {
+    command -v git >/dev/null 2>&1 || { echo "[38-drift-checks]   WARNING: git missing -- skipping target-languages check" >&2; return 0; }
+    local toml="$ROOT/usr/share/mios/mios.toml"
+    local allow bad="" nativebad f
+    allow=$(awk '/^\[laws\.target_languages\]/{f=1} f&&/grandfathered_cs[[:space:]]*=[[:space:]]*\[/{g=1} g{print} g&&/\]/{exit}' "$toml" | grep -oE '"[^"]+\.cs"' | tr -d '"')
+    # Batch was eliminated + Go rejected (ADR-0011): any occurrence is a hard violation.
+    nativebad=$(cd "$ROOT" && git ls-files '*.bat' '*.cmd' '*.go' 2>/dev/null)
+    [[ -n "$nativebad" ]] && bad+="$nativebad"$'\n'
+    # Any tracked .cs not in the grandfathered allowlist is new C# -> must be Rust instead.
+    while IFS= read -r f; do
+        [[ -z "$f" ]] && continue
+        grep -qxF "$f" <<<"$allow" || bad+="$f"$'\n'
+    done < <(cd "$ROOT" && git ls-files '*.cs' 2>/dev/null)
+    if [[ -n "$(printf '%s' "$bad" | tr -d '[:space:]')" ]]; then
+        {
+          echo "    Law 14 TARGET-LANGUAGES: new code must use the roadmap targets (Rust native tier; Python AI;"
+          echo "    Bun/TS Portal; bash thin-glue). These non-target-language files are not grandfathered:"
+          printf '%s\n' "$bad" | sed '/^[[:space:]]*$/d;s/^/      - /'
+          echo "    -> port to Rust (ADR-0011/WS-LANG), or add a legitimate pre-existing port target to"
+          echo "       mios.toml [laws.target_languages].grandfathered_cs (the list may only shrink)."
+        } >&2
+        _violation "Law 14 TARGET-LANGUAGES violated: new non-target-language source added"
+    else
+        echo "[38-drift-checks]   (63) Law 14 TARGET-LANGUAGES: no new non-target-language code (Rust/Python/Bun+TS; bash thin-glue)"
+    fi
+}
+
 check_bake_plan() {
     if ! command -v python3 >/dev/null 2>&1; then
         echo "[38-drift-checks]   WARNING: python3 missing -- skipping bake plan check" >&2
@@ -3817,6 +3847,7 @@ main() {
     check_sbom_metadata
     check_hyprland_conf_heredoc
     check_shellcheck
+    check_target_languages
 
     echo "[38-drift-checks] ---------------------------------------------------------"
     if [[ "$VIOLATIONS" -eq 0 ]]; then
