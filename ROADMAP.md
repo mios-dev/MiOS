@@ -213,6 +213,8 @@ title: Language-per-domain unification — Rust for native tooling, bash demoted
 
 > [!NOTE]
 > **Implementation Note (AGY-51):** The native Rust workspace has been scaffolded at `tools/native/` (containing the `mios-version-check` crate). Since no Rust toolchain is present in the host environment, the binary compilation is deferred via `TODO(agy): cargo build`.
+>
+> **Update (Law 14 landed):** `[laws]` Law 14 **TARGET-LANGUAGES** now MANDATES the language-per-domain contract globally (all platforms), enforced by drift-gate 63 (`check_target_languages`) — no new C#/Batch/Go; existing C# grandfathered in `[laws.target_languages]`. Rust is now **provided as a dependency**, installed during staging via the shared installer contract (`Install-MiosRust` on Windows — winget/rustup-GNU, no MSVC; `mios_ensure_rust` on Fedora — dnf/rustup), so every native component builds on any Windows or Fedora machine. **Next (T-275):** port the first user-facing native component — consolidate the WebView2 wallpaper host + WSLg gui-watch into ONE silent Rust daemon (`wry` WorkerW host + `windows-service`), dropping the Run keys + the terminal/window flash.
 -->
 theme: OS-Image & Build
 status: proposed
@@ -428,6 +430,11 @@ acceptance: |
 - **Files:** `cat\MiOS-Cat.{ps1,sh}` (`cat stage`), `usr/share/mios/mios.toml` (`[cat].repo_partition`), `mios-kickstart.cfg` (`%post` repo path), the `MiOS-Repo/` layout.
 - **Accept:** a small stick carries the shadow-config brain and a fully offline bare-metal kickstart install succeeds from `MiOS-Repo/repos/`.
 - **Deps:** `WS-CAT` (verb engine + `[cat]` SSOT). ADR-0008.
+
+### CATREPO-FIX — repos wrongly staged onto MiOS-Data instead of MiOS-Repo  **[P1]**  (→ T-274)
+- **Bug (live):** `cat stage` lands the `repos/` clone on the **MiOS-Data** partition — but MiOS-Data is for caches / models / user-DBs / dependencies ONLY. The config/source repos clone belongs on the small always-present **MiOS-Repo** partition (this is the concrete manifestation of the CATREPO-01 kickstart path mismatch).
+- **Fix:** correct the staging path in `cat/MiOS-Cat.{bat,ps1}` so `repos/` → `MiOS-Repo/repos/`; assert nothing repo-class writes to MiOS-Data; align `mios-kickstart.cfg`.
+- **Accept:** a fresh `cat stage` places `repos/` on MiOS-Repo, MiOS-Data holds only bulk/cache classes.
 
 ### CATREPO-02..04 — Separate MiOS-Data bulk store (512GB+) + model embedding + `cat provision` (Law 12) + offline mirrors  **[P1]**  (→ T-261..T-263)
 - **What:** On disks ≥ 512 GB (`Get-Disk` gate), `cat stage` creates a **separate** `MiOS-Data` store carrying the **bulk**: the ~78 GB `podman save` OCI tar (offline `podman load`), the `just all` disk artifacts (`raw/iso/qcow2/vhdx/wsl2`, incl. the ADR-0005 VHDX), the `mios.toml`-defined **model weights**, and the offline `dnf`/`flatpak`/`pip` **mirrors** (`reposync`+`createrepo_c`, `flatpak create-usb`, `pip download`). Read the model SSOT keys (`[ai].bake_models` L5744/L6116, `[ai.vllm].bake_model` L6724, `[ai.sglang].bake_model` L6742), fetch+checksum into `MiOS-Data/models/` (never invent — Law 8; resolved-not-hardcoded — WS-SBOM pattern). `cat provision` copies weights to `/usr/share/mios/vllm/model` (+ the GGUF dir) offline. `cat update` re-pulls both stores when online and re-stamps `manifest.json`.
