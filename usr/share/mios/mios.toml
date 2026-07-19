@@ -10868,6 +10868,17 @@ cache_path         = "M:\\MediCat.USB.v21.12.7z"
 # Keep the Secure Boot shim advisory in foss-upstream-map.md in step with what ships.
 ventoy_version     = "latest"
 
+# Path override for the Xbox builder script. Empty = auto-resolve from cat/autounattend/.
+# Set to an absolute path to point MiOS-Cat at a custom builder location.
+# (Top-level [cat] key -- resolves as cat.xbox_builder, matching the root seed + ADR-0008.)
+xbox_builder       = ""
+
+# Model weights to stage into MiOS-Data/models/ (references [ai].bake_models SSOT;
+# MiOS-Cat reads [ai].bake_models directly for the GGUF list and [ai.vllm].bake_model
+# for the AWQ weights -- this key is a human-readable cross-reference, not parsed).
+# (Top-level [cat] key -- resolves as cat.models, cited by WS-CATREPO + ADR-0008.)
+models             = "see [ai].bake_models + [ai.vllm].bake_model"
+
 # MiOS-Repo shadow-config partition (the "brain" -- always present on any USB).
 # Label used when formatting the small config partition.
 [cat.repo_partition]
@@ -10878,15 +10889,6 @@ label              = "MiOS-Repo"
 [cat.data_partition]
 label              = "MiOS-Data"
 min_disk_gb        = 512
-
-# Path override for the Xbox builder script. Empty = auto-resolve from cat/autounattend/.
-# Set to an absolute path to point MiOS-Cat at a custom builder location.
-xbox_builder       = ""
-
-# Model weights to stage into MiOS-Data/models/ (references [ai].bake_models SSOT;
-# MiOS-Cat reads [ai].bake_models directly for the GGUF list and [ai.vllm].bake_model
-# for the AWQ weights -- this key is a human-readable cross-reference, not parsed).
-models             = "see [ai].bake_models + [ai.vllm].bake_model"
 
 [dotfiles]
 
