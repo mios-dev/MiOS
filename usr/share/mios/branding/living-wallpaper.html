@@ -157,7 +157,7 @@
       + "void main(){\n"
       + "  vec2 uv=gl_FragCoord.xy/u_sim;\n"
       + "  vec2 pv=vec2(uv.x*u_asp, uv.y);\n"
-      + "  vec2 v=curl(pv*0.5, u_time*0.06)*0.42; v.y+=0.015;\n"          // gentle ORGANIC current + slight rise
+      + "  vec2 v=curl(pv*0.5, u_time*0.06)*0.18; v.y+=0.006;\n"          // slow, calm ORGANIC current
       + "  vec2 srcp=pv - v*u_dt; vec2 src=vec2(srcp.x/u_asp, srcp.y);\n"
       + "  vec4 fld=fetchBlur(src);\n"                                    // advect + DIFFUSE (rgb + a)
       + "  fld.a =mix(fld.a, 0.0, 0.020);\n"                             // height relaxes; NO colour settle (pure blend)
@@ -235,7 +235,7 @@
 
     var FPS=30, minDelta=1000/FPS, last=0, t0=performance.now();
     function step() {
-      var t = (performance.now() - t0) / 1000, asp = W / H;
+      var t = (performance.now() - t0) / 1000 * 0.40, asp = W / H;   // zen pace: slow, meditative time
       gl.bindFramebuffer(gl.FRAMEBUFFER, fbos[1-readi]); gl.viewport(0,0,simW,simH);
       gl.useProgram(sim); bindQuad(sim);
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, texs[readi]);
@@ -272,7 +272,7 @@
       + "void main(){\n"
       + "  vec2 uv=gl_FragCoord.xy/u_res; float asp=u_res.x/u_res.y; float t=u_time;\n"
       + "  vec2 p=vec2(uv.x*asp,uv.y);\n"
-      + "  vec2 flow=curl(p*0.5,t*0.06)*0.16; flow.y+=0.01; vec2 q=p+flow;\n"
+      + "  vec2 flow=curl(p*0.5,t*0.06)*0.10; flow.y+=0.005; vec2 q=p+flow;\n"
       + "  vec3 sc=vec3(0.0); float sw=0.0; float hgt=0.0;\n"
       + "  for(int k=0;k<16;k++){ float i=float(k); float wk=u_w[k];\n"    // role weight
       + "    vec2 seed=fract(sin(vec2(i*12.9+1.7,i*78.2+3.1))*43758.5);\n"
@@ -301,7 +301,7 @@
     window.addEventListener("resize", rs); rs();
     if (!m && window.matchMedia) { var mq=window.matchMedia("(prefers-color-scheme: light)"); var oc=function(e){ darkMode=!e.matches; gl.uniform1f(uD,darkMode?1.0:0.0); document.body.style.background=darkMode?bgHex:fgHex; }; if(mq.addEventListener)mq.addEventListener("change",oc); else if(mq.addListener)mq.addListener(oc); }
     var FPS=30, minDelta=1000/FPS, last=0, t0=performance.now();
-    function draw(){ gl.uniform1f(uT,(performance.now()-t0)/1000); gl.drawArrays(gl.TRIANGLES,0,6); }
+    function draw(){ gl.uniform1f(uT,(performance.now()-t0)/1000*0.40); gl.drawArrays(gl.TRIANGLES,0,6); }
     function frame(){ requestAnimationFrame(frame); var now=performance.now(); if(now-last<minDelta) return; last=now; draw(); }
     requestAnimationFrame(frame);
     setInterval(function(){ if(performance.now()-last>=180){ last=performance.now(); draw(); } }, 180);
