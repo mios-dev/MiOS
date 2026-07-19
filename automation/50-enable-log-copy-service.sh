@@ -4,9 +4,9 @@
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 
+WANTS=/usr/lib/systemd/system/multi-user.target.wants
 log "symlinking mios-copy-build-log.service into ${WANTS}"
 
-WANTS=/usr/lib/systemd/system/multi-user.target.wants
 install -d -m 0755 "${WANTS}"
 
 if [[ -f "/usr/lib/systemd/system/mios-copy-build-log.service" ]]; then

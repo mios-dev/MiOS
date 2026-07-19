@@ -57,7 +57,7 @@ if command -v dnf5 >/dev/null 2>&1; then _DNF=dnf5; elif command -v dnf >/dev/nu
 if [[ -n "$_DNF" ]]; then
     log "ensuring Looking Glass client build deps (fontconfig-devel, etc.)"
     "$_DNF" install -y --setopt=install_weak_deps=False \
-        fontconfig-devel spice-protocol nettle-devel libglvnd-devel libdecor-devel \
+        fontconfig-devel spice-protocol nettle-devel libglvnd-devel libdecor-devel libsamplerate-devel \
         pipewire-devel wayland-devel wayland-protocols-devel libxkbcommon-x11-devel \
         libXi-devel libXinerama-devel libXcursor-devel libXpresent-devel \
         libXScrnSaver-devel libXrandr-devel binutils-devel dejavu-sans-mono-fonts \
