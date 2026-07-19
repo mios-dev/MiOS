@@ -170,7 +170,7 @@
 
     // PRES: calm ocean — smooth colour field + a very gentle wave normal (bubbles + ambient swell).
     var PRES = "#version 300 es\nprecision highp float;\n"
-      + "uniform sampler2D u_field; uniform vec2 u_res, u_sim; uniform vec3 u_pal[16]; uniform float u_dark,u_time,u_asp;\n"
+      + "uniform sampler2D u_field; uniform vec2 u_res, u_sim; uniform vec3 u_pal[16]; uniform float u_dark,u_time,u_asp,u_intro;\n"
       + "out vec4 o;\n" + NOISE + "\n"
       + "void main(){\n"
       + "  vec2 uv=gl_FragCoord.xy/u_res;\n"
@@ -192,6 +192,9 @@
       + "  col *= mix(0.93, 1.08, diff);\n"
       + GRADE + "\n"
       + "  col+=(hash21(gl_FragCoord.xy+fract(u_time))-0.5)/300.0;\n"     // dither -> no banding
+      + "  float _d=length((uv-0.5)*vec2(u_asp,1.0));\n"                  // LOGIN: colour spills from the centre
+      + "  float _front=u_intro*1.25;\n"                                  // an expanding circle out of the void
+      + "  col=mix(vec3(0.0), col, smoothstep(_front,_front-0.18,_d));\n" // dark void beyond the soft spill front
       + "  o=vec4(clamp(col,0.0,1.0),1.0); }";
 
     var sim = program(gl, VS, SIM), pres = program(gl, VS, PRES);
@@ -254,6 +257,7 @@
       gl.uniform2f(gl.getUniformLocation(pres,"u_res"), W, H);
       gl.uniform2f(gl.getUniformLocation(pres,"u_sim"), simW, simH);
       gl.uniform1f(gl.getUniformLocation(pres,"u_time"), t);
+      gl.uniform1f(gl.getUniformLocation(pres,"u_intro"), Math.min(1,(performance.now()-t0)/3500));
       gl.uniform1f(gl.getUniformLocation(pres,"u_asp"), asp);
       gl.uniform3fv(gl.getUniformLocation(pres,"u_pal"), pal);
       gl.drawArrays(gl.TRIANGLES, 0, 6);
@@ -268,7 +272,7 @@
   function runFallback(gl) {
     var VS = "attribute vec2 a; void main(){ gl_Position=vec4(a,0.0,1.0); }";
     var FS = "precision highp float;\n"
-      + "uniform float u_time,u_dark,u_asp; uniform vec2 u_res; uniform vec3 u_pal[16]; uniform float u_w[16];\n" + NOISE + "\n"
+      + "uniform float u_time,u_dark,u_asp,u_intro; uniform vec2 u_res; uniform vec3 u_pal[16]; uniform float u_w[16];\n" + NOISE + "\n"
       + "void main(){\n"
       + "  vec2 uv=gl_FragCoord.xy/u_res; float asp=u_res.x/u_res.y; float t=u_time;\n"
       + "  vec2 p=vec2(uv.x*asp,uv.y);\n"
@@ -290,18 +294,21 @@
       + "  vec3 Ld=normalize(vec3(-0.30,0.50,0.81)); float diff=0.5+0.5*dot(Nrm,Ld);\n"
       + "  col*=mix(0.93,1.08,diff);\n"                                   // subtle waves, calm ocean
       + GRADE + "\n"
-      + "  col+=(hash21(gl_FragCoord.xy+fract(t))-0.5)/300.0; gl_FragColor=vec4(clamp(col,0.0,1.0),1.0); }";
+      + "  col+=(hash21(gl_FragCoord.xy+fract(t))-0.5)/300.0;\n"
+      + "  float _d=length((uv-0.5)*vec2(asp,1.0)); float _front=u_intro*1.25;\n"      // login colour-spill
+      + "  col=mix(vec3(0.0), col, smoothstep(_front,_front-0.18,_d));\n"
+      + "  gl_FragColor=vec4(clamp(col,0.0,1.0),1.0); }";
     var prog = program(gl, VS, FS); if (!prog) return; gl.useProgram(prog);
     var quad = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, quad);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1]), gl.STATIC_DRAW);
     var l = gl.getAttribLocation(prog,"a"); gl.enableVertexAttribArray(l); gl.vertexAttribPointer(l,2,gl.FLOAT,false,0,0);
-    var uT=gl.getUniformLocation(prog,"u_time"), uR=gl.getUniformLocation(prog,"u_res"), uD=gl.getUniformLocation(prog,"u_dark"), uA=gl.getUniformLocation(prog,"u_asp");
+    var uT=gl.getUniformLocation(prog,"u_time"), uR=gl.getUniformLocation(prog,"u_res"), uD=gl.getUniformLocation(prog,"u_dark"), uA=gl.getUniformLocation(prog,"u_asp"), uIn=gl.getUniformLocation(prog,"u_intro");
     gl.uniform3fv(gl.getUniformLocation(prog,"u_pal"), pal); gl.uniform1fv(gl.getUniformLocation(prog,"u_w"), wgt); gl.uniform1f(uD, darkMode?1.0:0.0);
     function rs(){ canvas.width=Math.round(window.innerWidth*dpr()); canvas.height=Math.round(window.innerHeight*dpr()); gl.viewport(0,0,canvas.width,canvas.height); gl.uniform2f(uR,canvas.width,canvas.height); gl.uniform1f(uA,canvas.width/canvas.height); }
     window.addEventListener("resize", rs); rs();
     if (!m && window.matchMedia) { var mq=window.matchMedia("(prefers-color-scheme: light)"); var oc=function(e){ darkMode=!e.matches; gl.uniform1f(uD,darkMode?1.0:0.0); document.body.style.background=darkMode?bgHex:fgHex; }; if(mq.addEventListener)mq.addEventListener("change",oc); else if(mq.addListener)mq.addListener(oc); }
     var FPS=30, minDelta=1000/FPS, last=0, t0=performance.now();
-    function draw(){ gl.uniform1f(uT,(performance.now()-t0)/1000*0.40); gl.drawArrays(gl.TRIANGLES,0,6); }
+    function draw(){ gl.uniform1f(uT,(performance.now()-t0)/1000*0.40); gl.uniform1f(uIn,Math.min(1,(performance.now()-t0)/3500)); gl.drawArrays(gl.TRIANGLES,0,6); }
     function frame(){ requestAnimationFrame(frame); var now=performance.now(); if(now-last<minDelta) return; last=now; draw(); }
     requestAnimationFrame(frame);
     setInterval(function(){ if(performance.now()-last>=180){ last=performance.now(); draw(); } }, 180);
