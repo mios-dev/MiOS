@@ -25,7 +25,7 @@
     mode:  ?mode=dark | ?mode=light   (else prefers-color-scheme -> DE theme -> dark).
 -->
 <style>
-  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #282262; }
+  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; }
   #mios-wp { display: block; position: fixed; inset: 0; width: 100vw; height: 100vh; }
 </style>
 </head>
@@ -69,7 +69,7 @@
   var m = (qp.get("mode") || "").toLowerCase();
   var darkMode = m === "dark" ? true : m === "light" ? false
     : (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches ? false : true);
-  document.body.style.background = darkMode ? bgHex : fgHex;
+  document.body.style.background = "#000";   // black void behind the canvas (no wallpaper == black desktop)
 
   var canvas = document.getElementById("mios-wp");
 
