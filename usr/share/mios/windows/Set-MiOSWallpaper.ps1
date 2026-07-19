@@ -29,12 +29,23 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-# The 12 wallpaper tokens ARE the mios.toml [colors] semantic keys. Defaults here
-# mirror the page's own fallback so a missing key is a no-op, never a surprise.
+# The wallpaper's colours ARE the mios.toml [colors] SSOT — the FULL 16-colour systemwide set
+# (ansi_0..ansi_15), passed to the page as a0..a15, plus bg/fg which anchor the dark/light grade.
+# $AnsiSrc maps each a{i} -> the [colors] key that feeds it; $Tokens holds the defaults, which
+# mirror mios.toml so a missing key is a no-op, never a surprise.
+$AnsiSrc = [ordered]@{
+    a0  = 'ansi_0_black';         a1  = 'ansi_1_red';            a2  = 'ansi_2_green';          a3  = 'ansi_3_yellow'
+    a4  = 'ansi_4_blue';          a5  = 'ansi_5_magenta';        a6  = 'ansi_6_cyan';           a7  = 'ansi_7_white'
+    a8  = 'ansi_8_bright_black';  a9  = 'ansi_9_bright_red';     a10 = 'ansi_10_bright_green';  a11 = 'ansi_11_bright_yellow'
+    a12 = 'ansi_12_bright_blue';  a13 = 'ansi_13_bright_magenta';a14 = 'ansi_14_bright_cyan';   a15 = 'ansi_15_bright_white'
+    bg  = 'bg';                   fg  = 'fg'
+}
 $Tokens = [ordered]@{
-    bg      = '#282262'; fg      = '#E7DFD3'; accent = '#1A407F'; cursor = '#F35C15'
-    success = '#3E7765'; warning = '#F35C15'; error  = '#DC271B'; info   = '#1A407F'
-    muted   = '#948E8E'; subtle  = '#B7C9D7'; earth  = '#734F39'; silver = '#E0E0E0'
+    a0  = '#282262'; a1  = '#DC271B'; a2  = '#3E7765'; a3  = '#F35C15'
+    a4  = '#1A407F'; a5  = '#734F39'; a6  = '#B7C9D7'; a7  = '#E7DFD3'
+    a8  = '#948E8E'; a9  = '#FF6B5C'; a10 = '#5FAA8E'; a11 = '#FF8540'
+    a12 = '#3D6BA8'; a13 = '#9D7660'; a14 = '#E0E0E0'; a15 = '#FFFFFF'
+    bg  = '#282262'; fg  = '#E7DFD3'
 }
 
 # Three-layer overlay candidate paths, ordered HIGHEST priority first.
@@ -66,7 +77,7 @@ $resolved = [ordered]@{}
 foreach ($k in $Tokens.Keys) { $resolved[$k] = $Tokens[$k] }
 for ($i = $Layers.Count - 1; $i -ge 0; $i--) {
     $c = Get-ColorsFromToml $Layers[$i]
-    foreach ($k in $Tokens.Keys) { if ($c.ContainsKey($k) -and $c[$k]) { $resolved[$k] = $c[$k] } }
+    foreach ($k in $Tokens.Keys) { $src = $AnsiSrc[$k]; if ($c.ContainsKey($src) -and $c[$src]) { $resolved[$k] = $c[$src] } }
 }
 
 # Mode: auto follows the Windows apps light/dark theme (real DE light/dark sync).
