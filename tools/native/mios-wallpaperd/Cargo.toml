@@ -1,0 +1,44 @@
+# mios-wallpaperd -- MiOS living-wallpaper + desktop-services daemon.
+# Law 14 / ADR-0011 (WS-LANG): the Rust native tier. This ONE binary replaces the whole scattered
+# stack it consolidates:
+#   * MiOS-Wallpaper.exe            (C# WebView2 WorkerW host)
+#   * MiOS-Wallpaper-Service.exe    (C# service shell)
+#   * mios-gui-watch.ps1            (pwsh WSLg window-centering daemon -- the login terminal flash)
+#   * HKCU/HKLM Run keys MiOSWallpaper + MiOS-GuiWatch  (the visible-window launches)
+# -> one silent auto-start Windows service, no console, no surfacing window.
+#
+# NOTE: versions below are indicative; pin/resolve at build time (cargo generates Cargo.lock). Built
+# by the provisioned Rust toolchain during staging (Install-MiosRust), never hand-compiled on a bare
+# box. GNU host triple works (no MSVC required) but MSVC is fine too.
+[package]
+name = "mios-wallpaperd"
+version = "0.3.0"
+edition = "2021"
+description = "MiOS living-wallpaper + desktop-services daemon: silent WorkerW WebView host, folded WSLg gui-watch, one Windows service."
+
+[[bin]]
+name = "mios-wallpaperd"
+path = "src/main.rs"
+
+[dependencies]
+wry = "0.45"
+tao = "0.30"
+windows-service = "0.7"
+windows = { version = "0.58", features = [
+    "Win32_Foundation",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_Graphics_Gdi",
+    "Win32_System_Threading",
+    "Win32_System_RemoteDesktop",
+    "Win32_System_StationsAndDesktops",
+    "Win32_Security",
+    "Win32_System_Registry",
+    "Win32_System_Environment",
+] }
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"

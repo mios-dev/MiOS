@@ -1,5 +1,6 @@
 [workspace]
 members = [
     "mios-version-check",
+    "mios-wallpaperd",
 ]
 resolver = "2"
