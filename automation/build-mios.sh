@@ -4,7 +4,7 @@
 # AI-functions: log, log_warn, log_error, log_info, show_banner, collect_user_config, check_prerequisites, install_dependencies, fetch_mios_repo, queue_environment_files, merge_mios_structure, create_user_account
 # 'MiOS' Fedora Server Ignition Script
 # Fetches 'MiOS' repository and merges onto Fedora Server root (FHS-compliant, NO deletions)
-# Version: - 
+# Version: -
 # Usage: curl -fsSL https://raw.githubusercontent.com/MiOS-DEV/MiOS-bootstrap/main/build-mios.sh | sudo bash
 #        OR: sudo bash build-mios.sh
 
@@ -386,16 +386,25 @@ create_user_account() {
         log_warn "User ${MIOS_USERNAME} already exists, updating password..."
         echo "${MIOS_USERNAME}:${MIOS_PASSWORD}" | chpasswd
     else
-        # Create user with password hash
+        # Create user using the same MiOS host conventions as automation/31-user.sh.
         EXTRA_GROUPS="wheel,libvirt,kvm,video,render,input,dialout"
         if getent group docker >/dev/null 2>&1; then EXTRA_GROUPS="$EXTRA_GROUPS,docker"; fi
         useradd -m -G "$EXTRA_GROUPS" -s /bin/bash "$MIOS_USERNAME"
         echo "${MIOS_USERNAME}:${MIOS_PASSWORD}" | chpasswd
 
-        # Set up sudo access
+        # Set up sudo access in the same style as the normal MiOS build.
+        install -d -m 0750 /etc/sudoers.d
         echo "${MIOS_USERNAME} ALL=(ALL) NOPASSWD:ALL" > "/etc/sudoers.d/${MIOS_USERNAME}"
         chmod 0440 "/etc/sudoers.d/${MIOS_USERNAME}"
     fi
+
+    # Ensure the account has the expected home and shell context for a MiOS host.
+    install -d -o "$MIOS_USERNAME" -g "$MIOS_USERNAME" -m 0755 "${MIOS_USER_HOME}"
+    install -d -o "$MIOS_USERNAME" -g "$MIOS_USERNAME" -m 0755 "${MIOS_USER_HOME}/.ssh"
+    install -d -o "$MIOS_USERNAME" -g "$MIOS_USERNAME" -m 0755 "${MIOS_USER_HOME}/.config"
+    install -d -o "$MIOS_USERNAME" -g "$MIOS_USERNAME" -m 0755 "${MIOS_USER_HOME}/.local/share"
+    install -d -o "$MIOS_USERNAME" -g "$MIOS_USERNAME" -m 0755 "${MIOS_USER_HOME}/.cache"
+    install -d -o "$MIOS_USERNAME" -g "$MIOS_USERNAME" -m 0755 "${MIOS_USER_HOME}/.local/state"
 
     log_info "Initializing user-space directories and configuration..."
 
