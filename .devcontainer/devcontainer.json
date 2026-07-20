@@ -31,5 +31,5 @@
   "mounts": [
     "source=,target=/mios,type=bind,consistency=cached"
   ],
-  "postCreateCommand": "bash /usr/local/bin/mios-root-overlay"
+  "postCreateCommand": "sudo bash /usr/local/bin/mios-root-overlay"
 }
