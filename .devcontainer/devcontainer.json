@@ -31,5 +31,5 @@
   "mounts": [
     "source=,target=/mios,type=bind,consistency=cached"
   ],
-  "postCreateCommand": "bash /mios/.devcontainer/install-root-overlay.sh"
+  "postCreateCommand": "bash /usr/local/bin/mios-root-overlay"
 }
