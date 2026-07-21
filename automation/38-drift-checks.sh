@@ -3294,14 +3294,20 @@ check_impossible_eol_regressions() {
 # and that ventoy.json correctly binds the Fedora ISO to the kickstart template.
 check_deploy_plane() {
     local bad=""
-    local bootstrap_root="/c/mios-bootstrap"
-    
-    local ks_file="$bootstrap_root/cat/resources/ventoy/mios-kickstart.cfg"
-    if [[ ! -f "$ks_file" ]]; then
-        ks_file="$ROOT/../mios-bootstrap/cat/resources/ventoy/mios-kickstart.cfg"
-    fi
-    
-    if [[ -f "$ks_file" ]]; then
+    local ks_file=""
+    for cand in "${MIOS_BOOTSTRAP_DIR:-}/cat/resources/ventoy/mios-kickstart.cfg" \
+                "/c/mios-bootstrap/cat/resources/ventoy/mios-kickstart.cfg" \
+                "/mios-bootstrap/cat/resources/ventoy/mios-kickstart.cfg" \
+                "C:/mios-bootstrap/cat/resources/ventoy/mios-kickstart.cfg" \
+                "$ROOT/../mios-bootstrap/cat/resources/ventoy/mios-kickstart.cfg" \
+                "$ROOT/cat/resources/ventoy/mios-kickstart.cfg"; do
+        if [[ -n "$cand" && -f "$cand" ]]; then
+            ks_file="$cand"
+            break
+        fi
+    done
+
+    if [[ -n "$ks_file" ]]; then
         if ! grep -q "MIOS_FHS_TOTAL_ROOT_MERGE=1" "$ks_file"; then
             bad+="    mios-kickstart.cfg: missing MIOS_FHS_TOTAL_ROOT_MERGE=1 export"$'\n'
         fi
@@ -3312,12 +3318,20 @@ check_deploy_plane() {
         echo "[38-drift-checks]   (61) WARNING: mios-kickstart.cfg not found, skipping kickstart exports assertion"
     fi
 
-    local ventoy_json="$bootstrap_root/cat/resources/ventoy/ventoy.json"
-    if [[ ! -f "$ventoy_json" ]]; then
-        ventoy_json="$ROOT/../mios-bootstrap/cat/resources/ventoy/ventoy.json"
-    fi
-    
-    if [[ -f "$ventoy_json" ]]; then
+    local ventoy_json=""
+    for cand in "${MIOS_BOOTSTRAP_DIR:-}/cat/resources/ventoy/ventoy.json" \
+                "/c/mios-bootstrap/cat/resources/ventoy/ventoy.json" \
+                "/mios-bootstrap/cat/resources/ventoy/ventoy.json" \
+                "C:/mios-bootstrap/cat/resources/ventoy/ventoy.json" \
+                "$ROOT/../mios-bootstrap/cat/resources/ventoy/ventoy.json" \
+                "$ROOT/cat/resources/ventoy/ventoy.json"; do
+        if [[ -n "$cand" && -f "$cand" ]]; then
+            ventoy_json="$cand"
+            break
+        fi
+    done
+
+    if [[ -n "$ventoy_json" ]]; then
         if ! grep -q "Fedora-Server.iso" "$ventoy_json" || ! grep -q "mios-kickstart.cfg" "$ventoy_json"; then
             bad+="    ventoy.json: missing Fedora-Server.iso/mios-kickstart.cfg binding in kickstart section"$'\n'
         fi
