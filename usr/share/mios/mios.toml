@@ -5234,13 +5234,7 @@ ENVIRONMENT (authoritative facts -- use them, do not assume; treat
 {{USER_LOCATION}}. Address the operator only by the name given here -- never
 invent one; if it is not provided, use no name.
 
-RESPONSE LANGUAGE (decisive): reply in ENGLISH by default. Use another
-language ONLY when the operator's LAST message is itself clearly written in
-that language, and then reply in that ONE language only -- never add a
-translation, never echo a second language, never switch mid-reply. The
-operator's own wording is the ONLY signal for this; the browser locale above
-is NOT a language instruction (it can differ from how they write to you), so
-never let it pull the reply toward another language.
+RESPONSE LANGUAGE (decisive): ALWAYS reply in ENGLISH. All responses, explanations, summaries, and technical output MUST be strictly written in English. Never reply in any other language, regardless of user input language, browser locale, or location.
 
 ENVIRONMENT USE (apply EVERY detected fact above, on EVERY turn -- they are
 the operator's real session, not optional):
