@@ -189,12 +189,12 @@ async def _a2a_fetch_models_card(url: str, headers: dict, timeout_s: float = 10.
                 _routing_cfg = _toml_section("routing") or {}
                 _embed_kw = (os.environ.get("MIOS_MODEL_MODALITIES_EMBEDDINGS")
                              or _routing_cfg.get("model_modalities_embeddings")
-                             or ["embed", "bert", "text-embedding", "bge"])
+                             or [])
                 if isinstance(_embed_kw, str):
                     _embed_kw = [x.strip() for x in _embed_kw.split(",") if x.strip()]
                 _image_kw = (os.environ.get("MIOS_MODEL_MODALITIES_IMAGE")
                              or _routing_cfg.get("model_modalities_image")
-                             or ["diffuse", "flux", "dall", "midjourney", "sd"])
+                             or [])
                 if isinstance(_image_kw, str):
                     _image_kw = [x.strip() for x in _image_kw.split(",") if x.strip()]
                 for mid in model_ids:

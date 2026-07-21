@@ -326,8 +326,7 @@ def _load_node_pool(registry: dict[str, dict]) -> int:
                           "dispatched on this node to research a facet in "
                           "parallel with the rest of the pool.")),
             "default":  False,
-            "strengths": list(cfg.get("strengths")
-                              or ["research", "web_search", "summarize"]),
+            "strengths": list(cfg.get("strengths") or []),
             "lane":     lane,
             # V4 blade (machine) topology: which PHYSICAL MACHINE this compute node
             # lives on -- so "nodes X, Y, Z are one machine" is EXPRESSIBLE and the
