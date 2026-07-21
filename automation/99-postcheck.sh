@@ -703,50 +703,49 @@ else
     _lbi_dir="/usr/lib/bootc/bound-images.d"
 _lbi_tsv="/usr/share/mios/artifacts/sbom/bound-images.tsv"
 if [[ -d "$_lbi_dir" ]]; then
-    declare -A _lbi_baked=()
-    if [[ -f "$_lbi_tsv" ]]; then
+    if [[ ! -f "$_lbi_tsv" ]]; then
+        log "  [skip] $_lbi_tsv not present (sidecars not baked in this Containerfile layer) -- skipping BOUND-IMAGES-RESOLVE"
+    else
+        declare -A _lbi_baked=()
         while IFS=$'\t' read -r img_ref digest group || [[ -n "$img_ref" ]]; do
             [[ -z "$img_ref" || "$img_ref" == "image" ]] && continue
             _lbi_baked["$img_ref"]=1
         done < "$_lbi_tsv"
-    else
-        log "  [skip] $_lbi_tsv not present (sidecars not baked in this Containerfile layer) -- skipping BOUND-IMAGES-RESOLVE"
-        exit 0
-    fi
-    # Local base images are always valid
-    _lbi_baked["localhost/mios-sys:latest"]=1
-    _lbi_baked["localhost/mios-cuda:latest"]=1
+        # Local base images are always valid
+        _lbi_baked["localhost/mios-sys:latest"]=1
+        _lbi_baked["localhost/mios-cuda:latest"]=1
 
-    while IFS= read -r link || [[ -n "$link" ]]; do
-        [[ -L "$link" ]] || continue
-        target="$(readlink -f "$link")"
-        if [[ ! -f "$target" ]]; then
-            die "BOUND-IMAGES-RESOLVE: symlink $(basename "$link") points to nonexistent file: $target"
-        fi
-        img_line="$(grep -i '^[[:space:]]*Image=' "$target" | head -n1 || true)"
-        if [[ -n "$img_line" ]]; then
-            raw_ref="${img_line#*=}"
-            raw_ref="${raw_ref%%#*}"
-            raw_ref="$(echo "$raw_ref" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
-            resolved_ref="$raw_ref"
-            if [[ "$raw_ref" =~ \$\{[A-Za-z0-9_]+:-(.+)\} ]]; then
-                resolved_ref="${BASH_REMATCH[1]}"
-            elif [[ "$raw_ref" =~ \$\{[A-Za-z0-9_]+\} ]]; then
-                var_name="${raw_ref:2:${#raw_ref}-3}"
-                resolved_ref="${!var_name:-}"
-            elif [[ "$raw_ref" =~ \$[A-Za-z0-9_]+ ]]; then
-                var_name="${raw_ref:1}"
-                resolved_ref="${!var_name:-}"
+        while IFS= read -r link || [[ -n "$link" ]]; do
+            [[ -L "$link" ]] || continue
+            target="$(readlink -f "$link")"
+            if [[ ! -f "$target" ]]; then
+                die "BOUND-IMAGES-RESOLVE: symlink $(basename "$link") points to nonexistent file: $target"
             fi
-            resolved_ref="${resolved_ref//\"/}"
-            resolved_ref="${resolved_ref//\'/}"
-            [[ -z "$resolved_ref" ]] && continue
-            if [[ "$resolved_ref" != "localhost/mios"* && -z "${_lbi_baked[$resolved_ref]:-}" ]]; then
-                die "BOUND-IMAGES-RESOLVE: Image '$resolved_ref' (declared in $target) was not baked. Check your bake plan or plan.d groups."
+            img_line="$(grep -i '^[[:space:]]*Image=' "$target" | head -n1 || true)"
+            if [[ -n "$img_line" ]]; then
+                raw_ref="${img_line#*=}"
+                raw_ref="${raw_ref%%#*}"
+                raw_ref="$(echo "$raw_ref" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+                resolved_ref="$raw_ref"
+                if [[ "$raw_ref" =~ \$\{[A-Za-z0-9_]+:-(.+)\} ]]; then
+                    resolved_ref="${BASH_REMATCH[1]}"
+                elif [[ "$raw_ref" =~ \$\{[A-Za-z0-9_]+\} ]]; then
+                    var_name="${raw_ref:2:${#raw_ref}-3}"
+                    resolved_ref="${!var_name:-}"
+                elif [[ "$raw_ref" =~ \$[A-Za-z0-9_]+ ]]; then
+                    var_name="${raw_ref:1}"
+                    resolved_ref="${!var_name:-}"
+                fi
+                resolved_ref="${resolved_ref//\"/}"
+                resolved_ref="${resolved_ref//\'/}"
+                [[ -z "$resolved_ref" ]] && continue
+                if [[ "$resolved_ref" != "localhost/mios"* && -z "${_lbi_baked[$resolved_ref]:-}" ]]; then
+                    die "BOUND-IMAGES-RESOLVE: Image '$resolved_ref' (declared in $target) was not baked. Check your bake plan or plan.d groups."
+                fi
             fi
-        fi
-    done < <(find "$_lbi_dir" -type l 2>/dev/null)
-    log "  [ok] every bound-images.d symlink resolves to a baked image"
+        done < <(find "$_lbi_dir" -type l 2>/dev/null)
+        log "  [ok] every bound-images.d symlink resolves to a baked image"
+    fi
 fi
 fi
 
