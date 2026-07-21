@@ -709,6 +709,9 @@ if [[ -d "$_lbi_dir" ]]; then
             [[ -z "$img_ref" || "$img_ref" == "image" ]] && continue
             _lbi_baked["$img_ref"]=1
         done < "$_lbi_tsv"
+    else
+        log "  [skip] $_lbi_tsv not present (sidecars not baked in this Containerfile layer) -- skipping BOUND-IMAGES-RESOLVE"
+        exit 0
     fi
     # Local base images are always valid
     _lbi_baked["localhost/mios-sys:latest"]=1
