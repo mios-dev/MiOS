@@ -463,12 +463,8 @@ def _load_routing_list(key: str) -> list:
 
 
 # Launch grammar: trigger verbs mirror SSOT [routing].launch_triggers / open_app/launch_app
-_CLI_LAUNCH_TRIGGERS = frozenset(
-    _load_routing_list("launch_triggers") or ["open", "launch", "start", "run"]
-)
-_CLI_COMPOUND = frozenset(
-    _load_routing_list("compound_connectives") or ["in", "and", "then", "with", "on", "to"]
-)
+_CLI_LAUNCH_TRIGGERS = frozenset(_load_routing_list("launch_triggers"))
+_CLI_COMPOUND = frozenset(_load_routing_list("compound_connectives"))
 
 
 def _cli_launch_followup(prompt: str) -> bool:
