@@ -3417,7 +3417,7 @@ for path in tracked:
     rel = os.path.relpath(path, root).replace("\\", "/")
     if not (rel.startswith("automation") or rel.startswith("usr/libexec/") or rel.startswith("tools")):
         continue
-    if rel.endswith((".pyc", ".png", ".jpg", ".generated", ".json", ".log", ".ready")):
+    if rel.endswith((".pyc", ".png", ".jpg", ".generated", ".json", ".log", ".ready", ".lock")):
         continue
     if not os.path.isfile(path):
         continue
