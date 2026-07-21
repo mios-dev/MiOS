@@ -11,9 +11,10 @@ echo "  'MiOS' ${MIOS_VERSION:-} -- User & Authentication"
 # -- PAM FIX --
 echo "[31-user] Configuring PAM via authselect..."
 if command -v authselect &>/dev/null; then
-    authselect select local --force 2>/dev/null || {
-        echo "[31-user] WARNING: authselect failed -- using system_files overlay fallback"
+    authselect select local --force 2>/dev/null || authselect select minimal --force 2>/dev/null || {
+        echo "[31-user] WARNING: authselect select failed -- using overlay fallback"
     }
+    authselect apply-changes --force 2>/dev/null || authselect opt-out 2>/dev/null || true
 fi
 
 # -- USER CREATION --
