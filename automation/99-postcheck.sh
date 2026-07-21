@@ -695,8 +695,11 @@ log "  [ok] every secret-bearing env file is mode 0600 (or none present)"
 # Every Quadlet (.container or .image) linked under /usr/lib/bootc/bound-images.d/
 # must target a valid file, and the Image= it declares must exist in the built/baked
 # image registry (/usr/share/mios/artifacts/sbom/bound-images.tsv).
-log "Validating BOUND-IMAGES-RESOLVE: bound-images.d symlinks resolve to baked images..."
-_lbi_dir="/usr/lib/bootc/bound-images.d"
+if [[ "${MIOS_BAKE_BOUND_IMAGES:-1}" == "0" ]]; then
+    log "  [skip] MIOS_BAKE_BOUND_IMAGES=0 (sidecar bake skipped for CI validation build) -- skipping BOUND-IMAGES-RESOLVE"
+else
+    log "Validating BOUND-IMAGES-RESOLVE: bound-images.d symlinks resolve to baked images..."
+    _lbi_dir="/usr/lib/bootc/bound-images.d"
 _lbi_tsv="/usr/share/mios/artifacts/sbom/bound-images.tsv"
 if [[ -d "$_lbi_dir" ]]; then
     declare -A _lbi_baked=()
@@ -740,6 +743,7 @@ if [[ -d "$_lbi_dir" ]]; then
         fi
     done < <(find "$_lbi_dir" -type l 2>/dev/null)
     log "  [ok] every bound-images.d symlink resolves to a baked image"
+fi
 fi
 
 log "Validation SUCCESSFUL"
