@@ -108,9 +108,10 @@ def configure(*, verb_catalog=None, recipe_catalog=None, agent_registry=None,
 # [ai].permission_tiers -- never a hardcoded keyword test against user content.
 _PERMISSION_TIERS = [
     str(t).strip().lower()
-    for t in ((_toml_section("ai") or {}).get("permission_tiers") or [])
+    for t in ((_toml_section("ai") or {}).get("permission_tiers")
+              or ["read", "write", "interactive"])
     if str(t).strip()
-]
+] or ["read", "write", "interactive"]
 
 
 def _perm_rank(perm: str) -> int:
