@@ -293,6 +293,8 @@ def get_aliases(dotted_path):
             aliases.append("MIOS_TOML")
         elif name == "WSL_FIRSTBOOT_DONE":
             aliases.append("MIOS_WSLBOOT_DONE")
+        elif name in ("LAUNCHER_SOCKET", "MIOS_LAUNCHER_SOCKET"):
+            aliases.append("MIOS_LAUNCHER_SOCKET")
         else:
             aliases.append(f"MIOS_{name}")
 
