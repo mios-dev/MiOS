@@ -102,12 +102,13 @@ baked=0; failed=0
 for img in "${IMAGES[@]}"; do
     echo "bound-image: baking $img"
     _pulled=0
-    for _try in 1 2 3; do
+    for _try in 1 2 3 4 5; do
         if CONTAINERS_STORAGE_CONF="$CONF" TMPDIR="$SCRATCH/tmp" \
              podman --root "$STORE" --runroot "$SCRATCH/run" pull "$img"; then
             _pulled=1; break
         fi
-        echo "  bound-image pull attempt ${_try}/3 failed for $img -- retrying in 3s"; sleep 3
+        _wait=$((_try * 3))
+        echo "  bound-image pull attempt ${_try}/5 failed for $img -- retrying in ${_wait}s"; sleep "$_wait"
     done
     if [ "$_pulled" = 1 ]; then
         baked=$((baked + 1))
