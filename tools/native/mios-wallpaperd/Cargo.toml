@@ -1,3 +1,4 @@
+# AI-hint: MiOS wallpaper daemon manifest.
 # mios-wallpaperd -- MiOS living-wallpaper + desktop-services daemon.
 # Law 14 / ADR-0011 (WS-LANG): the Rust native tier. This ONE binary replaces the whole scattered
 # stack it consolidates:
