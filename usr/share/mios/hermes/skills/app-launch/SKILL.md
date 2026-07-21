@@ -126,9 +126,7 @@ confirm.
 
 ## Retry / "it didn't launch" follow-ups — re-fire, don't re-ask
 
-When the operator follows a launch turn with "it didn't launch", "it didn't
-open", "nothing happened", "I don't see it", "try again", "do it", "attempt to
-launch and verify", or "launch and verify it":
+When the operator follows a launch turn with a follow-up or retry phrase (as defined in SSOT `[routing].launch_followup_phrases` / `launch_retry_phrases`):
 
 1. The app is whatever the IMMEDIATELY-PRIOR launch turn was about. Pull the
    name from the carried session context / scratchpad — these follow-ups almost
