@@ -158,7 +158,39 @@ def main(argv):
                 os.remove(f)
             except OSError:
                 pass
-                
+
+        # Generate SSOT-compliant bound-images.tsv SBOM artifact
+        sbom_dir = os.environ.get("MIOS_SBOM_DIR") or os.path.join(ROOT, "usr/share/mios/artifacts/sbom")
+        os.makedirs(sbom_dir, exist_ok=True)
+        sbom_file = os.path.join(sbom_dir, "bound-images.tsv")
+
+        existing_digests = {}
+        if os.path.exists(sbom_file):
+            try:
+                with open(sbom_file, "r", encoding="utf-8") as sfh:
+                    for line in sfh:
+                        parts = line.strip().split("\t")
+                        if len(parts) >= 3 and parts[0] != "image":
+                            existing_digests[parts[0]] = parts[1]
+            except OSError:
+                pass
+
+        seen_images = set()
+        with open(sbom_file, "w", encoding="utf-8", newline="\n") as sfh:
+            sfh.write("image\tdigest\tgroup\n")
+            for base_img, grp in [("localhost/mios-sys:latest", "sys"), ("localhost/mios-cuda:latest", "cuda")]:
+                sfh.write(f"{base_img}\t{existing_digests.get(base_img, 'local')}\t{grp}\n")
+                seen_images.add(base_img)
+
+            for img, base_name in images_to_bake:
+                if img not in seen_images:
+                    g = classify(img)
+                    digest = existing_digests.get(img, "local")
+                    sfh.write(f"{img}\t{digest}\t{g}\n")
+                    seen_images.add(img)
+
+        print(f"[bake-plan-gen] wrote {sbom_file}")
+            
     drift_detected = False
     
     for idx, g in enumerate(groups):
