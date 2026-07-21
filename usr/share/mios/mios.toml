@@ -7297,8 +7297,11 @@ pkgs = [
 [packages.self-build]
 enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
 pkgs = [
-    "bootc-base-imagectl",
-    "konflux-image-tools",
+    "buildah",
+    "podman",
+    "skopeo",
+    "ostree",
+    "bootc",
 ]
 
 [packages.boot]
