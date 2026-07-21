@@ -5065,7 +5065,8 @@ KNOWLEDGE_RECALL_STRICT_SCORE = _cfg_num(
 # blocks cross-conversation bleed for the widened band.
 KNOWLEDGE_RECALL_PREF_MIN_SCORE = _cfg_num(
     _KN_TOML, "MIOS_KNOWLEDGE_RECALL_PREF_MIN_SCORE", "recall_pref_min_score", 0.50, float)
-_RECALL_POSSESSIVE_RE = re.compile(r"\b(my|mine|your|yours|our|ours)\b", re.I)
+_possessives = _load_routing_phrases("recall_possessives") or _load_routing_phrases("launch_target_lead_phrases")
+_RECALL_POSSESSIVE_RE = re.compile(r"\b(" + "|".join(re.escape(w) for w in _possessives) + r")\b" if _possessives else r"(?!)", re.I)
 
 
 # -- Tiered pgvector KNOWLEDGE memory (store + recency-weighted recall +
