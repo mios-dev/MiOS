@@ -434,6 +434,10 @@ KNOWN_VERBS = {
 def _load_routing_list(key: str) -> list:
     """Load a [routing].<key> phrase list from the layered mios.toml (lowercased,
     longest-first). SSOT -- no hardcoded English. Fail-safe -> []."""
+    env_var = "MIOS_ROUTING_" + key.upper()
+    env_val = os.environ.get(env_var) or os.environ.get("MIOS_" + key.upper())
+    if env_val:
+        return sorted({s.strip().lower() for s in env_val.split(",") if s.strip()}, key=len, reverse=True)
     try:
         import tomllib
     except ImportError:
@@ -458,13 +462,13 @@ def _load_routing_list(key: str) -> list:
     return []
 
 
-# Launch grammar: trigger verbs mirror the catalog's open_app/launch_app ("open /
-# launch / start / run X"); the strip-lists are SSOT [routing].* -- the SAME lists
-# the agent-pipe deterministic route uses. Keeps the CLI launch DETERMINISTIC
-# instead of relying on the small Hermes model's tool selection (which loops on
-# everything_search for "open notepad" -- operator 2026-06-07).
-_CLI_LAUNCH_TRIGGERS = frozenset({"open", "launch", "start", "run"})
-_CLI_COMPOUND = frozenset({"in", "and", "then", "with", "on", "to"})
+# Launch grammar: trigger verbs mirror SSOT [routing].launch_triggers / open_app/launch_app
+_CLI_LAUNCH_TRIGGERS = frozenset(
+    _load_routing_list("launch_triggers") or ["open", "launch", "start", "run"]
+)
+_CLI_COMPOUND = frozenset(
+    _load_routing_list("compound_connectives") or ["in", "and", "then", "with", "on", "to"]
+)
 
 
 def _cli_launch_followup(prompt: str) -> bool:
