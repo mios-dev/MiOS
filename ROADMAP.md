@@ -6,9 +6,9 @@
 
 <!-- ROADMAP_ROLLUP_START -->
 ### Workstream Status Rollup
-- **Done**: 9
+- **Done**: 13
 - **Active**: 0
-- **Proposed**: 7
+- **Proposed**: 3
 - **Blocked**: 0
 <!-- ROADMAP_ROLLUP_END -->
 
@@ -30,10 +30,10 @@
 
 **Deployment & Sovereignty**
 - `WS-MDRIVE` — Sovereign "run off M:" deployment (Hyper-V Gen 2 .vhdx + Ceph OSD on M:) (proposed)
-- `WS-CAT` — MiOS-Cat unified entry point (one tri-launcher, six verbs, all-platform) (proposed)
-- `WS-CATREPO` — Small MiOS-Repo shadow-config + separate MiOS-Data bulk store (512GB+) + model embedding (proposed)
-- `WS-CATFLAT` — MiOS-Cat tree flatten, de-dup, leave-nothing-behind (proposed)
-- `WS-CONFIG` — Unified config surface: mios.toml ⇄ Portal + configurator + /v1 at :8640/ (proposed)
+- `WS-CAT` — MiOS-Cat unified entry point (one tri-launcher, six verbs, all-platform) ✅
+- `WS-CATREPO` — Small MiOS-Repo shadow-config + separate MiOS-Data bulk store (512GB+) + model embedding ✅
+- `WS-CATFLAT` — MiOS-Cat tree flatten, de-dup, leave-nothing-behind ✅
+- `WS-CONFIG` — Unified config surface: mios.toml ⇄ Portal + configurator + /v1 at :8640/ ✅
 
 **Storage & Data**
 (no workstreams)
@@ -384,7 +384,7 @@ acceptance: |
 id: WS-CAT
 title: MiOS-Cat unified entry point (one tri-launcher, six verbs, all-platform)
 theme: Deployment & Sovereignty
-status: proposed
+status: done
 priority: P1
 laws: [1, 7, 8, 9, 12]
 ssot_keys: ["cat", "cat.repo_partition", "cat.data_partition", "editions", "colors"]
@@ -410,7 +410,7 @@ acceptance: |
 id: WS-CATREPO
 title: Small MiOS-Repo shadow-config + separate MiOS-Data bulk store (512GB+) + model embedding
 theme: Deployment & Sovereignty
-status: proposed
+status: done
 priority: P1
 laws: [8, 12]
 ssot_keys: ["cat.repo_partition", "cat.data_partition", "cat.models", "ai.bake_models", "ai.vllm.bake_model"]
@@ -449,7 +449,7 @@ acceptance: |
 id: WS-CATFLAT
 title: MiOS-Cat tree flatten, de-dup, leave-nothing-behind
 theme: Deployment & Sovereignty
-status: proposed
+status: done
 priority: P2
 laws: [1, 8, 9]
 ssot_keys: ["cat"]
@@ -473,7 +473,7 @@ acceptance: |
 id: WS-CONFIG
 title: Unified config surface: mios.toml ⇄ Portal + configurator + /v1 at :8640/
 theme: Deployment & Sovereignty
-status: proposed
+status: done
 priority: P1
 laws: [5, 7, 8]
 ssot_keys: ["portal", "ports.agent_pipe"]

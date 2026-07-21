@@ -497,6 +497,12 @@ def get_aliases(dotted_path):
         key = dotted_path[len("reliability."):].upper().replace(".", "_").replace("-", "_")
         aliases.append(f"MIOS_RELIABILITY_{key}")
         
+    elif dotted_path.startswith("routing."):
+        key = dotted_path[len("routing."):].upper().replace(".", "_").replace("-", "_")
+        aliases.append(f"MIOS_ROUTING_{key}")
+        if key.startswith("LAUNCH_"):
+            aliases.append(f"MIOS_{key}")
+
     return aliases
 
 def walk(d, prefix=""):
