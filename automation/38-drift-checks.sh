@@ -3295,7 +3295,8 @@ check_impossible_eol_regressions() {
 check_deploy_plane() {
     local bad=""
     local ks_file=""
-    for cand in "${BOOTSTRAP_DIR:-}/cat/resources/ventoy/mios-kickstart.cfg" \
+    for cand in "$ROOT/usr/share/mios/ventoy/mios-kickstart.cfg" \
+                "${BOOTSTRAP_DIR:-}/cat/resources/ventoy/mios-kickstart.cfg" \
                 "/c/mios-bootstrap/cat/resources/ventoy/mios-kickstart.cfg" \
                 "/mios-bootstrap/cat/resources/ventoy/mios-kickstart.cfg" \
                 "C:/mios-bootstrap/cat/resources/ventoy/mios-kickstart.cfg" \
@@ -3319,7 +3320,8 @@ check_deploy_plane() {
     fi
 
     local ventoy_json=""
-    for cand in "${BOOTSTRAP_DIR:-}/cat/resources/ventoy/ventoy.json" \
+    for cand in "$ROOT/usr/share/mios/ventoy/ventoy.json" \
+                "${BOOTSTRAP_DIR:-}/cat/resources/ventoy/ventoy.json" \
                 "/c/mios-bootstrap/cat/resources/ventoy/ventoy.json" \
                 "/mios-bootstrap/cat/resources/ventoy/ventoy.json" \
                 "C:/mios-bootstrap/cat/resources/ventoy/ventoy.json" \
