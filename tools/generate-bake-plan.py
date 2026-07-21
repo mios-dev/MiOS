@@ -88,9 +88,6 @@ def main(argv):
                     glob.glob(os.path.join(quadlet_dir, "*.image"))):
         base_name = os.path.splitext(os.path.basename(q))[0]
         ext = os.path.splitext(q)[1]
-        
-        if ext == ".container" and enabled_map.get(base_name) is False:
-            continue
             
         img = None
         try:
