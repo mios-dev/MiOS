@@ -47,7 +47,7 @@ for attempt in 1 2 3; do
     fi
     
     log "[56-bake-surfer] Resolving latest Firefox version and ensuring surfer.json configuration..."
-    export SURFER_PRODUCT="zen"
+    export SURFER_PRODUCT="${SURFER_PRODUCT:-zen}"
     python3 -c '
 import json, os, urllib.request
 ff_ver = "153.0"
@@ -66,7 +66,7 @@ if os.path.exists(p):
             data = json.load(f)
     except Exception:
         pass
-data["product"] = "zen"
+data["product"] = os.environ.get("SURFER_PRODUCT", "zen")
 data["name"] = data.get("name") or "mios-webshell"
 data["binaryName"] = data.get("binaryName") or "mios-webshell"
 data["firefoxVersion"] = ff_ver
@@ -77,7 +77,9 @@ with open(p, "w", encoding="utf-8") as f:
 
     log "[56-bake-surfer] Fetching upstream Mozilla codebase..."
     FF_VER="$(python3 -c 'import json; print(json.load(open("surfer.json")).get("firefoxVersion", "153.0"))' 2>/dev/null || echo '153.0')"
-    if ! npx surfer download --product zen --firefox-version "$FF_VER" 2>&1 && ! npx surfer download "$FF_VER" 2>&1 && ! npx surfer download 2>&1; then
+    if ! SURFER_PRODUCT=zen npx surfer download --product zen --firefox-version "$FF_VER" 2>&1 && \
+       ! SURFER_PRODUCT=zen-browser npx surfer download --product zen-browser --firefox-version "$FF_VER" 2>&1 && \
+       ! SURFER_PRODUCT=zen npx surfer download "$FF_VER" 2>&1; then
         warn "[56-bake-surfer] surfer download failed on attempt $attempt"
         sleep $((attempt * 8))
         continue
