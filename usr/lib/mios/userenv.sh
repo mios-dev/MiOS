@@ -505,6 +505,11 @@ def get_aliases(dotted_path):
         if key.startswith("LAUNCH_"):
             aliases.append(f"MIOS_{key}")
 
+    elif dotted_path.startswith("mios-find.") or dotted_path.startswith("mios_find."):
+        prefix_len = len("mios-find.") if dotted_path.startswith("mios-find.") else len("mios_find.")
+        key = dotted_path[prefix_len:].upper().replace(".", "_").replace("-", "_")
+        aliases.append(f"MIOS_FIND_{key}")
+
     return aliases
 
 def walk(d, prefix=""):
