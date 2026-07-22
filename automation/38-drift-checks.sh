@@ -3079,8 +3079,10 @@ check_greenboot() {
             [[ -f "$f" ]] || continue
             local relpath
             relpath="$(realpath --relative-to="$ROOT" "$f")"
-            local mode
-            mode="$(git ls-files -s "$relpath" | awk '{print $1}')"
+            local mode=""
+            if command -v git >/dev/null 2>&1 && git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+                mode="$(git -C "$ROOT" ls-files -s "$relpath" 2>/dev/null | awk '{print $1}')"
+            fi
             if [[ -n "$mode" && "$mode" != "100755" ]]; then
                 non_execs+="    $relpath has git mode $mode (expected 100755)"$'\n'
             fi
