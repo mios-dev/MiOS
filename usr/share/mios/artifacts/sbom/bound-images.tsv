@@ -8,4 +8,5 @@ docker.io/guacamole/guacamole:latest	local	extra
 docker.io/vllm/vllm-openai:latest	local	extra
 ghcr.io/open-webui/open-webui:main	local	extra
 docker.io/pgvector/pgvector:0.8.3-pg17	local	extra
+docker.io/searxng/searxng:latest	local	extra
 docker.io/valkey/valkey:latest	local	extra

@@ -5,4 +5,5 @@ docker.io/guacamole/guacamole:latest
 docker.io/vllm/vllm-openai:latest
 ghcr.io/open-webui/open-webui:main
 docker.io/pgvector/pgvector:0.8.3-pg17
+docker.io/searxng/searxng:latest
 docker.io/valkey/valkey:latest

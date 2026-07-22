@@ -10645,9 +10645,9 @@ Environment = [
   "MIOS_CRAWL_CAMOUFOX=${MIOS_CRAWL_CAMOUFOX:-true}",
   "MIOS_CRAWL_MIN_CHARS=${MIOS_CRAWL_MIN_CHARS:-200}"
 ]
-Exec = "/opt/crawl4ai-venv/bin/python3 /usr/lib/mios/crawl4ai/mios-crawl4ai-service.py"
+Exec = "python /app/mios-crawl4ai-service.py"
 Group = "0"
-Image = "${MIOS_SYS_IMAGE:-localhost/mios-sys:latest}"
+Image = "${MIOS_CRAWL4AI_IMAGE:-localhost/mios-crawl4ai-slim:latest}"
 Label = [
   "org.opencontainers.image.title=mios-webtools-crawl4ai",
   "io.podman_desktop.openInBrowser=http://localhost:11235/healthz"
@@ -10687,14 +10687,14 @@ Environment = [
 ]
 Exec = "pnpm run start:production"
 Group = "0"
-Image = "${MIOS_SYS_IMAGE:-localhost/mios-sys:latest}"
+Image = "${MIOS_FIRECRAWL_IMAGE:-localhost/mios-firecrawl:v1.0.0}"
 Label = [
   "org.opencontainers.image.title=mios-webtools-firecrawl-api",
   "io.podman_desktop.openInBrowser=http://localhost:3002/"
 ]
 Pod = "mios-webtools.pod"
 User = "0"
-WorkingDir = "/opt/firecrawl"
+WorkingDir = "/app"
 
 [containers.mios-webtools-firecrawl-api.Install]
 WantedBy = "multi-user.target default.target"
@@ -10728,11 +10728,11 @@ Environment = [
 ]
 Exec = "pnpm run workers"
 Group = "0"
-Image = "${MIOS_SYS_IMAGE:-localhost/mios-sys:latest}"
+Image = "${MIOS_FIRECRAWL_IMAGE:-localhost/mios-firecrawl:v1.0.0}"
 Label = "org.opencontainers.image.title=mios-webtools-firecrawl-worker"
 Pod = "mios-webtools.pod"
 User = "0"
-WorkingDir = "/opt/firecrawl"
+WorkingDir = "/app"
 
 [containers.mios-webtools-firecrawl-worker.Install]
 WantedBy = "multi-user.target default.target"
