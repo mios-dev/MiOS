@@ -225,7 +225,7 @@ install_packages() {
     if [[ -n "${packages// }" ]]; then
         echo "[packages.sh] Installing '$category' packages..."
         # shellcheck disable=SC2086 # $packages is intentionally word-split here
-        ($DNF_BIN "${DNF_SETOPT[@]}" install -y "${DNF_OPTS[@]}" --skip-unavailable --exclude=PackageKit $packages) || {
+        ($DNF_BIN "${DNF_SETOPT[@]}" install -y "${DNF_OPTS[@]}" --setopt=strict=0 --skip-unavailable --exclude=PackageKit $packages) || {
             echo "[packages.sh] WARNING: Some '$category' packages failed to install" >&2
             echo "[packages.sh] Packages requested: $packages" >&2
         }
@@ -247,7 +247,7 @@ install_packages_strict() {
     # Note: --allowerasing without --best -- allows conflict resolution by
     # erasure without requiring the "best" (newest) version. Avoids hard
     # failures when ucore base packages are newer than Fedora 44 versions.
-    $DNF_BIN "${DNF_SETOPT[@]}" install -y --allowerasing --skip-unavailable --exclude=PackageKit $packages || {
+    $DNF_BIN "${DNF_SETOPT[@]}" install -y --allowerasing --setopt=strict=0 --skip-unavailable --exclude=PackageKit $packages || {
         echo "[packages.sh] FATAL: Mandatory '$category' packages failed to install" >&2
         echo "[packages.sh] Packages requested: $packages" >&2
         return 1
