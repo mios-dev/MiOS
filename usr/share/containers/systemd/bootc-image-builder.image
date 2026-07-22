@@ -1,0 +1,7 @@
+# AI-hint: Quadlet image definition for bootc-image-builder to embed the container image for offline MiOS self-build disk generation.
+# /usr/share/containers/systemd/bootc-image-builder.image
+[Image]
+Image=quay.io/centos-bootc/bootc-image-builder:latest
+
+[Service]
+TimeoutStartSec=3600
