@@ -114,12 +114,12 @@ fi
 # Groups are pre-created and memberships injected via /usr/lib/sysusers.d/*.conf
 # and processed by systemd-sysusers above. Imperative calls removed.
 
-# -- SUDOERS --
-# Managed via usr/lib/sudoers.d/10-mios-wheel
+# -- SUDOERS & SECURITY FILE PERMISSIONS --
 chmod 440 /usr/lib/sudoers.d/10-mios-wheel 2>/dev/null || true
+chmod 0644 /etc/sudoers.d/* /etc/fapolicyd/fapolicyd.rules 2>/dev/null || true
 
 # -- LOCALE --
-# Managed via usr/lib/locale.conf
+localedef -i C -f UTF-8 C.UTF-8 2>/dev/null || true
 localedef -i en_US -f UTF-8 en_US.UTF-8 2>/dev/null || true
 
 # -- CLOUD-INIT --
@@ -128,13 +128,14 @@ localedef -i en_US -f UTF-8 en_US.UTF-8 2>/dev/null || true
 # -- MULTIPATH --
 # Managed via usr/lib/multipath.conf
 
-# -- FIX HOME DIRECTORY OWNERSHIP --
+# -- FIX HOME DIRECTORY OWNERSHIP & PERMISSIONS --
 echo "[31-user] Fixing home directory ownership..."
 awk -F: '$3 >= 1000 && $3 < 65000 {print $1}' /etc/passwd | while read -r u; do
     home=$(getent passwd "$u" | cut -d: -f6)
     if [ -d "$home" ]; then
         uid=$(id -u "$u"); gid=$(id -g "$u")
         chown -R "${uid}:${gid}" "$home"
+        chmod 0755 "$home" 2>/dev/null || true
     fi
 done
 

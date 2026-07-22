@@ -1,7 +1,7 @@
 [user]
-	email = someone@corp.example
+	email = user@localhost
 	signingkey = ABCD1234DEADBEEF
-	name = MiOS User
+	name = User
 [credential]
 	helper = store
 [commit]
