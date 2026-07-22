@@ -191,4 +191,7 @@ if ! $DNF_BIN "${DNF_SETOPT[@]}" makecache -y 2>&1 | tail -20; then
     warn "dnf makecache returned non-zero -- continuing (downstream installs will retry per-repo)"
 fi
 
+log "installing CrowdSec package from newly enabled repository..."
+install_packages crowdsec || true
+
 log "05-enable-external-repos.sh complete"

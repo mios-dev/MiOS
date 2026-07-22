@@ -7037,9 +7037,14 @@ pkgs = [
     "firewalld",
     "audit",
     "fapolicyd",
-    "crowdsec",
     "usbguard",
     "python3.13",
+]
+
+[packages.crowdsec]
+enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
+pkgs = [
+    "crowdsec",
 ]
 
 [packages.moby]
