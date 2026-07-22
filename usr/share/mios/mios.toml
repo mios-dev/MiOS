@@ -7275,15 +7275,13 @@ pkgs = [
     "container-selinux",
     "qemu-img",
     "image-builder",
-    "bootc-image-builder",
     "dracut-live",
     "squashfs-tools",
     "containers-common",
     "toolbox",
     "kubectl",
     "helm",
-    "podman-plugins",
-    "cosign",
+    "sigstore-cosign",
 ]
 
 [packages.build-toolchain]
