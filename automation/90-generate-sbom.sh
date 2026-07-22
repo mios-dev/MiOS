@@ -54,14 +54,12 @@ VERSION="${VERSION:-unknown}"
 echo "[90-generate-sbom] Scanning root filesystem with syft (version=${VERSION})..."
 
 # CycloneDX (primary, for AI/automation) + SPDX (compliance). Each is non-fatal.
-syft scan dir:/ --output cyclonedx-json \
-    --file "${ARTIFACT_DIR}/mios-sbom-${VERSION}.cyclonedx.json" \
-    --exclude "/ctx" --exclude "/var/cache" \
+syft scan dir:/ --output "cyclonedx-json=${ARTIFACT_DIR}/mios-sbom-${VERSION}.cyclonedx.json" \
+    --exclude "./ctx/**" --exclude "./var/cache/**" \
     || echo "[90-generate-sbom] WARN: CycloneDX SBOM generation failed (non-fatal)."
 
-syft scan dir:/ --output spdx-tag-value \
-    --file "${ARTIFACT_DIR}/mios-sbom-${VERSION}.spdx.txt" \
-    --exclude "/ctx" --exclude "/var/cache" \
+syft scan dir:/ --output "spdx-tag-value=${ARTIFACT_DIR}/mios-sbom-${VERSION}.spdx.txt" \
+    --exclude "./ctx/**" --exclude "./var/cache/**" \
     || echo "[90-generate-sbom] WARN: SPDX SBOM generation failed (non-fatal)."
 
 echo "[90-generate-sbom] SBOM artifacts in ${ARTIFACT_DIR}:"
