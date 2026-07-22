@@ -9,9 +9,8 @@ Wants=network-online.target
 [Container]
 ContainerName=mios-otelcol
 Environment=COLLECTOR_OTLP_ENABLED=true
-Exec=jaeger
 Group=829
-Image=localhost/mios-sys:latest
+Image=docker.io/jaegertracing/all-in-one:latest
 Label=org.opencontainers.image.title=mios-otelcol
 Label=org.opencontainers.image.url=http://localhost:16686/
 Label=io.podman_desktop.openInBrowser=http://localhost:16686/

@@ -7948,6 +7948,8 @@ sglang_version     = "latest"
 sglang             = "docker.io/lmsysorg/sglang:latest"
 valkey_version     = "latest"
 valkey             = "docker.io/valkey/valkey:latest"
+otelcol_version    = "latest"
+otelcol            = "docker.io/jaegertracing/all-in-one:latest"
 
 # ----------------------------------------------------------------------------
 # [image.sys] / [image.cuda] -- SSOT sections for the consolidated shared bases
@@ -10473,7 +10475,7 @@ EnvironmentFile = [
   "/etc/mios/hermes/api.env",
   "/etc/mios/install.env"
 ]
-Image = "${MIOS_OPEN_WEBUI_IMAGE:-ghcr.io/open-webui/open-webui:${MIOS_OPEN_WEBUI_VERSION:-main}}"
+Image = "${MIOS_OPEN_WEBUI_IMAGE:-ghcr.io/open-webui/open-webui:main}"
 Exec = "open-webui serve"
 Group = "${MIOS_OPEN_WEBUI_GID:-817}"
 Label = [
@@ -10778,9 +10780,8 @@ Wants = "network-online.target"
 
 [containers.mios-otelcol.Container]
 ContainerName = "mios-otelcol"
-Exec = "jaeger"
 Group = "${MIOS_OTELCOL_GID:-829}"
-Image = "${MIOS_SYS_IMAGE:-localhost/mios-sys:latest}"
+Image = "${MIOS_OTELCOL_IMAGE:-docker.io/jaegertracing/all-in-one:latest}"
 Environment = [
   "COLLECTOR_OTLP_ENABLED=true"
 ]
