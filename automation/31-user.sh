@@ -25,6 +25,16 @@ C_USER="${MIOS_USER:-mios}"
 
 echo "[31-user] Creating user ${C_USER} via sysusers..."
 if [[ "${C_USER}" != "mios" ]]; then
+    # CRITICAL: If C_USER is customized (e.g. 'user'), purge the default 'mios' sysusers rule
+    # and existing account so UID 1000 / GID 1000 is released for the customized username.
+    rm -f /usr/lib/sysusers.d/10-mios.conf /etc/sysusers.d/10-mios.conf 2>/dev/null || true
+    if getent passwd mios >/dev/null 2>&1; then
+        userdel -f mios 2>/dev/null || true
+    fi
+    if getent group mios >/dev/null 2>&1; then
+        groupdel mios 2>/dev/null || true
+    fi
+
     # Generate dynamic sysusers for custom username.
     # CRITICAL: pin UID to 1000. systemd-sysusers' '-' UID allocator uses the
     # SYSTEM range (<UID_MIN), which makes logind skip XDG_RUNTIME_DIR creation
