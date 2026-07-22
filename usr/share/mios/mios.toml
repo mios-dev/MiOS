@@ -7865,7 +7865,7 @@ mcp                = 8460    # MCP host server (/mcp + A2A /.well-known; served 
 sys_version        = "latest"
 sys                = "localhost/mios-sys:latest"
 cuda_version       = "latest"
-cuda               = "localhost/mios-cuda:latest"
+cuda               = "ghcr.io/mostlygeek/llama-swap:cuda"
 k3s_version        = "v1.32.1-k3s1"
 # rancher/k3s lives ONLY on docker.io (no quay.io/ghcr.io mirror). The
 # `docker.io/` prefix is mandatory: without it, podman treats the value
