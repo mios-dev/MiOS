@@ -3424,10 +3424,13 @@ pattern = re.compile(r'\bv?0\.[0-9]+\.[0-9]+\b')
 viol = []
 
 try:
-    out = subprocess.check_output(["git", "ls-files"], cwd=root).decode("utf-8")
+    out = subprocess.check_output(["git", "ls-files"], cwd=root, stderr=subprocess.DEVNULL).decode("utf-8")
     tracked = [os.path.normpath(os.path.join(root, f)) for f in out.splitlines()]
 except Exception:
-    sys.exit(0)
+    tracked = []
+    for r, _d, files in os.walk(root):
+        for f in files:
+            tracked.append(os.path.normpath(os.path.join(r, f)))
 
 for path in tracked:
     rel = os.path.relpath(path, root).replace("\\", "/")

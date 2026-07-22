@@ -77,7 +77,10 @@ def generate_referenced_vars(root):
         res = subprocess.run(["git", "ls-files"], capture_output=True, text=True, check=True, cwd=root)
         tracked_files = [os.path.join(root, f) for f in res.stdout.splitlines() if os.path.isfile(os.path.join(root, f))]
     except Exception:
-        pass
+        tracked_files = []
+        for r, _d, files in os.walk(root):
+            for f in files:
+                tracked_files.append(os.path.join(r, f))
         
     if tracked_files:
         for path in tracked_files:

@@ -176,9 +176,18 @@ def is_text_file(path: Path) -> bool:
 
 
 def list_tracked_files() -> list[Path]:
-    out = subprocess.check_output(
-        ["git", "ls-files", "-z"], text=False
-    ).split(b"\x00")
+    try:
+        out = subprocess.check_output(
+            ["git", "ls-files", "-z"], stderr=subprocess.DEVNULL, text=False
+        ).split(b"\x00")
+    except Exception:
+        files: list[Path] = []
+        for r, _d, f_list in os.walk("."):
+            for f in f_list:
+                p = Path(r) / f
+                if p.exists() and is_text_file(p):
+                    files.append(p)
+        return files
     files: list[Path] = []
     for raw in out:
         if not raw:
