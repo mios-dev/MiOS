@@ -24,6 +24,7 @@ SURFER_OK=""
 
 for attempt in 1 2 3; do
     log "[56-bake-surfer] Compilation attempt $attempt/3..."
+    cd /tmp
     rm -rf "$SURFER_BUILD_DIR"
     
     if ! git clone "${MIOS_URL_SURFER:-https://github.com/zen-browser/surfer.git}" "$SURFER_BUILD_DIR"; then
@@ -64,6 +65,7 @@ if os.path.exists(p):
             data = json.load(f)
     except Exception:
         pass
+data["product"] = data.get("product") or "zen"
 data["name"] = data.get("name") or "mios-webshell"
 data["binaryName"] = data.get("binaryName") or "mios-webshell"
 data["firefoxVersion"] = ff_ver
