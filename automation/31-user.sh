@@ -121,6 +121,9 @@ chmod 0644 /etc/sudoers.d/* /etc/fapolicyd/fapolicyd.rules 2>/dev/null || true
 # -- LOCALE --
 localedef -i C -f UTF-8 C.UTF-8 2>/dev/null || true
 localedef -i en_US -f UTF-8 en_US.UTF-8 2>/dev/null || true
+if [ -f /usr/share/locale/locale.alias ]; then
+    grep -q "C.UTF-8" /usr/share/locale/locale.alias 2>/dev/null || echo "C.UTF-8 C.utf8" >> /usr/share/locale/locale.alias
+fi
 
 # -- CLOUD-INIT --
 # Managed via usr/lib/cloud/cloud.cfg.d/10-mios.cfg
