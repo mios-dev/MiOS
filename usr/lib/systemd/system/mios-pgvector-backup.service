@@ -56,13 +56,13 @@ ExecStart=/bin/sh -c '\
   case "$$MIOS_PG_BACKUP_ENABLE" in \
     0|false|False|FALSE|no|off) echo "mios-pgvector-backup: disabled (MIOS_PG_BACKUP_ENABLE=$$MIOS_PG_BACKUP_ENABLE)"; exit 0 ;; \
   esac; \
-  DIR="$${MIOS_PG_BACKUP_DIR:-/var/lib/mios/backups}"; \
-  KEEP="$${MIOS_PG_BACKUP_KEEP:-7}"; \
+  DIR="$$MIOS_PG_BACKUP_DIR"; [ -z "$$DIR" ] && DIR="/var/lib/mios/backups"; \
+  KEEP="$$MIOS_PG_BACKUP_KEEP"; [ -z "$$KEEP" ] && KEEP="7"; \
   case "$$KEEP" in *[!0-9]*|"") KEEP=7 ;; esac; \
   [ "$$KEEP" -lt 1 ] && KEEP=1; \
-  PORT="$${MIOS_PORT_PGVECTOR:-5432}"; \
-  USR="$${MIOS_PG_USER:-mios}"; \
-  DB="$${MIOS_PG_DB:-mios}"; \
+  PORT="$$MIOS_PORT_PGVECTOR"; [ -z "$$PORT" ] && PORT="5432"; \
+  USR="$$MIOS_PG_USER"; [ -z "$$USR" ] && USR="mios"; \
+  DB="$$MIOS_PG_DB"; [ -z "$$DB" ] && DB="mios"; \
   if ! command -v pg_dump >/dev/null 2>&1; then \
     echo "mios-pgvector-backup: pg_dump client not found on PATH -- skipping (install the postgresql client to enable dumps)"; \
     exit 0; \
