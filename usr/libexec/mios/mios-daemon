@@ -1888,8 +1888,9 @@ def _openai_compat_llm_json(system: str, user: str,
         "stream": False,
     }
     try:
+        url = f"{ENDPOINT}/chat/completions" if ENDPOINT.endswith("/v1") else f"{ENDPOINT}/v1/chat/completions"
         req = urllib.request.Request(
-            f"{ENDPOINT}/v1/chat/completions",
+            url,
             data=json.dumps(payload).encode("utf-8"),
             headers={"Content-Type": "application/json"},
             method="POST",
