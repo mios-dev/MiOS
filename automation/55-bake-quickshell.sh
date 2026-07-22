@@ -34,13 +34,14 @@ for attempt in 1 2 3; do
         continue
     fi
     
-    if ! git submodule update --init --recursive; then
+    git submodule sync --recursive || true
+    if ! git submodule update --init --recursive --force; then
         warn "[55-bake-quickshell] git submodule update failed on attempt $attempt"
         sleep $((attempt * 8))
         continue
     fi
     
-    mkdir -p build && cd build
+    rm -rf build && mkdir -p build && cd build
     if cmake -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_BUILD_TYPE=Release .. && \
        make -j$(nproc) && \
        make install; then
