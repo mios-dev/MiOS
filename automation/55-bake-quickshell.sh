@@ -43,8 +43,8 @@ for attempt in 1 2 3; do
     
     rm -rf build && mkdir -p build && cd build
     if cmake -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_BUILD_TYPE=Release .. && \
-       make -j$(nproc) && \
-       make install; then
+       (ninja 2>/dev/null || cmake --build . --parallel $(nproc) 2>/dev/null || make -j1) && \
+       (make install 2>/dev/null || cmake --install .); then
         if [[ -x /usr/bin/quickshell ]]; then
             QUICKSHELL_OK=1
             break
