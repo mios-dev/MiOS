@@ -67,21 +67,33 @@ if [[ "$admin_password" == "__random__" ]]; then
 fi
 
 # Wait for mios-forge to come up. Forgejo's HTTP listener is the canonical
-# readiness probe.
-http_port="${MIOS_FORGE_HTTP_PORT:-3000}"
+_is_forge_up() {
+    local p="$1"
+    curl -sI "http://127.0.0.1:${p}/" 2>/dev/null | grep -q "HTTP/" && return 0
+    curl -sI "http://localhost:${p}/" 2>/dev/null | grep -q "HTTP/" && return 0
+    return 1
+}
+
+http_port="${MIOS_PORT_FORGE_HTTP:-${MIOS_FORGE_HTTP_PORT:-8300}}"
 deadline=$(( $(date +%s) + 300 ))
+ready_port=""
+
 while (( $(date +%s) < deadline )); do
-    if curl -fsS -o /dev/null "http://localhost:${http_port}/api/v1/version" 2>/dev/null; then
-        _log "Forgejo is up on :${http_port}"
-        break
-    fi
+    for check_port in "$http_port" 3000 8300; do
+        if _is_forge_up "$check_port"; then
+            ready_port="$check_port"
+            _log "Forgejo is up on :${ready_port}"
+            break 2
+        fi
+    done
     sleep 2
 done
 
-if ! curl -fsS -o /dev/null "http://localhost:${http_port}/api/v1/version" 2>/dev/null; then
+if [[ -z "$ready_port" ]]; then
     _log "ERROR: Forgejo did not become ready; exiting with error for systemd retry"
     exit 1
 fi
+http_port="$ready_port"
 
 # Generate a password if none was supplied. 24 bytes -> 32 base64 chars.
 if [[ -z "$admin_password" ]]; then
