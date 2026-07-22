@@ -44,7 +44,8 @@ if command -v checkmodule &>/dev/null && command -v semodule_package &>/dev/null
     SELINUX_OK=0
     SELINUX_FAIL=0
 
-    declare -A MIOS_POLICIES
+    unset MIOS_POLICIES 2>/dev/null || true
+    declare -A MIOS_POLICIES=()
 
     MIOS_POLICIES[bootupd]='
 module mios_bootupd 1.0;
@@ -157,14 +158,16 @@ allow xdm_t cache_home_t:file { create write read open getattr setattr };'
     mkdir -p /usr/share/selinux/packages/mios
 
     for name in "${!MIOS_POLICIES[@]}"; do
+        [[ -n "$name" && "$name" != "0" ]] || continue
         echo "${MIOS_POLICIES[$name]}" > "/tmp/mios_${name}.te"
-        if checkmodule -M -m -o "/tmp/mios_${name}.mod" "/tmp/mios_${name}.te" 2>/dev/null && \
+        err_out=""
+        if err_out="$(checkmodule -M -m -o "/tmp/mios_${name}.mod" "/tmp/mios_${name}.te" 2>&1)" && \
            semodule_package -o "/tmp/mios_${name}.pp" -m "/tmp/mios_${name}.mod" 2>/dev/null; then
             install -m 0644 "/tmp/mios_${name}.pp" "/usr/share/selinux/packages/mios/mios_${name}.pp"
             echo "[37-selinux] mios_${name}: Staged"
             SELINUX_OK=$((SELINUX_OK + 1))
         else
-            echo "[37-selinux] mios_${name}: SKIPPED (checkmodule or semodule_package failed -- e.g. a required SELinux type is absent from the current policy)"
+            echo "[37-selinux] mios_${name}: SKIPPED ($err_out)"
             SELINUX_FAIL=$((SELINUX_FAIL + 1))
         fi
         rm -f "/tmp/mios_${name}".{te,mod,pp}
