@@ -52,13 +52,16 @@ install -d -m 0755 "$SEED_DIR"
 # image doesn't ship it yet. ignore_patterns drops the duplicate .pth /
 # original weights so we only bake the safetensors vLLM actually loads.
 if ! python3 - "$MODEL" "$SEED_DIR" <<'PY'
-import sys
+import sys, os
+os.makedirs("/usr/local/lib", exist_ok=True)
 try:
     from huggingface_hub import snapshot_download
 except Exception:
     import subprocess
-    subprocess.run([sys.executable, "-m", "pip", "install", "-q",
+    os.makedirs("/tmp/hf_hub", exist_ok=True)
+    subprocess.run([sys.executable, "-m", "pip", "install", "-q", "--target", "/tmp/hf_hub",
                     "huggingface_hub"], check=False)
+    sys.path.insert(0, "/tmp/hf_hub")
     import importlib
     importlib.invalidate_caches()
     from huggingface_hub import snapshot_download
