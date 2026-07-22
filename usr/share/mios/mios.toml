@@ -10196,7 +10196,6 @@ Description = "'MiOS' Apache Guacamole Web"
 Wants = "network-online.target mios-pgvector.service"
 
 [containers.mios-guacd.Container]
-AutoUpdate = "registry"
 ContainerName = "mios-guacd"
 Exec = "guacd -b 0.0.0.0 -f"
 Group = "${MIOS_GUACD_GID:-811}"
@@ -10566,7 +10565,6 @@ Description = "'MiOS' PostgreSQL + pgvector (unified agent-plane datastore, FOSS
 Wants = "network-online.target"
 
 [containers.mios-pxe-hub.Container]
-AutoUpdate = "registry"
 Exec = "/usr/bin/matchbox -address 0.0.0.0:8081 -data-path /var/lib/matchbox/data -assets-path /var/lib/matchbox/assets"
 Group = "0"
 Image = "${MIOS_SYS_IMAGE:-localhost/mios-sys:latest}"
@@ -10608,8 +10606,7 @@ Environment = [
 ]
 EnvironmentFile = "/etc/mios/install.env"
 Group = "${MIOS_SEARXNG_GID:-818}"
-Image = "${MIOS_SYS_IMAGE:-localhost/mios-sys:latest}"
-Exec = "/opt/searxng-venv/bin/python3 -m searxng.webapp"
+Image = "${MIOS_SEARXNG_IMAGE:-docker.io/searxng/searxng:latest}"
 Label = [
   "org.opencontainers.image.title=mios-searxng",
   "org.opencontainers.image.url=http://localhost:${MIOS_PORT_SEARXNG:-8899}/",
@@ -10640,7 +10637,6 @@ Description = "'MiOS' SearXNG metasearch (privacy-respecting search proxy)"
 Wants = "network-online.target"
 
 [containers.mios-webtools-crawl4ai.Container]
-AutoUpdate = "local"
 ContainerName = "mios-webtools-crawl4ai"
 Environment = [
   "MIOS_CRAWL_CDP_URL=${MIOS_CRAWL_CDP_URL:-http://127.0.0.1:9222}",
@@ -10675,7 +10671,6 @@ Description = "'MiOS' web-tools crawl4ai slim engine (Chrome-CDP primary + camou
 After = "mios-webtools-firstboot.service"
 
 [containers.mios-webtools-firecrawl-api.Container]
-AutoUpdate = "local"
 ContainerName = "mios-webtools-firecrawl-api"
 Environment = [
   "REDIS_URL=redis://127.0.0.1:6380",
@@ -10717,7 +10712,6 @@ Description = "'MiOS' web-tools firecrawl API (v1.0.0, self-host no-auth)"
 Wants = "mios-webtools-redis.service"
 
 [containers.mios-webtools-firecrawl-worker.Container]
-AutoUpdate = "local"
 ContainerName = "mios-webtools-firecrawl-worker"
 Environment = [
   "REDIS_URL=redis://127.0.0.1:6380",

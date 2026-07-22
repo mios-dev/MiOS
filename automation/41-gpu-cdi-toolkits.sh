@@ -63,10 +63,12 @@ if scurl -sfL "$AMD_URL" -o "/tmp/amd-cdi-dl/${AMD_RPM}" 2>/dev/null; then
     if dnf5 install -y "/tmp/amd-cdi-dl/${AMD_RPM}" >/dev/null 2>&1 \
        || dnf  install -y "/tmp/amd-cdi-dl/${AMD_RPM}" >/dev/null 2>&1 \
        || rpm  -ivh --replacepkgs "/tmp/amd-cdi-dl/${AMD_RPM}" >/dev/null 2>&1; then
-        echo "[41-gpu-cdi]   [ok] AMD container toolkit ${AMD_TAG} installed"
+        echo "[41-gpu-cdi]   [ok] AMD container toolkit ${AMD_TAG} installed via RPM"
     else
         warn "AMD RPM downloaded but install failed -- skipping (non-fatal)"
     fi
+elif command -v go >/dev/null 2>&1 && GOBIN=/usr/bin go install github.com/ROCm/container-toolkit/cmd/amd-ctk@latest >/dev/null 2>&1; then
+    echo "[41-gpu-cdi]   [ok] AMD container toolkit installed via go build"
 else
     warn "AMD container toolkit: ${AMD_URL} not reachable -- skipping (non-fatal)"
 fi
@@ -74,8 +76,12 @@ rm -rf /tmp/amd-cdi-dl
 
 # ── Intel CDI specs generator ────────────────────────────────────────
 echo "[41-gpu-cdi] Intel: resolving latest intel-resource-drivers-for-kubernetes release..."
-INTEL_TAG=$( (scurl -s https://api.github.com/repos/intel/intel-resource-drivers-for-kubernetes/releases/latest \
-                | grep -Po '"tag_name": "\K.*?(?=")') 2>/dev/null || true)
+INTEL_TAG=$( (scurl -s https://api.github.com/repos/intel/intel-resource-drivers-for-kubernetes/releases \
+                | grep -Po '"tag_name": "\Kspecs-generator-[^"]*' | head -1) 2>/dev/null || true)
+if [[ -z "$INTEL_TAG" ]]; then
+    INTEL_TAG=$( (scurl -s https://api.github.com/repos/intel/intel-resource-drivers-for-kubernetes/releases/latest \
+                    | grep -Po '"tag_name": "\K.*?(?=")') 2>/dev/null || true)
+fi
 if [[ -z "$INTEL_TAG" ]]; then
     warn "Intel CDI generator: api.github.com lookup empty -- using fallback ${INTEL_SG_FALLBACK_TAG}"
     INTEL_TAG="$INTEL_SG_FALLBACK_TAG"
@@ -83,30 +89,46 @@ fi
 record_version intel-cdi-specs-generator "$INTEL_TAG" \
     "https://github.com/intel/intel-resource-drivers-for-kubernetes/releases/tag/${INTEL_TAG}"
 
-# Asset shape varies across the project's releases. Try the canonical
-# shape first; fall back to a glob-match against the release index.
+# Asset shape varies across the project's releases (zip / binary / tar).
 INTEL_BIN="intel-cdi-specs-generator-linux-amd64"
 INTEL_URL="https://github.com/intel/intel-resource-drivers-for-kubernetes/releases/download/${INTEL_TAG}/${INTEL_BIN}"
 
 mkdir -p /tmp/intel-cdi-dl
+installed_intel=0
 if scurl -sfL "$INTEL_URL" -o "/tmp/intel-cdi-dl/${INTEL_BIN}" 2>/dev/null \
    && [[ -s "/tmp/intel-cdi-dl/${INTEL_BIN}" ]]; then
     install -d -m 0755 /usr/libexec/mios
     install -m 0755 "/tmp/intel-cdi-dl/${INTEL_BIN}" /usr/libexec/mios/intel-cdi-specs-generator
     echo "[41-gpu-cdi]   [ok] Intel CDI specs-generator ${INTEL_TAG} installed at /usr/libexec/mios/intel-cdi-specs-generator"
+    installed_intel=1
 else
-    # Fallback: query the release JSON for any *specs-generator* asset.
-    # Best-effort -- tooling is v0.x and asset naming has shifted.
-    asset_url=$( (scurl -s "https://api.github.com/repos/intel/intel-resource-drivers-for-kubernetes/releases/tags/${INTEL_TAG}" \
+    # Fallback: query release JSON for any specs-generator asset across releases.
+    asset_url=$( (scurl -s "https://api.github.com/repos/intel/intel-resource-drivers-for-kubernetes/releases" \
                     | grep -oP '"browser_download_url": "\K[^"]*' \
-                    | grep -E 'specs-generator.*linux' \
-                    | grep -E 'amd64|x86_64' \
+                    | grep -E 'specs-generator' \
                     | head -1) 2>/dev/null || true)
-    if [[ -n "$asset_url" ]] && scurl -sfL "$asset_url" -o /tmp/intel-cdi-dl/sg.bin 2>/dev/null \
-       && [[ -s /tmp/intel-cdi-dl/sg.bin ]]; then
+    if [[ -n "$asset_url" ]] && scurl -sfL "$asset_url" -o /tmp/intel-cdi-dl/sg.asset 2>/dev/null \
+       && [[ -s /tmp/intel-cdi-dl/sg.asset ]]; then
         install -d -m 0755 /usr/libexec/mios
-        install -m 0755 /tmp/intel-cdi-dl/sg.bin /usr/libexec/mios/intel-cdi-specs-generator
-        echo "[41-gpu-cdi]   [ok] Intel CDI specs-generator ${INTEL_TAG} installed (fallback asset path)"
+        if [[ "$asset_url" == *.zip ]] && command -v unzip >/dev/null 2>&1; then
+            unzip -q /tmp/intel-cdi-dl/sg.asset -d /tmp/intel-cdi-dl/extracted
+            bin_path=$(find /tmp/intel-cdi-dl/extracted -type f -name "intel-cdi-specs-generator" | head -1)
+            if [[ -n "$bin_path" ]]; then
+                install -m 0755 "$bin_path" /usr/libexec/mios/intel-cdi-specs-generator
+                echo "[41-gpu-cdi]   [ok] Intel CDI specs-generator installed from zip asset"
+                installed_intel=1
+            fi
+        else
+            install -m 0755 /tmp/intel-cdi-dl/sg.asset /usr/libexec/mios/intel-cdi-specs-generator
+            echo "[41-gpu-cdi]   [ok] Intel CDI specs-generator installed (fallback asset path)"
+            installed_intel=1
+        fi
+    fi
+fi
+
+if [[ $installed_intel -eq 0 ]]; then
+    if command -v go >/dev/null 2>&1 && GOBIN=/usr/libexec/mios go install github.com/intel/intel-resource-drivers-for-kubernetes/cmd/intel-cdi-specs-generator@latest >/dev/null 2>&1; then
+        echo "[41-gpu-cdi]   [ok] Intel CDI specs-generator installed via go build"
     else
         warn "Intel CDI specs-generator: no asset matched on ${INTEL_TAG} -- skipping (non-fatal)"
     fi

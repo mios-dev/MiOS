@@ -9,7 +9,6 @@ Description='MiOS' PXE Boot Hub
 Wants=network-online.target
 
 [Container]
-AutoUpdate=registry
 Exec=/usr/bin/matchbox -address 0.0.0.0:8081 -data-path /var/lib/matchbox/data -assets-path /var/lib/matchbox/assets
 Group=0
 Image=localhost/mios-sys:latest

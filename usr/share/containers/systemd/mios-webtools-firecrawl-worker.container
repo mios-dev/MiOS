@@ -7,7 +7,6 @@ Description='MiOS' web-tools firecrawl worker (Bull queue processor)
 Wants=mios-webtools-redis.service
 
 [Container]
-AutoUpdate=local
 ContainerName=mios-webtools-firecrawl-worker
 Environment=REDIS_URL=redis://127.0.0.1:6380
 Environment=REDIS_RATE_LIMIT_URL=redis://127.0.0.1:6380

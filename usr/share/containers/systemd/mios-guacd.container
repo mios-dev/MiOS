@@ -8,7 +8,6 @@ Description='MiOS' Apache Guacamole Daemon
 Wants=network-online.target
 
 [Container]
-AutoUpdate=registry
 ContainerName=mios-guacd
 Exec=guacd -b 0.0.0.0 -f
 Group=811

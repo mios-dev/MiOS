@@ -7,7 +7,6 @@ Description='MiOS' web-tools firecrawl API (v1.0.0, self-host no-auth)
 Wants=mios-webtools-redis.service
 
 [Container]
-AutoUpdate=local
 ContainerName=mios-webtools-firecrawl-api
 Environment=REDIS_URL=redis://127.0.0.1:6380
 Environment=REDIS_RATE_LIMIT_URL=redis://127.0.0.1:6380
