@@ -10476,7 +10476,6 @@ EnvironmentFile = [
   "/etc/mios/install.env"
 ]
 Image = "${MIOS_OPEN_WEBUI_IMAGE:-ghcr.io/open-webui/open-webui:main}"
-Exec = "open-webui serve"
 Group = "${MIOS_OPEN_WEBUI_GID:-817}"
 Label = [
   "org.opencontainers.image.title=mios-open-webui",

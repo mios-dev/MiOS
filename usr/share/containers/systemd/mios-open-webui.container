@@ -42,7 +42,6 @@ Environment="FOLLOW_UP_GENERATION_PROMPT_TEMPLATE=Suggest 3 short follow up acti
 Environment="AUTOCOMPLETE_GENERATION_PROMPT_TEMPLATE=Continue the user partial input naturally, in their language. Output ONLY the completion text, no quotes, no preamble. Input so far: {{PROMPT}}"
 EnvironmentFile=/etc/mios/hermes/api.env
 EnvironmentFile=/etc/mios/install.env
-Exec=open-webui serve
 Group=817
 Image=ghcr.io/open-webui/open-webui:main
 Label=org.opencontainers.image.title=mios-open-webui
