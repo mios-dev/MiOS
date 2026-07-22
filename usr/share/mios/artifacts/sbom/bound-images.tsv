@@ -12,7 +12,7 @@ docker.io/rancher/k3s:v1.32.1-k3s1	local	extra
 docker.io/lmsysorg/sglang:latest	local	sys
 docker.io/vllm/vllm-openai:latest	local	extra
 ghcr.io/mostlygeek/llama-swap:cuda	local	cuda
-ghcr.io/open-webui/open-webui:main}	local	extra
+ghcr.io/open-webui/open-webui:main	local	extra
 docker.io/jaegertracing/all-in-one:latest	local	extra
 docker.io/pgvector/pgvector:0.8.3-pg17	local	extra
 quay.io/poseidon/matchbox:latest	local	extra
