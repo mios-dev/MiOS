@@ -1,3 +1,4 @@
+quay.io/centos-bootc/bootc-image-builder:latest
 quay.io/ceph/ceph:v19
 docker.io/guacamole/guacamole:latest
 docker.io/vllm/vllm-openai:latest

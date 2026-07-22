@@ -1,6 +1,7 @@
 image	digest	group
 localhost/mios-sys:latest	local	sys
 localhost/mios-cuda:latest	local	cuda
+quay.io/centos-bootc/bootc-image-builder:latest	local	extra
 quay.io/ceph/ceph:v19	local	extra
 docker.io/guacamole/guacamole:latest	local	extra
 docker.io/vllm/vllm-openai:latest	local	extra
