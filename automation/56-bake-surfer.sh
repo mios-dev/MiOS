@@ -45,9 +45,17 @@ for attempt in 1 2 3; do
         continue
     fi
     
-    log "[56-bake-surfer] Ensuring surfer.json configuration..."
+    log "[56-bake-surfer] Resolving latest Firefox version and ensuring surfer.json configuration..."
     python3 -c '
-import json, os
+import json, os, urllib.request
+ff_ver = "153.0"
+try:
+    req = urllib.request.urlopen("https://product-details.mozilla.org/1.0/firefox_versions.json", timeout=10)
+    vdata = json.loads(req.read().decode("utf-8"))
+    ff_ver = vdata.get("LATEST_FIREFOX_VERSION") or ff_ver
+except Exception:
+    pass
+
 p = "surfer.json"
 data = {}
 if os.path.exists(p):
@@ -58,14 +66,15 @@ if os.path.exists(p):
         pass
 data["name"] = data.get("name") or "mios-webshell"
 data["binaryName"] = data.get("binaryName") or "mios-webshell"
-data["firefoxVersion"] = data.get("firefoxVersion") or "135.0"
+data["firefoxVersion"] = ff_ver
 data["version"] = data.get("version") or "1.0.0"
 with open(p, "w", encoding="utf-8") as f:
     json.dump(data, f, indent=2)
 ' 2>/dev/null || true
 
     log "[56-bake-surfer] Fetching upstream Mozilla codebase..."
-    if ! npx surfer download 135.0 2>/dev/null && ! npx surfer download --firefox-version 135.0 2>/dev/null && ! npx surfer download; then
+    FF_VER="$(python3 -c 'import json; print(json.load(open("surfer.json")).get("firefoxVersion", "153.0"))' 2>/dev/null || echo '153.0')"
+    if ! npx surfer download "$FF_VER" 2>/dev/null && ! npx surfer download --firefox-version "$FF_VER" 2>/dev/null && ! npx surfer download; then
         warn "[56-bake-surfer] surfer download failed on attempt $attempt"
         sleep $((attempt * 8))
         continue
