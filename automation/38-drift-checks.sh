@@ -2975,7 +2975,7 @@ check_resolver_twin_equivalence() {
     # MIOS_VERSION_MANIFEST (and other build-time MIOS_* vars) into this gate's env, and
     # the checker treats any inherited non-allowlisted MIOS_* as drift -> false-RED that
     # aborts `mios build`. The twins are genuinely equivalent on a clean env.
-    if ! mismatches=$(env -i PATH="$PATH" MIOS_DRIFT_ROOT="$ROOT" "$PYTHON" "$ROOT/tools/check-resolver-twin.py" 2>&1); then
+    if ! mismatches=$(env -i PATH="$PATH" MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/check-resolver-twin.py" 2>&1); then
         printf '%s\n' "$mismatches" >&2
         _violation "resolver twin equivalence check failed -- userenv.sh and mios_toml.py have drifted"
     else

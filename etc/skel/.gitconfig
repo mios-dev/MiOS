@@ -3,7 +3,7 @@
 #
 
 [user]
-	name = User
+	name = MiOS User
 	email = user@localhost
 
 [core]

@@ -31,10 +31,10 @@ input {
 # General layout behavior
 general {
     gaps_in = 5
-    gaps_out = 10
+    gaps_out = 12
     border_size = 2
-    col.active_border = rgba(@@MIOS_COLOR_ACCENT@@ee) rgba(@@MIOS_COLOR_INFO@@ee) 45deg
-    col.inactive_border = rgba(@@MIOS_COLOR_MUTED@@aa)
+    col.active_border = rgba(@@MIOS_COLOR_CURSOR@@ee) rgba(@@MIOS_COLOR_ACCENT@@ee) rgba(@@MIOS_COLOR_SUCCESS@@ee) 60deg
+    col.inactive_border = rgba(@@MIOS_COLOR_BG@@aa)
     layout = dwindle
     allow_tearing = false
 }
@@ -43,31 +43,31 @@ general {
 decoration {
     rounding = 12
     active_opacity = 1.0
-    inactive_opacity = 0.94
+    inactive_opacity = 0.93
     fullscreen_opacity = 1.0
     blur {
         enabled = true
-        size = 8
+        size = 10
         passes = 4
         new_optimizations = true
         xray = true
         ignore_opacity = true
-        noise = 0.012
-        contrast = 1.05
-        brightness = 0.85
-        vibrancy = 0.20
-        vibrancy_darkness = 0.10
+        noise = 0.010
+        contrast = 1.08
+        brightness = 0.88
+        vibrancy = 0.25
+        vibrancy_darkness = 0.08
         popups = true           # frost drop-down menus / context popups too
         popups_ignorealpha = 0.2
     }
     drop_shadow = true
-    shadow_range = 18
-    shadow_render_power = 3
+    shadow_range = 22
+    shadow_render_power = 4
     shadow_offset = 0 4
-    col.shadow = rgba(10101088)
-    col.shadow_inactive = rgba(10101044)
+    col.shadow = rgba(0A0A0A99)
+    col.shadow_inactive = rgba(0A0A0A44)
     dim_inactive = true
-    dim_strength = 0.06
+    dim_strength = 0.05
 }
 
 # Dynamic micro-animations -- overshoot beziers approximate a spring/"liquid"

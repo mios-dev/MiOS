@@ -167,3 +167,20 @@ if [[ "$APPLY_HOME" == "1" ]]; then
         echo "[mios-sync-theme] note: mios-dotfiles/python3 unavailable -- --apply-home skipped" >&2
     fi
 fi
+
+# Regenerate the MiOS XDG icon theme (SVGs for all branded surfaces) whenever
+# the palette changes. mios-generate-icons reads theme.json first (just written
+# above), so it always uses the freshly resolved palette.
+# Skip in --check mode (icons are write-only outputs, not inputs to check).
+if [[ "$CHECK_ONLY" != "1" ]]; then
+    _icons="$(dirname "$0")/mios-generate-icons"
+    if [[ -f "$_icons" ]] && command -v python3 >/dev/null 2>&1; then
+        python3 "$_icons" || echo "[mios-sync-theme] WARNING: mios-generate-icons reported errors" >&2
+        # Refresh the GTK icon cache so apps pick up the new SVGs immediately
+        if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+            gtk-update-icon-cache -f -t /usr/share/icons/MiOS 2>/dev/null || true
+        fi
+    else
+        echo "[mios-sync-theme] note: mios-generate-icons/python3 unavailable -- icon theme not refreshed" >&2
+    fi
+fi

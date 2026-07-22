@@ -46,7 +46,7 @@ def main():
     cmd = [
         bash_exe, "-c",
         f"source {shlex.quote(os.path.join(root, 'usr/lib/mios/userenv.sh'))} && "
-        "python -c \"import os, json; print(json.dumps({k: v for k, v in os.environ.items() if k.startswith('MIOS_')}))\""
+        f"{sys.executable} -c \"import os, json; print(json.dumps({{k: v for k, v in os.environ.items() if k.startswith('MIOS_')}}))\""
     ]
     try:
         out = subprocess.check_output(cmd, env=env, stderr=subprocess.STDOUT).decode("utf-8")

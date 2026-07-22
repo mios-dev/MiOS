@@ -71,8 +71,8 @@ if (-not (Test-Path $iconStageDir)) {
 $defaultIcoPath = Join-Path $iconStageDir '_mios-default.ico'
 $defaultSrcPng = $null
 foreach ($cand in @(
-    'C:\MiOS\usr\share\mios\branding\mios-v2.ico',
     'C:\MiOS\usr\share\mios\branding\icon.png',
+    'C:\MiOS\usr\share\mios\branding\_mios-default.ico',
     'C:\MiOS\usr\share\mios\branding\mios.png',
     'M:\MiOS\branding\icon.png',
     'M:\MiOS\branding\mios.png'

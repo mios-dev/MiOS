@@ -1,0 +1,277 @@
+#!/usr/bin/env python3
+# AI-hint: Generates the MiOS XDG icon theme index.theme and SVG icon stubs
+# for all MiOS-branded surfaces. Run as part of mios-sync-theme or standalone.
+# Output: /usr/share/icons/MiOS/{apps,status,devices}/scalable/*.svg + index.theme
+# AI-related: usr/libexec/mios/mios-sync-theme, usr/share/mios/mios.toml [colors]
+#
+# Palette: read live from /etc/mios/theme/theme.json (written by mios-sync-theme
+# from mios.toml [colors]).  Falls back to reading mios.toml directly if
+# theme.json does not yet exist (first-boot / pre-sync degrade-open path).
+# NO palette values are hardcoded here; this script is a consumer of the SSOT,
+# not a second copy of it.
+
+import os
+import sys
+import json
+import re
+
+# ── SSOT palette reader ────────────────────────────────────────────────────────
+# Priority: theme.json > mios.toml > abort with diagnostic
+
+THEME_JSON = os.environ.get("MIOS_THEME_JSON", "/etc/mios/theme/theme.json")
+MIOS_TOML   = os.environ.get("MIOS_TOML",      "/usr/share/mios/mios.toml")
+
+_TOML_COLOR_KEYS = ["bg","fg","accent","cursor","success","warning","error","muted","subtle"]
+
+
+def _load_theme_json(path):
+    """Load palette from /etc/mios/theme/theme.json (written by mios-sync-theme)."""
+    try:
+        with open(path) as f:
+            t = json.load(f)
+        return {k: t[k] for k in _TOML_COLOR_KEYS if k in t}
+    except Exception:
+        return {}
+
+
+def _load_mios_toml(path):
+    """Fallback: extract [colors] keys from mios.toml via simple regex (no third-party lib)."""
+    palette = {}
+    try:
+        in_colors = False
+        with open(path) as f:
+            for line in f:
+                stripped = line.strip()
+                if stripped == "[colors]":
+                    in_colors = True
+                    continue
+                if in_colors and stripped.startswith("["):
+                    break  # left the [colors] section
+                if in_colors:
+                    m = re.match(r'^(\w+)\s*=\s*"(#[0-9A-Fa-f]{6})"', stripped)
+                    if m and m.group(1) in _TOML_COLOR_KEYS:
+                        palette[m.group(1)] = m.group(2)
+    except Exception as e:
+        print(f"[mios-generate-icons] WARNING: could not read {path}: {e}", file=sys.stderr)
+    return palette
+
+
+def load_palette():
+    """Return palette dict, always sourced from SSOT (theme.json or mios.toml)."""
+    p = _load_theme_json(THEME_JSON)
+    if len(p) >= len(_TOML_COLOR_KEYS):
+        pass  # full palette from theme.json
+    else:
+        # Supplement / replace with mios.toml
+        p2 = _load_mios_toml(MIOS_TOML)
+        p.update(p2)  # toml wins for any missing keys
+    if not p:
+        sys.exit(f"[mios-generate-icons] ERROR: could not read palette from {THEME_JSON} or {MIOS_TOML}")
+    missing = [k for k in _TOML_COLOR_KEYS if k not in p]
+    if missing:
+        print(f"[mios-generate-icons] WARNING: palette missing keys: {missing} -- icons may render incorrectly", file=sys.stderr)
+
+    # Computed shade tokens -- SSOT-derived, not hardcoded
+    # Darken a hex color by multiplying each channel by `factor`
+    def _darken(hex_color, factor=0.45):
+        h = hex_color.lstrip('#')
+        r, g, b = int(h[0:2],16), int(h[2:4],16), int(h[4:6],16)
+        return '#{:02X}{:02X}{:02X}'.format(int(r*factor), int(g*factor), int(b*factor))
+
+    def _lighten(hex_color, factor=1.4):
+        h = hex_color.lstrip('#')
+        r, g, b = int(h[0:2],16), int(h[2:4],16), int(h[4:6],16)
+        return '#{:02X}{:02X}{:02X}'.format(min(255,int(r*factor)), min(255,int(g*factor)), min(255,int(b*factor)))
+
+    p['bg_dark']      = _darken(p.get('bg',     '#000000'), 0.5)
+    p['error_dark']   = _darken(p.get('error',  '#000000'), 0.5)
+    p['accent_dark']  = _darken(p.get('accent', '#000000'), 0.5)
+    p['success_dark'] = _darken(p.get('success','#000000'), 0.5)
+    p['cursor_dark']  = _darken(p.get('cursor', '#000000'), 0.5)
+    p['subtle_light'] = _lighten(p.get('subtle','#ffffff'), 1.2)
+    p['white']        = '#FFFFFF'
+    return p
+
+
+PALETTE = load_palette()
+
+
+OUT_BASE = os.environ.get("MIOS_ICON_DIR", "/usr/share/icons/MiOS")
+
+INDEX = """\
+[Icon Theme]
+Name=MiOS
+Comment=MiOS Sovereign System Icon Theme
+Inherits=hicolor,Adwaita
+Directories=apps/scalable,status/scalable,devices/scalable,places/scalable
+
+[apps/scalable]
+Size=48
+MinSize=16
+MaxSize=512
+Type=Scalable
+
+[status/scalable]
+Size=22
+MinSize=16
+MaxSize=64
+Type=Scalable
+
+[devices/scalable]
+Size=48
+MinSize=16
+MaxSize=512
+Type=Scalable
+
+[places/scalable]
+Size=48
+MinSize=16
+MaxSize=512
+Type=Scalable
+"""
+
+# (icon_name, category, SVG_path_data, primary_color, secondary_color)
+ICONS = [
+    # ── MiOS App Icons ────────────────────────────────────────────────────────
+    ("mios-monitor", "apps",
+     # Cyan pulse waveform on dark circle
+     '<circle cx="24" cy="24" r="22" fill="{bg}" stroke="{success}" stroke-width="2.5"/>'
+     '<polyline points="4,24 10,24 14,10 20,36 26,18 30,24 44,24" fill="none" stroke="{subtle}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>',
+     "bg", "success"),
+
+    ("mios-installer", "apps",
+     # Orange lightning bolt on deep navy circle
+     '<circle cx="24" cy="24" r="22" fill="{bg}" stroke="{cursor}" stroke-width="2.5"/>'
+     '<polygon points="26,4 14,22 22,22 20,44 36,20 24,20" fill="{warning}" stroke="none"/>',
+     "bg", "cursor"),
+
+    ("mios-rescue", "apps",
+     # Cross on darkened error circle (bg_dark = 50% darken of SSOT error)
+     '<circle cx="24" cy="24" r="22" fill="{error_dark}" stroke="{error}" stroke-width="2.5"/>'
+     '<rect x="20" y="10" width="8" height="28" rx="2" fill="{white}"/>'
+     '<rect x="10" y="20" width="28" height="8" rx="2" fill="{white}"/>',
+     "error", "fg"),
+
+    ("mios-auditor", "apps",
+     # Audit scanner: darkened bg circle + accent scan bars
+     '<circle cx="24" cy="24" r="22" fill="{accent_dark}" stroke="{accent}" stroke-width="2.5"/>'
+     '<rect x="10" y="12" width="8" height="8" rx="2" fill="{error}"/>'
+     '<rect x="10" y="28" width="8" height="8" rx="2" fill="{cursor}"/>'
+     '<rect x="22" y="14" width="16" height="4" rx="2" fill="{white}"/>'
+     '<rect x="22" y="30" width="16" height="4" rx="2" fill="{white}"/>',
+     "bg", "error"),
+
+    ("mios-snappy-driver", "apps",
+     # Blue gear + bolt on navy circle; subtle ring uses lightened accent
+     '<circle cx="24" cy="24" r="22" fill="{bg}" stroke="{subtle}" stroke-width="2.5"/>'
+     '<circle cx="24" cy="24" r="10" fill="none" stroke="{white}" stroke-width="3"/>'
+     '<rect x="21" y="4" width="6" height="10" rx="3" fill="{white}"/>'
+     '<rect x="21" y="34" width="6" height="10" rx="3" fill="{white}"/>'
+     '<rect x="4" y="21" width="10" height="6" rx="3" fill="{white}"/>'
+     '<rect x="34" y="21" width="10" height="6" rx="3" fill="{white}"/>'
+     '<polygon points="25,13 19,23 24,23 22,35 31,21 24,21" fill="{warning}"/>',
+     "bg", "accent"),
+
+    ("crystaldiskinfo", "apps",
+     # HDD badge: darkened cursor (amber) circle
+     '<circle cx="24" cy="24" r="22" fill="{cursor_dark}" stroke="{warning}" stroke-width="2.5"/>'
+     '<rect x="8" y="14" width="32" height="20" rx="4" fill="{fg}"/>'
+     '<circle cx="16" cy="24" r="3" fill="{success}"/>',
+     "warning", "fg"),
+
+    ("crystaldiskmark", "apps",
+     # Emerald benchmark tachometer: darkened success background
+     '<circle cx="24" cy="24" r="22" fill="{success_dark}" stroke="{success}" stroke-width="2.5"/>'
+     '<path d="M 8,32 A 16,16 0 1,1 40,32" fill="none" stroke="{white}" stroke-width="3" stroke-linecap="round"/>'
+     '<line x1="24" y1="24" x2="34" y2="14" stroke="{error}" stroke-width="3" stroke-linecap="round"/>',
+     "success", "error"),
+
+    ("hwinfo", "apps",
+     # Cyan chip badge: darkened accent background + subtle ring
+     '<circle cx="24" cy="24" r="22" fill="{accent_dark}" stroke="{subtle}" stroke-width="2.5"/>'
+     '<rect x="12" y="12" width="24" height="24" rx="4" fill="{white}"/>'
+     '<rect x="18" y="18" width="12" height="12" rx="2" fill="{accent_dark}"/>',
+     "accent", "subtle"),
+
+    ("notepadpp", "apps",
+     # Green pencil badge: darkened success background
+     '<circle cx="24" cy="24" r="22" fill="{success_dark}" stroke="{success}" stroke-width="2.5"/>'
+     '<rect x="14" y="8" width="20" height="30" rx="3" fill="{white}"/>'
+     '<line x1="10" y1="38" x2="32" y2="14" stroke="{cursor}" stroke-width="3" stroke-linecap="round"/>',
+     "success", "cursor"),
+
+    ("7zip", "apps",
+     # Archive badge: darkened cursor (amber) background
+     '<circle cx="24" cy="24" r="22" fill="{cursor_dark}" stroke="{warning}" stroke-width="2.5"/>'
+     '<text x="12" y="32" font-family="monospace" font-size="18" font-weight="bold" fill="{white}">7z</text>',
+     "warning", "fg"),
+
+    # ── Status Icons ──────────────────────────────────────────────────────────
+    ("mios-agent-idle", "status",
+     '<circle cx="11" cy="11" r="9" fill="{success}" opacity="0.25" stroke="{success}" stroke-width="1.5"/>'
+     '<circle cx="11" cy="11" r="4" fill="{success}"/>',
+     "success", "bg"),
+
+    ("mios-agent-busy", "status",
+     '<circle cx="11" cy="11" r="9" fill="{cursor}" opacity="0.25" stroke="{cursor}" stroke-width="1.5"/>'
+     '<circle cx="11" cy="11" r="4" fill="{cursor}"/>',
+     "cursor", "bg"),
+
+    ("mios-shield", "apps",
+     # Master MiOS brand shield
+     '<polygon points="24,2 44,10 44,30 24,46 4,30 4,10" fill="{cursor}" stroke="{warning}" stroke-width="2" stroke-linejoin="round"/>'
+     '<rect x="21" y="14" width="6" height="20" rx="2" fill="white"/>'
+     '<rect x="14" y="21" width="20" height="6" rx="2" fill="white"/>',
+     "cursor", "fg"),
+]
+
+def svg_from_template(template, palette):
+    return template.format(**{k: v for k, v in palette.items()})
+
+def make_icon(name, category, body, _p, _s):
+    full_svg = f'''<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+  {svg_from_template(body, PALETTE)}
+</svg>
+'''
+    cat_dir = os.path.join(OUT_BASE, category, "scalable")
+    os.makedirs(cat_dir, exist_ok=True)
+    path = os.path.join(cat_dir, f"{name}.svg")
+    with open(path, "w") as f:
+        f.write(full_svg)
+    return path
+
+def main():
+    os.makedirs(OUT_BASE, exist_ok=True)
+
+    # Write index.theme
+    with open(os.path.join(OUT_BASE, "index.theme"), "w") as f:
+        f.write(INDEX)
+
+    # Write all icon SVGs
+    written = []
+    for (name, cat, body, pc, sc) in ICONS:
+        p = make_icon(name, cat, body, pc, sc)
+        written.append(p)
+        print(f"  [MiOS-icons] {p}")
+
+    # Symlink aliases
+    aliases = {
+        "apps/scalable/mios-installer.svg": "mios-installer",
+        "apps/scalable/utilities-terminal.svg": "mios-monitor",
+        "apps/scalable/drive-harddisk.svg": "crystaldiskinfo",
+    }
+    for rel_link, target_name in aliases.items():
+        link_path = os.path.join(OUT_BASE, rel_link)
+        target = f"{target_name}.svg"
+        if not os.path.exists(link_path):
+            try:
+                os.symlink(target, link_path)
+            except OSError:
+                pass
+
+    print(f"[MiOS-icons] Generated {len(written)} SVG icons in {OUT_BASE}")
+    print("[MiOS-icons] Run 'gtk-update-icon-cache -f -t /usr/share/icons/MiOS' after install")
+
+if __name__ == "__main__":
+    main()
