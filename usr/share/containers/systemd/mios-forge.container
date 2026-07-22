@@ -30,16 +30,17 @@ Environment=FORGEJO__service__REQUIRE_SIGNIN_VIEW=false
 Environment=FORGEJO__security__INSTALL_LOCK=true
 Environment=FORGEJO__log__LEVEL=Info
 Environment=FORGEJO__log__MODE=console
+Environment=USER=git
 EnvironmentFile=/etc/mios/install.env
 Exec=forgejo web
-Group=0
+Group=1000
 Image=codeberg.org/forgejo/forgejo:12
 Label=org.opencontainers.image.title=mios-forge
 Label=org.opencontainers.image.url=http://localhost:${MIOS_PORT_FORGE_HTTP}/
 Label=org.opencontainers.image.documentation=https://forgejo.org/docs/latest/
 Label=io.podman_desktop.openInBrowser=http://localhost:${MIOS_PORT_FORGE_HTTP}/
 Pod=mios-webtools.pod
-User=0
+User=1000
 Volume=/srv/mios/forge:/data:Z
 Volume=/etc/mios/forge:/etc/mios/forge:Z,ro
 

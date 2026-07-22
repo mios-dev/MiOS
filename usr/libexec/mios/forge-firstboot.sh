@@ -39,6 +39,10 @@ if [[ -f "$SENTINEL" ]]; then
     exit 0
 fi
 
+# Ensure host data volume has correct user ownership (UID 1000 git user)
+mkdir -p /srv/mios/forge 2>/dev/null || true
+chown -R 1000:1000 /srv/mios/forge 2>/dev/null || true
+
 # Source install.env if present; tolerate absence (operator may run this
 # script manually with env-vars set inline).
 if [[ -r "$ENV_FILE" ]]; then
