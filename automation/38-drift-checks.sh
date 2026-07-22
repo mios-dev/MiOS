@@ -3588,14 +3588,15 @@ check_target_languages() {
     fi
     local toml="$ROOT/usr/share/mios/mios.toml"
     local allow bad="" nativebad f
-    allow=$(awk '/^\[laws\.target_languages\]/{f=1} f&&/grandfathered_cs[[:space:]]*=[[:space:]]*\[/{g=1} g{print} g&&/\]/{exit}' "$toml" | grep -oE '"[^"]+\.cs"' | tr -d '"')
+    allow=$(awk '/^\[laws\.target_languages\]/{f=1} f&&/grandfathered_cs[[:space:]]*=[[:space:]]*\[/{g=1} g{print} g&&/\]/{exit}' "$toml" | grep -oE '"[^"]+\.cs"' | tr -d '"\r')
     # Batch was eliminated + Go rejected (ADR-0011): any occurrence is a hard violation.
     nativebad=$(cd "$ROOT" && git ls-files '*.bat' '*.cmd' '*.go' 2>/dev/null)
     [[ -n "$nativebad" ]] && bad+="$nativebad"$'\n'
     # Any tracked .cs not in the grandfathered allowlist is new C# -> must be Rust instead.
     while IFS= read -r f; do
-        [[ -z "$f" ]] && continue
-        grep -qxF "$f" <<<"$allow" || bad+="$f"$'\n'
+        f_clean=$(echo "$f" | tr -d '\r')
+        [[ -z "$f_clean" ]] && continue
+        grep -qxF "$f_clean" <<<"$allow" || bad+="$f_clean"$'\n'
     done < <(cd "$ROOT" && git ls-files '*.cs' 2>/dev/null)
     if [[ -n "$(printf '%s' "$bad" | tr -d '[:space:]')" ]]; then
         {
