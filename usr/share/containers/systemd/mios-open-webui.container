@@ -44,7 +44,7 @@ EnvironmentFile=/etc/mios/hermes/api.env
 EnvironmentFile=/etc/mios/install.env
 Exec=open-webui serve
 Group=817
-Image=ghcr.io/open-webui/open-webui:main
+Image=ghcr.io/open-webui/open-webui:main}
 Label=org.opencontainers.image.title=mios-open-webui
 Label=org.opencontainers.image.url=http://localhost:${MIOS_PORT_OPEN_WEBUI}/
 Label=io.podman_desktop.openInBrowser=http://localhost:${MIOS_PORT_OPEN_WEBUI}/

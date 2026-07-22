@@ -7946,6 +7946,8 @@ vllm_version       = "latest"
 vllm               = "docker.io/vllm/vllm-openai:latest"
 sglang_version     = "latest"
 sglang             = "docker.io/lmsysorg/sglang:latest"
+valkey_version     = "latest"
+valkey             = "docker.io/valkey/valkey:latest"
 
 # ----------------------------------------------------------------------------
 # [image.sys] / [image.cuda] -- SSOT sections for the consolidated shared bases
@@ -9939,7 +9941,7 @@ Wants = "network-online.target"
 ContainerName = "mios-ceph"
 Exec = "mon"
 Group = "root"
-Image = "quay.io/ceph/ceph:v19"
+Image = "${MIOS_CEPH_IMAGE:-quay.io/ceph/ceph:v19}"
 Pod = "mios-system.pod"
 User = "root"
 Volume = [
@@ -9977,7 +9979,7 @@ Environment = [
 EnvironmentFile = "/etc/mios/install.env"
 Exec = "code-server --bind-addr 0.0.0.0:${MIOS_PORT_CODE_SERVER:-8800}"
 Group = "0"
-Image = "${MIOS_SYS_IMAGE:-localhost/mios-sys:latest}"
+Image = "${MIOS_CODE_SERVER_IMAGE:-ghcr.io/coder/code-server:latest}"
 Label = [
   "org.opencontainers.image.title=mios-code-server",
   "org.opencontainers.image.url=http://localhost:${MIOS_PORT_CODE_SERVER:-8800}/",
@@ -10172,7 +10174,7 @@ Environment = [
 ]
 EnvironmentFile = "/etc/mios/install.env"
 Group = "${MIOS_GUACAMOLE_GID:-810}"
-Image = "docker.io/guacamole/guacamole:latest"
+Image = "${MIOS_GUACAMOLE_IMAGE:-docker.io/guacamole/guacamole:latest}"
 Label = [
   "org.opencontainers.image.url=http://localhost:${MIOS_PORT_GUACAMOLE_WEB:-8080}/guacamole/",
   "org.opencontainers.image.documentation=https://guacamole.apache.org/doc/",
@@ -10470,7 +10472,7 @@ EnvironmentFile = [
   "/etc/mios/hermes/api.env",
   "/etc/mios/install.env"
 ]
-Image = "${MIOS_OPEN_WEBUI_IMAGE:-ghcr.io/open-webui/open-webui:main}"
+Image = "${MIOS_OPEN_WEBUI_IMAGE:-ghcr.io/open-webui/open-webui:${MIOS_OPEN_WEBUI_VERSION:-main}}"
 Exec = "open-webui serve"
 Group = "${MIOS_OPEN_WEBUI_GID:-817}"
 Label = [
