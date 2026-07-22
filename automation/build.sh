@@ -180,6 +180,20 @@ _final_summary() {
 export SYSTEMD_OFFLINE=1
 export container=podman
 
+# Ensure build environment is initialized as a valid git location for CI/CD parity (sourced from SSOT mios.toml [identity])
+_build_root="$(cd "${SCRIPT_DIR}/.." && pwd)"
+if [[ ! -d "${_build_root}/.git" ]] && command -v git >/dev/null 2>&1; then
+    (
+        cd "${_build_root}"
+        git init -q 2>/dev/null || true
+        _ssot_name="$(grep -m1 -E '^[[:space:]]*fullname[[:space:]]*=' "${MIOS_TOML:-/usr/share/mios/mios.toml}" 2>/dev/null | sed -E 's/[^"]*"([^"]*)".*/\1/' || echo "User")"
+        _ssot_email="$(grep -m1 -E '^[[:space:]]*email[[:space:]]*=' "${MIOS_TOML:-/usr/share/mios/mios.toml}" 2>/dev/null | sed -E 's/[^"]*"([^"]*)".*/\1/' || echo "user@localhost")"
+        git config user.name "${_ssot_name:-User}" 2>/dev/null || true
+        git config user.email "${_ssot_email:-user@localhost}" 2>/dev/null || true
+        git add -A 2>/dev/null || true
+    ) 2>/dev/null || true
+fi
+
 if [[ ! -f "$MIOS_TOML" ]]; then
     printf '[FATAL] mios.toml SSOT not found: %s\n' "$MIOS_TOML" >&2
     printf '        Set $MIOS_TOML to the path of the package manifest\n' >&2

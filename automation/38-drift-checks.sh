@@ -3431,6 +3431,10 @@ try:
 except Exception:
     tracked = []
     for r, _d, files in os.walk(root):
+        rel_r = os.path.relpath(r, root).replace("\\", "/")
+        parts = rel_r.split('/')
+        if any(p in parts for p in ('tmp', '.git', '.venv', '__pycache__', 'node_modules', 'dist', 'build', 'target', '.system_generated', 'scratch', 'logs', 'bib-configs', 'medicat_stage', 'isobuild', 'isobuild_live', 'isobuild2')):
+            continue
         for f in files:
             tracked.append(os.path.normpath(os.path.join(r, f)))
 
@@ -3438,7 +3442,7 @@ for path in tracked:
     rel = os.path.relpath(path, root).replace("\\", "/")
     if not (rel.startswith("automation") or rel.startswith("usr/libexec/") or rel.startswith("tools")):
         continue
-    if rel.endswith((".pyc", ".png", ".jpg", ".generated", ".json", ".log", ".ready", ".lock")):
+    if rel.endswith((".pyc", ".png", ".jpg", ".generated", ".json", ".log", ".ready", ".lock", ".d", ".o", ".rlib", ".rmeta", ".a")):
         continue
     if not os.path.isfile(path):
         continue

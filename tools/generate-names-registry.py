@@ -81,7 +81,7 @@ def generate_referenced_vars(root):
         for r, _d, files in os.walk(root):
             rel_r = os.path.relpath(r, root).replace("\\", "/")
             parts = rel_r.split('/')
-            if any(p in parts for p in ('tmp', '.git', '.venv', '__pycache__', 'node_modules', 'dist', 'build', '.system_generated', 'scratch', 'logs', 'bib-configs')):
+            if any(p in parts for p in ('tmp', '.git', '.venv', '__pycache__', 'node_modules', 'dist', 'build', '.system_generated', 'scratch', 'logs', 'bib-configs', 'medicat_stage', 'isobuild', 'isobuild_live', 'isobuild2')):
                 continue
             for f in files:
                 tracked_files.append(os.path.join(r, f))
