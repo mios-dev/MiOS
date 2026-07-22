@@ -128,7 +128,7 @@ def generate_referenced_vars(root):
     
     ref_file = os.path.join(root, "usr/share/mios/referenced_names.txt")
     os.makedirs(os.path.dirname(ref_file), exist_ok=True)
-    with open(ref_file, "w", encoding="utf-8") as f:
+    with open(ref_file, "w", encoding="utf-8", newline="\n") as f:
         for r in sorted(refs):
             f.write(f"{r}\n")
 
