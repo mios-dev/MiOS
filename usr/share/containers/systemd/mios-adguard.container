@@ -11,7 +11,7 @@ Wants=network-online.target
 [Container]
 AddCapability=CAP_NET_BIND_SERVICE
 ContainerName=mios-adguard
-Exec=AdGuardHome --no-check-update --work-dir /opt/adguardhome/work --config /opt/adguardhome/conf/AdGuardHome.yaml
+Exec=--no-check-update --work-dir /opt/adguardhome/work --config /opt/adguardhome/conf/AdGuardHome.yaml
 Group=825
 Image=docker.io/adguard/adguardhome:latest
 Label=org.opencontainers.image.title=mios-adguard

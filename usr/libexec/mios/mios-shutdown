@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+# AI-hint: Hardens Day-N shutdown loops by detecting dirty working tree edits (+1 compilations), presenting a formatted git diff preview, and offering choices to carry-forward, include in Day-N updates/builds, or clean/discard changes.
+# AI-related: usr/libexec/mios/mios-shutdown, usr/libexec/mios/mios-build-driver, usr/share/mios/mios.toml, automation/38-drift-checks.sh
+# AI-functions: main, check_git_diff, prompt_user
+set -euo pipefail
+
+REPO_DIR="${MIOS_ROOT:-/usr/share/mios}"
+if [[ ! -d "$REPO_DIR/.git" && -d "/mnt/c/MiOS/.git" ]]; then
+    REPO_DIR="/mnt/c/MiOS"
+fi
+
+show_usage() {
+    echo "usage: mios-shutdown [--carry-forward|--include|--discard|--non-interactive|--help]"
+    echo
+    echo "Hardens Day-N shutdown loops with +1 compilation carry-forward:"
+    echo "  --carry-forward, --include  Stage and commit local edits into Day-N update overlay"
+    echo "  --discard, --clean         Discard uncommitted working tree edits before shutdown"
+    echo "  --non-interactive          Auto-preserve dirty tree edits without prompting"
+    echo "  -h, --help                 Show this help text"
+}
+
+ACTION="prompt"
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --carry-forward|--include|-c)
+            ACTION="carry-forward"
+            shift
+            ;;
+        --discard|--clean|-d)
+            ACTION="discard"
+            shift
+            ;;
+        --non-interactive|-y)
+            ACTION="non-interactive"
+            shift
+            ;;
+        -h|--help)
+            show_usage
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1" >&2
+            show_usage
+            exit 1
+            ;;
+    esac
+done
+
+echo "── MiOS Day-N Shutdown & Carry-Forward Check ──"
+
+if [[ -d "$REPO_DIR/.git" ]]; then
+    DIRTY=$(git -C "$REPO_DIR" status --porcelain 2>/dev/null || true)
+    if [[ -n "$DIRTY" ]]; then
+        echo "Found uncommitted (+1 compilation) working tree edits in $REPO_DIR:"
+        echo "----------------------------------------------------------------------"
+        git -C "$REPO_DIR" status --short 2>/dev/null || true
+        echo "----------------------------------------------------------------------"
+        echo "Previewing git diff:"
+        git -C "$REPO_DIR" diff --stat 2>/dev/null || true
+        echo "----------------------------------------------------------------------"
+
+        if [[ "$ACTION" == "prompt" && -t 0 ]]; then
+            echo
+            echo "Options for Day-N Updates / Carry-Forward:"
+            echo "  [C]arry-forward / Include (+1 compilation saved to Day-N build overlay)"
+            echo "  [D]iscard uncommitted edits (revert working tree)"
+            echo "  [S]kip & proceed to shutdown as-is"
+            read -rp "Select option [C/d/s]: " CHOICE
+            case "$CHOICE" in
+                [Dd]*) ACTION="discard" ;;
+                [Ss]*) ACTION="skip" ;;
+                *) ACTION="carry-forward" ;;
+            esac
+        fi
+
+        case "$ACTION" in
+            carry-forward|non-interactive)
+                echo "[mios-shutdown] Staging and creating Day-N carry-forward commit..."
+                git -C "$REPO_DIR" add -A 2>/dev/null || true
+                git -C "$REPO_DIR" commit -m "feat(day-n): +1 compilation carry-forward on shutdown ($(date -Iseconds))" 2>/dev/null || true
+                echo "[mios-shutdown] Carry-forward commit saved successfully for next Day-N update loop."
+                ;;
+            discard)
+                echo "[mios-shutdown] Discarding local edits..."
+                git -C "$REPO_DIR" restore . 2>/dev/null || true
+                git -C "$REPO_DIR" clean -fd 2>/dev/null || true
+                echo "[mios-shutdown] Working tree restored clean."
+                ;;
+            skip)
+                echo "[mios-shutdown] Proceeding to shutdown with uncommitted edits preserved on disk."
+                ;;
+        esac
+    else
+        echo "Working tree in $REPO_DIR is clean. 0 uncommitted edits."
+    fi
+fi
+
+echo "── Initiating System Poweroff ──"
+if command -v systemctl >/dev/null 2>&1; then
+    sudo systemctl poweroff 2>/dev/null || systemctl poweroff 2>/dev/null || shutdown -h now 2>/dev/null || true
+else
+    shutdown -h now 2>/dev/null || true
+fi

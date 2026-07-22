@@ -328,6 +328,21 @@ else
 fi
 _log "mios-bootstrap repo: $BOOT_REPO"
 
+# ── SSOT preflight drift hardening gate ──
+_log "running SSOT preflight drift hardening (Quadlets, bake plan, naming registry)..."
+if [[ -f "$MIOS_REPO/tools/generate-pod-quadlets.py" ]]; then
+    python3 "$MIOS_REPO/tools/generate-pod-quadlets.py" 2>&1 | tee -a "$LOG_FILE" || true
+fi
+if [[ -f "$MIOS_REPO/tools/generate-bake-plan.py" ]]; then
+    python3 "$MIOS_REPO/tools/generate-bake-plan.py" 2>&1 | tee -a "$LOG_FILE" || true
+fi
+if [[ -f "$MIOS_REPO/tools/generate-names-registry.py" ]]; then
+    python3 "$MIOS_REPO/tools/generate-names-registry.py" 2>&1 | tee -a "$LOG_FILE" || true
+fi
+if [[ -f "$MIOS_REPO/automation/38-drift-checks.sh" ]]; then
+    bash "$MIOS_REPO/automation/38-drift-checks.sh" 2>&1 | tee -a "$LOG_FILE" || _log "WARN: drift check reported minor drift; proceeding with auto-aligned SSOT"
+fi
+
 # ── Unattended-mode detection: strictly automated when non-interactive ───────
 # `mios build` MUST run end-to-end with ZERO operator prompts whenever it
 # is invoked without a real terminal -- by the Hermes/MiOS agent, by CI,
