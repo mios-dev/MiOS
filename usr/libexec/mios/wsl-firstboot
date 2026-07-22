@@ -62,7 +62,11 @@ fi
 # only -- they never repair, just warn so a broken image is loud rather
 # than quietly degraded.
 if id mios &>/dev/null; then
-    if [[ ! -d /var/home/mios ]]; then
+    if [[ -d /var/home/mios ]]; then
+        chown mios:mios /var/home/mios 2>/dev/null || true
+        chmod 0755 /var/home/mios 2>/dev/null || true
+        [[ -d /var/home/mios/.config ]] && chmod -R 0755 /var/home/mios/.config 2>/dev/null || true
+    else
         _log "WARN: /var/home/mios missing -- tmpfiles.d/mios-user.conf may not have run"
     fi
     if ! grep -qE '^mios:' /etc/subuid 2>/dev/null; then
