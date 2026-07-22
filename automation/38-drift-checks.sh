@@ -3786,12 +3786,14 @@ check_sbom_metadata() {
 check_hyprland_conf_heredoc() {
     # Extract heredoc from 54-bake-hyprland.sh
     local tmp; tmp="$(mktemp)"
-    sed -n '/cat << '\''EOF'\'' > \/usr\/share\/mios\/hyprland\/hyprland.conf/,/^EOF$/p' "$ROOT/automation/54-bake-hyprland.sh" | sed '1d;$d' > "$tmp"
-    if diff -u "$ROOT/usr/share/mios/hyprland/hyprland.conf" "$tmp" >/dev/null; then
+    local tmp2; tmp2="$(mktemp)"
+    sed -n '/cat << '\''EOF'\'' > \/usr\/share\/mios\/hyprland\/hyprland.conf/,/^EOF$/p' "$ROOT/automation/54-bake-hyprland.sh" | sed '1d;$d' | tr -d '\r' > "$tmp"
+    tr -d '\r' < "$ROOT/usr/share/mios/hyprland/hyprland.conf" > "$tmp2"
+    if diff -u "$tmp2" "$tmp" >/dev/null; then
         echo "[38-drift-checks]   (50) Hyprland configuration template is in sync with baker script heredoc"
-        rm -f "$tmp"
+        rm -f "$tmp" "$tmp2"
     else
-        rm -f "$tmp"
+        rm -f "$tmp" "$tmp2"
         _violation "usr/share/mios/hyprland/hyprland.conf has drifted from the inline heredoc in automation/54-bake-hyprland.sh -- sync them (B4)"
     fi
 }

@@ -79,6 +79,10 @@ def generate_referenced_vars(root):
     except Exception:
         tracked_files = []
         for r, _d, files in os.walk(root):
+            rel_r = os.path.relpath(r, root).replace("\\", "/")
+            parts = rel_r.split('/')
+            if any(p in parts for p in ('tmp', '.git', '.venv', '__pycache__', 'node_modules', 'dist', 'build', '.system_generated', 'scratch', 'logs', 'bib-configs')):
+                continue
             for f in files:
                 tracked_files.append(os.path.join(r, f))
         
