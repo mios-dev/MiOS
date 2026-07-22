@@ -68,7 +68,7 @@ ExecStart=/bin/sh -c '\
     exit 0; \
   fi; \
   mkdir -p "$$DIR" 2>/dev/null || true; \
-  TS=$$(date -u +%Y%m%dT%H%M%SZ); \
+  TS=$$(date -u +%%Y%%m%%dT%%H%%M%%SZ); \
   OUT="$$DIR/mios-pgvector-$$TS.sql.gz"; \
   RAW="$$DIR/.mios-pgvector-$$TS.sql.partial"; \
   ERR="$$DIR/.mios-pgbackup.err"; \
