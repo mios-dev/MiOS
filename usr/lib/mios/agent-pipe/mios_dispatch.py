@@ -49,7 +49,7 @@ import mios_sandbox
 import mios_ruleof2          # the Rule-of-Two architectural gate (pure evaluator)
 import mios_argval
 from mios_argval import _arg_with_synonyms, _validate_enum_args
-from mios_template import _template_to_cmd
+from mios_template import _template_to_cmd, _TEMPLATE_PH_RE, _TemplateAbort
 import mios_quarantine       # the CaMeL dual-context quarantine gate (stricter superset)
 import mios_hitl             # the unified HITL verdict resolver (mios_hitl.decide)
 from mios_jsonsalvage import loads_lenient as _loads_lenient

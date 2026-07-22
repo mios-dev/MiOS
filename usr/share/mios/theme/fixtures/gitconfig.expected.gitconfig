@@ -1,5 +1,5 @@
 [user]
-	email = someone@corp.example
+	email = user@localhost
 	signingkey = ABCD1234DEADBEEF
 	name = User
 [credential]
