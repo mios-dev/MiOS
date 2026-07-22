@@ -7535,6 +7535,7 @@ pkgs = [
     "cpptrace-devel",
     "mesa-libgbm-devel",
     "polkit-devel",
+    "pam-devel",
     "jemalloc-devel"
 ]
 

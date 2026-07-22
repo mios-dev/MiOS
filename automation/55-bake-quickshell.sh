@@ -19,6 +19,7 @@ QUICKSHELL_OK=""
 
 for attempt in 1 2 3; do
     log "[55-bake-quickshell] Compilation attempt $attempt/3..."
+    cd /tmp
     rm -rf "$BUILD_DIR"
     
     if ! git clone "${MIOS_URL_QUICKSHELL:-https://github.com/quickshell-mirror/quickshell.git}" "$BUILD_DIR"; then
