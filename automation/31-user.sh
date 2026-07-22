@@ -30,7 +30,8 @@ if [[ "${C_USER}" != "mios" ]]; then
     # SYSTEM range (<UID_MIN), which makes logind skip XDG_RUNTIME_DIR creation
     # and cascades into dbus/dconf/Wayland session-service failures.
     cat <<EOF > /usr/lib/sysusers.d/15-mios-custom.conf
-u ${C_USER} 1000:1000 "'MiOS' Custom User" /var/home/${C_USER} /bin/bash
+g ${C_USER} 1000
+u ${C_USER} 1000:${C_USER} "'MiOS' Custom User" /var/home/${C_USER} /bin/bash
 m ${C_USER} wheel
 m ${C_USER} libvirt
 m ${C_USER} kvm
@@ -44,6 +45,16 @@ fi
 
 # Apply sysusers declarative config
 systemd-sysusers --root=/ 2>/dev/null || true
+
+# Imperative fallback if sysusers failed to materialize the account
+if ! getent passwd "${C_USER}" >/dev/null 2>&1; then
+    echo "[31-user] sysusers did not create ${C_USER} -- trying useradd fallback..."
+    groupadd -g 1000 "${C_USER}" 2>/dev/null || groupadd "${C_USER}" 2>/dev/null || true
+    useradd -u 1000 -g "${C_USER}" -m -d "/var/home/${C_USER}" -s /bin/bash "${C_USER}" 2>/dev/null || useradd -m -s /bin/bash "${C_USER}" 2>/dev/null || true
+    for g in wheel libvirt kvm video render input dialout docker; do
+        usermod -aG "$g" "${C_USER}" 2>/dev/null || true
+    done
+fi
 
 if getent passwd "${C_USER}" >/dev/null; then
     home=$(getent passwd "${C_USER}" | cut -d: -f6)
