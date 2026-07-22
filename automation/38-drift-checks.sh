@@ -1545,7 +1545,7 @@ check_dotfiles_projection() {
         echo "[38-drift-checks]   WARNING: mios-dotfiles-render not found -- skipping" >&2
         return 0
     fi
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" python3 "$tool" check >/dev/null 2>"$ROOT/.dotfiles.err"; then
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_HOST_TOML=/nonexistent.toml MIOS_USER_TOML=/nonexistent.toml python3 "$tool" check >/dev/null 2>"$ROOT/.dotfiles.err"; then
         rm -f "$ROOT/.dotfiles.err" 2>/dev/null || true
         echo "[38-drift-checks]   (25) every committed theme + settings surface projects from mios.toml [colors]/[btop]/[gitconfig]/[identity]/[dotfiles] SSOT"
     else
