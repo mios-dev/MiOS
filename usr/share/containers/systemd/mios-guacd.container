@@ -11,7 +11,7 @@ Wants=network-online.target
 ContainerName=mios-guacd
 Exec=guacd -b 0.0.0.0 -f
 Group=811
-Image=localhost/mios-sys:latest
+Image=docker.io/guacamole/guacd:latest
 Pod=mios-system.pod
 User=811
 

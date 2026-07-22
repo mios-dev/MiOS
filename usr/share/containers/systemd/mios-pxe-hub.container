@@ -11,7 +11,7 @@ Wants=network-online.target
 [Container]
 Exec=/usr/bin/matchbox -address 0.0.0.0:8081 -data-path /var/lib/matchbox/data -assets-path /var/lib/matchbox/assets
 Group=0
-Image=localhost/mios-sys:latest
+Image=quay.io/poseidon/matchbox:latest
 Pod=mios-system.pod
 User=0
 Volume=/var/lib/mios/pxe/config:/var/lib/matchbox/data:Z

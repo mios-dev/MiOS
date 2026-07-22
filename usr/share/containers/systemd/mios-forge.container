@@ -33,7 +33,7 @@ Environment=FORGEJO__log__MODE=console
 EnvironmentFile=/etc/mios/install.env
 Exec=forgejo web
 Group=0
-Image=localhost/mios-sys:latest
+Image=codeberg.org/forgejo/forgejo:12
 Label=org.opencontainers.image.title=mios-forge
 Label=org.opencontainers.image.url=http://localhost:${MIOS_PORT_FORGE_HTTP}/
 Label=org.opencontainers.image.documentation=https://forgejo.org/docs/latest/
