@@ -9906,7 +9906,7 @@ AddCapability = "CAP_NET_BIND_SERVICE"
 ContainerName = "mios-adguard"
 Exec = "AdGuardHome --no-check-update --work-dir /opt/adguardhome/work --config /opt/adguardhome/conf/AdGuardHome.yaml"
 Group = "${MIOS_ADGUARD_GID:-825}"
-Image = "${MIOS_SYS_IMAGE:-localhost/mios-sys:latest}"
+Image = "${MIOS_ADGUARD_IMAGE:-docker.io/adguard/adguardhome:latest}"
 Label = [
   "org.opencontainers.image.title=mios-adguard",
   "org.opencontainers.image.url=https://github.com/AdguardTeam/AdGuardHome",
@@ -10471,7 +10471,7 @@ EnvironmentFile = [
   "/etc/mios/hermes/api.env",
   "/etc/mios/install.env"
 ]
-Image = "${MIOS_SYS_IMAGE:-localhost/mios-sys:latest}"
+Image = "${MIOS_OPEN_WEBUI_IMAGE:-ghcr.io/open-webui/open-webui:main}"
 Exec = "open-webui serve"
 Group = "${MIOS_OPEN_WEBUI_GID:-817}"
 Label = [

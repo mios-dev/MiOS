@@ -1,6 +1,8 @@
 quay.io/centos-bootc/bootc-image-builder:latest
+docker.io/adguard/adguardhome:latest
 quay.io/ceph/ceph:v19
 docker.io/guacamole/guacamole:latest
 docker.io/vllm/vllm-openai:latest
+ghcr.io/open-webui/open-webui:main
 docker.io/pgvector/pgvector:0.8.3-pg17
 docker.io/valkey/valkey:latest
