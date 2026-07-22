@@ -14,44 +14,31 @@ echo "[36-tools] Configuring 'MiOS' CLI tools..."
 
 TOOLS=(
     mios
-    mios-dash
-    mios-env
-    mios-sync-env
-    mios-update
+    mios-backup
+    mios-build
+    mios-chrome
+    mios-deploy
     mios-pull
     mios-rebuild
-    mios-build
-    mios-backup
-    mios-deploy
-    mios-vfio-toggle
-    mios-vfio-check
-    iommu-groups
+    mios-update
+    hermes
 )
-# Note: mios-status was removed ( - ) -- it was a 1-line `exec` to
-# /usr/libexec/mios/mios-dashboard.sh identical to mios-dash. Keep
-# mios-dash as the single canonical dashboard verb.
-# Note: aichat / aichat-ng are installed by 37-aichat.sh (which fetches
-# the upstream binaries); attempting to chmod them here printed a WARN
-# every build because the binaries do not exist yet at this stage.
 
 for tool in "${TOOLS[@]}"; do
     if [ -f "/usr/bin/$tool" ]; then
         chmod +x "/usr/bin/$tool"
-    else
-        echo "[36-tools] WARN: /usr/bin/$tool not found (should be in system_files overlay)"
     fi
 done
 
+# Create symlink aliases for canonical subcommands if not already present
+[[ -f "/usr/bin/mios-dash" ]] || ln -sf /usr/libexec/mios/mios-dashboard.sh /usr/bin/mios-dash 2>/dev/null || true
+
 # ═══ Install external scripts from build context ═══
 # These are scripts that live in automation/ and are installed to /usr/bin/
-echo "[36-tools] Installing mios-toggle-headless and mios-test..."
-for ext_tool in mios-toggle-headless mios-test; do
-    if [ -f "${SCRIPT_DIR}/${ext_tool}" ]; then
-        install -Dm0755 "${SCRIPT_DIR}/${ext_tool}" "/usr/bin/${ext_tool}"
-    else
-        echo "[36-tools] WARN: ${ext_tool} not found at ${SCRIPT_DIR}/${ext_tool}"
-    fi
-done
+echo "[36-tools] Installing mios-toggle-headless..."
+if [ -f "${SCRIPT_DIR}/mios-toggle-headless" ]; then
+    install -Dm0755 "${SCRIPT_DIR}/mios-toggle-headless" "/usr/bin/mios-toggle-headless"
+fi
 
 # ═══ Install the userenv.sh resolver library ═══
 # /usr/bin/mios-env (Architectural Law 5 -- UNIFIED-AI-REDIRECTS)
