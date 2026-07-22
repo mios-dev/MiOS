@@ -143,13 +143,20 @@ for raw in "${REFS[@]}"; do
         install_cmd="flatpak install --system --noninteractive --assumeyes --or-update ${remote} ${app}"
     fi
 
-    if $install_cmd 2>&1 \
-            | grep -E '^(Installing|Updating|Already installed|Skipping|Error|Warning)' \
-            || true; then
+    set +e
+    install_out=$($install_cmd 2>&1)
+    install_status=$?
+    set -e
+
+    if [[ -n "$install_out" ]]; then
+        echo "$install_out" | grep -E '^(Installing|Updating|Already installed|Skipping|Error|Warning)' || echo "$install_out"
+    fi
+
+    if [[ $install_status -eq 0 ]]; then
         INSTALLED=$((INSTALLED + 1))
     else
         FAILED=$((FAILED + 1))
-        warn "[40-flatpak-bake]   ${remote}:${app} install returned non-zero -- will retry at first boot"
+        warn "[40-flatpak-bake]   ${remote}:${app} install returned non-zero (exit ${install_status}) -- will retry at first boot"
     fi
 done
 
