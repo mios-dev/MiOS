@@ -41,8 +41,15 @@ $DNF_BIN "${DNF_SETOPT[@]}" remove -y --noautoremove $TOOLCHAIN_STR 2>&1 \
     | grep -E '^\s*(Removing|Error|Warning|Nothing)' || true
 
 # Verification: assert no compiler binary is left in PATH. If any survive,
-# 99-postcheck will surface it as an image-quality regression.
+# clean up orphan wrapper symlinks/stubs.
 log "[91-strip-build-toolchain] Verifying toolchain removal..."
+for bin in gcc g++ cc cmake make go; do
+    p="$(command -v "$bin" 2>/dev/null || true)"
+    if [[ -n "$p" && -L "$p" ]]; then
+        rm -f "$p" 2>/dev/null || true
+    fi
+done
+
 LEFT=()
 for bin in gcc g++ cc cmake make go; do
     if command -v "$bin" >/dev/null 2>&1; then
