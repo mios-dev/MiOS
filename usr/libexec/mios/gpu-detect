@@ -60,4 +60,25 @@ else
     fi
 fi
 
+# VRAM check for dGPU heavy lane auto-enablement (>8GB VRAM)
+if command -v nvidia-smi &>/dev/null; then
+    VRAM_MIB=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null | head -n1 | tr -d ' ' || echo "0")
+    if [ "${VRAM_MIB:-0}" -ge 8192 ]; then
+        echo "[mios-gpu-detect] dGPU with >8GB VRAM detected (${VRAM_MIB} MiB) -- auto-preparing heavy lane"
+        touch /run/mios-gpu-vram-gt-8gb
+        mkdir -p /var/lib/mios/vllm/model /usr/share/mios/vllm
+        [ -L /usr/share/mios/vllm/model ] || ln -sf /var/lib/mios/vllm/model /usr/share/mios/vllm/model 2>/dev/null || true
+        if [ ! -f /var/lib/mios/vllm/model/config.json ]; then
+            cat > /var/lib/mios/vllm/model/config.json <<'EOCFG'
+{
+  "architectures": ["LlamaForCausalLM"],
+  "model_type": "llama",
+  "torch_dtype": "float16"
+}
+EOCFG
+        fi
+        systemctl enable --now mios-llm-heavy.service 2>/dev/null || true
+    fi
+fi
+
 touch /run/mios-gpu-detected

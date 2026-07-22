@@ -3274,9 +3274,38 @@ def daemon_agent_server_loop() -> None:
         pass
 
 
+def ensure_gpu_heavy_lane() -> None:
+    """Startup function: auto-detect dGPU with >8GB VRAM and prepare heavy lane."""
+    try:
+        res = subprocess.run(
+            ["nvidia-smi", "--query-gpu=memory.total", "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, timeout=5
+        )
+        if res.returncode == 0 and res.stdout.strip():
+            vram_mib = int(res.stdout.strip().split("\n")[0].strip())
+            if vram_mib >= 8192:
+                log.info("dGPU with >8GB VRAM detected (%d MiB) -- auto-preparing heavy lane", vram_mib)
+                vllm_dir = Path("/var/lib/mios/vllm/model")
+                vllm_dir.mkdir(parents=True, exist_ok=True)
+                cfg_file = vllm_dir / "config.json"
+                if not cfg_file.exists():
+                    cfg_file.write_text('{\n  "architectures": ["LlamaForCausalLM"],\n  "model_type": "llama",\n  "torch_dtype": "float16"\n}\n')
+                sym_dir = Path("/usr/share/mios/vllm/model")
+                if not sym_dir.exists():
+                    try:
+                        sym_dir.parent.mkdir(parents=True, exist_ok=True)
+                        sym_dir.symlink_to(vllm_dir)
+                    except OSError:
+                        pass
+                subprocess.run(["systemctl", "enable", "--now", "mios-llm-heavy.service"], capture_output=True, timeout=10)
+    except Exception as e:
+        log.debug("ensure_gpu_heavy_lane non-fatal error: %s", e)
+
+
 def main() -> int:
     signal.signal(signal.SIGINT, _on_signal)
     signal.signal(signal.SIGTERM, _on_signal)
+    ensure_gpu_heavy_lane()
     STATE_DIR.mkdir(parents=True, exist_ok=True)
     # Best-effort chmod: when STATE_DIR was created/owned by ANOTHER user (e.g. a
     # root- or old-user-owned dir under this unit's User=mios-ai after the user
