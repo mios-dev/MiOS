@@ -3576,7 +3576,10 @@ check_toml_projection() {
 # language-per-domain targets (ADR-0011 §2 / WS-LANG): Rust native tier; Python AI plane; Bun/TS
 # Portal; bash thin-glue only. No NEW C#/.bat/.cmd/.go. Existing C# is grandfathered-for-port.
 check_target_languages() {
-    command -v git >/dev/null 2>&1 || { echo "[38-drift-checks]   WARNING: git missing -- skipping target-languages check" >&2; return 0; }
+    if [[ ! -d "$ROOT/.git" ]] || ! command -v git >/dev/null 2>&1; then
+        echo "[38-drift-checks]   WARNING: git missing or not a git repo -- skipping target-languages check" >&2
+        return 0
+    fi
     local toml="$ROOT/usr/share/mios/mios.toml"
     local allow bad="" nativebad f
     allow=$(awk '/^\[laws\.target_languages\]/{f=1} f&&/grandfathered_cs[[:space:]]*=[[:space:]]*\[/{g=1} g{print} g&&/\]/{exit}' "$toml" | grep -oE '"[^"]+\.cs"' | tr -d '"')
@@ -3615,6 +3618,10 @@ check_bake_plan() {
 }
 
 check_bake_ref_defaults() {
+    if [[ ! -d "$ROOT/.git" ]] || ! command -v git >/dev/null 2>&1; then
+        echo "[38-drift-checks]   (47) all baker scripts have non-empty defaults for their bake-refs (skipped - no git repo)"
+        return 0
+    fi
     local empty_refs
     empty_refs="$(git grep -E 'MIOS_BUILD_BAKE_REFS_[A-Z0-9_]+:-\}' automation/ 2>/dev/null || true)"
     if [[ -n "$empty_refs" ]]; then
