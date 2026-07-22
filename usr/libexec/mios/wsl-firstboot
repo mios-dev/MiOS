@@ -63,7 +63,7 @@ fi
 # than quietly degraded.
 if id mios &>/dev/null; then
     if [[ -d /var/home/mios ]]; then
-        chown mios:mios /var/home/mios 2>/dev/null || true
+        chown -R mios:mios /var/home/mios 2>/dev/null || true
         chmod 0755 /var/home/mios 2>/dev/null || true
         [[ -d /var/home/mios/.config ]] && chmod -R 0755 /var/home/mios/.config 2>/dev/null || true
     else

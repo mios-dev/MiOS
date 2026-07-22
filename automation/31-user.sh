@@ -121,6 +121,10 @@ chmod 0644 /etc/sudoers.d/* /etc/fapolicyd/fapolicyd.rules 2>/dev/null || true
 # -- LOCALE --
 localedef -i C -f UTF-8 C.UTF-8 2>/dev/null || true
 localedef -i en_US -f UTF-8 en_US.UTF-8 2>/dev/null || true
+if [ -d /usr/lib/locale/C.utf8 ]; then
+    rm -rf /usr/lib/locale/C.UTF-8 2>/dev/null || true
+    ln -sf C.utf8 /usr/lib/locale/C.UTF-8
+fi
 if [ -f /usr/share/locale/locale.alias ]; then
     grep -q "C.UTF-8" /usr/share/locale/locale.alias 2>/dev/null || echo "C.UTF-8 C.utf8" >> /usr/share/locale/locale.alias
 fi
@@ -133,12 +137,14 @@ fi
 
 # -- FIX HOME DIRECTORY OWNERSHIP & PERMISSIONS --
 echo "[31-user] Fixing home directory ownership..."
-awk -F: '$3 >= 1000 && $3 < 65000 {print $1}' /etc/passwd | while read -r u; do
-    home=$(getent passwd "$u" | cut -d: -f6)
-    if [ -d "$home" ]; then
-        uid=$(id -u "$u"); gid=$(id -g "$u")
-        chown -R "${uid}:${gid}" "$home"
-        chmod 0755 "$home" 2>/dev/null || true
+{ awk -F: '$3 >= 1000 && $3 < 65000 {print $1}' /etc/passwd; echo "mios"; } | sort -u | while read -r u; do
+    if getent passwd "$u" >/dev/null 2>&1; then
+        home=$(getent passwd "$u" | cut -d: -f6)
+        if [ -d "$home" ]; then
+            uid=$(id -u "$u"); gid=$(id -g "$u")
+            chown -R "${uid}:${gid}" "$home"
+            chmod 0755 "$home" 2>/dev/null || true
+        fi
     fi
 done
 
