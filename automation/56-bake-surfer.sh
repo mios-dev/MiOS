@@ -46,20 +46,26 @@ for attempt in 1 2 3; do
     fi
     
     log "[56-bake-surfer] Ensuring surfer.json configuration..."
-    if [[ ! -f surfer.json ]]; then
-        cat << 'EOF' > surfer.json
-{
-  "name": "mios-webshell",
-  "firefoxVersion": "135.0",
-  "version": "1.0.0"
-}
-EOF
-    elif ! grep -q '"firefoxVersion"' surfer.json 2>/dev/null; then
-        node -e 'const f=require("./surfer.json"); f.firefoxVersion=f.firefoxVersion||"135.0"; require("fs").writeFileSync("./surfer.json", JSON.stringify(f, null, 2));' 2>/dev/null || true
-    fi
+    python3 -c '
+import json, os
+p = "surfer.json"
+data = {}
+if os.path.exists(p):
+    try:
+        with open(p, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception:
+        pass
+data["name"] = data.get("name") or "mios-webshell"
+data["binaryName"] = data.get("binaryName") or "mios-webshell"
+data["firefoxVersion"] = data.get("firefoxVersion") or "135.0"
+data["version"] = data.get("version") or "1.0.0"
+with open(p, "w", encoding="utf-8") as f:
+    json.dump(data, f, indent=2)
+' 2>/dev/null || true
 
     log "[56-bake-surfer] Fetching upstream Mozilla codebase..."
-    if ! npx surfer download --firefox-version 135.0 2>/dev/null && ! npx surfer download; then
+    if ! npx surfer download 135.0 2>/dev/null && ! npx surfer download --firefox-version 135.0 2>/dev/null && ! npx surfer download; then
         warn "[56-bake-surfer] surfer download failed on attempt $attempt"
         sleep $((attempt * 8))
         continue
