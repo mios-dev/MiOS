@@ -51,26 +51,28 @@ fi
 
 # Find modified shell files in this change/branch to enforce warning-level linting
 modified_files=()
-git_ref="origin/main"
-if ! git rev-parse --verify "$git_ref" >/dev/null 2>&1; then
-    git_ref="HEAD~1"
-fi
+if [ -d ".git" ] && command -v git >/dev/null 2>&1; then
+    git_ref="origin/main"
+    if ! git rev-parse --verify "$git_ref" >/dev/null 2>&1; then
+        git_ref="HEAD~1"
+    fi
 
-if git rev-parse --verify "$git_ref" >/dev/null 2>&1; then
-    # Find all added/modified shell files or usr/libexec/mios/mios-* scripts
-    while IFS= read -r f; do
-        if [ -f "$f" ]; then
-            # Verify if this file is in our list of files to check (i.e. matches our shebang check or is a .sh file)
-            if [[ "$f" =~ \.sh$ ]]; then
-                modified_files+=("$f")
-            elif [[ "$f" =~ ^usr/libexec/mios/mios- ]]; then
-                read -r first_line < "$f" || true
-                if [[ "$first_line" =~ ^#\!.*(bash|sh) ]]; then
+    if git rev-parse --verify "$git_ref" >/dev/null 2>&1; then
+        # Find all added/modified shell files or usr/libexec/mios/mios-* scripts
+        while IFS= read -r f; do
+            if [ -f "$f" ]; then
+                # Verify if this file is in our list of files to check (i.e. matches our shebang check or is a .sh file)
+                if [[ "$f" =~ \.sh$ ]]; then
                     modified_files+=("$f")
+                elif [[ "$f" =~ ^usr/libexec/mios/mios- ]]; then
+                    read -r first_line < "$f" || true
+                    if [[ "$first_line" =~ ^#\!.*(bash|sh) ]]; then
+                        modified_files+=("$f")
+                    fi
                 fi
             fi
-        fi
-    done < <(git diff --name-only --diff-filter=ACMRT "$git_ref" 2>/dev/null || true)
+        done < <(git diff --name-only --diff-filter=ACMRT "$git_ref" 2>/dev/null || true)
+    fi
 fi
 
 if [ ${#modified_files[@]} -gt 0 ]; then
