@@ -150,10 +150,12 @@ def main():
         if sec in data:
             all_pairs.extend(walk(data[sec], sec))
             
-    all_pairs.sort(key=lambda x: x[0])
-    
-    for path, env_name in all_pairs:
-        print(f"{path}  {env_name}")
+    names_file = os.path.join(root, "usr/share/mios/names.generated.txt")
+    os.makedirs(os.path.dirname(names_file), exist_ok=True)
+    with open(names_file, "w", encoding="utf-8", newline="\n") as f:
+        for path, env_name in all_pairs:
+            f.write(f"{path}  {env_name}\n")
+            print(f"{path}  {env_name}")
         
     generate_referenced_vars(root)
     return 0
