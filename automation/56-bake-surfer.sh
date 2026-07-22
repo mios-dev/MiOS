@@ -39,7 +39,7 @@ for attempt in 1 2 3; do
         continue
     fi
     
-    if ! npm install; then
+    if ! npm install --legacy-peer-deps; then
         warn "[56-bake-surfer] npm install failed on attempt $attempt"
         sleep $((attempt * 8))
         continue
