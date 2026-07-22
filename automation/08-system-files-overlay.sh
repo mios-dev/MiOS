@@ -32,6 +32,16 @@ if [[ -f "${CTX}/VERSION" ]]; then
     log "  staged /usr/share/mios/VERSION -> $(cat /usr/share/mios/VERSION)"
 fi
 
+# Stage canonical MiOS branding PNG icons in system icon directories
+if [[ -d "${CTX}/usr/share/mios/branding" ]]; then
+    install -d -m 0755 /usr/share/pixmaps /usr/share/icons/hicolor/256x256/apps
+    if [[ -f "${CTX}/usr/share/mios/branding/icon.png" ]]; then
+        cp -f "${CTX}/usr/share/mios/branding/icon.png" /usr/share/pixmaps/mios.png
+        cp -f "${CTX}/usr/share/mios/branding/icon.png" /usr/share/icons/hicolor/256x256/apps/mios.png
+        log "  staged canonical /usr/share/pixmaps/mios.png and /usr/share/icons/hicolor/256x256/apps/mios.png"
+    fi
+fi
+
 # --- Stage 1: /usr (everything except /usr/local) --------------------------
 if [[ -d "${CTX}/usr" ]]; then
     log "  stage 1: overlay usr content (excluding /usr/local)"
