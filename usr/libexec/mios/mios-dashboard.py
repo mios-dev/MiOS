@@ -4,6 +4,7 @@
 MiOS Unified Live Dashboard & Real-Time Monitor Renderer
 High-performance, standalone Python rendering engine for MiOS system status,
 container stack monitoring, endpoint verification, and real-time log streaming.
+Flicker-free ANSI cursor-home double-buffered rendering for 59.94Hz TTY0 / SSH consoles.
 """
 from __future__ import annotations
 
@@ -15,6 +16,8 @@ import subprocess
 import time
 import urllib.request
 import platform
+import atexit
+import signal
 
 def get_terminal_width() -> int:
     cols = shutil.get_terminal_size((80, 24)).columns
@@ -53,13 +56,11 @@ def probe_systemd_unit(unit_name: str) -> bool:
         return False
 
 def get_sys_info() -> dict[str, str]:
-    # Host and Kernel
     host = socket.gethostname()
     kernel = platform.release()
     arch = platform.machine()
     os_name = f"Linux {kernel} {arch}"
 
-    # Uptime
     uptime_str = "0d 0h 0m"
     try:
         with open("/proc/uptime", "r") as f:
@@ -71,7 +72,6 @@ def get_sys_info() -> dict[str, str]:
     except Exception:
         pass
 
-    # CPU
     cpu_model = "AMD Ryzen 9 9950X3D 16-Core 4.29GHz (28c)"
     try:
         with open("/proc/cpuinfo", "r") as f:
@@ -82,7 +82,6 @@ def get_sys_info() -> dict[str, str]:
     except Exception:
         pass
 
-    # Memory
     ram_str = "20.2 / 40.2GiB (50%)"
     swap_str = "0.0 / 4.0GiB (0%)"
     try:
@@ -114,7 +113,6 @@ def get_sys_info() -> dict[str, str]:
     except Exception:
         pass
 
-    # Disk
     disk_root_str = "/ 110.8 / 1006.8GiB (12%)"
     disk_home_str = "M: 177.1 / 1766.7GiB (11%)"
     try:
@@ -227,13 +225,15 @@ def get_live_logs(n: int = 7) -> list[str]:
     except Exception:
         return ["System journal log tail active..."]
 
-def render(mode: str = "full", no_color: bool = False, no_frame: bool = False, is_monitor: bool = False) -> None:
+def render_to_string(mode: str = "full", no_color: bool = False, no_frame: bool = False, is_monitor: bool = False) -> str:
     width = get_terminal_width()
     inner = width - 2
+    out_lines: list[str] = []
 
     # ANSI Colors
     if no_color:
         c_r = c_b = c_d = c_red = c_grn = c_ylw = c_cyn = c_gry = ""
+        c_eol = ""
         dot_up = "*"
         dot_down = "-"
         hr = "-"
@@ -247,6 +247,7 @@ def render(mode: str = "full", no_color: bool = False, no_frame: bool = False, i
         c_ylw = "\033[33m"
         c_cyn = "\033[36m"
         c_gry = "\033[90m"
+        c_eol = "\033[K"
         dot_up = "●"
         dot_down = "○"
         hr = "─"
@@ -257,7 +258,6 @@ def render(mode: str = "full", no_color: bool = False, no_frame: bool = False, i
     git_info = get_git_status()
     services = get_service_statuses()
 
-    # Core Endpoints for mini view
     mini_endpoints = [
         ("Agent-Pipe", "http://localhost:8640/v1", probe_http("http://localhost:8640/health")),
         ("WebUI", "http://localhost:8033/", probe_http("http://localhost:8033/")),
@@ -270,28 +270,31 @@ def render(mode: str = "full", no_color: bool = False, no_frame: bool = False, i
     up_count = sum(1 for _, _, ok in mini_endpoints if ok)
     down_count = len(mini_endpoints) - up_count
 
+    def add_line(content: str):
+        out_lines.append(f"{content}{c_eol}")
+
     def top_frame():
         if not no_frame:
-            print(f"{c_cyn}{f_tl}{hr * inner}{f_tr}{c_r}")
+            add_line(f"{c_cyn}{f_tl}{hr * inner}{f_tr}{c_r}")
 
     def div_frame():
         if not no_frame:
-            print(f"{c_cyn}{f_lt}{hr * inner}{f_rt}{c_r}")
+            add_line(f"{c_cyn}{f_lt}{hr * inner}{f_rt}{c_r}")
 
     def bot_frame():
         if not no_frame:
-            print(f"{c_cyn}{f_bl}{hr * inner}{f_br}{c_r}")
+            add_line(f"{c_cyn}{f_bl}{hr * inner}{f_br}{c_r}")
 
     def frame_line(content: str):
         if no_frame:
-            print(content)
+            add_line(content)
         else:
             import re
             plain = re.sub(r"\033\[[0-9;]*[mK]", "", content)
             pad = inner - len(plain)
             if pad < 0:
                 pad = 0
-            print(f"{c_cyn}{f_v}{c_r}{content}{' ' * pad}{c_cyn}{f_v}{c_r}")
+            add_line(f"{c_cyn}{f_v}{c_r}{content}{' ' * pad}{c_cyn}{f_v}{c_r}")
 
     if mode == "mini":
         top_frame()
@@ -329,13 +332,11 @@ def render(mode: str = "full", no_color: bool = False, no_frame: bool = False, i
             frame_line(f"{' ' * ((inner - 64) // 2)}{ep_line}")
 
         bot_frame()
-        print(f"{' ' * ((inner - 45) // 2)}{c_gry}dev shell: ssh -p 57289 mios@localhost{c_r}")
-        return
+        add_line(f"{' ' * ((inner - 45) // 2)}{c_gry}dev shell: ssh -p 57289 mios@localhost{c_r}")
+        return "\n".join(out_lines) + "\n"
 
-    # Standard / Full Dashboard or Monitor Mode
     top_frame()
 
-    # Header ASCII Art
     art_file = "/usr/share/mios/art.txt"
     if os.path.exists(art_file) and not no_frame and not is_monitor:
         try:
@@ -371,7 +372,6 @@ def render(mode: str = "full", no_color: bool = False, no_frame: bool = False, i
 
     div_frame()
 
-    # Unified Stack & Services
     hdr = "UNIFIED SYSTEM STACK & SERVICES"
     frame_line(f"{c_b}{' ' * ((inner - len(hdr)) // 2)}{hdr}{c_r}")
     div_hr = "────────────────────────────────────────────────────────────────────"
@@ -399,7 +399,6 @@ def render(mode: str = "full", no_color: bool = False, no_frame: bool = False, i
     frame_line(f"{c_gry}{' ' * ((inner - len(div_hr)) // 2)}{div_hr}{c_r}")
     frame_line(f"{' ' * ((inner - 46) // 2)}login mios/mios   forge mios/user")
 
-    # If in LIVE MONITOR MODE, append Real-Time Log Streaming Section
     if is_monitor:
         div_frame()
         log_hdr = "REAL-TIME LIVE SYSTEM & CONTAINER LOGS"
@@ -420,7 +419,9 @@ def render(mode: str = "full", no_color: bool = False, no_frame: bool = False, i
     hints = "mios build  config  dash  mini  ai  code  dev  summary  user  pull  update  help"
     frame_line(f"{c_gry}{' ' * max(0, (inner - len(hints)) // 2)}{hints}{c_r}")
     bot_frame()
-    print(f"{' ' * max(0, (inner - 45) // 2)}{c_gry}dev shell: ssh -p 57289 mios@localhost{c_r}")
+    add_line(f"{' ' * max(0, (inner - 45) // 2)}{c_gry}dev shell: ssh -p 57289 mios@localhost{c_r}")
+
+    return "\n".join(out_lines) + "\n"
 
 def main():
     mode = "full"
@@ -436,23 +437,44 @@ def main():
     elif "--endpoints-only" in sys.argv:
         mode = "endpoints-only"
 
-    # Default to live monitoring mode whenever invoked interactively in a TTY,
-    # unless --once or --no-monitor is explicitly passed.
     once_mode = "--once" in sys.argv or "--no-monitor" in sys.argv
     is_tty = sys.stdout.isatty()
     is_monitor = (is_tty and not once_mode) or "--monitor" in sys.argv or "monitor" in sys.argv
 
     if is_monitor:
+        def restore_cursor(*_):
+            if not no_color and is_tty:
+                sys.stdout.write("\033[?25h\n")
+                sys.stdout.flush()
+
+        atexit.register(restore_cursor)
+        try:
+            signal.signal(signal.SIGINT, lambda s, f: (restore_cursor(), sys.exit(0)))
+            signal.signal(signal.SIGTERM, lambda s, f: (restore_cursor(), sys.exit(0)))
+        except Exception:
+            pass
+
+        # Hide cursor and move to home position
+        if not no_color and is_tty:
+            sys.stdout.write("\033[?25l\033[H")
+            sys.stdout.flush()
+
         try:
             while True:
-                sys.stdout.write("\033[H\033[2J")
+                buf = render_to_string(mode, no_color, no_frame, is_monitor=True)
+                if not no_color and is_tty:
+                    sys.stdout.write("\033[H" + buf)
+                else:
+                    sys.stdout.write(buf)
                 sys.stdout.flush()
-                render(mode, no_color, no_frame, is_monitor=True)
                 time.sleep(1.0)
-        except KeyboardInterrupt:
+        except (KeyboardInterrupt, SystemExit):
+            restore_cursor()
             print("\nLive monitor stopped.")
     else:
-        render(mode, no_color, no_frame, is_monitor=False)
+        buf = render_to_string(mode, no_color, no_frame, is_monitor=False)
+        sys.stdout.write(buf)
+        sys.stdout.flush()
 
 if __name__ == "__main__":
     main()
