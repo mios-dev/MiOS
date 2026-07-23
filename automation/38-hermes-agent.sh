@@ -144,6 +144,9 @@ fi
 
 # `pip install -e` plus the must-have soft-deps -- single
 # step, network best-effort.
+# Ensure setuptools and wheel are pre-installed in the venv for pyproject_hooks build_meta
+"${VENV_DIR}/bin/pip" install --no-input --disable-pip-version-check setuptools wheel 2>/dev/null || true
+
 _REQ_FILE="/usr/lib/mios/agent-pipe/requirements.txt"
 _REQ_ARG=""; [ -f "${_REQ_FILE}" ] && _REQ_ARG="-r ${_REQ_FILE}"
 _venv_pip_ok=""
