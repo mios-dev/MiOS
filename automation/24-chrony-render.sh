@@ -53,6 +53,7 @@ for s in servers:
     opt = " iburst noselect" if has_ptp else " iburst"
     lines.append(f"server {s}{opt}")
 
+rtc_line = "# rtcsync (disabled under Hyper-V PTP time sync)" if has_ptp else "rtcsync"
 lines.extend([
     "",
     "# Record the rate at which the system clock gains/losses time.",
@@ -67,7 +68,7 @@ lines.extend([
     "refclock PHC /dev/ptp0 poll 3 dpoll -2 offset 0 minsamples 4 prefer trust",
     "",
     "# Enable kernel synchronization of the real-time clock (RTC).",
-    "rtcsync",
+    rtc_line,
     "",
     "# Specify directory for log files.",
     "logdir /var/log/chrony"
