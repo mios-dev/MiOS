@@ -1872,6 +1872,24 @@ check_names_registry() {
         echo "[38-drift-checks]   WARNING: python3 missing -- skipping names registry check" >&2
         return 0
     fi
+    # generate-names-registry.py enumerates the tracked tree via `git ls-files`
+    # to build referenced_names.txt. The MiOS root IS a git work tree -- .git is
+    # shipped into the build context and build.sh `git reset --hard HEAD`s the
+    # pristine tree before this runs -- so on BOTH the drift-gate job and the
+    # image build this check RUNS against the full committed source (identical
+    # result). The guards below are last-resort only: a genuinely non-git or an
+    # INCOMPLETE (un-checked-out) tree makes git ls-files enumerate paths absent
+    # on disk -> the generator's os.walk fallback yields false drift. In that
+    # case skip rather than false-fail; the drift-gate job stays authoritative.
+    # Full visibility: any skip is explicit and states exactly why.
+    if ! git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        echo "[38-drift-checks]   (30) names registry -- SKIPPED (no git work tree at \$ROOT; generate-names-registry.py needs 'git ls-files')"
+        return 0
+    fi
+    if git -C "$ROOT" ls-files --deleted 2>/dev/null | grep -q .; then
+        echo "[38-drift-checks]   (30) names registry -- SKIPPED (incomplete git work tree: tracked files not materialized at \$ROOT); authoritative check runs in the drift-gate job"
+        return 0
+    fi
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
 import os, sys, re, subprocess
 

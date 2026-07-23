@@ -418,6 +418,22 @@ echo ""
 _row " POST-BUILD: AI-plane source drift checks (38-drift-checks.sh)"
 _hline '-' '+' '+'
 if [[ -f "${SCRIPT_DIR}/38-drift-checks.sh" ]]; then
+    # repo = ROOT = git tree -- THAT is MiOS. The build root ships .git, so
+    # restore the pristine committed tree here: materialize every tracked file
+    # (incl. installation/, cat/, docs/ that were not cp'd into /tmp/build) and
+    # revert any build-time mutations, so the source-drift checks see the exact
+    # committed source -- identical to the drift-gate CI job on the pristine
+    # checkout. safe.directory: the tree is root-owned under rootful podman
+    # (avoid a "dubious ownership" abort of git ls-files). The checkout's
+    # ephemeral auth extraheader is stripped from the local .git first (hygiene;
+    # /tmp/build is rm'd and never enters the final image regardless).
+    _drift_root="$(cd "${SCRIPT_DIR}/.." && pwd)"
+    git config --global --add safe.directory "${_drift_root}" 2>/dev/null || true
+    git config --global --add safe.directory '*' 2>/dev/null || true
+    if git -C "${_drift_root}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        git -C "${_drift_root}" config --local --unset-all http.https://github.com/.extraheader 2>/dev/null || true
+        git -C "${_drift_root}" reset --hard HEAD -q 2>/dev/null || true
+    fi
     bash "${SCRIPT_DIR}/38-drift-checks.sh"
 else
     _row "  WARNING: 38-drift-checks.sh not found -- skipping"

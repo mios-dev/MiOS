@@ -24,6 +24,16 @@ COPY tools/                /ctx/tools/
 # unlike a tmpfiles `L+` symlink, which would clobber the tracked file in a worktree).
 COPY MiOS.md AGENTS.md CLAUDE.md GEMINI.md /ctx/rootmd/
 
+# repo = ROOT = git tree -- THAT is MiOS. The MiOS root deploys AS a git work
+# tree (the Phase-1 Total Root Merge), so .git is a first-class part of the build
+# root, not an afterthought. Shipping it makes /tmp/build a real git work tree so
+# the source-drift gate (38-drift-checks.sh -> generate-names-registry.py) runs
+# `git ls-files` over the full committed source exactly as the drift-gate CI job
+# does -- instead of a partial os.walk (no .git) that reports false drift and
+# aborts the build. .git lives only in this `scratch` ctx stage and the throwaway
+# /tmp/build (both build-time: bind-mounted / rm'd); it is NOT in the final image.
+COPY .git                  /ctx/.git/
+
 FROM ${BASE_IMAGE}
 
 # MIOS_VERSION: parameterized from the canonical repo-root VERSION file
@@ -59,7 +69,7 @@ RUN --mount=type=bind,from=ctx,source=/ctx,target=/ctx,ro \
     --mount=type=cache,dst=/var/cache/dnf,sharing=locked \
     set -ex; \
     install -d -m 0755 /tmp/build; \
-    cp -a /ctx/automation /ctx/usr /ctx/etc /ctx/VERSION /ctx/bib-configs /ctx/tools /tmp/build/; \
+    cp -a /ctx/automation /ctx/usr /ctx/etc /ctx/VERSION /ctx/bib-configs /ctx/tools /ctx/.git /tmp/build/; \
     # WS-C: bake the repo-root agent MD files to / so a clean image is grounded
     # (agent-pipe reads /MiOS.md; the layered /etc + ~/.config overrides still win).
     install -m 0644 /ctx/rootmd/MiOS.md /ctx/rootmd/AGENTS.md /ctx/rootmd/CLAUDE.md /ctx/rootmd/GEMINI.md /; \
