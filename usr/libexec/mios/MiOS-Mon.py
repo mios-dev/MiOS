@@ -20,6 +20,17 @@ from datetime import datetime
 import argparse
 import threading
 
+def _install_deps():
+    print("\033[33m[MiOS-Mon] Missing required libraries (rich, textual, psutil). Installing them now...\033[0m")
+    try:
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "rich", "textual", "psutil"])
+        print("\033[32m[MiOS-Mon] Dependencies installed successfully. Restarting...\033[0m")
+        os.execv(sys.executable, [sys.executable] + sys.argv)
+    except Exception as e:
+        print(f"\033[31mFATAL: Failed to auto-install dependencies: {e}\033[0m")
+        input("Press Enter to exit...")
+        sys.exit(1)
+
 # --- RICH IMPORTS (For static renders) ---
 try:
     from rich.console import Console, Group
@@ -30,8 +41,7 @@ try:
     from rich.columns import Columns
     from rich import box
 except ImportError:
-    print("\033[31mFATAL: The 'rich' library is required for MiOS-Mon.\033[0m")
-    sys.exit(1)
+    _install_deps()
 
 # --- TEXTUAL IMPORTS (For live TUI) ---
 try:
@@ -43,6 +53,7 @@ try:
     TEXTUAL_AVAILABLE = True
 except ImportError:
     TEXTUAL_AVAILABLE = False
+    _install_deps()
 
 IS_WINDOWS = platform.system() == 'Windows'
 console = Console(safe_box=False)
