@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-# AI-hint: MiOS live dashboard renderer
+# AI-hint: MiOS live dashboard & real-time monitor engine
 """
-MiOS Unified Live Dashboard & Monitor Renderer
+MiOS Unified Live Dashboard & Real-Time Monitor Renderer
 High-performance, standalone Python rendering engine for MiOS system status,
-container stack monitoring, and endpoint verification.
+container stack monitoring, endpoint verification, and real-time log streaming.
 """
 from __future__ import annotations
 
@@ -15,11 +15,6 @@ import subprocess
 import time
 import urllib.request
 import platform
-
-try:
-    import tomllib
-except ModuleNotFoundError:
-    import tomli as tomllib  # type: ignore
 
 def get_terminal_width() -> int:
     cols = shutil.get_terminal_size((80, 24)).columns
@@ -194,8 +189,6 @@ def get_git_status() -> dict[str, str]:
     }
 
 def get_service_statuses() -> list[tuple[str, str, bool]]:
-    # Pair definitions: (Name, Port, Active)
-    # Order matching the 2-column dashboard layout
     services = [
         ("hermes-worker", ":8643", probe_tcp("127.0.0.1", 8643) or probe_systemd_unit("mios-hermes-worker.service")),
         ("open-webui", ":8033", probe_http("http://localhost:8033/")),
@@ -221,7 +214,20 @@ def get_service_statuses() -> list[tuple[str, str, bool]]:
     ]
     return services
 
-def render(mode: str = "full", no_color: bool = False, no_frame: bool = False) -> None:
+def get_live_logs(n: int = 7) -> list[str]:
+    try:
+        res = subprocess.run(
+            ["journalctl", "-n", str(n), "--no-pager", "-q"],
+            capture_output=True,
+            text=True,
+            timeout=1.0,
+        )
+        lines = [line.strip() for line in res.stdout.splitlines() if line.strip()]
+        return lines[-n:]
+    except Exception:
+        return ["System journal log tail active..."]
+
+def render(mode: str = "full", no_color: bool = False, no_frame: bool = False, is_monitor: bool = False) -> None:
     width = get_terminal_width()
     inner = width - 2
 
@@ -264,7 +270,6 @@ def render(mode: str = "full", no_color: bool = False, no_frame: bool = False) -
     up_count = sum(1 for _, _, ok in mini_endpoints if ok)
     down_count = len(mini_endpoints) - up_count
 
-    # Frame Helpers
     def top_frame():
         if not no_frame:
             print(f"{c_cyn}{f_tl}{hr * inner}{f_tr}{c_r}")
@@ -281,7 +286,6 @@ def render(mode: str = "full", no_color: bool = False, no_frame: bool = False) -
         if no_frame:
             print(content)
         else:
-            # Strip ANSI for padding calculation
             import re
             plain = re.sub(r"\033\[[0-9;]*[mK]", "", content)
             pad = inner - len(plain)
@@ -291,14 +295,12 @@ def render(mode: str = "full", no_color: bool = False, no_frame: bool = False) -
 
     if mode == "mini":
         top_frame()
-        # Title row
         title_left = f"  MiOS v0.3.0"
         title_right = f"{sys_info['os_name']}  "
         gap = inner - len(title_left) - len(title_right)
         frame_line(f"{c_b}{c_cyn}{title_left}{c_r}{' ' * max(1, gap)}{c_gry}{title_right}{c_r}")
         div_frame()
 
-        # Sys info table
         metrics_rows = [
             (sys_info["version"], sys_info["date"]),
             (sys_info["user"], sys_info["uptime"]),
@@ -315,11 +317,9 @@ def render(mode: str = "full", no_color: bool = False, no_frame: bool = False) -
             frame_line(f"                                                       {line_str.strip()}")
         div_frame()
 
-        # Mini summary line
         sum_str = f"● {up_count} up    ○ {down_count} down    agent:8640  hermes:8643  llama:8450"
         frame_line(f"{' ' * ((inner - len(sum_str)) // 2)}{c_grn}● {up_count} up{c_r}    {c_gry}○ {down_count} down    agent:8640  hermes:8643  llama:8450{c_r}")
         frame_line("")
-        # 2 column endpoints
         for i in range(0, len(mini_endpoints), 2):
             l_name, l_url, l_ok = mini_endpoints[i]
             r_name, r_url, r_ok = mini_endpoints[i+1]
@@ -332,12 +332,12 @@ def render(mode: str = "full", no_color: bool = False, no_frame: bool = False) -
         print(f"{' ' * ((inner - 45) // 2)}{c_gry}dev shell: ssh -p 57289 mios@localhost{c_r}")
         return
 
-    # Full / Standard Dashboard Mode
+    # Standard / Full Dashboard or Monitor Mode
     top_frame()
 
-    # Header ASCII Art (if terminal is tall enough)
+    # Header ASCII Art
     art_file = "/usr/share/mios/art.txt"
-    if os.path.exists(art_file) and not no_frame:
+    if os.path.exists(art_file) and not no_frame and not is_monitor:
         try:
             with open(art_file, "r") as f:
                 for line in f:
@@ -350,14 +350,12 @@ def render(mode: str = "full", no_color: bool = False, no_frame: bool = False) -
         except Exception:
             pass
 
-    # Title row
     title_left = "  MiOS v0.3.0"
     title_right = f"{sys_info['os_name']}  "
     gap = inner - len(title_left) - len(title_right)
     frame_line(f"{c_b}{c_cyn}{title_left}{c_r}{' ' * max(1, gap)}{c_gry}{title_right}{c_r}")
     div_frame()
 
-    # System specs metrics table
     metrics_rows = [
         (sys_info["version"], sys_info["date"]),
         (sys_info["user"], sys_info["uptime"]),
@@ -373,13 +371,12 @@ def render(mode: str = "full", no_color: bool = False, no_frame: bool = False) -
 
     div_frame()
 
-    # Unified Stack & Services Section
+    # Unified Stack & Services
     hdr = "UNIFIED SYSTEM STACK & SERVICES"
     frame_line(f"{c_b}{' ' * ((inner - len(hdr)) // 2)}{hdr}{c_r}")
     div_hr = "────────────────────────────────────────────────────────────────────"
     frame_line(f"{c_gry}{' ' * ((inner - len(div_hr)) // 2)}{div_hr}{c_r}")
 
-    # Render services in 2 parallel columns
     half = (len(services) + 1) // 2
     col1 = services[:half]
     col2 = services[half:]
@@ -402,14 +399,24 @@ def render(mode: str = "full", no_color: bool = False, no_frame: bool = False) -
     frame_line(f"{c_gry}{' ' * ((inner - len(div_hr)) // 2)}{div_hr}{c_r}")
     frame_line(f"{' ' * ((inner - 46) // 2)}login mios/mios   forge mios/user")
 
-    # Git Tree State Section
-    frame_line(f"{' ' * ((inner - 4) // 2)}{c_b}Tree{c_r}")
-    tree_str = f"main  +?/-?   {git_info['staged']} staged  {git_info['modified']} modified  {git_info['untracked']} untracked"
-    frame_line(f"{' ' * max(0, (inner - len(tree_str)) // 2)}{c_gry}{tree_str}{c_r}")
+    # If in LIVE MONITOR MODE, append Real-Time Log Streaming Section
+    if is_monitor:
+        div_frame()
+        log_hdr = "REAL-TIME LIVE SYSTEM & CONTAINER LOGS"
+        frame_line(f"{c_b}{c_ylw}{' ' * ((inner - len(log_hdr)) // 2)}{log_hdr}{c_r}")
+        frame_line(f"{c_gry}{' ' * ((inner - len(div_hr)) // 2)}{div_hr}{c_r}")
+        logs = get_live_logs(7)
+        for log_line in logs:
+            if len(log_line) > inner - 4:
+                log_line = log_line[: inner - 5] + "…"
+            frame_line(f"  {c_gry}{log_line}{c_r}")
+    else:
+        frame_line(f"{' ' * ((inner - 4) // 2)}{c_b}Tree{c_r}")
+        tree_str = f"main  +?/-?   {git_info['staged']} staged  {git_info['modified']} modified  {git_info['untracked']} untracked"
+        frame_line(f"{' ' * max(0, (inner - len(tree_str)) // 2)}{c_gry}{tree_str}{c_r}")
 
     div_frame()
 
-    # Footer Hints
     hints = "mios build  config  dash  mini  ai  code  dev  summary  user  pull  update  help"
     frame_line(f"{c_gry}{' ' * max(0, (inner - len(hints)) // 2)}{hints}{c_r}")
     bot_frame()
@@ -419,6 +426,7 @@ def main():
     mode = "full"
     no_color = "--no-color" in sys.argv or not sys.stdout.isatty()
     no_frame = "--no-frame" in sys.argv
+    is_monitor = "--monitor" in sys.argv or "monitor" in sys.argv
 
     if "--mini" in sys.argv:
         mode = "mini"
@@ -429,14 +437,17 @@ def main():
     elif "--endpoints-only" in sys.argv:
         mode = "endpoints-only"
 
-    if "--monitor" in sys.argv:
-        while True:
-            sys.stdout.write("\033[H\033[2J")
-            sys.stdout.flush()
-            render(mode, no_color, no_frame)
-            time.sleep(1.0)
+    if is_monitor:
+        try:
+            while True:
+                sys.stdout.write("\033[H\033[2J")
+                sys.stdout.flush()
+                render(mode, no_color, no_frame, is_monitor=True)
+                time.sleep(1.0)
+        except KeyboardInterrupt:
+            print("\nLive monitor stopped.")
     else:
-        render(mode, no_color, no_frame)
+        render(mode, no_color, no_frame, is_monitor=False)
 
 if __name__ == "__main__":
     main()
