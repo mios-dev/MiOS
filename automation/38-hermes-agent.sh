@@ -109,6 +109,11 @@ if ! "${VENV_PY}" -m venv "${VENV_DIR}" 2>/dev/null; then
     warn "[MiOS AI] ${VENV_PY} -m venv failed -- skipping direct install"
     exit 0
 fi
+# Ensure python3 and python symlinks point to the chosen VENV_PY inside the venv
+if [ -x "${VENV_DIR}/bin/${VENV_PY}" ]; then
+    ln -sf "${VENV_PY}" "${VENV_DIR}/bin/python3" 2>/dev/null || true
+    ln -sf "${VENV_PY}" "${VENV_DIR}/bin/python" 2>/dev/null || true
+fi
 
 # Offline check: do we have a local hermes-agent wheel, archive, or source dir,
 # and/or local wheels in the vendored folder?
