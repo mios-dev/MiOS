@@ -347,7 +347,7 @@ if command -v systemd-tmpfiles >/dev/null 2>&1; then
             [[ -d "$d" ]] || continue
             for f in "$d"/*.conf; do
                 [[ -f "$f" ]] || continue
-                awk '/^[ug][[:space:]]+/ { print $2 }' "$f"
+                awk '/^[ugm][[:space:]]+/ { print $2; if ($3 != "" && $3 !~ /^[0-9:-]+$/) print $3 }' "$f"
             done
         done | sort -u
     )
@@ -368,11 +368,15 @@ if command -v systemd-tmpfiles >/dev/null 2>&1; then
                 {
                     # If the warning is the boot-order false positive,
                     # extract the missing entity name and drop the line
-                    # if it is declared in sysusers.d.
+                    # if it is declared in sysusers.d or exists in system passwd/group.
                     if ($0 ~ /Failed to resolve (user|group)/) {
                         split($0, parts, sq)
                         if (length(parts) < 2) split($0, parts, "\"")
-                        if (parts[2] in known) next
+                        target = parts[2]
+                        if (target in known) next
+                        cmd = "getent passwd " target " 2>/dev/null || getent group " target " 2>/dev/null"
+                        if ((cmd | getline res) > 0 && length(res) > 0) { close(cmd); next }
+                        close(cmd)
                     }
                     print
                 }'
