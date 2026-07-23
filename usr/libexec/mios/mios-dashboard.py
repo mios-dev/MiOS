@@ -32,7 +32,9 @@ def probe_http(url: str, timeout: float = 0.8) -> bool:
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "MiOS-Probe"})
         with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return resp.status in (200, 301, 302, 401, 403)
+            return resp.status in (200, 301, 302, 401, 403, 405)
+    except urllib.error.HTTPError as err:
+        return err.code in (200, 301, 302, 401, 403, 405)
     except Exception:
         return False
 
