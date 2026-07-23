@@ -62,6 +62,9 @@
     via $env:MIOS_WORKFLOW for any consumer that reads it).
 #>
 param(
+    [Parameter(Mandatory=$false)]
+    [ValidateSet('Default', 'BuildXboxISO', 'FlashUSB', 'OfflineSync', 'Install', 'Configure')]
+    [string]$Action = 'Default',
     [string]$RepoUrl   = "https://github.com/mios-dev/mios-bootstrap.git",
     [string]$Branch    = "main",
     # The canonical Windows-entry working tree per
@@ -79,6 +82,11 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+
+# Set TLS 1.2 explicitly for down-level/.NET-old hosts
+try {
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+} catch {}
 
 # Disable console QuickEdit immediately so an accidental click/select in the
 # (elevated) window can't freeze the installer on its next write -- Windows
@@ -99,6 +107,133 @@ function Disable-ConsoleQuickEdit {
     } catch {}
 }
 Disable-ConsoleQuickEdit
+
+# For non-Default (build/flash/sync) actions invoked via `irm|iex` on a BARE Windows, the
+# mios-bootstrap repo isn't cloned yet -- the Default bootstrap clones it, but these actions run
+# FIRST (this router precedes the bootstrap). Fetch it here (git if present, else a GitHub zip)
+# so a factory Windows can go straight from the web one-liner to a build/flash with no manual clone.
+function Ensure-MiosBootstrapRepo {
+    $root = 'C:\mios-bootstrap'
+    if (Test-Path (Join-Path $root 'cat\autounattend\Build-MiOSXboxISO.ps1')) { return $root }
+    Write-Host "  [*] mios-bootstrap not present -- fetching it for this action (bare-Windows path)..." -ForegroundColor Cyan
+    if (Get-Command git -ErrorAction SilentlyContinue) {
+        try { & git clone --depth 1 'https://github.com/mios-dev/mios-bootstrap.git' $root 2>&1 | Out-Null } catch {}
+    }
+    if (-not (Test-Path (Join-Path $root 'cat\autounattend\Build-MiOSXboxISO.ps1'))) {
+        $zip = Join-Path $env:TEMP 'mios-bootstrap.zip'
+        $tmp = Join-Path $env:TEMP ('mios-bs-' + [System.Guid]::NewGuid().ToString('N').Substring(0,8))
+        try {
+            [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+            Invoke-WebRequest -Uri 'https://codeload.github.com/mios-dev/mios-bootstrap/zip/refs/heads/main' -OutFile $zip -UseBasicParsing -ErrorAction Stop
+            Expand-Archive -Path $zip -DestinationPath $tmp -Force
+            $inner = Get-ChildItem $tmp -Directory | Select-Object -First 1
+            if ($inner) { New-Item -ItemType Directory -Force -Path $root | Out-Null; Copy-Item -Path (Join-Path $inner.FullName '*') -Destination $root -Recurse -Force }
+        } catch {
+            Write-Host "  [!] Could not fetch mios-bootstrap: $($_.Exception.Message)" -ForegroundColor Yellow
+        } finally {
+            Remove-Item $zip,$tmp -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+    return $root
+}
+
+# Consolidated Action Router
+if ($Action -ne 'Default') {
+    if ($Action -eq 'BuildXboxISO') {
+        Write-Host "[*] Action: BuildXboxISO. Invoking Build-MiOSXboxISO..." -ForegroundColor Cyan
+        $repoRoot = Ensure-MiosBootstrapRepo
+        $buildScript = Join-Path $repoRoot "cat\autounattend\Build-MiOSXboxISO.ps1"
+        if (-not (Test-Path $buildScript)) {
+            Write-Error "Build-MiOSXboxISO.ps1 not found after fetch -- check network / GitHub access."
+            exit 1
+        }
+        # Run using a dynamic free-space work directory
+        $v = (Get-Volume | Where-Object { $_.DriveType -eq 'Fixed' -and $_.SizeRemaining -gt 15GB } | Sort-Object SizeRemaining -Descending | Select-Object -First 1)
+        $work = if ($v) { "$($v.DriveLetter):\MiOS\isobuild_live" } else { "C:\MiOS\isobuild_live" }
+        Write-Host "    Using WorkDir: $work" -ForegroundColor Cyan
+        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $buildScript -WorkDir $work -SkipWsl -SkipPrereqs
+        exit $LASTEXITCODE
+    }
+
+    if ($Action -eq 'FlashUSB') {
+        Write-Host "[*] Action: FlashUSB. Staging and launching interactive MiOS-Cat installer..." -ForegroundColor Cyan
+        # 1. Locate source folder
+        $srcDir = Join-Path (Ensure-MiosBootstrapRepo) "cat"
+        if (-not (Test-Path $srcDir)) {
+            Write-Error "MiOS-Cat (cat) folder not found after fetch -- check network / GitHub access."
+            exit 1
+        }
+        # 2. Resolve staging directory
+        $v = Get-Volume | Where-Object { $_.DriveType -eq 'Fixed' -and $_.SizeRemaining -gt 25GB } | Sort-Object SizeRemaining -Descending | Select-Object -First 1
+        $stageDir = if ($v) { Join-Path "$($v.DriveLetter):\" "MiOS\medicat_stage" } else { Join-Path $env:TEMP "medicat_stage" }
+        $targetDir = Join-Path $stageDir "cat"
+        Write-Host "    Staging directory: $targetDir" -ForegroundColor Cyan
+        
+        # 3. Copy source files to staging directory
+        New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
+        Copy-Item -Path "$srcDir\*" -Destination $targetDir -Recurse -Force
+        
+        # 4. Launch the canonical MiOS-Cat launcher. It self-elevates via UAC, so
+        # it ends up running as the machine Administrator -- which on a provisioned
+        # MiOS host is the SSOT-named MiOS AI admin account (the renamed built-in
+        # Administrator; [autounattend.service].svc_user, default 'mios-sudo').
+        # We no longer hardcode a 'MIOS\Administrator' scheduled-task principal:
+        # the hostname AND the admin-account name are operator-defined via SSOT, so
+        # a fixed 'MIOS\Administrator' was wrong on every box but this dev machine.
+        $catScript = Join-Path $targetDir "MiOS-Cat.bat"
+        Start-Process -FilePath "$env:SystemRoot\System32\cmd.exe" -ArgumentList "/c start `"MiOS-Cat`" cmd.exe /k `"$catScript`""
+        Write-Host "[+] Interactive MiOS-Cat launcher spawned from staged directory." -ForegroundColor Green
+        exit 0
+    }
+
+    if ($Action -eq 'OfflineSync') {
+        Write-Host "[*] Action: OfflineSync. Staging repositories to USB..." -ForegroundColor Cyan
+        $drive = 'D'
+        $toml = 'C:\mios-bootstrap\mios.toml'
+        if (-not (Test-Path $toml)) { $toml = 'C:\MiOS\usr\share\mios\mios.toml' }
+        if (-not (Test-Path $toml)) { $toml = 'C:\MiOS\mios.toml' }
+        if (Test-Path $toml) {
+            $drive = (Get-Content $toml | Select-String -Pattern '^\s*drivepath\s*=\s*\"(.*)\"' | ForEach-Object { $_.Matches.Groups[1].Value })
+            if (-not $drive) { $drive = 'D' }
+        }
+        Write-Host "[*] Target USB Drive: $($drive):" -ForegroundColor Cyan
+        New-Item -ItemType Directory -Force -Path "$($drive):\repos\mios-bootstrap" | Out-Null
+        New-Item -ItemType Directory -Force -Path "$($drive):\repos\MiOS" | Out-Null
+        robocopy "C:\mios-bootstrap" "$($drive):\repos\mios-bootstrap" /E /XD .git .npm node_modules build cache isobuild isobuild2 /R:2 /W:2 | Out-Null
+        robocopy "C:\MiOS" "$($drive):\repos\MiOS" /E /XD .git .npm node_modules build cache isobuild isobuild2 /R:2 /W:2 | Out-Null
+        Write-Host "[+] Sync completed successfully." -ForegroundColor Green
+        exit 0
+    }
+
+    if ($Action -eq 'Install') {
+        # The web door hands into the ONE guided surface: fetch the repo, then run
+        # installation\mios-install.ps1 (the SSOT-themed menu that explains every
+        # target and dispatches to the right local entrypoint). This replaces
+        # "re-implement each launch here" with "hand into the single installer".
+        Write-Host "[*] Action: Install. Fetching the repo and opening the guided MiOS installer..." -ForegroundColor Cyan
+        $installer = Join-Path (Ensure-MiosBootstrapRepo) "installation\mios-install.ps1"
+        if (-not (Test-Path $installer)) {
+            Write-Error "installation\mios-install.ps1 not found after fetch -- check network / GitHub access."
+            exit 1
+        }
+        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $installer
+        exit $LASTEXITCODE
+    }
+
+    if ($Action -eq 'Configure') {
+        # Same door, straight to the one SSOT editor: mios-install's `configure`
+        # target opens the MiOS Portal / configurator (:8640/configure, else the
+        # MiOS-DEV launcher, else the offline HTML).
+        Write-Host "[*] Action: Configure. Fetching the repo and opening the MiOS configurator (Portal)..." -ForegroundColor Cyan
+        $installer = Join-Path (Ensure-MiosBootstrapRepo) "installation\mios-install.ps1"
+        if (-not (Test-Path $installer)) {
+            Write-Error "installation\mios-install.ps1 not found after fetch -- check network / GitHub access."
+            exit 1
+        }
+        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $installer configure
+        exit $LASTEXITCODE
+    }
+}
 
 # -- Self-cache-bust on entry ------------------------------------------------
 # raw.githubusercontent.com is fronted by Fastly with `Cache-Control: max-age=300`,
@@ -211,7 +346,7 @@ if (-not $env:MIOS_CACHE_BUSTED -and -not $env:MIOS_GETMIOS_RELAUNCHED) {
         $freshSrc = Invoke-RestMethod -Uri $bustedUrl -Headers $noCacheHdr -ErrorAction Stop
         if ($freshSrc -and $freshSrc.Length -gt 1000) {
             # Got a real script back -- relaunch with the fresh copy.
-            & ([scriptblock]::Create($freshSrc))
+            & ([scriptblock]::Create($freshSrc)) -RepoUrl "$RepoUrl" -Branch "$Branch" -RepoDir "$RepoDir" -Workflow "$Workflow" $(if ($FullBuild) { '-FullBuild' }) $(if ($Unattended) { '-Unattended' })
             return
         }
         # Empty / suspiciously small response -- fall through to the
@@ -556,7 +691,7 @@ MiOS surfaces at install time.
 * Outbound network calls from a default deployment are limited to:
     - Fedora / RPMFusion / Flathub mirrors during build / bootc upgrade
     - GitHub Container Registry (ghcr.io) during image fetch
-    - User-chosen Quadlet workloads (Forgejo, Ollama, Guacamole,...)
+    - User-chosen Quadlet workloads (Forgejo, LocalAI, Ollama, Guacamole,...)
     - The local AI runtime at MIOS_AI_ENDPOINT (default localhost)
 * Operators can audit by inspecting /etc/containers/systemd/,
   /usr/lib/systemd/system/, and the active firewalld policy.
@@ -595,6 +730,7 @@ in the host environment to bypass this prompt as declared policy.
 }
 
 function Invoke-MiOSAgreementGate {
+    if ($Unattended) { return $true }
     # Skip-paths in priority order.
     $quietValues   = @('quiet','silent','off','0','false','FALSE')
     $acceptValues  = @('accepted','ACCEPTED','yes','YES','y','1','true','TRUE')
@@ -778,7 +914,7 @@ function Invoke-MiOSAgreementGate {
         $isLast = ($p -eq $pages.Count - 1)
         $pageNum = $p + 1
         $subt = "Project Acknowledgement (page $pageNum of $($pages.Count))"
-        Clear-Host
+        try { Clear-Host } catch {}
         # Re-center the conhost window on the OPERATOR'S active monitor
         # captured at gate entry. Without this, conhost drifts a few
         # pixels per Clear-Host (font cache / DPI renegotiation).
@@ -1116,7 +1252,7 @@ try {
     # at the bottom of the inner cmd to fire.
     `$_rc = 0
     try {
-        & ([scriptblock]::Create(`$src))
+        & ([scriptblock]::Create(`$src)) -RepoUrl "$RepoUrl" -Branch "$Branch" -RepoDir "$RepoDir" -Workflow "$Workflow" $(if ($FullBuild) { '-FullBuild' }) $(if ($Unattended) { '-Unattended' })
     } catch {
         Write-Host ''
         Write-Host ('  [!] In-process bootstrap throw: ' + `$_.Exception.Message) -ForegroundColor Red
@@ -4571,7 +4707,7 @@ function mios-dash {
         try { & podman info --format '  Hostname:   {{.Host.Hostname}}
   Server OS:  {{.Host.OS}}
   CPUs:       {{.Host.CPUs}}
-  Memory:     {{.Host.MemTotal}} bytes' 2>$null } catch {}
+  Memory:     {{.Host.MemTotal}} bytes' 2>`$null } catch {}
     } else {
         Write-Host '  [podman not on PATH]' -ForegroundColor DarkGray
     }
@@ -5034,9 +5170,20 @@ function Enable-MiOSWindowsFeatures {
         try {
             $state = Get-WindowsOptionalFeature -Online -FeatureName $name -ErrorAction Stop
         } catch {
-            # Feature not present on this Windows edition (e.g. Hyper-V
-            # absent on Home). Continue with the rest.
-            Write-Host "  [-] $label not available on this Windows edition -- skipping." -ForegroundColor DarkGray
+            # Get-WindowsOptionalFeature threw. Either the feature genuinely
+            # isn't on this edition (e.g. Hyper-V on Home), OR the legacy
+            # optional-feature name no longer exists because WSL is now
+            # Store-distributed (WSL 2.x MSIX needs only VirtualMachinePlatform,
+            # not the deprecated 'Microsoft-Windows-Subsystem-Linux' feature).
+            # If wsl.exe already works, the substrate is satisfied regardless
+            # of optional-feature state -- don't emit a scary "not available".
+            $_wslOk = $false
+            try { & wsl.exe --version *> $null; if ($LASTEXITCODE -eq 0) { $_wslOk = $true } } catch {}
+            if ($_wslOk -and ($name -like '*Subsystem-Linux*')) {
+                Write-Host "  [+] $label satisfied (wsl.exe present; Store-based WSL needs no optional feature)." -ForegroundColor DarkGray
+            } else {
+                Write-Host "  [-] $label not available on this Windows edition -- skipping." -ForegroundColor DarkGray
+            }
             continue
         }
         if ($state.State -eq 'Enabled') {
@@ -5159,16 +5306,68 @@ function Enable-MiOSWindowsFeatures {
     return [pscustomobject]@{ Status = 'ok'; RebootRequired = $false; HaltRequested = $false }
 }
 
+function Ensure-Git {
+    if (Get-Command git -ErrorAction SilentlyContinue) {
+        Write-Good "Git already installed ($((git --version) 2>&1))"
+        return
+    }
+    
+    $_gitPkg = [string](Get-MiosTomlValue -Section 'bootstrap.prereqs' -Key 'git_pkg' -Default 'Git.Git')
+    if (Get-Command winget -ErrorAction SilentlyContinue) {
+        Write-Info "Installing Git via winget ($_gitPkg) ..."
+        & winget install --exact --id $_gitPkg `
+            --silent --accept-source-agreements --accept-package-agreements `
+            --scope machine 2>&1 | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
+        if ($LASTEXITCODE -ne 0) {
+            Write-Info "Retrying Git winget install at user scope ..."
+            & winget install --exact --id $_gitPkg `
+                --silent --accept-source-agreements --accept-package-agreements 2>&1 |
+                ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
+        }
+    }
+    
+    if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+        Write-Info "winget install failed or unavailable. Attempting PortableGit direct download..."
+        $_gitUrl = [string](Get-MiosTomlValue -Section 'bootstrap.prereqs' -Key 'git_url' -Default 'https://api.github.com/repos/git-for-windows/git/releases/latest')
+        try {
+            $rel = Invoke-RestMethod -Uri $_gitUrl -Headers @{'User-Agent'='mios-bootstrap'} -ErrorAction Stop
+            $asset = $rel.assets | Where-Object { $_.name -match '^PortableGit-.*-64-bit\.7z\.exe$' } | Select-Object -First 1
+            if (-not $asset) {
+                throw "No PortableGit 64-bit asset in latest release."
+            }
+            $sfx = Join-Path $env:TEMP "PortableGit-$(Get-Random).7z.exe"
+            Write-Info "Downloading PortableGit from $($asset.browser_download_url) ..."
+            $webClient = New-Object System.Net.WebClient
+            $webClient.DownloadFile($asset.browser_download_url, $sfx)
+            
+            $_root = Join-Path $env:LOCALAPPDATA 'MiOS'
+            $gitDir = Join-Path $_root 'PortableGit'
+            if (Test-Path $gitDir) { Remove-Item $gitDir -Recurse -Force -ErrorAction SilentlyContinue }
+            New-Item -ItemType Directory -Path $gitDir -Force | Out-Null
+            
+            Write-Info "Extracting PortableGit to $gitDir ..."
+            & $sfx "-o$gitDir" -y | Out-Null
+            Remove-Item $sfx -Force -ErrorAction SilentlyContinue
+            
+            $gitCmd = Join-Path $gitDir 'cmd'
+            if (Test-Path (Join-Path $gitCmd 'git.exe')) {
+                $_u = [Environment]::GetEnvironmentVariable('Path','User')
+                if (-not (($_u -split ';') | Where-Object { $_ -ieq $gitCmd })) {
+                    [Environment]::SetEnvironmentVariable('Path', "$_u;$gitCmd", 'User')
+                }
+                $env:PATH = "$env:PATH;$gitCmd"
+                Write-Good "PortableGit installed successfully."
+            }
+        } catch {
+            Write-Err "Direct PortableGit installation failed: $_"
+        }
+    }
+}
+
 function Ensure-PodmanDesktop {
     if (Get-Command podman -ErrorAction SilentlyContinue) {
         Write-Good "Podman already installed ($((podman --version) 2>&1))"
         return
-    }
-    if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
-        Write-Err "winget not found and podman not installed."
-        Write-Err "  Install App Installer from the Microsoft Store, or install"
-        Write-Err "  Podman CLI manually via the installer from https://podman.io (or github.com/containers/podman/releases)"
-        exit 1
     }
     # Check if we should install Podman Desktop
     $_installDesktop = Get-MiosTomlValue -Section 'bootstrap.prereqs' -Key 'install_podman_desktop' -Default $false
@@ -5176,38 +5375,40 @@ function Ensure-PodmanDesktop {
     elseif ($_installDesktop -eq 'false') { $_installDesktop = $false }
     if ($_installDesktop -isnot [bool]) { $_installDesktop = $false }
 
-    if ($_installDesktop) {
-        # Install Podman Desktop (the GUI). It bundles podman.exe inside its
-        # resources tree -- but does NOT put it on PATH by default.
-        # TOML-first -- Podman Desktop winget ID from mios.toml [bootstrap.prereqs].podman_pkg
-        $_podmanPkg = [string](Get-MiosTomlValue -Section 'bootstrap.prereqs' -Key 'podman_pkg' -Default 'RedHat.Podman-Desktop')
-        Write-Info "Installing Podman Desktop via winget ($_podmanPkg) ..."
-        & winget install --exact --id $_podmanPkg `
+    if (Get-Command winget -ErrorAction SilentlyContinue) {
+        if ($_installDesktop) {
+            # Install Podman Desktop (the GUI). It bundles podman.exe inside its
+            # resources tree -- but does NOT put it on PATH by default.
+            # TOML-first -- Podman Desktop winget ID from mios.toml [bootstrap.prereqs].podman_pkg
+            $_podmanPkg = [string](Get-MiosTomlValue -Section 'bootstrap.prereqs' -Key 'podman_pkg' -Default 'RedHat.Podman-Desktop')
+            Write-Info "Installing Podman Desktop via winget ($_podmanPkg) ..."
+            & winget install --exact --id $_podmanPkg `
+                --silent --accept-source-agreements --accept-package-agreements `
+                --scope machine 2>&1 | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
+            if ($LASTEXITCODE -ne 0) {
+                Write-Info "Retrying winget install at user scope ..."
+                & winget install --exact --id $_podmanPkg `
+                    --silent --accept-source-agreements --accept-package-agreements 2>&1 |
+                    ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
+            }
+        }
+        # ALWAYS install RedHat.Podman (the CLI MSI) -- this is what actually
+        # lays down podman.exe with PATH integration. Podman Desktop alone
+        # bundles the CLI internally but doesn't expose it on PATH; the
+        # standalone CLI package does. Idempotent: winget no-ops if already
+        # present.
+        # TOML-first -- Podman CLI MSI ID from mios.toml [bootstrap.prereqs].podman_cli_pkg
+        $_podmanCliPkg = [string](Get-MiosTomlValue -Section 'bootstrap.prereqs' -Key 'podman_cli_pkg' -Default 'RedHat.Podman')
+        Write-Info "Installing Podman CLI via winget ($_podmanCliPkg) ..."
+        & winget install --exact --id $_podmanCliPkg `
             --silent --accept-source-agreements --accept-package-agreements `
             --scope machine 2>&1 | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
         if ($LASTEXITCODE -ne 0) {
-            Write-Info "Retrying winget install at user scope ..."
-            & winget install --exact --id $_podmanPkg `
+            Write-Info "Retrying CLI winget install at user scope ..."
+            & winget install --exact --id $_podmanCliPkg `
                 --silent --accept-source-agreements --accept-package-agreements 2>&1 |
                 ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
         }
-    }
-    # ALWAYS install RedHat.Podman (the CLI MSI) -- this is what actually
-    # lays down podman.exe with PATH integration. Podman Desktop alone
-    # bundles the CLI internally but doesn't expose it on PATH; the
-    # standalone CLI package does. Idempotent: winget no-ops if already
-    # present.
-    # TOML-first -- Podman CLI MSI ID from mios.toml [bootstrap.prereqs].podman_cli_pkg
-    $_podmanCliPkg = [string](Get-MiosTomlValue -Section 'bootstrap.prereqs' -Key 'podman_cli_pkg' -Default 'RedHat.Podman')
-    Write-Info "Installing Podman CLI via winget ($_podmanCliPkg) ..."
-    & winget install --exact --id $_podmanCliPkg `
-        --silent --accept-source-agreements --accept-package-agreements `
-        --scope machine 2>&1 | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
-    if ($LASTEXITCODE -ne 0) {
-        Write-Info "Retrying CLI winget install at user scope ..."
-        & winget install --exact --id $_podmanCliPkg `
-            --silent --accept-source-agreements --accept-package-agreements 2>&1 |
-            ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
     }
 
     # Direct MSI download and silent installation fallback if winget failed/is missing
@@ -5215,7 +5416,8 @@ function Ensure-PodmanDesktop {
         Write-Info "winget install failed or unavailable. Attempting direct MSI download and install of Podman CLI..."
         $podmanVersion = "6.0.0"
         try {
-            $latestRelease = Invoke-RestMethod -Uri "https://api.github.com/repos/containers/podman/releases/latest" -UseBasicParsing -ErrorAction Stop
+            $podmanUrl = [string](Get-MiosTomlValue -Section 'bootstrap.prereqs' -Key 'podman_url' -Default 'https://api.github.com/repos/containers/podman/releases/latest')
+            $latestRelease = Invoke-RestMethod -Uri $podmanUrl -UseBasicParsing -ErrorAction Stop
             if ($latestRelease.tag_name -match '^v?([0-9\.]+)$') {
                 $podmanVersion = $Matches[1]
             }
@@ -5236,6 +5438,8 @@ function Ensure-PodmanDesktop {
             Remove-Item $msiPath -Force -ErrorAction SilentlyContinue
         } catch {
             Write-Err "Direct MSI installation failed: $_"
+            Write-Err "  Please download and install Podman CLI manually via the setup/MSI from the official release page:"
+            Write-Err "  https://github.com/containers/podman/releases"
         }
     }
 
@@ -5721,21 +5925,50 @@ function Invoke-MiOSFullReap {
     }
     try { & wsl.exe --shutdown 2>$null | Out-Null } catch {}
 
-    # 17. FULL FORMAT M:\ partition ("FULLY format
-    # the M:\ partition only"). Only formats if M:\ exists AND its label
-    # starts with MIOS (the partition we provisioned). NEVER repartitions,
-    # never touches any other drive letter.
-    & $_log '[17/17] Reformatting M:\ partition (NTFS, label MIOS-DEV) ...'
+    # 17. Prepare M:\ for a fresh MiOS tree. HISTORICALLY this FULL-formatted
+    # M:\ on the premise "MiOS owns this entire volume" -- true on a clean
+    # provision. But a MiOS-Xbox-provisioned host (this machine was the first
+    # MiOS-Xbox deployment) can later carry the ACTIVE Windows pagefile and
+    # Windows UUP staging on M:\ because C:\ is too small to hold them.
+    # Formatting there would strip the live pagefile with nowhere to recreate
+    # it (C:\ full) and destroy unrelated data. So: full-format ONLY when M:\
+    # is a DEDICATED MiOS volume (no pagefile, nothing but MiOS artifacts);
+    # otherwise surgically remove just the MiOS dirs and preserve the rest.
+    & $_log '[17/17] Preparing M:\ (format if dedicated MiOS volume, else clean MiOS dirs) ...'
     try {
         $mVol = Get-Volume -DriveLetter M -ErrorAction SilentlyContinue
         if ($mVol -and $mVol.FileSystemLabel -match '^MIOS') {
-            Format-Volume -DriveLetter M -FileSystem NTFS -NewFileSystemLabel 'MIOS-DEV' -Force -Confirm:$false -ErrorAction Stop | Out-Null
-            & $_log '  [+] M:\ reformatted (NTFS, label MIOS-DEV, empty)'
+            # KEEP  = never delete (pagefile + system/volume metadata + genuine user data).
+            # PURGE = disposable junk cleared for a fresh MiOS state (Windows UUP staging).
+            # MIOS_DIRS = the FHS/repo/runtime tree MiOS itself lays down on M:\.
+            $_keep  = @('$RECYCLE.BIN','System Volume Information','pagefile.sys','swapfile.sys',
+                        'hiberfil.sys','DumpStack.log.tmp','SteamLibrary','winget','images','research','config')
+            $_purge = @('W10UIuup','MountUUP')
+            $_miosDirs = @('.devcontainer','.forgejo','.git','.github','automation','etc','MiOS',
+                           'podman','root','src','tests','tools','usr','var','powershell')
+            $_hasPagefile = [bool](Get-CimInstance Win32_PageFileUsage -ErrorAction SilentlyContinue |
+                                   Where-Object { $_.Name -match '^M:' })
+            $_foreign = @(Get-ChildItem 'M:\' -Force -ErrorAction SilentlyContinue |
+                          Where-Object { $_keep -notcontains $_.Name -and $_purge -notcontains $_.Name -and $_miosDirs -notcontains $_.Name })
+            if (-not $_hasPagefile -and $_foreign.Count -eq 0) {
+                Format-Volume -DriveLetter M -FileSystem NTFS -NewFileSystemLabel 'MIOS-DEV' -Force -Confirm:$false -ErrorAction Stop | Out-Null
+                & $_log '  [+] M:\ reformatted (dedicated MiOS volume, NTFS, label MIOS-DEV, empty)'
+            } else {
+                $_why = if ($_hasPagefile) { 'active pagefile on M:\' } else { "non-MiOS data present ($(($_foreign.Name) -join ', '))" }
+                & $_log "  M:\ is a SHARED volume ($_why); preserving pagefile/user data -- clearing MiOS tree + UUP staging."
+                foreach ($_d in ($_miosDirs + $_purge)) {
+                    $_p = Join-Path 'M:\' $_d
+                    if (Test-Path -LiteralPath $_p) {
+                        try { Remove-Item -LiteralPath $_p -Recurse -Force -ErrorAction Stop; & $_log "    [removed] M:\$_d" }
+                        catch { & $_log "    [!] could not remove M:\$_d -- $($_.Exception.Message)" }
+                    }
+                }
+            }
         } else {
-            & $_log '  M:\ not present or label != MIOS-DEV; skipping format (safety guard)'
+            & $_log '  M:\ not present or label != MIOS-DEV; skipping (safety guard)'
         }
     } catch {
-        & $_log ("  [!] M:\ format failed: " + $_.Exception.Message)
+        & $_log ("  [!] M:\ prepare failed: " + $_.Exception.Message)
     }
 
     if (-not $Quiet) {
@@ -6126,9 +6359,41 @@ $_msgPodmanFailed   = Get-MiosTomlValue -Section 'messages.steps' -Key 'podman_s
 $_msgWingetRedirect = Get-MiosTomlValue -Section 'messages.steps' -Key 'winget_storage_redirect' -Default 'Redirecting winget package storage to M:\\winget\\* ...'
 $_msgWingetFailed   = Get-MiosTomlValue -Section 'messages.steps' -Key 'winget_storage_failed_template' -Default '[!] Set-WingetStorageOnM failed: {0}'
 
+# Install-robustness (B2): hardware-virtualization preflight. WSL2 +
+# `podman machine init` cannot start without VT-x/AMD-V (SVM) enabled in BIOS/
+# UEFI. Fail fast before Initialize-DataDisk (reboot/disk changes).
+try {
+    $_virtFw = $true; $_hyperv = $true
+    try { $_virtFw = [bool](Get-CimInstance Win32_Processor -EA Stop | Select-Object -First 1 -Expand VirtualizationFirmwareEnabled) } catch {}
+    try { $_hyperv = [bool](Get-CimInstance Win32_ComputerSystem -EA Stop).HypervisorPresent } catch {}
+    if (-not $_virtFw -and -not $_hyperv) {
+        Write-Err "Hardware virtualization is DISABLED -- WSL2 + podman machine cannot start."
+        Write-Err "  -> Enable Intel VT-x / AMD-V (SVM) in BIOS/UEFI, then re-run the bootstrap."
+        exit 1
+    }
+} catch {}
+
 Write-Host ''
 Write-Host "  $_msgStep0" -ForegroundColor Cyan
-try { Initialize-DataDisk } catch { Write-Host ('  ' + ($_msgStep0Failed -f $_.Exception.Message)) -ForegroundColor Yellow }
+$_dataOk = $true
+try { Initialize-DataDisk } catch { $_dataOk = $false; Write-Host ('  ' + ($_msgStep0Failed -f $_.Exception.Message)) -ForegroundColor Yellow }
+# Factory-fresh guard: everything below (podman/winget storage, the mios.toml
+# promotion, the repo clone) targets M:\. Initialize-DataDisk already clamps the
+# carve down to what C: can spare (64 GB floor), so if we STILL have no M: volume
+# the disk genuinely cannot provide it -- STOP with an actionable reason instead
+# of silently cascading a broken install onto a drive that does not exist.
+$_dataDrive = [string](Get-MiosTomlValue -Section 'bootstrap.host_storage' -Key 'drive_letter' -Default 'M')
+if ($_dataOk -and -not (Get-Volume -DriveLetter $_dataDrive -ErrorAction SilentlyContinue)) { $_dataOk = $false }
+if (-not $_dataOk) {
+    Write-Err "Could not provision the ${_dataDrive}:\ data partition -- MiOS stores its containers,"
+    Write-Err "  packages, config and repos there, so the install cannot continue without it."
+    Write-Err "  Most common causes on a factory laptop:"
+    Write-Err "    - Under ~64 GB free on C:  (free some space / empty the Recycle Bin, then re-run)."
+    Write-Err "    - C: is BitLocker-locked or non-shrinkable  (suspend it, then re-run the one-liner:"
+    Write-Err "        manage-bde -protectors -disable C: -RebootCount 1)."
+    try { Invoke-MiOSFullReap } catch {}
+    exit 1
+}
 try {
     Write-Info $_msgPodmanRedirect
     Set-PodmanMachineStorageOnM
@@ -6218,12 +6483,34 @@ try {
     $_featOut = @(Enable-MiOSWindowsFeatures)
     $_featResult = $_featOut | Where-Object { $_ -is [pscustomobject] -and $_.PSObject.Properties['HaltRequested'] } | Select-Object -Last 1
     if ($_featResult -and $_featResult.HaltRequested) {
-        # Halt Pass-2 cleanly so downstream WSL/podman/build steps don't
-        # cascade-fail. Operator-friendly exit per mios.toml
-        # [bootstrap.prereqs.features].require_reboot_to_continue=true.
-        Write-Host '  [*] Halting Pass-2 to await reboot (TOML-driven). Re-run the' -ForegroundColor Cyan
-        Write-Host '      irm|iex one-liner after reboot to resume from clean state.' -ForegroundColor Cyan
+        # WSL/VirtualMachinePlatform were just enabled and need a reboot. Rather
+        # than making the operator re-paste the one-liner (the factory-fresh
+        # friction point), arm a run-once ELEVATED scheduled task that re-runs
+        # the one-liner AUTOMATICALLY at the next logon, then halt cleanly so the
+        # WSL/podman/build steps don't cascade-fail on a not-yet-rebooted host.
+        try {
+            $_resumeUrl = [string](Get-MiosTomlValue -Section 'bootstrap' -Key 'oneliner_url' -Default 'https://raw.githubusercontent.com/mios-dev/mios-bootstrap/main/Get-MiOS.ps1')
+            $_ps        = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+            $_resumeArg = "-NoProfile -ExecutionPolicy Bypass -Command `"irm '$_resumeUrl' | iex`""
+            $_act  = New-ScheduledTaskAction -Execute $_ps -Argument $_resumeArg
+            $_trg  = New-ScheduledTaskTrigger -AtLogOn -User "$env:USERDOMAIN\$env:USERNAME"
+            $_prin = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -LogonType Interactive -RunLevel Highest
+            $_set  = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
+            Register-ScheduledTask -TaskName 'MiOS-Resume-Bootstrap' -Action $_act -Trigger $_trg -Principal $_prin -Settings $_set -Force | Out-Null
+            Write-Host '  [+] Auto-resume armed: MiOS continues automatically after you reboot and' -ForegroundColor Green
+            Write-Host '      sign back in -- no need to re-paste the one-liner.' -ForegroundColor Green
+        } catch {
+            Write-Host "  [!] Could not arm auto-resume ($($_.Exception.Message)); after reboot re-run" -ForegroundColor Yellow
+            Write-Host '      the irm|iex one-liner manually to continue.' -ForegroundColor Yellow
+        }
+        Write-Host '  [*] Halting to await reboot (WSL/VirtualMachinePlatform just enabled).' -ForegroundColor Cyan
         exit 0
+    } else {
+        # Features already present (first run had them, OR this IS the post-reboot
+        # resume) -- clear any leftover auto-resume task so it fires exactly once.
+        if (Get-Command Unregister-ScheduledTask -ErrorAction SilentlyContinue) {
+            Unregister-ScheduledTask -TaskName 'MiOS-Resume-Bootstrap' -Confirm:$false -ErrorAction SilentlyContinue
+        }
     }
 } catch { Write-Host "  [!] Enable-MiOSWindowsFeatures failed: $($_.Exception.Message)" -ForegroundColor Yellow }
 
@@ -6261,6 +6548,12 @@ if ($true) {
         Set-ItemProperty -Path $personalize -Name 'AppsUseLightTheme'    -Value 0 -Type DWord -Force -ErrorAction SilentlyContinue
         Set-ItemProperty -Path $personalize -Name 'SystemUsesLightTheme' -Value 0 -Type DWord -Force -ErrorAction SilentlyContinue
         Set-ItemProperty -Path $personalize -Name 'ColorPrevalence'      -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
+
+        # Enable LongPathsEnabled for path compatibility
+        $fileSystemPath = 'HKLM:\System\CurrentControlSet\Control\FileSystem'
+        if (Test-Path $fileSystemPath) {
+            Set-ItemProperty -Path $fileSystemPath -Name 'LongPathsEnabled' -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
+        }
 
         # Use reg.exe directly. Both Set-ItemProperty -Type DWord AND
         # .NET Microsoft.Win32.RegistryKey.SetValue('DWord') reject
@@ -6545,7 +6838,7 @@ try {
 # create M:\ before Pass-1 stages files). Their original definitions
 # moved up; this section header retained for orientation.
 
-Clear-Host
+try { Clear-Host } catch {}
 Write-Host "MiOS Bootstrap (irm | iex web entry)" -ForegroundColor Cyan
 Write-Host "------------------------------------" -ForegroundColor Cyan
 
@@ -6556,6 +6849,7 @@ Write-Host "------------------------------------" -ForegroundColor Cyan
 # RedHat.Podman-Desktop unattended without bouncing the operator out
 # to a browser. Latest stable (per memory: target latest) -- no
 # version pin, winget picks whatever the manifest currently advertises.
+Ensure-Git
 Require-Cmd "git"    "Install Git from https://git-scm.com/download/win"
 Ensure-PodmanDesktop
 Write-Good "Prerequisites OK (git, podman)"
@@ -6695,20 +6989,37 @@ if (Test-Path $RepoDir) {
         Write-Info "Updating existing bootstrap clone at $RepoDir (fetch + hard reset to origin/$Branch) ..."
         $fr = Invoke-GitProc -ArgList @('fetch','--depth=1','origin',$Branch) -Cwd $RepoDir
         if ($fr.ExitCode -ne 0) {
-            Write-Err "git fetch in $RepoDir failed (exit $($fr.ExitCode))."
-            Write-Err "Stderr: $($fr.Stderr.Trim())"
-            Write-Err "Re-run manually:  git -C `"$RepoDir`" fetch --depth=1 origin $Branch"
+            Write-Warning "git fetch in $RepoDir failed (exit $($fr.ExitCode)). Network may be unreachable."
+            Write-Warning "Using existing staged offline clone at $RepoDir without updating."
+        } else {
+            $rr = Invoke-GitProc -ArgList @('reset','--hard','FETCH_HEAD') -Cwd $RepoDir
+            if ($rr.ExitCode -ne 0) {
+                Write-Err "git reset --hard in $RepoDir failed (exit $($rr.ExitCode))."
+                Write-Err "Stderr: $($rr.Stderr.Trim())"
+                exit 1
+            }
+            Write-Good "Bootstrap clone updated to origin/$Branch in place at $RepoDir"
+        }
+    } elseif (@(Get-ChildItem -LiteralPath $RepoDir -Force -ErrorAction SilentlyContinue).Count -eq 0) {
+        # Exists but EMPTY: a prior uninstall emptied it, yet a lingering WSL2 /
+        # minifilter handle can leave the now-empty dir undeletable (rmdir ->
+        # "device or resource busy", no Restart-Manager holder). git clone into
+        # an existing EMPTY dir succeeds, so don't abort the whole install over
+        # an empty leftover -- clone in place.
+        Write-Info "$RepoDir exists but is empty (undeletable leftover) -- cloning $RepoUrl into it in place ..."
+        $cr = $null
+        for ($_cattempt = 1; $_cattempt -le 3; $_cattempt++) {
+            $cr = Invoke-GitProc -ArgList @('clone','--branch',$Branch,'--depth','1',$RepoUrl,$RepoDir)
+            if ($cr.ExitCode -eq 0) { break }
+            if ($_cattempt -lt 3) { Start-Sleep -Seconds @(2,5,10)[$_cattempt-1] }
+        }
+        if ($cr.ExitCode -ne 0) {
+            Write-Err "git clone into empty $RepoDir failed (exit $($cr.ExitCode)). Stderr: $($cr.Stderr.Trim())"
             exit 1
         }
-        $rr = Invoke-GitProc -ArgList @('reset','--hard','FETCH_HEAD') -Cwd $RepoDir
-        if ($rr.ExitCode -ne 0) {
-            Write-Err "git reset --hard in $RepoDir failed (exit $($rr.ExitCode))."
-            Write-Err "Stderr: $($rr.Stderr.Trim())"
-            exit 1
-        }
-        Write-Good "Bootstrap clone updated to origin/$Branch in place at $RepoDir"
+        Write-Good "Fresh bootstrap clone into empty $RepoDir"
     } else {
-        Write-Err "$RepoDir exists but is not a git repository."
+        Write-Err "$RepoDir exists, is not a git repository, and is NOT empty."
         Write-Err "I won't delete it -- contents may be operator-managed. Either:"
         Write-Err "  - Move it aside:   Rename-Item `"$RepoDir`" `"$RepoDir.bak`""
         Write-Err "  - Or pass -RepoDir <other-path> to use a different target."
@@ -6845,6 +7156,37 @@ if ($_bootstrapExit -eq 0) {
         Write-Host '  [+] WSLg reset complete -- next MiOS terminal launch starts with fresh RDP-RAIL state.' -ForegroundColor Green
     } catch {
         Write-Host "  [!] WSLg reset step failed (non-fatal): $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+}
+
+# -- MiOS-Cat handoff: offer to flash a bootable MiOS-Cat USB -----------------
+# The bare `irm|iex` one-liner runs the Default action and (until now) never
+# routed to MiOS-Cat -- the -Action FlashUSB path is unreachable from a pipe (no
+# params). Offer it here as a param-less prompt so a factory-fresh install can go
+# straight from provisioning to building a deploy USB. Skipped under -Unattended
+# (never surprise-format a drive) or if bootstrap did not succeed.
+if ($_bootstrapExit -eq 0 -and -not $Unattended) {
+    try {
+        $_catSrc = Join-Path $RepoDir 'cat'
+        if (-not (Test-Path $_catSrc)) { $_catSrc = 'C:\mios-bootstrap\cat' }
+        $_catBat = Join-Path $_catSrc 'MiOS-Cat.bat'
+        if (Test-Path $_catBat) {
+            Write-Host ''
+            Write-Host '  MiOS is provisioned. MiOS-Cat can now build a bootable USB that deploys' -ForegroundColor Cyan
+            Write-Host '  MiOS (and MiOS-Xbox) onto any machine -- recovery tools, the offline Fedora' -ForegroundColor Cyan
+            Write-Host '  installer, and the repo, all on one stick.' -ForegroundColor Cyan
+            $_ans = Read-Host '  Launch MiOS-Cat to build a deploy USB now? [y/N]'
+            if ($_ans -match '^(y|yes)$') {
+                Write-Host '  [*] Launching MiOS-Cat (canonical .bat)...' -ForegroundColor Cyan
+                # Already elevated -- launch the canonical .bat directly in a new
+                # interactive console (no hardcoded-principal scheduled task).
+                Start-Process -FilePath "$env:SystemRoot\System32\cmd.exe" -ArgumentList "/c start `"MiOS-Cat`" cmd.exe /k `"$_catBat`""
+            } else {
+                Write-Host "  You can run it any time:  `"$_catBat`"" -ForegroundColor DarkGray
+            }
+        }
+    } catch {
+        Write-Host "  [!] MiOS-Cat handoff prompt skipped (non-fatal): $($_.Exception.Message)" -ForegroundColor Yellow
     }
 }
 
