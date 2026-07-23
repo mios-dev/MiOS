@@ -471,6 +471,11 @@ public class MiosLW {
   [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
   [DllImport("user32.dll")] public static extern int GetWindowTextLength(IntPtr h);
   [DllImport("user32.dll", CharSet=CharSet.Auto)] public static extern int GetWindowText(IntPtr h, StringBuilder s, int max);
+  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+  [DllImport("kernel32.dll")] public static extern int GetCurrentThreadId();
+  [DllImport("user32.dll")] public static extern bool AttachThreadInput(int idAttach, int idAttachTo, bool fAttach);
+  [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr h);
+  [DllImport("user32.dll")] public static extern bool SwitchToThisWindow(IntPtr h, bool fAltTab);
   public delegate bool EnumWindowsProc(IntPtr h, IntPtr l);
   [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left, Top, Right, Bottom; }
 }
@@ -482,10 +487,14 @@ function Get-MiosVisibleWindows {
         param(\$h, \$l)
         if ([MiosLW]::IsWindowVisible(\$h)) {
             \$len = [MiosLW]::GetWindowTextLength(\$h)
-            if (\$len -gt 0) {
-                \$sb = New-Object System.Text.StringBuilder (\$len + 1)
-                [MiosLW]::GetWindowText(\$h, \$sb, \$sb.Capacity) | Out-Null
-                \$script:_wl += [pscustomobject]@{ hwnd = [int64]\$h; title = \$sb.ToString() }
+            \$sb = New-Object System.Text.StringBuilder (\$len + 1)
+            [MiosLW]::GetWindowText(\$h, \$sb, \$sb.Capacity) | Out-Null
+            \$wpid = 0
+            [MiosLW]::GetWindowThreadProcessId(\$h, [ref]\$wpid) | Out-Null
+            \$pname = ""
+            try { \$pname = (Get-Process -Id \$wpid -ErrorAction SilentlyContinue).ProcessName } catch {}
+            if (\$len -gt 0 -or (\$pname -and \$hint -ne '' -and \$pname -match [regex]::Escape(\$hint))) {
+                \$script:_wl += [pscustomobject]@{ hwnd = [int64]\$h; pid = [int64]\$wpid; proc = \$pname; title = \$sb.ToString() }
             }
         }
         return \$true
@@ -493,26 +502,31 @@ function Get-MiosVisibleWindows {
     [MiosLW]::EnumWindows(\$cb, [IntPtr]::Zero) | Out-Null
     return \$script:_wl
 }
+\$hint = '${hint}'
 \$preRows = Get-MiosVisibleWindows
 \$pre = @(\$preRows | ForEach-Object { \$_.hwnd })
 ${sp}
-\$hint = '${hint}'
 \$deadline = (Get-Date).AddSeconds(${timeout})
 \$targetHwnd = [IntPtr]::Zero
 \$targetTitle = ''
 while ((Get-Date) -lt \$deadline) {
-    \$newRows = Get-MiosVisibleWindows | Where-Object { \$pre -notcontains \$_.hwnd }
+    \$allWins = Get-MiosVisibleWindows
     if (\$hint -ne '') {
-        \$m = \$newRows | Where-Object { \$_.title -match [regex]::Escape(\$hint) } | Select-Object -First 1
+        \$m = \$allWins | Where-Object { (\$_.title -and \$_.title -match [regex]::Escape(\$hint)) -or (\$_.proc -and \$_.proc -match [regex]::Escape(\$hint)) } | Select-Object -First 1
     } else {
+        \$m = \$null
+    }
+    if (-not \$m) {
+        \$newRows = \$allWins | Where-Object { \$pre -notcontains \$_.hwnd }
         \$m = \$newRows | Select-Object -First 1
     }
     if (\$m) { \$targetHwnd = [IntPtr][int64]\$m.hwnd; \$targetTitle = \$m.title; break }
     Start-Sleep -Milliseconds 250
 }
 if (\$targetHwnd -ne [IntPtr]::Zero) {
-    # Un-minimize if needed (SW_RESTORE = 9), then center + focus.
+    # Un-minimize if needed (SW_RESTORE = 9, SW_SHOW = 5), then center + focus.
     [MiosLW]::ShowWindow(\$targetHwnd, 9) | Out-Null
+    [MiosLW]::ShowWindow(\$targetHwnd, 5) | Out-Null
     \$r = New-Object MiosLW+RECT
     [MiosLW]::GetWindowRect(\$targetHwnd, [ref]\$r) | Out-Null
     \$w = \$r.Right - \$r.Left
@@ -522,7 +536,14 @@ if (\$targetHwnd -ne [IntPtr]::Zero) {
     \$y = \$s.Y + [int]((\$s.Height - \$h) / 2)
     [MiosLW]::MoveWindow(\$targetHwnd, \$x, \$y, \$w, \$h, \$true) | Out-Null
     \$cp = 2; [MiosLW]::DwmSetWindowAttribute(\$targetHwnd, 33, [ref]\$cp, 4) | Out-Null
+    try { [System.Windows.Forms.SendKeys]::SendWait('%') } catch {}
+    \$tpid = 0; \$tt = [MiosLW]::GetWindowThreadProcessId(\$targetHwnd, [ref]\$tpid)
+    \$ct = [MiosLW]::GetCurrentThreadId()
+    [MiosLW]::AttachThreadInput(\$ct, \$tt, \$true) | Out-Null
+    [MiosLW]::BringWindowToTop(\$targetHwnd) | Out-Null
     [MiosLW]::SetForegroundWindow(\$targetHwnd) | Out-Null
+    [MiosLW]::SwitchToThisWindow(\$targetHwnd, \$true) | Out-Null
+    [MiosLW]::AttachThreadInput(\$ct, \$tt, \$false) | Out-Null
     Write-Output ("[centered] '" + \$targetTitle + "' at (" + \$x + "," + \$y + ") size " + \$w + "x" + \$h)
 } else {
     \$msg = "[launched; window centering deferred to enumeration"
