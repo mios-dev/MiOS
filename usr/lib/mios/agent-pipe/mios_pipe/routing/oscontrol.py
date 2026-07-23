@@ -495,7 +495,7 @@ def _verify_os_action(tool: str, args: dict, result: dict,
         # North - Home", "mios@MiOS-955:~") + proc=msrdc -- NEVER the app name
         # - so a target-NAME substring match is unreliable (
         # train: epiphany/files/ptyxis ALL opened but were reported "failed"
-        # because "epiphany" isn't in "Anime North - Home"). No hardcoded app
+        # because "epiphany" isn't in "Sample App - Home"). No hardcoded app
         # names: count-delta + the live window diff carry the truth.
         if ac > bc or wdiff.get("opened"):
             return True

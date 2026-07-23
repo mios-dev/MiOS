@@ -71,7 +71,7 @@ def main():
     shell = {"hwnd": 1, "title": "Program Manager", "proc": "explorer"}
     before = {"ok": True, "count": 1, "windows": [shell]}
     # A launch opened a brand-new window (different hwnd) -- the robust signal.
-    opened_win = {"hwnd": 42, "title": "Anime North - Home", "proc": "msrdc"}
+    opened_win = {"hwnd": 42, "title": "Sample App - Home", "proc": "msrdc"}
     after_opened = {"ok": True, "count": 2, "windows": [shell, opened_win]}
     # A launch that fired but produced NO new window (the fabrication trap).
     after_none = {"ok": True, "count": 1, "windows": [shell]}
@@ -86,7 +86,7 @@ def main():
           [w["hwnd"] for w in d_close["closed"]] == [42] and not d_close["opened"],
           str(d_close))
     check("window_delta_text renders the opened title",
-          "Anime North - Home" in m._window_delta_text(d_open)
+          "Sample App - Home" in m._window_delta_text(d_open)
           and m._window_delta_text(d_open).startswith("opened:"),
           m._window_delta_text(d_open))
     check("window_delta_text reports no change when snapshots match",
@@ -107,22 +107,22 @@ def main():
           verdict_none is False,
           "exit-0 fire must NOT be claimed a success without a window")
 
-    # BLIND enumeration (count:0 both sides) -> trust the fire's exit code.
+    # BLIND enumeration (count:0 both sides) -> fail-closed (False).
     blind = {"ok": False, "count": 0, "windows": []}
     verdict_blind = m._verify_os_action(
         "open_app", {"app": "epiphany"}, fired, blind, blind,
         m._window_diff(blind, blind))
-    check("blind enumeration falls back to the exit code (success)",
-          verdict_blind is True)
+    check("blind enumeration fails action verification (fail-closed)",
+          verdict_blind is False)
 
     # close_window: target gone from AFTER == success.
     close_res = {"success": True, "output": "", "exit_code": 0}
     v_close = m._verify_os_action(
-        "close_window", {"title": "Anime North"}, close_res,
+        "close_window", {"title": "Sample App"}, close_res,
         after_opened, before, m._window_diff(after_opened, before))
     check("close verifies TRUE when the target window is gone", v_close is True)
     v_close_still = m._verify_os_action(
-        "close_window", {"title": "Anime North"}, close_res,
+        "close_window", {"title": "Sample App"}, close_res,
         after_opened, after_opened, m._window_diff(after_opened, after_opened))
     check("close verifies FALSE when the target window is still present",
           v_close_still is False)

@@ -744,6 +744,11 @@ public class MiosLW {
   [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
   [DllImport("user32.dll")] public static extern int GetWindowTextLength(IntPtr h);
   [DllImport("user32.dll", CharSet=CharSet.Auto)] public static extern int GetWindowText(IntPtr h, StringBuilder s, int max);
+  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+  [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
+  [DllImport("user32.dll")] public static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+  [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr h);
+  [DllImport("user32.dll")] public static extern bool SwitchToThisWindow(IntPtr h, bool fAltTab);
   public delegate bool EnumWindowsProc(IntPtr h, IntPtr l);
   [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left, Top, Right, Bottom; }
 }
@@ -754,11 +759,19 @@ function Get-MiosVisibleWindows {
     $cb = [MiosLW+EnumWindowsProc]{
         param($h, $l)
         if ([MiosLW]::IsWindowVisible($h)) {
-            $len = [MiosLW]::GetWindowTextLength($h)
+            $wpid = [uint32]0;
+            [MiosLW]::GetWindowThreadProcessId($h, [ref]$wpid) | Out-Null;
+            $pname = "";
+            try { $pname = (Get-Process -Id $wpid -ErrorAction SilentlyContinue).ProcessName } catch {};
+            $len = [MiosLW]::GetWindowTextLength($h);
+            $ttext = "";
             if ($len -gt 0) {
-                $sb = New-Object System.Text.StringBuilder ($len + 1)
-                [MiosLW]::GetWindowText($h, $sb, $sb.Capacity) | Out-Null
-                $script:_wl += [pscustomobject]@{ hwnd = [int64]$h; title = $sb.ToString() }
+                $sb = New-Object System.Text.StringBuilder ($len + 1);
+                [MiosLW]::GetWindowText($h, $sb, $sb.Capacity) | Out-Null;
+                $ttext = $sb.ToString();
+            };
+            if ($ttext -or $pname) {
+                $script:_wl += [pscustomobject]@{ hwnd = [int64]$h; pid = [int64]$wpid; title = $ttext; proc = $pname }
             }
         }
         return $true
@@ -775,11 +788,30 @@ hint_val = os.path.splitext(os.path.basename(target))[0]
 
 post_center = """
 $hint = '<HINT>';
+$cleanHint = $hint -replace '^.*[\\\\/]', '' -replace '^shell:[^\\\\/]+[\\\\/]', '' -replace '!.*$', '' -replace '\\.exe$', '' -replace 'AB\\..*$', '';
 $deadline = (Get-Date).AddSeconds(15);
 $targetHwnd = [IntPtr]::Zero;
 while ((Get-Date) -lt $deadline) {
     $allWins = Get-MiosVisibleWindows;
-    $m = $allWins | Where-Object { $_.title -match [regex]::Escape($hint) -or $_.proc -match [regex]::Escape($hint) } | Select-Object -First 1;
+    $m = $allWins | Where-Object { 
+        ($_.proc -and (($hint -and $_.proc -match [regex]::Escape($hint)) -or ($cleanHint -and $_.proc -match [regex]::Escape($cleanHint)))) -or 
+        ($_.title -and (($hint -and $_.title -match [regex]::Escape($hint)) -or ($cleanHint -and $_.title -match [regex]::Escape($cleanHint))))
+    } | Select-Object -First 1;
+
+    if (-not $m) {
+        $procs = Get-Process -ErrorAction SilentlyContinue | Where-Object { 
+            ($hint -and $_.ProcessName -match [regex]::Escape($hint)) -or 
+            ($cleanHint -and $_.ProcessName -match [regex]::Escape($cleanHint))
+        };
+        if ($procs) {
+            $h0 = ($procs | Where-Object MainWindowHandle -ne 0 | Select-Object -First 1).MainWindowHandle;
+            if ($h0 -and $h0 -ne [IntPtr]::Zero) {
+                $targetHwnd = $h0;
+                break;
+            }
+        }
+    }
+
     if (-not $m) {
         $newRows = $allWins | Where-Object { $pre -notcontains $_.hwnd };
         $m = $newRows | Select-Object -First 1;
@@ -801,7 +833,7 @@ if ($targetHwnd -ne [IntPtr]::Zero) {
     # Win11 DWMWA_WINDOW_CORNER_PREFERENCE = 33; DWMCSP_ROUND = 2.
     $cp = 2; [MiosLW]::DwmSetWindowAttribute($targetHwnd, 33, [ref]$cp, 4) | Out-Null;
     try { [System.Windows.Forms.SendKeys]::SendWait('%') } catch {};
-    $tpid = 0; $tt = [MiosLW]::GetWindowThreadProcessId($targetHwnd, [ref]$tpid);
+    $tpid = [uint32]0; $tt = [MiosLW]::GetWindowThreadProcessId($targetHwnd, [ref]$tpid);
     $ct = [MiosLW]::GetCurrentThreadId();
     [MiosLW]::AttachThreadInput($ct, $tt, $true) | Out-Null;
     [MiosLW]::BringWindowToTop($targetHwnd) | Out-Null;

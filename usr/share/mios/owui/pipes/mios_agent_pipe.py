@@ -774,26 +774,10 @@ class Pipe:
         re.IGNORECASE,
     )
 
-    # Refine system prompt — OpenAI-API-standard format (operator
-    # directive "simplify to OpenAI API standards for
-    # Day-0 Agents understanding -- Do a pass on ALL system prompts").
+    # Refine system prompt — standard schema-driven refinement prompt.
     # Tool-aware: the {tool_table} placeholder is filled at runtime
-    # from /usr/share/mios/owui/tool-hints.yaml so adding a new shim
-    # = one YAML entry, no prompt edits ("prompt refining should be
-    # tool aware to be able to hint" -- same operator turn).
-    #
-    # Goal: a fresh agent reads this and groks the pattern in 30
-    # seconds. Role + output schema + tool table + ~5 hard rules + 4
-    # high-signal examples covering the failure modes that recur
-    # (launch / image / map / Linux-GUI / "near <place>").
+    # from /usr/share/mios/owui/tool-hints.yaml.
     _REFINE_SYSTEM = (
-        # Generic OpenAI-style refinement layer prompt -- operator
-        # directive "generisize this to be completely
-        # platform agnostic and plain generic english (or standard
-        # OpenAI patterns here)". Platform-specific facts live in
-        # the {tool_table} injected from tool-hints.yaml; rules are
-        # phrased generically (no host names, no distro, no
-        # operator handle).
         "You are a prompt refinement layer for a multi-agent system.\n"
         "Rewrite the user's raw request into a structured handoff the\n"
         "downstream orchestrator agent will execute.\n"
@@ -856,50 +840,8 @@ class Pipe:
         "  No preamble, no markdown headers (no ##), no commentary,\n"
         "  no closing remarks.\n"
         "- Stay under 300 tokens total.\n"
-        "\n"
-        "## EXAMPLES (4 high-signal cases)\n"
-        "\n"
-        "USER: launch the crew motorfest\n"
-        "INTENT: Launch The Crew Motorfest on the user's screen.\n"
-        "TOOLS: terminal\n"
-        "DELEGATE: NO\n"
-        "PLAN:\n"
-        "  1. terminal: mios-find \"the crew motorfest\" | bash\n"
-        "  2. terminal: mios-window-active --present \"Crew Motorfest\"\n"
-        "\n"
-        "USER: show me a picture of a cute dog on the left of my screen\n"
-        "INTENT: Open an image of a cute dog in the browser, positioned left.\n"
-        "TOOLS: terminal\n"
-        "DELEGATE: NO\n"
-        "PLAN:\n"
-        "  1. terminal: mios-show-image \"cute dog\" --position left\n"
-        "\n"
-        "USER: what restaurants are near Anime North in Toronto\n"
-        "INTENT: List restaurants near the Anime North venue (Toronto Congress Centre, 650 Dixon Rd).\n"
-        "TOOLS: terminal, web_search\n"
-        "DELEGATE: NO\n"
-        "PLAN:\n"
-        "  1. terminal: mios-map \"Toronto Congress Centre 650 Dixon Rd\"\n"
-        "  2. web_search \"restaurants near 650 Dixon Road Toronto\"\n"
-        "\n"
-        "USER: open gnome settings on my pc\n"
-        "INTENT: Open GNOME Control Center on the user's screen.\n"
-        "TOOLS: terminal\n"
-        "DELEGATE: NO\n"
-        "PLAN:\n"
-        "  1. terminal: mios-gui-launch gnome-control-center\n"
-        "  2. terminal: mios-window-active --present \"Settings\"\n"
     )
 
-    # (the prior 200-line refine prompt -- intent table, fixated
-    # examples, MiOS-specific preamble -- is now deleted; replaced
-    # by the OpenAI-standard prompt above + tool-hints.yaml injection
-    # at runtime. Operator directives "simplify to OpenAI
-    # API standards for Day-0 Agents understanding -- Do a pass on
-    # ALL system prompts" + "generisize this to be completely platform
-    # agnostic and plain generic english (or standard OpenAI patterns
-    # here)" + "ABSOLUTELY NO HARDCODED ENGLISH STANDARD Linux and
-    # Windows Terminologies".)
     _LEGACY_REFINE_DELETED = True
 
     # ── Output polish system prompt ──

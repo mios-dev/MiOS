@@ -116,7 +116,7 @@ def _temporal_grounding() -> str:
 
     The micros have no clock. Without this, relative dates ("tomorrow",
     "this weekend") were resolved by guessing off whatever dates appeared
-    in retrieved text -- operator-flagged: "what's tomorrow at Anime North"
+    in retrieved text -- operator-flagged: "what's tomorrow at Tech Con"
     came back as TODAY's date and three other dates across one answer.
     This grounds the orchestrator's OWN system prompts (refine / polish /
     dispatch); it is NOT a pre_llm_call env-inject into the user message.

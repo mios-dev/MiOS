@@ -900,13 +900,10 @@ function mios-dev {
 }
 
 function mios-mini {
-    # MINI dashboard -- the compact 80x20 framed banner + fastfetch
-    # info. This is what fires on every shell spawn (vendor default
-    # of [terminal.startup].verb). "have launch
-    # be the mini-dashboard ... NOT PRINT ON LAUNCH" -- the dotfile
-    # dispatches THIS verb so the render comes from a verb command,
-    # not inline-print in the profile body.
-    if (Get-Command Show-MiosDashboard -ErrorAction SilentlyContinue) {
+    $mon = @('C:\mios-bootstrap\installation\MiOS-Monitor.ps1','C:\MiOS\usr\libexec\mios\MiOS-Monitor.ps1') | Where-Object { Test-Path $_ } | Select-Object -First 1
+    if ($mon) {
+        & powershell -NoProfile -ExecutionPolicy Bypass -File $mon -Mode Mini
+    } elseif (Get-Command Show-MiosDashboard -ErrorAction SilentlyContinue) {
         $cfg  = if (Test-Path 'M:\MiOS\fastfetch\config.jsonc') { 'M:\MiOS\fastfetch\config.jsonc' } else { '' }
         $logo = if (Test-Path 'M:\MiOS\fastfetch\mios.txt')      { 'M:\MiOS\fastfetch\mios.txt' }      else { '' }
         Show-MiosDashboard -ConfigPath $cfg -LogoPath $logo
@@ -916,13 +913,10 @@ function mios-mini {
 }
 
 function mios-dash {
-    # FULL MiOS dashboard = the SAME framed renderer as `mios mini`, but with
-    # the ASCII banner (`-Full`), so the Windows `mios dash` matches the Linux
-    # `mios dash` exactly: one design, Windows host values + the live MiOS
-    # service table + the dev-shell command. (Previously this was a separate
-    # fastfetch/podman-machine view that looked nothing like the Linux
-    # dashboard -- the operator's "doesn't match at all".)
-    if (Get-Command Show-MiosDashboard -ErrorAction SilentlyContinue) {
+    $mon = @('C:\mios-bootstrap\installation\MiOS-Monitor.ps1','C:\MiOS\usr\libexec\mios\MiOS-Monitor.ps1') | Where-Object { Test-Path $_ } | Select-Object -First 1
+    if ($mon) {
+        & powershell -NoProfile -ExecutionPolicy Bypass -File $mon -Mode Dash
+    } elseif (Get-Command Show-MiosDashboard -ErrorAction SilentlyContinue) {
         $cfg  = if (Test-Path 'M:\MiOS\fastfetch\config.jsonc') { 'M:\MiOS\fastfetch\config.jsonc' } else { '' }
         $logo = if (Test-Path 'M:\MiOS\fastfetch\mios.txt') { 'M:\MiOS\fastfetch\mios.txt' }
                 elseif (Test-Path 'M:\usr\share\mios\branding\mios.txt') { 'M:\usr\share\mios\branding\mios.txt' }
