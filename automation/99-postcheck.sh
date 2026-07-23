@@ -701,7 +701,7 @@ log "  [ok] every secret-bearing env file is mode 0600 (or none present)"
 # Every Quadlet (.container or .image) linked under /usr/lib/bootc/bound-images.d/
 # must target a valid file, and the Image= it declares must exist in the built/baked
 # image registry (/usr/share/mios/artifacts/sbom/bound-images.tsv).
-_bake_val="${MIOS_BAKE_BOUND_IMAGES:-1}"
+_bake_val="${MIOS_BAKE_BOUND_IMAGES:-0}"
 if [[ "$_bake_val" == "0" || "$_bake_val" == "false" || "$_bake_val" == "False" || "$_bake_val" == "no" ]]; then
     log "  [skip] MIOS_BAKE_BOUND_IMAGES=$_bake_val (sidecar bake skipped for CI validation build) -- skipping BOUND-IMAGES-RESOLVE"
 else
