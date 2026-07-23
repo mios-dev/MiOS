@@ -32,7 +32,13 @@ def main(argv):
     core = set(build_bake.get("core", []))
     groups = build_bake.get("groups", ["vllm", "sglang", "ai", "infra", "extra"])
     group_members = build_bake.get("group_members", {})
-    
+    # firstboot tier (SSOT [build.bake].firstboot_tokens): images whose rendered
+    # ref substring-matches any token are NOT baked -- excluded from every group
+    # list -> they go to plan.d/firstboot.list and are pulled at first boot.
+    firstboot_tokens = build_bake.get("firstboot_tokens", [])
+    def is_firstboot(img):
+        return any(tok and tok in img for tok in firstboot_tokens)
+
     enabled_map = config.get("quadlets", {}).get("enable", {})
     
     # We will scan both *.container and *.image files from usr/share/containers/systemd/
@@ -115,9 +121,16 @@ def main(argv):
         if is_core or enabled_map.get(base_name) is not False:
             images_to_bake.append((resolved_img, base_name))
             
-    # Group the images
+    # Group the images. Firstboot-tier images are NOT baked -> excluded from every
+    # group list (they stay in images_to_bake for the SBOM); collect them for
+    # plan.d/firstboot.list so mios-ai-firstboot / the USB stager can pull them.
     group_lists = {g: [] for g in groups}
+    firstboot_images = []
     for img, base_name in images_to_bake:
+        if is_firstboot(img):
+            if img not in firstboot_images:
+                firstboot_images.append(img)
+            continue
         g = classify(img)
         if img not in group_lists[g]:
             group_lists[g].append(img)
@@ -211,6 +224,15 @@ def main(argv):
                 fh.write(content)
             print(f"[bake-plan-gen] wrote {plan_file}")
             
+    # firstboot tier: emit the not-baked images for mios-ai-firstboot / the USB
+    # data-partition stager. Written only in write mode and OUTSIDE the group
+    # lists, so drift-check 35 (which compares only the group lists) is unaffected.
+    if not check:
+        fb_file = os.path.join(out_dir, "firstboot.list")
+        with open(fb_file, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write("".join(f"{img}\n" for img in firstboot_images))
+        print(f"[bake-plan-gen] wrote {fb_file}")
+
     return 1 if drift_detected else 0
 
 if __name__ == "__main__":

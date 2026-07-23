@@ -1,0 +1,2 @@
+docker.io/lmsysorg/sglang:latest
+docker.io/vllm/vllm-openai:latest

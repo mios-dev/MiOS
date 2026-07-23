@@ -33,7 +33,14 @@ env:
   # registry. Flip to 'true' once a GitHub runner can hold the full image (a
   # large-disk runner, or after the MiOS-Sys consolidation shrinks the bake) so
   # GitHub bakes + pushes + signs as a full equal.
-  PUBLISH: 'false'
+  #
+  # ENABLED 2026-07-23: the ~47GB GPU-engine whales (vLLM ~25GB + SGLang ~22GB)
+  # are now the FIRSTBOOT tier (mios.toml [build.bake].firstboot_tokens) --
+  # evicted from the bake (generate-bake-plan.py -> plan.d/firstboot.list) and
+  # pulled at first boot, not baked. That drops peak build disk from ~60GB to
+  # ~20-25GB, which fits a standard ubuntu-24.04 runner, so GitHub now bakes the
+  # core AI + service images, rechunks, pushes, and cosign-signs as a full equal.
+  PUBLISH: 'true'
 
 jobs:
   # WS-0A drift gate: source-tree fitness-functions that need NO built image.

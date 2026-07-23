@@ -8590,6 +8590,17 @@ core = [
   "localhost/mios-firecrawl:v1.0.0"
 ]
 groups = ["sys", "cuda", "extra"]
+# firstboot tier -- bound images whose rendered ref substring-matches ANY token
+# here are NOT baked into the OS image. They are the multi-GB GPU-engine "whales"
+# (vLLM ~25GB, SGLang ~22GB) that overran disk-constrained CI runners (exit 125 /
+# "closed pipe"); evicting them drops the bake ~25GB (only vLLM has an active
+# Quadlet today) so a standard 88GB runner can bake+commit+publish. They stay in
+# `core` (still first-class MiOS bound images) -- generate-bake-plan.py emits them
+# to plan.d/firstboot.list, mios-bake-group SKIPS them, and their Quadlet web-pulls
+# the image on first start (mios-ai-firstboot already seeds the model weights into
+# /var; MiOS-Cat can pre-stage the image on a 128GB+ USB data partition for an
+# offline first boot). Empty list = bake everything (previous behavior).
+firstboot_tokens = ["vllm", "sglang"]
 
 [build.bake.group_members]
 sys = ["sys"]
