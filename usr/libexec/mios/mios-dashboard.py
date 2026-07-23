@@ -426,7 +426,6 @@ def main():
     mode = "full"
     no_color = "--no-color" in sys.argv or not sys.stdout.isatty()
     no_frame = "--no-frame" in sys.argv
-    is_monitor = "--monitor" in sys.argv or "monitor" in sys.argv
 
     if "--mini" in sys.argv:
         mode = "mini"
@@ -436,6 +435,12 @@ def main():
         mode = "table-only"
     elif "--endpoints-only" in sys.argv:
         mode = "endpoints-only"
+
+    # Default to live monitoring mode whenever invoked interactively in a TTY,
+    # unless --once or --no-monitor is explicitly passed.
+    once_mode = "--once" in sys.argv or "--no-monitor" in sys.argv
+    is_tty = sys.stdout.isatty()
+    is_monitor = (is_tty and not once_mode) or "--monitor" in sys.argv or "monitor" in sys.argv
 
     if is_monitor:
         try:
