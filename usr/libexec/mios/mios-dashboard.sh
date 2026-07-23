@@ -48,7 +48,6 @@ set -uo pipefail
 MODE="default"
 NO_COLOR=0
 NO_FRAME=0
-TICKER=0
 MONITOR=0
 for arg in "$@"; do
     case "$arg" in
@@ -58,7 +57,7 @@ for arg in "$@"; do
         --mini)          MODE="mini" ;;
         --no-color)      NO_COLOR=1 ;;
         --no-frame)      NO_FRAME=1 ;;
-        --ticker)        TICKER=1 ;;
+        --ticker)        : ;;
         --monitor)       MONITOR=1 ;;
         --help|-h)
             sed -n '/^# /,/^$/{s/^# \?//;p}' "$0" | head -40
@@ -76,7 +75,7 @@ fi
 if [[ $NO_COLOR -eq 0 ]]; then
     C_R=$'\033[0m'; C_B=$'\033[1m'; C_D=$'\033[2m'
     C_RED=$'\033[31m'; C_GRN=$'\033[32m'; C_YLW=$'\033[33m'
-    C_BLU=$'\033[34m'; C_MGT=$'\033[35m'; C_CYN=$'\033[36m'
+    C_CYN=$'\033[36m'
     C_GRY=$'\033[90m'
     DOT_UP="●"; DOT_DOWN="○"; DOT_FAIL="✗"; DOT_WAIT="◌"
     HR="─"
@@ -84,7 +83,7 @@ if [[ $NO_COLOR -eq 0 ]]; then
     F_LT="├"; F_RT="┤"; F_V="│"
 else
     C_R=""; C_B=""; C_D=""
-    C_RED=""; C_GRN=""; C_YLW=""; C_BLU=""; C_MGT=""; C_CYN=""; C_GRY=""
+    C_RED=""; C_GRN=""; C_YLW=""; C_CYN=""; C_GRY=""
     DOT_UP="*"; DOT_DOWN="-"; DOT_FAIL="x"; DOT_WAIT="."
     HR="-"
     F_TL="+"; F_TR="+"; F_BL="+"; F_BR="+"
@@ -149,6 +148,7 @@ MIOS_COMPACT=1
 if (( AVAIL_ROWS >= 22 )); then
     MIOS_COMPACT=0
 fi
+export MIOS_COMPACT
 
 # Identity from install.env (written by mios-bootstrap at install time).
 # install.env is sourced FIRST so MIOS_USER lands in env, then we fall
@@ -257,7 +257,8 @@ print_ascii_header() {
     done < "$ART_FILE"
     local pad=$(( (INNER - maxw) / 2 ))
     (( pad < 0 )) && pad=0
-    local pad_str="$(hr_repeat ' ' "$pad")"
+    local pad_str
+    pad_str="$(hr_repeat ' ' "$pad")"
     while IFS= read -r line; do
         [[ "$line" =~ ^# ]] && continue
         printf '%s%s%s%s\n' "$C_CYN" "$pad_str" "$line" "$C_R"
@@ -267,7 +268,8 @@ print_ascii_header() {
 # ── Title row + version ──────────────────────────────────────────────────────
 print_title() {
     local left=" MiOS v${MIOS_VERSION}"
-    local right="$(uname -srm) "
+    local right
+    right="$(uname -srm) "
     local gap=$(( INNER - ${#left} - ${#right} ))
     (( gap < 1 )) && gap=1
     printf '%s%s%s%s%s%s\n' "$C_B$C_CYN" "$left" "$C_R" \
@@ -363,8 +365,8 @@ _mios_port() {
     printf '%s' "$default"
 }
 
-GLYPH_QUADLETS=$''   #  cubes
-GLYPH_GIT=$''        #  code-branch
+export GLYPH_QUADLETS=$''   #  cubes
+export GLYPH_GIT=$''        #  code-branch
 
 # ── Live "SSH into the code-server dev container" command ────────────────────
 # The command (and its sshd port) come from the shared SSOT helper
@@ -399,7 +401,7 @@ print_endpoints() {
     _p_cockpit=$(_mios_port cockpit 8090)
     _p_llamaswap=$(_mios_port llm_light 8450)
     _p_searxng=$(_mios_port searxng 8899)
-    _p_hermes=$(_mios_port hermes 8642)
+    _p_hermes=$(_mios_port hermes_worker 8643)
     _p_code=$(_mios_port code_server 8800)
     _p_webui=$(_mios_port open_webui 8033)
     _p_agent_pipe=$(_mios_port agent_pipe 8640)
@@ -445,9 +447,10 @@ print_endpoints() {
     local total_len=$(( 6 + ${#up_str} + ${#down_str} + ${#ep_str} ))
     local pad=$(( (INNER - total_len) / 2 ))
     (( pad < 0 )) && pad=0
-    local padstr="$(hr_repeat ' ' "$pad")"
+    local padstr
+    padstr="$(hr_repeat ' ' "$pad")"
     
-    printf '%s%s%s%s %s%s%s%s%s %s%s%s%s\n' \
+    printf '%s%s%s%s%s %s%s%s%s%s %s%s%s%s\n' \
         "$padstr" \
         "$C_GRN" "$DOT_UP" "$C_R" "$C_B" "$up_str" \
         "$C_GRY" "$DOT_DOWN" "$C_R" "$C_GRY" "$down_str" \
@@ -456,39 +459,43 @@ print_endpoints() {
     local l_name1="Agent-Pipe" l_link1="http://localhost:${_p_agent_pipe}/v1"
     local r_name1="WebUI"      r_link1="http://localhost:${_p_webui}/"
     local l_name2="Cockpit"    l_link2="https://localhost:${_p_cockpit}/"
-    local r_name2="PS-Term"    r_link2="http://localhost:${_p_ttyd_ps}/"
+    local r_name2="Bash-Term"  r_link2="http://localhost:${_p_ttyd_bash}/"
     local l_name3="IDE / Code"  l_link3="http://localhost:${_p_code}/"
-    local r_name3="SSH"
-    local r_link3 _ssh_live
+    local r_name3="PS-Term"    r_link3="http://localhost:${_p_ttyd_ps}/"
+    local l_name4="Forge"      l_link4="http://localhost:${_p_forge}/"
+    local r_name4="SSH"
+    local r_link4 _ssh_live
     _ssh_live="$(_ssh_live_port)"
-    r_link3="port ${_ssh_live}"
+    r_link4="port ${_ssh_live}"
 
     local col_sep=" │ "
     [[ "$NO_COLOR" -eq 1 ]] && col_sep=" | "
 
-    # Left cell width: 1 (dot) + 1 (sp) + 10 (name) + 1 (sp) + 24 (link) = 37 chars.
-    # Separator: 3 chars.
-    # Right cell width: 1 (dot) + 1 (sp) + 7 (name) + 1 (sp) + 22 (link) = 32 chars.
-    # Total width = 37 + 3 + 32 = 72 chars.
     local table_w=72
     local t_pad=$(( (INNER - table_w) / 2 ))
     (( t_pad < 0 )) && t_pad=0
-    local t_padstr="$(hr_repeat ' ' "$t_pad")"
+    local t_padstr
+    t_padstr="$(hr_repeat ' ' "$t_pad")"
 
     # Row 1
-    printf "${t_padstr}%s %-10s %s%-24s%s${col_sep}%s %-7s %s%s%s\n" \
+    printf "${t_padstr}%s %-10s %s%-24s%s${col_sep}%s %-9s %s%s%s\n" \
         "$d_agent_pipe" "$l_name1" "$C_D" "$l_link1" "$C_R" \
         "$d_webui" "$r_name1" "$C_D" "$r_link1" "$C_R"
 
     # Row 2
-    printf "${t_padstr}%s %-10s %s%-24s%s${col_sep}%s %-7s %s%s%s\n" \
+    printf "${t_padstr}%s %-10s %s%-24s%s${col_sep}%s %-9s %s%s%s\n" \
         "$d_cockpit" "$l_name2" "$C_D" "$l_link2" "$C_R" \
-        "$d_ttyd_ps" "$r_name2" "$C_D" "$r_link2" "$C_R"
+        "$d_ttyd_bash" "$r_name2" "$C_D" "$r_link2" "$C_R"
 
     # Row 3
-    printf "${t_padstr}%s %-10s %s%-24s%s${col_sep}%s %-7s %s%s%s\n" \
+    printf "${t_padstr}%s %-10s %s%-24s%s${col_sep}%s %-9s %s%s%s\n" \
         "$d_code" "$l_name3" "$C_D" "$l_link3" "$C_R" \
-        "$d_ssh" "$r_name3" "$C_D" "$r_link3" "$C_R"
+        "$d_ttyd_ps" "$r_name3" "$C_D" "$r_link3" "$C_R"
+
+    # Row 4
+    printf "${t_padstr}%s %-10s %s%-24s%s${col_sep}%s %-9s %s%s%s\n" \
+        "$d_forge" "$l_name4" "$C_D" "$l_link4" "$C_R" \
+        "$d_ssh" "$r_name4" "$C_D" "$r_link4" "$C_R"
 }
 
 print_unified_table() {
@@ -811,7 +818,9 @@ print_git_state() {
     staged="${staged%%[!0-9]*}";       staged="${staged:-0}"
     untracked="${untracked%%[!0-9]*}"; untracked="${untracked:-0}"
     local str="    ${GLYPH_GIT}  ${branch}  +${ahead}/-${behind}   ${staged} staged  ${modified} modified  ${untracked} untracked"
-    local pad=$(( (INNER - ${#str}) / 2 )); (( pad < 0 )) && pad=0; local padstr="$(hr_repeat ' ' "$pad")"
+    local pad=$(( (INNER - ${#str}) / 2 )); (( pad < 0 )) && pad=0
+    local padstr
+    padstr="$(hr_repeat ' ' "$pad")"
     section_header "Tree" "$padstr"
     printf '%s%s  %s%s%s  +%s/-%s   %s%d staged  %d modified  %d untracked%s\n' \
         "$padstr" "$GLYPH_GIT" "$C_B" "$branch" "$C_R" "$ahead" "$behind" \
@@ -819,10 +828,14 @@ print_git_state() {
 }
 
 print_loop_hint() {
-    local pad=$(( (INNER - 74) / 2 )); (( pad < 0 )) && pad=0; local padstr="$(hr_repeat ' ' "$pad")"
+    local pad=$(( (INNER - 74) / 2 )); (( pad < 0 )) && pad=0
+    local padstr
+    padstr="$(hr_repeat ' ' "$pad")"
     printf '\n%s%sEdit /  ->  git commit  ->  git push  ->  Forgejo Runner  ->  bootc switch%s\n' "$padstr" "$C_D" "$C_R"
     local rh_len=$(( 56 + ${#MIOS_LINUX_USER} * 2 ))
-    local rh_pad=$(( (INNER - rh_len) / 2 )); (( rh_pad < 0 )) && rh_pad=0; local rh_padstr="$(hr_repeat ' ' "$rh_pad")"
+    local rh_pad=$(( (INNER - rh_len) / 2 )); (( rh_pad < 0 )) && rh_pad=0
+    local rh_padstr
+    rh_padstr="$(hr_repeat ' ' "$rh_pad")"
     printf '%s%sRebuild now: git -C / push http://%s@localhost:3000/%s/mios.git%s\n' \
         "$rh_padstr" "$C_GRY" "$MIOS_LINUX_USER" "$MIOS_LINUX_USER" "$C_R"
 }
@@ -1102,7 +1115,7 @@ _dashboard_rows_render() {
 
     local parsed_rows=()
     local max_c1=0 max_c2=0
-    local row n field val v1 v2
+    local row n field v1 v2
     
     while IFS= read -r row; do
         [[ -z "$row" ]] && continue
@@ -1143,7 +1156,8 @@ _dashboard_rows_render() {
 
     local row_pad=$(( (INNER - total_w) / 2 ))
     (( row_pad < 0 )) && row_pad=0
-    local row_padstr="$(hr_repeat ' ' "$row_pad")"
+    local row_padstr
+    row_padstr="$(hr_repeat ' ' "$row_pad")"
     
     for r in "${parsed_rows[@]}"; do
         IFS='|' read -r v1 v2 <<< "$r"
@@ -1156,7 +1170,8 @@ _dashboard_rows_render() {
         
         local pad1=$(( max_c1 - ${#v1} ))
         (( pad1 < 0 )) && pad1=0
-        local pad1str="$(hr_repeat ' ' "$pad1")"
+        local pad1str
+        pad1str="$(hr_repeat ' ' "$pad1")"
         
         if [[ -n "$v2" ]]; then
             printf '%s%s%s    %s\n' "$row_padstr" "$v1" "$pad1str" "$v2"

@@ -13,12 +13,11 @@ Wants=network-online.target
 AddCapability=CAP_NET_BIND_SERVICE
 ContainerName=mios-forge
 Environment=USER=git
-Environment=USER_UID=816
-Environment=USER_GID=816
 Environment=FORGEJO__server__ROOT_URL=http://localhost:${MIOS_PORT_FORGE_HTTP}/
 Environment=FORGEJO__server__HTTP_ADDR=0.0.0.0
 Environment=GITEA__server__HTTP_ADDR=0.0.0.0
 Environment=FORGEJO__server__HTTP_PORT=${MIOS_PORT_FORGE_HTTP}
+Environment=GITEA__server__HTTP_PORT=${MIOS_PORT_FORGE_HTTP}
 Environment=FORGEJO__server__START_SSH_SERVER=true
 Environment=FORGEJO__server__SSH_PORT=49922
 Environment=FORGEJO__server__SSH_LISTEN_HOST=0.0.0.0

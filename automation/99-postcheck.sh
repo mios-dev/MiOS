@@ -358,7 +358,7 @@ if command -v systemd-tmpfiles >/dev/null 2>&1; then
             # (also dry-run) so it exercises the full directive interpreter.
             out=$(systemd-tmpfiles --dry-run --create "$f" 2>&1 || true)
             # Keep only lines that name THIS file (filename prefix).
-            echo "$out" | awk -v f="$f" -v decl="$_sysusers_declared" '
+            echo "$out" | awk -v f="$f" -v decl="$_sysusers_declared" -v sq="'" '
                 BEGIN {
                     n = split(decl, a, "\n")
                     for (i = 1; i <= n; i++) if (a[i] != "") known[a[i]] = 1
@@ -370,7 +370,8 @@ if command -v systemd-tmpfiles >/dev/null 2>&1; then
                     # extract the missing entity name and drop the line
                     # if it is declared in sysusers.d.
                     if ($0 ~ /Failed to resolve (user|group)/) {
-                        split($0, parts, /['"]/)
+                        split($0, parts, sq)
+                        if (length(parts) < 2) split($0, parts, "\"")
                         if (parts[2] in known) next
                     }
                     print
@@ -379,7 +380,7 @@ if command -v systemd-tmpfiles >/dev/null 2>&1; then
     )
     if [[ -n "$_bad_tmpfiles" ]]; then
         printf '%s\n' "$_bad_tmpfiles" >&2
-        die "systemd-tmpfiles reported errors in MiOS tmpfiles.d config(s)"
+        die "systemd-tmpfiles reported errors in MiOS tmpfiles.d configs"
     fi
     log "  MiOS tmpfiles.d configs parse clean (sysusers-declared names accepted)"
 else
@@ -708,7 +709,7 @@ if [[ -d "$_lbi_dir" ]]; then
         log "  [skip] $_lbi_tsv not present (sidecars not baked in this Containerfile layer) -- skipping BOUND-IMAGES-RESOLVE"
     else
         declare -A _lbi_baked=()
-        while IFS=$'\t' read -r img_ref digest group || [[ -n "$img_ref" ]]; do
+        while IFS=$'\t' read -r img_ref _digest _group || [[ -n "$img_ref" ]]; do
             [[ -z "$img_ref" || "$img_ref" == "image" ]] && continue
             _lbi_baked["$img_ref"]=1
         done < "$_lbi_tsv"
