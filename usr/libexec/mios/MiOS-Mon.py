@@ -501,17 +501,29 @@ if TEXTUAL_AVAILABLE:
 
         def compose(self) -> ComposeResult:
             yield Header(show_clock=True)
-            with Horizontal(id="main-container"):
-                with Vertical(id="left-pane"):
-                    yield Static(id="hw-box", classes="box")
-                    yield DataTable(id="svc-table", classes="box")
-                with Vertical(id="right-pane"):
-                    with Horizontal(id="top-right-bar"):
-                        yield Static(id="sys-identity", classes="box")
-                        yield Static(id="forge-box", classes="box")
-                    with Vertical(id="spark-container"):
-                        yield Sparkline(data=[], id="spark-widget")
-                    yield RichLog(id="log-box", classes="box", markup=True, wrap=True)
+            with TabbedContent(initial="tab-global"):
+                with TabPane("Global Systems", id="tab-global"):
+                    with Horizontal(id="main-container"):
+                        with Vertical(id="left-pane"):
+                            yield Static(id="hw-box", classes="box")
+                            yield DataTable(id="svc-table", classes="box")
+                        with Vertical(id="right-pane"):
+                            with Horizontal(id="top-right-bar"):
+                                yield Static(id="sys-identity", classes="box")
+                                yield Static(id="forge-box", classes="box")
+                            with Vertical(id="spark-container"):
+                                yield Sparkline(data=[], id="spark-widget")
+                            yield RichLog(id="log-box", classes="box", markup=True, wrap=True)
+                with TabPane("MiOS-Cat Flash", id="tab-flash"):
+                    with Horizontal(id="flash-container"):
+                        with Vertical(id="flash-stats-pane", classes="box"):
+                            yield Static(id="flash-stats", markup=True)
+                        yield RichLog(id="flash-log-box", classes="box", markup=True, wrap=True)
+                with TabPane("MiOS AI Forge", id="tab-ai"):
+                    with Horizontal(id="ai-container"):
+                        with Vertical(id="ai-stats-pane", classes="box"):
+                            yield Static(id="ai-stats", markup=True)
+                        yield RichLog(id="ai-log-box", classes="box", markup=True, wrap=True)
             yield Footer()
 
         def on_mount(self) -> None:
@@ -576,6 +588,12 @@ if TEXTUAL_AVAILABLE:
 
         def tail_all_logs(self):
             log_box = self.query_one("#log-box", RichLog)
+            try:
+                flash_log_box = self.query_one("#flash-log-box", RichLog)
+                ai_log_box = self.query_one("#ai-log-box", RichLog)
+            except Exception:
+                flash_log_box = None
+                ai_log_box = None
             
             # Initial log dump so the log panel is filled IMMEDIATELY on open!
             try:
@@ -588,7 +606,9 @@ if TEXTUAL_AVAILABLE:
                     if not line: continue
                     if re.search(r'\b(error|failed|critical|fatal)\b', line, re.I): line = f"[{SSOT['error']}]{line}[/]"
                     elif re.search(r'\bwarn(ing)?\b', line, re.I): line = f"[{SSOT['warning']}]{line}[/]"
-                    elif 'podman' in line.lower() or 'container' in line.lower(): line = f"[{SSOT['subtle']}]{line}[/]"
+                    elif 'podman' in line.lower() or 'container' in line.lower(): 
+                        line = f"[{SSOT['subtle']}]{line}[/]"
+                        if ai_log_box: self.call_from_thread(ai_log_box.write, line)
                     self.call_from_thread(log_box.write, line)
             except Exception: pass
 
@@ -604,9 +624,33 @@ if TEXTUAL_AVAILABLE:
                         if not line: continue
                         if re.search(r'\b(error|failed|critical|fatal)\b', line, re.I): line = f"[{SSOT['error']}]{line}[/]"
                         elif re.search(r'\bwarn(ing)?\b', line, re.I): line = f"[{SSOT['warning']}]{line}[/]"
-                        elif 'podman' in line.lower() or 'container' in line.lower(): line = f"[{SSOT['subtle']}]{line}[/]"
+                        elif 'podman' in line.lower() or 'container' in line.lower():
+                            line = f"[{SSOT['subtle']}]{line}[/]"
+                            if ai_log_box: self.call_from_thread(ai_log_box.write, line)
                         self.call_from_thread(log_box.write, line)
                     proc.kill()
+                except Exception: pass
+
+            def stream_flash_log():
+                log_path = r"C:\Windows\Temp\mios-cat-flash.log" if IS_WINDOWS else "/tmp/mios-cat-flash.log"
+                if not os.path.exists(log_path):
+                    if flash_log_box: self.call_from_thread(flash_log_box.write, f"[{SSOT['subtle']}]Waiting for flash process to start (no log file found)...[/]")
+                    while not os.path.exists(log_path) and self.tailing:
+                        time.sleep(1)
+                
+                if not self.tailing: return
+
+                try:
+                    with open(log_path, 'r', encoding='utf-8', errors='ignore') as f:
+                        f.seek(0, 2)  # Skip to end
+                        while self.tailing:
+                            line = f.readline()
+                            if not line:
+                                time.sleep(0.1)
+                                continue
+                            line = line.strip()
+                            if not line: continue
+                            if flash_log_box: self.call_from_thread(flash_log_box.write, line)
                 except Exception: pass
 
             # Unbuffered real-time log streaming using stdbuf -oL
@@ -614,8 +658,8 @@ if TEXTUAL_AVAILABLE:
             if IS_WINDOWS:
                 j_cmd = ["wsl.exe", "-d", "podman-MiOS-DEV", "-u", "root", "--", "stdbuf", "-oL", "journalctl", "-fa", "-n", "0", "--no-pager"]
             
-            t1 = threading.Thread(target=stream_proc, args=(j_cmd,), daemon=True)
-            t1.start()
+            threading.Thread(target=stream_proc, args=(j_cmd,), daemon=True).start()
+            if flash_log_box: threading.Thread(target=stream_flash_log, daemon=True).start()
 
         def update_telemetry(self):
             cpu, ram, root, m_disk, load = get_telemetry()
@@ -673,6 +717,30 @@ if TEXTUAL_AVAILABLE:
                 f"[{SSOT['success']} bold]GIT:[/] {get_git_tree_status()}"
             ]
             self.query_one("#forge-box", Static).update("\n".join(u_lines))
+
+            try:
+                # Update AI Stats
+                ai_lines = [
+                    f"[{SSOT['success']} bold]AI Forge Status[/]",
+                    f"[{SSOT['subtle']}]Podman Engine:[/] {'[green]ONLINE[/]' if check_port('127.0.0.1', SSOT.get('ports', {}).get('wsl_engine', 0)) or IS_WINDOWS else '[red]OFFLINE[/]'}",
+                    f"[{SSOT['subtle']}]LLM Inference:[/] {'[green]READY[/]' if check_port('127.0.0.1', SSOT.get('ports', {}).get('open_webui', 8033)) else '[yellow]STANDBY[/]'}",
+                    "",
+                    f"[{SSOT['warning']}]System Memory:[/] {make_bar(psutil.virtual_memory().percent, 20)}",
+                    f"[{SSOT['warning']}]System CPU:[/] {make_bar(float(cpu), 20)}"
+                ]
+                self.query_one("#ai-stats", Static).update("\n".join(ai_lines))
+                
+                # Update Flash Stats
+                flash_lines = [
+                    f"[{SSOT['accent']} bold]MiOS-Cat USB Builder[/]",
+                    f"[{SSOT['subtle']}]Target Drive:[/] {get_usb_drive_info()}",
+                    f"[{SSOT['subtle']}]Status:[/] Ready.",
+                    "",
+                    "Track the real-time compilation and imaging",
+                    "of the MiOS-Cat offline vault in the log stream ->"
+                ]
+                self.query_one("#flash-stats", Static).update("\n".join(flash_lines))
+            except Exception: pass
 
         def update_services(self):
             svcs = get_services()
