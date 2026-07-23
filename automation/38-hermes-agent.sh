@@ -176,6 +176,12 @@ fi
 # Verify it landed; symlink it to a stable vendor path the
 # /usr/bin/hermes wrapper + mios-gateway-agent.service both reference.
 if [[ -x "${VENV_DIR}/bin/hermes" ]]; then
+    # BIN_DIR (${VENV_ROOT}/bin) was created during setup, but the `rm -rf
+    # ${VENV_ROOT}` + `git clone` above replaced VENV_ROOT with the hermes-agent
+    # source tree (which ships no bin/), deleting it -> the ln below failed with
+    # "No such file or directory", leaving /usr/bin/hermes + mios-gateway-agent
+    # pointing at a dangling link. Recreate the stable symlink dir first.
+    install -d -m 0755 "${BIN_DIR}"
     ln -sf "${VENV_DIR}/bin/hermes" "${BIN_DIR}/hermes"
     log "[MiOS AI] installed: ${VENV_DIR}/bin/hermes -> ${BIN_DIR}/hermes"
     record_version "hermes-agent" "${HERMES_REF}" "$(${VENV_DIR}/bin/hermes --version 2>&1 | head -1)" 2>/dev/null || true

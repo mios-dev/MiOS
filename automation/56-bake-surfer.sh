@@ -47,7 +47,9 @@ for attempt in 1 2 3; do
     fi
     
     log "[56-bake-surfer] Resolving latest Firefox version and ensuring surfer.json configuration..."
-    export SURFER_PRODUCT="${SURFER_PRODUCT:-zen}"
+    # UPSTREAM Mozilla product surfer builds FROM (Zen is a Firefox fork) -- NOT
+    # the "zen" vendor brand. Must be one of surfer's SupportedProducts.
+    export MIOS_SURFER_PRODUCT="${MIOS_SURFER_PRODUCT:-firefox}"
     python3 -c '
 import json, os, urllib.request
 ff_ver = "153.0"
@@ -66,20 +68,39 @@ if os.path.exists(p):
             data = json.load(f)
     except Exception:
         pass
-data["product"] = os.environ.get("SURFER_PRODUCT", "zen")
-data["name"] = data.get("name") or "mios-webshell"
-data["binaryName"] = data.get("binaryName") or "mios-webshell"
+# surfer.json schema (zen-browser/surfer): `version` is an OBJECT whose `product`
+# is the UPSTREAM Mozilla product surfer builds FROM -- one of firefox / firefox-esr
+# / firefox-dev / firefox-beta / firefox-nightly. "zen" is a VENDOR brand, NOT a
+# valid product; the old code set a top-level product="zen" AND a bare STRING
+# version, so surfer getConfig read version.product == undefined ->
+# "undefined is not a valid product". Build a real version object + the other
+# schema-required top-level fields (present + minimal; there is no base surfer.json).
+data["name"] = data.get("name") or os.environ.get("MIOS_SURFER_NAME", "MiOS Webshell")
+data["vendor"] = data.get("vendor") or os.environ.get("MIOS_SURFER_VENDOR", "mios")
+data["appId"] = data.get("appId") or os.environ.get("MIOS_SURFER_APPID", "os.mios.webshell")
+data["binaryName"] = data.get("binaryName") or os.environ.get("MIOS_SURFER_BINARY", "mios-webshell")
+_ver = data.get("version")
+if not isinstance(_ver, dict):
+    _ver = {}
+_ver["product"] = os.environ.get("MIOS_SURFER_PRODUCT", "firefox")
+_ver["version"] = ff_ver
+data["version"] = _ver
+for _k in ("buildOptions", "addons", "brands"):
+    if not isinstance(data.get(_k), dict):
+        data[_k] = {}
+if not isinstance(data.get("license"), (dict, str)):
+    data["license"] = {}
 data["firefoxVersion"] = ff_ver
-data["version"] = data.get("version") or "1.0.0"
 with open(p, "w", encoding="utf-8") as f:
     json.dump(data, f, indent=2)
 '
 
     log "[56-bake-surfer] Fetching upstream Mozilla codebase..."
     FF_VER="$(python3 -c 'import json; print(json.load(open("surfer.json")).get("firefoxVersion", "153.0"))' 2>/dev/null || echo '153.0')"
-    if ! SURFER_PRODUCT=zen npx surfer download --product zen --firefox-version "$FF_VER" 2>&1 && \
-       ! SURFER_PRODUCT=zen-browser npx surfer download --product zen-browser --firefox-version "$FF_VER" 2>&1 && \
-       ! SURFER_PRODUCT=zen npx surfer download "$FF_VER" 2>&1; then
+    # surfer download reads version.product + version.version from surfer.json
+    # (fixed above). Rely on it; fall back to passing the version positionally.
+    if ! npx surfer download 2>&1 && \
+       ! npx surfer download "$FF_VER" 2>&1; then
         warn "[56-bake-surfer] surfer download failed on attempt $attempt"
         sleep $((attempt * 8))
         continue
