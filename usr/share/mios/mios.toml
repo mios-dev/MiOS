@@ -11024,7 +11024,7 @@ template = "usr/share/mios/theme/templates/gitconfig.tmpl"
 target   = "usr/share/mios/theme/fixtures/gitconfig.expected.gitconfig"
 section  = "gitconfig"
 kind     = "ini-merge"
-policy   = "seed-or-enforce"
+policy   = "enforce"
 [dotfiles.registry.gitconfig-live.fixture]
 base     = "usr/share/mios/theme/fixtures/gitconfig.base.gitconfig"
 expected = "usr/share/mios/theme/fixtures/gitconfig.expected.gitconfig"
