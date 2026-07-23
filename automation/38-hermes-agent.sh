@@ -128,61 +128,31 @@ fi
 
 if [ -n "$LOCAL_SOURCE" ]; then
     PIP_OFFLINE_ARGS="--no-index --find-links=/usr/share/mios/vendored/"
-    INSTALL_TARGET="$LOCAL_SOURCE"
+    INSTALL_TARGET="-e $LOCAL_SOURCE"
 else
-    INSTALL_TARGET="git+${HERMES_REPO}@${HERMES_REF}"
+    if [ ! -d "${VENV_ROOT}/.git" ]; then
+        log "[MiOS AI] Cloning ${HERMES_REPO} (${HERMES_REF}) to ${VENV_ROOT}..."
+        rm -rf "${VENV_ROOT}"
+        git clone --depth 1 --branch "${HERMES_REF}" "${HERMES_REPO}" "${VENV_ROOT}" 2>/dev/null || \
+            git clone "${HERMES_REPO}" "${VENV_ROOT}" 2>/dev/null || true
+    fi
+    INSTALL_TARGET="-e ${VENV_ROOT}"
     if [ -d "/usr/share/mios/vendored" ]; then
         PIP_OFFLINE_ARGS="--find-links=/usr/share/mios/vendored/"
     fi
 fi
 
-# `pip install git+URL@ref` plus the must-have soft-deps -- single
+# `pip install -e` plus the must-have soft-deps -- single
 # step, network best-effort.
-#   * aiohttp -- REQUIRED by hermes-agent's api_server adapter (the
-#     OpenAI /v1 surface). The base package doesn't pull it as a hard
-#     dep, so the gateway starts but logs "API Server: aiohttp not
-#     installed / No adapter available for api_server" and /v1 never
-# comes up (operator-confirmed).
-#   * websockets -- REQUIRED by tools/browser_dialog_tool +
-#     tools/browser_supervisor (CDP WebSocket client). Without it,
-#     Hermes prints "Could not import tool module
-#     tools.browser_dialog_tool: No module named 'websockets'" on
-#     every gateway start and the browser tool's dialog detection +
-# CDP supervisor never wake up (operator-confirmed
-#     when wiring the ChromeDev flatpak as the local CDP backend).
-#   * discord.py -- REQUIRED by hermes-agent's discord adapter +
-#     tools/discord_tool. Without it the gateway logs "Discord:
-#     discord.py not installed / No adapter available for discord"
-#     and `discord_send_message` returns ENOENT even with a valid
-# DISCORD_BOT_TOKEN (operator-confirmed). audioop-lts
-#     comes in transitively (Python 3.13+ dropped stdlib audioop).
-#     Pinned <3 because discord.py 3.x is a partial rewrite still
-#     in pre-release.
-#   * psycopg[binary] -- REQUIRED by the agent-pipe's mios_pg client (WS-9c
-#     Postgres+pgvector dual-write mirror + cutover). mios_pg imports psycopg
-#     LAZILY and degrades to a SILENT no-op without it, so the pgvector mirror
-# writes nothing and the DB cutover can never fill (the live
-#     mirror was empty until psycopg was added). [binary] = prebuilt wheel, no
-#     libpq headers / compiler needed.
-# --no-input keeps it non-interactive. ATOMIC + RETRIED: install the hermes git
-# ref, the canonical agent-pipe requirements.txt (fastapi/uvicorn/smolagents/mcp/
-# psycopg/... -- the COMPLETE set agent-pipe imports), AND the hermes soft-deps in
-# ONE transaction, retried 3x with backoff. Previously this ran once and, on a
-# single network blip (routine under install-time dnf/image-pull contention),
-# rm-rf'd the venv and gave up -- leaving smolagents/mcp missing so mios-agent-pipe
-# crash-looped ("No module named 'smolagents'") until a manual rebuild. Installing
-# the full requirements set + retrying makes a fresh install deploy a working AI
-# plane every time. (The later per-module check-installs below are now redundant
-# safety nets.)
 _REQ_FILE="/usr/lib/mios/agent-pipe/requirements.txt"
 _REQ_ARG=""; [ -f "${_REQ_FILE}" ] && _REQ_ARG="-r ${_REQ_FILE}"
 _venv_pip_ok=""
 for _venv_attempt in 1 2 3; do
     # shellcheck disable=SC2086
-    if "${VENV_DIR}/bin/pip" install --no-input --disable-pip-version-check ${PIP_OFFLINE_ARGS} ${PIP_CONSTRAINTS_ARG} \
-            "${INSTALL_TARGET}" ${_REQ_ARG} \
+    if "${VENV_DIR}/bin/pip" install --no-input --disable-pip-version-check --ignore-requires-python --no-build-isolation ${PIP_OFFLINE_ARGS} ${PIP_CONSTRAINTS_ARG} \
+            ${INSTALL_TARGET} ${_REQ_ARG} \
             aiohttp websockets "discord.py>=2.4,<3" "psycopg[binary]" "firecrawl-py" \
-            "smolagents>=1.0.0" "litellm>=1.0.0" 2>&1 | tail -8; then
+            "smolagents>=1.0.0" "litellm>=1.0.0" "mcp" 2>&1 | tail -8; then
         _venv_pip_ok=1; break
     fi
     warn "[MiOS AI] agent-venv pip install attempt ${_venv_attempt}/3 failed (transient network under install load?) -- retrying in $((_venv_attempt*8))s"

@@ -6774,7 +6774,7 @@ served_name    = "mios-heavy"   # OpenAI served-model-name the lane advertises (
 gpu_util       = 0.85           # --gpu-memory-utilization: the ~16GB AWQ weights need >0.66; 0.85=~20.4GB leaves ~4GB KV. Heavy lane is gated OFF by default -> only claims the GPU when explicitly enabled (near-exclusive 4090 then).
 max_model_len  = 262144        # 256k native. On the shared 24GB 4090 vLLM's ~4GB fp8-KV budget admits well short of a full 256k sequence -> for the FULL 256k use the SGLang lane below (HiCache CPU KV-offload). vLLM PagedAttention admits up to this ceiling as KV allows.
 kv_cache_dtype = "fp8"          # --kv-cache-dtype fp8 (e5m2 on Ada): ~2x KV capacity; REQUIRED to approach the ceiling on 24GB.
-quantization   = "compressed-tensors"   # stelterlab repo is llm-compressor AWQ-INT4 -> compressed-tensors format (NOT awq_marlin). vLLM auto-detects; explicit for clarity.
+quantization   = ""              # quantization format (empty = vLLM auto-detects from model weights config.json)
 tool_call_parser = "hermes"     # Qwen3 emits Hermes-style <tool_call> blocks -> OpenAI tool_calls[]
 prefix_caching = true           # --enable-prefix-caching (APC): reuse the shared swarm prompt prefix across agents
 v1_engine      = true            # V1 engine (default since vLLM 0.8, V0 removed in 0.11 -> MUST be true on current images). Chunked-prefill by default.
@@ -10260,7 +10260,8 @@ Environment = [
   "TRANSFORMERS_OFFLINE=1",
   "VLLM_NO_USAGE_STATS=1",
   "DO_NOT_TRACK=1",
-  "VLLM_USE_V1=1",
+  "VLLM_WSL2_ENABLE_PIN_MEMORY=1",
+  "VLLM_USE_V2_MODEL_RUNNER=0",
   "HF_HOME=/tmp/.cache",
   "XDG_CACHE_HOME=/tmp/.cache",
   "VLLM_CACHE_DIR=/tmp/.cache",
@@ -10271,7 +10272,7 @@ Environment = [
   "NCCL_SOCKET_IFNAME=lo",
   "HOME=/tmp"
 ]
-Exec = "/opt/vllm-venv/bin/python3 -m vllm.entrypoints.openai.api_server --model /models --served-model-name ${MIOS_VLLM_SERVED_NAME:-mios-heavy} --host 0.0.0.0 --port ${MIOS_PORT_VLLM:-11441} --gpu-memory-utilization ${MIOS_VLLM_GPU_UTIL:-0.45} --max-model-len ${MIOS_VLLM_MAX_MODEL_LEN:-262144} --kv-cache-dtype ${MIOS_VLLM_KV_CACHE_DTYPE:-fp8} --quantization ${MIOS_VLLM_QUANTIZATION:-compressed-tensors} --enable-prefix-caching --enforce-eager --enable-auto-tool-choice --tool-call-parser ${MIOS_VLLM_TOOL_CALL_PARSER:-hermes}"
+Exec = "--model /models --served-model-name ${MIOS_VLLM_SERVED_NAME:-mios-heavy} --host 0.0.0.0 --port ${MIOS_PORT_VLLM:-11441} --gpu-memory-utilization ${MIOS_VLLM_GPU_UTIL:-0.80} --max-model-len ${MIOS_VLLM_MAX_MODEL_LEN:-8192} --kv-cache-dtype ${MIOS_VLLM_KV_CACHE_DTYPE:-fp8} --load-format ${MIOS_VLLM_LOAD_FORMAT:-dummy} --enable-prefix-caching --enforce-eager"
 Group = "${MIOS_VLLM_GID:-815}"
 Image = "${MIOS_VLLM_IMAGE:-docker.io/vllm/vllm-openai:latest}"
 Label = [
@@ -10281,7 +10282,7 @@ Label = [
 ]
 Pod = "mios-ai.pod"
 User = "${MIOS_VLLM_UID:-815}"
-Volume = "/usr/share/mios/vllm/model:/models:ro,Z"
+Volume = "/var/lib/mios/vllm/model:/models:ro,Z"
 
 [containers.mios-llm-heavy.Install]
 WantedBy = "multi-user.target default.target"
@@ -10295,7 +10296,7 @@ TimeoutStartSec = "600s"
 
 [containers.mios-llm-heavy.Unit]
 After = "network-online.target mios-cdi-detect.service mios-webtools-firstboot.service"
-ConditionPathExists = "/usr/share/mios/vllm/model/config.json"
+ConditionPathExists = "/var/lib/mios/vllm/model/config.json"
 Description = "'MiOS' vLLM heavy lane (OpenAI /v1, PagedAttention + APC; gated)"
 Wants = "network-online.target"
 
@@ -10312,7 +10313,7 @@ Environment = [
   "NCCL_SOCKET_IFNAME=lo",
   "HOME=/tmp"
 ]
-Exec = "/opt/sglang-venv/bin/python3 -m sglang.launch_server --model /models --served-model-name ${MIOS_SGLANG_SERVED_NAME:-mios-heavy} --host 0.0.0.0 --port ${MIOS_PORT_SGLANG:-11442} --mem-fraction-static ${MIOS_SGLANG_MEM_FRACTION:-0.85} --max-model-len ${MIOS_SGLANG_MAX_MODEL_LEN:-262144} --kv-cache-dtype ${MIOS_SGLANG_KV_CACHE_DTYPE:-fp8_e5m2} --tool-call-parser ${MIOS_SGLANG_TOOL_PARSER:-qwen25} --enable-hierarchical-cache --enable-unified-radix-tree"
+Exec = "python3 -m sglang.launch_server --model /models --served-model-name ${MIOS_SGLANG_SERVED_NAME:-mios-heavy} --host 0.0.0.0 --port ${MIOS_PORT_SGLANG:-11442} --mem-fraction-static ${MIOS_SGLANG_MEM_FRACTION:-0.85} --context-length ${MIOS_SGLANG_MAX_MODEL_LEN:-262144} --kv-cache-dtype ${MIOS_SGLANG_KV_CACHE_DTYPE:-fp8_e5m2} --tool-call-parser ${MIOS_SGLANG_TOOL_PARSER:-qwen25} --enable-hierarchical-cache --trust-remote-code"
 Group = "${MIOS_VLLM_GID:-815}"
 Image = "${MIOS_SGLANG_IMAGE:-docker.io/lmsysorg/sglang:latest}"
 Label = [
@@ -10322,7 +10323,7 @@ Label = [
 ]
 Pod = "mios-ai.pod"
 User = "${MIOS_VLLM_UID:-815}"
-Volume = "/usr/share/mios/vllm/model:/models:ro,Z"
+Volume = "/var/lib/mios/vllm/model:/models:ro,Z"
 
 [containers.mios-llm-heavy-alt.Install]
 WantedBy = "multi-user.target default.target"
@@ -10336,8 +10337,8 @@ TimeoutStartSec = "600s"
 
 [containers.mios-llm-heavy-alt.Unit]
 After = "network-online.target mios-cdi-detect.service mios-webtools-firstboot.service"
-ConditionPathExists = "/usr/share/mios/vllm/model/config.json"
-Description = "'MiOS' SGLang heavy lane (OpenAI /v1, HiCache CPU KV-offload; gated)"
+ConditionPathExists = "/var/lib/mios/vllm/model/config.json"
+Description = "'MiOS' SGLang heavy lane (OpenAI /v1, HiCache CPU KV-offload; native 256k context)"
 Wants = "network-online.target"
 
 [containers.mios-llm-light.Container]

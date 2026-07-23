@@ -127,7 +127,7 @@ fi
 # who want a forced rotation can set MIOS_FORGE_ADMIN_PASSWORD=__random__
 # (handled above) -- that path still leaves the password usable, just
 # unknown until read from /etc/mios/forge/admin-password.
-if podman exec --user 816:816 mios-forge \
+if podman exec -e HOME=/data/gitea mios-forge \
         forgejo --config /data/gitea/conf/app.ini admin user create \
         --admin --must-change-password=false \
         --username "$admin_user" \
@@ -221,9 +221,9 @@ install -d -m 0750 -o root -g mios-forge /etc/mios/forge
 # Try the in-container Forgejo CLI first -- most reliable across versions.
 # `forgejo actions generate-runner-token` prints the token on stdout.
 runner_token=""
-if runner_token=$(podman exec --user 816:816 mios-forge \
+if runner_token=$(podman exec -e HOME=/data/gitea mios-forge \
         forgejo --config /data/gitea/conf/app.ini actions generate-runner-token 2>/dev/null \
-        | tr -d '[:space:]'); then
+        | grep -oE '[A-Za-z0-9_-]{20,}' | head -n 1); then
     [[ -n "$runner_token" ]] && _log "minted runner token via forgejo CLI"
 fi
 

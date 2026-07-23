@@ -369,8 +369,9 @@ if command -v systemd-tmpfiles >/dev/null 2>&1; then
                     # If the warning is the boot-order false positive,
                     # extract the missing entity name and drop the line
                     # if it is declared in sysusers.d.
-                    if (match($0, /Failed to resolve (user|group) [\x27"]([^\x27"]+)[\x27"]/, m)) {
-                        if (m[2] in known) next
+                    if ($0 ~ /Failed to resolve (user|group)/) {
+                        split($0, parts, /['"]/)
+                        if (parts[2] in known) next
                     }
                     print
                 }'

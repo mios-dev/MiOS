@@ -338,8 +338,10 @@ def _ask_model(prompt: str) -> list[str]:
                      flags=re.DOTALL | re.IGNORECASE)
     content = re.sub(r"<think>.*$", "", content,
                      flags=re.DOTALL | re.IGNORECASE)
-    content = re.sub(r"^\s*```(?:json)?\s*\n?", "", content)
-    content = re.sub(r"\n?```\s*$", "", content)
+    # Extract JSON object substring
+    m_json = re.search(r"\{.*\}", content, re.DOTALL)
+    if m_json:
+        content = m_json.group(0)
     try:
         parsed = json.loads(content)
     except (json.JSONDecodeError, ValueError):

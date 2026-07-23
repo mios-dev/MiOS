@@ -61,6 +61,7 @@ else
 fi
 
 # VRAM check for dGPU heavy lane auto-enablement (>8GB VRAM)
+export PATH="/usr/lib/wsl/lib:/usr/local/cuda/bin:/usr/local/bin:/usr/bin:$PATH"
 if command -v nvidia-smi &>/dev/null; then
     VRAM_MIB=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null | head -n1 | tr -d ' ' || echo "0")
     if [ "${VRAM_MIB:-0}" -ge 8192 ]; then
@@ -73,7 +74,43 @@ if command -v nvidia-smi &>/dev/null; then
 {
   "architectures": ["LlamaForCausalLM"],
   "model_type": "llama",
-  "torch_dtype": "float16"
+  "torch_dtype": "float16",
+  "max_position_embeddings": 262144
+}
+EOCFG
+        fi
+        if [ ! -f /var/lib/mios/vllm/model/tokenizer_config.json ]; then
+            cat > /var/lib/mios/vllm/model/tokenizer_config.json <<'EOCFG'
+{
+  "tokenizer_class": "PreTrainedTokenizerFast"
+}
+EOCFG
+        fi
+        if [ ! -f /var/lib/mios/vllm/model/tokenizer.json ]; then
+            cat > /var/lib/mios/vllm/model/tokenizer.json <<'EOCFG'
+{
+  "version": "1.0",
+  "truncation": null,
+  "padding": null,
+  "added_tokens": [],
+  "normalizer": null,
+  "pre_tokenizer": null,
+  "post_processor": null,
+  "decoder": null,
+  "model": {
+    "type": "BPE",
+    "dropout": null,
+    "unk_token": null,
+    "continuing_subword_prefix": null,
+    "end_of_word_suffix": null,
+    "fuse_unk": false,
+    "vocab": {
+      "<unk>": 0,
+      "<s>": 1,
+      "</s>": 2
+    },
+    "merges": []
+  }
 }
 EOCFG
         fi
