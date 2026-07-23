@@ -429,10 +429,18 @@ if TEXTUAL_AVAILABLE:
             padding: 0;
             margin: 0;
         }}
-        #main-container {{
+        
+        TabbedContent {{
             height: 1fr;
             width: 100%;
         }}
+        
+        #main-container, #flash-container, #ai-container {{
+            height: 1fr;
+            width: 100%;
+            layout: horizontal;
+        }}
+        
         #left-pane {{
             width: 1fr;
             height: 100%;
@@ -441,33 +449,52 @@ if TEXTUAL_AVAILABLE:
             width: 1fr;
             height: 100%;
         }}
+        
+        #flash-stats-pane, #ai-stats-pane {{
+            width: 35;
+            height: 100%;
+            border: round {SSOT['accent']};
+            content-align: center top;
+        }}
+        
+        #flash-log-box, #ai-log-box {{
+            width: 1fr;
+            height: 100%;
+            border: round {SSOT['success']};
+        }}
+        
         #top-right-bar {{
             height: 6;
             width: 100%;
         }}
+        
         .box {{
             background: {SSOT['surface']};
             color: {SSOT['fg']};
             margin: 0;
             padding: 0 1;
         }}
+        
         #hw-box {{
             height: 2fr;
             border: round {SSOT['subtle']};
         }}
         #svc-table {{
             height: 1fr;
+            width: 100%;
             border: round {SSOT['accent']};
         }}
         #sys-identity {{
             width: 1fr;
             height: 100%;
             border: round {SSOT['subtle']};
+            content-align: center middle;
         }}
         #forge-box {{
             width: 1fr;
             height: 100%;
             border: round {SSOT['warning']};
+            content-align: center middle;
         }}
         #spark-container {{
             height: 4;
@@ -482,6 +509,7 @@ if TEXTUAL_AVAILABLE:
         }}
         #log-box {{
             height: 1fr;
+            width: 100%;
             border: round {SSOT['success']};
         }}
         """
