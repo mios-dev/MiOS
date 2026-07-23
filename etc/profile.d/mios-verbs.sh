@@ -71,7 +71,7 @@ mios() {
                 return 127
             fi
             ;;
-        monitor)
+        mon|monitor)
             shift
             local _dash=""
             for _c in /usr/libexec/mios/mios-dashboard.sh \
@@ -156,7 +156,7 @@ mios() {
   MiOS verbs (inside MiOS-DEV):
     mios mini    -- compact 80x20 framed banner + fastfetch (auto on shell spawn)
     mios dash    -- FULL dashboard: ASCII banner + services + extended sys specs
-    mios monitor -- resource monitor + unified stack table (refreshes every 5s)
+    mios mon     -- resource monitor + unified stack table (refreshes every 5s)
     mios build   -- run /usr/libexec/mios/mios-build-driver (OCI image build)
     mios config  -- open the unified MiOS Settings surface (:8640/configure; offline HTML fallback)
     mios dotfiles [status|diff|sync] -- project the SSOT dotfiles (theme, btop, gitconfig, VS Code / Windows Terminal) to your HOME
@@ -182,7 +182,7 @@ export -f mios 2>/dev/null || true
 _mios_complete() {
     local cur="${COMP_WORDS[COMP_CWORD]}"
     if [[ $COMP_CWORD -eq 1 ]]; then
-        COMPREPLY=( $(compgen -W "mini dash build config dotfiles dev pull update help monitor" -- "$cur") )
+        COMPREPLY=( $(compgen -W "mini dash build config dotfiles dev pull update help mon monitor" -- "$cur") )
     fi
 }
 complete -F _mios_complete mios

@@ -401,8 +401,9 @@ KNOWN_VERBS = {
     # returned ~empty output (operator-confirmed 2026-05-14). Every verb
     # the shell function routes must have an entry here too.
     "build":  ["/usr/libexec/mios/mios-build-driver"],
-    "dash":   ["/usr/libexec/mios/mios-dashboard.sh"],
+    "dash":   ["/usr/libexec/mios/mios-dashboard.sh", "--dash"],
     "mini":   ["/usr/libexec/mios/mios-dashboard.sh", "--mini"],
+    "mon":    ["/usr/libexec/mios/mios-dashboard.sh", "--monitor"],
     "monitor":["/usr/libexec/mios/mios-dashboard.sh", "--monitor"],
     "config": ["/usr/libexec/mios/mios-configurator-launch"],
     "code":   ["xdg-open", "http://localhost:8080/"],
@@ -558,7 +559,9 @@ def main(argv: list[str]) -> int:
             "mios -- MiOS verb dispatcher + locally-hosted OpenAI agent shell.\n\n"
             "Verbs:\n"
             "  mios build                           run the MiOS OCI build pipeline (unattended on a non-TTY)\n"
-            "  mios dash                            framed dashboard (services + endpoints + git tree)\n"
+            "  mios dash                            framed dashboard snapshot (services + telemetry)\n"
+            "  mios mini                            compact framed static dashboard snapshot\n"
+            "  mios mon (or monitor)                unified live TUI for system services and logs\n"
             "  mios config                          open the HTML configurator in your browser\n"
             "  mios code                            open code-server in your browser\n"
             "  mios ai                              open Open WebUI in your browser\n"
