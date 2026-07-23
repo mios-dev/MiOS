@@ -757,14 +757,18 @@ $hint = '<HINT>';
 $deadline = (Get-Date).AddSeconds(15);
 $targetHwnd = [IntPtr]::Zero;
 while ((Get-Date) -lt $deadline) {
-    $newRows = Get-MiosVisibleWindows | Where-Object { $pre -notcontains $_.hwnd };
-    $m = $newRows | Where-Object { $_.title -match [regex]::Escape($hint) } | Select-Object -First 1;
-    if (-not $m) { $m = $newRows | Select-Object -First 1 };
+    $allWins = Get-MiosVisibleWindows;
+    $m = $allWins | Where-Object { $_.title -match [regex]::Escape($hint) -or $_.proc -match [regex]::Escape($hint) } | Select-Object -First 1;
+    if (-not $m) {
+        $newRows = $allWins | Where-Object { $pre -notcontains $_.hwnd };
+        $m = $newRows | Select-Object -First 1;
+    }
     if ($m) { $targetHwnd = [IntPtr][int64]$m.hwnd; break };
     Start-Sleep -Milliseconds 250;
 };
 if ($targetHwnd -ne [IntPtr]::Zero) {
     [MiosLW]::ShowWindow($targetHwnd, 9) | Out-Null;
+    [MiosLW]::ShowWindow($targetHwnd, 5) | Out-Null;
     $r = New-Object MiosLW+RECT;
     [MiosLW]::GetWindowRect($targetHwnd, [ref]$r) | Out-Null;
     $w = $r.Right - $r.Left;
@@ -775,7 +779,14 @@ if ($targetHwnd -ne [IntPtr]::Zero) {
     [MiosLW]::MoveWindow($targetHwnd, $x, $y, $w, $h, $true) | Out-Null;
     # Win11 DWMWA_WINDOW_CORNER_PREFERENCE = 33; DWMCSP_ROUND = 2.
     $cp = 2; [MiosLW]::DwmSetWindowAttribute($targetHwnd, 33, [ref]$cp, 4) | Out-Null;
+    try { [System.Windows.Forms.SendKeys]::SendWait('%') } catch {};
+    $tpid = 0; $tt = [MiosLW]::GetWindowThreadProcessId($targetHwnd, [ref]$tpid);
+    $ct = [MiosLW]::GetCurrentThreadId();
+    [MiosLW]::AttachThreadInput($ct, $tt, $true) | Out-Null;
+    [MiosLW]::BringWindowToTop($targetHwnd) | Out-Null;
     [MiosLW]::SetForegroundWindow($targetHwnd) | Out-Null;
+    [MiosLW]::SwitchToThisWindow($targetHwnd, $true) | Out-Null;
+    [MiosLW]::AttachThreadInput($ct, $tt, $false) | Out-Null;
 }
 """.replace('<HINT>', hint_val)
 
@@ -1010,17 +1021,9 @@ if pwsh:
         )
     place_ps = (
         f"$pn = '{proc_name}'; "
-        "$p = $null; "
-        "for ($i = 0; $i -lt 50; $i++) { "
-        "  $p = Get-Process -Name $pn -ErrorAction SilentlyContinue | "
-        "       Where-Object MainWindowHandle -ne 0 | "
-        "       Sort-Object StartTime -Descending | Select-Object -First 1; "
-        "  if ($p) { break }; "
-        "  Start-Sleep -Milliseconds 150 "
-        "}; "
-        "if ($p) { "
-        "  Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue; "
-        "  Add-Type -Name W32D -Namespace MX -MemberDefinition @'\n"
+        "$h = [IntPtr]::Zero; "
+        "Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue; "
+        "Add-Type -Name W32D -Namespace MX -MemberDefinition @'\n"
         "[System.Runtime.InteropServices.DllImport(\"user32.dll\")] public static extern bool MoveWindow(System.IntPtr h,int x,int y,int w,int n,bool r);\n"
         "[System.Runtime.InteropServices.DllImport(\"user32.dll\")] public static extern bool SetForegroundWindow(System.IntPtr h);\n"
         "[System.Runtime.InteropServices.DllImport(\"user32.dll\")] public static extern bool BringWindowToTop(System.IntPtr h);\n"
@@ -1030,9 +1033,31 @@ if pwsh:
         "[System.Runtime.InteropServices.DllImport(\"user32.dll\")] public static extern bool AttachThreadInput(int idAttach, int idAttachTo, bool fAttach);\n"
         "[System.Runtime.InteropServices.DllImport(\"user32.dll\")] public static extern bool GetWindowRect(System.IntPtr h, out RECT r);\n"
         "[System.Runtime.InteropServices.DllImport(\"user32.dll\")] public static extern bool SwitchToThisWindow(System.IntPtr h, bool fAltTab);\n"
+        "[System.Runtime.InteropServices.DllImport(\"user32.dll\")] public static extern bool EnumWindows(EnumWindowsProc cb, System.IntPtr l);\n"
+        "[System.Runtime.InteropServices.DllImport(\"user32.dll\")] public static extern bool IsWindowVisible(System.IntPtr h);\n"
+        "public delegate bool EnumWindowsProc(System.IntPtr h, System.IntPtr l);\n"
         "[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)] public struct RECT { public int L,T,R,B; }\n"
         "'@ -ErrorAction SilentlyContinue; "
-        "$h = $p.MainWindowHandle; "
+        "for ($i = 0; $i -lt 50; $i++) { "
+        "  $pids = @(Get-Process -Name $pn -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Id); "
+        "  if ($pids.Count -gt 0) { "
+        "    $procs = Get-Process -Name $pn -ErrorAction SilentlyContinue | Where-Object MainWindowHandle -ne 0 | Sort-Object StartTime -Descending; "
+        "    if ($procs) { $h = ($procs | Select-Object -First 1).MainWindowHandle }; "
+        "    if ($h -eq [IntPtr]::Zero) { "
+        "      $script:_fh = [IntPtr]::Zero; "
+        "      $cb = [MX.W32D+EnumWindowsProc]{ param($wh, $l) "
+        "        $wpid = 0; [MX.W32D]::GetWindowThreadProcessId($wh, [ref]$wpid) | Out-Null; "
+        "        if ($pids -contains $wpid -and [MX.W32D]::IsWindowVisible($wh)) { $script:_fh = $wh; return $false }; "
+        "        return $true "
+        "      }; "
+        "      [MX.W32D]::EnumWindows($cb, [IntPtr]::Zero) | Out-Null; "
+        "      $h = $script:_fh "
+        "    }; "
+        "  }; "
+        "  if ($h -and $h -ne [IntPtr]::Zero) { break }; "
+        "  Start-Sleep -Milliseconds 150 "
+        "}; "
+        "if ($h -and $h -ne [IntPtr]::Zero) { "
         # ── optional move (only when position changed) ──
         f"{move_block}"
         # ── optional focus (skipped for background / as-is) ──
