@@ -48,8 +48,10 @@ lines = [
     ""
 ]
 
+has_ptp = os.path.exists("/dev/ptp0")
 for s in servers:
-    lines.append(f"server {s} iburst")
+    opt = " iburst noselect" if has_ptp else " iburst"
+    lines.append(f"server {s}{opt}")
 
 lines.extend([
     "",
@@ -62,7 +64,7 @@ lines.extend([
     "maxslewrate 500",
     "",
     "# Hyper-V PTP clock reference when available (WSL2 / VM container host)",
-    "refclock PHC /dev/ptp0 poll 4 dpoll -1 offset 0 prefer trust",
+    "refclock PHC /dev/ptp0 poll 3 dpoll -2 offset 0 minsamples 4 prefer trust",
     "",
     "# Enable kernel synchronization of the real-time clock (RTC).",
     "rtcsync",
