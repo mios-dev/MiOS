@@ -70,19 +70,34 @@ def check_port(host, port):
         return False
 
 def get_services():
-    svcs = [
-        ("agent-pipe", 8640, check_port("127.0.0.1", 8640)),
-        ("hermes-agent" if IS_WINDOWS else "hermes-worker", 8642 if IS_WINDOWS else 8643, check_port("127.0.0.1", 8642 if IS_WINDOWS else 8643)),
-        ("open-webui", 8033, check_port("127.0.0.1", 8033)),
-        ("wsl-engine", 0, IS_WINDOWS or "WSL" in platform.release()),
-        ("podman-machine", 0, True),
-        ("adguard", 53, check_port("127.0.0.1", 53)),
-        ("pgvector", 8432, check_port("127.0.0.1", 8432)),
-        ("searxng", 8899, check_port("127.0.0.1", 8899)),
-        ("code-server", 8800, check_port("127.0.0.1", 8800)),
-        ("cockpit", 9090, check_port("127.0.0.1", 9090)),
-        ("forge", 8300, check_port("127.0.0.1", 8300))
-    ]
+    svcs = []
+    ports = {}
+    try:
+        import tomllib
+    except ImportError:
+        try: import tomli as tomllib
+        except ImportError: tomllib = None
+    if tomllib:
+        for p in ["C:\\MiOS\\usr\\share\\mios\\mios.toml", "/usr/share/mios/mios.toml", "/etc/mios/mios.toml", "C:\\mios-bootstrap\\mios.toml"]:
+            if os.path.exists(p):
+                try:
+                    with open(p, "rb") as f:
+                        data = tomllib.load(f)
+                        if "ports" in data:
+                            ports.update(data["ports"])
+                except Exception: pass
+    
+    for svc_name, port in ports.items():
+        if isinstance(port, int) and svc_name != "stack_id":
+            offset = ports.get("stack_id", 0) * 10000
+            actual_port = port + offset
+            svcs.append((svc_name, actual_port, check_port("127.0.0.1", actual_port)))
+    
+    # Core system services
+    svcs.append(("wsl-engine", 0, IS_WINDOWS or "WSL" in platform.release()))
+    svcs.append(("podman-machine", 0, True))
+    
+    return svcs
     try:
         cmd = ["wsl", "-d", "podman-MiOS-DEV", "--", "podman", "ps", "--format", "{{.Names}}|{{.Ports}}"] if IS_WINDOWS else ["podman", "ps", "--format", "{{.Names}}|{{.Ports}}"]
         out = subprocess.check_output(cmd, text=True, stderr=subprocess.DEVNULL, timeout=1.0)
