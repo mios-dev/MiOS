@@ -78,7 +78,7 @@ _app_paths_resolve() {  # <name> -> WSL path of the registered exe, or empty
         win="$("$reg" query "${hive}\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\${name}" /ve 2>/dev/null \
                | tr -d '\r' | sed -n 's/.*REG_SZ[[:space:]][[:space:]]*//p' | head -1)"
         win="${win%\"}"; win="${win#\"}"
-        if [ -n "$win" ]; then
+        if [ -n "$win" ] && [[ "$win" != *"WindowsApps"* ]]; then
             wslpath -u "$win" 2>/dev/null && return 0
         fi
     done
@@ -104,7 +104,7 @@ _start_menu_resolve() {  # <name> -> WSL path of the matching Start-Menu .lnk
 \$n=('$name' -replace '[^A-Za-z0-9]','').ToLower()
 \$w=New-Object -ComObject WScript.Shell
 \$d=@(\$env:ProgramData,\$env:APPDATA) | ForEach-Object { Join-Path \$_ 'Microsoft\\Windows\\Start Menu\\Programs' }
-\$h=Get-ChildItem -Path \$d -Recurse -Filter *.lnk -ErrorAction SilentlyContinue | Where-Object { \$n.Length -ge 2 -and (\$_.BaseName -replace '[^A-Za-z0-9]','').ToLower().Contains(\$n) } | Where-Object { try { \$t=\$w.CreateShortcut(\$_.FullName).TargetPath } catch { \$t='' }; (\$t -notlike '*wslg.exe') -and (\$t -notlike '*wsl.exe') } | Sort-Object { \$_.BaseName.Length } | Select-Object -First 1
+\$h=Get-ChildItem -Path \$d -Recurse -Filter *.lnk -ErrorAction SilentlyContinue | Where-Object { \$n.Length -ge 2 -and (\$_.BaseName -replace '[^A-Za-z0-9]','').ToLower().Contains(\$n) } | Where-Object { try { \$t=\$w.CreateShortcut(\$_.FullName).TargetPath } catch { \$t='' }; (\$t -notlike '*WindowsApps*') -and (\$t -notlike '*wslg.exe') -and (\$t -notlike '*wsl.exe') } | Sort-Object { \$_.BaseName.Length } | Select-Object -First 1
 if(\$h){ \$h.FullName }
 " 2>/dev/null | tr -d '\r' | grep -iE '\.lnk$' | head -1)"
     [ -n "$out" ] && wslpath -u "$out" 2>/dev/null && return 0
@@ -598,17 +598,15 @@ PSEOF
         esac
         if [ -e "$app" ]; then
             target="$app"
-        elif target="$(_app_paths_resolve "$app")" && [ -n "$target" ]; then
-            :   # resolved generatively from the Windows App Paths registry
         elif [ -e "/mnt/c/Windows/System32/${app}" ]; then
             target="/mnt/c/Windows/System32/${app}"
         elif [ -e "/mnt/c/Windows/System32/${app}.exe" ]; then
             target="/mnt/c/Windows/System32/${app}.exe"
         elif [ -e "/mnt/c/Windows/${app}.exe" ]; then
-            # standard Windows dir (explorer.exe, regedit.exe live here, not
-            # System32) -- a system-dir scan, not a hardcoded app->path map
             target="/mnt/c/Windows/${app}.exe"
-        elif target="$(_start_menu_resolve "$app")" && [ -n "$target" ]; then
+        elif target="$(_app_paths_resolve "$app")" && [ -n "$target" ] && [[ "$target" != *"WindowsApps"* ]]; then
+            :   # resolved generatively from the Windows App Paths registry (excluding UWP WindowsApps ACL-restricted paths)
+        elif target="$(_start_menu_resolve "$app")" && [ -n "$target" ] && [[ "$target" != *"WindowsApps"* ]]; then
             :   # resolved from a Start-Menu .lnk (generative, Everything-free)
         elif _saf="$(_startapps_resolve "$app")" && [ -n "$_saf" ]; then
             # UWP/Store built-in (Calculator, Settings, Photos, ...) -- no exe,
@@ -997,7 +995,7 @@ if pwsh:
             f"{place_block}"
             "[MX.W32D]::MoveWindow($h, $x, $y, $w, $wh, $true) | Out-Null; "
         )
-    do_focus = position not in ("none", "as-is")
+    do_focus = position != "none"
     focus_block = ""
     if do_focus:
         focus_block = (
