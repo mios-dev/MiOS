@@ -39,6 +39,9 @@ ExecStart=/usr/libexec/mios/mios-sys-env refresh
 # pgvector; StartLimit* in [Unit] caps the retries.
 Restart=on-failure
 RestartSec=10s
+KillMode=control-group
+SendSIGKILL=yes
+TimeoutStopSec=5s
 
 [Install]
 WantedBy=multi-user.target
