@@ -35,12 +35,12 @@
 # MIOS_USER_GROUPS.
 # ----------------------------------------------------------------------------
 [identity]
-username  = "user"
-fullname  = "User"
-hostname  = "user"
+username  = "mios"
+fullname  = "MiOS Operator"
+hostname  = "mios"
 shell     = "/bin/bash"
-name      = "User"
-email     = "user@localhost"
+name      = "mios"
+email     = "mios@localhost"
 # Home location for "local" / "near me" / weather / news asks. When the chat
 # surface forwards no geo (e.g. OWUI on a phone with location-sharing off), the
 # agent resolves place-dependent queries against THIS instead of the host
@@ -51,10 +51,10 @@ location  = ""
 groups    = ["wheel", "libvirt", "kvm", "video", "render", "input", "dialout", "docker"]
 # Global MiOS default password. Every service (Hermes Workspace, Forge
 # admin, Cockpit, Ceph dashboard, etc.) defaults to this credential
-# unless the operator overrides per-service. Vendor default is "user".
+# unless the operator overrides per-service. Vendor default is "mios".
 # Operators rotate by editing /etc/mios/mios.toml or
 # ~/.config/mios/mios.toml [identity].default_password.
-default_password = "user"
+default_password = "mios"
 
 # ----------------------------------------------------------------------------
 # [user] -- Human Operator Profile. Injected natively into the AI context so

@@ -3,8 +3,8 @@
 #
 
 [user]
-	name = User
-	email = user@localhost
+	name = MiOS Operator
+	email = mios@localhost
 
 [core]
 	editor = nano
