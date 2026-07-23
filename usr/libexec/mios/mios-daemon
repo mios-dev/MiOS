@@ -724,10 +724,10 @@ def journal_subscriber() -> None:
 
 # ── Classify handler (was: mios-log-watcher) ─────────────────────────
 CLASSIFY_SYSTEM = (
-    "You are a Linux log classifier. Read the events below and reply "
+    "You are a Linux log classifier for MiOS. Read the events below and reply "
     "with ONE LINE of JSON: {\"summary\":\"<one sentence>\","
     "\"tags\":[\"<one|two|three>\"],\"severity\":\"low|med|high\"}. "
-    "Nothing else."
+    "Nothing else. Always spell the operating system name as MiOS (never MIO or Mio)."
 )
 
 

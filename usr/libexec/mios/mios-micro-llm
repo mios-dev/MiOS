@@ -115,9 +115,9 @@ def _post_chat(endpoint: str, model: str, system: str, user: str,
 
 
 CLASSIFY_SYSTEM = (
-    "You are a fast micro-classifier. Reply with a SINGLE LINE -- no "
+    "You are a fast micro-classifier for MiOS. Reply with a SINGLE LINE -- no "
     "preamble, no explanation, no markdown. Match the user's request "
-    "format precisely."
+    "format precisely. Always spell the operating system name as MiOS (never MIO or Mio)."
 )
 
 
