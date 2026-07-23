@@ -2605,6 +2605,7 @@ class Pipe:
         # capturing their outputs as thinking and providing an
         # appropriate final answer normally in OWUI chats".
         raw_buffer = ""
+        reasoning_buffer = ""
         any_text = False
         # Operator-flagged open `<details>` was being
         # yielded EAGERLY before hermes responded -- if hermes was
@@ -2769,7 +2770,7 @@ class Pipe:
                         # live Thinking block, while strict clients hitting the
                         # agent-pipe directly (Firefox Smart Window) ignore
                         # reasoning_content and get only the clean answer.
-                        _rc = delta.get("reasoning_content") or ""
+                        _rc = delta.get("reasoning_content") or delta.get("reasoning") or ""
                         if _rc:
                             # Stream reasoning LIVE inside a <think> block.
                             # Open it on the first fragment; OWUI routes the
@@ -2778,6 +2779,8 @@ class Pipe:
                                 _think_open = True
                                 yield "<think>\n"
                             yield _rc
+                            reasoning_buffer += _rc
+                            any_text = True
                             continue
                         text_piece = delta.get("content") or ""
                         if not text_piece:
@@ -2800,6 +2803,8 @@ class Pipe:
                 yield _close
 
             raw_text = raw_buffer.strip()
+            if not raw_text and reasoning_buffer.strip():
+                raw_text = reasoning_buffer.strip()
 
             if not any_text or not raw_text:
                 yield "_⚠️ ∅_"

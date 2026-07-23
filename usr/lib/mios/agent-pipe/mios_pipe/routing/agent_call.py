@@ -942,7 +942,7 @@ async def _call_agent_stream_inner_orig(name: str, cfg: dict, body: dict,
                 _content = delta.get("content") or ""
                 # Display BOTH the answer + any native reasoning the gateway
                 # streams; only the answer content folds into the merge text.
-                frag = _content or (delta.get("reasoning_content") or "")
+                frag = _content or (delta.get("reasoning_content") or delta.get("reasoning") or "")
                 if _content:
                     parts.append(_content)
                 if frag:

@@ -1027,7 +1027,7 @@ async def _respond_native_loop_direct(
                             if not ch: continue
                             delta = ch[0].get("delta") or {}
                             _content = delta.get("content") or ""
-                            _reasoning = delta.get("reasoning_content") or ""
+                            _reasoning = delta.get("reasoning_content") or delta.get("reasoning") or ""
                             if _reasoning: emit({"reasoning": _reasoning})
                             if _content:
                                 _raw_parts.append(_content)
