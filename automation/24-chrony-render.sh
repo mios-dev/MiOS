@@ -61,7 +61,7 @@ lines.extend([
     "makestep 1.0 3",
     "",
     "# Hyper-V PTP clock reference when available (WSL2 / VM container host)",
-    "refclock PHC /dev/ptp0 poll 3 dpoll -2 offset 0 prefer",
+    "refclock PHC /dev/ptp0 poll 3 dpoll -2 offset 0 prefer trust",
     "",
     "# Enable kernel synchronization of the real-time clock (RTC).",
     "rtcsync",
