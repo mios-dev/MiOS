@@ -442,9 +442,10 @@ def _launch_proc_patterns(args: dict, result: dict) -> list:
 
 async def _proc_present(patterns: list) -> bool:
     """True if ANY pattern matches a running process command line (global
-    `pgrep -if`). /proc is world-readable, so the agent uid sees EVERY user's
-    process cmdlines -- including the operator's flatpak GUIs running under
-    bwrap. This is the primary, generative launch-verification signal."""
+    `pgrep -if` or Windows host `tasklist.exe`). /proc is world-readable, so the
+    agent uid sees EVERY user's process cmdlines -- including the operator's flatpak
+    GUIs running under bwrap. On WSL2, also queries tasklist.exe for host processes."""
+    is_wsl = os.path.exists("/mnt/c/Windows/System32/tasklist.exe")
     for pat in patterns:
         if not pat or len(pat) < 3:
             continue
@@ -456,8 +457,21 @@ async def _proc_present(patterns: list) -> bool:
             rc = await asyncio.wait_for(p.wait(), timeout=4)
             if rc == 0:
                 return True
-        except Exception:
+        except Exception:  # noqa: BLE001
             pass
+        if is_wsl:
+            try:
+                exe_name = pat if pat.lower().endswith(".exe") else f"{pat}.exe"
+                p = await asyncio.create_subprocess_exec(
+                    "/mnt/c/Windows/System32/tasklist.exe", "/FI", f"IMAGENAME eq {exe_name}",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.DEVNULL)
+                out, _ = await asyncio.wait_for(p.communicate(), timeout=4)
+                out_str = out.decode("utf-8", errors="replace")
+                if exe_name.lower() in out_str.lower() and "INFO:" not in out_str:
+                    return True
+            except Exception:  # noqa: BLE001
+                pass
     return False
 
 
@@ -465,7 +479,7 @@ def _verify_os_action(tool: str, args: dict, result: dict,
                       before: dict, after: dict, wdiff: dict) -> bool:
     """Did the OS-control action ACTUALLY take effect ('the
     pipeline VERIFIES TRUE and re-attempts')? Grounded in the window-enumeration
-    diff when available; falls back to the verb's exit code when enumeration is
+    diff when available; falls back to _proc_present at call-site when enumeration is
     BLIND (executor not wired -> count:0 both sides, can't diff)."""
     ok = bool(result.get("success"))
     target = _os_target(args)
@@ -474,7 +488,7 @@ def _verify_os_action(tool: str, args: dict, result: dict,
     blind = (bc == 0 and ac == 0)
     if tool in _LAUNCH_VERBS:
         if blind:
-            return ok  # can't enumerate -> trust the fire's exit code
+            return False  # blind enum cannot verify window; fallback to call-site _proc_present
         wins = (after or {}).get("windows") or []
         # A NEW window appeared after the launch = it worked. This is the
         # robust signal: WSLg windows report CONTENT titles ("Home", "Anime
@@ -499,7 +513,7 @@ def _verify_os_action(tool: str, args: dict, result: dict,
         return False
     if tool == "close_window":
         if blind:
-            return ok
+            return False  # blind enum cannot verify window closure; fallback to call-site _proc_present
         wins = (after or {}).get("windows") or []
         if target:
             return not any(target in _win_hay(w) for w in wins)  # gone == success

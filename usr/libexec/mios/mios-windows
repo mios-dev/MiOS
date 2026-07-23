@@ -598,6 +598,16 @@ PSEOF
         esac
         if [ -e "$app" ]; then
             target="$app"
+        elif _saf="$(_startapps_resolve "$app")" && [ -n "$_saf" ]; then
+            # UWP/Store built-in (Calculator, Notepad, Settings, Photos, ...) -- no exe,
+            # no .lnk; resolved generatively via Get-StartApps -> AppID. Launch
+            # the shell:appsFolder URI via the in-session executor (explorer
+            # handler) first, broker ps as the fallback. Tried BEFORE the
+            # System32 fallback so Windows 11 UWP AppX apps (Notepad/Calc) use shell:appsFolder.
+            echo "mios-windows launch: '$app' -> $_saf (Get-StartApps)" >&2
+            if _mios_launch_via_executor "$_saf" "$@"; then exit 0; fi
+            _PS="$(_build_uri_center_ps "Start-Process -FilePath explorer.exe -ArgumentList '$_saf'" "${MIOS_LAUNCH_TITLE_HINT:-$app}")"
+            exec "$0" ps "$_PS"
         elif [ -e "/mnt/c/Windows/System32/${app}" ]; then
             target="/mnt/c/Windows/System32/${app}"
         elif [ -e "/mnt/c/Windows/System32/${app}.exe" ]; then
@@ -608,17 +618,6 @@ PSEOF
             :   # resolved generatively from the Windows App Paths registry (excluding UWP WindowsApps ACL-restricted paths)
         elif target="$(_start_menu_resolve "$app")" && [ -n "$target" ] && [[ "$target" != *"WindowsApps"* ]]; then
             :   # resolved from a Start-Menu .lnk (generative, Everything-free)
-        elif _saf="$(_startapps_resolve "$app")" && [ -n "$_saf" ]; then
-            # UWP/Store built-in (Calculator, Settings, Photos, ...) -- no exe,
-            # no .lnk; resolved generatively via Get-StartApps -> AppID. Launch
-            # the shell:appsFolder URI via the in-session executor (explorer
-            # handler) first, broker ps as the fallback. Tried BEFORE the
-            # mios-find last-resort because mios-find re-applies the Linux
-            # freedesktop alias (calculator->gnome-calculator) and would miss it.
-            echo "mios-windows launch: '$app' -> $_saf (Get-StartApps)" >&2
-            if _mios_launch_via_executor "$_saf" "$@"; then exit 0; fi
-            _PS="$(_build_uri_center_ps "Start-Process -FilePath explorer.exe -ArgumentList '$_saf'" "${MIOS_LAUNCH_TITLE_HINT:-$app}")"
-            exec "$0" ps "$_PS"
         else
             # Last-resort: ask mios-find. Operator-confirmed regression
             # 2026-05-16 night: agent called `mios-windows launch beamng`
