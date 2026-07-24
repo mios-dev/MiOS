@@ -76,7 +76,11 @@ ensure_cred() {
 # Secure curl wrapper with optional credentials
 # Usage: scurl [curl-args] URL
 scurl() {
-    local args=()
+    # Retry transient network failures (timeouts, 429, 5xx incl. the 504s that abort
+    # CI builds) -- one hiccup on a version-lookup / asset download must not kill the
+    # OCI build. Plain --retry (not --retry-all-errors) so a real 404 still fails fast
+    # and non-idempotent methods stay safe.
+    local args=(--retry 5 --retry-delay 3 --connect-timeout 20)
     local use_creds=false
     local url=""
     local is_binary=false

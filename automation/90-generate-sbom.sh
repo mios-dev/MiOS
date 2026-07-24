@@ -35,7 +35,7 @@ if ! command -v syft &>/dev/null; then
     fi
     SYFT_PIN="${SYFT_PIN:-v1.19.0}"
     echo "[90-generate-sbom] syft not found; attempting official install (version=${SYFT_PIN}, needs egress)..."
-    curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh 2>/dev/null \
+    curl -sSfL --retry 5 --retry-delay 3 --retry-all-errors --connect-timeout 20 https://raw.githubusercontent.com/anchore/syft/main/install.sh 2>/dev/null \
         | sh -s -- -b /usr/local/bin "${SYFT_PIN}" >/dev/null 2>&1 || true
 fi
 if ! command -v syft &>/dev/null; then

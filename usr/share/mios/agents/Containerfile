@@ -30,7 +30,7 @@ RUN npm install -g @anthropic-ai/claude-code
 # persistent /home/coder mount does not shadow it.
 USER coder
 WORKDIR /home/coder
-RUN curl -fsSL https://antigravity.google/cli/install.sh | bash
+RUN curl -fsSL --retry 5 --retry-delay 3 --retry-all-errors --connect-timeout 20 https://antigravity.google/cli/install.sh | bash
 USER root
 RUN install -m0755 /home/coder/.local/bin/agy /usr/local/bin/agy
 
