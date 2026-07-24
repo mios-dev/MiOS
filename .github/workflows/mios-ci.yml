@@ -260,21 +260,25 @@ jobs:
           # default registry (GHCR when creds are present, else local/Forgejo). Set
           # PUBLISH='true' (env, top of file) so GitHub bakes+pushes too once it can
           # hold the full image (large-disk runner, or after MiOS-Sys shrinks it).
-          # --device /dev/fuse + --cap-add SYS_ADMIN + seccomp=unconfined: the bake
+          # --device /dev/fuse + --cap-add all + seccomp/apparmor unconfined: the bake
           # RUNs (57-mios-sys-build.sh, mios-bake-group) run podman-in-podman to build
           # localhost/mios-sys|-cuda and pull the bound sidecars into the additional
-          # store. Nested podman can't use the kernel's native overlay (overlay-on-
-          # overlay inside a build container is blocked), so it falls back to
-          # fuse-overlayfs, which needs /dev/fuse + the mount capability in the RUN
-          # step. Without these the nested build dies "fuse-overlayfs: cannot mount:
-          # No such file or directory" (the Forgejo runner doesn't hit this -- its
-          # Quadlet is Privileged=true). These are BUILD-TIME only (RUN instructions);
-          # the produced image carries no extra caps/devices.
+          # store -- and the mios-sys build is itself multi-stage with its own RUN
+          # steps (go-builder), so it is TRIPLE-nested. Nested podman needs: /dev/fuse
+          # (native overlay-on-overlay is blocked -> fuse-overlayfs fallback, "cannot
+          # mount: No such file or directory") AND enough capability for crun to set
+          # up each RUN container -- CAP_SYS_RESOURCE for setrlimit(RLIMIT_NOFILE)
+          # ("Operation not permitted"), CAP_SYS_ADMIN for mount/namespaces, etc. The
+          # Forgejo runner never hits any of this: its Quadlet is Privileged=true.
+          # Match that privileged env with --cap-add all + unconfined confinement.
+          # 57-mios-sys-build.sh passes the same down to ITS nested podman build.
+          # BUILD-TIME only (RUN instructions) -- the produced image carries nothing.
           sudo TMPDIR=/mnt/tmp podman build \
               "${BUILD_ARGS[@]}" \
               --device /dev/fuse \
-              --cap-add SYS_ADMIN \
+              --cap-add all \
               --security-opt seccomp=unconfined \
+              --security-opt apparmor=unconfined \
               --retry 5 --retry-delay 3s \
               --build-arg MIOS_BAKE_BOUND_IMAGES=${{ env.PUBLISH == 'true' && '1' || '0' }} \
               -f Containerfile \
@@ -505,7 +509,7 @@ jobs:
           # --device/--cap-add/--seccomp: 57-mios-sys-build.sh runs podman-in-podman
           # (nested fuse-overlayfs) even with MIOS_BAKE_BOUND_IMAGES=0, so the smoke
           # build needs the same nested-storage privileges as the main build above.
-          sudo TMPDIR=/mnt/tmp podman build --device /dev/fuse --cap-add SYS_ADMIN --security-opt seccomp=unconfined --build-arg MIOS_BAKE_BOUND_IMAGES=0 -t mios:smoke -f Containerfile .
+          sudo TMPDIR=/mnt/tmp podman build --device /dev/fuse --cap-add all --security-opt seccomp=unconfined --security-opt apparmor=unconfined --build-arg MIOS_BAKE_BOUND_IMAGES=0 -t mios:smoke -f Containerfile .
 
       - name: Smoke RUN (image runs; key MiOS components present + agent-pipe compiles)
         run: |

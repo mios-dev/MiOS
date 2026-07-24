@@ -57,11 +57,19 @@ location = "docker.io"
 location = "mirror.gcr.io"
 RC
 
+# --cap-add all + unconfined seccomp/apparmor on the INNER build: this podman build
+# runs nested inside the OCI build's RUN step, and mios-sys/-cuda are multi-stage
+# (their own go-builder RUN steps), so crun must set up TRIPLE-nested containers --
+# it needs CAP_SYS_RESOURCE for setrlimit(RLIMIT_NOFILE) + SYS_ADMIN for mounts, etc.
+# The outer .github/.forgejo build grants these to RUN; pass them down here too.
 # Build localhost/mios-sys
 log "Building localhost/mios-sys..."
 CONTAINERS_STORAGE_CONF="$CONF" CONTAINERS_REGISTRIES_CONF="$REG_CONF" TMPDIR="$SCRATCH/tmp" \
   podman --root "$STORE" --runroot "$SCRATCH/run" build \
   --network=host \
+  --cap-add all \
+  --security-opt seccomp=unconfined \
+  --security-opt apparmor=unconfined \
   --layers \
   -t localhost/mios-sys \
   --build-arg BASE_IMAGE="$BASE" \
@@ -72,6 +80,9 @@ log "Building localhost/mios-cuda..."
 CONTAINERS_STORAGE_CONF="$CONF" CONTAINERS_REGISTRIES_CONF="$REG_CONF" TMPDIR="$SCRATCH/tmp" \
   podman --root "$STORE" --runroot "$SCRATCH/run" build \
   --network=host \
+  --cap-add all \
+  --security-opt seccomp=unconfined \
+  --security-opt apparmor=unconfined \
   --layers \
   -t localhost/mios-cuda \
   --build-arg BASE_IMAGE="$BASE" \
