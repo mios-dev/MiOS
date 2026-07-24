@@ -15,7 +15,7 @@ SCRATCH="${SCRATCH:-/var/tmp/mios-bakescratch}"
 if [[ -f "/usr/lib/mios/paths.sh" ]]; then
     source "/usr/lib/mios/paths.sh"
 else
-    source "$(dirname "$0")/../../lib/mios/paths.sh"
+    source "${SCRIPT_DIR}/../../lib/mios/paths.sh"
 fi
 
 # Ensure we have common logging functions
@@ -62,8 +62,10 @@ RC
 # (their own go-builder RUN steps), so crun must set up TRIPLE-nested containers --
 # it needs CAP_SYS_RESOURCE for setrlimit(RLIMIT_NOFILE) + SYS_ADMIN for mounts, etc.
 # The outer .github/.forgejo build grants these to RUN; pass them down here too.
+SEARXNG_REF="$(python3 -c "import mios_toml; print(mios_toml.load_merged().get('build', {}).get('bake_refs', {}).get('searxng', 'master'))" 2>/dev/null || echo "master")"
+
 # Build localhost/mios-sys
-log "Building localhost/mios-sys..."
+log "Building localhost/mios-sys (searxng ref: $SEARXNG_REF)..."
 CONTAINERS_STORAGE_CONF="$CONF" CONTAINERS_REGISTRIES_CONF="$REG_CONF" TMPDIR="$SCRATCH/tmp" \
   podman --root "$STORE" --runroot "$SCRATCH/run" build \
   --network=host \
@@ -73,6 +75,7 @@ CONTAINERS_STORAGE_CONF="$CONF" CONTAINERS_REGISTRIES_CONF="$REG_CONF" TMPDIR="$
   --layers \
   -t localhost/mios-sys \
   --build-arg BASE_IMAGE="$BASE" \
+  --build-arg SEARXNG_REF="$SEARXNG_REF" \
   "/usr/share/mios/sys"
 
 # Build localhost/mios-cuda

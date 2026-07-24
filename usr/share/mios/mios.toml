@@ -8557,6 +8557,7 @@ surfer     = "17d9a1577170880cdac13dca7c3d6871716fc046"
 hyprland   = "main"
 lookingglass = "B7"
 syft = "v1.19.0"
+searxng = "master"
 
 # --- bound-images bake sharding (commit-fit; consumed by
 #     usr/libexec/mios/mios-bake-group, one Containerfile RUN per group) ---
@@ -8633,6 +8634,7 @@ enabled = false
 guest_cpu_percent = 85
 guest_ram_percent = 85
 bind_dgpu_vfio   = true
+dgpumode         = "vfio-pci"
 
 [mini.mesh]
 enabled = false
@@ -8646,17 +8648,32 @@ amd    = true
 intel  = true
 
 [dotfiles.registry.shell]
-template = "usr/share/mios/branding/templates/oh-my-posh.json.tmpl"
-target = "usr/share/mios/branding/oh-my-posh.json"
+template = "usr/share/mios/theme/templates/oh-my-posh.omp.json.tmpl"
+target = "usr/share/mios/theme/oh-my-posh.omp.json"
 
 [dotfiles.registry.editor]
-template = "usr/share/mios/branding/templates/vscode-colors.json.tmpl"
-target = "usr/share/mios/branding/vscode-colors.json"
+template = "usr/share/mios/theme/templates/vscode-colorCustomizations.json.tmpl"
+target = "usr/share/mios/theme/vscode-colorCustomizations.json"
 
 [security.luks]
 enabled = false
 pin     = "tpm2"
 pcrs    = "7"
+
+[greenboot]
+critical_services = ["agent-pipe", "llm-light", "pgvector"]
+
+[agent_pipe.quality]
+min_length  = 5
+check_json  = true
+check_punt  = true
+check_empty = true
+
+[agent_pipe.council]
+diversity_gate              = false
+diversity_threshold         = 0.92
+aggregator_bypass           = false
+aggregator_bypass_threshold = 0.95
 
 [network.quadlet]
 network = "mios.network"
@@ -11349,5 +11366,6 @@ isolcpus       = ""                        # CPUs to isolate from scheduler (emp
 nohz_full      = ""                        # CPUs for adaptive-ticks (empty to disable)
 rcu_nocbs      = ""                        # CPUs to offload RCU callbacks (empty to disable)
 THP            = ""                        # Transparent Huge Pages configuration: "always", "madvise", "never" or empty
+
 
 
