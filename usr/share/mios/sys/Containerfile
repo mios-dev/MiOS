@@ -38,11 +38,14 @@ RUN curl -sSfL "https://github.com/poseidon/matchbox/releases/download/v0.10.0/m
 # 3. Forgejo
 RUN curl -sSfL -o /usr/bin/forgejo "https://codeberg.org/forgejo/forgejo/releases/download/v12.0.0/forgejo-12.0.0-linux-amd64" && chmod +x /usr/bin/forgejo
 # 4. Forgejo Runner
-RUN curl -sSfL -o /usr/bin/forgejo-runner "https://codeberg.org/forgejo/runner/releases/download/v6.0.0/forgejo-runner-6.0.0-linux-amd64" && chmod +x /usr/bin/forgejo-runner
+RUN curl -sSfL -o /usr/bin/forgejo-runner "https://code.forgejo.org/forgejo/runner/releases/download/v12.13.2/forgejo-runner-12.13.2-linux-amd64" && chmod +x /usr/bin/forgejo-runner
 # 5. Jaeger
-RUN curl -sSfL "https://github.com/jaegertracing/jaeger/releases/download/v2.0.0/jaeger-2.0.0-linux-amd64.tar.gz" | tar -C /usr/bin --strip-components=1 -xzf - jaeger-2.0.0-linux-amd64/jaeger
+RUN curl -sSfL "https://github.com/jaegertracing/jaeger/releases/download/v2.20.0/jaeger-2.20.0-linux-amd64.tar.gz" | tar -C /usr/bin --strip-components=1 -xzf - jaeger-2.20.0-linux-amd64/jaeger
 # 6. CrowdSec
-RUN curl -sSfL "https://github.com/crowdsecurity/crowdsec/releases/download/v1.6.3/crowdsec-v1.6.3-linux-amd64.tgz" | tar -C /usr/bin --strip-components=1 -xzf - crowdsec-v1.6.3/crowdsec crowdsec-v1.6.3/cscli
+# crowdsec: the old per-arch crowdsec-vX.Y.Z-linux-amd64.tgz asset is gone; the release
+# now ships one crowdsec-release.tgz whose prebuilt binaries live under cmd/ (verified:
+# crowdsec-v1.7.8/cmd/crowdsec/crowdsec + .../cmd/crowdsec-cli/cscli). strip 3 -> /usr/bin.
+RUN curl -sSfL "https://github.com/crowdsecurity/crowdsec/releases/download/v1.7.8/crowdsec-release.tgz" | tar -C /usr/bin --strip-components=3 -xzf - crowdsec-v1.7.8/cmd/crowdsec/crowdsec crowdsec-v1.7.8/cmd/crowdsec-cli/cscli
 # 7. K3s
 RUN curl -sSfL -o /usr/bin/k3s "https://github.com/k3s-io/k3s/releases/download/v1.32.1%2Bk3s1/k3s" && chmod +x /usr/bin/k3s
 # 8. code-server
