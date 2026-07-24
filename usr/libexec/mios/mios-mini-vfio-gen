@@ -5,10 +5,14 @@ set -euo pipefail
 TOML="${1:-/usr/share/mios/mios.toml}"
 
 ENABLED="$(python3 -c "import tomllib; f=open('${TOML}','rb'); d=tomllib.load(f); print(str(d.get('mini',{}).get('enabled', False)).lower())" 2>/dev/null || echo "false")"
-BIND_VFIO="$(python3 -c "import tomllib; f=open('${TOML}','rb'); d=tomllib.load(f); print(str(d.get('mini',{}).get('bind_dgpu_vfio', True)).lower())" 2>/dev/null || echo "true")"
+CPU_PCT="$(python3 -c "import tomllib; f=open('${TOML}','rb'); d=tomllib.load(f); print(d.get('mini',{}).get('guest_cpu_percent', 80))" 2>/dev/null || echo "80")"
+RAM_PCT="$(python3 -c "import tomllib; f=open('${TOML}','rb'); d=tomllib.load(f); print(d.get('mini',{}).get('guest_ram_percent', 80))" 2>/dev/null || echo "80")"
+DGPU_MODE="$(python3 -c "import tomllib; f=open('${TOML}','rb'); d=tomllib.load(f); print(d.get('mini',{}).get('dgpumode', 'vfio-pci'))" 2>/dev/null || echo "vfio-pci")"
 
 cat <<EOF
 # Generated from mios.toml [mini]
 MIOS_MINI_ENABLED="${ENABLED}"
-MIOS_MINI_BIND_VFIO="${BIND_VFIO}"
+MIOS_MINI_GUEST_CPU_PERCENT="${CPU_PCT}"
+MIOS_MINI_GUEST_RAM_PERCENT="${RAM_PCT}"
+MIOS_MINI_DGPU_MODE="${DGPU_MODE}"
 EOF

@@ -5,10 +5,14 @@ set -euo pipefail
 TOML="${1:-/usr/share/mios/mios.toml}"
 
 ENABLED="$(python3 -c "import tomllib; f=open('${TOML}','rb'); d=tomllib.load(f); print(str(d.get('mini',{}).get('mesh',{}).get('enabled', False)).lower())" 2>/dev/null || echo "false")"
-DOMAIN="$(python3 -c "import tomllib; f=open('${TOML}','rb'); d=tomllib.load(f); print(d.get('mini',{}).get('mesh',{}).get('headscale_domain', 'mesh.mios.local'))" 2>/dev/null || echo "mesh.mios.local")"
+DOMAIN="$(python3 -c "import tomllib; f=open('${TOML}','rb'); d=tomllib.load(f); print(d.get('mini',{}).get('mesh',{}).get('headscale_domain', 'mesh.mios.internal'))" 2>/dev/null || echo "mesh.mios.internal")"
+VNET="$(python3 -c "import tomllib; f=open('${TOML}','rb'); d=tomllib.load(f); print(d.get('mini',{}).get('mesh',{}).get('vnet_cidr', '10.42.0.0/16'))" 2>/dev/null || echo "10.42.0.0/16")"
+SWTPM="$(python3 -c "import tomllib; f=open('${TOML}','rb'); d=tomllib.load(f); print(str(d.get('mini',{}).get('mesh',{}).get('swtpm_vtpm', True)).lower())" 2>/dev/null || echo "true")"
 
 cat <<EOF
 # Generated from mios.toml [mini.mesh]
 MIOS_MINI_MESH_ENABLED="${ENABLED}"
 MIOS_HEADSCALE_DOMAIN="${DOMAIN}"
+MIOS_MINI_VNET_CIDR="${VNET}"
+MIOS_MINI_SWTPM_VTPM="${SWTPM}"
 EOF
