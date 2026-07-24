@@ -252,6 +252,7 @@
 | T-264 | P2 | planned | Deploy/Cat/Flatten | CATFLAT-01 -- Dead-weight purge + leave-nothing-behind (drop bundled binaries) |
 | T-265 | P2 | planned | Deploy/Cat/Docs | CATFLAT-02 -- ADR root breadcrumb (ADR.md + cat\ADR-0008.md) + spec cross-ref |
 | T-266 | P3 | done-by-code | Deploy/Cat/SSOT | CATFLAT-03 -- mios.toml seed-copy consolidation (63/68 KB seeds vs 597 KB SSOT) |
+| T-287 | P2 | done-by-code | Bootstrap/RAG | LOGBOOT-01 -- harden+complete `tools/log-to-bootstrap.sh`: purged-ollama `:11434` RAG snippet -> MiOS `/v1` lane (`:8642`, OpenAI-compatible); `--retry` on the example; `jq --rawfile` graph injection; SSOT endpoint. Producer follow-on = AGY-103 |
 | T-267 | P1 | planned | Config/Portal | CONFIG-01 -- Fold mios.html into the MiOS Portal at :8640/ (one web + API door) |
 | T-268 | P1 | done-by-code | Build/SSOT/Version | DEBT-01 -- Collapse version/SSOT to one value (TD-2: 3x mios.toml + 0.2.4 root + 37x headers) |
 | T-269 | P1 | done-by-code | Build/Security | DEBT-02 -- shellcheck CI gate + kill the 9 eval-on-agent-args verbs (TD-1) |

@@ -431,6 +431,11 @@ acceptance: |
 - **Accept:** a small stick carries the shadow-config brain and a fully offline bare-metal kickstart install succeeds from `MiOS-Repo/repos/`.
 - **Deps:** `WS-CAT` (verb engine + `[cat]` SSOT). ADR-0008.
 
+### LOGBOOT-01 — harden+complete the RAG-artifact bootstrap logger  **[P2] ✅ DONE**  (→ T-287)
+- **What:** `tools/log-to-bootstrap.sh` publishes the AI-RAG artifacts + wiki to the MiOS-bootstrap repo. Its generated `README.md`/`manifest.json` still advertised the **purged** ollama runtime + the `localhost:11434` native API. Retargeted to the MiOS **`/v1`** lane (Hermes gateway `:8642`, OpenAI-compatible; `mios-llm-light`/`heavy`), added `--retry` to the example call, and switched knowledge-graph injection to `jq --rawfile` (valid JSON). Endpoint is the SSOT `MIOS_AI_ENDPOINT`, not a hardcode.
+- **Follow-on:** AGY-103 hardens the PRODUCER of `artifacts/ai-rag/` to match (SSOT-driven, no purged-runtime refs).
+- **Files:** `tools/log-to-bootstrap.sh`. Cross-ref: legacy-purge → /v1-only; ai-endpoint-canonical.
+
 ### CATREPO-FIX — repos wrongly staged onto MiOS-Data instead of MiOS-Repo  **[P1]**  (→ T-274)
 - **Bug (live):** `cat stage` lands the `repos/` clone on the **MiOS-Data** partition — but MiOS-Data is for caches / models / user-DBs / dependencies ONLY. The config/source repos clone belongs on the small always-present **MiOS-Repo** partition (this is the concrete manifestation of the CATREPO-01 kickstart path mismatch).
 - **Fix:** correct the staging path in `cat/MiOS-Cat.{bat,ps1}` so `repos/` → `MiOS-Repo/repos/`; assert nothing repo-class writes to MiOS-Data; align `mios-kickstart.cfg`.
