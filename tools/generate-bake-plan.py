@@ -137,12 +137,13 @@ def main(argv):
             
     # Assertions / Validation
     errors = []
-    vllm_whale = "docker.io/vllm/vllm-openai:latest"
-    sglang_whale = "docker.io/lmsysorg/sglang:latest"
-    if vllm_whale not in core:
-        errors.append(f"Whale {vllm_whale} is missing from core bake list")
-    if sglang_whale not in core:
-        errors.append(f"Whale {sglang_whale} is missing from core bake list")
+    for tok in firstboot_tokens:
+        if tok and not any(tok in img for img in core):
+            errors.append(f"Firstboot token '{tok}' matches no image in core bake list")
+
+    for img in firstboot_images:
+        if img not in core:
+            errors.append(f"Firstboot image '{img}' is missing from core bake list")
         
     for img in core:
         parts = img.split("/", 1)
