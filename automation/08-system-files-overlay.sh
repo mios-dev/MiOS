@@ -179,15 +179,35 @@ if [[ "${_dev_net_mode}" == "bridge" ]]; then
 fi
 
 # Logically Bound Images -- bind every Quadlet from both vendor and admin paths
-# (see ARCHITECTURAL LAW 3 -- BOUND-IMAGES).
+# (see ARCHITECTURAL LAW 3 -- BOUND-IMAGES), EXCEPT the firstboot tier.
 BDIR="/usr/lib/bootc/bound-images.d"
 install -d -m 0755 "${BDIR}"
+# firstboot tier (mios.toml [build.bake].firstboot_tokens): a Quadlet whose Image=
+# ref substring-matches a token is NOT logically bound -- it is a multi-GB GPU-
+# engine whale evicted from the bake (generate-bake-plan.py -> plan.d/firstboot.list).
+# Binding it would make bootc DEPLOY-pull ~47GB at install (breaking an offline USB
+# deploy); instead its Quadlet web-pulls the image on first start (mios-ai-firstboot
+# seeds the weights into /var; MiOS-Cat can pre-stage the image on a 128GB+ USB data
+# partition). Degrade-open: if the token list can't be read, bind everything.
+_MIOS_TOML="${MIOS_TOML:-/usr/share/mios/mios.toml}"
+FB_TOKENS="$(grep -E '^[[:space:]]*firstboot_tokens[[:space:]]*=' "${_MIOS_TOML}" 2>/dev/null | sed -E 's/^[^=]*=//; s/[][",]/ /g')"
 shopt -s nullglob
 for QDIR in /usr/share/containers/systemd /etc/containers/systemd; do
     [[ -d "${QDIR}" ]] || continue
     for q in "${QDIR}"/*.container "${QDIR}"/*/*.container "${QDIR}"/*.image "${QDIR}"/*/*.image; do
         [[ -f "$q" ]] || continue
         name="$(basename "$q")"
+        if [[ -n "${FB_TOKENS// /}" ]]; then
+            _img="$(sed -nE 's/^Image=//p' "$q" | head -1)"
+            _fb=""
+            for _tok in ${FB_TOKENS}; do
+                [[ -n "$_tok" && "$_img" == *"$_tok"* ]] && { _fb=1; break; }
+            done
+            if [[ -n "$_fb" ]]; then
+                log "  LBI: SKIP ${name} (firstboot tier -- web-pulled at first boot, not bound)"
+                continue
+            fi
+        fi
         ln -sf "${q}" "${BDIR}/${name}"
         log "  LBI: bound ${name} (${q})"
     done
