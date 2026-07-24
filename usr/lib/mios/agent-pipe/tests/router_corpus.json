@@ -1,0 +1,71 @@
+[
+  {
+    "description": "Chat intent maps to chat mode",
+    "input": {
+      "intent": "chat",
+      "refined_text": "Hello world"
+    },
+    "expected_mode": "chat"
+  },
+  {
+    "description": "Dispatch intent with tool maps to dispatch mode",
+    "input": {
+      "intent": "dispatch",
+      "tool": "open_app",
+      "_deterministic": true
+    },
+    "expected_mode": "dispatch"
+  },
+  {
+    "description": "Dispatch intent with verb alias maps to dispatch mode",
+    "input": {
+      "intent": "dispatch",
+      "verb": "pc_type"
+    },
+    "expected_mode": "dispatch"
+  },
+  {
+    "description": "Multi_task intent maps to multi_task mode",
+    "input": {
+      "intent": "multi_task",
+      "refined_text": "Task A and Task B"
+    },
+    "expected_mode": "multi_task"
+  },
+  {
+    "description": "DAG intent maps to dag mode",
+    "input": {
+      "intent": "dag",
+      "nodes": []
+    },
+    "expected_mode": "dag"
+  },
+  {
+    "description": "Agent intent (shallow) maps to agent mode",
+    "input": {
+      "intent": "agent",
+      "deep": false
+    },
+    "expected_mode": "agent"
+  },
+  {
+    "description": "Agent intent (deep) maps to agent mode",
+    "input": {
+      "intent": "agent",
+      "deep": true
+    },
+    "expected_mode": "agent"
+  },
+  {
+    "description": "Unrecognized intent falls back to agent mode",
+    "input": {
+      "intent": "unrecognized_intent"
+    },
+    "expected_mode": "agent"
+  },
+  {
+    "description": "Empty plan dict falls back to agent mode",
+    "input": {},
+    "expected_mode": "agent"
+  }
+]
