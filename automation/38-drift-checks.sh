@@ -4021,7 +4021,24 @@ main() {
     check_target_languages
     check_curl_retry
     check_nested_podman_caps
+check_clevis_luks() {
+    echo "[38-drift-checks]   (67) clevis LUKS SSOT projection check"
+    local gen="$ROOT_DIR/usr/libexec/mios/mios-clevis-luks-gen"
+    if [[ ! -x "$gen" && -f "$gen" ]]; then
+        chmod +x "$gen" 2>/dev/null || true
+    fi
+    if [[ -f "$gen" ]]; then
+        local out; out="$("$gen" "$ROOT_DIR/usr/share/mios/mios.toml" 2>&1)"
+        if [[ "$out" == *"CLEVIS_LUKS_ENABLED="* ]]; then
+            return 0
+        else
+            _fail "(67) clevis LUKS generator failed to project SSOT configuration"
+        fi
+    fi
+}
+
     check_bake_budget
+    check_clevis_luks
 
     echo "[38-drift-checks] ---------------------------------------------------------"
     if [[ "$VIOLATIONS" -eq 0 ]]; then

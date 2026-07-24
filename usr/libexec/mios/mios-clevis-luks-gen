@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# AI-hint: Generates clevis LUKS TPM2 binding configuration from mios.toml [security.luks] SSOT.
+set -euo pipefail
+
+TOML="${1:-/usr/share/mios/mios.toml}"
+
+ENABLED="$(python3 -c "import tomllib; f=open('${TOML}','rb'); d=tomllib.load(f); print(str(d.get('security',{}).get('luks',{}).get('enabled', False)).lower())" 2>/dev/null || echo "false")"
+PIN="$(python3 -c "import tomllib; f=open('${TOML}','rb'); d=tomllib.load(f); print(d.get('security',{}).get('luks',{}).get('pin', 'tpm2'))" 2>/dev/null || echo "tpm2")"
+PCRS="$(python3 -c "import tomllib; f=open('${TOML}','rb'); d=tomllib.load(f); print(d.get('security',{}).get('luks',{}).get('pcrs', '7'))" 2>/dev/null || echo "7")"
+
+cat <<EOF
+# Generated from mios.toml [security.luks]
+CLEVIS_LUKS_ENABLED="${ENABLED}"
+CLEVIS_PIN="${PIN}"
+CLEVIS_PCRS="${PCRS}"
+EOF
