@@ -479,7 +479,13 @@ if [[ -d "$_agent_pipe_dir" ]] && [[ -x "$_test_py" ]]; then
         # Capture output so a red test is DEBUGGABLE from the build log (the
         # old >/dev/null discarded the traceback -> a mystery FAIL). Assign in the
         # `if` condition so a failing test never trips set -e.
-        if _tout="$( cd "$_agent_pipe_dir" && "$_test_py" "$_tb" 2>&1 | tr -d '\0' )"; then
+        # CLEAN ENV: build.sh has already sourced userenv.sh, whose ~700 MIOS_*
+        # exports (real routing/verb/config values) LEAK into the test subprocess and
+        # override the tests' OWN fixtures -- e.g. a config value flips an expected
+        # verb/route result -- failing hermetic tests that PASS in the drift-gate's
+        # clean env. Unset MIOS_* for the test subprocess only (matching the
+        # drift-gate + the tests' hermetic design); the parent build env is untouched.
+        if _tout="$( cd "$_agent_pipe_dir" && { unset $(compgen -v MIOS_ 2>/dev/null); "$_test_py" "$_tb"; } 2>&1 | tr -d '\0' )"; then
             _row "  [ OK ] $_tb"
         else
             _row "  [FAIL] $_tb"
@@ -508,7 +514,9 @@ if [[ -d "$_libexec_dir" ]] && command -v python3 >/dev/null 2>&1; then
     _lx_fails=0
     shopt -s nullglob
     for _t in "$_libexec_dir"/test_mios_*.py; do
-        if ( cd "$_libexec_dir" && PYTHONIOENCODING=utf-8 python3 "$(basename "$_t")" >/dev/null 2>&1 ); then
+        # Clean env (same rationale as the agent-pipe gate above): strip the leaked
+        # MIOS_* resolver exports so hermetic libexec tests match the drift-gate.
+        if ( cd "$_libexec_dir" && { unset $(compgen -v MIOS_ 2>/dev/null); PYTHONIOENCODING=utf-8 python3 "$(basename "$_t")"; } >/dev/null 2>&1 ); then
             _row "  [ OK ] $(basename "$_t")"
         else
             _row "  [FAIL] $(basename "$_t")"

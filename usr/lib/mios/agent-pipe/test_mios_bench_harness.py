@@ -35,9 +35,14 @@ def test_offline_score_table():
         json.dump({"results": results}, fh)
         
     try:
-        # Run mios-bench score in a subprocess
+        # Run mios-bench score in a subprocess. Invoke via sys.executable (python3)
+        # rather than executing mios-bench directly: git tracks it 0644 and the +x
+        # bit is only added to the IMAGE copy by 08-system-files-overlay.sh, not to
+        # the /tmp/build working copy MIOS_BENCH points at during the OCI build, so a
+        # direct exec raised PermissionError in build.sh's test gate. python3 needs
+        # no exec bit and matches how postcheck #15 invokes it.
         p = subprocess.Popen(
-            [MIOS_BENCH, "score", tmp_path, "--k", "2"],
+            [sys.executable, MIOS_BENCH, "score", tmp_path, "--k", "2"],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
         out, err = p.communicate()
@@ -88,9 +93,9 @@ def test_run_command_suite_routing():
     time.sleep(0.1)
     
     try:
-        # Run run command
+        # Run run command (via sys.executable -- see the score-subprocess note above)
         p = subprocess.Popen(
-            [MIOS_BENCH, "run", tmp_suite, "--endpoint", "http://127.0.0.1:8699/v1", "--k", "1"],
+            [sys.executable, MIOS_BENCH, "run", tmp_suite, "--endpoint", "http://127.0.0.1:8699/v1", "--k", "1"],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
         out, err = p.communicate()
