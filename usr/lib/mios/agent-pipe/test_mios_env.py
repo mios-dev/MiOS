@@ -23,23 +23,23 @@ from mios_env import strip_empty_mios_env
 class TestMiosEnvContract(unittest.TestCase):
     def test_strip_empty_mios_env(self):
         test_env = {
-            "MIOS_FOO": "",
-            "MIOS_BAR": "123",
+            "MIOS_FIXTURE_FOO": "",
+            "MIOS_FIXTURE_BAR": "123",
             "OTHER_VAR": "",
         }
         stripped = strip_empty_mios_env(test_env)
-        self.assertNotIn("MIOS_FOO", stripped)
-        self.assertIn("MIOS_BAR", stripped)
+        self.assertNotIn("MIOS_FIXTURE_FOO", stripped)
+        self.assertIn("MIOS_FIXTURE_BAR", stripped)
         self.assertIn("OTHER_VAR", stripped)
 
     def test_import_agent_pipe_with_empty_env(self):
         # Populate env with dummy empty MIOS_* variables
         sample_keys = [
-            "MIOS_PORT_AGENT_PIPE",
-            "MIOS_PORT_HTTP",
-            "MIOS_TIMEOUT",
-            "MIOS_MAX_WORKERS",
-            "MIOS_ENABLE_FEATURE",
+            "MIOS_FIXTURE_PORT_AGENT_PIPE",
+            "MIOS_FIXTURE_PORT_HTTP",
+            "MIOS_FIXTURE_TIMEOUT",
+            "MIOS_FIXTURE_MAX_WORKERS",
+            "MIOS_FIXTURE_ENABLE_FEATURE",
         ]
         for k in sample_keys:
             os.environ[k] = ""
