@@ -94,6 +94,16 @@ def run_ranker(query, entries, toml_text):
         os.environ["MIOS_VENDOR_TOML"] = toml_path
         os.environ["MIOS_HOST_TOML"] = _absent
         os.environ["MIOS_USER_TOML"] = _absent
+        # The ranker resolves config via mios_toml.load_merged(), which memoizes a
+        # PROCESS-GLOBAL cache for layers=None. These tests exec() the ranker
+        # repeatedly in ONE process, each pointing MIOS_VENDOR_TOML at a different
+        # fixture; without invalidating that cache every test after the first reuses
+        # the FIRST fixture's merged config and the override assertions fail. Clear
+        # it so each fixture is re-read (mios_toml lives on the _LIB dir).
+        if _LIB not in sys.path:
+            sys.path.insert(0, _LIB)
+        import mios_toml as _mt
+        _mt.clear_cache()
         ns = {"__name__": "__mios_find_ranker__"}
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
             try:

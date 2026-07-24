@@ -557,6 +557,16 @@ log "Validating BOUND-IMAGES (Law 3): Quadlet -> bound-images.d/ coverage..."
 _bind_dir=/usr/lib/bootc/bound-images.d
 _law3_missing=""
 _law3_extra=""
+# firstboot tier (mios.toml [build.bake].firstboot_tokens): a Quadlet whose Image=
+# ref substring-matches a token is INTENTIONALLY NOT bound -- it is a multi-GB GPU-
+# engine whale evicted from the bake (generate-bake-plan.py -> plan.d/firstboot.list)
+# and web-pulled at first boot, so automation/08-system-files-overlay.sh deliberately
+# SKIPS its bound-images.d symlink. This exemption MUST use the SAME read+match as 08
+# (firstboot_tokens via grep/sed, substring-match against Image=) or the enforcer and
+# the overlay diverge and the build dies here. Degrade-open: an unreadable token list
+# exempts nothing, so the default bind-everything policy still holds.
+_p14_toml="${MIOS_TOML:-/usr/share/mios/mios.toml}"
+_p14_fb_tokens="$(grep -E '^[[:space:]]*firstboot_tokens[[:space:]]*=' "${_p14_toml}" 2>/dev/null | sed -E 's/^[^=]*=//; s/[][",]/ /g')"
 if [[ -d "$_bind_dir" ]]; then
     declare -A _seen_quadlets=()
     for d in /etc/containers/systemd /usr/share/containers/systemd; do
@@ -566,6 +576,19 @@ if [[ -d "$_bind_dir" ]]; then
             base=$(basename "$f")
             _seen_quadlets["$base"]=1
             if [[ ! -e "$_bind_dir/$base" ]]; then
+                # firstboot-tier Quadlets are legitimately unbound (see note above) --
+                # exempt any *.container whose Image= substring-matches a token.
+                if [[ -n "${_p14_fb_tokens// /}" ]]; then
+                    _p14_img="$(sed -nE 's/^Image=//p' "$f" | head -1)"
+                    _p14_fb=""
+                    for _p14_tok in ${_p14_fb_tokens}; do
+                        [[ -n "$_p14_tok" && "$_p14_img" == *"$_p14_tok"* ]] && { _p14_fb=1; break; }
+                    done
+                    if [[ -n "$_p14_fb" ]]; then
+                        log "  [ok] $base intentionally unbound (firstboot tier -- web-pulled at first boot, not baked)"
+                        continue
+                    fi
+                fi
                 _law3_missing+="$base: no symlink in $_bind_dir/"$'\n'
             fi
         done
