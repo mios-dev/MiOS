@@ -708,6 +708,79 @@ Translates the PostgresOS + peer-OS research (full docs: `C:\MiOS\docs\agy\doc-p
 **Where:** new `tools/run-agent-pipe-tests.sh` (or `conftest.py`), `automation/build.sh`, CI test step.
 **Done When:** both gates run through the one harness; a deliberately env-leaking test fails deterministically through it; full `test_mios_*` suite green; `just drift-gate` green.
 
+---
+
+## AGY-106..122 — NEW (2026-07-24, batch 2) — installer consolidation + runtime wiring + decomposition + Rust + Mini
+> You drained AGY-1..105 (fast!). This is the NEXT frontier: the **Linux/Python/shared** half of the installer-unification plan (Claude owns the `.ps1` half — Get-MiOS/build-mios.ps1/mios-install.ps1), the "**wire what we ship**" container-runtime SSOT projections, more `server.py` decomposition + Rust ports, MiOS-Mini foundations, the missing offline bare-metal installer, and **negative-tests for YOUR new gates 64/65/66**. All code-only, no live-VM. **Law 15 now in force** (mios.toml [laws] id 15): double-check BOTH repos + triple-check before acting. **Stage ONLY your files.**
+
+## AGY-106  (WS-INSTALL, **P1**) — fold `build-mios.sh` INTO `mios-install.sh` (Linux becomes "1 file + contract")
+**Who:** you (bash). **What+How:** `build-mios.sh` is misnamed — it is a Linux BOOTSTRAP INSTALLER (bootc switch / FHS git-init root-merge), NOT an OCI builder. Fold its bootc-switch + FHS-root-merge (preserve the `MIOS_FHS_TOTAL_ROOT_MERGE` gate + prompt intact) into `installation/mios-install.sh`'s `fedora|bootc` stage paths, then reduce `build-mios.sh` to a thin `exec installation/mios-install.sh fedora|bootc "$@"` redirector so `curl .../build-mios.sh|bash` (via install.sh/bootstrap.sh) keeps working. This is what makes Linux truly "one installer file + one contract".
+**Where:** `installation/mios-install.sh`, `build-mios.sh`, `installation/mios-common.sh`. **Done:** bootc host default = bootc-switch, else fedora FHS; the redirector preserves the web-entry one-liner; `bash -n` clean; drift-gate green.
+
+## AGY-107  (WS-INSTALL, **P2**) — delete the `MiOS-Monitor.py` byte-identical twin; ONE cross-platform TUI monitor
+**Who:** you (Python + bash). **What+How:** `installation/MiOS-Monitor.py` is a verified byte-identical twin (md5 `b56d7de84…`) of the canonical monitor; `installation/MiOS-Monitor.ps1` is a rich-only shim. **GREP the whole tree + C:\MiOS FIRST** (Start Menu / scheduled tasks / Ventoy autorun / launchers) for name-stable references, repoint them to the ONE cross-platform TUI monitor (`MiOS-Mon.py`), fold the `.ps1` dep-bootstrap into the shared launcher, THEN delete the twin + shim.
+**Where:** `installation/MiOS-Monitor.{py,ps1}`, the launcher, any referencing unit. **Done:** one monitor executor; no dangling name-stable ref; the monitor still launches from every documented entry; drift-gate green.
+
+## AGY-108  (WS-INSTALL, **P1**) — `mios-install.sh` target-prereq resolver + `--dry-run`
+**Who:** you (bash). **What+How:** per the unified-installer plan, `mios-install.sh` needs a target-keyed PREREQ resolver (Linux: dnf packages, rustup/cargo for native tools) run as an implicit prelude before each lifecycle target, and a `--dry-run` that prints the RESOLVED env + argv for ANY target and exits 0 (never fakes a run). Windows-only targets invoked from Linux print exact copy-paste guidance.
+**Where:** `installation/mios-install.sh`, `installation/mios-common.sh`. **Done:** each target resolves its prereqs first; `--dry-run` prints resolved env/argv for every target; `bash -n` clean; drift-gate green.
+
+## AGY-109  (WS-INSTALL, **P1** — audit-confirmed bug) — SSOT-resolve the configurator URL (kill the literal `:8640`)
+**Who:** you (bash). **What+How:** the config target HARDCODES `http://localhost:8640/` (mios-install.ps1:219 + the `.sh` peer) instead of resolving `[ports].agent_pipe` from SSOT (NO-HARDCODE / Law 7). Fix the Linux/shared path to resolve the port via `mios-common.sh`'s `mios_ssot_value`, opening `http://localhost:<[ports].agent_pipe>/configure`, else the offline configurator HTML. (Flag the `.ps1` twin fix for Claude.)
+**Where:** `installation/mios-install.sh`, `installation/mios-common.sh`. **Done:** config opens the SSOT-resolved port; no literal `8640` in the Linux path; drift-gate green.
+
+## AGY-110  (WS-RUNTIME, **P2**) — clevis-luks SSOT projection + gate (TPM-bound disk unlock)
+**Who:** you (bash + drift-gate). **What+How:** MiOS PACKAGES clevis/clevis-luks but doesn't wire it (container-runtime doc gap). Add a `[security.luks]` SSOT block (tpm2 pin, pcr set, `enabled=false` default) + a generator that projects the clevis binding config + a drift-check (regenerate-and-diff, Law 8). Static projection only — no live TPM/disk needed.
+**Where:** `mios.toml [security.luks]`, a generator under `usr/libexec/mios`, `automation/38-drift-checks.sh`. **Done:** projection idempotent + gated; ships inert (`enabled=false`); drift-gate green.
+
+## AGY-111  (WS-RUNTIME, **P2**) — multi-vendor GPU CDI projection (ROCm/Intel alongside NVIDIA) — extends AGY-41
+**Who:** you (bash/Python). **What+How:** the runtime doc records multi-vendor GPU via CDI + mdevctl vGPU, but `41-gpu-cdi-toolkits.sh` is NVIDIA-centric. Add `[gpu.vendors]` (nvidia/amd/intel enable flags) + project the CDI device specs + a gate so AMD(ROCm)/Intel hosts get resolvable CDI devices. Encode the correction: **venus != CUDA** (don't conflate the Vulkan venus path with CUDA). Static projection.
+**Where:** `automation/41-gpu-cdi-toolkits.sh`, `mios.toml [gpu.vendors]`, `38-drift-checks.sh`. **Done:** CDI specs project per enabled vendor; gate green; NVIDIA path unchanged.
+
+## AGY-112  (WS-RUNTIME, **P1**) — greenboot health-COVERAGE gate (every critical service has a check + rollback)
+**Who:** you (bash + drift-gate). **What+How:** greenboot is shipped + partially wired (check 54), but nothing asserts COVERAGE — that every critical MiOS service (the AI lanes, pgvector, agent-pipe, hermes) has a greenboot health check whose failure triggers rollback. Add a drift-check mapping critical services (from SSOT) → greenboot check scripts, FAILING on an uncovered critical service. Static.
+**Where:** `automation/38-drift-checks.sh`, `usr/lib/greenboot`, `mios.toml` (critical-service list). **Done:** gate flags an uncovered critical service; passes on HEAD; drift-gate green.
+
+## AGY-113  (WS-DEBT/TD-5, **P1**) — extract the NEXT cohesive unit out of `server.py`
+**Who:** you (Python). **What+How:** audit `server.py` for the LARGEST remaining cohesive block not yet extracted (candidates: the SSE/streaming seam, the routing-decision seam, the health/status endpoints) and extract ONE into a sibling `mios_*.py` module + sibling test (check 6: server.py-free; check 11: sibling test). Pick by cohesion + size; document the choice.
+**Where:** `usr/lib/mios/agent-pipe/mios_pipe/**`, a new sibling module + `test_mios_*.py`. **Done:** the unit is extracted, server.py-free, sibling-tested; server.py public-surface golden (check 15) updated; drift-gate green.
+
+## AGY-114  (WS-DEBT/TD-5, **P2**) — extract the MCP/tool-call dispatch seam
+**Who:** you (Python). **What+How:** extract the MCP/tool-call dispatch seam from `server.py`/`mios_dispatch` into a cohesive module + test (mirrors AGY-47/52/113). Fail-open preserved; no `server.py` import edge (check 6).
+**Where:** `mios_pipe/routing/**` or a new module, `test_mios_*.py`. **Done:** seam extracted + tested; checks 6/11/15 green; drift-gate green.
+
+## AGY-115  (WS-LANG, **P2**) — port `generate-names-registry.py` to Rust (the check-30 generator)
+**Who:** you (Rust). **What+How:** per Law 14 / ADR-0011, port `tools/generate-names-registry.py` (the check-30 registry generator) to a Rust binary in the `tools/native` workspace, **byte-identical output** (check-30 diff + the twin-equivalence gate protect it). Keep the Python as fallback until the Rust binary is drift-verified.
+**Where:** `tools/native/**`, `tools/generate-names-registry.py`. **Done:** Rust binary emits byte-identical `names.generated.txt`/`referenced_names.txt`; check-30 green via the Rust path; drift-gate green.
+
+## AGY-116  (WS-LANG, **P2**) — single-source the SSOT-walk into a Rust crate (kill the check-resolver-twin/userenv duplication)
+**Who:** you (Rust). **What+How:** extract the `mios.toml` SSOT-walk (the `EXCLUDED_SECTIONS`/`WALK_*` logic DUPLICATED between `check-resolver-twin.py` + `userenv.sh` — see AGY-94) into ONE Rust crate consumed by both the resolver-twin gate and the names registry, single-sourcing the walk.
+**Where:** `tools/native/**`, the two consumers. **Done:** one Rust walk crate; twins single-source it; resolver-twin (45) + names (30) gates green; drift-gate green.
+
+## AGY-117  (WS-MINI, **P2**) — the `[mini]` SSOT block + vfio-bind projection (all dGPUs → vfio)
+**Who:** you (bash + drift-gate). **What+How:** per `docs/agy/doc-mios-mini.md`, add a `[mini]` SSOT block (router host binds ALL dGPUs to `vfio-pci`, owns NICs/radios/TPM/boot; guest gets all GPUs + 75-90% CPU/RAM) + project the vfio-pci bind kargs/modprobe config + a gate. Encode the critic corrections: **whole-GPU-to-one-guest** (no driver-free fractioning); ~1GB host floor (not literal "tiny"); no-firewalld nft. Static projection; no live hardware.
+**Where:** `mios.toml [mini]`, a generator, `usr/lib/bootc/kargs.d` or `modprobe.d`, `38-drift-checks.sh`. **Done:** vfio bind config projects from `[mini]`; gate green; ships inert.
+
+## AGY-118  (WS-MINI, **P2**) — headscale mesh projection for the split-plane (NIC-less guest over headscale)
+**Who:** you (bash/Python). **What+How:** project the headscale/tailscale mesh config (the NIC-less guest routed over headscale to the router host) from a `[mini.mesh]` SSOT block + a gate. Encode the **swtpm vTPM** note (guest gets a software TPM). Static config projection.
+**Where:** `mios.toml [mini.mesh]`, a generator, the headscale config surface, `38-drift-checks.sh`. **Done:** mesh config projects from SSOT; gate green; inert by default.
+
+## AGY-119  (WS-DEPLOY, **P1**) — the MISSING `tools/install.sh` offline bare-metal installer
+**Who:** you (bash). **What+How:** the bare-metal leg is broken — `tools/install.sh` is ABSENT and the bare-metal path installs plain Fedora, not bootc MiOS. Write `tools/install.sh` that does an OFFLINE `bootc install to-disk --transport oci` from an oci-archive staged on MiOS-Repo/MiOS-Data (Law 12, zero-network), with target-disk selection + confirm + `--dry-run`. No live install needed to author (`bash -n` + a dry-run gate).
+**Where:** new `tools/install.sh`, cross-ref the kickstart path (CATREPO-01). **Done:** script authored, `bash -n` clean, `--dry-run` prints the resolved bootc-install plan; a drift-check asserts it references the oci-archive path (NOT a network pull).
+
+## AGY-120  (WS-TEST, **P2**) — negative-tests for YOUR new drift-checks 64/65/66
+**Who:** you (bash/Python). **What+How:** you shipped checks 64 (curl-retry), 65 (nested-podman caps), 66 (bake-budget). Add negative-tests (mirror AGY-54) injecting a violation for EACH — a retry-less `curl`; a stripped `--cap-add`; a whale over `runner_disk_budget_gb` — and assert the check FAILS, plus passes on HEAD.
+**Where:** the drift-gate negative-test harness, `automation/38-drift-checks.sh` fixtures. **Done:** each of 64/65/66 has a proven negative-test; drift-gate green.
+
+## AGY-121  (WS-TEST, **P2**) — wire AGY-102's URL-liveness probe into a SCHEDULED CI job
+**Who:** you (bash + CI yaml). **What+How:** AGY-102 added `tools/check-build-urls.sh` (pre-release probe). Wire it into a SCHEDULED (cron) CI job (`.github/workflows` + `.forgejo/workflows` mirror) that runs weekly + on-demand, reporting rotted build-download URLs — **NON-blocking** (never the build gate).
+**Where:** `.github/workflows/` (new scheduled workflow), `.forgejo/workflows/`. **Done:** the scheduled job runs the probe + surfaces non-2xx URLs; not wired into the build gate; yaml validates.
+
+## AGY-122  (WS-DOTFILES / ADR-0010, **P2**) — verify the ssh-config kind fix landed + add `[shell]`/`[editor]` surfaces
+**Who:** you (Python). **What+How:** AGY-92 B3 flagged the ssh-config kind emitting bracketed `[host]` headers OpenSSH rejects. VERIFY the dedicated ssh-config kind landed (real `Host mios-*` stanza syntax, no brackets/`=`) + fixtures regenerated; then add the `[shell]`/`[editor]` dotfile surfaces via the kind engine (AGY-62 follow-through) with negative-tests.
+**Where:** `usr/libexec/mios/mios-theme-render` (or `mios-dotfiles-render`), `mios.toml [dotfiles.registry.*]`, fixtures. **Done:** ssh-config emits valid syntax; new surfaces project + gate; check-25 green.
+
 ### Reporting back
 Commit each task as `agy: <task-id> <summary>` and push to `main`. Claude is monitoring
 `main` for your commits + will integrate/verify. If blocked, leave a `TODO(agy):` note in
