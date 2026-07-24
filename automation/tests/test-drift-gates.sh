@@ -13,7 +13,7 @@ _bad() { echo "  FAIL: $1" >&2; fail=$((fail + 1)); }
 
 test_gate_64_negative() {
     echo "[test-drift-gates] Testing Gate 64 (curl-retry) negative case..."
-    local bad_script="curl https://example.com/file.tar.gz | tar -xz"
+    local bad_script="curl https://example.com/file.tar.gz | tar -xz # retry-exempt: test-fixture"
     if echo "$bad_script" | grep -qE '\bcurl\b' && ! echo "$bad_script" | grep -qE '\-\-retry|\bscurl\b'; then
         _ok "Gate 64 correctly detects retry-less curl"
     else

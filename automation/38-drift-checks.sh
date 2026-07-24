@@ -3939,6 +3939,61 @@ print(budget)
     fi
 }
 
+check_greenboot() {
+    echo "[38-drift-checks]   (54) greenboot health-coverage check"
+    local gb_dir="$ROOT/usr/lib/greenboot/check/required.d"
+    if [[ ! -d "$gb_dir" ]]; then
+        _fail "(54) greenboot required checks directory ($gb_dir) is missing"
+        return
+    fi
+    local critical_services=("agent-pipe" "llm-light" "pgvector")
+    local s script_found
+    for s in "${critical_services[@]}"; do
+        script_found=0
+        for f in "$gb_dir"/*; do
+            if [[ -f "$f" ]] && grep -q "$s" "$f" 2>/dev/null; then
+                script_found=1
+                break
+            fi
+        done
+        if [[ "$script_found" -eq 0 ]]; then
+            _fail "(54) greenboot missing health-check script for critical service: $s"
+        fi
+    done
+}
+
+check_clevis_luks() {
+    echo "[38-drift-checks]   (67) clevis LUKS SSOT projection check"
+    local gen="$ROOT/usr/libexec/mios/mios-clevis-luks-gen"
+    if [[ ! -x "$gen" && -f "$gen" ]]; then
+        chmod +x "$gen" 2>/dev/null || true
+    fi
+    if [[ -f "$gen" ]]; then
+        local out; out="$("$gen" "$ROOT/usr/share/mios/mios.toml" 2>&1)"
+        if [[ "$out" == *"CLEVIS_LUKS_ENABLED="* ]]; then
+            return 0
+        else
+            _fail "(67) clevis LUKS generator failed to project SSOT configuration"
+        fi
+    fi
+}
+
+check_mini_vfio() {
+    echo "[38-drift-checks]   (68) MiOS-Mini vfio-pci SSOT projection check"
+    local gen="$ROOT/usr/libexec/mios/mios-mini-vfio-gen"
+    if [[ ! -x "$gen" && -f "$gen" ]]; then
+        chmod +x "$gen" 2>/dev/null || true
+    fi
+    if [[ -f "$gen" ]]; then
+        local out; out="$("$gen" "$ROOT/usr/share/mios/mios.toml" 2>&1)"
+        if [[ "$out" == *"MIOS_MINI_ENABLED="* ]]; then
+            return 0
+        else
+            _fail "(68) MiOS-Mini vfio generator failed to project SSOT configuration"
+        fi
+    fi
+}
+
 main() {
     if [[ $# -eq 1 && -n "$1" ]]; then
         if declare -f "$1" >/dev/null; then

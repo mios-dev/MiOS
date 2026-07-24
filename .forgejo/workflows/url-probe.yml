@@ -1,3 +1,4 @@
+# AI-hint: Scheduled build URL liveness probe workflow for Forgejo.
 name: url-probe
 
 on:

@@ -1,6 +1,7 @@
+# AI-hint: Rust SSOT names registry generator Cargo manifest.
 [package]
 name = "generate-names-registry"
-version = "0.3.0"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
 
 [dependencies]

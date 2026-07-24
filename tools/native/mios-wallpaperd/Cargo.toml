@@ -13,8 +13,8 @@
 # box. GNU host triple works (no MSVC required) but MSVC is fine too.
 [package]
 name = "mios-wallpaperd"
-version = "0.3.0"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
 description = "MiOS living-wallpaper + desktop-services daemon: silent WorkerW WebView host, folded WSLg gui-watch, one Windows service."
 
 [[bin]]

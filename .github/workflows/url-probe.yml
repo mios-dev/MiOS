@@ -1,3 +1,4 @@
+# AI-hint: Scheduled build URL liveness probe workflow for GitHub Actions.
 name: url-probe
 
 on:
