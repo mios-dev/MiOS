@@ -900,9 +900,10 @@ function mios-dev {
 }
 
 function mios-mini {
-    $mon = @('C:\mios-bootstrap\installation\MiOS-Monitor.ps1','C:\MiOS\usr\libexec\mios\MiOS-Monitor.ps1') | Where-Object { Test-Path $_ } | Select-Object -First 1
+    $py = if (Get-Command python.exe -ErrorAction SilentlyContinue) { 'python.exe' } else { 'python3' }
+    $mon = @('C:\mios-bootstrap\installation\MiOS-Mon.py','C:\MiOS\usr\libexec\mios\MiOS-Mon.py') | Where-Object { Test-Path $_ } | Select-Object -First 1
     if ($mon) {
-        & powershell -NoProfile -ExecutionPolicy Bypass -File $mon -Mode Mini
+        & $py $mon --mini
     } elseif (Get-Command Show-MiosDashboard -ErrorAction SilentlyContinue) {
         $cfg  = if (Test-Path 'M:\MiOS\fastfetch\config.jsonc') { 'M:\MiOS\fastfetch\config.jsonc' } else { '' }
         $logo = if (Test-Path 'M:\MiOS\fastfetch\mios.txt')      { 'M:\MiOS\fastfetch\mios.txt' }      else { '' }
@@ -913,9 +914,10 @@ function mios-mini {
 }
 
 function mios-dash {
-    $mon = @('C:\mios-bootstrap\installation\MiOS-Monitor.ps1','C:\MiOS\usr\libexec\mios\MiOS-Monitor.ps1') | Where-Object { Test-Path $_ } | Select-Object -First 1
+    $py = if (Get-Command python.exe -ErrorAction SilentlyContinue) { 'python.exe' } else { 'python3' }
+    $mon = @('C:\mios-bootstrap\installation\MiOS-Mon.py','C:\MiOS\usr\libexec\mios\MiOS-Mon.py') | Where-Object { Test-Path $_ } | Select-Object -First 1
     if ($mon) {
-        & powershell -NoProfile -ExecutionPolicy Bypass -File $mon -Mode Dash
+        & $py $mon --dash
     } elseif (Get-Command Show-MiosDashboard -ErrorAction SilentlyContinue) {
         $cfg  = if (Test-Path 'M:\MiOS\fastfetch\config.jsonc') { 'M:\MiOS\fastfetch\config.jsonc' } else { '' }
         $logo = if (Test-Path 'M:\MiOS\fastfetch\mios.txt') { 'M:\MiOS\fastfetch\mios.txt' }
