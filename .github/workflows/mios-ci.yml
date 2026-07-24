@@ -292,27 +292,44 @@ jobs:
       - name: Rechunk for smaller Day-2 deltas (publish only)
         if: env.PUBLISH == 'true' && github.event_name != 'pull_request'
         run: |
-          set -euo pipefail
-          # hhd-dev/rechunk produces 5-10x smaller bootc-upgrade
-          # deltas. Forgejo Runner runs this on every push (closing
-          # the self-replication loop with optimal pull bandwidth);
-          # GitHub Actions does the same so cloud-pulled images
-          # match self-hosted images bit-for-bit.
+          set -uo pipefail
+          # Improved rechunking for smaller Day-2 deltas. PREFER rpm-ostree's
+          # `compose build-chunked-oci --format-version=2`: format-version 2 writes
+          # explicit per-layer parent dirs -> DETERMINISTIC layer hashes, so layers
+          # that don't change keep identical digests across builds and bootc-upgrade
+          # ships a minimal delta (vs the wrapper's default). Runs the image's own
+          # rpm-ostree. FALLBACK chain: build-chunked-oci -> bootc-base-imagectl
+          # rechunk (the wrapper; --max-layers, no format-version) -> un-rechunked.
+          # Each rechunk is a LOSSLESS re-layering (content byte-identical), so a
+          # missing tool/flag only costs delta efficiency, never the publish.
           IMAGE_TAG="localhost/mios:${{ steps.tag.outputs.image_tag }}"
           MAX_LAYERS="${MIOS_RECHUNK_MAX_LAYERS:-67}"
           # sudo: rechunk reads from + writes to rootful storage
-          sudo podman run --rm \
+          _RECHUNKED=""
+          if sudo podman run --rm --privileged \
+              -v /var/lib/containers/storage:/var/lib/containers/storage \
+              "${IMAGE_TAG}" \
+              rpm-ostree compose build-chunked-oci --bootc --format-version=2 \
+                  --from="containers-storage:${IMAGE_TAG}" \
+                  --output="containers-storage:${IMAGE_TAG}-rechunked"; then
+              _RECHUNKED=1
+              echo "rechunk: rpm-ostree build-chunked-oci --format-version=2 OK"
+          elif sudo podman run --rm \
               --security-opt label=type:unconfined_t \
               -v /var/lib/containers/storage:/var/lib/containers/storage \
               "${IMAGE_TAG}" \
               /usr/libexec/bootc-base-imagectl rechunk \
                   --max-layers "${MAX_LAYERS}" \
                   "containers-storage:${IMAGE_TAG}" \
-                  "containers-storage:${IMAGE_TAG}-rechunked" || {
-              echo "WARN: rechunk failed; pushing un-rechunked image" >&2
-              exit 0
-          }
-          sudo podman tag "${IMAGE_TAG}-rechunked" "${IMAGE_TAG}"
+                  "containers-storage:${IMAGE_TAG}-rechunked"; then
+              _RECHUNKED=1
+              echo "rechunk: bootc-base-imagectl fallback OK"
+          fi
+          if [[ -n "${_RECHUNKED}" ]]; then
+              sudo podman tag "${IMAGE_TAG}-rechunked" "${IMAGE_TAG}"
+          else
+              echo "WARN: all rechunkers failed; pushing un-rechunked image" >&2
+          fi
           sudo podman tag "${IMAGE_TAG}" "localhost/mios:latest"
 
       - name: Compute registry tags
