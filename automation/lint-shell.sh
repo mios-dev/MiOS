@@ -7,10 +7,28 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
+# Ensure shellcheck is PRESENT so the lint actually GATES (a skipped lint is a
+# false-green). If absent, provision it via the distro package manager -- dnf
+# (`ShellCheck` on the Fedora build host) or apt (`shellcheck` on the CI/Ubuntu
+# runner). build.sh runs this same lint in its POST-build drift phase on the build
+# host, where nothing had installed shellcheck -> it silently SKIPPED; auto-provision
+# closes that gap in every context (CI build job, Forgejo, local build) without
+# depending on the environment pre-installing it. Best-effort + `set -e`-safe.
+if ! command -v shellcheck >/dev/null 2>&1; then
+    if command -v dnf >/dev/null 2>&1; then
+        dnf install -y ShellCheck >/dev/null 2>&1 || true
+    elif command -v apt-get >/dev/null 2>&1; then
+        { sudo -n apt-get update -qq && sudo -n apt-get install -y shellcheck; } >/dev/null 2>&1 \
+            || { apt-get update -qq && apt-get install -y shellcheck; } >/dev/null 2>&1 \
+            || true
+    fi
+fi
+
 if ! command -v shellcheck >/dev/null 2>&1; then
     # exit 2 == "skipped, NOT linted" so the drift-gate WARNs rather than printing a
-    # false-green conformance summary over nothing linted.
-    echo "[lint-shell] WARNING: shellcheck is missing -- shell linting SKIPPED (not a pass)" >&2
+    # false-green conformance summary over nothing linted. Reached only when no
+    # package manager / no egress could provision shellcheck (genuine degrade-open).
+    echo "[lint-shell] WARNING: shellcheck is missing and could not be provisioned -- shell linting SKIPPED (not a pass)" >&2
     exit 2
 fi
 

@@ -136,6 +136,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # build.sh's POST-build drift phase re-runs 38-drift-checks.sh -> check_shellcheck
+      # -> lint-shell.sh on THIS runner. The drift-gate job installs shellcheck but the
+      # build job did not, so that re-run skipped the lint (false-green). Install it here
+      # too so the build-job lint GATES. (lint-shell.sh also self-provisions as a fallback.)
+      - name: Install shellcheck
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y shellcheck
+
       - name: Read VERSION
         id: ver
         # VERSION must yield ONE clean token. Strip comment lines (e.g. a
