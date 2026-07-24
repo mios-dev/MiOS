@@ -48,14 +48,16 @@ lines = [
     ""
 ]
 
-# DETERMINISTIC at build time: PTP/Hyper-V tuning is a DEPLOY-HOST property, not a
-# build property. Keying off the BUILD host having /dev/ptp0 (e.g. an Azure/Hyper-V
-# CI runner, or the container host) bakes a host-specific chrony.conf -> the image
-# differs per build host AND drift-check 55 (which validates the CANONICAL SSOT
-# projection, and re-renders inside a podman container with NO /dev/ptp0) fails.
-# Default canonical; a deploy/first-boot render can set MIOS_CHRONY_PTP=1 to emit the
-# noselect / no-rtcsync PTP variant when the REAL host has a PTP clock.
-has_ptp = os.environ.get("MIOS_CHRONY_PTP", "").strip().lower() in ("1", "true", "yes")
+# DETERMINISTIC / build-host-independent: PTP (Hyper-V/WSL2) tuning is a DEPLOY-HOST
+# property, NOT a build property. Keying off the BUILD host having /dev/ptp0 (an
+# Azure/Hyper-V CI runner, or the container host) baked a host-specific chrony.conf
+# -> the image differed per build host AND drift-check 55 (canonical SSOT projection,
+# re-rendered inside a podman container with NO /dev/ptp0) failed. Always render
+# canonical here -- the refclock PHC line below still drives PTP when /dev/ptp0 is
+# present on the REAL host; the noselect / no-rtcsync tuning for PTP hosts belongs in
+# a deploy/first-boot chrony drop-in, NOT the build render. (Deliberately no MIOS_*
+# env knob: PTP is hardware-detected at deploy, not an SSOT build key -- Law 9.)
+has_ptp = False
 for s in servers:
     opt = " iburst noselect" if has_ptp else " iburst"
     lines.append(f"server {s}{opt}")
