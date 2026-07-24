@@ -235,111 +235,33 @@ def _a2a_text_part(text: str) -> dict:
 # fact, since the passport keypair MiOS provisions is Ed25519 (the one curve the
 # passport crypto supports). The `kid` comes from the passport key store (SSOT), not
 # a literal.
-_JWS_ALG_EDDSA = "EdDSA"
-# The card member excluded from the signing payload (it holds the signatures
-# themselves -- a signature cannot cover itself). Named once; reused by sign+verify.
-_A2A_CARD_SIG_FIELD = "signatures"
-
-
-def _b64u(b: bytes) -> str:
-    """RFC-7515 §2 BASE64URL: URL-safe base64, padding stripped."""
-    return base64.urlsafe_b64encode(b).rstrip(b"=").decode("ascii")
-
-
-def _b64u_decode(s: str) -> bytes:
-    """Inverse of :func:`_b64u`: restore the stripped RFC-7515 BASE64URL padding
-    before decoding back to bytes."""
-    raw = str(s or "")
-    return base64.urlsafe_b64decode(raw + "=" * (-len(raw) % 4))
-
-
-def _jcs_canonicalize(obj) -> bytes:
-    """RFC-8785 (JSON Canonicalization Scheme) bytes for ``obj``: object members
-    sorted by key, no insignificant whitespace, UTF-8 with non-ASCII emitted
-    LITERALLY (not \\u-escaped -- which is why ``ensure_ascii`` is False, the one
-    spot the prior canonicalizer diverged from JCS). This realises JCS for the
-    AgentCard's value types: every card key is an ASCII identifier (so Python's
-    code-point key sort equals JCS's UTF-16 sort) and every card number is an
-    integer (whose shortest form already matches JCS's ECMAScript number rule)."""
-    return json.dumps(obj, sort_keys=True, separators=(",", ":"),
-                      ensure_ascii=False).encode("utf-8")
-
-
-def _agent_card_signing_input(protected_b64: str, card: dict) -> bytes:
-    """RFC-7515 §5.1 JWS Signing Input for a DETACHED AgentCard signature:
-    ``ASCII(BASE64URL(protected) || '.' || BASE64URL(JCS(card minus signatures)))``.
-    Sign and verify both build the bytes HERE so they can never disagree."""
-    payload = {k: v for k, v in (card or {}).items() if k != _A2A_CARD_SIG_FIELD}
-    return (protected_b64 + "." + _b64u(_jcs_canonicalize(payload))).encode("ascii")
+from mios_pipe.federation.agentcard_sign import (
+    _JWS_ALG_EDDSA,
+    _A2A_CARD_SIG_FIELD,
+    _b64u,
+    _b64u_decode,
+    _jcs_canonicalize,
+    _agent_card_signing_input,
+    _agent_card_signature as _agent_card_signature_raw,
+    _verify_agent_card_signature as _verify_agent_card_signature_raw,
+)
 
 
 def _agent_card_signature(card: dict) -> "Optional[dict]":
-    """FED-G4 / U3: an A2A v1.0 AgentCard JWS signature (RFC-7515 over RFC-8785 JCS).
-    A DETACHED JWS over the JCS-canonical card (minus ``signatures``), signed with the
-    Ed25519 passport key, so a discovering peer can verify the card's ISSUER. Emits
-    one ``signatures[]`` entry ``{protected, signature}`` (both base64url) whose
-    protected header is the JOSE-standard ``{"alg":"EdDSA","kid":<passport kid>}``.
-    None when no passport key is provisioned (degrade-open -> the card ships
-    unsigned). Reuses the SAME Ed25519 key as the Open Agent Passport so a verifier
-    has one trust anchor; :func:`_verify_agent_card_signature` is the receive side."""
-    try:
-        priv = _passport_load_priv()
-        if not priv:
-            return None
-        protected_b64 = _b64u(_jcs_canonicalize(
-            {"alg": _JWS_ALG_EDDSA, "kid": _passport_kid()}))
-        sig = priv.sign(_agent_card_signing_input(protected_b64, card))
-        return {"protected": protected_b64, "signature": _b64u(sig)}
-    except Exception as e:  # noqa: BLE001 -- degrade-open: ship unsigned
-        log.debug("agent-card JWS signature skipped: %s", e)
-        return None
+    return _agent_card_signature_raw(
+        card,
+        load_priv_fn=_passport_load_priv,
+        kid_fn=_passport_kid,
+    )
 
 
-def _verify_agent_card_signature(card: dict, *, public_key=None
-                                 ) -> "tuple[Optional[bool], str]":
-    """Receive-side of :func:`_agent_card_signature`: verify an A2A v1.0 AgentCard
-    JWS signature (RFC-7515 over RFC-8785 JCS) so MiOS can validate a peer's signed
-    card and self-test the sign->verify round-trip. Returns ``(verdict, reason)``:
-
-      * ``None``  -- no ``signatures[]`` present (an unsigned card; nothing to verify)
-      * ``False`` -- a malformed entry, an unsupported ``alg``, or the EdDSA signature
-                     does NOT verify over the JCS-canonical card (tampered card/sig)
-      * ``True``  -- the signature verifies over ``JCS(card minus signatures)``
-
-    The verifying key is the signer's Ed25519 public key: an explicit ``public_key``
-    wins (a peer's advertised key, or a test key); otherwise it is resolved from the
-    passport key store by THIS agent's identity (self-signed cards) -- the ``kid`` in
-    the protected header identifies which key in a multi-key registry. Degrade-open:
-    a missing crypto lib / key yields a non-True verdict, never an exception."""
-    sigs = card.get(_A2A_CARD_SIG_FIELD) if isinstance(card, dict) else None
-    if not isinstance(sigs, list) or not sigs:
-        return None, "unsigned"
-    entry = sigs[0] if isinstance(sigs[0], dict) else {}
-    protected_b64 = entry.get("protected")
-    sig_b64 = entry.get("signature")
-    if not protected_b64 or not sig_b64:
-        return False, "malformed_signature"
-    try:
-        header = json.loads(_b64u_decode(protected_b64))
-    except Exception:  # noqa: BLE001 -- undecodable protected header
-        return False, "bad_protected_header"
-    alg = header.get("alg") if isinstance(header, dict) else None
-    if alg != _JWS_ALG_EDDSA:
-        return False, f"unsupported_alg:{alg}"
-    pub = public_key
-    if pub is None and _passport_load_public is not None:
-        pub = _passport_load_public(PASSPORT_AGENT_NAME)
-    if pub is None:
-        return False, "no_public_key"
-    try:
-        from cryptography.exceptions import InvalidSignature
-        pub.verify(_b64u_decode(sig_b64),
-                   _agent_card_signing_input(protected_b64, card))
-        return True, "ok"
-    except InvalidSignature:
-        return False, "invalid_signature"
-    except Exception as e:  # noqa: BLE001 -- missing crypto lib / bad key -> unverified
-        return False, f"verify_error:{e}"
+def _verify_agent_card_signature(card: dict, *, public_key=None) -> "tuple[Optional[bool], str]":
+    return _verify_agent_card_signature_raw(
+        card,
+        public_key=public_key,
+        load_pub_fn=_passport_load_public,
+        passport_agent_name=PASSPORT_AGENT_NAME,
+    )
 
 
 def _build_agent_card() -> dict:
