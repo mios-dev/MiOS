@@ -42,6 +42,10 @@ preflight:
 check-build-urls:
     @./tools/check-build-urls.sh
 
+# Run post-build image provisioning audit
+audit-provisioning:
+    @python3 ./tools/audit-image-provisioning.py
+
 # Show current flight status and variable mappings
 flight-status:
     @bash ./usr/libexec/mios/flight-control.sh || true   # canonical path (was ./tools/, missing -> broke build/iso); status display is non-fatal
