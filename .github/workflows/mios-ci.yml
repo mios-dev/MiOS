@@ -119,6 +119,15 @@ jobs:
   build:
     needs: drift-gate
     runs-on: ubuntu-24.04
+    env:
+      # The publish steps (compute-tags / login) source tools/lib/userenv.sh, which
+      # defaults MIOS_VENDOR_TOML to the ABSOLUTE /usr/share/mios/mios.toml -- a path
+      # that exists only INSIDE the built image, never on the runner host. Without
+      # this, MIOS_IMAGE_NAME resolves empty and those steps `exit 1`
+      # ("MIOS_IMAGE_NAME is empty"), failing the first PUBLISH=true run at push.
+      # Point it at the checked-out SSOT so it resolves ghcr.io/mios-dev/mios. Host-
+      # side only -- the in-container build sets its own MIOS_TOML (Containerfile).
+      MIOS_VENDOR_TOML: ${{ github.workspace }}/usr/share/mios/mios.toml
     permissions:
       contents: read
       packages: write
