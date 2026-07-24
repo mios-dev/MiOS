@@ -8628,6 +8628,11 @@ extra = []
 # Every Quadlet declares Network=mios.network so they share a flat
 # rootful bridge with the LAN-reachable PublishPort= surface above.
 # ----------------------------------------------------------------------------
+[gpu.vendors]
+nvidia = true
+amd    = true
+intel  = true
+
 [security.luks]
 enabled = false
 pin     = "tpm2"
