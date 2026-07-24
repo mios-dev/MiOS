@@ -489,13 +489,14 @@ if [[ -d "$_agent_pipe_dir" ]] && [[ -x "$_test_py" ]]; then
             _row "  [ OK ] $_tb"
         else
             _row "  [FAIL] $_tb"
-            printf '%s\n' "$_tout" | tail -8 | sed 's/^/      /' >&2
+            # FULL output (not tail-8) so a build-venv-specific failure is diagnosable.
+            printf '%s\n' "$_tout" | sed 's/^/      /' >&2
             _test_fails=$((_test_fails + 1))
         fi
     done
     shopt -u nullglob
     if [[ "$_test_fails" -gt 0 ]]; then
-        die "agent-pipe unit tests: ${_test_fails} test script(s) failed"
+        die "agent-pipe unit tests: ${_test_fails} test script(s) failed (full output logged above)"
     fi
     _row "  all agent-pipe unit tests passed"
 else
@@ -516,16 +517,18 @@ if [[ -d "$_libexec_dir" ]] && command -v python3 >/dev/null 2>&1; then
     for _t in "$_libexec_dir"/test_mios_*.py; do
         # Clean env (same rationale as the agent-pipe gate above): strip the leaked
         # MIOS_* resolver exports so hermetic libexec tests match the drift-gate.
-        if ( cd "$_libexec_dir" && { unset $(compgen -v MIOS_ 2>/dev/null); PYTHONIOENCODING=utf-8 python3 "$(basename "$_t")"; } >/dev/null 2>&1 ); then
+        # Capture output so a failure is logged in FULL (diagnosable) below.
+        if _lxout="$( cd "$_libexec_dir" && { unset $(compgen -v MIOS_ 2>/dev/null); PYTHONIOENCODING=utf-8 python3 "$(basename "$_t")"; } 2>&1 )"; then
             _row "  [ OK ] $(basename "$_t")"
         else
             _row "  [FAIL] $(basename "$_t")"
+            printf '%s\n' "$_lxout" | sed 's/^/      /' >&2
             _lx_fails=$((_lx_fails + 1))
         fi
     done
     shopt -u nullglob
     if [[ "$_lx_fails" -gt 0 ]]; then
-        die "libexec unit tests: ${_lx_fails} test script(s) failed"
+        die "libexec unit tests: ${_lx_fails} test script(s) failed (full output logged above)"
     fi
 else
     _row "  WARNING: libexec dir or python3 missing -- skipping libexec unit tests"
