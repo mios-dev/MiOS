@@ -1,0 +1,16 @@
+name: url-probe
+
+on:
+  schedule:
+    - cron: '0 0 * * 0'
+  workflow_dispatch:
+
+jobs:
+  check-urls:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Build URL Probe
+        run: |
+          chmod +x tools/check-build-urls.sh 2>/dev/null || true
+          bash tools/check-build-urls.sh || true
