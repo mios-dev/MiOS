@@ -364,6 +364,7 @@ etc/mios/*
 !/usr/share/doc/mios/
 !/usr/share/doc/mios/**
 !/usr/share/doc/mios/README.md
+!/usr/share/doc/mios/reference/orchestration.md
 !/usr/share/mios/
 !/usr/share/mios/**
 !/usr/share/applications/
