@@ -29,6 +29,13 @@ jobs:
     env:
       GHCR_USER: ${{ secrets.GHCR_USER }}
       GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+      # The push step sources tools/lib/userenv.sh, which defaults MIOS_VENDOR_TOML
+      # to the ABSOLUTE /usr/share/mios/mios.toml -- on a self-hosted runner that
+      # resolves the INSTALLED SSOT (or empty if MiOS isn't installed on the host),
+      # NOT the checkout being built, so MIOS_IMAGE_NAME can come out empty/stale
+      # and the push exits 1. Point it at the checked-out SSOT so it resolves the
+      # version under build (parity with .github/workflows/mios-ci.yml).
+      MIOS_VENDOR_TOML: ${{ github.workspace }}/usr/share/mios/mios.toml
     steps:
       - name: Checkout (live working tree of /)
         uses: actions/checkout@v4
