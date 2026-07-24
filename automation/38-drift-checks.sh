@@ -584,20 +584,33 @@ check_module_test_coverage() {
         echo "[38-drift-checks]   (11) agent-pipe dir absent -- skipped"
         return 0
     fi
-    local missing="" f base
+    local missing="" f base mod_name
     while IFS= read -r f; do
         [[ -f "$f" ]] || continue
         base="$(basename "$f")"
-        case "$base" in test_*) continue ;; esac          # tests don't need tests
+        case "$base" in test_*|__init__.py) continue ;; esac          # tests and package init don't need tests
         if [[ ! -f "$dir/test_${base}" ]]; then
             missing+="    $base (no test_${base})"$'\n'
         fi
     done < <(find "$dir" -maxdepth 1 -type f -name 'mios_*.py' 2>/dev/null)
+
+    if [[ -d "$dir/mios_pipe" ]]; then
+        while IFS= read -r f; do
+            [[ -f "$f" ]] || continue
+            base="$(basename "$f")"
+            case "$base" in test_*|__init__.py) continue ;; esac
+            mod_name="${base%.py}"
+            if [[ ! -f "$dir/test_mios_${mod_name}.py" && ! -f "$dir/test_${mod_name}.py" && ! -f "$dir/test_mios_a2a_${mod_name}.py" ]]; then
+                missing+="    mios_pipe/.../$base (no test_mios_${mod_name}.py)"$'\n'
+            fi
+        done < <(find "$dir/mios_pipe" -type f -name '*.py' 2>/dev/null)
+    fi
+
     if [[ -n "$missing" ]]; then
         printf '%s' "$missing" >&2
         _violation "an agent-pipe pure module has NO sibling unit test -- author test_<module>.py (stdlib assert-script, the sibling-module pattern); isolation-tested logic is the point of the extraction (WS-0A)"
     else
-        echo "[38-drift-checks]   (11) every agent-pipe mios_*.py has a sibling unit test"
+        echo "[38-drift-checks]   (11) every agent-pipe mios_*.py and mios_pipe submodule has a sibling unit test"
     fi
 }
 
@@ -1364,6 +1377,20 @@ PY
 
 # --- (23) Verify all [agent_pipe] variables have code consumers. -------------
 check_agent_pipe_budgets() {
+    local lint_bin="$ROOT/tools/native/target/release/mios-aiplane-lint"
+    if [ ! -x "$lint_bin" ] && command -v mios-aiplane-lint >/dev/null 2>&1; then
+        lint_bin="$(command -v mios-aiplane-lint)"
+    fi
+    if [ -x "$lint_bin" ]; then
+        if MIOS_DRIFT_ROOT="$ROOT" "$lint_bin"; then
+            echo "[38-drift-checks]   (23) all [agent_pipe] budget variables have code consumers (native mios-aiplane-lint)"
+            return 0
+        else
+            _violation "some [agent_pipe] keys have no code consumer in the agent-pipe codebase (T-108)"
+            return 1
+        fi
+    fi
+
     if ! command -v python3 >/dev/null 2>&1; then
         return 0
     fi
@@ -1383,11 +1410,15 @@ with open(toml_path, "rb") as f:
     data = tomllib.load(f)
 
 agent_pipe = data.get("agent_pipe", {})
-if not agent_pipe:
-    sys.stderr.write("    Missing [agent_pipe] table in mios.toml\n")
-    sys.exit(1)
+dispatch = data.get("dispatch", {})
 
-# Find all occurrences of the keys in usr/lib/mios/agent-pipe/
+def key_in_dict(d, k):
+    if not isinstance(d, dict):
+        return False
+    if k in d:
+        return True
+    return any(key_in_dict(v, k) for v in d.values() if isinstance(v, dict))
+
 search_dir = os.path.join(root, "usr/lib/mios/agent-pipe")
 if not os.path.isdir(search_dir):
     search_dir = root
@@ -1402,10 +1433,14 @@ for r, ds, fs in os.walk(search_dir):
             except OSError:
                 pass
 
-budget_keys = ["tool_max_iters", "replan_max", "no_progress_window", "max_consecutive_failures", "wall_clock_budget_s", "reflexion_enable"]
+budget_keys = [
+    "tool_max_iters", "replan_max", "no_progress_window",
+    "max_consecutive_failures", "wall_clock_budget_s", "reflexion_enable",
+    "swarm_max_width", "max_dispatch_depth", "default_hop_budget"
+]
 missing = []
 for k in budget_keys:
-    if k not in agent_pipe:
+    if not key_in_dict(agent_pipe, k) and not key_in_dict(dispatch, k):
         missing.append(f"{k} (missing from mios.toml)")
         continue
     pattern = rf"['\"]{k}['\"]"
@@ -1413,7 +1448,7 @@ for k in budget_keys:
         missing.append(k)
 
 if missing:
-    sys.stderr.write(f"    Missing code consumers or TOML definitions for [agent_pipe] budget keys: {missing}\n")
+    sys.stderr.write(f"    Missing code consumers or TOML definitions for budget keys: {missing}\n")
     sys.exit(1)
 sys.exit(0)
 PY
@@ -3998,6 +4033,175 @@ check_mini_vfio() {
     fi
 }
 
+# (69, WS-ORCH) Router Stage-2 parity gate (AGY-127).
+# Asserts that test_mios_router_parity.py passes over router_corpus.json,
+# AND that all intent branches in agent-pipe routing code are represented in router_corpus.json.
+check_router_parity() {
+    local test_script="$ROOT/usr/lib/mios/agent-pipe/test_mios_router_parity.py"
+    local corpus_file="$ROOT/usr/lib/mios/agent-pipe/tests/router_corpus.json"
+    if [[ ! -f "$test_script" || ! -f "$corpus_file" ]]; then
+        _violation "Router parity test or corpus missing ($test_script or $corpus_file)"
+        return 1
+    fi
+    if ! python3 "$test_script" >/dev/null 2>&1; then
+        _violation "test_mios_router_parity.py failed on router_corpus.json"
+        return 1
+    fi
+
+    # Scan python code in agent-pipe for intent branch literals
+    local py_res
+    py_res=$(python3 - "$corpus_file" "$ROOT" << 'PYEOF'
+import sys, json, re, glob, os
+
+corpus_file = sys.argv[1]
+root_dir = sys.argv[2]
+
+with open(corpus_file, "r", encoding="utf-8") as f:
+    corpus = json.load(f)
+
+corpus_intents = set()
+for item in corpus:
+    inp = item.get("input", {})
+    if isinstance(inp, dict) and "intent" in inp and inp["intent"]:
+        corpus_intents.add(str(inp["intent"]).strip().lower())
+
+pattern = re.compile(r'(?:intent\s*==|get\s*\(\s*["\']intent["\']\s*\)\s*==)\s*["\']([a-zA-Z0-9_]+)["\']')
+
+search_files = [os.path.join(root_dir, "usr/lib/mios/agent-pipe/server.py")] + \
+               glob.glob(os.path.join(root_dir, "usr/lib/mios/agent-pipe/mios_pipe/**/*.py"), recursive=True)
+
+unmapped = set()
+for filepath in search_files:
+    if not os.path.isfile(filepath) or "test_" in os.path.basename(filepath):
+        continue
+    try:
+        with open(filepath, "r", encoding="utf-8") as f:
+            content = f.read()
+        for match in pattern.finditer(content):
+            intent_val = match.group(1).lower()
+            if intent_val not in corpus_intents:
+                unmapped.add((intent_val, os.path.relpath(filepath, root_dir)))
+    except Exception:
+        pass
+
+if unmapped:
+    for intent_val, relpath in sorted(unmapped):
+        print(f"unmapped intent: {intent_val} in {relpath}", file=sys.stderr)
+    sys.exit(1)
+sys.exit(0)
+PYEOF
+)
+    local py_rc=$?
+
+    if [[ $py_rc -ne 0 ]]; then
+        printf '%s\n' "$py_res" >&2
+        _violation "server.py or agent-pipe routing code contains an intent == branch not represented in router_corpus.json"
+        return 1
+    fi
+
+    echo "[38-drift-checks]   (69) Router Stage-2 parity gate satisfied (corpus parity + coverage)"
+}
+
+# --- (70) Verify [agent_pipe.council] parameters defined and consumed. -----
+check_council_gate_ssot() {
+    if ! command -v python3 >/dev/null 2>&1; then
+        return 0
+    fi
+    if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
+import os, sys, re
+try:
+    import tomllib
+except ImportError:
+    import tomli as tomllib
+
+root = os.environ["MIOS_DRIFT_ROOT"]
+toml_path = os.path.join(root, "usr/share/mios/mios.toml")
+if not os.path.isfile(toml_path):
+    sys.exit(0)
+
+with open(toml_path, "rb") as f:
+    data = tomllib.load(f)
+
+agent_pipe = data.get("agent_pipe", {})
+council = agent_pipe.get("council", {})
+if not council:
+    sys.stderr.write("    Missing [agent_pipe.council] table in mios.toml\n")
+    sys.exit(1)
+
+search_dir = os.path.join(root, "usr/lib/mios/agent-pipe")
+if not os.path.isdir(search_dir):
+    search_dir = root
+
+code = ""
+for r, ds, fs in os.walk(search_dir):
+    for f in fs:
+        if f.endswith(".py"):
+            try:
+                with open(os.path.join(r, f), "r", encoding="utf-8", errors="ignore") as fh:
+                    code += fh.read() + "\n"
+            except OSError:
+                pass
+
+council_keys = ["diversity_gate", "diversity_threshold", "aggregator_bypass", "aggregator_bypass_threshold"]
+missing = []
+for k in council_keys:
+    if k not in council:
+        missing.append(f"{k} (missing from mios.toml)")
+        continue
+    pattern = rf"['\"]{k}['\"]"
+    if not re.search(pattern, code) and k not in code:
+        missing.append(k)
+
+if missing:
+    sys.stderr.write(f"    Missing code consumers or TOML definitions for [agent_pipe.council] keys: {missing}\n")
+    sys.exit(1)
+sys.exit(0)
+PY
+    then
+        echo "[38-drift-checks]   (70) council-gate SSOT parameters defined in mios.toml and consumed by code"
+    else
+        _violation "[agent_pipe.council] keys missing or have no code consumer"
+    fi
+}
+
+check_containerfile_pinned_clones() {
+    if ! command -v python3 >/dev/null 2>&1; then
+        return 0
+    fi
+    if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
+import os, sys
+
+root = os.environ["MIOS_DRIFT_ROOT"]
+unpinned = []
+
+for r, ds, fs in os.walk(root):
+    for f in fs:
+        if "Containerfile" in f:
+            path = os.path.join(r, f)
+            try:
+                with open(path, "r", encoding="utf-8", errors="ignore") as fh:
+                    for idx, line in enumerate(fh, 1):
+                        if "git clone" in line and not line.strip().startswith("#"):
+                            if "--branch" not in line and "--tag" not in line and "-b " not in line and "@" not in line:
+                                rel = os.path.relpath(path, root)
+                                unpinned.append(f"{rel}:{idx} -> {line.strip()}")
+            except OSError:
+                pass
+
+if unpinned:
+    sys.stderr.write("    Unpinned git clone command(s) found in Containerfiles:\n")
+    for u in unpinned:
+        sys.stderr.write(f"      {u}\n")
+    sys.exit(1)
+sys.exit(0)
+PY
+    then
+        echo "[38-drift-checks]   (71) all git clone invocations in Containerfiles carry explicit --branch/--tag/ref"
+    else
+        _violation "found unpinned git clone command in a Containerfile (AGY-134)"
+    fi
+}
+
 main() {
     if [[ $# -eq 1 && -n "$1" ]]; then
         if declare -f "$1" >/dev/null; then
@@ -4083,6 +4287,9 @@ main() {
     check_bake_budget
     check_clevis_luks
     check_mini_vfio
+    check_router_parity
+    check_council_gate_ssot
+    check_containerfile_pinned_clones
 
     echo "[38-drift-checks] ---------------------------------------------------------"
     if [[ "$VIOLATIONS" -eq 0 ]]; then
