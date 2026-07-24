@@ -60,8 +60,14 @@ RUN curl -sSfL --retry 5 --retry-delay 3 --retry-all-errors --connect-timeout 20
 RUN mkdir -p /var/opt /opt
 ARG SEARXNG_REF=master
 # 9. SearXNG
+# --no-build-isolation makes the editable build use the venv, so SearXNG's setup.py sees
+# msgspec (a runtime dep it imports at build time). But that ALSO means the build backend
+# (setuptools.build_meta) must already live IN the venv -- and a Python 3.12+ venv ships pip
+# ONLY, no setuptools/wheel -> "BackendUnavailable: Cannot import 'setuptools.build_meta'".
+# So install setuptools+wheel into the venv up front (before the editable install).
 RUN git clone --depth 1 --branch "${SEARXNG_REF}" https://github.com/searxng/searxng.git /opt/searxng \
     && python3 -m venv /opt/searxng-venv \
+    && /opt/searxng-venv/bin/pip install --no-cache-dir setuptools wheel \
     && /opt/searxng-venv/bin/pip install --no-cache-dir -r /opt/searxng/requirements.txt \
     && /opt/searxng-venv/bin/pip install --no-build-isolation -e /opt/searxng
 
