@@ -3424,6 +3424,10 @@ check_version_ssot() {
         [[ -n "$_v" && "$_v" != "$ssot" ]] && bad+="    os-release CPE_NAME version = [$_v], expected [$ssot]"$'\n'
     fi
 
+    local _cargo_ver
+    _cargo_ver="$(grep -m1 -E '^[[:space:]]*version[[:space:]]*=' "$ROOT/tools/native/Cargo.toml" 2>/dev/null | sed -E 's/[^"]*"([^"]*)".*/\1/')"
+    [[ -n "$_cargo_ver" && "$_cargo_ver" != "$ssot" ]] && bad+="    tools/native/Cargo.toml [workspace.package] version = [$_cargo_ver], expected [$ssot]"$'\n'
+
     local literal_bad exit_code=0
     literal_bad="$(MIOS_DRIFT_ROOT="$ROOT" MIOS_CANONICAL_VER="$ssot" python3 - <<'PY' 2>&1
 import os, sys, re, subprocess

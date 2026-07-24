@@ -1,3 +1,4 @@
+# AI-hint: Rust workspace Cargo manifest for MiOS native tools. Version is SSOT-verified against mios.toml [meta].mios_version via check_version_ssot (Law 7/8).
 [workspace]
 members = [
     "mios-version-check",
