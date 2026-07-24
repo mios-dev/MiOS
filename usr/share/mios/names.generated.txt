@@ -382,6 +382,9 @@ security.mtls.enable  MIOS_SECURITY_MTLS_ENABLE
 security.mtls.dir  MIOS_SECURITY_MTLS_DIR
 security.mtls.common_name  MIOS_SECURITY_MTLS_COMMON_NAME
 security.mtls.validity_days  MIOS_SECURITY_MTLS_VALIDITY_DAYS
+security.luks.enabled  MIOS_SECURITY_LUKS_ENABLED
+security.luks.pin  MIOS_SECURITY_LUKS_PIN
+security.luks.pcrs  MIOS_SECURITY_LUKS_PCRS
 code_mode.enable  MIOS_CODE_MODE_ENABLE
 code_mode.heavy_lane_only  MIOS_CODE_MODE_HEAVY_LANE_ONLY
 code_mode.allow_net  MIOS_CODE_MODE_ALLOW_NET
@@ -500,3 +503,11 @@ power.ups.port  MIOS_POWER_UPS_PORT
 power.ups.desc  MIOS_POWER_UPS_DESC
 mini.gpu.assignments.mios-guest  MIOS_MINI_GPU_ASSIGNMENTS_MIOS_GUEST
 mini.gpu.arbitration  MIOS_MINI_GPU_ARBITRATION
+mini.enabled  MIOS_MINI_ENABLED
+mini.guest_cpu_percent  MIOS_MINI_GUEST_CPU_PERCENT
+mini.guest_ram_percent  MIOS_MINI_GUEST_RAM_PERCENT
+mini.bind_dgpu_vfio  MIOS_MINI_BIND_DGPU_VFIO
+mini.mesh.enabled  MIOS_MINI_MESH_ENABLED
+mini.mesh.headscale_domain  MIOS_MINI_MESH_HEADSCALE_DOMAIN
+mini.mesh.vnet_cidr  MIOS_MINI_MESH_VNET_CIDR
+mini.mesh.swtpm_vtpm  MIOS_MINI_MESH_SWTPM_VTPM

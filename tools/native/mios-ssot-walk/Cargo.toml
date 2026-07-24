@@ -1,5 +1,7 @@
 # AI-hint: Single-sourced mios.toml SSOT-walk library Cargo manifest.
 [package]
 name = "mios-ssot-walk"
+version.workspace = true
+edition.workspace = true
 
 [dependencies]

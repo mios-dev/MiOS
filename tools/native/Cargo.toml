@@ -1,4 +1,4 @@
-# AI-hint: Rust workspace Cargo manifest for MiOS native tools.
+# AI-hint: Generated from mios.toml SSOT by tools/generate-cargo-manifests.py. DO NOT EDIT DIRECTLY.
 [workspace]
 members = [
     "mios-version-check",
@@ -8,12 +8,6 @@ members = [
 ]
 resolver = "2"
 
-# Workspace-inherited package fields. Members use `version.workspace = true` /
-# `edition.workspace = true`, which REQUIRE these to be defined here -- removing them
-# (an over-zealous "zero-hardcode" edit) breaks every member crate's manifest. The
-# version is NOT an un-gated hardcode: drift-check 42 (check_version_ssot) asserts it
-# equals mios.toml [meta].mios_version, so it stays SSOT-pinned. `edition` is a Rust
-# compiler setting, not a MiOS version.
 [workspace.package]
 version = "0.3.0"
 edition = "2021"
