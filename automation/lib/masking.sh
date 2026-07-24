@@ -54,7 +54,8 @@ mask_filter() {
         # Escape characters that are special to sed's regex and the delimiter
         # We use '|' as the delimiter for 's' because it's less common in hashes
         # than '/', but we still must escape it if it appears in the secret.
-        local escaped_secret=$(printf '%s' "$secret" | sed 's/[][\\.*^$|/]/\\&/g')
+        local escaped_secret
+        escaped_secret=$(printf '%s' "$secret" | sed 's/[][\\.*^$|/]/\\&/g')
         sed_script+="s|$escaped_secret|[MASKED]|g;"
     done
     sed -u "$sed_script"
