@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# AI-hint: Generates Headscale/Tailscale mesh configuration from mios.toml [mini.mesh] SSOT.
+set -euo pipefail
+
+TOML="${1:-/usr/share/mios/mios.toml}"
+
+ENABLED="$(python3 -c "import tomllib; f=open('${TOML}','rb'); d=tomllib.load(f); print(str(d.get('mini',{}).get('mesh',{}).get('enabled', False)).lower())" 2>/dev/null || echo "false")"
+DOMAIN="$(python3 -c "import tomllib; f=open('${TOML}','rb'); d=tomllib.load(f); print(d.get('mini',{}).get('mesh',{}).get('headscale_domain', 'mesh.mios.local'))" 2>/dev/null || echo "mesh.mios.local")"
+
+cat <<EOF
+# Generated from mios.toml [mini.mesh]
+MIOS_MINI_MESH_ENABLED="${ENABLED}"
+MIOS_HEADSCALE_DOMAIN="${DOMAIN}"
+EOF

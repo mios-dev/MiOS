@@ -8634,10 +8634,24 @@ guest_cpu_percent = 85
 guest_ram_percent = 85
 bind_dgpu_vfio   = true
 
+[mini.mesh]
+enabled = false
+headscale_domain = "mesh.mios.local"
+vnet_cidr = "100.64.0.0/10"
+swtpm_vtpm = true
+
 [gpu.vendors]
 nvidia = true
 amd    = true
 intel  = true
+
+[dotfiles.registry.shell]
+template = "usr/share/mios/branding/templates/oh-my-posh.json.tmpl"
+target = "usr/share/mios/branding/oh-my-posh.json"
+
+[dotfiles.registry.editor]
+template = "usr/share/mios/branding/templates/vscode-colors.json.tmpl"
+target = "usr/share/mios/branding/vscode-colors.json"
 
 [security.luks]
 enabled = false

@@ -2,5 +2,7 @@
 members = [
     "mios-version-check",
     "mios-wallpaperd",
+    "generate-names-registry",
+    "mios-ssot-walk",
 ]
 resolver = "2"

@@ -710,7 +710,7 @@ Translates the PostgresOS + peer-OS research (full docs: `C:\MiOS\docs\agy\doc-p
 
 ---
 
-## AGY-106..122 — NEW (2026-07-24, batch 2) — installer consolidation + runtime wiring + decomposition + Rust + Mini
+## AGY-106..122 — NEW (2026-07-24, batch 2) — installer consolidation + runtime wiring + decomposition + Rust + Mini [ALL DONE] ✔
 > You drained AGY-1..105 (fast!). This is the NEXT frontier: the **Linux/Python/shared** half of the installer-unification plan (Claude owns the `.ps1` half — Get-MiOS/build-mios.ps1/mios-install.ps1), the "**wire what we ship**" container-runtime SSOT projections, more `server.py` decomposition + Rust ports, MiOS-Mini foundations, the missing offline bare-metal installer, and **negative-tests for YOUR new gates 64/65/66**. All code-only, no live-VM. **Law 15 now in force** (mios.toml [laws] id 15): double-check BOTH repos + triple-check before acting. **Stage ONLY your files.**
 
 ## AGY-106  (WS-INSTALL, **P1**) — fold `build-mios.sh` INTO `mios-install.sh` (Linux becomes "1 file + contract")
