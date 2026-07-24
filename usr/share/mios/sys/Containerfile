@@ -52,6 +52,12 @@ RUN curl -sSfL --retry 5 --retry-delay 3 --retry-all-errors --connect-timeout 20
 RUN curl -sSfL --retry 5 --retry-delay 3 --retry-all-errors --connect-timeout 20 -O https://github.com/coder/code-server/releases/download/v4.96.2/code-server-4.96.2-amd64.rpm && dnf install -y ./code-server-4.96.2-amd64.rpm && rm -f ./code-server-4.96.2-amd64.rpm
 
 # Setup virtualenvs and install interpreted runtime stacks (Wave 2)
+# /opt is a symlink to /var/opt on the ucore/bootc base image; inside the nested sys
+# build /var/opt does not exist yet, so `git clone` / `python -m venv` into /opt/* dies
+# with "could not create leading directories of '/opt/...': No such file or directory".
+# Materialize the symlink target up front so ALL the /opt stacks below (searxng,
+# open-webui, crawl4ai, firecrawl) resolve.
+RUN mkdir -p /var/opt /opt
 # 9. SearXNG
 RUN git clone --depth 1 https://github.com/searxng/searxng.git /opt/searxng \
     && python3 -m venv /opt/searxng-venv \
