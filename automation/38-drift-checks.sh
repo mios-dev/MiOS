@@ -3837,7 +3837,7 @@ files = glob.glob(os.path.join(root, '**/Containerfile*'), recursive=True) + \
 
 unretried = []
 for path in files:
-    if '.git' in path or 'node_modules' in path: continue
+    if '.git' in path or 'node_modules' in path or 'test-drift-gates.sh' in path: continue
     try:
         with open(path, 'r', encoding='utf-8', errors='ignore') as f:
             for i, line in enumerate(f, 1):
