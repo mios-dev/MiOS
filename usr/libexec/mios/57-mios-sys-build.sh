@@ -44,9 +44,22 @@ convert_images = "true"
 use_hard_links = "true"
 SC
 
+# Route docker.io FROM pulls (the sys build's golang stage) through mirror.gcr.io --
+# Google's public pull-through cache of Docker Hub -- to avoid anonymous rate limits
+# (HTTP 429) on shared-IP CI runners; falls back to docker.io. Build-time-scoped via
+# CONTAINERS_REGISTRIES_CONF; never written into the image's registries.
+REG_CONF="$SCRATCH/registries.conf"
+cat > "$REG_CONF" <<'RC'
+short-name-mode = "permissive"
+[[registry]]
+location = "docker.io"
+[[registry.mirror]]
+location = "mirror.gcr.io"
+RC
+
 # Build localhost/mios-sys
 log "Building localhost/mios-sys..."
-CONTAINERS_STORAGE_CONF="$CONF" TMPDIR="$SCRATCH/tmp" \
+CONTAINERS_STORAGE_CONF="$CONF" CONTAINERS_REGISTRIES_CONF="$REG_CONF" TMPDIR="$SCRATCH/tmp" \
   podman --root "$STORE" --runroot "$SCRATCH/run" build \
   --network=host \
   --layers \
@@ -56,7 +69,7 @@ CONTAINERS_STORAGE_CONF="$CONF" TMPDIR="$SCRATCH/tmp" \
 
 # Build localhost/mios-cuda
 log "Building localhost/mios-cuda..."
-CONTAINERS_STORAGE_CONF="$CONF" TMPDIR="$SCRATCH/tmp" \
+CONTAINERS_STORAGE_CONF="$CONF" CONTAINERS_REGISTRIES_CONF="$REG_CONF" TMPDIR="$SCRATCH/tmp" \
   podman --root "$STORE" --runroot "$SCRATCH/run" build \
   --network=host \
   --layers \

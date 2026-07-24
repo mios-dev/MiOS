@@ -2,13 +2,15 @@
 # AI-related: usr/share/mios/cuda/Containerfile, automation/57-mios-sys-build.sh
 ARG BASE_IMAGE=ghcr.io/ublue-os/ucore-hci:stable-nvidia
 
-# --- Stage 0: vLLM source from official vLLM image ---
-FROM docker.io/vllm/vllm-openai:latest AS vllm-src
-
-# --- Stage 1: SGLang source from official SGLang image ---
-FROM docker.io/lmsysorg/sglang:latest AS sglang-src
-
-# --- Stage 2: Llama-swap source ---
+# --- Llama-swap source (the light-LLM-lane binaries -- ghcr, small) ---
+# The vLLM + SGLang "source" stages were REMOVED. They pulled the ~47GB
+# docker.io/vllm/vllm-openai + docker.io/lmsysorg/sglang whale images ONLY to
+# COPY /usr/local -> /opt/{vllm,sglang}-venv, but NOTHING consumed those venvs:
+# the heavy LLM lanes run the vLLM/SGLang CONTAINER images directly via their
+# Quadlets (mios-llm-heavy / -alt, firstboot-pulled -- see mios.toml
+# [build.bake].firstboot_tokens). Baking them re-pulled the whales at BUILD time
+# -> disk overrun + Docker Hub rate limit on CI runners, and bloated mios-cuda
+# with dead venvs. Removed to keep the whales strictly firstboot-tier.
 FROM ghcr.io/mostlygeek/llama-swap:cuda AS llamaswap-src
 
 # --- Final/Main CUDA Base Image Stage ---
@@ -20,12 +22,6 @@ RUN dnf install -y \
       python3-pip \
       python3-devel \
       && dnf clean all
-
-# Copy vLLM environment to /opt/vllm-venv
-COPY --from=vllm-src /usr/local /opt/vllm-venv
-
-# Copy SGLang environment to /opt/sglang-venv
-COPY --from=sglang-src /usr/local /opt/sglang-venv
 
 # Copy llama-swap and llama-server binaries
 COPY --from=llamaswap-src /usr/bin/llama-server /usr/bin/llama-server
