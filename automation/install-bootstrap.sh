@@ -69,7 +69,7 @@ detect_host_kind() {
 check_network() {
     local host
     for host in github.com; do
-        if ! curl -fsSL --max-time 5 -o /dev/null "https://${host}/" 2>/dev/null; then
+        if ! curl -fsSL --retry 3 --max-time 5 -o /dev/null "https://${host}/" 2>/dev/null; then
             log_err "No network reachability to ${host}."
             exit 1
         fi

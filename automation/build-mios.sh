@@ -188,7 +188,7 @@ check_prerequisites() {
     fi
 
     # Check internet connection
-    if ! curl -fsSL --max-time 5 -o /dev/null https://github.com/; then
+    if ! curl -fsSL --retry 3 --max-time 5 -o /dev/null https://github.com/; then
         log_error "No internet connection. Please check your network."
         exit 1
     fi

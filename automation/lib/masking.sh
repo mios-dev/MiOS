@@ -81,16 +81,27 @@ scurl() {
     # OCI build. Plain --retry (not --retry-all-errors) so a real 404 still fails fast
     # and non-idempotent methods stay safe.
     local args=(--retry 5 --retry-delay 3 --connect-timeout 20)
-    local use_creds=false
     local url=""
     local is_binary=false
-    
-    # Simple parser to find the URL and check for binary download flags
+    local is_header=false
+
+    # Parse arguments for output flags, URL, and headers
     for arg in "$@"; do
-        if [[ "$arg" =~ ^https?:// ]]; then
-            url="$arg"
-        elif [[ "$arg" == "-o" || "$arg" == "-O" || "$arg" == "--output" ]]; then
+        if [[ "$is_header" == "true" ]]; then
+            is_header=false
+            continue
+        fi
+        if [[ "$arg" == "-H" || "$arg" == "--header" ]]; then
+            is_header=true
+            continue
+        fi
+
+        if [[ "$arg" =~ ^-o || "$arg" == "-O" || "$arg" =~ ^--output ]]; then
             is_binary=true
+        elif [[ "$arg" =~ ^--url=(https?://.+) ]]; then
+            url="${BASH_REMATCH[1]}"
+        elif [[ "$arg" =~ ^https?:// ]]; then
+            url="$arg"
         fi
     done
 
@@ -104,7 +115,9 @@ scurl() {
         fi
     fi
 
-    if [[ "$is_binary" == "true" ]]; then
+    # Never pipe binary streams or stdout redirects to mask_filter (sed corrupts binaries)
+    # Only run mask_filter when stdout is an interactive terminal (stdout is TTY)
+    if [[ "$is_binary" == "true" || ! -t 1 ]]; then
         curl "${args[@]}" "$@"
     else
         curl "${args[@]}" "$@" | mask_filter

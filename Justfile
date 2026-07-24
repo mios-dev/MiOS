@@ -38,6 +38,10 @@ BIB := env_var_or_default("MIOS_BIB_IMAGE", MIOS_IMG_BIB)
 preflight:
     @./tools/preflight.sh
 
+# Run pre-flight build asset URL liveness probe
+check-build-urls:
+    @./tools/check-build-urls.sh
+
 # Show current flight status and variable mappings
 flight-status:
     @bash ./usr/libexec/mios/flight-control.sh || true   # canonical path (was ./tools/, missing -> broke build/iso); status display is non-fatal

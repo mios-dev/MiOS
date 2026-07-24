@@ -14,9 +14,17 @@
 # server.py's `from mios_config import ...` (line 188, before its first read), ahead of
 # server.py too. Env vars a test sets AFTER import are untouched (this runs once).
 def _strip_empty_mios_env() -> None:
-    import os
-    for _k in [k for k in list(os.environ) if k.startswith("MIOS_") and os.environ.get(k) == ""]:
-        os.environ.pop(_k, None)
+    try:
+        import sys, os
+        usr_lib = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+        if usr_lib not in sys.path:
+            sys.path.insert(0, usr_lib)
+        from mios_env import strip_empty_mios_env
+        strip_empty_mios_env(os.environ)
+    except ImportError:
+        import os
+        for _k in [k for k in list(os.environ) if k.startswith("MIOS_") and os.environ.get(k) == ""]:
+            os.environ.pop(_k, None)
 
 
 _strip_empty_mios_env()

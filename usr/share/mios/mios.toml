@@ -8563,6 +8563,7 @@ syft = "v1.19.0"
 # no single commit serializes more than ONE whale (~25GB) -- bundling both would
 # leave a ~49GB commit, barely better than the monolith. They commit first.
 [build.bake]
+runner_disk_budget_gb = 40
 core = [
   "localhost/mios-sys",
   "localhost/mios-cuda",
@@ -11309,4 +11310,5 @@ isolcpus       = ""                        # CPUs to isolate from scheduler (emp
 nohz_full      = ""                        # CPUs for adaptive-ticks (empty to disable)
 rcu_nocbs      = ""                        # CPUs to offload RCU callbacks (empty to disable)
 THP            = ""                        # Transparent Huge Pages configuration: "always", "madvise", "never" or empty
+
 

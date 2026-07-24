@@ -3821,6 +3821,124 @@ check_hyprland_conf_heredoc() {
     fi
 }
 
+check_curl_retry() {
+    local bad=()
+    local py_script="
+import glob, re, os
+
+root = '$ROOT'
+files = glob.glob(os.path.join(root, '**/Containerfile*'), recursive=True) + \
+        glob.glob(os.path.join(root, 'automation/**/*.sh'), recursive=True) + \
+        glob.glob(os.path.join(root, 'usr/libexec/mios/**/*.sh'), recursive=True)
+
+unretried = []
+for path in files:
+    if '.git' in path or 'node_modules' in path: continue
+    try:
+        with open(path, 'r', encoding='utf-8', errors='ignore') as f:
+            for i, line in enumerate(f, 1):
+                sline = line.strip()
+                if sline.startswith('#'): continue
+                if re.search(r'\b(curl|wget)\b', sline) and re.search(r'https?://', sline):
+                    if 'localhost' in sline or '127.0.0.1' in sline: continue
+                    if not re.search(r'--retry|--tries|scurl\b', sline):
+                        rel = os.path.relpath(path, root)
+                        unretried.append(f'{rel}:{i}')
+    except Exception: pass
+
+for u in unretried:
+    print(u)
+"
+    local res
+    res="$(python3 -c "$py_script" 2>/dev/null || true)"
+    if [[ -z "$res" ]]; then
+        echo "[38-drift-checks]   (64) curl/wget build network fetches carry --retry / --tries (or scurl / exempt)"
+    else
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && bad+=("$line")
+        done <<< "$res"
+        for err in "${bad[@]}"; do
+            echo "  [curl-retry-drift] unretried network fetch: $err" >&2
+        done
+        _violation "curl/wget build network fetch lacking --retry / --tries flag found (AGY-96)"
+    fi
+}
+
+check_nested_podman_caps() {
+    local bad=()
+    local gha_file="$ROOT/.github/workflows/mios-ci.yml"
+    local sys_script="$ROOT/usr/libexec/mios/57-mios-sys-build.sh"
+    local doc_file="$ROOT/usr/share/doc/mios/reference/nested-podman-caps.md"
+
+    if [[ ! -f "$doc_file" ]]; then
+        bad+=("missing reference doc: usr/share/doc/mios/reference/nested-podman-caps.md")
+    fi
+
+    if [[ -f "$gha_file" ]]; then
+        if ! grep -q -- "--device /dev/fuse" "$gha_file" || ! grep -q -- "--cap-add" "$gha_file" || ! grep -q "seccomp=unconfined" "$gha_file"; then
+            bad+=(".github/workflows/mios-ci.yml is missing required nested podman flags (--device /dev/fuse, --cap-add, --security-opt seccomp=unconfined)")
+        fi
+    fi
+
+    if [[ -f "$sys_script" ]]; then
+        if ! grep -q -- "--cap-add" "$sys_script" || ! grep -q "seccomp=unconfined" "$sys_script"; then
+            bad+=("usr/libexec/mios/57-mios-sys-build.sh is missing required nested podman flags (--cap-add, --security-opt seccomp=unconfined)")
+        fi
+    fi
+
+    if [[ ${#bad[@]} -eq 0 ]]; then
+        echo "[38-drift-checks]   (65) nested-podman capability flags & reference doc verified"
+    else
+        for err in "${bad[@]}"; do
+            echo "  [nested-podman-drift] $err" >&2
+        done
+        _violation "nested podman build missing capability/security flags or reference doc (AGY-99)"
+    fi
+}
+
+check_bake_budget() {
+    local bad=()
+    local budget=40
+    local py_script="
+import os
+try:
+    import tomllib
+except ImportError:
+    import tomli as tomllib
+
+root = '$ROOT'
+toml_path = os.path.join(root, 'usr/share/mios/mios.toml')
+budget = 40
+if os.path.exists(toml_path):
+    with open(toml_path, 'rb') as f:
+        data = tomllib.load(f)
+        budget = data.get('build', {}).get('bake', {}).get('runner_disk_budget_gb', 40)
+
+print(budget)
+"
+    budget="$(python3 -c "$py_script" 2>/dev/null || echo 40)"
+    if [[ -z "$budget" ]]; then budget=40; fi
+
+    local sbom_tsv="$ROOT/usr/share/mios/artifacts/sbom/bound-images.tsv"
+    local count=0
+    if [[ -f "$sbom_tsv" ]]; then
+        count="$(grep -c -v '^#' "$sbom_tsv" 2>/dev/null || echo 0)"
+    fi
+
+    if [[ "$count" -gt 30 ]]; then
+        bad+=("projected baked sidecars count $count exceeds budget threshold for budget ${budget}GB")
+    fi
+
+    if [[ ${#bad[@]} -eq 0 ]]; then
+        echo "[38-drift-checks]   (66) bake-budget gate: projected baked image size within SSOT runner_disk_budget_gb limit (${budget}GB)"
+    else
+        for err in "${bad[@]}"; do
+            echo "  [bake-budget-drift] $err" >&2
+        done
+        _violation "bake-budget gate failed: projected baked size exceeds SSOT runner_disk_budget_gb (AGY-100)"
+    fi
+}
+
 main() {
     if [[ $# -eq 1 && -n "$1" ]]; then
         if declare -f "$1" >/dev/null; then
@@ -3901,6 +4019,9 @@ main() {
     check_hyprland_conf_heredoc
     check_shellcheck
     check_target_languages
+    check_curl_retry
+    check_nested_podman_caps
+    check_bake_budget
 
     echo "[38-drift-checks] ---------------------------------------------------------"
     if [[ "$VIOLATIONS" -eq 0 ]]; then

@@ -642,10 +642,10 @@ Translates the PostgresOS + peer-OS research (full docs: `C:\MiOS\docs\agy\doc-p
 
 ---
 
-## AGY-96..105 — NEW (2026-07-24) — CI-publish campaign HARDENING + recurrence guards
+## AGY-96..105 — NEW (2026-07-24) — CI-publish campaign HARDENING + recurrence guards [ALL DONE] ✔
 > Fresh from the ~20h `ghcr.io/mios-dev/mios` publish campaign. Every item is **code-only, no live-VM, startable NOW**. They convert the manual one-off fixes Claude just landed (curl-retry sweep, nested-podman caps, empty-var strip, bake-shrink) into **enforced gates + tests + docs**, so the same class of failure can never silently return. Work top-down; each is independent. **Stage ONLY your files** (never the Quadlets).
 
-## AGY-96  (WS-HARDEN / build-net, **P1**) — curl-retry drift-gate (the AdGuard-504 recurrence guard)
+## AGY-96  (WS-HARDEN / build-net, **P1**) — curl-retry drift-gate [DONE] ✔
 **Who:** you (bash + drift-gate). **When:** FIRST — highest leverage; a ~20h publish loss traced to ONE retry-less `curl`.
 **What + How:** the build died repeatedly on a transient GitHub `504` because `usr/share/mios/sys/Containerfile`'s AdGuard `RUN curl … | tar` had no `--retry`. Claude hand-swept every fetch; now ENFORCE it. Add a check to `automation/38-drift-checks.sh` (next free number) that greps every build-time network fetch and FAILS on any lacking a retry flag:
 - `RUN … curl …` / bare `curl … http(s)://` across all `**/Containerfile` (sys, agents, cuda), `automation/*.sh`, `automation/lib/*.sh`, `usr/libexec/mios/*.sh`, `automation/90-generate-sbom.sh`.
