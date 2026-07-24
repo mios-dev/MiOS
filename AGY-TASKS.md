@@ -640,6 +640,74 @@ Translates the PostgresOS + peer-OS research (full docs: `C:\MiOS\docs\agy\doc-p
 **Windows side is Claude's (mios-bootstrap, DONE):** the RID-500 rename moved OUT of the specialize pass INTO SetupComplete.cmd (build/first-boot, DB-fed baseline -- Windows has NO NSS/PAM); the `MiOS-AccountSync` MINUTE task (gated on db_backed) handles ongoing DB->Windows-account reconcile.
 **Done:** db_backed no longer inert (+ drift-gated); Linux userdb projection landed + drift-gated; lldap decision recorded; ADR written; PodmanOS reference closed.
 
+---
+
+## AGY-96..105 — NEW (2026-07-24) — CI-publish campaign HARDENING + recurrence guards
+> Fresh from the ~20h `ghcr.io/mios-dev/mios` publish campaign. Every item is **code-only, no live-VM, startable NOW**. They convert the manual one-off fixes Claude just landed (curl-retry sweep, nested-podman caps, empty-var strip, bake-shrink) into **enforced gates + tests + docs**, so the same class of failure can never silently return. Work top-down; each is independent. **Stage ONLY your files** (never the Quadlets).
+
+## AGY-96  (WS-HARDEN / build-net, **P1**) — curl-retry drift-gate (the AdGuard-504 recurrence guard)
+**Who:** you (bash + drift-gate). **When:** FIRST — highest leverage; a ~20h publish loss traced to ONE retry-less `curl`.
+**What + How:** the build died repeatedly on a transient GitHub `504` because `usr/share/mios/sys/Containerfile`'s AdGuard `RUN curl … | tar` had no `--retry`. Claude hand-swept every fetch; now ENFORCE it. Add a check to `automation/38-drift-checks.sh` (next free number) that greps every build-time network fetch and FAILS on any lacking a retry flag:
+- `RUN … curl …` / bare `curl … http(s)://` across all `**/Containerfile` (sys, agents, cuda), `automation/*.sh`, `automation/lib/*.sh`, `usr/libexec/mios/*.sh`, `automation/90-generate-sbom.sh`.
+- COMPLIANT iff it carries `--retry` OR routes through `scurl` (which injects retry) OR is explicitly listed in a `mios.toml [build.net].retry_exempt` allowlist (document each exemption).
+- Recognize `wget` (`--tries`) too. Read-only, fast, no built image.
+**Where:** `automation/38-drift-checks.sh`, `usr/share/mios/mios.toml` (`[build.net].retry_exempt` if needed).
+**Done When:** the gate flags an injected retry-less `curl`, passes clean on HEAD (all fetches now retried), + a negative test proving the injected case is caught; `just drift-gate` green.
+
+## AGY-97  (WS-HARDEN / scurl correctness, **P1**) — fix the scurl binary-stream corruption + harden its arg-parser
+**Who:** you (bash). **When:** next — this is a real DATA-CORRUPTION bug, not just hygiene.
+**What + How:** `automation/lib/masking.sh` `scurl()` sets `is_binary` ONLY when it sees `-o/-O/--output`. But the build's dominant pattern is `curl … | tar` (stream to stdout, NO `-o`) — scurl classifies that as **text** and pipes the tarball through `mask_filter` (`sed -u`), **corrupting the binary stream**. (1) Fix classification: NEVER run `mask_filter` on a body destined for a pipe/download — only mask human-facing text (e.g. gate masking on stdout being a TTY, or drop mask_filter for any non-`-o` streamed body). (2) Harden the naive parser: it takes the FIRST `https?://` arg as the URL and misses `--output=FILE`, `--url X`, and mis-detects a `-H` header value that looks like a URL. (3) Add `automation/lib/test_masking.sh`: asserts a piped binary body is byte-identical (no sed mangling), a github URL gets the auth header AND the token is masked in TEXT output, and `--output=` is detected.
+**Where:** `automation/lib/masking.sh`, new `automation/lib/test_masking.sh`, wire into the shell-test/lint gate.
+**Done When:** `curl … | tar` through scurl is byte-identical to raw curl; parser handles the 3 edge cases; test green; `just drift-gate` green.
+
+## AGY-98  (WS-HARDEN / empty-env contract, **P1**) — one shared empty-`MIOS_*` strip + an import-clean-under-empty-env test
+**Who:** you (Python). **When:** independent.
+**What + How:** the SSOT var-closure (`usr/lib/mios/userenv.sh:~598`) exports ~734 `MIOS_*` keys, many **empty** (var-closure). An **empty** value (vs ABSENT) defeats `os.environ.get(K, D)` — the default only applies when absent — so int/float coercion `ValueError`s crashed the 56-test gate. Claude patched TWO ad-hoc spots: `mios_pipe/__init__._strip_empty_mios_env()` + a `{ unset $(compgen -v MIOS_); … }` wrapper in `automation/build.sh`. Consolidate: (1) one helper `usr/lib/mios/mios_env.py::strip_empty_mios_env(env=os.environ)` used by `mios_pipe/__init__.py` (drop the private copy); (2) a `test_mios_env.py` that sets EVERY closure-emitted `MIOS_*` key to `""` and asserts every `agent-pipe/mios_*.py` module still imports + its config-coercion falls back to defaults (no `ValueError`); (3) evaluate making the closure NOT emit purely-empty keys at all (ties to the unified-key-library / AGY-84) — if safe, that's the ROOT fix and the strip becomes belt-and-suspenders.
+**Where:** new `usr/lib/mios/mios_env.py`, `usr/lib/mios/agent-pipe/mios_pipe/__init__.py`, new `test_mios_env.py`, (optionally) `usr/lib/mios/userenv.sh`.
+**Done When:** one strip helper (no duplicate); the empty-env import test is green across all agent-pipe modules; `just drift-gate` green.
+
+## AGY-99  (WS-CI-PARITY, **P1**) — nested-podman capability drift-gate + reference doc
+**Who:** you (bash + docs). **When:** independent.
+**What + How:** the GHA build (unprivileged, unlike the `Privileged=true` Forgejo runner) needed exact flags for the nested bake: `--device /dev/fuse` (fuse-overlayfs mount), `--cap-add` covering `SYS_ADMIN` (mount) + `SYS_RESOURCE` (crun `setrlimit RLIMIT_NOFILE`), `--security-opt seccomp=unconfined --security-opt apparmor=unconfined`. Claude added them to `.github/workflows/mios-ci.yml` (main + smoke `podman build`) and `usr/libexec/mios/57-mios-sys-build.sh` (both nested `podman build`). A silent removal REGRESSES only on GitHub (Forgejo's Privileged masks it) — a landmine. (1) Add a drift-check asserting each of those `podman build` invocations carries the required device/cap/security-opt flags (parse the YAML steps + the 57 script). (2) Write `usr/share/doc/mios/reference/nested-podman-caps.md` on why podman-in-podman-in-GHA needs them + why Forgejo doesn't hit it, cross-reffing the workflow + 57.
+**Where:** `automation/38-drift-checks.sh`, new `usr/share/doc/mios/reference/nested-podman-caps.md`.
+**Done When:** the gate flags a stripped `--device`/`--cap-add`; passes on HEAD; doc template-conformant (check-46 green); `just drift-gate` green.
+
+## AGY-100  (WS-PUBLISH / bake-budget gate, **P1**) — assert the baked image fits the standard GitHub runner
+**Who:** you (bash + Python). **When:** after AGY-99.
+**What + How:** GitHub publish is capacity-gated because the vLLM+SGLang whales (~47GB) blow a standard runner's disk; the firstboot-tier evicts them from the bake so the image fits + `PUBLISH=true` is safe (mios-publish-firstboot-tier / release-topology). Nothing PREVENTS a future sidecar from silently re-bloating the bake past the runner and re-breaking GitHub publish. Add a build-time (or drift-gate) assertion that sums the resolved bake-group image refs/sizes and FAILS if the projected baked size exceeds an SSOT budget (`mios.toml [build.bake].runner_disk_budget_gb`), listing top contributors. Read groups from `[build.bake]` + `usr/libexec/mios/mios-bake-group`; keep it static (no live pull — use the recorded `bound-images.tsv`/SBOM sizes where available, else the ref count).
+**Where:** `automation/38-drift-checks.sh` (or a check in `57-mios-sys-build.sh`/`mios-bake-group`), `usr/share/mios/mios.toml` (`[build.bake].runner_disk_budget_gb`).
+**Done When:** the gate flags a whale added to a baked group, passes on HEAD (whales firstboot-tier'd out); budget is SSOT-defined; `just drift-gate` green.
+
+## AGY-101  (WS-DEBT / SBOM resilience test, **P2**) — prove `90-generate-sbom.sh` never fails the build
+**Who:** you (bash). **When:** independent.
+**What + How:** `automation/90-generate-sbom.sh` is DEGRADE-OPEN by contract (SBOM is provenance; must `exit 0` even with no egress / missing syft / unbound `MIOS_USR_DIR` / a syft scan hiccup — a prior FATAL regression killed a 17-min bake). Nothing tests the invariant. Add `automation/test_generate-sbom.sh` (wire into the shell-test gate) running the script under each failure mode — (a) `syft` absent + no egress, (b) unset `MIOS_USR_DIR`, (c) unwritable `ARTIFACT_DIR`, (d) a stubbed failing `syft scan` — and assert `exit 0` + a WARN line each time. Also assert the syft-installer `curl` carries `--retry` (regression-guards Claude's fix).
+**Where:** new `automation/test_generate-sbom.sh`, the shell-test/lint gate wiring.
+**Done When:** the test proves `exit 0` under all four failure modes; `just drift-gate` green.
+
+## AGY-102  (WS-DEBT / URL liveness, **P2**) — scheduled build-download URL/pin liveness probe (catch rot BEFORE a build)
+**Who:** you (bash + a Justfile target). **When:** independent.
+**What + How:** three build downloads (`forgejo-runner`, `jaeger`, `crowdsec`) silently rotted (moved assets / renamed tarballs) and only surfaced as a mid-build hard failure ~1h in. Add a NON-build-blocking probe `tools/check-build-urls.sh` + a `just check-build-urls` target that extracts every build-time download URL from the Containerfiles/`automation` (resolving SSOT versions per SBOM-not-hardcode — versions are SSOT, so resolve the ref THEN probe), issues `curl -sI --retry`/HEAD, and REPORTS each URL + HTTP status, flagging non-2xx/3xx. This is a pre-flight, not a gate (network-dependent) — run before cutting a release; optionally hook a scheduled CI job (documented, not the build gate).
+**Where:** new `tools/check-build-urls.sh`, `Justfile` (`check-build-urls`), a note in the release runbook.
+**Done When:** the probe lists every build URL + status and flags a deliberately-broken URL; documented as a pre-release step; `bash -n` clean.
+
+## AGY-103  (WS-BOOTSTRAP / RAG producer, **P2**) — harden the `artifacts/ai-rag` generator that `tools/log-to-bootstrap.sh` publishes
+**Who:** you (bash/Python). **When:** independent.
+**What + How:** Claude just hardened the CONSUMER (`tools/log-to-bootstrap.sh`) — replaced its purged-ollama `:11434` RAG snippet with the MiOS `/v1` lane (`:8642`, OpenAI-compatible; ai-endpoint-canonical / legacy-purge-v1only). Now harden the PRODUCER: `grep` for what generates `artifacts/ai-rag/` (`mios-knowledge-graph.json`, `mios-context-*.tar.gz`, `rag-manifest.yaml`, `README-AI-INTEGRATION.md`). Ensure it (a) references NO purged runtimes (ollama/localai/surrealdb) — everything is the `/v1` lane; (b) is SSOT-driven (endpoints/models/ports from `mios.toml`, not hardcoded); (c) emits the manifest shape `log-to-bootstrap.sh` expects; (d) any network step is `--retry`'d/degrade-open. Keep the LEGITIMATE historical/enforcement ollama tokens (legacy-purge-v1only) — don't re-flag those.
+**Where:** the RAG-artifact generator (grep `artifacts/ai-rag`), aligned with `tools/log-to-bootstrap.sh`.
+**Done When:** the producer emits `/v1`-only, SSOT-driven artifacts that `log-to-bootstrap.sh` consumes cleanly; no purged-runtime refs in the generated RAG docs; `bash -n`/parse clean.
+
+## AGY-104  (WS-DOCS / build-net policy, **P2**) — the build-time network-fetch policy reference
+**Who:** you (docs). **When:** after AGY-96/97/101/102 (document the enforced rules).
+**What + How:** author `usr/share/doc/mios/reference/build-network-policy.md` (FOLLOW an existing `reference/*.md` frontmatter so check-46 stays green) codifying the campaign's rules: every build-time fetch MUST (1) resolve its version/URL from SSOT (SBOM-not-hardcode — never hand-pin a digest), (2) carry `--retry` or route through `scurl` (AGY-96/97), (3) be classified FATAL (core binary → die) vs DEGRADE-OPEN (provenance/optional → WARN + `exit 0`, e.g. `90-generate-sbom.sh`), (4) prefer `scurl` for credential masking. Cross-ref the AGY-96 gate, AGY-99 caps doc, AGY-100 budget, AGY-102 probe.
+**Where:** new `usr/share/doc/mios/reference/build-network-policy.md`; cross-ref `ROADMAP.md`.
+**Done When:** doc committed, template-conformant (check-46 green), cross-reffed; `just drift-gate` green.
+
+## AGY-105  (WS-DEBT / hermetic tests, **P1**) — one shared clean-env harness for the agent-pipe test gate
+**Who:** you (bash + Python). **When:** independent.
+**What + How:** `automation/build.sh`'s two test gates each inline `{ unset $(compgen -v MIOS_ 2>/dev/null); …; }` to strip the leaked closure env, and the 7 hermetic `test_mios_*` fixes (clean-env, `sys.executable` for Popen, `mios_toml.clear_cache()`) live per-test. A new test that forgets the clean-env dance re-introduces the flake. Extract ONE `tools/run-agent-pipe-tests.sh` (or a pytest `conftest.py` fixture) that runs the suite under a guaranteed-clean env (stripped `MIOS_*`, cache cleared, `sys.executable` interpreter) and have BOTH `automation/build.sh` gates + any CI test step call it. Ties to AGY-35/AGY-98.
+**Where:** new `tools/run-agent-pipe-tests.sh` (or `conftest.py`), `automation/build.sh`, CI test step.
+**Done When:** both gates run through the one harness; a deliberately env-leaking test fails deterministically through it; full `test_mios_*` suite green; `just drift-gate` green.
+
 ### Reporting back
 Commit each task as `agy: <task-id> <summary>` and push to `main`. Claude is monitoring
 `main` for your commits + will integrate/verify. If blocked, leave a `TODO(agy):` note in
