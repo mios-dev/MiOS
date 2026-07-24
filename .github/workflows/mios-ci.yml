@@ -302,12 +302,19 @@ jobs:
           # rechunk (the wrapper; --max-layers, no format-version) -> un-rechunked.
           # Each rechunk is a LOSSLESS re-layering (content byte-identical), so a
           # missing tool/flag only costs delta efficiency, never the publish.
+          # The bind-mount maps the runner's ACTUAL rootful graphroot
+          # (/mnt/containers-storage -- relocated off the small / in "Configure host
+          # podman storage") onto the container's DEFAULT c/storage path so the inner
+          # rpm-ostree/bootc reads the just-built image and writes -rechunked back to
+          # the same store the host push reads. Mounting /var/lib/containers/storage
+          # (podman's default) mounted an EMPTY dir -- the store was rm -rf'd + moved
+          # to /mnt -- so every rechunk silently degraded to un-rechunked.
           IMAGE_TAG="localhost/mios:${{ steps.tag.outputs.image_tag }}"
           MAX_LAYERS="${MIOS_RECHUNK_MAX_LAYERS:-67}"
           # sudo: rechunk reads from + writes to rootful storage
           _RECHUNKED=""
           if sudo podman run --rm --privileged \
-              -v /var/lib/containers/storage:/var/lib/containers/storage \
+              -v /mnt/containers-storage:/var/lib/containers/storage \
               "${IMAGE_TAG}" \
               rpm-ostree compose build-chunked-oci --bootc --format-version=2 \
                   --from="containers-storage:${IMAGE_TAG}" \
@@ -316,7 +323,7 @@ jobs:
               echo "rechunk: rpm-ostree build-chunked-oci --format-version=2 OK"
           elif sudo podman run --rm \
               --security-opt label=type:unconfined_t \
-              -v /var/lib/containers/storage:/var/lib/containers/storage \
+              -v /mnt/containers-storage:/var/lib/containers/storage \
               "${IMAGE_TAG}" \
               /usr/libexec/bootc-base-imagectl rechunk \
                   --max-layers "${MAX_LAYERS}" \
@@ -405,6 +412,17 @@ jobs:
           COSIGN_EXPERIMENTAL: '1'
         run: |
           set -euo pipefail
+          # cosign writes each .sig artifact to the registry as the RUNNER user (no
+          # sudo). The earlier `sudo podman login` steps wrote creds to ROOT's
+          # auth.json, which cosign (non-root) never sees -> the signature push is
+          # denied ("unauthorized"). Give cosign its OWN login to the same registry
+          # host (derived from the SSOT MIOS_IMAGE_NAME, parity with the push-login
+          # step) before signing. Keyless OIDC still provides the signing identity;
+          # this only authorizes the registry WRITE.
+          source ./tools/lib/userenv.sh
+          REG_HOST="${MIOS_IMAGE_NAME%%/*}"
+          echo "${{ secrets.GITHUB_TOKEN }}" | \
+              cosign login "${REG_HOST}" -u "${{ github.actor }}" --password-stdin
           while IFS= read -r tag; do
               [[ -z "$tag" ]] && continue
               cosign sign --yes "$tag"
