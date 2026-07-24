@@ -71,6 +71,21 @@ convert_images = "true"
 use_hard_links = "true"
 SC
 
+# Docker Hub anonymous pulls of the docker.io sidecars can hit the shared-IP rate
+# limit on CI runners (HTTP 429 "toomanyrequests"); 5 quick retries won't clear a
+# 6-hour window. Route docker.io through mirror.gcr.io -- Google's public pull-
+# through cache of Docker Hub -- for THIS bake's podman only, with automatic
+# fallback to docker.io when the mirror lacks an image. Build-time-scoped via
+# CONTAINERS_REGISTRIES_CONF (below); never written into the image's registries.
+REG_CONF="$SCRATCH/registries.conf"
+cat > "$REG_CONF" <<'RC'
+short-name-mode = "permissive"
+[[registry]]
+location = "docker.io"
+[[registry.mirror]]
+location = "mirror.gcr.io"
+RC
+
 # --- Read which images belong to THIS group from the pre-projected plan.d lists ---
 PLAN_DIR="${MIOS_PLAN_DIR:-${ROOT:-}/usr/lib/mios/bake/plan.d}"
 PLAN_FILE=""
@@ -103,7 +118,7 @@ for img in "${IMAGES[@]}"; do
     echo "bound-image: baking $img"
     _pulled=0
     for _try in 1 2 3 4 5; do
-        if CONTAINERS_STORAGE_CONF="$CONF" TMPDIR="$SCRATCH/tmp" \
+        if CONTAINERS_STORAGE_CONF="$CONF" CONTAINERS_REGISTRIES_CONF="$REG_CONF" TMPDIR="$SCRATCH/tmp" \
              podman --root "$STORE" --runroot "$SCRATCH/run" pull "$img"; then
             _pulled=1; break
         fi
