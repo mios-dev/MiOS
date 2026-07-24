@@ -1,0 +1,10 @@
+# AI-hint: Rust agent-pipe budget and SSOT validator Cargo manifest.
+[package]
+name = "mios-aiplane-lint"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+toml = "0.8"
+regex = "1.10"
+walkdir = "2.4"

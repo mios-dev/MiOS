@@ -43,6 +43,7 @@ members = [
     "mios-wallpaperd",
     "generate-names-registry",
     "mios-ssot-walk",
+    "mios-aiplane-lint",
 ]
 resolver = "2"
 
