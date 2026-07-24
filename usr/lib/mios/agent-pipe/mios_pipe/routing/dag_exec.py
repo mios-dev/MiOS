@@ -1035,6 +1035,16 @@ async def execute_dag(dag: dict, *, session_id: Optional[str],
     verb nodes; fail-fast when a level has an unrecoverable failure.
     Returns aggregate {success, node_results[], summary}."""
     _capture_run_template(dag, session_id)   # WS-6: additive, fire-and-forget
+    try:
+        from mios_pipe.routing.dag_validate import validate_dag
+        verdict = validate_dag(dag)
+        if not verdict.is_valid:
+            log.warning("DAG validation failed (status=%s); remediating to linear order", verdict.status)
+            dag = dict(dag)
+            dag["nodes"] = verdict.remediation_order
+    except Exception as _val_err:
+        log.warning("DAG pre-execution validation error: %s", _val_err)
+
     if SWARM_SATURATE:
         return await _execute_dag_saturated(
             dag, session_id=session_id, event_q=event_q,
