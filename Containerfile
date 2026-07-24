@@ -69,7 +69,18 @@ RUN --mount=type=bind,from=ctx,source=/ctx,target=/ctx,ro \
     --mount=type=cache,dst=/var/cache/dnf,sharing=locked \
     set -ex; \
     install -d -m 0755 /tmp/build; \
-    cp -a /ctx/automation /ctx/usr /ctx/etc /ctx/VERSION /ctx/bib-configs /ctx/tools /ctx/.git /tmp/build/; \
+    cp -a /ctx/automation /ctx/usr /ctx/etc /ctx/VERSION /ctx/bib-configs /ctx/tools /tmp/build/; \
+    # .git is BEST-EFFORT (never fatal under `set -e`): it makes /tmp/build a git
+    # work tree so build.sh can `reset --hard` the pristine tree and the source-drift
+    # gate (check 30) runs in-image. If it can't be copied, the gate degrades OPEN
+    # (check 30 skips; the drift-gate CI job still validates it) rather than aborting
+    # this RUN -- which is what a bare `cp ... /ctx/.git` under set -e would do.
+    if [ -d /ctx/.git ]; then \
+        cp -a /ctx/.git /tmp/build/.git 2>/dev/null && echo "[ctx] .git -> /tmp/build (git work tree)" \
+            || echo "[ctx] WARN: .git copy failed -- source-drift check 30 will skip (drift-gate job covers it)"; \
+    else \
+        echo "[ctx] WARN: /ctx/.git absent -- source-drift check 30 will skip (drift-gate job covers it)"; \
+    fi; \
     # WS-C: bake the repo-root agent MD files to / so a clean image is grounded
     # (agent-pipe reads /MiOS.md; the layered /etc + ~/.config overrides still win).
     install -m 0644 /ctx/rootmd/MiOS.md /ctx/rootmd/AGENTS.md /ctx/rootmd/CLAUDE.md /ctx/rootmd/GEMINI.md /; \
