@@ -1,7 +1,5 @@
 [package]
 name = "mios-version-check"
-version.workspace = true
-edition.workspace = true
 
 [dependencies]
 # Pure standard library implementation for zero-dependency portability
