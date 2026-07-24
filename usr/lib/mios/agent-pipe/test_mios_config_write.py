@@ -114,7 +114,11 @@ class TestConfigWrite(unittest.TestCase):
         }
         response = self.client.get("/portal/config")
         self.assertEqual(response.status_code, 200)
-        self.assertIn("meta.mios_version = \"0.3.0\"", response.text)
+        # to_toml renders SECTION-style TOML ("[meta]\nmios_version = ..."), not the
+        # old dotted "meta.mios_version = ..." form (the sibling asserts below already
+        # expect section style); match the actual, correct output.
+        self.assertIn("[meta]", response.text)
+        self.assertIn('mios_version = "0.3.0"', response.text)
         self.assertIn("[test_section]", response.text)
         self.assertIn("[[test_section.arr]]", response.text)
 
@@ -123,10 +127,15 @@ class TestConfigWrite(unittest.TestCase):
             response = self.client.get("/portal/config")
             self.assertEqual(response.status_code, 401)
 
+    # Mock the live-config load so validate_config's drop-guard sees an EMPTY live
+    # config (nothing to "drop") and the minimal payload is accepted. The guard
+    # ([identity]/[ports] must not be dropped from the LIVE config) is correct
+    # production behavior; this unit test exercises only the write path.
+    @patch("mios_toml.load_merged", return_value={})
     @patch("mios_pipe.routing.portal._portal_authed", return_value=True)
     @patch("mios_pipe.kernel.config.write_user_config")
     @patch("fastapi.BackgroundTasks.add_task")
-    def test_post_config_success(self, mock_add_task, mock_write_user, mock_authed):
+    def test_post_config_success(self, mock_add_task, mock_write_user, mock_authed, mock_load_merged):
         payload = """
 [meta]
 mios_version = "0.3.0"

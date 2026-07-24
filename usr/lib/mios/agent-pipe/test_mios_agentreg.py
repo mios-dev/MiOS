@@ -82,22 +82,19 @@ def t_build_agent_engines():
 
 
 def t_load_agent_registry(monkeypatched_toml):
-    # _load_agent_registry reads its own layered TOML files via tomllib + open();
-    # we can't easily stub that, so verify the FALLBACK path (no readable TOML ->
-    # single hermes default) plus the _defaults/health_gate logic through a direct
-    # synthetic build is covered by t_nodes/t_defaults below. Here: fallback shape.
-    import os
-    _saved = os.environ.get("MIOS_TOML")
-    os.environ["MIOS_TOML"] = "/nonexistent/mios-agentreg-test.toml"
-    _set_open_mock(fail_all_toml=True)
+    # Force the EMPTY-config path (no [agents.*]) so _load_agent_registry falls back
+    # to the single hermes entry. Monkeypatch reg._toml_section -> {} -- the SAME
+    # robust isolation the sibling tests (t_load_node_pool / t_health_gate) use. The
+    # older open()/MIOS_TOML stubbing was fragile: on the built image
+    # _load_agent_registry still read the live /usr/share/mios/mios.toml (via a path
+    # the open() mock missed / a cached load_merged), yielding a NON-empty registry so
+    # the hermes fallback never triggered and `default is True` failed in CI.
+    _saved = reg._toml_section
+    reg._toml_section = lambda section: {}
     try:
         r = reg._load_agent_registry()
     finally:
-        _reset_open_mock()
-        if _saved is None:
-            os.environ.pop("MIOS_TOML", None)
-        else:
-            os.environ["MIOS_TOML"] = _saved
+        reg._toml_section = _saved
     check("registry: empty toml -> hermes fallback", "hermes" in r, str(list(r.keys())))
     check("registry: hermes fallback default", r["hermes"].get("default") is True)
 
