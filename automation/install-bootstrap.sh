@@ -67,13 +67,11 @@ detect_host_kind() {
 }
 
 check_network() {
-    local host
-    for host in github.com; do
-        if ! curl -fsSL --retry 3 --max-time 5 -o /dev/null "https://${host}/" 2>/dev/null; then
-            log_err "No network reachability to ${host}."
-            exit 1
-        fi
-    done
+    local host="github.com"
+    if ! curl -fsSL --retry 3 --max-time 5 -o /dev/null "https://${host}/" 2>/dev/null; then
+        log_err "No network reachability to ${host}."
+        exit 1
+    fi
     log_ok "Network reachability verified"
 }
 
@@ -116,7 +114,8 @@ main() {
     require_root
     log_phase "'MiOS' Bootstrap Installer (clone repo + install full [packages.*] manifest + FHS overlay)"
 
-    local hostkind=$(detect_host_kind)
+    local hostkind
+    hostkind="$(detect_host_kind)"
     if [[ "$hostkind" == "unsupported" ]]; then
         log_err "Host is not Fedora. 'MiOS' requires a Fedora-based host."
         exit 1
