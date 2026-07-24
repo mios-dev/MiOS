@@ -19,6 +19,15 @@ install_packages "ai"
 PIN_REF="${MIOS_BUILD_BAKE_REFS_SURFER:-17d9a1577170880cdac13dca7c3d6871716fc046}"
 log "[56-bake-surfer] surfer pin ref: ${PIN_REF}"
 
+# `surfer download` runs `git init` + `git commit` on the fetched Firefox source; a bare
+# build container has no git identity, so the commit dies with "unable to auto-detect
+# email address" + "'' is not a valid branch name". Give it a build identity so the
+# source-tree init commits cleanly (best-effort; never fatal).
+git config --global user.email "build@mios.local"  2>/dev/null || true
+git config --global user.name  "MiOS Build"        2>/dev/null || true
+git config --global init.defaultBranch main        2>/dev/null || true
+git config --global advice.detachedHead false      2>/dev/null || true
+
 SURFER_BUILD_DIR="/tmp/surfer-build"
 SURFER_OK=""
 
@@ -142,21 +151,32 @@ EOF
     log "[56-bake-surfer] Starting native compilation..."
     if npm run build; then
         mkdir -p /usr/lib/mios/webshell
-        cp -r dist/* /usr/lib/mios/webshell/
-        ln -sf /usr/lib/mios/webshell/firefox /usr/bin/mios-webshell
+        cp -r dist/* /usr/lib/mios/webshell/ 2>/dev/null || true
+        ln -sf /usr/lib/mios/webshell/firefox /usr/bin/mios-webshell 2>/dev/null || true
         if [[ -x /usr/bin/mios-webshell ]]; then
             SURFER_OK=1
             break
         fi
+        # `npm run build` succeeded but produced no browser binary -- it only rebuilds
+        # surfer's own TS CLI, never the browser (that needs `npx surfer build`, a
+        # multi-hour mach compile). This is DETERMINISTIC, so retrying would only
+        # re-download the ~500MB Firefox source for nothing. Stop and degrade open.
+        warn "[56-bake-surfer] surfer CLI built but no browser binary in the bake -- not retrying (see degrade-open below)."
+        break
     fi
-    
+
     warn "[56-bake-surfer] build failed on attempt $attempt"
     sleep $((attempt * 8))
 done
 
 if [[ -z "$SURFER_OK" ]]; then
-    warn "[56-bake-surfer] surfer build failed after 3 attempts."
-    exit 1
+    # DEGRADE-OPEN (Law 12): mios-webshell is a heavy, OPTIONAL Firefox-fork browser. A
+    # real build is `npx surfer build` -- a multi-HOUR mach compile that must NOT gate the
+    # OS image publish (`npm run build` above only rebuilds surfer's own TS CLI, never a
+    # browser binary, which is why the -x check never passes here). WARN and continue; the
+    # webshell is a firstboot/dedicated-builder concern. NEVER fail the whole bake on it.
+    warn "[56-bake-surfer] mios-webshell not built in the bake (optional + multi-hour mach compile) -- degrading open; a firstboot/dedicated builder produces it."
+    exit 0
 fi
 
 record_version surfer "$PIN_REF" "https://github.com/zen-browser/surfer/tree/${PIN_REF}"
