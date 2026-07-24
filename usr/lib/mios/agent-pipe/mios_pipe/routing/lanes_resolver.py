@@ -189,3 +189,10 @@ def _lane_resolver_current():
     cluster-health route reads it through this getter because the global is REBOUND at
     runtime by ``_lane_resolver`` and so is unsafe to inject/re-import by value."""
     return _LANE_RESOLVER
+
+
+def evaluate_output_quality(output: str) -> tuple:
+    """Evaluate local output quality and determine if escalation is triggered via quality_gate."""
+    from mios_pipe.routing.quality_gate import evaluate_quality
+    return evaluate_quality(output)
+

@@ -23,8 +23,11 @@ def setUpModule():
     port = os.environ.get("MIOS_PORT_PGVECTOR", "8432")
     conn_str = f"postgresql://mios:mios@localhost:{port}/mios"
     try:
-        with psycopg.connect(conn_str, connect_timeout=1):
-            pass
+        with psycopg.connect(conn_str, connect_timeout=1) as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT count(1) FROM verb")
+                if cur.fetchone()[0] == 0:
+                    raise unittest.SkipTest("no seeded pgvector -- integration test")
     except Exception:
         raise unittest.SkipTest("no live pgvector -- integration test")
 
@@ -32,18 +35,22 @@ class TestMiosDbConfig(unittest.TestCase):
 
     def setUp(self):
         self.conn_str = "postgresql://mios:mios@localhost:8432/mios"
-        # Reset divergence counter
+        # Reset divergence counter and clear cache
+        mios_db_config.clear_cache()
         mios_db_config.reset_divergences()
 
     def test_is_db_authoritative(self):
         # Test env override
         os.environ["MIOS_DB_AUTHORITATIVE"] = "True"
+        mios_db_config.clear_cache()
         self.assertTrue(mios_db_config.is_db_authoritative())
         
         os.environ["MIOS_DB_AUTHORITATIVE"] = "False"
+        mios_db_config.clear_cache()
         self.assertFalse(mios_db_config.is_db_authoritative())
         
         del os.environ["MIOS_DB_AUTHORITATIVE"]
+        mios_db_config.clear_cache()
 
     def test_toml_fail_open(self):
         # Override connection port to invalid port to simulate db outage

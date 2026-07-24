@@ -371,7 +371,7 @@ POLISH_MAX_TOKENS = int(os.environ.get("MIOS_POLISH_MAX_TOKENS", "800"))
 # DEFAULT-OFF (degrade-open): both off => the council synthesis path is
 # byte-identical, so the defaults below are the SAFE values applied when the
 # [council] keys are ABSENT.
-_COUNCIL_TOML = _toml_section("council") or {}
+_COUNCIL_TOML = _toml_section("agent_pipe.council") or _toml_section("council") or {}
 
 
 def _cfg_bool(table: dict, env: str, key: str, default: bool) -> bool:

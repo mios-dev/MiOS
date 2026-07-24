@@ -1,5 +1,6 @@
 # AI-hint: stdlib unit test for pgvector schema and cosine similarity matching (AGY-7).
 # Connects to the database and performs a vector similarity query to assert correct functionality.
+import os
 import unittest
 try:
     import psycopg
@@ -12,8 +13,11 @@ def setUpModule():
     port = os.environ.get("MIOS_PORT_PGVECTOR", "8432")
     conn_str = f"postgresql://mios:mios@localhost:{port}/mios"
     try:
-        with psycopg.connect(conn_str, connect_timeout=1):
-            pass
+        with psycopg.connect(conn_str, connect_timeout=1) as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT count(1) FROM verb")
+                if cur.fetchone()[0] == 0:
+                    raise unittest.SkipTest("no seeded pgvector -- integration test")
     except Exception:
         raise unittest.SkipTest("no live pgvector -- integration test")
 
