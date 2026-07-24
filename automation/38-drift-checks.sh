@@ -4021,6 +4021,29 @@ main() {
     check_target_languages
     check_curl_retry
     check_nested_podman_caps
+check_greenboot() {
+    echo "[38-drift-checks]   (54) greenboot health-coverage check"
+    local gb_dir="$ROOT_DIR/usr/lib/greenboot/check/required.d"
+    if [[ ! -d "$gb_dir" ]]; then
+        _fail "(54) greenboot required checks directory ($gb_dir) is missing"
+        return
+    fi
+    local critical_services=("agent-pipe" "llm-light" "pgvector")
+    local s script_found
+    for s in "${critical_services[@]}"; do
+        script_found=0
+        for f in "$gb_dir"/*; do
+            if [[ -f "$f" ]] && grep -q "$s" "$f" 2>/dev/null; then
+                script_found=1
+                break
+            fi
+        done
+        if [[ "$script_found" -eq 0 ]]; then
+            _fail "(54) greenboot missing health-check script for critical service: $s"
+        fi
+    done
+}
+
 check_clevis_luks() {
     echo "[38-drift-checks]   (67) clevis LUKS SSOT projection check"
     local gen="$ROOT_DIR/usr/libexec/mios/mios-clevis-luks-gen"
