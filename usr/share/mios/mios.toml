@@ -711,6 +711,15 @@ laws = [
   # bash is thin GLUE ONLY. No NEW C#, Batch, PowerShell-as-program, or Go native code -- those are
   # grandfathered-for-port, not a licence for more. Minimise languages; convert shell -> machine code.
   { id = 14, slug = "TARGET-LANGUAGES",      applies_to = "both",  enforced_by = "38-drift-checks.sh:check_target_languages" },
+  # Law 15 -- DOUBLE-REPO-TRIPLE-CHECK: before ANY change, (1) DOUBLE-CHECK BOTH repos -- mios.git (the
+  # system/OCI image source; .git IS /) AND mios-bootstrap.git (the installer + user-overlay) -- for
+  # current state, the SHARED cross-repo SSOT (mios.toml, the userenv twins, [ports]/[colors]), any
+  # duplication, and the OTHER agent's in-flight work; and (2) TRIPLE-CHECK everything -- re-read the
+  # target, re-verify the assumption, and render/parse/test the result -- BEFORE acting. Measure thrice,
+  # cut once; THEN code. A surface mirrored across both repos MUST be updated in both (or the divergence
+  # explicitly justified). Discipline law: enforced by the agent contract (CLAUDE.md/AGENTS.md in BOTH
+  # repos); the "both repos agree" half is mechanically gated by cross-repo parity checks 22 + 27.
+  { id = 15, slug = "DOUBLE-REPO-TRIPLE-CHECK", applies_to = "both", enforced_by = "process:CLAUDE.md/AGENTS.md (both repos); parity via 38-drift-checks.sh checks 22+27" },
 ]
 
 [laws.target_languages]

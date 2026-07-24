@@ -62,7 +62,7 @@ cd usr/lib/mios/agent-pipe && python3 test_mios_<name>.py
 ```
 Additional standalone dispatcher/extraction tests live in `tests/` (`test-*.py`, `test-*.sh`) — run each file directly.
 
-## The thirteen architectural laws (v0.3.0 — enforced by `automation/38-drift-checks.sh` offline + `automation/99-postcheck.sh` at bake + `bootc container lint`)
+## The fifteen architectural laws (v0.3.0 — enforced by `automation/38-drift-checks.sh` offline + `automation/99-postcheck.sh` at bake + `bootc container lint`)
 
 Every change must obey these; a failing law fails the build. The law list is
 itself an SSOT: `usr/share/mios/mios.toml [laws]` is the canonical registry
@@ -82,6 +82,8 @@ itself an SSOT: `usr/share/mios/mios.toml [laws]` is the canonical registry
 11. **SECRETS-NEVER-IN-ENV** — password hashes/tokens live only in `/etc/shadow` + `/etc/mios/secrets.env` (0600); never in a group/world-readable env file.
 12. **BAKE-NOT-FETCH** — the image bakes runtime payloads (venv, GGUFs, weights); firstboot seeds from the OCI image and **degrades open** — never blocks boot on egress.
 13. **NATIVE-DROPINS** — layered config resolves as `*.d` fragments with **tier-major** precedence (vendor `/usr/lib/mios/mios.d` < host `/etc/mios/mios.d` < user); a vendor fragment can never outrank a higher tier. The Python (`mios_toml.py`) and bash (`userenv.sh` twins) resolvers must agree.
+14. **TARGET-LANGUAGES** — all NEW applicable code uses the roadmap's language-per-domain targets (Rust for native tooling/services/validation; Python for the AI plane; Bun/TS for the web Portal; bash is thin GLUE only). No new C#/Batch/Go/PowerShell-as-program — those are grandfathered-for-port, not a licence for more (ADR-0011 §2 / WS-LANG).
+15. **DOUBLE-REPO-TRIPLE-CHECK** — before ANY change: (1) **double-check BOTH repos** — `mios.git` (this repo; `.git` IS `/`) **and** `mios-bootstrap.git` (the installer/user-overlay) — for current state, the shared cross-repo SSOT (`mios.toml`, the `userenv` twins, `[ports]`/`[colors]`), duplication, and the other agent's in-flight work; (2) **triple-check everything** — re-read the target, re-verify the assumption, and render/parse/test the result — **before acting**. Measure thrice, cut once; **then code**. A surface mirrored across both repos must be updated in both (or the divergence justified).
 
 Quadlets are generated, not hand-edited into final form — see `automation/14-generate-quadlets.sh` and `15-render-quadlets.sh`. Kernel args ship in `usr/lib/bootc/kargs.d/`.
 
