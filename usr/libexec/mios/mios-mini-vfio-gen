@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# AI-hint: Generates vfio-pci binding kargs/modprobe configuration from mios.toml [mini] SSOT.
+set -euo pipefail
+
+TOML="${1:-/usr/share/mios/mios.toml}"
+
+ENABLED="$(python3 -c "import tomllib; f=open('${TOML}','rb'); d=tomllib.load(f); print(str(d.get('mini',{}).get('enabled', False)).lower())" 2>/dev/null || echo "false")"
+BIND_VFIO="$(python3 -c "import tomllib; f=open('${TOML}','rb'); d=tomllib.load(f); print(str(d.get('mini',{}).get('bind_dgpu_vfio', True)).lower())" 2>/dev/null || echo "true")"
+
+cat <<EOF
+# Generated from mios.toml [mini]
+MIOS_MINI_ENABLED="${ENABLED}"
+MIOS_MINI_BIND_VFIO="${BIND_VFIO}"
+EOF

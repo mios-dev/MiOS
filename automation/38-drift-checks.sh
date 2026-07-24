@@ -4060,8 +4060,25 @@ check_clevis_luks() {
     fi
 }
 
+check_mini_vfio() {
+    echo "[38-drift-checks]   (68) MiOS-Mini vfio-pci SSOT projection check"
+    local gen="$ROOT_DIR/usr/libexec/mios/mios-mini-vfio-gen"
+    if [[ ! -x "$gen" && -f "$gen" ]]; then
+        chmod +x "$gen" 2>/dev/null || true
+    fi
+    if [[ -f "$gen" ]]; then
+        local out; out="$("$gen" "$ROOT_DIR/usr/share/mios/mios.toml" 2>&1)"
+        if [[ "$out" == *"MIOS_MINI_ENABLED="* ]]; then
+            return 0
+        else
+            _fail "(68) MiOS-Mini vfio generator failed to project SSOT configuration"
+        fi
+    fi
+}
+
     check_bake_budget
     check_clevis_luks
+    check_mini_vfio
 
     echo "[38-drift-checks] ---------------------------------------------------------"
     if [[ "$VIOLATIONS" -eq 0 ]]; then

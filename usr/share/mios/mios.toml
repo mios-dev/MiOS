@@ -8628,6 +8628,12 @@ extra = []
 # Every Quadlet declares Network=mios.network so they share a flat
 # rootful bridge with the LAN-reachable PublishPort= surface above.
 # ----------------------------------------------------------------------------
+[mini]
+enabled = false
+guest_cpu_percent = 85
+guest_ram_percent = 85
+bind_dgpu_vfio   = true
+
 [gpu.vendors]
 nvidia = true
 amd    = true
