@@ -87,6 +87,104 @@ _violation() {
     VIOLATIONS=$((VIOLATIONS + 1))
 }
 
+# ---------------------------------------------------------------------------
+# _emit_projection_evidence <gen-relpath> <target-relpath>...
+# Failure-path diagnostics for the SSOT-projection gates (generate-*.py --check).
+# On a FAILED --check, emit MACHINE-GREPPABLE evidence (stable prefix
+# "[38-drift-checks][diff]") instead of prose: the exact generator command to
+# reproduce, the absolute ACTUAL vs GENERATED paths compared, and a capped
+# (MIOS_DRIFT_DIFF_CAP, default 40) unified diff (`-` = on-disk / `+` = SSOT-
+# projected). Mechanism: snapshot each target, re-render the generator IN WRITE
+# MODE (expected content lands on disk), diff snapshot-vs-live, then RESTORE the
+# tree byte-for-byte (net read-only). Robust: a generator error / absent target
+# degrades to raw generator stderr; never increments VIOLATIONS (the caller
+# already recorded the _violation); always returns 0. shellcheck/set -e safe.
+_emit_projection_evidence() {
+    local pfx='[38-drift-checks][diff]'
+    local gen_rel="$1"; shift
+    local gen="$ROOT/$gen_rel"
+    local cap="${MIOS_DRIFT_DIFF_CAP:-40}"
+    local -a targets=("$@")
+    local -a abs=() bak=() existed=()
+    local t a b i generr gen_rc dtmp total
+
+    echo "$pfx generator: MIOS_DRIFT_ROOT=$ROOT python3 $gen_rel   (regen: drop --check; verify: append --check)" >&2
+
+    if [[ ! -x "$gen" && ! -f "$gen" ]]; then
+        echo "$pfx generator ABSENT ($gen) -- cannot render expected" >&2
+        for t in "${targets[@]}"; do
+            if [[ -f "$ROOT/$t" ]]; then
+                echo "$pfx target $t (abs: $ROOT/$t) exists=yes" >&2
+            else
+                echo "$pfx target $t (abs: $ROOT/$t) exists=NO" >&2
+            fi
+        done
+        return 0
+    fi
+
+    # Snapshot ACTUAL bytes so the in-place re-render can be undone.
+    for t in "${targets[@]}"; do
+        a="$ROOT/$t"
+        abs+=("$a")
+        if [[ -f "$a" ]]; then
+            b="$(mktemp 2>/dev/null)" || b=""
+            if [[ -n "$b" ]] && cp -p "$a" "$b" 2>/dev/null; then
+                bak+=("$b"); existed+=("1")
+            else
+                bak+=(""); existed+=("1")
+            fi
+        else
+            bak+=(""); existed+=("0")
+        fi
+    done
+
+    # Re-render EXPECTED in place (write mode). Capture stderr; degrade on error.
+    generr="$(mktemp 2>/dev/null || echo /dev/null)"
+    gen_rc=0
+    MIOS_DRIFT_ROOT="$ROOT" python3 "$gen" >/dev/null 2>"$generr" || gen_rc=$?
+    if [[ "$gen_rc" -ne 0 ]]; then
+        echo "$pfx generator ERRORED (rc=$gen_rc) rendering expected -- raw stderr:" >&2
+        sed "s|^|$pfx   |" "$generr" 2>/dev/null >&2 || true
+    else
+        for i in "${!abs[@]}"; do
+            a="${abs[$i]}"; b="${bak[$i]}"; t="${targets[$i]}"
+            if [[ "${existed[$i]}" == "0" ]]; then
+                echo "$pfx target $t: ABSENT on disk before regen -- generator CREATES it (abs: $a)" >&2
+                sed "s|^|$pfx +|" "$a" 2>/dev/null | head -n "$cap" >&2 || true
+                continue
+            fi
+            if [[ -z "$b" ]]; then
+                echo "$pfx target $t: snapshot unavailable -- cannot diff (abs: $a)" >&2
+                continue
+            fi
+            echo "$pfx target $t: actual=$a  generated=$a(re-rendered; snapshot=$b)" >&2
+            dtmp="$(mktemp 2>/dev/null || echo /dev/null)"
+            diff -u --label "a/$t (ACTUAL on-disk)" --label "b/$t (GENERATED from SSOT)" \
+                "$b" "$a" >"$dtmp" 2>/dev/null || true
+            total="$(wc -l <"$dtmp" 2>/dev/null | tr -d ' ' || printf 0)"
+            [[ -n "$total" ]] || total=0
+            sed "s|^|$pfx |" "$dtmp" 2>/dev/null | head -n "$cap" >&2 || true
+            if [[ "$total" -gt "$cap" ]]; then
+                echo "$pfx ($t diff truncated at $cap of $total lines)" >&2
+            fi
+            [[ "$dtmp" != "/dev/null" ]] && rm -f "$dtmp" 2>/dev/null || true
+        done
+    fi
+
+    # RESTORE the tree byte-for-byte (net read-only static gate).
+    for i in "${!abs[@]}"; do
+        a="${abs[$i]}"; b="${bak[$i]}"
+        if [[ "${existed[$i]}" == "1" && -n "$b" ]]; then
+            cp -p "$b" "$a" 2>/dev/null || true
+        elif [[ "${existed[$i]}" == "0" ]]; then
+            rm -f "$a" 2>/dev/null || true
+        fi
+        if [[ -n "$b" ]]; then rm -f "$b" 2>/dev/null || true; fi
+    done
+    [[ "$generr" != "/dev/null" ]] && rm -f "$generr" 2>/dev/null || true
+    return 0
+}
+
 _require_python3() {
     if command -v python3 >/dev/null 2>&1; then
         return 0
@@ -4613,6 +4711,7 @@ check_gate_index() {
     if MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-gate-index.py" --check >/dev/null 2>&1; then
         echo "[38-drift-checks]   (80) gate index in sync with main() registration (AGY-151)"
     else
+        _emit_projection_evidence "tools/generate-gate-index.py" "usr/share/mios/reference/drift-gate-index.tsv"
         _violation "usr/share/mios/reference/drift-gate-index.tsv is out of sync with main() (AGY-151) -- run python3 tools/generate-gate-index.py"
     fi
 }
@@ -4843,6 +4942,7 @@ check_bib_configs_projection() {
     if MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-bib-configs.py" --check >/dev/null 2>&1; then
         echo "[38-drift-checks]   (87) BIB artifact configs in sync with mios.toml [deploy.artifacts] SSOT (AGY-157)"
     else
+        _emit_projection_evidence "tools/generate-bib-configs.py" "config/artifacts/bib.toml" "config/artifacts/iso.toml"
         _violation "BIB artifact configs (bib.toml, iso.toml) out of sync with mios.toml [deploy.artifacts] (AGY-157) -- run python3 tools/generate-bib-configs.py"
     fi
 }
@@ -5049,6 +5149,7 @@ check_ipa_enroll_projection() {
     if MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-ipa-enroll-env.py" --check >/dev/null 2>&1; then
         echo "[38-drift-checks]   (92) etc/mios/ipa-enroll.env matches [identity.ipa] SSOT (AGY-162)"
     else
+        _emit_projection_evidence "tools/generate-ipa-enroll-env.py" "etc/mios/ipa-enroll.env"
         _violation "etc/mios/ipa-enroll.env is out of sync with [identity.ipa] SSOT (AGY-162) -- run python3 tools/generate-ipa-enroll-env.py"
     fi
 }
@@ -5060,6 +5161,7 @@ check_uki_cmdline_projection() {
     if MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-uki-cmdline.py" --check >/dev/null 2>&1; then
         echo "[38-drift-checks]   (93) usr/lib/kernel/cmdline matches kargs.d/*.toml drop-ins (AGY-163)"
     else
+        _emit_projection_evidence "tools/generate-uki-cmdline.py" "usr/lib/kernel/cmdline"
         _violation "usr/lib/kernel/cmdline is out of sync with usr/lib/bootc/kargs.d/*.toml (AGY-163) -- run python3 tools/generate-uki-cmdline.py"
     fi
 }
@@ -5101,6 +5203,7 @@ check_cockpit_projection() {
     if MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-cockpit-conf.py" --check >/dev/null 2>&1; then
         echo "[38-drift-checks]   (95) etc/cockpit/cockpit.conf matches mios.toml [cockpit] SSOT (AGY-165)"
     else
+        _emit_projection_evidence "tools/generate-cockpit-conf.py" "etc/cockpit/cockpit.conf"
         _violation "etc/cockpit/cockpit.conf is out of sync with mios.toml [cockpit] SSOT (AGY-165) -- run python3 tools/generate-cockpit-conf.py"
     fi
 }
