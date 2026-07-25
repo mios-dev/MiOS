@@ -603,6 +603,35 @@ if [ -f "/usr/libexec/mios/seed-db-config.py" ]; then
     python3 /usr/libexec/mios/seed-db-config.py || true
 fi
 
+# ── 2b. pre-stage firstboot-tier images degrade-open ─────────────────────────
+FBLIST="/usr/lib/mios/bake/plan.d/firstboot.list"
+if [ -f "$FBLIST" ] && command -v podman >/dev/null 2>&1; then
+    log "pre-staging firstboot-tier images from $FBLIST"
+    STORE="${STORE:-/usr/lib/containers/storage}"
+    while IFS= read -r fb_img; do
+        fb_img="$(echo "$fb_img" | sed 's/#.*//; s/^[[:space:]]*//; s/[[:space:]]*$//')"
+        [ -z "$fb_img" ] && continue
+        if podman --root "$STORE" image exists "$fb_img" 2>/dev/null; then
+            log "firstboot-tier image $fb_img already present in store -- skipping pull"
+            continue
+        fi
+        log "pulling firstboot-tier image: $fb_img"
+        _fb_pulled=0
+        for _fb_try in 1 2 3; do
+            if podman --root "$STORE" pull "$fb_img" >/dev/null 2>&1; then
+                _fb_pulled=1
+                break
+            fi
+            sleep $((_fb_try * 2))
+        done
+        if [ "$_fb_pulled" -eq 1 ]; then
+            log "pre-staged firstboot-tier image $fb_img successfully"
+        else
+            log "WARN: could not pre-stage firstboot-tier image $fb_img (degrade open)"
+        fi
+    done < "$FBLIST"
+fi
+
 # ── 3. (re)start the AI services now their prerequisites exist ────────────────
 # --no-block on hermes-agent + mios-agent-pipe: firstboot must NOT wait on them
 # settling. They have their own readiness deps and can deadlock against the

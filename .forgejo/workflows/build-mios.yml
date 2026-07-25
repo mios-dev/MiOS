@@ -27,6 +27,7 @@ jobs:
   build:
     runs-on: mios-self-hosted
     env:
+      MIOS_DRIFT_REQUIRE_TOOLS: "1"
       GHCR_USER: ${{ secrets.GHCR_USER }}
       GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
       # The push step sources tools/lib/userenv.sh, which defaults MIOS_VENDOR_TOML
@@ -48,6 +49,9 @@ jobs:
       # WS-0A drift gate: source-tree fitness-functions, run before the bake so
       # un-wired SSOT keys / broken orchestration leaves fail fast. Mirrors the
       # post-build sub-phases in automation/build.sh and `just drift-gate`.
+      - name: Python linting (lint-python.sh)
+        run: bash ./automation/lint-python.sh
+
       - name: Drift gate (SSOT-render lint + agent-pipe unit tests)
         run: |
           bash ./automation/38-ssot-lint.sh
@@ -76,6 +80,9 @@ jobs:
 
       - name: AI-plane source drift checks (38-drift-checks.sh)
         run: bash ./automation/38-drift-checks.sh
+
+      - name: Negative tests (drift-gate-negatives.sh)
+        run: bash ./tests/drift-gate-negatives.sh
 
       - name: Resolve image tag from VERSION + commit
         id: tag

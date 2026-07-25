@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# MIOS_INSTALLER_ROLE=container-build-installer
 # AI-hint: Executes the system-side installation for non-bootc Fedora hosts by applying FHS overlays to /usr, /etc, /var, /srv, materializing /v1, and initializing systemd users, tmpfiles, and MiOS services.
 # 'MiOS' system-side installer (FHS overlay path).
 #

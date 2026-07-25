@@ -1,0 +1,99 @@
+# Ordinal	Check Function	Description
+1	check_dead_lane	no retired :11434 lane in active config
+2	check_retired_models	no retired model-id in consumer config
+3	check_structured	every [nodes.local-*] localhost lane is served; (4) ai/v1 manifests parse + refs resolve
+4	check_hint_coverage	AI-hint coverage within ratchet ceiling
+5	check_module_boundary	agent-pipe dir absent -- skipped
+6	check_rbac_tiers	RBAC max_permission tiers all valid (PDP fail-closed gate)
+7	check_agent_schema	(WS-A2) agent-schema contract satisfied (health_gate / cli / node / single-default rules)
+8	check_ai_manifest	ai/v1 verb-catalog manifest in sync with mios.toml SSOT
+9	check_package_registry	package registry dormant ([ai].package_registry off) -- skipped
+10	check_cli_sql_safety	libexec dir absent -- skipped
+11	check_module_test_coverage	agent-pipe dir absent -- skipped
+12	check_raw_toml_readers	raw TOML readers -- skipped
+13	check_capability_manifest	ai/v1 capability manifest in sync with mios.toml SSOT
+14	check_surface_parity	server.py public surface (routes+symbols) matches the committed golden
+15	check_no_hardcode	no date-in-comment / header crash-risk (NO-HARDCODE law)
+16	check_pod_quadlets	Quadlet units (.pod, .container, .network, .volume) in sync with mios.toml SSOT
+17	check_egress_firewall	egress.nft in sync with mios.toml [security.egress] SSOT
+18	check_blade_dropins	blade capability drop-ins in sync with mios.toml [blade.requires]
+19	check_unwired_modules	no imported-but-dead agent-pipe module (A1 _UNWIRED_ALLOW current)
+20	check_cephfs_ssot	CephFS SSOT configuration is valid (no placeholder/cache conflicts)
+21	check_converge_ssot	[converge] SSOT configuration is valid (retire_heavy_alt=$retire_alt)
+22	check_hummingbird	(20) Hummingbird distroless and Quadlet configuration (CONV-15). ----
+23	check_container_ports	no manual port literals in container definitions
+24	check_bootstrap_ports_drift	bootstrap mios.toml [ports] table matches main repository
+25	check_agent_pipe_budgets	(23) Verify all [agent_pipe] variables have code consumers. ----------
+26	check_no_bare_port_literals	(24) Verify no bare port literals remain in execution paths. ---------
+27	check_dotfiles_projection	every committed theme + settings surface projects from mios.toml [colors]/[btop]/[gitconfig]/[identity]/[dotfiles] SSOT
+28	check_verb_backends	every [verbs.*].cmd mios-* backend resolves on disk
+29	check_userenv_parity	userenv.sh parity -- a copy is absent, skipped
+30	check_globals_ports	every MIOS_PORT_* fallback in globals.{ps1,sh} equals mios.toml [ports] SSOT
+31	check_globals_image_parity	default image references in globals.{sh,ps1} equal mios.toml [image] SSOT
+32	check_dag_integrity	DAG-integrity drift-gate) consumer-before-producer = build error. -
+33	check_names_registry	WS-NAME names/keys registry enforcement) -------------------------
+34	check_drift_projection	WS-VECTOR V1 drift_projection round-trip) -----------------------
+35	check_drift_build_catalog	WS-VECTOR V3 drift_build_catalog round-trip) --------------------
+36	check_canonical_bools	WS-NAME no non-canonical bools) ---------------------------------
+37	check_etc_duplicates	no etc/ full-unit duplicate shadows generated usr/share/ containers
+38	check_no_mkdir_in_var	no imperative /var mkdir in numbered automation/Containerfiles (Law 2)
+39	check_quadlet_privilege	mios.toml absent -- skipped
+40	check_var_closure	SOFT: python3 missing -- var-closure needs Linux/CI, skipped
+41	check_lint_is_final	Containerfile + Containerfile.minimal end with 'RUN bootc container lint' (Law 4)
+42	check_firstboot_degrade_open	every *firstboot* script degrades open (no unguarded set -e; Law 12)
+43	check_vendor_urls	no vendor cloud URL in active config (Law 5)
+44	check_resolver_twin_parity	SOFT: python3 missing -- resolver twin-parity needs Linux/CI, skipped
+45	check_resolver_twin_equivalence	Law 13 NATIVE-DROPINS) resolver twin equivalence (gating). -------
+46	check_template_conformance	SOFT: python3 missing -- template conformance check skipped
+47	check_kargs_projection	kargs.d matches mios.toml [kargs] projection
+48	check_greenboot_enablement	greenboot services and scripts are correctly configured
+49	check_greenboot	greenboot health-coverage check
+50	check_chrony_projection	chrony.conf matches mios.toml [network.ntp] projection
+51	check_nut_projection	etc/ups/ configurations match mios.toml [power.ups] projection
+52	check_fluff_tokens	fluff-token drift check passed
+53	check_coordination_hygiene	coordination-hygiene lint passed
+54	check_templates_compilation	all templates compile and validate successfully
+55	check_impossible_eol_regressions	impossible/EOL regression checks passed
+56	check_deploy_plane	deploy-plane checks passed
+57	check_version_ssot	VERSION + Containerfile ARG MIOS_VERSION == mios.toml [meta].mios_version ([$ssot]) (Laws 7/8)
+58	check_root_toml_subset	root mios.toml schema is subset of canonical SSOT
+59	check_toml_projection	mios.toml derived copies ([ports]/[colors]) project verbatim from the canonical SSOT
+60	check_bake_plan	bake-plan lists in sync with mios.toml [build.bake] SSOT
+61	check_bake_ref_defaults	all baker scripts have non-empty defaults for their bake-refs (skipped - no git repo)
+62	check_roadmap_index	ROADMAP.md not found -- skipping roadmap index check
+63	check_cli_eval_safety	CLI verbs in usr/libexec/mios/ are eval-safe (TD-1)
+64	check_sbom_metadata	SBOM metadata manifests are structurally valid
+65	check_hyprland_conf_heredoc	Hyprland configuration template is in sync with baker script heredoc
+66	check_shellcheck	shellcheck: shell scripts conform to error-level linting
+67	check_target_languages	Law 14 TARGET-LANGUAGES: no new non-target-language code (Rust/Python/Bun+TS; bash thin-glue)
+68	check_curl_retry	curl/wget build network fetches carry --retry / --tries (or scurl / exempt)
+69	check_nested_podman_caps	nested-podman capability flags & reference doc verified
+70	check_bake_budget	bake-budget gate: projected baked image size within SSOT runner_disk_budget_gb limit (${budget}GB)
+71	check_clevis_luks	clevis LUKS SSOT projection check
+72	check_mini_vfio	MiOS-Mini vfio-pci SSOT projection check
+73	check_router_parity	Router Stage-2 parity gate satisfied (corpus parity + coverage)
+74	check_council_gate_ssot	(70) Verify [agent_pipe.council] parameters defined and consumed. --
+75	check_containerfile_pinned_clones	all git clone invocations in Containerfiles carry explicit --branch/--tag/ref
+76	check_firstboot_tier	firstboot tier invariant verified (AGY-135)
+77	check_rechunk_budget	rechunk budget & SSOT image reference verified (AGY-136)
+78	check_gate_registry	gate registry integrity verified (no duplicate checks, 1-to-1 main registration)
+79	check_python_lint	Python static compilation gate (lint-python.sh)
+80	check_test_hermeticity	test hermeticity verified (all live-resource tests carry skip sentinels)
+81	check_negative_test_coverage	negative test coverage ratchet verified (test count matches or exceeds law gates count; AGY-158)
+82	check_soft_mode_not_committed	no soft-mode override committed in CI/build pipeline (AGY-149)
+83	check_ssot_lint_equivalence	mios-ssot-lint binary absent -- skipped
+84	check_gate_index	gate index in sync with main() registration (AGY-151)
+85	check_oci_archive_path	oci-archive producer/consumer absent -- skipped
+86	check_replaceme_mount_substitution	Justfile absent -- skipped
+87	check_kickstart_shell_syntax	embedded kickstart %post shell syntax verified clean with bash -n (AGY-154)
+88	check_bib_rootfs_label_policy	Justfile absent -- skipped
+89	check_offline_install_invariant	tools/install.sh absent -- skipped
+90	check_installer_family_roles	installer family role markers verified unique across all installers (AGY-156)
+91	check_bib_configs_projection	BIB artifact configs in sync with mios.toml [deploy.artifacts] SSOT (AGY-157)
+92	check_repo_partition_label_ssot	repo partition consumers absent -- skipped
+93	check_bib_single_config_invariant	Justfile absent -- skipped
+94	check_build_artifacts_output_dir	build output dir consumers absent -- skipped
+95	check_win11_vm_template_xml	win11 VM template or SSOT absent -- skipped
+96	check_ipa_enroll_projection	etc/mios/ipa-enroll.env matches [identity.ipa] SSOT (AGY-162)
+97	check_uki_cmdline_projection	usr/lib/kernel/cmdline matches kargs.d/*.toml drop-ins (AGY-163)
+98	check_composefs_projection	composefs prepare-root.conf absent -- skipped

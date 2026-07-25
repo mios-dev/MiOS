@@ -144,7 +144,19 @@ def main(argv):
     for img in firstboot_images:
         if img not in core:
             errors.append(f"Firstboot image '{img}' is missing from core bake list")
-        
+
+    # Core bake-plan reconciliation pass (AGY-137)
+    discovered_non_localhost = {img for img, _ in images_to_bake if not img.startswith("localhost/")}
+    core_non_localhost = {img for img in core if not img.startswith("localhost/")}
+    missing_from_core = discovered_non_localhost - core_non_localhost
+    extra_in_core = core_non_localhost - discovered_non_localhost
+    if missing_from_core:
+        for img in sorted(missing_from_core):
+            errors.append(f"Quadlet image '{img}' is missing from [build.bake].core")
+    if extra_in_core:
+        for img in sorted(extra_in_core):
+            errors.append(f"Core image '{img}' is not referenced by any Quadlet")
+
     for img in core:
         parts = img.split("/", 1)
         first = parts[0]
@@ -226,12 +238,20 @@ def main(argv):
             print(f"[bake-plan-gen] wrote {plan_file}")
             
     # firstboot tier: emit the not-baked images for mios-ai-firstboot / the USB
-    # data-partition stager. Written only in write mode and OUTSIDE the group
-    # lists, so drift-check 35 (which compares only the group lists) is unaffected.
-    if not check:
-        fb_file = os.path.join(out_dir, "firstboot.list")
+    # data-partition stager. Checked in check mode and written in write mode (AGY-135).
+    fb_file = os.path.join(out_dir, "firstboot.list")
+    fb_content = "".join(f"{img}\n" for img in firstboot_images)
+    if check:
+        cur_fb = ""
+        if os.path.exists(fb_file):
+            with open(fb_file, "r", encoding="utf-8") as fh:
+                cur_fb = fh.read()
+        if cur_fb != fb_content:
+            print(f"[bake-plan-gen] DRIFT: {fb_file} does not match projected plan", file=sys.stderr)
+            drift_detected = True
+    else:
         with open(fb_file, "w", encoding="utf-8", newline="\n") as fh:
-            fh.write("".join(f"{img}\n" for img in firstboot_images))
+            fh.write(fb_content)
         print(f"[bake-plan-gen] wrote {fb_file}")
 
     return 1 if drift_detected else 0

@@ -321,6 +321,11 @@ def scan(roots):
                         for ln, snip in _check_ports_ips(text, fn, exempt_patterns):
                             violations.append((p, ln, f"HARDCODED-PORT/IP: {snip}"))
                         
+                if 'usr/share/mios/ventoy/autorun' in rel:
+                    for idx, line in enumerate(text.split('\n'), 1):
+                        if 'chpasswd' in line and re.search(r'echo\s+["\'][a-zA-Z0-9_-]+:[a-zA-Z0-9_-]+["\']\s*\|\s*chpasswd', line):
+                            violations.append((p, idx, f"PLAINTEXT-CHPASSWD: {line.strip()[:80]}"))
+                        
                 if fn.endswith('.py'):
                     for ln, snip in _date_in_comment_py(text):
                         violations.append((p, ln, f"DATE-IN-COMMENT: {snip}"))

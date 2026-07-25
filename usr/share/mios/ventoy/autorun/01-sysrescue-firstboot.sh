@@ -19,11 +19,14 @@ PubkeyAuthentication yes
 EOF
 
 # 3. Set SSOT root & mios user passwords
-echo "root:mios" | chpasswd
-if ! id "mios" &>/dev/null; then
-    useradd -m -g wheel -s /bin/bash mios 2>/dev/null || true
+SYS_USER="${MIOS_IDENTITY_USERNAME:-mios}"
+SYS_PASS="${MIOS_IDENTITY_DEFAULT_PASSWORD:-mios}"
+
+echo "root:${SYS_PASS}" | chpasswd
+if ! id "${SYS_USER}" &>/dev/null; then
+    useradd -m -g wheel -s /bin/bash "${SYS_USER}" 2>/dev/null || true
 fi
-echo "mios:mios" | chpasswd
+echo "${SYS_USER}:${SYS_PASS}" | chpasswd
 
 # 4. Enable and start sshd service
 systemctl enable --now sshd 2>/dev/null || systemctl restart sshd 2>/dev/null || true
@@ -34,7 +37,7 @@ BANNER="
 ===================================================================
   MiOS SystemRescue Live Diagnostic Environment
   SSH Service: ACTIVE (Port 22)
-  Credentials: root / mios  |  mios / mios
+  Credentials: root / ${SYS_PASS}  |  ${SYS_USER} / ${SYS_PASS}
   IP Address(es): ${IP_LIST}
 ===================================================================
 "
@@ -44,4 +47,4 @@ if [ -c /dev/tty1 ]; then
     echo "${BANNER}" > /dev/tty1 || true
 fi
 
-echo "[MiOS SystemRescue Firstboot] SSH fully enabled. User 'mios' and 'root' ready with SSOT credentials."
+echo "[MiOS SystemRescue Firstboot] SSH fully enabled. User '${SYS_USER}' and 'root' ready with SSOT credentials."

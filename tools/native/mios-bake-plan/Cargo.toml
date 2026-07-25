@@ -1,0 +1,10 @@
+# AI-hint: Rust bake-plan generator Cargo manifest (AGY-139).
+[package]
+name = "mios-bake-plan"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+toml = "0.8"
+regex = "1.10"
+walkdir = "2.4"

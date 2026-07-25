@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# AI-hint: Stages built mios oci-archive tarball to /mnt/mios-repo/mios-latest.tar for tools/install.sh (AGY-152)
+set -euo pipefail
+
+_self="${BASH_SOURCE[0]}"
+_self_dir="$(cd "$(dirname "$_self")" && pwd)"
+ROOT="$(cd "$_self_dir/../.." && pwd)"
+
+VERSION_FILE="$ROOT/VERSION"
+VERSION="0.3.0"
+if [[ -f "$VERSION_FILE" ]]; then
+    VERSION="$(tr -d '[:space:]' < "$VERSION_FILE")"
+fi
+
+SRC_TAR="${1:-$ROOT/build/oci-archive/mios-${VERSION}.tar}"
+DEST_DIR="${2:-/mnt/mios-repo}"
+DEST_TAR="${DEST_DIR}/mios-latest.tar"
+
+if [[ ! -f "$SRC_TAR" ]]; then
+    echo "[mios-stage-oci-archive] Error: Source archive $SRC_TAR not found." >&2
+    exit 1
+fi
+
+mkdir -p "$DEST_DIR"
+cp -f "$SRC_TAR" "$DEST_TAR"
+echo "[mios-stage-oci-archive] Staged $SRC_TAR -> $DEST_TAR"

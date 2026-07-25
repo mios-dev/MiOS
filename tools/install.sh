@@ -1,9 +1,16 @@
 #!/usr/bin/env bash
+# MIOS_INSTALLER_ROLE=bootc-baremetal-disk-installer
 # AI-hint: Offline bare-metal installer for MiOS (CATREPO-01 kickstart integration). Performs bootc install to-disk --transport oci-archive from staged oci-archive on MiOS-Repo/MiOS-Data.
 set -euo pipefail
 
 DRY_RUN=0
 TARGET_DISK=""
+# Resolve MiOS-Repo partition from SSOT label (AGY-158)
+REPO_DEV="$(blkid -L "MiOS-Repo" 2>/dev/null || true)"
+if [[ -n "$REPO_DEV" ]]; then
+    mkdir -p /mnt/mios-repo
+    mount "$REPO_DEV" /mnt/mios-repo 2>/dev/null || true
+fi
 OCI_ARCHIVE="${MIOS_OCI_ARCHIVE:-/mnt/mios-repo/mios-latest.tar}"
 
 usage() {

@@ -100,6 +100,14 @@ drift-gate:
     bash ./automation/38-drift-checks.sh
     @echo "[drift-gate] tests/drift-gate-negatives.sh (negative-test harness for the new gates)"
     bash ./tests/drift-gate-negatives.sh
+    @echo "[drift-gate] tests/drift-gate-readonly.sh (read-only / idempotency self-test)"
+    bash ./tests/drift-gate-readonly.sh
+    @echo "[drift-gate] tests/test-bake-group.sh (bake-group unit test harness)"
+    bash ./tests/test-bake-group.sh
+    @echo "[drift-gate] tests/test-firstboot-prestage.sh (firstboot prestage unit test harness)"
+    bash ./tests/test-firstboot-prestage.sh
+    @echo "[drift-gate] automation/lint-python.sh (Python static compilation gate)"
+    bash ./automation/lint-python.sh
     @echo "[drift-gate] tests/test-theme-merge.py (negative-test harness for dotfiles merge kinds)"
     @py_exec="python3"; [ -x /usr/lib/mios/agents/.venv/bin/python3 ] && py_exec="/usr/lib/mios/agents/.venv/bin/python3"; \
         "$py_exec" ./tests/test-theme-merge.py
@@ -193,32 +201,35 @@ rechunk: build
 
 # Generate RAW bootable disk image (80 GiB root)
 raw: build
-    mkdir -p output
+    mkdir -p build/raw
     sudo podman run --rm -it --privileged \
         --security-opt label=type:unconfined_t \
-        -v ./output:/output \
+        -v ./build/raw:/output \
         -v /var/lib/containers/storage:/var/lib/containers/storage \
         -v ./config/artifacts/bib.toml:/config.toml:ro \
         {{BIB}} build --type raw --rootfs ext4 {{LOCAL}}
-    @echo "[OK] RAW image in output/"
+    @echo "[OK] RAW image in build/raw"
 
 # Generate Anaconda installer ISO
-# FIX v0.2.0: ONLY mount iso.toml (includes minsize). Do NOT also mount bib config.
-# BIB crashes with: "found config.json and also config.toml"
 iso: build
-    mkdir -p output
-    sudo podman run --rm -it --privileged \
-        --security-opt label=type:unconfined_t \
-        -v ./output:/output \
-        -v /var/lib/containers/storage:/var/lib/containers/storage \
-        -v ./config/artifacts/iso.toml:/config.toml:ro \
-        {{BIB}} build --type iso --rootfs ext4 {{LOCAL}}
-    @echo "[OK] ISO image in output/"
+    mkdir -p build/iso
+    @TMPTOML="$(mktemp /tmp/mios-iso-XXXXXX.toml)" && \
+        sed -e "s|\$6\$REPLACEME_WITH_SHA512_HASH\$REPLACEME|${MIOS_USER_PASSWORD_HASH:-}|g" \
+            -e "s|AAAA_REPLACE_WITH_REAL_PUBKEY|${MIOS_SSH_PUBKEY:-}|g" \
+            ./config/artifacts/iso.toml > "$$TMPTOML" && \
+        sudo podman run --rm -it --privileged \
+            --security-opt label=type:unconfined_t \
+            -v ./build/iso:/output \
+            -v /var/lib/containers/storage:/var/lib/containers/storage \
+            -v "$$TMPTOML":/config.toml:ro \
+            {{BIB}} build --type iso --rootfs ext4 {{LOCAL}}; \
+        rm -f "$$TMPTOML"
+    @echo "[OK] ISO image in build/iso"
 
 # Generate QEMU qcow2 disk image
 # Substitutes MIOS_USER_PASSWORD_HASH and MIOS_SSH_PUBKEY from env before invoking BIB.
 qcow2: build
-    mkdir -p output
+    mkdir -p build/qcow2
     @if [ -z "${MIOS_USER_PASSWORD_HASH:-}" ]; then echo "[FAIL] Set MIOS_USER_PASSWORD_HASH (openssl passwd -6 'yourpass')"; exit 1; fi
     @TMPTOML="$(mktemp /tmp/mios-qcow2-XXXXXX.toml)" && \
         sed -e "s|\$6\$REPLACEME_WITH_SHA512_HASH\$REPLACEME|${MIOS_USER_PASSWORD_HASH}|g" \
@@ -226,18 +237,18 @@ qcow2: build
             ./config/artifacts/qcow2.toml > "$$TMPTOML" && \
         sudo podman run --rm -it --privileged \
             --security-opt label=type:unconfined_t \
-            -v ./output:/output \
+            -v ./build/qcow2:/output \
             -v /var/lib/containers/storage:/var/lib/containers/storage \
             -v "$$TMPTOML":/config.toml:ro \
             {{BIB}} build --type qcow2 --rootfs ext4 {{LOCAL}}; \
         rm -f "$$TMPTOML"
-    @echo "[OK] QCOW2 image in output/"
+    @echo "[OK] QCOW2 image in build/qcow2"
 
 # Generate Hyper-V VHDX disk image
 # BIB emits VPC (.vhd); we convert to .vhdx via qemu-img.
 # Substitutes MIOS_USER_PASSWORD_HASH and MIOS_SSH_PUBKEY from env before invoking BIB.
 vhdx: build
-    mkdir -p output
+    mkdir -p build/vhdx
     @if [ -z "${MIOS_USER_PASSWORD_HASH:-}" ]; then echo "[FAIL] Set MIOS_USER_PASSWORD_HASH (openssl passwd -6 'yourpass')"; exit 1; fi
     @TMPTOML="$(mktemp /tmp/mios-vhdx-XXXXXX.toml)" && \
         sed -e "s|\$6\$REPLACEME_WITH_SHA512_HASH\$REPLACEME|${MIOS_USER_PASSWORD_HASH}|g" \
@@ -245,31 +256,37 @@ vhdx: build
             ./config/artifacts/vhdx.toml > "$$TMPTOML" && \
         sudo podman run --rm -it --privileged \
             --security-opt label=type:unconfined_t \
-            -v ./output:/output \
+            -v ./build/vhdx:/output \
             -v /var/lib/containers/storage:/var/lib/containers/storage \
             -v "$$TMPTOML":/config.toml:ro \
             {{BIB}} build --type vhd --rootfs ext4 {{LOCAL}}; \
         rm -f "$$TMPTOML"
-    @if command -v qemu-img >/dev/null 2>&1 && ls output/*.vhd >/dev/null 2>&1; then \
-        for vhd in output/*.vhd; do \
+    @if command -v qemu-img >/dev/null 2>&1 && ls build/vhdx/*.vhd >/dev/null 2>&1; then \
+        for vhd in build/vhdx/*.vhd; do \
             vhdx="$${vhd%.vhd}.vhdx"; \
             qemu-img convert -f vpc -O vhdx "$$vhd" "$$vhdx" && rm -f "$$vhd" && echo "[OK] Converted: $$vhdx"; \
         done; \
     else \
-        echo "[WARN] qemu-img not found or no .vhd produced -- .vhd retained in output/"; \
+        echo "[WARN] qemu-img not found or no .vhd produced -- .vhd retained in build/vhdx/"; \
     fi
-    @echo "[OK] VHDX image in output/"
+    @echo "[OK] VHDX image in build/vhdx"
 
 # Generate WSL2 tar.gz for wsl --import
 wsl2: build
-    @mkdir -p output/wsl2
+    @mkdir -p build/wsl2
     @echo "[wsl2] BIB has no --type wsl2 -> exporting {{LOCAL}} rootfs for wsl --import"
     -sudo podman rm -f mios-wsl2-export 2>/dev/null
     sudo podman create --name mios-wsl2-export {{LOCAL}}
-    sudo podman export mios-wsl2-export | gzip -c > output/wsl2/mios-rootfs.tar.gz
+    sudo podman export mios-wsl2-export | gzip -c > build/wsl2/mios-rootfs.tar.gz
     sudo podman rm -f mios-wsl2-export
-    @echo "[OK] WSL2 rootfs -> output/wsl2/mios-rootfs.tar.gz"
-    @echo "     import: wsl --import MiOS <target-dir> output/wsl2/mios-rootfs.tar.gz"
+    @echo "[OK] WSL2 rootfs -> build/wsl2/mios-rootfs.tar.gz"
+    @echo "     import: wsl --import MiOS <target-dir> build/wsl2/mios-rootfs.tar.gz"
+
+# Save OCI image as oci-archive tarball for offline installation (AGY-152)
+oci-archive: build
+    @mkdir -p build/oci-archive
+    podman save --format oci-archive -o build/oci-archive/mios-{{VERSION}}.tar {{LOCAL}}
+    @echo "[OK] OCI archive: build/oci-archive/mios-{{VERSION}}.tar"
 
 # Build EVERY MiOS deployable artifact in one shot.
 # Manifesto: "starts FULL build pipeline including all the different image
@@ -279,11 +296,11 @@ wsl2: build
 # Order is deliberate -- the OCI image must exist BEFORE any BIB recipe
 # runs (BIB reads from /var/lib/containers/storage). After the build:
 #   - localhost/mios:latest                                  (OCI image)
-#   - output/disk.raw                                        (RAW disk)
-#   - output/install.iso                                     (Live-CD / USB installer)
-#   - output/qcow2/disk.qcow2                                (QEMU)
-#   - output/{vhd|vhdx}/disk.{vhd,vhdx}                      (Hyper-V)
-#   - output/wsl2/disk.wsl2  (tar.gz)                        (WSL2/g)
+#   - build/disk.raw                                         (RAW disk)
+#   - build/install.iso                                      (Live-CD / USB installer)
+#   - build/qcow2/disk.qcow2                                 (QEMU)
+#   - build/{vhd|vhdx}/disk.{vhd,vhdx}                       (Hyper-V)
+#   - build/wsl2/disk.wsl2  (tar.gz)                         (WSL2/g)
 #
 # Prerequisites:
 #   MIOS_USER_PASSWORD_HASH (qcow2 + vhdx need this -- the operator's
@@ -293,49 +310,49 @@ wsl2: build
 #                            sudo-less remote management).
 #
 # Use `just verify-images` after to sanity-check every artifact landed.
-all: build raw iso usb-installer qcow2 vhdx wsl2
+all: build oci-archive raw iso usb-installer qcow2 vhdx wsl2
     @echo ""
     @echo "[OK] All MiOS deployable artifacts built. Output:"
-    @ls -lah output/ 2>/dev/null || true
+    @ls -lah build/ 2>/dev/null || true
     @echo ""
     @echo "[NEXT] Run 'just verify-images' to confirm artifact integrity."
 
 # USB installer artifact -- explicit alias for the Anaconda installer
 # ISO repackaged as a USB-flashable image with a clear filename.
-# The same .iso BIB produces is bootable from USB via `dd if=output/*.iso
+# The same .iso BIB produces is bootable from USB via `dd if=build/*.iso
 # of=/dev/sdX bs=4M status=progress` (Linux) or `Rufus` (Windows). This
 # target just provides a discoverable name and prints the operator
 # flash recipe so "where's the USB installer?" doesn't end at the
 # generic `iso` target.
 usb-installer: iso
-    @mkdir -p output/usb-installer
-    @isos=$$(ls output/*.iso output/bootiso/*.iso 2>/dev/null); \
+    @mkdir -p build/usb-installer
+    @isos=$$(ls build/*.iso build/bootiso/*.iso 2>/dev/null); \
     if [ -n "$$isos" ]; then \
         for src in $$isos; do \
             [ -f "$$src" ] || continue; \
             base=$$(basename "$$src" .iso); \
-            dst="output/usb-installer/$${base}-usb.iso"; \
+            dst="build/usb-installer/$${base}-usb.iso"; \
             [ -f "$$dst" ] || cp -p "$$src" "$$dst"; \
             sz=$$(stat -c%s "$$dst" 2>/dev/null || stat -f%z "$$dst"); \
             echo "[OK] USB installer: $$dst ($$sz bytes)"; \
         done; \
     else \
-        echo "[FAIL] no .iso in output/ or output/bootiso/ — run 'just iso' first"; exit 1; \
+        echo "[FAIL] no .iso in build/ or build/bootiso/ — run 'just iso' first"; exit 1; \
     fi
     @echo ""
     @echo "Flash to USB (replace /dev/sdX with your actual device):"
-    @echo "  Linux:    sudo dd if=output/usb-installer/*.iso of=/dev/sdX bs=4M status=progress conv=fdatasync"
-    @echo "  macOS:    sudo dd if=output/usb-installer/*.iso of=/dev/rdiskN bs=4m"
+    @echo "  Linux:    sudo dd if=build/usb-installer/*.iso of=/dev/sdX bs=4M status=progress conv=fdatasync"
+    @echo "  macOS:    sudo dd if=build/usb-installer/*.iso of=/dev/rdiskN bs=4m"
     @echo "  Windows:  use Rufus (https://rufus.ie) or balenaEtcher"
     @echo ""
     @echo "WARNING: dd will destroy ALL data on the target device — verify the device first."
 
-# Smoke-test every artifact in output/ -- non-zero size, recognizable
+# Smoke-test every artifact in build/ -- non-zero size, recognizable
 # magic bytes, sane disk-image geometry. Fast (no actual boot).
 verify-images:
-    @echo "[verify] Walking output/ for MiOS deployable artifacts..."
+    @echo "[verify] Walking build/ for MiOS deployable artifacts..."
     @ok=0; fail=0; \
-    for f in output/*.raw output/image/*.raw output/*.iso output/bootiso/*.iso output/qcow2/*.qcow2 output/vhd*/*.vhd* output/wsl2/*.wsl2 output/wsl2/*.tar.gz; do \
+    for f in build/*.raw build/image/*.raw build/*.iso build/bootiso/*.iso build/qcow2/*.qcow2 build/vhd*/*.vhd* build/wsl2/*.wsl2 build/wsl2/*.tar.gz; do \
         [ -f "$$f" ] || continue; \
         sz=$$(stat -c%s "$$f" 2>/dev/null || stat -f%z "$$f"); \
         if [ "$${sz:-0}" -lt 1048576 ]; then \
@@ -369,10 +386,10 @@ publish: all verify-images
     podman push {{LOCAL}} {{IMAGE_NAME}}:latest
     @echo "[publish] OCI image pushed: {{IMAGE_NAME}}:{{VERSION}}"
     @echo ""
-    @echo "[publish] Disk images stay in output/ -- Forgejo Releases / GitHub Releases"
+    @echo "[publish] Disk images stay in build/ -- Forgejo Releases / GitHub Releases"
     @echo "[publish] upload is operator-driven via 'gh release create' or the"
     @echo "[publish] Forgejo web UI (Releases tab on the local forge)."
-    @ls -1 output/ 2>/dev/null
+    @ls -1 build/ 2>/dev/null
 
 
 # Log artifacts to MiOS-bootstrap repository (Linux FS native)

@@ -134,7 +134,7 @@ for img in "${IMAGES[@]}"; do
         install -d -m 0755 "$SBOM_DIR"
         printf '%s\t%s\t%s\n' "$img" "${_digest:-unknown}" "$GROUP" >> "$SBOM_DIR/bound-images.tsv"
     else
-        echo "ERROR: failed to bake bound image $img after 3 attempts"; failed=$((failed + 1))
+        echo "ERROR: failed to bake bound image $img after 5 attempts"; failed=$((failed + 1))
     fi
     # drop transient decompress scratch so it never enters the committed layer
     rm -rf "${SCRATCH:?}/tmp"/* 2>/dev/null || true

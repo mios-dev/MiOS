@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# AI-hint: Generates /etc/chrony.d/10-ptp.conf on first boot if /dev/ptp0 exists (PTP hardware present).
+# AI-related: /etc/chrony.d/10-ptp.conf, mios-chrony-ptp.service, /dev/ptp0
+set -euo pipefail
+
+CHRONY_D="${CHRONY_D:-/etc/chrony.d}"
+PTP_DEV="${PTP_DEV:-/dev/ptp0}"
+
+if [[ ! -e "$PTP_DEV" ]]; then
+    exit 0
+fi
+
+mkdir -p "$CHRONY_D"
+DROPIN_FILE="${CHRONY_D}/10-ptp.conf"
+TMP_FILE="${DROPIN_FILE}.tmp"
+
+cat <<'EOF' > "$TMP_FILE"
+# PTP hardware clock tuning for Chrony
+# Automatically generated when /dev/ptp0 is present
+refclock PHC /dev/ptp0 poll 3 dpoll -2 offset 0 minsamples 4 prefer trust
+EOF
+
+if [[ -f "$DROPIN_FILE" ]] && cmp -s "$DROPIN_FILE" "$TMP_FILE"; then
+    rm -f "$TMP_FILE"
+    exit 0
+fi
+
+mv "$TMP_FILE" "$DROPIN_FILE"
+chmod 0644 "$DROPIN_FILE"
+
+if command -v chronyc >/dev/null 2>&1; then
+    chronyc reload sources >/dev/null 2>&1 || true
+fi

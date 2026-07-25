@@ -1,0 +1,8 @@
+# AI-hint: Cargo manifest for mios-ssot-lint -- the native Rust SSOT drift/lint tool (std-only, zero external deps).
+[package]
+name = "mios-ssot-lint"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+# Pure standard library implementation for zero-dependency portability

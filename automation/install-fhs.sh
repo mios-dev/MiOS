@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# MIOS_INSTALLER_ROLE=fhs-overlay-installer
 # AI-hint: Installs the MiOS FHS overlay onto non-bootc Fedora hosts by syncing usr/etc/var/srv directories, materializing /v1 symlinks, and initializing systemd users, tmpfiles, and services.
 # AI-related: install.sh
 # 'MiOS' system-side installer (FHS overlay path).

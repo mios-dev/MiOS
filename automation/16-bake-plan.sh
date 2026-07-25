@@ -17,8 +17,20 @@ source "$_self_dir/lib/common.sh" 2>/dev/null || {
 
 log "16-bake-plan: projecting bake-plan lists from mios.toml SSOT"
 
-# Run the generator
-if ! python3 "${ROOT}/tools/generate-bake-plan.py"; then
+# Run the generator (prefer native mios-bake-plan binary, fallback to Python)
+if [[ -x "/usr/libexec/mios/mios-bake-plan" ]]; then
+    log "16-bake-plan: using native /usr/libexec/mios/mios-bake-plan"
+    if ! /usr/libexec/mios/mios-bake-plan; then
+        log "ERROR: failed to generate bake plan lists with native binary"
+        exit 1
+    fi
+elif [[ -x "${ROOT}/tools/native/target/release/mios-bake-plan" ]]; then
+    log "16-bake-plan: using native tools/native target release binary"
+    if ! "${ROOT}/tools/native/target/release/mios-bake-plan"; then
+        log "ERROR: failed to generate bake plan lists with native binary"
+        exit 1
+    fi
+elif ! python3 "${ROOT}/tools/generate-bake-plan.py"; then
     log "ERROR: failed to generate bake plan lists"
     exit 1
 fi

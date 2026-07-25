@@ -735,6 +735,13 @@ grandfathered_cs = [
 
 # ----------------------------------------------------------------------------
 [security]
+composefs_mode = "verity"
+mask_systemd_remount_fs = true
+
+[security.sigstore]
+cosign_major = 2
+policy_mode = "insecureAcceptEverything"
+allowed_identities = []
 # Phase B.3 of the AgentOS roadmap: TOML-driven Semantic Firewall
 # allowlist. Hosts in this list are TRUSTED -- open_url to one of
 # these does NOT taint the session. Anything outside this list +
@@ -8577,28 +8584,25 @@ runner_disk_budget_gb = 40
 core = [
   "localhost/mios-sys",
   "localhost/mios-cuda",
-  "docker.io/library/redis:7-alpine",
+  "localhost/mios-crawl4ai-slim:latest",
+  "localhost/mios-firecrawl:v1.0.0",
+  "code.forgejo.org/forgejo/runner:7",
+  "codeberg.org/forgejo/forgejo:12",
+  "docker.io/adguard/adguardhome:latest",
+  "docker.io/guacamole/guacamole:latest",
+  "docker.io/guacamole/guacd:latest",
+  "docker.io/jaegertracing/all-in-one:latest",
+  "docker.io/lmsysorg/sglang:latest",
   "docker.io/pgvector/pgvector:0.8.3-pg17",
+  "docker.io/rancher/k3s:v1.32.1-k3s1",
   "docker.io/searxng/searxng:latest",
+  "docker.io/valkey/valkey:latest",
+  "docker.io/vllm/vllm-openai:latest",
   "ghcr.io/mostlygeek/llama-swap:cuda",
   "ghcr.io/open-webui/open-webui:main",
-  "docker.io/guacamole/guacd:latest",
-  "docker.io/guacamole/guacamole:latest",
-  "code.forgejo.org/forgejo/runner:7",
-  "docker.io/crowdsecurity/crowdsec:latest",
-  "docker.io/library/postgres:latest",
-  "quay.io/poseidon/matchbox:latest",
-  "docker.io/library/alpine:latest",
-  "docker.io/adguard/adguardhome:latest",
-  "docker.io/vllm/vllm-openai:latest",
-  "docker.io/lmsysorg/sglang:latest",
-  "docker.io/rancher/k3s:v1.32.1-k3s1",
+  "quay.io/centos-bootc/bootc-image-builder:latest",
   "quay.io/ceph/ceph:v19",
-  "codeberg.org/forgejo/forgejo:12",
-  "docker.io/nousresearch/hermes-agent:latest",
-  "ghcr.io/coder/code-server:latest",
-  "localhost/mios-crawl4ai-slim:latest",
-  "localhost/mios-firecrawl:v1.0.0"
+  "quay.io/poseidon/matchbox:latest"
 ]
 groups = ["sys", "cuda", "extra"]
 # firstboot tier -- bound images whose rendered ref substring-matches ANY token
@@ -8617,6 +8621,33 @@ firstboot_tokens = ["vllm", "sglang"]
 sys = ["sys"]
 cuda = ["cuda"]
 extra = []
+
+[deploy.artifacts.raw]
+size = "80 GiB"
+
+[deploy.artifacts.iso]
+minsize = "150 GiB"
+
+[build.artifacts]
+output_dir = "build"
+
+[vm.win11]
+name = "win11-guest"
+memory_kib = 25165824
+vcpus = 12
+
+[identity.ipa]
+enabled = false
+realm = "MIOS.INTERNAL"
+server = "ipa.mios.internal"
+domain = "mios.internal"
+enroll_principal = "admin"
+otp = "placeholder-one-time-password"
+
+[cockpit]
+allow_unencrypted = true
+login_to = false
+idle_timeout = 0
 
 # mios-build-driver fallback: when the local `podman build` trigger is
 # unavailable (podman missing), trigger the Forgejo CI build over HTTP via curl

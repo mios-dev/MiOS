@@ -64,32 +64,62 @@ RC
 # The outer .github/.forgejo build grants these to RUN; pass them down here too.
 SEARXNG_REF="$(python3 -c "import mios_toml; print(mios_toml.load_merged().get('build', {}).get('bake_refs', {}).get('searxng', 'master'))" 2>/dev/null || echo "master")"
 
+build_image_with_retry() {
+    local target_tag="$1"
+    local build_dir="$2"
+    shift 2
+    local attempt=1
+    local max_attempts=3
+    local backoff=5
+    local success=0
+
+    while [[ $attempt -le $max_attempts ]]; do
+        log "Attempt $attempt/$max_attempts: Building $target_tag..."
+        if CONTAINERS_STORAGE_CONF="$CONF" CONTAINERS_REGISTRIES_CONF="$REG_CONF" TMPDIR="$SCRATCH/tmp" \
+          podman --root "$STORE" --runroot "$SCRATCH/run" build \
+          --network=host \
+          --cap-add all \
+          --security-opt seccomp=unconfined \
+          --security-opt apparmor=unconfined \
+          --layers \
+          -t "$target_tag" \
+          "$@" \
+          "$build_dir"; then
+            success=1
+            break
+        else
+            log "WARNING: Build $target_tag failed on attempt $attempt/$max_attempts"
+            if [[ $attempt -lt $max_attempts ]]; then
+                log "Backing off $backoff seconds before retry..."
+                sleep "$backoff"
+                backoff=$((backoff * 2))
+            fi
+        fi
+        attempt=$((attempt + 1))
+    done
+
+    if [[ $success -ne 1 ]]; then
+        log "ERROR: Persistent build failure for $target_tag after $max_attempts attempts."
+        exit 1
+    fi
+
+    if ! CONTAINERS_STORAGE_CONF="$CONF" podman --root "$STORE" image exists "$target_tag"; then
+        log "ERROR: Image verification failed: $target_tag does not exist after build!"
+        exit 1
+    fi
+    log "Image $target_tag verified successfully."
+}
+
 # Build localhost/mios-sys
 log "Building localhost/mios-sys (searxng ref: $SEARXNG_REF)..."
-CONTAINERS_STORAGE_CONF="$CONF" CONTAINERS_REGISTRIES_CONF="$REG_CONF" TMPDIR="$SCRATCH/tmp" \
-  podman --root "$STORE" --runroot "$SCRATCH/run" build \
-  --network=host \
-  --cap-add all \
-  --security-opt seccomp=unconfined \
-  --security-opt apparmor=unconfined \
-  --layers \
-  -t localhost/mios-sys \
+build_image_with_retry "localhost/mios-sys" "/usr/share/mios/sys" \
   --build-arg BASE_IMAGE="$BASE" \
-  --build-arg SEARXNG_REF="$SEARXNG_REF" \
-  "/usr/share/mios/sys"
+  --build-arg SEARXNG_REF="$SEARXNG_REF"
 
 # Build localhost/mios-cuda
 log "Building localhost/mios-cuda..."
-CONTAINERS_STORAGE_CONF="$CONF" CONTAINERS_REGISTRIES_CONF="$REG_CONF" TMPDIR="$SCRATCH/tmp" \
-  podman --root "$STORE" --runroot "$SCRATCH/run" build \
-  --network=host \
-  --cap-add all \
-  --security-opt seccomp=unconfined \
-  --security-opt apparmor=unconfined \
-  --layers \
-  -t localhost/mios-cuda \
-  --build-arg BASE_IMAGE="$BASE" \
-  "/usr/share/mios/cuda"
+build_image_with_retry "localhost/mios-cuda" "/usr/share/mios/cuda" \
+  --build-arg BASE_IMAGE="$BASE"
 
 # Record to SBOM (Software Bill of Materials)
 SBOM_DIR="${SBOM_DIR:-/usr/share/mios/artifacts/sbom}"

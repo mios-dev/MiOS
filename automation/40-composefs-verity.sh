@@ -75,7 +75,7 @@ if [[ "$MODE" == "off" ]]; then
     exit 0
 fi
 
-conf=/usr/lib/ostree/prepare-root.conf
+conf="${COMPOSEFS_CONF:-/usr/lib/ostree/prepare-root.conf}"
 if [[ -f "$conf" ]]; then
     if [[ ! -f "${conf}.orig" ]]; then
         log "[40-composefs-verity] backing up existing $conf -> ${conf}.orig"
