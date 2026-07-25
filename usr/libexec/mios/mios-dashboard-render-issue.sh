@@ -56,7 +56,13 @@ fi
 # but a FAILED unit clutters every cockpit dashboard refresh and
 # triggers needless restart-loops via the timer. So on render failure,
 # we drop a minimal banner instead of exiting non-zero.
-if TERM=linux env -i PATH="$PATH" TERM=linux bash "$DASHBOARD" \
+# `timeout` so a hung dashboard render (e.g. a service/port probe blocking during the
+# transitional first-boot state, when mios-ai-firstboot saturates the VM) can never exceed
+# the unit's TimeoutStartSec and land the service in a 'timeout'/killed FAILED state on a
+# 5-min restart loop (observed: ExecMainStatus=15). On timeout we fall through to the
+# minimal banner below -- the render is best-effort by design. -k 3: SIGKILL 3s after TERM
+# so a child (fastfetch/probe) that ignores TERM still dies before the unit's own timeout.
+if TERM=linux timeout -k 3 10 env -i PATH="$PATH" TERM=linux bash "$DASHBOARD" \
         --no-color --services-only > "$ISSUE_FILE.new" 2>/dev/null \
    && [[ -s "$ISSUE_FILE.new" ]]; then
     chmod 0644 "$ISSUE_FILE.new"
