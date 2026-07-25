@@ -101,6 +101,12 @@ _mios_load_unified() {
     local host_d="${MIOS_HOST_TOML_D:-$(dirname "$MIOS_HOST_TOML")/mios.d}"
     local user_d="${MIOS_USER_TOML_D:-${MIOS_CONFIG_DIR}/mios.d}"
     local exports
+    # LOG-HYGIENE: the resolved SSOT is thousands of MIOS_* exports. Under a caller's `set -x`
+    # (e.g. the OCI bake's `set -ex`) the `exports=` capture traces as ONE multi-KB line and the
+    # eval below traces thousands of `+ export MIOS_...` lines -- flooding the build log to where
+    # it is unreadable/un-pasteable past this point. Suppress xtrace for the resolution + eval,
+    # then restore the caller's xtrace state (set -e safe: if-form, never a failing last cmd).
+    local _mios_xtrace_was_on=0; case "$-" in *x*) _mios_xtrace_was_on=1 ;; esac; set +x
     exports=$(MIOS_VENDOR_TOML="$MIOS_VENDOR_TOML" MIOS_HOST_TOML="$MIOS_HOST_TOML" \
               MIOS_USER_TOML="$MIOS_USER_TOML" MIOS_VENDOR_TOML_D="$vendor_d" \
               MIOS_HOST_TOML_D="$host_d" MIOS_USER_TOML_D="$user_d" MIOS_ROOT="$MIOS_ROOT" \
@@ -604,6 +610,7 @@ PY
     if [[ -n "$exports" ]]; then
         eval "$exports"
     fi
+    if [[ "$_mios_xtrace_was_on" -eq 1 ]]; then set -x; fi
 }
 _mios_load_unified
 
