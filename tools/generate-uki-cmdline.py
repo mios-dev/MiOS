@@ -33,13 +33,19 @@ def main():
     rendered = " ".join(kargs).strip() + "\n"
 
     if check_mode:
+        rel = os.path.relpath(target_path, root)
         if not os.path.isfile(target_path):
-            print(f"Error: {target_path} does not exist", file=sys.stderr)
+            sys.stderr.write(f"[drift] {rel}: MISSING -- SSOT projection absent (ssot=usr/lib/bootc/kargs.d/*.toml)\n")
             sys.exit(1)
         with open(target_path, "r", encoding="utf-8") as f:
             current = f.read()
         if current.strip() != rendered.strip():
-            print(f"Error: {target_path} is out of sync with kargs.d/*.toml drop-ins", file=sys.stderr)
+            import difflib
+            sys.stderr.write(f"[drift] {rel}: OUT-OF-SYNC vs usr/lib/bootc/kargs.d/*.toml\n")
+            for _l in difflib.unified_diff(current.splitlines(), rendered.splitlines(),
+                                           fromfile=f"actual:{rel}", tofile="expected:kargs.d/*.toml", lineterm=""):
+                sys.stderr.write(f"[drift] {_l}\n")
+            sys.stderr.write(f"[drift] repro: python3 tools/{os.path.basename(__file__)} --check\n")
             sys.exit(1)
         print("[OK] usr/lib/kernel/cmdline is in sync with kargs.d/*.toml")
         sys.exit(0)
