@@ -433,21 +433,32 @@ if [[ -f "${SCRIPT_DIR}/38-drift-checks.sh" ]]; then
     if git -C "${_drift_root}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
         git -C "${_drift_root}" config --local --unset-all http.https://github.com/.extraheader 2>/dev/null || true
         git -C "${_drift_root}" reset --hard HEAD -q 2>/dev/null || true
-        # git reset --hard restored TRACKED files to the pristine committed SSOT, but the
-        # GITIGNORED SSOT projections -- etc/mios/ipa-enroll.env (AGY-162), usr/lib/kernel/
-        # cmdline (AGY-163), etc/cockpit/cockpit.conf (AGY-165) -- were rendered earlier by
-        # their build stages from the PRE-reset build-time SSOT, and reset --hard does NOT
-        # revert untracked files. So checks 92/93/95 (generate-X.py --check, ROOT=_drift_root)
-        # would compare those files against the now-committed SSOT and FAIL the bake. Re-project
-        # them from the pristine committed tree so source == committed SSOT. Source copies only:
-        # the live image /etc,/usr paths keep what each stage installed under its own conditionals.
-        if command -v python3 >/dev/null 2>&1; then
-            for _proj in generate-ipa-enroll-env.py generate-uki-cmdline.py generate-cockpit-conf.py; do
-                if [ -f "${_drift_root}/tools/${_proj}" ]; then
-                    python3 "${_drift_root}/tools/${_proj}" >/dev/null 2>&1 || true
+    fi
+    # Re-project the GITIGNORED SSOT projections -- etc/mios/ipa-enroll.env (AGY-162),
+    # usr/lib/kernel/cmdline (AGY-163), etc/cockpit/cockpit.conf (AGY-165) -- UNCONDITIONALLY,
+    # NOT gated on the git work tree. checks 92/93/95 (generate-X.py --check, ROOT=_drift_root)
+    # require these files to EXIST at ${_drift_root} and match the committed SSOT. They are
+    # gitignored so they are never cp'd into /tmp/build, and the build stages render them into
+    # the LIVE image (/etc,/usr) not ${_drift_root}. In the OCI bake the copied .git is an
+    # INCOMPLETE work tree ("tracked files not materialized"), so `git rev-parse` / `reset --hard`
+    # are unreliable; when they are, gating the re-projection on them left these files ABSENT and
+    # FAILED the bake (checks 92/93/95: "MISSING -- SSOT projection absent"). Generate them here,
+    # ALWAYS, straight from mios.toml -- the generators derive root from __file__ (= ${_drift_root})
+    # and only need usr/share/mios/mios.toml (always cp'd). Log the outcome so CI shows it landed.
+    if command -v python3 >/dev/null 2>&1; then
+        for _proj in generate-ipa-enroll-env.py generate-uki-cmdline.py generate-cockpit-conf.py; do
+            if [ -f "${_drift_root}/tools/${_proj}" ]; then
+                if python3 "${_drift_root}/tools/${_proj}" >/dev/null 2>&1; then
+                    echo "[reproject] ${_proj}: OK"
+                else
+                    echo "[reproject] WARN: ${_proj} failed -- checks 92/93/95 may flag its projection"
                 fi
-            done
-        fi
+            else
+                echo "[reproject] WARN: ${_drift_root}/tools/${_proj} not found -- cannot refresh projection"
+            fi
+        done
+    else
+        echo "[reproject] WARN: python3 unavailable -- cannot refresh SSOT projections"
     fi
     bash "${SCRIPT_DIR}/38-drift-checks.sh"
 else
