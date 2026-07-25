@@ -92,8 +92,8 @@ _violation() {
 # Failure-path diagnostics for the SSOT-projection gates (generate-*.py --check).
 # On a FAILED --check, emit MACHINE-GREPPABLE evidence (stable prefix
 # "[38-drift-checks][diff]") instead of prose: the exact generator command to
-# reproduce, the absolute ACTUAL vs GENERATED paths compared, and a capped
-# (MIOS_DRIFT_DIFF_CAP, default 40) unified diff (`-` = on-disk / `+` = SSOT-
+# reproduce, the absolute ACTUAL vs GENERATED paths compared, and a
+# 200-line-capped unified diff (`-` = on-disk / `+` = SSOT-
 # projected). Mechanism: snapshot each target, re-render the generator IN WRITE
 # MODE (expected content lands on disk), diff snapshot-vs-live, then RESTORE the
 # tree byte-for-byte (net read-only). Robust: a generator error / absent target
@@ -103,7 +103,7 @@ _emit_projection_evidence() {
     local pfx='[38-drift-checks][diff]'
     local gen_rel="$1"; shift
     local gen="$ROOT/$gen_rel"
-    local cap="${MIOS_DRIFT_DIFF_CAP:-40}"
+    local cap=200
     local -a targets=("$@")
     local -a abs=() bak=() existed=()
     local t a b i generr gen_rc dtmp total
