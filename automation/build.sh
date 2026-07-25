@@ -433,6 +433,21 @@ if [[ -f "${SCRIPT_DIR}/38-drift-checks.sh" ]]; then
     if git -C "${_drift_root}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
         git -C "${_drift_root}" config --local --unset-all http.https://github.com/.extraheader 2>/dev/null || true
         git -C "${_drift_root}" reset --hard HEAD -q 2>/dev/null || true
+        # git reset --hard restored TRACKED files to the pristine committed SSOT, but the
+        # GITIGNORED SSOT projections -- etc/mios/ipa-enroll.env (AGY-162), usr/lib/kernel/
+        # cmdline (AGY-163), etc/cockpit/cockpit.conf (AGY-165) -- were rendered earlier by
+        # their build stages from the PRE-reset build-time SSOT, and reset --hard does NOT
+        # revert untracked files. So checks 92/93/95 (generate-X.py --check, ROOT=_drift_root)
+        # would compare those files against the now-committed SSOT and FAIL the bake. Re-project
+        # them from the pristine committed tree so source == committed SSOT. Source copies only:
+        # the live image /etc,/usr paths keep what each stage installed under its own conditionals.
+        if command -v python3 >/dev/null 2>&1; then
+            for _proj in generate-ipa-enroll-env.py generate-uki-cmdline.py generate-cockpit-conf.py; do
+                if [ -f "${_drift_root}/tools/${_proj}" ]; then
+                    python3 "${_drift_root}/tools/${_proj}" >/dev/null 2>&1 || true
+                fi
+            done
+        fi
     fi
     bash "${SCRIPT_DIR}/38-drift-checks.sh"
 else
