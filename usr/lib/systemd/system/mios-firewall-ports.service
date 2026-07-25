@@ -3,7 +3,7 @@
 [Unit]
 # Ensure MiOS service ports are open in firewalld at every boot.
 #
-# Why this exists: automation/25-firewall-ports.sh writes the firewalld
+# Why this exists: automation/44-firewall-ports.sh writes the firewalld
 # zone XML at OCI build time via firewall-offline-cmd. On stale OCI
 # images (pre-2026-05) OR when the install-time script didn't run / the
 # XML didn't persist, firewalld comes up with no ports open and ALL

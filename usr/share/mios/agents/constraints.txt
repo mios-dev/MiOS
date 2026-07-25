@@ -1,12 +1,12 @@
 # AI-hint: Pip constraints (lower-bound version floors) for the shared agent-plane Python ASGI stack -- reproducibility + CVE floor; passed to every hermes-agent pip install via `-c`.
-# AI-related: automation/38-hermes-agent.sh, /usr/lib/mios/agents/.venv, /usr/share/mios/mios.toml
+# AI-related: automation/72-hermes-agent.sh, /usr/lib/mios/agents/.venv, /usr/share/mios/mios.toml
 #
 # MiOS agent-plane pip CONSTRAINTS -- reproducibility floor + security floor for
 # the Python ASGI stack (FastAPI / Starlette / pydantic / httpx / uvicorn / anyio)
 # that Hermes-Agent, the agent-pipe, and the opencode gateway all import from the
 # shared venv at /usr/lib/mios/agents/.venv.
 #
-# WHY: automation/38-hermes-agent.sh installs hermes-agent (and its [web]/mcp
+# WHY: automation/72-hermes-agent.sh installs hermes-agent (and its [web]/mcp
 # extras) without bounding these transitive deps, so two builds can resolve
 # different versions, and an unbounded Starlette can regress below the patched
 # line for CVE-2026-48710 -- the Starlette "BadHost" host-header AUTH-BYPASS: an

@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# AI-hint: The ONE unified MiOS apply engine -- materializes Git=$ROOT (via lib/root-merge.sh) then
+# runs the automation/NN-*.sh stages filtered by their # MIOS_APPLY_CLASS for the target substrate
+# (oci-bake|bootc-live|wsl-dev|fhs-host). ONE codepath the OCI bake (via build.sh), the bare-metal
+# FHS install, and the WSL dev-VM overlay all call -- "Git = $ROOT; MiOS is the systems on top".
+# AI-functions: apply_substrate_classes, apply_list_stages, main
+# AI-related: automation/lib/root-merge.sh, automation/lib/stage-runner.sh, automation/build.sh, build-mios.sh, build-mios.ps1, usr/libexec/mios/mios-apply
+#
+# Usage: MIOS_SUBSTRATE=<oci-bake|bootc-live|wsl-dev|fhs-host> MIOS_ROOT=<dir> mios-apply [--list-stages]
+set -uo pipefail
+
+APPLY_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"   # automation/
+MIOS_SUBSTRATE="${MIOS_SUBSTRATE:-oci-bake}"
+MIOS_ROOT="${MIOS_ROOT:-/}"
+
+# Substrate -> permitted MIOS_APPLY_CLASS set. oci-bake runs EVERY class, so the OCI image stays
+# bit-identical to today's bake (INV-1); the live substrates SUBSET. Universal-hardware (AMD+Intel+
+# NVIDIA AIO) is baked into every image and self-gates at RUNTIME -> there is no hardware-gated class.
+apply_substrate_classes() {
+    case "$1" in
+        oci-bake)   echo "universal bake-only dev-only boot-only" ;;
+        bootc-live) echo "universal boot-only" ;;
+        wsl-dev)    echo "universal dev-only" ;;
+        fhs-host)   echo "universal boot-only" ;;
+        *)          echo "" ;;
+    esac
+}
+
+# Stages handled OUTSIDE the class-filtered loop, mirroring build.sh's CONTAINERFILE_SCRIPTS: the
+# Containerfile-run overlay (08) and the post-loop validators (38-ssot-lint, 38-drift-checks,
+# 99-postcheck). Keeping this list identical to build.sh's is what makes oci-bake's set == the loop.
+APPLY_SKIP="01-system-files-overlay.sh 97-ssot-lint.sh 98-drift-checks.sh 99-postcheck.sh"
+
+# Emit, in lexical (numeric) order, the stages whose class the substrate permits.
+apply_list_stages() {
+    local allowed base cls s
+    allowed=" $(apply_substrate_classes "$MIOS_SUBSTRATE") "
+    shopt -s nullglob
+    for s in "$APPLY_DIR"/[0-9][0-9]-*.sh; do
+        base="$(basename "$s")"
+        case " $APPLY_SKIP " in *" $base "*) continue ;; esac
+        cls="$(grep -oE '^# MIOS_APPLY_CLASS=[a-z-]+' "$s" | head -1 | cut -d= -f2)"
+        [ -z "$cls" ] && cls="universal"   # unclassified defaults universal; the drift-gate enforces exactly one
+        case "$allowed" in *" $cls "*) echo "$base" ;; esac
+    done
+    shopt -u nullglob
+}
+
+main() {
+    case "${1:-}" in
+        --list-stages)
+            if [ -z "$(apply_substrate_classes "$MIOS_SUBSTRATE")" ]; then
+                echo "[mios-apply] unknown MIOS_SUBSTRATE='$MIOS_SUBSTRATE' (want oci-bake|bootc-live|wsl-dev|fhs-host)" >&2
+                return 2
+            fi
+            apply_list_stages
+            ;;
+        *)
+            # Full apply (Phase 2 wiring): source lib/root-merge.sh + materialize Git=$ROOT (skip for
+            # oci-bake -- the tree is already at $ROOT), then run apply_list_stages via
+            # lib/stage-runner.sh, then the post-loop validators. Deferred until the bake baseline is
+            # green so build.sh's reduction to `exec ... mios-apply` is diffable against it.
+            echo "[mios-apply] substrate=$MIOS_SUBSTRATE root=$MIOS_ROOT" >&2
+            echo "[mios-apply] full-apply lands in Phase 2 (engine wiring); use --list-stages today." >&2
+            return 0
+            ;;
+    esac
+}
+
+main "$@"

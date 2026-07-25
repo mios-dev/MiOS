@@ -118,7 +118,7 @@ def _build_openui_html(code: str, title: str = "Response", cdn_base: str = _CDN_
                 "<strong>OpenUI offline bundle missing.</strong> "
                 "Place openui-bundle.min.js + openui-styles.css under "
                 "<code>/usr/share/mios/openui/</code> and retry. The MiOS "
-                "build script automation/38-hermes-agent.sh downloads these "
+                "build script automation/72-hermes-agent.sh downloads these "
                 "once at image-build time; if you're on a partial install, "
                 "run mios-vendor-openui.sh."
                 "</div></body></html>")

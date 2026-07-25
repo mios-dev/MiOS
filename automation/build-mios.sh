@@ -386,7 +386,7 @@ create_user_account() {
         log_warn "User ${MIOS_USERNAME} already exists, updating password..."
         echo "${MIOS_USERNAME}:${MIOS_PASSWORD}" | chpasswd
     else
-        # Create user using the same MiOS host conventions as automation/31-user.sh.
+        # Create user using the same MiOS host conventions as automation/11-user.sh.
         EXTRA_GROUPS="wheel,libvirt,kvm,video,render,input,dialout"
         if getent group docker >/dev/null 2>&1; then EXTRA_GROUPS="$EXTRA_GROUPS,docker"; fi
         useradd -m -G "$EXTRA_GROUPS" -s /bin/bash "$MIOS_USERNAME"

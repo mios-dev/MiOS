@@ -373,7 +373,7 @@ fi
 # ─── /var/lib/mios/hermes/config.yaml (Hermes-Agent main config) ────────
 #
 # Hermes-Agent 0.13.x reads $HERMES_HOME/config.yaml. The direct host
-# install (automation/38-hermes-agent.sh + mios-gateway-agent.service) sets
+# install (automation/72-hermes-agent.sh + mios-gateway-agent.service) sets
 # HERMES_HOME=/var/lib/mios/hermes, so the agent's config lives at
 # /var/lib/mios/hermes/config.yaml. NOTE: 0.13.x ignores the
 # HERMES_CONFIG_PATH env var entirely -- HERMES_HOME is authoritative.
@@ -398,7 +398,7 @@ fi
 # fully local -- custom_providers[local-llm] points at the on-box
 # Ollama OpenAI surface, no cloud calls.
 # ─── Auto-recover Hermes-Agent venv if missing ───────────────────────
-# automation/38-hermes-agent.sh installs Hermes-Agent directly onto
+# automation/72-hermes-agent.sh installs Hermes-Agent directly onto
 # the host (NOT a container) at /usr/lib/mios/agents/.venv. That
 # script runs at OCI build time. But:
 #   * stale OCI images pre-2026-05 don't have it baked in
@@ -415,10 +415,10 @@ fi
 # because the build never installed the venv.
 if [[ ! -x /usr/lib/mios/agents/.venv/bin/python3 ]]; then
     _hermes_installer=""
-    for _c in /var/lib/mios/build/mios-bootstrap/automation/38-hermes-agent.sh \
-              /opt/mios-bootstrap/automation/38-hermes-agent.sh \
-              "${MIOS_BOOTSTRAP_REPO:-}/automation/38-hermes-agent.sh" \
-              /mnt/m/automation/38-hermes-agent.sh; do
+    for _c in /var/lib/mios/build/mios-bootstrap/automation/72-hermes-agent.sh \
+              /opt/mios-bootstrap/automation/72-hermes-agent.sh \
+              "${MIOS_BOOTSTRAP_REPO:-}/automation/72-hermes-agent.sh" \
+              /mnt/m/automation/72-hermes-agent.sh; do
         [[ -n "$_c" && -x "$_c" ]] && { _hermes_installer="$_c"; break; }
     done
     if [[ -n "$_hermes_installer" ]]; then
@@ -439,7 +439,7 @@ if [[ ! -x /usr/lib/mios/agents/.venv/bin/python3 ]]; then
         fi
     else
         _log "WARN: gateway-agent venv missing AND no installer found in any candidate path"
-        _log "  candidates checked: /var/lib/mios/build/mios-bootstrap/automation/38-hermes-agent.sh,"
+        _log "  candidates checked: /var/lib/mios/build/mios-bootstrap/automation/72-hermes-agent.sh,"
         _log "                       /opt/mios-bootstrap/..., \$MIOS_BOOTSTRAP_REPO/..., /mnt/m/..."
         _log "  manual recovery: run that script as root"
     fi
@@ -774,7 +774,7 @@ auxiliary:
 
 # Web SEARCH -> the on-box SearXNG (mios-searxng, SEARXNG_URL). Web EXTRACT ->
 # \`miosfetch\`, MiOS's OWN offline direct-fetch provider (stdlib urllib +
-# readability HTML->text; plugins/web/miosfetch, deployed by 38-hermes-agent.sh
+# readability HTML->text; plugins/web/miosfetch, deployed by 72-hermes-agent.sh
 # from /usr/share/mios/hermes/plugins). WHY NOT firecrawl: hermes pins firecrawl
 # -py v4 (firecrawl API v2, POST /v2/scrape) but MiOS self-hosts firecrawl
 # v1.0.0 (v1 API) -> every web_extract 404s (operator-confirmed 2026-05-31:
@@ -1021,7 +1021,7 @@ agent:
 # MCP surfaces"). Hermes consumes the global mios-mcp-server so its tool registry
 # auto-extends with the COMPLETE MiOS surface -- all verbs + recipes + promoted
 # skills (tools/list), every call routed through the launcher broker. Needs the
-# \`mcp\` SDK in the venv (installed by automation/38-hermes-agent.sh). stdio = the
+# \`mcp\` SDK in the venv (installed by automation/72-hermes-agent.sh). stdio = the
 # MCP-canonical transport; the spawned relay forwards to the agent-pipe.
 mcp_servers:
   mios:

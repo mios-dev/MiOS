@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Drift check helper to verify resolver twin equivalence between mios_toml.py and userenv.sh.
-# AI-related: usr/lib/mios/mios_toml.py, usr/lib/mios/userenv.sh, automation/38-drift-checks.sh
+# AI-related: usr/lib/mios/mios_toml.py, usr/lib/mios/userenv.sh, automation/98-drift-checks.sh
 # AI-functions: main
 
 import os

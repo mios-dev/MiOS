@@ -24,7 +24,7 @@ Group=mios-ai
 
 # HERMES_HOME points at the dashboard's data root (kanban.db lives here)
 Environment=HERMES_HOME=/var/lib/mios/hermes
-# Image-build (automation/38-hermes-agent.sh) installs the patched,
+# Image-build (automation/72-hermes-agent.sh) installs the patched,
 # self-hosted React SPA into the venv's hermes_cli/web_dist. That's
 # where `hermes dashboard` looks by default, so no HERMES_WEB_DIST
 # override is needed in the happy path. If the SPA build was skipped
@@ -38,7 +38,7 @@ Environment=HERMES_DASHBOARD_NO_OPEN=1
 # Enable the /chat tab (xterm.js + /api/pty WebSocket). Upstream
 # default is OFF for security. Here we enable + override the spawned
 # child via HERMES_PTY_SHELL (a MiOS-side patch in
-# hermes_cli/web_server.py, installed by automation/38-hermes-agent.sh).
+# hermes_cli/web_server.py, installed by automation/72-hermes-agent.sh).
 # Result: dashboard /chat shows a real bash login prompt rendered by
 # xterm.js in the browser. Loopback bind + per-session-token still
 # gate the endpoint -- anyone who can read the dashboard URL+token

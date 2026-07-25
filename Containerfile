@@ -27,7 +27,7 @@ COPY MiOS.md AGENTS.md CLAUDE.md GEMINI.md /ctx/rootmd/
 # repo = ROOT = git tree -- THAT is MiOS. The MiOS root deploys AS a git work
 # tree (the Phase-1 Total Root Merge), so .git is a first-class part of the build
 # root, not an afterthought. Shipping it makes /tmp/build a real git work tree so
-# the source-drift gate (38-drift-checks.sh -> generate-names-registry.py) runs
+# the source-drift gate (98-drift-checks.sh -> generate-names-registry.py) runs
 # `git ls-files` over the full committed source exactly as the drift-gate CI job
 # does -- instead of a partial os.walk (no .git) that reports false drift and
 # aborts the build. .git lives only in this `scratch` ctx stage and the throwaway
@@ -115,7 +115,7 @@ RUN --mount=type=bind,from=ctx,source=/ctx,target=/ctx,ro \
     fi; \
     # Propagate operator-chosen model selection to the overlay scripts.
     export MIOS_AI_MODEL MIOS_AI_EMBED_MODEL; \
-    bash /tmp/build/automation/08-system-files-overlay.sh; \
+    bash /tmp/build/automation/01-system-files-overlay.sh; \
     chmod +x /tmp/build/automation/build.sh /tmp/build/automation/*.sh 2>/dev/null || true; \
     chmod +x /usr/libexec/mios/copy-build-log.sh 2>/dev/null || true; \
     CTX=/tmp/build /tmp/build/automation/build.sh; \

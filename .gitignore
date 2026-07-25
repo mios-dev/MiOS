@@ -335,8 +335,8 @@ etc/mios/*
 # ─────────────────────────────────────────────────────────────────────────────
 # 6. /root -- seeded at build, NOT tracked
 # ─────────────────────────────────────────────────────────────────────────────
-# /root is populated by the image build (automation/31-user.sh,
-# 08-system-files-overlay.sh) -- nothing in the build COPYs a tracked root/
+# /root is populated by the image build (automation/11-user.sh,
+# 01-system-files-overlay.sh) -- nothing in the build COPYs a tracked root/
 # skeleton (none was ever committed). A live root session run in this tree leaks
 # a real home (.ssh, .cache, .hermes, .opencode, stock .bashrc + opencode PATH
 # edits); ignore the whole path so that runtime state can never be committed.
@@ -649,7 +649,7 @@ usr/lib/systemd/system/*
 !/usr/lib/systemd/system/mios-*.socket
 !/usr/lib/systemd/system/var-*.mount
 # hermes-agent.service -- the DIRECT host install of Hermes-Agent
-# (automation/38-hermes-agent.sh). Doesn't carry the mios- prefix
+# (automation/72-hermes-agent.sh). Doesn't carry the mios- prefix
 # because it IS Hermes-Agent, not a MiOS wrapper; whitelisted explicitly.
 !/usr/lib/systemd/system/hermes-agent.service
 !/usr/lib/systemd/system/*.service.d/

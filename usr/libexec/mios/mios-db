@@ -38,7 +38,7 @@
 # `export` always wins (`:=` form). To change the defaults globally,
 # edit [pgvector] / [ports] / paths in mios.toml -- DO NOT
 # hardcode values here. See the SSOT directive in
-# automation/15-render-quadlets.sh.
+# automation/34-render-quadlets.sh.
 #
 #   MIOS_PG_HOST         localhost        [pgvector].host
 #   MIOS_PORT_PGVECTOR   8432             [ports].pgvector

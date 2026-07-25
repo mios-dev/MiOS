@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Conformance check verifying that source files match template specifications.
-# AI-related: usr/share/mios/templates/, automation/38-drift-checks.sh
+# AI-related: usr/share/mios/templates/, automation/98-drift-checks.sh
 # AI-functions: main, walk, check_file, load_grandfathered
 
 import os

@@ -8,9 +8,9 @@
 # out of this script per the "native Fedora user creation at overlay
 # time" principle:
 #
-#   * /etc/passwd, /etc/group, /etc/shadow              -> automation/31-user.sh
+#   * /etc/passwd, /etc/group, /etc/shadow              -> automation/11-user.sh
 #                                                          + /usr/lib/sysusers.d/10-mios.conf
-#   * /etc/subuid, /etc/subgid                          -> automation/31-user.sh
+#   * /etc/subuid, /etc/subgid                          -> automation/11-user.sh
 #   * /var/home/mios + skel copy + ownership            -> /usr/lib/tmpfiles.d/mios-user.conf
 #   * /var/lib/systemd/linger/mios marker               -> /usr/lib/tmpfiles.d/mios-user.conf
 #
@@ -57,7 +57,7 @@ if [[ -n "$MIOS_HOSTNAME" ]]; then
 fi
 
 # ── Defensive verification (no-op when overlay-time setup worked) ──
-# tmpfiles.d/mios-user.conf and automation/31-user.sh should have
+# tmpfiles.d/mios-user.conf and automation/11-user.sh should have
 # already handled all of these. The blocks below are defensive logging
 # only -- they never repair, just warn so a broken image is loud rather
 # than quietly degraded.
@@ -70,7 +70,7 @@ if id mios &>/dev/null; then
         _log "WARN: /var/home/mios missing -- tmpfiles.d/mios-user.conf may not have run"
     fi
     if ! grep -qE '^mios:' /etc/subuid 2>/dev/null; then
-        _log "WARN: /etc/subuid lacks mios entry -- automation/31-user.sh should have added it at build time"
+        _log "WARN: /etc/subuid lacks mios entry -- automation/11-user.sh should have added it at build time"
     fi
     if [[ ! -f /var/lib/systemd/linger/mios ]]; then
         _log "WARN: /var/lib/systemd/linger/mios missing -- tmpfiles.d/mios-user.conf may not have run"

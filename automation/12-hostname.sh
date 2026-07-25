@@ -1,0 +1,32 @@
+#!/bin/bash
+# MIOS_APPLY_CLASS=universal
+# AI-hint: Sets the initial hostname template in /usr/lib/hostname.default based on the MIOS_HOSTNAME build-arg to ensure a unique, stable mios-XXXXX identifier is generated during the first boot.
+# AI-related: mios-XXXXX, mios-init, mios-a3f9c, mios-ws-83427
+# 'MiOS' - 32-hostname: Unique per-instance hostname
+#
+# Strategy: Set a template hostname in the image. On first boot, systemd
+# generates /etc/machine-id. The mios-init service (47-init-service.sh)
+# derives a stable 5-char tag from machine-id and sets the hostname.
+#
+# Result: Each instance gets mios-XXXXX (e.g., mios-a3f9c), unique
+# per deployment, stable across reboots.
+set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
+
+echo "[32-hostname] Setting default hostname template..."
+
+# Use MIOS_HOSTNAME build-arg if provided by the installer/bootstrap.
+# When set (e.g. "mios-ws-83427"), it becomes the static hostname.
+# When unset (default "mios"), the first-boot mios-init derives mios-XXXXX
+# from machine-id so every deployment still gets a unique hostname.
+# LAW 4: store the image-baked default in /usr/lib/hostname; a tmpfiles.d
+# rule seeds /etc/hostname from it on first boot only if the admin hasn't
+# already set one (C = copy-if-missing).  The mios-init service then
+# derives the unique mios-XXXXX suffix from machine-id on first boot.
+_hn="${MIOS_HOSTNAME:-mios}"
+install -d -m 0755 ${MIOS_USR_DIR}
+echo "$_hn" > ${MIOS_USR_DIR}/hostname.default
+echo "[32-hostname] Default hostname template written to ${MIOS_USR_DIR}/hostname.default: $_hn"
+if [[ "$_hn" == "mios" ]]; then
+    echo "[32-hostname] Will become mios-XXXXX on first boot via mios-init."
+fi

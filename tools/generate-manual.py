@@ -109,13 +109,13 @@ def main():
                     "title": "Repo IS Root Paradigm",
                     "desc": "Explains how the Git repository tree directly mirrors the deployed OS filesystem at the system root.",
                     "citations": [3, 4, 5, 6],
-                    "content": "The `mios.git` repository root *is* the running host's system root (`/`). There is no temporary build directory, no intermediate staging workspace, and no Ansible configuration playbooks.\n\n- **Structure**: The files in the repository (e.g. `usr/`, `etc/`, `srv/`, `var/`) are mapped directly to their FHS positions on the booted system.\n- **Overlay Application**: During the container image build, the script [08-system-files-overlay.sh](file:///C:/MiOS/automation/08-system-files-overlay.sh) applies the overlay files directly to the rootfs.\n- **Developer Workflow**: To change a configuration or utility in the OS, you edit it at its natural path inside the repository and trigger a rebuild. When the OCI image is updated, `bootc` handles the transactional merge on the target machine."
+                    "content": "The `mios.git` repository root *is* the running host's system root (`/`). There is no temporary build directory, no intermediate staging workspace, and no Ansible configuration playbooks.\n\n- **Structure**: The files in the repository (e.g. `usr/`, `etc/`, `srv/`, `var/`) are mapped directly to their FHS positions on the booted system.\n- **Overlay Application**: During the container image build, the script [01-system-files-overlay.sh](file:///C:/MiOS/automation/01-system-files-overlay.sh) applies the overlay files directly to the rootfs.\n- **Developer Workflow**: To change a configuration or utility in the OS, you edit it at its natural path inside the repository and trigger a rebuild. When the OCI image is updated, `bootc` handles the transactional merge on the target machine."
                 },
                 "The_Seven_Architectural_Laws.md": {
                     "title": "The Seven Architectural Laws",
                     "desc": "Details the non-negotiable mandates: USR-OVER-ETC, NO-MKDIR-IN-VAR, BOUND-IMAGES, etc.",
                     "citations": [7, 8, 9],
-                    "content": "Governance of MiOS is defined by seven strict, non-negotiable mandates enforced at build-time by [38-ssot-lint.sh](file:///C:/MiOS/automation/38-ssot-lint.sh), [38-drift-checks.sh](file:///C:/MiOS/automation/38-drift-checks.sh), and [99-postcheck.sh](file:///C:/MiOS/automation/99-postcheck.sh):\n\n1. **USR-OVER-ETC**: Static system configs must reside in `/usr/lib/<component>.d/`. The `/etc/` directory is reserved solely for administrative overrides.\n2. **NO-MKDIR-IN-VAR**: Build-time scripts must never call `mkdir` inside `/var/`. All `/var/` paths must be declared declaratively via `usr/lib/tmpfiles.d/*.conf`.\n3. **BOUND-IMAGES**: Every Podman Quadlet container image must be symlinked under `/usr/lib/bootc/bound-images.d/` and baked into `/usr/lib/containers/storage` at build-time.\n4. **BOOTC-CONTAINER-LINT**: The last instruction of the `Containerfile` must be `RUN bootc container lint`. A failing lint fails the build.\n5. **UNIFIED-AI-REDIRECTS**: All local services, tools, and agents must communicate with `MIOS_AI_ENDPOINT`. No vendor-hardcoded URLs are allowed.\n6. **UNPRIVILEGED-QUADLETS**: All Quadlet units must declare `User=`, `Group=`, and `Delegate=yes` configuration bounds. The only exceptions are `mios-ceph` and `mios-k3s` (which require root block device access).\n7. **NO-HARDCODE**: Nothing operator-tunable, including model names, ports, or scoring parameters, may be hardcoded. Values must resolve via the `mios.toml` configuration cascade."
+                    "content": "Governance of MiOS is defined by seven strict, non-negotiable mandates enforced at build-time by [97-ssot-lint.sh](file:///C:/MiOS/automation/97-ssot-lint.sh), [98-drift-checks.sh](file:///C:/MiOS/automation/98-drift-checks.sh), and [99-postcheck.sh](file:///C:/MiOS/automation/99-postcheck.sh):\n\n1. **USR-OVER-ETC**: Static system configs must reside in `/usr/lib/<component>.d/`. The `/etc/` directory is reserved solely for administrative overrides.\n2. **NO-MKDIR-IN-VAR**: Build-time scripts must never call `mkdir` inside `/var/`. All `/var/` paths must be declared declaratively via `usr/lib/tmpfiles.d/*.conf`.\n3. **BOUND-IMAGES**: Every Podman Quadlet container image must be symlinked under `/usr/lib/bootc/bound-images.d/` and baked into `/usr/lib/containers/storage` at build-time.\n4. **BOOTC-CONTAINER-LINT**: The last instruction of the `Containerfile` must be `RUN bootc container lint`. A failing lint fails the build.\n5. **UNIFIED-AI-REDIRECTS**: All local services, tools, and agents must communicate with `MIOS_AI_ENDPOINT`. No vendor-hardcoded URLs are allowed.\n6. **UNPRIVILEGED-QUADLETS**: All Quadlet units must declare `User=`, `Group=`, and `Delegate=yes` configuration bounds. The only exceptions are `mios-ceph` and `mios-k3s` (which require root block device access).\n7. **NO-HARDCODE**: Nothing operator-tunable, including model names, ports, or scoring parameters, may be hardcoded. Values must resolve via the `mios.toml` configuration cascade."
                 }
             }
         },
@@ -134,7 +134,7 @@ def main():
                     "title": "First Boot Initialization",
                     "desc": "Outlines the provisioning sequence for the build plane, CDI, libvirt, and AI plane on first boot.",
                     "citations": [14, 15],
-                    "content": "Once the OCI image is generated and written, the system boots into the First Boot phase (Phase-1 and Phase-2 of the bootstrap chain).\n\nThe first-boot sequence processes:\n1. **Container Device Interface (CDI)**: Probes physical graphics adapters and renders CDI schemas under `/var/run/cdi/`.\n2. **Account Staging**: Staged accounts defined under `/usr/lib/sysusers.d/` are initialized with home directory paths by [31-user.sh](file:///C:/MiOS/automation/31-user.sh).\n3. **Libvirt & Virtualization**: The virtual networking layers, VM templates, and CPU affinity shims are initialized.\n4. **AI Services Plane**: The PostgreSQL database and the llama-swap proxy are initialized."
+                    "content": "Once the OCI image is generated and written, the system boots into the First Boot phase (Phase-1 and Phase-2 of the bootstrap chain).\n\nThe first-boot sequence processes:\n1. **Container Device Interface (CDI)**: Probes physical graphics adapters and renders CDI schemas under `/var/run/cdi/`.\n2. **Account Staging**: Staged accounts defined under `/usr/lib/sysusers.d/` are initialized with home directory paths by [11-user.sh](file:///C:/MiOS/automation/11-user.sh).\n3. **Libvirt & Virtualization**: The virtual networking layers, VM templates, and CPU affinity shims are initialized.\n4. **AI Services Plane**: The PostgreSQL database and the llama-swap proxy are initialized."
                 },
                 "Day-N_Self_Replication.md": {
                     "title": "Day-N Self-Replication",
@@ -258,7 +258,7 @@ def main():
                     "title": "Keyless Image Signing",
                     "desc": "Covers OCI validation and authentication via Sigstore and cosign.",
                     "citations": [46],
-                    "content": "To secure the OCI software supply chain, all MiOS OCI images must be cryptographically signed before deployment.\n\n- **Verification Tools**: Integrated via **Sigstore** and **cosign**.\n- **Keyless Signature**: In CI/CD pipelines, images are signed using OIDC tokens, verifying that the build originated from the official pipeline.\n- **Verification Rule**: The host's container policy config ([42-cosign-policy.sh](file:///C:/MiOS/automation/42-cosign-policy.sh)) enforces validation check rules, blocking container pulls of unsigned or unrecognized images."
+                    "content": "To secure the OCI software supply chain, all MiOS OCI images must be cryptographically signed before deployment.\n\n- **Verification Tools**: Integrated via **Sigstore** and **cosign**.\n- **Keyless Signature**: In CI/CD pipelines, images are signed using OIDC tokens, verifying that the build originated from the official pipeline.\n- **Verification Rule**: The host's container policy config ([49-cosign-policy.sh](file:///C:/MiOS/automation/49-cosign-policy.sh)) enforces validation check rules, blocking container pulls of unsigned or unrecognized images."
                 },
                 "Unprivileged_Quadlet_Model.md": {
                     "title": "Unprivileged Quadlet Model",
@@ -283,7 +283,7 @@ def main():
                     "title": "K3s Kubernetes Integration",
                     "desc": "Outlines the mechanisms for expanding the workstation into a Kubernetes cluster.",
                     "citations": [1, 51],
-                    "content": "MiOS workstation hosts can expand dynamically into single-node high-availability Kubernetes clusters.\n\n- **Runtime daemon**: Managed via `mios-k3s.service` Quadlet.\n- **Network Isolation**: Traefik acts as the ingress controller, managing routing protocols on standard cluster ports.\n- **SELinux Policies**: Custom SELinux policies are applied by [19-k3s-selinux.sh](file:///C:/MiOS/automation/19-k3s-selinux.sh) to ensure containerized cluster tasks do not violate host read-only security bounds."
+                    "content": "MiOS workstation hosts can expand dynamically into single-node high-availability Kubernetes clusters.\n\n- **Runtime daemon**: Managed via `mios-k3s.service` Quadlet.\n- **Network Isolation**: Traefik acts as the ingress controller, managing routing protocols on standard cluster ports.\n- **SELinux Policies**: Custom SELinux policies are applied by [37-k3s-selinux.sh](file:///C:/MiOS/automation/37-k3s-selinux.sh) to ensure containerized cluster tasks do not violate host read-only security bounds."
                 },
                 "Ceph_Distributed_Storage.md": {
                     "title": "Ceph Distributed Storage",
@@ -301,7 +301,7 @@ def main():
                 "UKI_Layout_and_Baking.md": {
                     "title": "UKI Layout and Baking",
                     "desc": "Covers compilation and structure of Unified Kernel Images via systemd-ukify.",
-                    "content": "Unified Kernel Images (UKIs) combine the Linux kernel, initramfs, and kernel command-line arguments into a single EFI executable. This ensures that the system boot configuration cannot be altered by modifying individual config files on disk.\n\n## Implementation Details\n- **Build tool**: Compiled via `systemd-ukify` during the OCI build.\n- **Baking script**: Executed by [23-uki-render.sh](file:///C:/MiOS/automation/23-uki-render.sh).\n- **Output**: The output `.efi` image is placed directly in the EFI system partition under `/boot/EFI/Linux/`.\n- **Validation**: Verified by `validate-kargs.py` to ensure core arguments are baked into the UKI."
+                    "content": "Unified Kernel Images (UKIs) combine the Linux kernel, initramfs, and kernel command-line arguments into a single EFI executable. This ensures that the system boot configuration cannot be altered by modifying individual config files on disk.\n\n## Implementation Details\n- **Build tool**: Compiled via `systemd-ukify` during the OCI build.\n- **Baking script**: Executed by [76-uki-render.sh](file:///C:/MiOS/automation/76-uki-render.sh).\n- **Output**: The output `.efi` image is placed directly in the EFI system partition under `/boot/EFI/Linux/`.\n- **Validation**: Verified by `validate-kargs.py` to ensure core arguments are baked into the UKI."
                 },
                 "Secure_Boot_Integrity.md": {
                     "title": "Secure Boot Integrity",
@@ -323,7 +323,7 @@ def main():
                 "Unprivileged_Systemd_Tiers.md": {
                     "title": "Unprivileged Systemd Tiers",
                     "desc": "Defines user-space daemon layers and systemd-generator permissions configuration.",
-                    "content": "MiOS uses unprivileged systemd user services to run AI components safely within user space boundaries.\n\n## Architecture\n- **User Unit Path**: `/usr/lib/systemd/user/` or `~/.config/systemd/user/`.\n- **System-User Map**: Enforced via systemd sysusers templates in [31-user.sh](file:///C:/MiOS/automation/31-user.sh).\n- **Execution Limits**: Systemd user instances map execution boundaries using user namespaces, isolating processes from direct host root access."
+                    "content": "MiOS uses unprivileged systemd user services to run AI components safely within user space boundaries.\n\n## Architecture\n- **User Unit Path**: `/usr/lib/systemd/user/` or `~/.config/systemd/user/`.\n- **System-User Map**: Enforced via systemd sysusers templates in [11-user.sh](file:///C:/MiOS/automation/11-user.sh).\n- **Execution Limits**: Systemd user instances map execution boundaries using user namespaces, isolating processes from direct host root access."
                 },
                 "Quadlet_Configuration_Syntax.md": {
                     "title": "Quadlet Configuration Syntax",
@@ -350,7 +350,7 @@ def main():
                 "Embedded_Inference_Setup.md": {
                     "title": "Embedded Inference Setup",
                     "desc": "Maps GPU context management, prompt template bindings, and model formats.",
-                    "content": "Embedded inference on MiOS uses optimized GGUF format weights to enable local execution on GPU or CPU.\n\n## Setup Details\n- **Context Size**: Standardized context boundaries are mapped dynamically in [38-llamacpp-prep.sh](file:///C:/MiOS/automation/38-llamacpp-prep.sh).\n- **Embeddings**: An embedding-configured llama-server runs in parallel to handle vector queries.\n- **Safety**: Uses static model limits and resource controls to prevent container memory limit crashes."
+                    "content": "Embedded inference on MiOS uses optimized GGUF format weights to enable local execution on GPU or CPU.\n\n## Setup Details\n- **Context Size**: Standardized context boundaries are mapped dynamically in [73-model-prep.sh](file:///C:/MiOS/automation/73-model-prep.sh).\n- **Embeddings**: An embedding-configured llama-server runs in parallel to handle vector queries.\n- **Safety**: Uses static model limits and resource controls to prevent container memory limit crashes."
                 },
                 "Model_Map_and_Hot_Swapping.md": {
                     "title": "Model Map and Hot Swapping",
@@ -521,7 +521,7 @@ def main():
                 "Sigstore_Verification_Policies.md": {
                     "title": "Sigstore Verification Policies",
                     "desc": "Defines policy-based verification of OCI signatures at pull time.",
-                    "content": "Sigstore policies ensure only trusted images can be executed.\n\n## Enforcements\n- **Signature Check**: Validates signatures on container pulls.\n- **Policy Config**: Configured in [42-cosign-policy.sh](file:///C:/MiOS/automation/42-cosign-policy.sh).\n- **Rules**: Rejects unsigned images or those with invalid certs."
+                    "content": "Sigstore policies ensure only trusted images can be executed.\n\n## Enforcements\n- **Signature Check**: Validates signatures on container pulls.\n- **Policy Config**: Configured in [49-cosign-policy.sh](file:///C:/MiOS/automation/49-cosign-policy.sh).\n- **Rules**: Rejects unsigned images or those with invalid certs."
                 },
                 "Keyless_Cosign_Signing.md": {
                     "title": "Keyless Cosign Signing",
@@ -565,12 +565,12 @@ def main():
                 "Nvidia_CDI_Automation.md": {
                     "title": "Nvidia CDI Automation",
                     "desc": "Covers CDI spec generation for CUDA applications running in rootless podman.",
-                    "content": "NVIDIA CDI specs enable CUDA applications inside rootless containers.\n\n## Setup\n- **CDI Specs**: Generated automatically under `/var/run/cdi/`.\n- **Refresh**: Refreshed via [45-nvidia-cdi-refresh.sh](file:///C:/MiOS/automation/45-nvidia-cdi-refresh.sh).\n- **Quadlets**: Containers request graphics resources via `CDIDevices=` entries."
+                    "content": "NVIDIA CDI specs enable CUDA applications inside rootless containers.\n\n## Setup\n- **CDI Specs**: Generated automatically under `/var/run/cdi/`.\n- **Refresh**: Refreshed via [26-nvidia-cdi-refresh.sh](file:///C:/MiOS/automation/26-nvidia-cdi-refresh.sh).\n- **Quadlets**: Containers request graphics resources via `CDIDevices=` entries."
                 },
                 "AMD_ROCm_CDI_Mappings.md": {
                     "title": "AMD ROCm CDI Mappings",
                     "desc": "Explains ROCm/KFD driver mounts and container bindings.",
-                    "content": "AMD CDI profiles map compute hardware to container environments.\n\n## Operations\n- **Mappings**: Maps `/dev/kfd` and AMD compute files.\n- **Settings**: Configured in [41-gpu-cdi-toolkits.sh](file:///C:/MiOS/automation/41-gpu-cdi-toolkits.sh).\n- **Verification**: Validates GPU compute access inside containers."
+                    "content": "AMD CDI profiles map compute hardware to container environments.\n\n## Operations\n- **Mappings**: Maps `/dev/kfd` and AMD compute files.\n- **Settings**: Configured in [25-gpu-cdi-toolkits.sh](file:///C:/MiOS/automation/25-gpu-cdi-toolkits.sh).\n- **Verification**: Validates GPU compute access inside containers."
                 },
                 "Intel_GPU_CDI_Specs.md": {
                     "title": "Intel GPU CDI Specs",
@@ -587,7 +587,7 @@ def main():
                 "KVMFR_Kernel_Module_Bake.md": {
                     "title": "KVMFR Kernel Module Bake",
                     "desc": "Explains building and signing KVMFR module from source.",
-                    "content": "Looking Glass requires the KVM Framebuffer (KVMFR) driver to share screen memory.\n\n## Build\n- **Compilation**: Compiled from source during [52-bake-kvmfr.sh](file:///C:/MiOS/automation/52-bake-kvmfr.sh).\n- **Signing**: Signed automatically with the host's MOK.\n- **Verification**: Loaded on boot to expose the virtual memory channel."
+                    "content": "Looking Glass requires the KVM Framebuffer (KVMFR) driver to share screen memory.\n\n## Build\n- **Compilation**: Compiled from source during [68-bake-kvmfr.sh](file:///C:/MiOS/automation/68-bake-kvmfr.sh).\n- **Signing**: Signed automatically with the host's MOK.\n- **Verification**: Loaded on boot to expose the virtual memory channel."
                 },
                 "Shared_Memory_Framebuffer.md": {
                     "title": "Shared Memory Framebuffer",
@@ -597,7 +597,7 @@ def main():
                 "Looking_Glass_Client_Setup.md": {
                     "title": "Looking Glass Client Setup",
                     "desc": "Documents Wayland client build and input mappings.",
-                    "content": "The host client renders guest framebuffers on the Wayland display.\n\n## Execution\n- **Client**: Shipped inside [53-bake-lookingglass-client.sh](file:///C:/MiOS/automation/53-bake-lookingglass-client.sh).\n- **Command**: Launches the Wayland-native client to display virtual displays.\n- **Tuning**: Configured for mouse and audio integration."
+                    "content": "The host client renders guest framebuffers on the Wayland display.\n\n## Execution\n- **Client**: Shipped inside [69-bake-lookingglass-client.sh](file:///C:/MiOS/automation/69-bake-lookingglass-client.sh).\n- **Command**: Launches the Wayland-native client to display virtual displays.\n- **Tuning**: Configured for mouse and audio integration."
                 }
             }
         },
@@ -641,7 +641,7 @@ def main():
                 "K3s_SELinux_Policy_Enforcement.md": {
                     "title": "K3s SELinux Policy Enforcement",
                     "desc": "Explains custom security policies allowing cluster containers.",
-                    "content": "Custom SELinux rules protect the host from cluster workloads.\n\n## Policies\n- **Rules**: Applied by [19-k3s-selinux.sh](file:///C:/MiOS/automation/19-k3s-selinux.sh).\n- **Bounds**: Blocks cluster tasks from modifying read-only system files.\n- **Validation**: Enforces SELinux policies at runtime."
+                    "content": "Custom SELinux rules protect the host from cluster workloads.\n\n## Policies\n- **Rules**: Applied by [37-k3s-selinux.sh](file:///C:/MiOS/automation/37-k3s-selinux.sh).\n- **Bounds**: Blocks cluster tasks from modifying read-only system files.\n- **Validation**: Enforces SELinux policies at runtime."
                 }
             }
         },
@@ -724,12 +724,12 @@ def main():
                 "Oh_My_Posh_Prompt_Theming.md": {
                     "title": "Oh My Posh Prompt Theming",
                     "desc": "Covers theme configuration and prompt status icons.",
-                    "content": "The system shell uses Oh My Posh themes to show system status.\n\n## Themes\n- **Prompt**: Configured in [38-oh-my-posh.sh](file:///C:/MiOS/automation/38-oh-my-posh.sh).\n- **Icons**: Displays git status, active model, and CPU usage.\n- **Themes File**: Stored inside `/usr/share/mios/shell/`."
+                    "content": "The system shell uses Oh My Posh themes to show system status.\n\n## Themes\n- **Prompt**: Configured in [62-oh-my-posh.sh](file:///C:/MiOS/automation/62-oh-my-posh.sh).\n- **Icons**: Displays git status, active model, and CPU usage.\n- **Themes File**: Stored inside `/usr/share/mios/shell/`."
                 },
                 "User_Locale_Standardization.md": {
                     "title": "User Locale Standardization",
                     "desc": "Documents timezone and UTF-8 locale staging setups.",
-                    "content": "Standard locale and time formats are staging targets during deployment.\n\n## Settings\n- **Locale**: Sets UTF-8 encoding.\n- **Timezone**: Set in [30-locale-theme.sh](file:///C:/MiOS/automation/30-locale-theme.sh).\n- **Customizations**: Customized in `mios.toml`."
+                    "content": "Standard locale and time formats are staging targets during deployment.\n\n## Settings\n- **Locale**: Sets UTF-8 encoding.\n- **Timezone**: Set in [10-locale-theme.sh](file:///C:/MiOS/automation/10-locale-theme.sh).\n- **Customizations**: Customized in `mios.toml`."
                 }
             }
         },
@@ -746,7 +746,7 @@ def main():
                 "Dynamic_Port_Allocation.md": {
                     "title": "Dynamic Port Allocation",
                     "desc": "Explains how ports are dynamically resolved and bound.",
-                    "content": "Ports are allocated dynamically during build and boot phases.\n\n## Allocation\n- **Script**: Handled by [16-render-ports.sh](file:///C:/MiOS/automation/16-render-ports.sh).\n- **Mappings**: Maps host interfaces to container ports.\n- **Validation**: Enforces unique allocations to prevent startup collisions."
+                    "content": "Ports are allocated dynamically during build and boot phases.\n\n## Allocation\n- **Script**: Handled by [35-render-ports.sh](file:///C:/MiOS/automation/35-render-ports.sh).\n- **Mappings**: Maps host interfaces to container ports.\n- **Validation**: Enforces unique allocations to prevent startup collisions."
                 },
                 "VPN_and_Tailscale_Routing.md": {
                     "title": "VPN and Tailscale Routing",
@@ -807,7 +807,7 @@ def main():
                 "Declarative_Flatpak_Bake.md": {
                     "title": "Declarative Flatpak Bake",
                     "desc": "Covers pre-downloading and staging Flatpaks inside the image.",
-                    "content": "Flatpaks are defined in system configs and pre-downloaded to reduce setup times.\n\n## Setup\n- **Declarations**: Listed in `mios.toml` under `[flatpaks]`.\n- **Bake Script**: Configured in [40-flatpak-bake.sh](file:///C:/MiOS/automation/40-flatpak-bake.sh).\n- **Details**: Pre-downloads application runtimes into the image storage."
+                    "content": "Flatpaks are defined in system configs and pre-downloaded to reduce setup times.\n\n## Setup\n- **Declarations**: Listed in `mios.toml` under `[flatpaks]`.\n- **Bake Script**: Configured in [61-flatpak-bake.sh](file:///C:/MiOS/automation/61-flatpak-bake.sh).\n- **Details**: Pre-downloads application runtimes into the image storage."
                 },
                 "Application_Permissions_Gating.md": {
                     "title": "Application Permissions Gating",
@@ -873,7 +873,7 @@ def main():
                 "FreeIPA_Client_Configuration.md": {
                     "title": "FreeIPA Client Configuration",
                     "desc": "Covers configuring FreeIPA libraries inside Fedora overlay.",
-                    "content": "Resolves host client authentication with central FreeIPA domains.\n\n## Details\n- **Script**: Staged via [22-freeipa-client.sh](file:///C:/MiOS/automation/22-freeipa-client.sh).\n- **Client**: Integrates SSSD services inside Fedora core layers.\n- **Policies**: Handles identity resolving and domain settings."
+                    "content": "Resolves host client authentication with central FreeIPA domains.\n\n## Details\n- **Script**: Staged via [15-freeipa-client.sh](file:///C:/MiOS/automation/15-freeipa-client.sh).\n- **Client**: Integrates SSSD services inside Fedora core layers.\n- **Policies**: Handles identity resolving and domain settings."
                 },
                 "Enforced_User_Sysusers.md": {
                     "title": "Enforced User Sysusers",
@@ -917,7 +917,7 @@ def main():
                 "Automatic_OS_Health_Checks.md": {
                     "title": "Automatic OS Health Checks",
                     "desc": "Covers greenboot scripts verifying service states.",
-                    "content": "Greenboot verifies service status after system upgrades.\n\n## Flow\n- **Script**: Checked in [46-greenboot.sh](file:///C:/MiOS/automation/46-greenboot.sh).\n- **Actions**: Checks core components (systemd, drivers, AI gateways).\n- **Timing**: Enforces timeout limits for checks."
+                    "content": "Greenboot verifies service status after system upgrades.\n\n## Flow\n- **Script**: Checked in [78-greenboot.sh](file:///C:/MiOS/automation/78-greenboot.sh).\n- **Actions**: Checks core components (systemd, drivers, AI gateways).\n- **Timing**: Enforces timeout limits for checks."
                 },
                 "Rollback_Trigger_Policies.md": {
                     "title": "Rollback Trigger Policies",
@@ -939,12 +939,12 @@ def main():
                 "CDI_Refresh_Mechanisms.md": {
                     "title": "CDI Refresh Mechanisms",
                     "desc": "Covers spec updates triggered when hardware states change.",
-                    "content": "Refreshes CDI specs automatically when graphics adapters change.\n\n## Setup\n- **Checks**: Scans physical devices on boot using [34-gpu-detect.sh](file:///C:/MiOS/automation/34-gpu-detect.sh).\n- **Utility**: Invokes [45-nvidia-cdi-refresh.sh](file:///C:/MiOS/automation/45-nvidia-cdi-refresh.sh).\n- **Execution**: Updates container CDI files in `/var/run/cdi/`."
+                    "content": "Refreshes CDI specs automatically when graphics adapters change.\n\n## Setup\n- **Checks**: Scans physical devices on boot using [34-gpu-detect.sh](file:///C:/MiOS/automation/34-gpu-detect.sh).\n- **Utility**: Invokes [26-nvidia-cdi-refresh.sh](file:///C:/MiOS/automation/26-nvidia-cdi-refresh.sh).\n- **Execution**: Updates container CDI files in `/var/run/cdi/`."
                 },
                 "Runtime_GPU_Gating.md": {
                     "title": "Runtime GPU Gating",
                     "desc": "Details device locking and lockouts during state transitions.",
-                    "content": "Gating mechanisms control GPU resource allocations between containers and hypervisors.\n\n## Gating\n- **Shim**: Implemented via [35-gpu-pv-shim.sh](file:///C:/MiOS/automation/35-gpu-pv-shim.sh).\n- **Locking**: Locks device files to prevent parallel utilization conflicts.\n- **Policies**: Shunts GPU compute priorities to virtual guests."
+                    "content": "Gating mechanisms control GPU resource allocations between containers and hypervisors.\n\n## Gating\n- **Shim**: Implemented via [24-gpu-pv-shim.sh](file:///C:/MiOS/automation/24-gpu-pv-shim.sh).\n- **Locking**: Locks device files to prevent parallel utilization conflicts.\n- **Policies**: Shunts GPU compute priorities to virtual guests."
                 },
                 "Dynamic_Driver_Loading.md": {
                     "title": "Dynamic Driver Loading",
@@ -961,7 +961,7 @@ def main():
                 "Remote_Wayland_Sessions.md": {
                     "title": "Remote Wayland Sessions",
                     "desc": "Covers running GNOME inside headless Wayland sessions.",
-                    "content": "Enables GUI remote management when running headless.\n\n## Details\n- **Script**: Configured via [26-gnome-remote-desktop.sh](file:///C:/MiOS/automation/26-gnome-remote-desktop.sh).\n- **Engine**: Integrates with GNOME Remote Desktop.\n- **Bridges**: Exposes Wayland displays on ports."
+                    "content": "Enables GUI remote management when running headless.\n\n## Details\n- **Script**: Configured via [58-gnome-remote-desktop.sh](file:///C:/MiOS/automation/58-gnome-remote-desktop.sh).\n- **Engine**: Integrates with GNOME Remote Desktop.\n- **Bridges**: Exposes Wayland displays on ports."
                 },
                 "Secure_RDP_Authentication.md": {
                     "title": "Secure RDP Authentication",
@@ -1010,7 +1010,7 @@ def main():
                 "Log-Copy_Daemon_Configuration.md": {
                     "title": "Log-Copy Daemon Configuration",
                     "desc": "Details systemd service parameters for log copy tasks.",
-                    "content": "Configures background daemons to aggregate container logs.\n\n## Setup\n- **Unit**: Configured in [50-enable-log-copy-service.sh](file:///C:/MiOS/automation/50-enable-log-copy-service.sh).\n- **Service**: Runs system log synchronization helpers.\n- **Storage**: Mapped inside `/var/log/mios/`."
+                    "content": "Configures background daemons to aggregate container logs.\n\n## Setup\n- **Unit**: Configured in [53-enable-log-copy-service.sh](file:///C:/MiOS/automation/53-enable-log-copy-service.sh).\n- **Service**: Runs system log synchronization helpers.\n- **Storage**: Mapped inside `/var/log/mios/`."
                 },
                 "Diagnostic_Log_Bundles.md": {
                     "title": "Diagnostic Log Bundles",
@@ -1054,7 +1054,7 @@ def main():
                 "Akmod_Compilation_Guards.md": {
                     "title": "Akmod Compilation Guards",
                     "desc": "Details compilation gating rules verifying module states.",
-                    "content": "Guards compilation tasks to prevent boot failures from driver updates.\n\n## Details\n- **Guards**: Enabled via [36-akmod-guards.sh](file:///C:/MiOS/automation/36-akmod-guards.sh).\n- **Validation**: Enforces driver binary compilation checks.\n- **Actions**: Restores previous functional configurations on failure."
+                    "content": "Guards compilation tasks to prevent boot failures from driver updates.\n\n## Details\n- **Guards**: Enabled via [22-akmod-guards.sh](file:///C:/MiOS/automation/22-akmod-guards.sh).\n- **Validation**: Enforces driver binary compilation checks.\n- **Actions**: Restores previous functional configurations on failure."
                 },
                 "BIB_Disk_Image_Generation.md": {
                     "title": "BIB Disk Image Generation",
@@ -1137,7 +1137,7 @@ def main():
                 "Default_User_Creation.md": {
                     "title": "Default User Creation",
                     "desc": "Covers default accounts, credentials, and settings groups.",
-                    "content": "Sets up user accounts and home layouts.\n\n## Configurations\n- **Creation**: Executed via sysusers configs.\n- **Script**: Handled by [31-user.sh](file:///C:/MiOS/automation/31-user.sh).\n- **Rights**: Adds user accounts to virtual and container groups."
+                    "content": "Sets up user accounts and home layouts.\n\n## Configurations\n- **Creation**: Executed via sysusers configs.\n- **Script**: Handled by [11-user.sh](file:///C:/MiOS/automation/11-user.sh).\n- **Rights**: Adds user accounts to virtual and container groups."
                 },
                 "Stagings_Dotfiles_Overlay.md": {
                     "title": "Stagings Dotfiles Overlay",

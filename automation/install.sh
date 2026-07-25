@@ -1,62 +1,12 @@
 #!/usr/bin/env bash
 # MIOS_INSTALLER_ROLE=container-build-installer
-# AI-hint: Executes the system-side installation for non-bootc Fedora hosts by applying FHS overlays to /usr, /etc, /var, /srv, materializing /v1, and initializing systemd users, tmpfiles, and MiOS services.
-# 'MiOS' system-side installer (FHS overlay path).
+# AI-hint: Thin redirector to install-fhs.sh -- the single FHS-overlay installer for non-bootc Fedora hosts (rsyncs usr/etc/var/srv onto /, materializes /v1, runs sysusers/tmpfiles, reloads systemd). install.sh and install-fhs.sh were byte-identical; deduped to ONE implementation. Superseded by `mios-apply fhs-host` once the unified git=$ROOT engine lands.
+# 'MiOS' system-side installer (FHS overlay path) -- redirector.
 #
-# This script is invoked by the bootstrap installer on non-bootc Fedora hosts.
-# On bootc-managed hosts, do NOT run this -- use `bootc switch` instead.
-#
-# What it does:
-#   1. Refuses to run on bootc-managed hosts (their /usr is read-only composefs).
-#   2. Lays down the FHS overlay from this repository's working tree to /.
-#   3. Runs systemd-sysusers, systemd-tmpfiles, and reloads systemd units.
-#   4. Enables 'MiOS' services.
-
+# install.sh and install-fhs.sh were byte-for-byte identical FHS-overlay installers (verified).
+# Deduped to a single source of truth (install-fhs.sh); this file forwards to it so the historical
+# name, the # MIOS_INSTALLER_ROLE marker (check-86 family), and the generate-build-scripts.py LAYERS
+# doc-bundle all keep working. The whole ad-hoc rsync path is slated for replacement by
+# `mios-apply fhs-host` (git=$ROOT: root-merge the tree onto / then run the universal stage set).
 set -euo pipefail
-
-# Refuse to run on bootc-managed hosts.
-if command -v bootc >/dev/null 2>&1 && bootc status --format=json 2>/dev/null | grep -q '"booted"'; then
-    echo "[FAIL] This host is bootc-managed. install.sh is for non-bootc Fedora hosts." >&2
-    echo "       Use 'sudo bootc switch ghcr.io/MiOS-DEV/mios:latest' instead." >&2
-    exit 1
-fi
-
-if [[ $EUID -ne 0 ]]; then
-    echo "[FAIL] install.sh must run as root: sudo $0" >&2
-    exit 1
-fi
-
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-echo "[INFO] 'MiOS' system installer running from ${REPO_ROOT}"
-
-if [[ "${REPO_ROOT}" != "/" ]]; then
-    # Apply FHS overlay. We rsync each top-level overlay dir if it exists.
-    for d in usr etc var srv; do
-        if [[ -d "${REPO_ROOT}/${d}" ]]; then
-            echo "[INFO] Applying overlay: ${d}/"
-            rsync -aH --info=stats1 "${REPO_ROOT}/${d}/" "/${d}/"
-        fi
-    done
-
-    # v1/ holds discovery symlinks; we materialize them at /v1.
-    if [[ -d "${REPO_ROOT}/v1" ]]; then
-        echo "[INFO] Materializing /v1 discovery surface"
-        install -d /v1
-        rsync -aH "${REPO_ROOT}/v1/" "/v1/"
-    fi
-else
-    echo "[INFO] Running directly from root (/), skipping overlay sync."
-fi
-echo "[INFO] Running systemd-sysusers"
-systemd-sysusers
-
-echo "[INFO] Running systemd-tmpfiles"
-systemd-tmpfiles --create
-
-echo "[INFO] Reloading systemd"
-systemctl daemon-reload
-
-echo "[INFO] Quadlet .container units laid down under /etc/containers/systemd; systemd generator instantiates them on next daemon-reload/boot"
-
-echo "[ OK ] 'MiOS' system installer complete."
-echo "       Log out and back in (or reboot) to pick up profile changes."
+exec bash "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/install-fhs.sh" "$@"

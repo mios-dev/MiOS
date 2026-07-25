@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Thin shell-facing CLI over the shared usr/lib/mios/mios_toml.py resolver, so bash scripts + `python3 - <<PY` heredocs stop re-rolling their own awk/regex mios.toml scanners (which mishandle multi-line arrays, [[array.of.tables]], inline tables, and quoting) and instead read the SSOT through the ONE real tomllib-backed layered overlay (vendor<host<user, empty-string rule). `mios-toml-get <section[.sub]> <key> [default]` prints a scalar (default/empty if absent); `--section <a.b>` prints the sub-table as JSON (for [[array]]/catalog reads); `--dump <a.b> k1 k2 ...` prints several keys as `k=v` lines to avoid a python spawn per value on hot paths (e.g. the login-path dashboard). Pairs with mios_toml.py + the 29 already-migrated Python tools; drop-in for the `_mios_toml_value` bash helpers.
-# AI-related: ../../lib/mios/mios_toml.py, ./mios-sync-theme, ./mios-dashboard.sh, ../../../automation/38-drift-checks.sh
+# AI-related: ../../lib/mios/mios_toml.py, ./mios-sync-theme, ./mios-dashboard.sh, ../../../automation/98-drift-checks.sh
 # AI-functions: main
 """Shell CLI over the shared mios_toml resolver: scalar get, section-as-JSON, batch dump."""
 

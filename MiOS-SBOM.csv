@@ -369,15 +369,15 @@ packages-wintools,samba,rpm-windows-vm,"Windows VM tooling (virt-viewer, spice-g
 packages-wintools,samba-client,rpm-windows-vm,"Windows VM tooling (virt-viewer, spice-gtk, virt-manager)",From usr/share/mios/mios.toml [packages.wintools].pkgs
 packages-wintools,cifs-utils,rpm-windows-vm,"Windows VM tooling (virt-viewer, spice-gtk, virt-manager)",From usr/share/mios/mios.toml [packages.wintools].pkgs
 packages-wintools,freerdp-libs,rpm-windows-vm,"Windows VM tooling (virt-viewer, spice-gtk, virt-manager)",From usr/share/mios/mios.toml [packages.wintools].pkgs
-from-source,looking-glass-b7,from-source,KVM/QEMU shared-memory display protocol,Built in automation/53-bake-lookingglass-client.sh from upstream source
-from-source,kvmfr,from-source,Kernel module for Looking Glass shared memory,Built/baked into image via automation/52-bake-kvmfr.sh
-from-source,k3s-binary,from-source,Lightweight Kubernetes runtime,Downloaded from upstream releases by automation/13-ceph-k3s.sh
-from-source,k3s-selinux-policy,from-source,SELinux policy for k3s,Compiled in automation/19-k3s-selinux.sh
+from-source,looking-glass-b7,from-source,KVM/QEMU shared-memory display protocol,Built in automation/69-bake-lookingglass-client.sh from upstream source
+from-source,kvmfr,from-source,Kernel module for Looking Glass shared memory,Built/baked into image via automation/68-bake-kvmfr.sh
+from-source,k3s-binary,from-source,Lightweight Kubernetes runtime,Downloaded from upstream releases by automation/36-ceph-k3s.sh
+from-source,k3s-selinux-policy,from-source,SELinux policy for k3s,Compiled in automation/37-k3s-selinux.sh
 from-source,aichat,from-source,Terminal AI chat client,Downloaded from upstream releases by automation/37-aichat.sh
 from-source,aichat-ng,from-source,aichat fork,Downloaded from upstream releases by automation/37-aichat.sh
-from-source,cosign-v2,from-source,Sigstore container signing tool (v2 keyless),Downloaded from upstream releases by automation/42-cosign-policy.sh
+from-source,cosign-v2,from-source,Sigstore container signing tool (v2 keyless),Downloaded from upstream releases by automation/49-cosign-policy.sh
 from-source,mios-selinux-modules,from-source-policy,Custom SELinux .te modules,Compiled in usr/share/selinux/packages/mios; loaded post-build
-from-source,bibata-cursor-theme,from-source,Bibata cursor theme,Downloaded tarball in automation/10-gnome.sh
+from-source,bibata-cursor-theme,from-source,Bibata cursor theme,Downloaded tarball in automation/57-gnome.sh
 oci-image,ghcr.io/ublue-os/ucore-hci:stable-nvidia,oci-base,"Primary base image (uCore HCI, NVIDIA variant)",FROM line in Containerfile (override via MIOS_BASE_IMAGE)
 oci-image,ghcr.io/ublue-os/ucore-hci:stable,oci-base-alt,Base image variant without NVIDIA,Selectable via build-arg
 oci-image,ghcr.io/ublue-os/ucore:stable,oci-base-alt,Minimal uCore (no HCI extras),Selectable via build-arg

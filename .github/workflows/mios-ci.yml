@@ -70,8 +70,8 @@ jobs:
       - name: Negative tests (drift-gate-negatives.sh)
         run: bash ./tests/drift-gate-negatives.sh
 
-      - name: SSOT-render conformance lint (38-ssot-lint.sh)
-        run: bash ./automation/38-ssot-lint.sh
+      - name: SSOT-render conformance lint (97-ssot-lint.sh)
+        run: bash ./automation/97-ssot-lint.sh
 
       - name: Agent-pipe unit tests (test_mios_*.py)
         run: |
@@ -120,8 +120,8 @@ jobs:
             echo "::error::test_mios_docgen.py failed"; exit 1
           fi
 
-      - name: AI-plane source drift checks (38-drift-checks.sh)
-        run: bash ./automation/38-drift-checks.sh
+      - name: AI-plane source drift checks (98-drift-checks.sh)
+        run: bash ./automation/98-drift-checks.sh
 
   build:
     needs: drift-gate
@@ -143,7 +143,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # build.sh's POST-build drift phase re-runs 38-drift-checks.sh -> check_shellcheck
+      # build.sh's POST-build drift phase re-runs 98-drift-checks.sh -> check_shellcheck
       # -> lint-shell.sh on THIS runner. The drift-gate job installs shellcheck but the
       # build job did not, so that re-run skipped the lint (false-green). Install it here
       # too so the build-job lint GATES. (lint-shell.sh also self-provisions as a fallback.)

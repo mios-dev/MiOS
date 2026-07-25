@@ -204,9 +204,9 @@ fi
 # ── Script classification ────────────────────────────────────────────────────
 # CONTAINERFILE_SCRIPTS are explicitly skipped from the main loop because
 # they're invoked elsewhere in the build flow:
-#   08-system-files-overlay.sh -- called explicitly by the OCI overlay step
-#   38-ssot-lint.sh            -- POST-BUILD validator, called explicitly below
-#   38-drift-checks.sh         -- POST-BUILD validator, called explicitly below
+#   01-system-files-overlay.sh -- called explicitly by the OCI overlay step
+#   97-ssot-lint.sh            -- POST-BUILD validator, called explicitly below
+#   98-drift-checks.sh         -- POST-BUILD validator, called explicitly below
 #   99-postcheck.sh            -- called explicitly below after the loop
 # 38-ssot-lint + 38-drift-checks are read-only SOURCE validators, not build
 # stages. Their names sort into the 38-* band, so the [0-9][0-9]-*.sh glob
@@ -218,35 +218,35 @@ fi
 # from the loop; they run once, authoritatively, after the loop (below).
 # A legacy inference-prep step used to be skipped here but was orphaned
 # (never called). Model baking is now a regular pipeline step
-# (38-llamacpp-prep.sh -> /usr/share/mios/llamacpp/models), so it runs in
+# (73-model-prep.sh -> /usr/share/mios/llamacpp/models), so it runs in
 # the main loop.
-CONTAINERFILE_SCRIPTS="08-system-files-overlay.sh 38-ssot-lint.sh 38-drift-checks.sh 99-postcheck.sh"
+CONTAINERFILE_SCRIPTS="01-system-files-overlay.sh 97-ssot-lint.sh 98-drift-checks.sh 99-postcheck.sh"
 
 NON_FATAL_SCRIPTS="
-  05-enable-external-repos.sh
-  10-gnome.sh
-  13-ceph-k3s.sh
-  17-accounts-db.sh
-  19-k3s-selinux.sh
-  21-moby-engine.sh
-  23-uki-render.sh
-  36-akmod-guards.sh
+  06-enable-external-repos.sh
+  57-gnome.sh
+  36-ceph-k3s.sh
+  13-accounts-db.sh
+  37-k3s-selinux.sh
+  39-moby-engine.sh
+  76-uki-render.sh
+  22-akmod-guards.sh
   37-aichat.sh
-  38-oh-my-posh.sh
-  40-flatpak-bake.sh
-  42-cosign-policy.sh
-  43-uupd-installer.sh
-  52-bake-kvmfr.sh
-  53-bake-lookingglass-client.sh
-  22-freeipa-client.sh
-  26-gnome-remote-desktop.sh
-  38-vm-gating.sh
-  44-podman-machine-compat.sh
-  50-enable-log-copy-service.sh
+  62-oh-my-posh.sh
+  61-flatpak-bake.sh
+  49-cosign-policy.sh
+  50-uupd-installer.sh
+  68-bake-kvmfr.sh
+  69-bake-lookingglass-client.sh
+  15-freeipa-client.sh
+  58-gnome-remote-desktop.sh
+  27-vm-gating.sh
+  14-podman-machine-compat.sh
+  53-enable-log-copy-service.sh
   91-strip-build-toolchain.sh
-  54-bake-hyprland.sh
-  55-bake-quickshell.sh
-  56-bake-surfer.sh
+  65-bake-hyprland.sh
+  66-bake-quickshell.sh
+  67-bake-surfer.sh
 "
 
 # Check if build_catalog_authoritative is true
@@ -406,28 +406,28 @@ else
     _row "  WARNING: 99-postcheck.sh not found -- skipping"
 fi
 
-# ── SSOT-render conformance lint (38-ssot-lint.sh) ──────────────────────────
+# ── SSOT-render conformance lint (97-ssot-lint.sh) ──────────────────────────
 # WS-0A drift-gate: every ${MIOS_*} placeholder in a Quadlet must be wired on
 # BOTH ends (typed slot in userenv.sh + render allowlist). The lint exited 1 on
 # orphans but was never invoked by the build, so dead keys accumulated silently.
 # Wire it in as a hard gate (set -euo pipefail aborts the build on exit 1).
 echo ""
-_row " POST-BUILD: SSOT-render conformance lint (38-ssot-lint.sh)"
+_row " POST-BUILD: SSOT-render conformance lint (97-ssot-lint.sh)"
 _hline '-' '+' '+'
-if [[ -f "${SCRIPT_DIR}/38-ssot-lint.sh" ]]; then
-    bash "${SCRIPT_DIR}/38-ssot-lint.sh"
+if [[ -f "${SCRIPT_DIR}/97-ssot-lint.sh" ]]; then
+    bash "${SCRIPT_DIR}/97-ssot-lint.sh"
 else
-    _row "  WARNING: 38-ssot-lint.sh not found -- skipping"
+    _row "  WARNING: 97-ssot-lint.sh not found -- skipping"
 fi
 
-# ── AI-plane source drift fitness-functions (38-drift-checks.sh) ────────────
+# ── AI-plane source drift fitness-functions (98-drift-checks.sh) ────────────
 # WS-0A drift-gate: source-tree checks that 99-postcheck cannot run on a bare
 # checkout (retired :11434 lane, retired model-id in a consumer, dangling
 # [nodes.*] lane, broken ai/v1 manifest). Hard gate (exit 1 aborts the build).
 echo ""
-_row " POST-BUILD: AI-plane source drift checks (38-drift-checks.sh)"
+_row " POST-BUILD: AI-plane source drift checks (98-drift-checks.sh)"
 _hline '-' '+' '+'
-if [[ -f "${SCRIPT_DIR}/38-drift-checks.sh" ]]; then
+if [[ -f "${SCRIPT_DIR}/98-drift-checks.sh" ]]; then
     # repo = ROOT = git tree -- THAT is MiOS. The build root ships .git, so
     # restore the pristine committed tree here: materialize every tracked file
     # (incl. installation/, cat/, docs/ that were not cp'd into /tmp/build) and
@@ -470,9 +470,9 @@ if [[ -f "${SCRIPT_DIR}/38-drift-checks.sh" ]]; then
     else
         echo "[reproject] WARN: python3 unavailable -- cannot refresh SSOT projections"
     fi
-    bash "${SCRIPT_DIR}/38-drift-checks.sh"
+    bash "${SCRIPT_DIR}/98-drift-checks.sh"
 else
-    _row "  WARNING: 38-drift-checks.sh not found -- skipping"
+    _row "  WARNING: 98-drift-checks.sh not found -- skipping"
 fi
 
 # ── Agent-pipe deterministic unit tests ─────────────────────────────────────
@@ -486,10 +486,10 @@ echo ""
 _row " POST-BUILD: Agent-pipe unit tests (test_mios_*.py)"
 _hline '-' '+' '+'
 _agent_pipe_dir="$(cd "${SCRIPT_DIR}/.." && pwd)/usr/lib/mios/agent-pipe"
-# REQUIRE the agent-plane venv python (built by 38-hermes-agent.sh): the sibling
+# REQUIRE the agent-plane venv python (built by 72-hermes-agent.sh): the sibling
 # mios_*.py modules transitively import fastapi/pydantic/psycopg/mcp/httpx via the
 # federation routers, so the bare SYSTEM python3 raises ModuleNotFoundError before
-# any assertion runs. Do NOT fall back to system python3 -- 38-hermes-agent.sh is
+# any assertion runs. Do NOT fall back to system python3 -- 72-hermes-agent.sh is
 # NON_FATAL and deletes the partial venv on pip failure ("retry next boot"), and a
 # fallback here would convert that tolerated venv miss into a HARD build die on a
 # fresh Day-0 host with cold pip caches. When the venv is absent, SKIP the gate

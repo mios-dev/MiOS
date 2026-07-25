@@ -218,7 +218,7 @@ devices:
 WSLAMDCDI
     _log "amd: wrote $out (WSL2 hand-rolled CDI; AMD iGPU via /dev/dxg + DirectX)"
 elif [[ "$HAS_AMD" == 1 ]]; then
-    _log "amd: /dev/kfd present but amd-ctk missing -- run automation/41-gpu-cdi-toolkits.sh"
+    _log "amd: /dev/kfd present but amd-ctk missing -- run automation/25-gpu-cdi-toolkits.sh"
 fi
 
 # ── Intel (iGPU / Arc) ───────────────────────────────────────────────
@@ -241,7 +241,7 @@ if [[ "$HAS_INTEL" == 1 && "$HAS_INTEL_WSL" == 0 ]]; then
             _log "intel: specs-generator failed (non-fatal; tooling is v0.x best-effort)"
         fi
     else
-        _log "intel: GPU present but intel-cdi-specs-generator missing -- run automation/41-gpu-cdi-toolkits.sh"
+        _log "intel: GPU present but intel-cdi-specs-generator missing -- run automation/25-gpu-cdi-toolkits.sh"
     fi
 elif [[ "$HAS_INTEL_WSL" == 1 ]]; then
     # WSL2 path mirrors the AMD WSL branch above: hand-rolled CDI

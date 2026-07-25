@@ -339,8 +339,8 @@ fi
 if [[ -f "$MIOS_REPO/tools/generate-names-registry.py" ]]; then
     python3 "$MIOS_REPO/tools/generate-names-registry.py" 2>&1 | tee -a "$LOG_FILE" || true
 fi
-if [[ -f "$MIOS_REPO/automation/38-drift-checks.sh" ]]; then
-    bash "$MIOS_REPO/automation/38-drift-checks.sh" 2>&1 | tee -a "$LOG_FILE" || _log "WARN: drift check reported minor drift; proceeding with auto-aligned SSOT"
+if [[ -f "$MIOS_REPO/automation/98-drift-checks.sh" ]]; then
+    bash "$MIOS_REPO/automation/98-drift-checks.sh" 2>&1 | tee -a "$LOG_FILE" || _log "WARN: drift check reported minor drift; proceeding with auto-aligned SSOT"
 fi
 
 # ── Unattended-mode detection: strictly automated when non-interactive ───────

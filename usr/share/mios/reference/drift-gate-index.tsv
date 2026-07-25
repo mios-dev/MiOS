@@ -99,4 +99,4 @@
 98	check_composefs_projection	composefs prepare-root.conf absent -- skipped
 99	check_cockpit_projection	etc/cockpit/cockpit.conf matches mios.toml [cockpit] SSOT (AGY-165)
 100	check_chrony_ptp_dropin	Chrony PTP drop-in generator is idempotent and leaves canonical chrony.conf unchanged (AGY-166)
-101	check_renderer_gate_coverage	All automation renderers map to a registered projection gate in 38-drift-checks.sh (AGY-168)
+101	check_renderer_gate_coverage	All automation renderers map to a registered projection gate in 98-drift-checks.sh (AGY-168)

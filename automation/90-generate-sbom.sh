@@ -1,4 +1,5 @@
 #!/bin/bash
+# MIOS_APPLY_CLASS=bake-only
 # AI-hint: Runs Syft to generate CycloneDX + SPDX SBOM manifests into ${MIOS_USR_DIR}/artifacts/sbom. DEGRADE-OPEN: SBOM is build PROVENANCE, never a build-critical gate -- this script must NEVER fail the image build (always exits 0).
 # AI-related: mios-sbom, usr/libexec/mios/mios-bake-group (records bound-image digests -> the SBOM provenance), ADR-0003 (SBOM-not-hardcode)
 # 90-generate-sbom: Generate the Software Bill of Materials (Syft).

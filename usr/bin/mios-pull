@@ -13,7 +13,7 @@
 #     canonical AI prompt, mios.toml templates, agent .md stubs) overlay
 #     mios.git's defaults
 #   - re-runs the lightweight build-time automation that fetches non-RPM
-#     binaries + fonts (09-fonts.sh, 38-oh-my-posh.sh)
+#     binaries + fonts (56-fonts.sh, 62-oh-my-posh.sh)
 #   - daemon-reloads systemd (via nsenter into the systemd ns when run
 #     inside a podman-machine WSL distro, where wsl --exec lands in the
 #     OUTER ns and bare systemctl can't reach the bus)
@@ -38,7 +38,7 @@
 #   mios-pull                 fetch + reset + bootstrap-merge + automation
 #   mios-pull --check         show what would change; no writes
 #   mios-pull --no-bootstrap  skip mios-bootstrap (only mios.git)
-#   mios-pull --no-automation skip 09-fonts.sh + 38-oh-my-posh.sh
+#   mios-pull --no-automation skip 56-fonts.sh + 62-oh-my-posh.sh
 #   mios-pull --branch <name> pull a non-main branch
 #   mios-pull --help          this banner
 
@@ -131,7 +131,7 @@ if [[ "$SKIP_BOOTSTRAP" != "1" ]]; then
 fi
 
 if [[ "$SKIP_AUTOMATION" != "1" ]]; then
-    for script in /automation/09-fonts.sh /automation/38-oh-my-posh.sh; do
+    for script in /automation/56-fonts.sh /automation/62-oh-my-posh.sh; do
         if [[ -x "$script" ]]; then
             say "running $(basename "$script") ..."
             bash "$script" 2>&1 | tail -3 || warn "$(basename "$script") returned non-zero"

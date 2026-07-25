@@ -19,6 +19,12 @@ EMITTER_SUFFIXES = (
     "usr/share/doc/mios/reference/naming-unification.md",
 )
 VAR_RE = re.compile(r"MIOS_[A-Z0-9_]+")
+# Build-substrate DIRECTIVES parsed from stage headers / passed by the unified apply
+# engine (automation/mios-apply), NOT userenv.sh-emitted runtime vars. They are build
+# metadata (which class/substrate/root a stage applies under), so they are correctly
+# neither emitted by the resolver nor "consumed" in the R ⊆ E closure sense. Excluded
+# here so the per-stage `# MIOS_APPLY_CLASS=<class>` header does not read as an orphan.
+DIRECTIVE_VARS = frozenset({"MIOS_APPLY_CLASS", "MIOS_SUBSTRATE"})
 # Reference forms: ${MIOS_X}, $MIOS_X, "$MIOS_X", os.environ["MIOS_X"] /.get("MIOS_X"),
 # %MIOS_X% -- we just scan for any MIOS_ token in consumer files and keep those that
 # look like a var read (not an assignment target inside an emitter, which we exclude).
@@ -58,6 +64,9 @@ def referenced_set():
                     for n, line in enumerate(fh, 1):
                         for m in VAR_RE.finditer(line):
                             v = m.group(0)
+                            # build-substrate directives (stage-header metadata) are not consumers
+                            if v in DIRECTIVE_VARS:
+                                continue
                             # skip an emitter-style `export MIOS_X=` / `MIOS_X=` assignment
                             if re.match(rf"\s*(export\s+)?{v}=", line):
                                 continue

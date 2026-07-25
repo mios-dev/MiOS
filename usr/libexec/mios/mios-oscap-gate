@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 # AI-hint: Severity-gated pass/fail parser for an OpenSCAP results file (ARF or XCCDF results XML), the decision half of the BOOT-02 scan-only build gate. Counts rule-result/result=fail entries whose rule severity is at/above a configured threshold (high>medium>low; "any"=every fail), reading the severity from the rule-result's own @severity when present else the Rule@severity it references. Namespace-agnostic (matches by local tag name) so it works across XCCDF 1.1/1.2 + ARF wrappers. Prints the gating-fail count; exits 1 when >0 (build fails), 0 when clean, 2 on an unparseable/missing report (fail-closed -- it is only ever invoked when [compliance].enabled=true). Pure stdlib.
-# AI-related: ../../../automation/39-oscap-compliance.sh, ../../share/mios/mios.toml, oscap
+# AI-related: ../../../automation/86-oscap-compliance.sh, ../../share/mios/mios.toml, oscap
 """mios-oscap-gate -- severity-gated verdict over an OpenSCAP results (ARF/XCCDF) file.
 
 Usage: mios-oscap-gate <results.(arf|xml)> [severity_gate]
   severity_gate: high | medium | low | any   (default: high)
 
 oscap's own exit codes only tell you "some rule failed" (rc=2), not WHICH severity.
-The scan-only gate (39-oscap-compliance.sh) calls this to turn the results into a
+The scan-only gate (86-oscap-compliance.sh) calls this to turn the results into a
 build verdict: it counts FAILED rules at/above the configured severity and fails the
 build iff that count is > 0. Severity ordering is structural (high>medium>low); a
 failed rule with no/unknown severity counts only under the "any" gate.

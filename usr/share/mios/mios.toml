@@ -1,5 +1,5 @@
 # AI-hint: The primary configuration file defining the MiOS user profile, providing the base defaults for identity, system environment, and service configurations used by tools via the userenv.sh resolver.
-# AI-related: tools/lib/userenv.sh, userenv.sh, tools/generate-k3s-manifests.sh, automation/08-system-files-overlay.sh, /usr/share/mios/mios.toml, /etc/mios/mios.toml, /etc/mios/hermes/discord.env, /usr/share/mios/configurator/mios.html, /etc/mios/hermes/api.env., /usr/libexec/mios/mios-powershell
+# AI-related: tools/lib/userenv.sh, userenv.sh, tools/generate-k3s-manifests.sh, automation/01-system-files-overlay.sh, /usr/share/mios/mios.toml, /etc/mios/mios.toml, /etc/mios/hermes/discord.env, /usr/share/mios/configurator/mios.html, /etc/mios/hermes/api.env., /usr/libexec/mios/mios-powershell
 # mios-bootstrap/mios.toml -- 'MiOS' User Profile (single source of user truth)
 #
 # THIS IS THE ONE FILE YOU EDIT. Every script in 'mios.git' and
@@ -141,7 +141,7 @@ developer = "MiOS"
 
 # ----------------------------------------------------------------------------
 # [ai_tag] -- AI-hint codebase-tagging COVERAGE gate. Read by
-# mios-ai-hint-coverage, wired into automation/38-drift-checks.sh (check 5) so it
+# mios-ai-hint-coverage, wired into automation/98-drift-checks.sh (check 5) so it
 # runs in build.sh, both CI workflows, and `just drift-gate`. Taggability itself
 # is defined by mios-ai-tag (the SSOT for WHICH files should carry a header);
 # this section only sets the pass/fail POLICY.
@@ -352,7 +352,7 @@ arbitration = "static"   # GPU arbitration model: "static" (pre-bind at boot), "
 #       - Apache 2.0; OpenAI /v1/embeddings-shaped via the mios-llm-light lane.
 #       - https://huggingface.co/nomic-ai/nomic-embed-text-v1.5
 #
-# Build-baked: automation/38-llamacpp-prep.sh pulls the 'model' +
+# Build-baked: automation/73-model-prep.sh pulls the 'model' +
 # 'embed_model' set into /usr/share/mios/llamacpp/models on the immutable
 # composefs surface during 'just build'. mios-llamacpp-firstboot.service
 # hardlink-copies that seed into /var/lib/mios/llamacpp/models on first deploy.
@@ -688,29 +688,29 @@ enable = false
 [laws]
 # The MiOS architectural LAW registry (v0.3.0) -- the SINGLE source of the law
 # list. CLAUDE.md / AGENTS.md / MiOS.md and generate-manual.py document these;
-# 38-drift-checks.sh + 99-postcheck.sh enforce them (a failing law fails the
+# 98-drift-checks.sh + 99-postcheck.sh enforce them (a failing law fails the
 # build). This table exists so the id<->slug<->enforcer mapping can never drift
 # across the prose copies again. applies_to = bootc | wsl | both.
 laws = [
-  { id = 1,  slug = "USR-OVER-ETC",         applies_to = "both",  enforced_by = "38-drift-checks.sh:check_usr_over_etc" },
-  { id = 2,  slug = "NO-MKDIR-IN-VAR",       applies_to = "both",  enforced_by = "38-drift-checks.sh:check_no_mkdir_in_var" },
+  { id = 1,  slug = "USR-OVER-ETC",         applies_to = "both",  enforced_by = "98-drift-checks.sh:check_usr_over_etc" },
+  { id = 2,  slug = "NO-MKDIR-IN-VAR",       applies_to = "both",  enforced_by = "98-drift-checks.sh:check_no_mkdir_in_var" },
   { id = 3,  slug = "BOUND-IMAGES",          applies_to = "bootc", enforced_by = "99-postcheck.sh:item14" },
-  { id = 4,  slug = "BOOTC-CONTAINER-LINT",  applies_to = "bootc", enforced_by = "38-drift-checks.sh:check_lint_is_final" },
+  { id = 4,  slug = "BOOTC-CONTAINER-LINT",  applies_to = "bootc", enforced_by = "98-drift-checks.sh:check_lint_is_final" },
   { id = 5,  slug = "UNIFIED-AI-REDIRECTS",  applies_to = "both",  enforced_by = "99-postcheck.sh:item12" },
-  { id = 6,  slug = "UNPRIVILEGED-QUADLETS", applies_to = "bootc", enforced_by = "38-drift-checks.sh:check_quadlet_privilege" },
-  { id = 7,  slug = "NO-HARDCODE",           applies_to = "both",  enforced_by = "38-drift-checks.sh:check_no_hardcode" },
-  { id = 8,  slug = "SSOT-PROJECTION",       applies_to = "both",  enforced_by = "38-drift-checks.sh:check_projection_registry" },
-  { id = 9,  slug = "ONE-CANONICAL-NAME",    applies_to = "both",  enforced_by = "38-drift-checks.sh:check_var_closure" },
+  { id = 6,  slug = "UNPRIVILEGED-QUADLETS", applies_to = "bootc", enforced_by = "98-drift-checks.sh:check_quadlet_privilege" },
+  { id = 7,  slug = "NO-HARDCODE",           applies_to = "both",  enforced_by = "98-drift-checks.sh:check_no_hardcode" },
+  { id = 8,  slug = "SSOT-PROJECTION",       applies_to = "both",  enforced_by = "98-drift-checks.sh:check_projection_registry" },
+  { id = 9,  slug = "ONE-CANONICAL-NAME",    applies_to = "both",  enforced_by = "98-drift-checks.sh:check_var_closure" },
   { id = 10, slug = "BARE-SAFE-ENV",         applies_to = "both",  enforced_by = "99-postcheck.sh:item16" },
   { id = 11, slug = "SECRETS-NEVER-IN-ENV",  applies_to = "bootc", enforced_by = "99-postcheck.sh:item17" },
-  { id = 12, slug = "BAKE-NOT-FETCH",        applies_to = "both",  enforced_by = "38-drift-checks.sh:check_dag_integrity,check_firstboot_degrade_open" },
-  { id = 13, slug = "NATIVE-DROPINS",        applies_to = "both",  enforced_by = "38-drift-checks.sh:check_resolver_twin_parity" },
+  { id = 12, slug = "BAKE-NOT-FETCH",        applies_to = "both",  enforced_by = "98-drift-checks.sh:check_dag_integrity,check_firstboot_degrade_open" },
+  { id = 13, slug = "NATIVE-DROPINS",        applies_to = "both",  enforced_by = "98-drift-checks.sh:check_resolver_twin_parity" },
   # Law 14 -- TARGET-LANGUAGES: ALL new applicable code, on EVERY platform (bootc, WSL, Windows),
   # MUST use the roadmap's language-per-domain targets (ADR-0011 §2 / WS-LANG): Rust for native
   # tooling/orchestration/services/validation; Python for the AI plane; Bun/TS for the web Portal;
   # bash is thin GLUE ONLY. No NEW C#, Batch, PowerShell-as-program, or Go native code -- those are
   # grandfathered-for-port, not a licence for more. Minimise languages; convert shell -> machine code.
-  { id = 14, slug = "TARGET-LANGUAGES",      applies_to = "both",  enforced_by = "38-drift-checks.sh:check_target_languages" },
+  { id = 14, slug = "TARGET-LANGUAGES",      applies_to = "both",  enforced_by = "98-drift-checks.sh:check_target_languages" },
   # Law 15 -- DOUBLE-REPO-TRIPLE-CHECK: before ANY change, (1) DOUBLE-CHECK BOTH repos -- mios.git (the
   # system/OCI image source; .git IS /) AND mios-bootstrap.git (the installer + user-overlay) -- for
   # current state, the SHARED cross-repo SSOT (mios.toml, the userenv twins, [ports]/[colors]), any
@@ -719,7 +719,7 @@ laws = [
   # cut once; THEN code. A surface mirrored across both repos MUST be updated in both (or the divergence
   # explicitly justified). Discipline law: enforced by the agent contract (CLAUDE.md/AGENTS.md in BOTH
   # repos); the "both repos agree" half is mechanically gated by cross-repo parity checks 22 + 27.
-  { id = 15, slug = "DOUBLE-REPO-TRIPLE-CHECK", applies_to = "both", enforced_by = "process:CLAUDE.md/AGENTS.md (both repos); parity via 38-drift-checks.sh checks 22+27" },
+  { id = 15, slug = "DOUBLE-REPO-TRIPLE-CHECK", applies_to = "both", enforced_by = "process:CLAUDE.md/AGENTS.md (both repos); parity via 98-drift-checks.sh checks 22+27" },
 ]
 
 [laws.target_languages]
@@ -776,7 +776,7 @@ provenance_taint = false
 [security.privileged_quadlets]
 # Law 6 (UNPRIVILEGED-QUADLETS) documented root exceptions -- the ONLY place root
 # is granted. A Quadlet with User=root/User=0 that is NOT listed here fails
-# check_quadlet_privilege (38-drift-checks.sh) / postcheck item 13. Keep this in
+# check_quadlet_privilege (98-drift-checks.sh) / postcheck item 13. Keep this in
 # sync with the tree: `grep -rlE '^User=(root|0)$' usr/share/containers/systemd/`.
 root = [
   "mios-ceph.container",                    # Ceph OSD/MON -- uid 0 for block devices
@@ -1034,7 +1034,7 @@ token_ttl_s        = 3600
 # the second [security] section (strict TOML parsers reject
 # duplicate sections).
 composefs_mode = "verity"
-# When composefs is in verity mode, automation/40-composefs-verity.sh
+# When composefs is in verity mode, automation/77-composefs-verity.sh
 # also masks systemd-remount-fs.service (known-broken with composefs on
 # Fedora 42+). Set to false to skip the mask if the base image's
 # systemd-remount-fs has been patched. No effect when composefs_mode is
@@ -2778,7 +2778,7 @@ agents = [
 # Bare keys here MUST precede any [daemon.*] sub-table (TOML ordering). These
 # are PURE-PYTHON-READ knobs consumed by mios-daemon / mios-daemon-agent /
 # the cron-director via the agent-pipe _toml_section("daemon") helper -- they
-# need NO userenv.sh slot or 15-render-quadlets.sh allowlist entry.
+# need NO userenv.sh slot or 34-render-quadlets.sh allowlist entry.
 #
 # Back-pressure GOVERNOR: when the box is hot (load or GPU util above the
 # ceilings below) the daemon's *autonomous* (self-initiated) work calms down
@@ -5707,7 +5707,7 @@ pool_max    = 8
 #                    recall ranking + the downstream recency re-rank stay correct)
 #   relaxed_order -- iterate with a discarded-candidate heap; marginally higher
 #                    recall at the cost of approximate ordering
-# Rendered into the mios-pgvector Exec -c flags by 15-render-quadlets.sh, so it is
+# Rendered into the mios-pgvector Exec -c flags by 34-render-quadlets.sh, so it is
 # the server-wide default every session inherits (incl. the agent-pipe recall
 # connection) with no app-side per-session SET. Env: MIOS_PG_HNSW_ITERATIVE_SCAN.
 hnsw_iterative_scan      = "strict_order"
@@ -5797,7 +5797,7 @@ config     = "/usr/share/mios/llamacpp/mios-llm-light.yaml"
 # to leave headroom on the box; SSOT-wired alongside ports.cpu_node
 # (was a DEAD ${MIOS_CPU_NODE_THREADS} placeholder, never in the render allowlist).
 cpu_node_threads = 14
-# GGUF bake (38-llamacpp-prep.sh). CSV of dest.gguf=hf_repo:filename; EMPTY =
+# GGUF bake (73-model-prep.sh). CSV of dest.gguf=hf_repo:filename; EMPTY =
 # opt-in skip (no image bloat). dest filenames MUST match mios-llm-light.yaml's
 # /models/*. Pre-quantized FOSS GGUFs, e.g.:
 #   "granite-4.1-8b.gguf=unsloth/granite-4.1-8b-GGUF:granite-4.1-8b-Q4_K_M.gguf,lfm2-700m.gguf=LiquidAI/LFM2-700M-GGUF:LFM2-700M-Q4_K_M.gguf,embeddinggemma-300m-qat-q8_0.gguf=ggml-org/embeddinggemma-300m-qat-q8_0-GGUF:embeddinggemma-300m-qat-Q8_0.gguf"
@@ -5850,7 +5850,7 @@ resolution = "auto"                # "auto" lets mstsc pick from Windows display
 #   * Per-user gtk-3.0 + gtk-4.0 settings.ini (via /etc/skel/.config/...)
 #   * Bibata cursor + dark Adwaita variants
 #
-# Lifted out of automation/30-locale-theme.sh + mios-flatpak-init so the
+# Lifted out of automation/10-locale-theme.sh + mios-flatpak-init so the
 # operator can override in /etc/mios/mios.toml [appearance] without
 # patching scripts. Operator directive theme drift between
 # bake-time and firstboot was leaving Nautilus + others rendered in
@@ -5929,7 +5929,7 @@ rag_rerank = false
 # full pipeline (refine -> route -> deterministic dispatch / native-loop / council
 # -> SERVER-SIDE broker execution + read-back verification -> polish + grounding),
 # NOT the bare Hermes leaf. Hermes-Agent (:8642/v1, direct host install,
-# automation/38-hermes-agent.sh) is now a LEAF the pipe calls (binding in
+# automation/72-hermes-agent.sh) is now a LEAF the pipe calls (binding in
 # [agents.hermes].endpoint), never the public entrypoint -- pointing the canonical
 # surface at :8642 made the interactive `@` bypass the orchestrator + fail. NOTE:
 # this is the CLIENT surface only; the pipe's OWN inference backend is
@@ -6007,7 +6007,7 @@ tokenizer_backend   = "tiktoken"
 # in code; cl100k_base is the widely-cached GPT-4/3.5 encoding. Env: MIOS_TOKENIZER_ENCODING.
 tokenizer_encoding  = "cl100k_base"
 # Baked, read-only offline cache for the tiktoken encoding blob -- pre-warmed at
-# build time (38-hermes-agent.sh) so runtime needs no network. mios_tokenize points
+# build time (72-hermes-agent.sh) so runtime needs no network. mios_tokenize points
 # TIKTOKEN_CACHE_DIR here when the process has not already set it. Env: MIOS_TOKENIZER_CACHE_DIR.
 tokenizer_cache_dir = "/usr/share/mios/tiktoken"
 # Optional path to a vendored HuggingFace tokenizer.json (only used when
@@ -6057,7 +6057,7 @@ heavy_engine        = "vllm"
 # when every local lane is on cooldown/unreachable. Default "off" -> local-only
 # (byte-identical lane chain). The cost/quality trigger is mios_smartroute.
 remote_escalation   = "off"
-# Direct-install source for automation/38-hermes-agent.sh. Operators
+# Direct-install source for automation/72-hermes-agent.sh. Operators
 # pin a tag/SHA for reproducible images via mios.html.
 hermes_agent_repo   = "https://github.com/NousResearch/hermes-agent.git"
 # Track LATEST via "main" ("don't pin any versions in MiOS!!!").
@@ -6066,7 +6066,7 @@ hermes_agent_repo   = "https://github.com/NousResearch/hermes-agent.git"
 hermes_agent_ref    = "main"
 
 # opencode (https://opencode.ai) -- code-specialist agent CLI installed
-# directly onto the host by automation/38-hermes-agent.sh. CURRENT path =
+# directly onto the host by automation/72-hermes-agent.sh. CURRENT path =
 # a first-class OpenAI /v1 council peer via mios-opencode-gateway.service
 # (:8633); the agent-pipe orchestrator dispatches code-heavy work to it
 # (see the /v1 gateway block below). LEGACY/retired = Hermes spawning it
@@ -6087,7 +6087,7 @@ opencode_version    = "latest"           # or pin to a tag
 # ── opencode /v1 gateway (front-door commitment,) ────────
 # opencode is a first-class OpenAI /v1 COUNCIL PEER via mios-opencode-gateway.
 # service (:8633), NOT a Hermes ACP subprocess (the ACP framing above is the
-# RETIRED path). These keys are the SSOT for automation/38-hermes-agent.sh + the
+# RETIRED path). These keys are the SSOT for automation/72-hermes-agent.sh + the
 # gateway unit + tools/lib/userenv.sh (MIOS_OPENCODE_*). ONE canonical model id
 # across: [agents.opencode].model, opencode.json's model key, and the
 # mios-opencode build name:tag.
@@ -6154,7 +6154,7 @@ system_prompt_file  = ""                # optional override; empty = use canonic
 # by the shell parser at command-start). Safe choices: @ , %
 prompt_shortcut     = "@"
 # Build-time model bake list. Comma-separated; consumed by
-# automation/38-llamacpp-prep.sh as MIOS_LLAMACPP_BAKE_MODELS. Empty disables
+# automation/73-model-prep.sh as MIOS_LLAMACPP_BAKE_MODELS. Empty disables
 # baking (image stays small; first-boot pulls instead).
 #
 # 4-MODEL POLICY ("should be 3-4 max including micro-llm;
@@ -6173,12 +6173,12 @@ prompt_shortcut     = "@"
 # qwen3-vl:4b, gemma4:e4b) was REMOVED from the fleet per the 3-4-model cap.
 #
 # The list below also names the derived mios-* role tags. Those are derived tags
-# defined in automation/38-llamacpp-prep.sh and REUSE
+# defined in automation/73-model-prep.sh and REUSE
 # the 3 LLM base blobs (under /usr/share/mios/llamacpp/models) -- they add ~no disk, so
 # listing them only guarantees they are present after a build. Total baked: the
 # 3 LLM bases + nomic (~9.8 GB) + the (blob-sharing) mios-* tags.
 #
-# Consumed by automation/38-llamacpp-prep.sh as MIOS_LLAMACPP_BAKE_MODELS. Operators
+# Consumed by automation/73-model-prep.sh as MIOS_LLAMACPP_BAKE_MODELS. Operators
 # on bandwidth-constrained networks can shrink this in /etc/mios/mios.toml; empty
 # disables baking entirely (first-boot pulls instead).
 bake_models         = "granite4.1:8b,lfm2:700m,nomic-embed-text,mios-agent,mios-agent-cpu,mios-hermes,mios-hermes-cpu,mios-opencode,mios-sys-agent"   # family-diverse fleet: Granite 4.1 8B (IBM) = brain+coder (one served GGUF, mainline llama.cpp), LFM2-700M (Liquid AI) = micro, nomic-embed-text NAME = EmbeddingGemma-300m QAT (Google, 768d, backing GGUF swapped in mios-llm-light.yaml). qwen3.5:4b/qwen3:1.7b/qwen2.5-coder:7b retired (Qwen-monoculture + qwen35 blocked on llama.cpp). mios-* tags blob-share the brain base.
@@ -6403,7 +6403,7 @@ micro_keep_alive_seconds = -1
 session       = "gnome"
 color_scheme  = "prefer-dark"   # libadwaita / dconf color-scheme
 # Flatpak refs installed across EVERY MiOS deployment shape -- the
-# OCI build pipeline (automation/40-flatpak-bake.sh) and the
+# OCI build pipeline (automation/61-flatpak-bake.sh) and the
 # dev-VM overlay layer (mios-bootstrap/build-mios.ps1's
 # Layer-MiOSEssentials) BOTH read this list, so what lands here
 # lands in podman-MiOS-DEV AND in the deployed bootc image.  Per
@@ -6463,7 +6463,7 @@ flatpaks      = [
 # Code that consumes this:
 #   * mios-flatpak-overrides-apply       -> emits per-app override files from .overrides
 #   * mios-find (via [mios-find.aliases]) -> alias values reference these ids
-#   * (future) automation/40-flatpak-bake.sh -> install list from id+remote
+#   * (future) automation/61-flatpak-bake.sh -> install list from id+remote
 #   * (future) mios.html configurator UI    -> renders array with role-picker
 #
 # Operators add an app: append a [[desktop.apps]] entry. To make it
@@ -6715,7 +6715,7 @@ native_rebuild = false
 # [security] -- sealed-image and tamper-evident root knobs.
 #
 # composefs_mode controls how /usr/lib/ostree/prepare-root.conf is
-# rendered by automation/40-composefs-verity.sh:
+# rendered by automation/77-composefs-verity.sh:
 #
 #   "verity"   composefs in fs-verity mode (default). Tamper-evident
 #              root: every ostree object is content-addressed and
@@ -7100,7 +7100,7 @@ pkgs = [
     "glibc-devel",
     "python3",
     # python3.13: hermes-agent requires Python <3.14 but F44's python3 is 3.14;
-    # 38-hermes-agent.sh builds the shared agent venv with this when present
+    # 72-hermes-agent.sh builds the shared agent venv with this when present
     # (degrade-open to python3). --skip-unavailable keeps it safe if F44 names it
     # differently (rebuild fix).
     "python3.13",
@@ -7825,8 +7825,8 @@ pkgs = [
 
 # ----------------------------------------------------------------------------
 # [ports] -- canonical port allocations. MUST stay in sync with
-# automation/25-firewall-ports.sh (firewall-offline-cmd at build time)
-# and automation/33-firewall.sh (runtime mios-firewall-init). Both
+# automation/44-firewall-ports.sh (firewall-offline-cmd at build time)
+# and automation/45-firewall.sh (runtime mios-firewall-init). Both
 # consume MIOS_PORT_* env vars synthesized from these slots by
 # tools/lib/userenv.sh, so editing here flows through end-to-end.
 #
@@ -7989,7 +7989,7 @@ packages = [
 
 # ----------------------------------------------------------------------------
 # [services.<svc>] -- per-service identity (UID / GID / username) baked
-# at OVERLAY TIME via /usr/lib/sysusers.d/*.conf + automation/31-user.sh
+# at OVERLAY TIME via /usr/lib/sysusers.d/*.conf + automation/11-user.sh
 # + /usr/lib/tmpfiles.d/mios-user.conf. Never propose runtime patches
 # to /etc/passwd / /etc/subuid / /etc/subgid in firstboot scripts —
 # the principle is "native Fedora user creation at overlay time".
@@ -8058,7 +8058,7 @@ gid  = 824
 # Runtime tunables for the crawl4ai + firecrawl members of the mios-webtools pod.
 # SSOT for the ${MIOS_CRAWL_*}/${MIOS_FIRECRAWL_*} placeholders consumed by
 # mios-webtools-crawl4ai.container + mios-webtools-firecrawl-{api,worker}.container;
-# mapped to env in tools/lib/userenv.sh and rendered via automation/15-render-quadlets.sh.
+# mapped to env in tools/lib/userenv.sh and rendered via automation/34-render-quadlets.sh.
 cdp_url            = "http://127.0.0.1:9222"  # crawl4ai -> existing local Chrome over CDP (PRIMARY engine)
 camoufox           = true                     # enable the Camoufox stealth-Firefox fail-retry fallback
 min_chars          = 200                      # crawl4ai: minimum extracted chars before a page is considered non-empty
@@ -8071,7 +8071,7 @@ firecrawl_log_level = "INFO"                  # LOGGING_LEVEL for the firecrawl 
 # declares a set of containers that must be scheduled together in ONE podman pod
 # (shared network namespace / lifecycle). The .pod Quadlet under
 # usr/share/containers/systemd/<name>.pod is GENERATED from this section by
-# tools/generate-pod-quadlets.py (drift-gated in 38-drift-checks.sh) so the pod
+# tools/generate-pod-quadlets.py (drift-gated in 98-drift-checks.sh) so the pod
 # definition can't drift from SSOT; each member .container still declares its own
 # `Pod=<name>.pod` membership. tools/generate-k3s-manifests.sh then projects the
 # LIVE pods to k3s (the runtime half), so the cluster path is one bridge removed
@@ -8530,7 +8530,7 @@ service-url     = 7
 
 # ----------------------------------------------------------------------------
 # [compliance] -- OpenSCAP scan-only build gate (BOOT-02). When enabled, the
-# automation/39-oscap-compliance.sh build step runs `oscap xccdf eval` against an
+# automation/86-oscap-compliance.sh build step runs `oscap xccdf eval` against an
 # SSG datastream and FAILS the build if any rule at/above severity_gate FAILS.
 # Scan-only: openscap-scanner + scap-security-guide are already in
 # [packages.security] (no new package). DEFAULT OFF + degrade-open: disabled means
@@ -8863,7 +8863,7 @@ qt_platform     = "xcb"     # Qt apps: "xcb" (X11) | "wayland" | "wayland;xcb"
 # auto-restart with "address already in use"). Switch to "bridge" when
 # migrating to mirrored mode -- the parent units already declare
 # mios.network, so the only change is to NOT install the host-network
-# dropins. automation/08-system-files-overlay.sh honors this key and
+# dropins. automation/01-system-files-overlay.sh honors this key and
 # removes any *-host-network.conf dropin when bridge is selected.
 # ----------------------------------------------------------------------------
 [wsl2.dev_vm]
@@ -9149,7 +9149,7 @@ base_size           = 24
 [theme.cursor_linux]
 theme               = "Bibata-Modern-Classic"
 size                = 24   # x11/Xwayland renders cursors at literal px; 16 read SMALLER than the Windows base (24) --. The pre-x11 "16 lines them up" note above is stale (it was a Wayland-era observation).
-# Upstream source for the cursor theme. Read by automation/10-gnome.sh
+# Upstream source for the cursor theme. Read by automation/57-gnome.sh
 # (build seeds /usr/share/icons) AND mios-cursor-ensure (runtime self-heal
 # into ~/.local/share/icons when /usr lacks it -- /usr is RO on bootc).
 # archive defaults to "<theme>.tar.xz" off the latest GitHub release tag.
@@ -9162,7 +9162,7 @@ weight              = "normal"
 # Source URLs for the three font families MiOS deploys system-wide. All
 # three are read by build-mios.ps1's font installer; mios.html exposes
 # them so operators can pin to a specific release tag instead of
-# "latest". Linux side: automation/09-fonts.sh reads the same keys.
+# "latest". Linux side: automation/56-fonts.sh reads the same keys.
 url                 = "https://github.com/ryanoasis/nerd-fonts/releases/latest/download/GeistMono.zip"   # GeistMono Nerd Font (mono + glyphs)
 vercel_repo         = "https://github.com/vercel/geist-font.git"                                         # Vercel Geist (sans + mono, no glyphs)
 symbols_url         = "https://github.com/ryanoasis/nerd-fonts/releases/latest/download/NerdFontsSymbolsOnly.zip"   # Nerd Symbols Only (icon glyphs the omp theme uses)
@@ -9542,14 +9542,14 @@ features = ["ai", "virtualization", "k3s"]
 #                                 a host systemd service, uses the
 #                                 mios-llm-light lane (and vllm/sglang when
 #                                 present) as its inference backend.
-#                                 See automation/38-hermes-agent.sh +
+#                                 See automation/72-hermes-agent.sh +
 #                                 usr/lib/systemd/system/hermes-agent.service.
 #   open-webui (container)     -- rich browser LLM UI on :3033, talks to
 #                                 the OpenAI /v1 surface.
 #
 # mios-hermes + mios-hermes-dashboard CONTAINER Quadlets were REMOVED
 # (operator directive). Hermes-Agent is a DIRECT host install
-# (automation/38-hermes-agent.sh + hermes-agent.service) -- there is no
+# (automation/72-hermes-agent.sh + hermes-agent.service) -- there is no
 # containerized agent path anymore. The agent's dashboard ships inside
 # that same install; Open WebUI is the browser LLM UI.
 mios-ceph             = true

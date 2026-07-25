@@ -5,8 +5,8 @@
 # consumers. This is the CSS/QML-facing sibling of the existing
 # /etc/mios/install.env bridge: one command, one regenerated artifact, so a
 # palette edit in mios.toml reaches the Portal, the Configurator, the
-# Quickshell panel, and (via automation/56-bake-surfer.sh /
-# automation/54-bake-hyprland.sh at build time) the browser shell and
+# Quickshell panel, and (via automation/67-bake-surfer.sh /
+# automation/65-bake-hyprland.sh at build time) the browser shell and
 # compositor borders, without hand-editing hex codes in five different files.
 # AI-related: usr/share/mios/mios.toml, usr/share/mios/quickshell/Theme.qml,
 # usr/share/mios/branding/mios-app-shell.css, tools/lib/userenv.sh,

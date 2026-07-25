@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# MIOS_APPLY_CLASS=universal
+# AI-hint: Configures fapolicyd to use file-based trust (fs-verity) to enable secure, immutable application whitelisting on ComposeFS systems without boot delays.
+# AI-related: fapolicyd.service
+set -euo pipefail
+
+echo "==> Setting fapolicyd trust backend to 'file,rpmdb' in /usr/lib and /etc fapolicyd.conf..."
+
+# shellcheck source=lib/common.sh
+source "$(dirname "$0")/lib/common.sh"
+
+# Configure fapolicyd to use the file trust backend (fs-verity)
+# This allows 0-second boot delays while maintaining rigid application whitelisting
+# in immutable ComposeFS environments.
+#
+# : USR-OVER-ETC alignment. Update both /usr/lib and /etc.
+for config in /usr/lib/fapolicyd/fapolicyd.conf /etc/fapolicyd/fapolicyd.conf; do
+    if [[ -f "$config" ]]; then
+        sed -i 's/^trust =.*/trust = file,rpmdb/' "$config" || true
+    fi
+done
+
+# Enable the service
+systemctl enable fapolicyd.service
+echo "==> Set trust = file,rpmdb in fapolicyd.conf and enabled fapolicyd.service."

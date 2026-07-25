@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# MIOS_APPLY_CLASS=universal
 # AI-hint: Final build-time validation script that enforces mandatory security invariants, such as OpenSSH version minimums and Cockpit configuration checks, to abort the build if the image is insecure or non-compliant.
 # AI-related: /usr/share/mios/ai, /etc/mios/ai, mios-ceph, mios-k3s, wsl-init.service
 # AI-functions: _sysusers_effective, _gid_in_etc_group
@@ -560,7 +561,7 @@ _law3_extra=""
 # firstboot tier (mios.toml [build.bake].firstboot_tokens): a Quadlet whose Image=
 # ref substring-matches a token is INTENTIONALLY NOT bound -- it is a multi-GB GPU-
 # engine whale evicted from the bake (generate-bake-plan.py -> plan.d/firstboot.list)
-# and web-pulled at first boot, so automation/08-system-files-overlay.sh deliberately
+# and web-pulled at first boot, so automation/01-system-files-overlay.sh deliberately
 # SKIPS its bound-images.d symlink. This exemption MUST use the SAME read+match as 08
 # (firstboot_tokens via grep/sed, substring-match against Image=) or the enforcer and
 # the overlay diverge and the build dies here. Degrade-open: an unreadable token list

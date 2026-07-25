@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 tools/generate-gate-index.py (AGY-151)
-Generates usr/share/mios/reference/drift-gate-index.tsv from automation/38-drift-checks.sh.
+Generates usr/share/mios/reference/drift-gate-index.tsv from automation/98-drift-checks.sh.
 Enforces 1:1 ordinal numbering for every registered drift-check in main() order.
 """
 
@@ -11,7 +11,7 @@ import re
 
 def main():
     root = os.environ.get("MIOS_DRIFT_ROOT", os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    script_path = os.path.join(root, "automation/38-drift-checks.sh")
+    script_path = os.path.join(root, "automation/98-drift-checks.sh")
     output_path = os.path.join(root, "usr/share/mios/reference/drift-gate-index.tsv")
 
     if not os.path.isfile(script_path):
@@ -24,7 +24,7 @@ def main():
     # Extract main() function block (from `main() {` to the end of the file or `main "$@"`)
     main_start = content.find("main() {")
     if main_start == -1:
-        sys.stderr.write("ERROR: main() function not found in 38-drift-checks.sh\n")
+        sys.stderr.write("ERROR: main() function not found in 98-drift-checks.sh\n")
         sys.exit(1)
 
     main_body = content[main_start:]
@@ -67,7 +67,7 @@ def main():
         with open(output_path, "r", encoding="utf-8") as f:
             existing = f.read()
         if existing != tsv_content:
-            sys.stderr.write("ERROR: drift-gate-index.tsv is out of sync with 38-drift-checks.sh. Run tools/generate-gate-index.py to regenerate.\n")
+            sys.stderr.write("ERROR: drift-gate-index.tsv is out of sync with 98-drift-checks.sh. Run tools/generate-gate-index.py to regenerate.\n")
             sys.exit(1)
         print("PASS: drift-gate-index.tsv is in sync.")
         sys.exit(0)

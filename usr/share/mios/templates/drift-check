@@ -1,6 +1,6 @@
 # --- ({{id}}) {{description}} --------------------
 # AI-hint: Drift check verifying {{description}} under the source-tree drift fitness-functions.
-# AI-related: automation/38-drift-checks.sh
+# AI-related: automation/98-drift-checks.sh
 # AI-functions: check_{{name}}
 #
 check_{{name}}() {

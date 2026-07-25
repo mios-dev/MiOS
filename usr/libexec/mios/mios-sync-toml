@@ -8,7 +8,7 @@
 # gate-48 ignored_prefixes) and the derived copies' own [ports.lan_firewall] sub-table are
 # NEVER touched. Source of truth: usr/share/mios/mios.toml.
 # AI-related: usr/share/mios/mios.toml, mios.toml, ../mios-bootstrap/mios.toml,
-#   usr/lib/mios/mios_toml.py, usr/libexec/mios/mios-sync-theme, automation/38-drift-checks.sh,
+#   usr/lib/mios/mios_toml.py, usr/libexec/mios/mios-sync-theme, automation/98-drift-checks.sh,
 #   usr/lib/systemd/system/mios-sync-theme.service
 #
 # Usage: mios-sync-toml            # regenerate the projected sections in both derived copies

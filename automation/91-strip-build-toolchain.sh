@@ -1,11 +1,12 @@
 #!/bin/bash
+# MIOS_APPLY_CLASS=bake-only
 # AI-hint: Removes build-toolchain packages (gcc, g++, cmake, etc.) from the final image via dnf to minimize attack surface, ensuring no compilers remain in the PATH after the build phase.
 # 'MiOS' - 91-strip-build-toolchain
 #
 # Removes the build toolchain (compilers, build-system headers) from the
 # image after every build-phase that needs them has finished. Runs after
 # 90-generate-sbom.sh (so the SBOM still records what was used to build
-# the image) and before 99-cleanup.sh / 99-postcheck.sh.
+# the image) and before 94-cleanup.sh / 99-postcheck.sh.
 #
 # Why: a deployed MiOS host carrying gcc/g++/cmake/golang is unnecessary
 # attack surface for any process that obtains a shell. Per the project

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Generate systemd capability drop-in files from the mios.toml [blade.requires] SSOT.
-# AI-related: usr/share/mios/dropins/blade-*.conf, usr/share/mios/mios.toml, automation/41-mios-dropin-fanout.sh, /etc/mios/blade.d/
+# AI-related: usr/share/mios/dropins/blade-*.conf, usr/share/mios/mios.toml, automation/48-mios-dropin-fanout.sh, /etc/mios/blade.d/
 import os
 import sys
 

@@ -18,11 +18,11 @@ Wants=network-online.target mios-llm-light.service
 # passes the FULL conversation (system + history) to `opencode run`, lands its
 # config at MIOS_OPENCODE_CONFIG, unifies the model id, and streams proper SSE
 # deltas. Deployed + enabled by the UNIFIED agent-plane install driver
-# automation/38-hermes-agent.sh: PHASE 1 builds the shared venv + Hermes,
+# automation/72-hermes-agent.sh: PHASE 1 builds the shared venv + Hermes,
 # PHASE 2 fetches the opencode binary + lands opencode.json. The gateway
 # server.py itself ships via the system-files overlay (this file's tree).
 #
-# This unit lives in /usr/lib/systemd/system, which 15-render-quadlets.sh does
+# This unit lives in /usr/lib/systemd/system, which 34-render-quadlets.sh does
 # NOT process, and systemd does not expand env vars in User=/WorkingDirectory=/
 # ConditionPathExists=/ExecStart=. So the values below are LITERALS that MIRROR
 # mios.toml ([ports].opencode_gateway, [ai].opencode_*, [ai].agent_venv) — the
@@ -30,7 +30,7 @@ Wants=network-online.target mios-llm-light.service
 # update this unit to match.
 #
 # Skip cleanly if the opencode binary never landed (build-time fetch failure)
-# rather than crash-loop; `mios update` re-runs 38-hermes-agent.sh (PHASE 2)
+# rather than crash-loop; `mios update` re-runs 72-hermes-agent.sh (PHASE 2)
 # to complete it.
 ConditionPathExists=/usr/lib/mios/agents/opencode/bin/opencode
 

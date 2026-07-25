@@ -41,7 +41,7 @@ source "${SCRIPT_DIR}/common.sh"
 source "${SCRIPT_DIR}/packages.sh"
 
 # _ws7_scalar <table> <key> -- read a top-level scalar from [<table>] of the
-# resolved mios.toml. Mirrors automation/40-composefs-verity.sh's helper so
+# resolved mios.toml. Mirrors automation/77-composefs-verity.sh's helper so
 # WS-7 reads the SSOT the same tolerant way. Empty when absent.
 _ws7_scalar() {
     local table="$1" key="$2" toml_path
@@ -147,7 +147,7 @@ ws7_build_verity_uki() {
         return 0
     fi
 
-    # Reuse the cmdline rendered by automation/23-uki-render.sh.
+    # Reuse the cmdline rendered by automation/76-uki-render.sh.
     local cmdline_file="/usr/lib/kernel/cmdline"
     local cmdline=""
     [[ -f "$cmdline_file" ]] && cmdline="$(tr -d '\n' < "$cmdline_file")"

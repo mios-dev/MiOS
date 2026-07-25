@@ -58,23 +58,23 @@ CAT_META = {
 
 FROMSOURCE = [
     ("looking-glass-b7",     "from-source",         "KVM/QEMU shared-memory display protocol",
-     "Built in automation/53-bake-lookingglass-client.sh from upstream source"),
+     "Built in automation/69-bake-lookingglass-client.sh from upstream source"),
     ("kvmfr",                "from-source",         "Kernel module for Looking Glass shared memory",
-     "Built/baked into image via automation/52-bake-kvmfr.sh"),
+     "Built/baked into image via automation/68-bake-kvmfr.sh"),
     ("k3s-binary",           "from-source",         "Lightweight Kubernetes runtime",
-     "Downloaded from upstream releases by automation/13-ceph-k3s.sh"),
+     "Downloaded from upstream releases by automation/36-ceph-k3s.sh"),
     ("k3s-selinux-policy",   "from-source",         "SELinux policy for k3s",
-     "Compiled in automation/19-k3s-selinux.sh"),
+     "Compiled in automation/37-k3s-selinux.sh"),
     ("aichat",               "from-source",         "Terminal AI chat client",
      "Downloaded from upstream releases by automation/37-aichat.sh"),
     ("aichat-ng",            "from-source",         "aichat fork",
      "Downloaded from upstream releases by automation/37-aichat.sh"),
     ("cosign-v2",            "from-source",         "Sigstore container signing tool (v2 keyless)",
-     "Downloaded from upstream releases by automation/42-cosign-policy.sh"),
+     "Downloaded from upstream releases by automation/49-cosign-policy.sh"),
     ("mios-selinux-modules", "from-source-policy",  "Custom SELinux .te modules",
      "Compiled in usr/share/selinux/packages/mios; loaded post-build"),
     ("bibata-cursor-theme",  "from-source",         "Bibata cursor theme",
-     "Downloaded tarball in automation/10-gnome.sh"),
+     "Downloaded tarball in automation/57-gnome.sh"),
 ]
 
 OCI_IMAGES = [

@@ -54,7 +54,7 @@ jobs:
 
       - name: Drift gate (SSOT-render lint + agent-pipe unit tests)
         run: |
-          bash ./automation/38-ssot-lint.sh
+          bash ./automation/97-ssot-lint.sh
           cd ./usr/lib/mios/agent-pipe
           fails=0
           for t in test_mios_*.py; do
@@ -78,8 +78,8 @@ jobs:
             echo "test_mios_docgen.py failed" >&2; exit 1
           fi
 
-      - name: AI-plane source drift checks (38-drift-checks.sh)
-        run: bash ./automation/38-drift-checks.sh
+      - name: AI-plane source drift checks (98-drift-checks.sh)
+        run: bash ./automation/98-drift-checks.sh
 
       - name: Negative tests (drift-gate-negatives.sh)
         run: bash ./tests/drift-gate-negatives.sh

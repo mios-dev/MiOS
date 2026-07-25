@@ -23,7 +23,7 @@
 # verity note: the verity-rooted UKI itself is produced by the gated build step
 # automation/lib/ws7-uki-fapolicyd-build.sh (ukify build with the composefs
 # fs-verity digest measured into the UKI). composefs verity is already on via
-# mios.toml [security].composefs_mode="verity" (automation/40-composefs-verity.sh).
+# mios.toml [security].composefs_mode="verity" (automation/77-composefs-verity.sh).
 # This kargs file only carries the boot-time POSTURE switches, not the image.
 
 kargs = [

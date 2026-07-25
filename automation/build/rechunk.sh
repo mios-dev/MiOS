@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # AI-hint: CI OCI rechunking step for optimal Day-2 updates (CONV-14).
 # Gated on MIOS_CONV_IMAGE_RECHUNK_ENABLE=true.
-# AI-related: usr/share/mios/mios.toml, automation/38-drift-checks.sh
+# AI-related: usr/share/mios/mios.toml, automation/98-drift-checks.sh
 # automation/build/rechunk.sh
 
 set -euo pipefail

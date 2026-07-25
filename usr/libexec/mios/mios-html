@@ -34,7 +34,7 @@ mios-html: $HTML_PATH does not exist.
 The system overlay should have installed it from
 /mnt/c/MiOS/usr/share/mios/configurator/mios.html (or
 /mnt/m/usr/share/mios/configurator/mios.html on the bootstrap volume).
-Re-run automation/08-system-files-overlay.sh in your next image build,
+Re-run automation/01-system-files-overlay.sh in your next image build,
 or for a quick local fix:
   sudo install -D -m 0644 \\
     /mnt/c/MiOS/usr/share/mios/configurator/mios.html \\

@@ -33,6 +33,6 @@ OSTREE_VERSION="0.3.0"
 # CPE_NAME, BUILD_ID, IMAGE_VERSION, OSTREE_VERSION) are NOT authored here:
 # they are PROJECTED at build time from the single SSOT
 # mios.toml [meta].mios_version (via /ctx/VERSION -> MIOS_VERSION in
-# automation/49-finalize.sh), and drift-check (42) fails the build if the
+# automation/88-finalize.sh), and drift-check (42) fails the build if the
 # committed values above ever diverge from that SSOT. Edit the version in
 # mios.toml [meta].mios_version ONLY.

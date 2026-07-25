@@ -20,7 +20,7 @@ softens the now-false "other tools will be denied" instruction. Memory/skill
 tools remain first-class via the existing prompt; this only REMOVES the cap.
 
 Idempotent: re-runs are no-ops once the marker is present (survives image
-rebuilds; re-applied by automation/38-hermes-agent.sh over each site-packages).
+rebuilds; re-applied by automation/72-hermes-agent.sh over each site-packages).
 Run: python3 hermes-background-review-tools-patch.py <path/to/background_review.py>
 """
 from __future__ import annotations

@@ -19,7 +19,7 @@
 # 'mios-sync-env' to refresh install.env. Idempotent.
 #
 # SECRETS ARE NEVER WRITTEN HERE. The operator password hash lives in
-# /etc/shadow (baked via `chpasswd -e` in automation/31-user.sh) and in
+# /etc/shadow (baked via `chpasswd -e` in automation/11-user.sh) and in
 # /etc/mios/secrets.env (0600); Forge admin password + GitHub token also
 # live in secrets.env. install.env carries ONLY non-secret tunables.
 # Rationale: install.env is read by THREE parsers with incompatible
@@ -57,7 +57,7 @@ done
 OUT=/etc/mios/install.env
 
 # Source the layered TOML resolver. Lives at /usr/lib/mios/userenv.sh
-# (installed by automation/36-tools.sh) and exports MIOS_* vars derived
+# (installed by automation/59-tools.sh) and exports MIOS_* vars derived
 # from the deep-merged mios.toml overlay.
 RESOLVER=/usr/lib/mios/userenv.sh
 if [[ ! -r "$RESOLVER" ]]; then
@@ -145,7 +145,7 @@ EOF
 
     # llama.cpp light lane ([llamacpp] -> MIOS_LLAMACPP_*). All resolver-
     # populated; emit only the values the resolver actually produced (no
-    # hardcoded literals). BAKE_MODELS feeds 38-llamacpp-prep.sh + the
+    # hardcoded literals). BAKE_MODELS feeds 73-model-prep.sh + the
     # mios-ai-firstboot online GGUF retry.
     [[ -n "${MIOS_LLAMACPP_ENABLE:-}" ]]      && emit MIOS_LLAMACPP_ENABLE "${MIOS_LLAMACPP_ENABLE}"
     [[ -n "${MIOS_LLAMACPP_SLOT_DIR:-}" ]]    && emit MIOS_LLAMACPP_SLOT_DIR "${MIOS_LLAMACPP_SLOT_DIR}"

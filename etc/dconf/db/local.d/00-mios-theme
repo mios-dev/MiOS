@@ -13,7 +13,7 @@
 # local system-db into the user dconf profile cascade.
 #
 # Cursor: Bibata-Modern-Classic is installed mandatorily by
-# automation/10-gnome.sh into /usr/share/icons/Bibata-Modern-Classic/
+# automation/57-gnome.sh into /usr/share/icons/Bibata-Modern-Classic/
 # (build fails if download misses). Operator-flagged 2026-05-10:
 # "not seeing bibata cursor that is the GLOBAL MiOS defaults -- YOU
 # FORGOT" -- the dconf key here was 'Adwaita' so Bibata installed

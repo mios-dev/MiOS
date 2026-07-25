@@ -623,7 +623,7 @@ gather_user_choices() {
     # AI model selection -> MIOS_AI_MODEL / MIOS_AI_EMBED_MODEL in install.env (runtime).
     # The chosen pair is what mios-ai-firstboot.service confirms on first boot, so it
     # carries through end-to-end. Model BAKING is SSOT-driven from mios.toml [ai].bake_models
-    # / [ai.vllm].bake_model (read directly by 38-llamacpp-prep.sh / 38-vllm-prep.sh).
+    # / [ai.vllm].bake_model (read directly by 73-model-prep.sh / 73-model-prep.sh).
     AI_MODEL_VAL="$(prompt_model "${DEFAULT_AI_MODEL}")"
     AI_EMBED_VAL="$(prompt_default 'AI embedding model' "${DEFAULT_AI_EMBED_MODEL}")"
 
@@ -1183,9 +1183,9 @@ trigger_mios_install() {
             spin_start "Running systemd-tmpfiles --create"
             systemd-tmpfiles --create 2>/dev/null || log_warn "systemd-tmpfiles failed"
             spin_stop
-            if [[ -f "/automation/15-render-quadlets.sh" ]]; then
+            if [[ -f "/automation/34-render-quadlets.sh" ]]; then
                 spin_start "Rendering Quadlet container files"
-                (cd /automation && ./15-render-quadlets.sh) 2>/dev/null || log_warn "15-render-quadlets.sh failed"
+                (cd /automation && ./34-render-quadlets.sh) 2>/dev/null || log_warn "34-render-quadlets.sh failed"
                 spin_stop
             fi
             if systemctl is-system-running --quiet 2>/dev/null; then

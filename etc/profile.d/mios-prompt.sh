@@ -8,7 +8,7 @@
 #
 # Oh-My-Posh ships as a static Go binary at
 #   /usr/libexec/mios/oh-my-posh/oh-my-posh
-# (installed by automation/38-oh-my-posh.sh at build time -- not a
+# (installed by automation/62-oh-my-posh.sh at build time -- not a
 # Fedora RPM). The MiOS theme lives at
 #   /usr/share/mios/oh-my-posh/mios.omp.json
 # Both paths are guarded with -x / -r so a missing binary or theme

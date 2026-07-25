@@ -35,7 +35,6 @@ cat > "$CONF" <<'SC'
 [storage]
 driver = "overlay"
 [storage.options]
-use_hard_links = "true"
 [storage.options.overlay]
 mountopt = "nodev"
 [storage.options.pull_options]

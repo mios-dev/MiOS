@@ -3783,14 +3783,14 @@ echo "[quadlet-overlay] root symlinks: /mios.toml, /configurator.html"
 # is empty. Operator-flagged (containers all dead after
 # install).
 #
-# automation/15-render-quadlets.sh walks the four Quadlet search
+# automation/34-render-quadlets.sh walks the four Quadlet search
 # dirs, resolves the placeholders against the layered mios.toml
 # (vendor < host < user) via tools/lib/userenv.sh, and writes the
 # rendered files back in place. The deployed bootc image builds run
 # this at image-build time; the dev-VM overlay path does NOT, so
 # we run it here. Idempotent: re-runs against an already-rendered
 # .container are a no-op (envsubst sees no remaining placeholders).
-# install-robustness the dev-VM overlay never ran 36-tools.sh
+# install-robustness the dev-VM overlay never ran 59-tools.sh
 # (which deploys tools/lib/userenv.sh -> /usr/lib/mios/userenv.sh, the env-bridge
 # resolver) NOR mios-sync-env -- so /etc/mios/install.env was never generated,
 # leaving the AI plane INERT on a fresh install: empty bake_models -> no GGUFs ->
@@ -3809,12 +3809,12 @@ if [[ -x /usr/libexec/mios/system-sync-env.sh ]]; then
         echo "[quadlet-overlay] WARN: mios-sync-env exited non-zero (install.env may be stale)"
 fi
 
-if [[ -x /automation/15-render-quadlets.sh ]]; then
-    echo "[quadlet-overlay] rendering Quadlet \${MIOS_*} placeholders via automation/15-render-quadlets.sh"
-    sudo /automation/15-render-quadlets.sh 2>&1 | sed 's/^/[quadlet-overlay]   /' || \
-        echo "[quadlet-overlay] WARN: 15-render-quadlets.sh exited non-zero (Quadlets may still have placeholders)"
+if [[ -x /automation/34-render-quadlets.sh ]]; then
+    echo "[quadlet-overlay] rendering Quadlet \${MIOS_*} placeholders via automation/34-render-quadlets.sh"
+    sudo /automation/34-render-quadlets.sh 2>&1 | sed 's/^/[quadlet-overlay]   /' || \
+        echo "[quadlet-overlay] WARN: 34-render-quadlets.sh exited non-zero (Quadlets may still have placeholders)"
 else
-    echo "[quadlet-overlay] WARN: /automation/15-render-quadlets.sh not found (mios.git overlay incomplete?)"
+    echo "[quadlet-overlay] WARN: /automation/34-render-quadlets.sh not found (mios.git overlay incomplete?)"
 fi
 
 # Realize sysusers + tmpfiles, then reload systemd so the new units
@@ -4068,12 +4068,12 @@ done
 # (rc != 0 doesn't kill the overlay) and self-skips when the relevant
 # binary already exists.
 #
-# 09-fonts.sh         Geist (Vercel) + Symbols-Only Nerd Font
-# 38-oh-my-posh.sh    Oh-My-Posh static binary -> /usr/bin/oh-my-posh
+# 56-fonts.sh         Geist (Vercel) + Symbols-Only Nerd Font
+# 62-oh-my-posh.sh    Oh-My-Posh static binary -> /usr/bin/oh-my-posh
 echo "[quadlet-overlay] running canonical fetchers (fonts + oh-my-posh + xrdp Enhanced Session)..."
-for script in /automation/09-fonts.sh \
+for script in /automation/56-fonts.sh \
               /automation/35-xrdp-enhanced-session.sh \
-              /automation/38-oh-my-posh.sh; do
+              /automation/62-oh-my-posh.sh; do
     if [[ -x "$script" ]]; then
         echo "[quadlet-overlay] => $script"
         # Stream live (line-buffered), drop only bash -x trace lines -- no `tail`
@@ -4616,7 +4616,7 @@ for svc_pair in \
 done
 
 # Open the MiOS service ports in the dev VM's firewalld. The deployed
-# bootc image runs automation/25-firewall-ports.sh at OCI build time
+# bootc image runs automation/44-firewall-ports.sh at OCI build time
 # (firewall-offline-cmd), but the MiOS-DEV overlay path does NOT go
 # through an image build -- it's provisioned from podman-machine-os
 # (firewalld active, public zone: only ssh/mdns/dhcpv6) and overlaid.
@@ -4624,7 +4624,7 @@ done
 # are unreachable from the WSL-VM-IP, so the Windows-side portproxy
 # (0.0.0.0 -> WSL-VM-IP) hits a closed door (operator-confirmed
 # LAN access dead until firewalld was opened by hand).
-# firewall-cmd (online) here mirrors what 25-firewall-ports.sh bakes
+# firewall-cmd (online) here mirrors what 44-firewall-ports.sh bakes
 # offline. Tolerant: no-op if firewalld isn't running.
 if systemctl is-active --quiet firewalld 2>/dev/null; then
     echo "[quadlet-overlay] opening MiOS service ports in dev VM firewalld"
@@ -4737,7 +4737,7 @@ echo "[quadlet-overlay] Ollama:         set MIOS_DEV_ENABLE_AI=1 then re-run for
     # override-aware); the infra ports (ssh, forgejo-ssh, qdrant grpc/http,
     # hermes-dashboard, metrics) are not operator-tunable [ports] service
     # keys so they carry vendor defaults here. Mirrors the offline
-    # 25-firewall-ports.sh surface baked into the OCI image.
+    # 44-firewall-ports.sh surface baked into the OCI image.
     $_fwServicePorts = [ordered]@{
         forge_http       = 8300
         open_webui       = 8033
@@ -9475,7 +9475,7 @@ $miosRepo = $MiosRepoDir
                                     Log-Warn "[overlay] flatpak install FAILED both attempts (last exit $($script:_fpRetryRc)): $_fp"
                                     Log-Warn "  diagnostic tail: $_fpTail"
                                     Log-Warn "  full verbose log: $_fpFailLog"
-                                    Log-Warn "  OCI image build (mios build -> automation/40-flatpak-bake.sh) retries at bake time; first-boot service mios-flatpak-install also retries on every host boot."
+                                    Log-Warn "  OCI image build (mios build -> automation/61-flatpak-bake.sh) retries at bake time; first-boot service mios-flatpak-install also retries on every host boot."
                                     $_fpFail++
                                 }
                             }
@@ -9799,7 +9799,7 @@ fi
     }
     Log-Ok "MiOS dconf system-db compiled (adw-gtk3-dark + prefer-dark active for all user-bus sessions)"
 
-    # Bibata-Modern-Classic cursor install. mios.git's automation/10-gnome.sh
+    # Bibata-Modern-Classic cursor install. mios.git's automation/57-gnome.sh
     # bakes Bibata into the bootc OCI image MANDATORILY, but the dev VM
     # (podman-MiOS-DEV = podman-machine-os Fedora 44 + MiOS overlay) doesn't
     # run that automation. Without this overlay step, dconf points at

@@ -79,8 +79,8 @@ lint-shell:
 # deterministic unit tests (assert-scripts, run via python3). Exits non-zero on
 # any drift -- the same checks `just build` runs as post-build sub-phases.
 drift-gate:
-    @echo "[drift-gate] 38-ssot-lint.sh (SSOT-render conformance)"
-    bash ./automation/38-ssot-lint.sh
+    @echo "[drift-gate] 97-ssot-lint.sh (SSOT-render conformance)"
+    bash ./automation/97-ssot-lint.sh
     @echo "[drift-gate] lint-shell (shellcheck verification)"
     bash ./automation/lint-shell.sh
     @echo "[drift-gate] agent-pipe unit tests (test_mios_*.py)"
@@ -96,8 +96,8 @@ drift-gate:
     @cd ./usr/libexec/mios && \
         py_exec="python3"; [ -x /usr/lib/mios/agents/.venv/bin/python3 ] && py_exec="/usr/lib/mios/agents/.venv/bin/python3"; \
         if "$py_exec" test_mios_docgen.py >/dev/null 2>&1; then echo "  [ OK ] test_mios_docgen.py"; else echo "  [FAIL] test_mios_docgen.py" >&2; exit 1; fi
-    @echo "[drift-gate] 38-drift-checks.sh (AI-plane source drift fitness-functions)"
-    bash ./automation/38-drift-checks.sh
+    @echo "[drift-gate] 98-drift-checks.sh (AI-plane source drift fitness-functions)"
+    bash ./automation/98-drift-checks.sh
     @echo "[drift-gate] tests/drift-gate-negatives.sh (negative-test harness for the new gates)"
     bash ./tests/drift-gate-negatives.sh
     @echo "[drift-gate] tests/drift-gate-readonly.sh (read-only / idempotency self-test)"

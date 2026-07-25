@@ -33,7 +33,7 @@
      5. Account     Native Fedora user account creation at OVERLAY
                     TIME (per the project's "no firstboot patching"
                     feedback): systemd-sysusers materializes
-                    /etc/passwd + /etc/group; automation/31-user.sh
+                    /etc/passwd + /etc/group; automation/11-user.sh
                     bakes /etc/subuid + /etc/subgid + password hash;
                     /usr/lib/tmpfiles.d/mios-user.conf seeds /var/home
                     + linger marker at first boot declaratively.

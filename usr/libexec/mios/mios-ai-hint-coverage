@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: AI-hint coverage fitness-function -- reuses the mios-ai-tag taggability
-# AI-related: mios-ai-tag, mios-codebase-index, ./automation/38-drift-checks.sh, ./usr/share/mios/mios.toml
+# AI-related: mios-ai-tag, mios-codebase-index, ./automation/98-drift-checks.sh, ./usr/share/mios/mios.toml
 # AI-functions: _load_tagger, _ceiling, measure, main
 #   SSOT (walk + existing_hint + indexable + SKIP/EXT) to measure what fraction of
 #   taggable source files carry an `AI-hint:` header, and FAILS (exit 1) when the

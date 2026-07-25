@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: Hardens Day-N shutdown loops by detecting dirty working tree edits (+1 compilations), presenting a formatted git diff preview, and offering choices to carry-forward, include in Day-N updates/builds, or clean/discard changes.
-# AI-related: usr/libexec/mios/mios-shutdown, usr/libexec/mios/mios-build-driver, usr/share/mios/mios.toml, automation/38-drift-checks.sh
+# AI-related: usr/libexec/mios/mios-shutdown, usr/libexec/mios/mios-build-driver, usr/share/mios/mios.toml, automation/98-drift-checks.sh
 # AI-functions: main, check_git_diff, prompt_user
 set -euo pipefail
 
