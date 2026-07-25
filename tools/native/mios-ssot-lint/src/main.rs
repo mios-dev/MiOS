@@ -156,7 +156,7 @@ fn in_render(v: &str, render_lines: &[&str]) -> bool {
 fn main() {
     let root = find_root();
     let userenv_path = root.join("tools/lib/userenv.sh");
-    let render_path = root.join("automation/15-render-quadlets.sh");
+    let render_path = root.join("automation/34-render-quadlets.sh");
     let quadlet_dir = root.join("usr/share/containers/systemd");
 
     let soft_mode = env::var("MIOS_SSOT_LINT_SOFT").unwrap_or_default() == "1";
@@ -166,7 +166,7 @@ fn main() {
         process::exit(2);
     }
     if !render_path.is_file() {
-        println!("[38-ssot-lint] FATAL: 15-render-quadlets.sh not found at {}", render_path.display());
+        println!("[38-ssot-lint] FATAL: 34-render-quadlets.sh not found at {}", render_path.display());
         process::exit(2);
     }
     if !quadlet_dir.is_dir() {
@@ -225,9 +225,9 @@ fn main() {
         }
         if !in_rq {
             if !miss.is_empty() {
-                miss.push_str(" + 15-render-quadlets.sh allowlist");
+                miss.push_str(" + 34-render-quadlets.sh allowlist");
             } else {
-                miss.push_str("15-render-quadlets.sh allowlist");
+                miss.push_str("34-render-quadlets.sh allowlist");
             }
         }
         eprintln!(
@@ -249,7 +249,7 @@ fn main() {
         orphans
     );
     eprintln!("[38-ssot-lint]   Fix each by (a) adding a typed slot in tools/lib/userenv.sh AND");
-    eprintln!("[38-ssot-lint]   (b) adding it to BOTH allowlists in automation/15-render-quadlets.sh.");
+    eprintln!("[38-ssot-lint]   (b) adding it to BOTH allowlists in automation/34-render-quadlets.sh.");
 
     if soft_mode {
         println!("[38-ssot-lint] (MIOS_SSOT_LINT_SOFT=1 -> advisory mode, exiting 0)");
