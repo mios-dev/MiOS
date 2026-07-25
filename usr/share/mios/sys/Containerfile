@@ -110,7 +110,7 @@ ENV PUPPETEER_SKIP_DOWNLOAD=true
 # 12. Firecrawl -- float latest release tag + latest pnpm (same tag the go-builder resolved).
 RUN t="$(curl -fsSL -o /dev/null -w '%{url_effective}' --retry 5 --connect-timeout 20 https://github.com/mendableai/firecrawl/releases/latest | sed 's#.*/tag/##')" \
     && git clone --depth 1 --branch "${t}" https://github.com/mendableai/firecrawl.git /opt/firecrawl \
-    && npm install -g pnpm@latest \
+    && npm install -g pnpm@latest --prefix /usr \
     && cd /opt/firecrawl/apps/api \
     && pnpm install --frozen-lockfile \
     && pnpm run build:nosentry
