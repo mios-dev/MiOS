@@ -938,6 +938,9 @@ test_ipa_enroll_projection() {
     log "Testing check_ipa_enroll_projection (AGY-162)..."
     local target_file="${ROOT}/etc/mios/ipa-enroll.env"
     local bak="${target_file}.ipabak"
+    # $ROOT is a bare git tree, not the overlaid FHS, so this generated target is absent on a
+    # fresh checkout -- produce it first with the same generator the main check regenerates from.
+    [[ -f "$target_file" ]] || { mkdir -p "$(dirname "$target_file")"; MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-ipa-enroll-env.py" >/dev/null 2>&1 || true; }
     cp "$target_file" "$bak"
 
     echo 'MIOS_IPA_REALM="MUTATED.REALM"' >> "$target_file"
@@ -958,6 +961,9 @@ test_uki_cmdline_projection() {
     log "Testing check_uki_cmdline_projection (AGY-163)..."
     local target_file="${ROOT}/usr/lib/kernel/cmdline"
     local bak="${target_file}.ukibak"
+    # $ROOT is a bare git tree, not the overlaid FHS, so this generated target is absent on a
+    # fresh checkout -- produce it first with the same generator the main check regenerates from.
+    [[ -f "$target_file" ]] || { mkdir -p "$(dirname "$target_file")"; MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-uki-cmdline.py" >/dev/null 2>&1 || true; }
     cp "$target_file" "$bak"
 
     echo 'mutated_bogus_karg=1' >> "$target_file"
@@ -999,6 +1005,9 @@ test_cockpit_projection() {
     log "Testing check_cockpit_projection (AGY-165)..."
     local target_file="${ROOT}/etc/cockpit/cockpit.conf"
     local bak="${target_file}.cockbak"
+    # $ROOT is a bare git tree, not the overlaid FHS, so this generated target is absent on a
+    # fresh checkout -- produce it first with the same generator the main check regenerates from.
+    [[ -f "$target_file" ]] || { mkdir -p "$(dirname "$target_file")"; MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-cockpit-conf.py" >/dev/null 2>&1 || true; }
     cp "$target_file" "$bak"
 
     echo 'AllowUnencrypted = false' >> "$target_file"
