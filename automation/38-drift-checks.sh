@@ -4746,7 +4746,14 @@ for block in recipe_blocks:
     if not lines or ":" not in lines[0]:
         continue
     recipe_name = lines[0].split(":")[0].strip()
-    block_text = "\n".join(lines[1:])
+    # Skip the leading preamble: comments + Just `name := ...` variable definitions are not
+    # recipes. That block's first line is a comment and it legitimately NAMES the BIB image
+    # (MIOS_IMG_BIB := "...bootc-image-builder:latest") without ever invoking BIB.
+    if recipe_name.startswith("#"):
+        continue
+    # Only recipe-body INVOCATIONS count -- drop Just `:=` assignment lines so an image-ref
+    # definition string is never mistaken for a BIB call.
+    block_text = "\n".join(ln for ln in lines[1:] if ":=" not in ln)
 
     if "{{BIB}}" in block_text or "bootc-image-builder" in block_text:
         if "--rootfs" not in block_text:

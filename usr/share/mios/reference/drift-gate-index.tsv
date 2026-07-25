@@ -97,3 +97,6 @@
 96	check_ipa_enroll_projection	etc/mios/ipa-enroll.env matches [identity.ipa] SSOT (AGY-162)
 97	check_uki_cmdline_projection	usr/lib/kernel/cmdline matches kargs.d/*.toml drop-ins (AGY-163)
 98	check_composefs_projection	composefs prepare-root.conf absent -- skipped
+99	check_cockpit_projection	etc/cockpit/cockpit.conf matches mios.toml [cockpit] SSOT (AGY-165)
+100	check_chrony_ptp_dropin	Chrony PTP drop-in generator is idempotent and leaves canonical chrony.conf unchanged (AGY-166)
+101	check_renderer_gate_coverage	All automation renderers map to a registered projection gate in 38-drift-checks.sh (AGY-168)
