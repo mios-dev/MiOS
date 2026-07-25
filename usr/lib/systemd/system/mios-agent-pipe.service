@@ -16,6 +16,12 @@ Requires=mios-pgvector.service
 # restarts) can't trip the default 5/10s start limit and land permanently failed.
 StartLimitIntervalSec=300
 StartLimitBurst=5
+# The venv python is baked into the FINAL image, but on the podman-MiOS-DEV substrate it is
+# built at first boot by mios-ai-firstboot. Skip (rather than 203/EXEC-fail) until it exists,
+# so the unit never lands in a "failed" state during the firstboot venv-build window; firstboot
+# `systemctl restart --no-block`s it once the venv lands (R8 still holds: no After= edge here,
+# so no blocking on the multi-GB model download).
+ConditionPathExists=/usr/lib/mios/agents/.venv/bin/python3
 
 [Service]
 Type=simple
