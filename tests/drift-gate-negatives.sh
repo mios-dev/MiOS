@@ -150,8 +150,16 @@ test_names_registry_closure() {
 test_root_toml_subset() {
     log "Testing check_root_toml_subset..."
     local root_toml="${ROOT}/mios.toml"
-    local orig_val
-    orig_val="$(cat "$root_toml")"
+    # The root mios.toml is gitignored (generated from the vendor SSOT), so it may not
+    # exist on a fresh checkout (e.g. CI). Handle both: use the real file if present, else
+    # create a minimal one to inject into and remove it afterwards so the tree is unchanged.
+    local orig_val="" created=0
+    if [[ -f "$root_toml" ]]; then
+        orig_val="$(cat "$root_toml")"
+    else
+        created=1
+        : > "$root_toml"
+    fi
 
     # Inject violation: add a new unrecognized key not in canonical toml
     cat << 'EOF' >> "$root_toml"
@@ -160,12 +168,12 @@ fake_key_drift_assertion = "drift"
 EOF
 
     if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" bash "${ROOT}/automation/38-drift-checks.sh" check_root_toml_subset >/dev/null 2>&1; then
-        echo "$orig_val" > "$root_toml"
+        if [[ $created -eq 1 ]]; then rm -f "$root_toml"; else echo "$orig_val" > "$root_toml"; fi
         die "check_root_toml_subset passed despite invalid key injection!"
     fi
 
-    # Restore and verify green
-    echo "$orig_val" > "$root_toml"
+    # Restore (or remove the temp file we created) and verify green
+    if [[ $created -eq 1 ]]; then rm -f "$root_toml"; else echo "$orig_val" > "$root_toml"; fi
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" bash "${ROOT}/automation/38-drift-checks.sh" check_root_toml_subset >/dev/null 2>&1 \
         || die "check_root_toml_subset failed after restoration!"
     log "check_root_toml_subset negative test passed."
