@@ -205,12 +205,22 @@ fi
 # CONTAINERFILE_SCRIPTS are explicitly skipped from the main loop because
 # they're invoked elsewhere in the build flow:
 #   08-system-files-overlay.sh -- called explicitly by the OCI overlay step
-#   99-postcheck.sh             -- called explicitly below after the loop
+#   38-ssot-lint.sh            -- POST-BUILD validator, called explicitly below
+#   38-drift-checks.sh         -- POST-BUILD validator, called explicitly below
+#   99-postcheck.sh            -- called explicitly below after the loop
+# 38-ssot-lint + 38-drift-checks are read-only SOURCE validators, not build
+# stages. Their names sort into the 38-* band, so the [0-9][0-9]-*.sh glob
+# would ALSO run them mid-loop -- double-executing them, and worse: the in-loop
+# 38-drift-checks runs BEFORE the post-loop SSOT re-projection step, so the
+# gitignored projections (etc/mios/ipa-enroll.env / usr/lib/kernel/cmdline /
+# etc/cockpit/cockpit.conf) are still absent at $ROOT and checks 92/93/95
+# spuriously FAIL -> the bake aborts (the post-build run passes fine). Skip both
+# from the loop; they run once, authoritatively, after the loop (below).
 # A legacy inference-prep step used to be skipped here but was orphaned
 # (never called). Model baking is now a regular pipeline step
 # (38-llamacpp-prep.sh -> /usr/share/mios/llamacpp/models), so it runs in
 # the main loop.
-CONTAINERFILE_SCRIPTS="08-system-files-overlay.sh 99-postcheck.sh"
+CONTAINERFILE_SCRIPTS="08-system-files-overlay.sh 38-ssot-lint.sh 38-drift-checks.sh 99-postcheck.sh"
 
 NON_FATAL_SCRIPTS="
   05-enable-external-repos.sh
