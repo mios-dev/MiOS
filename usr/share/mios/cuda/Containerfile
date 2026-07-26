@@ -23,11 +23,15 @@ RUN dnf install -y \
       python3-devel \
       && dnf clean all
 
-# Copy llama-swap and llama-server binaries
-COPY --from=llamaswap-src /usr/bin/llama-server /usr/bin/llama-server
-COPY --from=llamaswap-src /usr/bin/llama-swap /usr/bin/llama-swap
-
-# Create /app directory and set up symlinks to match upstream paths expected by configs
-RUN mkdir -p /app \
-    && ln -sf /usr/bin/llama-server /app/llama-server \
-    && ln -sf /usr/bin/llama-swap /app/llama-swap
+# Upstream ghcr.io/mostlygeek/llama-swap:cuda now ships llama-server + llama-swap TOGETHER with their
+# shared libraries (libggml*/libllama*.so) under /app. llama-server is a thin (~17KB) binary that
+# dynamically loads those /app .so's at runtime -- so copying ONLY the binary (the old
+# `COPY --from=.../usr/bin/llama-server`) both fails now (path moved off /usr/bin, 2026-07) AND would
+# ship a binary that can't find its libs. Copy the WHOLE /app tree, register it on the dynamic-loader
+# path, and expose the two binaries on PATH via symlinks. Verified against the live image (paths located,
+# not hardcoded-guessed): /app/llama-server, /app/llama-swap + libggml*/libllama* .so siblings.
+COPY --from=llamaswap-src /app /app
+RUN echo /app > /etc/ld.so.conf.d/mios-llamaswap.conf \
+ && ldconfig \
+ && ln -sf /app/llama-server /usr/bin/llama-server \
+ && ln -sf /app/llama-swap  /usr/bin/llama-swap
