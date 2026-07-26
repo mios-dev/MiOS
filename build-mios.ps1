@@ -4083,6 +4083,14 @@ for script in /automation/56-fonts.sh \
 done
 
 echo "[quadlet-overlay] installing GNOME Flatpaks for WSLg portal (one-time, ~600MB)..."
+# Flatpak here runs as ROOT (uid 0), but WSLg exports XDG_RUNTIME_DIR=/mnt/wslg/runtime-dir owned
+# by uid 1000 -> dbus refuses ("runtime dir owned by uid 1000, not our uid 0") and spams that on
+# EVERY system-wide install/remote op. Give root its OWN runtime dir + drop the inherited session
+# bus so all `sudo flatpak --system` calls below are quiet + correct. sudo propagates XDG_RUNTIME_DIR
+# (that is how the uid-1000 path leaked in), so exporting the root path here reaches the child.
+sudo install -d -m 0700 -o root -g root /run/user/0 2>/dev/null || true
+export XDG_RUNTIME_DIR=/run/user/0
+unset DBUS_SESSION_BUS_ADDRESS 2>/dev/null || true
 sudo install -d -m 0755 /var/lib/flatpak
 # Two flatpak remotes:
 #   flathub -- community / third-party flatpaks (Flatseal, VSCodium, etc.)
