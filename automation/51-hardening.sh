@@ -6,6 +6,7 @@
 # Package installs moved to mios.toml [packages.security].
 # sysctl drop-in shipped via usr/lib/sysctl.d/99-mios-hardening.conf.
 set -euo pipefail
+for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 
 # USBGuard config is at /usr/lib/usbguard/usbguard-daemon.conf (managed via overlay).
@@ -15,7 +16,7 @@ chmod 0600 /usr/lib/usbguard/usbguard-daemon.conf 2>/dev/null || true
 WANTS=/usr/lib/systemd/system/multi-user.target.wants
 install -d -m 0755 "${WANTS}"
 
-log "Enabling hardening services..."
+mios_log "enable hardening services"
 for unit in \
     usbguard.service \
     auditd.service \
@@ -23,20 +24,20 @@ for unit in \
 do
     if [[ -f "/usr/lib/systemd/system/${unit}" ]]; then
         ln -sf "../${unit}" "${WANTS}/${unit}"
-        log "Enabled ${unit}"
+        mios_ok "enabled ${unit}"
     else
-        warn "${unit} not installed, skipping enablement."
+        mios_skip "${unit} not installed"
     fi
 done
 
 # Pre-generate fapolicyd trust database for bootc systems
 # fapolicyd config is at /usr/lib/fapolicyd/fapolicyd.conf (managed via overlay).
 if command -v fagenrules &>/dev/null; then
-    log "Pre-generating fapolicyd trust database..."
+    mios_log "pre-generate fapolicyd trust database"
     # Ensure correct permissions for the fapolicyd directory
     chown -R fapolicyd:fapolicyd /etc/fapolicyd 2>/dev/null || true
     fagenrules --load 2>/dev/null || true
     fapolicyd-cli --update 2>/dev/null || true
 fi
 
-log "hardening services wired"
+mios_ok "hardening services wired"

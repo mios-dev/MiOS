@@ -3,7 +3,9 @@
 # AI-hint: Processes boot arguments from kargs.d/*.toml files into a single string at /usr/lib/kernel/cmdline to prepare the Unified Kernel Image (UKI) during the build or deployment phase.
 set -euo pipefail
 
-echo "==> Rendering kernel cmdline from bootc kargs.d/*.toml into /usr/lib/kernel/cmdline for the UKI..."
+for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
+
+mios_log "render kernel cmdline from bootc kargs.d/*.toml for the UKI"
 
 # shellcheck source=lib/packages.sh
 source "$(dirname "$0")/lib/packages.sh"
@@ -13,7 +15,7 @@ source "$(dirname "$0")/lib/common.sh"
 # [packages.uki] section as a safety net in case --skip-unavailable dropped
 # it on a constrained mirror.
 if ! rpm -q systemd-ukify >/dev/null 2>&1; then
-    echo "==> systemd-ukify not found via boot-section install; reinstalling via mios.toml [packages.uki]..."
+    mios_log "systemd-ukify not found; reinstalling via mios.toml [packages.uki]"
     install_packages_strict "uki"
 fi
 
@@ -31,13 +33,13 @@ KERNEL_CMDLINE_DST="/usr/lib/kernel/cmdline"
 install -d -m 0755 /usr/lib/kernel
 
 if [[ ! -f "$GEN_SCRIPT" ]]; then
-    echo "ERROR: authoritative UKI cmdline generator not found at $GEN_SCRIPT" >&2
+    mios_err "authoritative UKI cmdline generator not found at $GEN_SCRIPT"
     exit 1
 fi
 
 # generate-uki-cmdline.py resolves its output relative to its own location, i.e.
 # ${ROOT}/usr/lib/kernel/cmdline -- exactly where the drift-gate --check looks.
-echo "==> Rendering UKI cmdline via authoritative generator (${GEN_SCRIPT})..."
+mios_log "render UKI cmdline via authoritative generator (${GEN_SCRIPT})"
 python3 "$GEN_SCRIPT"
 
 # Install the generated SSOT to the live image path the UKI (`ukify build`)
@@ -48,9 +50,9 @@ fi
 
 CMDLINE=$(cat "${KERNEL_CMDLINE_DST}" | xargs)
 if [ -z "$CMDLINE" ]; then
-    echo "WARN: /usr/lib/kernel/cmdline is empty -- no kargs rendered. UKI generation will use defaults."
+    mios_warn "/usr/lib/kernel/cmdline empty -- no kargs rendered; UKI uses defaults"
 fi
 
-echo "Rendered UKI cmdline: $CMDLINE"
+mios_ok "rendered UKI cmdline: $CMDLINE"
 # The actual UKI generation (`ukify build`) occurs in the final CI/CD pipeline
-echo "==> UKI cmdline preparation complete."
+mios_ok "UKI cmdline rendered"

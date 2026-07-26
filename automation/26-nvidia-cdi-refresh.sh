@@ -12,12 +12,13 @@
 #   - CDI canonical path: /var/run/cdi/nvidia.yaml (runtime) or /etc/cdi/nvidia.yaml (persistent).
 #   - NVIDIA kmods blacklisted by default; 34-gpu-detect.sh removes blacklist on bare metal.
 set -euo pipefail
+for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 
 # Remove legacy OCI hook -- conflicts with CDI when both are present.
 OCI_HOOK=/usr/share/containers/oci/hooks.d/oci-nvidia-hook.json
 if [[ -f "$OCI_HOOK" ]]; then
-    log "removing legacy OCI nvidia hook (conflicts with CDI)"
+    mios_log "removing legacy OCI nvidia hook (conflicts with CDI)"
     rm -f "$OCI_HOOK"
 fi
 
@@ -30,7 +31,7 @@ fi
 WANTS=/usr/lib/systemd/system/multi-user.target.wants
 install -d -m 0755 "${WANTS}"
 
-log "Symlinking nvidia-cdi-refresh.path, nvidia-cdi-refresh.service, nvidia-persistenced.service into multi-user.target.wants"
+mios_log "symlinking nvidia-cdi-refresh.path, nvidia-cdi-refresh.service, nvidia-persistenced.service into multi-user.target.wants"
 for unit in \
     nvidia-cdi-refresh.path \
     nvidia-cdi-refresh.service \
@@ -38,13 +39,13 @@ for unit in \
 do
     if [[ -f "/usr/lib/systemd/system/${unit}" ]]; then
         ln -sf "../${unit}" "${WANTS}/${unit}"
-        log "Enabled ${unit}"
+        mios_ok "enabled ${unit}"
     else
-        warn "${unit} not found, skipping enablement."
+        mios_warn "${unit} not found, skipping enablement"
     fi
 done
 
 # /etc/cdi and /var/run/cdi are declared in usr/lib/tmpfiles.d/mios-gpu.conf
 # (LAW 2 -- NO-MKDIR-IN-VAR; admin-override surface for /etc/cdi).
 
-log "CDI refresh pipeline configured"
+mios_ok "CDI refresh pipeline configured"

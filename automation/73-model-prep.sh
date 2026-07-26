@@ -25,10 +25,11 @@
 #   embeddinggemma-300m-qat-q8_0.gguf=ggml-org/embeddinggemma-300m-qat-q8_0-GGUF:embeddinggemma-300m-qat-Q8_0.gguf
 # Pre-quantized GGUFs are downloaded directly (no convert step). All FOSS repos.
 set -euo pipefail
+for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 
 # shellcheck source=lib/common.sh
 source "$(dirname "$0")/lib/common.sh" 2>/dev/null || {
-    printf '[38-llamacpp] WARN: lib/common.sh unavailable -- skipping\n' >&2
+    mios_warn "lib/common.sh unavailable -- skipping"
     exit 0
 }
 
@@ -36,7 +37,7 @@ SPEC="${MIOS_LLAMACPP_BAKE_MODELS:-}"
 SEED_DIR="/usr/share/mios/llamacpp/models"
 
 if [[ -z "$SPEC" ]]; then
-    log "[38-llamacpp] MIOS_LLAMACPP_BAKE_MODELS empty -- creating symlink to /var/lib/mios/llamacpp/models for runtime downloads"
+    mios_log "MIOS_LLAMACPP_BAKE_MODELS empty -- symlink /var/lib/mios/llamacpp/models for runtime downloads"
     rm -rf "$SEED_DIR" 2>/dev/null || true
     ln -sf /var/lib/mios/llamacpp/models "$SEED_DIR"
     exit 0
@@ -58,11 +59,11 @@ for entry in "${_entries[@]}"; do
     repo="${rest%%:*}"
     file="${rest#*:}"
     if [[ -z "$dest" || -z "$repo" || -z "$file" || "$dest" == "$entry" || "$repo" == "$rest" ]]; then
-        log "[38-llamacpp] malformed entry '${entry}' (want dest.gguf=repo:file) -- skipping"
+        mios_warn "malformed entry '${entry}' (want dest.gguf=repo:file) -- skipping"
         continue
     fi
     if [[ -s "${SEED_DIR}/${dest}" ]]; then
-        log "[38-llamacpp] ${dest} already present -- skipping"
+        mios_skip "${dest} already present"
         baked=$((baked + 1))
         continue
     fi
@@ -78,7 +79,7 @@ for entry in "${_entries[@]}"; do
        && [[ -s "${SEED_DIR}/${dest}.part" ]]; then
         mv -f "${SEED_DIR}/${dest}.part" "${SEED_DIR}/${dest}"
         baked=$((baked + 1))
-        log "[38-llamacpp] baked ${repo}:${file} -> ${dest} (${_url})"
+        mios_ok "baked ${repo}:${file} -> ${dest} (${_url})"
 
         # Record to models SBOM (RELTOP-01 / T-251)
         sbom_dir="/usr/share/mios/artifacts/sbom"
@@ -90,16 +91,16 @@ for entry in "${_entries[@]}"; do
         printf '%s\t%s\t%s\t%s\t%s\n' "$dest" "gguf" "$repo" "$file" "${sha:-unknown}" >> "${sbom_dir}/models.tsv"
     else
         rm -f "${SEED_DIR}/${dest}.part" 2>/dev/null || true
-        log "[38-llamacpp] download failed for ${repo}:${file} (no egress / upstream issue) -- continuing; 'mios update' can retry"
+        mios_warn "download failed for ${repo}:${file} (no egress / upstream issue) -- continuing; 'mios update' can retry"
     fi
 done
 
 if [[ "$baked" -gt 0 ]]; then
     : > "${SEED_DIR}/.ready"   # the quadlet's ConditionPathExists gate -> lane eligible
     seed_size="$(du -sh "$SEED_DIR" 2>/dev/null | awk '{print $1}')"
-    log "[38-llamacpp] baked ${baked} GGUF(s) -> ${SEED_DIR} (${seed_size:-?}); .ready set -- mios-llm-light lane eligible"
+    mios_ok "baked ${baked} GGUF(s) -> ${SEED_DIR} (${seed_size:-?}); .ready set -- mios-llm-light lane eligible"
 else
-    log "[38-llamacpp] no GGUFs baked -- leaving the lane gated (no .ready written)"
+    mios_log "no GGUFs baked -- lane gated (no .ready written)"
 fi
 exit 0
 
@@ -129,7 +130,7 @@ set -euo pipefail
 
 # shellcheck source=lib/common.sh
 source "$(dirname "$0")/lib/common.sh" 2>/dev/null || {
-    printf '[38-vllm] WARN: lib/common.sh unavailable -- skipping\n' >&2
+    mios_warn "lib/common.sh unavailable -- skipping"
     exit 0
 }
 
@@ -137,7 +138,7 @@ MODEL="${MIOS_VLLM_BAKE_MODEL:-}"
 SEED_DIR="/usr/share/mios/vllm/model"
 
 if [[ -z "$MODEL" ]]; then
-    log "[38-vllm] MIOS_VLLM_BAKE_MODEL empty -- creating symlink to /var/lib/mios/vllm/model for runtime downloads"
+    mios_log "MIOS_VLLM_BAKE_MODEL empty -- symlink /var/lib/mios/vllm/model for runtime downloads"
     rm -rf "$SEED_DIR" 2>/dev/null || true
     ln -sf /var/lib/mios/vllm/model "$SEED_DIR"
     exit 0
@@ -147,7 +148,7 @@ if [[ -L "$SEED_DIR" ]]; then
     rm -f "$SEED_DIR"
 fi
 if [[ -d "$SEED_DIR" ]] && [[ -n "$(ls -A "$SEED_DIR" 2>/dev/null)" ]]; then
-    log "[38-vllm] seed already present at ${SEED_DIR}; skipping re-bake"
+    mios_skip "seed already present at ${SEED_DIR}"
     exit 0
 fi
 
@@ -176,7 +177,7 @@ snapshot_download(repo_id=model, local_dir=dest,
 print(f"baked {model} -> {dest}")
 PY
 then
-    log "[38-vllm] download failed (no egress / upstream issue) -- skipping; 'mios update' can retry"
+    mios_warn "download failed (no egress / upstream issue) -- skipping; 'mios update' can retry"
     # Leave the (empty) seed dir; the Quadlet's ConditionPathExists on
     # config.json keeps the unit from crash-looping without weights.
     exit 0
@@ -198,5 +199,5 @@ if [[ -d "$SEED_DIR" ]]; then
 fi
 
 seed_size="$(du -sh "$SEED_DIR" 2>/dev/null | awk '{print $1}')"
-log "[38-vllm] baked ${MODEL} -> ${SEED_DIR} (${seed_size:-?})"
+mios_ok "baked ${MODEL} -> ${SEED_DIR} (${seed_size:-?})"
 exit 0

@@ -3,6 +3,7 @@
 # AI-hint: Gated build context materializer. Runs materialize-build-ctx.py if build_catalog_authoritative is true.
 # AI-related: /usr/libexec/mios/materialize-build-ctx.py
 set -euo pipefail
+for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/common.sh"
@@ -19,12 +20,12 @@ AUTH=$(awk '/^[[:space:]]*build_catalog_authoritative[[:space:]]*=/ {
 }' "$TOML_PATH" 2>/dev/null)
 
 if [[ "$AUTH" == "true" ]]; then
-    echo "[00-materialize-build-ctx] build_catalog_authoritative=true; running /usr/libexec/mios/materialize-build-ctx.py to materialize build-context files into ${MIOS_BUILD_CTX}"
+    mios_log "build_catalog_authoritative=true; materialize build-ctx into ${MIOS_BUILD_CTX}"
     # The default location of materialized files is next to mios.toml
     export MIOS_BUILD_CTX="${MIOS_BUILD_CTX:-$(dirname "$TOML_PATH")}"
     if /usr/libexec/mios/materialize-build-ctx.py; then
-        echo "[00-materialize-build-ctx] Materialization successful to ${MIOS_BUILD_CTX}."
+        mios_ok "materialized to ${MIOS_BUILD_CTX}"
     else
-        echo "[00-materialize-build-ctx] WARNING: Materialization failed (likely DB unreachable inside clean container). Falling back to TOML."
+        mios_warn "materialization failed (DB unreachable in clean container); falling back to TOML"
     fi
 fi

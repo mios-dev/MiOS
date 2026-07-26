@@ -15,8 +15,9 @@
 #   - Added: podman-auto-update.timer for quadlet auto-updates
 #   - Improved: Bare-metal vs VM vs WSL2 service gating
 set -euo pipefail
+for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 
-echo "  'MiOS' ${MIOS_VERSION:-} -- Service Configuration"
+mios_log "service configuration ${MIOS_VERSION:-}"
 
 # ─── Fix systemd unit file permissions ────────────────────────────────────────
 # Container builds sometimes leave bad perms from COPY operations.

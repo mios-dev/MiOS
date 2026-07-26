@@ -15,9 +15,10 @@
 # Runs AFTER 34-gpu-detect.sh and 01-system-files-overlay.sh.
 # ============================================================================
 set -euo pipefail
+for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 
-log "Enabling GPU passthrough services"
+mios_log "enabling GPU passthrough services"
 
 # ----------------------------------------------------------------------------
 # Enable units via symlink (Containerfile-safe; `systemctl enable` cannot run
@@ -30,16 +31,16 @@ install -d -m 0755 "${WANTS}"
 for svc in mios-gpu-status.service mios-gpu-nvidia.service mios-gpu-amd.service mios-gpu-intel.service; do
   if [[ -f "/usr/lib/systemd/system/${svc}" ]]; then
     ln -sf "../${svc}" "${WANTS}/${svc}"
-    log "Enabled ${svc}"
+    mios_ok "enabled ${svc}"
   else
-    log "WARN: ${svc} missing from /usr/lib/systemd/system/ -- skipping"
+    mios_warn "${svc} missing from /usr/lib/systemd/system/ -- skipping"
   fi
 done
 
 # Enable the upstream NVIDIA path unit where the toolkit shipped it.
 if [[ -f /usr/lib/systemd/system/nvidia-cdi-refresh.path ]]; then
   ln -sf ../nvidia-cdi-refresh.path "${WANTS}/nvidia-cdi-refresh.path"
-  log "Enabled nvidia-cdi-refresh.path"
+  mios_ok "enabled nvidia-cdi-refresh.path"
 fi
 
 # ----------------------------------------------------------------------------
@@ -49,10 +50,10 @@ fi
 # ----------------------------------------------------------------------------
 if command -v semanage >/dev/null 2>&1 && [[ -d /etc/selinux/targeted ]]; then
   if semanage boolean -m --on container_use_devices 2>/dev/null; then
-    log "SELinux boolean container_use_devices persisted at build time"
+    mios_ok "SELinux boolean container_use_devices persisted"
   else
-    log "semanage not operational in build; runtime service will handle it"
+    mios_skip "semanage not operational; runtime service handles it"
   fi
 fi
 
-log "GPU passthrough units symlinked into multi-user.target.wants"
+mios_ok "GPU passthrough units symlinked into multi-user.target.wants"

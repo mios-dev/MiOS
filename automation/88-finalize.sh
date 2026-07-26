@@ -4,6 +4,7 @@
 # AI-related: /usr/lib/mios/., /etc/mios/role.conf, /etc/mios/version, mios-version, graphical.target, multi-user.target
 # 88-finalize.sh - final cleanup, systemd preset application, image linting
 set -euo pipefail
+for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 
 # Apply all shipped presets now (so `systemctl is-enabled` reflects intent)
@@ -19,7 +20,7 @@ systemctl set-default multi-user.target 2>/dev/null || true
 install -d -m 0755 ${MIOS_SHARE_DIR}
 
 # Scrub potential credential leaks from build-time placeholder injections
-log "scrubbing build-time credentials and override scripts"
+mios_log "scrubbing build-time credentials and override scripts"
 rm -f /etc/containers/auth.json \
       /root/.docker/config.json \
       /root/.containers/auth.json \
@@ -54,7 +55,7 @@ if [[ -f "$OSR" && "$MIOS_VERSION" != "unknown" ]]; then
     done
     sed -i -E "s|^PRETTY_NAME=.*|PRETTY_NAME=\"MiOS ${MIOS_VERSION}\"|" "$OSR"
     sed -i -E "s|^CPE_NAME=.*|CPE_NAME=\"cpe:/o:mios-dev:mios:${MIOS_VERSION}\"|" "$OSR"
-    log "os-release version projected from SSOT: ${MIOS_VERSION}"
+    mios_ok "os-release version projected from SSOT: ${MIOS_VERSION}"
 fi
 
-log "finalize complete"
+mios_ok "finalized"

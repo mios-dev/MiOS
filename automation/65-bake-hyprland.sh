@@ -3,13 +3,14 @@
 # AI-hint: Installs Hyprland tiling compositor, XWayland, window routing helpers, and constructs the base layout configuration inside /usr/share/mios/hyprland/hyprland.conf.
 # AI-related: /usr/share/mios/hyprland/hyprland.conf, /usr/bin/hyprland
 set -euo pipefail
+for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/packages.sh"
 
-echo "[54-bake-hyprland] Installing Hyprland compositor & tools..."
+mios_log "installing Hyprland compositor & tools"
 install_packages_strict "hyprland"
 
-echo "[54-bake-hyprland] Generating baseline Hyprland configuration..."
+mios_log "generating baseline Hyprland configuration"
 mkdir -p /usr/share/mios/hyprland
 cat << 'EOF' > /usr/share/mios/hyprland/hyprland.conf
 # =============================================================================
@@ -180,4 +181,4 @@ sed -i \
     /usr/share/mios/hyprland/hyprland.conf
 
 chmod 0644 /usr/share/mios/hyprland/hyprland.conf
-echo "[54-bake-hyprland] Wrote /usr/share/mios/hyprland/hyprland.conf (MIOS_COLOR_ACCENT/INFO/MUTED tokens substituted from mios.toml [colors])."
+mios_ok "wrote /usr/share/mios/hyprland/hyprland.conf (MIOS_COLOR_ACCENT/INFO/MUTED tokens substituted from mios.toml [colors])"

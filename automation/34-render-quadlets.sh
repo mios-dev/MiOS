@@ -23,6 +23,8 @@
 # ----------------------------------------------------------------------------
 set -euo pipefail
 
+for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
+
 # shellcheck source=lib/common.sh
 source "$(dirname "$0")/lib/common.sh"
 
@@ -36,7 +38,7 @@ if id -u mios >/dev/null 2>&1; then
     export MIOS_CODE_SERVER_GID="$(id -g mios)"
 fi
 
-echo "[15-render-quadlets] Rendering Quadlet placeholders from mios.toml..."
+mios_log "render Quadlet placeholders from mios.toml"
 
 # Quadlet and config search paths: every directory systemd-generator-quadlet
 # scans (per `man quadlet`) plus MiOS-specific config dirs.
@@ -142,7 +144,7 @@ _render_with_bash() {
 if command -v envsubst >/dev/null 2>&1; then
     _renderer=_render_with_envsubst
 else
-    echo "[15-render-quadlets] envsubst not found -- using bash fallback"
+    mios_log "envsubst not found, bash fallback"
     _renderer=_render_with_bash
 fi
 
@@ -163,7 +165,7 @@ for dir in "${QUADLET_DIRS[@]}"; do
         if [[ "$(basename "$f")" == "mios-llm-heavy.container" ]]; then
             heavy_mode="${MIOS_CONVERGE_INFERENCE_HEAVY_ENGINE_MODE:-dual}"
             if [[ "$heavy_mode" == "single" ]]; then
-                echo "[15-render-quadlets] Applying multi-LoRA configuration to mios-llm-heavy.container..."
+                mios_log "apply multi-LoRA config to mios-llm-heavy.container"
                 sed -i 's|--enable-prefix-caching|--enable-prefix-caching --enable-lora --max-loras 4 --max-cpu-loras 8 --max-lora-rank 64 --lora-modules coding=/var/lib/mios/lora-adapters/coding reasoning=/var/lib/mios/lora-adapters/reasoning|g' "$local_tmp"
                 sed -i '/ContainerName=mios-llm-heavy/a Environment=VLLM_ALLOW_RUNTIME_LORA_UPDATING=true\nEnvironment=VLLM_PLUGINS=lora_filesystem_resolver\nEnvironment=VLLM_LORA_RESOLVER_CACHE_DIR=/var/lib/mios/lora-adapters/\nVolume=/var/lib/mios/lora-adapters:/var/lib/mios/lora-adapters:Z' "$local_tmp"
             fi
@@ -174,7 +176,7 @@ for dir in "${QUADLET_DIRS[@]}"; do
         if ! cmp -s "$f" "$local_tmp"; then
             mv "$local_tmp" "$f"
             chmod 0644 "$f"
-            echo "[15-render-quadlets]   rendered: $f"
+            mios_ok "rendered: $f"
             rendered_count=$((rendered_count + 1))
         else
             rm -f "$local_tmp"
@@ -182,4 +184,4 @@ for dir in "${QUADLET_DIRS[@]}"; do
     done < <(find "$dir" -maxdepth 2 -type f \( -name '*.container' -o -name '*.network' -o -name '*.volume' -o -name '*.pod' -o -name '*.image' -o -name '*.build' -o -name '*.toml' -o -name '*.json' -o -name '*.conf' -o -name '*.service' \) -print0 2>/dev/null)
 done
 
-echo "[15-render-quadlets] Done -- rendered $rendered_count, skipped $skipped_count (no placeholders)"
+mios_ok "rendered $rendered_count, skipped $skipped_count (no placeholders)"

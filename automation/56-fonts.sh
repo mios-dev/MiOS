@@ -31,19 +31,20 @@
 # enables Geist Mono as primary monospace + Nerd Symbols as per-glyph
 # fallback for the U+E000..U+F8FF private-use-area icon ranges.
 set -euo pipefail
+for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/common.sh
 source "${SCRIPT_DIR}/lib/common.sh"
 
 # ── Geist (Vercel) ────────────────────────────────────────────────────
-log "[09-fonts] installing Geist font family from Vercel..."
+mios_log "installing Geist font family from Vercel"
 mkdir -p /usr/share/fonts/geist
 if [ -f "/usr/share/mios/vendored/geist-font.zip" ]; then
-    log "[09-fonts] Found offline vendored geist-font.zip, extracting..."
+    mios_log "found offline vendored geist-font.zip, extracting"
     mkdir -p /tmp/geist-font
     unzip -o -q /usr/share/mios/vendored/geist-font.zip -d /tmp/geist-font 2>/dev/null || true
 elif [ -d "/usr/share/mios/vendored/geist-font" ]; then
-    log "[09-fonts] Found offline vendored geist-font directory, copying..."
+    mios_log "found offline vendored geist-font directory, copying"
     cp -a /usr/share/mios/vendored/geist-font /tmp/geist-font
 else
     git clone --depth=1 --single-branch -c http.lowSpeedLimit=1 -c http.lowSpeedTime=20 \
@@ -67,13 +68,13 @@ fi
 # fontconfig per-glyph fallback (usr/share/fontconfig/conf.avail/
 # 30-mios-geist.conf) keeps Geist's letterforms for text while the
 # missing icon glyphs resolve through the symbols font transparently.
-log "[09-fonts] installing Symbols-Only Nerd Font (icon fallback for Geist Mono)..."
+mios_log "installing Symbols-Only Nerd Font (icon fallback for Geist Mono)"
 mkdir -p /usr/share/fonts/nerd-symbols
 NERD_TAG=$( (scurl -s https://api.github.com/repos/ryanoasis/nerd-fonts/releases/latest \
             | grep -Po '"tag_name": "\K.*?(?=")') 2>/dev/null || true)
 NERD_FALLBACK_TAG="v3.4.0"
 if [ -z "$NERD_TAG" ]; then
-    warn "[09-fonts] api.github.com release-tag lookup empty -- using fallback ${NERD_FALLBACK_TAG}"
+    mios_warn "api.github.com release-tag lookup empty -- using fallback ${NERD_FALLBACK_TAG}"
     NERD_TAG="$NERD_FALLBACK_TAG"
 fi
 record_version nerd-symbols-font "$NERD_TAG" \
@@ -83,11 +84,11 @@ if command -v unzip >/dev/null 2>&1; then
     NERD_URL="https://github.com/ryanoasis/nerd-fonts/releases/download/${NERD_TAG}/NerdFontsSymbolsOnly.zip"
     download_ok=false
     if [ -f "/usr/share/mios/vendored/NerdFontsSymbolsOnly.zip" ]; then
-        log "[09-fonts] Found offline vendored NerdFontsSymbolsOnly.zip, using it..."
+        mios_log "found offline vendored NerdFontsSymbolsOnly.zip, using it"
         cp /usr/share/mios/vendored/NerdFontsSymbolsOnly.zip /tmp/nerd-symbols.zip
         download_ok=true
     elif [ -f "/usr/share/mios/vendored/nerd-symbols.zip" ]; then
-        log "[09-fonts] Found offline vendored nerd-symbols.zip, using it..."
+        mios_log "found offline vendored nerd-symbols.zip, using it"
         cp /usr/share/mios/vendored/nerd-symbols.zip /tmp/nerd-symbols.zip
         download_ok=true
     elif scurl -fsL --max-time 90 "$NERD_URL" -o /tmp/nerd-symbols.zip 2>/dev/null; then
@@ -107,12 +108,12 @@ if command -v unzip >/dev/null 2>&1; then
         printf '%s\t%s\t%s\n' "NerdFontsSymbolsOnly" "${NERD_TAG}" "${sha:-unknown}" >> "${sbom_dir}/binaries.tsv"
 
         rm -f /tmp/nerd-symbols.zip
-        log "[09-fonts] Symbols-Only Nerd Font ${NERD_TAG} installed"
+        mios_ok "Symbols-Only Nerd Font ${NERD_TAG} installed"
     else
-        warn "[09-fonts] Symbols-Only Nerd Font download failed -- prompt icons will render as missing-glyph squares"
+        mios_warn "Symbols-Only Nerd Font download failed -- prompt icons will render as missing-glyph squares"
     fi
 else
-    warn "[09-fonts] unzip unavailable -- skipping symbols font (install unzip in packages-utils)"
+    mios_warn "unzip unavailable -- skipping symbols font (install unzip in packages-utils)"
 fi
 
 # Refresh fontconfig cache so the new families are immediately
@@ -121,4 +122,4 @@ fi
 # fontconfig just needs to know the new files exist.
 fc-cache -f /usr/share/fonts/geist /usr/share/fonts/nerd-symbols 2>/dev/null || true
 
-log "[09-fonts] done"
+mios_ok "done"

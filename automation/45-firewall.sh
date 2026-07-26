@@ -4,11 +4,12 @@
 # AI-related: mios-firewall-init, mios-firewall, mios-hermes, mios-open-webui, mios-code-server, mios-guacamole, mios-forge, mios-cockpit-link
 # 'MiOS' - 33-firewall: Firewall configuration script
 set -euo pipefail
+for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 
 # shellcheck source=lib/common.sh
 source "$(dirname "$0")/lib/common.sh"
 
-echo "[33-firewall] Installing firewall init script..."
+mios_log "installing firewall init script"
 
 # Port values resolve through the layered SSOT (mios.toml [ports] →
 # tools/lib/userenv.sh → MIOS_PORT_* env vars → automation/lib/globals.sh
@@ -80,4 +81,4 @@ echo "[mios-firewall] Firewall configured"
 EOFW
 chmod +x /usr/libexec/mios-firewall-init
 
-echo "[33-firewall] Firewall init script installed."
+mios_ok "firewall init script installed"

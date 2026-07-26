@@ -16,10 +16,12 @@
 # ============================================================================
 set -euo pipefail
 
+for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
+
 # shellcheck source=lib/common.sh
 source "$(dirname "$0")/lib/common.sh"
 
-log "36-akmod-guards: installing ExecCondition drop-ins"
+mios_log "installing ExecCondition drop-ins"
 
 SERVICES=(
     nvidia-persistenced
@@ -52,7 +54,7 @@ ExecCondition=/bin/bash -c 'grep -Eq "(^|/)nvidia\\.ko(\\.[xz]z|\\.zst)?:" /lib/
 EOF
     chmod 0644 "${path}"
     count=$((count + 1))
-    log "  installed ${path}"
+    mios_log "installed ${path}"
 done
 
-log "36-akmod-guards: done (${count} drop-ins)"
+mios_ok "${count} drop-ins installed"

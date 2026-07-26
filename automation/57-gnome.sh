@@ -21,6 +21,7 @@
 #   - Flatpak: 7 apps (added Flatseal + LocalSend)
 #   - adw-gtk3 theme for GTK3 visual consistency
 set -euo pipefail
+for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 # shellcheck source=lib/common.sh
 source "$(dirname "$0")/lib/common.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -29,7 +30,7 @@ source "${SCRIPT_DIR}/lib/packages.sh"
 # ═════════════════════════════════════════════════════════════════════════════
 # GNOME 50 -- Install from mios.toml [packages.gnome] (build-up, NOT strip-down)
 # ═════════════════════════════════════════════════════════════════════════════
-echo "[10-gnome] Installing GNOME 50 packages from mios.toml [packages.gnome]..."
+mios_log "install GNOME 50 packages from mios.toml [packages.gnome]"
 install_packages "gnome"
 
 # Optional GNOME Core Apps (empty pkgs[] in [packages.gnome-core-apps] by default)
@@ -40,13 +41,13 @@ install_packages_optional "gnome-core-apps"
 # Removing localsearch breaks Nautilus search + Activities Overview.
 # Hide via autostart overrides in usr/share/xdg/autostart/
 # ═════════════════════════════════════════════════════════════════════════════
-echo "[10-gnome] localsearch/tracker indexing disabled via static autostart override files in the usr/share/xdg/autostart/ overlay (package retained)"
+mios_log "localsearch/tracker indexing disabled via static autostart override files in the usr/share/xdg/autostart/ overlay (package retained)"
 
 # ═════════════════════════════════════════════════════════════════════════════
 # Qt Adwaita theming -- required for Qt apps to match GNOME look
 # Managed via usr/lib/environment.d/60-mios-qt-adwaita.conf
 # ═════════════════════════════════════════════════════════════════════════════
-echo "[10-gnome] Qt Adwaita theming provided by usr/lib/environment.d/60-mios-qt-adwaita.conf overlay"
+mios_log "Qt Adwaita theming provided by usr/lib/environment.d/60-mios-qt-adwaita.conf overlay"
 
 # Geist + Symbols-Only Nerd Font now install via automation/56-fonts.sh
 # UNCONDITIONALLY (BEFORE this script runs). The font fetch was moved
@@ -67,7 +68,7 @@ echo "[10-gnome] Qt Adwaita theming provided by usr/lib/environment.d/60-mios-qt
 # FIX: Retry download 3 times. VERIFY the cursors directory exists.
 #      FAIL THE BUILD if cursors are missing -- a square cursor is unacceptable.
 # ═════════════════════════════════════════════════════════════════════════════
-echo "[10-gnome] Installing Bibata-Modern-Classic cursor (MANDATORY)..."
+mios_log "install Bibata-Modern-Classic cursor (MANDATORY)"
 
 # Resolve latest release from upstream. Project policy: every dependency
 # tracks :latest from its source, so no fallback pin -- if api.github.com is
@@ -97,18 +98,18 @@ _bibata_sum_default="https://github.com/ful1e5/Bibata_Cursor/releases/download/v
 BIBATA_SUM_URL="${MIOS_URL_BIBATA_SUM:-$_bibata_sum_default}"
 BIBATA_SUM_URL="${BIBATA_SUM_URL//"{}"/${BIBATA_VER}}"
 for attempt in 1 2 3; do
-    echo "[10-gnome]   Download attempt $attempt/3..."
+    mios_log "download attempt $attempt/3"
     if scurl -fSL --connect-timeout 20 --max-time 120 --retry 2 --retry-delay 5 "$BIBATA_URL" -o /tmp/bibata.tar.xz; then
         # Attempt sha256 verification -- non-fatal if sidecar unavailable
         if scurl -fsSL --connect-timeout 15 --max-time 30 "$BIBATA_SUM_URL" -o /tmp/bibata.sha256 2>/dev/null; then
             if (cd /tmp && grep "Bibata-Modern-Classic.tar.xz" bibata.sha256 | sha256sum -c -) 2>/dev/null; then
-                echo "[10-gnome]   [ok] Bibata sha256 verified"
+                mios_ok "Bibata sha256 verified"
             else
-                echo "[10-gnome]   WARN: Bibata sha256 mismatch or sidecar format mismatch -- continuing anyway"
+                mios_warn "Bibata sha256 mismatch or sidecar format mismatch -- continuing anyway"
             fi
             rm -f /tmp/bibata.sha256
         else
-            echo "[10-gnome]   WARN: Bibata sha256 sidecar unavailable -- skipping integrity check"
+            mios_warn "Bibata sha256 sidecar unavailable -- skipping integrity check"
         fi
         if tar -xf /tmp/bibata.tar.xz -C /usr/share/icons/; then
             # Record to binaries SBOM (RELTOP-01 / T-251)
@@ -125,7 +126,7 @@ for attempt in 1 2 3; do
             break
         fi
     fi
-    echo "[10-gnome]   Attempt $attempt failed, retrying..."
+    mios_warn "attempt $attempt failed, retrying"
     sleep 5
 done
 
@@ -140,7 +141,7 @@ done
 if [ "$BIBATA_OK" -eq 0 ] || [ ! -d "$BIBATA_DIR/cursors" ]; then
     die "Bibata cursor download FAILED after 3 attempts ($BIBATA_URL) -- refusing to ship an image with a broken cursor. (Already-shipped images self-heal at runtime via mios-cursor-ensure into ~/.local/share/icons, but the BUILD must seed /usr/share/icons.)"
 fi
-echo "[10-gnome] [ok] Bibata cursor installed: $(find "$BIBATA_DIR/cursors/" -mindepth 1 -maxdepth 1 | wc -l) cursors"
+mios_ok "Bibata cursor installed: $(find "$BIBATA_DIR/cursors/" -mindepth 1 -maxdepth 1 | wc -l) cursors"
 
 # Cursor default -- covers every layer that reads cursor theme.
 # Managed via usr/share/icons/default/index.theme
@@ -150,7 +151,7 @@ echo "[10-gnome] [ok] Bibata cursor installed: $(find "$BIBATA_DIR/cursors/" -mi
 if [ -d "$BIBATA_DIR/cursors" ]; then
     update-alternatives --install /usr/share/icons/default/index.theme \
         x-cursor-theme /usr/share/icons/Bibata-Modern-Classic/cursor.theme 100 2>/dev/null || true
-    echo "[10-gnome] [ok] x-cursor-theme alternative set to Bibata"
+    mios_ok "x-cursor-theme alternative set to Bibata"
 fi
 
 # 4. Symlink into /usr/share/cursors/xorg-x11 (legacy X11 cursor path)
@@ -166,7 +167,7 @@ chmod -R a+rX "$BIBATA_DIR" 2>/dev/null || true
 # ═══════════════════════════════════════════════════════════════════════════════
 # Phosh -- Mobile session for portrait/tablet remote access
 # ═══════════════════════════════════════════════════════════════════════════════
-echo "[10-gnome] Installing Phosh mobile session..."
+mios_log "install Phosh mobile session"
 install_packages_optional "phosh"
 # Make session wrapper executable
 chmod +x /usr/local/bin/phosh-session-wrapper 2>/dev/null || true
@@ -174,20 +175,20 @@ chmod +x /usr/local/bin/phosh-session-wrapper 2>/dev/null || true
 # Flatpak Remotes
 # Disable filtered Fedora remote, use unfiltered Flathub for full catalog
 # ═════════════════════════════════════════════════════════════════════════════
-echo "[10-gnome] Configuring Flatpak remotes..."
+mios_log "configure Flatpak remotes"
 if command -v flatpak &>/dev/null; then
     flatpak remote-add --system --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo || true
     flatpak remote-add --system --if-not-exists flathub-beta https://flathub.org/beta-repo/flathub-beta.flatpakrepo || true
     flatpak remote-add --system --if-not-exists gnome-nightly https://nightly.gnome.org/gnome-nightly.flatpakrepo 2>/dev/null || true
     flatpak remote-modify --system --disable fedora 2>/dev/null || true
 else
-    echo "[10-gnome] WARN: flatpak binary not found, skipping remote configuration"
+    mios_warn "flatpak binary not found, skipping remote configuration"
 fi
 
 # ═════════════════════════════════════════════════════════════════════════════
 # Essential Flatpaks
 # ═════════════════════════════════════════════════════════════════════════════
-echo "[10-gnome] Flatpaks will be installed on first boot (mios-flatpak-install.service)..."
+mios_log "Flatpaks installed on first boot (mios-flatpak-install.service)"
 # NOTE: mios-flatpak-install.service is enabled in Containerfile STEP D
 # (unit file lives in , not available during script execution)
 

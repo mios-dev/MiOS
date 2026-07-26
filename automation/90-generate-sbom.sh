@@ -12,17 +12,19 @@
 # is the human/tooling-facing inventory on top, and it degrades open.
 set -uo pipefail   # deliberately NOT -e
 
+for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
+
 # lib sources are best-effort: a rename in the naming campaign must not brick SBOM.
 source "$(dirname "$0")/lib/packages.sh" 2>/dev/null || true
 source "$(dirname "$0")/lib/common.sh"   2>/dev/null || true
 
-echo "[90-generate-sbom] Starting SBOM generation (degrade-open)..."
+mios_log "SBOM generation (degrade-open)"
 
 # MIOS_USR_DIR may be unset in some build contexts -> default it (was an unbound
 # 'set -u' fatal). Canonical vendor dir is /usr/share/mios.
 ARTIFACT_DIR="${MIOS_USR_DIR:-/usr/share/mios}/artifacts/sbom"
 if ! mkdir -p "$ARTIFACT_DIR"; then
-    echo "[90-generate-sbom] WARN: cannot create $ARTIFACT_DIR -- skipping SBOM (non-fatal)."
+    mios_warn "cannot create $ARTIFACT_DIR -- skipping SBOM (non-fatal)"
     exit 0
 fi
 
@@ -35,12 +37,12 @@ if ! command -v syft &>/dev/null; then
         SYFT_PIN=$(grep -m1 -E '^[[:space:]]*syft[[:space:]]*=' "${MIOS_TOML:-/usr/share/mios/mios.toml}" 2>/dev/null | cut -d'"' -f2 || true)
     fi
     SYFT_PIN="${SYFT_PIN:-v1.19.0}"
-    echo "[90-generate-sbom] syft not found; attempting official install (version=${SYFT_PIN}, needs egress)..."
+    mios_log "syft not found; official install (version=${SYFT_PIN}, needs egress)"
     curl -sSfL --retry 5 --retry-delay 3 --retry-all-errors --connect-timeout 20 https://raw.githubusercontent.com/anchore/syft/main/install.sh 2>/dev/null \
         | sh -s -- -b /usr/local/bin "${SYFT_PIN}" >/dev/null 2>&1 || true
 fi
 if ! command -v syft &>/dev/null; then
-    echo "[90-generate-sbom] WARN: syft unavailable (no egress or install failed) -- skipping SBOM (non-fatal)."
+    mios_warn "syft unavailable (no egress or install failed) -- skipping SBOM (non-fatal)"
     exit 0
 fi
 
@@ -52,19 +54,19 @@ if [ -z "$VERSION" ]; then
 fi
 VERSION="${VERSION:-unknown}"
 
-echo "[90-generate-sbom] Scanning root filesystem with syft (version=${VERSION})..."
+mios_log "scanning root filesystem with syft (version=${VERSION})"
 
 # CycloneDX (primary, for AI/automation) + SPDX (compliance). Each is non-fatal.
 syft scan dir:/ --output "cyclonedx-json=${ARTIFACT_DIR}/mios-sbom-${VERSION}.cyclonedx.json" \
     --exclude "./ctx/**" --exclude "./var/cache/**" \
-    || echo "[90-generate-sbom] WARN: CycloneDX SBOM generation failed (non-fatal)."
+    || mios_warn "CycloneDX SBOM generation failed (non-fatal)"
 
 syft scan dir:/ --output "spdx-tag-value=${ARTIFACT_DIR}/mios-sbom-${VERSION}.spdx.txt" \
     --exclude "./ctx/**" --exclude "./var/cache/**" \
-    || echo "[90-generate-sbom] WARN: SPDX SBOM generation failed (non-fatal)."
+    || mios_warn "SPDX SBOM generation failed (non-fatal)"
 
-echo "[90-generate-sbom] SBOM artifacts in ${ARTIFACT_DIR}:"
+mios_log "SBOM artifacts in ${ARTIFACT_DIR}:"
 ls -lh "$ARTIFACT_DIR" 2>/dev/null || true
 
-echo "[90-generate-sbom] Done (degrade-open; SBOM is provenance, never a build gate)."
+mios_ok "done (degrade-open; SBOM is provenance, never a build gate)"
 exit 0

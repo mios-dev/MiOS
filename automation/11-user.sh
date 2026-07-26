@@ -6,14 +6,15 @@
 # Must run AFTER skel is populated (31-locale-theme writes skel/.bashrc)
 # and BEFORE any service that references the user.
 set -euo pipefail
+for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 
-echo "  'MiOS' ${MIOS_VERSION:-} -- User & Authentication"
+mios_log "'MiOS' ${MIOS_VERSION:-} user & authentication"
 
 # -- PAM FIX --
-echo "[31-user] Configuring PAM via authselect..."
+mios_log "configuring PAM via authselect"
 if command -v authselect &>/dev/null; then
     authselect select local --force 2>/dev/null || authselect select minimal --force 2>/dev/null || {
-        echo "[31-user] WARNING: authselect select failed -- using overlay fallback"
+        mios_warn "authselect select failed -- using overlay fallback"
     }
     authselect apply-changes --force 2>/dev/null || authselect opt-out 2>/dev/null || true
 fi
@@ -24,7 +25,7 @@ fi
 C_USER="${MIOS_USER:-mios}"
 # Note: MIOS_PASSWORD_HASH should be a SHA-512 crypt-style hash
 
-echo "[31-user] Creating user ${C_USER} via sysusers..."
+mios_log "creating user ${C_USER} via sysusers"
 if [[ "${C_USER}" != "mios" ]]; then
     # CRITICAL: If C_USER is customized (e.g. 'user'), purge the default 'mios' sysusers rule
     # and existing account so UID 1000 / GID 1000 is released for the customized username.
@@ -59,7 +60,7 @@ systemd-sysusers --root=/ 2>/dev/null || true
 
 # Imperative fallback if sysusers failed to materialize the account
 if ! getent passwd "${C_USER}" >/dev/null 2>&1; then
-    echo "[31-user] sysusers did not create ${C_USER} -- trying useradd fallback..."
+    mios_log "sysusers did not create ${C_USER} -- trying useradd fallback"
     groupadd -g 1000 "${C_USER}" 2>/dev/null || groupadd "${C_USER}" 2>/dev/null || true
     useradd -u 1000 -g "${C_USER}" -m -d "/var/home/${C_USER}" -s /bin/bash "${C_USER}" 2>/dev/null || useradd -m -s /bin/bash "${C_USER}" 2>/dev/null || true
     for g in wheel libvirt kvm video render input dialout docker; do
@@ -87,7 +88,7 @@ if getent passwd "${C_USER}" >/dev/null; then
     for subfile in /etc/subuid /etc/subgid; do
         if ! grep -qE "^${C_USER}:" "$subfile" 2>/dev/null; then
             echo "${C_USER}:100000:65536" >> "$subfile"
-            echo "[31-user] Added ${C_USER} -> ${subfile}"
+            mios_log "added ${C_USER} -> ${subfile}"
         fi
     done
 
@@ -99,16 +100,16 @@ if getent passwd "${C_USER}" >/dev/null; then
     pw_hash="${MIOS_USER_PASSWORD_HASH:-}"
     if [[ -z "$pw_hash" ]]; then
         pw_hash=$(openssl passwd -6 'mios' 2>/dev/null || true)
-        echo "[31-user] No MIOS_USER_PASSWORD_HASH provided; defaulting to 'mios'"
+        mios_log "no MIOS_USER_PASSWORD_HASH provided; defaulting to 'mios'"
     fi
     if [[ "$pw_hash" =~ ^\$6\$ ]]; then
         echo "${C_USER}:${pw_hash}" | chpasswd -e
-        echo "[31-user] Password hash baked into /etc/shadow for ${C_USER}"
+        mios_ok "password hash baked into /etc/shadow for ${C_USER}"
     else
-        echo "[31-user] WARN: pw_hash is not sha512crypt -- skipping; user will be locked"
+        mios_warn "pw_hash is not sha512crypt -- skipping; user will be locked"
     fi
 else
-    echo "[31-user] ERROR: Failed to create user ${C_USER}"
+    mios_err "failed to create user ${C_USER}"
 fi
 
 # -- GROUP INJECTION --
@@ -137,7 +138,7 @@ fi
 # Managed via usr/lib/multipath.conf
 
 # -- FIX HOME DIRECTORY OWNERSHIP & PERMISSIONS --
-echo "[31-user] Fixing home directory ownership..."
+mios_log "fixing home directory ownership"
 { awk -F: '$3 >= 1000 && $3 < 65000 {print $1}' /etc/passwd; echo "mios"; } | sort -u | while read -r u; do
     if getent passwd "$u" >/dev/null 2>&1; then
         home=$(getent passwd "$u" | cut -d: -f6)
@@ -152,4 +153,4 @@ done
 # -- NFS STATE DIRECTORY --
 # Managed via usr/lib/tmpfiles.d/mios-nfs.conf
 
-echo "[31-user] User & authentication configured."
+mios_ok "user & authentication configured"

@@ -3,11 +3,12 @@
 # AI-hint: Configures Fedora 44 repository metadata, sets `install_weak_deps=False` in DNF, and enforces priority 98 for base repos to ensure stable package resolution on ucore.
 # 'MiOS' - 01-repos: Fedora 44 overlay on ucore
 set -euo pipefail
+for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/packages.sh"
 source "${SCRIPT_DIR}/lib/common.sh"
 
-echo "[01-repos] Setting install_weak_deps=False globally..."
+mios_log "set install_weak_deps=False globally"
 DNF_CONF="/usr/lib/dnf/dnf.conf"
 [[ -f "$DNF_CONF" ]] || DNF_CONF="/etc/dnf/dnf.conf"
 if [[ -f "$DNF_CONF" ]]; then
@@ -15,7 +16,7 @@ if [[ -f "$DNF_CONF" ]]; then
     echo "install_weak_deps=False" >> "$DNF_CONF"
 fi
 
-echo "[01-repos] Elevating base repos to priority 98..."
+mios_log "elevate base repos to priority 98"
 if [[ -d /etc/yum.repos.d ]]; then
     for repo in /etc/yum.repos.d/fedora*.repo /etc/yum.repos.d/ublue-os*.repo; do
         if [[ -f "$repo" ]] && ! grep -q '^priority=' "$repo"; then
@@ -24,7 +25,7 @@ if [[ -d /etc/yum.repos.d ]]; then
     done
 fi
 
-echo "[01-repos] Importing Fedora 44 GPG key..."
+mios_log "import Fedora 44 GPG key"
 # The fedora-gpg-keys package ships the key at this path on Fedora-based systems.
 # On ucore (which is CoreOS-based on Fedora), the key is usually present already.
 GPG_KEY_PATH="/etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-44-x86_64"
@@ -41,7 +42,7 @@ if [[ ! -f "$GPG_KEY_PATH" ]]; then
         || warn "[01-repos] fedora-gpg-keys import failed (no egress?); continuing -- F44 repo is repo_gpgcheck=0 + skip_if_unavailable=True"
 fi
 
-echo "[01-repos] Adding Fedora 44 repository..."
+mios_log "add Fedora 44 repository"
 # F44 is in development at build time. Dev-tree repodata is NOT GPG-signed --
 # the .asc detached signature returns 404 from every Fedora mirror. Setting
 # repo_gpgcheck=1 turns that 404 into a fatal metadata-load error that
@@ -82,7 +83,7 @@ max_parallel_downloads=10
 ip_resolve=4
 EOREPO
 
-echo "[01-repos] Phase 1: Pre-upgrading core systemd/filesystem..."
+mios_step "Phase 1: pre-upgrade core systemd/filesystem"
 # -best dropped per audit on the F44↔ucore boundary --best can
 # refuse the transaction over a single unresolvable kernel-adjacent dep, which
 # is then logged-and-continued, masking real breakage. --allowerasing is enough.
@@ -90,7 +91,7 @@ echo "[01-repos] Phase 1: Pre-upgrading core systemd/filesystem..."
 # no repo configured at this stage; skip them cleanly instead of aborting.
 $DNF_BIN "${DNF_SETOPT[@]}" upgrade -y --allowerasing --skip-unavailable \
     dnf rpm fedora-release fedora-repos filesystem systemd glibc dbus-broker 2>&1 || {
-    echo "[01-repos] NOTE: dnf upgrade of systemd/glibc/dbus-broker/filesystem returned non-zero; continuing"
+    mios_warn "dnf upgrade of systemd/glibc/dbus-broker/filesystem returned non-zero; continuing"
 }
 
 # Packages whose repos are not yet configured (crowdsec) or whose ucore version
@@ -98,11 +99,11 @@ $DNF_BIN "${DNF_SETOPT[@]}" upgrade -y --allowerasing --skip-unavailable \
 # here; 06-enable-external-repos.sh and later scripts own their lifecycle.
 _THIRD_PARTY_EXCLUDES="shim-*,kernel*,tailscale*,crowdsec*,crowdsec-firewall-bouncer*"
 
-echo "[01-repos] Phase 2: Distro-upgrade and userspace alignment..."
+mios_step "Phase 2: distro-upgrade and userspace alignment"
 $DNF_BIN "${DNF_SETOPT[@]}" \
     --setopt=excludepkgs="${_THIRD_PARTY_EXCLUDES}" \
     upgrade --refresh -y --skip-unavailable || {
-    echo "[01-repos] WARN: upgrade --refresh had conflicts (ucore vs F44 pkgs) -- continuing"
+    mios_warn "upgrade --refresh had conflicts (ucore vs F44 pkgs) -- continuing"
 }
 # distro-sync is retried once: F44 mirrors are occasionally in-progress sync state,
 # causing RPM signature mismatches that resolve on a second attempt with fresh metadata.
@@ -113,16 +114,16 @@ for _attempt in 1 2; do
             distro-sync -y --allowerasing --skip-unavailable; then
         _dsync_ok=1; break
     fi
-    echo "[01-repos] WARN: distro-sync attempt $_attempt failed -- cleaning cache and retrying..."
+    mios_warn "distro-sync attempt $_attempt failed -- cleaning cache and retrying"
     $DNF_BIN clean metadata 2>/dev/null || true
 done
 if [[ $_dsync_ok -eq 0 ]]; then
-    echo "[01-repos] WARN: distro-sync failed after 2 attempts -- ucore packages may differ from Fedora 44."
-    echo "[01-repos] Continuing; individual package installs will use available repos."
+    mios_warn "distro-sync failed after 2 attempts -- ucore packages may differ from Fedora 44."
+    mios_log "continuing; individual package installs will use available repos."
 fi
 
 # Clean metadata so subsequent scripts start from a consistent cache state
 $DNF_BIN clean metadata 2>/dev/null || true
 
-echo "[01-repos] Querying installed versions of systemd glibc dbus-broker filesystem via rpm -q"
+mios_log "query installed versions of systemd glibc dbus-broker filesystem via rpm -q"
 rpm -q systemd glibc dbus-broker filesystem || true

@@ -8,9 +8,10 @@
 # failure cascades detected during F44 boots on varied hardware/hypervisors.
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
+for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 
-echo "==> Restoring +x on /usr/libexec/mios and /usr/bin/mios-* binaries, setting /etc/usbguard/*.conf to 0600, and running systemd-sysusers for systemd-resolve..."
+mios_log "restore +x on mios binaries, usbguard 0600, systemd-sysusers systemd-resolve"
 
 # 1. Fix USBGuard Permissions
 # Log trace: Permissions for /etc/usbguard/usbguard-daemon.conf should be 0600
@@ -52,7 +53,7 @@ fi
 # 6. OCI Container and WSL2 Service Gating
 # Custom 'MiOS' services that require hardware access or full system init
 # skip OCI containers and WSL2 via drop-ins in system_files overlay.
-echo "==> OCI/WSL2 service gating: no action here; ConditionVirtualization drop-ins ship in the system_files overlay"
+mios_skip "OCI/WSL2 service gating: ConditionVirtualization drop-ins ship in system_files overlay"
 
 # 7. WSL2 Compatibility Gating (Legacy section kept for unit-specific fallbacks)
 

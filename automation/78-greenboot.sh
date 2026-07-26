@@ -5,22 +5,23 @@
 # 78-greenboot.sh - wire greenboot services; package installs via mios.toml
 # [packages.updater] (greenboot, greenboot-default-health-checks).
 set -euo pipefail
+for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 
 # Enable core greenboot services
 WANTS=/usr/lib/systemd/system/multi-user.target.wants
 install -d -m 0755 "${WANTS}"
 
-log "Enabling Greenboot services..."
+mios_log "enabling greenboot services"
 for unit in \
     greenboot-healthcheck.service \
     greenboot-set-rollback-trigger.service
 do
     if [[ -f "/usr/lib/systemd/system/${unit}" ]]; then
         ln -sf "../${unit}" "${WANTS}/${unit}"
-        log "Enabled ${unit}"
+        mios_ok "enabled ${unit}"
     else
-        warn "${unit} not installed, skipping enablement."
+        mios_warn "${unit} not installed, skipping"
     fi
 done
 
@@ -31,4 +32,4 @@ chmod +x /etc/greenboot/check/wanted.d/*.sh   2>/dev/null || true
 chmod +x /etc/greenboot/green.d/*.sh          2>/dev/null || true
 chmod +x /etc/greenboot/red.d/*.sh            2>/dev/null || true
 
-log "greenboot wired"
+mios_ok "greenboot wired"

@@ -3,6 +3,7 @@
 # AI-hint: Node builder script to pull the zen-browser surfer repository, download the upstream Firefox codebase, apply structural three-pane browser UI patches, and run native mach compilations.
 # AI-related: /usr/bin/mios-webshell, /usr/lib/mios/webshell/, usr/share/mios/mios.toml [colors]
 set -euo pipefail
+for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # tools/lib/userenv.sh (sourced via lib/common.sh, the same convention every
 # other automation/*.sh script uses) already exports MIOS_COLOR_* from
@@ -18,7 +19,7 @@ source "${SCRIPT_DIR}/lib/packages.sh"
 install_packages "ai"
 
 PIN_REF="${MIOS_BUILD_BAKE_REFS_SURFER:-17d9a1577170880cdac13dca7c3d6871716fc046}"
-log "[56-bake-surfer] surfer pin ref: ${PIN_REF}"
+mios_log "surfer pin ref: ${PIN_REF}"
 
 # `surfer download` runs `git init` + `git commit` on the fetched Firefox source; a bare
 # build container has no git identity, so the commit dies with "unable to auto-detect
@@ -33,30 +34,30 @@ SURFER_BUILD_DIR="/tmp/surfer-build"
 SURFER_OK=""
 
 for attempt in 1 2 3; do
-    log "[56-bake-surfer] Compilation attempt $attempt/3..."
+    mios_log "compilation attempt $attempt/3"
     cd /tmp
     rm -rf "$SURFER_BUILD_DIR"
-    
+
     if ! git clone "${MIOS_URL_SURFER:-https://github.com/zen-browser/surfer.git}" "$SURFER_BUILD_DIR"; then
-        warn "[56-bake-surfer] git clone failed on attempt $attempt"
+        mios_warn "git clone failed on attempt $attempt"
         sleep $((attempt * 8))
         continue
     fi
-    
+
     cd "$SURFER_BUILD_DIR"
     if ! git checkout "$PIN_REF"; then
-        warn "[56-bake-surfer] git checkout to $PIN_REF failed on attempt $attempt"
+        mios_warn "git checkout to $PIN_REF failed on attempt $attempt"
         sleep $((attempt * 8))
         continue
     fi
-    
+
     if ! npm install --legacy-peer-deps; then
-        warn "[56-bake-surfer] npm install failed on attempt $attempt"
+        mios_warn "npm install failed on attempt $attempt"
         sleep $((attempt * 8))
         continue
     fi
-    
-    log "[56-bake-surfer] Resolving latest Firefox version and ensuring surfer.json configuration..."
+
+    mios_log "Firefox version + surfer.json config"
     # UPSTREAM Mozilla product surfer builds FROM (Zen is a Firefox fork) -- NOT
     # the "zen" vendor brand. Must be one of surfer's SupportedProducts.
     export MIOS_SURFER_PRODUCT="${MIOS_SURFER_PRODUCT:-firefox}"
@@ -105,18 +106,18 @@ with open(p, "w", encoding="utf-8") as f:
     json.dump(data, f, indent=2)
 '
 
-    log "[56-bake-surfer] Fetching upstream Mozilla codebase..."
+    mios_log "fetch upstream Mozilla codebase"
     FF_VER="$(python3 -c 'import json; print(json.load(open("surfer.json")).get("firefoxVersion", "153.0"))' 2>/dev/null || echo '153.0')"
     # surfer download reads version.product + version.version from surfer.json
     # (fixed above). Rely on it; fall back to passing the version positionally.
     if ! npx surfer download 2>&1 && \
        ! npx surfer download "$FF_VER" 2>&1; then
-        warn "[56-bake-surfer] surfer download failed on attempt $attempt"
+        mios_warn "surfer download failed on attempt $attempt"
         sleep $((attempt * 8))
         continue
     fi
-    
-    log "[56-bake-surfer] Applying custom layout patches to browser.xhtml..."
+
+    mios_log "browser.xhtml layout patches"
     : "${MIOS_COLOR_BG:=#282262}"
     : "${MIOS_COLOR_ACCENT:=#1A407F}"
     : "${MIOS_COLOR_SUBTLE:=#B7C9D7}"
@@ -144,12 +145,12 @@ with open(p, "w", encoding="utf-8") as f:
 EOF
 
     if ! npx surfer import /tmp/browser_xhtml_patch.xml; then
-        warn "[56-bake-surfer] surfer import patch failed on attempt $attempt"
+        mios_warn "surfer import patch failed on attempt $attempt"
         sleep $((attempt * 8))
         continue
     fi
-    
-    log "[56-bake-surfer] Starting native compilation..."
+
+    mios_log "native compilation"
     if npm run build; then
         mkdir -p /usr/lib/mios/webshell
         cp -r dist/* /usr/lib/mios/webshell/ 2>/dev/null || true
@@ -162,11 +163,11 @@ EOF
         # surfer's own TS CLI, never the browser (that needs `npx surfer build`, a
         # multi-hour mach compile). This is DETERMINISTIC, so retrying would only
         # re-download the ~500MB Firefox source for nothing. Stop and degrade open.
-        warn "[56-bake-surfer] surfer CLI built but no browser binary in the bake -- not retrying (see degrade-open below)."
+        mios_warn "surfer CLI built but no browser binary in the bake -- not retrying (see degrade-open below)."
         break
     fi
 
-    warn "[56-bake-surfer] build failed on attempt $attempt"
+    mios_warn "build failed on attempt $attempt"
     sleep $((attempt * 8))
 done
 
@@ -176,9 +177,9 @@ if [[ -z "$SURFER_OK" ]]; then
     # OS image publish (`npm run build` above only rebuilds surfer's own TS CLI, never a
     # browser binary, which is why the -x check never passes here). WARN and continue; the
     # webshell is a firstboot/dedicated-builder concern. NEVER fail the whole bake on it.
-    warn "[56-bake-surfer] mios-webshell not built in the bake (optional + multi-hour mach compile) -- degrading open; a firstboot/dedicated builder produces it."
+    mios_warn "mios-webshell not built in the bake (optional + multi-hour mach compile) -- degrading open; a firstboot/dedicated builder produces it."
     exit 0
 fi
 
 record_version surfer "$PIN_REF" "https://github.com/zen-browser/surfer/tree/${PIN_REF}"
-echo "[56-bake-surfer] Installed /usr/lib/mios/webshell/ and symlinked /usr/bin/mios-webshell."
+mios_ok "installed /usr/lib/mios/webshell/ + symlinked /usr/bin/mios-webshell"

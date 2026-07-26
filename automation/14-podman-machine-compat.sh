@@ -14,9 +14,10 @@
 #     ships udev rules that create these groups dynamically at runtime, but
 #     during the image build they're absent.
 set -euo pipefail
+for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 
-log "Hardware groups are pre-created globally by 11-user.sh"
+mios_log "hardware groups pre-created globally by 11-user.sh"
 
 # Create the 'core' user if missing (Podman machine convention).
 # Managed via /usr/lib/sysusers.d/20-podman-machine.conf (declarative).
@@ -25,16 +26,16 @@ systemd-sysusers --root=/ 2>/dev/null || true
 
 if id -u core >/dev/null 2>&1; then
     passwd -l core 2>/dev/null || true
-    log "user 'core' initialized (declarative; key-auth only)"
+    mios_ok "user 'core' initialized (declarative; key-auth only)"
 else
-    warn "Failed to initialize 'core' user via sysusers"
+    mios_warn "failed to initialize 'core' user via sysusers"
 fi
 
 # Enable core services for Podman-machine and cloud-init entry
 WANTS=/usr/lib/systemd/system/multi-user.target.wants
 install -d -m 0755 "${WANTS}"
 
-log "Symlinking sshd.service, podman.socket, qemu-guest-agent.service, cloud-init.service, cloud-final.service into multi-user.target.wants"
+mios_log "symlink units into multi-user.target.wants"
 for unit in \
     sshd.service \
     podman.socket \
@@ -44,10 +45,10 @@ for unit in \
 do
     if [[ -f "/usr/lib/systemd/system/${unit}" ]]; then
         ln -sf "../${unit}" "${WANTS}/${unit}"
-        log "Enabled ${unit}"
+        mios_ok "enabled ${unit}"
     else
-        warn "${unit} not found, skipping enablement."
+        mios_warn "${unit} not found, skipping"
     fi
 done
 
-log "podman-machine compatibility wired"
+mios_ok "podman-machine compatibility wired"

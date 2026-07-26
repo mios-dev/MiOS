@@ -18,6 +18,7 @@
 # add ~100ms per shell prompt for no security gain (the binary reads
 # git status of the cwd; nothing it does benefits from sandboxing).
 set -euo pipefail
+for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/common.sh
 source "${SCRIPT_DIR}/lib/common.sh"
@@ -30,11 +31,11 @@ source "${SCRIPT_DIR}/lib/common.sh"
 # fallback to the legacy libexec path for back-compat.
 OMP_BIN=/usr/bin/oh-my-posh
 
-log "[38-oh-my-posh] resolving latest release tag from upstream"
+mios_log "resolving latest release tag from upstream"
 OMP_TAG=$( (scurl -s https://api.github.com/repos/JanDeDobbeleer/oh-my-posh/releases/latest \
             | grep -Po '"tag_name": "\K.*?(?=")') 2>/dev/null || true)
 if [[ -z "$OMP_TAG" ]]; then
-    warn "[38-oh-my-posh] api.github.com release lookup returned empty -- skipping"
+    mios_warn "api.github.com release lookup returned empty -- skipping"
     exit 0
 fi
 record_version oh-my-posh "$OMP_TAG" \
@@ -45,15 +46,15 @@ case "$ARCH" in
     x86_64)  ASSET="posh-linux-amd64" ;;
     aarch64) ASSET="posh-linux-arm64" ;;
     *)
-        warn "[38-oh-my-posh] unsupported arch '${ARCH}' -- skipping"
+        mios_warn "unsupported arch '${ARCH}' -- skipping"
         exit 0
         ;;
 esac
 
 URL="https://github.com/JanDeDobbeleer/oh-my-posh/releases/download/${OMP_TAG}/${ASSET}"
-log "[38-oh-my-posh] fetching ${URL}"
+mios_log "fetching ${URL}"
 if ! scurl -fsL --max-time 60 "$URL" -o "${OMP_BIN}.new"; then
-    warn "[38-oh-my-posh] download failed -- prompt falls back to bash default"
+    mios_warn "download failed -- prompt falls back to bash default"
     rm -f "${OMP_BIN}.new"
     exit 0
 fi
@@ -67,9 +68,9 @@ if scurl -fsL --max-time 30 \
     if [[ -n "$expected" ]]; then
         actual="$(sha256sum "${OMP_BIN}.new" | awk '{print $1}')"
         if [[ "$expected" == "$actual" ]]; then
-            log "[38-oh-my-posh] [ok] sha256 verified"
+            mios_ok "sha256 verified"
         else
-            warn "[38-oh-my-posh] sha256 mismatch -- aborting"
+            mios_warn "sha256 mismatch -- aborting"
             rm -f "${OMP_BIN}.new" /tmp/omp-checksums.txt
             exit 1
         fi
@@ -89,4 +90,4 @@ if command -v sha256sum >/dev/null 2>&1; then
 fi
 printf '%s\t%s\t%s\n' "oh-my-posh" "${OMP_TAG}" "${sha:-unknown}" >> "${sbom_dir}/binaries.tsv"
 
-log "[38-oh-my-posh] installed at ${OMP_BIN} (${OMP_TAG})"
+mios_ok "installed at ${OMP_BIN} (${OMP_TAG})"

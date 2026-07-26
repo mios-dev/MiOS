@@ -2,20 +2,21 @@
 # MIOS_APPLY_CLASS=bake-only
 # AI-hint: Processes kernel arguments from mios.toml [kargs] section and updates kargs.d/*.toml files accordingly.
 set -euo pipefail
+for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 
-echo "==> Preparing kernel boot arguments (kargs.d)..."
+mios_log "kargs.d render"
 
 # Path to mios.toml
 TOML_FILE="${MIOS_TOML:-/usr/share/mios/mios.toml}"
 KARGS_DIR="${KARGS_DIR:-/usr/lib/bootc/kargs.d}"
 
 if [[ ! -f "$TOML_FILE" ]]; then
-    echo "Error: manifest file $TOML_FILE not found" >&2
+    mios_err "manifest file $TOML_FILE not found"
     exit 1
 fi
 
 if [[ ! -d "$KARGS_DIR" ]]; then
-    echo "Warning: $KARGS_DIR not found, skipping kargs rendering"
+    mios_warn "$KARGS_DIR not found, skipping kargs render"
     exit 0
 fi
 
@@ -131,4 +132,4 @@ else:
         print(f"Removed stale {custom_toml_path}")
 ' "$TOML_FILE" "$KARGS_DIR"
 
-echo "==> Kernel boot arguments preparation complete."
+mios_ok "kargs.d rendered"

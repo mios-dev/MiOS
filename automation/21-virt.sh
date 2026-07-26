@@ -12,6 +12,7 @@
 #   - Added Podman quadlet example for CrowdSec
 #   - VirtIO-Win ISO: Updated URL pattern
 set -euo pipefail
+for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/packages.sh"
 source "${SCRIPT_DIR}/lib/common.sh"
@@ -19,11 +20,11 @@ source "${SCRIPT_DIR}/lib/common.sh"
 KVER=$(cat /tmp/mios-kver 2>/dev/null || find /usr/lib/modules/ -mindepth 1 -maxdepth 1 -printf "%f\n" | sort -V | tail -1)
 
 # ── KVM / QEMU / Libvirt ────────────────────────────────────────────────────
-echo "[12-virt] Installing KVM/QEMU/Libvirt..."
+mios_log "install KVM/QEMU/Libvirt"
 install_packages "virt"
 
 # ── Containers (Podman, Buildah, Skopeo, bootc, self-build tools) ────────────
-echo "[12-virt] Installing container runtime and self-building tools..."
+mios_log "install container runtime + self-build tools"
 install_packages "containers"
 
 # Extra self-build tools (image-rechunking, etc. - may be repo-dependent)
@@ -33,19 +34,19 @@ install_packages "self-build"
 # Required by 37-k3s-selinux.sh (SELinux module compile) and
 # 69-bake-lookingglass-client.sh (Looking Glass B7 from source). Removed
 # before image commit so the runtime carries no compilers.
-echo "[12-virt] Installing build toolchain (image-build only; will be stripped)..."
+mios_log "install build toolchain (image-build only; will be stripped)"
 install_packages "build-toolchain"
 
 # ── Cockpit Web Management ──────────────────────────────────────────────────
-echo "[12-virt] Installing Cockpit..."
+mios_log "install Cockpit"
 install_packages_strict "cockpit"
 
 # ── Boot & Update Management (bootupd, ukify, etc.) ─────────────────────────
-echo "[12-virt] Installing boot and update management tools..."
+mios_log "install boot + update management tools"
 install_packages "boot"
 
 # ── CrowdSec IPS (sovereign/offline mode) ───────────────────────────────────
-echo "[12-virt] Installing CrowdSec..."
+mios_log "install CrowdSec"
 install_packages "security"
 
 # Sovereign mode: disable Central API, use local-only decisions
@@ -56,7 +57,7 @@ if [ -d /etc/crowdsec ]; then
     if [ -f /etc/crowdsec/config.yaml ]; then
         sed -i 's/^online_client:/# online_client:/' /etc/crowdsec/config.yaml 2>/dev/null || true
     fi
-    echo "[12-virt] CrowdSec configured for sovereign/offline mode"
+    mios_ok "CrowdSec sovereign/offline mode configured"
 fi
 
 # ── mDNS / DNS-SD LAN discovery (avahi) ──────────────────────────────────────
@@ -64,53 +65,53 @@ fi
 # avahi-daemon is enabled by preset but stays INERT for A2A until the operator opts
 # in via mios.toml [a2a].mdns_discovery / mdns_advertise. Best-effort install that
 # honors the [packages.network-discovery].enable toggle.
-echo "[12-virt] Installing mDNS/DNS-SD discovery (avahi)..."
+mios_log "install mDNS/DNS-SD discovery (avahi)"
 install_packages "network-discovery"
 
 # ── Windows Interop & Remote Desktop ────────────────────────────────────────
-echo "[12-virt] Installing Windows interop tools..."
+mios_log "install Windows interop tools"
 install_packages "wintools"
 
 # ── Gaming (Steam, Wine, Gamescope) ─────────────────────────────────────────
 # NOTE: steam-devices and udev-joystick-blacklist-rm (terra weak dep of
 # gamescope-session-steam) both ship the same udev rules file. Exclude it.
-echo "[12-virt] Installing gaming packages..."
+mios_log "install gaming packages"
 GAMING_PKGS=$(get_packages "gaming")
 if [[ -n "$GAMING_PKGS" ]]; then
     ($DNF_BIN "${DNF_SETOPT[@]}" install -y "${DNF_OPTS[@]}" --skip-unavailable --exclude=udev-joystick-blacklist-rm $GAMING_PKGS) || {
-        echo "[12-virt] WARNING: Some gaming packages failed to install" >&2
+        mios_warn "some gaming packages failed to install"
     }
 fi
 
 # ── Guest Agents ────────────────────────────────────────────────────────────
-echo "[12-virt] Installing guest agents..."
+mios_log "install guest agents"
 install_packages "guests"
 
 # ── Storage ─────────────────────────────────────────────────────────────────
-echo "[12-virt] Installing storage packages..."
+mios_log "install storage packages"
 install_packages "storage"
 
 # ── High Availability (Pacemaker/Corosync) ──────────────────────────────────
-echo "[12-virt] Installing HA stack..."
+mios_log "install HA stack"
 install_packages "ha"
 
 # ── CLI Utilities ───────────────────────────────────────────────────────────
-echo "[12-virt] Installing CLI utilities..."
+mios_log "install CLI utilities"
 install_packages "utils"
 
 # ── Android (Waydroid) ──────────────────────────────────────────────────────
-echo "[12-virt] Installing Waydroid..."
+mios_log "install Waydroid"
 install_packages "android"
 
 # ── VirtIO-Win ISO (latest stable) ─────────────────────────────────────────
-echo "[12-virt] Downloading VirtIO-Win ISO..."
+mios_log "download VirtIO-Win ISO"
 VIRTIO_URL="https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/stable-virtio/virtio-win.iso"
 mkdir -p ${MIOS_SHARE_DIR}/virtio
 scurl -sL "$VIRTIO_URL" -o ${MIOS_SHARE_DIR}/virtio/virtio-win.iso 2>/dev/null || {
-    echo "[12-virt] WARNING: VirtIO-Win ISO download failed -- download manually later"
+    mios_warn "VirtIO-Win ISO download failed -- download manually later"
 }
 
 # Symlink the immutable ISO into /var/lib/libvirt/images via tmpfiles.d so it survives upgrades
 # Managed via usr/lib/tmpfiles.d/mios-virtio.conf
 
-echo "[12-virt] Virtualization stack complete. (LG: refactored to 53-lg; K3s: refactored to 13-ceph-k3s)"
+mios_ok "virtualization stack ready (LG: refactored to 53-lg; K3s: refactored to 13-ceph-k3s)"

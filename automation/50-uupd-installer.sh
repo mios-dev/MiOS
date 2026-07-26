@@ -6,6 +6,8 @@
 # [packages.updater]) and disable the updaters it supersedes.
 set -euo pipefail
 
+for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/lib/common.sh"
@@ -24,9 +26,9 @@ WANTS=/usr/lib/systemd/system/multi-user.target.wants
 install -d -m 0755 "${WANTS}"
 if [[ -f "/usr/lib/systemd/system/uupd.timer" ]]; then
     ln -sf ../uupd.timer "${WANTS}/uupd.timer"
-    log "Enabled uupd.timer"
+    mios_ok "uupd.timer enabled"
 else
-    warn "uupd.timer not present (uupd install may have failed)"
+    mios_warn "uupd.timer not present (uupd install may have failed)"
 fi
 
-log "uupd configured; bootc-fetch-apply-updates.timer and rpm-ostreed-automatic.timer disabled"
+mios_ok "uupd configured; bootc-fetch-apply-updates.timer and rpm-ostreed-automatic.timer disabled"

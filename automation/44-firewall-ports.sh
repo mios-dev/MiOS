@@ -3,11 +3,12 @@
 # AI-hint: Configures firewalld rules via firewall-offline-cmd to open specific TCP ports for MiOS services (Hermes, Open WebUI, Code Server, etc.) based on environment-derived port variables.
 # AI-related: mios-hermes, mios-open-webui, mios-code-server, mios-guacamole, mios-forge, mios-cockpit-link, mios-adguard, mios-pxe
 set -euo pipefail
+for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 
 # shellcheck source=lib/common.sh
 source "$(dirname "$0")/lib/common.sh"
 
-echo "==> Configuring firewalld ports for 'MiOS' services..."
+mios_log "configuring firewalld ports for 'MiOS' services"
 
 # During an OCI container build, the firewalld daemon is not running.
 # We MUST use firewall-offline-cmd to write directly to the XML policy files.

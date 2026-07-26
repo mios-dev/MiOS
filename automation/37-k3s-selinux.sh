@@ -2,8 +2,9 @@
 # MIOS_APPLY_CLASS=bake-only
 # AI-hint: Automates the retrieval, compilation, and installation of the k3s SELinux policy for Fedora 44, ensuring K3s compatibility by staging the compiled .pp file in the immutable /usr tree.
 set -euo pipefail
+for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 
-echo "==> Compiling K3s SELinux policy (k3s.pp) for Fedora 44 and staging it in /usr/share/selinux/packages/mios/..."
+mios_log "compiling k3s.pp SELinux policy for Fedora 44"
 
 # shellcheck source=lib/packages.sh
 source "$(dirname "$0")/lib/packages.sh"
@@ -26,7 +27,7 @@ if [[ -z "${K3S_SELINUX_TAG:-}" ]]; then
 fi
 record_version k3s-selinux "$K3S_SELINUX_TAG" "https://github.com/k3s-io/k3s-selinux/tree/${K3S_SELINUX_TAG}"
 
-echo "==> Cloning k3s-selinux at ref ${K3S_SELINUX_TAG}..."
+mios_log "cloning k3s-selinux at ${K3S_SELINUX_TAG}"
 git clone --depth 1 --branch "${K3S_SELINUX_TAG}" \
     "$K3S_SELINUX_REPO" /tmp/k3s-selinux 2>/dev/null \
     || git clone --depth 1 "$K3S_SELINUX_REPO" /tmp/k3s-selinux
@@ -47,11 +48,11 @@ else
 fi
 
 if [ -z "$POLICY_DIR" ]; then
-    echo "FATAL: Could not find k3s.te in the repository."
+    mios_err "k3s.te not found in repository"
     exit 1
 fi
 
-echo "Using policy source from: $POLICY_DIR"
+mios_log "policy source $POLICY_DIR"
 cp -p "$POLICY_DIR"/k3s.* .
 
 # Compile the policy using the Fedora 44 SELinux Makefile
@@ -66,4 +67,4 @@ install -m 0644 k3s.pp /usr/share/selinux/packages/mios/k3s.pp
 # Clean up
 cd /
 rm -rf /tmp/k3s-selinux
-echo "==> K3s SELinux Policy staged in /usr/share/selinux/packages/mios/"
+mios_ok "k3s.pp staged in /usr/share/selinux/packages/mios/"

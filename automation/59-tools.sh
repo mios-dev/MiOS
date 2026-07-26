@@ -5,9 +5,10 @@
 # 'MiOS' - 36-tools: CLI tools and consolidated mios command
 # Installs all mios-* tools to /usr/bin/ and the master 'mios' CLI.
 set -euo pipefail
+for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-echo "[36-tools] Configuring 'MiOS' CLI tools..."
+mios_log "configure MiOS CLI tools"
 
 # CLI tools are now delivered via system_files overlay at /usr/bin/
 # We just need to ensure permissions are correct here for files that 
@@ -36,7 +37,7 @@ done
 
 # ═══ Install external scripts from build context ═══
 # These are scripts that live in automation/ and are installed to /usr/bin/
-echo "[36-tools] Installing mios-toggle-headless..."
+mios_log "install mios-toggle-headless"
 if [ -f "${SCRIPT_DIR}/mios-toggle-headless" ]; then
     install -Dm0755 "${SCRIPT_DIR}/mios-toggle-headless" "/usr/bin/mios-toggle-headless"
 fi
@@ -59,9 +60,9 @@ do
 done
 if [[ -n "$USERENV_SRC" ]]; then
     install -D -m 0644 "$USERENV_SRC" /usr/lib/mios/userenv.sh
-    echo "[36-tools] Installed userenv.sh resolver to /usr/lib/mios/userenv.sh"
+    mios_ok "installed userenv.sh resolver to /usr/lib/mios/userenv.sh"
 else
-    echo "[36-tools] WARN: tools/lib/userenv.sh not found in build context; mios-env will fall back to legacy env-style files only"
+    mios_warn "tools/lib/userenv.sh not found in build context; mios-env will fall back to legacy env-style files only"
 fi
 
-echo "[36-tools] CLI tools configuration complete. Run 'mios --help' for commands."
+mios_ok "CLI tools configured; run 'mios --help' for commands"

@@ -11,9 +11,10 @@
 # Result: Each instance gets mios-XXXXX (e.g., mios-a3f9c), unique
 # per deployment, stable across reboots.
 set -euo pipefail
+for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 
-echo "[32-hostname] Setting default hostname template..."
+mios_log "set default hostname template"
 
 # Use MIOS_HOSTNAME build-arg if provided by the installer/bootstrap.
 # When set (e.g. "mios-ws-83427"), it becomes the static hostname.
@@ -26,7 +27,7 @@ echo "[32-hostname] Setting default hostname template..."
 _hn="${MIOS_HOSTNAME:-mios}"
 install -d -m 0755 ${MIOS_USR_DIR}
 echo "$_hn" > ${MIOS_USR_DIR}/hostname.default
-echo "[32-hostname] Default hostname template written to ${MIOS_USR_DIR}/hostname.default: $_hn"
+mios_ok "wrote ${MIOS_USR_DIR}/hostname.default: $_hn"
 if [[ "$_hn" == "mios" ]]; then
-    echo "[32-hostname] Will become mios-XXXXX on first boot via mios-init."
+    mios_log "becomes mios-XXXXX on first boot via mios-init"
 fi

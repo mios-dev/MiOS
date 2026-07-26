@@ -4,7 +4,9 @@
 # AI-related: fapolicyd.service
 set -euo pipefail
 
-echo "==> Setting fapolicyd trust backend to 'file,rpmdb' in /usr/lib and /etc fapolicyd.conf..."
+for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
+
+mios_log "set fapolicyd trust = file,rpmdb in /usr/lib and /etc fapolicyd.conf"
 
 # shellcheck source=lib/common.sh
 source "$(dirname "$0")/lib/common.sh"
@@ -22,4 +24,4 @@ done
 
 # Enable the service
 systemctl enable fapolicyd.service
-echo "==> Set trust = file,rpmdb in fapolicyd.conf and enabled fapolicyd.service."
+mios_ok "trust = file,rpmdb set in fapolicyd.conf, fapolicyd.service enabled"

@@ -23,6 +23,7 @@
 # bake doesn't tank the whole build -- the first-boot mios-flatpak-install
 # service still picks up any uninstalled refs as a fallback.
 set -euo pipefail
+for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/common.sh
 source "${SCRIPT_DIR}/lib/common.sh"
@@ -61,12 +62,12 @@ if [[ -z "$FLATPAK_LIST" ]] && [[ -r /tmp/build/mios.toml ]]; then
 fi
 
 if [[ -z "${FLATPAK_LIST// /}" ]]; then
-    log "[40-flatpak-bake] no Flatpaks selected (mios.toml [desktop].flatpaks empty) -- skipping bake"
+    mios_skip "no Flatpaks selected (mios.toml [desktop].flatpaks empty)"
     exit 0
 fi
 
 if ! command -v flatpak >/dev/null 2>&1; then
-    warn "[40-flatpak-bake] flatpak binary missing -- skipping bake (mios-flatpak-install will retry on first boot)"
+    mios_warn "flatpak binary missing (mios-flatpak-install will retry on first boot)"
     exit 0
 fi
 
@@ -76,8 +77,8 @@ fi
 flatpak remote-add --system --if-not-exists flathub \
     https://dl.flathub.org/repo/flathub.flatpakrepo 2>/dev/null || true
 
-log "[40-flatpak-bake] selected refs: ${FLATPAK_LIST}"
-log "[40-flatpak-bake] beginning system-wide install (this may take several minutes)"
+mios_log "selected refs: ${FLATPAK_LIST}"
+mios_log "system-wide install (may take several minutes)"
 
 # Per-remote install: mios.toml accepts `<remote>:<appid>` entries so
 # the operator can pull Nautilus.Devel from gnome-nightly and Epiphany
@@ -127,7 +128,7 @@ for raw in "${REFS[@]}"; do
                 flatpak remote-add --system --if-not-exists fedora \
                     oci+https://registry.fedoraproject.org 2>/dev/null || true ;;
             *)
-                warn "[40-flatpak-bake]   unknown remote '$remote' for $ref -- attempting install anyway" ;;
+                mios_warn "unknown remote '$remote' for $ref -- attempting install anyway" ;;
         esac
     fi
 
@@ -136,9 +137,9 @@ for raw in "${REFS[@]}"; do
         local_flatpak="/usr/share/mios/vendored/${app}.flatpak"
     fi
 
-    log "[40-flatpak-bake]   installing ${app} (from ${remote})"
+    mios_log "installing ${app} (from ${remote})"
     if [ -n "$local_flatpak" ]; then
-        log "[40-flatpak-bake]   Found offline vendored flatpak file: ${local_flatpak}"
+        mios_log "offline vendored flatpak file: ${local_flatpak}"
         install_cmd="flatpak install --system --noninteractive --assumeyes --or-update ${local_flatpak}"
     else
         install_cmd="flatpak install --system --noninteractive --assumeyes --or-update ${remote} ${app}"
@@ -157,11 +158,11 @@ for raw in "${REFS[@]}"; do
         INSTALLED=$((INSTALLED + 1))
     else
         FAILED=$((FAILED + 1))
-        warn "[40-flatpak-bake]   ${remote}:${app} install returned non-zero (exit ${install_status}) -- will retry at first boot"
+        mios_warn "${remote}:${app} install returned non-zero (exit ${install_status}) -- will retry at first boot"
     fi
 done
 
-log "[40-flatpak-bake] bake complete: ${INSTALLED} refs attempted, ${FAILED} reported non-zero"
+mios_ok "${INSTALLED} refs attempted, ${FAILED} reported non-zero"
 
 # Mark the bake state so the first-boot service can short-circuit when
 # everything's already present, and the postcheck can verify that the

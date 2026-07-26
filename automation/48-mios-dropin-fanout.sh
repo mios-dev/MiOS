@@ -4,6 +4,7 @@
 # Reads mios.toml [blade.requires] and maps cap drop-ins to service directories.
 # AI-related: usr/share/mios/dropins/blade-*.conf, usr/share/mios/mios.toml, /usr/lib/systemd/system/
 set -euo pipefail
+for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"

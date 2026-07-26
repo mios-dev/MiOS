@@ -20,6 +20,7 @@
 #
 # See usr/share/mios/mios.toml [security] prose for the full rationale.
 set -euo pipefail
+for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/common.sh
 source "${SCRIPT_DIR}/lib/common.sh"
@@ -66,20 +67,20 @@ MASK_REMOUNT="${MASK_REMOUNT:-true}"
 case "$MODE" in
     verity|yes|off) ;;
     *)
-        warn "[40-composefs-verity] unknown composefs_mode='${MODE}', falling back to 'verity'"
+        mios_warn "unknown composefs_mode='${MODE}', falling back to 'verity'"
         MODE="verity"
         ;;
 esac
 
 if [[ "$MODE" == "off" ]]; then
-    log "[40-composefs-verity] composefs_mode=off -- honoring base image's prepare-root.conf"
+    mios_skip "composefs_mode=off -- honoring base image's prepare-root.conf"
     exit 0
 fi
 
 conf="${COMPOSEFS_CONF:-/usr/lib/ostree/prepare-root.conf}"
 if [[ -f "$conf" ]]; then
     if [[ ! -f "${conf}.orig" ]]; then
-        log "[40-composefs-verity] backing up existing $conf -> ${conf}.orig"
+        mios_log "backing up existing $conf -> ${conf}.orig"
         cp -a "$conf" "${conf}.orig"
     fi
 fi
@@ -87,7 +88,7 @@ fi
 # Render the table according to the requested mode. The [root] / [etc]
 # transient = false stanzas are independent of verity vs yes -- they
 # enforce immutable / non-tmpfs root and /etc on every composefs path.
-log "[40-composefs-verity] writing $conf with composefs mode=${MODE}"
+mios_log "writing $conf with composefs mode=${MODE}"
 case "$MODE" in
     verity)
         cat > "$conf" <<'EOF'
@@ -126,9 +127,9 @@ esac
 # composefs/remount-fs interop bug surfaces). The "yes" path uses the
 # upstream-default mount sequence and does not need the mask.
 if [[ "$MODE" == "verity" && "$MASK_REMOUNT" =~ ^(true|TRUE|1|yes|YES)$ ]]; then
-    log "[40-composefs-verity] masking systemd-remount-fs.service (composefs/remount interop bug)"
+    mios_log "masking systemd-remount-fs.service (composefs/remount interop bug)"
     install -d -m 0755 /etc/systemd/system
     ln -sf /dev/null /etc/systemd/system/systemd-remount-fs.service
 fi
 
-log "[40-composefs-verity] composefs mode=${MODE} configured"
+mios_ok "composefs mode=${MODE} configured"

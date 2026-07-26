@@ -3,6 +3,7 @@
 # AI-hint: Automatically generates Quadlet configuration files (.pod, .container, .network) from the mios.toml SSOT at image build time.
 # AI-related: tools/generate-pod-quadlets.py, usr/share/mios/mios.toml, usr/share/containers/systemd/
 set -euo pipefail
+for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
@@ -21,10 +22,10 @@ GEN_SCRIPT="${ROOT}/tools/generate-pod-quadlets.py"
 TOML_FILE="${ROOT}/usr/share/mios/mios.toml"
 OUT_DIR="${ROOT}/usr/share/containers/systemd"
 
-echo "[14-generate-quadlets] Generating Quadlets from ${TOML_FILE} to ${OUT_DIR}..."
+mios_log "generating Quadlets from ${TOML_FILE} to ${OUT_DIR}"
 
 if [[ ! -f "$GEN_SCRIPT" ]]; then
-    echo "[14-generate-quadlets] ERROR: generate-pod-quadlets.py not found at $GEN_SCRIPT" >&2
+    mios_err "generate-pod-quadlets.py not found at $GEN_SCRIPT"
     exit 1
 fi
 
@@ -39,4 +40,4 @@ fi
 
 MIOS_ROOT="$ROOT" MIOS_TOML="$TOML_FILE" MIOS_POD_OUT="$OUT_DIR" python3 "$GEN_SCRIPT"
 
-echo "[14-generate-quadlets] Quadlets generated into ${OUT_DIR}."
+mios_ok "Quadlets generated into ${OUT_DIR}"

@@ -4,9 +4,10 @@
 # AI-related: /usr/lib/mios/env.d, mios-flatpak-install
 # 'MiOS' - 37-flatpak-env: Capture Flatpak environment for boot-time install
 set -euo pipefail
+for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 
-log "[37-flatpak-env] capturing Flatpak environment"
+mios_log "capturing Flatpak environment"
 
 # Directory for 'MiOS' system-level environment definitions (USR-OVER-ETC compliance)
 # Using /usr/lib/mios/env.d as a "venv/env" style storage
@@ -21,12 +22,12 @@ echo "# Generated at build time: $(date -u)" >> "$ENV_FILE"
 
 if [[ -n "${MIOS_FLATPAKS:-}" ]]; then
     echo "MIOS_FLATPAKS=\"${MIOS_FLATPAKS}\"" >> "$ENV_FILE"
-    echo "[37-flatpak-env] Captured MIOS_FLATPAKS to ${ENV_FILE}"
+    mios_ok "captured MIOS_FLATPAKS to ${ENV_FILE}"
 else
     echo "MIOS_FLATPAKS=\"\"" >> "$ENV_FILE"
-    echo "[37-flatpak-env] MIOS_FLATPAKS not set, created empty env file."
+    mios_skip "MIOS_FLATPAKS not set, created empty env file"
 fi
 
 chmod 644 "$ENV_FILE"
 
-echo "[37-flatpak-env] Flatpak environment configured in /usr."
+mios_ok "Flatpak environment configured in /usr"

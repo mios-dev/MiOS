@@ -6,36 +6,37 @@
 # Plymouth disable is handled by usr/lib/bootc/kargs.d/10-mios-console.toml
 # Console verbosity is handled by usr/lib/bootc/kargs.d/00-mios.toml + 10-mios-verbose.toml
 set -euo pipefail
+for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 
-echo "[98-boot-config] Configuring boot console output..."
+mios_log "configuring boot console"
 
 # ── Verify kargs TOML files exist ──────────────────────────────────────────
 # These are static files from  -- if missing, the overlay step failed.
 if [ -f /usr/lib/bootc/kargs.d/10-mios-console.toml ]; then
-    echo "[98-boot-config] Verified /usr/lib/bootc/kargs.d/10-mios-console.toml present (plymouth disable via kernel cmdline)."
+    mios_ok "/usr/lib/bootc/kargs.d/10-mios-console.toml present (plymouth disable via kernel cmdline)"
 else
-    echo "[98-boot-config] ERROR: 10-mios-console.toml not found -- check overlay."
+    mios_err "10-mios-console.toml not found -- check overlay"
 fi
 
 # ── Ensure agetty on tty1 ─────────────────────────────────────────────────
 # Even if GDM fails, we need a text console to diagnose.
-echo "[98-boot-config] Enabling getty on tty1 (fallback console)..."
+mios_log "enabling getty on tty1 (fallback console)"
 systemctl enable getty@tty1.service 2>/dev/null || true
 
 # ── Emergency shell access ────────────────────────────────────────────────
-echo "[98-boot-config] Enabling emergency/rescue shell access..."
+mios_log "enabling emergency/rescue shell access"
 systemctl enable emergency.service 2>/dev/null || true
 systemctl enable rescue.service 2>/dev/null || true
 
 # ── Serial console for Hyper-V / QEMU ────────────────────────────────────
-echo "[98-boot-config] Enabling serial-getty on ttyS0..."
+mios_log "enabling serial-getty on ttyS0"
 systemctl enable serial-getty@ttyS0.service 2>/dev/null || true
 
 # ── NetworkManager-wait-online timeout ────────────────────────────────────
-echo "[98-boot-config] NetworkManager-wait-online-service.d timeout drop-in supplied by the image overlay (not set by this script)."
+mios_log "NetworkManager-wait-online-service.d timeout drop-in supplied by image overlay (not set by this script)"
 
-echo "[98-boot-config] [ok] Boot console configured"
-echo "[98-boot-config]   plymouth: disabled (kernel cmdline plymouth.enable=0)"
-echo "[98-boot-config]   getty@tty1: enabled (fallback text console)"
-echo "[98-boot-config]   serial-getty@ttyS0: enabled (serial console)"
-echo "[98-boot-config]   NM-wait-online: timeout set by overlay drop-in (value not read or verified by this script)"
+mios_ok "boot console configured"
+mios_log "plymouth: disabled (kernel cmdline plymouth.enable=0)"
+mios_log "getty@tty1: enabled (fallback text console)"
+mios_log "serial-getty@ttyS0: enabled (serial console)"
+mios_log "NM-wait-online: timeout set by overlay drop-in (value not read or verified by this script)"

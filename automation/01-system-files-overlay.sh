@@ -13,12 +13,14 @@
 # ============================================================================
 set -euo pipefail
 
+for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
+
 # shellcheck source=lib/common.sh
 source "$(dirname "$0")/lib/common.sh"
 
 CTX="${CTX:-/ctx}"
 
-log "08-overlay: starting Rootfs-Native overlay"
+mios_step "rootfs-native overlay"
 
 # Derive /usr/share/mios/VERSION from the canonical top-level VERSION
 # file. The MOTD (/usr/libexec/mios/motd) and the dashboard runtime
@@ -30,7 +32,7 @@ log "08-overlay: starting Rootfs-Native overlay"
 if [[ -f "${CTX}/VERSION" ]]; then
     install -d -m 0755 /usr/share/mios
     install -m 0644 "${CTX}/VERSION" /usr/share/mios/VERSION
-    log "  staged /usr/share/mios/VERSION -> $(cat /usr/share/mios/VERSION)"
+    mios_ok "staged /usr/share/mios/VERSION -> $(cat /usr/share/mios/VERSION)"
 fi
 
 # Stage canonical MiOS branding PNG icons in system icon directories
@@ -39,13 +41,13 @@ if [[ -d "${CTX}/usr/share/mios/branding" ]]; then
     if [[ -f "${CTX}/usr/share/mios/branding/icon.png" ]]; then
         cp -f "${CTX}/usr/share/mios/branding/icon.png" /usr/share/pixmaps/mios.png
         cp -f "${CTX}/usr/share/mios/branding/icon.png" /usr/share/icons/hicolor/256x256/apps/mios.png
-        log "  staged canonical /usr/share/pixmaps/mios.png and /usr/share/icons/hicolor/256x256/apps/mios.png"
+        mios_ok "staged /usr/share/pixmaps/mios.png and /usr/share/icons/hicolor/256x256/apps/mios.png"
     fi
 fi
 
 # --- Stage 1: /usr (everything except /usr/local) --------------------------
 if [[ -d "${CTX}/usr" ]]; then
-    log "  stage 1: overlay usr content (excluding /usr/local)"
+    mios_log "stage 1: overlay usr (excluding /usr/local)"
     tar -C "${CTX}/usr" -cf - --exclude='./local' . | tar -C /usr --no-overwrite-dir -xf -
 fi
 
@@ -56,19 +58,19 @@ fi
 # tar write -- the content will be available after first-boot tmpfiles.d runs.
 # If /usr/local is a real directory (non-FCOS base), write directly.
 if [[ -d "${CTX}/usr/local" ]]; then
-    log "  stage 2: overlay /usr/local content"
+    mios_log "stage 2: overlay /usr/local"
     if [[ -L /usr/local ]]; then
         local_target="$(readlink -f /usr/local 2>/dev/null || true)"
-        log "    /usr/local is a symlink -> ${local_target}; skipping /var write (tmpfiles.d will create at boot)"
+        mios_log "/usr/local symlink -> ${local_target}; skip /var write (tmpfiles.d creates at boot)"
     else
-        log "    /usr/local is a real directory; writing directly"
+        mios_log "/usr/local real directory; write directly"
         tar -C "${CTX}/usr/local" -cf - . | tar -C /usr/local --no-overwrite-dir -xf -
     fi
 fi
 
 # --- Stage 3: /etc (System Config Templates) -------------------------------
 if [[ -d "${CTX}/etc" ]]; then
-    log "  stage 3: overlay etc content"
+    mios_log "stage 3: overlay etc"
     tar -C "${CTX}/etc" -cf - --exclude='./containers/systemd' --exclude='./systemd' . | tar -C /etc --no-overwrite-dir -xf -
 fi
 
@@ -96,7 +98,7 @@ if [[ -f "${CTX}/etc/wsl.conf" ]]; then
     sed -e '1s/^\xEF\xBB\xBF//' -e 's/\r$//' "${CTX}/etc/wsl.conf" > "$tmp_wsl"
     install -m 0644 -o root -g root -T "$tmp_wsl" /etc/wsl.conf
     rm -f "$tmp_wsl"
-    log "  stage 3a: force-installed /etc/wsl.conf (mode 0644, root:root, CRLF-stripped)"
+    mios_ok "stage 3a: force-installed /etc/wsl.conf (mode 0644, root:root, CRLF-stripped)"
 fi
 # Mirror the same treatment for /usr/lib/wsl.conf -- wsl-init.service
 # uses it as the drift-restore reference and would otherwise re-introduce
@@ -106,7 +108,7 @@ if [[ -f "${CTX}/usr/lib/wsl.conf" ]]; then
     sed -e '1s/^\xEF\xBB\xBF//' -e 's/\r$//' "${CTX}/usr/lib/wsl.conf" > "$tmp_wsl"
     install -m 0644 -o root -g root -T "$tmp_wsl" /usr/lib/wsl.conf
     rm -f "$tmp_wsl"
-    log "  stage 3a: force-installed /usr/lib/wsl.conf reference (CRLF-stripped)"
+    mios_ok "stage 3a: force-installed /usr/lib/wsl.conf reference (CRLF-stripped)"
 fi
 
 # --- Stage 4: /var (intentionally empty) ----------------------------------
@@ -126,13 +128,13 @@ fi
 # systemd-sysusers when the user is first created at boot.
 # This stage is intentionally a no-op; see /etc/skel/ for the skel overlay.
 if [[ -d "${CTX}/home" ]]; then
-    log "  stage 5: /ctx/home detected -- seeding /etc/skel instead of /var/home (LAW 5)"
+    mios_log "stage 5: /ctx/home detected -- seeding /etc/skel instead of /var/home (LAW 5)"
     install -d -m 0755 /etc/skel
     tar -C "${CTX}/home" -cf - . | tar -C /etc/skel --no-overwrite-dir --strip-components=1 -xf - 2>/dev/null || true
 fi
 
 # Normalize permissions on systemd unit and config files.
-log "08-overlay: normalizing systemd file permissions"
+mios_step "normalize systemd file permissions"
 find /usr/lib/systemd -type f \( -name "*.service" -o -name "*.socket" -o -name "*.timer" -o -name "*.mount" -o -name "*.conf" -o -name "*.target" -o -name "*.path" -o -name "*.slice" -o -name "*.preset" -o -name "*.automount" -o -name "*.swap" \) -exec chmod 644 {} \; 2>/dev/null || true
 find /usr/lib/systemd -type d -exec chmod 755 {} \; 2>/dev/null || true
 
@@ -143,7 +145,7 @@ find /usr/lib/systemd -type d -exec chmod 755 {} \; 2>/dev/null || true
 # remove executable permission bits"), and the "world-writable" warning is
 # raised on the same files. Force 0644 across every declarative-config
 # directory in /usr/lib/. Mirrors the systemd-units normalization above.
-log "08-overlay: normalizing udev/tmpfiles/sysusers/modprobe permissions"
+mios_step "normalize udev/tmpfiles/sysusers/modprobe permissions"
 for d in \
     /usr/lib/udev/rules.d \
     /usr/lib/tmpfiles.d \
@@ -170,10 +172,10 @@ done
 # back to "host" if userenv hasn't been sourced (vanilla bootc-only path).
 _dev_net_mode="${MIOS_QUADLET_DEV_NETWORK_MODE:-host}"
 if [[ "${_dev_net_mode}" == "bridge" ]]; then
-    log "08-overlay: [wsl2.dev_vm].quadlet_network_mode=bridge -- removing *-host-network.conf dropins"
+    mios_log "[wsl2.dev_vm].quadlet_network_mode=bridge -- removing *-host-network.conf dropins"
     shopt -s nullglob
     for d in /etc/containers/systemd/*.container.d/*-host-network.conf; do
-        log "  removed (bridge mode): $d"
+        mios_log "removed (bridge mode): $d"
         rm -f "$d"
     done
     shopt -u nullglob
@@ -205,12 +207,12 @@ for QDIR in /usr/share/containers/systemd /etc/containers/systemd; do
                 [[ -n "$_tok" && "$_img" == *"$_tok"* ]] && { _fb=1; break; }
             done
             if [[ -n "$_fb" ]]; then
-                log "  LBI: SKIP ${name} (firstboot tier -- web-pulled at first boot, not bound)"
+                mios_skip "LBI: ${name} (firstboot tier -- web-pulled at first boot, not bound)"
                 continue
             fi
         fi
         ln -sf "${q}" "${BDIR}/${name}"
-        log "  LBI: bound ${name} (${q})"
+        mios_log "LBI: bound ${name} (${q})"
     done
 done
 shopt -u nullglob
@@ -222,10 +224,10 @@ shopt -u nullglob
 # the placeholder is redundant in the image and MUST NOT ship. (Found via a
 # bootc install to-disk boot-verify of the Day-0 image.)
 rm -f "${BDIR}/.gitkeep"
-log "  LBI: stripped git-tracking .gitkeep (bootc install requires symlinks-only)"
+mios_log "LBI: stripped git-tracking .gitkeep (bootc install requires symlinks-only)"
 
 # ═══ Pathing Compatibility ═══
-log "08-overlay: applying pathing compatibility symlinks"
+mios_step "pathing compatibility symlinks"
 
 # /etc/wsl.conf is deployed as a real file via Stage 3 overlay (etc/wsl.conf in repo).
 # /usr/lib/wsl.conf is a reference stub; do not symlink it over /etc/wsl.conf.
@@ -234,16 +236,16 @@ log "08-overlay: applying pathing compatibility symlinks"
 if [ ! -L /home ] && [ -d /home ] && [ ! "$(ls -A /home)" ]; then
     rm -rf /home
     ln -sf /var/home /home
-    log "  Path: symlinked /home -> /var/home"
+    mios_ok "path: symlinked /home -> /var/home"
 elif [ ! -e /home ]; then
     ln -sf /var/home /home
-    log "  Path: created /home -> /var/home symlink"
+    mios_ok "path: created /home -> /var/home symlink"
 fi
 
 # Ensure all files under /usr/libexec/mios are executable.
 # Files authored on Windows or checked out without core.filemode will lose the executable bit.
 if [[ -d /usr/libexec/mios ]]; then
-    log "  setting executable permissions on /usr/libexec/mios/*"
+    mios_log "set executable bit on /usr/libexec/mios/*"
     find /usr/libexec/mios -type f -exec chmod +x {} + || true
 fi
 
@@ -251,7 +253,7 @@ fi
 if [[ "${MIOS_INSTALL_MODE:-}" != "fhs" ]]; then
     if [[ ! -e "/usr/share/mios/k3s-manifests" ]]; then
         ln -sf "k3s/generated" "/usr/share/mios/k3s-manifests"
-        log "  Path: created symlink /usr/share/mios/k3s-manifests -> k3s/generated"
+        mios_ok "path: symlinked /usr/share/mios/k3s-manifests -> k3s/generated"
     fi
 else
     # In FHS mode, ensure it's a clean, non-symlinked directory to prevent duplicate pod execution in K3s
@@ -261,8 +263,8 @@ else
     mkdir -p "/usr/share/mios/k3s-manifests"
 fi
 
-log "08-overlay: relabeling overlaid files"
+mios_step "relabel overlaid files"
 restorecon -RFv /usr/ 2>/dev/null || true
 restorecon -RFv /etc/ 2>/dev/null || true
 
-log "08-overlay: complete"
+mios_ok "overlay complete"

@@ -12,10 +12,12 @@
 # ============================================================================
 set -euo pipefail
 
+for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
+
 # shellcheck source=lib/common.sh
 source "$(dirname "$0")/lib/common.sh"
 
-log "42-cosign-policy: ensuring cosign + trust roots + policy.json"
+mios_log "ensuring cosign + trust roots + policy.json"
 
 # 1. Install cosign binary
 # Project policy: every dependency tracks :latest from its source. Cosign is
@@ -33,13 +35,13 @@ if ! command -v cosign >/dev/null 2>&1; then
         | head -n1) 2>/dev/null || true)
     if [[ -z "$COSIGN_VERSION" ]]; then
         [[ -n "$COSIGN_FALLBACK_VERSION" ]] || die "cosign: api.github.com lookup empty AND no fallback pin"
-        warn "cosign: api.github.com lookup empty -- falling back to pinned ${COSIGN_FALLBACK_VERSION}"
+        mios_warn "cosign: api.github.com lookup empty -- falling back to pinned ${COSIGN_FALLBACK_VERSION}"
         COSIGN_VERSION="$COSIGN_FALLBACK_VERSION"
     fi
     COSIGN_BASE_URL="https://github.com/sigstore/cosign/releases/download/${COSIGN_VERSION}"
     record_version cosign "$COSIGN_VERSION" "https://github.com/sigstore/cosign/releases/tag/${COSIGN_VERSION}"
-    log "  resolved cosign latest v2.x: ${COSIGN_VERSION}"
-    log "  downloading cosign ${COSIGN_VERSION} static binary..."
+    mios_log "resolved cosign latest v2.x: ${COSIGN_VERSION}"
+    mios_log "downloading cosign ${COSIGN_VERSION} static binary"
     mkdir -p /tmp/cosign-dl
     scurl -sfL "${COSIGN_BASE_URL}/cosign-linux-amd64" -o /tmp/cosign-dl/cosign-linux-amd64
     scurl -sfL "${COSIGN_BASE_URL}/cosign_checksums.txt" -o /tmp/cosign-dl/cosign_checksums.txt
@@ -71,10 +73,10 @@ install -d -m 0755 /usr/lib/containers/registries.d
 # : Moved from etc/ to usr/lib/ in system_files
 if [[ -f "${SYSFILES}/usr/lib/containers/policy.json" ]]; then
     install -m 0644 "${SYSFILES}/usr/lib/containers/policy.json" /usr/lib/containers/policy.json
-    log "  installed /usr/lib/containers/policy.json"
+    mios_ok "installed /usr/lib/containers/policy.json"
 else
     # Fallback to in-image path if ctx is missing (unlikely in build)
-    [[ -f /usr/lib/containers/policy.json ]] || warn "missing policy.json"
+    [[ -f /usr/lib/containers/policy.json ]] || mios_warn "missing policy.json"
 fi
 
 # 3. Install Sigstore TUF roots and public keys
@@ -84,14 +86,14 @@ for f in fulcio_v1.crt.pem rekor.pub ublue-os.pub ublue-cosign.pub mios-cosign.p
     dst="/usr/share/pki/containers/${f}"
     if [[ -f "${src}" ]]; then
         install -m 0644 "${src}" "${dst}"
-        log "  installed ${dst}"
+        mios_ok "installed ${dst}"
     fi
 done
 
 # 4. JSON Sanity Check
 if command -v jq >/dev/null 2>&1 && [[ -f /usr/lib/containers/policy.json ]]; then
     jq -e . /usr/lib/containers/policy.json >/dev/null || die "policy.json failed jq parse"
-    log "  policy.json parses cleanly"
+    mios_ok "policy.json parses cleanly"
 fi
 
-log "42-cosign-policy: validation complete"
+mios_ok "validation complete"

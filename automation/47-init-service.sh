@@ -6,9 +6,10 @@
 # This script ensures mios-role.service is correctly enabled.
 # The actual logic lives in /usr/libexec/mios/role-apply (system_files overlay).
 set -euo pipefail
+for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 
-log "Symlinking mios-role.service, mios-podman-gc.timer, mios-webtools-firstboot.service into multi-user.target.wants"
+mios_log "symlinking mios-role.service, mios-podman-gc.timer, mios-webtools-firstboot.service into multi-user.target.wants"
 
 # Enable units using build-safe symlinks
 WANTS=/usr/lib/systemd/system/multi-user.target.wants
@@ -21,10 +22,10 @@ for unit in \
 do
     if [[ -f "/usr/lib/systemd/system/${unit}" ]]; then
         ln -sf "../${unit}" "${WANTS}/${unit}"
-        log "Enabled ${unit}"
+        mios_ok "enabled ${unit}"
     else
-        warn "${unit} not found, skipping enablement."
+        mios_warn "${unit} not found, skipping enablement"
     fi
 done
 
-log "mios-role/podman-gc/webtools-firstboot units enabled via multi-user.target.wants symlinks"
+mios_ok "mios-role/podman-gc/webtools-firstboot units enabled via multi-user.target.wants symlinks"

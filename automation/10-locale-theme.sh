@@ -18,24 +18,25 @@
 #
 # MUST RUN BEFORE 30-user.sh (skel .bashrc must exist before useradd -m)
 set -euo pipefail
+for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 
-echo "  'MiOS' ${MIOS_VERSION:-} -- locale + dark theme (dconf/GTK/Qt/Flatpak)"
+mios_log "'MiOS' ${MIOS_VERSION:-} locale + dark theme (dconf/GTK/Qt/Flatpak)"
 
 # ═══ SKEL .bashrc (MUST come BEFORE useradd -m) ═══
 # : Delivered via usr/share/skel/.bashrc overlay.
-echo "[30-locale-theme] /etc/skel/.bashrc provided by usr/share/skel overlay (no action here)."
+mios_skip "/etc/skel/.bashrc via usr/share/skel overlay"
 
 # ═══ GTK3: adw-gtk3-dark for visual consistency with libadwaita ═══
 # : Delivered via etc/gtk-3.0/settings.ini overlay.
-echo "[30-locale-theme] GTK3 theme provided by etc/gtk-3.0/settings.ini overlay (no action here)."
+mios_skip "GTK3 theme via etc/gtk-3.0/settings.ini overlay"
 
 # ═══ GTK4: libadwaita reads color-scheme, NOT GTK_THEME ═══
 # : Delivered via etc/gtk-4.0/settings.ini overlay.
-echo "[30-locale-theme] GTK4 theme provided by etc/gtk-4.0/settings.ini overlay (no action here)."
+mios_skip "GTK4 theme via etc/gtk-4.0/settings.ini overlay"
 
 # ═══ System-wide env vars for ALL toolkits ═══
 # : Delivered via etc/environment.d/ overlay.
-echo "[30-locale-theme] Toolkit env vars provided by etc/environment.d/ overlay (no action here)."
+mios_skip "toolkit env vars via etc/environment.d/ overlay"
 
 # ═══ Flatpak overrides -- dark theme + cursor + fonts ═══
 # Bake-time seed of the GLOBAL flatpak override. Runtime
@@ -46,7 +47,7 @@ echo "[30-locale-theme] Toolkit env vars provided by etc/environment.d/ overlay 
 # that newly installed apps/flatpaks take hold of the configurations
 # as well" -- everything here goes to system-wide (no --app=ID),
 # making every present + future flatpak inherit it.
-echo "[30-locale-theme] Applying Flatpak GLOBAL dark theme + cursor overrides..."
+mios_log "Flatpak global dark theme + cursor overrides"
 flatpak override --system --env=ADW_DEBUG_COLOR_SCHEME=prefer-dark 2>/dev/null || true
 flatpak override --system --env=XCURSOR_THEME=Bibata-Modern-Classic 2>/dev/null || true
 flatpak override --system --env=XCURSOR_SIZE=24 2>/dev/null || true
@@ -73,9 +74,9 @@ flatpak override --system --nofilesystem=/usr/share/fonts 2>/dev/null || true
 # : Delivered via etc/skel/.config/gtk-3.0/settings.ini overlay.
 # ── Compile GSchema overrides (THE correct way to set GNOME defaults) ──
 if [ -f /usr/share/glib-2.0/schemas/90-mios.gschema.override ]; then
-    echo "[30-locale-theme] Compiling GSchema overrides..."
+    mios_log "GSchema overrides compile"
     glib-compile-schemas /usr/share/glib-2.0/schemas/ || true
-    echo "[30-locale-theme] [ok] GSchema overrides compiled"
+    mios_ok "GSchema overrides compiled"
 fi
 
 # Suppress DBus warnings during headless update without swallowing real syntax errors
@@ -90,4 +91,4 @@ if [ -d /etc/dconf/db ]; then
     find /etc/dconf/db -maxdepth 1 -type f -exec mv -f {} /usr/share/dconf/db/ \; 2>/dev/null || true
 fi
 
-echo "[30-locale-theme] Applied system Flatpak dark/cursor overrides, compiled 90-mios.gschema.override, ran dconf update."
+mios_ok "system Flatpak overrides, 90-mios.gschema.override, dconf update applied"

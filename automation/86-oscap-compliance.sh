@@ -4,6 +4,8 @@
 # AI-related: ../usr/libexec/mios/mios-oscap-gate, lib/packages.sh, lib/common.sh, ../usr/share/mios/mios.toml, build.sh, oscap
 set -euo pipefail
 
+for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=automation/lib/common.sh
 source "${SCRIPT_DIR}/lib/common.sh"
@@ -13,7 +15,7 @@ source "${SCRIPT_DIR}/lib/packages.sh"
 # Resolve the layered mios.toml the same way every build step does (honors
 # $MIOS_TOML). No toml at all -> treat as disabled (degrade-open, never fail a build
 # because config is unreadable).
-TOML="$(_resolve_mios_toml)" || { log "[39-oscap] no mios.toml resolved -- gate disabled (no-op)"; exit 0; }
+TOML="$(_resolve_mios_toml)" || { mios_skip "no mios.toml resolved -- gate disabled (no-op)"; exit 0; }
 
 # _toml_get <dotted.key> [default] -- scalar read via tomllib (booleans normalized
 # to true/false). Missing key / parse error -> default. No awk TOML guessing.
@@ -37,7 +39,7 @@ PY
 
 ENABLED="$(_toml_get compliance.enabled false)"
 if [[ "$ENABLED" != "true" ]]; then
-    log "[39-oscap] [compliance].enabled != true -- scan-only gate disabled (no-op)"
+    mios_skip "[compliance].enabled != true -- scan-only gate disabled (no-op)"
     exit 0
 fi
 
@@ -56,8 +58,8 @@ REPORT_DIR="$(_toml_get compliance.report_path /usr/share/mios/compliance)"
 # if an operator flipped remediate on -- wiring oscap-im / `--remediate` is a future
 # opt-in step that needs openscap-utils + CentOS-shaped remediation content.
 if [[ "$REMEDIATE" == "true" ]]; then
-    warn "[39-oscap] [compliance].remediate=true is IGNORED: this is the scan-only gate."
-    warn "[39-oscap] Remediation (oscap-im / --remediate) is a future operator-opt-in step."
+    mios_warn "[compliance].remediate=true is IGNORED: this is the scan-only gate."
+    mios_warn "Remediation (oscap-im / --remediate) is a future operator-opt-in step."
 fi
 
 # Resolve the datastream path. Explicit path wins; otherwise derive the filename
@@ -87,7 +89,7 @@ OSCAP_ARGS=(xccdf eval --profile "$PROFILE_ID" --results-arf "$ARF" --report "$H
 [[ "$FETCH" == "true" ]] && OSCAP_ARGS+=(--fetch-remote-resources)
 OSCAP_ARGS+=("$DS_PATH")
 
-log "[39-oscap] scanning: profile=${PROFILE_ID} severity_gate=${SEVERITY} ds=${DS_PATH}"
+mios_log "scanning: profile=${PROFILE_ID} severity_gate=${SEVERITY} ds=${DS_PATH}"
 set +e
 oscap "${OSCAP_ARGS[@]}"
 RC=$?
@@ -109,9 +111,9 @@ set +e
 FAILS="$(python3 "$GATE_BIN" "$ARF" "$SEVERITY")"
 GRC=$?
 set -e
-log "[39-oscap] reports baked: ${ARF} , ${HTML}"
+mios_log "reports baked: ${ARF} , ${HTML}"
 if [[ "$GRC" -ne 0 ]]; then
     die "[39-oscap] compliance gate FAILED: ${FAILS} rule(s) at/above severity '${SEVERITY}' (see ${HTML})"
 fi
-log "[39-oscap] compliance gate PASSED: 0 failed rules at/above severity '${SEVERITY}'"
+mios_ok "compliance gate PASSED: 0 failed rules at/above severity '${SEVERITY}'"
 exit 0

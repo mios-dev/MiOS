@@ -5,17 +5,19 @@
 # Custom per-rule modules for known Fedora Rawhide / systemd 260 denials.
 set -euo pipefail
 
-echo "[37-selinux] Applying SELinux build-time fixes..."
+for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
+
+mios_log "applying SELinux build-time fixes"
 
 # ═══ Restorecon -- fix labels for all major trees ═══
 if command -v restorecon &>/dev/null; then
-    echo "[37-selinux] Running restorecon on /boot /etc /usr /var..."
+    mios_log "running restorecon on /boot /etc /usr /var"
     restorecon -R /boot /etc /usr /var 2>/dev/null || true
 fi
 
 # ═══ Semanage import -- atomic booleans + fcontexts ═══
 if command -v semanage &>/dev/null; then
-    echo "[37-selinux] Applying SELinux booleans and fcontexts..."
+    mios_log "applying SELinux booleans and fcontexts"
     semanage import <<'EOSEM' 2>/dev/null || true
 boolean -m --on container_manage_cgroup
 boolean -m --on container_use_cephfs
@@ -35,12 +37,12 @@ EOSEM
     restorecon -v /boot/bootupd-state.json 2>/dev/null || true
     restorecon -R /usr/share/accountsservice 2>/dev/null || true
     restorecon -R /var/lib/gnome-remote-desktop 2>/dev/null || true
-    echo "[37-selinux] [ok] Booleans and fcontexts applied"
+    mios_ok "booleans and fcontexts applied"
 fi
 
 # ═══ Custom policy modules ═══
 if command -v checkmodule &>/dev/null && command -v semodule_package &>/dev/null; then
-    echo "[37-selinux] Building custom SELinux policy modules..."
+    mios_log "building custom SELinux policy modules"
 
     SELINUX_OK=0
     SELINUX_FAIL=0
@@ -165,16 +167,16 @@ allow xdm_t cache_home_t:file { create write read open getattr setattr };'
         if err_out="$(checkmodule -M -m -o "/tmp/mios_${name}.mod" "/tmp/mios_${name}.te" 2>&1)" && \
            semodule_package -o "/tmp/mios_${name}.pp" -m "/tmp/mios_${name}.mod" 2>/dev/null; then
             install -m 0644 "/tmp/mios_${name}.pp" "/usr/share/selinux/packages/mios/mios_${name}.pp"
-            echo "[37-selinux] mios_${name}: Staged"
+            mios_ok "mios_${name}: staged"
             SELINUX_OK=$((SELINUX_OK + 1))
         else
-            echo "[37-selinux] mios_${name}: SKIPPED ($err_out)"
+            mios_skip "mios_${name}: skipped ($err_out)"
             SELINUX_FAIL=$((SELINUX_FAIL + 1))
         fi
         rm -f "/tmp/mios_${name}".{te,mod,pp}
     done
 
-    echo "[37-selinux] ${SELINUX_OK} policies staged in /usr/share/selinux/packages/mios/, ${SELINUX_FAIL} skipped"
+    mios_log "${SELINUX_OK} policies staged in /usr/share/selinux/packages/mios/, ${SELINUX_FAIL} skipped"
 fi
 
 # ─── Persistent SELinux booleans applied at first boot ─────────────────────
@@ -191,6 +193,6 @@ mkdir -p /usr/share/selinux/packages/mios
 cat > /usr/share/selinux/packages/mios/booleans.conf <<'EOBOOL'
 container_use_devices=on
 EOBOOL
-echo "[37-selinux] booleans.conf staged for runtime selinux-init"
+mios_ok "booleans.conf staged for runtime selinux-init"
 
-echo "[37-selinux] SELinux configuration complete."
+mios_ok "SELinux configured"

@@ -2,14 +2,15 @@
 # MIOS_APPLY_CLASS=universal
 # AI-hint: Projects UPS settings from mios.toml [power.ups] SSOT to /etc/ups/ configurations (nut.conf, ups.conf, upsd.conf, upsmon.conf).
 set -euo pipefail
+for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 
-echo "==> Preparing Network UPS Tools (NUT) configuration..."
+mios_log "NUT configuration render"
 
 TOML_FILE="${MIOS_TOML:-/usr/share/mios/mios.toml}"
 UPS_CONF_DIR="${UPS_CONF_DIR:-/etc/ups}"
 
 if [[ ! -f "$TOML_FILE" ]]; then
-    echo "Error: manifest file $TOML_FILE not found" >&2
+    mios_err "manifest file $TOML_FILE not found"
     exit 1
 fi
 
@@ -110,4 +111,4 @@ else:
     print(f"Generated inert NUT configs (MODE=none) in {conf_dir}")
 ' "$TOML_FILE" "$UPS_CONF_DIR"
 
-echo "==> Network UPS Tools (NUT) configuration complete."
+mios_ok "NUT configuration rendered"

@@ -2,14 +2,15 @@
 # MIOS_APPLY_CLASS=universal
 # AI-hint: Projects NTP servers from mios.toml [network.ntp] SSOT to /etc/chrony.conf configuration file.
 set -euo pipefail
+for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 
-echo "==> Preparing Chrony NTP configuration..."
+mios_log "Chrony NTP config"
 
 TOML_FILE="${MIOS_TOML:-/usr/share/mios/mios.toml}"
 CHRONY_CONF="${CHRONY_CONF:-/etc/chrony.conf}"
 
 if [[ ! -f "$TOML_FILE" ]]; then
-    echo "Error: manifest file $TOML_FILE not found" >&2
+    mios_err "manifest $TOML_FILE not found"
     exit 1
 fi
 
@@ -91,4 +92,4 @@ with open(conf_path, "w", encoding="utf-8") as fh:
 print(f"Generated {conf_path} with {len(servers)} NTP servers")
 ' "$TOML_FILE" "$CHRONY_CONF"
 
-echo "==> Chrony NTP configuration complete."
+mios_ok "Chrony NTP config rendered"

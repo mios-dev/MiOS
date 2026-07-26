@@ -19,21 +19,22 @@
 # failed dnf transaction is logged loud since it leaves the toolchain in
 # place.
 set -euo pipefail
+for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/common.sh
 source "${SCRIPT_DIR}/lib/common.sh"
 # shellcheck source=lib/packages.sh
 source "${SCRIPT_DIR}/lib/packages.sh"
 
-log "[91-strip-build-toolchain] Resolving build-toolchain package list..."
+mios_log "resolving build-toolchain package list"
 TOOLCHAIN_STR="$(get_packages "build-toolchain")"
 
 if [[ -z "${TOOLCHAIN_STR// /}" ]]; then
-    warn "[91-strip-build-toolchain] No packages found in 'build-toolchain' block; nothing to strip."
+    mios_warn "no packages in 'build-toolchain' block; nothing to strip"
     exit 0
 fi
 
-log "[91-strip-build-toolchain] Removing: ${TOOLCHAIN_STR}"
+mios_log "removing ${TOOLCHAIN_STR}"
 # --noautoremove keeps system libs that the toolchain pulled but other
 # runtime packages also depend on (libstdc++, libgcc); we only want to
 # remove the toolchain itself, not cascade-delete shared libraries.
@@ -43,7 +44,7 @@ $DNF_BIN "${DNF_SETOPT[@]}" remove -y --noautoremove $TOOLCHAIN_STR 2>&1 \
 
 # Verification: assert no compiler binary is left in PATH. If any survive,
 # clean up orphan wrapper symlinks/stubs.
-log "[91-strip-build-toolchain] Verifying toolchain removal..."
+mios_log "verifying toolchain removal"
 for bin in gcc g++ cc cmake make go; do
     p="$(command -v "$bin" 2>/dev/null || true)"
     if [[ -n "$p" && -L "$p" ]]; then
@@ -58,11 +59,11 @@ for bin in gcc g++ cc cmake make go; do
     fi
 done
 if [[ ${#LEFT[@]} -gt 0 ]]; then
-    warn "[91-strip-build-toolchain] Toolchain binaries still in PATH:"
-    for entry in "${LEFT[@]}"; do warn "  ${entry}"; done
-    warn "[91-strip-build-toolchain] These were pulled in by another package's dependencies; review build-toolchain block."
+    mios_warn "toolchain binaries still in PATH:"
+    for entry in "${LEFT[@]}"; do mios_warn "  ${entry}"; done
+    mios_warn "pulled in by another package's dependencies; review build-toolchain block"
 else
-    log "[91-strip-build-toolchain] [ok] No compiler/build-system binaries remain in PATH."
+    mios_ok "no compiler/build-system binaries remain in PATH"
 fi
 
-log "[91-strip-build-toolchain] Build toolchain stripped."
+mios_ok "build toolchain stripped"

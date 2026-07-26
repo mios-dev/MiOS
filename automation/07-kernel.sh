@@ -20,6 +20,7 @@
 #   - kernel-modules-extra ensures VFIO/USB/storage modules are present
 #   - kernel-devel enables akmod-nvidia and DKMS builds
 set -euo pipefail
+for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/packages.sh"
 
@@ -29,18 +30,18 @@ install_packages "kernel"
 # The base image kernel is the only one installed; grab it.
 KVER=$(find /usr/lib/modules/ -mindepth 1 -maxdepth 1 -printf "%f\n" | sort -V | tail -1) # Explicitly use /usr
 export KVER
-echo "[02-kernel] Kernel version: $KVER"
+mios_log "kernel version: $KVER"
 echo "$KVER" > /tmp/mios-kver
 
 # Verify kernel modules directory exists (akmod build will fail without it)
 if [[ ! -d "/usr/lib/modules/$KVER" ]]; then # Explicitly check /usr
-    echo "[02-kernel] FATAL: /usr/lib/modules/$KVER does not exist" # Explicitly refer to /usr
+    mios_err "/usr/lib/modules/$KVER does not exist" # Explicitly refer to /usr
     exit 1
 fi
 
 # Verify kernel-devel is installed (akmod-nvidia needs it)
 if [[ ! -d "/usr/lib/modules/$KVER/build" ]]; then
-    echo "[02-kernel] WARNING: /usr/lib/modules/$KVER/build missing -- akmod may fail"
+    mios_warn "/usr/lib/modules/$KVER/build missing -- akmod may fail"
 fi
 
-echo "[02-kernel] Kernel extras for $KVER installed."
+mios_ok "kernel extras for $KVER installed"

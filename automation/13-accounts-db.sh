@@ -4,11 +4,12 @@
 # AI-related: 11-user.sh, schema-init.sql, mios-account-sync.service
 # 'MiOS' - 17-accounts-db: PostgreSQL account synchronization setup
 set -euo pipefail
+for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 
 # shellcheck source=lib/common.sh
 source "$(dirname "$0")/lib/common.sh"
 
-log "Configuring PostgreSQL host account sync service"
+mios_log "PostgreSQL account sync service"
 
 # Install account-sync executable to system path
 install -d -m 0755 /usr/libexec/mios/
@@ -34,9 +35,9 @@ for f in /etc/pam.d/system-auth /etc/pam.d/password-auth; do
 done
 
 if [[ "${MIOS_ACCOUNTS_DB_BACKED:-false}" =~ ^(true|1|yes)$ ]]; then
-    log "Enabling live PostgreSQL database account synchronization daemon"
+    mios_log "enable account-sync daemon"
     systemctl enable mios-account-sync.service || true
 else
-    log "PostgreSQL account synchronization is flag-gated off (db_backed = false)"
+    mios_skip "account sync flag-gated off (db_backed=false)"
     systemctl disable mios-account-sync.service || true
 fi

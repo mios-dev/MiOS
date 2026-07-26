@@ -5,7 +5,9 @@
 # Normalize to LF line endings (fixes SC1017)
 set -euo pipefail
 
-echo "==> Installing moby-engine (Docker) alongside Podman..."
+for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
+
+mios_log "installing moby-engine (Docker) alongside Podman"
 
 # shellcheck source=lib/packages.sh
 source "$(dirname "$0")/lib/packages.sh"

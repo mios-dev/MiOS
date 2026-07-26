@@ -12,17 +12,18 @@
 #     This fixes bootc lint: /var content must use tmpfiles.d entries
 #   - systemctl enables moved to Containerfile STEP D (unit files in )
 set -euo pipefail
+for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 # shellcheck source=lib/common.sh
 source "$(dirname "$0")/lib/common.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/packages.sh"
 
 # ─── Ceph Client + Orchestrator ──────────────────────────────────────────────
-echo "[13-ceph-k3s] Installing Ceph client tools and cephadm..."
+mios_log "Ceph client tools + cephadm"
 install_packages "ceph"
 
 # ─── K3s Prerequisites ───────────────────────────────────────────────────────
-echo "[13-ceph-k3s] Installing K3s prerequisites..."
+mios_log "K3s prerequisites"
 install_packages "k3s"
 
 # Note: k3s-selinux policy is compiled from source in 37-k3s-selinux.sh
@@ -36,11 +37,11 @@ install_packages "k3s"
 # The container image tag uses '-k3s1' (Docker tags forbid '+'); the GitHub
 # release + binary-download tag uses '+k3s1', so translate the SSOT image tag to
 # the release tag for the download URLs below.
-echo "[13-ceph-k3s] Resolving K3s release tag from mios.toml SSOT (MIOS_K3S_VERSION)..."
+mios_log "resolve K3s release tag from mios.toml SSOT (MIOS_K3S_VERSION)"
 # Offline check: do we have local k3s files?
 USE_OFFLINE=false
 if [ -f "/usr/share/mios/vendored/k3s" ] && [ -f "/usr/share/mios/vendored/k3s-install.sh" ]; then
-    echo "[13-ceph-k3s] Found offline vendored K3s files. Using them."
+    mios_log "offline vendored K3s files found"
     USE_OFFLINE=true
     K3S_TAG="vendored"
 else
@@ -50,12 +51,12 @@ else
 fi
 
 if [[ -z "$K3S_TAG" ]]; then
-    echo "[13-ceph-k3s] WARN: K3s version SSOT empty (MIOS_K3S_VERSION unset). Skipping K3s binary installation."
+    mios_warn "K3s version SSOT empty (MIOS_K3S_VERSION unset); skipping binary install"
     K3S_TAG=""
 fi
 
 if [[ -n "$K3S_TAG" ]]; then
-    echo "[13-ceph-k3s] K3s tag (from SSOT): $K3S_TAG"
+    mios_log "K3s tag (from SSOT): $K3S_TAG"
     record_version k3s "$K3S_TAG" "https://github.com/k3s-io/k3s/releases/tag/${K3S_TAG}"
 
     mkdir -p /tmp/k3s-dl
@@ -70,7 +71,7 @@ if [[ -n "$K3S_TAG" ]]; then
         fi
         download_ok=true
     else
-        echo "[13-ceph-k3s] Downloading K3s binary, checksum, and install script..."
+        mios_log "download K3s binary, checksum, install script"
         K3S_URL="https://github.com/k3s-io/k3s/releases/download/${K3S_TAG}/k3s"
         K3S_SUM_URL="https://github.com/k3s-io/k3s/releases/download/${K3S_TAG}/sha256sum-amd64.txt"
         K3S_INSTALL_URL="https://raw.githubusercontent.com/k3s-io/k3s/${K3S_TAG}/install.sh"
@@ -85,7 +86,7 @@ if [[ -n "$K3S_TAG" ]]; then
     if [ "$download_ok" = true ]; then
         cd /tmp/k3s-dl
         if grep -E "  k3s$" sha256sum.txt | sha256sum -c - >/dev/null 2>&1; then
-            echo "[13-ceph-k3s] [ok] K3s SHA256 checksum verified"
+            mios_ok "K3s SHA256 checksum verified"
             # Install into /usr/bin (immutable image surface). /usr/local is
             # a symlink to /var/usrlocal on bootc/FCOS layouts and
             # /var/usrlocal/bin/ does not exist at OCI build time (it's
@@ -107,13 +108,13 @@ if [[ -n "$K3S_TAG" ]]; then
             [ ! -e /usr/bin/crictl ]  && ln -sf k3s /usr/bin/crictl  || true
             [ ! -e /usr/bin/ctr ]     && ln -sf k3s /usr/bin/ctr     || true
 
-            echo "[13-ceph-k3s] K3s binary and install script installed (tag: $K3S_TAG)"
+            mios_ok "K3s binary + install script installed (tag: $K3S_TAG)"
         else
-            echo "[13-ceph-k3s] ERROR: K3s binary SHA256 checksum mismatch! Skipping."
+            mios_err "K3s binary SHA256 checksum mismatch; skipping"
         fi
         cd - >/dev/null
     else
-        echo "[13-ceph-k3s] WARN: K3s download failed. Skipping K3s installation."
+        mios_warn "K3s download failed; skipping install"
     fi
     rm -rf /tmp/k3s-dl
 fi
@@ -131,6 +132,6 @@ chmod 755 /usr/libexec/mios/ceph-bootstrap.sh 2>/dev/null || true
 # var-lib-containers.mount all live in  and are enabled
 # AFTER the COPY step in the Containerfile.
 
-echo "[13-ceph-k3s] Ceph client + cephadm installed; K3s binary install per tag ${K3S_TAG:-none} (see status above)."
-echo "[13-ceph-k3s]   Ceph Dashboard:  https://<host>:8443 (after bootstrap)"
-echo "[13-ceph-k3s]   K3s API server:  https://<host>:6443 (after boot)"
+mios_ok "Ceph client + cephadm installed; K3s binary per tag ${K3S_TAG:-none} (see status above)"
+mios_log "Ceph Dashboard:  https://<host>:8443 (after bootstrap)"
+mios_log "K3s API server:  https://<host>:6443 (after boot)"

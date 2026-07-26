@@ -12,11 +12,12 @@
 #     because the binary is already installed by 21-virt.sh; a hard-fail
 #     aborted the whole build for a redundant second build attempt.
 set -euo pipefail
+for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 
 # --- If 21-virt.sh already baked it in, declare success and exit -----------
 if [[ -x /usr/bin/looking-glass-client ]]; then
-    log "OK: looking-glass-client already present (installed by 21-virt.sh)"
+    mios_ok "looking-glass-client already present (21-virt.sh)"
     /usr/bin/looking-glass-client --version 2>&1 | head -5 || true
     exit 0
 fi
@@ -30,10 +31,10 @@ for tool in cmake make gcc git; do
 done
 
 if [[ -n "$MISSING" ]]; then
-    warn "SKIP: missing toolchain: $MISSING"
-    warn "      21-virt.sh normally builds Looking Glass and removes cmake/gcc"
-    warn "      afterwards. If 21-virt.sh failed, fix it first - the LG build"
-    warn "      there is the canonical path."
+    mios_skip "missing toolchain: $MISSING"
+    mios_warn "21-virt.sh normally builds Looking Glass and removes cmake/gcc"
+    mios_warn "afterwards. If 21-virt.sh failed, fix it first - the LG build"
+    mios_warn "there is the canonical path."
     exit 0
 fi
 
@@ -56,30 +57,30 @@ BUILD_DIR="/tmp/LookingGlass-build"
 # the documented Fedora LG-client set so the build can actually configure. -------------------------
 if command -v dnf5 >/dev/null 2>&1; then _DNF=dnf5; elif command -v dnf >/dev/null 2>&1; then _DNF=dnf; else _DNF=""; fi
 if [[ -n "$_DNF" ]]; then
-    log "ensuring Looking Glass client build deps (fontconfig-devel, etc.)"
+    mios_log "ensure Looking Glass client build deps (fontconfig-devel, etc.)"
     "$_DNF" install -y --setopt=install_weak_deps=False \
         fontconfig-devel spice-protocol nettle-devel libglvnd-devel libdecor-devel libsamplerate-devel \
         pipewire-devel wayland-devel wayland-protocols-devel libxkbcommon-x11-devel \
         libXi-devel libXinerama-devel libXcursor-devel libXpresent-devel \
         libXScrnSaver-devel libXrandr-devel binutils-devel dejavu-sans-mono-fonts \
-        >/dev/null 2>&1 || warn "some LG client build deps could not be installed (cmake will report specifics)"
+        >/dev/null 2>&1 || mios_warn "some LG client build deps could not be installed (cmake will report specifics)"
 fi
 
 # --- Clone + Build ----------------------------------------------------------
 LG_OK=""
 for attempt in 1 2 3; do
-    log "Compilation attempt $attempt/3..."
+    mios_log "compile attempt $attempt/3"
     cd /                 # leave any prior attempt's build dir BEFORE removing it -- otherwise the
     rm -rf "$BUILD_DIR"  # next git clone runs from a deleted CWD ("Unable to read current working directory").
 
     if ! git clone --depth 1 --branch "$LG_BRANCH" --recurse-submodules \
             https://github.com/gnif/LookingGlass.git "$BUILD_DIR"; then
-        warn "git clone failed on attempt $attempt"
+        mios_warn "git clone failed on attempt $attempt"
         sleep $((attempt * 8))
         continue
     fi
     
-    log "configuring client build"
+    mios_log "configure client build"
     mkdir -p "$BUILD_DIR/client/build"
     cd "$BUILD_DIR/client/build"
     # GCC 16 flags a -Wmaybe-uninitialized in the bundled nanosvg.h submodule, and Looking Glass
@@ -94,19 +95,19 @@ for attempt in 1 2 3; do
                -DENABLE_PULSEAUDIO=OFF \
                -DENABLE_BACKTRACE=OFF \
                ..; then
-        warn "cmake configure failed on attempt $attempt"
+        mios_warn "cmake configure failed on attempt $attempt"
         sleep $((attempt * 8))
         continue
     fi
     
-    log "building looking-glass-client (jobs=$(nproc))"
+    mios_log "build looking-glass-client (jobs=$(nproc))"
     if ! make -j"$(nproc)"; then
-        warn "make failed on attempt $attempt"
+        mios_warn "make failed on attempt $attempt"
         sleep $((attempt * 8))
         continue
     fi
     
-    log "installing binary to /usr/bin/looking-glass-client"
+    mios_log "install binary to /usr/bin/looking-glass-client"
     install -Dm0755 looking-glass-client /usr/bin/looking-glass-client
     
     if [[ -x /usr/bin/looking-glass-client ]]; then
@@ -116,7 +117,7 @@ for attempt in 1 2 3; do
 done
 
 if [[ -z "$LG_OK" ]]; then
-    warn "looking-glass-client build failed after 3 attempts."
+    mios_warn "looking-glass-client build failed after 3 attempts"
     exit 1
 fi
 
@@ -134,17 +135,17 @@ Keywords=KVM;VFIO;Passthrough;
 DESK
 
 # --- Cleanup build tree (keep toolchain in image per self-building principle) ---
-log "cleaning up source tree"
+mios_log "cleanup source tree"
 cd /
 rm -rf "$BUILD_DIR"
 
 # --- Verify ----------------------------------------------------------------
 if [[ -x /usr/bin/looking-glass-client ]]; then
-    log "OK: looking-glass-client baked in at /usr/bin/looking-glass-client"
+    mios_ok "looking-glass-client baked in at /usr/bin/looking-glass-client"
     /usr/bin/looking-glass-client --version 2>&1 | head -5 || true
 else
-    warn "SKIP: binary missing after install (non-fatal)"
+    mios_skip "binary missing after install (non-fatal)"
     exit 0
 fi
 
-log "looking-glass-client installed at /usr/bin/looking-glass-client"
+mios_log "looking-glass-client installed at /usr/bin/looking-glass-client"

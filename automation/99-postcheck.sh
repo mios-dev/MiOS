@@ -10,9 +10,10 @@
 # architectural purity. Failures here ABORT THE BUILD to prevent shipping
 # a regressed or vulnerable image.
 set -euo pipefail
+for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 
-log "'MiOS' build-time validation"
+mios_step "'MiOS' build-time validation"
 
 # 0. Materialize sysusers.d entries so subsequent checks (#11 in particular)
 # see the same /etc/passwd + /etc/group state the deployed image will have
@@ -23,32 +24,32 @@ log "'MiOS' build-time validation"
 # warnings on lines that will resolve fine at runtime. systemd-sysusers
 # is idempotent and the same operation that runs at first boot anyway.
 if command -v systemd-sysusers >/dev/null 2>&1; then
-    log "Materializing sysusers.d into /etc/passwd + /etc/group..."
+    mios_log "materialize sysusers.d into /etc/passwd + /etc/group"
     if systemd-sysusers --no-pager 2>/dev/null; then
-        log "  [ok] sysusers.d entries materialized"
+        mios_ok "sysusers.d entries materialized"
     else
-        log "  [warn] systemd-sysusers exited non-zero; subsequent checks may have false-positives"
+        mios_warn "systemd-sysusers exited non-zero; subsequent checks may have false-positives"
     fi
 fi
 
 # 1. OpenSSH Version Check (CVE-2026-4631 / Cockpit RCE mitigation)
 # Requirement: ≥ 9.6
-log "Checking OpenSSH version..."
+mios_log "check OpenSSH version"
 if ! command -v sshd >/dev/null 2>&1; then
     die "sshd not found in image (required for Podman-machine & remote mgmt)"
 fi
 
 SSH_VER_RAW=$(sshd -V 2>&1 | head -n1 | grep -oP 'OpenSSH_\K[0-9.]+')
-log "  Found: OpenSSH $SSH_VER_RAW"
+mios_log "OpenSSH $SSH_VER_RAW"
 
 # Compare version (simple dot-split comparison)
 if [[ $(printf '%s\n9.6' "$SSH_VER_RAW" | sort -V | head -n1) != "9.6" ]]; then
     die "OpenSSH version $SSH_VER_RAW is below required 9.6 (Vulnerable to CVE-2026-4631 in Cockpit context)"
 fi
-log "  [ok] OpenSSH version is safe"
+mios_ok "OpenSSH version is safe"
 
 # 2. Cockpit Security Posture
-log "Checking Cockpit configuration..."
+mios_log "check Cockpit configuration"
 # In Rootfs-Native, config might be in /etc or /usr/lib
 if [[ -f "/etc/cockpit/cockpit.conf" ]]; then
     COCKPIT_CONF="/etc/cockpit/cockpit.conf"
@@ -62,20 +63,20 @@ if [[ -f "$COCKPIT_CONF" ]]; then
     if ! grep -q "LoginTo = false" "$COCKPIT_CONF"; then
         die "Cockpit LoginTo mitigation missing in $COCKPIT_CONF (CVE-2026-4631)"
     fi
-    log "  [ok] Cockpit LoginTo = false is enforced"
+    mios_ok "Cockpit LoginTo = false enforced"
 else
-    log "  [!] Cockpit config not found at expected paths; skipping check"
+    mios_skip "Cockpit config not found at expected paths"
 fi
 
 # 3. Kernel Argument Validation (Schema Strictness Preparation)
-log "Validating kargs.d files..."
+mios_log "validate kargs.d files"
 if [[ -d /usr/lib/bootc/kargs.d ]]; then
     for f in /usr/lib/bootc/kargs.d/*; do
         [[ -e "$f" ]] || continue
         # Future: run 'bootc container lint' or specialized schema check
-        log "  found karg: $(basename "$f")"
+        mios_log "karg: $(basename "$f")"
     done
-    log "  [ok] kargs.d presence verified"
+    mios_ok "kargs.d presence verified"
 fi
 
 # 4. Critical Package Verification

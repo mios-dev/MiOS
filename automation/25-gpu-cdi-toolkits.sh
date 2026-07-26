@@ -30,6 +30,7 @@
 # yields a binary -- mios-cdi-detect's branches no-op cleanly if the
 # tool is missing.
 set -euo pipefail
+for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 # shellcheck source=lib/common.sh
 source "$(dirname "$0")/lib/common.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -42,7 +43,7 @@ AMD_CTK_FALLBACK_TAG="v1.3.0"
 INTEL_SG_FALLBACK_TAG="v0.7.0"
 
 # ── AMD Container Toolkit (amd-ctk) ──────────────────────────────────
-echo "[41-gpu-cdi] AMD: resolving latest amd-container-toolkit release..."
+mios_log "AMD: resolving latest amd-container-toolkit release"
 AMD_TAG=$( (scurl -s https://api.github.com/repos/ROCm/container-toolkit/releases/latest \
               | grep -Po '"tag_name": "\K.*?(?=")') 2>/dev/null || true)
 if [[ -z "$AMD_TAG" ]]; then
@@ -64,19 +65,19 @@ if scurl -sfL "$AMD_URL" -o "/tmp/amd-cdi-dl/${AMD_RPM}" 2>/dev/null; then
     if dnf5 install -y "/tmp/amd-cdi-dl/${AMD_RPM}" >/dev/null 2>&1 \
        || dnf  install -y "/tmp/amd-cdi-dl/${AMD_RPM}" >/dev/null 2>&1 \
        || rpm  -ivh --replacepkgs "/tmp/amd-cdi-dl/${AMD_RPM}" >/dev/null 2>&1; then
-        echo "[41-gpu-cdi]   [ok] AMD container toolkit ${AMD_TAG} installed via RPM"
+        mios_ok "AMD container toolkit ${AMD_TAG} installed via RPM"
     else
         warn "AMD RPM downloaded but install failed -- skipping (non-fatal)"
     fi
 elif command -v go >/dev/null 2>&1 && GOBIN=/usr/bin go install github.com/ROCm/container-toolkit/cmd/amd-ctk@latest >/dev/null 2>&1; then
-    echo "[41-gpu-cdi]   [ok] AMD container toolkit installed via go build"
+    mios_ok "AMD container toolkit installed via go build"
 else
     warn "AMD container toolkit: ${AMD_URL} not reachable -- skipping (non-fatal)"
 fi
 rm -rf /tmp/amd-cdi-dl
 
 # ── Intel CDI specs generator ────────────────────────────────────────
-echo "[41-gpu-cdi] Intel: resolving latest intel-resource-drivers-for-kubernetes release..."
+mios_log "Intel: resolving latest intel-resource-drivers-for-kubernetes release"
 INTEL_TAG=$( (scurl -s https://api.github.com/repos/intel/intel-resource-drivers-for-kubernetes/releases \
                 | grep -Po '"tag_name": "\Kspecs-generator-[^"]*' | head -1) 2>/dev/null || true)
 if [[ -z "$INTEL_TAG" ]]; then
@@ -100,7 +101,7 @@ if scurl -sfL "$INTEL_URL" -o "/tmp/intel-cdi-dl/${INTEL_BIN}" 2>/dev/null \
    && [[ -s "/tmp/intel-cdi-dl/${INTEL_BIN}" ]]; then
     install -d -m 0755 /usr/libexec/mios
     install -m 0755 "/tmp/intel-cdi-dl/${INTEL_BIN}" /usr/libexec/mios/intel-cdi-specs-generator
-    echo "[41-gpu-cdi]   [ok] Intel CDI specs-generator ${INTEL_TAG} installed at /usr/libexec/mios/intel-cdi-specs-generator"
+    mios_ok "Intel CDI specs-generator ${INTEL_TAG} installed at /usr/libexec/mios/intel-cdi-specs-generator"
     installed_intel=1
 else
     # Fallback: query release JSON for any specs-generator asset across releases.
@@ -116,12 +117,12 @@ else
             bin_path=$(find /tmp/intel-cdi-dl/extracted -type f -name "intel-cdi-specs-generator" | head -1)
             if [[ -n "$bin_path" ]]; then
                 install -m 0755 "$bin_path" /usr/libexec/mios/intel-cdi-specs-generator
-                echo "[41-gpu-cdi]   [ok] Intel CDI specs-generator installed from zip asset"
+                mios_ok "Intel CDI specs-generator installed from zip asset"
                 installed_intel=1
             fi
         else
             install -m 0755 /tmp/intel-cdi-dl/sg.asset /usr/libexec/mios/intel-cdi-specs-generator
-            echo "[41-gpu-cdi]   [ok] Intel CDI specs-generator installed (fallback asset path)"
+            mios_ok "Intel CDI specs-generator installed (fallback asset path)"
             installed_intel=1
         fi
     fi
@@ -129,11 +130,11 @@ fi
 
 if [[ $installed_intel -eq 0 ]]; then
     if command -v go >/dev/null 2>&1 && GOBIN=/usr/libexec/mios go install github.com/intel/intel-resource-drivers-for-kubernetes/cmd/intel-cdi-specs-generator@latest >/dev/null 2>&1; then
-        echo "[41-gpu-cdi]   [ok] Intel CDI specs-generator installed via go build"
+        mios_ok "Intel CDI specs-generator installed via go build"
     else
         warn "Intel CDI specs-generator: no asset matched on ${INTEL_TAG} -- skipping (non-fatal)"
     fi
 fi
 rm -rf /tmp/intel-cdi-dl
 
-echo "[41-gpu-cdi] done."
+mios_ok "done"

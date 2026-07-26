@@ -18,8 +18,9 @@
 # HYPER-V ENHANCED SESSION PATH:
 #   vmconnect → vsock:3389 → gnome-remote-desktop (Wayland RDP) → login
 set -euo pipefail
+for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 
-echo "[38-vm-gating] chmod cockpit.socket.d/listen.conf, append hv_sock to modules-load.d/mios.conf, enable mios-hyperv-enhanced.service"
+mios_log "chmod cockpit.socket.d/listen.conf, append hv_sock to modules-load.d/mios.conf, enable mios-hyperv-enhanced.service"
 
 # ═══ GDM / nvidia-powerd / Waydroid + binder gating ═══
 # Drop-ins for gdm, nvidia-powerd, waydroid-container, dev-binderfs.mount are
@@ -37,7 +38,7 @@ fi
 # ═══════════════════════════════════════════════════════════════════════════
 # HYPER-V ENHANCED SESSION -- WAYLAND-NATIVE VIA GNOME REMOTE DESKTOP
 # ═══════════════════════════════════════════════════════════════════════════
-echo "[38-vm-gating] Configuring Hyper-V Enhanced Session (gnome-remote-desktop)..."
+mios_log "Hyper-V Enhanced Session (gnome-remote-desktop)"
 
 # 1. Blacklist VMware vsock (conflicts with Hyper-V hv_sock)
 # Managed via usr/lib/modprobe.d/blacklist-vmw_vsock.conf
@@ -70,4 +71,4 @@ chmod +x /usr/libexec/mios-grd-setup 2>/dev/null || true
 # Ensure systemd-machined doesn't block dbus in WSL2
 # Managed via usr/lib/systemd/system/systemd-machined.service.d/wsl2-optional.conf
 
-echo "[38-vm-gating] VM gating + Hyper-V Enhanced Session (gnome-remote-desktop) configured."
+mios_ok "VM gating + Hyper-V Enhanced Session (gnome-remote-desktop) configured"

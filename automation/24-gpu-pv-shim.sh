@@ -12,17 +12,18 @@
 # : Refactored to use common logging and build-safe symlinks.
 # ----------------------------------------------------------------------------
 set -euo pipefail
+for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 
 # 1. Create the system-standard mount points for dxgkrnl/WSL hooks
 # These are the locations where Mesa D3D12 and NVIDIA CUDA look for Hyper-V host drivers.
-log "Creating GPU-PV shim directory structure..."
+mios_log "GPU-PV shim dirs"
 mkdir -p /usr/lib/wsl/lib
 mkdir -p /usr/lib/wsl/drivers
 
 # 2. Add ld.so.conf entry to ensure these libraries are in the search path
 # LAW 4: write to /usr/lib/ld.so.conf.d -- /etc/ld.so.conf.d is for Day-2 admin overrides only
-log "Configuring dynamic linker paths for GPU-PV..."
+mios_log "ld.so.conf paths"
 install -d -m 0755 /usr/lib/ld.so.conf.d
 echo "/usr/lib/wsl/lib" > /usr/lib/ld.so.conf.d/mios-gpu-pv.conf
 
@@ -66,9 +67,9 @@ EOF
 
 # 5. Enable the service using a build-safe symlink
 # See 23-gpu-passthrough.sh for detailed explanation.
-log "Enabling GPU-PV detection service..."
+mios_log "enable gpu-pv-detect service"
 WANTS=/usr/lib/systemd/system/multi-user.target.wants
 install -d -m 0755 "${WANTS}"
 ln -sf ../mios-gpu-pv-detect.service "${WANTS}/mios-gpu-pv-detect.service"
 
-log "GPU-PV shim installed: /usr/lib/wsl/{lib,drivers}, ld.so.conf.d/mios-gpu-pv.conf, mios-gpu-pv-detect.service enabled"
+mios_ok "GPU-PV shim installed: /usr/lib/wsl/{lib,drivers}, ld.so.conf.d/mios-gpu-pv.conf, mios-gpu-pv-detect.service enabled"

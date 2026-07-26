@@ -3,6 +3,7 @@
 # AI-hint: Configures the host's admin sshd to bind to the SSOT port defined in mios.toml by creating a drop-in config in /etc/ssh/sshd_config.d/ to avoid port conflicts with Forgejo's git-ssh.
 # AI-related: mios-forge, mios-ssh-port, mios-forge.container
 set -euo pipefail
+for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 
 # shellcheck source=lib/common.sh
 source "$(dirname "$0")/lib/common.sh"
@@ -26,7 +27,7 @@ source "$(dirname "$0")/lib/common.sh"
 # tools/lib/userenv.sh -> MIOS_PORT_* env vars -> automation/lib/globals.sh
 # fallbacks). Hardcoded port literals are bugs; lift them.
 
-echo "==> Pinning host admin sshd to MIOS_PORT_SSH=${MIOS_PORT_SSH} via drop-in..."
+mios_log "pin host admin sshd to MIOS_PORT_SSH=${MIOS_PORT_SSH} via drop-in"
 
 install -d -m 0755 /etc/ssh/sshd_config.d
 cat > /etc/ssh/sshd_config.d/09-mios-ssh-port.conf <<EOF
@@ -41,6 +42,6 @@ chmod 0644 /etc/ssh/sshd_config.d/09-mios-ssh-port.conf
 # in the OCI build container, so this must NEVER fail the build.
 if command -v sshd >/dev/null 2>&1; then
     sshd -t 2>/dev/null \
-        && echo "==> sshd config valid; admin sshd will bind ${MIOS_PORT_SSH}." \
-        || echo "==> drop-in written; skipped sshd -t (host keys absent at build is normal)."
+        && mios_ok "sshd config valid; admin sshd will bind ${MIOS_PORT_SSH}" \
+        || mios_skip "drop-in written; skipped sshd -t (host keys absent at build is normal)"
 fi
