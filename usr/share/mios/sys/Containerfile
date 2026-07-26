@@ -116,7 +116,11 @@ RUN t="$(curl -fsSL -o /dev/null -w '%{url_effective}' --retry 5 --connect-timeo
     && npm install -g pnpm@latest --prefix /usr \
     && cd /opt/firecrawl/apps/api \
     && pnpm install --frozen-lockfile \
-    && pnpm run build:nosentry
+    && pnpm run build:nosentry \
+    && rm -rf /root/.cargo /var/roothome/.cargo "${HOME}/.cargo" \
+              /root/.cache /var/roothome/.cache "${HOME}/.cache" \
+              /root/.npm  /var/roothome/.npm  "${HOME}/.npm" \
+              /root/.rustup /var/roothome/.rustup "${HOME}/.rustup" 2>/dev/null || true
 # Firecrawl v2 relocated the Go html-to-markdown lib to apps/api/sharedLibs/go-html-to-md/
 # (was apps/api/src/lib/go-html-to-md/); mirror the .so there so the runtime client finds it.
 COPY --from=go-builder /tmp/firecrawl/apps/api/sharedLibs/go-html-to-md/html-to-markdown.so /opt/firecrawl/apps/api/sharedLibs/go-html-to-md/html-to-markdown.so
