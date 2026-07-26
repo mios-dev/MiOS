@@ -35,6 +35,8 @@ RUN dnf install -y \
       make \
       gcc-c++ \
       cmake \
+      rust \
+      cargo \
       && dnf clean all
 
 # Download static Go/Rust/C++ binaries (Wave 1 & Wave 2)
