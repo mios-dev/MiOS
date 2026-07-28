@@ -1365,6 +1365,27 @@ test_negative_coverage() {
     log "test_negative_coverage negative test passed."
 }
 
+# 63. Test check_verb_templates
+test_verb_templates() {
+    log "Testing check_verb_templates..."
+    local toml_file="${ROOT}/usr/share/mios/mios.toml"
+    if [ -f "$toml_file" ]; then
+        local orig_val
+        orig_val="$(cat "$toml_file")"
+        echo 'cmd = "echo {invalid_placeholder_unclosed"' >> "$toml_file"
+
+        if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_verb_templates >/dev/null 2>&1; then
+            echo "$orig_val" > "$toml_file"
+            die "check_verb_templates passed despite invalid verb template!"
+        fi
+
+        echo "$orig_val" > "$toml_file"
+        MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_verb_templates >/dev/null 2>&1 \
+            || die "check_verb_templates failed after restoration!"
+    fi
+    log "test_verb_templates negative test passed."
+}
+
 main() {
     log "Starting negative-test suite..."
     test_version_ssot
@@ -1429,6 +1450,7 @@ main() {
     test_impossible_eol
     test_smoke_manifest
     test_negative_coverage
+    test_verb_templates
     log "All negative tests completed successfully!"
 }
 

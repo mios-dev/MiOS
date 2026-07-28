@@ -5387,6 +5387,17 @@ PY
     fi
 }
 
+check_verb_templates() {
+    if ! command -v python3 >/dev/null 2>&1; then
+        return 0
+    fi
+    if python3 "${ROOT}/tools/verb-template-check.py"; then
+        echo "[38-drift-checks]   (73) verb templates compile and validate against SSOT args"
+    else
+        _violation "verb templates compilation or placeholder validation failed"
+    fi
+}
+
 main() {
     if [[ $# -eq 1 && -n "$1" ]]; then
         if declare -f "$1" >/dev/null; then
@@ -5504,6 +5515,7 @@ main() {
     check_renderer_gate_coverage
     check_smoke_manifest
     check_negative_coverage
+    check_verb_templates
 
     echo "[38-drift-checks] ---------------------------------------------------------"
     if [[ "$VIOLATIONS" -eq 0 ]]; then
