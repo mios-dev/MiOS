@@ -3755,15 +3755,15 @@ check_target_languages() {
     local toml="$ROOT/usr/share/mios/mios.toml"
     local allow bad="" nativebad f
     allow=$(awk '/^\[laws\.target_languages\]/{f=1} f&&/grandfathered_cs[[:space:]]*=[[:space:]]*\[/{g=1} g{print} g&&/\]/{exit}' "$toml" | grep -oE '"[^"]+\.cs"' | tr -d '"\r')
-    # Batch was eliminated + Go rejected (ADR-0011): any occurrence is a hard violation.
-    nativebad=$(cd "$ROOT" && git ls-files '*.bat' '*.cmd' '*.go' 2>/dev/null)
+    # Batch eliminated + Go/C++/Java rejected (ADR-0011): any occurrence is a hard violation.
+    nativebad=$(cd "$ROOT" && (git ls-files '*.bat' '*.cmd' '*.go' '*.cpp' '*.cxx' '*.cc' '*.java' 2>/dev/null; git ls-files --others --exclude-standard '*.bat' '*.cmd' '*.go' '*.cpp' '*.cxx' '*.cc' '*.java' 2>/dev/null))
     [[ -n "$nativebad" ]] && bad+="$nativebad"$'\n'
-    # Any tracked .cs not in the grandfathered allowlist is new C# -> must be Rust instead.
+    # Any tracked/untracked .cs not in the grandfathered allowlist is new C# -> must be Rust instead.
     while IFS= read -r f; do
         f_clean=$(echo "$f" | tr -d '\r')
         [[ -z "$f_clean" ]] && continue
         grep -qxF "$f_clean" <<<"$allow" || bad+="$f_clean"$'\n'
-    done < <(cd "$ROOT" && git ls-files '*.cs' 2>/dev/null)
+    done < <(cd "$ROOT" && (git ls-files '*.cs' 2>/dev/null; git ls-files --others --exclude-standard '*.cs' 2>/dev/null))
     if [[ -n "$(printf '%s' "$bad" | tr -d '[:space:]')" ]]; then
         {
           echo "    Law 14 TARGET-LANGUAGES: new code must use the roadmap targets (Rust native tier; Python AI;"
