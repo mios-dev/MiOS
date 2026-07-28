@@ -28,7 +28,7 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 
 ---
 
-## AGY-1  (WS-DEPLOY, P1) — atomic+retried+verified for the remaining firstboot producers
+## AGY-1  (WS-DEPLOY, P1) — atomic+retried+verified for the remaining firstboot producers  **[DONE]**
 **Who:** you (bash/systemd). **When:** first — it mirrors the webtools/venv fixes Claude already landed.
 **What + How:** apply the 38-hermes-agent reference pattern to the producers that still "run once, give up":
 - `usr/libexec/mios/mios-ai-firstboot` — the vLLM/GGUF weights fetch (the `snapshot_download` blocks, ~L111-124 + L371): wrap in a 3x retry-with-backoff loop, verify the target `config.json`/`.ready` exists after, non-fatal per-model, log clearly. (This is the code half of **T-178**; the heavy lane is skipped today purely because this fetch had no retry and ran through the then-missing venv.)
@@ -37,13 +37,13 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 **Where:** `usr/libexec/mios/mios-ai-firstboot`, `usr/libexec/mios/forge-firstboot.sh`, their `usr/lib/systemd/system/*.service` (`Restart=on-failure` + `StartLimit*`).
 **Done When:** each producer is atomic+retried+verified+idempotent; `bash -n` clean; a fresh reinstall would deploy them without manual retries.
 
-## AGY-2  (WS-DEPLOY, P1) — DAG-integrity drift-gate (consumer-before-producer = build error)
+## AGY-2  (WS-DEPLOY, P1) — DAG-integrity drift-gate (consumer-before-producer = build error)  **[DONE]**
 **Who:** you (bash + the drift-gate framework). **When:** after AGY-1.
 **What + How:** add a new check to `automation/38-drift-checks.sh` (next free check number, currently 25-28 exist → add 29) that parses the producer→consumer map and FAILS when a consumer unit/step can start before its producer's readiness artifact exists — i.e. a consumer `.container`/`.service` that depends on a built image / seeded row / fetched model but lacks `After=`/`Requires=`/`ConditionPathExists=` on its producer. Follow the existing `check_*` function style in that file; wire it into `main`; keep it read-only + fast (no built image needed). Full spec: `usr/share/doc/mios/reference/install-ordering.md` (WS-DEPLOY).
 **Where:** `automation/38-drift-checks.sh`.
 **Done When:** the gate flags at least the known-good edges (webtools pod After webtools-firstboot; agent-pipe After the venv) and passes on the current tree; `just drift-gate` green.
 
-## AGY-3  (WS-VECTOR V0, P1) — DB projection foundation (no behavior change)
+## AGY-3  (WS-VECTOR V0, P1) — DB projection foundation (no behavior change)  **[DONE]**
 **Who:** you (SQL + Python, no live DB needed — static SQL/codegen). **When:** independent; can start immediately.
 **What + How:** lay the foundation for `everything-db-driven.md` V0 WITHOUT flipping any authority:
 - `usr/share/mios/postgres/schema-init.sql` — add the `config_layer(rank,name)` precedence table (seed {0:vendor,1:host,2:user,3:machine}) and `config_kv(scope,key,value jsonb,layer FK,owner_user,description,emb vector(768),emb_model,emb_version)` with an HNSW index on `emb` (mirror the `knowledge`/`agent_memory` DDL exactly — same `vector_cosine_ops m=16 ef_construction=64`). Idempotent (`CREATE TABLE IF NOT EXISTS` / guarded index).
@@ -52,7 +52,7 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 **Where:** `usr/share/mios/postgres/schema-init.sql`, `usr/libexec/mios/seed-db-config.py`, new `usr/libexec/mios/materialize-config-toml.py`.
 **Done When:** schema applies idempotently; `seed-db-config.py` TOML→DB then materialize DB→TOML round-trips a verb losslessly (diff clean); nothing reads the new tables at runtime yet (V1 flips that — leave it).
 
-## AGY-4  (WS-NAME, P2) — the unified names/keys registry generator + gate
+## AGY-4  (WS-NAME, P2) — the unified names/keys registry generator + gate  **[DONE]**
 **Who:** you (Python + drift-gate). **When:** independent.
 **What + How:** per `usr/share/doc/mios/reference/naming-unification.md`: write the generator that emits `usr/share/mios/names.generated.txt` (one `section.key  MIOS_SECTION_KEY` per line) from `mios.toml`, and a drift-gate check (in `38-drift-checks.sh`) that regenerates + diffs it and fails on any NEW translation/duplicate (an env var that renames a native key, or a second name for one capability). Do NOT yet delete the `userenv.sh` table — this is the enforcement scaffold only (T-165 Phase 0).
 **Where:** new `tools/generate-names-registry.py`, `automation/38-drift-checks.sh`, `usr/share/mios/names.generated.txt`.
