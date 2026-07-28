@@ -1372,7 +1372,7 @@ test_verb_templates() {
     if [ -f "$toml_file" ]; then
         local orig_val
         orig_val="$(cat "$toml_file")"
-        printf '\n[verbs.bogus_broken]\ncmd = "echo {invalid_placeholder_unclosed"\n' >> "$toml_file"
+        printf '\n[verbs.bogus_broken]\ncmd = "echo {invalid_placeholder"\n' >> "$toml_file"
 
         if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_verb_templates >/dev/null 2>&1; then
             echo "$orig_val" > "$toml_file"

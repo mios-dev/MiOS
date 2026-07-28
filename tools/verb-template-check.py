@@ -20,8 +20,12 @@ def main():
         print(f"ERROR: SSOT toml file not found at {toml_path}", file=sys.stderr)
         sys.exit(1)
 
-    with open(toml_path, "rb") as f:
-        data = tomllib.load(f)
+    try:
+        with open(toml_path, "rb") as f:
+            data = tomllib.load(f)
+    except Exception as e:
+        print(f"ERROR: Failed to parse {toml_path}: {e}", file=sys.stderr)
+        sys.exit(1)
 
     verbs = data.get("verbs", {})
     if not verbs:
@@ -40,20 +44,15 @@ def main():
             if not isinstance(tmpl_str, str):
                 continue
 
+            if tmpl_str.count("{") != tmpl_str.count("}"):
+                errors.append(f"Verb '{vname}' field '{k}' template has unclosed or mismatched braces: '{tmpl_str}'")
+                continue
+
             try:
                 ct = compile_template(tmpl_str)
             except Exception as e:
                 errors.append(f"Verb '{vname}' field '{k}' template unparseable: {e}")
                 continue
-
-            # Validate placeholder names
-            declared_args = set(vspec.get("args", []))
-            for ph_name in ct.placeholder_names:
-                # Accept if declared arg, or standard ENV default or known metadata
-                if ph_name in declared_args or ph_name in ("tool", "verb", "fanout"):
-                    continue
-                # Also accept if synonym or valid arg
-                # (For strict validation, fail on completely undeclared placeholders)
 
     if errors:
         for err in errors:
