@@ -94,6 +94,20 @@ class TestMiosTemplate(unittest.TestCase):
         rendered_legacy = _template_to_cmd("test_tool", tpl_str, args)
         self.assertEqual(rendered_ct, rendered_legacy)
 
+    def test_adversarial_quoting(self):
+        import shlex
+        bad_inputs = ["$(id)", ";rm -rf /", "`whoami`", "foo bar", "line1\nline2"]
+        for bad in bad_inputs:
+            res = _template_to_cmd("test_tool", "echo {arg}", {"arg": bad})
+            self.assertIsNotNone(res)
+            tokens = shlex.split(res)
+            self.assertEqual(tokens[0], "echo")
+            self.assertEqual(tokens[1], bad)
+
+    def test_env_default_isolation(self):
+        res = _template_to_cmd("test_tool", "echo {arg=$PATH:/bin}", {"arg": "$HOME"})
+        self.assertEqual(res, "echo '$HOME'")
+
 
 if __name__ == "__main__":
     unittest.main()
