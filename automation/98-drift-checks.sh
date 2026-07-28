@@ -5298,7 +5298,47 @@ check_renderer_gate_coverage() {
     if [[ ${#unmapped[@]} -gt 0 ]]; then
         _violation "The following renderer scripts have no corresponding projection check in 98-drift-checks.sh (AGY-168): ${unmapped[*]}"
     else
-        echo "[38-drift-checks]   (97) All automation renderers map to a registered projection gate in 98-drift-checks.sh (AGY-168)"
+check_smoke_manifest() {
+    if ! command -v python3 >/dev/null 2>&1; then
+        return 0
+    fi
+    if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
+import os, sys
+try:
+    import tomllib
+except ImportError:
+    import tomli as tomllib
+
+root = os.environ["MIOS_DRIFT_ROOT"]
+toml_path = os.path.join(root, "usr/share/mios/mios.toml")
+if not os.path.isfile(toml_path):
+    sys.exit(0)
+
+with open(toml_path, "rb") as f:
+    data = tomllib.load(f)
+
+sc = data.get("testing", {}).get("smoke_components", {})
+if not sc:
+    sys.stderr.write("    Missing [testing.smoke_components] table in mios.toml\n")
+    sys.exit(1)
+
+missing = []
+for key in ["shims", "units", "python_entries"]:
+    for rel_path in sc.get(key, []):
+        full_path = os.path.join(root, rel_path)
+        if not os.path.exists(full_path):
+            missing.append(rel_path)
+
+if missing:
+    sys.stderr.write(f"    Paths listed in [testing.smoke_components] missing from repo: {missing}\n")
+    sys.exit(1)
+
+sys.exit(0)
+PY
+    then
+        echo "[38-drift-checks]   (71) smoke manifest components in mios.toml exist in source tree"
+    else
+        _violation "[testing.smoke_components] paths missing from source tree"
     fi
 }
 
@@ -5417,6 +5457,7 @@ main() {
     check_cockpit_projection
     check_chrony_ptp_dropin
     check_renderer_gate_coverage
+    check_smoke_manifest
 
     echo "[38-drift-checks] ---------------------------------------------------------"
     if [[ "$VIOLATIONS" -eq 0 ]]; then

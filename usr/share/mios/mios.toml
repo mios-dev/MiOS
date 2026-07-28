@@ -11398,5 +11398,19 @@ nohz_full      = ""                        # CPUs for adaptive-ticks (empty to d
 rcu_nocbs      = ""                        # CPUs to offload RCU callbacks (empty to disable)
 THP            = ""                        # Transparent Huge Pages configuration: "always", "madvise", "never" or empty
 
+[testing.smoke_components]
+shims = [
+  "usr/libexec/mios/flatpak-launch",
+  "usr/libexec/mios/mios-pc-control",
+  "usr/libexec/mios/mios-launcher-daemon",
+  "usr/libexec/mios/mios-flatpak-icon-sanitize"
+]
+units = [
+  "usr/lib/systemd/system/mios-wsl-interop-priority.service"
+]
+python_entries = [
+  "usr/lib/mios/agent-pipe/server.py"
+]
+
 
 

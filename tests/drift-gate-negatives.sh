@@ -1323,6 +1323,27 @@ test_impossible_eol() {
     log "test_impossible_eol negative test passed."
 }
 
+# 61. Test check_smoke_manifest
+test_smoke_manifest() {
+    log "Testing check_smoke_manifest..."
+    local toml_file="${ROOT}/usr/share/mios/mios.toml"
+    if [ -f "$toml_file" ]; then
+        local orig_val
+        orig_val="$(cat "$toml_file")"
+        echo 'shims = ["usr/libexec/mios/non-existent-bogus-shim"]' >> "$toml_file"
+
+        if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_smoke_manifest >/dev/null 2>&1; then
+            echo "$orig_val" > "$toml_file"
+            die "check_smoke_manifest passed despite missing component path!"
+        fi
+
+        echo "$orig_val" > "$toml_file"
+        MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_smoke_manifest >/dev/null 2>&1 \
+            || die "check_smoke_manifest failed after restoration!"
+    fi
+    log "test_smoke_manifest negative test passed."
+}
+
 main() {
     log "Starting negative-test suite..."
     test_version_ssot
@@ -1385,6 +1406,7 @@ main() {
     test_roadmap_index
     test_templates_compilation
     test_impossible_eol
+    test_smoke_manifest
     log "All negative tests completed successfully!"
 }
 
