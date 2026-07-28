@@ -1449,6 +1449,89 @@ test_pipe_extraction_parity() {
     log "test_pipe_extraction_parity negative test passed."
 }
 
+# 67. Test check_bake_plan
+test_bake_plan() {
+    log "Testing check_bake_plan..."
+    local plan_file="${ROOT}/usr/lib/mios/bake/plan.d/03-extra.list"
+    if [ -f "$plan_file" ]; then
+        local orig_val
+        orig_val="$(cat "$plan_file")"
+        echo "docker.io/library/bogus-image-never-exists:latest" >> "$plan_file"
+
+        if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_bake_plan >/dev/null 2>&1; then
+            echo "$orig_val" > "$plan_file"
+            die "check_bake_plan passed despite stale/invalid bake plan!"
+        fi
+
+        echo "$orig_val" > "$plan_file"
+        MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_bake_plan >/dev/null 2>&1 \
+            || die "check_bake_plan failed after restoration!"
+    fi
+    log "test_bake_plan negative test passed."
+}
+
+# 68. Test check_bake_ref_defaults
+test_bake_ref_defaults() {
+    log "Testing check_bake_ref_defaults..."
+    local test_sh="${ROOT}/automation/15-render-quadlets.sh"
+    if [ -f "$test_sh" ]; then
+        local orig_val
+        orig_val="$(cat "$test_sh")"
+        echo ': "${MIOS_BUILD_BAKE_REFS_ZZZ:-}"' >> "$test_sh"
+
+        if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_bake_ref_defaults >/dev/null 2>&1; then
+            echo "$orig_val" > "$test_sh"
+            die "check_bake_ref_defaults passed despite empty bake ref default!"
+        fi
+
+        echo "$orig_val" > "$test_sh"
+        MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_bake_ref_defaults >/dev/null 2>&1 \
+            || die "check_bake_ref_defaults failed after restoration!"
+    fi
+    log "test_bake_ref_defaults negative test passed."
+}
+
+# 69. Test check_deploy_plane
+test_deploy_plane() {
+    log "Testing check_deploy_plane..."
+    local cfg="${ROOT}/usr/share/mios/ventoy/mios-kickstart.cfg"
+    if [ -f "$cfg" ]; then
+        local orig_val
+        orig_val="$(cat "$cfg")"
+        grep -v "MIOS_FHS_TOTAL_ROOT_MERGE=1" "$cfg" > "${cfg}.tmp" && mv "${cfg}.tmp" "$cfg"
+
+        if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_deploy_plane >/dev/null 2>&1; then
+            echo "$orig_val" > "$cfg"
+            die "check_deploy_plane passed despite missing MIOS_FHS_TOTAL_ROOT_MERGE=1!"
+        fi
+
+        echo "$orig_val" > "$cfg"
+        MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_deploy_plane >/dev/null 2>&1 \
+            || die "check_deploy_plane failed after restoration!"
+    fi
+    log "test_deploy_plane negative test passed."
+}
+
+# 70. Test check_sbom_metadata
+test_sbom_metadata() {
+    log "Testing check_sbom_metadata..."
+    local sbom_file="${ROOT}/usr/share/mios/artifacts/sbom/models.tsv"
+    local dir
+    dir="$(dirname "$sbom_file")"
+    mkdir -p "$dir"
+    printf "name\tversion\tsha256\turl\nmodel1\t1.0\tdeadbeef\thttps://example.com\n" > "$sbom_file"
+
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_sbom_metadata >/dev/null 2>&1; then
+        rm -f "$sbom_file"
+        die "check_sbom_metadata passed despite invalid sha256!"
+    fi
+
+    rm -f "$sbom_file"
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_sbom_metadata >/dev/null 2>&1 \
+        || die "check_sbom_metadata failed after restoration!"
+    log "test_sbom_metadata negative test passed."
+}
+
 main() {
     log "Starting negative-test suite..."
     test_version_ssot
