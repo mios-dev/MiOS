@@ -223,6 +223,12 @@ def configure(*, verb_catalog=None, verb_arg_synonyms=None,
     if verb_catalog is not None:
         _VERB_CATALOG = verb_catalog
         mios_argval.configure(verb_catalog=verb_catalog)
+        from mios_template import compile_template
+        for vspec in verb_catalog.values():
+            if isinstance(vspec, dict):
+                for k in ("cmd", "cmd_args", "cmd_positioned", "cmd_pixel", "cmd_resize"):
+                    if k in vspec and isinstance(vspec[k], str):
+                        compile_template(vspec[k])
     if letta_dispatch_handler is not None:
         _letta_dispatch_handler = letta_dispatch_handler
     if verb_arg_synonyms is not None:

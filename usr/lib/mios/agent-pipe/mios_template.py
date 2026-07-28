@@ -9,11 +9,12 @@ and {arg*} by resolving them via _arg_with_synonyms and shlex-quoting the values
 
 from __future__ import annotations
 
+import functools
+import logging
 import os
 import re
 import shlex
-import logging
-from typing import Optional
+from typing import Optional, NamedTuple, Union
 
 from mios_argval import _arg_with_synonyms
 
@@ -27,81 +28,106 @@ class _TemplateAbort(Exception):
     pass
 
 
+class _Placeholder(NamedTuple):
+    name: str
+    op: Optional[str]
+    rest: Optional[str]
+
+
+class CompiledTemplate:
+    """A pre-parsed command template with placeholder-name reflection and fast rendering."""
+
+    def __init__(self, template: str, segments: list[Union[str, _Placeholder]], placeholder_names: set[str]):
+        self.template = template
+        self.segments = segments
+        self.placeholder_names = placeholder_names
+
+    def render(self, tool: str, args: dict) -> Optional[str]:
+        """Render this compiled template into a bash command line."""
+        try:
+            out_parts = []
+            for seg in self.segments:
+                if isinstance(seg, str):
+                    out_parts.append(seg)
+                    continue
+
+                name, op, rest = seg.name, seg.op, seg.rest
+                val = _arg_with_synonyms(tool, name, args)
+
+                if op == "!":
+                    if _is_empty(val):
+                        raise _TemplateAbort(name)
+                    out_parts.append(_quote_val(val))
+                elif op == "*":
+                    if _is_empty(val):
+                        continue
+                    out_parts.append(" " + _quote_val(val))
+                elif op == "?":
+                    if _is_empty(val):
+                        continue
+                    flag = (rest or "").strip()
+                    q = _quote_val(val)
+                    out_parts.append(f" {flag} {q}" if flag else f" {q}")
+                elif op == "=" and _is_empty(val):
+                    dflt = rest if rest is not None else ""
+                    if dflt.startswith("$"):
+                        envname, _sep, fallback = dflt[1:].partition(":")
+                        dflt = os.environ.get(envname, fallback)
+                    out_parts.append(shlex.quote(str(dflt)))
+                else:
+                    out_parts.append(_quote_val(val))
+
+            rendered = "".join(out_parts).strip()
+            return rendered or None
+        except _TemplateAbort:
+            return None
+        except Exception as e:
+            log.warning("verb template render failed for %s: %s", tool, e)
+            return None
+
+
+def _quote_val(val):
+    """Quote a scalar or list/tuple value for shell use."""
+    if isinstance(val, (list, tuple)):
+        return " ".join(shlex.quote(str(el)) for el in val)
+    return shlex.quote("" if val is None else str(val))
+
+
+def _is_empty(val):
+    """Check if a value is absent/empty (scalar or list)."""
+    if val is None:
+        return True
+    if isinstance(val, (list, tuple)):
+        return len(val) == 0
+    return not str(val).strip()
+
+
+@functools.lru_cache(maxsize=256)
+def compile_template(template: str) -> CompiledTemplate:
+    """Compile an SSOT verb template string into a cached CompiledTemplate."""
+    segments: list[Union[str, _Placeholder]] = []
+    placeholder_names: set[str] = set()
+    last_idx = 0
+
+    for m in _TEMPLATE_PH_RE.finditer(template):
+        start, end = m.span()
+        if start > last_idx:
+            segments.append(template[last_idx:start])
+
+        name, op, rest = m.group(1), m.group(2), m.group(3)
+        placeholder_names.add(name)
+        segments.append(_Placeholder(name, op, rest))
+        last_idx = end
+
+    if last_idx < len(template):
+        segments.append(template[last_idx:])
+
+    return CompiledTemplate(template, segments, placeholder_names)
+
+
 def _template_to_cmd(tool: str, template: str, args: dict) -> Optional[str]:
-    """Render an SSOT verb command template (mios.toml [verbs.*].cmd) into the
-    bash line the broker runs (P3: retire hardcoded dispatch branches into the
-    catalog). Placeholder forms (all values resolved via _arg_with_synonyms,
-    then shlex-quoted):
-      {arg}          required -- substituted in place (empty -> '').
-      {arg!}         REQUIRED-or-abort -- if empty the WHOLE template renders to
-                     None (replaces a hardcoded `if not arg: return None` guard).
-      {arg=default}  default used when the arg is absent/empty. If `default`
-                     starts with `$`, it is an ENV default `$ENVVAR:fallback`:
-                     the value comes from os.environ[ENVVAR] (or `fallback` when
-                     unset) -- e.g. {fanout=$MIOS_WEB_FANOUT:2}.
-      {arg?FLAG}     OPTIONAL -- emits nothing when absent; else a
-                     LEADING-space-prefixed " FLAG <value>" (or just " <value>"
-                     when FLAG is empty). Author places NO literal space before
-                     an optional placeholder, so an absent optional leaves no
-                     double-space (no fragile whitespace-collapsing needed).
-      {arg*}         SPLAT (varargs) -- for list/array parameters. Emits nothing
-                     when absent/empty; else space-prefixed individually-quoted
-                     elements (e.g. args=["a","b"] -> ' a b'). Designed for
-                     positional trailing arguments like open_app.args.
-    List/tuple values: when ANY placeholder resolves to a list/tuple, each
-    element is individually shlex.quote'd and joined with spaces (automatic
-    flattening). This applies to all placeholder forms, not just {arg*}.
-    A template with no placeholders renders to its literal. Deliberately
-    MINIMAL -- verbs needing conditional/recursive/base64 logic keep their code
-    branch (the builder falls through when no `cmd` is set). Returns the rendered
-    command, or None on render error (caller falls back to the hardcoded branch)."""
-    try:
-        def _quote_val(val):
-            """Quote a scalar or list/tuple value for shell use."""
-            if isinstance(val, (list, tuple)):
-                return " ".join(shlex.quote(str(el)) for el in val)
-            return shlex.quote("" if val is None else str(val))
-
-        def _is_empty(val):
-            """Check if a value is absent/empty (scalar or list)."""
-            if val is None:
-                return True
-            if isinstance(val, (list, tuple)):
-                return len(val) == 0
-            return not str(val).strip()
-
-        def _sub(m: "re.Match") -> str:
-            name, op, rest = m.group(1), m.group(2), m.group(3)
-            val = _arg_with_synonyms(tool, name, args)
-            if op == "!":
-                # REQUIRED: empty -> abort the whole render (-> None).
-                if _is_empty(val):
-                    raise _TemplateAbort(name)
-                return _quote_val(val)
-            if op == "*":
-                # SPLAT (varargs): list -> individually quoted, space-prefixed.
-                if _is_empty(val):
-                    return ""
-                return " " + _quote_val(val)
-            if op == "?":
-                if _is_empty(val):
-                    return ""
-                flag = (rest or "").strip()
-                q = _quote_val(val)
-                return f" {flag} {q}" if flag else f" {q}"
-            if op == "=" and _is_empty(val):
-                dflt = rest if rest is not None else ""
-                # ENV default: `$ENVVAR:fallback` -- the one place a verb default
-                # legitimately comes from the host env.
-                if dflt.startswith("$"):
-                    envname, _sep, fallback = dflt[1:].partition(":")
-                    dflt = os.environ.get(envname, fallback)
-                return shlex.quote(str(dflt))
-            return _quote_val(val)
-        rendered = _TEMPLATE_PH_RE.sub(_sub, template).strip()
-        return rendered or None
-    except _TemplateAbort:
+    """Render an SSOT verb command template into the bash line."""
+    if not template:
         return None
-    except Exception as e:
-        log.warning("verb template render failed for %s: %s", tool, e)
-        return None
+    return compile_template(template).render(tool, args)
+

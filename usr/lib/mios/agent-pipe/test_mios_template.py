@@ -79,6 +79,21 @@ class TestMiosTemplate(unittest.TestCase):
         res = _template_to_cmd("test_tool", "cmd --files {files}", {"files": ["file1.txt", "file2.txt"]})
         self.assertEqual(res, "cmd --files file1.txt file2.txt")
 
+    def test_compiled_template(self):
+        from mios_template import compile_template, CompiledTemplate
+        tpl_str = "cmd {req!} {opt?-f} {dflt=val} {splat*}"
+        ct1 = compile_template(tpl_str)
+        ct2 = compile_template(tpl_str)
+
+        self.assertIsInstance(ct1, CompiledTemplate)
+        self.assertIs(ct1, ct2)  # Identical cached object
+        self.assertEqual(ct1.placeholder_names, {"req", "opt", "dflt", "splat"})
+
+        args = {"req": "r_val", "opt": "o_val", "splat": ["s1", "s2"]}
+        rendered_ct = ct1.render("test_tool", args)
+        rendered_legacy = _template_to_cmd("test_tool", tpl_str, args)
+        self.assertEqual(rendered_ct, rendered_legacy)
+
 
 if __name__ == "__main__":
     unittest.main()
