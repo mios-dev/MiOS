@@ -1574,6 +1574,107 @@ test_mini_vfio() {
     log "test_mini_vfio negative test passed."
 }
 
+# 73. Test check_hyprland_conf_heredoc
+test_hyprland_heredoc() {
+    log "Testing check_hyprland_conf_heredoc..."
+    local conf="${ROOT}/usr/share/mios/hyprland/hyprland.conf"
+    if [ -f "$conf" ]; then
+        local orig_val
+        orig_val="$(cat "$conf")"
+        echo "# INJECTED-DRIFT" >> "$conf"
+
+        if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_hyprland_conf_heredoc >/dev/null 2>&1; then
+            echo "$orig_val" > "$conf"
+            die "check_hyprland_conf_heredoc passed despite injected drift!"
+        fi
+
+        echo "$orig_val" > "$conf"
+        MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_hyprland_conf_heredoc >/dev/null 2>&1 \
+            || die "check_hyprland_conf_heredoc failed after restoration!"
+    fi
+    log "test_hyprland_heredoc negative test passed."
+}
+
+# 74. Test check_target_languages
+test_target_languages() {
+    log "Testing check_target_languages..."
+    local bogus_file="${ROOT}/usr/libexec/mios/bogus_lang_test.cpp"
+    echo "// forbidden c++ file" > "$bogus_file"
+
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_target_languages >/dev/null 2>&1; then
+        rm -f "$bogus_file"
+        die "check_target_languages passed despite forbidden C++ file!"
+    fi
+
+    rm -f "$bogus_file"
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_target_languages >/dev/null 2>&1 \
+        || die "check_target_languages failed after restoration!"
+    log "test_target_languages negative test passed."
+}
+
+# 75. Test check_roadmap_index
+test_roadmap_index() {
+    log "Testing check_roadmap_index..."
+    local rmap="${ROOT}/ROADMAP.md"
+    if [ -f "$rmap" ]; then
+        local orig_val
+        orig_val="$(cat "$rmap")"
+        sed -i 's/Done: [0-9]*/Done: 99999/g' "$rmap"
+
+        if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_roadmap_index >/dev/null 2>&1; then
+            echo "$orig_val" > "$rmap"
+            die "check_roadmap_index passed despite corrupted roadmap count!"
+        fi
+
+        echo "$orig_val" > "$rmap"
+        MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_roadmap_index >/dev/null 2>&1 \
+            || die "check_roadmap_index failed after restoration!"
+    fi
+    log "test_roadmap_index negative test passed."
+}
+
+# 76. Test check_templates_compilation
+test_templates_compilation() {
+    log "Testing check_templates_compilation..."
+    local tpl="${ROOT}/usr/share/mios/templates/toml-config"
+    if [ -f "$tpl" ]; then
+        local orig_val
+        orig_val="$(cat "$tpl")"
+        echo "{{ invalid syntax placeholder" >> "$tpl"
+
+        if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_templates_compilation >/dev/null 2>&1; then
+            echo "$orig_val" > "$tpl"
+            die "check_templates_compilation passed despite syntax error!"
+        fi
+
+        echo "$orig_val" > "$tpl"
+        MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_templates_compilation >/dev/null 2>&1 \
+            || die "check_templates_compilation failed after restoration!"
+    fi
+    log "test_templates_compilation negative test passed."
+}
+
+# 77. Test check_impossible_eol
+test_impossible_eol() {
+    log "Testing check_impossible_eol..."
+    local toml="${ROOT}/usr/share/mios/mios.toml"
+    if [ -f "$toml" ]; then
+        local orig_val
+        orig_val="$(cat "$toml")"
+        echo 'eol_packages = ["tang"]' >> "$toml"
+
+        if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_impossible_eol >/dev/null 2>&1; then
+            echo "$orig_val" > "$toml"
+            die "check_impossible_eol passed despite forbidden EOL package!"
+        fi
+
+        echo "$orig_val" > "$toml"
+        MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_impossible_eol >/dev/null 2>&1 \
+            || die "check_impossible_eol failed after restoration!"
+    fi
+    log "test_impossible_eol negative test passed."
+}
+
 main() {
     log "Starting negative-test suite..."
     test_version_ssot
