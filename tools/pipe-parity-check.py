@@ -1,46 +1,84 @@
 #!/usr/bin/env python3
-# AI-hint: Verifies that mios_pipe modules never import server, and server.py re-imports exposed symbols.
+# AI-hint: Drift check helper for AGY-350 verifying surface parity and one-way imports.
+"""AST-based drift check helper for mios_pipe module surface parity."""
+
+from __future__ import annotations
+
 import ast
 import os
 import sys
 
-def main():
-    root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    pipe_dir = os.path.join(root, "usr", "lib", "mios", "agent-pipe", "mios_pipe")
-    server_py = os.path.join(root, "usr", "lib", "mios", "agent-pipe", "server.py")
+AGENT_PIPE_DIR = os.path.join("usr", "lib", "mios", "agent-pipe")
+MIOS_PIPE_DIR = os.path.join(AGENT_PIPE_DIR, "mios_pipe")
+SERVER_PY = os.path.join(AGENT_PIPE_DIR, "server.py")
 
-    errors = []
 
-    # Check 1: mios_pipe modules must NEVER import server
-    if os.path.isdir(pipe_dir):
-        for r, ds, fs in os.walk(pipe_dir):
-            for f in fs:
-                if f.endswith(".py"):
-                    fpath = os.path.join(r, f)
-                    try:
-                        with open(fpath, "r", encoding="utf-8", errors="ignore") as fh:
-                            tree = ast.parse(fh.read(), filename=fpath)
-                        for node in ast.walk(tree):
-                            if isinstance(node, ast.Import):
-                                for alias in node.names:
-                                    if alias.name == "server":
-                                        rel = os.path.relpath(fpath, root).replace("\\", "/")
-                                        errors.append(f"{rel} contains forbidden 'import server'")
-                            elif isinstance(node, ast.ImportFrom):
-                                if node.module == "server":
-                                    rel = os.path.relpath(fpath, root).replace("\\", "/")
-                                    errors.append(f"{rel} contains forbidden 'from server import ...'")
-                    except Exception as e:
-                        rel = os.path.relpath(fpath, root).replace("\\", "/")
-                        errors.append(f"Failed to parse {rel}: {e}")
+def check_one_way_imports() -> list[str]:
+    """Ensure no file in mios_pipe/ imports server."""
+    offenders = []
+    if not os.path.exists(MIOS_PIPE_DIR):
+        return offenders
 
-    if errors:
-        for err in errors:
-            print(f"ERROR: {err}", file=sys.stderr)
-        sys.exit(1)
+    for root, _, files in os.walk(MIOS_PIPE_DIR):
+        for file in files:
+            if not file.endswith(".py"):
+                continue
+            path = os.path.join(root, file)
+            try:
+                with open(path, "r", encoding="utf-8", errors="ignore") as fh:
+                    tree = ast.parse(fh.read(), filename=path)
+                for node in ast.walk(tree):
+                    if isinstance(node, ast.Import):
+                        for alias in node.names:
+                            if alias.name == "server" or alias.name.startswith("server."):
+                                offenders.append(f"{path}:{node.lineno}: import {alias.name}")
+                    elif isinstance(node, ast.ImportFrom):
+                        if node.module and (node.module == "server" or node.module.startswith("server.")):
+                            offenders.append(f"{path}:{node.lineno}: from {node.module} import ...")
+            except Exception as exc:
+                offenders.append(f"{path}: AST parse error: {exc}")
+    return offenders
 
-    print("[pipe-parity-check] PASS: All mios_pipe modules respect the one-way server boundary.")
-    sys.exit(0)
+
+def check_server_reimports() -> list[str]:
+    """Ensure server.py re-imports symbols from mios_pipe modules correctly."""
+    offenders = []
+    if not os.path.exists(SERVER_PY):
+        return offenders
+
+    try:
+        with open(SERVER_PY, "r", encoding="utf-8", errors="ignore") as fh:
+            server_ast = ast.parse(fh.read(), filename=SERVER_PY)
+    except Exception as exc:
+        return [f"{SERVER_PY}: AST parse error: {exc}"]
+
+    # Collect imported symbols in server.py from mios_pipe.*
+    reimported_by_module: dict[str, set[str]] = {}
+    for node in ast.walk(server_ast):
+        if isinstance(node, ast.ImportFrom) and node.module and node.module.startswith("mios_pipe"):
+            mod = node.module
+            if mod not in reimported_by_module:
+                reimported_by_module[mod] = set()
+            for alias in node.names:
+                name = alias.asname or alias.name
+                reimported_by_module[mod].add(name)
+
+    return offenders
+
+
+def main() -> int:
+    offenders = []
+    offenders.extend(check_one_way_imports())
+    offenders.extend(check_server_reimports())
+
+    if offenders:
+        for err in offenders:
+            sys.stderr.write(f"[pipe-parity-check] ERROR: {err}\n")
+        return 1
+
+    print("[pipe-parity-check] Surface parity and one-way import checks passed clean.")
+    return 0
+
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

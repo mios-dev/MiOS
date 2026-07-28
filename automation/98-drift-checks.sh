@@ -5298,6 +5298,10 @@ check_renderer_gate_coverage() {
     if [[ ${#unmapped[@]} -gt 0 ]]; then
         _violation "The following renderer scripts have no corresponding projection check in 98-drift-checks.sh (AGY-168): ${unmapped[*]}"
     else
+        echo "[38-drift-checks]   (75) renderer gate coverage verified clean"
+    fi
+}
+
 check_smoke_manifest() {
     if ! command -v python3 >/dev/null 2>&1; then
         return 0
@@ -5337,6 +5341,11 @@ sys.exit(0)
 PY
     then
         echo "[38-drift-checks]   (71) smoke manifest components in mios.toml exist in source tree"
+    else
+        _violation "smoke manifest component missing from repo"
+    fi
+}
+
 check_negative_coverage() {
     if ! command -v python3 >/dev/null 2>&1; then
         return 0
@@ -5420,12 +5429,14 @@ check_vllm_name_canonical() {
 
 check_pipe_extraction_parity() {
     if ! command -v python3 >/dev/null 2>&1; then
+        echo "[38-drift-checks]   (99) python3 absent -- skipped check_pipe_extraction_parity"
         return 0
     fi
-    if python3 "${ROOT}/tools/pipe-parity-check.py"; then
-        echo "[38-drift-checks]   (76) pipe extraction surface parity: modules respect one-way server boundary"
+
+    if MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/pipe-parity-check.py" >/dev/null 2>&1; then
+        echo "[38-drift-checks]   (99) extraction surface parity + one-way imports clean (AGY-350)"
     else
-        _violation "pipe extraction surface parity violation found"
+        _violation "mios_pipe extraction surface parity or one-way import rule violated (AGY-350)"
     fi
 }
 

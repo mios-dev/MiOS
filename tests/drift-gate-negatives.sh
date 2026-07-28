@@ -1675,6 +1675,22 @@ test_impossible_eol() {
     log "test_impossible_eol negative test passed."
 }
 
+test_pipe_extraction_parity() {
+    log "Testing check_pipe_extraction_parity..."
+    local temp_file="${ROOT}/usr/lib/mios/agent-pipe/mios_pipe/temp_forbidden_import.py"
+    echo "import server" > "$temp_file"
+
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_pipe_extraction_parity >/dev/null 2>&1; then
+        rm -f "$temp_file"
+        die "check_pipe_extraction_parity passed despite mios_pipe importing server!"
+    fi
+
+    rm -f "$temp_file"
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_pipe_extraction_parity >/dev/null 2>&1 \
+        || die "check_pipe_extraction_parity failed after restoration!"
+    log "check_pipe_extraction_parity negative test passed."
+}
+
 main() {
     log "Starting negative-test suite..."
     test_version_ssot
