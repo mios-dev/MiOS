@@ -451,73 +451,77 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 
 > The `kind` axis + json-merge + ini-merge landed (Claude, ea756065 + 8f52ccfb): `mios-theme-render` has `_KINDS = {template, json-merge, ini-merge}` with fixture-gated merge surfaces (check PASS 10). These finish it. Stage explicit paths; NO `git add -A`; commit ON MAIN (no branches/worktrees).
 
-## AGY-59  (WS-DOTFILES / ADR-0010, **P2**) — the `registry` kind (Windows Registry apply) + a windows-registry proof surface
+## AGY-59..60 — ADR-0010 finish (registry kind + merge-surface test coverage). Work ON MAIN, NO branches.
+
+> The `kind` axis + json-merge + ini-merge landed (Claude, ea756065 + 8f52ccfb): `mios-theme-render` has `_KINDS = {template, json-merge, ini-merge}` with fixture-gated merge surfaces (check PASS 10). These finish it. Stage explicit paths; NO `git add -A`; commit ON MAIN (no branches/worktrees).
+
+## AGY-59  (WS-DOTFILES / ADR-0010, **P2**) — the `registry` kind (Windows Registry apply) + a windows-registry proof surface  **[DONE]**
 **Who:** you (Python + PowerShell). **When:** after AGY-57/58 (landed).
 **What + How:** add `registry` to `_KINDS`. Semantics (per the design): `derive` = build a manifest of the MiOS-owned Registry values (from `_render_text(tmpl,...)` -> a small JSON/INI-ish manifest of `HKCU\Path\Name = value` entries), byte-diffed against `fixture.expected` for the offline gate (check NEVER touches the live Registry). `live_apply_fn` = **Linux/non-Windows: no-op SKIP** (log "registry surface -- Windows-only, skipping"); **Windows (`os.name=='nt'`)**: apply each owned value via `reg add`/PowerShell `Set-ItemProperty` under HKCU only (refuse HKLM/system hives), reading back to confirm; back up the prior values first (export the owned keys to a `.mios-bak` .reg). Fail-loud: a registry surface missing `fixture.base/expected` => exit 3 (same as other merge kinds). Add ONE proof `windows-registry` surface (e.g. a couple of `HKCU\Console` or a MiOS app setting) with template + fixture pair; `apply.target` names the HKCU path root.
 **Where:** `usr/libexec/mios/mios-theme-render` (`_KINDS` registry entry + `_registry_derive`/`_registry_apply`), `usr/share/mios/mios.toml` (the surface), a template + fixtures pair.
 **Done When:** the 10 existing surfaces stay byte-identical (`check` PASS 11); on Linux `apply <registry-surface>` is a clean no-op skip; the offline `check` gates it via the fixture; missing-fixture/unknown => exit 3; `py_compile` clean. Stage only your files.
 
-## AGY-60  (WS-DOTFILES / ADR-0010 hardening, **P2**) — negative-tests + a real unit test for the merge kinds
+## AGY-60  (WS-DOTFILES / ADR-0010 hardening, **P2**) — negative-tests + a real unit test for the merge kinds  **[DONE]**
 **Who:** you (Python + bash). **When:** after AGY-57/58.
 **What + How:** the json-merge/ini-merge kinds have fixture drift-gating but no repeatable NEGATIVE test proving each safety property. Add `usr/lib/mios/agent-pipe/`-style OR a `tests/`-style harness (whichever fits the repo -- there is a `test_mios_*` convention for agent-pipe; for `mios-theme-render` use a `tests/` or a self-contained script) asserting: (1) an unknown `kind` => exit 3; (2) a merge surface missing `fixture.base/expected` => exit 3; (3) json-merge preserves a foreign top-level key + a `//`-in-string URL + a nested foreign key, and REFUSES an unparseable base (exit 2, no write); (4) ini-merge preserves credential/signingkey/[remote], seeds absent owned keys, and under `seed-or-enforce` SKIPS a present foreign value unless operator_set; (5) tampering any merge surface's `fixture.expected` reds `check`. Wire it where the drift-gate or CI can run it. Keep it hermetic (temp dirs, no real HOME/Registry writes).
 **Where:** a new test harness for `mios-theme-render` + optionally a `check_*` hook in `automation/38-drift-checks.sh` (coordinate; Claude may also touch that file).
 **Done When:** every listed property has a passing negative-test; the harness runs clean + hermetic; `just drift-gate` (or the theme gate) stays green. Stage only your files.
 
-## AGY-61  (WS-LANG / ADR-0011, **P2**) — after tools/native/ (AGY-51): port the FIRST real tool to Rust
+## AGY-61  (WS-LANG / ADR-0011, **P2**) — after tools/native/ (AGY-51): port the FIRST real tool to Rust  **[DONE]**
 **Who:** you (Rust). **When:** after AGY-51 (the cargo workspace scaffold). Work ON MAIN, no branches; stage explicit paths.
 **What + How:** with the `tools/native/` cargo workspace in place, port ONE small, pure, high-value tool to a static Rust binary: the **version-SSOT checker** (read VERSION + mios.toml [meta].mios_version + each Containerfile ARG, compare, exit non-zero on drift -- the logic AGY-43 put in bash gate 42/check_version_ssot). Crate `mios-version-check`; cross-compile `x86_64-unknown-linux-musl`; keep the bash gate as the degrade-open fallback (if the binary is absent, bash still runs). Document the toolchain + the build wiring (a cached Containerfile stage -> COPY to /usr/libexec/mios/, per ADR-0011 sec 2).
 **Where:** `tools/native/mios-version-check/`, a note in ADR-0011/ROADMAP WS-LANG.
 **Done When:** `cargo build --release` (if toolchain present) yields a static binary matching the bash gate's verdict on HEAD + a seeded drift; bash fallback intact; `just drift-gate` green. Stage only your files.
 
-## AGY-62  (WS-DOTFILES / ADR-0010 domains, **P2**) — add the [shell]/[editor]/[ssh] dotfile surfaces via the kind engine
+## AGY-62  (WS-DOTFILES / ADR-0010 domains, **P2**) — add the [shell]/[editor]/[ssh] dotfile surfaces via the kind engine  **[DONE]**
 **Who:** you (Python + TOML). **When:** the engine (kinds template/json-merge/ini-merge/registry) is done -- just AUTHOR surfaces, no engine change. NOT Claude's lane (Claude owns mios-sync-theme + the `mios dotfiles` verb; you own the surfaces in mios.toml + templates).
 **What + How:** flesh out the stub `[shell]`/`[editor]`/`[ssh]` sections + add their dotfile surfaces to `[dotfiles.registry.*]`: (a) `shell-aliases` (template or ini-merge into ~/.bashrc.d/mios or a sourced fragment -- prefer a SOURCED fragment file over editing ~/.bashrc so foreign content is untouched); (b) `ssh-config` (ini-merge into ~/.ssh/config owning ONLY a MiOS `Host mios-*` block, preserving all foreign Host blocks; store NO secrets -- reference a secret_ref, never a raw key, per Law 9); (c) optionally an `[editor]`-driven surface. Each needs template + fixture.base (with FOREIGN content) + fixture.expected; use the SAME safe-merge patterns as gitconfig-live. Do NOT touch mios-theme-render, mios-sync-theme, portal.py, or tools/native.
 **Where:** `usr/share/mios/mios.toml` ([shell]/[editor]/[ssh] + registry surfaces), `usr/share/mios/theme/templates/*`, fixtures.
 **Done When:** each new surface renders + drift-gates (check PASS N+); ssh-config apply preserves foreign Host blocks (test); no secret stored in SSOT; `just drift-gate` green. Stage only your files.
 
-## AGY-63  (WS-DEBT / TD-5, **P1**) — extract the VRAM scheduler out of server.py
+## AGY-63  (WS-DEBT / TD-5, **P1**) — extract the VRAM scheduler out of server.py  **[DONE]**
 **Who:** you (Python). ON MAIN, no branches; explicit paths. Extract the VRAM/GPU scheduling logic from `usr/lib/mios/agent-pipe/server.py` into a NEW sibling `mios_vram.py` + `test_mios_vram.py`, ONE-WAY import (must NOT import server.py -- drift-check 6), thin re-export shim at the old call site, behavior byte-identical. **Done When:** sibling+test exist, no server.py import edge, `test_mios_*` green, checks 6+11 pass, `just drift-gate` green. NOT Claude's lane (Claude owns portal.py/config.py/mios-theme-render).
 
-## AGY-64  (WS-DEBT / TD-5, **P1**) — extract the _db_* helpers out of server.py
+## AGY-64  (WS-DEBT / TD-5, **P1**) — extract the _db_* helpers out of server.py  **[DONE]**
 **Who:** you (Python). Same pattern: pull the `_db_*` DB-access helpers from `server.py` into `mios_serverdb.py` + `test_mios_serverdb.py`, one-way import, re-export shim, behavior identical. **Done When:** sibling+test, no server.py edge, suite green, drift-gate green.
 
-## AGY-65  (WS-LANG / ADR-0011, **P2**) — port the drift-runner entry to Rust (2nd native tool)
+## AGY-65  (WS-LANG / ADR-0011, **P2**) — port the drift-runner entry to Rust (2nd native tool)  **[DONE]**
 **Who:** you (Rust). After AGY-51/61 (workspace + version-check). Add a `tools/native/mios-drift` crate that runs the image-free source drift checks (or wraps/dispatches the bash `38-drift-checks.sh` phases), static musl build, bash gate stays the degrade-open fallback. **Done When:** `cargo build --release` yields the binary (if toolchain present); it agrees with the bash gate on HEAD; fallback intact; drift-gate green.
 
-## AGY-66  (test-coverage, **P2**) — close drift-6/drift-11 gaps across agent-pipe
+## AGY-66  (test-coverage, **P2**) — close drift-6/drift-11 gaps across agent-pipe  **[DONE]**
 **Who:** you (Python). Audit `usr/lib/mios/agent-pipe/mios_*.py`: every module MUST have a sibling `test_mios_*.py` (drift-11) and NONE may import `server.py` (drift-6). Add minimal sibling tests where missing; break any server.py import edge into a shared helper. **Done When:** checks 6+11 pass with zero exceptions; full `test_mios_*` suite green.
 
-## AGY-67  (WS-DEBT / TD-1, **P1 security**) — add `set -e` to the unguarded verbs
+## AGY-67  (WS-DEBT / TD-1, **P1 security**) — add `set -e` to the unguarded verbs  **[DONE]**
 **Who:** you (bash). ~23 runtime verbs in `usr/libexec/mios/` run without `set -euo pipefail`. Add it (guard for the ones that legitimately need to continue-on-error with explicit `|| true`). Also re-confirm ALL `eval`-on-agent-args are gone (grep `eval ` in `usr/libexec/mios/`; AGY-41 fixed the set -- verify none re-appeared). **Done When:** every verb has `set -euo pipefail` or a documented exception; no agent-arg `eval`; `bash -n` clean; drift-gate green.
 
-## AGY-68  (WS-DEBT / TD-3, **P2**) — the resolver-twin GENERATOR (bind mios_toml.py <-> userenv.sh)
+## AGY-68  (WS-DEBT / TD-3, **P2**) — the resolver-twin GENERATOR (bind mios_toml.py <-> userenv.sh)  **[DONE]**
 **Who:** you (Python + bash). AGY-45 added the equivalence GATE; now add the GENERATOR that emits `usr/lib/mios/userenv.sh` (the bash resolver) FROM `mios_toml.py` (or a shared spec), so the twin can't drift by construction (TD-3's root fix). Keep the AGY-45 gate green; keep `tools/lib/userenv.sh` in sync (drift-27). **Done When:** the generator regenerates userenv.sh deterministically == the committed one; twins stay byte-identical; drift-45 + drift-27 green.
 
-## AGY-69  (WS-BAKEGATE/build, **P1**) — verify + GREEN the `just all` BIB matrix
+## AGY-69  (WS-BAKEGATE/build, **P1**) — verify + GREEN the `just all` BIB matrix  **[DONE]**
 **Who:** you. In MiOS-DEV run `just all` (OCI + raw/iso/qcow2/vhdx/wsl2); record output paths+sizes under `/var/lib/mios/build/output`; fix any failing BIB leg. **Done:** all 6 artifacts produced; the header-sniff/verify target green. NOT Claude's lane (Claude owns the MiOS-Cat launcher + kickstart in mios-bootstrap).
 
-## AGY-70  (deploy, **P1**) — iso.toml REPLACEME → SSOT-projected creds
+## AGY-70  (deploy, **P1**) — iso.toml REPLACEME → SSOT-projected creds  **[DONE]**
 **Who:** you. `config/artifacts/iso.toml` ships `$6$REPLACEME`/`AAAA_REPLACE` placeholders. Mirror the qcow2/vhdx env-substitution (`MIOS_USER_PASSWORD_HASH`/`MIOS_SSH_PUBKEY`) into the `iso` Justfile target, sourced from mios.toml `[identity]`. **Done:** no REPLACEME in the built ISO kickstart; creds from SSOT/env.
 
-## AGY-71  (deploy, **P1**) — bootc-install OFFLINE mode (immutable alternative)
+## AGY-71  (deploy, **P1**) — bootc-install OFFLINE mode (immutable alternative)  **[DONE]**
 **Who:** you. Add a deploy mode that stages the MiOS OCI image as an `oci-archive` + a `bootc install to-disk` path, so a target can be installed as the IMMUTABLE MiOS (the alternative to the mutable-Fedora-overlay leg Claude is wiring in MiOS-Cat). NEW `usr/libexec/mios/mios-bootc-install` or a Justfile target. **Done:** a staged oci-archive installs a bootable immutable MiOS offline; documented.
 
-## AGY-72  (deploy/xbox, **P2**) — fix MiOS-Xbox in-guest provisioning
+## AGY-72  (deploy/xbox, **P2**) — fix MiOS-Xbox in-guest provisioning  **[DONE]**
 **Who:** you. Last run finished status=incomplete (bootstrap exit=1; probed retired `:8080` vs canonical `:8642`; WSL2/VMP + MiOS-Host not staged). Fix the in-guest provisioning + prove a green end-to-end in the Hyper-V test VM. **Done:** Deploy-MiOSXbox VM boots + provisions MiOS green; zero `:8080` refs.
 
-## AGY-73  (WS-MIOSSYS, **P1**) — MiOS-Sys shared-base consolidation
+## AGY-73  (WS-MIOSSYS, **P1**) — MiOS-Sys shared-base consolidation  **[DONE]**
 **Who:** you. Collapse the sidecar fleet onto a shared MiOS-Sys base to shrink the bake (unblocks GitHub PUBLISH). **Done:** shared base built; sidecars derive from it; bake size drops; drift-gate green.
 
-## AGY-74  (WS-BLADE, **P1**) — `[blade]` archetypes + Condition* activation
+## AGY-74  (WS-BLADE, **P1**) — `[blade]` archetypes + Condition* activation  **[DONE]**
 **Who:** you. Per ROADMAP WS-BLADE: `[blade]`/`[blade.archetypes]`/`[blade.requires]` SSOT + generated `blade-<cap>.conf` drop-ins + karg selection; demote role-apply to a marker-writer. **Done:** one universal image; a `controller` blade condition-skips the vLLM unit at zero VRAM; drift-gated.
 
-## AGY-75  (WS-SBOM, **P1**) — digest-free SSOT + build-time SBOM
+## AGY-75  (WS-SBOM, **P1**) — digest-free SSOT + build-time SBOM  **[DONE]**
 **Who:** you. Digests/hashes/versions resolved+recorded at BUILD to the SBOM, never hand-pinned in mios.toml; `[image.sidecars]` carry `:latest` intent. **Done:** no `@sha256` in SSOT; SBOM records resolved digests; ADR-0003 satisfied.
 
-## AGY-76  (WS-TEMPLATE, **P2**) — compile-templates + conformance ratchet
+## AGY-76  (WS-TEMPLATE, **P2**) — compile-templates + conformance ratchet  **[DONE]**
 **Who:** you. `tools/compile-templates.py` + `[templates]` SSOT + a conformance check that ratchets (new files must use a template). **Done:** template system builds; ratchet gate green; N existing files migrated.
 
-## AGY-77  (drift, **P1**) — FULL drift-gate green at HEAD
+## AGY-77  (drift, **P1**) — FULL drift-gate green at HEAD  **[DONE]**
 **Who:** you. Run all 40+ checks at current HEAD; fix any red (esp. version-SSOT across `Containerfile*`, quadlet digest drift, drift-6/11). **Done:** `just drift-gate` fully green; a negative test guards each newly-fixed check.
 
 ## AGY-78  (TD-2, **P2**) — reconcile the 3× mios.toml
