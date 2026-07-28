@@ -2282,6 +2282,32 @@ _configure_scratchpad(
     db_write=_db_write,
 )
 
+_configure_toolsurface(
+    worker_tools_scope=WORKER_TOOLS_SCOPE,
+    child_tool_select=CHILD_TOOL_SELECT,
+    stable_prefix=STABLE_PREFIX,
+    stable_prefix_tail=STABLE_PREFIX_TAIL,
+    child_tool_floor=CHILD_TOOL_FLOOR,
+    verb_catalog=_VERB_CATALOG,
+    recipe_catalog=_RECIPE_CATALOG,
+    routing_domains=_ROUTING_DOMAINS,
+    routed_domain_var=_routed_domain_var,
+    dispatch_toml=_DISPATCH_TOML,
+    mcp_client_lock=_MCP_CLIENT_LOCK,
+    mcp_client_tools=_MCP_CLIENT_TOOLS,
+    verb_embeddings=_VERB_EMBEDDINGS,
+    verb_to_openai_tool=_verb_to_openai_tool,
+    recipe_to_openai_tool=_recipe_to_openai_tool,
+    skill_to_openai_tool=_skill_to_openai_tool,
+    mcp_tool_to_openai_tool=_mcp_tool_to_openai_tool,
+    skill_list=_skill_list,
+    resolve_verb_key=_resolve_verb_key,
+    tool_embedding=_tool_embedding,
+    cosine=_cosine,
+    ensure_verb_embeddings=_ensure_verb_embeddings,
+    embed_one=_embed_one,
+)
+
 sys.modules["mios_dci"].configure(
     db_post=_db_post,
     db_create=_db_create,
@@ -3933,302 +3959,13 @@ from mios_worker_tools import (   # noqa: E402
 _WORKER_TOOLS_CORE_CACHE: "Optional[list]" = None
 
 
-def _worker_tools_surface() -> list:
-    """The MiOS verb + RECIPE catalog in OpenAI tools[] shape, for a worker's
-    pipe-side tool-loop (the SYNC surface -- no skills, which need an async DB
-    read; see _worker_tools_surface_async for the full surface). Scope from
-    WORKER_TOOLS_SCOPE: in "read" scope only permission=read verbs AND recipes
-    survive; recipes without a "read" permission are EXCLUDED in read scope but
-    INCLUDED in the default "all" scope. Cached; empty on any build error
-    (degrade open). SSOT = _VERB_CATALOG + _RECIPE_CATALOG (projected here).
- every fan-out/DAG sub-agent gets the COMPLETE
-    capability surface -- verbs + recipes + skills -- as first-class tools."""
-    global _WORKER_TOOLS_CACHE
-    if _WORKER_TOOLS_CACHE is None:
-        try:
-            out = [
-                _verb_to_openai_tool(n, c)
-                for n, c in _VERB_CATALOG.items()
-                if not c.get("hidden")          # P1: legacy deadweight off the surface
-                and (WORKER_TOOLS_SCOPE != "read"
-                     or str(c.get("permission", "")).lower() == "read")
-            ]
-            # (b) recipes -> mios_recipe__<name>. Read scope keeps only
-            # permission=read recipes (os_recipe entries default "read" per
-            # _load_recipe_catalog, but launch/open recipes mark non-read).
-            for rn, rc in (_RECIPE_CATALOG or {}).items():
-                if (WORKER_TOOLS_SCOPE == "read"
-                        and str(rc.get("permission", "")).lower() != "read"):
-                    continue
-                out.append(_recipe_to_openai_tool(rn, rc))
-            _WORKER_TOOLS_CACHE = out
-        except Exception:  # noqa: BLE001
-            _WORKER_TOOLS_CACHE = []
-    return _WORKER_TOOLS_CACHE
-
-
-async def _worker_tools_surface_async(cap: int = 0, intent: str = "") -> list:
-    """The COMPLETE worker tool surface -- verbs + recipes + SKILLS -- in OpenAI
- tools shape ("every fan-out/DAG sub-agent receives the
-    COMPLETE capability surface ... as first-class OpenAI tools"). Starts from
-    the sync verbs+recipes surface, then appends promoted skills projected via
-    _skill_to_openai_tool (name == mios_skill__<name>).
-
- cap>0 ("nothing toolless -- give tools sized to the
-    device"): a weak lane (iGPU llama.cpp / mobile) TIMES OUT grammar-
-    constraining all 71 schemas (15 tools ~9s, 40 ~33s, 71 timeout), so it gets
-    a PRIORITISED subset of `cap` tools (read/web/state first via _tool_priority)
-    -- still REAL tools, just as many as the device executes in budget. cap=0 =
-    full surface (fast gpu/cpu lanes). Memoised: full surface once, caps sliced
-    from it (stable order)."""
-    global _WORKER_TOOLS_FULL_CACHE
-    if _WORKER_TOOLS_FULL_CACHE is None:
-        base = list(_worker_tools_surface())
-        if WORKER_TOOLS_SCOPE != "read":
-            try:
-                rows = (await _skill_list(status="promoted")) or []
-                for srow in rows:
-                    base.append(_skill_to_openai_tool(srow))
-            except Exception:  # noqa: BLE001 -- degrade-open to verbs+recipes
-                log.debug("worker skills surface fetch failed; verbs+recipes only")
-        # External MCP tools (P0: federated tool surface).
-        # Gated by env so an operator can keep workers on the local surface.
-        if str(os.environ.get("MIOS_WORKER_MCP_TOOLS")
-               or _DISPATCH_TOML.get("worker_mcp_tools", "true")).lower() \
-                not in {"false", "0", "no"}:
-            try:
-                async with _MCP_CLIENT_LOCK:
-                    _mcp_items = list(_MCP_CLIENT_TOOLS.items())
-                for _k, _info in _mcp_items:
-                    base.append(_mcp_tool_to_openai_tool(_k, _info))
-            except Exception:  # noqa: BLE001 -- degrade-open
-                log.debug("worker MCP tools surface fetch failed")
-        # Two stable blocks: CORE (byte-identical every turn) then the rest. Within
-        # each, sort by (priority rank, name) for FULLY deterministic order across
-        # reloads (priority alone leaves catalog-order ties). The core block is the
-        # RadixAttention-cacheable tools[] prefix under STABLE_PREFIX.
-        def _stable_key(t):
-            return (_tool_priority(t),
-                    str((t.get("function") or {}).get("name") or ""))
-        global _WORKER_TOOLS_CORE_CACHE
-        _core = sorted([t for t in base if _is_core_tool(t)], key=_stable_key)
-        _tail = sorted([t for t in base if not _is_core_tool(t)], key=_stable_key)
-        _WORKER_TOOLS_CORE_CACHE = _core
-        log.info("stable tool core block: %d core + %d tail", len(_core), len(_tail))
-        _WORKER_TOOLS_FULL_CACHE = _core + _tail
-    # Stage-2 domain filter: if this request was routed to a
-    # domain, offer ONLY that domain's verbs + ALL non-verb tools (recipes/skills/
-    # MCP -- not bare verbs in _VERB_CATALOG). Other-domain verbs drop for THIS turn
-    # only. FAIL-SAFE: no routed domain -> full surface (nothing lost).
-    surface = _WORKER_TOOLS_FULL_CACHE
-    _dom = _routed_domain_var.get(None)
-    if _dom and _dom in _ROUTING_DOMAINS:
-        _allowed = set(_ROUTING_DOMAINS[_dom].get("verbs") or [])
-        if _allowed:
-            surface = [t for t in surface
-                       if (t.get("function", {}).get("name") not in _VERB_CATALOG)
-                       or (t.get("function", {}).get("name") in _allowed)]
-    if cap and cap > 0:
-        return await _select_child_tools(surface, intent, cap)
-    return surface
-
-
-# ── R7: RBAC/PDP/quota + human-in-the-loop POLICY plane extracted verbatim to
-# mios_policy.py. The least-privilege capability gate (#55 risk lattice +
-# per-agent/per-user surface filters via the shared mios_pdp core), the #62 HITL
-# block-reason + out-of-process arbiter, the WS-6 per-user quota gate, and the
-# WS-A9 dispatch-time PDP. SECURITY-CRITICAL: gates are NAME-KEYED on verb keys +
-# permission tiers -- nothing renamed. Re-imported here under the original names
-# so server.py's importable surface is byte-identical (mios_surface parity gate);
-# every server symbol they touch (catalogs, _AGENT_REGISTRY, the HITL/client/
-# dispatch ContextVars, _pending_hash, _get_client, the DB-event helpers) is
-# injected via sys.modules["mios_policy"].configure(...) AFTER all are defined
-# (one-way boundary -- mios_policy never imports server).
-from mios_policy import (   # noqa: E402
-    _PERMISSION_TIERS,
-    _perm_rank,
-    _HITL_MODE,
-    _HITL_THRESHOLD,
-    _effective_perm,
-    _hitl_block_reason,
-    _HITL_ARBITER_URL,
-    _HITL_ARBITER_FAIL,
-    _hitl_arbiter_verdict,
-    _agent_rbac_filter,
-    _match_user_cfg,
-    _user_rbac_filter,
-    _PDP_AUDIT_ALLOW,
-    _QUOTA_TRACKERS,
-    _quota_for,
-    _dispatch_quota_reason,
-    _dispatch_pdp_reason,
+from mios_pipe.routing.toolsurface import (
+    _worker_tools_surface,
+    _worker_tools_surface_async,
+    _select_child_tools,
+    _tool_pref_block,
+    configure as _configure_toolsurface,
 )
-
-
-async def _select_child_tools(surface: list, intent_text: str, cap: int) -> list:
-    """Per-child intent-relevant tool subset (AIOS gap5 L1). Returns the `cap`
-    tools most relevant to the child's subtask intent (cosine over the existing
-    verb embeddings), with a FLOOR of read/web/discovery + tool_search ALWAYS
-    retained, so a slow-lane child gets a SMALL, RELEVANT, never-toolless surface
-    (final count = `cap`, NOT collapsed to the floor). Degrade-open: cap<=0 ->
-    full surface; selection off / empty intent / embed-outage / any error ->
-    EXACTLY today's surface[:cap]."""
-    if not (cap and cap > 0):
-        return surface
-    # STABLE-PREFIX path: emit the byte-stable core block VERBATIM (never cosine-sorted,
-    # never truncated), then append up to STABLE_PREFIX_TAIL cosine-ranked specialist
-    # (non-core) tools. The variable tail is the ONLY thing that changes per turn; the
-    # relevance signal for CORE verbs rides the user-adjacent text (see _tool_pref_block).
-    if STABLE_PREFIX and _WORKER_TOOLS_CORE_CACHE is not None:
-        core = list(_WORKER_TOOLS_CORE_CACHE)
-        # Cap-safe: a small-cap node (slow-lane/CPU, e.g.
-        # slow_lane_tool_cap=12) can't hold the full ~23-tool core. Return the stable-
-        # ordered core TRUNCATED to cap -- still a byte-identical prefix for that cap
-        # tier -- instead of overflowing the node with the whole core. The orchestrator
-        # native loop uses eff_cap = len(core)+tail (> len core), so it is unaffected.
-        if cap and cap < len(core):
-            return core[:cap]
-        core_names = {str((t.get("function") or {}).get("name") or "") for t in core}
-        tail_pool = [t for t in surface
-                     if str((t.get("function") or {}).get("name") or "") not in core_names]
-        tail_budget = (max(0, min(STABLE_PREFIX_TAIL, cap - len(core)))
-                       if cap > len(core) else 0)
-        if tail_budget <= 0 or not (CHILD_TOOL_SELECT and intent_text and intent_text.strip()):
-            return core
-        try:
-            await _ensure_verb_embeddings()
-            qvec = await _embed_one(intent_text)
-            if not qvec:
-                return core + tail_pool[:tail_budget]
-
-            def _b2(t):  # P1: resolve model_name alias -> key (embeddings keyed by key)
-                return _resolve_verb_key(
-                    str((t.get("function") or {}).get("name") or "").split("__", 1)[-1])
-
-            db_scores = {}
-            try:
-                import mios_pg as _mios_pg
-                rows = await _mios_pg.execute(
-                    "SELECT name, 1 - (emb <=> %(qvec)s::vector) AS score FROM verb "
-                    "WHERE hidden = false AND emb IS NOT NULL",
-                    {"qvec": qvec},
-                    fetch=True
-                )
-                if rows is not None:
-                    for r in rows:
-                        if r.get("name"):
-                            db_scores[r["name"]] = r["score"]
-            except Exception as e_pg:
-                log.debug("Database native vector search failed for child tools: %s", e_pg)
-
-            scored = []
-            for t in tail_pool:
-                b2_key = _b2(t)
-                vec = _tool_embedding(b2_key)
-                if b2_key in db_scores:
-                    score = db_scores[b2_key]
-                elif vec:
-                    score = _cosine(qvec, vec)
-                else:
-                    score = _priority_fallback_score(t)
-                scored.append((score, t, vec))
-            scored.sort(key=lambda x: x[0], reverse=True)
-            await _ensure_verb_lexicon()       # P2: lazy BM25 index (fingerprint-keyed)
-            return core + _fuse_then_diversify(
-                scored, _tok(intent_text), tail_budget, _b2)
-        except Exception:  # noqa: BLE001 -- degrade-open: stable block + priority tail
-            return core + tail_pool[:tail_budget]
-    # LEGACY path (STABLE_PREFIX off): exactly today's floor + cosine tail + out[:cap].
-    if not CHILD_TOOL_SELECT or not (intent_text and intent_text.strip()):
-        return surface[:cap]
-    try:
-        await _ensure_verb_embeddings()
-        qvec = await _embed_one(intent_text)
-        if not qvec:
-            return surface[:cap]
-
-        def _nm(t):
-            return str((t.get("function") or {}).get("name") or "")
-
-        def _base(t):
-            return _nm(t).split("__", 1)[-1]
-
-        # FLOOR: the read-tier verbs (rank-0 core read/web/discovery + rank-1
-        # read), always kept regardless of relevance, capped to the floor. Rank is
-        # SSOT-derived from the verb's permission/tier via _tool_priority -- no
-        # English name substring gates membership.
-        floor, seen = [], set()
-        for t in surface:
-            pr = _tool_priority(t)
-            if pr in (0, 1):
-                if _nm(t) not in seen and len(floor) < max(CHILD_TOOL_FLOOR, 0):
-                    floor.append(t)
-                    seen.add(_nm(t))
-
-        db_scores = {}
-        try:
-            import mios_pg as _mios_pg
-            rows = await _mios_pg.execute(
-                "SELECT name, 1 - (emb <=> %(qvec)s::vector) AS score FROM verb "
-                "WHERE hidden = false AND emb IS NOT NULL",
-                {"qvec": qvec},
-                fetch=True
-            )
-            if rows is not None:
-                for r in rows:
-                    if r.get("name"):
-                        db_scores[r["name"]] = r["score"]
-        except Exception as e_pg:
-            log.debug("Database native vector search failed for child tools: %s", e_pg)
-
-        # Score the rest by relevance (database score if available; else embedded -> cosine; else priority fallback
-        # so a rare/unembedded read verb is not demoted below an irrelevant one).
-        scored = []
-        for t in surface:
-            if _nm(t) in seen:
-                continue
-            base_key = _resolve_verb_key(_base(t))
-            vec = _tool_embedding(base_key)
-            if base_key in db_scores:
-                score = db_scores[base_key]
-            elif vec:
-                score = _cosine(qvec, vec)
-            else:
-                score = _priority_fallback_score(t)
-            scored.append((score, t, vec))
-        scored.sort(key=lambda x: x[0], reverse=True)
-        await _ensure_verb_lexicon()           # P2: lazy BM25 index (fingerprint-keyed)
-        ranked = _fuse_then_diversify(
-            scored, _tok(intent_text), max(0, cap - len(floor)),
-            lambda t: _resolve_verb_key(_base(t)))
-        out = list(floor) + ranked
-        return out[:cap]
-    except Exception:  # noqa: BLE001 -- degrade-open to today's behavior
-        return surface[:cap]
-
-
-async def _tool_pref_block(intent_text: str, k: int = 6) -> str:
-    """The per-turn cosine 'prefer these tools' signal, expressed as USER-ADJACENT
-    TEXT (not tools[] ordering) so the tools[] prefix stays byte-stable for
-    RadixAttention. Returns '' on selection-off / empty-intent / embed-outage
-    (degrade-open). Ranks ALL embeddable verbs by cosine to the intent + names top-k."""
-    if not (STABLE_PREFIX and CHILD_TOOL_SELECT
-            and intent_text and intent_text.strip()):
-        return ""
-    try:
-        await _ensure_verb_embeddings()
-        qvec = await _embed_one(intent_text)
-        if not qvec or not _VERB_EMBEDDINGS:
-            return ""
-        ranked = sorted(((_cosine(qvec, v), n) for n, v in _VERB_EMBEDDINGS.items() if v),
-                        key=lambda x: x[0], reverse=True)
-        names = [n for s, n in ranked[:max(0, k)] if s > 0]
-        if not names:
-            return ""
-        return ("Likely-relevant tools for this request (a hint from semantic match -- "
-                "use the best fit, or any other tool, or none): " + ", ".join(names) + ".")
-    except Exception:  # noqa: BLE001
-        return ""
 
 
 # _fit_context (dynamic num_ctx sizing) moved VERBATIM -> mios_dag_exec (its sole

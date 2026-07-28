@@ -1240,6 +1240,34 @@
       ],
       "public_symbols": []
     },
+    "usr/lib/mios/agent-pipe/mios_pipe/routing/toolsurface.py": {
+      "configure_kwargs": [
+        "child_tool_floor",
+        "child_tool_select",
+        "cosine",
+        "dispatch_toml",
+        "embed_one",
+        "ensure_verb_embeddings",
+        "mcp_client_lock",
+        "mcp_client_tools",
+        "mcp_tool_to_openai_tool",
+        "recipe_catalog",
+        "recipe_to_openai_tool",
+        "resolve_verb_key",
+        "routed_domain_var",
+        "routing_domains",
+        "skill_list",
+        "skill_to_openai_tool",
+        "stable_prefix",
+        "stable_prefix_tail",
+        "tool_embedding",
+        "verb_catalog",
+        "verb_embeddings",
+        "verb_to_openai_tool",
+        "worker_tools_scope"
+      ],
+      "public_symbols": []
+    },
     "usr/lib/mios/agent-pipe/mios_pipe/routing/verbcatalog.py": {
       "configure_kwargs": [],
       "public_symbols": [
