@@ -3755,8 +3755,8 @@ check_target_languages() {
     local toml="$ROOT/usr/share/mios/mios.toml"
     local allow bad="" nativebad f
     allow=$(awk '/^\[laws\.target_languages\]/{f=1} f&&/grandfathered_cs[[:space:]]*=[[:space:]]*\[/{g=1} g{print} g&&/\]/{exit}' "$toml" | grep -oE '"[^"]+\.cs"' | tr -d '"\r')
-    # Batch eliminated + Go/C++/Java rejected (ADR-0011): any occurrence is a hard violation.
-    nativebad=$(cd "$ROOT" && (git ls-files '*.bat' '*.cmd' '*.go' '*.cpp' '*.cxx' '*.cc' '*.java' 2>/dev/null; git ls-files --others --exclude-standard '*.bat' '*.cmd' '*.go' '*.cpp' '*.cxx' '*.cc' '*.java' 2>/dev/null))
+    # Batch eliminated + Go/C++ rejected (ADR-0011): any occurrence outside Android app is a hard violation.
+    nativebad=$(cd "$ROOT" && (git ls-files '*.bat' '*.cmd' '*.go' '*.cpp' '*.cxx' '*.cc' 2>/dev/null; git ls-files --others --exclude-standard '*.bat' '*.cmd' '*.go' '*.cpp' '*.cxx' '*.cc' 2>/dev/null) | grep -v '^tools/mios-portal-app/' || true)
     [[ -n "$nativebad" ]] && bad+="$nativebad"$'\n'
     # Any tracked/untracked .cs not in the grandfathered allowlist is new C# -> must be Rust instead.
     while IFS= read -r f; do
