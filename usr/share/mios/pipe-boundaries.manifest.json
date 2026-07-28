@@ -1502,6 +1502,28 @@
         "should_throttle",
         "verdict"
       ]
+    },
+    "usr/lib/mios/agent-pipe/mios_pipe/scheduler/vram.py": {
+      "configure_kwargs": [
+        "admit_load_ceil",
+        "admit_mem_pct",
+        "agent_lane",
+        "blade_pool",
+        "endpoint_blade",
+        "endpoint_key",
+        "host_stats",
+        "lane_priority",
+        "local_blade",
+        "multiblade_enable",
+        "polish_model",
+        "refine_endpoint",
+        "refine_model",
+        "vram_budget_mb",
+        "vram_checkpoint_enable",
+        "vram_reclaim_idle",
+        "vram_turn_headroom_mb"
+      ],
+      "public_symbols": []
     }
   }
 }
