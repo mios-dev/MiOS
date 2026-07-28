@@ -1222,6 +1222,44 @@ test_mini_vfio() {
     log "test_mini_vfio negative test passed."
 }
 
+# 56. Test check_hyprland_conf_heredoc
+test_hyprland_heredoc() {
+    log "Testing check_hyprland_conf_heredoc..."
+    local conf_file="${ROOT}/usr/share/mios/hyprland/hyprland.conf"
+    if [ -f "$conf_file" ]; then
+        local orig_val
+        orig_val="$(cat "$conf_file")"
+        echo "# INJECTED-DRIFT" >> "$conf_file"
+
+        if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_hyprland_conf_heredoc >/dev/null 2>&1; then
+            echo "$orig_val" > "$conf_file"
+            die "check_hyprland_conf_heredoc passed despite injected drift!"
+        fi
+
+        echo "$orig_val" > "$conf_file"
+        MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_hyprland_conf_heredoc >/dev/null 2>&1 \
+            || die "check_hyprland_conf_heredoc failed after restoration!"
+    fi
+    log "test_hyprland_heredoc negative test passed."
+}
+
+# 57. Test check_target_languages
+test_target_languages() {
+    log "Testing check_target_languages..."
+    local bogus_file="${ROOT}/usr/libexec/mios/bogus_script.rb"
+    echo 'puts "ruby disallowed"' > "$bogus_file"
+
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_target_languages >/dev/null 2>&1; then
+        rm -f "$bogus_file"
+        die "check_target_languages passed despite disallowed ruby script!"
+    fi
+
+    rm -f "$bogus_file"
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_target_languages >/dev/null 2>&1 \
+        || die "check_target_languages failed after cleanup!"
+    log "test_target_languages negative test passed."
+}
+
 main() {
     log "Starting negative-test suite..."
     test_version_ssot
@@ -1279,6 +1317,8 @@ main() {
     test_sbom_metadata
     test_clevis_luks
     test_mini_vfio
+    test_hyprland_heredoc
+    test_target_languages
     log "All negative tests completed successfully!"
 }
 
