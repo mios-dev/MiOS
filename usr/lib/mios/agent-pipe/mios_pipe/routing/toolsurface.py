@@ -1,4 +1,4 @@
-# AI-hint: Worker-tool surface assembly + child-tool selection extracted from server.py (AGY-349).
+# AI-hint: Worker-tool surface assembly + child-tool selection extracted from server.py.
 # AI-related: usr/lib/mios/agent-pipe/server.py, usr/lib/mios/agent-pipe/mios_pipe/routing/toolsurface.py
 """Worker tool surface and child tool selection module."""
 

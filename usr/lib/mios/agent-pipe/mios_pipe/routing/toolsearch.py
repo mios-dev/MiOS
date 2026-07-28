@@ -56,7 +56,7 @@ _loads_lenient = None
 _embed_one = None
 
 
-# -- Embed-backend outage cooldown (AGY-36) --
+# -- Embed-backend outage cooldown --
 # When the embed backend (mios-llm-light) is DOWN, the embed loops below would
 # otherwise retry EVERY verb / app EVERY warmup cycle -> hundreds of failing HTTP
 # calls per second flooding the journal. After a failed embed attempt we arm a
@@ -246,7 +246,7 @@ async def _ensure_verb_embeddings() -> None:
                     if vname in db_embs:
                         _VERB_EMBEDDINGS[vname] = db_embs[vname]
                 
-                # Rebuild missing or stale ones and write them to the DB. AGY-36:
+                # Rebuild missing or stale ones and write them to the DB.:
                 # if the embed backend is down (cooldown armed) skip the rebuild
                 # entirely -- serve whatever the DB already had, don't hammer.
                 rebuilt = False
@@ -416,7 +416,7 @@ async def _refresh_app_inventory(force: bool = False) -> None:
             seen_keys.add(key)
             if key in _APP_EMBEDDINGS:
                 continue
-            # AGY-36: skip new-record embedding while backing off from an embed
+            #: skip new-record embedding while backing off from an embed
             # outage. seen_keys is still fully populated (we `continue`, not break),
             # so the stale-drop below stays correct and the service stays up.
             if _embed_in_cooldown():

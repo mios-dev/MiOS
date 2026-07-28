@@ -19,7 +19,7 @@ if ! rpm -q systemd-ukify >/dev/null 2>&1; then
     install_packages_strict "uki"
 fi
 
-# SINGLE SOURCE OF TRUTH: tools/generate-uki-cmdline.py (AGY-163) is the ONE
+# SINGLE SOURCE OF TRUTH: tools/generate-uki-cmdline.py is the ONE
 # authoritative flattener of usr/lib/bootc/kargs.d/*.toml -> usr/lib/kernel/cmdline.
 # The post-build drift-gate (38-drift-checks check 93) validates the tree against
 # `generate-uki-cmdline.py --check` (ROOT=/tmp/build), so the build MUST render via

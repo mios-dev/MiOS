@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# AI-hint: Python py_compile + static analysis gate for usr/lib/mios, tools, and usr/libexec/mios (AGY-143).
+# AI-hint: Python py_compile + static analysis gate for usr/lib/mios, tools, and usr/libexec/mios.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

@@ -1,4 +1,4 @@
-# AI-hint: Unit tests for mios_pipe.observability.session_events (AGY-357).
+# AI-hint: Unit tests for mios_pipe.observability.session_events.
 """Unit tests for session event emission and tool text sanitization."""
 
 import unittest

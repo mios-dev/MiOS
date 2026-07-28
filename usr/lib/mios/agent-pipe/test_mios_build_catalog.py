@@ -9,7 +9,7 @@ sys.path.insert(0, "/mnt/c/MiOS/usr/libexec/mios")
 
 
 def setUpModule():
-    # Test hermeticity (AGY-35): self-skip when no live pgvector so the
+    # Test hermeticity: self-skip when no live pgvector so the
     # offline build gate reports SKIP (not FAIL/ERROR) while still running in CI.
     try:
         import psycopg

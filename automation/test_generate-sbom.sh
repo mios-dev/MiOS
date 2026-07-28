@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# AI-hint: Unit test for 90-generate-sbom.sh degrade-open invariants (AGY-101).
+# AI-hint: Unit test for 90-generate-sbom.sh degrade-open invariants.
 # ============================================================================
 # automation/test_generate-sbom.sh
 # ============================================================================

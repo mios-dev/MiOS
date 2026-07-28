@@ -1,4 +1,4 @@
-# AI-hint: Database writer layer extracted from server.py (AGY-344).
+# AI-hint: Database writer layer extracted from server.py.
 # AI-related: usr/lib/mios/agent-pipe/server.py, usr/lib/mios/agent-pipe/mios_pipe/dbwrite.py
 """Database writer layer module."""
 

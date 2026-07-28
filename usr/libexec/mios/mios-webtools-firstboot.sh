@@ -15,7 +15,7 @@ set -uo pipefail
 
 log() { logger -t mios-webtools-firstboot "$*" 2>/dev/null || true; echo "[mios-webtools-firstboot] $*" >&2; }
 
-# ─── firstboot idempotency sentinel (AGY-38) ────────────────────────────────
+# ─── firstboot idempotency sentinel ────────────────────────────────
 # Once both webtools images are built + verified, skip re-running on every boot.
 # The sentinel lives under /var/lib/mios (persists across bootc upgrades). It is
 # written ONLY on a fully-successful run (_rc==0) below, so a partial/failed
@@ -88,7 +88,7 @@ maybe_build "localhost/mios-firecrawl:v1.0.0" \
             "/usr/share/mios/webtools" "firecrawl" || _rc=1
 
 if [ "$_rc" -eq 0 ]; then
-    # sentinel: all images built + verified -- gate re-runs on later boots (AGY-38).
+    # sentinel: all images built + verified -- gate re-runs on later boots.
     # Degrade-open: the touch never changes the exit status.
     install -d -m 0755 /var/lib/mios 2>/dev/null || true
     touch "$_FIRSTBOOT_SENTINEL" 2>/dev/null || true

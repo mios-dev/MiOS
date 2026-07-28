@@ -1,4 +1,4 @@
-# AI-hint: Redaction utilities for secrets and PII (AGY-8).
+# AI-hint: Redaction utilities for secrets and PII.
 # Sanitizes input strings before they are written to persistent storage or federated.
 import re
 

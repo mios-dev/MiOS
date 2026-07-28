@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AI-hint: Renders etc/mios/ipa-enroll.env from usr/share/mios/mios.toml [identity.ipa] SSOT (AGY-162)
+# AI-hint: Renders etc/mios/ipa-enroll.env from usr/share/mios/mios.toml [identity.ipa] SSOT
 import os, sys
 
 try:

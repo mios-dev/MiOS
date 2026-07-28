@@ -1,4 +1,4 @@
-# AI-hint: Unit tests for mios_pipe.access.authn (AGY-347).
+# AI-hint: Unit tests for mios_pipe.access.authn.
 """Unit tests for authentication and caller key management."""
 
 import json

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# AI-hint: Negative-test harness for drift checks 64, 65, and 66 (AGY-120). Builds fixture files containing deliberate violations and asserts the drift checks catch them.
+# AI-hint: Negative-test harness for drift checks 64, 65, and 66. Builds fixture files containing deliberate violations and asserts the drift checks catch them.
 set -euo pipefail
 
 _self_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

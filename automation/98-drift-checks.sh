@@ -191,7 +191,7 @@ _require_python3() {
         return 0
     fi
     if [[ "${MIOS_DRIFT_REQUIRE_TOOLS:-0}" == "1" ]]; then
-        _violation "python3 is required by critical security/law checks but absent (MIOS_DRIFT_REQUIRE_TOOLS=1; AGY-148)"
+        _violation "python3 is required by critical security/law checks but absent (MIOS_DRIFT_REQUIRE_TOOLS=1; )"
     fi
     return 1
 }
@@ -4008,7 +4008,7 @@ for u in unretried:
         for err in "${bad[@]}"; do
             echo "  [curl-retry-drift] unretried network fetch: $err" >&2
         done
-        _violation "curl/wget build network fetch lacking --retry / --tries flag found (AGY-96)"
+        _violation "curl/wget build network fetch lacking --retry / --tries flag found"
     fi
 }
 
@@ -4033,7 +4033,7 @@ check_nested_podman_caps() {
             bad+=("usr/libexec/mios/57-mios-sys-build.sh is missing required nested podman flags (--cap-add, --security-opt seccomp=unconfined)")
         fi
         if ! grep -q "build_image_with_retry" "$sys_script" || ! grep -q "image exists" "$sys_script"; then
-            bad+=("usr/libexec/mios/57-mios-sys-build.sh is missing build_image_with_retry loop or image exists verification (AGY-138)")
+            bad+=("usr/libexec/mios/57-mios-sys-build.sh is missing build_image_with_retry loop or image exists verification")
         fi
     fi
 
@@ -4043,7 +4043,7 @@ check_nested_podman_caps() {
         for err in "${bad[@]}"; do
             echo "  [nested-podman-drift] $err" >&2
         done
-        _violation "nested podman build missing capability/security flags or reference doc (AGY-99)"
+        _violation "nested podman build missing capability/security flags or reference doc"
     fi
 }
 
@@ -4086,7 +4086,7 @@ print(budget)
         for err in "${bad[@]}"; do
             echo "  [bake-budget-drift] $err" >&2
         done
-        _violation "bake-budget gate failed: projected baked size exceeds SSOT runner_disk_budget_gb (AGY-100)"
+        _violation "bake-budget gate failed: projected baked size exceeds SSOT runner_disk_budget_gb"
     fi
 }
 
@@ -4145,7 +4145,7 @@ check_mini_vfio() {
     fi
 }
 
-# (69, WS-ORCH) Router Stage-2 parity gate (AGY-127).
+# (69, WS-ORCH) Router Stage-2 parity gate.
 # Asserts that test_mios_router_parity.py passes over router_corpus.json,
 # AND that all intent branches in agent-pipe routing code are represented in router_corpus.json.
 check_router_parity() {
@@ -4310,7 +4310,7 @@ PY
     then
         echo "[38-drift-checks]   (71) all git clone invocations in Containerfiles carry explicit --branch/--tag/ref"
     else
-        _violation "found unpinned git clone command in a Containerfile (AGY-134)"
+        _violation "found unpinned git clone command in a Containerfile"
     fi
 }
 
@@ -4370,7 +4370,7 @@ consumer_script = os.path.join(root, "usr/libexec/mios/mios-ai-firstboot")
 if os.path.isfile(consumer_script):
     with open(consumer_script, "r", encoding="utf-8", errors="ignore") as fh:
         if "firstboot.list" not in fh.read():
-            bad.append("usr/libexec/mios/mios-ai-firstboot does not reference firstboot.list (AGY-141)")
+            bad.append("usr/libexec/mios/mios-ai-firstboot does not reference firstboot.list")
 
 if bad:
     for b in bad:
@@ -4379,9 +4379,9 @@ if bad:
 sys.exit(0)
 PY
     then
-        echo "[38-drift-checks]   (72) firstboot tier invariant verified (AGY-135)"
+        echo "[38-drift-checks]   (72) firstboot tier invariant verified"
     else
-        _violation "firstboot tier invariant check failed (AGY-135)"
+        _violation "firstboot tier invariant check failed"
     fi
 }
 
@@ -4402,10 +4402,10 @@ check_rechunk_budget() {
         bad+=("rechunk.sh contains hardcoded integer --max-layers literal")
     fi
     if ((${#bad[@]} > 0)); then
-        _violation "check_rechunk_budget: ${bad[*]} (AGY-136)"
+        _violation "check_rechunk_budget: ${bad[*]}"
         return 1
     fi
-    echo "[38-drift-checks]   (73) rechunk budget & SSOT image reference verified (AGY-136)"
+    echo "[38-drift-checks]   (73) rechunk budget & SSOT image reference verified"
 }
 
 check_gate_registry() {
@@ -4477,7 +4477,7 @@ PY
     then
         echo "[38-drift-checks]   (74) gate registry integrity verified (no duplicate checks, 1-to-1 main registration)"
     else
-        _violation "gate registry drift detected in 98-drift-checks.sh (AGY-142)"
+        _violation "gate registry drift detected in 98-drift-checks.sh"
     fi
 }
 
@@ -4485,13 +4485,13 @@ check_python_lint() {
     echo "[38-drift-checks]   (75) Python static compilation gate (lint-python.sh)"
     local lint_script="$ROOT/automation/lint-python.sh"
     if [[ ! -f "$lint_script" ]]; then
-        _violation "automation/lint-python.sh is missing (AGY-143)"
+        _violation "automation/lint-python.sh is missing"
         return
     fi
     local res=0
     bash "$lint_script" >/dev/null 2>&1 || res=$?
     if [[ "$res" -eq 1 ]]; then
-        _violation "python linting reported compilation/syntax error(s) (AGY-143)"
+        _violation "python linting reported compilation/syntax error(s)"
     fi
 }
 
@@ -4553,7 +4553,7 @@ PY
     then
         echo "[38-drift-checks]   (76) test hermeticity verified (all live-resource tests carry skip sentinels)"
     else
-        _violation "unguarded live-resource call in test suite (AGY-144)"
+        _violation "unguarded live-resource call in test suite"
     fi
 }
 
@@ -4636,9 +4636,9 @@ if bad:
 sys.exit(0)
 PY
     then
-        echo "[38-drift-checks]   (77) negative test coverage ratchet verified (test count matches or exceeds law gates count; AGY-158)"
+        echo "[38-drift-checks]   (77) negative test coverage ratchet verified (test count matches or exceeds law gates count; )"
     else
-        _violation "negative test coverage drift detected (AGY-146/AGY-158)"
+        _violation "negative test coverage drift detected (/)"
     fi
 }
 
@@ -4652,9 +4652,9 @@ check_soft_mode_not_committed() {
     done
     if [[ -n "$hits" ]]; then
         printf '%s' "$hits" >&2
-        _violation "soft-mode override is committed in CI/build scripts (AGY-149)"
+        _violation "soft-mode override is committed in CI/build scripts"
     else
-        echo "[38-drift-checks]   (78) no soft-mode override committed in CI/build pipeline (AGY-149)"
+        echo "[38-drift-checks]   (78) no soft-mode override committed in CI/build pipeline"
     fi
 }
 
@@ -4694,15 +4694,15 @@ check_ssot_lint_equivalence() {
     rust_norm="$(echo "$rust_out" | sed -E 's|/mnt/c/MiOS|/ROOT|g; s|C:\\MiOS|/ROOT|g; s|c:\\MiOS|/ROOT|g; s|\\|/|g')"
 
     if [[ "$bash_code" -ne "$rust_code" || "$bash_norm" != "$rust_norm" ]]; then
-        _violation "mios-ssot-lint exit code ($rust_code) differs from bash 97-ssot-lint.sh ($bash_code) (AGY-150)"
+        _violation "mios-ssot-lint exit code ($rust_code) differs from bash 97-ssot-lint.sh ($bash_code)"
         return
     fi
     if [[ "$bash_norm" != "$rust_norm" ]]; then
-        _violation "mios-ssot-lint output differs from bash 97-ssot-lint.sh (AGY-150)"
+        _violation "mios-ssot-lint output differs from bash 97-ssot-lint.sh"
         return
     fi
 
-    echo "[38-drift-checks]   (79) mios-ssot-lint Rust twin byte-identical to bash 97-ssot-lint.sh (AGY-150)"
+    echo "[38-drift-checks]   (79) mios-ssot-lint Rust twin byte-identical to bash 97-ssot-lint.sh"
 }
 
 check_gate_index() {
@@ -4710,10 +4710,10 @@ check_gate_index() {
         return 0
     fi
     if MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-gate-index.py" --check >/dev/null 2>&1; then
-        echo "[38-drift-checks]   (80) gate index in sync with main() registration (AGY-151)"
+        echo "[38-drift-checks]   (80) gate index in sync with main() registration"
     else
         _emit_projection_evidence "tools/generate-gate-index.py" "usr/share/mios/reference/drift-gate-index.tsv"
-        _violation "usr/share/mios/reference/drift-gate-index.tsv is out of sync with main() (AGY-151) -- run python3 tools/generate-gate-index.py"
+        _violation "usr/share/mios/reference/drift-gate-index.tsv is out of sync with main() -- run python3 tools/generate-gate-index.py"
     fi
 }
 
@@ -4731,9 +4731,9 @@ check_oci_archive_path() {
     p_path="$(grep -oE '/mnt/mios-repo/[a-zA-Z0-9_.-]+\.tar' "$producer" | head -1 || true)"
 
     if [[ -z "$c_path" || -z "$p_path" || "$c_path" != "$p_path" ]]; then
-        _violation "oci-archive default path mismatch between producer ($p_path) and consumer ($c_path) (AGY-152)"
+        _violation "oci-archive default path mismatch between producer ($p_path) and consumer ($c_path)"
     else
-        echo "[38-drift-checks]   (81) oci-archive producer and consumer paths match ($c_path; AGY-152)"
+        echo "[38-drift-checks]   (81) oci-archive producer and consumer paths match ($c_path; )"
     fi
 }
 
@@ -4785,9 +4785,9 @@ if bad:
 sys.exit(0)
 PY
     then
-        echo "[38-drift-checks]   (82) BIB recipes perform credential substitution on mounted config templates (AGY-153)"
+        echo "[38-drift-checks]   (82) BIB recipes perform credential substitution on mounted config templates"
     else
-        _violation "unsubstituted REPLACEME template raw-mounted in Justfile BIB recipe (AGY-153)"
+        _violation "unsubstituted REPLACEME template raw-mounted in Justfile BIB recipe"
     fi
 }
 
@@ -4810,9 +4810,9 @@ check_kickstart_shell_syntax() {
 
     if [[ -n "$bad_ks" ]]; then
         printf '%s' "$bad_ks" >&2
-        _violation "embedded kickstart shell contains bash syntax errors (AGY-154)"
+        _violation "embedded kickstart shell contains bash syntax errors"
     else
-        echo "[38-drift-checks]   (83) embedded kickstart %post shell syntax verified clean with bash -n (AGY-154)"
+        echo "[38-drift-checks]   (83) embedded kickstart %post shell syntax verified clean with bash -n"
     fi
 }
 
@@ -4872,9 +4872,9 @@ if bad:
 sys.exit(0)
 PY
     then
-        echo "[38-drift-checks]   (84) BIB recipes enforce valid --rootfs filesystem label policy (AGY-155)"
+        echo "[38-drift-checks]   (84) BIB recipes enforce valid --rootfs filesystem label policy"
     else
-        _violation "BIB recipe violates rootfs filesystem label policy (AGY-155)"
+        _violation "BIB recipe violates rootfs filesystem label policy"
     fi
 }
 
@@ -4886,12 +4886,12 @@ check_offline_install_invariant() {
     fi
 
     if ! bash -n "$install_script" 2>/dev/null; then
-        _violation "tools/install.sh failed bash -n syntax check (AGY-155)"
+        _violation "tools/install.sh failed bash -n syntax check"
         return 0
     fi
 
     if ! grep -q '\--transport oci-archive' "$install_script"; then
-        _violation "tools/install.sh does not invoke bootc install with --transport oci-archive (AGY-155)"
+        _violation "tools/install.sh does not invoke bootc install with --transport oci-archive"
         return 0
     fi
 
@@ -4899,9 +4899,9 @@ check_offline_install_invariant() {
     net_token="$(grep -nE '(http://|https://|git clone|podman pull|skopeo copy docker://)' "$install_script" | grep -v '^\s*#' || true)"
     if [[ -n "$net_token" ]]; then
         echo "$net_token" >&2
-        _violation "tools/install.sh contains forbidden network pull token violating zero-network offline-install contract (AGY-155)"
+        _violation "tools/install.sh contains forbidden network pull token violating zero-network offline-install contract"
     else
-        echo "[38-drift-checks]   (85) tools/install.sh zero-network offline-install invariant verified clean (AGY-155)"
+        echo "[38-drift-checks]   (85) tools/install.sh zero-network offline-install invariant verified clean"
     fi
 }
 
@@ -4930,9 +4930,9 @@ check_installer_family_roles() {
 
     if [[ -n "$bad_installers" ]]; then
         printf '%s' "$bad_installers" >&2
-        _violation "installer script role marker violation or collision (AGY-156)"
+        _violation "installer script role marker violation or collision"
     else
-        echo "[38-drift-checks]   (86) installer family role markers verified unique across all installers (AGY-156)"
+        echo "[38-drift-checks]   (86) installer family role markers verified unique across all installers"
     fi
 }
 
@@ -4941,10 +4941,10 @@ check_bib_configs_projection() {
         return 0
     fi
     if MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-bib-configs.py" --check >/dev/null 2>&1; then
-        echo "[38-drift-checks]   (87) BIB artifact configs in sync with mios.toml [deploy.artifacts] SSOT (AGY-157)"
+        echo "[38-drift-checks]   (87) BIB artifact configs in sync with mios.toml [deploy.artifacts] SSOT"
     else
         _emit_projection_evidence "tools/generate-bib-configs.py" "config/artifacts/bib.toml" "config/artifacts/iso.toml"
-        _violation "BIB artifact configs (bib.toml, iso.toml) out of sync with mios.toml [deploy.artifacts] (AGY-157) -- run python3 tools/generate-bib-configs.py"
+        _violation "BIB artifact configs (bib.toml, iso.toml) out of sync with mios.toml [deploy.artifacts] -- run python3 tools/generate-bib-configs.py"
     fi
 }
 
@@ -4971,9 +4971,9 @@ check_repo_partition_label_ssot() {
 
     if [[ -n "$bad_lbl" ]]; then
         printf '%s' "$bad_lbl" >&2
-        _violation "repo partition label mismatch against [cat.repo_partition].label SSOT (AGY-158)"
+        _violation "repo partition label mismatch against [cat.repo_partition].label SSOT"
     else
-        echo "[38-drift-checks]   (88) repo partition label consumers match [cat.repo_partition].label SSOT ($ssot_label; AGY-158)"
+        echo "[38-drift-checks]   (88) repo partition label consumers match [cat.repo_partition].label SSOT ($ssot_label; )"
     fi
 }
 
@@ -5042,9 +5042,9 @@ if bad:
 sys.exit(0)
 PY
     then
-        echo "[38-drift-checks]   (89) BIB recipes enforce single /config.toml mount and valid TOML syntax (AGY-159)"
+        echo "[38-drift-checks]   (89) BIB recipes enforce single /config.toml mount and valid TOML syntax"
     else
-        _violation "BIB recipe config mount or TOML syntax violation (AGY-159)"
+        _violation "BIB recipe config mount or TOML syntax violation"
     fi
 }
 
@@ -5067,9 +5067,9 @@ check_build_artifacts_output_dir() {
 
     if [[ -n "$bad_out" ]]; then
         printf '%s\n' "$bad_out" >&2
-        _violation "Justfile recipe outputs violate [build.artifacts].output_dir SSOT (AGY-161)"
+        _violation "Justfile recipe outputs violate [build.artifacts].output_dir SSOT"
     else
-        echo "[38-drift-checks]   (90) Justfile artifact recipes enforce SSOT output directory ($output_dir/; AGY-161)"
+        echo "[38-drift-checks]   (90) Justfile artifact recipes enforce SSOT output directory ($output_dir/; )"
     fi
 }
 
@@ -5137,9 +5137,9 @@ if bad:
 sys.exit(0)
 PY
     then
-        echo "[38-drift-checks]   (91) Win11 VM template is well-formed XML and projects SSOT [vm.win11] (AGY-161)"
+        echo "[38-drift-checks]   (91) Win11 VM template is well-formed XML and projects SSOT [vm.win11]"
     else
-        _violation "Win11 VM template XML well-formedness or SSOT projection violation (AGY-161)"
+        _violation "Win11 VM template XML well-formedness or SSOT projection violation"
     fi
 }
 
@@ -5148,10 +5148,10 @@ check_ipa_enroll_projection() {
         return 0
     fi
     if MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-ipa-enroll-env.py" --check >/dev/null 2>&1; then
-        echo "[38-drift-checks]   (92) etc/mios/ipa-enroll.env matches [identity.ipa] SSOT (AGY-162)"
+        echo "[38-drift-checks]   (92) etc/mios/ipa-enroll.env matches [identity.ipa] SSOT"
     else
         _emit_projection_evidence "tools/generate-ipa-enroll-env.py" "etc/mios/ipa-enroll.env"
-        _violation "etc/mios/ipa-enroll.env is out of sync with [identity.ipa] SSOT (AGY-162) -- run python3 tools/generate-ipa-enroll-env.py"
+        _violation "etc/mios/ipa-enroll.env is out of sync with [identity.ipa] SSOT -- run python3 tools/generate-ipa-enroll-env.py"
     fi
 }
 
@@ -5160,10 +5160,10 @@ check_uki_cmdline_projection() {
         return 0
     fi
     if MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-uki-cmdline.py" --check >/dev/null 2>&1; then
-        echo "[38-drift-checks]   (93) usr/lib/kernel/cmdline matches kargs.d/*.toml drop-ins (AGY-163)"
+        echo "[38-drift-checks]   (93) usr/lib/kernel/cmdline matches kargs.d/*.toml drop-ins"
     else
         _emit_projection_evidence "tools/generate-uki-cmdline.py" "usr/lib/kernel/cmdline"
-        _violation "usr/lib/kernel/cmdline is out of sync with usr/lib/bootc/kargs.d/*.toml (AGY-163) -- run python3 tools/generate-uki-cmdline.py"
+        _violation "usr/lib/kernel/cmdline is out of sync with usr/lib/bootc/kargs.d/*.toml -- run python3 tools/generate-uki-cmdline.py"
     fi
 }
 
@@ -5184,16 +5184,16 @@ check_composefs_projection() {
 
     if [[ ! -f "$tmp_conf" ]]; then
         rm -rf "$tmp_dir"
-        _violation "automation/77-composefs-verity.sh failed to render prepare-root.conf (AGY-164)"
+        _violation "automation/77-composefs-verity.sh failed to render prepare-root.conf"
         return
     fi
 
     if ! diff -u "$conf" "$tmp_conf" >/dev/null 2>&1; then
         rm -rf "$tmp_dir"
-        _violation "usr/lib/ostree/prepare-root.conf is out of sync with [security].composefs_mode SSOT (AGY-164)"
+        _violation "usr/lib/ostree/prepare-root.conf is out of sync with [security].composefs_mode SSOT"
     else
         rm -rf "$tmp_dir"
-        echo "[38-drift-checks]   (94) usr/lib/ostree/prepare-root.conf matches [security].composefs_mode SSOT (AGY-164)"
+        echo "[38-drift-checks]   (94) usr/lib/ostree/prepare-root.conf matches [security].composefs_mode SSOT"
     fi
 }
 
@@ -5202,10 +5202,10 @@ check_cockpit_projection() {
         return 0
     fi
     if MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-cockpit-conf.py" --check >/dev/null 2>&1; then
-        echo "[38-drift-checks]   (95) etc/cockpit/cockpit.conf matches mios.toml [cockpit] SSOT (AGY-165)"
+        echo "[38-drift-checks]   (95) etc/cockpit/cockpit.conf matches mios.toml [cockpit] SSOT"
     else
         _emit_projection_evidence "tools/generate-cockpit-conf.py" "etc/cockpit/cockpit.conf"
-        _violation "etc/cockpit/cockpit.conf is out of sync with mios.toml [cockpit] SSOT (AGY-165) -- run python3 tools/generate-cockpit-conf.py"
+        _violation "etc/cockpit/cockpit.conf is out of sync with mios.toml [cockpit] SSOT -- run python3 tools/generate-cockpit-conf.py"
     fi
 }
 
@@ -5215,12 +5215,12 @@ check_chrony_ptp_dropin() {
     local canon_conf="$ROOT/etc/chrony.conf"
 
     if [[ ! -f "$dropin_script" || ! -f "$service_unit" ]]; then
-        _violation "Chrony PTP drop-in generator script or service unit missing (AGY-166)"
+        _violation "Chrony PTP drop-in generator script or service unit missing"
         return
     fi
 
     if ! bash -n "$dropin_script" >/dev/null 2>&1; then
-        _violation "usr/libexec/mios/mios-chrony-ptp-dropin syntax error (AGY-166)"
+        _violation "usr/libexec/mios/mios-chrony-ptp-dropin syntax error"
         return
     fi
 
@@ -5239,7 +5239,7 @@ check_chrony_ptp_dropin() {
 
     if [[ ! -f "${tmp_chrony_d}/10-ptp.conf" ]]; then
         rm -rf "$tmp_dir"
-        _violation "mios-chrony-ptp-dropin failed to generate 10-ptp.conf when /dev/ptp0 exists (AGY-166)"
+        _violation "mios-chrony-ptp-dropin failed to generate 10-ptp.conf when /dev/ptp0 exists"
         return
     fi
 
@@ -5249,13 +5249,13 @@ check_chrony_ptp_dropin() {
         new_conf_hash="$(sha256sum "$canon_conf" | awk '{print $1}')"
         if [[ "$old_conf_hash" != "$new_conf_hash" ]]; then
             rm -rf "$tmp_dir"
-            _violation "mios-chrony-ptp-dropin mutated canonical etc/chrony.conf (AGY-166)"
+            _violation "mios-chrony-ptp-dropin mutated canonical etc/chrony.conf"
             return
         fi
     fi
 
     rm -rf "$tmp_dir"
-    echo "[38-drift-checks]   (96) Chrony PTP drop-in generator is idempotent and leaves canonical chrony.conf unchanged (AGY-166)"
+    echo "[38-drift-checks]   (96) Chrony PTP drop-in generator is idempotent and leaves canonical chrony.conf unchanged"
 }
 
 check_renderer_gate_coverage() {
@@ -5296,7 +5296,7 @@ check_renderer_gate_coverage() {
     done
 
     if [[ ${#unmapped[@]} -gt 0 ]]; then
-        _violation "The following renderer scripts have no corresponding projection check in 98-drift-checks.sh (AGY-168): ${unmapped[*]}"
+        _violation "The following renderer scripts have no corresponding projection check in 98-drift-checks.sh: ${unmapped[*]}"
     else
         echo "[38-drift-checks]   (75) renderer gate coverage verified clean"
     fi
@@ -5434,9 +5434,9 @@ check_pipe_extraction_parity() {
     fi
 
     if MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/pipe-parity-check.py" >/dev/null 2>&1; then
-        echo "[38-drift-checks]   (99) extraction surface parity + one-way imports clean (AGY-350)"
+        echo "[38-drift-checks]   (99) extraction surface parity + one-way imports clean"
     else
-        _violation "mios_pipe extraction surface parity or one-way import rule violated (AGY-350)"
+        _violation "mios_pipe extraction surface parity or one-way import rule violated"
     fi
 }
 

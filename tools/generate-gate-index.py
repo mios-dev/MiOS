@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-tools/generate-gate-index.py (AGY-151)
+tools/generate-gate-index.py
 Generates usr/share/mios/reference/drift-gate-index.tsv from automation/98-drift-checks.sh.
 Enforces 1:1 ordinal numbering for every registered drift-check in main() order.
 """

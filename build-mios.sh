@@ -766,7 +766,7 @@ EOF
     fi
 
     # Disable bare-metal/cluster services for FHS overlay installs (folded from the
-    # former C:\MiOS build-mios.sh, where it was dead behind the AGY-106 redirect).
+    # former C:\MiOS build-mios.sh, where it was dead behind the redirect).
     if [[ -f "${PROFILE_CARD}" && "${INSTALL_MODE}" == "fhs" ]]; then
         log_info "Configuring FHS profile: disabling bare-metal/cluster services in $(basename "${PROFILE_CARD}")"
         local svc

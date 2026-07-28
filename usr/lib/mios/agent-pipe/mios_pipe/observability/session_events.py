@@ -1,4 +1,4 @@
-# AI-hint: Session-event emitter + tool-text sanitizer extracted from server.py (AGY-357).
+# AI-hint: Session-event emitter + tool-text sanitizer extracted from server.py.
 # AI-related: usr/lib/mios/agent-pipe/server.py, usr/lib/mios/agent-pipe/mios_pipe/observability/session_events.py
 """Session event emission and text sanitization module."""
 

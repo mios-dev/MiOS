@@ -1,4 +1,4 @@
-# AI-hint: Unit test for mios_pipe.health module (AGY-113).
+# AI-hint: Unit test for mios_pipe.health module.
 from __future__ import annotations
 
 from mios_pipe.health import build_health_response

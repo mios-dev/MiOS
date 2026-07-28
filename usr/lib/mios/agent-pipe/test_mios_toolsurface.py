@@ -1,4 +1,4 @@
-# AI-hint: Unit tests for mios_pipe.routing.toolsurface (AGY-349).
+# AI-hint: Unit tests for mios_pipe.routing.toolsurface.
 """Unit tests for worker tool surface assembly and child tool selection."""
 
 import asyncio

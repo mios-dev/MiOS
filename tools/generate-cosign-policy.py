@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AI-hint: Renders usr/lib/containers/policy.json from usr/share/mios/mios.toml [security.sigstore] SSOT (AGY-165)
+# AI-hint: Renders usr/lib/containers/policy.json from usr/share/mios/mios.toml [security.sigstore] SSOT
 import os, sys, json
 
 try:

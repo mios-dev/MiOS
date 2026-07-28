@@ -1,4 +1,4 @@
-# AI-hint: stdlib unit test for mios_template (AGY-52).
+# AI-hint: stdlib unit test for mios_template.
 # AI-related: usr/lib/mios/agent-pipe/test_mios_template.py, usr/lib/mios/agent-pipe/mios_template.py
 # AI-functions: TestMiosTemplate, main
 """Unit tests for mios_template command rendering."""

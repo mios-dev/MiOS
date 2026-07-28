@@ -1,4 +1,4 @@
-# AI-hint: Unit tests for mios_pipe.scheduler.vram (AGY-346).
+# AI-hint: Unit tests for mios_pipe.scheduler.vram.
 """Unit tests for VRAM and model residency manager."""
 
 import asyncio

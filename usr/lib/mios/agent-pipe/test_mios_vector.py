@@ -1,4 +1,4 @@
-# AI-hint: stdlib unit test for pgvector schema and cosine similarity matching (AGY-7).
+# AI-hint: stdlib unit test for pgvector schema and cosine similarity matching.
 # Connects to the database and performs a vector similarity query to assert correct functionality.
 import os
 import unittest

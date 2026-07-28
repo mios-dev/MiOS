@@ -1,4 +1,4 @@
-# AI-hint: stdlib unit test for mios_db_config resolver (AGY-9).
+# AI-hint: stdlib unit test for mios_db_config resolver.
 # Exercises the DB read path, precedence ordering, TOML fall-back, and shadow-compare divergences.
 # WS-A2 compliance: Sibling test present and free of server.py imports.
 import sys
@@ -16,7 +16,7 @@ except ImportError:
 import mios_db_config
 
 def setUpModule():
-    # Test hermeticity (AGY-35): self-skip when no live pgvector so the
+    # Test hermeticity: self-skip when no live pgvector so the
     # offline build gate reports SKIP (not FAIL/ERROR) while still running in CI.
     if psycopg is None:
         raise unittest.SkipTest("no live pgvector -- integration test")

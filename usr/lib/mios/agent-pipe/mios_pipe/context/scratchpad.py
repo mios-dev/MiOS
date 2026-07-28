@@ -1,4 +1,4 @@
-# AI-hint: Agent scratchpad blackboard extracted from server.py (AGY-348).
+# AI-hint: Agent scratchpad blackboard extracted from server.py.
 # AI-related: usr/lib/mios/agent-pipe/server.py, usr/lib/mios/agent-pipe/mios_pipe/context/scratchpad.py
 """Agent scratchpad blackboard module."""
 

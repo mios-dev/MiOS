@@ -1,4 +1,4 @@
-# AI-hint: Hermetic negative-tests and validation unit tests for all dotfiles merge kinds (AGY-60).
+# AI-hint: Hermetic negative-tests and validation unit tests for all dotfiles merge kinds.
 # AI-related: tests/test-theme-merge.py, usr/libexec/mios/mios-theme-render
 # AI-functions: TestThemeMerge, main
 

@@ -1,4 +1,4 @@
-# AI-hint: Unit test for empty MIOS_* env contract (AGY-98).
+# AI-hint: Unit test for empty MIOS_* env contract.
 # Asserts that every agent-pipe module imports cleanly even when os.environ is populated
 # with empty MIOS_* variables.
 # ============================================================================

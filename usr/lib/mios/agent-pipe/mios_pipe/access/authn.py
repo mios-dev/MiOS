@@ -1,4 +1,4 @@
-# AI-hint: Authentication / caller-key helpers extracted from server.py (AGY-347).
+# AI-hint: Authentication / caller-key helpers extracted from server.py.
 # AI-related: usr/lib/mios/agent-pipe/server.py, usr/lib/mios/agent-pipe/mios_pipe/access/authn.py
 """Authentication and caller key management module."""
 

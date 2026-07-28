@@ -31,7 +31,7 @@ for unit_file in \
 done
 echo "[20-services] Fixed systemd unit file permissions"
 
-# ─── Cockpit config: project from mios.toml [cockpit] SSOT (AGY-165) ─────────
+# ─── Cockpit config: project from mios.toml [cockpit] SSOT ─────────
 # /etc/cockpit/cockpit.conf is rendered by the SINGLE authoritative generator
 # tools/generate-cockpit-conf.py from mios.toml [cockpit] -- it is NOT hand-
 # maintained and NOT the divergent usr/lib/cockpit/cockpit.conf fallback that
@@ -44,7 +44,7 @@ _cockpit_gen="${_mios_src_root}/tools/generate-cockpit-conf.py"
 if [[ -f "$_cockpit_gen" ]] && command -v python3 >/dev/null 2>&1; then
     python3 "$_cockpit_gen"
     install -D -m 0644 "${_mios_src_root}/etc/cockpit/cockpit.conf" /etc/cockpit/cockpit.conf
-    echo "[20-services] projected /etc/cockpit/cockpit.conf from mios.toml [cockpit] SSOT (AGY-165)"
+    echo "[20-services] projected /etc/cockpit/cockpit.conf from mios.toml [cockpit] SSOT"
 else
     echo "[20-services] WARN: generate-cockpit-conf.py or python3 unavailable -- /etc/cockpit/cockpit.conf not projected"
 fi

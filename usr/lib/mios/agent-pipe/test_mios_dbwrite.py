@@ -1,4 +1,4 @@
-# AI-hint: Unit tests for mios_pipe.dbwrite (AGY-344).
+# AI-hint: Unit tests for mios_pipe.dbwrite.
 """Unit tests for database writer layer."""
 
 import unittest

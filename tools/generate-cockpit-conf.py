@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AI-hint: Renders etc/cockpit/cockpit.conf from usr/share/mios/mios.toml SSOT (AGY-165)
+# AI-hint: Renders etc/cockpit/cockpit.conf from usr/share/mios/mios.toml SSOT
 import os, sys
 
 try:

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# AI-hint: Negative-test harness for the new drift gates (AGY-54). Inject violations, assert they fail, restore, and assert pass.
+# AI-hint: Negative-test harness for the new drift gates. Inject violations, assert they fail, restore, and assert pass.
 # AI-related: /usr/lib/mios/userenv.sh, /usr/libexec/mios/mios-test-temp-eval, /usr/share/mios/referenced_names.txt, mios-test-temp-eval
 # AI-functions: log, die, test_version_ssot, test_resolver_equivalence, test_eval_safety, test_shellcheck_failure, test_names_registry_closure, test_root_toml_subset, main
 set -euo pipefail
@@ -304,7 +304,7 @@ test_module_test_coverage() {
     log "check_module_test_coverage negative test passed."
 }
 
-# 12. Test check_router_parity (AGY-127)
+# 12. Test check_router_parity
 test_router_parity() {
     log "Testing check_router_parity..."
     local temp_mod="${ROOT}/usr/lib/mios/agent-pipe/mios_pipe/routing/temp_unmapped_router_branch.py"
@@ -322,7 +322,7 @@ test_router_parity() {
     log "check_router_parity negative test passed."
 }
 
-# 13. Test check_council_gate_ssot (AGY-128)
+# 13. Test check_council_gate_ssot
 test_council_gate_ssot() {
     log "Testing check_council_gate_ssot..."
     local toml_file="${ROOT}/usr/share/mios/mios.toml"
@@ -349,7 +349,7 @@ EOF
     log "check_council_gate_ssot negative test passed."
 }
 
-# 14. Test check_agent_pipe_budgets (AGY-130/131)
+# 14. Test check_agent_pipe_budgets (/131)
 test_agent_pipe_budgets() {
     log "Testing check_agent_pipe_budgets..."
     local toml_file="${ROOT}/usr/share/mios/mios.toml"
@@ -376,7 +376,7 @@ EOF
     log "check_agent_pipe_budgets negative test passed."
 }
 
-# 15. Test check_bake_plan with bogus firstboot token (AGY-133)
+# 15. Test check_bake_plan with bogus firstboot token
 test_bake_tokens() {
     log "Testing check_bake_plan with bogus firstboot token..."
     local toml_file="${ROOT}/usr/share/mios/mios.toml"
@@ -401,7 +401,7 @@ EOF
         || die "generate-bake-plan.py --check failed after restoration!"
     log "test_bake_tokens negative test passed."
 }
-# 16. Test check_containerfile_pinned_clones (AGY-134)
+# 16. Test check_containerfile_pinned_clones
 test_containerfile_pinned_clones() {
     log "Testing check_containerfile_pinned_clones..."
     local temp_containerfile="${ROOT}/usr/share/mios/sys/Containerfile.testtemp"
@@ -422,7 +422,7 @@ EOF
     log "check_containerfile_pinned_clones negative test passed."
 }
 
-# 17. Test check_firstboot_tier (AGY-135)
+# 17. Test check_firstboot_tier
 test_firstboot_tier() {
     log "Testing check_firstboot_tier..."
     local fb_list="${ROOT}/usr/lib/mios/bake/plan.d/firstboot.list"
@@ -441,7 +441,7 @@ test_firstboot_tier() {
     log "check_firstboot_tier negative test passed."
 }
 
-# 18. Test check_rechunk_budget (AGY-136)
+# 18. Test check_rechunk_budget
 test_rechunk_budget() {
     log "Testing check_rechunk_budget..."
     local script="${ROOT}/automation/build/rechunk.sh"
@@ -460,9 +460,9 @@ test_rechunk_budget() {
     log "check_rechunk_budget negative test passed."
 }
 
-# 19. Test core bake reconciliation (AGY-137)
+# 19. Test core bake reconciliation
 test_bake_core_reconcile() {
-    log "Testing core bake reconciliation (AGY-137)..."
+    log "Testing core bake reconciliation..."
     local toml_file="${ROOT}/usr/share/mios/mios.toml"
     local bak="${toml_file}.coretest.bak"
     cp "$toml_file" "$bak"
@@ -486,9 +486,9 @@ EOF
     log "test_bake_core_reconcile negative test passed."
 }
 
-# 20. Test check_nested_podman_caps (AGY-138)
+# 20. Test check_nested_podman_caps
 test_nested_podman_retry() {
-    log "Testing check_nested_podman_caps (AGY-138)..."
+    log "Testing check_nested_podman_caps..."
     local script="${ROOT}/usr/libexec/mios/57-mios-sys-build.sh"
     local bak="${script}.retrytest.bak"
     cp "$script" "$bak"
@@ -505,9 +505,9 @@ test_nested_podman_retry() {
     log "test_nested_podman_retry negative test passed."
 }
 
-# 21. Test check_gate_registry (AGY-142)
+# 21. Test check_gate_registry
 test_gate_registry() {
-    log "Testing check_gate_registry (AGY-142)..."
+    log "Testing check_gate_registry..."
     local script="${ROOT}/automation/98-drift-checks.sh"
     local bak="${script}.gateregtest.bak"
     cp "$script" "$bak"
@@ -525,9 +525,9 @@ test_gate_registry() {
     log "test_gate_registry negative test passed."
 }
 
-# 22. Test check_test_hermeticity (AGY-144)
+# 22. Test check_test_hermeticity
 test_test_hermeticity() {
-    log "Testing check_test_hermeticity (AGY-144)..."
+    log "Testing check_test_hermeticity..."
     local temp_test="${ROOT}/tests/test_fake_live_resource.py"
 
     cat << 'EOF' > "$temp_test"
@@ -547,9 +547,9 @@ EOF
     log "test_test_hermeticity negative test passed."
 }
 
-# 23. Test check_no_mkdir_in_var (AGY-145)
+# 23. Test check_no_mkdir_in_var
 test_no_mkdir_in_var() {
-    log "Testing check_no_mkdir_in_var (AGY-145)..."
+    log "Testing check_no_mkdir_in_var..."
     local temp_script="${ROOT}/automation/99-fake-var-mkdir.sh"
     echo 'mkdir -p /var/log/fake_test' > "$temp_script"
 
@@ -564,9 +564,9 @@ test_no_mkdir_in_var() {
     log "test_no_mkdir_in_var negative test passed."
 }
 
-# 24. Test check_quadlet_privilege (AGY-145)
+# 24. Test check_quadlet_privilege
 test_quadlet_privilege() {
-    log "Testing check_quadlet_privilege (AGY-145)..."
+    log "Testing check_quadlet_privilege..."
     local q_dir="${ROOT}/etc/containers/systemd"
     mkdir -p "$q_dir"
     local temp_q="${q_dir}/fake-unprivileged-violation.container"
@@ -588,9 +588,9 @@ EOF
     log "test_quadlet_privilege negative test passed."
 }
 
-# 25. Test check_lint_is_final (AGY-145)
+# 25. Test check_lint_is_final
 test_lint_is_final() {
-    log "Testing check_lint_is_final (AGY-145)..."
+    log "Testing check_lint_is_final..."
     local cf="${ROOT}/Containerfile"
     local bak="${cf}.linttest.bak"
     cp "$cf" "$bak"
@@ -607,9 +607,9 @@ test_lint_is_final() {
     log "test_lint_is_final negative test passed."
 }
 
-# 26. Test check_firstboot_degrade_open (AGY-145)
+# 26. Test check_firstboot_degrade_open
 test_firstboot_degrade_open() {
-    log "Testing check_firstboot_degrade_open (AGY-145)..."
+    log "Testing check_firstboot_degrade_open..."
     local temp_fb="${ROOT}/usr/libexec/mios/mios-fake-firstboot.sh"
     cat << 'EOF' > "$temp_fb"
 #!/usr/bin/env bash
@@ -628,9 +628,9 @@ EOF
     log "test_firstboot_degrade_open negative test passed."
 }
 
-# 27. Test MIOS_DRIFT_REQUIRE_TOOLS (AGY-148)
+# 27. Test MIOS_DRIFT_REQUIRE_TOOLS
 test_require_tools() {
-    log "Testing MIOS_DRIFT_REQUIRE_TOOLS (AGY-148)..."
+    log "Testing MIOS_DRIFT_REQUIRE_TOOLS..."
     local tmp_bin="${ROOT}/tmp_no_python"
     mkdir -p "$tmp_bin"
 
@@ -643,9 +643,9 @@ test_require_tools() {
     log "test_require_tools negative test passed."
 }
 
-# 28. Test 97-ssot-lint.sh deadkey (AGY-149)
+# 28. Test 97-ssot-lint.sh deadkey
 test_ssot_lint_deadkey() {
-    log "Testing 97-ssot-lint.sh dead-key injection (AGY-149)..."
+    log "Testing 97-ssot-lint.sh dead-key injection..."
     local temp_q="${ROOT}/usr/share/containers/systemd/fake-deadkey-test.container"
     rm -f "$temp_q" 2>/dev/null || true
     local dummy_var="MI"
@@ -670,9 +670,9 @@ EOF
     log "test_ssot_lint_deadkey negative test passed."
 }
 
-# 29. Test check_soft_mode_not_committed (AGY-149)
+# 29. Test check_soft_mode_not_committed
 test_soft_mode_not_committed() {
-    log "Testing check_soft_mode_not_committed (AGY-149)..."
+    log "Testing check_soft_mode_not_committed..."
     local gha_file="${ROOT}/.github/workflows/mios-ci.yml"
     local bak="${gha_file}.softtest.bak"
     cp "$gha_file" "$bak"
@@ -689,9 +689,9 @@ test_soft_mode_not_committed() {
     log "test_soft_mode_not_committed negative test passed."
 }
 
-# 30. Test check_oci_archive_path (AGY-152)
+# 30. Test check_oci_archive_path
 test_oci_archive_path() {
-    log "Testing check_oci_archive_path (AGY-152)..."
+    log "Testing check_oci_archive_path..."
     local stage_script="${ROOT}/usr/libexec/mios/mios-stage-oci-archive"
     local bak="${stage_script}.pathbak"
     cp "$stage_script" "$bak"
@@ -708,9 +708,9 @@ test_oci_archive_path() {
     log "test_oci_archive_path negative test passed."
 }
 
-# 31. Test check_replaceme_mount_substitution (AGY-153)
+# 31. Test check_replaceme_mount_substitution
 test_replaceme_mount_substitution() {
-    log "Testing check_replaceme_mount_substitution (AGY-153)..."
+    log "Testing check_replaceme_mount_substitution..."
     local justfile="${ROOT}/Justfile"
     local bak="${justfile}.replacemebak"
     cp "$justfile" "$bak"
@@ -732,9 +732,9 @@ EOF
     log "test_replaceme_mount_substitution negative test passed."
 }
 
-# 32. Test check_kickstart_shell_syntax (AGY-154)
+# 32. Test check_kickstart_shell_syntax
 test_kickstart_shell_syntax() {
-    log "Testing check_kickstart_shell_syntax (AGY-154)..."
+    log "Testing check_kickstart_shell_syntax..."
     local cfg="${ROOT}/usr/share/mios/ventoy/mios-kickstart.cfg"
     local bak="${cfg}.ksbak"
     cp "$cfg" "$bak"
@@ -757,9 +757,9 @@ EOF
     log "test_kickstart_shell_syntax negative test passed."
 }
 
-# 33. Test check_offline_install_invariant (AGY-155)
+# 33. Test check_offline_install_invariant
 test_offline_install_invariant() {
-    log "Testing check_offline_install_invariant (AGY-155)..."
+    log "Testing check_offline_install_invariant..."
     local install_script="${ROOT}/tools/install.sh"
     local bak="${install_script}.instbak"
     cp "$install_script" "$bak"
@@ -777,9 +777,9 @@ test_offline_install_invariant() {
     log "test_offline_install_invariant negative test passed."
 }
 
-# 34. Test check_installer_family_roles (AGY-156)
+# 34. Test check_installer_family_roles
 test_installer_family_roles() {
-    log "Testing check_installer_family_roles (AGY-156)..."
+    log "Testing check_installer_family_roles..."
     local s_script="${ROOT}/install.sh"
     local bak="${s_script}.rolebak"
     cp "$s_script" "$bak"
@@ -797,9 +797,9 @@ test_installer_family_roles() {
     log "test_installer_family_roles negative test passed."
 }
 
-# 35. Test check_bib_configs_projection (AGY-157)
+# 35. Test check_bib_configs_projection
 test_bib_configs_projection() {
-    log "Testing check_bib_configs_projection (AGY-157)..."
+    log "Testing check_bib_configs_projection..."
     local bib_file="${ROOT}/config/artifacts/bib.toml"
     local bak="${bib_file}.bibbak"
     cp "$bib_file" "$bak"
@@ -817,17 +817,17 @@ test_bib_configs_projection() {
     log "test_bib_configs_projection negative test passed."
 }
 
-# 36. Test check_ssot_lint_equivalence (AGY-150)
+# 36. Test check_ssot_lint_equivalence
 test_ssot_lint_equivalence() {
-    log "Testing check_ssot_lint_equivalence (AGY-150)..."
+    log "Testing check_ssot_lint_equivalence..."
     MIOS_DRIFT_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_ssot_lint_equivalence >/dev/null 2>&1 \
         || die "check_ssot_lint_equivalence failed!"
     log "test_ssot_lint_equivalence negative test passed."
 }
 
-# 37. Test check_repo_partition_label_ssot (AGY-158)
+# 37. Test check_repo_partition_label_ssot
 test_repo_partition_label_ssot() {
-    log "Testing check_repo_partition_label_ssot (AGY-158)..."
+    log "Testing check_repo_partition_label_ssot..."
     local install_script="${ROOT}/tools/install.sh"
     local bak="${install_script}.lblbak"
     cp "$install_script" "$bak"
@@ -845,9 +845,9 @@ test_repo_partition_label_ssot() {
     log "test_repo_partition_label_ssot negative test passed."
 }
 
-# 38. Test check_bib_single_config_invariant (AGY-159)
+# 38. Test check_bib_single_config_invariant
 test_bib_single_config_invariant() {
-    log "Testing check_bib_single_config_invariant (AGY-159)..."
+    log "Testing check_bib_single_config_invariant..."
     local justfile="${ROOT}/Justfile"
     local bak="${justfile}.cfgmountbak"
     cp "$justfile" "$bak"
@@ -869,9 +869,9 @@ EOF
     log "test_bib_single_config_invariant negative test passed."
 }
 
-# 39. Test mios-hardcode-lint plaintext chpasswd (AGY-160)
+# 39. Test mios-hardcode-lint plaintext chpasswd
 test_chpasswd_plaintext() {
-    log "Testing mios-hardcode-lint plaintext chpasswd (AGY-160)..."
+    log "Testing mios-hardcode-lint plaintext chpasswd..."
     local autorun_script="${ROOT}/usr/share/mios/ventoy/autorun/01-sysrescue-firstboot.sh"
     local bak="${autorun_script}.chpwbak"
     cp "$autorun_script" "$bak"
@@ -889,9 +889,9 @@ test_chpasswd_plaintext() {
     log "test_chpasswd_plaintext negative test passed."
 }
 
-# 40. Test check_build_artifacts_output_dir (AGY-161)
+# 40. Test check_build_artifacts_output_dir
 test_build_artifacts_output_dir() {
-    log "Testing check_build_artifacts_output_dir (AGY-161)..."
+    log "Testing check_build_artifacts_output_dir..."
     local justfile="${ROOT}/Justfile"
     local bak="${justfile}.outdirbak"
     cp "$justfile" "$bak"
@@ -913,9 +913,9 @@ EOF
     log "test_build_artifacts_output_dir negative test passed."
 }
 
-# 41. Test check_win11_vm_template_xml (AGY-161)
+# 41. Test check_win11_vm_template_xml
 test_win11_vm_template_xml() {
-    log "Testing check_win11_vm_template_xml (AGY-161)..."
+    log "Testing check_win11_vm_template_xml..."
     local xml_file="${ROOT}/tools/win11-secureboot-template.xml"
     local bak="${xml_file}.xmlbak"
     cp "$xml_file" "$bak"
@@ -933,9 +933,9 @@ test_win11_vm_template_xml() {
     log "test_win11_vm_template_xml negative test passed."
 }
 
-# 42. Test check_ipa_enroll_projection (AGY-162)
+# 42. Test check_ipa_enroll_projection
 test_ipa_enroll_projection() {
-    log "Testing check_ipa_enroll_projection (AGY-162)..."
+    log "Testing check_ipa_enroll_projection..."
     local target_file="${ROOT}/etc/mios/ipa-enroll.env"
     local bak="${target_file}.ipabak"
     # $ROOT is a bare git tree, not the overlaid FHS, so this generated target is absent on a
@@ -956,9 +956,9 @@ test_ipa_enroll_projection() {
     log "test_ipa_enroll_projection negative test passed."
 }
 
-# 43. Test check_uki_cmdline_projection (AGY-163)
+# 43. Test check_uki_cmdline_projection
 test_uki_cmdline_projection() {
-    log "Testing check_uki_cmdline_projection (AGY-163)..."
+    log "Testing check_uki_cmdline_projection..."
     local target_file="${ROOT}/usr/lib/kernel/cmdline"
     local bak="${target_file}.ukibak"
     # $ROOT is a bare git tree, not the overlaid FHS, so this generated target is absent on a
@@ -979,9 +979,9 @@ test_uki_cmdline_projection() {
     log "test_uki_cmdline_projection negative test passed."
 }
 
-# 44. Test check_composefs_projection (AGY-164)
+# 44. Test check_composefs_projection
 test_composefs_projection() {
-    log "Testing check_composefs_projection (AGY-164)..."
+    log "Testing check_composefs_projection..."
     local target_file="${ROOT}/usr/lib/ostree/prepare-root.conf"
     local bak="${target_file}.compbak"
     cp "$target_file" "$bak"
@@ -1000,9 +1000,9 @@ test_composefs_projection() {
     log "test_composefs_projection negative test passed."
 }
 
-# 45. Test check_cockpit_projection (AGY-165)
+# 45. Test check_cockpit_projection
 test_cockpit_projection() {
-    log "Testing check_cockpit_projection (AGY-165)..."
+    log "Testing check_cockpit_projection..."
     local target_file="${ROOT}/etc/cockpit/cockpit.conf"
     local bak="${target_file}.cockbak"
     # $ROOT is a bare git tree, not the overlaid FHS, so this generated target is absent on a
@@ -1023,9 +1023,9 @@ test_cockpit_projection() {
     log "test_cockpit_projection negative test passed."
 }
 
-# 46. Test check_chrony_ptp_dropin (AGY-166)
+# 46. Test check_chrony_ptp_dropin
 test_chrony_ptp_dropin() {
-    log "Testing check_chrony_ptp_dropin (AGY-166)..."
+    log "Testing check_chrony_ptp_dropin..."
     local dropin_script="${ROOT}/usr/libexec/mios/mios-chrony-ptp-dropin"
     local bak="${dropin_script}.ptpbak"
     cp "$dropin_script" "$bak"
@@ -1043,9 +1043,9 @@ test_chrony_ptp_dropin() {
     log "test_chrony_ptp_dropin negative test passed."
 }
 
-# 47. Test check_chrony_projection (AGY-167)
+# 47. Test check_chrony_projection
 test_chrony_projection() {
-    log "Testing check_chrony_projection (AGY-167)..."
+    log "Testing check_chrony_projection..."
     local target_file="${ROOT}/etc/chrony.conf"
     local bak="${target_file}.chronbak"
     cp "$target_file" "$bak"
@@ -1063,9 +1063,9 @@ test_chrony_projection() {
     log "test_chrony_projection negative test passed."
 }
 
-# 48. Test check_nut_projection (AGY-167)
+# 48. Test check_nut_projection
 test_nut_projection() {
-    log "Testing check_nut_projection (AGY-167)..."
+    log "Testing check_nut_projection..."
     local target_file="${ROOT}/etc/ups/ups.conf"
     local bak="${target_file}.nutbak"
     cp "$target_file" "$bak"
@@ -1083,9 +1083,9 @@ test_nut_projection() {
     log "test_nut_projection negative test passed."
 }
 
-# 49. Test check_renderer_gate_coverage (AGY-168)
+# 49. Test check_renderer_gate_coverage
 test_renderer_gate_coverage() {
-    log "Testing check_renderer_gate_coverage (AGY-168)..."
+    log "Testing check_renderer_gate_coverage..."
     local bogus_script="${ROOT}/automation/99-bogus-render.sh"
     echo '#!/usr/bin/env bash' > "$bogus_script"
     echo 'echo "bogus render"' >> "$bogus_script"

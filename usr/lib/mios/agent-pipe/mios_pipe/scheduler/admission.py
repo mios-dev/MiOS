@@ -1,4 +1,4 @@
-# AI-hint: Admission control / SLO / lane-semaphore seam extracted from server.py (AGY-345).
+# AI-hint: Admission control / SLO / lane-semaphore seam extracted from server.py.
 # AI-related: usr/lib/mios/agent-pipe/server.py, usr/lib/mios/agent-pipe/mios_pipe/scheduler/admission.py
 """Admission control, SLO shedding, and lane semaphore management module."""
 

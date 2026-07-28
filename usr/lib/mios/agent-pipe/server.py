@@ -6353,7 +6353,7 @@ _VERB_EMBED_URL = os.environ.get(
 # _get_client and is injected into mios_toolsearch via its configure().
 
 
-# AGY-36: rate-limit the "embed call failed" warning. When the embed backend
+#: rate-limit the "embed call failed" warning. When the embed backend
 # (mios-llm-light) is down the loops below call _embed_one for every verb/app every
 # cycle, so an unrated log floods the journal ("All connection attempts failed",
 # hundreds/sec). Emit at most one warning per interval, folding the suppressed count

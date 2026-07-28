@@ -444,8 +444,8 @@ if [[ -f "${SCRIPT_DIR}/98-drift-checks.sh" ]]; then
         git -C "${_drift_root}" config --local --unset-all http.https://github.com/.extraheader 2>/dev/null || true
         git -C "${_drift_root}" reset --hard HEAD -q 2>/dev/null || true
     fi
-    # Re-project the GITIGNORED SSOT projections -- etc/mios/ipa-enroll.env (AGY-162),
-    # usr/lib/kernel/cmdline (AGY-163), etc/cockpit/cockpit.conf (AGY-165) -- UNCONDITIONALLY,
+    # Re-project the GITIGNORED SSOT projections -- etc/mios/ipa-enroll.env,
+    # usr/lib/kernel/cmdline, etc/cockpit/cockpit.conf -- UNCONDITIONALLY,
     # NOT gated on the git work tree. checks 92/93/95 (generate-X.py --check, ROOT=_drift_root)
     # require these files to EXIST at ${_drift_root} and match the committed SSOT. They are
     # gitignored so they are never cp'd into /tmp/build, and the build stages render them into

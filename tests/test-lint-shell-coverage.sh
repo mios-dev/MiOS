@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# AI-hint: Test ensuring lint-shell.sh retains full shell directory coverage (AGY-359).
+# AI-hint: Test ensuring lint-shell.sh retains full shell directory coverage.
 # AI-related: automation/lint-shell.sh, tests/test-lint-shell-coverage.sh
 
 set -euo pipefail

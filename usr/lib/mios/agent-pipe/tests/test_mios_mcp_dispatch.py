@@ -1,4 +1,4 @@
-# AI-hint: Unit test for mios_pipe.mcp_dispatch module (AGY-114).
+# AI-hint: Unit test for mios_pipe.mcp_dispatch module.
 from __future__ import annotations
 
 from mios_pipe.mcp_dispatch import build_mcp_tool_envelope

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AI-hint: Drift check helper for AGY-350 verifying surface parity and one-way imports.
+# AI-hint: Drift check helper for verifying surface parity and one-way imports.
 """AST-based drift check helper for mios_pipe module surface parity."""
 
 from __future__ import annotations

@@ -1,4 +1,4 @@
-# AI-hint: stdlib unit test for mios_agent_call budget and depth limits (AGY-6).
+# AI-hint: stdlib unit test for mios_agent_call budget and depth limits.
 # Verifies the conversation and autonomous token budget ceilings, as well as the
 # max dispatch depth recursion limit.
 import unittest

@@ -145,7 +145,7 @@ def main(argv):
         if img not in core:
             errors.append(f"Firstboot image '{img}' is missing from core bake list")
 
-    # Core bake-plan reconciliation pass (AGY-137)
+    # Core bake-plan reconciliation pass
     discovered_non_localhost = {img for img, _ in images_to_bake if not img.startswith("localhost/")}
     core_non_localhost = {img for img in core if not img.startswith("localhost/")}
     missing_from_core = discovered_non_localhost - core_non_localhost
@@ -238,7 +238,7 @@ def main(argv):
             print(f"[bake-plan-gen] wrote {plan_file}")
             
     # firstboot tier: emit the not-baked images for mios-ai-firstboot / the USB
-    # data-partition stager. Checked in check mode and written in write mode (AGY-135).
+    # data-partition stager. Checked in check mode and written in write mode.
     fb_file = os.path.join(out_dir, "firstboot.list")
     fb_content = "".join(f"{img}\n" for img in firstboot_images)
     if check:

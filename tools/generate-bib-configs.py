@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-tools/generate-bib-configs.py (AGY-157)
+tools/generate-bib-configs.py
 Projects [deploy.artifacts] filesystem sizing from mios.toml SSOT into config/artifacts/*.toml.
 """
 

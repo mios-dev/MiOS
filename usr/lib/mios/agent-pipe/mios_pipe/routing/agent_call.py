@@ -81,7 +81,7 @@ LLM_NUM_PREDICT_CAP_CPU = 512
 # mutable registry (injected BY REFERENCE; re-injected on live membership reload)
 _AGENT_REGISTRY: dict = {}
 
-# Rate limiting, preemption, and deduplication state (AGY-5, AGY-6)
+# Rate limiting, preemption, and deduplication state (AGY-5,)
 import collections
 import contextvars
 _autonomous_var: contextvars.ContextVar[bool] = contextvars.ContextVar("autonomous", default=False)

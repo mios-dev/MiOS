@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AI-hint: Standalone assert-script unit test for mios_router Stage-2 parity (AGY-127). Pure stdlib, no server.py/DB/pytest. Loads tests/router_corpus.json and verifies Router.route(plan).mode matches expected_mode and cascade_mode for every row.
+# AI-hint: Standalone assert-script unit test for mios_router Stage-2 parity. Pure stdlib, no server.py/DB/pytest. Loads tests/router_corpus.json and verifies Router.route(plan).mode matches expected_mode and cascade_mode for every row.
 # AI-related: ./mios_router.py, ./tests/router_corpus.json
 # AI-functions: check, cascade_mode, main
 

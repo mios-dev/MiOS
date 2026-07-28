@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AI-hint: Flattens usr/lib/bootc/kargs.d/*.toml drop-ins into usr/lib/kernel/cmdline SSOT (AGY-163)
+# AI-hint: Flattens usr/lib/bootc/kargs.d/*.toml drop-ins into usr/lib/kernel/cmdline SSOT
 import os, sys, glob
 
 try:

@@ -1,4 +1,4 @@
-# AI-hint: stdlib unit test for secrets and PII redaction (AGY-8).
+# AI-hint: stdlib unit test for secrets and PII redaction.
 # Verifies redaction of API keys, email addresses, and MIOS_* env credentials.
 import os
 import unittest

@@ -5,7 +5,7 @@ set -euo pipefail
 
 DRY_RUN=0
 TARGET_DISK=""
-# Resolve MiOS-Repo partition from SSOT label (AGY-158)
+# Resolve MiOS-Repo partition from SSOT label
 REPO_DEV="$(blkid -L "MiOS-Repo" 2>/dev/null || true)"
 if [[ -n "$REPO_DEV" ]]; then
     mkdir -p /mnt/mios-repo

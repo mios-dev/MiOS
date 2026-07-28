@@ -1,4 +1,4 @@
-# AI-hint: Unit tests for mios_pipe.context.scratchpad (AGY-348).
+# AI-hint: Unit tests for mios_pipe.context.scratchpad.
 """Unit tests for agent scratchpad blackboard."""
 
 import contextvars

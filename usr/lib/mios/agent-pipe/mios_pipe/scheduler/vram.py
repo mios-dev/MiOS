@@ -1,4 +1,4 @@
-# AI-hint: VRAM and model-residency manager extracted from server.py (AGY-346).
+# AI-hint: VRAM and model-residency manager extracted from server.py.
 # AI-related: usr/lib/mios/agent-pipe/server.py, usr/lib/mios/agent-pipe/mios_pipe/scheduler/vram.py
 """VRAM and model-residency management module."""
 

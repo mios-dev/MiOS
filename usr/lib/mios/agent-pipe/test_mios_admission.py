@@ -1,4 +1,4 @@
-# AI-hint: Unit tests for mios_pipe.scheduler.admission (AGY-345).
+# AI-hint: Unit tests for mios_pipe.scheduler.admission.
 """Unit tests for admission control and lane semaphore management."""
 
 import unittest

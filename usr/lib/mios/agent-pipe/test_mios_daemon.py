@@ -1,4 +1,4 @@
-# AI-hint: stdlib unit test for mios_agent_call daemon runaway controls (AGY-5).
+# AI-hint: stdlib unit test for mios_agent_call daemon runaway controls.
 # Verifies the host-pressure gate (degrade heavy dispatch to CPU twin under high CPU/VRAM)
 # and request deduplication (in-flight prompt collapse).
 import unittest
