@@ -2269,10 +2269,13 @@ def _db_fire(coro) -> None:
         return
     loop.create_task(coro)
 
-# ── R6 DCI extraction: inject server.py's DB-event helpers + outbound-auth
-# stamper into mios_dci now that all four are defined above (one-way boundary --
-# mios_dci never imports server). Referenced via sys.modules so NO new top-level
-# name enters server.py's importable surface (surface-parity gate stays 0-diff).
+_configure_session_events(
+    pg_mirror=_pg_mirror,
+    db_create=_db_create,
+    db_fire=_db_fire,
+    db_post=_db_post,
+)
+
 sys.modules["mios_dci"].configure(
     db_post=_db_post,
     db_create=_db_create,
@@ -5637,20 +5640,11 @@ _REFLECT_SYSTEM = (
 )
 
 
-def _emit_session_event(fields: dict, session_id: Optional[str]) -> None:
-    """Write an `event` row, linked to the session when known so the
-    Reflexion buffer (_recent_reflections) can query it back per-session.
-    Mirrors execute_dag's tool_call session-linking convention."""
-    # SEC-03: pre-stamp the hash chain so THIS function's own pgvector mirror (built
-    # below, BEFORE _db_create runs) carries chain_seq/prev_hash/chain_hash. _db_create
-    # then sees chain_hash already present and its stamp() is a no-op (the chain is not
-    # advanced twice for one event). Degrade-open inside stamp().
-    fields = mios_audit.stamp(fields)
-    _pg_mirror("event", {**fields, "session_id": session_id})  # WS-9c
-    sql = _db_create("event", fields, now_fields=("ts",), _mirror=False)
-    if session_id:
-        sql = sql.rstrip().rstrip(";") + f", session = {session_id};"
-    _db_fire(_db_post(sql))
+from mios_pipe.observability.session_events import (
+    _emit_session_event,
+    _sanitize_tool_text,
+    configure as _configure_session_events,
+)
 
 
 # ── WS-6 runtime HITL approval gate ─────────────────────────────
@@ -5763,21 +5757,7 @@ from mios_hitlflow import _recent_reflections  # noqa: E402
 # the tainted->high-privilege ESCALATION path); together they cover both
 # the escalation and the prompt/arg-spoofing vectors without an English
 # classifier. BOM (U+FEFF) stripped too -- it has no place mid-stream.
-_ANSI_CSI_RE = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
-_BIDI_OVERRIDE_RE = re.compile("[‪-‮⁦-⁩﻿]")
-
-
-def _sanitize_tool_text(s: str) -> str:
-    """Strip terminal-control + bidi-override + C0 control chars from
-    untrusted tool output before it re-enters an arg or a prompt.
-    Structural only -- preserves tab/newline/CR and all printable
-    content -- so it neither classifies by English keyword nor mangles
-    legitimate Unicode (emoji ZWJ sequences are left intact)."""
-    if not s:
-        return s
-    s = _ANSI_CSI_RE.sub("", s)
-    s = _BIDI_OVERRIDE_RE.sub("", s)
-    return "".join(ch for ch in s if ch >= " " or ch in "\t\n\r")
+# _sanitize_tool_text moved -> mios_pipe.observability.session_events (re-imported above).
 
 
 # _smart_extract_from_jsonish (JSON-ish field picker) + _substitute_ek_refs (ReWOO #E

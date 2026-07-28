@@ -608,6 +608,15 @@
         "snapshot"
       ]
     },
+    "usr/lib/mios/agent-pipe/mios_pipe/observability/session_events.py": {
+      "configure_kwargs": [
+        "db_create",
+        "db_fire",
+        "db_post",
+        "pg_mirror"
+      ],
+      "public_symbols": []
+    },
     "usr/lib/mios/agent-pipe/mios_pipe/observability/trace.py": {
       "configure_kwargs": [],
       "public_symbols": [
