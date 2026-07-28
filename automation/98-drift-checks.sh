@@ -478,7 +478,7 @@ PY
     then
         echo "[38-drift-checks]   (7) RBAC max_permission tiers all valid (PDP fail-closed gate)"
     else
-        _violation "an [agents.*]/[users.*].max_permission names an UNKNOWN permission tier -- the dispatch PDP fails CLOSED on it (restricts the caller to the safest tier); fix the typo or add the tier to [ai].permission_tiers (WS-A9)"
+        _violation "an [agents.*]/[users.*].max_permission names an UNKNOWN permission tier -- the dispatch PDP fails CLOSED on it (restricts the caller to the safest tier); fix the typo or add the tier to [ai].permission_tiers "
     fi
 }
 
@@ -562,9 +562,9 @@ for b in bad:
 sys.exit(1 if bad else 0)
 PY
     then
-        echo "[38-drift-checks]   (WS-A2) agent-schema contract satisfied (health_gate / cli / node / single-default rules)"
+        echo "[38-drift-checks]   agent-schema contract satisfied (health_gate / cli / node / single-default rules)"
     else
-        _violation "an [agents.*] entry violates the unified agent schema (WS-A2): a local-optional agent missing health_gate, a kind=cli without timeout_s, a kind=node without api+lane, or >1 default=true -- the opencode 'dead local endpoint treated as live -> merged_chars=0' class. Fix the [agents.*] block (or [agents._defaults])."
+        _violation "an [agents.*] entry violates the unified agent schema : a local-optional agent missing health_gate, a kind=cli without timeout_s, a kind=node without api+lane, or >1 default=true -- the opencode 'dead local endpoint treated as live -> merged_chars=0' class. Fix the [agents.*] block (or [agents._defaults])."
     fi
 }
 
@@ -607,7 +607,7 @@ PY
     then
         echo "[38-drift-checks]   (8) ai/v1 verb-catalog manifest in sync with mios.toml SSOT"
     else
-        _violation "ai/v1/tools.generated.json is STALE vs mios.toml [verbs.*] -- regenerate with mios-ai-manifest-gen (WS-A1)"
+        _violation "ai/v1/tools.generated.json is STALE vs mios.toml [verbs.*] -- regenerate with mios-ai-manifest-gen "
     fi
 }
 
@@ -638,7 +638,7 @@ check_package_registry() {
     else
         sed 's/^/    /' "$ROOT/.pkgreg.err" >&2 2>/dev/null || true
         rm -f "$ROOT/.pkgreg.err" 2>/dev/null || true
-        _violation "ai/v1/packages/registry.json is STALE vs the SSOT -- regenerate with mios-registry generate (WS-A17)"
+        _violation "ai/v1/packages/registry.json is STALE vs the SSOT -- regenerate with mios-registry generate "
     fi
 }
 
@@ -675,7 +675,7 @@ check_cli_sql_safety() {
     done < <(find "$dir" -maxdepth 1 -type f 2>/dev/null)
     if [[ -n "$hits" ]]; then
         printf '%s' "$hits" >&2
-        _violation "a libexec CLI (re)introduced the retired legacy DB transport (post_sql/_sql/:8000/sql) or hand-rolled SQL escaping (_pgesc/_pgq) -- use parameterized pg via mios-pg-query --exec-json / mios-db --pg-json (WS-A3)"
+        _violation "a libexec CLI (re)introduced the retired legacy DB transport (post_sql/_sql/:8000/sql) or hand-rolled SQL escaping (_pgesc/_pgq) -- use parameterized pg via mios-pg-query --exec-json / mios-db --pg-json "
     else
         echo "[38-drift-checks]   (10) libexec CLIs SQL-safe (parameterized pg; allowlist empty -- all tools cut over)"
     fi
@@ -717,7 +717,7 @@ check_module_test_coverage() {
 
     if [[ -n "$missing" ]]; then
         printf '%s' "$missing" >&2
-        _violation "an agent-pipe pure module has NO sibling unit test -- author test_<module>.py (stdlib assert-script, the sibling-module pattern); isolation-tested logic is the point of the extraction (WS-0A)"
+        _violation "an agent-pipe pure module has NO sibling unit test -- author test_<module>.py (stdlib assert-script, the sibling-module pattern); isolation-tested logic is the point of the extraction "
     else
         echo "[38-drift-checks]   (11) every agent-pipe mios_*.py and mios_pipe submodule has a sibling unit test"
     fi
@@ -796,7 +796,7 @@ PY
     then
         echo "[38-drift-checks]   (12) ai/v1 capability manifest in sync with mios.toml SSOT"
     else
-        _violation "ai/v1/capabilities.generated.json is STALE vs mios.toml [verbs.*]+[recipes.*] -- regenerate with mios-ai-capabilities-gen (WS-2/WS-10)"
+        _violation "ai/v1/capabilities.generated.json is STALE vs mios.toml [verbs.*]+[recipes.*] -- regenerate with mios-ai-capabilities-gen"
     fi
 }
 
@@ -915,7 +915,7 @@ check_egress_firewall() {
         rm -f "$tmp"
     else
         rm -f "$tmp"
-        _violation "usr/share/mios/security/egress.nft is STALE vs mios.toml [security.egress] -- regenerate with tools/generate-egress-firewall.py (WS-10)"
+        _violation "usr/share/mios/security/egress.nft is STALE vs mios.toml [security.egress] -- regenerate with tools/generate-egress-firewall.py "
     fi
 }
 
@@ -954,7 +954,7 @@ check_blade_dropins() {
         if [[ $ok -eq 1 ]]; then
             echo "[38-drift-checks]   (44) blade capability drop-ins in sync with mios.toml [blade.requires]"
         else
-            _violation "usr/share/mios/dropins/ is STALE vs mios.toml [blade.requires] -- regenerate with tools/generate-blade-dropins.py (WS-BLADE)"
+            _violation "usr/share/mios/dropins/ is STALE vs mios.toml [blade.requires] -- regenerate with tools/generate-blade-dropins.py "
         fi
     else
         rm -rf "$tmp_root"
@@ -1407,7 +1407,7 @@ PY
         echo "[38-drift-checks]   (21) no manual port literals in container definitions"
         rm -f "$tmp"
     else
-        echo "[38-drift-checks] VIOLATION: manual port literal(s) found in container Quadlets -- use the \${MIOS_PORT_*} placeholder from the [ports] SSOT (T-042):" >&2
+        echo "[38-drift-checks] VIOLATION: manual port literal(s) found in container Quadlets -- use the \${MIOS_PORT_*} placeholder from the [ports] SSOT:" >&2
         cat "$tmp" >&2
         rm -f "$tmp"
         VIOLATIONS=$((VIOLATIONS + 1))
@@ -1495,7 +1495,7 @@ check_agent_pipe_budgets() {
             echo "[38-drift-checks]   (23) all [agent_pipe] budget variables have code consumers (native mios-aiplane-lint)"
             return 0
         else
-            _violation "some [agent_pipe] keys have no code consumer in the agent-pipe codebase (T-108)"
+            _violation "some [agent_pipe] keys have no code consumer in the agent-pipe codebase"
             return 1
         fi
     fi
@@ -1564,7 +1564,7 @@ PY
     then
         echo "[38-drift-checks]   (23) all [agent_pipe] budget variables have code consumers"
     else
-        _violation "some [agent_pipe] keys have no code consumer in the agent-pipe codebase (T-108)"
+        _violation "some [agent_pipe] keys have no code consumer in the agent-pipe codebase"
     fi
 }
 
@@ -1663,7 +1663,7 @@ PY
     then
         echo "[38-drift-checks]   (24) no bare port literals remain in execution paths"
     else
-        _violation "bare port literals in execution paths (T-121/T-125)"
+        _violation "bare port literals in execution paths"
     fi
 }
 
@@ -3769,7 +3769,7 @@ check_target_languages() {
           echo "    Law 14 TARGET-LANGUAGES: new code must use the roadmap targets (Rust native tier; Python AI;"
           echo "    Bun/TS Portal; bash thin-glue). These non-target-language files are not grandfathered:"
           printf '%s\n' "$bad" | sed '/^[[:space:]]*$/d;s/^/      - /'
-          echo "    -> port to Rust (ADR-0011/WS-LANG), or add a legitimate pre-existing port target to"
+          echo "    -> port to Rust, or add a legitimate pre-existing port target to"
           echo "       mios.toml [laws.target_languages].grandfathered_cs (the list may only shrink)."
         } >&2
         _violation "Law 14 TARGET-LANGUAGES violated: new non-target-language source added"
@@ -3870,7 +3870,7 @@ if viol:
 sys.exit(0)
 PY
     then
-        echo "[38-drift-checks]   (43) CLI verbs in usr/libexec/mios/ are eval-safe (TD-1)"
+        echo "[38-drift-checks]   (43) CLI verbs in usr/libexec/mios/ are eval-safe"
     else
         _violation "unverified eval in usr/libexec/mios/ -- verbs must not eval agent-controlled inputs; pre-existing safe evals must have a preceding # TD-1: eval-safe, input=<source>, not agent-controlled comment"
     fi
@@ -3950,7 +3950,7 @@ check_sbom_metadata() {
         for err in "${bad[@]}"; do
             echo "  [sbom-drift] $err" >&2
         done
-        _violation "SBOM metadata manifests in usr/share/mios/artifacts/sbom/ contain invalid/empty fields (RELTOP-01 / T-251)"
+        _violation "SBOM metadata manifests in usr/share/mios/artifacts/sbom/ contain invalid/empty fields"
     fi
 }
 
