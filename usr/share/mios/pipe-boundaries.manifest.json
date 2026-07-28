@@ -187,6 +187,21 @@
         "snapshot"
       ]
     },
+    "usr/lib/mios/agent-pipe/mios_pipe/context/scratchpad.py": {
+      "configure_kwargs": [
+        "conv_key_var",
+        "db_write",
+        "mios_pg",
+        "scratchpad_enable",
+        "scratchpad_inject",
+        "scratchpad_max",
+        "scratchpad_max_chats",
+        "scratchpad_persist",
+        "scratchpad_summary_chars",
+        "scratchpad_ttl_s"
+      ],
+      "public_symbols": []
+    },
     "usr/lib/mios/agent-pipe/mios_pipe/context/tokenize.py": {
       "configure_kwargs": [],
       "public_symbols": [

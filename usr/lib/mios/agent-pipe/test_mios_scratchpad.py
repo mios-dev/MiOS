@@ -1,98 +1,55 @@
-#!/usr/bin/env python3
-# AI-hint: Standalone assert-script unit test for mios_scratchpad (CONV-08).
-# Pure python/stdlib/dependency test, no DB connection required.
-# AI-related: ./mios_scratchpad.py
+# AI-hint: Unit tests for mios_pipe.context.scratchpad (AGY-348).
+"""Unit tests for agent scratchpad blackboard."""
 
-import os
-import sys
+import contextvars
 import unittest
-from pathlib import Path
-from unittest import mock
 
-_fails = 0
+from mios_pipe.context.scratchpad import (
+    _scratchpad_note,
+    _scratchpad_render,
+    _scratchpad_for,
+    _scratchpad_key,
+    configure,
+)
 
-def check(name, cond, detail=""):
-    global _fails
-    if not cond:
-        _fails += 1
-    print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
+_test_conv_var = contextvars.ContextVar("test_conv_key", default="chat_test_123")
 
-def test_scratchpad_enabled():
-    os.environ["MIOS_CONV_MEMORY_SQLITE_VEC_ENABLE"] = "true"
-    
-    # Reload module or verify functions directly
-    import importlib
-    try:
-        import mios_scratchpad
-        importlib.reload(mios_scratchpad)
-    except ModuleNotFoundError as e:
-        if "sqlite_vec" in str(e):
-            print("[SKIP] enabled: sqlite_vec not installed")
-            return
-        raise
-    
-    check("enabled: flag is True", mios_scratchpad.SQLITE_VEC_ENABLE is True)
-    
-    conn, path = mios_scratchpad.create_scratchpad("test-sess", "/tmp")
-    check("enabled: conn is created", conn is not None)
-    check("enabled: path exists", path is not None and path.exists())
-    
-    # Insert vectors of size 768
-    v1 = [0.1] * 768
-    mios_scratchpad.vec_insert(conn, "observation 1", v1, tainted=True)
-    
-    v2 = [0.5] * 768
-    mios_scratchpad.vec_insert(conn, "observation 2", v2, tainted=False)
-    
-    # Search closest to [0.1] * 768
-    res = mios_scratchpad.vec_search(conn, [0.12] * 768, k=1)
-    check("enabled: returned 1 search result", len(res) == 1)
-    print("DEBUG res:", res)
-    check("enabled: correct item returned", res[0]["content"] == "observation 1")
-    check("enabled: correct item is tainted", res[0]["tainted"] is True)
-    check("enabled: distance is small", res[0]["distance"] < 1.0)
-    
-    # Verify has_tainted returns True for this session
-    check("enabled: has_tainted is True for tainted session",
-          mios_scratchpad.has_tainted("test-sess", "/tmp") is True)
-    check("enabled: has_tainted is False for clean session",
-          mios_scratchpad.has_tainted("test-sess-clean-nonexistent", "/tmp") is False)
-    
-    # Destroy
-    mios_scratchpad.destroy_scratchpad(conn, path)
-    check("enabled: file is deleted", not path.exists())
-    check("enabled: has_tainted is False after destroy",
-          mios_scratchpad.has_tainted("test-sess", "/tmp") is False)
 
-def test_scratchpad_disabled():
-    os.environ["MIOS_CONV_MEMORY_SQLITE_VEC_ENABLE"] = "false"
-    
-    import importlib
-    import mios_scratchpad
-    importlib.reload(mios_scratchpad)
-    
-    check("disabled: flag is False", mios_scratchpad.SQLITE_VEC_ENABLE is False)
-    
-    conn, path = mios_scratchpad.create_scratchpad("test-sess-off", "/tmp")
-    check("disabled: conn is None", conn is None)
-    check("disabled: path is None", path is None)
-    
-    # Insert should no-op
-    mios_scratchpad.vec_insert(conn, "nothing", [0.1] * 768)
-    
-    # Search should return empty list
-    res = mios_scratchpad.vec_search(conn, [0.1] * 768)
-    check("disabled: search returns empty list", res == [])
-    
-    # Destroy should no-op
-    mios_scratchpad.destroy_scratchpad(conn, path)
+class TestScratchpad(unittest.TestCase):
 
-def main():
-    test_scratchpad_enabled()
-    test_scratchpad_disabled()
-    if _fails > 0:
-        sys.exit(1)
-    sys.exit(0)
+    def setUp(self):
+        configure(
+            scratchpad_enable=True,
+            scratchpad_max=5,
+            scratchpad_summary_chars=100,
+            scratchpad_ttl_s=3600,
+            scratchpad_inject=5,
+            conv_key_var=_test_conv_var,
+        )
+
+    def test_scratchpad_key_fallback(self):
+        self.assertEqual(_scratchpad_key({}, "fb"), "fb")
+        self.assertEqual(_scratchpad_key({"metadata": {"chat_id": "c1"}}), "c1")
+
+    def test_scratchpad_note_and_render(self):
+        _scratchpad_note("planner", "Investigating build failure in 98-drift-checks.sh")
+        _scratchpad_note("coder", "Patched check_negative_coverage function")
+
+        rendered = _scratchpad_render()
+        self.assertIn("Shared agent context", rendered)
+        self.assertIn("planner", rendered)
+        self.assertIn("coder", rendered)
+        self.assertIn("Investigating build failure", rendered)
+
+    def test_scratchpad_max_bound(self):
+        # Insert 10 notes when max is 5
+        for i in range(10):
+            _scratchpad_note("agent", f"Checkpoint note {i}")
+
+        dq = _scratchpad_for("chat_test_123")
+        self.assertEqual(len(dq), 5)
+        self.assertEqual(dq[-1]["note"], "Checkpoint note 9")
+
 
 if __name__ == "__main__":
-    main()
+    unittest.main()

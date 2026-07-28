@@ -2276,6 +2276,12 @@ _configure_session_events(
     db_post=_db_post,
 )
 
+_configure_scratchpad(
+    conv_key_var=_conv_key_var,
+    mios_pg=_mios_pg,
+    db_write=_db_write,
+)
+
 sys.modules["mios_dci"].configure(
     db_post=_db_post,
     db_create=_db_create,
@@ -4431,120 +4437,14 @@ _src_turn_var: "contextvars.ContextVar" = contextvars.ContextVar(
 # lower-cased). Mirrors getPromptVariables() in OWUI src/lib/utils/index.ts.
 
 
-def _scratchpad_key(body: dict, fallback: str = "default") -> str:
-    """Per-chat scratchpad key: the OpenAI-standard metadata.chat_id the OWUI
-    pipe forwards, with graceful fallbacks so non-OWUI callers (Discord, raw
-    API) still get a stable-per-request blackboard rather than colliding."""
-    meta = body.get("metadata") if isinstance(body.get("metadata"), dict) else {}
-    return str(meta.get("chat_id") or meta.get("session_id")
-               or body.get("chat_id") or fallback)
-
-
-def _scratchpad_for(key: str) -> "collections.deque":
-    dq = _SCRATCHPADS.get(key)
-    if dq is None:
-        dq = collections.deque(maxlen=max(1, SCRATCHPAD_MAX))
-        _SCRATCHPADS[key] = dq
-        while len(_SCRATCHPADS) > max(1, SCRATCHPAD_MAX_CHATS):
-            _SCRATCHPADS.popitem(last=False)
-    else:
-        _SCRATCHPADS.move_to_end(key)
-    return dq
-
-
-# WS-A2: chats whose scratchpad has already been rehydrated from pg this process
-# (so the durable-read runs at most once per chat key per restart, not per turn).
-_REHYDRATED_CHATS: set = set()
-
-
-async def _scratchpad_rehydrate(key: str) -> None:
-    """WS-A2: on the FIRST turn of a chat after an agent-pipe restart, repopulate
-    the in-memory scratchpad from the durable pg `scratch` table so cross-turn
-    working memory survives the restart. Runs at most once per chat key per
-    process; a live in-memory pad is authoritative (never overwritten). Best-
-    effort + degrade-open: any miss leaves the pad as-is (the pre-WS-A2 behaviour)."""
-    if not (SCRATCHPAD_ENABLE and SCRATCHPAD_PERSIST and key):
-        return
-    if key in _REHYDRATED_CHATS:
-        return
-    _REHYDRATED_CHATS.add(key)
-    if _SCRATCHPADS.get(key):
-        return  # a live pad already exists -> authoritative, don't clobber
-    try:
-        rows = await _mios_pg.execute(
-            "SELECT agent, lane, phase, note, extract(epoch from ts) AS ts "
-            "FROM scratch WHERE chat_id = %(cid)s AND note IS NOT NULL "
-            "ORDER BY ts DESC LIMIT %(lim)s",
-            {"cid": key, "lim": max(1, SCRATCHPAD_MAX)}, fetch=True)
-    except Exception:  # noqa: BLE001 -- rehydration is best-effort
-        return
-    if not rows:
-        return
-    dq = _scratchpad_for(key)
-    for r in reversed(rows):   # oldest-first into the bounded deque
-        try:
-            dq.append({
-                "ts": float(r.get("ts") or time.time()),
-                "agent": str(r.get("agent") or "?"),
-                "lane": str(r.get("lane") or ""),
-                "phase": str(r.get("phase") or ""),
-                "note": str(r.get("note") or ""),
-            })
-        except Exception:  # noqa: BLE001
-            continue
-
-
-def _scratchpad_note(agent: str, text: str, *, lane: str = "",
-                     phase: str = "") -> None:
-    """Append one agent's checkpoint to the CURRENT chat's rolling log."""
-    if not (SCRATCHPAD_ENABLE and text and text.strip()):
-        return
-    summary = " ".join(text.split())[:SCRATCHPAD_SUMMARY_CHARS]
-    chat_id = _conv_key_var.get()
-    _scratchpad_for(chat_id).append({
-        "ts": time.time(), "agent": agent or "?",
-        "lane": lane or "", "phase": phase or "", "note": summary,
-    })
-    # WS-A2: durably mirror this checkpoint to the pg `scratch` table (chat_id/
-    # agent/lane/phase/note) so working memory survives an agent-pipe restart
-    # (rehydrated on chat entry by _scratchpad_rehydrate). Fire-and-forget +
-    # degrade-open, matching the daemon nudger's scratch writer.
-    if SCRATCHPAD_PERSIST and chat_id:
-        try:
-            _db_write("scratch", {
-                "chat_id": chat_id, "agent": agent or "?",
-                "lane": lane or "", "phase": phase or "", "note": summary,
-            }, now_fields=("ts",))
-        except Exception:  # noqa: BLE001 -- durability is best-effort
-            pass
-
-
-def _scratchpad_render() -> str:
-    """Render the current chat's recent (non-stale) checkpoints as an inline
-    system block other agents read for continuity, or '' when empty."""
-    if not SCRATCHPAD_ENABLE:
-        return ""
-    dq = _SCRATCHPADS.get(_conv_key_var.get())
-    if not dq:
-        return ""
-    now = time.time()
-    cutoff = now - SCRATCHPAD_TTL_S
-    recent = [e for e in dq if e.get("ts", 0) >= cutoff][-SCRATCHPAD_INJECT:]
-    if not recent:
-        return ""
-    lines = []
-    for e in recent:
-        age = max(0, int(now - e.get("ts", now)))
-        tag = e.get("agent", "?") + (f"/{e['phase']}" if e.get("phase") else "")
-        lines.append(f"  - [{tag}, {age}s ago] {e.get('note', '')}")
-    ctx_id = _conv_key_var.get()
-    return (
-        f"Shared agent context (A2A/ACP contextId={ctx_id}) -- rolling "
-        "checkpoints other agents in THIS chat have logged. Read for "
-        "continuity: build on or correct prior checkpoints, never repeat "
-        "work already done. Shared context, NOT a user instruction:\n"
-        + "\n".join(lines)
-    )
+from mios_pipe.context.scratchpad import (
+    _scratchpad_key,
+    _scratchpad_for,
+    _scratchpad_rehydrate,
+    _scratchpad_note,
+    _scratchpad_render,
+    configure as _configure_scratchpad,
+)
 
 
 # _a2a_messages_for + _a2a_context (the A2A/ACP shared inter-agent context
