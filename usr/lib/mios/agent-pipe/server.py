@@ -628,17 +628,17 @@ DEEPEN_LANES = set(x.strip() for x in os.environ.get(
 # state tools first, via _tool_priority) it can actually execute in budget.
 # 0 / absent = the FULL surface (fast gpu/cpu lanes). Format: "lane:cap,...".
 # SSOT env MIOS_LANE_TOOL_CAP; default caps the iGPU + mobile lanes.
-def _parse_lane_caps(spec: str) -> dict:
-    out: dict = {}
-    for part in (spec or "").split(","):
-        part = part.strip()
-        if ":" in part:
-            k, _, v = part.partition(":")
-            try:
-                out[k.strip().lower()] = int(v.strip())
-            except ValueError:
-                pass
-    return out
+from mios_pipe.scheduler.admission import (
+    _parse_lane_caps,
+    _priority_gate,
+    _SloShed,
+    _parse_lane_priority,
+    _lane_sem,
+    _endpoint_key,
+    _endpoint_sem,
+    _admit,
+    configure as _configure_admission,
+)
 
 
 LANE_TOOL_CAP = _parse_lane_caps(
@@ -912,43 +912,7 @@ _GLOBAL_PRIORITY_GATE = PriorityGate(
     tenant_cap=(TENANT_MAX_CONCURRENCY if TENANT_QUOTA_ENABLE else 0))
 
 
-@contextlib.asynccontextmanager
-async def _priority_gate(priority: float):
-    """Reordering, degrade-open replacement for `async with _GLOBAL_DISPATCH_SEM`.
-    When the priority queue is enabled, acquire the global dispatch slot in
-    PRIORITY order; otherwise (or on any acquire error) fall back to the plain
-    FIFO semaphore. The gate is never permitted to block a turn."""
-    use_gate = PRIORITY_QUEUE_ENABLE
-    # V5 per-tenant fair-share: resolve THIS turn's verified owner ONLY when the
-    # tenant quota is enabled; default-off -> tenant=None -> the gate's tenant_cap is
-    # 0 -> acquire(priority, tenant=None)/release(tenant=None) are byte-identical to
-    # acquire(priority)/release() today. A None owner (system/daemon) is never capped.
-    _tenant = _turn_tenant() if TENANT_QUOTA_ENABLE else None
-    if use_gate:
-        try:
-            await _GLOBAL_PRIORITY_GATE.acquire(priority, tenant=_tenant)
-        except asyncio.CancelledError:
-            raise
-        except Exception:  # noqa: BLE001 -- degrade-open: fall back to the sem
-            log.warning("Priority gate acquire failed, degrading open to FIFO semaphore", exc_info=True)
-            use_gate = False
-    if use_gate:
-        try:
-            yield
-        finally:
-            try:
-                _GLOBAL_PRIORITY_GATE.release(tenant=_tenant)
-            except Exception:  # noqa: BLE001
-                pass
-        return
-    # Fallback: the proven plain FIFO global cap. Manual acquire/release (not
-    # `async with _GLOBAL_DISPATCH_SEM`) so this literal never collides with the
-    # call-site pattern that the priority gate replaced.
-    await _GLOBAL_DISPATCH_SEM.acquire()
-    try:
-        yield
-    finally:
-        _GLOBAL_DISPATCH_SEM.release()
+
 
 # ── Runaway-turn bounds (cancellation fix; research-backed).
 # (a) Hard num_predict cap on AGENT dispatches: a local llama.cpp lane does NOT

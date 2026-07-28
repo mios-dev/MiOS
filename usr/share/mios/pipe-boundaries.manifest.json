@@ -1354,6 +1354,35 @@
       ],
       "public_symbols": []
     },
+    "usr/lib/mios/agent-pipe/mios_pipe/scheduler/admission.py": {
+      "configure_kwargs": [
+        "admit_enable",
+        "admit_max_wait",
+        "agent_concurrency",
+        "blade_vram_budget",
+        "dispatch_num",
+        "endpoint_concurrency",
+        "endpoint_reserved",
+        "global_priority_gate",
+        "is_warm",
+        "multiblade_enable",
+        "norm_model_tag",
+        "over_blade_ceiling",
+        "over_global_ceiling",
+        "priority_queue_enable",
+        "reclaim_idle_vram",
+        "resident_cached",
+        "slo_shed_enable",
+        "tenant_quota_enable",
+        "turn_tenant",
+        "vram_budget_mb",
+        "vram_coload_enable",
+        "vram_coload_est_mb",
+        "vram_coload_reserve_mb",
+        "vram_reclaim_idle"
+      ],
+      "public_symbols": []
+    },
     "usr/lib/mios/agent-pipe/mios_pipe/scheduler/batch.py": {
       "configure_kwargs": [],
       "public_symbols": [

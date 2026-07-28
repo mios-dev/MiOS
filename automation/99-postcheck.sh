@@ -80,36 +80,36 @@ if [[ -d /usr/lib/bootc/kargs.d ]]; then
 fi
 
 # 4. Critical Package Verification
-log "Verifying critical system binaries..."
+mios_log "verify critical system binaries"
 CRITICAL_TOOLS=(podman bootc cockpit-bridge rpm-ostree)
 for tool in "${CRITICAL_TOOLS[@]}"; do
     if ! command -v "$tool" >/dev/null 2>&1; then
         die "Critical tool '$tool' is missing from the image"
     fi
-    log "  [ok] $tool present"
+    mios_ok "$tool present"
 done
 
 # 5. NVIDIA Container Toolkit Version Check
-log "Checking NVIDIA Container Toolkit version..."
+mios_log "check NVIDIA Container Toolkit version"
 if command -v nvidia-ctk >/dev/null 2>&1; then
     NCT_VER=$(nvidia-ctk --version | head -n1 | grep -oP 'version \K[0-9.]+')
-    log "  Found: $NCT_VER"
+    mios_log "nvidia-ctk $NCT_VER"
     if [[ $(printf '%s\n1.18' "$NCT_VER" | sort -V | head -n1) != "1.18" ]]; then
         die "nvidia-container-toolkit version $NCT_VER is below required 1.18"
     fi
-    log "  [ok] NVIDIA Container Toolkit version is safe"
+    mios_ok "NVIDIA Container Toolkit version is safe"
 fi
 
 # 6. Cockpit Version Check (for CVE-2026-4631)
-log "Checking Cockpit version..."
+mios_log "check Cockpit version"
 if rpm -q cockpit >/dev/null 2>&1; then
     COCKPIT_VER=$(rpm -q cockpit --queryformat '%{VERSION}')
-    log "  Found: Cockpit $COCKPIT_VER"
+    mios_log "Cockpit $COCKPIT_VER"
     # CVE fixed in 360. 'MiOS' targets 361+ for Fedora 44 GA stability.
     if [[ $(printf '%s\n361' "$COCKPIT_VER" | sort -V | head -n1) != "361" ]]; then
-        log "  [!] Cockpit version $COCKPIT_VER is below 361 (Risk: CVE-2026-4631 / Regressions)"
+        mios_warn "Cockpit version $COCKPIT_VER below 361 (risk: CVE-2026-4631 / Regressions)"
     else
-        log "  [ok] Cockpit version is safe"
+        mios_ok "Cockpit version is safe"
     fi
 fi
 
@@ -119,7 +119,7 @@ fi
 # cwd of /mnt/c/.... Catch drift at build time so we never ship a broken
 # file. Also enforces parity with /usr/lib/wsl.conf (the canonical reference
 # wsl-init.service uses to auto-restore).
-log "Validating /etc/wsl.conf (ASCII + parse + parity with /usr/lib/wsl.conf)..."
+mios_log "validate /etc/wsl.conf (ASCII + parse + parity with /usr/lib/wsl.conf)"
 if [[ -f /etc/wsl.conf ]]; then
     # WSL2's INI parser is byte-naive -- multibyte chars (em-dashes, smart quotes,
     # NBSP) shift its line counter and surface as bogus "Expected ' ' or '\n' in
@@ -128,7 +128,7 @@ if [[ -f /etc/wsl.conf ]]; then
     if LC_ALL=C grep -nP '[^\x00-\x7F]' /etc/wsl.conf >&2; then
         die "/etc/wsl.conf contains non-ASCII bytes (WSL2's parser will choke)"
     fi
-    log "  pure ASCII"
+    mios_log "pure ASCII"
     # CRLF detection. .gitattributes pins *.conf to eol=lf, but on a
     # Windows host with core.autocrlf=true the working tree can carry
     # CRLF that the build context inherits. WSL2's INI parser treats
@@ -138,7 +138,7 @@ if [[ -f /etc/wsl.conf ]]; then
     if LC_ALL=C grep -lP '\r' /etc/wsl.conf >/dev/null 2>&1; then
         die "/etc/wsl.conf contains CRLF line endings (must be LF; WSL2's parser will choke)"
     fi
-    log "  pure LF line endings"
+    mios_log "pure LF line endings"
     if command -v python3 >/dev/null 2>&1; then
         python3 -c '
 import configparser, sys
@@ -158,16 +158,16 @@ for section, keys in required.items():
 print("  /etc/wsl.conf parses cleanly with all required sections/keys")
 ' || die "/etc/wsl.conf failed parse/required-keys validation"
     else
-        log "  [!] python3 unavailable -- skipping wsl.conf parse (post-build only)"
+        mios_skip "python3 unavailable -- wsl.conf parse (post-build only)"
     fi
     if [[ -f /usr/lib/wsl.conf ]]; then
         if ! cmp -s /etc/wsl.conf /usr/lib/wsl.conf; then
             die "/etc/wsl.conf drifted from /usr/lib/wsl.conf reference at build time"
         fi
-        log "  [ok] /etc/wsl.conf matches /usr/lib/wsl.conf reference"
+        mios_ok "/etc/wsl.conf matches /usr/lib/wsl.conf reference"
     fi
 else
-    log "  [!] /etc/wsl.conf not present in image -- WSL2 deploys will fall back to defaults"
+    mios_skip "/etc/wsl.conf not present -- WSL2 deploys fall back to defaults"
 fi
 
 # 8. sysusers.d sanity -- login-shell users MUST have a fixed UID.
@@ -179,7 +179,7 @@ fi
 # Files in /etc/sysusers.d/ override files of the same basename in
 # /usr/lib/sysusers.d/ (systemd-sysusers.d(5)), so when an override exists
 # the /usr/lib/ file is shadowed at runtime -- validate the effective file.
-log "Validating sysusers.d login users have fixed UIDs..."
+mios_log "validate sysusers.d login users have fixed UIDs"
 _sysusers_effective() {
     local d
     declare -A _seen=()
@@ -214,7 +214,7 @@ if [[ -n "$_sysusers_bad" ]]; then
     printf '%s\n' "$_sysusers_bad" >&2
     die "sysusers.d defines login-shell user(s) with auto-allocated UID; pin to a value >= 1000"
 fi
-log "  all login-shell sysusers entries have fixed UIDs"
+mios_ok "all login-shell sysusers entries have fixed UIDs"
 
 # 8b. sysusers.d: every `u user UID:GID` must reference a GID that
 # systemd-sysusers will be able to resolve at first boot. Resolution order
@@ -228,7 +228,7 @@ log "  all login-shell sysusers entries have fixed UIDs"
 # /etc/group seeded by the base image, not from a co-located g-line.
 # Single-file scope flagged those as broken; the cross-file + NSS lookup
 # below matches what sysusers actually does at boot.
-log "Validating sysusers.d UID:GID resolves to a created group..."
+mios_log "validate sysusers.d UID:GID resolves to a created group"
 # First pass: collect every `g <name> <gid>` declared anywhere in the
 # effective sysusers tree.
 _sysusers_known_gids=$(
@@ -273,13 +273,13 @@ if [[ -n "$_sysusers_truly_unresolved" ]]; then
     printf '%s\n' "$_sysusers_truly_unresolved" >&2
     die "sysusers.d: u-line references a numeric GID with no 'g name GID' anywhere in /etc/sysusers.d or /usr/lib/sysusers.d AND no matching entry in /etc/group"
 fi
-log "  all u-line GIDs resolve via cross-file g-lines or /etc/group"
+mios_ok "all u-line GIDs resolve via cross-file g-lines or /etc/group"
 
 # 9. tmpfiles.d: no /var/run or /var/lock paths.
 # Both are FHS-compat symlinks to /run subdirs. systemd-tmpfiles emits
 # "Line references path below /var/run" and refuses to act on the entry.
 # Catch the bug class at build time so we never ship a broken declaration.
-log "Validating tmpfiles.d uses /run (not /var/run / /var/lock)..."
+mios_log "validate tmpfiles.d uses /run (not /var/run / /var/lock)"
 _tmpfiles_legacy=$(
     for f in /usr/lib/tmpfiles.d/*.conf /etc/tmpfiles.d/*.conf; do
         [[ -f "$f" ]] || continue
@@ -298,7 +298,7 @@ if [[ -n "$_tmpfiles_legacy" ]]; then
     printf '%s\n' "$_tmpfiles_legacy" >&2
     die "tmpfiles.d entry uses /var/run or /var/lock (use /run or /run/lock instead)"
 fi
-log "  tmpfiles.d entries use canonical /run paths"
+mios_ok "tmpfiles.d entries use canonical /run paths"
 
 # 10. systemd-analyze verify on MiOS-owned services + targets.
 # Catches: bad directive names, malformed values, missing required sections,
@@ -307,7 +307,7 @@ log "  tmpfiles.d entries use canonical /run paths"
 # referenced as "Failed to load configuration" or "directive not understood"
 # are fatal; everything else (file-not-found from external Wants=, etc.) is
 # tolerable and gets filtered out.
-log "Validating MiOS systemd unit syntax..."
+mios_log "validate MiOS systemd unit syntax"
 if command -v systemd-analyze >/dev/null 2>&1; then
     _bad_units=$(
         for u in /usr/lib/systemd/system/mios-*.service \
@@ -323,9 +323,9 @@ if command -v systemd-analyze >/dev/null 2>&1; then
         printf '%s\n' "$_bad_units" >&2
         die "systemd-analyze verify reported errors in MiOS unit(s)"
     fi
-    log "  MiOS units lint clean"
+    mios_ok "MiOS units lint clean"
 else
-    log "  systemd-analyze unavailable -- skipping unit verification"
+    mios_skip "systemd-analyze unavailable -- unit verification"
 fi
 
 # 11. systemd-tmpfiles --dry-run on MiOS-owned tmpfiles configs.
@@ -341,7 +341,7 @@ fi
 # Unknown user/group" warnings for entities declared in sysusers.d.
 # We harvest the declared name set and filter those warnings out --
 # every other tmpfiles error still fails the build.
-log "Validating MiOS tmpfiles.d syntax..."
+mios_log "validate MiOS tmpfiles.d syntax"
 if command -v systemd-tmpfiles >/dev/null 2>&1; then
     # Build the union of users + groups declared by sysusers.d (any file).
     _sysusers_declared=$(
@@ -388,16 +388,16 @@ if command -v systemd-tmpfiles >/dev/null 2>&1; then
         printf '%s\n' "$_bad_tmpfiles" >&2
         die "systemd-tmpfiles reported errors in MiOS tmpfiles.d configs"
     fi
-    log "  MiOS tmpfiles.d configs parse clean (sysusers-declared names accepted)"
+    mios_ok "MiOS tmpfiles.d configs parse clean (sysusers-declared names accepted)"
 else
-    log "  systemd-tmpfiles unavailable -- skipping tmpfiles verification"
+    mios_skip "systemd-tmpfiles unavailable -- tmpfiles verification"
 fi
 
 # 12. UNIFIED-AI-REDIRECTS (Architectural Law 5).
 # Active configuration MUST NOT hard-code vendor cloud URLs. Comments may
 # show alternatives for documentation, so we strip comment lines before
 # matching. Scope: actual config dirs in the deployed image, not docs.
-log "Validating UNIFIED-AI-REDIRECTS (Law 5): no vendor URLs in active config..."
+mios_log "validate UNIFIED-AI-REDIRECTS (Law 5): no vendor URLs in active config"
 _law5_dirs=(
     /etc/containers/systemd
     /usr/share/containers/systemd
@@ -426,7 +426,7 @@ if [[ -n "$_law5_hits" ]]; then
     printf '%s' "$_law5_hits" >&2
     die "UNIFIED-AI-REDIRECTS: vendor cloud URL found in active config (must route through MIOS_AI_ENDPOINT)"
 fi
-log "  no vendor URLs in active config"
+mios_ok "no vendor URLs in active config"
 
 # 12b. UNIFIED-AI-REDIRECTS (Law 5) -- retired :11434 (ollama) inference lane.
 # WS-0B drift-gate: the ollama lane on :11434 is retired ENTIRELY (G5/G17 ->
@@ -435,7 +435,7 @@ log "  no vendor URLs in active config"
 # is removed). Active config in the AI plane must NOT dial it; a stale ref
 # silently 404s a refine / sys-agent / DCI call. Scope: the SAME dirs as the
 # vendor-URL check.
-log "Validating UNIFIED-AI-REDIRECTS (Law 5): no retired :11434 lane in active config..."
+mios_log "validate UNIFIED-AI-REDIRECTS (Law 5): no retired :11434 lane in active config"
 _dead_lane_pattern=':11434'
 _dead_lane_hits=""
 for d in "${_law5_dirs[@]}"; do
@@ -454,7 +454,7 @@ if [[ -n "$_dead_lane_hits" ]]; then
     printf '%s' "$_dead_lane_hits" >&2
     die "UNIFIED-AI-REDIRECTS: retired :11434 (ollama) lane in active config -- MiOS is /v1-only; use the live lane, e.g. mios-llm-light :8450"
 fi
-log "  no retired :11434 lane in active config"
+mios_ok "no retired :11434 lane in active config"
 
 # 12c. UNIFIED-AI-REDIRECTS (Law 5) -- agent dispatch-target recursion guard.
 # WS-4 structural invariant (the BUILD-TIME half; the runtime half is the
@@ -466,7 +466,7 @@ log "  no retired :11434 lane in active config"
 # runaway class). Ports are DERIVED from the SSOT ([ai].endpoint + [ports].hermes)
 # -- no hardcoded port literal. python3-guarded (TOML parse); skipped only when
 # python3 is absent (the bash Law checks above still run).
-log "Validating UNIFIED-AI-REDIRECTS (Law 5): no [agents.*] dispatch target loops to the orchestrator/gateway..."
+mios_log "validate UNIFIED-AI-REDIRECTS (Law 5): no [agents.*] dispatch target loops to the orchestrator/gateway"
 if command -v python3 >/dev/null 2>&1; then
     if _recursion_out=$(python3 - <<'PYEOF'
 import os, re, sys
@@ -512,12 +512,12 @@ if bad:
 print("orchestrator=:%s gateway=:%s agents=%d clean" % (orch, gw, len(d.get("agents") or {})))
 PYEOF
     ); then
-        log "  $_recursion_out"
+        mios_log "$_recursion_out"
     else
         die "UNIFIED-AI-REDIRECTS: an [agents.*] dispatch target loops back to the orchestrator/gateway (recursion risk -- see above)"
     fi
 else
-    log "  [!] python3 unavailable -- skipping agent-recursion guard"
+    mios_skip "python3 unavailable -- agent-recursion guard"
 fi
 
 # 13. UNPRIVILEGED-QUADLETS (Architectural Law 6).
@@ -529,7 +529,7 @@ fi
 # forgejo-runner (CI runner, --privileged) + mios-coderun-sandbox@ (root but
 # Network=none + ReadOnly). Group= + Delegate=yes are SHOULD-have. (SHOULD-have
 # follow-up: also flag an UNDOCUMENTED User=root Quadlet, not just a missing User=.)
-log "Validating UNPRIVILEGED-QUADLETS (Law 6): every Quadlet declares User=..."
+mios_log "validate UNPRIVILEGED-QUADLETS (Law 6): every Quadlet declares User="
 _law6_exceptions='^(mios-ceph|mios-k3s|mios-llm-heavy|mios-forgejo-runner|mios-coderun-sandbox.*)\.container$'
 _law6_missing=""
 for d in /etc/containers/systemd /usr/share/containers/systemd; do
@@ -547,7 +547,7 @@ if [[ -n "$_law6_missing" ]]; then
     printf '%s' "$_law6_missing" >&2
     die "UNPRIVILEGED-QUADLETS: Quadlet missing User= (exceptions: mios-ceph, mios-k3s, mios-llm-heavy, mios-forgejo-runner, mios-coderun-sandbox)"
 fi
-log "  every Quadlet declares User= (or is a documented root exception)"
+mios_ok "every Quadlet declares User= (or is a documented root exception)"
 
 # 14. BOUND-IMAGES (Architectural Law 3).
 # Every Quadlet *.container in /etc/containers/systemd or
@@ -555,7 +555,7 @@ log "  every Quadlet declares User= (or is a documented root exception)"
 # /usr/lib/bootc/bound-images.d/ so the image bind-binds with the host.
 # Detected drift = a Quadlet that ships without its image binding, or
 # a stale binding pointing at a Quadlet that no longer exists.
-log "Validating BOUND-IMAGES (Law 3): Quadlet -> bound-images.d/ coverage..."
+mios_log "validate BOUND-IMAGES (Law 3): Quadlet -> bound-images.d/ coverage"
 _bind_dir=/usr/lib/bootc/bound-images.d
 _law3_missing=""
 _law3_extra=""
@@ -587,7 +587,7 @@ if [[ -d "$_bind_dir" ]]; then
                         [[ -n "$_p14_tok" && "$_p14_img" == *"$_p14_tok"* ]] && { _p14_fb=1; break; }
                     done
                     if [[ -n "$_p14_fb" ]]; then
-                        log "  [ok] $base intentionally unbound (firstboot tier -- web-pulled at first boot, not baked)"
+                        mios_ok "$base intentionally unbound (firstboot tier -- web-pulled at first boot, not baked)"
                         continue
                     fi
                 fi
@@ -607,16 +607,16 @@ if [[ -d "$_bind_dir" ]]; then
         [[ -n "$_law3_extra" ]] && printf '%s' "$_law3_extra" >&2
         die "BOUND-IMAGES: Quadlet/binder drift (every *.container must symlink into $_bind_dir/)"
     fi
-    log "  every Quadlet has a corresponding bound-images.d/ symlink"
+    mios_ok "every Quadlet has a corresponding bound-images.d/ symlink"
 else
-    log "  $_bind_dir not present -- skipping (binder loop did not run)"
+    mios_skip "$_bind_dir not present -- binder loop did not run"
 fi
 
 
 # 15. BENCHMARK INTEGRATION (T-039).
 # Runs the benchmark suite using a mock API server in the background
 # and prints the results table to the build log.
-log "Running build-time capability benchmark (T-039)..."
+mios_log "run build-time capability benchmark (T-039)"
 if command -v python3 >/dev/null 2>&1; then
     # Spin up mock server in the background
     python3 -c '
@@ -647,9 +647,9 @@ server.serve_forever()
     
     # Kill mock server
     kill "$MOCK_PID" || true
-    log "  [ok] benchmark harness executed successfully"
+    mios_ok "benchmark harness executed"
 else
-    log "  [!] python3 missing -- skipping benchmark run"
+    mios_skip "python3 missing -- benchmark run"
 fi
 
 # 16. BARE-SAFE-ENV (Architectural Law 10).
@@ -659,7 +659,7 @@ fi
 # every non-comment line is a bare KEY=value, no secret NAMES leak in, and the
 # whole render sources clean under `set -u`. (This is the build gate behind
 # system-sync-env's own non-fatal R4 self-test.)
-log "Validating BARE-SAFE-ENV (Law 10): system-sync-env --dry-run is bare KEY=value..."
+mios_log "validate BARE-SAFE-ENV (Law 10): system-sync-env --dry-run is bare KEY=value"
 _sync_env="/usr/libexec/mios/system-sync-env.sh"
 [[ -x "$_sync_env" ]] || _sync_env="$(dirname "${BASH_SOURCE[0]}")/../usr/libexec/mios/system-sync-env.sh"
 if [[ -f "$_sync_env" ]]; then
@@ -688,9 +688,9 @@ if [[ -f "$_sync_env" ]]; then
         die "BARE-SAFE-ENV: install.env render does not source clean under 'set -u'"
     fi
     rm -f "$_law10_tmp"
-    log "  [ok] install.env render is bare KEY=value, secret-free, and set -u clean"
+    mios_ok "install.env render is bare KEY=value, secret-free, and set -u clean"
 else
-    log "  [!] system-sync-env.sh not found -- skipping BARE-SAFE-ENV render check"
+    mios_skip "system-sync-env.sh not found -- BARE-SAFE-ENV render check"
 fi
 
 # 17. SECRETS-NEVER-IN-ENV (Architectural Law 11).
@@ -700,7 +700,7 @@ fi
 # MIOS_GITHUB_TOKEN) OR a unix-crypt hash literal ($6$.../$y$...), the carrying file
 # MUST be mode 0600 -- otherwise a group/world-readable file leaks a secret.
 # Comment lines are stripped so a doc mention of a secret name never trips the gate.
-log "Validating SECRETS-NEVER-IN-ENV (Law 11): secret-bearing env files are 0600..."
+mios_log "validate SECRETS-NEVER-IN-ENV (Law 11): secret-bearing env files are 0600"
 _law11_secret_re='(MIOS_USER_PASSWORD_HASH|MIOS_FORGE_ADMIN_PASSWORD|MIOS_GITHUB_TOKEN)=|[$]6[$]|[$]y[$]'
 _law11_dirs=(/etc /run/secrets /usr/share/mios /usr/lib/mios /var/lib/mios)
 _law11_bad=""
@@ -720,7 +720,7 @@ if [[ -n "$_law11_bad" ]]; then
     printf '%s' "$_law11_bad" >&2
     die "SECRETS-NEVER-IN-ENV: a secret-bearing env file is not mode 0600 (secret leak; move it to /etc/mios/secrets.env @ 0600)"
 fi
-log "  [ok] every secret-bearing env file is mode 0600 (or none present)"
+mios_ok "every secret-bearing env file is mode 0600 (or none present)"
 
 # 18. BOUND-IMAGES-RESOLVE (AGY-92 / B1).
 # Every Quadlet (.container or .image) linked under /usr/lib/bootc/bound-images.d/
@@ -728,14 +728,14 @@ log "  [ok] every secret-bearing env file is mode 0600 (or none present)"
 # image registry (/usr/share/mios/artifacts/sbom/bound-images.tsv).
 _bake_val="${MIOS_BAKE_BOUND_IMAGES:-0}"
 if [[ "$_bake_val" == "0" || "$_bake_val" == "false" || "$_bake_val" == "False" || "$_bake_val" == "no" ]]; then
-    log "  [skip] MIOS_BAKE_BOUND_IMAGES=$_bake_val (sidecar bake skipped for CI validation build) -- skipping BOUND-IMAGES-RESOLVE"
+    mios_skip "MIOS_BAKE_BOUND_IMAGES=$_bake_val (sidecar bake skipped for CI validation build) -- BOUND-IMAGES-RESOLVE"
 else
-    log "Validating BOUND-IMAGES-RESOLVE: bound-images.d symlinks resolve to baked images..."
+    mios_log "validate BOUND-IMAGES-RESOLVE: bound-images.d symlinks resolve to baked images"
     _lbi_dir="/usr/lib/bootc/bound-images.d"
 _lbi_tsv="/usr/share/mios/artifacts/sbom/bound-images.tsv"
 if [[ -d "$_lbi_dir" ]]; then
     if [[ ! -f "$_lbi_tsv" ]]; then
-        log "  [skip] $_lbi_tsv not present (sidecars not baked in this Containerfile layer) -- skipping BOUND-IMAGES-RESOLVE"
+        mios_skip "$_lbi_tsv not present (sidecars not baked in this Containerfile layer) -- BOUND-IMAGES-RESOLVE"
     else
         declare -A _lbi_baked=()
         while IFS=$'\t' read -r img_ref _digest _group || [[ -n "$img_ref" ]]; do
@@ -775,10 +775,10 @@ if [[ -d "$_lbi_dir" ]]; then
                 fi
             fi
         done < <(find "$_lbi_dir" -type l 2>/dev/null)
-        log "  [ok] every bound-images.d symlink resolves to a baked image"
+        mios_ok "every bound-images.d symlink resolves to a baked image"
     fi
 fi
 fi
 
-log "Validation SUCCESSFUL"
+mios_ok "validation successful"
 exit 0
