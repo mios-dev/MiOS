@@ -5440,6 +5440,110 @@ check_pipe_extraction_parity() {
     fi
 }
 
+# --- (71) Verify all paths in [testing.smoke_components] exist in source tree. -----
+check_smoke_manifest() {
+    if ! command -v python3 >/dev/null 2>&1; then
+        return 0
+    fi
+    if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
+import os, sys
+try:
+    import tomllib
+except ImportError:
+    import tomli as tomllib
+
+root = os.environ["MIOS_DRIFT_ROOT"]
+toml_path = os.path.join(root, "usr/share/mios/mios.toml")
+if not os.path.isfile(toml_path):
+    sys.exit(0)
+
+with open(toml_path, "rb") as f:
+    data = tomllib.load(f)
+
+smoke = data.get("testing", {}).get("smoke_components", {})
+if not smoke:
+    sys.stderr.write("    Missing [testing.smoke_components] table in mios.toml\n")
+    sys.exit(1)
+
+missing = []
+for category in ["shims", "units", "python_entries"]:
+    paths = smoke.get(category, [])
+    for p in paths:
+        full_p = os.path.join(root, p)
+        if not os.path.exists(full_p):
+            missing.append(p)
+
+if missing:
+    sys.stderr.write(f"    Paths in [testing.smoke_components] missing from source tree: {missing}\n")
+    sys.exit(1)
+
+sys.exit(0)
+PY
+    then
+        echo "[38-drift-checks]   (71) smoke-manifest SSOT component paths present in source tree"
+    else
+        _violation "[testing.smoke_components] paths missing from source tree"
+    fi
+}
+
+# --- (72) Negative test coverage gate with ratcheted allowlist. -----
+check_negative_coverage() {
+    if ! command -v python3 >/dev/null 2>&1; then
+        return 0
+    fi
+    if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
+import os, sys, re
+try:
+    import tomllib
+except ImportError:
+    import tomli as tomllib
+
+root = os.environ["MIOS_DRIFT_ROOT"]
+checks_sh = os.path.join(root, "automation/98-drift-checks.sh")
+negatives_sh = os.path.join(root, "tests/drift-gate-negatives.sh")
+toml_path = os.path.join(root, "usr/share/mios/mios.toml")
+
+if not os.path.isfile(checks_sh) or not os.path.isfile(negatives_sh):
+    sys.exit(0)
+
+with open(checks_sh, "r", encoding="utf-8", errors="ignore") as f:
+    checks_content = f.read()
+
+main_match = re.search(r'main\(\)\s*\{(.*?)\}', checks_content, re.DOTALL)
+if not main_match:
+    sys.exit(0)
+
+dispatched = set(re.findall(r'^\s*(check_[a-z0-9_]+)\s*$', main_match.group(1), re.MULTILINE))
+
+with open(negatives_sh, "r", encoding="utf-8", errors="ignore") as f:
+    neg_content = f.read()
+
+covered = set(re.findall(r'check_[a-z0-9_]+', neg_content))
+
+exempt = set()
+if os.path.isfile(toml_path):
+    with open(toml_path, "rb") as f:
+        tdata = tomllib.load(f)
+    exempt_val = tdata.get("testing", {}).get("negative_coverage_exempt", [])
+    if isinstance(exempt_val, dict):
+        exempt = set(exempt_val.get("exempt", []))
+    elif isinstance(exempt_val, list):
+        exempt = set(exempt_val)
+
+uncovered = dispatched - covered - exempt
+if uncovered:
+    sys.stderr.write(f"    Dispatched drift checks lacking negative tests and not exempt: {sorted(list(uncovered))}\n")
+    sys.exit(1)
+
+sys.exit(0)
+PY
+    then
+        echo "[38-drift-checks]   (72) negative-test coverage ratcheted allowlist satisfied"
+    else
+        _violation "dispatched drift checks lack negative tests and are not on negative_coverage_exempt allowlist"
+    fi
+}
+
 main() {
     if [[ $# -eq 1 && -n "$1" ]]; then
         if declare -f "$1" >/dev/null; then

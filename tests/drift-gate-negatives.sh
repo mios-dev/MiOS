@@ -1691,6 +1691,47 @@ test_pipe_extraction_parity() {
     log "check_pipe_extraction_parity negative test passed."
 }
 
+test_smoke_manifest() {
+    log "Testing check_smoke_manifest..."
+    local toml="${ROOT}/usr/share/mios/mios.toml"
+    if [ -f "$toml" ]; then
+        local orig_val
+        orig_val="$(cat "$toml")"
+        echo '[testing.smoke_components]' >> "$toml"
+        echo 'shims = ["nonexistent/path/to/shim"]' >> "$toml"
+
+        if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_smoke_manifest >/dev/null 2>&1; then
+            echo "$orig_val" > "$toml"
+            die "check_smoke_manifest passed despite nonexistent shim path!"
+        fi
+
+        echo "$orig_val" > "$toml"
+        MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_smoke_manifest >/dev/null 2>&1 \
+            || die "check_smoke_manifest failed after restoration!"
+    fi
+    log "test_smoke_manifest negative test passed."
+}
+
+test_negative_coverage() {
+    log "Testing check_negative_coverage..."
+    local checks_sh="${ROOT}/automation/98-drift-checks.sh"
+    if [ -f "$checks_sh" ]; then
+        local orig_val
+        orig_val="$(cat "$checks_sh")"
+        sed -i 's/check_pipe_extraction_parity/check_pipe_extraction_parity\n    check_bogus_uncovered_gate/' "$checks_sh"
+
+        if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_negative_coverage >/dev/null 2>&1; then
+            echo "$orig_val" > "$checks_sh"
+            die "check_negative_coverage passed despite uncovered gate!"
+        fi
+
+        echo "$orig_val" > "$checks_sh"
+        MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_negative_coverage >/dev/null 2>&1 \
+            || die "check_negative_coverage failed after restoration!"
+    fi
+    log "test_negative_coverage negative test passed."
+}
+
 main() {
     log "Starting negative-test suite..."
     test_version_ssot
