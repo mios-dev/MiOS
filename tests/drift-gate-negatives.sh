@@ -1102,6 +1102,48 @@ test_renderer_gate_coverage() {
     log "test_renderer_gate_coverage negative test passed."
 }
 
+# 50. Test check_bake_plan
+test_bake_plan() {
+    log "Testing check_bake_plan..."
+    local plan_file="${ROOT}/usr/lib/mios/bake/plan.d/03-extra.list"
+    if [ -f "$plan_file" ]; then
+        local orig_val
+        orig_val="$(cat "$plan_file")"
+        echo "localhost/bogus-injected-image:latest" >> "$plan_file"
+
+        if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_bake_plan >/dev/null 2>&1; then
+            echo "$orig_val" > "$plan_file"
+            die "check_bake_plan passed despite injected bogus image!"
+        fi
+
+        echo "$orig_val" > "$plan_file"
+        MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_bake_plan >/dev/null 2>&1 \
+            || die "check_bake_plan failed after restoration!"
+    fi
+    log "test_bake_plan negative test passed."
+}
+
+# 51. Test check_bake_ref_defaults
+test_bake_ref_defaults() {
+    log "Testing check_bake_ref_defaults..."
+    local target_sh="${ROOT}/automation/01-base-setup.sh"
+    if [ -f "$target_sh" ]; then
+        local orig_val
+        orig_val="$(cat "$target_sh")"
+        echo ': "${MIOS_BUILD_BAKE_REFS_ZZZ:-}"' >> "$target_sh"
+
+        if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_bake_ref_defaults >/dev/null 2>&1; then
+            echo "$orig_val" > "$target_sh"
+            die "check_bake_ref_defaults passed despite empty ref default!"
+        fi
+
+        echo "$orig_val" > "$target_sh"
+        MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_bake_ref_defaults >/dev/null 2>&1 \
+            || die "check_bake_ref_defaults failed after restoration!"
+    fi
+    log "test_bake_ref_defaults negative test passed."
+}
+
 main() {
     log "Starting negative-test suite..."
     test_version_ssot
@@ -1153,6 +1195,8 @@ main() {
     test_chrony_projection
     test_nut_projection
     test_renderer_gate_coverage
+    test_bake_plan
+    test_bake_ref_defaults
     log "All negative tests completed successfully!"
 }
 
