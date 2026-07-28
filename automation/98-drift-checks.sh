@@ -5418,6 +5418,17 @@ check_vllm_name_canonical() {
     fi
 }
 
+check_pipe_extraction_parity() {
+    if ! command -v python3 >/dev/null 2>&1; then
+        return 0
+    fi
+    if python3 "${ROOT}/tools/pipe-parity-check.py"; then
+        echo "[38-drift-checks]   (76) pipe extraction surface parity: modules respect one-way server boundary"
+    else
+        _violation "pipe extraction surface parity violation found"
+    fi
+}
+
 main() {
     if [[ $# -eq 1 && -n "$1" ]]; then
         if declare -f "$1" >/dev/null; then
@@ -5538,6 +5549,7 @@ main() {
     check_verb_templates
     check_pipe_boundaries
     check_vllm_name_canonical
+    check_pipe_extraction_parity
 
     echo "[38-drift-checks] ---------------------------------------------------------"
     if [[ "$VIOLATIONS" -eq 0 ]]; then

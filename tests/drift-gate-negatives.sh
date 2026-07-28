@@ -1428,6 +1428,27 @@ test_vllm_name_canonical() {
     log "test_vllm_name_canonical negative test passed."
 }
 
+# 66. Test check_pipe_extraction_parity
+test_pipe_extraction_parity() {
+    log "Testing check_pipe_extraction_parity..."
+    local test_file="${ROOT}/usr/lib/mios/agent-pipe/mios_pipe/observability/session_events.py"
+    if [ -f "$test_file" ]; then
+        local orig_val
+        orig_val="$(cat "$test_file")"
+        echo "import server" >> "$test_file"
+
+        if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_pipe_extraction_parity >/dev/null 2>&1; then
+            echo "$orig_val" > "$test_file"
+            die "check_pipe_extraction_parity passed despite forbidden import server!"
+        fi
+
+        echo "$orig_val" > "$test_file"
+        MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_pipe_extraction_parity >/dev/null 2>&1 \
+            || die "check_pipe_extraction_parity failed after restoration!"
+    fi
+    log "test_pipe_extraction_parity negative test passed."
+}
+
 main() {
     log "Starting negative-test suite..."
     test_version_ssot
@@ -1495,6 +1516,7 @@ main() {
     test_verb_templates
     test_pipe_boundaries
     test_vllm_name_canonical
+    test_pipe_extraction_parity
     log "All negative tests completed successfully!"
 }
 
