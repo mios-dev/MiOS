@@ -36,16 +36,31 @@ fi
 files=()
 
 # 1. automation/*.sh
-for f in "${ROOT}"/automation/*.sh; do
+for f in "${ROOT}"/automation/*.sh "${ROOT}"/automation/tests/*.sh "${ROOT}"/automation/support/*.sh "${ROOT}"/automation/lib/*.sh; do
     [ -f "$f" ] && files+=("$f")
 done
 
 # 2. tools/*.sh
-for f in "${ROOT}"/tools/*.sh; do
+for f in "${ROOT}"/tools/*.sh "${ROOT}"/tools/lib/*.sh; do
     [ -f "$f" ] && files+=("$f")
 done
 
-# 3. usr/libexec/mios/mios-* (filter by shebang)
+# 3. installation/*.sh
+for f in "${ROOT}"/installation/*.sh; do
+    [ -f "$f" ] && files+=("$f")
+done
+
+# 4. tests/*.sh
+for f in "${ROOT}"/tests/*.sh; do
+    [ -f "$f" ] && files+=("$f")
+done
+
+# 5. usr/lib/mios/*.sh
+for f in "${ROOT}"/usr/lib/mios/*.sh; do
+    [ -f "$f" ] && files+=("$f")
+done
+
+# 6. usr/libexec/mios/mios-* (filter by shebang)
 for f in "${ROOT}"/usr/libexec/mios/mios-*; do
     if [ -f "$f" ]; then
         # read the first line
