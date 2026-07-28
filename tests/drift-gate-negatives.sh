@@ -1260,6 +1260,69 @@ test_target_languages() {
     log "test_target_languages negative test passed."
 }
 
+# 58. Test check_roadmap_index
+test_roadmap_index() {
+    log "Testing check_roadmap_index..."
+    local roadmap_file="${ROOT}/ROADMAP.md"
+    if [ -f "$roadmap_file" ]; then
+        local orig_val
+        orig_val="$(cat "$roadmap_file")"
+        sed -i 's/\*\*Done\*\*: [0-9]*/\*\*Done\*\*: 99999/g' "$roadmap_file" 2>/dev/null || true
+
+        if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_roadmap_index >/dev/null 2>&1; then
+            echo "$orig_val" > "$roadmap_file"
+            die "check_roadmap_index passed despite corrupted rollup!"
+        fi
+
+        echo "$orig_val" > "$roadmap_file"
+        MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_roadmap_index >/dev/null 2>&1 \
+            || die "check_roadmap_index failed after restoration!"
+    fi
+    log "test_roadmap_index negative test passed."
+}
+
+# 59. Test check_templates_compilation
+test_templates_compilation() {
+    log "Testing check_templates_compilation..."
+    local tmpl_file="${ROOT}/usr/share/mios/templates/toml-config"
+    if [ -f "$tmpl_file" ]; then
+        local orig_val
+        orig_val="$(cat "$tmpl_file")"
+        echo 'INVALID_SYNTAX_BOGUS {{' >> "$tmpl_file"
+
+        if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_templates_compilation >/dev/null 2>&1; then
+            echo "$orig_val" > "$tmpl_file"
+            die "check_templates_compilation passed despite invalid template!"
+        fi
+
+        echo "$orig_val" > "$tmpl_file"
+        MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_templates_compilation >/dev/null 2>&1 \
+            || die "check_templates_compilation failed after restoration!"
+    fi
+    log "test_templates_compilation negative test passed."
+}
+
+# 60. Test check_impossible_eol_regressions
+test_impossible_eol() {
+    log "Testing check_impossible_eol_regressions..."
+    local toml_file="${ROOT}/usr/share/mios/mios.toml"
+    if [ -f "$toml_file" ]; then
+        local orig_val
+        orig_val="$(cat "$toml_file")"
+        echo 'eol_test_pkg = ["tang"]' >> "$toml_file"
+
+        if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_impossible_eol_regressions >/dev/null 2>&1; then
+            echo "$orig_val" > "$toml_file"
+            die "check_impossible_eol_regressions passed despite EOL tang package!"
+        fi
+
+        echo "$orig_val" > "$toml_file"
+        MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_impossible_eol_regressions >/dev/null 2>&1 \
+            || die "check_impossible_eol_regressions failed after restoration!"
+    fi
+    log "test_impossible_eol negative test passed."
+}
+
 main() {
     log "Starting negative-test suite..."
     test_version_ssot
@@ -1319,6 +1382,9 @@ main() {
     test_mini_vfio
     test_hyprland_heredoc
     test_target_languages
+    test_roadmap_index
+    test_templates_compilation
+    test_impossible_eol
     log "All negative tests completed successfully!"
 }
 

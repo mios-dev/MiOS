@@ -531,22 +531,4 @@ jobs:
           sudo TMPDIR=/mnt/tmp podman build --device /dev/fuse --cap-add all --security-opt seccomp=unconfined --security-opt apparmor=unconfined --build-arg MIOS_BAKE_BOUND_IMAGES=0 -t mios:smoke -f Containerfile .
 
       - name: Smoke RUN (image runs; key MiOS components present + agent-pipe compiles)
-        run: |
-          # A real runtime smoke (not just a build/lint): boot the image in
-          # podman, compile the agent-pipe, and assert the load-bearing shims +
-          # units shipped. Catches a build that lints clean but is missing
-          # components or has a broken server.py. (closes
-          # the "CI has no run/boot test" gap from the maturity review).
-          set -euo pipefail
-          sudo podman run --rm mios:smoke bash -lc '
-            set -e
-            python3 -m py_compile /usr/lib/mios/agent-pipe/server.py && echo "agent-pipe compile: OK"
-            for b in flatpak-launch mios-pc-control mios-launcher-daemon \
-                     mios-flatpak-icon-sanitize; do
-              test -e "/usr/libexec/mios/$b" || { echo "MISSING: /usr/libexec/mios/$b"; exit 1; }
-            done
-            echo "libexec shims: OK"
-            test -f /usr/lib/systemd/system/mios-wsl-interop-priority.service \
-              && echo "interop-priority svc: OK" || { echo "MISSING interop svc"; exit 1; }
-            echo "SMOKE_RUN_PASS"
-          '
+        run: bash ./tests/bake-smoke.sh mios:smoke
