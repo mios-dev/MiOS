@@ -164,7 +164,7 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 **Where:** new `automation/NN-materialize-build-ctx.sh` (pick the right ordinal, after seed), `usr/libexec/mios/materialize-build-ctx.py`, `usr/share/mios/mios.toml` (`[ai] build_catalog_authoritative=false`).
 **Done When:** with the flag false, the build is byte-identical to today; with it true (test), `/ctx` package lists + phase order match the `packages.sh`/`automation` resolution (diff clean); fail-open verified with DB down; `just drift-gate` green.
 
-## AGY-21  (WS-NAME Phase 2 / T-165, P2) — fold the next translation tranche onto the registry
+## AGY-21  (WS-NAME Phase 2 / T-165, P2) — fold the next translation tranche onto the registry  **[DONE]**
 **Who:** you (bash/Python + the AGY-4/AGY-12 gates). **When:** after AGY-12 (Phase 1 folded the first tranche).
 **What + How:** continue the `userenv.sh` de-translation: take the NEXT tranche of pure-translation env exports (an env var that merely renames a native/native-derived key already in `names.generated.txt`) and fold callers onto the single generated name, deleting the duplicate. Same law as AGY-12: **no loss of names/functions**, leave load-bearing exports (logic/default/legacy-verb re-dispatch) with a `# WS-NAME: load-bearing, keep` note. Regenerate `names.generated.txt`; keep drift-27 (userenv.sh == tools/lib/userenv.sh) + drift-30 (names registry) green. Update `naming-unification.md` Phase-2 status with the fold count + keep-list.
 **Where:** `usr/lib/mios/userenv.sh` + `tools/lib/userenv.sh` (keep in sync!), callers across `usr/lib/mios/**`+`usr/libexec/mios/**`, `usr/share/mios/names.generated.txt`, `usr/share/doc/mios/reference/naming-unification.md`.
@@ -172,19 +172,19 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 
 ---
 
-## AGY-22  (WS-VECTOR V4 accounts / T-246, P2) — DB-owned account identity + per-user prefs
+## AGY-22  (WS-VECTOR V4 accounts / T-246, P2) — DB-owned account identity + per-user prefs  **[DONE]**
 **Who:** you (SQL + Python). **When:** after AGY-17 (build-catalog patterns); independent of the flip work.
 **What + How:** per `everything-db-driven.md` V4, extend `schema-init.sql` (idempotent): add `home_dir`+`shell` columns to `account` (`ALTER … ADD COLUMN IF NOT EXISTS`); add a `uid_alloc` SEQUENCE + `allocate_uid()`/`allocate_gid()` SQL functions (start above the reserved range; `CREATE … IF NOT EXISTS`/`CREATE OR REPLACE FUNCTION`); add `account_preference(account_id FK account(id), layer int, key text, value jsonb, emb vector(768), emb_model, emb_version, PRIMARY KEY(account_id,layer,key))` with the standard HNSW index. Extend `seed-db-config.py` to backfill `home_dir`/`shell` for existing accounts from sane defaults. Ground-truth in typed columns; additive only — nothing renders from `account_preference` yet (AGY-23 does).
 **Where:** `usr/share/mios/postgres/schema-init.sql`, `usr/libexec/mios/seed-db-config.py`, `test_mios_db_config.py` (or a new `test_mios_accounts.py`).
 **Done When:** schema applies idempotently (2nd run noop); `allocate_uid()` returns monotonically-increasing ids above the reserved floor; `account_preference` accepts a row + is HNSW-indexed; seed fills home_dir/shell; tests + `just drift-gate` green. **Stage only your files (never the Quadlets).**
 
-## AGY-23  (WS-VECTOR V4 dotfile render / T-246, P2) — render per-user dotfiles from the DB
+## AGY-23  (WS-VECTOR V4 dotfile render / T-246, P2) — render per-user dotfiles from the DB  **[DONE]**
 **Who:** you (Python). **When:** after AGY-22 (needs `account_preference`).
 **What + How:** write a **DB→dotfiles materializer** (`usr/libexec/mios/materialize-user-config.py`) that, per account, reads `account_preference` (3-layer precedence via `layer`) and renders the user's `~/.config/mios/*` (+ any owned dotfiles) — the DB-driven successor to static `etc/skel`. **Gated + additive + fail-open**: behind `[accounts] db_render_prefs` (new, default **false**); when false, today's static skel path is untouched; when true, render from the DB with skel as the fallback if a pref is absent. Do NOT delete `etc/skel` — leave it as the fail-open seed. Idempotent (only rewrite changed files).
 **Where:** new `usr/libexec/mios/materialize-user-config.py`, `usr/share/mios/mios.toml` (`[accounts] db_render_prefs=false`), a `test_mios_user_config.py`.
 **Done When:** with the flag false, first-login skel seeding is byte-identical to today; with it true (test), a user's `~/.config/mios/mios.toml` renders from `account_preference` with skel fallback; idempotent 2nd run; tests + `just drift-gate` green.
 
-## AGY-24  (WS-VECTOR V5 event-sourcing prep / T-247, P2) — append-only config_event audit
+## AGY-24  (WS-VECTOR V5 event-sourcing prep / T-247, P2) — append-only config_event audit  **[DONE]**
 **Who:** you (SQL + Python). **When:** after AGY-9/16 (config_kv exists + is read).
 **What + How:** lay the foundation for V5 time-travel/rollback WITHOUT inverting authority: add `config_event(id bigserial PK, ts timestamptz default now(), scope, key, old_value jsonb, new_value jsonb, actor, source)` (idempotent) to `schema-init.sql`; make every write to `config_kv`/`verb`/`domain_verb` (in `seed-db-config.py` + any DB writer) ALSO append a `config_event` row (old→new), so the config history is reconstructable. Read-only replay helper `config-history.py` that prints the event log for a key. Additive; authority stays with TOML (V5 flips it later).
 **Where:** `usr/share/mios/postgres/schema-init.sql`, `usr/libexec/mios/seed-db-config.py`, new `usr/libexec/mios/config-history.py`, `test_mios_db_config.py`.
@@ -192,7 +192,7 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 
 ---
 
-## AGY-25  (AUDIT FIXES, **P0/P1**) — resolve 10 defects a Claude adversarial audit CONFIRMED in your WS-VECTOR code
+## AGY-25  (AUDIT FIXES, **P0/P1**) — resolve 10 defects a Claude adversarial audit CONFIRMED in your WS-VECTOR code  **[DONE]**
 **Who:** you (Python + bash + SQL). **When:** NEXT — these are real, verified bugs in code you shipped (each independently code-traced + verified). Claude already fixed 2 (redact.py unquoted-secret leak + mios_db_config.py port fail-open) — do NOT redo those. Fix these 10:
 **HIGH:**
 1. **`verbcatalog.py` ~148-215 — the `db_authoritative` sentinel is a NO-OP.** The T-126 "Database Overlay" block runs UNCONDITIONALLY (only try/except-guarded), so with the sentinel FALSE (default) + pgvector up, the DB silently overlays/deletes verbs (`cat.pop` on is_active=false, overwrites sig/desc/tier/permission/cmd/params) — the returned catalog is NOT byte-identical to TOML. **Fix:** gate the entire T-126 overlay behind `is_db_authoritative()` so sentinel-FALSE returns the pure TOML catalog; keep only the shadow-compare (read-only) running when false.
@@ -211,21 +211,20 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 
 ---
 
-## AGY-26  (RAG quality / research-gap #4+#5, **P1**) — hybrid BM25+vector fusion + cross-encoder rerank on knowledge/RAG
+## AGY-26  (RAG quality / research-gap #4+#5, **P1**) — hybrid BM25+vector fusion + cross-encoder rerank on knowledge/RAG  **[DONE]**
 **Who:** you (Python + SQL). **When:** after AGY-18 (vectors exist). Source: `usr/share/doc/mios/reference/upstream-gaps-2026-07.md` gaps 4+5.
 **What + How:** the RAG recall path (`mios_pipe/memory/pg.py` knowledge/mios_rag queries) does pure dense `<=>` search even though the schema is hybrid-capable and an **RRF helper already exists** (used only for tool selection today). (1) Add **hybrid retrieval**: run the pgvector dense query AND a Postgres FTS/`ts_rank` BM25-style query over the same rows, fuse with **Reciprocal Rank Fusion** (reuse the existing RRF helper), return the fused top-k. (2) Add an optional **cross-encoder reranking** stage over the fused candidates (a local reranker served through the light lane, or a small bge-reranker-v2-m3 / Qwen3-Reranker GGUF via mios-llm-light) — gated (`[ai] rag_rerank`, default false), fail-open to the fused order. Ground-truth stays typed; additive.
 **Where:** `usr/lib/mios/agent-pipe/mios_pipe/memory/pg.py`, the RRF helper's module, `usr/share/mios/mios.toml` (`[ai] rag_hybrid`/`rag_rerank`), `test_mios_*`.
 **Done When:** hybrid recall returns fused dense+lexical results; rerank (when enabled) reorders sanely + fails open; recall quality is not worse than today with flags off; tests + `just drift-gate` green.
-
-## AGY-27  (embedding hygiene / research-gap #6+#7, **P1**) — fix the emb_version space-collision + add EmbeddingGemma task prefixes
-**Who:** you (Python + SQL). **When:** NEXT after AGY-25 — this OVERLAPS AGY-25 finding #2 (unify the emb_version scheme first). Source: gaps 6+7.
+## AGY-27  (embedding hygiene / research-gap #6+#7, **P1**) — fix the emb_version space-collision + add EmbeddingGemma task prefixes  **[DONE]**
+**Who:** you (Python + SQL). **When:** after AGY-25. Source: gaps 6+7.
 **What + How:** two real embedding-correctness bugs: (a) the served embedding model was swapped **nomic-embed-text → EmbeddingGemma-300m under the SAME served name AND same emb_version**, so two incompatible 768-d vector spaces now collide in one namespace — **bump the emb_version** (a new fingerprint that includes the actual model+revision) so old-space vectors are treated stale and re-embedded, and make backfill + toolsearch agree on that ONE fingerprint (this IS the AGY-25 #2 unification — do them together). (b) EmbeddingGemma REQUIRES task prompt templates (`task: search result | query: …` / document prefixes) — the embed call path (`server.py` embed seam + `embed_backfill.py`) sends **raw text**, degrading recall. Add the EmbeddingGemma query/document prefixes at the embed seam (gated by the active embed model so nomic-only setups are unaffected). Then trigger a one-time full re-embed via the backfill worker.
 **Where:** `usr/lib/mios/agent-pipe/mios_pipe/memory/embed_backfill.py` + `routing/toolsearch.py` (emb_version unify), the embed seam in `server.py`, `usr/share/mios/mios.toml` (embed model/version), `test_mios_backfill.py`.
 **Done When:** old-space vectors are invalidated + re-embedded once (not ping-ponging — see AGY-25 #2); EmbeddingGemma requests carry the task prefixes; nomic path unchanged; recall verified sane; tests + `just drift-gate` green.
 
 ---
 
-## AGY-28  (AGY-25 RESIDUALS, **P1**) — close the 4 residual defects a Claude verification pass found still open after AGY-25
+## AGY-28  (AGY-25 RESIDUALS, **P1**) — close the 4 residual defects a Claude verification pass found still open after AGY-25  **[DONE]**
 **Who:** you (Python). **When:** NEXT. A Claude adversarial re-verify confirmed AGY-25 landed 10/10 but left these tails:
 1. **`agent_call.py` — D3 still HARD-RAISES.** The rolling-window is in (good, permanent-wedge gone) but once the 1h-windowed total exceeds `conversation_token_ceil` it still raises `ValueError` (500-style) instead of the **graceful summarize** the defect asked for. **Fix:** mirror `chat.py`'s `_budget_admit` degrade — summarize/trim + admit, never a hard raise on a live session.
 2. **`mios_db_config.py` + `verbcatalog.py:~246` — D4 not airtight.** `get_divergences()` sums the deduped `_DIVERGENT_KEYS` set PLUS the raw int `DIVERGENCES`, and `verbcatalog.py` still does `mios_db_config.DIVERGENCES += 1` per divergent reload. **Fix:** route the verbcatalog contributor into the SAME `_DIVERGENT_KEYS` set (scope.key granularity) and drop the raw-int path so the gauge = distinct divergent settings.
@@ -233,13 +232,13 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 4. **`verbcatalog.py` — D6 first-load blocking connect.** On the sentinel-FALSE path the FIRST load still does one blocking `psycopg.connect(connect_timeout=2)` before `_DB_UNREACHABLE` caches. **Fix:** short-circuit the very first probe too (cache the unreachable state across the initial call, or make the probe non-blocking/background).
 **Done When:** each fixed at cited file:line; tests extended; `just drift-gate` green; stage only your files.
 
-## AGY-29  (WS-VECTOR V4 hardening / T-246, **P2**) — fix the two AGY-22/23 residuals a Claude verify pass flagged
+## AGY-29  (WS-VECTOR V4 hardening / T-246, **P2**) — fix the two AGY-22/23 residuals a Claude verify pass flagged  **[DONE]**
 **Who:** you (Python). **When:** after AGY-28.
 1. **`materialize-user-config.py:~176` home-escape.** The path guard uses `startswith('/home/bob')`, so a seeded `file:`-pref like `../bob-evil/.bashrc` resolves to `/home/bob-evil/.bashrc` and PASSES. **Fix:** `os.path.commonpath([home, resolved]) == home` (or trailing-separator compare). Active only when `db_render_prefs=true` (default false) but fix before that flag is ever flipped.
 2. **`materialize-user-config.py:~37` lossy `parse_simple_toml`.** Rendering `~/.config/mios/mios.toml` via parse→reserialize drops comments and cannot represent inline tables / arrays-of-tables / multiline arrays. **Fix:** read with `tomllib` (never the naive parser) and, if you must re-emit, use a real TOML writer or a preserve-comments strategy; otherwise render only the typed pref slots, not the whole file.
 **Done When:** guard uses commonpath; user-config render is lossless or slot-scoped; tests cover both; `just drift-gate` green.
 
-## AGY-30  (VALUE/VERB MINIFICATION / WS-NAME sibling, **P1**) — canonicalize value + verb representation across the SSOT + verb tables
+## AGY-30  (VALUE/VERB MINIFICATION / WS-NAME sibling, **P1**) — canonicalize value + verb representation across the SSOT + verb tables  **[DONE]**
 **Who:** you (Python + SQL + TOML). **When:** parallel-safe. Operator campaign: MINIFY + canonicalize verbs, keys, AND values to ONE form — collapse `True`/`1`/`"yes"` → canonical lowercase `true`/`false`, dedupe redundant verb aliases, fold key-case variants. **SCOPE (avoid collision):** the **verbs tables** (`[verbs.*]` in mios.toml + the `verb`/`domain_verb` DB rows + `verbcatalog.py` normalization) and **non-quadlet config values**. **DO NOT touch** `tools/lib/userenv.sh` / `usr/lib/mios/userenv.sh` or `tools/generate-pod-quadlets.py` / the generated `*.container` (Claude owns the key-library + quadlet value-render collapse). **How:** add a canonicalizer in the verb-catalog load path that normalizes bool/int/enum arg-values + de-dupes aliases deterministically; sweep `[verbs.*]` for `True`/`1`/mixed-case bools and fold them; add a drift-check that asserts no non-canonical bool literal re-appears. Coordinate the shared-name registry via the existing names-registry generator.
 **Done When:** verbs + config values are single-canonical-form; a new drift-check guards it; behavior byte-identical at the consumer (parsers already `.lower()`); tests + `just drift-gate` green; stage only your files (NOT userenv.sh/quadlets).
 
