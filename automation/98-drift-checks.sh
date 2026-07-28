@@ -5337,8 +5337,53 @@ sys.exit(0)
 PY
     then
         echo "[38-drift-checks]   (71) smoke manifest components in mios.toml exist in source tree"
+check_negative_coverage() {
+    if ! command -v python3 >/dev/null 2>&1; then
+        return 0
+    fi
+    if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
+import os, sys, re
+try:
+    import tomllib
+except ImportError:
+    import tomli as tomllib
+
+root = os.environ["MIOS_DRIFT_ROOT"]
+checks_sh = os.path.join(root, "automation/98-drift-checks.sh")
+negatives_sh = os.path.join(root, "tests/drift-gate-negatives.sh")
+toml_path = os.path.join(root, "usr/share/mios/mios.toml")
+
+if not (os.path.isfile(checks_sh) and os.path.isfile(negatives_sh) and os.path.isfile(toml_path)):
+    sys.exit(0)
+
+with open(toml_path, "rb") as f:
+    data = tomllib.load(f)
+
+exempt = set(data.get("testing", {}).get("negative_coverage_exempt", {}).get("exempt", []))
+
+with open(checks_sh, "r", encoding="utf-8", errors="ignore") as f:
+    c_content = f.read()
+
+main_idx = c_content.rfind("main() {")
+main_body = c_content[main_idx:]
+dispatched = set(re.findall(r"^\s*(check_[a-z0-9_]+)\b", main_body, re.MULTILINE))
+
+with open(negatives_sh, "r", encoding="utf-8", errors="ignore") as f:
+    n_content = f.read()
+
+covered = set(re.findall(r"check_[a-z0-9_]+\b", n_content))
+
+uncovered = dispatched - covered - exempt
+if uncovered:
+    sys.stderr.write(f"    Dispatched drift checks lacking negative test coverage and not exempt: {sorted(list(uncovered))}\n")
+    sys.exit(1)
+
+sys.exit(0)
+PY
+    then
+        echo "[38-drift-checks]   (72) negative test coverage gate: all dispatched checks are covered or exempt"
     else
-        _violation "[testing.smoke_components] paths missing from source tree"
+        _violation "drift checks lacking negative test coverage"
     fi
 }
 
@@ -5458,6 +5503,7 @@ main() {
     check_chrony_ptp_dropin
     check_renderer_gate_coverage
     check_smoke_manifest
+    check_negative_coverage
 
     echo "[38-drift-checks] ---------------------------------------------------------"
     if [[ "$VIOLATIONS" -eq 0 ]]; then

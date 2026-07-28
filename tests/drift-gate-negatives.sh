@@ -1344,6 +1344,27 @@ test_smoke_manifest() {
     log "test_smoke_manifest negative test passed."
 }
 
+# 62. Test check_negative_coverage
+test_negative_coverage() {
+    log "Testing check_negative_coverage..."
+    local toml_file="${ROOT}/usr/share/mios/mios.toml"
+    if [ -f "$toml_file" ]; then
+        local orig_val
+        orig_val="$(cat "$toml_file")"
+        grep -v '"check_agent_schema"' "$toml_file" > "${toml_file}.tmp" && mv "${toml_file}.tmp" "$toml_file"
+
+        if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_negative_coverage >/dev/null 2>&1; then
+            echo "$orig_val" > "$toml_file"
+            die "check_negative_coverage passed despite removed exempt check!"
+        fi
+
+        echo "$orig_val" > "$toml_file"
+        MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_negative_coverage >/dev/null 2>&1 \
+            || die "check_negative_coverage failed after restoration!"
+    fi
+    log "test_negative_coverage negative test passed."
+}
+
 main() {
     log "Starting negative-test suite..."
     test_version_ssot
@@ -1407,6 +1428,7 @@ main() {
     test_templates_compilation
     test_impossible_eol
     test_smoke_manifest
+    test_negative_coverage
     log "All negative tests completed successfully!"
 }
 

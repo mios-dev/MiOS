@@ -1891,9 +1891,7 @@ Each assertion echoes a `[sys-smoke] <stack> OK` line so a bake log shows exactl
 
 ## AGY-364  (WS-TESTDOC, **P2**) — Negative tests for docs/templates/EOL gates  **[DONE]**
 
-## AGY-365  (WS-TESTDOC, **P2**) — Negative-test coverage gate: assert every dispatched drift-check has a negative case (ratcheted allowlist)
-**Who:** you (bash/Python + drift-gate). **What+How:** `tests/drift-gate-negatives.sh` covers ~16 of the ~75 `check_*` functions dispatched in `automation/38-drift-checks.sh` `main()` (lines ~4224-4292), and nothing enforces the ratio — new gates land untested (this session's AGY-360..364 exist BECAUSE the gap was invisible). Add `check_negative_coverage` to 38-drift-checks.sh that: (a) extracts the dispatched check-name list from `main()` (the `check_[a-z_]+` calls between `check_dead_lane` and the final `echo` divider), (b) extracts the covered set from `tests/drift-gate-negatives.sh` (the `bash .../38-drift-checks.sh <name>` invocations inside each `test_*`), and (c) fails if any dispatched check NOT on an explicit `[testing.negative_coverage_exempt]` allowlist in mios.toml lacks a negative case — a ratchet: the exempt-list may only shrink. Seed the allowlist with today's genuinely-untestable checks (pure warn-only/environmental ones) so it is green at HEAD, register the check in `main()`'s dispatch list, and wire a negative case for IT into drift-gate-negatives.sh.
-**Where:** automation/38-drift-checks.sh (new check_negative_coverage + dispatch entry), usr/share/mios/mios.toml ([testing.negative_coverage_exempt] new key), tests/drift-gate-negatives.sh (test_negative_coverage). **Done When:** `bash automation/38-drift-checks.sh check_negative_coverage` is green at HEAD; adding a new `check_foo` to `main()` without a negative case (and not on the allowlist) makes it fail; removing a still-uncovered allowlist entry fails; the negative case flips it red then restores; `just drift-gate` green.
+## AGY-365  (WS-TESTDOC, **P2**) — Negative-test coverage gate  **[DONE]**
 
 ## AGY-366  (WS-TESTDOC, **P2**) — Extract the CI smoke-RUN into a reusable bake smoke-test harness  **[DONE]**
 
