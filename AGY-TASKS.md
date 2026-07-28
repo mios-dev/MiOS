@@ -60,25 +60,25 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 
 ---
 
-## AGY-5  (WS-GUARD / T-173, **P0**) — daemon runaway controls (host-pressure gate + dedup + cron cap)
+## AGY-5  (WS-GUARD / T-173, **P0**) — daemon runaway controls (host-pressure gate + dedup + cron cap)  **[DONE]**
 **Who:** you (Python, agent-pipe/daemon). **When:** next — P0, prevents GPU/host runaway.
 **What + How:** add guardrails to the consolidated micro-LLM daemon + agent-pipe so autonomous loops can't starve the host: (1) a **host-pressure gate** — before a heavy dispatch, check GPU VRAM / CPU load and defer/degrade to the light lane when over a threshold (from `[ai.host_thresholds]`); (2) **request dedup** — collapse identical in-flight prompts (hash the normalized messages) so a retry storm doesn't fan out N copies; (3) a **cron cap** — bound the daemon's scheduled classify/refusal jobs per interval. Degrade-open (missing signal → allow).
 **Where:** `usr/lib/mios/agent-pipe/mios_pipe/**` (daemon/dispatch), `usr/libexec/mios/mios-daemon*`, `usr/share/mios/mios.toml` (`[ai.host_thresholds]`, a new `[ai.guard]` if needed).
 **Done When:** a synthetic runaway (rapid identical heavy prompts under high VRAM) is gated/deduped, not fanned out; `test_mios_*` green.
 
-## AGY-6  (WS-GUARD / T-174, **P0**) — aggregate token/turn budget + background preemption
+## AGY-6  (WS-GUARD / T-174, **P0**) — aggregate token/turn budget + background preemption  **[DONE]**
 **Who:** you (Python, agent-pipe). **When:** after AGY-5.
 **What + How:** enforce a per-session + global **token/turn budget** across the agent-pipe fan-out (sum tokens over the council/DAG, hard-stop + graceful summarize when exceeded), and **preempt background/low-priority work** when a foreground request arrives (priority from `lane_priority`). Budget target reads from SSOT; degrade-open if unset.
 **Where:** `usr/lib/mios/agent-pipe/mios_pipe/routing/**` (dag_exec/native_loop/dispatch), `usr/share/mios/mios.toml`.
 **Done When:** a fan-out that would blow the budget stops at the cap with a summary; a foreground request preempts a running background job; tests green.
 
-## AGY-7  (WS-VECTOR V2 / T-244, P2) — vectorize the AI-plane gaps (extends your AGY-3)
+## AGY-7  (WS-VECTOR V2 / T-244, P2) — vectorize the AI-plane gaps (extends your AGY-3)  **[DONE]**
 **Who:** you (SQL + Python). **When:** natural follow-on to AGY-3.
 **What + How:** per `everything-db-driven.md` V2, add `emb vector(768)` + HNSW(vector_cosine_ops m=16 ef_construction=64) + `emb_model`/`emb_version` to `skill`, `verb`, `tool_call`, `directory_entry` in `schema-init.sql` (mirror the `knowledge` DDL you already matched), over a text projection; then repoint the in-process verb/apps embedding rebuild (`worker_tools.py`) to a native `<=>` query on `verb.emb`, with the in-process lexicon as fail-open fallback. Ground-truth stays in typed columns — additive only.
 **Where:** `usr/share/mios/postgres/schema-init.sql`, `usr/lib/mios/agent-pipe/mios_pipe/routing/worker_tools.py`, `mios_pipe/memory/embed_backfill.py`.
 **Done When:** schema applies idempotently; verb/skill semantic recall works via `<=>`; no functionality loss (text-match still available); tests green.
 
-## AGY-8  (WS-DURA / T-176, P1) — secret/PII redaction on persist + federate
+## AGY-8  (WS-DURA / T-176, P1) — secret/PII redaction on persist + federate  **[DONE]**
 **Who:** you (Python). **When:** independent.
 **What + How:** before any write to `knowledge`/`agent_memory`/`event`/`tool_call` OR any A2A federate/gossip send, run a redaction pass (strip API keys, tokens, passwords, emails/PII, and MIOS_* secrets) — a single reusable `redact()` used by the persist seam (`mios_pipe/memory/*`) and the federation seam (`mios_pipe/federation/a2a.py`). Keep a `redacted=true` marker; never persist raw secrets (aligns with the CLAUDE.md persistence-sanitization law).
 **Where:** new `usr/lib/mios/agent-pipe/mios_pipe/redact.py`, wired into `mios_pipe/memory/*` + `mios_pipe/federation/a2a.py`.

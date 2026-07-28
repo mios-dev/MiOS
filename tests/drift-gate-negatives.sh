@@ -1654,23 +1654,23 @@ test_templates_compilation() {
     log "test_templates_compilation negative test passed."
 }
 
-# 77. Test check_impossible_eol
-test_impossible_eol() {
-    log "Testing check_impossible_eol..."
+# 77. Test check_impossible_eol_regressions
+test_impossible_eol_regressions() {
+    log "Testing check_impossible_eol_regressions..."
     local toml="${ROOT}/usr/share/mios/mios.toml"
     if [ -f "$toml" ]; then
         local orig_val
         orig_val="$(cat "$toml")"
         echo 'eol_packages = ["tang"]' >> "$toml"
 
-        if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_impossible_eol >/dev/null 2>&1; then
+        if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_impossible_eol_regressions >/dev/null 2>&1; then
             echo "$orig_val" > "$toml"
-            die "check_impossible_eol passed despite forbidden EOL package!"
+            die "check_impossible_eol_regressions passed despite forbidden EOL package!"
         fi
 
         echo "$orig_val" > "$toml"
-        MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_impossible_eol >/dev/null 2>&1 \
-            || die "check_impossible_eol failed after restoration!"
+        MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_impossible_eol_regressions >/dev/null 2>&1 \
+            || die "check_impossible_eol_regressions failed after restoration!"
     fi
     log "test_impossible_eol negative test passed."
 }
@@ -1793,7 +1793,7 @@ main() {
     test_target_languages
     test_roadmap_index
     test_templates_compilation
-    test_impossible_eol
+    test_impossible_eol_regressions
     test_smoke_manifest
     test_negative_coverage
     test_verb_templates
