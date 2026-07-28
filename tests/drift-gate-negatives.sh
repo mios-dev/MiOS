@@ -1619,7 +1619,7 @@ test_roadmap_index() {
     if [ -f "$rmap" ]; then
         local orig_val
         orig_val="$(cat "$rmap")"
-        sed -i 's/Done: [0-9]*/Done: 99999/g' "$rmap"
+        sed -i 's/\*\*Done\*\*: [0-9]*/\*\*Done\*\*: 99999/g' "$rmap"
 
         if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_roadmap_index >/dev/null 2>&1; then
             echo "$orig_val" > "$rmap"
