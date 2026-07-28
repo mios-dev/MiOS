@@ -278,27 +278,15 @@ from mios_dci import (   # noqa: E402
 # ── Config (SSOT-sourced via env) ──────────────────────────────────
 
 
-def _apply_outbound_auth(hdrs: dict, ep: str) -> None:
-    """Attach the correct OUTBOUND credential for a dispatch to `ep`: the shared
-    backend key for a LOCAL `_AUTH_HOSTPORTS` lane, else this agent's OWN
-    per-endpoint header from `_AGENT_AUTH_BY_HOSTPORT` (WS-FED/G2 -- any reachable
-    OpenAI /v1 endpoint joins the council by network + credential). Degrade-open:
-    a keyless endpoint gets no header. Idempotent (drops any same-name header
-    first). `_BACKEND_KEY`/the map are resolved at call time (late-bound)."""
-    _hp = ep.split("://")[-1].split("/")[0]
-    if _BACKEND_KEY and _hp in _AUTH_HOSTPORTS:
-        for _k in [k for k in hdrs if k.lower() == "authorization"]:
-            hdrs.pop(_k)
-        hdrs["Authorization"] = f"Bearer {_BACKEND_KEY}"
-        return
-    _ahdr = _AGENT_AUTH_BY_HOSTPORT.get(_hp)
-    if _ahdr and ":" in _ahdr:
-        _hk, _hv = _ahdr.split(":", 1)
-        _hk, _hv = _hk.strip(), _hv.strip()
-        if _hk and _hv:
-            for _k in [k for k in hdrs if k.lower() == _hk.lower()]:
-                hdrs.pop(_k)
-            hdrs[_hk] = _hv
+from mios_pipe.access.authn import (
+    _apply_outbound_auth,
+    _load_backend_key,
+    _load_caller_keys,
+    _check_inbound_principal,
+    _probe_auth_headers,
+    _bind_host,
+    configure as _configure_authn,
+)
 
 
 # Web-search cross-agent concurrency bound ("SearXNG
@@ -1504,24 +1492,6 @@ LAUNCHER_SOCK = os.environ.get(
 # Authorization: Bearer <key>. The OWUI gateway sends the operator's
 # session token; direct callers (curl, MCP clients, future Slack/
 # Telegram) won't. Loaded from MIOS_AGENT_PIPE_BACKEND_KEY env first,
-# then /etc/mios/hermes/api.env's API_SERVER_KEY as the canonical
-# fallback. Empty when neither is set -- the proxy still works for
-# backends that don't enforce auth.
-def _load_backend_key() -> str:
-    env_key = os.environ.get("MIOS_AGENT_PIPE_BACKEND_KEY", "").strip()
-    if env_key:
-        return env_key
-    try:
-        with open("/etc/mios/hermes/api.env", "r") as f:
-            for line in f:
-                line = line.strip()
-                if line.startswith("API_SERVER_KEY="):
-                    return line.split("=", 1)[1].strip().strip('"')
-    except (OSError, PermissionError):
-        pass
-    return ""
-
-
 _BACKEND_KEY = _load_backend_key()
 
 # ── FED-G1 inbound auth gate (flag-gated, degrade-open) ──────
@@ -1551,78 +1521,14 @@ _AUTH_OPEN_PATHS = frozenset({
     "/v1/agents"})
 _CALLER_KEYS_CACHE: dict = {"mtime": -1.0, "keys": {}}
 
-
-def _load_caller_keys() -> dict:
-    """mtime-cached caller-key store {token: {principal, scope/max_permission,...}}.
-    INERT by default -- a missing file -> {} (only the shared/ingress key works).
-    Mirrors the CRL mtime-cache. Degrade-open: any error -> last good / {}."""
-    try:
-        st = os.stat(_CALLER_KEYS_PATH)
-    except OSError:
-        _CALLER_KEYS_CACHE["keys"] = {}
-        return {}
-    if st.st_mtime != _CALLER_KEYS_CACHE["mtime"]:
-        try:
-            with open(_CALLER_KEYS_PATH, encoding="utf-8") as fh:
-                data = json.load(fh)
-            keys = data.get("keys", data) if isinstance(data, dict) else {}
-            _CALLER_KEYS_CACHE["keys"] = keys if isinstance(keys, dict) else {}
-            _CALLER_KEYS_CACHE["mtime"] = st.st_mtime
-        except Exception:  # noqa: BLE001 -- keep last good
-            pass
-    return _CALLER_KEYS_CACHE["keys"]
-
-
-def _check_inbound_principal(token: str) -> "Optional[dict]":
-    """Resolve a bearer token to a scoped principal, or None if unrecognised. The
-    canonical shared key + the ingress key map to the full-trust operator principal;
-    a caller-key maps to its stored scoped identity. FED-G8: a caller-key that has
-    been REVOKED (POST /v1/admin/keys/revoke -> CRL) resolves to None, so the
-    credential is refused the moment the CRL is hot-reloaded, no restart."""
-    t = (token or "").strip()
-    if not t:
-        return None
-    if (_BACKEND_KEY and t == _BACKEND_KEY) or (_INGRESS_KEY and t == _INGRESS_KEY):
-        return {"principal": "operator", "scope": "full", "via": "shared-key"}
-    ent = _load_caller_keys().get(t)
-    if not ent:
-        return None
-    entry = ent if isinstance(ent, dict) else {"principal": str(ent)}
-    # FED-G8 revocation: refuse a caller key on the CRL (matched by token fingerprint
-    # or stored id/principal). The CRL machinery lives in mios_a2a (already loaded by
-    # request time); referenced lazily so the module name stays out of server's
-    # importable surface. Degrade-open: any CRL fault -> treat as not revoked.
-    try:
-        import mios_a2a
-        if mios_a2a._caller_key_revoked(t, entry):
-            return None
-    except Exception:  # noqa: BLE001 -- a CRL fault must never lock out a valid caller
-        pass
-    if isinstance(ent, dict):
-        return {"principal": ent.get("principal") or "caller", "via": "caller-key", **ent}
-    return {"principal": str(ent), "via": "caller-key"}  # a bare {"token": "name"} map
-
-
-def _probe_auth_headers(ep: str) -> dict:
-    """Bearer header for a liveness / model-list probe IFF the endpoint ENFORCES
-    auth (the Hermes backend in _AUTH_HOSTPORTS). Keyless lanes (SGLang/llama-
-    swap) need none. Without this, every keyless GET /v1/models probe made Hermes
- log a spurious 'rejected invalid API key' WARNING;
-    harmless functionally (probes treat <500 as live) but it buries real 401s."""
-    try:
-        _hp = ep.split("://")[-1].split("/")[0] if ep else ""
-        if _BACKEND_KEY and _hp in _AUTH_HOSTPORTS:
-            return {"Authorization": f"Bearer {_BACKEND_KEY}"}
-        # WS-FED/G2: a REMOTE agent's liveness probe needs ITS credential too,
-        # else the probe 401s and _live_agent_names wrongly marks the peer dead.
-        _ahdr = _AGENT_AUTH_BY_HOSTPORT.get(_hp)
-        if _ahdr and ":" in _ahdr:
-            _hk, _hv = _ahdr.split(":", 1)
-            if _hk.strip() and _hv.strip():
-                return {_hk.strip(): _hv.strip()}
-    except Exception:  # noqa: BLE001
-        pass
-    return {}
+_configure_authn(
+    backend_key=_BACKEND_KEY,
+    ingress_key=_INGRESS_KEY,
+    api_require_auth=_API_REQUIRE_AUTH,
+    caller_keys_path=_CALLER_KEYS_PATH,
+    auth_hostports=_AUTH_HOSTPORTS,
+    agent_auth_by_hostport=_AGENT_AUTH_BY_HOSTPORT,
+)
 
 
 # ── Legacy DB seam (cross-cutting agent state) ─────────────────────
@@ -8550,18 +8456,7 @@ globals()["portal_page_logic"] = sys.modules["mios_portal"].portal_page_logic
 
 
 # ── Entry point ────────────────────────────────────────────────────
-def _bind_host(require_auth: bool, override: str = "") -> str:
-    """FED-G9 bind posture: bind the front door to LOOPBACK (127.0.0.1) by default,
-    and to ALL interfaces (0.0.0.0) ONLY when the inbound auth gate is on -- so an
-    UNAUTHENTICATED service is never exposed on every interface. An explicit
-    MIOS_BIND_HOST override (e.g. a pinned tailnet IP) wins when set. Pure (args in,
-    host out) so the posture is unit-testable without binding a socket. The literals
-    are the standard all-interfaces / loopback sentinels, not an SSOT-duplicated
-    value."""
-    ov = (override or "").strip()
-    if ov:
-        return ov
-    return "0.0.0.0" if require_auth else "127.0.0.1"
+
 
 
 def main() -> int:

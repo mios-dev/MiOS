@@ -8,6 +8,17 @@
         "to_dict"
       ]
     },
+    "usr/lib/mios/agent-pipe/mios_pipe/access/authn.py": {
+      "configure_kwargs": [
+        "agent_auth_by_hostport",
+        "api_require_auth",
+        "auth_hostports",
+        "backend_key",
+        "caller_keys_path",
+        "ingress_key"
+      ],
+      "public_symbols": []
+    },
     "usr/lib/mios/agent-pipe/mios_pipe/access/firewall.py": {
       "configure_kwargs": [
         "allowlist_hosts",
