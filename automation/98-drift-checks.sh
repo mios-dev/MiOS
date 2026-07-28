@@ -5410,6 +5410,14 @@ check_pipe_boundaries() {
     echo "[38-drift-checks]   (74) pipe-boundaries.manifest.json is up-to-date"
 }
 
+check_vllm_name_canonical() {
+    if grep -rn "MIOS_AI_VLLM_\|MIOS_AI_SGLANG_" "${ROOT}/root-manifest.json" "${ROOT}/automation/" >/dev/null 2>&1; then
+        _violation "found legacy MIOS_AI_VLLM_ or MIOS_AI_SGLANG_ long names in root-manifest.json or automation"
+    else
+        echo "[38-drift-checks]   (75) vLLM / SGLang canonical names reconciled to short consumer form"
+    fi
+}
+
 main() {
     if [[ $# -eq 1 && -n "$1" ]]; then
         if declare -f "$1" >/dev/null; then
@@ -5529,6 +5537,7 @@ main() {
     check_negative_coverage
     check_verb_templates
     check_pipe_boundaries
+    check_vllm_name_canonical
 
     echo "[38-drift-checks] ---------------------------------------------------------"
     if [[ "$VIOLATIONS" -eq 0 ]]; then

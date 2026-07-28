@@ -1407,6 +1407,27 @@ test_pipe_boundaries() {
     log "test_pipe_boundaries negative test passed."
 }
 
+# 65. Test check_vllm_name_canonical
+test_vllm_name_canonical() {
+    log "Testing check_vllm_name_canonical..."
+    local manifest="${ROOT}/root-manifest.json"
+    if [ -f "$manifest" ]; then
+        local orig_val
+        orig_val="$(cat "$manifest")"
+        echo '"MIOS_AI_VLLM_SERVED_NAME": "test"' >> "$manifest"
+
+        if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_vllm_name_canonical >/dev/null 2>&1; then
+            echo "$orig_val" > "$manifest"
+            die "check_vllm_name_canonical passed despite legacy long name!"
+        fi
+
+        echo "$orig_val" > "$manifest"
+        MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_vllm_name_canonical >/dev/null 2>&1 \
+            || die "check_vllm_name_canonical failed after restoration!"
+    fi
+    log "test_vllm_name_canonical negative test passed."
+}
+
 main() {
     log "Starting negative-test suite..."
     test_version_ssot
@@ -1473,6 +1494,7 @@ main() {
     test_negative_coverage
     test_verb_templates
     test_pipe_boundaries
+    test_vllm_name_canonical
     log "All negative tests completed successfully!"
 }
 
