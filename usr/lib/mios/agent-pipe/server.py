@@ -2093,87 +2093,22 @@ AUDIT_CHAIN_ENABLE = str(
     in {"1", "true", "yes"}
 
 
-def _db_create(table: str, fields: dict, *,
-               now_fields: tuple = (),
-               extra: str = "",
-               passport_sign: bool = True,
-               _mirror: bool = True) -> str:
-    """Build `CREATE <table> SET ...` with time::now() for datetime
-    fields. The legacy backend rejects plain ISO-Z strings for TYPE
-    datetime; canonical pattern is `field = time::now()` literal.
+from mios_pipe.dbwrite import (
+    _db_create,
+    _db_fire,
+    _pg_mirror,
+    _db_write,
+    configure as _configure_dbwrite,
+)
 
-    Phase C.3 -- when passport_sign=True (the default), attach an
-    Ed25519 passport envelope to the record. The passport is
-    computed over the canonical-JSON of `fields` (with the
-    eventual time::now() values represented as the literal
-    "time::now()" sentinel) so a verifier seeing the persisted
-    row can re-derive the same op_hash. Failure to sign (key not
-    provisioned, crypto error) drops the field silently -- the
-    write still lands so security logging never blocks
-    observability.
-
-    Pass passport_sign=False to opt out for non-attribution writes
-    where the envelope overhead isn't justified (currently: none
-    -- every audit-relevant write benefits from attribution)."""
-    # WS-A8: stamp the active request trace onto `event` rows (the event table
-    # carries trace_id/span_id) so the observability stream stitches to GET
-    # /v1/trace. Only fills keys the caller didn't set; degrade-open (no active
-    # trace -> unchanged); other tables are untouched.
-    if table == "event":
-        _tid = _current_trace_id()
-        if _tid:
-            fields = dict(fields)
-            fields.setdefault("trace_id", _tid)
-            _sid = _span_id_var.get() or ""
-            if _sid:
-                fields.setdefault("span_id", _sid)
-        # SEC-03: stamp the tamper-evident chain columns (chain_seq/prev_hash/
-        # chain_hash) at this single event-persist chokepoint. stamp() is idempotent
-        # (the _emit_session_event pre-stamp won't double-advance), self-gated on
-        # [audit].chain_enable, and degrade-open (returns fields unchanged on any
-        # miss) so event logging never fails. The chain columns are added BEFORE the
-        # CREATE string and the pgvector mirror are built, so they ride BOTH sinks.
-        fields = mios_audit.stamp(fields)
-    elif table == "session":
-        fields = mios_audit.stamp_session(fields)
-    if passport_sign:
-        # Snapshot the fields the verifier will see (the time::now()
-        # values get the literal sentinel because that's what the
-        # CREATE statement encodes). Keep the order stable.
-        hash_fields = {k: "time::now()" for k in now_fields}
-        for k, v in fields.items():
-            if k in now_fields or v is None:
-                continue
-            hash_fields[k] = v
-        envelope = _passport_sign(table, hash_fields)
-        if envelope is not None:
-            fields = dict(fields)
-            fields["passport"] = envelope
-    parts = [f"{k} = time::now()" for k in now_fields]
-    for k, v in fields.items():
-        if k in now_fields or v is None:
-            continue
-        parts.append(f"{k} = {json.dumps(v, default=str)}")
-    sql = f"CREATE {table} SET " + ", ".join(parts)
-    if extra:
-        sql += " " + extra
-    # WS-9c full cutover: mirror EVERY agent-plane write to Postgres+pgvector at
-    # this single build chokepoint (no-op unless _PG_ENABLED; fire-and-forget +
-    # degrade-open). Callers that mirror the row themselves with extra columns
-    # (e.g. session_id) pass _mirror=False to avoid a duplicate row.
-    if _mirror:
-        _pg_mirror(table, fields)
-    return sql + ";"
-
-
-def _db_fire(coro) -> None:
-    """Schedule a DB coroutine fire-and-forget. Streaming responses
-    are never delayed by DB writes."""
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        return
-    loop.create_task(coro)
+_configure_dbwrite(
+    pg_enabled=_PG_ENABLED,
+    pg_primary=_PG_PRIMARY,
+    current_trace_id=_current_trace_id,
+    span_id_var=_span_id_var,
+    passport_sign=_passport_sign,
+    db_post=_db_post,
+)
 
 _configure_session_events(
     pg_mirror=_pg_mirror,
@@ -2220,56 +2155,6 @@ sys.modules["mios_dci"].configure(
     db_fire=_db_fire,
     apply_outbound_auth=_apply_outbound_auth,
 )
-
-
-# ── WS-9c DB backend selector (Postgres+pgvector cutover,) ─────────
-# "dual" (write to BOTH, read the legacy DB -- the SAFE live-
-# migration default: Postgres is exercised + verifiable without risking the live
-# read path), "postgres" (PG primary incl. native <=> recall). Mirror writes are
-# fire-and-forget + degrade-open (psycopg/PG absent or down -> no-op with a 30s
-# backoff in mios_pg), so "dual" is safe even before mios-pgvector is deployed.
-# SSOT [pgvector].db_backend (env MIOS_DB_BACKEND). Flip to "postgres" only after
-# verifying the mirror fills. Cutover: concepts/postgres-pgvector-unification.md.
-DB_BACKEND = str(os.environ.get("MIOS_DB_BACKEND")
-                 or _toml_section("pgvector").get("db_backend", "dual")
-                 ).strip().lower()
-_PG_ENABLED = DB_BACKEND in {"dual", "postgres"}
-_PG_PRIMARY = DB_BACKEND == "postgres"
-
-
-def _pg_mirror(table: str, fields: dict, *, rls_owner: Optional[str] = None) -> None:
-    """Fire-and-forget mirror of an agent-plane write to Postgres+pgvector
-    (WS-9c dual-write). No-op unless _PG_ENABLED; drops None values so column
-    defaults (ts, etc.) apply; degrade-open (never raises into the caller).
-
-    ``rls_owner`` (T-068): forwarded to the insert so, with DB-side RLS enabled,
-    the new row's owner is SET LOCAL in the insert transaction (FORCE row-level
-    security validates the written owner_user == this owner). Default None / RLS off
-    emits NO SET LOCAL -> byte-identical; an owner-less write stays permissive."""
-    if not _PG_ENABLED:
-        return
-    try:
-        row = {k: v for k, v in fields.items() if v is not None}
-        if row:
-            _db_fire(_mios_pg.insert(table, row, rls_owner=rls_owner))
-    except Exception:  # noqa: BLE001
-        pass
-
-
-def _db_write(table: str, fields: dict, *, now_fields: tuple = (),
-              extra: str = "", passport_sign: bool = True) -> None:
-    """Unified agent-plane WRITE seam (WS-9c full cutover). Mirrors the row to
-    Postgres+pgvector when enabled, and writes the legacy DB UNLESS Postgres is
-    primary -- so flipping [pgvector].db_backend='postgres' moves writes fully
-    onto PG and stops touching the legacy DB. Fire-and-forget + degrade-open (matches
-    _db_fire/_pg_mirror). Time columns (now_fields) take the pgvector column
-    DEFAULT (now()) on the PG side, so they're omitted from the mirror row."""
-    # _db_create mirrors to pgvector at its chokepoint (default _mirror=True);
-    # post to the legacy DB only while it is still primary.
-    sql = _db_create(table, fields, now_fields=now_fields,
-                     extra=extra, passport_sign=passport_sign)
-    if not _PG_PRIMARY:
-        _db_fire(_db_post(sql))
 
 
 # ── Router system prompt (kept in lockstep with the OWUI pipe) ─────

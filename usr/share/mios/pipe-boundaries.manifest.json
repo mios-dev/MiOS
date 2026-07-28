@@ -235,6 +235,17 @@
         "truncate_to_tokens"
       ]
     },
+    "usr/lib/mios/agent-pipe/mios_pipe/dbwrite.py": {
+      "configure_kwargs": [
+        "current_trace_id",
+        "db_post",
+        "passport_sign",
+        "pg_enabled",
+        "pg_primary",
+        "span_id_var"
+      ],
+      "public_symbols": []
+    },
     "usr/lib/mios/agent-pipe/mios_pipe/federation/a2a.py": {
       "configure_kwargs": [
         "a2a_peer_skills",
