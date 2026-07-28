@@ -1,16 +1,5 @@
-# AI-hint: Generated from mios.toml SSOT by tools/generate-cargo-manifests.py. DO NOT EDIT DIRECTLY.
 [workspace]
+resolver = "2"
 members = [
     "mios-version-check",
-    "mios-wallpaperd",
-    "generate-names-registry",
-    "mios-ssot-walk",
-    "mios-aiplane-lint",
-    "mios-bake-plan",
-    "mios-ssot-lint",
 ]
-resolver = "2"
-
-[workspace.package]
-version = "0.3.0"
-edition = "2021"

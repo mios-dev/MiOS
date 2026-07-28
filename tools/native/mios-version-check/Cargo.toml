@@ -1,7 +1,6 @@
 [package]
 name = "mios-version-check"
-version.workspace = true
-edition.workspace = true
+version = "0.3.0"
+edition = "2021"
 
 [dependencies]
-# Pure standard library implementation for zero-dependency portability
