@@ -122,6 +122,9 @@ they are enforced by `automation/38-drift-checks.sh` (offline), `automation/99-p
 | [0009](0009-unified-config-surface.md) | Unified config surface: mios.toml ⇄ Portal + configurator + /v1 at :8640/ | accepted | 5, 7, 8 | WS-CONFIG, WS-DEPRED |
 | [0010](0010-ssot-as-system-dotfiles.md) | SSOT-as-system-dotfiles: one mios.toml projects every dotfile on every platform | accepted | 1, 7, 8, 9, 13 | WS-DOTFILES, WS-CONFIG |
 | [0011](0011-unified-languages-and-file-patterns.md) | Unified languages & compiled file-patterns: language-per-domain + one-template-per-type | proposed | 7, 8, 9 | WS-LANG, WS-TEMPLATE, WS-DEBT |
+| [0012](0012-float-latest-no-hand-pinned-versions.md) | Float-latest: no hand-pinned versions anywhere | accepted | 7, 8, 12 | WS-SBOM, WS-MIOSSYS, WS-RELTOP |
+| [0013](0013-deploy-surface-consolidation.md) | Deploy-surface consolidation behind installation/mios-install | accepted | 1, 7, 8, 9 | WS-INSTALL, WS-CONFIG |
+| [0014](0014-bootc-install-bare-metal-leg.md) | The bootc-install bare-metal leg: bootc install to-disk --transport oci | proposed | 3, 4, 12 | WS-CAT, WS-MDRIVE |
 
 ## New MiOS decisions — how to add an ADR
 

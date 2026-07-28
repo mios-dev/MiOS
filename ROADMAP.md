@@ -6,7 +6,7 @@
 
 <!-- ROADMAP_ROLLUP_START -->
 ### Workstream Status Rollup
-- **Done**: 13
+- **Done**: 14
 - **Active**: 0
 - **Proposed**: 3
 - **Blocked**: 0
@@ -16,6 +16,7 @@
 ### Workstream Index
 
 **OS-Image & Build**
+- `WS-TESTDOC` — Test & documentation harness: drift-gate negative self-tests, shellcheck coverage, bake-smoke ✅
 - `WS-BAKEGATE` — Two-gate model: [build.bake] core allow-list + projected bake-plan ✅
 - `WS-BLADE` — Universal-core + blade-type ACTIVATION gate (one image, role by flag) ✅
 - `WS-MIOSSYS` — MiOS-Sys shared-base consolidation of the sidecar fleet ✅
@@ -62,6 +63,28 @@
 ---
 
 # OS-Image & Build
+
+## WS-TESTDOC — Test & documentation harness: drift-gate negative self-tests, shellcheck coverage, bake-smoke
+<!--
+id: WS-TESTDOC
+title: Test & documentation harness: drift-gate negative self-tests, shellcheck coverage, bake-smoke
+theme: OS-Image & Build
+status: done
+priority: P1
+laws: [7, 8]
+ssot_keys: ["build.bake", "deploy"]
+adr: [12]
+deps: []
+acceptance: |
+  Drift-gate negative self-tests run in CI; shellcheck error-level coverage lints all script directories; bake-smoke harness uses SSOT components.
+-->
+
+**Done this session**: Integrated drift-gate negative self-tests into CI (`.github/workflows/mios-ci.yml`), extended `lint-shell.sh` to error-lint all shell directories across the repo, extracted runtime smoke assertions to `tests/bake-smoke.sh`, and adopted ADR-0012.
+
+### TESTDOC-01 — Drift-gate negative self-test CI integration  **[P1]**
+- **What:** Add a dedicated step running `tests/drift-gate-negatives.sh` to the CI workflow in `.github/workflows/mios-ci.yml`.
+- **Why:** Ensures drift-check negative assertion tests execute automatically on every PR.
+- **Files:** `.github/workflows/mios-ci.yml`, `tests/drift-gate-negatives.sh`.
 
 ## WS-BAKEGATE — Two-gate model: `[build.bake]` core allow-list + projected bake-plan (Phase 0 sharded bake ✅)
 <!--
