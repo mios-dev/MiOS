@@ -123,6 +123,9 @@ jobs:
       - name: AI-plane source drift checks (98-drift-checks.sh)
         run: bash ./automation/98-drift-checks.sh
 
+      - name: Drift-gate negative self-tests (drift-gate-negatives.sh)
+        run: bash ./tests/drift-gate-negatives.sh
+
   build:
     needs: drift-gate
     runs-on: ubuntu-24.04
