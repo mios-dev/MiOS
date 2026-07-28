@@ -1144,6 +1144,46 @@ test_bake_ref_defaults() {
     log "test_bake_ref_defaults negative test passed."
 }
 
+# 52. Test check_deploy_plane
+test_deploy_plane() {
+    log "Testing check_deploy_plane..."
+    local ks_file="${ROOT}/usr/share/mios/ventoy/mios-kickstart.cfg"
+    if [ -f "$ks_file" ]; then
+        local orig_val
+        orig_val="$(cat "$ks_file")"
+        grep -v "MIOS_FHS_TOTAL_ROOT_MERGE=1" "$ks_file" > "${ks_file}.tmp" && mv "${ks_file}.tmp" "$ks_file"
+
+        if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_deploy_plane >/dev/null 2>&1; then
+            echo "$orig_val" > "$ks_file"
+            die "check_deploy_plane passed despite missing MIOS_FHS_TOTAL_ROOT_MERGE=1!"
+        fi
+
+        echo "$orig_val" > "$ks_file"
+        MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_deploy_plane >/dev/null 2>&1 \
+            || die "check_deploy_plane failed after restoration!"
+    fi
+    log "test_deploy_plane negative test passed."
+}
+
+# 53. Test check_sbom_metadata
+test_sbom_metadata() {
+    log "Testing check_sbom_metadata..."
+    local sbom_dir="${ROOT}/usr/share/mios/artifacts/sbom"
+    mkdir -p "$sbom_dir"
+    local temp_tsv="${sbom_dir}/models.tsv"
+    printf "name\tversion\tsha256\nmodel1\t1.0\tdeadbeef\n" > "$temp_tsv"
+
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_sbom_metadata >/dev/null 2>&1; then
+        rm -f "$temp_tsv"
+        die "check_sbom_metadata passed despite malformed sha256!"
+    fi
+
+    rm -f "$temp_tsv"
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_sbom_metadata >/dev/null 2>&1 \
+        || die "check_sbom_metadata failed after cleanup!"
+    log "test_sbom_metadata negative test passed."
+}
+
 main() {
     log "Starting negative-test suite..."
     test_version_ssot
@@ -1197,6 +1237,8 @@ main() {
     test_renderer_gate_coverage
     test_bake_plan
     test_bake_ref_defaults
+    test_deploy_plane
+    test_sbom_metadata
     log "All negative tests completed successfully!"
 }
 
