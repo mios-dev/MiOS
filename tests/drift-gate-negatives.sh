@@ -1184,6 +1184,44 @@ test_sbom_metadata() {
     log "test_sbom_metadata negative test passed."
 }
 
+# 54. Test check_clevis_luks
+test_clevis_luks() {
+    log "Testing check_clevis_luks..."
+    local tmp_dir
+    tmp_dir="$(mktemp -d)"
+    mkdir -p "${tmp_dir}/usr/share/mios"
+    echo '[identity]' > "${tmp_dir}/usr/share/mios/mios.toml"
+
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$tmp_dir" bash "${ROOT}/automation/98-drift-checks.sh" check_clevis_luks >/dev/null 2>&1; then
+        rm -rf "$tmp_dir"
+        die "check_clevis_luks passed despite malformed SSOT!"
+    fi
+
+    rm -rf "$tmp_dir"
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_clevis_luks >/dev/null 2>&1 \
+        || die "check_clevis_luks failed after cleanup!"
+    log "test_clevis_luks negative test passed."
+}
+
+# 55. Test check_mini_vfio
+test_mini_vfio() {
+    log "Testing check_mini_vfio..."
+    local tmp_dir
+    tmp_dir="$(mktemp -d)"
+    mkdir -p "${tmp_dir}/usr/share/mios"
+    echo '[identity]' > "${tmp_dir}/usr/share/mios/mios.toml"
+
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$tmp_dir" bash "${ROOT}/automation/98-drift-checks.sh" check_mini_vfio >/dev/null 2>&1; then
+        rm -rf "$tmp_dir"
+        die "check_mini_vfio passed despite malformed SSOT!"
+    fi
+
+    rm -rf "$tmp_dir"
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_mini_vfio >/dev/null 2>&1 \
+        || die "check_mini_vfio failed after cleanup!"
+    log "test_mini_vfio negative test passed."
+}
+
 main() {
     log "Starting negative-test suite..."
     test_version_ssot
@@ -1239,6 +1277,8 @@ main() {
     test_bake_ref_defaults
     test_deploy_plane
     test_sbom_metadata
+    test_clevis_luks
+    test_mini_vfio
     log "All negative tests completed successfully!"
 }
 
