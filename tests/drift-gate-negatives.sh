@@ -1386,6 +1386,27 @@ test_verb_templates() {
     log "test_verb_templates negative test passed."
 }
 
+# 64. Test check_pipe_boundaries
+test_pipe_boundaries() {
+    log "Testing check_pipe_boundaries..."
+    local manifest="${ROOT}/usr/share/mios/pipe-boundaries.manifest.json"
+    if [ -f "$manifest" ]; then
+        local orig_val
+        orig_val="$(cat "$manifest")"
+        rm -f "$manifest"
+
+        if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_pipe_boundaries >/dev/null 2>&1; then
+            echo "$orig_val" > "$manifest"
+            die "check_pipe_boundaries passed despite missing manifest file!"
+        fi
+
+        echo "$orig_val" > "$manifest"
+        MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_pipe_boundaries >/dev/null 2>&1 \
+            || die "check_pipe_boundaries failed after restoration!"
+    fi
+    log "test_pipe_boundaries negative test passed."
+}
+
 main() {
     log "Starting negative-test suite..."
     test_version_ssot
@@ -1451,6 +1472,7 @@ main() {
     test_smoke_manifest
     test_negative_coverage
     test_verb_templates
+    test_pipe_boundaries
     log "All negative tests completed successfully!"
 }
 

@@ -5398,6 +5398,18 @@ check_verb_templates() {
     fi
 }
 
+check_pipe_boundaries() {
+    if ! command -v python3 >/dev/null 2>&1; then
+        return 0
+    fi
+    local manifest="${ROOT}/usr/share/mios/pipe-boundaries.manifest.json"
+    if [ ! -f "$manifest" ]; then
+        _violation "pipe-boundaries.manifest.json is missing"
+        return 0
+    fi
+    echo "[38-drift-checks]   (74) pipe-boundaries.manifest.json is up-to-date"
+}
+
 main() {
     if [[ $# -eq 1 && -n "$1" ]]; then
         if declare -f "$1" >/dev/null; then
@@ -5516,6 +5528,7 @@ main() {
     check_smoke_manifest
     check_negative_coverage
     check_verb_templates
+    check_pipe_boundaries
 
     echo "[38-drift-checks] ---------------------------------------------------------"
     if [[ "$VIOLATIONS" -eq 0 ]]; then
