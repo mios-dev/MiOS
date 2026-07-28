@@ -1532,6 +1532,48 @@ test_sbom_metadata() {
     log "test_sbom_metadata negative test passed."
 }
 
+# 71. Test check_clevis_luks
+test_clevis_luks() {
+    log "Testing check_clevis_luks..."
+    local gen_script="${ROOT}/usr/libexec/mios/mios-clevis-luks-gen"
+    if [ -f "$gen_script" ]; then
+        local orig_val
+        orig_val="$(cat "$gen_script")"
+        echo 'echo "BROKEN"' > "$gen_script"
+
+        if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_clevis_luks >/dev/null 2>&1; then
+            echo "$orig_val" > "$gen_script"
+            die "check_clevis_luks passed despite broken generator script!"
+        fi
+
+        echo "$orig_val" > "$gen_script"
+        MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_clevis_luks >/dev/null 2>&1 \
+            || die "check_clevis_luks failed after restoration!"
+    fi
+    log "test_clevis_luks negative test passed."
+}
+
+# 72. Test check_mini_vfio
+test_mini_vfio() {
+    log "Testing check_mini_vfio..."
+    local gen_script="${ROOT}/usr/libexec/mios/mios-mini-vfio-gen"
+    if [ -f "$gen_script" ]; then
+        local orig_val
+        orig_val="$(cat "$gen_script")"
+        echo 'echo "BROKEN"' > "$gen_script"
+
+        if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_mini_vfio >/dev/null 2>&1; then
+            echo "$orig_val" > "$gen_script"
+            die "check_mini_vfio passed despite broken generator script!"
+        fi
+
+        echo "$orig_val" > "$gen_script"
+        MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_mini_vfio >/dev/null 2>&1 \
+            || die "check_mini_vfio failed after restoration!"
+    fi
+    log "test_mini_vfio negative test passed."
+}
+
 main() {
     log "Starting negative-test suite..."
     test_version_ssot
