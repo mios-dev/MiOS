@@ -1,12 +1,12 @@
-<!-- AI-hint: SSOT artifact/package/model refs carry floating intent (:latest or newest version) only; all concrete versions and checksums are resolved at build time and recorded in the SBOM — never hand-pinned in SSOT or build scripts. -->
-<!-- AI-related: usr/share/mios/mios.toml, automation/90-generate-sbom.sh, automation/38-drift-checks.sh, usr/share/doc/mios/adr/0003-sbom-not-hardcode.md -->
+<!-- AI-hint: Float-latest / no-hand-pinned-version principle: SSOT carries version intent (:latest/newest); build resolves and records exact provenance in SBOM. -->
+<!-- AI-related: usr/share/mios/mios.toml [image.sidecars], [build.bake], [build.bake_groups], [ai.bake_models], automation/90-generate-sbom.sh -->
 ---
 adr: 0012
-title: "Float-latest: no hand-pinned versions anywhere"
+title: "Float-latest: no hand-pinned versions across any artifact class"
 status: accepted
 date: 2026-07-28
 deciders: [operator, ai-pair]
-tags: [float-latest, sbom, provenance, reproducibility, no-hardcode, supply-chain]
+tags: [float-latest, sbom, provenance, reproducibility, no-hand-pin, supply-chain]
 laws: [7, 8, 12]
 ssot_keys: [image.sidecars, build.bake, build.bake_groups, ai.bake_models]
 related_ws: [WS-SBOM, WS-MIOSSYS, WS-RELTOP]
@@ -14,61 +14,65 @@ supersedes: []
 superseded_by: []
 ---
 
-# ADR-0012: Float-latest — no hand-pinned versions anywhere
+# ADR-0012: Float-latest — no hand-pinned versions across any artifact class
 
 ## Status
 
-Accepted — 2026-07-28. Generalizes ADR-0003 across all artifact classes (RPM/package versions, model weights, git-clone refs, base-image tags).
+Accepted — 2026-07-28. Generalizes the decision in ADR-0003 across all artifact classes (RPM packages, git clone references, model weights, and base image tags).
 
 ## Context
 
-In traditional system management, developers and operators frequently hardcode explicit version numbers (e.g., `python3-3.11.2`, `vllm==0.4.2`, specific commit SHA hashes for git clones) into configuration files and build scripts under the assumption that manual pinning guarantees reproducibility.
+In MiOS, the single source of truth is `usr/share/mios/mios.toml`. Architectural Law 7 (NO-HARDCODE) mandates that every configurable value resolves through the SSOT, Law 8 (SSOT-PROJECTION) mandates that all derived files are generated and drift-gated, and Law 12 (BAKE-NOT-FETCH) specifies that service dependencies and assets are baked into the immutable image.
 
-In MiOS, this practice violates core architectural principles:
-1. **Law 7 (NO-HARDCODE)**: Hardcoding static version numbers in scripts or configuration files creates maintenance debt and prevents automated dependency updates.
-2. **Law 8 (SSOT-PROJECTION)**: Hardcoded versions duplicate data that should be resolved dynamically from the SSOT or upstream repositories during build time.
-3. **Law 12 (BAKE-NOT-FETCH)**: System components and model weights are baked into the OCI bootc image at build time. The build process must pull the newest upstream packages globally, resolve their exact versions, and record the output in the Software Bill of Materials (SBOM).
+ADR-0003 addressed container image digests, deciding that hand-written `@sha256:…` pins inside `mios.toml` duplicate SBOM provenance data and cause unnecessary drift. However, the underlying operator principle — **"NO hand-pinned versions anywhere; everything floats latest at intent, resolved at build and recorded in the SBOM"** — needed to be explicitly formalized across all artifact classes.
 
-ADR-0003 established that container image digests (`@sha256:…`) must not be hardcoded in `mios.toml` and are instead resolved at build time. However, a general decision governing all other artifact classes (system packages, Python wheels, git repos, AI model weights) was noted as a required follow-up.
+Without a unified principle, different layers of the codebase used conflicting strategies:
+- Git clone steps occasionally hardcoded commit SHAs in script bodies.
+- Package installation specifications sometimes included static version numbers.
+- Model weight download paths mixed explicit tag refs with unpinned floating URLs.
 
 ## Decision
 
-Adopt the **Float-Latest Principle** across all artifact classes in the MiOS ecosystem:
+Adopt the **Float-Latest Principle** across all artifact classes:
 
-1. **Floating Intent in SSOT**: Configuration files (`mios.toml`) and build scripts MUST express version intent as floating refs (e.g., `:latest`, `:main`, `:master`, or unpinned package names like `podman`, `vllm`).
-2. **Build-Time Resolution**: The build engine resolves the latest available upstream version/hash at build time.
-3. **Provenance via SBOM**: Exact version numbers, commit SHAs, and content hashes are recorded in the generated SBOM artifacts (`usr/share/mios/artifacts/sbom/*`) during the build pass.
-4. **Reproducibility via Baked Artifacts**: Reproducibility is achieved through the baked, immutable OCI image and the SBOM manifest, NOT through manual source code pinning.
+1. **Intent in SSOT is Floating / Floating-Latest**:
+   - `mios.toml` specifies *version intent* (e.g., `:latest`, `newest`, or high-level tag selectors).
+   - No hand-pinned SHA digests, git commit hashes, or rigid package version pins inside `mios.toml` or build scripts unless required by an explicit upstream breaking-change gate.
+
+2. **Resolution & Provenance at Build Time**:
+   - The build process (e.g., `automation/build-mios.sh`, `automation/90-generate-sbom.sh`) resolves floating intent into concrete, verifiable artifacts.
+   - Exact SHAs, RPM EVRs, OCI image digests, and git commit IDs are recorded into the baked Software Bill of Materials (SBOM) and `manifest.json`.
+
+3. **Reproducibility Definition**:
+   - Reproducibility in MiOS is defined as the **baked OCI manifest plus the generated SBOM**, rather than static hand-written literals in source code.
 
 ## Rationale
 
-- **Zero-Maintenance Upgrades**: Base packages and AI components automatically upgrade to the latest secure versions upon rebuilding the image.
-- **Single Source of Truth**: Upstream repositories remain the authoritative source for software updates, while the build-generated SBOM serves as the immutable audit trail.
-- **Elimination of Version Drift**: Prevents mismatch between declared hardcoded versions and actual installed package dependencies.
+- Eliminates manual churn and false drift-gate failures when upstream dependencies release minor updates.
+- Maintains supply-chain transparency by making the build-time SBOM the single authoritative record of exact versions.
+- Ensures consistent adherence to Law 7 (NO-HARDCODE) and Law 8 (SSOT-PROJECTION) across the entire OS assembly pipeline.
 
 ## Alternatives
 
-- **Manual Pinning**: Hardcode exact version strings in `mios.toml` and build scripts. *Rejected*: Causes version rot, breaks automatic security patches, and violates Law 7 (NO-HARDCODE).
-- **Lockfiles in Repository**: Commit lockfiles (e.g., `Pipfile.lock`, `package-lock.json`) into the Git repository. *Rejected*: Creates unnecessary Git churn and manual update cycles for an immutable OS image.
+- **Hand-pinning all versions in SSOT**: High maintenance overhead; leads to stale dependencies and brittle builds.
+- **Pinning only in external lockfiles**: Introduces secondary sources of truth outside `mios.toml`, violating Law 8.
 
 ## Consequences
 
 ### Positive
-- All system components build against the latest stable upstream releases.
-- Supply chain auditability is guaranteed by the generated SBOM.
-- Eliminates manual version updating across build scripts and SSOT definitions.
+- Unified version management rule across images, packages, git repositories, and AI models.
+- Builds automatically pick up upstream bug fixes and security updates at bake time.
+- Clear separation between human intent (`:latest`) and machine provenance (`sha256:...`).
 
 ### Negative
-- Upstream breaking changes could break image builds if upstream introduces regressions (mitigated by automated drift gates and CI build tests).
+- Requires robust CI smoke tests (`tests/bake-smoke.sh`, drift gates) to catch upstream regressions at build time.
 
 ## Implementation
 
-- All package installation scripts (`automation/*.sh`) use unpinned package names.
-- Git clone commands use floating branch tracking or release tags unless explicitly overridden by build flags.
-- SBOM generator (`automation/90-generate-sbom.sh`) captures all resolved package versions and SHA-256 digests.
+- Enforced via drift checks (e.g., `check_containerfile_pinned_clones`).
+- Rendered into SBOM via `automation/90-generate-sbom.sh`.
 
 ## References
 
-- [ADR-0003: SBOM-not-hardcode — digests are build-resolved provenance](file:///C:/MiOS/usr/share/doc/mios/adr/0003-sbom-not-hardcode.md)
-- `usr/share/mios/mios.toml`
-- `automation/90-generate-sbom.sh`
+- [ADR-0003: SBOM-not-hardcode](file:///C:/MiOS/usr/share/doc/mios/adr/0003-sbom-not-hardcode.md)
+- [Architectural Laws 7, 8, 12](file:///C:/MiOS/usr/share/mios/mios.toml)

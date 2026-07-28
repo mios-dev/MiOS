@@ -1,14 +1,14 @@
-<!-- AI-hint: Unified deployment dispatcher installation/mios-install resolves N target types to underlying specialized entrypoints without rewriting them; read before modifying installer CLI interfaces or adding new install surfaces. -->
-<!-- AI-related: installation/mios-install.sh, installation/mios-install.ps1, installation/mios-common.ps1, installation/UNIFY.md -->
+<!-- AI-hint: Single front door for AGY tree deployment: installation/mios-install resolves targets to underlying entrypoints without modifying existing scripts. -->
+<!-- AI-related: installation/mios-install.sh, installation/mios-install.ps1, installation/mios-common.sh, installation/UNIFY.md -->
 ---
 adr: 0013
 title: "Deploy-surface consolidation behind installation/mios-install"
 status: accepted
 date: 2026-07-28
 deciders: [operator, ai-pair]
-tags: [deploy, consolidation, installer, dispatch, UNIFY]
+tags: [installation, deployment, dispatch, CLI, mios-install]
 laws: [1, 7, 8, 9]
-ssot_keys: [verbs, ports, install, cat]
+ssot_keys: [install.target, cat.mode]
 related_ws: [WS-INSTALL, WS-CONFIG]
 supersedes: []
 superseded_by: []
@@ -18,56 +18,57 @@ superseded_by: []
 
 ## Status
 
-Accepted — 2026-07-28. Implemented for Linux (`installation/mios-install.sh`) and Windows (`installation/mios-install.ps1`).
+Accepted — 2026-07-28. Scoped to the AGY repository tree (`installation/mios-install.{sh,ps1,bat}`). Defers bootstrap and portal entrypoints to ADR-0008.
 
 ## Context
 
-Prior to consolidation, the MiOS codebase contained multiple independent, non-standardized installation scripts across different directories (`build-mios.sh`, `mios-update`, `MiOS-Cat.bat`, `Deploy-MiOSXbox.ps1`, `install.sh`, etc.). Users and automated pipelines had to invoke different entrypoints depending on whether they were building an OCI container, flashing a Ventoy USB drive, deploying a Hyper-V virtual machine, or upgrading an existing bootc host.
+Prior deployment options in the repository relied on multiple un-coordinated entry points (`build-mios.sh`, `mios-update`, `MiOS-Cat.sh`, standalone bootstrap scripts). This created fragmented CLI flags, duplicated target resolution logic, and increased user confusion regarding how to invoke live, container, or bare-metal installations.
 
-This fragmentation caused:
-1. **Inconsistent CLI Parameters**: Target names, flags (`--dry-run`, `-Unattended`), and verbose output options differed across scripts.
-2. **Duplicate Logic**: Environment validation, administrator privilege elevation, and logging were independently re-implemented in multiple scripts.
-3. **High Cognitive Load**: Automated agents and human operators had to maintain complex conditional logic to select the correct script.
+The AGY tree consolidated these surfaces into `installation/mios-install.{sh,ps1,bat}` as a unified front-door dispatcher, but the decision needed formal architectural documentation.
 
 ## Decision
 
-Consolidate all deployment and installation surfaces behind a single, unified entrypoint: **`installation/mios-install`** (`mios-install.sh` on Linux, `mios-install.ps1` on Windows).
+Consolidate all AGY deployment targets behind `installation/mios-install`:
 
-Key architecture rules:
-1. **Pure Dispatcher Pattern**: `mios-install` acts as a high-level dispatcher. It parses standard CLI parameters, validates environment state, resolves the target action, and delegates execution to specialized entrypoints without altering or destroying the underlying scripts.
-2. **Unified Target Matrix**: Standard targets (`live`, `xbox`, `fedora`, `bootc`, `oci`, `seed`, `flash`, `build`, `update`, `config`) are resolved through a shared resolution contract (`installation/mios-common`).
-3. **Shared Common Library**: Common tasks (elevating privileges, logging, reading SSOT defaults from `mios.toml`, `--dry-run` plan preview) are implemented once in `installation/mios-common.{sh,ps1}`.
-4. **Non-Interactive & Unattended Parity**: All targets accept a standard `-Unattended` / `--unattended` / `NONINTERACTIVE=1` flag for non-interactive automated pipeline execution.
+1. **Dispatcher Architecture**:
+   - `installation/mios-install` serves as a single entrypoint accepting targets: `live`, `xbox`, `fedora`, `bootc`, `oci`, `seed`, `flash`, `build`, `update`, `config`.
+   - The dispatcher resolves parameters and delegates execution to existing specialized scripts (`build-mios.sh`, `mios-update`, etc.) via a shared library contract (`installation/mios-common.{sh,ps1}`).
+
+2. **Dry-Run & Parity**:
+   - Implements `--dry-run` to output execution plans without mutating the target system.
+   - Parity between PowerShell and Bash wrappers is enforced via drift checks.
+
+3. **Scope Boundaries**:
+   - This decision applies strictly to the AGY `installation/` directory. Bootstrap and Portal surfaces (`MiOS-Cat`, `Get-MiOS.ps1`) remain governed by ADR-0008.
 
 ## Rationale
 
-- **Single Front Door**: Users and automated workflows execute `mios install <target>` regardless of operating system or target infrastructure.
-- **Backward Compatibility**: Existing specialized entrypoints (`MiOS-Cat.bat`, `New-MiOSISO.ps1`) remain functional for direct invocation while benefiting from standardized dispatching.
-- **Maintainability**: Centralizes CLI argument parsing and error logging in one audited module.
+- Provides a predictable, single front door for all installation and update workflows.
+- Eliminates code duplication by extracting shared path resolution and validation logic into `mios-common`.
+- Preserves existing underlying entrypoints, minimizing breaking changes across automation pipelines.
 
 ## Alternatives
 
-- **Complete Script Rewrite**: Replace all existing scripts with a single monolithic 10,000-line script. *Rejected*: High risk of regressions, destroys modularity, and breaks existing direct tool callers.
-- **Status Quo**: Keep separate uncoordinated installation scripts. *Rejected*: Leads to parameter drift and maintenance overhead.
+- **Monolithic Install Script**: Merging all install scripts into one giant file would create an unmaintainable codebase.
+- **Multiple Disjoint Scripts**: Retaining uncoordinated entry points perpetuates flags drift and documentation rot.
 
 ## Consequences
 
 ### Positive
-- Standardized CLI syntax across Linux and Windows (`mios install flash`, `mios install xbox`, etc.).
-- Robust `--dry-run` execution preview across all targets.
-- Clear separation between dispatch logic and underlying deployment implementation.
+- Consistent CLI flags and help menus across Windows and Linux.
+- Easy addition of new deployment targets via dispatcher route tables.
+- Standardized dry-run execution planning.
 
 ### Negative
-- Require maintaining wrapper logic in `mios-common` when target script signatures evolve.
+- Require maintaining parity between `.sh`, `.ps1`, and `.bat` wrapper frontends.
 
 ## Implementation
 
-- Implemented `installation/mios-install.sh` and `installation/mios-install.ps1`.
-- Standardized `installation/mios-common.sh` and `installation/mios-common.ps1`.
-- Added UNIFY spec document `installation/UNIFY.md`.
+- Implemented in `installation/mios-install.sh`, `installation/mios-install.ps1`, and `installation/mios-install.bat`.
+- Shared logic encapsulated in `installation/mios-common.sh` and `installation/mios-common.ps1`.
 
 ## References
 
-- [ADR-0008: MiOS-Cat unified entry point + repo minification](file:///C:/MiOS/usr/share/doc/mios/adr/0008-mios-cat-unified-entry-and-minification.md)
-- `installation/mios-install.ps1`
-- `installation/UNIFY.md`
+- [ADR-0008: MiOS-Cat unified entry point](file:///C:/MiOS/usr/share/doc/mios/adr/0008-mios-cat-unified-entry-and-minification.md)
+- [ADR-0009: Unified config surface](file:///C:/MiOS/usr/share/doc/mios/adr/0009-unified-config-surface.md)
+- [Architectural Laws 1, 7, 8, 9](file:///C:/MiOS/usr/share/mios/mios.toml)

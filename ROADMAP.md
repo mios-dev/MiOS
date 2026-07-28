@@ -7,7 +7,7 @@
 <!-- ROADMAP_ROLLUP_START -->
 ### Workstream Status Rollup
 - **Done**: 14
-- **Active**: 0
+- **Active**: 2
 - **Proposed**: 3
 - **Blocked**: 0
 <!-- ROADMAP_ROLLUP_END -->
@@ -35,6 +35,7 @@
 - `WS-CATREPO` — Small MiOS-Repo shadow-config + separate MiOS-Data bulk store (512GB+) + model embedding ✅
 - `WS-CATFLAT` — MiOS-Cat tree flatten, de-dup, leave-nothing-behind ✅
 - `WS-CONFIG` — Unified config surface: mios.toml ⇄ Portal + configurator + /v1 at :8640/ ✅
+- `WS-DEPLOY` — Deployment surface consolidation and bare-metal bootc install (active)
 
 **Storage & Data**
 (no workstreams)
@@ -47,6 +48,9 @@
 
 **Fleet & Federation**
 - `WS-RELTOP` — Release topology: GitHub ≡ Forgejo equal publishers; PUBLISH capacity gate ✅
+
+**Testing & Conformance**
+- `WS-TESTDOC` — Testing, drift-gate negative coverage, and documentation integrity (active)
 <!-- ROADMAP_INDEX_END -->
 
 <!-- ROADMAP_TOC_START -->
@@ -58,6 +62,7 @@
 - [Security & Identity](#security-identity)
 - [Desktop & UX](#desktop-ux)
 - [Fleet & Federation](#fleet-federation)
+- [Testing & Conformance](#testing-conformance)
 <!-- ROADMAP_TOC_END -->
 
 ---
@@ -582,7 +587,56 @@ acceptance: |
 - **What:** Implement the registry-selection logic that both workflows currently hardcode as `ghcr`: default to GitHub/GHCR push+pull when credentials are present, else the local/Forgejo registry. Locate it in the build driver / `install.env` credential detection so both CI environments and the local build resolve the registry the same way.
 - **Why:** The topology directive says registry preference is credential-driven, but `mios-ci.yml`/`build-mios.yml` currently hardcode GHCR; the selection belongs in one shared place, not duplicated per workflow.
 - **Files:** `.github/workflows/mios-ci.yml`, `.forgejo/workflows/build-mios.yml`, the build driver (`automation/build.sh` / `install.env` credential detection).
-- **Accept:** a build with GHCR creds present pushes/pulls GHCR; with none it targets the local/Forgejo registry; both CI runners and the local build share the one selection path; no hardcoded registry remains outside it.
-- **Deps:** CI capacity-gate DONE; the `PUBLISH:'true'` flip is unblocked by WS-MIOSSYS.
+
+
+# Testing & Conformance
+
+## WS-TESTDOC — Testing, drift-gate negative coverage, and documentation integrity
+<!--
+id: WS-TESTDOC
+title: Testing, drift-gate negative coverage, and documentation integrity
+theme: Testing & Conformance
+status: active
+priority: P1
+laws: [7, 8]
+ssot_keys: ["testing.smoke_components", "build.bake"]
+adr: [12]
+deps: []
+acceptance: |
+  All drift-checks are backed by negative tests, shellcheck error coverage spans all shell directories, and bake-smoke testing is driven from SSOT.
+-->
+
+### TESTDOC-01 — Drift-gate negative self-tests in CI and shellcheck coverage ratcheting  **[P1]**
+- **What:** CI runs `drift-gate-negatives.sh`, `lint-shell.sh` lints all shell directories, and `tests/bake-smoke.sh` extracts smoke testing into a reusable harness.
+- **Why:** Protects against gate regressions and ensures all shell code meets quality standards.
+- **Files:** `automation/lint-shell.sh`, `tests/drift-gate-negatives.sh`, `tests/bake-smoke.sh`, `.github/workflows/mios-ci.yml`.
+- **Accept:** `just drift-gate` is green, negative tests run in CI, and `lint-shell.sh` covers all shell scripts.
+- **Deps:** none.
+
+
+# Deployment & Sovereignty
+
+## WS-DEPLOY — Deployment surface consolidation and bare-metal bootc install
+<!--
+id: WS-DEPLOY
+title: Deployment surface consolidation and bare-metal bootc install
+theme: Deployment & Sovereignty
+status: active
+priority: P1
+laws: [1, 3, 4, 12]
+ssot_keys: ["cat.drivepath", "build.bake"]
+adr: [13, 14]
+deps: []
+acceptance: |
+  Single deployment dispatcher behind installation/mios-install, supporting offline bootc install to-disk.
+-->
+
+### DEPLOY-01 — Single install front door and offline bootc bare-metal leg  **[P1]**
+- **What:** Consolidates deployment entrypoints under `installation/mios-install.{sh,ps1,bat}` and defines the three `bootc` install legs (`to-existing-root`, `to-disk`, `to-filesystem`).
+- **Why:** Provides a single unified installation API and enables offline bare-metal installation from USB/OCI payload tarballs.
+- **Files:** `installation/mios-install.sh`, `installation/mios-install.ps1`, `usr/share/doc/mios/adr/0013-deploy-surface-consolidation.md`, `usr/share/doc/mios/adr/0014-bootc-install-bare-metal-leg.md`.
+- **Accept:** `mios-install` resolves targets with `--dry-run`, ADR-0013 and ADR-0014 accepted/proposed.
+- **Deps:** none.
+
 
 
