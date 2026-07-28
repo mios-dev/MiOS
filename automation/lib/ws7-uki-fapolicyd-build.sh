@@ -37,7 +37,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/common.sh
 source "${SCRIPT_DIR}/common.sh"
-# shellcheck source=lib/packages.sh  (for _resolve_mios_toml)
+# (for _resolve_mios_toml)
+# shellcheck source=lib/packages.sh
 source "${SCRIPT_DIR}/packages.sh"
 
 # _ws7_scalar <table> <key> -- read a top-level scalar from [<table>] of the

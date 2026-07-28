@@ -1,36 +1,38 @@
 #!/usr/bin/env bash
-# AI-hint: Verifies that automation/lint-shell.sh contains collection globs for all repository shell directories.
+# AI-hint: Test ensuring lint-shell.sh retains full shell directory coverage (AGY-359).
+# AI-related: automation/lint-shell.sh, tests/test-lint-shell-coverage.sh
+
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
-LINT_SCRIPT="${ROOT_DIR}/automation/lint-shell.sh"
+ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+LINT_SCRIPT="${ROOT}/automation/lint-shell.sh"
 
-if [ ! -f "${LINT_SCRIPT}" ]; then
-    echo "ERROR: lint-shell.sh not found at ${LINT_SCRIPT}" >&2
+if [ ! -f "$LINT_SCRIPT" ]; then
+    echo "ERROR: automation/lint-shell.sh not found at ${LINT_SCRIPT}" >&2
     exit 1
 fi
 
 REQUIRED_DIRS=(
-    "installation/"
-    "tests/"
-    "automation/lib"
-    "tools/lib"
+    "automation"
+    "tools"
+    "installation"
+    "tests"
     "usr/lib/mios"
+    "usr/libexec/mios"
 )
 
-missing=0
-for d in "${REQUIRED_DIRS[@]}"; do
-    if ! grep -q "${d}" "${LINT_SCRIPT}"; then
-        echo "FAIL: Required shell directory '${d}' is missing from lint-shell.sh collection globs." >&2
-        missing=$((missing + 1))
+missing=()
+for dir in "${REQUIRED_DIRS[@]}"; do
+    if ! grep -q "$dir" "$LINT_SCRIPT"; then
+        missing+=("$dir")
     fi
 done
 
-if [ "${missing}" -gt 0 ]; then
-    echo "::error::${missing} required shell directory/directories missing from lint-shell.sh" >&2
+if [ ${#missing[@]} -ne 0 ]; then
+    echo "ERROR: lint-shell.sh is missing shell coverage globs for directories: ${missing[*]}" >&2
     exit 1
 fi
 
-echo "[test-lint-shell-coverage] PASS: All required shell directories present in lint-shell.sh globs."
+echo "[test-lint-shell-coverage] Shell directory coverage check passed clean."
 exit 0
