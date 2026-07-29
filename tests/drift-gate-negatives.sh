@@ -1312,16 +1312,25 @@ test_hyprland_heredoc() {
     log "Testing check_hyprland_conf_heredoc..."
     local conf_file="${ROOT}/usr/share/mios/hyprland/hyprland.conf"
     if [ -f "$conf_file" ]; then
-        local orig_val
-        orig_val="$(cat "$conf_file")"
-        printf '%s\n%s\n' "$orig_val" "# INJECTED-DRIFT" > "$conf_file"
+        local bak_file="${conf_file}.bak"
+        cp "$conf_file" "$bak_file"
+        python3 - "$conf_file" << 'PYEOF'
+import sys, os
+p = sys.argv[1]
+try:
+    os.chmod(p, 0o666)
+except Exception:
+    pass
+val = open(p, 'r', encoding='utf-8', errors='ignore').read()
+open(p, 'w', encoding='utf-8').write(val + '\n# INJECTED-DRIFT\n')
+PYEOF
 
         if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_hyprland_conf_heredoc >/dev/null 2>&1; then
-            echo "$orig_val" > "$conf_file"
+            cp "$bak_file" "$conf_file" && rm -f "$bak_file"
             die "check_hyprland_conf_heredoc passed despite injected drift!"
         fi
 
-        echo "$orig_val" > "$conf_file"
+        cp "$bak_file" "$conf_file" && rm -f "$bak_file"
         MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_hyprland_conf_heredoc >/dev/null 2>&1 \
             || die "check_hyprland_conf_heredoc failed after restoration!"
     fi
@@ -1350,17 +1359,16 @@ test_roadmap_index() {
     log "Testing check_roadmap_index..."
     local roadmap_file="${ROOT}/ROADMAP.md"
     if [ -f "$roadmap_file" ]; then
-        local orig_val
-        orig_val="$(cat "$roadmap_file")"
-        echo "$orig_val" > "$roadmap_file"
+        local bak_file="${roadmap_file}.bak"
+        cp "$roadmap_file" "$bak_file"
         sed -i 's/\*\*Done\*\*: [0-9]*/\*\*Done\*\*: 99999/g' "$roadmap_file" 2>/dev/null || true
 
         if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_roadmap_index >/dev/null 2>&1; then
-            echo "$orig_val" > "$roadmap_file"
+            cp "$bak_file" "$roadmap_file" && rm -f "$bak_file"
             die "check_roadmap_index passed despite corrupted rollup!"
         fi
 
-        echo "$orig_val" > "$roadmap_file"
+        cp "$bak_file" "$roadmap_file" && rm -f "$bak_file"
         MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_roadmap_index >/dev/null 2>&1 \
             || die "check_roadmap_index failed after restoration!"
     fi
@@ -1372,16 +1380,16 @@ test_templates_compilation() {
     log "Testing check_templates_compilation..."
     local tmpl_file="${ROOT}/usr/share/mios/templates/toml-config"
     if [ -f "$tmpl_file" ]; then
-        local orig_val
-        orig_val="$(cat "$tmpl_file")"
-        printf '%s\n%s\n' "$orig_val" 'INVALID_SYNTAX_BOGUS {{' > "$tmpl_file"
+        local bak_file="${tmpl_file}.bak"
+        cp "$tmpl_file" "$bak_file"
+        echo 'INVALID_SYNTAX_BOGUS {{' >> "$tmpl_file"
 
         if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_templates_compilation >/dev/null 2>&1; then
-            echo "$orig_val" > "$tmpl_file"
+            cp "$bak_file" "$tmpl_file" && rm -f "$bak_file"
             die "check_templates_compilation passed despite invalid template!"
         fi
 
-        echo "$orig_val" > "$tmpl_file"
+        cp "$bak_file" "$tmpl_file" && rm -f "$bak_file"
         MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_templates_compilation >/dev/null 2>&1 \
             || die "check_templates_compilation failed after restoration!"
     fi
@@ -1393,16 +1401,16 @@ test_impossible_eol() {
     log "Testing check_impossible_eol_regressions..."
     local toml_file="${ROOT}/usr/share/mios/mios.toml"
     if [ -f "$toml_file" ]; then
-        local orig_val
-        orig_val="$(cat "$toml_file")"
-        printf '%s\n%s\n' "$orig_val" 'eol_test_pkg = ["tang"]' > "$toml_file"
+        local bak_file="${toml_file}.bak"
+        cp "$toml_file" "$bak_file"
+        echo 'eol_test_pkg = ["tang"]' >> "$toml_file"
 
         if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_impossible_eol_regressions >/dev/null 2>&1; then
-            echo "$orig_val" > "$toml_file"
+            cp "$bak_file" "$toml_file" && rm -f "$bak_file"
             die "check_impossible_eol_regressions passed despite EOL tang package!"
         fi
 
-        echo "$orig_val" > "$toml_file"
+        cp "$bak_file" "$toml_file" && rm -f "$bak_file"
         MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_impossible_eol_regressions >/dev/null 2>&1 \
             || die "check_impossible_eol_regressions failed after restoration!"
     fi
@@ -1414,16 +1422,16 @@ test_smoke_manifest() {
     log "Testing check_smoke_manifest..."
     local toml_file="${ROOT}/usr/share/mios/mios.toml"
     if [ -f "$toml_file" ]; then
-        local orig_val
-        orig_val="$(cat "$toml_file")"
-        printf '%s\n%s\n' "$orig_val" 'shims = ["usr/libexec/mios/non-existent-bogus-shim"]' > "$toml_file"
+        local bak_file="${toml_file}.bak"
+        cp "$toml_file" "$bak_file"
+        echo 'shims = ["usr/libexec/mios/non-existent-bogus-shim"]' >> "$toml_file"
 
         if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_smoke_manifest >/dev/null 2>&1; then
-            echo "$orig_val" > "$toml_file"
+            cp "$bak_file" "$toml_file" && rm -f "$bak_file"
             die "check_smoke_manifest passed despite missing component path!"
         fi
 
-        echo "$orig_val" > "$toml_file"
+        cp "$bak_file" "$toml_file" && rm -f "$bak_file"
         MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_smoke_manifest >/dev/null 2>&1 \
             || die "check_smoke_manifest failed after restoration!"
     fi
