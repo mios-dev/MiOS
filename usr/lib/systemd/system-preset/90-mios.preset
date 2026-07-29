@@ -48,6 +48,8 @@ enable nvidia-cdi-refresh.path
 enable nvidia-cdi-refresh.service
 enable nvidia-persistenced.service
 enable firewalld.service
+enable nut-server.service
+enable nut-monitor.service
 enable chronyd.service
 enable systemd-resolved.service
 # avahi (mDNS/DNS-SD) backs FED-G5 LAN A2A peer discovery + announce. Enabling the

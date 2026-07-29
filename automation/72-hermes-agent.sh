@@ -624,9 +624,13 @@ elif ! install -d -m 0755 "${OPENCODE_ROOT}" "${OPENCODE_BIN_DIR}" 2>/dev/null; 
 elif ! curl -fsSL --max-time 60 "${OPENCODE_INSTALL_URL}" -o /tmp/opencode-install.sh; then
     mios_warn "could not fetch opencode installer from ${OPENCODE_INSTALL_URL} -- skipping; mios update will retry"
 else
+    local _oc_ver_env=""
+    if [[ "${OPENCODE_VERSION}" != "latest" && -n "${OPENCODE_VERSION}" ]]; then
+        _oc_ver_env="${OPENCODE_VERSION}"
+    fi
     # The opencode installer respects OPENCODE_INSTALL_DIR (vendor env).
     OPENCODE_INSTALL_DIR="${OPENCODE_BIN_DIR}" \
-    OPENCODE_VERSION="${OPENCODE_VERSION}" \
+    OPENCODE_VERSION="${_oc_ver_env}" \
         bash /tmp/opencode-install.sh 2>&1 | tail -10 || \
         mios_warn "opencode installer exited non-zero -- continuing; mios update will retry"
     rm -f /tmp/opencode-install.sh 2>/dev/null || true
