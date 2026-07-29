@@ -72,13 +72,13 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 **Where:** `usr/lib/mios/agent-pipe/mios_pipe/routing/**` (dag_exec/native_loop/dispatch), `usr/share/mios/mios.toml`.
 **Done When:** a fan-out that would blow the budget stops at the cap with a summary; a foreground request preempts a running background job; tests green.
 
-## AGY-7  (WS-VECTOR V2 / T-244, P2) — vectorize the AI-plane gaps (extends your AGY-3)
+## AGY-7  (WS-VECTOR V2 / T-244, P2) — vectorize the AI-plane gaps (extends your AGY-3)  **[DONE]**
 **Who:** you (SQL + Python). **When:** natural follow-on to AGY-3.
 **What + How:** per `everything-db-driven.md` V2, add `emb vector(768)` + HNSW(vector_cosine_ops m=16 ef_construction=64) + `emb_model`/`emb_version` to `skill`, `verb`, `tool_call`, `directory_entry` in `schema-init.sql` (mirror the `knowledge` DDL you already matched), over a text projection; then repoint the in-process verb/apps embedding rebuild (`worker_tools.py`) to a native `<=>` query on `verb.emb`, with the in-process lexicon as fail-open fallback. Ground-truth stays in typed columns — additive only.
 **Where:** `usr/share/mios/postgres/schema-init.sql`, `usr/lib/mios/agent-pipe/mios_pipe/routing/worker_tools.py`, `mios_pipe/memory/embed_backfill.py`.
 **Done When:** schema applies idempotently; verb/skill semantic recall works via `<=>`; no functionality loss (text-match still available); tests green.
 
-## AGY-8  (WS-DURA / T-176, P1) — secret/PII redaction on persist + federate
+## AGY-8  (WS-DURA / T-176, P1) — secret/PII redaction on persist + federate  **[DONE]**
 **Who:** you (Python). **When:** independent.
 **What + How:** before any write to `knowledge`/`agent_memory`/`event`/`tool_call` OR any A2A federate/gossip send, run a redaction pass (strip API keys, tokens, passwords, emails/PII, and MIOS_* secrets) — a single reusable `redact()` used by the persist seam (`mios_pipe/memory/*`) and the federation seam (`mios_pipe/federation/a2a.py`). Keep a `redacted=true` marker; never persist raw secrets (aligns with the CLAUDE.md persistence-sanitization law).
 **Where:** new `usr/lib/mios/agent-pipe/mios_pipe/redact.py`, wired into `mios_pipe/memory/*` + `mios_pipe/federation/a2a.py`.

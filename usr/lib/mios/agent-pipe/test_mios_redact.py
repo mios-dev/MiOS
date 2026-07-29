@@ -1,7 +1,10 @@
 # AI-hint: stdlib unit test for secrets and PII redaction.
 # Verifies redaction of API keys, email addresses, and MIOS_* env credentials.
 import os
+import sys
 import unittest
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 try:
     import psycopg
 except ImportError:
