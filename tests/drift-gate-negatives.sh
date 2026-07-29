@@ -1423,15 +1423,29 @@ test_smoke_manifest() {
     if [ -f "$toml_file" ]; then
         local bak_file="${toml_file}.bak"
         cp "$toml_file" "$bak_file"
-        echo 'shims = ["usr/libexec/mios/non-existent-bogus-shim"]' >> "$toml_file"
+        python3 - "$toml_file" << 'PYEOF'
+import sys, os
+p = sys.argv[1]
+try:
+    os.chmod(p, 0o666)
+except Exception:
+    pass
+val = open(p, 'r', encoding='utf-8', errors='ignore').read()
+try:
+    os.remove(p)
+except Exception:
+    pass
+with open(p, 'w', encoding='utf-8') as f:
+    f.write(val + '\n[testing.smoke_components]\nshims = ["usr/libexec/mios/non-existent-bogus-shim"]\n')
+PYEOF
 
-        if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_smoke_manifest >/dev/null 2>&1; then
+        if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_smoke_manifest >/dev/null 2>&1; then
             cp "$bak_file" "$toml_file" && rm -f "$bak_file"
             die "check_smoke_manifest passed despite missing component path!"
         fi
 
         cp "$bak_file" "$toml_file" && rm -f "$bak_file"
-        MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_smoke_manifest >/dev/null 2>&1 \
+        MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_smoke_manifest >/dev/null 2>&1 \
             || die "check_smoke_manifest failed after restoration!"
     fi
     log "test_smoke_manifest negative test passed."
