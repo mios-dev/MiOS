@@ -1058,19 +1058,15 @@ test_composefs_projection() {
     local target_file="${ROOT}/usr/lib/ostree/prepare-root.conf"
     local orig_val
     orig_val="$(cat "$target_file")"
-    rm -f "$target_file"
-    echo "$orig_val" > "$target_file"
 
     echo '[composefs]' > "$target_file"
     echo 'enabled = off' >> "$target_file"
 
     if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_composefs_projection >/dev/null 2>&1; then
-        rm -f "$target_file"
         echo "$orig_val" > "$target_file"
         die "check_composefs_projection passed despite mutated prepare-root.conf!"
     fi
 
-    rm -f "$target_file"
     echo "$orig_val" > "$target_file"
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_composefs_projection >/dev/null 2>&1 \
         || die "check_composefs_projection failed after restoration!"
@@ -1081,22 +1077,16 @@ test_composefs_projection() {
 test_cockpit_projection() {
     log "Testing check_cockpit_projection..."
     local target_file="${ROOT}/etc/cockpit/cockpit.conf"
-    local orig_val
-    orig_val="$(cat "$target_file")"
-    # $ROOT is a bare git tree, not the overlaid FHS, so this generated target is absent on a
-    # fresh checkout -- produce it first with the same generator the main check regenerates from.
     [[ -f "$target_file" ]] || { mkdir -p "$(dirname "$target_file")"; MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-cockpit-conf.py" >/dev/null 2>&1 || true; }
 
     echo 'AllowUnencrypted = false' >> "$target_file"
 
     if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_cockpit_projection >/dev/null 2>&1; then
-        rm -f "$target_file"
-        echo "$orig_val" > "$target_file"
+        MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-cockpit-conf.py" >/dev/null 2>&1 || true
         die "check_cockpit_projection passed despite mutated cockpit.conf!"
     fi
 
-    rm -f "$target_file"
-    echo "$orig_val" > "$target_file"
+    MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-cockpit-conf.py" >/dev/null 2>&1 || true
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_cockpit_projection >/dev/null 2>&1 \
         || die "check_cockpit_projection failed after restoration!"
     log "test_cockpit_projection negative test passed."
