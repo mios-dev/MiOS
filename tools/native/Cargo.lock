@@ -3,5 +3,9 @@
 version = 4
 
 [[package]]
+name = "mios-ssot-lint"
+version = "0.3.0"
+
+[[package]]
 name = "mios-version-check"
 version = "0.3.0"
