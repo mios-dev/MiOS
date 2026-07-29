@@ -750,9 +750,11 @@ EOF
 test_kickstart_shell_syntax() {
     log "Testing check_kickstart_shell_syntax..."
     local cfg="${ROOT}/usr/share/mios/ventoy/mios-kickstart.cfg"
-    local bak="${cfg}.ksbak"
-    cp "$cfg" "$bak"
+    local orig_val
+    orig_val="$(cat "$cfg")"
 
+    rm -f "$cfg"
+    echo "$orig_val" > "$cfg"
     cat << 'EOF' >> "$cfg"
 %post
 if [ true ]; then
@@ -760,13 +762,15 @@ if [ true ]; then
 %end
 EOF
 
-    if MIOS_DRIFT_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_kickstart_shell_syntax >/dev/null 2>&1; then
-        rm -f "$cfg" && mv "$bak" "$cfg"
+    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_kickstart_shell_syntax >/dev/null 2>&1; then
+        rm -f "$cfg"
+        echo "$orig_val" > "$cfg"
         die "check_kickstart_shell_syntax passed despite invalid bash syntax in %post!"
     fi
 
-    rm -f "$cfg" && mv "$bak" "$cfg"
-    MIOS_DRIFT_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_kickstart_shell_syntax >/dev/null 2>&1 \
+    rm -f "$cfg"
+    echo "$orig_val" > "$cfg"
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_kickstart_shell_syntax >/dev/null 2>&1 \
         || die "check_kickstart_shell_syntax failed after restoration!"
     log "test_kickstart_shell_syntax negative test passed."
 }
