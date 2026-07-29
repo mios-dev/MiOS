@@ -1276,13 +1276,13 @@ test_clevis_luks() {
     printf '#!/bin/sh\necho "CLEVIS_BROKEN=true"\n' > "${tmp_dir}/usr/libexec/mios/mios-clevis-luks-gen"
     chmod +x "${tmp_dir}/usr/libexec/mios/mios-clevis-luks-gen" 2>/dev/null || true
 
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$tmp_dir" bash "${ROOT}/automation/98-drift-checks.sh" check_clevis_luks >/dev/null 2>&1; then
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$tmp_dir" MIOS_DRIFT_CHECK_ROOT="$tmp_dir" bash "${ROOT}/automation/98-drift-checks.sh" check_clevis_luks >/dev/null 2>&1; then
         rm -rf "$tmp_dir"
         die "check_clevis_luks passed despite broken generator output!"
     fi
 
     rm -rf "$tmp_dir"
-    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_clevis_luks >/dev/null 2>&1 \
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_clevis_luks >/dev/null 2>&1 \
         || die "check_clevis_luks failed after cleanup!"
     log "test_clevis_luks negative test passed."
 }
@@ -1296,13 +1296,13 @@ test_mini_vfio() {
     printf '#!/bin/sh\necho "MINI_BROKEN=true"\n' > "${tmp_dir}/usr/libexec/mios/mios-mini-vfio-gen"
     chmod +x "${tmp_dir}/usr/libexec/mios/mios-mini-vfio-gen" 2>/dev/null || true
 
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$tmp_dir" bash "${ROOT}/automation/98-drift-checks.sh" check_mini_vfio >/dev/null 2>&1; then
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$tmp_dir" MIOS_DRIFT_CHECK_ROOT="$tmp_dir" bash "${ROOT}/automation/98-drift-checks.sh" check_mini_vfio >/dev/null 2>&1; then
         rm -rf "$tmp_dir"
         die "check_mini_vfio passed despite broken generator output!"
     fi
 
     rm -rf "$tmp_dir"
-    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_mini_vfio >/dev/null 2>&1 \
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_mini_vfio >/dev/null 2>&1 \
         || die "check_mini_vfio failed after cleanup!"
     log "test_mini_vfio negative test passed."
 }
