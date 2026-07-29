@@ -25,6 +25,7 @@ test_version_ssot() {
     local version_file="${ROOT}/VERSION"
     local orig_val
     orig_val="$(cat "$version_file")"
+    echo "$orig_val" > $version_file
 
     # Inject violation
     rm -f "$version_file"
@@ -50,6 +51,7 @@ test_resolver_equivalence() {
     local userenv_file="${ROOT}/usr/lib/mios/userenv.sh"
     local orig_val
     orig_val="$(cat "$userenv_file")"
+    echo "$orig_val" > $userenv_file
 
     # Inject violation
     rm -f "$userenv_file"
@@ -134,6 +136,7 @@ test_names_registry_closure() {
     local ref_file="${ROOT}/usr/share/mios/referenced_names.txt"
     local orig_val
     orig_val="$(cat "$ref_file")"
+    echo "$orig_val" > $ref_file
 
     # Inject violation: add a dummy fake environment variable reference
     local drip_var="MI"
@@ -164,6 +167,7 @@ test_root_toml_subset() {
     local orig_val="" created=0
     if [[ -f "$root_toml" ]]; then
         orig_val="$(cat "$root_toml")"
+        echo "$orig_val" > $root_toml
     else
         created=1
         : > "$root_toml"
@@ -197,6 +201,7 @@ test_toml_projection() {
     fi
     local orig_val
     orig_val="$(cat "$root_toml")"
+    echo "$orig_val" > $root_toml
 
     # Inject drift into a PROJECTED section: mutate a [colors] value so the block no longer
     # matches the canonical SSOT (mios-sync-toml --check must then report drift).
@@ -273,6 +278,7 @@ test_bake_budget() {
     local orig_val=""
     if [[ -f "$sbom_tsv" ]]; then
         orig_val="$(cat "$sbom_tsv")"
+        echo "$orig_val" > $sbom_tsv
     else
         mkdir -p "$(dirname "$sbom_tsv")"
     fi
@@ -340,6 +346,7 @@ test_council_gate_ssot() {
     local toml_file="${ROOT}/usr/share/mios/mios.toml"
     local orig_val
     orig_val="$(cat "$toml_file")"
+    echo "$orig_val" > $toml_file
 
     # Temporarily remove a key from [agent_pipe.council]
     python3 - "$toml_file" << 'EOF'
@@ -369,6 +376,7 @@ test_agent_pipe_budgets() {
     local toml_file="${ROOT}/usr/share/mios/mios.toml"
     local orig_val
     orig_val="$(cat "$toml_file")"
+    echo "$orig_val" > $toml_file
 
     # Temporarily remove swarm_max_width key from [dispatch]
     python3 - "$toml_file" << 'EOF'
@@ -398,6 +406,7 @@ test_bake_tokens() {
     local toml_file="${ROOT}/usr/share/mios/mios.toml"
     local orig_val
     orig_val="$(cat "$toml_file")"
+    echo "$orig_val" > $toml_file
 
     python3 - "$toml_file" << 'EOF'
 import sys
@@ -446,6 +455,7 @@ test_firstboot_tier() {
     local fb_list="${ROOT}/usr/lib/mios/bake/plan.d/firstboot.list"
     local orig_val
     orig_val="$(cat "$fb_list")"
+    echo "$orig_val" > $fb_list
 
     rm -f "$fb_list"
     echo "$orig_val" > "$fb_list"
@@ -493,6 +503,7 @@ test_bake_core_reconcile() {
     local toml_file="${ROOT}/usr/share/mios/mios.toml"
     local orig_val
     orig_val="$(cat "$toml_file")"
+    echo "$orig_val" > $toml_file
 
     python3 - "$toml_file" << 'EOF'
 import sys
@@ -521,6 +532,7 @@ test_nested_podman_retry() {
     local script="${ROOT}/usr/libexec/mios/57-mios-sys-build.sh"
     local orig_val
     orig_val="$(cat "$script")"
+    echo "$orig_val" > $script
     sed -i 's/build_image_with_retry/build_image_no_retry/g' "$script"
 
     if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_nested_podman_caps >/dev/null 2>&1; then
@@ -542,6 +554,7 @@ test_gate_registry() {
     local script="${ROOT}/automation/98-drift-checks.sh"
     local orig_val
     orig_val="$(cat "$script")"
+    echo "$orig_val" > $script
 
     sed -i '/check_dead_lane() {/i check_dead_lane() { return 0; }\n' "$script"
 
@@ -627,6 +640,7 @@ test_lint_is_final() {
     local cf="${ROOT}/Containerfile"
     local orig_val
     orig_val="$(cat "$cf")"
+    echo "$orig_val" > $cf
     sed -i '/RUN bootc container lint/d' "$cf"
 
     if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_lint_is_final >/dev/null 2>&1; then
@@ -711,6 +725,7 @@ test_soft_mode_not_committed() {
     local gha_file="${ROOT}/.github/workflows/mios-ci.yml"
     local orig_val
     orig_val="$(cat "$gha_file")"
+    echo "$orig_val" > $gha_file
     echo "MIOS_DRIFT_CHECK_SOFT=1" >> "$gha_file"
 
     if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_soft_mode_not_committed >/dev/null 2>&1; then
@@ -783,6 +798,7 @@ test_kickstart_shell_syntax() {
     local cfg="${ROOT}/usr/share/mios/ventoy/mios-kickstart.cfg"
     local orig_val
     orig_val="$(cat "$cfg")"
+    echo "$orig_val" > $cfg
 
     rm -f "$cfg"
     echo "$orig_val" > "$cfg"
@@ -1058,6 +1074,7 @@ test_composefs_projection() {
     local target_file="${ROOT}/usr/lib/ostree/prepare-root.conf"
     local orig_val
     orig_val="$(cat "$target_file")"
+    echo "$orig_val" > $target_file
 
     echo '[composefs]' > "$target_file"
     echo 'enabled = off' >> "$target_file"
@@ -1190,6 +1207,7 @@ test_bake_plan() {
     if [ -f "$plan_file" ]; then
         local orig_val
         orig_val="$(cat "$plan_file")"
+        echo "$orig_val" > $plan_file
         echo "localhost/bogus-injected-image:latest" >> "$plan_file"
 
         if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_bake_plan >/dev/null 2>&1; then
@@ -1211,6 +1229,7 @@ test_bake_ref_defaults() {
     if [ -f "$target_sh" ]; then
         local orig_val
         orig_val="$(cat "$target_sh")"
+        echo "$orig_val" > $target_sh
         echo ': "${MIOS_BUILD_BAKE_REFS_ZZZ:-}"' >> "$target_sh"
 
         if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_bake_ref_defaults >/dev/null 2>&1; then
@@ -1232,6 +1251,7 @@ test_deploy_plane() {
     if [ -f "$ks_file" ]; then
         local orig_val
         orig_val="$(cat "$ks_file")"
+        echo "$orig_val" > $ks_file
         grep -v "MIOS_FHS_TOTAL_ROOT_MERGE=1" "$ks_file" > "${ks_file}.tmp" && mv "${ks_file}.tmp" "$ks_file"
 
         if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_deploy_plane >/dev/null 2>&1; then
@@ -1310,6 +1330,7 @@ test_hyprland_heredoc() {
     if [ -f "$conf_file" ]; then
         local orig_val
         orig_val="$(cat "$conf_file")"
+        echo "$orig_val" > $conf_file
         echo "# INJECTED-DRIFT" >> "$conf_file"
 
         if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_hyprland_conf_heredoc >/dev/null 2>&1; then
@@ -1348,6 +1369,7 @@ test_roadmap_index() {
     if [ -f "$roadmap_file" ]; then
         local orig_val
         orig_val="$(cat "$roadmap_file")"
+        echo "$orig_val" > $roadmap_file
         sed -i 's/\*\*Done\*\*: [0-9]*/\*\*Done\*\*: 99999/g' "$roadmap_file" 2>/dev/null || true
 
         if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_roadmap_index >/dev/null 2>&1; then
@@ -1369,6 +1391,7 @@ test_templates_compilation() {
     if [ -f "$tmpl_file" ]; then
         local orig_val
         orig_val="$(cat "$tmpl_file")"
+        echo "$orig_val" > $tmpl_file
         echo 'INVALID_SYNTAX_BOGUS {{' >> "$tmpl_file"
 
         if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_templates_compilation >/dev/null 2>&1; then
@@ -1390,6 +1413,7 @@ test_impossible_eol() {
     if [ -f "$toml_file" ]; then
         local orig_val
         orig_val="$(cat "$toml_file")"
+        echo "$orig_val" > $toml_file
         echo 'eol_test_pkg = ["tang"]' >> "$toml_file"
 
         if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_impossible_eol_regressions >/dev/null 2>&1; then
@@ -1411,6 +1435,7 @@ test_smoke_manifest() {
     if [ -f "$toml_file" ]; then
         local orig_val
         orig_val="$(cat "$toml_file")"
+        echo "$orig_val" > $toml_file
         echo 'shims = ["usr/libexec/mios/non-existent-bogus-shim"]' >> "$toml_file"
 
         if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_smoke_manifest >/dev/null 2>&1; then
@@ -1432,6 +1457,7 @@ test_negative_coverage() {
     if [ -f "$toml_file" ]; then
         local orig_val
         orig_val="$(cat "$toml_file")"
+        echo "$orig_val" > $toml_file
         grep -v '"check_agent_schema"' "$toml_file" > "${toml_file}.tmp" && mv "${toml_file}.tmp" "$toml_file"
 
         if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_negative_coverage >/dev/null 2>&1; then
@@ -1453,6 +1479,7 @@ test_verb_templates() {
     if [ -f "$toml_file" ]; then
         local orig_val
         orig_val="$(cat "$toml_file")"
+        echo "$orig_val" > $toml_file
         printf '\n[verbs.bogus_broken]\ncmd = "echo {invalid_placeholder"\n' >> "$toml_file"
 
         if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_verb_templates >/dev/null 2>&1; then
@@ -1516,6 +1543,7 @@ test_pipe_extraction_parity() {
     if [ -f "$test_file" ]; then
         local orig_val
         orig_val="$(cat "$test_file")"
+        echo "$orig_val" > $test_file
         echo "import server" >> "$test_file"
 
         if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_pipe_extraction_parity >/dev/null 2>&1; then
@@ -1537,6 +1565,7 @@ test_bake_plan() {
     if [ -f "$plan_file" ]; then
         local orig_val
         orig_val="$(cat "$plan_file")"
+        echo "$orig_val" > $plan_file
         echo "docker.io/library/bogus-image-never-exists:latest" >> "$plan_file"
 
         if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_bake_plan >/dev/null 2>&1; then
@@ -1558,6 +1587,7 @@ test_bake_ref_defaults() {
     if [ -f "$test_sh" ]; then
         local orig_val
         orig_val="$(cat "$test_sh")"
+        echo "$orig_val" > $test_sh
         echo ': "${MIOS_BUILD_BAKE_REFS_ZZZ:-}"' >> "$test_sh"
 
         if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_bake_ref_defaults >/dev/null 2>&1; then
@@ -1579,6 +1609,7 @@ test_deploy_plane() {
     if [ -f "$cfg" ]; then
         local orig_val
         orig_val="$(cat "$cfg")"
+        echo "$orig_val" > $cfg
         grep -v "MIOS_FHS_TOTAL_ROOT_MERGE=1" "$cfg" > "${cfg}.tmp" && mv "${cfg}.tmp" "$cfg"
 
         if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_deploy_plane >/dev/null 2>&1; then
@@ -1620,6 +1651,7 @@ test_clevis_luks() {
     if [ -f "$gen_script" ]; then
         local orig_val
         orig_val="$(cat "$gen_script")"
+        echo "$orig_val" > $gen_script
         echo 'echo "BROKEN"' > "$gen_script"
 
         if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_clevis_luks >/dev/null 2>&1; then
@@ -1641,6 +1673,7 @@ test_mini_vfio() {
     if [ -f "$gen_script" ]; then
         local orig_val
         orig_val="$(cat "$gen_script")"
+        echo "$orig_val" > $gen_script
         echo 'echo "BROKEN"' > "$gen_script"
 
         if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_mini_vfio >/dev/null 2>&1; then
@@ -1662,6 +1695,7 @@ test_hyprland_heredoc() {
     if [ -f "$conf" ]; then
         local orig_val
         orig_val="$(cat "$conf")"
+        echo "$orig_val" > $conf
         echo "# INJECTED-DRIFT" >> "$conf"
 
         if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_hyprland_conf_heredoc >/dev/null 2>&1; then
@@ -1700,6 +1734,7 @@ test_roadmap_index() {
     if [ -f "$rmap" ]; then
         local orig_val
         orig_val="$(cat "$rmap")"
+        echo "$orig_val" > $rmap
         sed -i 's/\*\*Done\*\*: [0-9]*/\*\*Done\*\*: 99999/g' "$rmap"
 
         if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_roadmap_index >/dev/null 2>&1; then
@@ -1721,6 +1756,7 @@ test_templates_compilation() {
     if [ -f "$tpl" ]; then
         local orig_val
         orig_val="$(cat "$tpl")"
+        echo "$orig_val" > $tpl
         echo "{{ invalid syntax placeholder" >> "$tpl"
 
         if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_templates_compilation >/dev/null 2>&1; then
@@ -1742,6 +1778,7 @@ test_impossible_eol_regressions() {
     if [ -f "$toml" ]; then
         local orig_val
         orig_val="$(cat "$toml")"
+        echo "$orig_val" > $toml
         echo 'eol_packages = ["tang"]' >> "$toml"
 
         if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_impossible_eol_regressions >/dev/null 2>&1; then
@@ -1778,6 +1815,7 @@ test_smoke_manifest() {
     if [ -f "$toml" ]; then
         local orig_val
         orig_val="$(cat "$toml")"
+        echo "$orig_val" > $toml
         echo '[testing.smoke_components]' >> "$toml"
         echo 'shims = ["nonexistent/path/to/shim"]' >> "$toml"
 
@@ -1799,6 +1837,7 @@ test_negative_coverage() {
     if [ -f "$checks_sh" ]; then
         local orig_val
         orig_val="$(cat "$checks_sh")"
+        echo "$orig_val" > $checks_sh
         sed -i 's/check_pipe_extraction_parity/check_pipe_extraction_parity\n    check_bogus_uncovered_gate/' "$checks_sh"
 
         if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_negative_coverage >/dev/null 2>&1; then
