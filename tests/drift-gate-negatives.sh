@@ -280,13 +280,16 @@ test_bake_budget() {
         for i in $(seq 1 35); do
             echo "image_${i}	quay.io/mios/fake_${i}:latest	1.0GB"
         done
+    rm -f "$sbom_tsv"
     } > "$sbom_tsv"
 
     if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_bake_budget >/dev/null 2>&1; then
-        echo "$orig_val" > "$sbom_tsv"
+        rm -f "$sbom_tsv"
+    echo "$orig_val" > "$sbom_tsv"
         die "check_bake_budget passed despite exceeding sidecar threshold!"
     fi
 
+    rm -f "$sbom_tsv"
     echo "$orig_val" > "$sbom_tsv"
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_bake_budget >/dev/null 2>&1 \
         || die "check_bake_budget failed after restoration!"
