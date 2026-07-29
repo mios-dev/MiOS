@@ -406,7 +406,6 @@ test_bake_tokens() {
     local toml_file="${ROOT}/usr/share/mios/mios.toml"
     local orig_val
     orig_val="$(cat "$toml_file")"
-    echo "$orig_val" > "$toml_file"
 
     python3 - "$toml_file" << 'EOF'
 import sys
@@ -417,13 +416,13 @@ open(p, "w", encoding="utf-8").write(new)
 EOF
 
     if MIOS_ROOT="$ROOT" python3 "${ROOT}/tools/generate-bake-plan.py" --check >/dev/null 2>&1; then
-        rm -f "$toml_file"
-        echo "$orig_val" > "$toml_file"
+        python3 -c "import sys; open(sys.argv[1], 'w').write(sys.argv[2])" "$toml_file" "$orig_val"
+        MIOS_ROOT="$ROOT" python3 "${ROOT}/tools/generate-bake-plan.py" >/dev/null 2>&1 || true
         die "generate-bake-plan.py --check passed despite bogus unmatched firstboot token!"
     fi
 
-    rm -f "$toml_file"
-    echo "$orig_val" > "$toml_file"
+    python3 -c "import sys; open(sys.argv[1], 'w').write(sys.argv[2])" "$toml_file" "$orig_val"
+    MIOS_ROOT="$ROOT" python3 "${ROOT}/tools/generate-bake-plan.py" >/dev/null 2>&1 || true
     MIOS_ROOT="$ROOT" python3 "${ROOT}/tools/generate-bake-plan.py" --check >/dev/null 2>&1 \
         || die "generate-bake-plan.py --check failed after restoration!"
     log "test_bake_tokens negative test passed."
@@ -502,7 +501,6 @@ test_bake_core_reconcile() {
     local toml_file="${ROOT}/usr/share/mios/mios.toml"
     local orig_val
     orig_val="$(cat "$toml_file")"
-    echo "$orig_val" > "$toml_file"
 
     python3 - "$toml_file" << 'EOF'
 import sys
@@ -513,13 +511,13 @@ open(p, "w", encoding="utf-8").write(new)
 EOF
 
     if MIOS_ROOT="$ROOT" python3 "${ROOT}/tools/generate-bake-plan.py" --check >/dev/null 2>&1; then
-        rm -f "$toml_file"
-        echo "$orig_val" > "$toml_file"
+        python3 -c "import sys; open(sys.argv[1], 'w').write(sys.argv[2])" "$toml_file" "$orig_val"
+        MIOS_ROOT="$ROOT" python3 "${ROOT}/tools/generate-bake-plan.py" >/dev/null 2>&1 || true
         die "generate-bake-plan.py --check passed despite phantom ref added to core!"
     fi
 
-    rm -f "$toml_file"
-    echo "$orig_val" > "$toml_file"
+    python3 -c "import sys; open(sys.argv[1], 'w').write(sys.argv[2])" "$toml_file" "$orig_val"
+    MIOS_ROOT="$ROOT" python3 "${ROOT}/tools/generate-bake-plan.py" >/dev/null 2>&1 || true
     MIOS_ROOT="$ROOT" python3 "${ROOT}/tools/generate-bake-plan.py" --check >/dev/null 2>&1 \
         || die "generate-bake-plan.py --check failed after restoration!"
     log "test_bake_core_reconcile negative test passed."
