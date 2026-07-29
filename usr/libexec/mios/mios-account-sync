@@ -158,27 +158,70 @@ def get_local_supplementary_groups(username: str) -> list[str]:
             groups.append(g.gr_name)
     return groups
 
+def query_db_scalar(sql: str) -> str:
+    """Executes a scalar query via mios-pg-query."""
+    try:
+        p = subprocess.run([PG_QUERY, sql], capture_output=True, text=True, timeout=15)
+        if p.returncode == 0:
+            for line in (p.stdout or "").splitlines():
+                l = line.strip()
+                if l and not l.startswith("-") and not l.startswith("row"):
+                    return l
+    except Exception as e:
+        logger.error(f"Scalar query failed ({sql}): {e}")
+    return ""
+
+def update_db_uid(name: str, uid: int):
+    sql = f"UPDATE account SET uid = {int(uid)} WHERE name = '{name}';"
+    try:
+        subprocess.run([PG_QUERY, sql], capture_output=True, text=True, timeout=15)
+    except Exception as e:
+        logger.error(f"Failed to update UID for {name}: {e}")
+
+def update_db_gid(name: str, gid: int):
+    sql = f"UPDATE account SET gid = {int(gid)} WHERE name = '{name}';"
+    try:
+        subprocess.run([PG_QUERY, sql], capture_output=True, text=True, timeout=15)
+    except Exception as e:
+        logger.error(f"Failed to update GID for {name}: {e}")
+
 def sync_accounts():
-    """Performs a single synchronization pass between PostgreSQL and local system files."""
-    db_accounts = query_db_accounts()
+    db_accounts = query_accounts()
     if not db_accounts:
-        logger.info("No accounts returned from database, skipping sync pass.")
+        logger.info("No DB accounts retrieved. Skipping sync pass.")
         return
-    
-    shadow_hashes = get_local_shadow_hashes()
+
+    shadow_hashes = parse_shadow()
     state = load_state()
     state_changed = False
-    
-    # Track usernames that are active in the database
+
     active_db_users = set()
-    
+
     for db_user in db_accounts:
-        name = db_user["name"]
+        name = db_user["username"]
         active_db_users.add(name)
-        
-        # Determine target GID
-        gid = db_user["gid"] or 1000
-        
+
+        # Dynamic DB sequence allocation for NULL GID / UID (AGY-340)
+        gid = db_user["gid"]
+        if gid is None:
+            alloc_gid_str = query_db_scalar("SELECT allocate_gid();")
+            if alloc_gid_str and alloc_gid_str.isdigit():
+                gid = int(alloc_gid_str)
+                update_db_gid(name, gid)
+            else:
+                logger.error(f"Failed to allocate GID for user {name}")
+                continue
+
+        uid = db_user["uid"]
+        if uid is None:
+            alloc_uid_str = query_db_scalar("SELECT allocate_uid();")
+            if alloc_uid_str and alloc_uid_str.isdigit():
+                uid = int(alloc_uid_str)
+                update_db_uid(name, uid)
+            else:
+                logger.error(f"Failed to allocate UID for user {name}")
+                continue
+
         # Check if primary group exists, if not create it
         try:
             grp.getgrgid(gid)
@@ -189,18 +232,18 @@ def sync_accounts():
             except subprocess.CalledProcessError as e:
                 logger.error(f"Failed to create group {name}: {e}")
                 continue
-        
+
         # Check if local user exists
         try:
             local_user = pwd.getpwnam(name)
             user_exists = True
         except KeyError:
             user_exists = False
-            
+
         db_hash = db_user["password_hash"]
         local_hash = shadow_hashes.get(name, "")
         last_seen_hash = state.get(name)
-        
+
         # Bidirectional password write-back logic
         if user_exists and last_seen_hash and local_hash and local_hash != last_seen_hash:
             logger.info(f"Local password hash change detected for {name}. Writing back to DB...")
@@ -210,38 +253,45 @@ def sync_accounts():
             state_changed = True
         elif db_hash and db_hash != local_hash:
             pass
-            
+
         if not user_exists:
             # Create user account
-            cmd = ["useradd", "-m"]
-            if db_user["uid"] is not None:
-                cmd += ["-u", str(db_user["uid"])]
-            cmd += ["-g", str(gid)]
+            cmd = ["useradd", "-m", "-u", str(uid), "-g", str(gid)]
             if db_user["home_dir"]:
                 cmd += ["-d", db_user["home_dir"]]
             if db_user["shell"]:
                 cmd += ["-s", db_user["shell"]]
             if db_user["display"]:
                 cmd += ["-c", db_user["display"]]
-            if db_hash:
-                cmd += ["-p", db_hash]
             cmd.append(name)
-            
+
             try:
-                logger.info(f"Creating local user account: {name}")
+                logger.info(f"Creating local user account: {name} (UID {uid})")
                 subprocess.run(cmd, check=True)
-                if db_hash:
+            except subprocess.CalledProcessError as e:
+                logger.error(f"Failed to useradd {name}: {e}")
+                continue
+
+        # Sync secondary groups
+        groups_str = db_user["groups"]
+        if groups_str:
+            target_groups = [g.strip() for g in groups_str.split(",") if g.strip()]
+            for group in target_groups:
+                try:
+                    subprocess.run(["groupadd", "-f", group], check=True)
+                    subprocess.run(["usermod", "-aG", group, name], check=True)
+                except subprocess.CalledProcessError as e:
+                    logger.error(f"Failed to add user {name} to group {group}: {e}")
+
+        # Update shadow password hash if different
+        if db_hash and db_hash != local_hash:
+            try:
+                logger.info(f"Updating shadow password hash for {name}")
+                p = subprocess.Popen(["chpasswd", "-e"], stdin=subprocess.PIPE, text=True)
+                p.communicate(input=f"{name}:{db_hash}\n")
+                if p.returncode == 0:
                     state[name] = db_hash
                     state_changed = True
-            except subprocess.CalledProcessError as e:
-                logger.error(f"Failed to create user {name}: {e}")
-                continue
-        else:
-            # Update user if attributes differ
-            update_cmd = ["usermod"]
-            needs_update = False
-            
-            if db_user["home_dir"] and local_user.pw_dir != db_user["home_dir"]:
                 update_cmd += ["-d", db_user["home_dir"]]
                 needs_update = True
             if db_user["shell"] and local_user.pw_shell != db_user["shell"]:

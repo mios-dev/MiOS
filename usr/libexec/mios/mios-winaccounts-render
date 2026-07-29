@@ -1,0 +1,125 @@
+#!/usr/bin/env python3
+# AI-hint: Projects Postgres account table rows into Windows accounts manifest JSON.
+import os
+import sys
+import json
+import logging
+import argparse
+
+logging.basicConfig(level=logging.INFO, format="[mios-winaccounts-render] %(levelname)s: %(message)s")
+log = logging.getLogger("mios-winaccounts-render")
+
+def get_pg_config():
+    e = os.environ
+    try:
+        port = int(e.get("MIOS_PORT_PGVECTOR", "8432") or 8432)
+    except (TypeError, ValueError):
+        port = 8432
+    return {
+        "host": e.get("MIOS_PG_HOST", "localhost"),
+        "port": port,
+        "user": e.get("MIOS_PG_USER", "mios"),
+        "password": e.get("MIOS_PG_PASS", "mios"),
+        "dbname": e.get("MIOS_PG_DB", "mios"),
+    }
+
+def query_accounts(cursor):
+    sql = """
+    SELECT 
+        name AS username, 
+        password_hash, 
+        display, 
+        groups, 
+        is_admin, 
+        enabled
+    FROM account 
+    WHERE enabled = true AND (os_targets = 'both' OR os_targets = 'windows');
+    """
+    cursor.execute(sql)
+    rows = cursor.fetchall()
+    results = []
+    for r in rows:
+        if isinstance(r, dict):
+            results.append(r)
+        else:
+            results.append({
+                "username": r[0],
+                "password_hash": r[1],
+                "display": r[2],
+                "groups": r[3],
+                "is_admin": r[4],
+                "enabled": r[5],
+            })
+    return results
+
+def render_win_manifest(accounts):
+    win_accs = []
+    for acc in sorted(accounts, key=lambda x: x.get("username", "")):
+        uname = acc.get("username")
+        if not uname:
+            continue
+        grp_raw = acc.get("groups") or ""
+        groups = [g.strip() for g in grp_raw.split(",") if g.strip()]
+        if acc.get("is_admin") and "Administrators" not in groups:
+            groups.append("Administrators")
+
+        item = {
+            "name": uname,
+            "display": acc.get("display") or uname,
+            "groups": sorted(groups),
+            "is_admin": bool(acc.get("is_admin")),
+        }
+        pw = acc.get("password_hash")
+        if pw:
+            item["password_hash"] = pw
+        win_accs.append(item)
+
+    return {"accounts": win_accs}
+
+def main():
+    parser = argparse.ArgumentParser(description="Render Windows local accounts manifest from PostgreSQL")
+    parser.add_argument("--dry-run", action="store_true", help="Print manifest JSON without writing")
+    parser.add_argument("--out-file", default=os.environ.get("MIOS_WIN_ACCOUNTS_FILE", "/var/lib/mios/win-accounts.json"), help="Output path for win-accounts.json")
+    args = parser.parse_args()
+
+    db_backed = os.environ.get("MIOS_ACCOUNTS_DB_BACKED", "").lower() in ("true", "1", "yes", "on")
+    if not db_backed and not args.dry_run:
+        log.info("MIOS_ACCOUNTS_DB_BACKED is not enabled; skipping winaccounts render.")
+        return 0
+
+    try:
+        import psycopg
+        from psycopg.rows import dict_row
+    except ImportError:
+        log.warning("psycopg missing; skipping winaccounts render (fail-open).")
+        return 0
+
+    cfg = get_pg_config()
+    conn_str = f"postgresql://{cfg['user']}:{cfg['password']}@{cfg['host']}:{cfg['port']}/{cfg['dbname']}"
+    try:
+        with psycopg.connect(conn_str, connect_timeout=3) as conn:
+            with conn.cursor(row_factory=dict_row) as cur:
+                accounts = query_accounts(cur)
+                manifest = render_win_manifest(accounts)
+                content = json.dumps(manifest, indent=2, sort_keys=True) + "\n"
+
+                if args.dry_run:
+                    log.info("[DRY-RUN] Would write %s:\n%s", args.out_file, content)
+                else:
+                    os.makedirs(os.path.dirname(args.out_file), exist_ok=True)
+                    if os.path.isfile(args.out_file):
+                        with open(args.out_file, "r", encoding="utf-8") as f:
+                            if f.read() == content:
+                                log.info("win-accounts file %s unchanged.", args.out_file)
+                                return 0
+                    with open(args.out_file, "w", encoding="utf-8") as f:
+                        f.write(content)
+                    log.info("Wrote Windows accounts manifest to %s", args.out_file)
+    except Exception as e:
+        log.warning("Postgres winaccounts render query failed (fail-open): %s", e)
+        return 0
+
+    return 0
+
+if __name__ == "__main__":
+    sys.exit(main())

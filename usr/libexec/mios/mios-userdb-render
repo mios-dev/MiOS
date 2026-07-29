@@ -1,0 +1,161 @@
+#!/usr/bin/env python3
+# AI-hint: Projects Postgres account table rows into systemd userdb JSON drop-ins.
+import os
+import sys
+import json
+import logging
+import argparse
+
+logging.basicConfig(level=logging.INFO, format="[mios-userdb-render] %(levelname)s: %(message)s")
+log = logging.getLogger("mios-userdb-render")
+
+def get_pg_config():
+    e = os.environ
+    try:
+        port = int(e.get("MIOS_PORT_PGVECTOR", "8432") or 8432)
+    except (TypeError, ValueError):
+        port = 8432
+    return {
+        "host": e.get("MIOS_PG_HOST", "localhost"),
+        "port": port,
+        "user": e.get("MIOS_PG_USER", "mios"),
+        "password": e.get("MIOS_PG_PASS", "mios"),
+        "dbname": e.get("MIOS_PG_DB", "mios"),
+    }
+
+def query_accounts(cursor):
+    sql = """
+    SELECT 
+        name AS username, 
+        password_hash, 
+        uid, 
+        gid, 
+        display, 
+        home_dir, 
+        shell, 
+        groups, 
+        is_admin, 
+        enabled
+    FROM account 
+    WHERE enabled = true AND (os_targets = 'both' OR os_targets = 'linux');
+    """
+    cursor.execute(sql)
+    rows = cursor.fetchall()
+    results = []
+    for r in rows:
+        if isinstance(r, dict):
+            results.append(r)
+        else:
+            results.append({
+                "username": r[0],
+                "password_hash": r[1],
+                "uid": r[2],
+                "gid": r[3],
+                "display": r[4],
+                "home_dir": r[5],
+                "shell": r[6],
+                "groups": r[7],
+                "is_admin": r[8],
+                "enabled": r[9],
+            })
+    return results
+
+def render_userdb_records(accounts, out_dir, dry_run=False):
+    written = 0
+    os.makedirs(out_dir, exist_ok=True)
+
+    for acc in accounts:
+        uname = acc.get("username")
+        if not uname:
+            continue
+        uid = acc.get("uid")
+        gid = acc.get("gid")
+        display = acc.get("display") or uname
+        home = acc.get("home_dir") or f"/home/{uname}"
+        shell = acc.get("shell") or "/bin/bash"
+        pw_hash = acc.get("password_hash")
+
+        record = {
+            "userName": uname,
+            "realName": display,
+            "homeDirectory": home,
+            "shell": shell,
+            "disposition": "regular"
+        }
+        if uid is not None:
+            record["uid"] = int(uid)
+        if gid is not None:
+            record["gid"] = int(gid)
+
+        record_json = json.dumps(record, indent=2, sort_keys=True) + "\n"
+        user_path = os.path.join(out_dir, f"{uname}.user")
+
+        if dry_run:
+            log.info("[DRY-RUN] Would write %s:\n%s", user_path, record_json)
+        else:
+            if os.path.isfile(user_path):
+                with open(user_path, "r", encoding="utf-8") as f:
+                    curr = f.read()
+                if curr == record_json:
+                    continue
+            with open(user_path, "w", encoding="utf-8") as f:
+                f.write(record_json)
+            written += 1
+
+        if pw_hash:
+            priv_record = {
+                "userName": uname,
+                "hashedPassword": [pw_hash] if isinstance(pw_hash, str) else pw_hash
+            }
+            priv_json = json.dumps(priv_record, indent=2, sort_keys=True) + "\n"
+            priv_path = os.path.join(out_dir, f"{uname}.user-privileged")
+
+            if dry_run:
+                log.info("[DRY-RUN] Would write %s (mode 0600):\n%s", priv_path, priv_json)
+            else:
+                if os.path.isfile(priv_path):
+                    with open(priv_path, "r", encoding="utf-8") as f:
+                        curr = f.read()
+                    if curr == priv_json:
+                        continue
+                with open(priv_path, "w", encoding="utf-8") as f:
+                    f.write(priv_json)
+                os.chmod(priv_path, 0o600)
+                written += 1
+
+    return written
+
+def main():
+    parser = argparse.ArgumentParser(description="Render systemd userdb JSON drop-ins from Postgres accounts")
+    parser.add_argument("--dry-run", action="store_true", help="Print drop-in records without writing")
+    parser.add_argument("--out-dir", default=os.environ.get("MIOS_USERDB_DIR", "/run/userdb"), help="Output directory for .user drop-ins")
+    args = parser.parse_args()
+
+    db_backed = os.environ.get("MIOS_ACCOUNTS_DB_BACKED", "").lower() in ("true", "1", "yes", "on")
+    if not db_backed and not args.dry_run:
+        log.info("MIOS_ACCOUNTS_DB_BACKED is not enabled; skipping userdb render.")
+        return 0
+
+    try:
+        import psycopg
+        from psycopg.rows import dict_row
+    except ImportError:
+        log.warning("psycopg missing; skipping userdb render (fail-open).")
+        return 0
+
+    cfg = get_pg_config()
+    conn_str = f"postgresql://{cfg['user']}:{cfg['password']}@{cfg['host']}:{cfg['port']}/{cfg['dbname']}"
+    try:
+        with psycopg.connect(conn_str, connect_timeout=3) as conn:
+            with conn.cursor(row_factory=dict_row) as cur:
+                accounts = query_accounts(cur)
+                count = render_userdb_records(accounts, args.out_dir, dry_run=args.dry_run)
+                log.info("Rendered %d userdb drop-ins to %s", count, args.out_dir)
+    except Exception as e:
+        log.warning("Postgres userdb query failed (fail-open): %s", e)
+        return 0
+
+    return 0
+
+if __name__ == "__main__":
+    sys.exit(main())
