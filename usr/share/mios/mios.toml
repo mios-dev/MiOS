@@ -1051,13 +1051,6 @@ mask_systemd_remount_fs = true
 [security.fapolicyd_observe]
 enable = false
 
-# ----------------------------------------------------------------------------
-# [build.bake_refs] -- Network-at-build baker pinned tags and commit references (AGY-40 / AGY-53)
-# ----------------------------------------------------------------------------
-[build.bake_refs]
-quickshell = "v0.3.0"
-surfer = "17d9a1577170880cdac13dca7c3d6871716fc046"
-lookingglass = "B7"
 
 
 # ----------------------------------------------------------------------------

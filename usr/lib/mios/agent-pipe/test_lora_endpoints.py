@@ -6,7 +6,9 @@
 import os
 import sys
 import types
+import json
 import asyncio
+import unittest
 from unittest import mock
 
 # Point to repo's vendor mios.toml
@@ -20,11 +22,13 @@ if "MIOS_TOML" not in os.environ and os.path.isfile(toml):
 for name in ("websockets", "uvicorn"):
     sys.modules.setdefault(name, mock.MagicMock(name=name))
 
-# Mock httpx such that HTTPError is a real Exception subclass to avoid MRO conflicts
-MockHTTPError = type("MockHTTPError", (Exception,), {})
-httpx_mock = mock.MagicMock(name="httpx")
-httpx_mock.HTTPError = MockHTTPError
-sys.modules["httpx"] = httpx_mock
+try:
+    import httpx
+except ImportError:
+    MockHTTPError = type("MockHTTPError", (Exception,), {})
+    httpx_mock = mock.MagicMock(name="httpx")
+    httpx_mock.HTTPError = MockHTTPError
+    sys.modules["httpx"] = httpx_mock
 
 fastapi = types.ModuleType("fastapi")
 class _App:
@@ -46,6 +50,10 @@ class MockJSONResponse:
     def __init__(self, content, status_code=200):
         self.content = content
         self.status_code = status_code
+        if isinstance(content, (bytes, bytearray)):
+            self.body = bytes(content)
+        else:
+            self.body = json.dumps(content).encode("utf-8")
     def json(self):
         return self.content
 
@@ -67,8 +75,10 @@ setattr(responses, "StreamingResponse", object)
 sys.modules["fastapi"] = fastapi
 sys.modules["fastapi.responses"] = responses
 
-# Now import server after stubs are installed
-import server
+try:
+    import server
+except ImportError as e:
+    raise unittest.SkipTest(f"missing dependencies ({e})") from e
 
 _fails = 0
 

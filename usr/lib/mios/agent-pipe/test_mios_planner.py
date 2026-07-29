@@ -7,6 +7,7 @@ import asyncio
 import contextvars
 import json
 import sys
+import httpx
 
 import mios_planner
 
@@ -141,7 +142,14 @@ class _FakeClient:
         return _FakeResp(body)
 
 
+_orig_httpx_async_client = getattr(httpx, "AsyncClient", None)
 mios_planner.httpx.AsyncClient = _FakeClient  # monkeypatch the model call
+
+def tearDownModule():
+    if _orig_httpx_async_client is not None:
+        httpx.AsyncClient = _orig_httpx_async_client
+        if hasattr(mios_planner, "httpx") and hasattr(mios_planner.httpx, "AsyncClient"):
+            mios_planner.httpx.AsyncClient = _orig_httpx_async_client
 
 # A representative, fenced planner output: a tool node + an agent node.
 GOOD = (
@@ -273,3 +281,4 @@ assert mios_planner._planner_system_for(None) == mios_planner._PLANNER_SYSTEM
 assert mios_planner._planner_system_for("ghost_domain") == mios_planner._PLANNER_SYSTEM
 
 print("test_mios_planner: ALL PASS")
+tearDownModule()

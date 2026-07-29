@@ -92,11 +92,11 @@ class TestRecordReplay(unittest.TestCase):
         _replay_llm_queue.set([
             {"kind": "llm_io", "meta": {"completion": mock_completion}}
         ])
-        _replay_active.set(True)
-        
-        # We need a mock client to invoke
-        # Patching is already active on httpx.AsyncClient.post globally
         async def run_client_call():
+            _replay_active.set(True)
+            _replay_llm_queue.set([
+                {"kind": "llm_io", "meta": {"completion": mock_completion}}
+            ])
             async with httpx.AsyncClient() as client:
                 r = await client.post("http://any-endpoint/v1/chat/completions", json={"prompt": "hello"})
                 return r

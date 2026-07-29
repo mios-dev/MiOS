@@ -11,16 +11,14 @@ import tempfile
 import types
 
 
-# -- Hermetic 3rd-party stubs (stdlib-only run): install BEFORE importing mios_mcp.
-_httpx = types.ModuleType("httpx")
-
-
-class _HTTPError(Exception):
-    pass
-
-
-_httpx.HTTPError = _HTTPError
-sys.modules["httpx"] = _httpx
+try:
+    import httpx
+except ImportError:
+    _httpx = types.ModuleType("httpx")
+    class _HTTPError(Exception):
+        pass
+    _httpx.HTTPError = _HTTPError
+    sys.modules["httpx"] = _httpx
 
 _resp_mod = types.ModuleType("fastapi.responses")
 

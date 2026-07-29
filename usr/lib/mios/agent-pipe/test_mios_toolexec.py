@@ -186,15 +186,49 @@ def _push(s):
 
 
 async def _run():
+    _DISPATCHED.clear()
+    _octx.set({})
+    T.configure(
+        read_tool_enrich_chars=1500,
+        read_tool_enrich_timeout=5.0,
+        aci_max_lines=160,
+        aci_head_frac=0.6,
+        code_mode_enable=False,
+        code_mode_heavy_only=False,
+        max_dispatch_depth=2,
+        verb_catalog=_VERB_CATALOG,
+        recipe_catalog={},
+        high_privilege_verbs=set(),
+        web_enrich_verbs={"web_search", "web_extract", "crawl"},
+        orch_ctx_var=_octx,
+        dispatch_mios_verb=_fake_dispatch,
+        mcp_call_tool=None,
+        record_mcp_tool_call=lambda *a, **k: None,
+        plan_swarm=None,
+        live_agent_names=None,
+        agent_dag_from_tasks=None,
+        respond_agent_dag=None,
+        depth_exhausted=lambda: False,
+        dispatch_depth=lambda: 0,
+        enter_dispatch_hop=lambda: 1,
+        resolve_verb_key=lambda n: n,
+        session_is_tainted=None,
+        db_fire=lambda coro: None,
+        db_post=lambda *a, **k: None,
+        db_create=lambda *a, **k: None,
+        src_record=lambda items: None,
+    )
     # read verb auto-executes even when allow_write=False
     tcs_read = [{"id": "c1", "function": {
-        "name": "web_search", "arguments": '{"query": "x"}'}}]
+        "name": "web_search", "arguments": '{"query": "unique_toolexec_query"}'}}]
     msgs, ran = await T._exec_tool_calls(tcs_read, _push, allow_write=False)
+    if not (ran is True and len(msgs) == 1 and msgs[0]["role"] == "tool"):
+        print("DEBUG test_toolexec:", "ran=", ran, "msgs=", msgs)
     ok(ran is True and len(msgs) == 1 and msgs[0]["role"] == "tool",
        "read verb auto-executes (allow_write=False)")
     ok(msgs[0].get("tool_call_id") == "c1" and msgs[0].get("name") == "web_search",
        "tool message carries id + name linkage")
-    ok(("web_search", {"query": "x"}) in _DISPATCHED,
+    ok(("web_search", {"query": "unique_toolexec_query"}) in _DISPATCHED,
        "read verb dispatched with canonicalised args")
     # write verb skipped when allow_write=False
     tcs_write = [{"id": "c2", "function": {"name": "delete_file", "arguments": "{}"}}]
@@ -206,9 +240,11 @@ async def _run():
     # underscore->hyphen normalization and RUN on a read-only turn (it was wrongly
     # dropped because _RECIPE_CATALOG is keyed hyphenated but the lookup used the
     # underscored, name-mangled tool name) ──
-    T.configure(recipe_catalog={
-        "disk-usage": {"permission": "read"},
-        "shutdown": {"permission": "write"}})
+    T.configure(
+        verb_catalog=_VERB_CATALOG,
+        recipe_catalog={
+            "disk-usage": {"permission": "read"},
+            "shutdown": {"permission": "write"}})
     _DISPATCHED.clear()
     tcs_recipe = [{"id": "r1", "function": {
         "name": "mios_recipe__disk_usage", "arguments": "{}"}}]
@@ -224,6 +260,12 @@ async def _run():
     ok(ran4 is False and "skipped" in msgs4[0]["content"],
        "A2: write recipe still skipped when writes disabled")
 
-asyncio.run(_run())
+import unittest
 
-print("\nALL %d ASSERTIONS PASSED" % PASS)
+class TestMiosToolexec(unittest.TestCase):
+    def test_run(self):
+        asyncio.run(_run())
+
+if __name__ == "__main__":
+    asyncio.run(_run())
+    print("\nALL %d ASSERTIONS PASSED" % PASS)

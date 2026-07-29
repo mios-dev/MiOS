@@ -236,72 +236,96 @@ def _content_body(text):
 def test_plan_swarm_gates():
     """Every early-return gate yields [] -- BEFORE any model call (a fake model
     that WOULD split is installed, so a gate that failed to fire would leak it)."""
-    _stub_planner()
-    mios_swarm.httpx = _fake_httpx(body=_content_body(
-        '{"subtasks":[{"agent":"a","task":"leak","query":"leak"}]}'))
-    mios_swarm.PLANNER_ENABLED = False
-    assert asyncio.run(mios_swarm._plan_swarm("a real splittable ask")) == [], \
-        "disabled planner must return []"
-    mios_swarm.PLANNER_ENABLED = True
-    assert asyncio.run(mios_swarm._plan_swarm("   ")) == [], \
-        "blank ask must return []"
-    _stub_planner(depth_exhausted=lambda: True)
-    mios_swarm.httpx = _fake_httpx(body=_content_body(
-        '{"subtasks":[{"agent":"a","task":"leak","query":"leak"}]}'))
-    assert asyncio.run(mios_swarm._plan_swarm("a real splittable ask")) == [], \
-        "recursion-depth-exhausted must degrade closed to []"
-    print("test_plan_swarm_gates: PASS")
+    try:
+        _stub_planner()
+        mios_swarm.httpx = _fake_httpx(body=_content_body(
+            '{"subtasks":[{"agent":"a","task":"leak","query":"leak"}]}'))
+        mios_swarm.PLANNER_ENABLED = False
+        assert asyncio.run(mios_swarm._plan_swarm("a real splittable ask")) == [], \
+            "disabled planner must return []"
+        mios_swarm.PLANNER_ENABLED = True
+        assert asyncio.run(mios_swarm._plan_swarm("   ")) == [], \
+            "blank ask must return []"
+        _stub_planner(depth_exhausted=lambda: True)
+        mios_swarm.httpx = _fake_httpx(body=_content_body(
+            '{"subtasks":[{"agent":"a","task":"leak","query":"leak"}]}'))
+        assert asyncio.run(mios_swarm._plan_swarm("a real splittable ask")) == [], \
+            "recursion-depth-exhausted must degrade closed to []"
+        print("test_plan_swarm_gates: PASS")
+    finally:
+        if _orig_swarm_httpx is not None:
+            mios_swarm.httpx = _orig_swarm_httpx
 
 
 def test_plan_swarm_splits():
     """A splittable ask + a stubbed model returns >=2 shaped sub-tasks."""
-    _stub_planner()
-    mios_swarm.httpx = _fake_httpx(body=_content_body(
-        '{"subtasks":['
-        '{"agent":"a","task":"research the economy angle","query":"economy news"},'
-        '{"agent":"b","task":"research the technology angle","query":"tech news"}'
-        ']}'))
-    tasks = asyncio.run(mios_swarm._plan_swarm("what is happening in the world"))
-    assert len(tasks) >= 2, f"expected >=2 sub-tasks, got {tasks!r}"
-    for t in tasks:
-        assert t.get("refined_text"), f"sub-task missing refined_text: {t!r}"
-        assert "target_agent" in t and "title" in t
-    assert tasks[0]["target_agent"] == "a"
-    print("test_plan_swarm_splits: PASS")
+    try:
+        _stub_planner()
+        mios_swarm.httpx = _fake_httpx(body=_content_body(
+            '{"subtasks":['
+            '{"agent":"a","task":"research the economy angle","query":"economy news"},'
+            '{"agent":"b","task":"research the technology angle","query":"tech news"}'
+            ']}'))
+        tasks = asyncio.run(mios_swarm._plan_swarm("what is happening in the world"))
+        assert len(tasks) >= 2, f"expected >=2 sub-tasks, got {tasks!r}"
+        for t in tasks:
+            assert t.get("refined_text"), f"sub-task missing refined_text: {t!r}"
+            assert "target_agent" in t and "title" in t
+        assert tasks[0]["target_agent"] == "a"
+        print("test_plan_swarm_splits: PASS")
+    finally:
+        if _orig_swarm_httpx is not None:
+            mios_swarm.httpx = _orig_swarm_httpx
 
 
 def test_expand_facets_gate():
     """need <= 0 (target already met) returns [] BEFORE the model call (a fake
     model that WOULD return facets is installed to prove the short-circuit)."""
-    _stub_planner()
-    mios_swarm.httpx = _fake_httpx(body=_content_body('{"facets":["unused"]}'))
-    out = asyncio.run(mios_swarm._expand_facets("ask", ["x", "y", "z"], 2))
-    assert out == [], f"need<=0 must return [] (gate before model call), got {out!r}"
-    print("test_expand_facets_gate: PASS")
+    try:
+        _stub_planner()
+        mios_swarm.httpx = _fake_httpx(body=_content_body('{"facets":["unused"]}'))
+        out = asyncio.run(mios_swarm._expand_facets("ask", ["x", "y", "z"], 2))
+        assert out == [], f"need<=0 must return [] (gate before model call), got {out!r}"
+        print("test_expand_facets_gate: PASS")
+    finally:
+        if _orig_swarm_httpx is not None:
+            mios_swarm.httpx = _orig_swarm_httpx
 
 
 def test_expand_facets_positive():
     """New, deduped facets are returned: existing ones filtered, capped to need."""
-    _stub_planner()
-    mios_swarm.httpx = _fake_httpx(body=_content_body(
-        '{"facets":["renewable energy adoption","ev battery supply chain","a"]}'))
-    out = asyncio.run(mios_swarm._expand_facets("clean energy", ["a"], 3))
-    assert "a" not in out, "existing facet must be deduped out"
-    assert len(out) == 2, f"expected need=2 new facets, got {out!r}"
-    assert "renewable energy adoption" in out
-    print("test_expand_facets_positive: PASS")
+    try:
+        _stub_planner()
+        mios_swarm.httpx = _fake_httpx(body=_content_body(
+            '{"facets":["renewable energy adoption","ev battery supply chain","a"]}'))
+        out = asyncio.run(mios_swarm._expand_facets("clean energy", ["a"], 3))
+        assert "a" not in out, "existing facet must be deduped out"
+        assert len(out) == 2, f"expected need=2 new facets, got {out!r}"
+        assert "renewable energy adoption" in out
+        print("test_expand_facets_positive: PASS")
+    finally:
+        if _orig_swarm_httpx is not None:
+            mios_swarm.httpx = _orig_swarm_httpx
 
+
+_orig_swarm_httpx = getattr(mios_swarm, "httpx", None)
+
+def tearDownModule():
+    if _orig_swarm_httpx is not None:
+        mios_swarm.httpx = _orig_swarm_httpx
 
 def main():
-    test_boundary_and_surface()
-    test_punt_drop()
-    test_honest_when_empty()
-    test_plan_swarm_gates()
-    test_plan_swarm_splits()
-    test_expand_facets_gate()
-    test_expand_facets_positive()
-    print("ALL mios_swarm TESTS PASSED")
-
+    try:
+        test_boundary_and_surface()
+        test_punt_drop()
+        test_honest_when_empty()
+        test_plan_swarm_gates()
+        test_plan_swarm_splits()
+        test_expand_facets_gate()
+        test_expand_facets_positive()
+        print("ALL mios_swarm TESTS PASSED")
+    finally:
+        tearDownModule()
 
 if __name__ == "__main__":
     main()

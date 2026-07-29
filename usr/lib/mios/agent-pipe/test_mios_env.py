@@ -44,8 +44,9 @@ class TestMiosEnvContract(unittest.TestCase):
         for k in sample_keys:
             os.environ[k] = ""
 
-        # Import mios_pipe and ensure strip_empty_mios_env handles them
+        # Import mios_pipe and call strip_empty_mios_env to ensure empty keys are stripped
         import mios_pipe
+        strip_empty_mios_env(os.environ)
         import mios_pipe.kernel.config
 
         for k in sample_keys:

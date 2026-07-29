@@ -13,6 +13,7 @@
 
 import asyncio
 import json
+import sys
 
 import mios_toolexec
 import mios_secondary_loop as M
@@ -63,6 +64,22 @@ def _msg(content="", tool_calls=None):
         m["tool_calls"] = tool_calls
     return m
 
+
+_orig_toolexec_exec = getattr(mios_toolexec, "_exec_tool_calls", None)
+_orig_m_exec = getattr(M, "_exec_tool_calls", None)
+_orig_rescue = getattr(M, "_rescue_tool_calls", None)
+
+def tearDownModule():
+    if _orig_toolexec_exec is not None:
+        mios_toolexec._exec_tool_calls = _orig_toolexec_exec
+    if _orig_m_exec is not None:
+        M._exec_tool_calls = _orig_m_exec
+    if _orig_rescue is not None:
+        M._rescue_tool_calls = _orig_rescue
+    if _orig_mios_config is not None:
+        sys.modules["mios_config"] = _orig_mios_config
+    else:
+        sys.modules.pop("mios_config", None)
 
 # ---- configure the module with the stubs -----------------------------------
 def _wire(*, exec_result):
@@ -180,13 +197,16 @@ client = _FakeClient([
 ])
 # Override no_progress_window to 2 for the test
 sys_agent_cfg = {"no_progress_window": 2}
-import sys
-# Set up mios_config stub section read
+_orig_mios_config = sys.modules.get("mios_config")
 class FakeConfig:
     @staticmethod
     def _toml_section(sec):
         return sys_agent_cfg if sec == "agent_pipe" else {}
-sys.modules["mios_config"] = FakeConfig
+    def __getattr__(self, name):
+        if _orig_mios_config is not None:
+            return getattr(_orig_mios_config, name)
+        raise AttributeError(name)
+sys.modules["mios_config"] = FakeConfig()
 
 out = asyncio.run(M._v1_secondary_tool_loop(
     client, "http://ep/v1", "m", {}, [{"role": "user", "content": "go"}],
@@ -222,11 +242,13 @@ execution_calls = []
 async def mock_exec(tcs, push, allow_write=False):
     execution_calls.append(tcs)
     return fail_tmsgs, True
+_orig_exec = M._exec_tool_calls
 M._exec_tool_calls = mock_exec
 
 out = asyncio.run(M._v1_secondary_tool_loop(
     client, "http://ep/v1", "m", {}, [{"role": "user", "content": "go"}],
     [{"function": {"name": "web_search"}}], None, nudges.append))
+M._exec_tool_calls = _orig_exec
 # First execution call should have t1. Second should have t3 (since t2 was blacklisted/intercepted).
 assert len(execution_calls) == 2, f"expected 2 execution calls, got {len(execution_calls)}"
 assert any(tc.get("id") == "t1" for tc in execution_calls[0]), "first call should execute t1"
@@ -236,3 +258,4 @@ assert "tool_execution_failed: This exact tool call previously failed" in str(ou
 print("TEST 8 PASS: identical failed tool call is blacklisted and intercepted")
 
 print("ALL TESTS PASSED")
+tearDownModule()

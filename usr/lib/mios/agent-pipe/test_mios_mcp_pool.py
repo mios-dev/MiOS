@@ -8,12 +8,13 @@ import sys
 import asyncio
 from unittest import mock
 
+import unittest
+
 try:
     import mcp
     from mios_gateway_queue import MCPClientPool
 except ImportError as e:
-    print(f"Skipping test_mios_mcp_pool.py: missing dependencies ({e})")
-    sys.exit(0)
+    raise unittest.SkipTest(f"missing dependencies ({e})") from e
 
 _fails = 0
 

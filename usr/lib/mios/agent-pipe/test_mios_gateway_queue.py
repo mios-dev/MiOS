@@ -11,8 +11,7 @@ from unittest.mock import MagicMock, patch
 try:
     import mios_gateway_queue as mq
 except ImportError as e:
-    print(f"Skipping test_mios_gateway_queue.py: missing dependencies ({e})")
-    sys.exit(0)
+    raise unittest.SkipTest(f"missing dependencies ({e})") from e
 
 _fails = 0
 

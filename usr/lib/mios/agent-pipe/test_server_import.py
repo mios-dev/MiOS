@@ -34,11 +34,13 @@ def _install_stubs():
     for name in ("websockets", "uvicorn"):
         sys.modules.setdefault(name, mock.MagicMock(name=name))
 
-    # Mock httpx such that HTTPError is a real Exception subclass to avoid MRO conflicts
-    MockHTTPError = type("MockHTTPError", (Exception,), {})
-    httpx_mock = mock.MagicMock(name="httpx")
-    httpx_mock.HTTPError = MockHTTPError
-    sys.modules["httpx"] = httpx_mock
+    try:
+        import httpx
+    except ImportError:
+        MockHTTPError = type("MockHTTPError", (Exception,), {})
+        httpx_mock = mock.MagicMock(name="httpx")
+        httpx_mock.HTTPError = MockHTTPError
+        sys.modules["httpx"] = httpx_mock
 
     fastapi = types.ModuleType("fastapi")
 
