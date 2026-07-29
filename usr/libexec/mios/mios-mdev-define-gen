@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# AI-hint: Generates mdevctl persistent configuration JSON drop-ins for SR-IOV VFs and vendor mediated devices from mios.toml [mdev] SSOT.
+#          NOTE: Mediated SR-IOV and vendor devices ONLY. Whole-GPU-per-guest architecture. Driver-free GPU fractioning is unsupported.
+set -euo pipefail
+
+TOML_FILE="${MIOS_TOML:-/usr/share/mios/mios.toml}"
+OUTPUT_DIR="${MDEVCTL_CONF_DIR:-/etc/mdevctl.d}"
+
+if [[ ! -f "$TOML_FILE" ]]; then
+    echo "[mdev-define-gen] SSOT configuration $TOML_FILE not found -- exiting."
+    exit 0
+fi
+
+if ! command -v python3 >/dev/null 2>&1; then
+    echo "[mdev-define-gen] python3 missing -- skipped generator."
+    exit 0
+fi
+
+python3 - "$TOML_FILE" "$OUTPUT_DIR" <<'PYEOF'
+import os
+import sys
+import json
+
+try:
+    import tomllib
+except ImportError:
+    import tomli as tomllib
+
+toml_path = sys.argv[1]
+out_dir = sys.argv[2]
+
+with open(toml_path, "rb") as f:
+    config = tomllib.load(f)
+
+mdev_cfg = config.get("mdev", {})
+enabled = mdev_cfg.get("enabled", False)
+
+if not enabled:
+    print("[mdev-define-gen] [mdev].enabled is false -- skipping mdevctl configuration generation.")
+    sys.exit(0)
+
+definitions = mdev_cfg.get("definitions", [])
+if not definitions:
+    print("[mdev-define-gen] No mdev definitions configured in [mdev].definitions.")
+    sys.exit(0)
+
+os.makedirs(out_dir, exist_ok=True)
+
+for item in definitions:
+    parent = item.get("parent", "").strip()
+    mdev_type = item.get("mdev_type", "").strip()
+    uuid = item.get("uuid", "").strip()
+
+    if not parent or not mdev_type or not uuid:
+        continue
+
+    parent_dir = os.path.join(out_dir, parent)
+    os.makedirs(parent_dir, exist_ok=True)
+
+    target_json = os.path.join(parent_dir, uuid)
+    payload = {
+        "mdev_type": mdev_type,
+        "start": "auto"
+    }
+
+    content = json.dumps(payload, indent=2) + "\n"
+    with open(target_json, "w", encoding="utf-8") as jf:
+        jf.write(content)
+
+    print(f"[mdev-define-gen] Generated mdevctl persistent config for parent {parent} uuid {uuid}")
+
+PYEOF

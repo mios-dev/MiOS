@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+# AI-hint: Virt-V2V guest import wrapper resolving storage pool, network, and output format from mios.toml [virt.v2v] SSOT.
+#          NOTE: Virt-V2V guest import on-ramp for local KVM. Ships inert by default.
+set -euo pipefail
+
+TOML_FILE="${MIOS_TOML:-/usr/share/mios/mios.toml}"
+DRY_RUN=0
+INPUT_PATH=""
+GUEST_NAME=""
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --dry-run)
+            DRY_RUN=1
+            shift
+            ;;
+        --help|-h)
+            echo "Usage: mios-v2v-import [--dry-run] <guest-name> <input-path>"
+            echo "Resolves [virt.v2v] SSOT settings and imports VM guest into local KVM via virt-v2v."
+            exit 0
+            ;;
+        *)
+            if [[ -z "$GUEST_NAME" ]]; then
+                GUEST_NAME="$1"
+            elif [[ -z "$INPUT_PATH" ]]; then
+                INPUT_PATH="$1"
+            fi
+            shift
+            ;;
+    esac
+done
+
+if ! command -v python3 >/dev/null 2>&1; then
+    echo "[mios-v2v-import] python3 missing -- skipped virt-v2v import."
+    exit 0
+fi
+
+python3 - "$TOML_FILE" "$GUEST_NAME" "$INPUT_PATH" "$DRY_RUN" <<'PYEOF'
+import os
+import sys
+
+try:
+    import tomllib
+except ImportError:
+    import tomli as tomllib
+
+toml_path = sys.argv[1]
+guest_name = sys.argv[2] if len(sys.argv) > 2 else ""
+input_path = sys.argv[3] if len(sys.argv) > 3 else ""
+dry_run = sys.argv[4] == "1" if len(sys.argv) > 4 else False
+
+v2v_cfg = {}
+if os.path.isfile(toml_path):
+    try:
+        with open(toml_path, "rb") as f:
+            config = tomllib.load(f)
+            v2v_cfg = config.get("virt", {}).get("v2v", {})
+    except Exception:
+        pass
+
+enabled = v2v_cfg.get("enabled", False)
+output_storage = v2v_cfg.get("output_storage", "default")
+output_network = v2v_cfg.get("output_network", "default")
+output_format = v2v_cfg.get("output_format", "qcow2")
+
+target_name = guest_name or "imported-guest"
+target_input = input_path or "/var/lib/libvirt/images/sample.ova"
+
+cmd_str = f"virt-v2v -o libvirt -os {output_storage} -of {output_format} -on {target_name} {target_input}"
+
+if dry_run or not guest_name:
+    print(f"[mios-v2v-import] Planned command: {cmd_str}")
+    if not enabled:
+        print("[mios-v2v-import] [virt.v2v].enabled is false -- feature is inert by default.")
+    sys.exit(0)
+
+if not enabled:
+    print("[mios-v2v-import] [virt.v2v].enabled is false -- skipping live virt-v2v import.")
+    sys.exit(0)
+
+# Degrade open if virt-v2v binary is absent
+import shutil
+if not shutil.which("virt-v2v"):
+    print("[mios-v2v-import] virt-v2v binary absent -- skipped live import.")
+    sys.exit(0)
+
+print(f"[mios-v2v-import] Executing: {cmd_str}")
+os.system(cmd_str)
+PYEOF

@@ -18,3 +18,7 @@ docker.io/pgvector/pgvector:0.8.3-pg17	local	extra
 quay.io/poseidon/matchbox:latest	local	extra
 docker.io/searxng/searxng:latest	local	extra
 docker.io/valkey/valkey:latest	local	extra
+localhost/mios-crawl4ai-slim:latest	local	extra
+localhost/mios-cuda	local	cuda
+localhost/mios-firecrawl:v1.0.0	local	extra
+localhost/mios-sys	local	sys

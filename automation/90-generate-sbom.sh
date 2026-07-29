@@ -57,11 +57,11 @@ VERSION="${VERSION:-unknown}"
 mios_log "scanning root filesystem with syft (version=${VERSION})"
 
 # CycloneDX (primary, for AI/automation) + SPDX (compliance). Each is non-fatal.
-syft scan dir:/ --output "cyclonedx-json=${ARTIFACT_DIR}/mios-sbom-${VERSION}.cyclonedx.json" \
+syft scan dir:/ --source-name mios --source-version "${VERSION}" --output "cyclonedx-json=${ARTIFACT_DIR}/mios-sbom-${VERSION}.cyclonedx.json" \
     --exclude "./ctx/**" --exclude "./var/cache/**" \
     || mios_warn "CycloneDX SBOM generation failed (non-fatal)"
 
-syft scan dir:/ --output "spdx-tag-value=${ARTIFACT_DIR}/mios-sbom-${VERSION}.spdx.txt" \
+syft scan dir:/ --source-name mios --source-version "${VERSION}" --output "spdx-tag-value=${ARTIFACT_DIR}/mios-sbom-${VERSION}.spdx.txt" \
     --exclude "./ctx/**" --exclude "./var/cache/**" \
     || mios_warn "SPDX SBOM generation failed (non-fatal)"
 

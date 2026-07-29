@@ -1,0 +1,130 @@
+#!/usr/bin/env python3
+# AI-hint: NO-HARDCODE-VERSION law enforcement (Law 7 / ADR-0003). Scans tracked source for hand-pinned version literals in URLs, pip/npm pins, and @sha256 image digests.
+# AI-related: ../../../automation/98-drift-checks.sh, ../../share/mios/mios.toml, ../lib/mios_toml.py
+# AI-functions: main, scan_file, load_allowlist
+"""NO-HARDCODE-VERSION law enforcement: forbid hand-pinned versions in URLs, package pins, and image digests unless allowlisted."""
+
+from __future__ import annotations
+
+import fnmatch
+import os
+import re
+import sys
+
+# Ensure sys.path finds mios_toml in usr/lib/mios
+_here = os.path.dirname(os.path.abspath(__file__))
+_root_lib = os.path.abspath(os.path.join(_here, "../../lib/mios"))
+if _root_lib not in sys.path:
+    sys.path.insert(0, _root_lib)
+
+try:
+    import mios_toml
+except ImportError:
+    mios_toml = None
+
+_URL_VER_PIN = re.compile(r'https?://[^\s\'"]+?/(?:releases/download|archive|releases/tag)/v?[0-9]+\.[0-9]+(?:\.[0-9]+)?')
+_PIP_NPM_PIN = re.compile(r'\b(?:pip|pip3|npm|bun)\s+install\s+[^\n]*?\b(?:==|~=|@)[0-9]+\.[0-9]+')
+_DIGEST_PIN = re.compile(r'@sha256:[a-fA-F0-9]{64}')
+
+_DEFAULT_EXEMPT_GLOBS = [
+    "automation/lib/globals.*",
+    "MiOS-SBOM.csv",
+    "usr/share/mios/artifacts/sbom/*",
+    "usr/share/doc/*",
+    "tests/*",
+    "*.md",
+    "*.tsv",
+    "*.json"
+]
+
+def load_allowlist():
+    pinned_refs = set()
+    exempt_globs = list(_DEFAULT_EXEMPT_GLOBS)
+
+    if mios_toml is not None:
+        try:
+            allow_cfg = mios_toml.float_allowlist()
+            pinned_refs.update(allow_cfg.get("pinned_refs", []))
+            exempt_globs.extend(allow_cfg.get("exempt_globs", []))
+        except Exception:
+            pass
+
+    return pinned_refs, exempt_globs
+
+def is_exempt(rel_path, exempt_globs):
+    norm = rel_path.replace("\\", "/")
+    for pattern in exempt_globs:
+        if fnmatch.fnmatch(norm, pattern) or fnmatch.fnmatch(os.path.basename(norm), pattern):
+            return True
+    return False
+
+def scan_file(filepath, root_dir, pinned_refs):
+    violations = []
+    rel_path = os.path.relpath(filepath, root_dir).replace("\\", "/")
+
+    try:
+        with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
+            for lineno, line in enumerate(f, 1):
+                sline = line.strip()
+                if not sline or sline.startswith("#") or sline.startswith("//"):
+                    continue
+
+                # Class 1: URL version pin
+                if _URL_VER_PIN.search(sline):
+                    # Check if line corresponds to an allowlisted bake_ref
+                    if not any(pref in sline.lower() for pref in pinned_refs):
+                        violations.append((lineno, f"URL version literal: {sline[:80]}"))
+
+                # Class 2: Package install pin (pip / npm / bun)
+                if _PIP_NPM_PIN.search(sline):
+                    violations.append((lineno, f"pip/npm/bun pinned version: {sline[:80]}"))
+
+                # Class 3: @sha256 digest pin in scripts/containers
+                if _DIGEST_PIN.search(sline):
+                    violations.append((lineno, f"Hardcoded @sha256 image digest: {sline[:80]}"))
+
+    except Exception as e:
+        pass
+
+    return violations
+
+def main():
+    root = sys.argv[1] if len(sys.argv) > 1 else "."
+    root = os.path.abspath(root)
+
+    pinned_refs, exempt_globs = load_allowlist()
+    all_violations = []
+
+    for dirpath, dirnames, filenames in os.walk(root):
+        # Skip git/cache/venv dirs
+        dirnames[:] = [d for d in dirnames if d not in (".git", ".gemini", "node_modules", "venv", "__pycache__", ".tox", "target", "build")]
+
+        for filename in filenames:
+            ext = os.path.splitext(filename)[1].lower()
+            if ext not in (".sh", ".bash", ".py", ".toml", ".yml", ".yaml", ".container", ".image"):
+                continue
+
+            filepath = os.path.join(dirpath, filename)
+            rel_path = os.path.relpath(filepath, root).replace("\\", "/")
+
+            if is_exempt(rel_path, exempt_globs):
+                continue
+
+            viols = scan_file(filepath, root, pinned_refs)
+            for lineno, msg in viols:
+                all_violations.append(f"{rel_path}:{lineno}: {msg}")
+
+    if all_violations:
+        sys.stderr.write("NO-HARDCODE-VERSION violations found:\n")
+        for v in all_violations:
+            sys.stderr.write(f"  {v}\n")
+
+        if os.environ.get("MIOS_VERSION_LINT_SOFT") == "1":
+            print("[mios-version-lint] SOFT mode enabled -- exiting 0")
+            sys.exit(0)
+        sys.exit(1)
+
+    sys.exit(0)
+
+if __name__ == "__main__":
+    main()
