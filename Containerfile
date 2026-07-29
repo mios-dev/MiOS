@@ -83,7 +83,8 @@ RUN --mount=type=bind,from=ctx,source=/ctx,target=/ctx,ro \
     fi; \
     # WS-C: bake the repo-root agent MD files to / so a clean image is grounded
     # (agent-pipe reads /MiOS.md; the layered /etc + ~/.config overrides still win).
-    install -m 0644 /ctx/rootmd/MiOS.md /ctx/rootmd/AGENTS.md /ctx/rootmd/CLAUDE.md /ctx/rootmd/GEMINI.md /; \
+    cp -f /ctx/rootmd/MiOS.md /ctx/rootmd/AGENTS.md /ctx/rootmd/CLAUDE.md /ctx/rootmd/GEMINI.md /; \
+    chmod 0644 /MiOS.md /AGENTS.md /CLAUDE.md /GEMINI.md; \
     # Defensive CRLF -> LF normalization. .gitattributes already pins
     # *.sh / *.toml / *.conf / *.yaml / *.json / *.md to LF, but Windows
     # build hosts (OneDrive sync in particular) bypass git's filter and
