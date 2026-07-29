@@ -174,12 +174,12 @@ fake_key_drift_assertion = "drift"
 EOF
 
     if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_root_toml_subset >/dev/null 2>&1; then
-        if [[ $created -eq 1 ]]; then rm -f "$root_toml"; else echo "$orig_val" > "$root_toml"; fi
+        if [[ $created -eq 1 ]]; then rm -f "$root_toml"; else rm -f "$root_toml" && echo "$orig_val" > "$root_toml"; fi
         die "check_root_toml_subset passed despite invalid key injection!"
     fi
 
     # Restore (or remove the temp file we created) and verify green
-    if [[ $created -eq 1 ]]; then rm -f "$root_toml"; else echo "$orig_val" > "$root_toml"; fi
+    if [[ $created -eq 1 ]]; then rm -f "$root_toml"; else rm -f "$root_toml" && echo "$orig_val" > "$root_toml"; fi
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_root_toml_subset >/dev/null 2>&1 \
         || die "check_root_toml_subset failed after restoration!"
     log "check_root_toml_subset negative test passed."
@@ -189,6 +189,8 @@ EOF
 test_toml_projection() {
     log "Testing check_toml_projection..."
     local root_toml="${ROOT}/mios.toml"
+    local orig_val
+    orig_val="$(cat "$root_toml")"
     if [[ ! -f "$root_toml" ]]; then
         log "root mios.toml absent -- skipping check_toml_projection negative test."
         return 0
@@ -247,6 +249,8 @@ EOF
 test_nested_podman_caps() {
     log "Testing check_nested_podman_caps..."
     local doc_file="${ROOT}/usr/share/doc/mios/reference/nested-podman-caps.md"
+    local orig_val
+    orig_val="$(cat "$doc_file")"
     local bak="${doc_file}.bak"
     if [[ -f "$doc_file" ]]; then
         mv "$doc_file" "$bak"
@@ -338,6 +342,8 @@ test_router_parity() {
 test_council_gate_ssot() {
     log "Testing check_council_gate_ssot..."
     local toml_file="${ROOT}/usr/share/mios/mios.toml"
+    local orig_val
+    orig_val="$(cat "$toml_file")"
     local bak="${toml_file}.counciltest.bak"
     cp "$toml_file" "$bak"
 
@@ -367,6 +373,8 @@ EOF
 test_agent_pipe_budgets() {
     log "Testing check_agent_pipe_budgets..."
     local toml_file="${ROOT}/usr/share/mios/mios.toml"
+    local orig_val
+    orig_val="$(cat "$toml_file")"
     local bak="${toml_file}.budgettest.bak"
     cp "$toml_file" "$bak"
 
@@ -396,6 +404,8 @@ EOF
 test_bake_tokens() {
     log "Testing check_bake_plan with bogus firstboot token..."
     local toml_file="${ROOT}/usr/share/mios/mios.toml"
+    local orig_val
+    orig_val="$(cat "$toml_file")"
     local bak="${toml_file}.toktest.bak"
     cp "$toml_file" "$bak"
 
@@ -491,6 +501,8 @@ test_rechunk_budget() {
 test_bake_core_reconcile() {
     log "Testing core bake reconciliation..."
     local toml_file="${ROOT}/usr/share/mios/mios.toml"
+    local orig_val
+    orig_val="$(cat "$toml_file")"
     local bak="${toml_file}.coretest.bak"
     cp "$toml_file" "$bak"
 
@@ -519,6 +531,8 @@ EOF
 test_nested_podman_retry() {
     log "Testing check_nested_podman_caps..."
     local script="${ROOT}/usr/libexec/mios/57-mios-sys-build.sh"
+    local orig_val
+    orig_val="$(cat "$script")"
     local bak="${script}.retrytest.bak"
     cp "$script" "$bak"
     sed -i 's/build_image_with_retry/build_image_no_retry/g' "$script"
@@ -540,6 +554,8 @@ test_nested_podman_retry() {
 test_gate_registry() {
     log "Testing check_gate_registry..."
     local script="${ROOT}/automation/98-drift-checks.sh"
+    local orig_val
+    orig_val="$(cat "$script")"
     local bak="${script}.gateregtest.bak"
     cp "$script" "$bak"
 
@@ -625,6 +641,8 @@ EOF
 test_lint_is_final() {
     log "Testing check_lint_is_final..."
     local cf="${ROOT}/Containerfile"
+    local orig_val
+    orig_val="$(cat "$cf")"
     local bak="${cf}.linttest.bak"
     cp "$cf" "$bak"
     sed -i '/RUN bootc container lint/d' "$cf"
@@ -709,6 +727,8 @@ EOF
 test_soft_mode_not_committed() {
     log "Testing check_soft_mode_not_committed..."
     local gha_file="${ROOT}/.github/workflows/mios-ci.yml"
+    local orig_val
+    orig_val="$(cat "$gha_file")"
     local bak="${gha_file}.softtest.bak"
     cp "$gha_file" "$bak"
     echo "MIOS_DRIFT_CHECK_SOFT=1" >> "$gha_file"
@@ -1018,6 +1038,8 @@ test_win11_vm_template_xml() {
 test_ipa_enroll_projection() {
     log "Testing check_ipa_enroll_projection..."
     local target_file="${ROOT}/etc/mios/ipa-enroll.env"
+    local orig_val
+    orig_val="$(cat "$target_file")"
     local bak="${target_file}.ipabak"
     # $ROOT is a bare git tree, not the overlaid FHS, so this generated target is absent on a
     # fresh checkout -- produce it first with the same generator the main check regenerates from.
@@ -1043,6 +1065,8 @@ test_ipa_enroll_projection() {
 test_uki_cmdline_projection() {
     log "Testing check_uki_cmdline_projection..."
     local target_file="${ROOT}/usr/lib/kernel/cmdline"
+    local orig_val
+    orig_val="$(cat "$target_file")"
     local bak="${target_file}.ukibak"
     # $ROOT is a bare git tree, not the overlaid FHS, so this generated target is absent on a
     # fresh checkout -- produce it first with the same generator the main check regenerates from.
@@ -1093,6 +1117,8 @@ test_composefs_projection() {
 test_cockpit_projection() {
     log "Testing check_cockpit_projection..."
     local target_file="${ROOT}/etc/cockpit/cockpit.conf"
+    local orig_val
+    orig_val="$(cat "$target_file")"
     local bak="${target_file}.cockbak"
     # $ROOT is a bare git tree, not the overlaid FHS, so this generated target is absent on a
     # fresh checkout -- produce it first with the same generator the main check regenerates from.
