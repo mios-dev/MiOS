@@ -292,8 +292,14 @@ def sync_accounts():
                 if p.returncode == 0:
                     state[name] = db_hash
                     state_changed = True
-                update_cmd += ["-d", db_user["home_dir"]]
-                needs_update = True
+            except Exception as e:
+                logger.error(f"Failed to update password for {name}: {e}")
+
+        update_cmd = ["usermod"]
+        needs_update = False
+        if db_user["home_dir"] and local_user.pw_dir != db_user["home_dir"]:
+            update_cmd += ["-d", db_user["home_dir"]]
+            needs_update = True
             if db_user["shell"] and local_user.pw_shell != db_user["shell"]:
                 update_cmd += ["-s", db_user["shell"]]
                 needs_update = True
