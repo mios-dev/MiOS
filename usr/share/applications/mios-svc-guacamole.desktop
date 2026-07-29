@@ -1,12 +1,12 @@
-# AI-hint: Desktop entry for the Guacamole remote desktop gateway, providing a launcher to open the local web interface at port 8090 for RDP/VNC access.
-# AI-related: localhost:8090
+# AI-hint: Desktop entry for the Guacamole remote desktop gateway, providing a launcher to open the local web interface at port 8080 for RDP/VNC access.
+# AI-related: localhost:8080
 [Desktop Entry]
 Type=Application
 Version=1.0
 Name=MiOS Guacamole
 GenericName=Browser Remote Desktop
-Comment=Open Apache Guacamole at http://localhost:8090/guacamole/
-Exec=xdg-open http://localhost:8090/guacamole/
+Comment=Open Apache Guacamole at http://localhost:8080/guacamole/
+Exec=xdg-open http://localhost:8080/guacamole/
 Icon=preferences-desktop-remote-desktop-symbolic
 Categories=Network;RemoteAccess;
 Keywords=mios;guacamole;rdp;vnc;remote;desktop;
