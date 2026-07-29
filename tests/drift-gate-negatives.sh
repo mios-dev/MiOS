@@ -1018,20 +1018,16 @@ test_win11_vm_template_xml() {
 test_ipa_enroll_projection() {
     log "Testing check_ipa_enroll_projection..."
     local target_file="${ROOT}/etc/mios/ipa-enroll.env"
-    # $ROOT is a bare git tree, not the overlaid FHS, so this generated target is absent on a
-    # fresh checkout -- produce it first with the same generator the main check regenerates from.
     [[ -f "$target_file" ]] || { mkdir -p "$(dirname "$target_file")"; MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-ipa-enroll-env.py" >/dev/null 2>&1 || true; }
-    local orig_val
-    orig_val="$(cat "$target_file")"
 
     echo 'MIOS_IPA_REALM="MUTATED.REALM"' >> "$target_file"
 
     if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_ipa_enroll_projection >/dev/null 2>&1; then
-        echo "$orig_val" > "$target_file"
+        MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-ipa-enroll-env.py" >/dev/null 2>&1 || true
         die "check_ipa_enroll_projection passed despite mutated target file!"
     fi
 
-    echo "$orig_val" > "$target_file"
+    MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-ipa-enroll-env.py" >/dev/null 2>&1 || true
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_ipa_enroll_projection >/dev/null 2>&1 \
         || die "check_ipa_enroll_projection failed after restoration!"
     log "test_ipa_enroll_projection negative test passed."
@@ -1041,20 +1037,16 @@ test_ipa_enroll_projection() {
 test_uki_cmdline_projection() {
     log "Testing check_uki_cmdline_projection..."
     local target_file="${ROOT}/usr/lib/kernel/cmdline"
-    # $ROOT is a bare git tree, not the overlaid FHS, so this generated target is absent on a
-    # fresh checkout -- produce it first with the same generator the main check regenerates from.
     [[ -f "$target_file" ]] || { mkdir -p "$(dirname "$target_file")"; MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-uki-cmdline.py" >/dev/null 2>&1 || true; }
-    local orig_val
-    orig_val="$(cat "$target_file")"
 
     echo 'mutated_bogus_karg=1' >> "$target_file"
 
     if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_uki_cmdline_projection >/dev/null 2>&1; then
-        echo "$orig_val" > "$target_file"
+        MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-uki-cmdline.py" >/dev/null 2>&1 || true
         die "check_uki_cmdline_projection passed despite mutated cmdline!"
     fi
 
-    echo "$orig_val" > "$target_file"
+    MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-uki-cmdline.py" >/dev/null 2>&1 || true
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_uki_cmdline_projection >/dev/null 2>&1 \
         || die "check_uki_cmdline_projection failed after restoration!"
     log "test_uki_cmdline_projection negative test passed."
