@@ -1322,7 +1322,12 @@ try:
 except Exception:
     pass
 val = open(p, 'r', encoding='utf-8', errors='ignore').read()
-open(p, 'w', encoding='utf-8').write(val + '\n# INJECTED-DRIFT\n')
+try:
+    os.remove(p)
+except Exception:
+    pass
+with open(p, 'w', encoding='utf-8') as f:
+    f.write(val + '\n# INJECTED-DRIFT\n')
 PYEOF
 
         if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_hyprland_conf_heredoc >/dev/null 2>&1; then
