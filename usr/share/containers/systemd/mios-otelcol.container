@@ -9,13 +9,13 @@ Wants=network-online.target
 [Container]
 ContainerName=mios-otelcol
 Environment=COLLECTOR_OTLP_ENABLED=true
-Group=
+Group=829
 Image=docker.io/jaegertracing/all-in-one:latest
 Label=org.opencontainers.image.title=mios-otelcol
 Label=org.opencontainers.image.url=http://localhost:16686/
 Label=io.podman_desktop.openInBrowser=http://localhost:16686/
 Pod=mios-webtools.pod
-User=
+User=829
 
 [Install]
 WantedBy=multi-user.target default.target

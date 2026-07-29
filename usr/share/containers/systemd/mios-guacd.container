@@ -10,10 +10,10 @@ Wants=network-online.target
 [Container]
 ContainerName=mios-guacd
 Exec=guacd -b 0.0.0.0 -f
-Group=
+Group=811
 Image=docker.io/guacamole/guacd:latest
 Pod=mios-system.pod
-User=
+User=811
 
 [Install]
 WantedBy=multi-user.target default.target
