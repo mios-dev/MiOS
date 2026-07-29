@@ -131,10 +131,12 @@ EOF
 }
 
 # 5. Test check_names_registry (names registry / closure)
-test_names_registry_closure() {
+test_names_registry() {
     log "Testing check_names_registry..."
     local ref_file="${ROOT}/usr/share/mios/referenced_names.txt"
     [[ -f "$ref_file" ]] || python3 "$ROOT/tools/generate-names-registry.py" >/dev/null 2>&1 || true
+    local bak_file="${ref_file}.bak"
+    cp "$ref_file" "$bak_file"
 
     # Inject violation: add a dummy fake environment variable reference
     local drip_var="MI"
@@ -142,11 +144,13 @@ test_names_registry_closure() {
     echo "$drip_var" >> "$ref_file"
 
     if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_names_registry >/dev/null 2>&1; then
+        cp "$bak_file" "$ref_file" && rm -f "$bak_file"
         python3 "$ROOT/tools/generate-names-registry.py" >/dev/null 2>&1 || true
         die "check_names_registry passed despite stale referenced_names.txt!"
     fi
 
     # Restore and verify green
+    cp "$bak_file" "$ref_file" && rm -f "$bak_file"
     python3 "$ROOT/tools/generate-names-registry.py" >/dev/null 2>&1 || true
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_names_registry >/dev/null 2>&1 \
         || die "check_names_registry failed after restoration!"
@@ -1843,7 +1847,7 @@ main() {
     test_resolver_equivalence
     test_eval_safety
     test_shellcheck_failure
-    test_names_registry_closure
+    test_names_registry
     test_root_toml_subset
     test_toml_projection
     test_curl_retry
