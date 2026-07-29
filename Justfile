@@ -499,5 +499,3 @@ rechunk-conv: build
 # Scaffold a new file from templates
 new type name:
     python3 usr/libexec/mios/mios-new {{type}} {{name}}
-
-

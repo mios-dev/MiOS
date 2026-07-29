@@ -56,12 +56,12 @@ test_resolver_equivalence() {
     echo 'export MIOS_AI_TEST_TEMP="invalid-drift-val"' >> "$userenv_file"
 
     if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_resolver_twin_equivalence >/dev/null 2>&1; then
-        cp "${ROOT}/tools/lib/userenv.sh" "$userenv_file" && rm -f "$bak_file"
+        cp "$bak_file" "$userenv_file" && rm -f "$bak_file"
         die "check_resolver_twin_equivalence passed despite mismatch!"
     fi
 
     # Restore and verify green
-    cp "${ROOT}/tools/lib/userenv.sh" "$userenv_file" && rm -f "$bak_file"
+    cp "$bak_file" "$userenv_file" && rm -f "$bak_file"
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_resolver_twin_equivalence >/dev/null 2>&1 \
         || die "check_resolver_twin_equivalence failed after restoration!"
     log "check_resolver_twin_equivalence negative test passed."
@@ -129,7 +129,7 @@ EOF
 # 5. Test check_names_registry (names registry / closure)
 test_names_registry() {
     log "Testing check_names_registry..."
-    local reg_file="${ROOT}/usr/share/mios/names.generated.txt"
+    local reg_file="${ROOT}/usr/share/mios/referenced_names.txt"
     [[ -f "$reg_file" ]] || python3 "$ROOT/tools/generate-names-registry.py" >/dev/null 2>&1 || true
     local bak_file="${reg_file}.bak"
     cp "$reg_file" "$bak_file" 2>/dev/null || true
@@ -338,11 +338,9 @@ test_router_parity() {
 test_council_gate_ssot() {
     log "Testing check_council_gate_ssot..."
     local toml_file="${ROOT}/usr/share/mios/mios.toml"
-    local orig_val
-    orig_val="$(cat "$toml_file")"
-    echo "$orig_val" > "$toml_file"
+    local bak_file="${toml_file}.council_bak"
+    cp "$toml_file" "$bak_file"
 
-    # Temporarily remove a key from [agent_pipe.council]
     python3 - "$toml_file" << 'EOF'
 import sys
 p = sys.argv[1]
@@ -352,13 +350,13 @@ open(p, "w", encoding="utf-8").write(new)
 EOF
 
     if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_council_gate_ssot >/dev/null 2>&1; then
-        rm -f "$toml_file"
-        echo "$orig_val" > "$toml_file"
+        cp "$bak_file" "$toml_file"
+        rm -f "$bak_file"
         die "check_council_gate_ssot passed despite missing diversity_threshold key in [agent_pipe.council]!"
     fi
 
-    rm -f "$toml_file"
-    echo "$orig_val" > "$toml_file"
+    cp "$bak_file" "$toml_file"
+    rm -f "$bak_file"
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_council_gate_ssot >/dev/null 2>&1 \
         || die "check_council_gate_ssot failed after restoration!"
     log "check_council_gate_ssot negative test passed."
@@ -1669,6 +1667,224 @@ test_negative_coverage() {
     log "test_negative_coverage negative test passed."
 }
 
+test_guacamole_consistency() {
+    log "Testing check_guacamole_consistency..."
+    local desktop_file="${ROOT}/usr/share/applications/mios-svc-guacamole.desktop"
+    local orig_val
+    orig_val="$(cat "$desktop_file")"
+
+    # Inject violation: change port 8080 to 9999
+    sed -i 's/8080/9999/g' "$desktop_file"
+
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_guacamole_consistency >/dev/null 2>&1; then
+        echo "$orig_val" > "$desktop_file"
+        die "check_guacamole_consistency passed despite port mismatch violation!"
+    fi
+
+    # Restore and verify green
+    echo "$orig_val" > "$desktop_file"
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_guacamole_consistency >/dev/null 2>&1 \
+        || die "check_guacamole_consistency failed after restoration!"
+    log "test_guacamole_consistency negative test passed."
+}
+
+test_cephfs_ssot() {
+    log "Testing check_cephfs_ssot..."
+    local toml_file="${ROOT}/usr/share/mios/mios.toml"
+    local orig_val
+    orig_val="$(cat "$toml_file")"
+
+    sed -i 's/mount_options                   = "noatime,fsc,_netdev"/# mount_options removed/' "$toml_file"
+
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_cephfs_ssot >/dev/null 2>&1; then
+        echo "$orig_val" > "$toml_file"
+        die "check_cephfs_ssot passed despite missing mount_options key!"
+    fi
+
+    echo "$orig_val" > "$toml_file"
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_cephfs_ssot >/dev/null 2>&1 \
+        || die "check_cephfs_ssot failed after restoration!"
+    log "test_cephfs_ssot negative test passed."
+}
+
+test_v2v_import_ssot() {
+    log "Testing check_v2v_import_ssot..."
+    local wrapper_file="${ROOT}/usr/libexec/mios/mios-v2v-import"
+    local orig_val
+    orig_val="$(cat "$wrapper_file")"
+
+    sed -i 's/-of {output_format}/-of broken_format/' "$wrapper_file"
+
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_v2v_import_ssot >/dev/null 2>&1; then
+        echo "$orig_val" > "$wrapper_file"
+        die "check_v2v_import_ssot passed despite broken wrapper output_format!"
+    fi
+
+    echo "$orig_val" > "$wrapper_file"
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_v2v_import_ssot >/dev/null 2>&1 \
+        || die "check_v2v_import_ssot failed after restoration!"
+    log "test_v2v_import_ssot negative test passed."
+}
+
+test_no_hardcode_version() {
+    log "Testing check_no_hardcode_version..."
+    local temp_script="${ROOT}/usr/libexec/mios/mios-test-temp-verpin.sh"
+    rm -f "$temp_script"
+
+    cat << 'EOF' > "$temp_script"
+#!/usr/bin/env bash
+curl -LO https://example.com/releases/download/v1.2.3/x
+EOF
+    chmod +x "$temp_script"
+
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_no_hardcode_version >/dev/null 2>&1; then
+        rm -f "$temp_script"
+        die "check_no_hardcode_version passed despite hardcoded version in URL!"
+    fi
+
+    rm -f "$temp_script"
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_no_hardcode_version >/dev/null 2>&1 \
+        || die "check_no_hardcode_version failed after restoration!"
+    log "test_no_hardcode_version negative test passed."
+}
+
+test_law_enforcers() {
+    log "Testing check_law_enforcers..."
+    local toml_file="${ROOT}/usr/share/mios/mios.toml"
+    local bak_file="${toml_file}.law_bak"
+    cp "$toml_file" "$bak_file"
+
+    sed -i 's/check_usr_over_etc/check_nonexistent_bogus_law/' "$toml_file"
+
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_law_enforcers >/dev/null 2>&1; then
+        cp "$bak_file" "$toml_file"
+        rm -f "$bak_file"
+        die "check_law_enforcers passed despite missing law enforcer!"
+    fi
+
+    cp "$bak_file" "$toml_file"
+    rm -f "$bak_file"
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_law_enforcers >/dev/null 2>&1 \
+        || die "check_law_enforcers failed after restoration!"
+    log "test_law_enforcers negative test passed."
+}
+
+test_usr_over_etc() {
+    log "Testing check_usr_over_etc..."
+    local temp_shadow="${ROOT}/etc/branding/living-wallpaper.html"
+    mkdir -p "${ROOT}/etc/branding"
+    touch "$temp_shadow"
+
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_usr_over_etc >/dev/null 2>&1; then
+        rm -rf "${ROOT}/etc/branding"
+        die "check_usr_over_etc passed despite /etc file shadowing /usr SSOT file!"
+    fi
+
+    rm -rf "${ROOT}/etc/branding"
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_usr_over_etc >/dev/null 2>&1 \
+        || die "check_usr_over_etc failed after restoration!"
+    log "test_usr_over_etc negative test passed."
+}
+
+test_projection_registry() {
+    log "Testing check_projection_registry..."
+    local toml_file="${ROOT}/usr/share/mios/mios.toml"
+    local orig_val
+    orig_val="$(cat "$toml_file")"
+
+    sed -i 's/check = "check_dotfiles_projection"/check = "check_nonexistent_proj_check"/' "$toml_file"
+
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_projection_registry >/dev/null 2>&1; then
+        echo "$orig_val" > "$toml_file"
+        die "check_projection_registry passed despite missing projection check!"
+    fi
+
+    echo "$orig_val" > "$toml_file"
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_projection_registry >/dev/null 2>&1 \
+        || die "check_projection_registry failed after restoration!"
+    log "test_projection_registry negative test passed."
+}
+
+test_bake_plan_integrity() {
+    log "Testing check_bake_plan_integrity..."
+    local list_file="${ROOT}/usr/lib/mios/bake/plan.d/03-extra.list"
+    local orig_val
+    orig_val="$(cat "$list_file")"
+
+    echo "docker.io/vllm/vllm-openai:latest" >> "$list_file"
+
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_bake_plan_integrity >/dev/null 2>&1; then
+        echo "$orig_val" > "$list_file"
+        die "check_bake_plan_integrity passed despite firstboot token in baked group list!"
+    fi
+
+    echo "$orig_val" > "$list_file"
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_bake_plan_integrity >/dev/null 2>&1 \
+        || die "check_bake_plan_integrity failed after restoration!"
+    log "test_bake_plan_integrity negative test passed."
+}
+
+test_bake_ref_parity() {
+    log "Testing check_bake_ref_defaults..."
+    local script_file="${ROOT}/automation/55-bake-quickshell.sh"
+    if [[ -f "$script_file" ]]; then
+        local orig_val
+        orig_val="$(cat "$script_file")"
+
+        sed -i 's/MIOS_BUILD_BAKE_REFS_QUICKSHELL:-v0.3.0/MIOS_BUILD_BAKE_REFS_QUICKSHELL:-v9.9.9/' "$script_file"
+
+        if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_bake_ref_defaults >/dev/null 2>&1; then
+            echo "$orig_val" > "$script_file"
+            die "check_bake_ref_defaults passed despite wrong bake_ref default!"
+        fi
+
+        echo "$orig_val" > "$script_file"
+        MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_bake_ref_defaults >/dev/null 2>&1 \
+            || die "check_bake_ref_defaults failed after restoration!"
+    fi
+    log "test_bake_ref_parity negative test passed."
+}
+
+test_db_seed_coverage() {
+    log "Testing check_db_seed_coverage..."
+    local toml_file="${ROOT}/usr/share/mios/mios.toml"
+    local orig_val
+    orig_val="$(cat "$toml_file")"
+
+    echo "" >> "$toml_file"
+    echo "[unseeded_bogus_test_section]" >> "$toml_file"
+    echo "key = \"value\"" >> "$toml_file"
+
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_db_seed_coverage >/dev/null 2>&1; then
+        echo "$orig_val" > "$toml_file"
+        die "check_db_seed_coverage passed despite unseeded section in mios.toml!"
+    fi
+
+    echo "$orig_val" > "$toml_file"
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_db_seed_coverage >/dev/null 2>&1 \
+        || die "check_db_seed_coverage failed after restoration!"
+    log "test_db_seed_coverage negative test passed."
+}
+
+test_account_column_parity() {
+    log "Testing check_account_column_parity..."
+    local schema_file="${ROOT}/usr/share/mios/postgres/schema-init.sql"
+    local orig_val
+    orig_val="$(cat "$schema_file")"
+
+    sed -i 's/name TEXT NOT NULL/-- name TEXT NOT NULL/' "$schema_file"
+
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_account_column_parity >/dev/null 2>&1; then
+        echo "$orig_val" > "$schema_file"
+        die "check_account_column_parity passed despite missing column in schema!"
+    fi
+
+    echo "$orig_val" > "$schema_file"
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_account_column_parity >/dev/null 2>&1 \
+        || die "check_account_column_parity failed after restoration!"
+    log "test_account_column_parity negative test passed."
+}
+
 main() {
     log "Starting negative-test suite..."
     test_version_ssot
@@ -1737,6 +1953,17 @@ main() {
     test_pipe_boundaries
     test_vllm_name_canonical
     test_pipe_extraction_parity
+    test_guacamole_consistency
+    test_cephfs_ssot
+    test_v2v_import_ssot
+    test_no_hardcode_version
+    test_law_enforcers
+    test_usr_over_etc
+    test_projection_registry
+    test_bake_plan_integrity
+    test_bake_ref_parity
+    test_db_seed_coverage
+    test_account_column_parity
     log "All negative tests completed successfully!"
 }
 
