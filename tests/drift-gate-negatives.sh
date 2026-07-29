@@ -27,16 +27,19 @@ test_version_ssot() {
     orig_val="$(cat "$version_file")"
 
     # Inject violation
+    rm -f "$version_file"
     echo "9.9.9" > "$version_file"
 
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_version_ssot >/dev/null 2>&1; then
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_version_ssot >/dev/null 2>&1; then
+        rm -f "$version_file"
         echo "$orig_val" > "$version_file"
         die "check_version_ssot passed despite version drift violation!"
     fi
 
     # Restore and verify green
+    rm -f "$version_file"
     echo "$orig_val" > "$version_file"
-    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_version_ssot >/dev/null 2>&1 \
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_version_ssot >/dev/null 2>&1 \
         || die "check_version_ssot failed after restoration!"
     log "check_version_ssot negative test passed."
 }
@@ -49,16 +52,19 @@ test_resolver_equivalence() {
     orig_val="$(cat "$userenv_file")"
 
     # Inject violation
-    echo 'export MIOS_AI_TEST_TEMP="invalid-drift-val"' >> "$userenv_file"
+    rm -f "$userenv_file"
+    printf '%s\nexport MIOS_AI_TEST_TEMP="invalid-drift-val"\n' "$orig_val" > "$userenv_file"
 
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_resolver_twin_equivalence >/dev/null 2>&1; then
-        echo "$orig_val" > "$userenv_file"
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_resolver_twin_equivalence >/dev/null 2>&1; then
+        rm -f "$userenv_file"
+        printf '%s' "$orig_val" > "$userenv_file"
         die "check_resolver_twin_equivalence passed despite mismatch!"
     fi
 
     # Restore and verify green
-    echo "$orig_val" > "$userenv_file"
-    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_resolver_twin_equivalence >/dev/null 2>&1 \
+    rm -f "$userenv_file"
+    printf '%s' "$orig_val" > "$userenv_file"
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_resolver_twin_equivalence >/dev/null 2>&1 \
         || die "check_resolver_twin_equivalence failed after restoration!"
     log "check_resolver_twin_equivalence negative test passed."
 }

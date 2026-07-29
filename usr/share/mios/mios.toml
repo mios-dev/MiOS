@@ -738,10 +738,6 @@ grandfathered_cs = [
 composefs_mode = "verity"
 mask_systemd_remount_fs = true
 
-[security.sigstore]
-cosign_major = 2
-policy_mode = "insecureAcceptEverything"
-allowed_identities = []
 # Phase B.3 of the AgentOS roadmap: TOML-driven Semantic Firewall
 # allowlist. Hosts in this list are TRUSTED -- open_url to one of
 # these does NOT taint the session. Anything outside this list +
@@ -772,6 +768,11 @@ allowlist_hosts = [
 # autonomous function, so the operator opts in. LOCAL rag/recall are NOT tainted
 # (RAG runs every turn -> tainting it would block all OS-control).
 provenance_taint = false
+
+[security.sigstore]
+cosign_major = 2
+policy_mode = "insecureAcceptEverything"
+allowed_identities = []
 
 [security.privileged_quadlets]
 # Law 6 (UNPRIVILEGED-QUADLETS) documented root exceptions -- the ONLY place root

@@ -3569,10 +3569,11 @@ check_version_ssot() {
     fi
 
     local _cargo_ver
-    _cargo_ver="$(grep -m1 -E '^[[:space:]]*version[[:space:]]*=' "$ROOT/tools/native/Cargo.toml" 2>/dev/null | sed -E 's/[^"]*"([^"]*)".*/\1/')"
+    _cargo_ver="$(grep -m1 -E '^[[:space:]]*version[[:space:]]*=' "$ROOT/tools/native/Cargo.toml" "$ROOT/tools/native/mios-version-check/Cargo.toml" 2>/dev/null | sed -E 's/[^"]*"([^"]*)".*/\1/' || true)"
     [[ -n "$_cargo_ver" && "$_cargo_ver" != "$ssot" ]] && bad+="    tools/native/Cargo.toml [workspace.package] version = [$_cargo_ver], expected [$ssot]"$'\n'
 
-    local literal_bad exit_code=0
+    local literal_bad="" exit_code=0
+    set +e
     literal_bad="$(MIOS_DRIFT_ROOT="$ROOT" MIOS_CANONICAL_VER="$ssot" python3 - <<'PY' 2>&1
 import os, sys, re, subprocess
 root = os.environ["MIOS_DRIFT_ROOT"]
@@ -3583,7 +3584,7 @@ if os.path.isfile(root_toml):
     try:
         with open(root_toml, "r", encoding="utf-8", errors="ignore") as fh:
             for line in fh:
-                if "mios_version" in line and canonical_ver not in line:
+                if re.search(r'^\s*mios_version\s*=', line) and canonical_ver not in line:
                     sys.stderr.write(f"    TODO(td-2): root mios.toml has version divergence from canonical {canonical_ver}\n")
     except OSError:
         pass
@@ -3638,7 +3639,9 @@ if viol:
     sys.exit(1)
 sys.exit(0)
 PY
-)" || exit_code=$?
+)"
+    exit_code=$?
+    set -e
     if [[ $exit_code -ne 0 ]]; then
         bad+="$literal_bad"$'\n'
     else
