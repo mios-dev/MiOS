@@ -57,6 +57,27 @@ def configure(**deps) -> None:
             g[_k] = _v
 
 
+def _normalize_verb_catalog_entry(entry: dict) -> dict:
+    if not isinstance(entry, dict):
+        return entry
+    entry["permission"] = str(entry.get("permission", "read")).strip().lower()
+    entry["tier"] = str(entry.get("tier", "common")).strip().lower()
+    entry["hidden"] = bool(entry.get("hidden", False))
+    params = entry.get("params") or {}
+    if isinstance(params, dict):
+        norm_params = {}
+        for k, v in params.items():
+            if isinstance(v, dict):
+                p = v.copy()
+                if "type" in p and isinstance(p["type"], str):
+                    p["type"] = p["type"].strip().lower()
+                norm_params[k] = p
+            else:
+                norm_params[k] = v
+        entry["params"] = norm_params
+    return entry
+
+
 def _load_verb_catalog() -> dict:
     """Parse mios.toml [verbs.*] sections into the canonical verb
     catalog. Each entry: {section, sig, desc, tier, permission, params:

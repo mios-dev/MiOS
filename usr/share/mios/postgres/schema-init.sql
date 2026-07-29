@@ -550,6 +550,17 @@ INSERT INTO config_layer (rank, name) VALUES
     (3, 'machine')
 ON CONFLICT (rank) DO UPDATE SET name = EXCLUDED.name;
 
+CREATE TABLE IF NOT EXISTS config_event (
+    id          bigserial PRIMARY KEY,
+    ts          timestamptz DEFAULT now(),
+    scope       text NOT NULL,
+    key         text NOT NULL,
+    old_value   jsonb,
+    new_value   jsonb,
+    actor       text DEFAULT 'system',
+    source      text DEFAULT 'config'
+);
+
 CREATE TABLE IF NOT EXISTS config_kv (
     id           bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     scope        text NOT NULL,
