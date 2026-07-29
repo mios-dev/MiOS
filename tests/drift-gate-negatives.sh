@@ -1634,17 +1634,19 @@ test_clevis_luks() {
     log "Testing check_clevis_luks..."
     local gen_script="${ROOT}/usr/libexec/mios/mios-clevis-luks-gen"
     if [ -f "$gen_script" ]; then
-        local orig_val
-        orig_val="$(cat "$gen_script")"
-        echo "$orig_val" > "$gen_script"
+        local bak_file="${gen_script}.bak"
+        cp "$gen_script" "$bak_file"
         echo 'echo "BROKEN"' > "$gen_script"
+        chmod +x "$gen_script" 2>/dev/null || true
 
         if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_clevis_luks >/dev/null 2>&1; then
-            echo "$orig_val" > "$gen_script"
+            cp "$bak_file" "$gen_script" && rm -f "$bak_file"
+            chmod +x "$gen_script" 2>/dev/null || true
             die "check_clevis_luks passed despite broken generator script!"
         fi
 
-        echo "$orig_val" > "$gen_script"
+        cp "$bak_file" "$gen_script" && rm -f "$bak_file"
+        chmod +x "$gen_script" 2>/dev/null || true
         MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_clevis_luks >/dev/null 2>&1 \
             || die "check_clevis_luks failed after restoration!"
     fi
@@ -1656,17 +1658,19 @@ test_mini_vfio() {
     log "Testing check_mini_vfio..."
     local gen_script="${ROOT}/usr/libexec/mios/mios-mini-vfio-gen"
     if [ -f "$gen_script" ]; then
-        local orig_val
-        orig_val="$(cat "$gen_script")"
-        echo "$orig_val" > "$gen_script"
+        local bak_file="${gen_script}.bak"
+        cp "$gen_script" "$bak_file"
         echo 'echo "BROKEN"' > "$gen_script"
+        chmod +x "$gen_script" 2>/dev/null || true
 
         if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_mini_vfio >/dev/null 2>&1; then
-            echo "$orig_val" > "$gen_script"
+            cp "$bak_file" "$gen_script" && rm -f "$bak_file"
+            chmod +x "$gen_script" 2>/dev/null || true
             die "check_mini_vfio passed despite broken generator script!"
         fi
 
-        echo "$orig_val" > "$gen_script"
+        cp "$bak_file" "$gen_script" && rm -f "$bak_file"
+        chmod +x "$gen_script" 2>/dev/null || true
         MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_mini_vfio >/dev/null 2>&1 \
             || die "check_mini_vfio failed after restoration!"
     fi
