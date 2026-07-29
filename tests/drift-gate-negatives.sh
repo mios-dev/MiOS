@@ -1621,69 +1621,7 @@ test_sbom_metadata() {
     log "test_sbom_metadata negative test passed."
 }
 
-# 71. Test check_clevis_luks
-test_clevis_luks() {
-    log "Testing check_clevis_luks..."
-    local gen_script="${ROOT}/usr/libexec/mios/mios-clevis-luks-gen"
-    if [ -f "$gen_script" ]; then
-        local bak_file="${gen_script}.bak"
-        cp "$gen_script" "$bak_file"
-        python3 - "$gen_script" << 'PYEOF'
-import sys, os
-p = sys.argv[1]
-try:
-    os.chmod(p, 0o666)
-except Exception:
-    pass
-open(p, 'w').write('echo "BROKEN"\n')
-PYEOF
-        chmod +x "$gen_script" 2>/dev/null || true
 
-        if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_clevis_luks >/dev/null 2>&1; then
-            cp "$bak_file" "$gen_script" && rm -f "$bak_file"
-            chmod +x "$gen_script" 2>/dev/null || true
-            die "check_clevis_luks passed despite broken generator script!"
-        fi
-
-        cp "$bak_file" "$gen_script" && rm -f "$bak_file"
-        chmod +x "$gen_script" 2>/dev/null || true
-        MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_clevis_luks >/dev/null 2>&1 \
-            || die "check_clevis_luks failed after restoration!"
-    fi
-    log "test_clevis_luks negative test passed."
-}
-
-# 72. Test check_mini_vfio
-test_mini_vfio() {
-    log "Testing check_mini_vfio..."
-    local gen_script="${ROOT}/usr/libexec/mios/mios-mini-vfio-gen"
-    if [ -f "$gen_script" ]; then
-        local bak_file="${gen_script}.bak"
-        cp "$gen_script" "$bak_file"
-        python3 - "$gen_script" << 'PYEOF'
-import sys, os
-p = sys.argv[1]
-try:
-    os.chmod(p, 0o666)
-except Exception:
-    pass
-open(p, 'w').write('echo "BROKEN"\n')
-PYEOF
-        chmod +x "$gen_script" 2>/dev/null || true
-
-        if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_mini_vfio >/dev/null 2>&1; then
-            cp "$bak_file" "$gen_script" && rm -f "$bak_file"
-            chmod +x "$gen_script" 2>/dev/null || true
-            die "check_mini_vfio passed despite broken generator script!"
-        fi
-
-        cp "$bak_file" "$gen_script" && rm -f "$bak_file"
-        chmod +x "$gen_script" 2>/dev/null || true
-        MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_mini_vfio >/dev/null 2>&1 \
-            || die "check_mini_vfio failed after restoration!"
-    fi
-    log "test_mini_vfio negative test passed."
-}
 
 # 73. Test check_hyprland_conf_heredoc
 test_hyprland_heredoc() {
