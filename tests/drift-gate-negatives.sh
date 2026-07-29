@@ -275,12 +275,12 @@ test_bake_budget() {
     fi
 
     # Inject violation: add 35 fake sidecar image rows (> 30 threshold)
+    rm -f "$sbom_tsv"
     {
         echo "$orig_val"
         for i in $(seq 1 35); do
             echo "image_${i}	quay.io/mios/fake_${i}:latest	1.0GB"
         done
-    rm -f "$sbom_tsv"
     } > "$sbom_tsv"
 
     if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_bake_budget >/dev/null 2>&1; then
