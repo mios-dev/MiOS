@@ -519,19 +519,16 @@ EOF
 test_nested_podman_retry() {
     log "Testing check_nested_podman_caps..."
     local script="${ROOT}/usr/libexec/mios/57-mios-sys-build.sh"
-    local orig_val
-    orig_val="$(cat "$script")"
-    echo "$orig_val" > "$script"
+    local bak_file="${script}.bak"
+    cp "$script" "$bak_file"
     sed -i 's/build_image_with_retry/build_image_no_retry/g' "$script"
 
     if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_nested_podman_caps >/dev/null 2>&1; then
-        rm -f "$script"
-        echo "$orig_val" > "$script"
+        cp "$bak_file" "$script" && rm -f "$bak_file"
         die "check_nested_podman_caps passed despite missing build_image_with_retry!"
     fi
 
-    rm -f "$script"
-    echo "$orig_val" > "$script"
+    cp "$bak_file" "$script" && rm -f "$bak_file"
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_nested_podman_caps >/dev/null 2>&1 \
         || die "check_nested_podman_caps failed after restoration!"
     log "test_nested_podman_retry negative test passed."
@@ -541,20 +538,17 @@ test_nested_podman_retry() {
 test_gate_registry() {
     log "Testing check_gate_registry..."
     local script="${ROOT}/automation/98-drift-checks.sh"
-    local orig_val
-    orig_val="$(cat "$script")"
-    echo "$orig_val" > "$script"
+    local bak_file="${script}.bak"
+    cp "$script" "$bak_file"
 
     sed -i '/check_dead_lane() {/i check_dead_lane() { return 0; }\n' "$script"
 
     if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "$script" check_gate_registry >/dev/null 2>&1; then
-        rm -f "$script"
-        echo "$orig_val" > "$script"
+        cp "$bak_file" "$script" && rm -f "$bak_file"
         die "check_gate_registry passed despite duplicate check_dead_lane definition!"
     fi
 
-    rm -f "$script"
-    echo "$orig_val" > "$script"
+    cp "$bak_file" "$script" && rm -f "$bak_file"
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "$script" check_gate_registry >/dev/null 2>&1 \
         || die "check_gate_registry failed after restoration!"
     log "test_gate_registry negative test passed."
