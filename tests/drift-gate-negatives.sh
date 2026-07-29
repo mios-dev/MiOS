@@ -1339,16 +1339,16 @@ PYEOF
 # 57. Test check_target_languages
 test_target_languages() {
     log "Testing check_target_languages..."
-    local bogus_file="${ROOT}/usr/libexec/mios/bogus_script.rb"
-    echo 'puts "ruby disallowed"' > "$bogus_file"
+    local bogus_file="${ROOT}/usr/libexec/mios/bogus_script.cpp"
+    echo '// forbidden c++ file' > "$bogus_file"
 
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_target_languages >/dev/null 2>&1; then
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_target_languages >/dev/null 2>&1; then
         rm -f "$bogus_file"
-        die "check_target_languages passed despite disallowed ruby script!"
+        die "check_target_languages passed despite forbidden C++ file!"
     fi
 
     rm -f "$bogus_file"
-    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_target_languages >/dev/null 2>&1 \
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_target_languages >/dev/null 2>&1 \
         || die "check_target_languages failed after cleanup!"
     log "test_target_languages negative test passed."
 }

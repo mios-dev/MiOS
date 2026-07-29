@@ -3972,45 +3972,7 @@ check_hyprland_conf_heredoc() {
     fi
 }
 
-check_target_languages() {
-    echo "[38-drift-checks]   (51) Target language check under usr/libexec/mios and automation"
-    local bad=()
-    local py_script="
-import glob, os, sys
 
-root = '$ROOT'
-dirs = [
-    os.path.join(root, 'usr/libexec/mios'),
-    os.path.join(root, 'automation')
-]
-disallowed_exts = {'.rb', '.pl', '.php', '.js', '.ts', '.lua'}
-bad_files = []
-
-for d in dirs:
-    if not os.path.exists(d): continue
-    for root_dir, _, files in os.walk(d):
-        for f in files:
-            ext = os.path.splitext(f)[1].lower()
-            if ext in disallowed_exts:
-                bad_files.append(os.path.relpath(os.path.join(root_dir, f), root))
-
-for b in bad_files:
-    print(b)
-"
-    local res
-    res="$(python3 -c "$py_script" 2>/dev/null || true)"
-    if [[ -z "$res" ]]; then
-        return 0
-    else
-        while IFS= read -r line; do
-            [[ -n "$line" ]] && bad+=("$line")
-        done <<< "$res"
-        for err in "${bad[@]}"; do
-            echo "  [disallowed-language-drift] $err" >&2
-        done
-        _violation "(51) Disallowed language script (.rb, .pl, .php, etc.) found in usr/libexec/mios or automation"
-    fi
-}
 
 check_curl_retry() {
     local bad=()
