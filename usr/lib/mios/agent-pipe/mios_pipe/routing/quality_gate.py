@@ -39,12 +39,15 @@ _DEFAULT_CHECK_JSON = True
 
 
 def _load_quality_config() -> Dict[str, Any]:
-    """Load [agent_pipe.quality] settings from mios_toml resolver if available."""
+    """Load [agent_pipe.quality] settings from mios_db_config resolver if available."""
     try:
-        import mios_toml
-        sec = mios_toml.get("agent_pipe.quality", {})
-        if isinstance(sec, dict):
+        import mios_db_config
+        sec = mios_db_config.section(None, "agent_pipe.quality")
+        if isinstance(sec, dict) and sec:
             return sec
+        sec_get = mios_db_config.get("agent_pipe", "quality", {})
+        if isinstance(sec_get, dict) and sec_get:
+            return sec_get
     except Exception:
         pass
     return {}

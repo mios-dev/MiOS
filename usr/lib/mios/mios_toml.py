@@ -201,3 +201,9 @@ def colors(data=None):
 
     c = section(data if data is not None else load_merged(), "colors")
     return {k: str(c.get(k, v)) for k, v in PALETTE_DEFAULTS.items()}
+
+
+def float_allowlist(data=None):
+    """Resolved float allowlist table from mios.toml [build.float]."""
+    d = data if data is not None else load_vendor()
+    return section(d, "build.float")

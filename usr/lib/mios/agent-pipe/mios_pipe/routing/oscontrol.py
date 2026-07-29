@@ -155,9 +155,8 @@ def _load_oscontrol_endpoints() -> list:
     if _OSCONTROL_ENDPOINTS_CACHE is not None:
         return _OSCONTROL_ENDPOINTS_CACHE
     try:
-        import mios_toml
-        merged = mios_toml.load_merged()
-        sec = mios_toml.section(merged, "os_control")
+        import mios_db_config
+        sec = mios_db_config.section(None, "os_control")
         if not isinstance(sec, dict):
             sec = {}
         cfg: dict = {}
