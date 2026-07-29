@@ -2059,10 +2059,10 @@ elif not os.path.isfile(registry_file):
     violations.append("usr/share/mios/names.generated.txt missing")
 else:
     try:
+        with open(registry_file, "r", encoding="utf-8") as fh:
+            committed_data = fh.read()
         res = subprocess.run([sys.executable, gen_script], capture_output=True, text=True, check=True)
         fresh_data = res.stdout
-        with open(registry_file, "r") as fh:
-            committed_data = fh.read()
         
         # Normalize line endings
         fresh_lines = [l.strip() for l in fresh_data.splitlines() if l.strip()]
