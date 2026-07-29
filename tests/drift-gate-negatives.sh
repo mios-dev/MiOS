@@ -948,21 +948,17 @@ EOF
 test_chpasswd_plaintext() {
     log "Testing mios-hardcode-lint plaintext chpasswd..."
     local autorun_script="${ROOT}/usr/share/mios/ventoy/autorun/01-sysrescue-firstboot.sh"
-    local orig_val
-    orig_val="$(cat "$autorun_script")"
-    rm -f "$autorun_script"
-    echo "$orig_val" > "$autorun_script"
+    local bak_file="${autorun_script}.bak"
+    cp "$autorun_script" "$bak_file"
 
     echo 'echo "root:hardcodedpass" | chpasswd' >> "$autorun_script"
 
     if python3 "${ROOT}/usr/libexec/mios/mios-hardcode-lint" "${ROOT}" >/dev/null 2>&1; then
-        rm -f "$autorun_script"
-        echo "$orig_val" > "$autorun_script"
+        cp "$bak_file" "$autorun_script" && rm -f "$bak_file"
         die "mios-hardcode-lint passed despite plaintext chpasswd injection!"
     fi
 
-    rm -f "$autorun_script"
-    echo "$orig_val" > "$autorun_script"
+    cp "$bak_file" "$autorun_script" && rm -f "$bak_file"
     python3 "${ROOT}/usr/libexec/mios/mios-hardcode-lint" "${ROOT}" >/dev/null 2>&1 \
         || die "mios-hardcode-lint failed after restoration!"
     log "test_chpasswd_plaintext negative test passed."
