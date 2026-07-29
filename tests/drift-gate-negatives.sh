@@ -306,13 +306,11 @@ test_module_test_coverage() {
     echo "# Temp untested submodule" > "$temp_submodule"
 
     if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_module_test_coverage >/dev/null 2>&1; then
-        rm -f "$temp_submodule"
-        rm -rf "${ROOT}/usr/lib/mios/agent-pipe/mios_pipe/identity/__pycache__"
+        rm -f "$temp_submodule"* "${ROOT}/usr/lib/mios/agent-pipe/mios_pipe/identity/__pycache__/temp_untested_mod"* 2>/dev/null || true
         die "check_module_test_coverage passed despite missing submodule sibling test!"
     fi
 
-    rm -f "$temp_submodule"
-    rm -rf "${ROOT}/usr/lib/mios/agent-pipe/mios_pipe/identity/__pycache__"
+    rm -f "$temp_submodule"* "${ROOT}/usr/lib/mios/agent-pipe/mios_pipe/identity/__pycache__/temp_untested_mod"* 2>/dev/null || true
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_module_test_coverage >/dev/null 2>&1 \
         || die "check_module_test_coverage failed after restoration!"
     log "check_module_test_coverage negative test passed."
@@ -326,13 +324,11 @@ test_router_parity() {
     echo '    if intent == "unmapped_bogus_intent": return True' >> "$temp_mod"
 
     if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_router_parity >/dev/null 2>&1; then
-        rm -f "$temp_mod"
-        rm -rf "${ROOT}/usr/lib/mios/agent-pipe/mios_pipe/routing/__pycache__"
+        rm -f "$temp_mod"* "${ROOT}/usr/lib/mios/agent-pipe/mios_pipe/routing/__pycache__/temp_unmapped_router_branch"* 2>/dev/null || true
         die "check_router_parity passed despite unmapped intent branch in routing code!"
     fi
 
-    rm -f "$temp_mod"
-    rm -rf "${ROOT}/usr/lib/mios/agent-pipe/mios_pipe/routing/__pycache__"
+    rm -f "$temp_mod"* "${ROOT}/usr/lib/mios/agent-pipe/mios_pipe/routing/__pycache__/temp_unmapped_router_branch"* 2>/dev/null || true
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_router_parity >/dev/null 2>&1 \
         || die "check_router_parity failed after restoration!"
     log "check_router_parity negative test passed."
