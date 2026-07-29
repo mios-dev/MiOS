@@ -197,8 +197,6 @@ test_toml_projection() {
     fi
     local orig_val
     orig_val="$(cat "$root_toml")"
-    local bak="${root_toml}.projtest.bak"
-    cp "$root_toml" "$bak"
 
     # Inject drift into a PROJECTED section: mutate a [colors] value so the block no longer
     # matches the canonical SSOT (mios-sync-toml --check must then report drift).
@@ -253,20 +251,16 @@ test_nested_podman_caps() {
     local doc_file="${ROOT}/usr/share/doc/mios/reference/nested-podman-caps.md"
     local orig_val
     orig_val="$(cat "$doc_file")"
-    local bak="${doc_file}.bak"
-    if [[ -f "$doc_file" ]]; then
-        mv "$doc_file" "$bak"
-    fi
+    rm -f "$doc_file"
 
     if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_nested_podman_caps >/dev/null 2>&1; then
-        [[ -f "$bak" ]] && rm -f "$doc_file" && mv "$bak" "$doc_file"
+        rm -f "$doc_file"
+        echo "$orig_val" > "$doc_file"
         die "check_nested_podman_caps passed despite missing reference doc!"
     fi
 
-    if [[ -f "$bak" ]]; then
-        rm -f "$doc_file"
-        echo "$orig_val" > "$doc_file"
-    fi
+    rm -f "$doc_file"
+    echo "$orig_val" > "$doc_file"
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_nested_podman_caps >/dev/null 2>&1 \
         || die "check_nested_podman_caps failed after restoration!"
     log "check_nested_podman_caps negative test passed."
@@ -346,8 +340,6 @@ test_council_gate_ssot() {
     local toml_file="${ROOT}/usr/share/mios/mios.toml"
     local orig_val
     orig_val="$(cat "$toml_file")"
-    local bak="${toml_file}.counciltest.bak"
-    cp "$toml_file" "$bak"
 
     # Temporarily remove a key from [agent_pipe.council]
     python3 - "$toml_file" << 'EOF'
@@ -377,8 +369,6 @@ test_agent_pipe_budgets() {
     local toml_file="${ROOT}/usr/share/mios/mios.toml"
     local orig_val
     orig_val="$(cat "$toml_file")"
-    local bak="${toml_file}.budgettest.bak"
-    cp "$toml_file" "$bak"
 
     # Temporarily remove swarm_max_width key from [dispatch]
     python3 - "$toml_file" << 'EOF'
@@ -408,8 +398,6 @@ test_bake_tokens() {
     local toml_file="${ROOT}/usr/share/mios/mios.toml"
     local orig_val
     orig_val="$(cat "$toml_file")"
-    local bak="${toml_file}.toktest.bak"
-    cp "$toml_file" "$bak"
 
     python3 - "$toml_file" << 'EOF'
 import sys
@@ -505,8 +493,6 @@ test_bake_core_reconcile() {
     local toml_file="${ROOT}/usr/share/mios/mios.toml"
     local orig_val
     orig_val="$(cat "$toml_file")"
-    local bak="${toml_file}.coretest.bak"
-    cp "$toml_file" "$bak"
 
     python3 - "$toml_file" << 'EOF'
 import sys
@@ -535,8 +521,6 @@ test_nested_podman_retry() {
     local script="${ROOT}/usr/libexec/mios/57-mios-sys-build.sh"
     local orig_val
     orig_val="$(cat "$script")"
-    local bak="${script}.retrytest.bak"
-    cp "$script" "$bak"
     sed -i 's/build_image_with_retry/build_image_no_retry/g' "$script"
 
     if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_nested_podman_caps >/dev/null 2>&1; then
@@ -558,8 +542,6 @@ test_gate_registry() {
     local script="${ROOT}/automation/98-drift-checks.sh"
     local orig_val
     orig_val="$(cat "$script")"
-    local bak="${script}.gateregtest.bak"
-    cp "$script" "$bak"
 
     sed -i '/check_dead_lane() {/i check_dead_lane() { return 0; }\n' "$script"
 
@@ -645,8 +627,6 @@ test_lint_is_final() {
     local cf="${ROOT}/Containerfile"
     local orig_val
     orig_val="$(cat "$cf")"
-    local bak="${cf}.linttest.bak"
-    cp "$cf" "$bak"
     sed -i '/RUN bootc container lint/d' "$cf"
 
     if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_lint_is_final >/dev/null 2>&1; then
@@ -731,8 +711,6 @@ test_soft_mode_not_committed() {
     local gha_file="${ROOT}/.github/workflows/mios-ci.yml"
     local orig_val
     orig_val="$(cat "$gha_file")"
-    local bak="${gha_file}.softtest.bak"
-    cp "$gha_file" "$bak"
     echo "MIOS_DRIFT_CHECK_SOFT=1" >> "$gha_file"
 
     if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_soft_mode_not_committed >/dev/null 2>&1; then
@@ -1042,11 +1020,9 @@ test_ipa_enroll_projection() {
     local target_file="${ROOT}/etc/mios/ipa-enroll.env"
     local orig_val
     orig_val="$(cat "$target_file")"
-    local bak="${target_file}.ipabak"
     # $ROOT is a bare git tree, not the overlaid FHS, so this generated target is absent on a
     # fresh checkout -- produce it first with the same generator the main check regenerates from.
     [[ -f "$target_file" ]] || { mkdir -p "$(dirname "$target_file")"; MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-ipa-enroll-env.py" >/dev/null 2>&1 || true; }
-    cp "$target_file" "$bak"
 
     echo 'MIOS_IPA_REALM="MUTATED.REALM"' >> "$target_file"
 
@@ -1069,11 +1045,9 @@ test_uki_cmdline_projection() {
     local target_file="${ROOT}/usr/lib/kernel/cmdline"
     local orig_val
     orig_val="$(cat "$target_file")"
-    local bak="${target_file}.ukibak"
     # $ROOT is a bare git tree, not the overlaid FHS, so this generated target is absent on a
     # fresh checkout -- produce it first with the same generator the main check regenerates from.
     [[ -f "$target_file" ]] || { mkdir -p "$(dirname "$target_file")"; MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-uki-cmdline.py" >/dev/null 2>&1 || true; }
-    cp "$target_file" "$bak"
 
     echo 'mutated_bogus_karg=1' >> "$target_file"
 
@@ -1121,11 +1095,9 @@ test_cockpit_projection() {
     local target_file="${ROOT}/etc/cockpit/cockpit.conf"
     local orig_val
     orig_val="$(cat "$target_file")"
-    local bak="${target_file}.cockbak"
     # $ROOT is a bare git tree, not the overlaid FHS, so this generated target is absent on a
     # fresh checkout -- produce it first with the same generator the main check regenerates from.
     [[ -f "$target_file" ]] || { mkdir -p "$(dirname "$target_file")"; MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-cockpit-conf.py" >/dev/null 2>&1 || true; }
-    cp "$target_file" "$bak"
 
     echo 'AllowUnencrypted = false' >> "$target_file"
 
