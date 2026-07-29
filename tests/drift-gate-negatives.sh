@@ -191,12 +191,12 @@ EOF
 test_toml_projection() {
     log "Testing check_toml_projection..."
     local root_toml="${ROOT}/mios.toml"
-    local orig_val
-    orig_val="$(cat "$root_toml")"
     if [[ ! -f "$root_toml" ]]; then
         log "root mios.toml absent -- skipping check_toml_projection negative test."
         return 0
     fi
+    local orig_val
+    orig_val="$(cat "$root_toml")"
     local bak="${root_toml}.projtest.bak"
     cp "$root_toml" "$bak"
 
