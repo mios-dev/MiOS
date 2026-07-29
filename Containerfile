@@ -22,7 +22,10 @@ COPY tools/                /ctx/tools/
 # agent loses its /MiOS.md identity+grounding contract. Bake the real files (WS-C
 # 2026-06-15; baking is safe on BOTH image-only and git-worktree-at-/ deploys --
 # unlike a tmpfiles `L+` symlink, which would clobber the tracked file in a worktree).
-COPY MiOS.md AGENTS.md CLAUDE.md GEMINI.md /ctx/rootmd/
+COPY MiOS.md               /ctx/rootmd/MiOS.md
+COPY AGENTS.md             /ctx/rootmd/AGENTS.md
+COPY CLAUDE.md             /ctx/rootmd/CLAUDE.md
+COPY GEMINI.md             /ctx/rootmd/GEMINI.md
 
 # repo = ROOT = git tree -- THAT is MiOS. The MiOS root deploys AS a git work
 # tree (the Phase-1 Total Root Merge), so .git is a first-class part of the build
@@ -83,8 +86,10 @@ RUN --mount=type=bind,from=ctx,source=/ctx,target=/ctx,ro \
     fi; \
     # WS-C: bake the repo-root agent MD files to / so a clean image is grounded
     # (agent-pipe reads /MiOS.md; the layered /etc + ~/.config overrides still win).
-    cp -f /ctx/rootmd/MiOS.md /ctx/rootmd/AGENTS.md /ctx/rootmd/CLAUDE.md /ctx/rootmd/GEMINI.md /; \
-    chmod 0644 /MiOS.md /AGENTS.md /CLAUDE.md /GEMINI.md; \
+    if [ -d /ctx/rootmd ]; then \
+        cp -f /ctx/rootmd/*.md / 2>/dev/null || true; \
+        chmod 0644 /MiOS.md /AGENTS.md /CLAUDE.md /GEMINI.md 2>/dev/null || true; \
+    fi; \
     # Defensive CRLF -> LF normalization. .gitattributes already pins
     # *.sh / *.toml / *.conf / *.yaml / *.json / *.md to LF, but Windows
     # build hosts (OneDrive sync in particular) bypass git's filter and
