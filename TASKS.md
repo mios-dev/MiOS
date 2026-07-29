@@ -4381,10 +4381,10 @@ T-094 (CONV-01 SSOT)
 - [ ] `miosd` bakes in a cached stage and is invoked by unchanged thin RUNs; the first ported tool runs byte-identical to the bash it replaces (side-by-side diff clean), then the bash is deleted; the resolver twin is one crate with pyo3 + `--shell` faces and `check_userenv_parity` is retired.
 
 ## T-273: DEBT-03 -- Split `mios_dispatch.py` + finish the server.py decomposition (TD-5)  [P2]
-> **Priority:** P2 | **Status:** planned | **Effort:** M | **Domain:** AI-Plane/Refactor | **Who:** AI-plane agent | **Source:** WS-DEBT / ADR-0011; combined tech-debt map §1 (TD-5)
+> **Priority:** P2 | **Status:** done-by-code | **Effort:** M | **Domain:** AI-Plane/Refactor | **Who:** AI-plane agent | **Source:** WS-DEBT / ADR-0011; combined tech-debt map §1 (TD-5)
 **Instructions (WHAT + HOW):** Finish the half-done AI-plane decomposition. `server.py` is an **8,961-ln** god-module (VRAM scheduler + `_db_*` + auth middleware + agent streaming intermixed); the `mios_pipe/` refactor (103 files, 100% hint-tagged) never reached the 4 largest flat modules — including **`mios_dispatch.py`, the security-critical verb→bash chokepoint every verb passes through**. Extract `mios_dispatch.py` FIRST into `mios_pipe/`, then continue extracting the flat modules; replace the **9 bare `except:`** (of 558 `except Exception`); add a new drift-check "no Python file > 800 lines". Relocation ≠ decomposition — also split the 3 relocated 88–107 KB monoliths (`routing/chat.py`, `native_loop.py`, `federation/a2a.py`) where feasible. Python stays (Law 6, ML ecosystem) — the debt is the monolith, not the language.
 **Where (files):** `usr/lib/mios/agent-pipe/server.py`, `usr/lib/mios/agent-pipe/mios_dispatch.py`, `usr/lib/mios/agent-pipe/mios_pipe/**` (incl. `routing/chat.py`, `native_loop.py`, `federation/a2a.py`), `automation/38-drift-checks.sh` (>800-line gate)
 **When (deps/order):** Independent track (Python, pure refactor); `check_unwired_modules` confirms each extraction is live. No hard dep.
 **Done When:**
-- [ ] `mios_dispatch.py` is extracted and live (`check_unwired_modules` green); `server.py` shrinks toward a <800-line composition root; no bare `except:` remains; the >800-line Python gate is green.
+- [x] `mios_dispatch.py` is extracted and live (`check_unwired_modules` green); `server.py` shrinks toward a <800-line composition root; no bare `except:` remains; the >800-line Python gate is green.
 
