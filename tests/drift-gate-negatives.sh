@@ -1640,15 +1640,18 @@ test_clevis_luks() {
     if [ -f "$gen_script" ]; then
         local bak_file="${gen_script}.bak"
         cp "$gen_script" "$bak_file"
+        chmod 666 "$gen_script" 2>/dev/null || true
         python3 -c "import sys; open(sys.argv[1], 'w').write('echo \"BROKEN\"\n')" "$gen_script"
         chmod +x "$gen_script" 2>/dev/null || true
 
         if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_clevis_luks >/dev/null 2>&1; then
+            chmod 666 "$gen_script" 2>/dev/null || true
             cp "$bak_file" "$gen_script" && rm -f "$bak_file"
             chmod +x "$gen_script" 2>/dev/null || true
             die "check_clevis_luks passed despite broken generator script!"
         fi
 
+        chmod 666 "$gen_script" 2>/dev/null || true
         cp "$bak_file" "$gen_script" && rm -f "$bak_file"
         chmod +x "$gen_script" 2>/dev/null || true
         MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_clevis_luks >/dev/null 2>&1 \
@@ -1664,15 +1667,18 @@ test_mini_vfio() {
     if [ -f "$gen_script" ]; then
         local bak_file="${gen_script}.bak"
         cp "$gen_script" "$bak_file"
+        chmod 666 "$gen_script" 2>/dev/null || true
         python3 -c "import sys; open(sys.argv[1], 'w').write('echo \"BROKEN\"\n')" "$gen_script"
         chmod +x "$gen_script" 2>/dev/null || true
 
         if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_mini_vfio >/dev/null 2>&1; then
+            chmod 666 "$gen_script" 2>/dev/null || true
             cp "$bak_file" "$gen_script" && rm -f "$bak_file"
             chmod +x "$gen_script" 2>/dev/null || true
             die "check_mini_vfio passed despite broken generator script!"
         fi
 
+        chmod 666 "$gen_script" 2>/dev/null || true
         cp "$bak_file" "$gen_script" && rm -f "$bak_file"
         chmod +x "$gen_script" 2>/dev/null || true
         MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_mini_vfio >/dev/null 2>&1 \
