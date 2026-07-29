@@ -2,9 +2,4 @@
 resolver = "2"
 members = [
     "mios-version-check",
-    "mios-ssot-lint",
 ]
-
-[workspace.package]
-version = "0.3.0"
-edition = "2021"
