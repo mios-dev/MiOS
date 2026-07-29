@@ -1556,14 +1556,14 @@ test_bake_plan() {
     if [ -f "$plan_file" ]; then
         local orig_val
         orig_val="$(cat "$plan_file")"
-        printf '%s\n%s\n' "$orig_val" "docker.io/library/bogus-image-never-exists:latest" > "$plan_file"
+        python3 -c "import sys; open(sys.argv[1], 'w').write(sys.argv[2] + '\ndocker.io/library/bogus-image-never-exists:latest\n')" "$plan_file" "$orig_val"
 
         if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_bake_plan >/dev/null 2>&1; then
-            echo "$orig_val" > "$plan_file"
+            python3 -c "import sys; open(sys.argv[1], 'w').write(sys.argv[2])" "$plan_file" "$orig_val"
             die "check_bake_plan passed despite stale/invalid bake plan!"
         fi
 
-        echo "$orig_val" > "$plan_file"
+        python3 -c "import sys; open(sys.argv[1], 'w').write(sys.argv[2])" "$plan_file" "$orig_val"
         MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_bake_plan >/dev/null 2>&1 \
             || die "check_bake_plan failed after restoration!"
     fi
