@@ -132,19 +132,19 @@ test_names_registry() {
     local reg_file="${ROOT}/usr/share/mios/names.generated.txt"
     [[ -f "$reg_file" ]] || python3 "$ROOT/tools/generate-names-registry.py" >/dev/null 2>&1 || true
     local bak_file="${reg_file}.bak"
-    cp "$reg_file" "$bak_file"
+    cp "$reg_file" "$bak_file" 2>/dev/null || true
 
     # Inject violation: add a dummy fake entry to names.generated.txt
     echo "fake_drip.key MIOS_FAKE_TEST_VARIABLE_DRIP" >> "$reg_file"
 
     if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_names_registry >/dev/null 2>&1; then
-        cp "$bak_file" "$reg_file" && rm -f "$bak_file"
+        [[ -f "$bak_file" ]] && cp "$bak_file" "$reg_file" && rm -f "$bak_file"
         python3 "$ROOT/tools/generate-names-registry.py" >/dev/null 2>&1 || true
         die "check_names_registry passed despite stale names.generated.txt!"
     fi
 
     # Restore and verify green
-    cp "$bak_file" "$reg_file" && rm -f "$bak_file"
+    [[ -f "$bak_file" ]] && cp "$bak_file" "$reg_file" && rm -f "$bak_file"
     python3 "$ROOT/tools/generate-names-registry.py" >/dev/null 2>&1 || true
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_names_registry >/dev/null 2>&1 \
         || die "check_names_registry failed after restoration!"
