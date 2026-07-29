@@ -446,21 +446,19 @@ EOF
 test_firstboot_tier() {
     log "Testing check_firstboot_tier..."
     local fb_list="${ROOT}/usr/lib/mios/bake/plan.d/firstboot.list"
-    local orig_val
-    orig_val="$(cat "$fb_list")"
-    echo "$orig_val" > "$fb_list"
+    local bak_file="${fb_list}.bak"
+    cp "$fb_list" "$bak_file"
 
-    rm -f "$fb_list"
-    printf '%s\n%s\n' "$orig_val" "docker.io/unmatched/bogus-image:latest" > "$fb_list"
+    echo "docker.io/unmatched/bogus-image:latest" >> "$fb_list"
 
     if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_firstboot_tier >/dev/null 2>&1; then
-        rm -f "$fb_list"
-        echo "$orig_val" > "$fb_list"
+        cp "$bak_file" "$fb_list" && rm -f "$bak_file"
+        python3 "$ROOT/tools/generate-bake-plan.py" >/dev/null 2>&1 || true
         die "check_firstboot_tier passed despite unmatched firstboot.list entry!"
     fi
 
-    rm -f "$fb_list"
-    echo "$orig_val" > "$fb_list"
+    cp "$bak_file" "$fb_list" && rm -f "$bak_file"
+    python3 "$ROOT/tools/generate-bake-plan.py" >/dev/null 2>&1 || true
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_firstboot_tier >/dev/null 2>&1 \
         || die "check_firstboot_tier failed after restoration!"
     log "check_firstboot_tier negative test passed."
