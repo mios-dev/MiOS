@@ -12,3 +12,5 @@ docker.io/pgvector/pgvector:0.8.3-pg17
 quay.io/poseidon/matchbox:latest
 docker.io/searxng/searxng:latest
 docker.io/valkey/valkey:latest
+localhost/mios-crawl4ai-slim:latest
+localhost/mios-firecrawl:v1.0.0

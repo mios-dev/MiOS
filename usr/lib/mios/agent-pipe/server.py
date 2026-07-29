@@ -2064,6 +2064,9 @@ from mios_pipe.dbwrite import (
     _db_write,
     configure as _configure_dbwrite,
 )
+from mios_pipe.observability.session_events import (
+    configure as _configure_session_events,
+)
 
 _configure_dbwrite(
     pg_enabled=globals().get("_PG_ENABLED", True),

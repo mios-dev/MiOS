@@ -262,7 +262,9 @@ def get_aliases(dotted_path):
             aliases.append("MIOS_OPENCODE_TIMEOUT_S")
         elif suffix.startswith("OPENCODE_"):
             aliases.append(f"MIOS_{suffix}")
-        elif suffix in {"ENDPOINT", "MODEL", "SYSTEM_PROMPT_FILE", "TOKENIZER_BACKEND", 
+        elif suffix in {"ENDPOINT", "MODEL"}:
+            aliases.extend([f"MIOS_AI_{suffix}", f"MIOS_{suffix}"])
+        elif suffix in {"SYSTEM_PROMPT_FILE", "TOKENIZER_BACKEND", 
                         "TOKENIZER_ENCODING", "TOKENIZER_CACHE_DIR", "TOKENIZER_PATH", 
                         "HERMES_AGENT_REPO", "HERMES_AGENT_REF", "HERMES_BACKEND_URL", 
                         "MCP_REGISTRY"}:

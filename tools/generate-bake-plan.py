@@ -121,6 +121,14 @@ def main(argv):
         if is_core or enabled_map.get(base_name) is not False:
             images_to_bake.append((resolved_img, base_name))
             
+    # Inject any localhost/ images defined in [build.bake].core
+    # so they get grouped and emitted to plan.d lists.
+    # Must use sorted() for deterministic output to avoid drift check failures.
+    for core_img in sorted(core):
+        if core_img.startswith("localhost/"):
+            if not any(img == core_img for img, _ in images_to_bake):
+                images_to_bake.append((core_img, "core-localhost"))
+
     # Group the images. Firstboot-tier images are NOT baked -> excluded from every
     # group list (they stay in images_to_bake for the SBOM); collect them for
     # plan.d/firstboot.list so mios-ai-firstboot / the USB stager can pull them.
