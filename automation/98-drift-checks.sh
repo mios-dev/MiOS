@@ -4123,12 +4123,14 @@ check_clevis_luks() {
         chmod +x "$gen" 2>/dev/null || true
     fi
     if [[ -f "$gen" ]]; then
-        local out; out="$("$gen" "$ROOT/usr/share/mios/mios.toml" 2>&1)"
+        local out; out="$("$gen" "${MIOS_TOML_ROOT:-$ROOT}/usr/share/mios/mios.toml" 2>&1 || true)"
         if [[ "$out" == *"CLEVIS_LUKS_ENABLED="* ]]; then
             return 0
         else
-            _fail "(67) clevis LUKS generator failed to project SSOT configuration"
+            _violation "(67) clevis LUKS generator failed to project SSOT configuration"
         fi
+    else
+        _violation "(67) clevis LUKS generator script missing"
     fi
 }
 
@@ -4139,12 +4141,14 @@ check_mini_vfio() {
         chmod +x "$gen" 2>/dev/null || true
     fi
     if [[ -f "$gen" ]]; then
-        local out; out="$("$gen" "$ROOT/usr/share/mios/mios.toml" 2>&1)"
+        local out; out="$("$gen" "${MIOS_TOML_ROOT:-$ROOT}/usr/share/mios/mios.toml" 2>&1 || true)"
         if [[ "$out" == *"MIOS_MINI_ENABLED="* ]]; then
             return 0
         else
-            _fail "(68) MiOS-Mini vfio generator failed to project SSOT configuration"
+            _violation "(68) MiOS-Mini vfio generator failed to project SSOT configuration"
         fi
+    else
+        _violation "(68) MiOS-Mini vfio generator script missing"
     fi
 }
 
