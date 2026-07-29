@@ -404,8 +404,8 @@ EOF
 test_bake_tokens() {
     log "Testing check_bake_plan with bogus firstboot token..."
     local toml_file="${ROOT}/usr/share/mios/mios.toml"
-    local orig_val
-    orig_val="$(cat "$toml_file")"
+    local bak_file="${toml_file}.bak"
+    cp "$toml_file" "$bak_file"
 
     python3 - "$toml_file" << 'EOF'
 import sys
@@ -416,12 +416,12 @@ open(p, "w", encoding="utf-8").write(new)
 EOF
 
     if MIOS_ROOT="$ROOT" python3 "${ROOT}/tools/generate-bake-plan.py" --check >/dev/null 2>&1; then
-        python3 -c "import sys; open(sys.argv[1], 'w').write(sys.argv[2])" "$toml_file" "$orig_val"
+        cp "$bak_file" "$toml_file" && rm -f "$bak_file"
         MIOS_ROOT="$ROOT" python3 "${ROOT}/tools/generate-bake-plan.py" >/dev/null 2>&1 || true
         die "generate-bake-plan.py --check passed despite bogus unmatched firstboot token!"
     fi
 
-    python3 -c "import sys; open(sys.argv[1], 'w').write(sys.argv[2])" "$toml_file" "$orig_val"
+    cp "$bak_file" "$toml_file" && rm -f "$bak_file"
     MIOS_ROOT="$ROOT" python3 "${ROOT}/tools/generate-bake-plan.py" >/dev/null 2>&1 || true
     MIOS_ROOT="$ROOT" python3 "${ROOT}/tools/generate-bake-plan.py" --check >/dev/null 2>&1 \
         || die "generate-bake-plan.py --check failed after restoration!"
@@ -499,8 +499,8 @@ test_rechunk_budget() {
 test_bake_core_reconcile() {
     log "Testing core bake reconciliation..."
     local toml_file="${ROOT}/usr/share/mios/mios.toml"
-    local orig_val
-    orig_val="$(cat "$toml_file")"
+    local bak_file="${toml_file}.bak"
+    cp "$toml_file" "$bak_file"
 
     python3 - "$toml_file" << 'EOF'
 import sys
@@ -511,12 +511,12 @@ open(p, "w", encoding="utf-8").write(new)
 EOF
 
     if MIOS_ROOT="$ROOT" python3 "${ROOT}/tools/generate-bake-plan.py" --check >/dev/null 2>&1; then
-        python3 -c "import sys; open(sys.argv[1], 'w').write(sys.argv[2])" "$toml_file" "$orig_val"
+        cp "$bak_file" "$toml_file" && rm -f "$bak_file"
         MIOS_ROOT="$ROOT" python3 "${ROOT}/tools/generate-bake-plan.py" >/dev/null 2>&1 || true
         die "generate-bake-plan.py --check passed despite phantom ref added to core!"
     fi
 
-    python3 -c "import sys; open(sys.argv[1], 'w').write(sys.argv[2])" "$toml_file" "$orig_val"
+    cp "$bak_file" "$toml_file" && rm -f "$bak_file"
     MIOS_ROOT="$ROOT" python3 "${ROOT}/tools/generate-bake-plan.py" >/dev/null 2>&1 || true
     MIOS_ROOT="$ROOT" python3 "${ROOT}/tools/generate-bake-plan.py" --check >/dev/null 2>&1 \
         || die "generate-bake-plan.py --check failed after restoration!"
@@ -1552,16 +1552,18 @@ test_bake_plan() {
     log "Testing check_bake_plan..."
     local plan_file="${ROOT}/usr/lib/mios/bake/plan.d/03-extra.list"
     if [ -f "$plan_file" ]; then
-        local orig_val
-        orig_val="$(cat "$plan_file")"
-        python3 -c "import sys; open(sys.argv[1], 'w').write(sys.argv[2] + '\ndocker.io/library/bogus-image-never-exists:latest\n')" "$plan_file" "$orig_val"
+        local bak_file="${plan_file}.bak"
+        cp "$plan_file" "$bak_file"
+        echo "docker.io/library/bogus-image-never-exists:latest" >> "$plan_file"
 
         if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_bake_plan >/dev/null 2>&1; then
-            python3 -c "import sys; open(sys.argv[1], 'w').write(sys.argv[2])" "$plan_file" "$orig_val"
+            cp "$bak_file" "$plan_file" && rm -f "$bak_file"
+            MIOS_ROOT="$ROOT" python3 "${ROOT}/tools/generate-bake-plan.py" >/dev/null 2>&1 || true
             die "check_bake_plan passed despite stale/invalid bake plan!"
         fi
 
-        python3 -c "import sys; open(sys.argv[1], 'w').write(sys.argv[2])" "$plan_file" "$orig_val"
+        cp "$bak_file" "$plan_file" && rm -f "$bak_file"
+        MIOS_ROOT="$ROOT" python3 "${ROOT}/tools/generate-bake-plan.py" >/dev/null 2>&1 || true
         MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_bake_plan >/dev/null 2>&1 \
             || die "check_bake_plan failed after restoration!"
     fi
