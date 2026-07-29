@@ -141,12 +141,14 @@ test_names_registry_closure() {
     echo "$drip_var" >> "$ref_file"
 
     if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_names_registry >/dev/null 2>&1; then
-        echo "$orig_val" > "$ref_file"
+        rm -f "$ref_file"
+        printf '%s\n' "$orig_val" > "$ref_file"
         die "check_names_registry passed despite stale referenced_names.txt!"
     fi
 
     # Restore and verify green
-    echo "$orig_val" > "$ref_file"
+    rm -f "$ref_file"
+    printf '%s\n' "$orig_val" > "$ref_file"
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_names_registry >/dev/null 2>&1 \
         || die "check_names_registry failed after restoration!"
     log "check_names_registry negative test passed."
