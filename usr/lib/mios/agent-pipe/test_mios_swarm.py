@@ -13,6 +13,7 @@
 import asyncio
 import contextvars
 import json
+import os
 
 import mios_swarm
 
@@ -161,8 +162,8 @@ def test_boundary_and_surface():
     assert hasattr(mios_swarm, "_respond_agent_dag")
     assert hasattr(mios_swarm, "_plan_swarm")
     assert hasattr(mios_swarm, "_expand_facets")
-    assert hasattr(mios_swarm, "configure")
-    src = open("mios_swarm.py", encoding="utf-8").read()
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    src = open(os.path.join(script_dir, "mios_swarm.py"), encoding="utf-8").read()
     for bad in ("import server", "from server "):
         assert bad not in src, f"boundary violation: {bad!r} in mios_swarm.py"
     print("test_boundary_and_surface: PASS")

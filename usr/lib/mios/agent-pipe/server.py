@@ -2066,12 +2066,12 @@ from mios_pipe.dbwrite import (
 )
 
 _configure_dbwrite(
-    pg_enabled=_PG_ENABLED,
-    pg_primary=_PG_PRIMARY,
-    current_trace_id=_current_trace_id,
-    span_id_var=_span_id_var,
-    passport_sign=_passport_sign,
-    db_post=_db_post,
+    pg_enabled=globals().get("_PG_ENABLED", True),
+    pg_primary=globals().get("_PG_PRIMARY", False),
+    current_trace_id=globals().get("_current_trace_id"),
+    span_id_var=globals().get("_span_id_var"),
+    passport_sign=globals().get("_passport_sign"),
+    db_post=globals().get("_db_post"),
 )
 
 _configure_session_events(

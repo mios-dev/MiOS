@@ -68,6 +68,12 @@ def t_gatekeeper_traversal_blocking():
     if not os.path.isfile(gatekeeper):
         check("gatekeeper-traversal: gatekeeper exists", False, "file not found")
         return
+    if sys.platform == "win32":
+        print("[SKIP] gatekeeper-traversal: bash subshell evaluation skipped on Windows host")
+        return
+    posix_gatekeeper = gatekeeper.replace('\\', '/')
+    if len(posix_gatekeeper) >= 2 and posix_gatekeeper[1] == ':':
+        posix_gatekeeper = '/' + posix_gatekeeper[0].lower() + posix_gatekeeper[2:]
 
     # Test 1: ../../etc/passwd should be blocked
     result = subprocess.run(
@@ -75,7 +81,7 @@ def t_gatekeeper_traversal_blocking():
             source /usr/lib/mios/paths.sh 2>/dev/null || true
             _log() {{ true; }}
             # Source just the _block_traversal function
-            eval "$(sed -n '/_block_traversal()/,/^}}/p' '{gatekeeper}')"
+            eval "$(sed -n '/_block_traversal()/,/^}}/p' '{posix_gatekeeper}')"
             _block_traversal "../../etc/passwd"
             echo $?
         """],
@@ -90,7 +96,7 @@ def t_gatekeeper_traversal_blocking():
         ["bash", "-c", f"""
             source /usr/lib/mios/paths.sh 2>/dev/null || true
             _log() {{ true; }}
-            eval "$(sed -n '/_block_traversal()/,/^}}/p' '{gatekeeper}')"
+            eval "$(sed -n '/_block_traversal()/,/^}}/p' '{posix_gatekeeper}')"
             _block_traversal "/var/lib/mios/ai/data.json"
             echo $?
         """],
@@ -105,7 +111,7 @@ def t_gatekeeper_traversal_blocking():
         ["bash", "-c", f"""
             source /usr/lib/mios/paths.sh 2>/dev/null || true
             _log() {{ true; }}
-            eval "$(sed -n '/_block_traversal()/,/^}}/p' '{gatekeeper}')"
+            eval "$(sed -n '/_block_traversal()/,/^}}/p' '{posix_gatekeeper}')"
             _block_traversal "/etc/shadow"
             echo $?
         """],
@@ -121,6 +127,9 @@ def t_gatekeeper_write_path_validation():
     gatekeeper = _gatekeeper_path()
     if not os.path.isfile(gatekeeper):
         check("gatekeeper-write-path: gatekeeper exists", False, "file not found")
+        return
+    if sys.platform == "win32":
+        print("[SKIP] gatekeeper-write-path: bash subshell evaluation skipped on Windows host")
         return
 
     # Test 1: /tmp/mios-mcp/foo should be allowed
