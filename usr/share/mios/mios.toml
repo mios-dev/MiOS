@@ -6902,6 +6902,7 @@ pkgs = [
     "GitHub.cli",                    # gh
     "aristocratos.btop4win",         # btop (Windows port)
     "fastfetch-cli.fastfetch",       # fastfetch
+    "Anchore.Syft",                  # syft (CycloneDX / SPDX SBOM generator)
 ]
 
 # Post-install PATH verification probes -- the binaries build-mios.ps1's
@@ -6920,7 +6921,8 @@ verify_probes = [
     "bat",
     "fd",
     "pwsh",
-    "oh-my-posh"
+    "oh-my-posh",
+    "syft"
 ]
 
 # ─── Browser AI: Zen Twilight wired to the MiOS OWUI pipeline ─────────────────
@@ -7082,7 +7084,9 @@ pkgs = [
 
 [packages.sbom-tools]
 enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
-pkgs = []
+pkgs = [
+    "syft",
+]
 
 [packages.k3s-selinux-build]
 enable = true   # default ON; toggle via /configurator.html (configurator.packages.<section>.enable)
