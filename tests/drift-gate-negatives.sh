@@ -1636,7 +1636,7 @@ test_clevis_luks() {
     if [ -f "$gen_script" ]; then
         local bak_file="${gen_script}.bak"
         cp "$gen_script" "$bak_file"
-        echo 'echo "BROKEN"' > "$gen_script"
+        python3 -c "import sys; open(sys.argv[1], 'w').write('echo \"BROKEN\"\n')" "$gen_script"
         chmod +x "$gen_script" 2>/dev/null || true
 
         if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_clevis_luks >/dev/null 2>&1; then
@@ -1660,7 +1660,7 @@ test_mini_vfio() {
     if [ -f "$gen_script" ]; then
         local bak_file="${gen_script}.bak"
         cp "$gen_script" "$bak_file"
-        echo 'echo "BROKEN"' > "$gen_script"
+        python3 -c "import sys; open(sys.argv[1], 'w').write('echo \"BROKEN\"\n')" "$gen_script"
         chmod +x "$gen_script" 2>/dev/null || true
 
         if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_mini_vfio >/dev/null 2>&1; then
@@ -1799,17 +1799,17 @@ test_smoke_manifest() {
     log "Testing check_smoke_manifest..."
     local toml="${ROOT}/usr/share/mios/mios.toml"
     if [ -f "$toml" ]; then
-        local orig_val
-        orig_val="$(cat "$toml")"
-        printf '%s\n%s\n' "$orig_val" '[testing.smoke_components]' > "$toml"
+        local bak_file="${toml}.bak"
+        cp "$toml" "$bak_file"
+        echo '[testing.smoke_components]' >> "$toml"
         echo 'shims = ["nonexistent/path/to/shim"]' >> "$toml"
 
         if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_smoke_manifest >/dev/null 2>&1; then
-            echo "$orig_val" > "$toml"
+            cp "$bak_file" "$toml" && rm -f "$bak_file"
             die "check_smoke_manifest passed despite nonexistent shim path!"
         fi
 
-        echo "$orig_val" > "$toml"
+        cp "$bak_file" "$toml" && rm -f "$bak_file"
         MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_smoke_manifest >/dev/null 2>&1 \
             || die "check_smoke_manifest failed after restoration!"
     fi
