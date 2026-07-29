@@ -1716,7 +1716,7 @@ main() {
     test_target_languages
     test_roadmap_index
     test_templates_compilation
-    test_impossible_eol_regressions
+    test_impossible_eol
     test_smoke_manifest
     test_negative_coverage
     test_verb_templates
