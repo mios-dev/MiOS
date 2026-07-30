@@ -4632,7 +4632,33 @@ main_calls = []
 
 for line in lines:
     line_clean = line.split("#")[0].strip()
-    if line_clean == "main() {":
+    if line_clean == "
+# (WS-3) Extracted agent-pipe module size limit. Monolith fragmentation requires
+# small, cohesive modules. Any file in agent-pipe/mios_pipe exceeding 800 lines
+# is rejected at the gate.
+check_module_length() {
+    local dir="$ROOT/usr/lib/mios/agent-pipe/mios_pipe"
+    if [[ ! -d "$dir" ]]; then
+        return 0
+    fi
+    local hits="" f lines
+    while IFS= read -r f; do
+        [[ -f "$f" ]] || continue
+        lines=$(wc -l < "$f")
+        if [[ "$lines" -gt 800 ]]; then
+            hits+="    ${f#$ROOT/} ($lines lines)\n"
+        fi
+    done < <(find "$dir" -type f -name '*.py' 2>/dev/null)
+    if [[ -n "$hits" ]]; then
+        printf '%b' "$hits" >&2
+        _violation "mios_pipe module exceeds 800-line limit. The monolith extraction demands small, cohesive sibling modules."
+    else
+        echo "[38-drift-checks]   mios_pipe sibling modules are all <= 800 lines (modular cohesion intact)"
+    fi
+}
+
+main() {
+":
         in_main = True
         continue
     if in_main and line_clean.startswith("echo \"[38-drift-checks] ----------"):
@@ -6128,7 +6154,7 @@ main() {
     check_usr_over_etc
     check_projection_registry
     check_db_seed_coverage
-    check_account_column_parity
+    check_account_column_parity\n    check_module_length
 
     echo "[38-drift-checks] ---------------------------------------------------------"
     if [[ "$VIOLATIONS" -eq 0 ]]; then

@@ -1182,209 +1182,50 @@ mios_slo.configure(
 )
 
 
-class _SloShed(Exception):
-    """Raised by _admit to SHED a best_effort dispatch under contention (WS-SCHED-
-    SLO). Caught at the fan-out call sites -> the node drops from the merge (the
-    swarm already tolerates a dead/empty node); never raised for interactive."""
+from mios_pipe.vram_scheduler import (
+    _SloShed,
+    _parse_lane_priority,
+    _lane_sem,
+    _endpoint_key,
+    _endpoint_sem,
+    _admit,
+    configure as _configure_vram_scheduler,
+    _LANE_SEMS,
+    _ENDPOINT_SEMS,
+    _LANE_PRIORITY,
+    _ACTIVE_MODELS,
+    _ACTIVE_LOCK,
+    _ENDPOINT_RESERVED,
+    _HOST_STATS_CACHE,
+    _RESIDENT_CACHE,
+    _ADMIT_SEQ,
+    NODES_RESEARCH_ONLY,
+    VRAM_RECLAIM_IDLE
+)
 
-
-_HOST_STATS_CACHE = {"t": 0.0, "v": None}
-_RESIDENT_CACHE: dict = {}   # ep -> {"t":ts,"v":[models]}
-_ADMIT_SEQ = 0  # monotonic tie-breaker for priority waits
-
-# ── All-nodes-enabled-by-default + idle reclaim + lane priority (operator
-# "all nodes enabled by default... concurrently dispatched... clear
-# RAM/VRAM for idle agents to be loaded so nothing in the pipeline is idle until
-# the final synthesis"). AIOS-correct layering (research): ELIGIBILITY
-# is universal (no node disabled), AVAILABILITY is the health gate, and SAFETY is
-# ADMISSION -- so a wide roster is made safe by (a) admission ON (above), (b) lane
-# PRIORITY so slow/remote lanes self-shed under host pressure, and (c) reclaiming
-# an IDLE model's VRAM to load the one a turn needs instead of only waiting.
-#
-# nodes_research_only: the [nodes.*] pool's default research_only. FALSE here =
-# every node is eligible on EVERY turn (the operator's "enabled by default"),
-# kept safe by admission + COUNCIL_MAX + per-endpoint/lane semaphores + priority.
-# (A node may still override per-entry; set true to restore research-turn-only.)
-NODES_RESEARCH_ONLY = str(os.environ.get("MIOS_NODES_RESEARCH_ONLY")
-                          or _DISPATCH_TOML.get("nodes_research_only", "false")
-                          ).strip().lower() in {"1", "true", "yes"}
-# Proactively evict an IDLE resident model to make VRAM headroom for a cold model
-# a turn needs (vs only waiting it out). The hard semaphores remain the OOM
-# backstop; this just stops idle models from starving an active dispatch.
-VRAM_RECLAIM_IDLE = str(os.environ.get("MIOS_VRAM_RECLAIM_IDLE")
-                        or _DISPATCH_TOML.get("vram_reclaim_idle", "true")
-                        ).strip().lower() not in {"0", "false", "no", "off"}
-
-
-def _parse_lane_priority(s: str) -> dict:
-    """'gpu:8,cpu:7,...' -> {lane: prio}. Always carries a _default."""
-    out = {"_default": 5.0}
-    for part in str(s or "").split(","):
-        k, sep, v = part.partition(":")
-        if sep:
-            try:
-                out[k.strip().lower()] = float(v.strip())
-            except ValueError:
-                pass
-    return out
-
-
-# lane -> dispatch priority (1..9; higher = admitted first / shorter _admit
-# backoff). SSOT [dispatch].lane_priority; fast LOCAL lanes high, slow/remote
-# lanes low so the wide 'all nodes enabled' roster degrades gracefully.
-_LANE_PRIORITY = _parse_lane_priority(
-    os.environ.get("MIOS_LANE_PRIORITY")
-    or _DISPATCH_TOML.get("lane_priority",
-                          "gpu:8,cpu:7,accelerator:6,igpu:3,mobile:2,_default:5"))
-# In-flight model refcount keyed by (endpoint, model). A model with count>0 is
-# ACTIVELY serving a dispatch and must NEVER be evicted out from under it; idle
-# reclaim only frees count==0 residents.
-_ACTIVE_MODELS: "collections.Counter" = collections.Counter()
-_ACTIVE_LOCK = asyncio.Lock()
-# SWARM Phase-1: per-endpoint VRAM RESERVATION (MB). The
-# _admit measured-VRAM read LAGS a sibling that just passed admit but hasn't
-# loaded its weights yet -- so two workers co-admitting onto ONE endpoint in the
-# same turn could both pass then both load -> oversubscribe the 4090. Each
-# in-flight dispatch reserves its declared vram_mb here on _model_active(+1) and
-# releases on -1 (bulletproof: the dispatch finally always runs); _admit adds
-# this to measured-used so co-admitting siblings see each other's pending cost.
-# Estimate-based + degrade-open (errs conservative); the hard lane/endpoint
-# semaphores remain the OOM backstop. Inert until [nodes.*] declare vram_mb.
-_ENDPOINT_RESERVED: dict = {}
-
-
-def _lane_sem(key: str) -> asyncio.Semaphore:
-    """The concurrency gate for ONE hardware lane / engine / node (lazily
-    created -- safe: no await between the check and the set in the single-
-    threaded event loop)."""
-    key = str(key or "gpu").lower().strip() or "gpu"
-    if key not in _LANE_SEMS:
-        # SSOT ("HARDCODES!!!" + cap the shared 4090): per-lane
-        # concurrency from mios.toml [dispatch] -- lane_concurrency_<lane> (env
-        # override MIOS_AGENT_LANE_CONCURRENCY_<LANE>) else lane_concurrency (env
-        # MIOS_AGENT_LANE_CONCURRENCY) else AGENT_CONCURRENCY. The LOCAL gpu/cpu
-        # lanes are capped LOW in [dispatch] so a wide research fan-out doesn't
-        # oversubscribe the single shared 4090 (live test it thrashed).
-        # Custom/remote lanes (potato-gpu, igpu, ...) fall to the general default.
-        _k = key.replace("-", "_")
-        _general = _dispatch_num("MIOS_AGENT_LANE_CONCURRENCY", "lane_concurrency",
-                             AGENT_CONCURRENCY)
-        n = _dispatch_num("MIOS_AGENT_LANE_CONCURRENCY_" + _k.upper(),
-                      "lane_concurrency_" + _k, _general)
-        _LANE_SEMS[key] = asyncio.Semaphore(max(1, n))
-    return _LANE_SEMS[key]
-
-
-def _endpoint_key(ep: str) -> str:
-    """host:port of an endpoint URL -- the identity of the physical inference
- daemon. Strips scheme + path so http://localhost:11434
-    /v1 and http://localhost:11434/api/chat collapse to one key."""
-    s = str(ep or "")
-    s = s.split("://", 1)[-1]          # drop scheme
-    return s.split("/", 1)[0] or s     # keep host:port
-
-
-def _endpoint_sem(ep: str) -> asyncio.Semaphore:
-    """Concurrency gate for ONE inference endpoint (the physical inference backend),
-    so a wide fan-out cannot cold-load N models on the SAME backend at once
- (thundering-herd runaway). Lazily created; SSOT
-    [dispatch].endpoint_concurrency. Lane semaphore still applies on top --
-    this bounds the shared DAEMON, the lane bounds the hardware CATEGORY."""
-    key = _endpoint_key(ep) or "default"
-    if key not in _ENDPOINT_SEMS:
-        _ENDPOINT_SEMS[key] = asyncio.Semaphore(max(1, ENDPOINT_CONCURRENCY))
-    return _ENDPOINT_SEMS[key]
-
-
-async def _admit(ep: str, model: str, lane: str, priority: float = 5.0,
-                 est_mb: int = 0, *, foreground: bool = True) -> None:
-    """Capacity-aware admission gate, run BEFORE the endpoint/lane semaphores.
-    No-op unless ADMIT_ENABLE. DEGRADE-OPEN: any error -> return (admit). Bounds
-    every wait by ADMIT_MAX_WAIT then admits anyway -> never deadlocks a turn.
-    Gates: (1) global host-load/mem ceiling; (2) a COLD model on an at-VRAM-
-    ceiling endpoint waits briefly so cold loads serialize. Warm/under-ceiling
-    dispatch returns immediately. (_host_stats_cached/_resident_cached/
-    _over_global_ceiling/_is_warm are defined below near _engine_resident.)"""
-    # WS-SCHED-SLO fail-closed shed (independent of ADMIT_ENABLE): shed a
-    # best_effort dispatch FAST (before the capacity wait) when over the ceiling
-    # OR when the host probe failed (empty stats -> healthy=False -> shed). An
-    # interactive turn (high priority) is never shed. Default-off.
-    if SLO_SHED_ENABLE:
-        # The SLO class is the FOREGROUND/autonomous axis -- NOT the capacity-gate
-        # scheduling `priority` (3.4-6.8 for normal turns), which never reaches the
-        # interactive floor and so misclassified EVERY turn as best_effort/shed-
-        # eligible. A fan-out / background dispatch passes foreground=False (->
-        # best_effort, shed-eligible under contention); a genuine foreground turn is
-        # protected (-> interactive, never shed). `healthy` degrades OPEN (omitted ->
-        # should_shed's default True) so a missing/cold host-stats probe never sheds --
-        # consistent with _over_global_ceiling() which ALSO degrades open; over_ceiling
-        # is the sole contention trigger.
-        _slo = mios_slo.classify(foreground=foreground)
-        if mios_slo.should_shed(_slo, over_ceiling=_over_global_ceiling()):
-            raise _SloShed(_slo)
-    if not ADMIT_ENABLE:
-        return
-    try:
-        deadline = time.monotonic() + ADMIT_MAX_WAIT
-        # (1) global ceiling: if over, wait (low priority waits longer) up to the
-        # deadline, re-checking; then admit regardless (degrade-open). V5: when
-        # multiblade is on, the ceiling is the endpoint's BLADE ceiling (a remote
-        # blade is NOT gated by the local /proc/loadavg); OFF -> _over_global_ceiling()
-        # EXACTLY as today (byte-identical -- the new helper is never consulted).
-        while (_over_blade_ceiling(ep) if MULTIBLADE_ENABLE
-               else _over_global_ceiling()) and time.monotonic() < deadline:
-            # higher priority -> shorter back-off; bounded so we always progress
-            _backoff = max(0.15, (10.0 - float(priority)) * 0.1)
-            await asyncio.sleep(min(_backoff, max(0.0, deadline - time.monotonic())))
-        # (2) VRAM-aware co-load admission: a COLD model is
-        # admitted onto the endpoint only when measured free VRAM fits it + a
-        # reserve -- so the dGPU packs several small/medium models concurrently by
-        # REAL headroom (the "multiple models on the dGPU within a turn" goal),
-        # NOT a flat count. If it doesn't fit yet, wait (a sibling dispatch may
-        # finish + free VRAM, or the turn-start _vram_checkpoint may have evicted)
-        # up to the deadline, then admit anyway (degrade-open) -- the bounded
-        # lane/endpoint semaphores remain the hard OOM backstop.
-        warm = await _is_warm(ep, model)
-        if not warm:
-            _reclaimed = False
-            # V5: admit a cold model against the endpoint's BLADE VRAM budget (a remote
-            # node's residents belong to ITS machine, not the local 4090). DEFAULT-OFF
-            # (or any unknown blade) -> the LOCAL VRAM_BUDGET_MB scalar EXACTLY as today.
-            _budget = _blade_vram_budget(ep) if MULTIBLADE_ENABLE else VRAM_BUDGET_MB
-            while time.monotonic() < deadline:
-                res = await _resident_cached(ep)
-                # measured resident + Phase-1 pending sibling reservations, so two
-                # workers co-loading onto this endpoint in the same turn account
-                # for each other before either has finished loading.
-                used_mb = (sum(int(m.get("size_vram") or 0)
-                               for m in res) // (1024 * 1024)
-                           + int(_ENDPOINT_RESERVED.get(ep, 0)))
-                # this cold model's cost: its own size if /api/ps already knows it
-                # (re-load), else the worker's DECLARED vram_mb (est_mb), else the
-                # conservative flat estimate.
-                est = next((int(m.get("size_vram") or 0) // (1024 * 1024)
-                            for m in res
-                            if _norm_model_tag(m.get("name")) == _norm_model_tag(model)),
-                           0) or est_mb or VRAM_COLOAD_EST_MB
-                # fits if used + this model + reserve stays under budget (the blade's
-                # budget when multiblade is on; the local scalar otherwise -- _budget).
-                if (not VRAM_COLOAD_ENABLE) or \
-                        (used_mb + est + VRAM_COLOAD_RESERVE_MB) <= _budget:
-                    break
-                # Doesn't fit: first RECLAIM an idle model's VRAM (clear idle
-                # agents so this one loads now -> 'nothing in the pipeline idle'),
-                # then re-check immediately; only sleep-wait if reclaim freed
-                # nothing (a sibling dispatch may finish + free VRAM). Reclaim once
-                # per admit so we don't thrash a steady-state-full endpoint.
-                if VRAM_RECLAIM_IDLE and not _reclaimed:
-                    _reclaimed = True
-                    if await _reclaim_idle_vram(
-                            ep, model, est + VRAM_COLOAD_RESERVE_MB):
-                        continue
-                await asyncio.sleep(min(0.5, max(0.0, deadline - time.monotonic())))
-    except Exception:  # noqa: BLE001 -- admission must never block a turn
-        log.warning("Admit check encountered unexpected error", exc_info=True)
-        return
+_configure_vram_scheduler(
+    log=log,
+    _toml_section=_toml_section,
+    _DISPATCH_TOML=_DISPATCH_TOML,
+    AGENT_CONCURRENCY=AGENT_CONCURRENCY,
+    ENDPOINT_CONCURRENCY=ENDPOINT_CONCURRENCY,
+    SLO_SHED_ENABLE=SLO_SHED_ENABLE,
+    ADMIT_ENABLE=ADMIT_ENABLE,
+    ADMIT_MAX_WAIT=ADMIT_MAX_WAIT,
+    MULTIBLADE_ENABLE=MULTIBLADE_ENABLE,
+    _over_blade_ceiling=globals().get('_over_blade_ceiling'),
+    _over_global_ceiling=globals().get('_over_global_ceiling'),
+    _is_warm=globals().get('_is_warm'),
+    _blade_vram_budget=globals().get('_blade_vram_budget'),
+    VRAM_BUDGET_MB=globals().get('VRAM_BUDGET_MB'),
+    _resident_cached=globals().get('_resident_cached'),
+    _norm_model_tag=globals().get('_norm_model_tag'),
+    VRAM_COLOAD_EST_MB=globals().get('VRAM_COLOAD_EST_MB'),
+    VRAM_COLOAD_ENABLE=globals().get('VRAM_COLOAD_ENABLE'),
+    VRAM_COLOAD_RESERVE_MB=globals().get('VRAM_COLOAD_RESERVE_MB'),
+    _reclaim_idle_vram=globals().get('_reclaim_idle_vram'),
+    _dispatch_num=globals().get('_dispatch_num'),
+)
 
 # Router (layer-1 micro-LLM classifier) config + _LIGHT_LANE -> mios_config (R14
 # config SSOT); re-imported above. The light-lane isolation rationale lives there.
@@ -1962,84 +1803,6 @@ async def _get_client() -> httpx.AsyncClient:
 # open a FRESH httpx.AsyncClient PER CALL -> a TCP connect/teardown per write x
 # 16 nodes = a connection storm + disk WAL churn. One keep-alive pooled client
 # reuses connections across all writes. Lazily created inside the loop.
-_DB_CLIENT: "Optional[httpx.AsyncClient]" = None
-
-
-def _db_client() -> "httpx.AsyncClient":
-    global _DB_CLIENT
-    if _DB_CLIENT is None:
-        _DB_CLIENT = httpx.AsyncClient(
-            timeout=httpx.Timeout(connect=5.0, read=10.0, write=10.0, pool=10.0),
-            limits=httpx.Limits(max_keepalive_connections=8, max_connections=16))
-    return _DB_CLIENT
-
-
-async def _db_post(sql: str, *, timeout: float = 3.0) -> Optional[list]:
-    """Best-effort legacy DB write/query. Returns the parsed list of
-    per-statement results, or None on any error. A 30s backoff after
-    each failure prevents per-turn retry storms when the DB is down. Uses the
-    shared keep-alive pooled client (no per-call connect)."""
-    global _db_down_until
-    if not sql or not sql.strip():
-        return None
-    # WS-9c full cutover: when Postgres is primary, agent-plane WRITES are already
-    # mirrored to pgvector at the _db_create chokepoint -- skip the legacy write
-    # here so `postgres` mode stops touching the legacy DB entirely. SELECTs still pass
-    # through (any not-yet-translated read falls back to the legacy DB until converted).
-    if _PG_PRIMARY:
-        _verb = sql.lstrip().split(None, 1)[0].upper()
-        if _verb in ("CREATE", "UPDATE", "DELETE", "INSERT", "RELATE"):
-            return None
-    if time.time() < _db_down_until:
-        return None
-    body = (f"USE NS {DB_NS} DB {DB_DB}; " + sql).encode()
-    try:
-        r = await _db_client().post(
-            f"{DB_URL}/sql",
-            content=body,
-            headers={
-                "Authorization": _DB_AUTH,
-                "Accept": "application/json",
-            },
-            timeout=timeout,
-        )
-        if r.status_code != 200:
-            _db_down_until = time.time() + 30
-            return None
-        return r.json()
-    except Exception:
-        _db_down_until = time.time() + 30
-        return None
-
-
-async def _db_read(surreal_sql: str, *, pg_sql: "Optional[str]" = None,
-                   pg_params: "Optional[dict]" = None,
-                   timeout: float = 3.0) -> Optional[list]:
-    """Agent-plane READ seam (WS-9c cutover). When Postgres is primary AND a
-    pg_sql translation is supplied, run it natively (psycopg) and wrap the rows
-    in the legacy [{"result": [...]}] envelope so call sites parse the result
-    UNCHANGED. Otherwise hit the legacy DB. INERT in the legacy backends (always
-    _db_post), so read translations can be added incrementally + safely and only
-    go live at the flip. Degrade-open -> [] on the PG side (mirrors _db_post).
-    NOTE: PG `id` is a bigint, not a 'table:xyz' record id -- callers that
-    round-trip an id into an UPDATE use _db_update() which handles both."""
-    if _PG_PRIMARY and pg_sql:
-        rows = await _mios_pg.execute(pg_sql, pg_params or {}, fetch=True)
-        return [{"result": rows or []}]
-    return await _db_post(surreal_sql, timeout=timeout)
-
-
-async def _db_update(surreal_sql: str, *, pg_sql: "Optional[str]" = None,
-                     pg_params: "Optional[dict]" = None) -> None:
-    """Agent-plane UPDATE/DELETE seam (WS-9c cutover). Postgres-native when
-    primary + pg_sql given (params bound by psycopg), else the legacy DB. INERT in
-    the legacy backends. Degrade-open. Callers either `await` it or wrap in
-    _db_fire() for fire-and-forget, exactly as they did with _db_post."""
-    if _PG_PRIMARY and pg_sql:
-        await _mios_pg.execute(pg_sql, pg_params or {}, fetch=False)
-    else:
-        await _db_post(surreal_sql)
-
 
 # ── SEC-03 event-bus tamper-evident hash chain (mios_audit) ──────────
 # Every `event` row is linked to its predecessor by a SHA-256 chain at the single
@@ -2057,6 +1820,13 @@ AUDIT_CHAIN_ENABLE = str(
     in {"1", "true", "yes"}
 
 
+from mios_pipe.db import (
+    client as _db_client,
+    post as _db_post,
+    read as _db_read,
+    update as _db_update,
+    configure as _configure_db,
+)
 from mios_pipe.dbwrite import (
     _db_create,
     _db_fire,
@@ -2066,6 +1836,15 @@ from mios_pipe.dbwrite import (
 )
 from mios_pipe.observability.session_events import (
     configure as _configure_session_events,
+)
+
+_configure_db(
+    pg_primary=globals().get("_PG_PRIMARY", False),
+    mios_pg=globals().get("_mios_pg"),
+    db_ns=globals().get("DB_NS"),
+    db_db=globals().get("DB_DB"),
+    db_url=globals().get("DB_URL"),
+    db_auth=globals().get("_DB_AUTH"),
 )
 
 _configure_dbwrite(
@@ -2882,48 +2661,26 @@ from mios_secondary_loop import _daemon_diagnose  # noqa: E402
 from mios_secondary_loop import _v1_secondary_tool_loop  # noqa: E402
 
 
-async def _call_agent_stream(name, cfg, body, headers, client, q,
-                             *, prefer_cpu: bool = True,
-                             priority: Optional[float] = None) -> tuple:
-    """Bounded STREAMING sibling of _call_agent_complete (operator
- a sub-agent's thinking must STREAM into the think blocks
-    live, not be collected then flushed last-minute). Streams the
-    secondary's output and pushes (name, fragment) onto the shared queue
-    `q` as fragments arrive, so the orchestrator interleaves them into the
-    reasoning dropdown WHILE the primary streams. Returns (name,
-    full_text) -- the SAME contract as _call_agent_complete -- so the
-    polish-merge / scratchpad / roster path downstream is unchanged. Dead
-    endpoints + errors yield '' (dropped from the merge), identical
-    degradation to the non-streaming path. Acquires the PER-LANE semaphore (the
-    engine/node it runs on), so it fires concurrently with the other lanes.
-    `priority` feeds _admit; default None -> lane-derived (_dispatch_priority)."""
-    _engine = _agent_offload_engine(cfg) if prefer_cpu else None
-    _ep, _adm_model = _agent_binding(cfg, _engine)
-    _prio = priority if priority is not None else _dispatch_priority(cfg)
-    # Capacity-aware admission BEFORE the semaphores (no-op unless ADMIT_ENABLE;
-    # degrade-open -- never blocks a turn). Endpoint cap OUTER (serialize cold-
-    # loads on ONE inference backend), lane cap INNER --.
-    _est = _opt_int_mb(cfg.get("vram_mb"))   # Phase-1 per-worker VRAM (0 = unknown)
-    try:
-        # foreground=False: this is the fan-out / secondary dispatch -- background
-        # work that IS shed-eligible (best_effort) under contention (the merge
-        # degrades gracefully when a node drops). A genuine foreground turn keeps
-        # the protective default (interactive, never shed).
-        await _admit(_ep, _adm_model, _engine or _lane_sem_key(cfg), _prio, _est,
-                     foreground=False)
-    except _SloShed:  # WS-SCHED-SLO: best_effort shed -> drop this node from the merge
-        log.info("SLO shed: best_effort fan-out %s dropped under contention", name)
-        return name, ""
-    async with _priority_gate(_prio):
-        async with _endpoint_sem(_ep):
-            async with _lane_sem(_engine or _lane_sem_key(cfg)):
-                await _model_active(_ep, _adm_model, 1, _est)
-                try:
-                    _n, _t = await _call_agent_stream_inner(
-                        name, cfg, body, headers, client, q, prefer_cpu=prefer_cpu)
-                finally:
-                    await _model_active(_ep, _adm_model, -1, _est)
-                return _n, _strip_agent_chrome(_t)
+from mios_pipe.streaming import (
+    call_agent_stream as _call_agent_stream,
+    configure as _configure_streaming
+)
+
+_configure_streaming(
+    _agent_offload_engine=_agent_offload_engine,
+    _agent_binding=_agent_binding,
+    _dispatch_priority=_dispatch_priority,
+    _opt_int_mb=_opt_int_mb,
+    _admit=_admit,
+    _SloShed=_SloShed,
+    _priority_gate=_priority_gate,
+    _endpoint_sem=_endpoint_sem,
+    _lane_sem=_lane_sem,
+    _lane_sem_key=_lane_sem_key,
+    _model_active=_model_active,
+    _call_agent_stream_inner=_call_agent_stream_inner,
+    _strip_agent_chrome=_strip_agent_chrome,
+)
 
 
 # -- Verb/recipe catalog + 3-projection SSOT extracted to mios_verbcatalog --
@@ -3754,7 +3511,7 @@ async def _rag_enrich(query: str) -> str:
         d = _loads_lenient((out or b"{}").decode("utf-8", "replace") or "{}")
     except Exception as e:
         try: proc.kill()
-        except: pass
+        except Exception: pass
         log.debug("rag enrich skipped: %s", e)
         return ""
     hits = d.get("hits") or []
@@ -7672,85 +7429,25 @@ sys.modules["mios_swarm"].configure(
 )
 
 
-@app.middleware("http")
-async def _usage_completeness_mw(request: Request, call_next):
-    """Tier-0 conformance: guarantee EVERY non-streaming /v1/chat/completions JSON
-    response carries a `usage` object -- the pipeline has ~8 internal envelopes that
-    emit it inconsistently, so this central post-pass fills any that lack it.
-    Streaming (text/event-stream) is skipped untouched. FAIL-SAFE: any error returns
-    the response unchanged; non-chat JSON (e.g. error objects) passes through as-is."""
-    response = await call_next(request)
-    if (request.url.path != "/v1/chat/completions"
-            or "application/json" not in response.headers.get("content-type", "")):
-        return response  # streaming / other endpoints: body_iterator NOT consumed
-    body = b""
-    try:
-        async for chunk in response.body_iterator:
-            body += chunk
-    except Exception:
-        return response
-    out = body
-    try:
-        # loads_lenient expects str; `body` is bytes accumulated from the iterator.
-        # Passing bytes silently failed -> the middleware was a latent no-op (no usage
-        # backfill, no mios_mode). Decode first.
-        data = _loads_lenient(body.decode("utf-8", "replace"))
-        if isinstance(data, dict) and data.get("object") == "chat.completion":
-            _changed = False
-            from mios_tokenize import _normalize_usage
-            _usage = data.get("usage")
-            _ans = ((data.get("choices") or [{}])[0].get("message") or {}).get("content") or ""
-            _normalized = _normalize_usage(_usage or _usage_estimate("", _ans))
-            if _usage != _normalized:
-                data["usage"] = _normalized
-                _changed = True
-            # A5 council honesty: stamp the TRUE dispatch mode (single-agent vs council)
-            # on every chat response, centrally. Contextvar set by the fan-out path;
-            # default "single-agent" reflects a turn that used only the primary.
-            if "mios_mode" not in data:
-                try:
-                    data["mios_mode"] = _council_mode_var.get()
-                    _changed = True
-                except Exception:  # noqa: BLE001
-                    pass
-            if _changed:
-                out = json.dumps(data).encode()
-    except Exception:
-        out = body
-    from starlette.responses import Response as _Resp
-    _hdrs = {k: v for k, v in response.headers.items() if k.lower() != "content-length"}
-    return _Resp(content=out, status_code=response.status_code,
-                 headers=_hdrs, media_type="application/json")
 
+from mios_pipe.auth import (
+    usage_completeness_mw as _usage_completeness_mw,
+    inbound_auth_mw as _inbound_auth_mw,
+    configure as _configure_auth
+)
 
-@app.middleware("http")
-async def _inbound_auth_mw(request: Request, call_next):
-    """FED-G1: gate /v1/* + /a2a with a credential when [security].api_require_auth is
-    ON. DEFAULT OFF -> pass-through (byte-identical). Registered AFTER the usage MW so
-    it runs OUTERMOST (rejects before any processing). Discovery/health stay open so an
-    unauth'd peer can still fetch the card/passport to learn how to authenticate. On
-    success the resolved principal is stashed on request.state for downstream RBAC."""
-    if not _API_REQUIRE_AUTH:
-        return await call_next(request)
-    path = request.url.path
-    if (path in _AUTH_OPEN_PATHS
-            or not any(path.startswith(p) for p in _AUTH_GATED_PREFIXES)):
-        return await call_next(request)
-    try:
-        _tok = (request.headers.get("authorization") or "").removeprefix("Bearer ").strip()
-        princ = _check_inbound_principal(_tok)
-    except Exception:  # noqa: BLE001 -- fail CLOSED (a check error must not open the gate)
-        princ = None
-    if princ is None:
-        return JSONResponse(
-            content={"error": {"message": "unauthorized: a valid credential is required",
-                               "type": "invalid_request_error", "code": "unauthorized"}},
-            status_code=401)
-    try:
-        request.state.mios_principal = princ
-    except Exception:  # noqa: BLE001
-        pass
-    return await call_next(request)
+_configure_auth(
+    loads_lenient=globals().get("_loads_lenient"),
+    usage_estimate=globals().get("_usage_estimate"),
+    council_mode_var=globals().get("_council_mode_var"),
+    api_require_auth=globals().get("_API_REQUIRE_AUTH", False),
+    auth_open_paths=globals().get("_AUTH_OPEN_PATHS", ()),
+    auth_gated_prefixes=globals().get("_AUTH_GATED_PREFIXES", ()),
+    check_inbound_principal=globals().get("_check_inbound_principal"),
+)
+
+app.middleware("http")(_usage_completeness_mw)
+app.middleware("http")(_inbound_auth_mw)
 
 
 # R13: BOTH chat-pipeline routes -- POST /v1/responses (responses_api) AND the capstone

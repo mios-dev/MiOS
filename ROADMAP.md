@@ -6,8 +6,8 @@
 
 <!-- ROADMAP_ROLLUP_START -->
 ### Workstream Status Rollup
-- **Done**: 14
-- **Active**: 2
+- **Done**: 16
+- **Active**: 0
 - **Proposed**: 3
 - **Blocked**: 0
 <!-- ROADMAP_ROLLUP_END -->
@@ -596,7 +596,7 @@ acceptance: |
 id: WS-TESTDOC
 title: Testing, drift-gate negative coverage, and documentation integrity
 theme: Testing & Conformance
-status: active
+status: done
 priority: P1
 laws: [7, 8]
 ssot_keys: ["testing.smoke_components", "build.bake"]
@@ -621,7 +621,7 @@ acceptance: |
 id: WS-DEPLOY
 title: Deployment surface consolidation and bare-metal bootc install
 theme: Deployment & Sovereignty
-status: active
+status: done
 priority: P1
 laws: [1, 3, 4, 12]
 ssot_keys: ["cat.drivepath", "build.bake"]
