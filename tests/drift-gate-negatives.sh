@@ -1851,19 +1851,27 @@ test_bake_ref_parity() {
 test_db_seed_coverage() {
     log "Testing check_db_seed_coverage..."
     local toml_file="${ROOT}/usr/share/mios/mios.toml"
+    local seed_script="${ROOT}/usr/libexec/mios/seed-db-config.py"
     local orig_val
+    local orig_seed
     orig_val="$(cat "$toml_file")"
+    orig_seed="$(cat "$seed_script")"
 
     echo "" >> "$toml_file"
     echo "[unseeded_bogus_test_section]" >> "$toml_file"
     echo "key = \"value\"" >> "$toml_file"
+    
+    # Remove dynamic fallback so the gate evaluates hardcoded coverage
+    sed -i 's/kv_sections = \[k for k in data.keys()/kv_sections = \[\] # removed for test/' "$seed_script"
 
     if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_db_seed_coverage >/dev/null 2>&1; then
         echo "$orig_val" > "$toml_file"
+        echo "$orig_seed" > "$seed_script"
         die "check_db_seed_coverage passed despite unseeded section in mios.toml!"
     fi
 
     echo "$orig_val" > "$toml_file"
+    echo "$orig_seed" > "$seed_script"
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_db_seed_coverage >/dev/null 2>&1 \
         || die "check_db_seed_coverage failed after restoration!"
     log "test_db_seed_coverage negative test passed."
