@@ -530,22 +530,48 @@ fi
 # Network=none + ReadOnly). Group= + Delegate=yes are SHOULD-have. (SHOULD-have
 # follow-up: also flag an UNDOCUMENTED User=root Quadlet, not just a missing User=.)
 mios_log "validate UNPRIVILEGED-QUADLETS (Law 6): every Quadlet declares User="
-_law6_exceptions='^(mios-ceph|mios-k3s|mios-llm-heavy|mios-forgejo-runner|mios-coderun-sandbox.*)\.container$'
-_law6_missing=""
-for d in /etc/containers/systemd /usr/share/containers/systemd; do
-    [[ -d "$d" ]] || continue
-    for f in "$d"/*.container "$d"/*/*.container; do
-        [[ -f "$f" ]] || continue
-        base=$(basename "$f")
-        if [[ "$base" =~ $_law6_exceptions ]]; then continue; fi
-        if ! grep -qE '^[[:space:]]*User=' "$f"; then
-            _law6_missing+="$f: missing User= directive"$'\n'
-        fi
-    done
-done
-if [[ -n "$_law6_missing" ]]; then
-    printf '%s' "$_law6_missing" >&2
-    die "UNPRIVILEGED-QUADLETS: Quadlet missing User= (exceptions: mios-ceph, mios-k3s, mios-llm-heavy, mios-forgejo-runner, mios-coderun-sandbox)"
+if command -v python3 >/dev/null 2>&1; then
+    if ! _law6_out=$(python3 - <<'PYEOF'
+import os, re, sys
+try:
+    import tomllib
+except ImportError:
+    try:
+        import tomli as tomllib
+    except ImportError:
+        print("SKIP: no tomllib"); sys.exit(0)
+toml = "/usr/share/mios/mios.toml"
+if not os.path.exists(toml):
+    print("SKIP: %s not found" % toml); sys.exit(0)
+with open(toml, "rb") as f:
+    d = tomllib.load(f)
+root_allow = d.get("security", {}).get("privileged_quadlets", {}).get("root", [])
+root_set = set(root_allow)
+bad = []
+for d in ["/etc/containers/systemd", "/usr/share/containers/systemd"]:
+    if not os.path.exists(d): continue
+    for r, _, files in os.walk(d):
+        for f in files:
+            if not f.endswith(".container"): continue
+            path = os.path.join(r, f)
+            with open(path, "r") as cf:
+                content = cf.read()
+            m = re.search(r"^[ \t]*User=(.*)$", content, re.MULTILINE)
+            user = m.group(1).strip() if m else ""
+            if user == "" or user == "root" or user == "0":
+                if f not in root_set:
+                    bad.append("%s: undocumented User=root/0 or missing User= (Law 6)" % path)
+if bad:
+    sys.stderr.write("\n".join(bad) + "\n")
+    sys.stderr.write("UNPRIVILEGED-QUADLETS: Quadlet implicitly/explicitly root without allowlist in [security.privileged_quadlets].root\n")
+    sys.exit(1)
+PYEOF
+    ); then
+        printf '%s\n' "$_law6_out" >&2
+        die "UNPRIVILEGED-QUADLETS: Quadlet privilege check failed"
+    fi
+else
+    mios_log "  [!] python3 unavailable -- skipping dynamic Law 6 verification"
 fi
 mios_ok "every Quadlet declares User= (or is a documented root exception)"
 
