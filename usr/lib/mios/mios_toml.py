@@ -207,3 +207,392 @@ def float_allowlist(data=None):
     """Resolved float allowlist table from mios.toml [build.float]."""
     d = data if data is not None else load_vendor()
     return section(d, "build.float")
+
+
+def get_aliases(dotted_path):
+    aliases = []
+    
+    if dotted_path.startswith("ai.vllm."):
+        suffix = dotted_path[len("ai.vllm."):].upper().replace(".", "_").replace("-", "_")
+        if suffix == "V1_ENGINE":
+            aliases.append("MIOS_VLLM_USE_V1")
+        else:
+            aliases.append(f"MIOS_VLLM_{suffix}")
+    elif dotted_path.startswith("ai.sglang."):
+        suffix = dotted_path[len("ai.sglang."):].upper().replace(".", "_").replace("-", "_")
+        if suffix == "UNIFIED_RADIX_TREE":
+            aliases.append("MIOS_SGLANG_ENABLE_UNIFIED_RADIX_TREE")
+        elif suffix == "HIERARCHICAL_CACHE":
+            aliases.append("MIOS_SGLANG_ENABLE_HIERARCHICAL_CACHE")
+        else:
+            aliases.append(f"MIOS_SGLANG_{suffix}")
+
+    elif dotted_path == "identity.username":
+        aliases.extend(["MIOS_USER", "MIOS_DEFAULT_USER"])
+    elif dotted_path == "identity.fullname":
+        aliases.append("MIOS_USER_FULLNAME")
+    elif dotted_path == "identity.hostname":
+        aliases.extend(["MIOS_HOSTNAME", "MIOS_DEFAULT_HOST"])
+    elif dotted_path == "identity.shell":
+        aliases.extend(["MIOS_USER_SHELL", "MIOS_DEFAULT_SHELL"])
+    elif dotted_path == "identity.groups":
+        aliases.extend(["MIOS_USER_GROUPS", "MIOS_DEFAULT_GROUPS"])
+    elif dotted_path == "identity.default_password":
+        aliases.append("MIOS_DEFAULT_PASSWORD")
+    elif dotted_path == "accounts.db_backed":
+        aliases.append("MIOS_ACCOUNTS_DB_BACKED")
+
+    elif dotted_path == "locale.timezone":
+        aliases.extend(["MIOS_TIMEZONE", "MIOS_DEFAULT_TIMEZONE"])
+    elif dotted_path == "locale.keyboard_layout":
+        aliases.extend(["MIOS_KEYBOARD", "MIOS_DEFAULT_KEYBOARD"])
+    elif dotted_path == "locale.language":
+        aliases.extend(["MIOS_LOCALE", "MIOS_DEFAULT_LOCALE"])
+
+    elif dotted_path == "auth.ssh_key_action":
+        aliases.append("MIOS_SSH_KEY_ACTION")
+    elif dotted_path == "auth.password_policy":
+        aliases.append("MIOS_PASSWORD_POLICY")
+
+    elif dotted_path == "network.firewalld_default_zone":
+        aliases.append("MIOS_FIREWALLD_ZONE")
+
+    elif dotted_path.startswith("portal."):
+        suffix = dotted_path[len("portal."):].upper().replace(".", "_").replace("-", "_")
+        if suffix == "PUBLIC_HOST":
+            aliases.append("MIOS_PUBLIC_HOST")
+        else:
+            aliases.append(f"MIOS_PORTAL_{suffix}")
+
+    elif dotted_path.startswith("a2a."):
+        name = dotted_path[len("a2a."):].upper().replace(".", "_")
+        if name == "DISCOVER_PORT":
+            aliases.append("MIOS_A2A_DISCOVER_PORT")
+        elif name == "PUBLIC_DOMAIN":
+            aliases.append("MIOS_PUBLIC_DOMAIN")
+        else:
+            aliases.append(f"MIOS_A2A_{name}")
+
+    elif dotted_path == "agents.hermes.endpoint":
+        aliases.append("MIOS_HERMES_WORKER_ENDPOINT")
+
+    elif dotted_path.startswith("ai.") and not dotted_path.startswith("ai.vllm.") and not dotted_path.startswith("ai.sglang."):
+        suffix = dotted_path[len("ai."):].upper().replace(".", "_").replace("-", "_")
+        if suffix == "API_KEY" or suffix == "KEY":
+            aliases.append("MIOS_AI_KEY")
+        elif suffix == "EMBED_MODEL":
+            aliases.append("MIOS_VERB_EMBED_MODEL")
+        elif suffix == "STACK_MODEL":
+            aliases.append("MIOS_STACK_MODEL")
+        elif suffix == "CHAT_VISION_MODEL":
+            aliases.append("MIOS_AGENT_PIPE_VISION_MODEL")
+        elif suffix == "AGENT_VENV":
+            aliases.append("MIOS_HERMES_VENV")
+        elif suffix == "AGENT_INSTALL_DIR":
+            aliases.append("MIOS_HERMES_DIR")
+        elif suffix == "MICRO_MODEL":
+            aliases.append("MIOS_MICRO_MODEL")
+        elif suffix == "MICRO_ENDPOINT":
+            aliases.append("MIOS_MICRO_ENDPOINT")
+        elif suffix == "OPENCODE_GATEWAY_WORKDIR":
+            aliases.append("MIOS_OPENCODE_WORKDIR")
+        elif suffix == "OPENCODE_GATEWAY_TIMEOUT_S":
+            aliases.append("MIOS_OPENCODE_TIMEOUT_S")
+        elif suffix.startswith("OPENCODE_"):
+            aliases.append(f"MIOS_{suffix}")
+        elif suffix in {"ENDPOINT", "MODEL"}:
+            aliases.extend([f"MIOS_AI_{suffix}", f"MIOS_{suffix}"])
+        elif suffix in {"SYSTEM_PROMPT_FILE", "TOKENIZER_BACKEND", 
+                        "TOKENIZER_ENCODING", "TOKENIZER_CACHE_DIR", "TOKENIZER_PATH", 
+                        "HERMES_AGENT_REPO", "HERMES_AGENT_REF", "HERMES_BACKEND_URL", 
+                        "MCP_REGISTRY"}:
+            aliases.append(f"MIOS_{suffix}")
+
+    elif dotted_path.startswith("build."):
+        name = dotted_path[len("build."):].upper().replace(".", "_")
+        if name in {"LOCAL_TAG", "AI_RAM_FLOOR_GB", "RECHUNK_MAX_LAYERS"}:
+            aliases.append(f"MIOS_{name}")
+        else:
+            aliases.append(f"MIOS_BUILD_{name}")
+
+    elif dotted_path.startswith("code_mode."):
+        name = dotted_path[len("code_mode."):].upper()
+        aliases.append(f"MIOS_CODEMODE_{name}")
+
+    elif dotted_path.startswith("colors."):
+        name = dotted_path[len("colors."):].upper()
+        if name.startswith("ANSI_"):
+            aliases.append(f"MIOS_{name}")
+        else:
+            aliases.append(f"MIOS_COLOR_{name}")
+
+    elif dotted_path.startswith("frontier."):
+        name = dotted_path[len("frontier."):].upper()
+        if name == "STREAM_TO_REASONING":
+            aliases.append("MIOS_A2O_STREAM_REASONING")
+        else:
+            aliases.append(f"MIOS_A2O_{name}")
+
+    elif dotted_path.startswith("paths."):
+        name = dotted_path[len("paths."):].upper()
+        if name == "MIOS_TOML":
+            aliases.append("MIOS_TOML")
+        elif name == "WSL_FIRSTBOOT_DONE":
+            aliases.append("MIOS_WSLBOOT_DONE")
+        elif name in ("LAUNCHER_SOCKET", "MIOS_LAUNCHER_SOCKET"):
+            aliases.append("MIOS_LAUNCHER_SOCKET")
+        else:
+            aliases.append(f"MIOS_{name}")
+
+    elif dotted_path.startswith("pgvector."):
+        name = dotted_path[len("pgvector."):].upper()
+        if name == "DB_BACKEND":
+            aliases.append("MIOS_DB_BACKEND")
+        elif name == "RLS_ENABLE":
+            aliases.append("MIOS_DB_RLS_ENABLE")
+        else:
+            aliases.append(f"MIOS_PG_{name}")
+
+    elif dotted_path.startswith("routing.") and not dotted_path.startswith("routing.domains."):
+        name = dotted_path[len("routing."):].upper().replace(".", "_")
+        aliases.append(f"MIOS_{name}")
+
+    elif dotted_path == "polish.timeout_seconds":
+        aliases.append("MIOS_POLISH_TIMEOUT_S")
+
+    elif dotted_path == "refine.timeout_seconds":
+        aliases.append("MIOS_REFINE_TIMEOUT_S")
+
+    elif dotted_path == "security.fapolicyd_observe.enable":
+        aliases.append("MIOS_FAPOLICYD_OBSERVE_ENABLE")
+
+    elif dotted_path == "uki.verity_uki_build":
+        aliases.append("MIOS_UKI_VERITY_BUILD")
+
+    elif dotted_path.startswith("verity."):
+        name = dotted_path[len("verity."):].upper()
+        aliases.append(f"MIOS_{name}")
+
+    elif dotted_path == "user.hostname":
+        aliases.append("MIOS_HOSTNAME")
+
+    elif dotted_path == "user.name":
+        aliases.append("MIOS_USER_FULLNAME")
+
+    elif dotted_path == "flatpaks.install":
+        aliases.append("MIOS_FLATPAKS")
+
+    elif dotted_path.startswith("llamacpp."):
+        name = dotted_path[len("llamacpp."):].upper()
+        if name == "CPU_NODE_THREADS":
+            aliases.append("MIOS_CPU_NODE_THREADS")
+        else:
+            aliases.append(f"MIOS_LLAMACPP_{name}")
+
+    elif dotted_path == "meta.mios_version":
+        aliases.append("MIOS_VERSION")
+
+    elif dotted_path.startswith("network.quadlet."):
+        name = dotted_path[len("network.quadlet."):].upper()
+        if name == "CORE_GATEWAY":
+            aliases.append("MIOS_CORE_NET_GATEWAY")
+        elif name == "CORE_SUBNET":
+            aliases.append("MIOS_CORE_NET_SUBNET")
+        elif name == "NETWORK":
+            aliases.append("MIOS_QUADLET_NETWORK")
+        elif name == "SUBNET":
+            aliases.append("MIOS_QUADLET_SUBNET")
+
+    elif dotted_path == "fs_watcher.watch_dirs":
+        aliases.append("MIOS_FS_WATCHER_DIRS")
+
+    elif dotted_path.startswith("ports."):
+        name = dotted_path[len("ports."):].upper().replace(".", "_").replace("-", "_")
+        if name == "SSH":
+            aliases.extend(["MIOS_PORT_SSH", "MIOS_SSH_PORT"])
+        elif name == "FORGE_HTTP":
+            aliases.extend(["MIOS_PORT_FORGE_HTTP", "MIOS_FORGE_HTTP_PORT"])
+        elif name == "FORGE_SSH":
+            aliases.extend(["MIOS_PORT_FORGE_SSH", "MIOS_FORGE_SSH_PORT"])
+        elif name == "COCKPIT":
+            aliases.extend(["MIOS_PORT_COCKPIT", "MIOS_COCKPIT_PORT"])
+        elif name == "SEARXNG":
+            aliases.extend(["MIOS_PORT_SEARXNG", "MIOS_SEARXNG_PORT"])
+        elif name == "HERMES":
+            aliases.extend(["MIOS_PORT_HERMES", "MIOS_HERMES_PORT"])
+        elif name == "K3S_API":
+            aliases.append("MIOS_K3S_API_PORT")
+        elif name == "GUACAMOLE_WEB":
+            aliases.append("MIOS_GUACAMOLE_PORT")
+        elif name == "CEPH_DASHBOARD":
+            aliases.append("MIOS_CEPH_DASHBOARD_PORT")
+        elif name == "RDP":
+            aliases.append("MIOS_RDP_PORT")
+        else:
+            aliases.append(f"MIOS_PORT_{name}")
+
+    elif dotted_path.startswith("image.sidecars."):
+        name = dotted_path[len("image.sidecars."):].upper().replace(".", "_").replace("-", "_")
+        if name.endswith("_VERSION"):
+            base = name[:-len("_VERSION")]
+            aliases.append(f"MIOS_{base}_VERSION")
+        else:
+            aliases.append(f"MIOS_{name}_IMAGE")
+
+    elif dotted_path.startswith("services."):
+        parts = dotted_path.split(".")
+        if len(parts) >= 3:
+            service = parts[1].upper().replace("-", "_")
+            key = "_".join(parts[2:]).upper().replace("-", "_")
+            if service == "WEBTOOLS":
+                if key in {"USER", "UID", "GID"}:
+                    aliases.extend([f"MIOS_WEBTOOLS_{key}", f"MIOS_CRAWL4AI_{key}"])
+                elif key == "CDP_URL":
+                    aliases.append("MIOS_CRAWL_CDP_URL")
+                elif key == "CAMOUFOX":
+                    aliases.append("MIOS_CRAWL_CAMOUFOX")
+                elif key == "MIN_CHARS":
+                    aliases.append("MIOS_CRAWL_MIN_CHARS")
+                elif key.startswith("FIRECRAWL_") or key.startswith("CRAWL4AI_"):
+                    aliases.append(f"MIOS_{key}")
+            else:
+                aliases.append(f"MIOS_{service}_{key}")
+
+    elif dotted_path.startswith("storage.cephfs."):
+        key = dotted_path[len("storage.cephfs."):].upper().replace(".", "_").replace("-", "_")
+        if key == "XDG_CACHE_HOME_OVERRIDE":
+            aliases.append("MIOS_XDG_CACHE_LOCAL_PATH")
+        else:
+            aliases.append(f"MIOS_CEPHFS_{key}")
+
+    elif dotted_path.startswith("wsl2."):
+        key = dotted_path[len("wsl2."):].upper().replace(".", "_").replace("-", "_")
+        if key == "DESKTOP_COMPAT_GDK_BACKEND":
+            aliases.append("MIOS_WSLG_GDK_BACKEND")
+        elif key == "DESKTOP_COMPAT_MOZ_WAYLAND":
+            aliases.append("MIOS_WSLG_MOZ_WAYLAND")
+        elif key == "DESKTOP_COMPAT_QT_PLATFORM":
+            aliases.append("MIOS_WSLG_QT_PLATFORM")
+        elif key == "DEV_VM_QUADLET_NETWORK_MODE":
+            aliases.append("MIOS_QUADLET_DEV_NETWORK_MODE")
+        else:
+            aliases.append(f"MIOS_WSL2_{key}")
+
+    elif dotted_path.startswith("converge."):
+        key = dotted_path[len("converge."):].upper().replace(".", "_").replace("-", "_")
+        aliases.append(f"MIOS_CONV_{key}")
+
+    elif dotted_path.startswith("image.") and not dotted_path.startswith("image.sidecars."):
+        key = dotted_path[len("image."):].upper().replace(".", "_").replace("-", "_")
+        if key == "BRANCH":
+            aliases.append("MIOS_BRANCH")
+        elif key == "BASE":
+            aliases.append("MIOS_BASE_IMAGE")
+        elif key == "BIB":
+            aliases.append("MIOS_BIB_IMAGE")
+        elif key == "LOCAL_TAG":
+            aliases.append("MIOS_LOCAL_TAG")
+        elif key in {"REF", "NAME", "TAG"}:
+            aliases.append(f"MIOS_IMAGE_{key}")
+
+    elif dotted_path.startswith("desktop."):
+        key = dotted_path[len("desktop."):].upper().replace(".", "_").replace("-", "_")
+        if key == "COLOR_SCHEME":
+            aliases.append("MIOS_COLOR_SCHEME")
+        elif key == "FLATPAKS":
+            aliases.append("MIOS_FLATPAKS")
+        elif key == "SESSION":
+            aliases.append(f"MIOS_DESKTOP_{key}")
+
+    elif dotted_path.startswith("bootstrap.dev_vm."):
+        key = dotted_path[len("bootstrap.dev_vm."):].upper().replace(".", "_").replace("-", "_")
+        if key == "MACHINE_NAME":
+            aliases.append("MIOS_BUILDER_DISTRO")
+        elif key == "WSL_DISTRO":
+            aliases.append("MIOS_WSL_DISTRO")
+        elif key == "DISK_SIZE_GB":
+            aliases.append("MIOS_DEV_VM_DISK_GB")
+        elif key == "GPU_PASSTHROUGH":
+            aliases.append("MIOS_DEV_VM_GPU")
+        elif key == "HOST_RESERVE_CPU_PCT":
+            aliases.append("MIOS_DEV_VM_CPU_RESERVE_PCT")
+        elif key == "HOST_RESERVE_CPU_MIN":
+            aliases.append("MIOS_DEV_VM_CPU_RESERVE_MIN")
+        elif key == "HOST_RESERVE_MEMORY_PCT":
+            aliases.append("MIOS_DEV_VM_MEMORY_RESERVE_PCT")
+        elif key == "HOST_RESERVE_MEMORY_GB":
+            aliases.append("MIOS_DEV_VM_MEMORY_RESERVE_GB")
+        elif key == "HOST_RESERVE_DISK_GB":
+            aliases.append("MIOS_DEV_VM_DISK_RESERVE_GB")
+        elif key in {"BASE_IMAGE", "CPUS", "MEMORY_MB"}:
+            aliases.append(f"MIOS_DEV_VM_{key}")
+    elif dotted_path.startswith("bootstrap.host_storage."):
+        key = dotted_path[len("bootstrap.host_storage."):].upper().replace(".", "_").replace("-", "_")
+        if key == "SHRINK_MB":
+            aliases.append("MIOS_DATA_DISK_MB")
+        elif key == "DRIVE_LETTER":
+            aliases.append("MIOS_DATA_DISK_LETTER")
+    elif dotted_path.startswith("bootstrap.") and not dotted_path.startswith("bootstrap.dev_vm.") and not dotted_path.startswith("bootstrap.host_storage."):
+        key = dotted_path[len("bootstrap."):].upper().replace(".", "_").replace("-", "_")
+        if key == "MIOS_REPO":
+            aliases.append("MIOS_REPO_URL")
+        elif key == "BOOTSTRAP_REPO":
+            aliases.append("MIOS_BOOTSTRAP_REPO_URL")
+        elif key == "MODE":
+            aliases.append(f"MIOS_BOOTSTRAP_{key}")
+
+    elif dotted_path.startswith("reliability."):
+        key = dotted_path[len("reliability."):].upper().replace(".", "_").replace("-", "_")
+        aliases.append(f"MIOS_RELIABILITY_{key}")
+        
+    elif dotted_path.startswith("routing."):
+        key = dotted_path[len("routing."):].upper().replace(".", "_").replace("-", "_")
+        aliases.append(f"MIOS_ROUTING_{key}")
+        if key.startswith("LAUNCH_"):
+            aliases.append(f"MIOS_{key}")
+
+    elif dotted_path.startswith("mios-find.") or dotted_path.startswith("mios_find."):
+        prefix_len = len("mios-find.") if dotted_path.startswith("mios-find.") else len("mios_find.")
+        key = dotted_path[prefix_len:].upper().replace(".", "_").replace("-", "_")
+        aliases.append(f"MIOS_FIND_{key}")
+
+    return aliases
+
+def walk(d, prefix=""):
+    results = []
+    if not isinstance(d, dict):
+        return results
+    for k, v in d.items():
+        path = f"{prefix}.{k}" if prefix else k
+        if path == "routing.domains":
+            continue
+        if isinstance(v, dict):
+            results.extend(walk(v, path))
+        else:
+            results.append((path, v))
+    return results
+
+def process_val(dotted, v, stack_offset=0):
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    if dotted.startswith("ports.") and dotted != "ports.stack_id":
+        try:
+            if int(v) != 53:
+                return int(v) + stack_offset
+        except (ValueError, TypeError):
+            pass
+    if isinstance(v, list):
+        return ",".join(str(x) for x in v)
+    return v
+
+EXCLUDED_SECTIONS = {"containers", "verbs", "recipes", "packages", "dotfiles", "btop", "theme", "install_phases", "messages"}
+WALK_MOSTLY_DEAD = {"ai", "image", "bootstrap", "profile", "sandbox", "security"}
+WALK_EMIT_KEEP = {
+    "MIOS_AI_BAKE_MODELS", "MIOS_AI_DIR", "MIOS_AI_EMBED_MODEL", "MIOS_AI_ENDPOINT",
+    "MIOS_AI_JOURNAL", "MIOS_AI_MCP_DIR", "MIOS_AI_MEMORY_DIR", "MIOS_AI_MODEL",
+    "MIOS_AI_MODELS_DIR", "MIOS_AI_RAM_FLOOR_GB", "MIOS_AI_SCRATCH_DIR",
+    "MIOS_IMAGE_NAME", "MIOS_IMAGE_REF", "MIOS_IMAGE_TAG",
+    "MIOS_BOOTSTRAP_MODE", "MIOS_PROFILE_FEATURES", "MIOS_PROFILE_ROLE",
+    "MIOS_SANDBOX_ENABLE", "MIOS_SECURITY_ALLOWLIST_HOSTS", "MIOS_SECURITY_PROVENANCE_TAINT",
+    "MIOS_HEADLESS", "MIOS_MONITOR_RUNNING", "MIOS_NO_COLOR", "MIOS_NO_MONITOR",
+}
