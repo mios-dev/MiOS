@@ -5701,7 +5701,8 @@ toml_path = os.path.join(root, "usr/share/mios/mios.toml")
 with open(toml_path, "rb") as f:
     data = tomllib.load(f)
 
-laws = data.get("laws", [])
+laws_section = data.get("laws", {})
+laws = laws_section.get("laws", [])
 drift_script = os.path.join(root, "automation/98-drift-checks.sh")
 with open(drift_script, "r", encoding="utf-8") as f:
     drift_code = f.read()
