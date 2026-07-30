@@ -1904,7 +1904,7 @@ test_module_length() {
     local dummy_file="${dir}/test_dummy_length.py"
     
     # Create an 801 line python file
-    yes "" | head -n 801 > "$dummy_file"
+    seq 1 801 > "$dummy_file"
 
     if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_module_length >/dev/null 2>&1; then
         rm -f "$dummy_file"
