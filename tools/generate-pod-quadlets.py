@@ -247,6 +247,8 @@ def render_nested_quadlet(name: str, spec: dict, unit_type: str) -> str:
         f"tools/generate-pod-quadlets.py from [{unit_type}s.{name}] in mios.toml."
     )
     lines.append(f"# /usr/share/containers/systemd/{name}.{unit_type}")
+    if name == "mios-llm-heavy-alt" and unit_type == "container":
+        lines.append("# DEPRECATED (Part 10, 2026-06-25): retire by setting [converge.inference].retire_heavy_alt = true and running the migration guide at usr/share/doc/mios/guides/inference-consolidation.md.")
     
     main_section = unit_type.capitalize()
     

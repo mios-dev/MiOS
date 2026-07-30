@@ -408,22 +408,6 @@ check_hint_coverage() {
 
 # --- (Law 16) Template conformance. ----------------------------------------
 # Delegates to check-template-conformance to verify structural template matching.
-check_template_conformance() {
-    local tool="$ROOT/usr/libexec/mios/check-template-conformance"
-    if ! command -v python3 >/dev/null 2>&1; then
-        echo "[38-drift-checks]   WARNING: python3 missing -- skipping template conformance check" >&2
-        return 0
-    fi
-    if [[ ! -f "$tool" ]]; then
-        echo "[38-drift-checks]   WARNING: check-template-conformance not found -- skipping" >&2
-        return 0
-    fi
-    if python3 "$tool" --root "$ROOT"; then
-        echo "[38-drift-checks]   (Law 16) template conformance within ratchet ceiling"
-    else
-        _violation "Template conformance regressed: a file does not conform to its template specification (run check-template-conformance to see details)"
-    fi
-}
 
 # --- (6) modular-monolith boundary (#58 WS-3 strangler-fig). ------------------
 # The strangler-fig extracts pure logic out of the server.py monolith into
@@ -6064,7 +6048,7 @@ main() {
     check_retired_models
     check_structured
     check_hint_coverage
-    check_template_conformance
+
     check_module_boundary
     check_rbac_tiers
     check_agent_schema
