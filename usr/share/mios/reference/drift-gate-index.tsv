@@ -115,3 +115,4 @@
 114	check_projection_registry	Law 8 SSOT-PROJECTION registry verified clean
 115	check_db_seed_coverage	DB seed coverage gate verified clean (all SSOT tables reachable by seed-db-config.py)
 116	check_account_column_parity	account column parity gate verified clean (schema superset of consumer projections)
+117	check_module_length	mios_pipe sibling modules are all <= 800 lines (modular cohesion intact)

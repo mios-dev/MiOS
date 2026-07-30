@@ -1,3 +1,4 @@
+# AI-hint: Extracted module for vram_scheduler.py.
 """VRAM and Lane Scheduler."""
 
 from __future__ import annotations

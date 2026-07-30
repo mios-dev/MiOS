@@ -497,7 +497,6 @@
     "_DAEMON_DIAGNOSE_MODEL",
     "_DATA_URI_RE",
     "_DB_AUTH",
-    "_DB_CLIENT",
     "_DCI_ACTS",
     "_DCI_ACT_NAMES",
     "_DCI_ACT_SCHEMA",
@@ -800,11 +799,15 @@
     "_client_tools_wrap",
     "_codemode",
     "_configure_admission",
+    "_configure_auth",
     "_configure_authn",
+    "_configure_db",
     "_configure_dbwrite",
     "_configure_scratchpad",
     "_configure_session_events",
+    "_configure_streaming",
     "_configure_toolsurface",
+    "_configure_vram_scheduler",
     "_conv_key_var",
     "_cosine",
     "_council_mode_var",
@@ -1381,6 +1384,6 @@
   ],
   "counts": {
     "routes": 89,
-    "provided": 1287
+    "provided": 1290
   }
 }

@@ -1,3 +1,4 @@
+# AI-hint: Extracted module for streaming.py.
 """Agent Streaming."""
 
 from __future__ import annotations

@@ -1,3 +1,4 @@
+# AI-hint: Extracted module for auth.py.
 """Auth and Usage Middleware."""
 
 from __future__ import annotations

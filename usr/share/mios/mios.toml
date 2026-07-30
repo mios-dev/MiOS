@@ -2002,7 +2002,8 @@ denylist = [
     "mios_ctxpack",
     "mios_embed_backfill",
     "mios_provider_translate",
-    "mios_smartroute"
+    "mios_smartroute",
+    "mios_worker_tools"
 ]
 
 # ----------------------------------------------------------------------------

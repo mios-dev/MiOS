@@ -1,3 +1,4 @@
+# AI-hint: Extracted module for db.py.
 """Database client and read/update handlers."""
 
 from __future__ import annotations
