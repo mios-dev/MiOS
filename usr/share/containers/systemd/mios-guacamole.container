@@ -17,13 +17,13 @@ Environment=POSTGRESQL_PASSWORD=mios
 Environment=GUACD_HOSTNAME=localhost
 Environment=GUACD_PORT=4822
 EnvironmentFile=/etc/mios/install.env
-Group=810
+Group=
 Image=docker.io/guacamole/guacamole:latest
 Label=org.opencontainers.image.url=http://localhost:${MIOS_PORT_GUACAMOLE_WEB}/guacamole/
 Label=org.opencontainers.image.documentation=https://guacamole.apache.org/doc/
 Label=io.podman_desktop.openInBrowser=http://localhost:${MIOS_PORT_GUACAMOLE_WEB}/guacamole/
 Pod=mios-system.pod
-User=810
+User=
 
 [Install]
 WantedBy=multi-user.target default.target
