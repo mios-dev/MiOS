@@ -17,12 +17,12 @@ def main():
         root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     
     # Configure env to isolate layer TOML paths to standard test files
-    os.environ["MIOS_VENDOR_TOML"] = os.path.join(root, "usr/share/mios/mios.toml")
-    os.environ["MIOS_HOST_TOML"] = os.path.join(root, "etc/mios/mios.toml")
-    os.environ["MIOS_USER_TOML"] = os.path.join(root, "nonexistent.toml")
-    os.environ["MIOS_VENDOR_TOML_D"] = os.path.join(root, "usr/lib/mios/mios.d")
-    os.environ["MIOS_HOST_TOML_D"] = os.path.join(root, "etc/mios/mios.d")
-    os.environ["MIOS_USER_TOML_D"] = os.path.join(root, "nonexistent_d")
+    os.environ["MIOS_VENDOR_TOML"] = os.path.join(root, "usr/share/mios/mios.toml").replace('\\', '/')
+    os.environ["MIOS_HOST_TOML"] = os.path.join(root, "etc/mios/mios.toml").replace('\\', '/')
+    os.environ["MIOS_USER_TOML"] = os.path.join(root, "nonexistent.toml").replace('\\', '/')
+    os.environ["MIOS_VENDOR_TOML_D"] = os.path.join(root, "usr/lib/mios/mios.d").replace('\\', '/')
+    os.environ["MIOS_HOST_TOML_D"] = os.path.join(root, "etc/mios/mios.d").replace('\\', '/')
+    os.environ["MIOS_USER_TOML_D"] = os.path.join(root, "nonexistent_d").replace('\\', '/')
 
     sys.path.insert(0, os.path.join(root, "usr/lib/mios"))
     try:
@@ -33,6 +33,7 @@ def main():
 
     env = os.environ.copy()
     env["MSYS_NO_PATHCONV"] = "1"
+    env.pop("MIOS_TOML_RESOLVED", None)
 
     # Select the correct bash executable
     bash_exe = "bash"
@@ -43,10 +44,11 @@ def main():
                 break
 
     # Source userenv.sh in isolated shell and capture exported MIOS_ env vars using JSON
+    userenv_script = os.path.join(root, 'usr/lib/mios/userenv.sh').replace('\\', '/')
+    py_exec = sys.executable.replace('\\', '/')
     cmd = [
         bash_exe, "-c",
-        f"source {shlex.quote(os.path.join(root, 'usr/lib/mios/userenv.sh'))} && "
-        f"{sys.executable} -c \"import os, json; print(json.dumps({{k: v for k, v in os.environ.items() if k.startswith('MIOS_')}}))\""
+        f"source {shlex.quote(userenv_script)} && {shlex.quote(py_exec)} -c \"import os, json; print(json.dumps({{k: v for k, v in os.environ.items() if k.startswith('MIOS_')}}))\""
     ]
     try:
         out = subprocess.check_output(cmd, env=env, stderr=subprocess.STDOUT).decode("utf-8")
@@ -58,16 +60,6 @@ def main():
         print(f"Error: Failed to parse env JSON: {e}\nOutput was:\n{out}", file=sys.stderr)
         sys.exit(1)
 
-    # Extract dynamic functions from userenv.sh
-    userenv_path = os.path.join(root, "usr/lib/mios/userenv.sh")
-    with open(userenv_path, "r", encoding="utf-8") as f:
-        content = f.read()
-
-    get_aliases_match = re.search(r'(def get_aliases\(.*?\):\n.*?)(?=\ndef walk)', content, re.DOTALL)
-    if not get_aliases_match:
-        print("Error: get_aliases not found in userenv.sh", file=sys.stderr)
-        sys.exit(1)
-
     merged_data = mios_toml.load_merged()
     stack_id = mios_toml.get("ports", "stack_id")
     try:
@@ -75,59 +67,23 @@ def main():
     except ValueError:
         stack_offset = 0
 
-    local_vars = {"stack_offset": stack_offset}
-    try:
-        exec(get_aliases_match.group(1), {"re": re}, local_vars)
-        get_aliases = local_vars["get_aliases"]
-    except Exception as e:
-        print(f"Error: Failed to exec get_aliases from userenv.sh: {e}", file=sys.stderr)
-        sys.exit(1)
-
-    process_val_match = re.search(r'(def process_val\(.*?\):\n.*?)(?=\nall_pairs =)', content, re.DOTALL)
-    if not process_val_match:
-        print("Error: process_val not found in userenv.sh", file=sys.stderr)
-        sys.exit(1)
-
-    try:
-        exec(process_val_match.group(1), {"int": int, "isinstance": isinstance, "list": list, "str": str, "ValueError": ValueError, "TypeError": TypeError, "stack_offset": stack_offset}, local_vars)
-        process_val = local_vars["process_val"]
-    except Exception as e:
-        print(f"Error: Failed to exec process_val from userenv.sh: {e}", file=sys.stderr)
-        sys.exit(1)
-
-    def walk(d, prefix=""):
-        results = []
-        if not isinstance(d, dict):
-            return results
-        for k, v in d.items():
-            path = f"{prefix}.{k}" if prefix else k
-            if path == "routing.domains":
-                continue
-            if isinstance(v, dict):
-                results.extend(walk(v, path))
-            else:
-                results.append((path, v))
-        return results
+    get_aliases = mios_toml.get_aliases
+    def process_val(dotted, v):
+        return mios_toml.process_val(dotted, v, stack_offset)
+    walk = mios_toml.walk
 
     # Reconstruct toml_vars expected exports dict
     toml_vars = {}
     
     # 1. Walked variables
     all_pairs = []
-    EXCLUDED_SECTIONS = {"containers", "verbs", "recipes", "packages", "dotfiles", "btop", "theme", "install_phases", "messages"}
+    EXCLUDED_SECTIONS = mios_toml.EXCLUDED_SECTIONS
     for sec, val in merged_data.items():
         if isinstance(val, dict) and sec not in EXCLUDED_SECTIONS:
             all_pairs.extend(walk(val, sec))
 
-    WALK_MOSTLY_DEAD = {"ai", "image", "bootstrap", "profile", "sandbox", "security"}
-    WALK_EMIT_KEEP = {
-        "MIOS_AI_BAKE_MODELS", "MIOS_AI_DIR", "MIOS_AI_EMBED_MODEL", "MIOS_AI_ENDPOINT",
-        "MIOS_AI_JOURNAL", "MIOS_AI_MCP_DIR", "MIOS_AI_MEMORY_DIR", "MIOS_AI_MODEL",
-        "MIOS_AI_MODELS_DIR", "MIOS_AI_RAM_FLOOR_GB", "MIOS_AI_SCRATCH_DIR",
-        "MIOS_IMAGE_NAME", "MIOS_IMAGE_REF", "MIOS_IMAGE_TAG",
-        "MIOS_BOOTSTRAP_MODE", "MIOS_PROFILE_FEATURES", "MIOS_PROFILE_ROLE",
-        "MIOS_SANDBOX_ENABLE", "MIOS_SECURITY_ALLOWLIST_HOSTS", "MIOS_SECURITY_PROVENANCE_TAINT",
-    }
+    WALK_MOSTLY_DEAD = mios_toml.WALK_MOSTLY_DEAD
+    WALK_EMIT_KEEP = mios_toml.WALK_EMIT_KEEP
 
     exports_map = {}
     for path, val in all_pairs:
