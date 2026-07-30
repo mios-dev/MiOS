@@ -2984,14 +2984,13 @@ check_quadlet_privilege() {
         while IFS= read -r f; do
             [[ -f "$f" ]] || continue
             base="$(basename "$f")"
-            if ! grep -qE '^[[:space:]]*User=' "$f"; then
-                bad+="    $base: missing User= (Law 6 requires User=)"$'\n'
-                continue
+            user=""
+            if grep -qE '^[[:space:]]*User=' "$f"; then
+                user="$(grep -hE '^[[:space:]]*User=' "$f" | head -1 | sed -E 's/^[[:space:]]*User=//' | tr -d '[:space:]')"
             fi
-            user="$(grep -hE '^[[:space:]]*User=' "$f" | head -1 | sed -E 's/^[[:space:]]*User=//' | tr -d '[:space:]')"
-            if [[ "$user" == "root" || "$user" == "0" ]]; then
+            if [[ -z "$user" || "$user" == "root" || "$user" == "0" ]]; then
                 if ! printf '%s\n' "$root_allow" | grep -qxF "$base"; then
-                    bad+="    $base: User=$user but NOT in [security.privileged_quadlets].root"$'\n'
+                    bad+="    $base: implicitly/explicitly root (User=$user) but NOT in [security.privileged_quadlets].root"$'\n'
                 fi
             fi
             if ! printf '%s\n' "$ngd_allow" | grep -qxF "$base"; then
