@@ -35,7 +35,7 @@
 - `WS-CATREPO` — Small MiOS-Repo shadow-config + separate MiOS-Data bulk store (512GB+) + model embedding ✅
 - `WS-CATFLAT` — MiOS-Cat tree flatten, de-dup, leave-nothing-behind ✅
 - `WS-CONFIG` — Unified config surface: mios.toml ⇄ Portal + configurator + /v1 at :8640/ ✅
-- `WS-DEPLOY` — Deployment surface consolidation and bare-metal bootc install (active)
+- `WS-DEPLOY` — Deployment surface consolidation and bare-metal bootc install ✅
 
 **Storage & Data**
 (no workstreams)
@@ -50,7 +50,7 @@
 - `WS-RELTOP` — Release topology: GitHub ≡ Forgejo equal publishers; PUBLISH capacity gate ✅
 
 **Testing & Conformance**
-- `WS-TESTDOC` — Testing, drift-gate negative coverage, and documentation integrity (active)
+- `WS-TESTDOC` — Testing, drift-gate negative coverage, and documentation integrity ✅
 <!-- ROADMAP_INDEX_END -->
 
 <!-- ROADMAP_TOC_START -->
