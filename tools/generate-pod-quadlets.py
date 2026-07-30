@@ -49,27 +49,44 @@ def resolve_env_vars(val: str | bool | list | dict) -> str | bool | list | dict:
     if not isinstance(val, str):
         return val
     
+    # An env var exported as the EMPTY string counts as UNSET here -- shell
+    # `${VAR:-default}` semantics, and the same rule the mios.toml overlay uses
+    # ("empty strings do not override non-empty values below them").
+    # tools/lib/userenv.sh exports EVERY MIOS_* key it knows about, emitting ""
+    # for keys with no resolved value, so an `in os.environ` membership test
+    # alone made the generator env-DEPENDENT: sourced-env renders collapsed
+    # ${MIOS_GUACD_UID:-811} to "" and render_nested_quadlet then DROPPED the
+    # User=/Group=/Image= line entirely, shipping implicitly-root Quadlets that
+    # fail Law 6 (UNPRIVILEGED-QUADLETS) at 99-postcheck. Treating empty as
+    # unset makes bare and sourced renders byte-identical (the determinism
+    # 33-generate-quadlets.sh and the --check drift gate both rely on).
+    def _env(var_name: str):
+        v = os.environ.get(var_name)
+        return v if v else None
+
     # 1. Resolve ${VAR:-default}
     def repl_fallback(m):
         var_name = m.group(1)
         fallback = m.group(2)
         if var_name.startswith("MIOS_PORT_"):
             return f"${{{var_name}}}"
-        if var_name in os.environ:
-            return os.environ[var_name]
+        env_val = _env(var_name)
+        if env_val is not None:
+            return env_val
         pinned = _sidecar_image(var_name)
         if pinned is not None:
             return pinned
         return fallback
     val = re.sub(r'\$\{([A-Za-z0-9_]+):-([^}]*)\}', repl_fallback, val)
-    
+
     # 2. Resolve ${VAR}
     def repl_var(m):
         var_name = m.group(1)
         if var_name.startswith("MIOS_PORT_"):
             return m.group(0)
-        if var_name in os.environ:
-            return os.environ[var_name]
+        env_val = _env(var_name)
+        if env_val is not None:
+            return env_val
         pinned = _sidecar_image(var_name)
         if pinned is not None:
             return pinned
@@ -453,6 +470,27 @@ def _selftest() -> int:
     img_spec = {"Container": {"Image": "${MIOS_PGVECTOR_IMAGE:-docker.io/pgvector/pgvector:0.8.3-pg17}"}}
     ic = render_nested_quadlet("mios-pgvector", img_spec, "container")
     ck("selftest: bare-env resolves digest from [image.sidecars]", "@sha256:deadbeef" in ic)
+
+    # Law-6 regression guard: an EMPTY exported var must behave like an UNSET one
+    # (shell `${VAR:-default}`). userenv.sh exports every MIOS_* key it knows,
+    # emitting "" for unresolved ones; when "" won over the inline default the
+    # generator dropped User=/Group=/Image= and shipped implicitly-root Quadlets
+    # that fail Law 6 (UNPRIVILEGED-QUADLETS) at 99-postcheck.
+    priv_spec = {"Container": {
+        "Image": "${MIOS_PGVECTOR_IMAGE:-docker.io/pgvector/pgvector:0.8.3-pg17}",
+        "User": "${MIOS_GUACD_UID:-811}",
+        "Group": "${MIOS_GUACD_GID:-811}",
+    }}
+    for _v in ("MIOS_GUACD_UID", "MIOS_GUACD_GID", "MIOS_PGVECTOR_IMAGE"):
+        os.environ[_v] = ""
+    pc = render_nested_quadlet("mios-guacd", priv_spec, "container")
+    for _v in ("MIOS_GUACD_UID", "MIOS_GUACD_GID", "MIOS_PGVECTOR_IMAGE"):
+        os.environ.pop(_v, None)
+    ck("selftest: empty env var falls back to inline default (User=)", "User=811" in pc)
+    ck("selftest: empty env var falls back to inline default (Group=)", "Group=811" in pc)
+    ck("selftest: empty env var still resolves the sidecar digest", "@sha256:deadbeef" in pc)
+    ck("selftest: empty-env render == bare-env render",
+       pc == render_nested_quadlet("mios-guacd", priv_spec, "container"))
     _SIDECARS = {}
 
     print(f"\n{'ok' if fails == 0 else str(fails) + ' FAILED'}")

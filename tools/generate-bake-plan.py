@@ -56,6 +56,18 @@ def main(argv):
     # Load all sidecars to resolve variable substitutions
     sidecars = (config.get("image") or {}).get("sidecars") or {}
     
+    # An env var exported as the EMPTY string counts as UNSET -- shell
+    # `${VAR:-default}` semantics, and the same rule the mios.toml overlay uses
+    # ("empty strings do not override non-empty values below them").
+    # tools/lib/userenv.sh exports EVERY MIOS_* key it knows about, emitting ""
+    # for keys with no resolved value, so an `in os.environ` membership test
+    # alone collapsed e.g. ${MIOS_GUACD_IMAGE:-docker.io/...} to "" whenever the
+    # env was sourced -- silently dropping a bound image from the bake plan
+    # (Law 3 BOUND-IMAGES). Mirrors tools/generate-pod-quadlets.py.
+    def _env(var_name):
+        v = os.environ.get(var_name)
+        return v if v else None
+
     def resolve_image_val(val):
         if not val:
             return ""
@@ -63,8 +75,9 @@ def main(argv):
         def repl_fallback(m):
             var_name = m.group(1)
             fallback = m.group(2)
-            if var_name in os.environ:
-                return os.environ[var_name]
+            env_val = _env(var_name)
+            if env_val is not None:
+                return env_val
             m_s = re.match(r'^MIOS_(.+)_IMAGE$', var_name)
             if m_s:
                 sc_val = sidecars.get(m_s.group(1).lower())
@@ -72,12 +85,13 @@ def main(argv):
                     return sc_val
             return fallback
         val = var_re.sub(repl_fallback, val)
-        
+
         # Resolve ${VAR}
         def repl_var(m):
             var_name = m.group(1)
-            if var_name in os.environ:
-                return os.environ[var_name]
+            env_val = _env(var_name)
+            if env_val is not None:
+                return env_val
             m_s = re.match(r'^MIOS_(.+)_IMAGE$', var_name)
             if m_s:
                 sc_val = sidecars.get(m_s.group(1).lower())
