@@ -18,12 +18,14 @@ Environment=FORGEJO_RUNNER_LABELS=mios-self-hosted,podman,bootc,fedora-44
 Environment=FORGEJO_RUNNER_DEFAULT_LABELS=mios-self-hosted
 EnvironmentFile=/etc/mios/forge/runner-token
 Exec=forgejo-runner daemon
+Group=0
 Image=code.forgejo.org/forgejo/runner:7
 Label=org.opencontainers.image.title=mios-forgejo-runner
 Label=org.opencontainers.image.documentation=https://forgejo.org/docs/latest/admin/actions/
 Label=io.podman_desktop.openInBrowser=http://localhost:${MIOS_PORT_FORGE_HTTP}/-/admin/actions/runners
 Pod=mios-webtools.pod
 PodmanArgs=--privileged
+User=0
 Volume=/var/lib/containers/storage:/var/lib/containers/storage:Z
 Volume=/srv/mios/forge-runner:/data:Z
 Volume=/etc/mios/forge:/etc/mios/forge:Z,ro

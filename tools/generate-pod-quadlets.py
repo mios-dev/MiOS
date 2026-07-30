@@ -259,9 +259,9 @@ def render_nested_quadlet(name: str, spec: dict, unit_type: str) -> str:
                 lines.append(f"{k}={'true' if val else 'false'}")
             else:
                 resolved_val = resolve_env_vars(val)
-                if k in ("User", "Group") and (resolved_val == "" or resolved_val == 0 or resolved_val == "0"):
-                    continue
                 if k == "Image" and resolved_val == "":
+                    continue
+                if k in ("User", "Group") and resolved_val == "":
                     continue
                 lines.append(f"{k}={resolved_val}")
 
