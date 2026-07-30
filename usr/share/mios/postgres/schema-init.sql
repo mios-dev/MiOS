@@ -1151,11 +1151,3 @@ CREATE TABLE IF NOT EXISTS mios_identity.account_preferences (
     emb_version  varchar(32),
     UNIQUE(canonical_id, pref_key)
 );
-
-
-
-
-
-
-
-
