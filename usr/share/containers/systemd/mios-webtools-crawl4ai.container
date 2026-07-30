@@ -13,12 +13,10 @@ Environment=MIOS_CRAWL_BIND=127.0.0.1
 Environment=MIOS_CRAWL_CAMOUFOX=true
 Environment=MIOS_CRAWL_MIN_CHARS=200
 Exec=python /app/mios-crawl4ai-service.py
-Group=0
-Image=
+Image=localhost/mios-crawl4ai-slim:latest
 Label=org.opencontainers.image.title=mios-webtools-crawl4ai
 Label=io.podman_desktop.openInBrowser=http://localhost:11235/healthz
 Pod=mios-webtools.pod
-User=0
 Volume=/usr/lib/mios/crawl4ai/mios-crawl4ai-service.py:/app/mios-crawl4ai-service.py:ro
 
 [Install]
