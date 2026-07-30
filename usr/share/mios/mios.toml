@@ -733,6 +733,16 @@ grandfathered_cs = [
   "usr/share/mios/windows/MiosServiceTool.cs",
 ]
 
+[laws.projection_registry]
+# Law 8 (SSOT-PROJECTION) enforcement data -- lists the known projection surfaces
+# and their generators, so that check_projection_registry can verify they are backed
+# by drift checks (e.g. check_dotfiles_projection).
+surfaces = [
+  { generator = "usr/libexec/mios/mios-theme-render", check = "check_dotfiles_projection", output = "etc/ (and various target registries)" },
+  { generator = "usr/libexec/mios/mios-sync-toml", check = "check_toml_projection", output = "usr/share/mios/mios.toml.bak (and metadata)" },
+  { generator = "automation/98-drift-checks.sh", check = "check_drift_projection", output = "stdout (drift assertions)" },
+]
+
 # ----------------------------------------------------------------------------
 [security]
 composefs_mode = "verity"
