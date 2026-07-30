@@ -186,19 +186,19 @@ def update_db_gid(name: str, gid: int):
         logger.error(f"Failed to update GID for {name}: {e}")
 
 def sync_accounts():
-    db_accounts = query_accounts()
+    db_accounts = query_db_accounts()
     if not db_accounts:
         logger.info("No DB accounts retrieved. Skipping sync pass.")
         return
 
-    shadow_hashes = parse_shadow()
+    shadow_hashes = get_local_shadow_hashes()
     state = load_state()
     state_changed = False
 
     active_db_users = set()
 
     for db_user in db_accounts:
-        name = db_user["username"]
+        name = db_user["name"]
         active_db_users.add(name)
 
         # Dynamic DB sequence allocation for NULL GID / UID (AGY-340)
@@ -263,6 +263,8 @@ def sync_accounts():
                 cmd += ["-s", db_user["shell"]]
             if db_user["display"]:
                 cmd += ["-c", db_user["display"]]
+            if db_hash:
+                cmd += ["-p", db_hash]
             cmd.append(name)
 
             try:
@@ -295,29 +297,32 @@ def sync_accounts():
             except Exception as e:
                 logger.error(f"Failed to update password for {name}: {e}")
 
+        if not user_exists:
+            continue
+
         update_cmd = ["usermod"]
         needs_update = False
         if db_user["home_dir"] and local_user.pw_dir != db_user["home_dir"]:
             update_cmd += ["-d", db_user["home_dir"]]
             needs_update = True
-            if db_user["shell"] and local_user.pw_shell != db_user["shell"]:
-                update_cmd += ["-s", db_user["shell"]]
-                needs_update = True
-            if db_user["display"] and local_user.pw_gecos != db_user["display"]:
-                update_cmd += ["-c", db_user["display"]]
-                needs_update = True
-            if db_hash and local_hash != db_hash:
-                update_cmd += ["-p", db_hash]
-                needs_update = True
-                state[name] = db_hash
-                state_changed = True
-                
-            if needs_update:
-                update_cmd.append(name)
-                try:
-                    logger.info(f"Updating local user account parameters: {name}")
-                    subprocess.run(update_cmd, check=True)
-                except subprocess.CalledProcessError as e:
+        if db_user["shell"] and local_user.pw_shell != db_user["shell"]:
+            update_cmd += ["-s", db_user["shell"]]
+            needs_update = True
+        if db_user["display"] and local_user.pw_gecos != db_user["display"]:
+            update_cmd += ["-c", db_user["display"]]
+            needs_update = True
+        if db_hash and local_hash != db_hash:
+            update_cmd += ["-p", db_hash]
+            needs_update = True
+            state[name] = db_hash
+            state_changed = True
+            
+        if needs_update:
+            update_cmd.append(name)
+            try:
+                logger.info(f"Updating local user account parameters: {name}")
+                subprocess.run(update_cmd, check=True)
+            except subprocess.CalledProcessError as e:
                     logger.error(f"Failed to update user {name}: {e}")
 
         # Sync first-time seen existing users into state

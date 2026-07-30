@@ -2140,9 +2140,9 @@ if violations:
 sys.exit(0)
 PY
     then
-        echo "[38-drift-checks]   (30) usr/share/mios/names.generated.txt + referenced_names.txt match a fresh tools/generate-names-registry.py run"
+        echo "[38-drift-checks]   (30) names registry matches generate-names-registry.py"
     else
-        _violation "usr/share/mios/names.generated.txt or referenced_names.txt is STALE vs tools/generate-names-registry.py -- regenerate with python3 tools/generate-names-registry.py (flatten check 30)"
+        _violation "naming registry drift / tools/generate-names-registry.py stale (run tools/generate-names-registry.py to regenerate; check 30)"
     fi
 }
 
