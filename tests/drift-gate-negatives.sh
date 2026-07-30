@@ -1896,6 +1896,28 @@ test_account_column_parity() {
     log "test_account_column_parity negative test passed."
 }
 
+
+test_module_length() {
+    log "Testing check_module_length..."
+    local dir="${ROOT}/usr/lib/mios/agent-pipe/mios_pipe"
+    mkdir -p "$dir"
+    local dummy_file="${dir}/test_dummy_length.py"
+    
+    # Create an 801 line python file
+    yes "" | head -n 801 > "$dummy_file"
+
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_module_length >/dev/null 2>&1; then
+        rm -f "$dummy_file"
+        die "check_module_length passed despite 801-line file!"
+    fi
+
+    rm -f "$dummy_file"
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_module_length >/dev/null 2>&1 \
+        || die "check_module_length failed after restoration!"
+    
+    log "test_module_length negative test passed."
+}
+
 main() {
     log "Starting negative-test suite..."
     test_version_ssot
@@ -1975,6 +1997,7 @@ main() {
     test_bake_ref_parity
     test_db_seed_coverage
     test_account_column_parity
+    test_module_length
     log "All negative tests completed successfully!"
 }
 
