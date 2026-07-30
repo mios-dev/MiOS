@@ -393,7 +393,7 @@ else
     mios_skip "systemd-tmpfiles unavailable -- tmpfiles verification"
 fi
 
-# 12. UNIFIED-AI-REDIRECTS (Architectural Law 5).
+# 12. UNIFIED-AI-REDIRECTS (Architectural Law 5). [item12]
 # Active configuration MUST NOT hard-code vendor cloud URLs. Comments may
 # show alternatives for documentation, so we strip comment lines before
 # matching. Scope: actual config dirs in the deployed image, not docs.
@@ -549,7 +549,7 @@ if [[ -n "$_law6_missing" ]]; then
 fi
 mios_ok "every Quadlet declares User= (or is a documented root exception)"
 
-# 14. BOUND-IMAGES (Architectural Law 3).
+# 14. BOUND-IMAGES (Architectural Law 3). [item14]
 # Every Quadlet *.container in /etc/containers/systemd or
 # /usr/share/containers/systemd MUST be symlinked (by basename) into
 # /usr/lib/bootc/bound-images.d/ so the image bind-binds with the host.
@@ -652,7 +652,7 @@ else
     mios_skip "python3 missing -- benchmark run"
 fi
 
-# 16. BARE-SAFE-ENV (Architectural Law 10).
+# 16. BARE-SAFE-ENV (Architectural Law 10). [item16]
 # system-sync-env.sh renders /etc/mios/install.env as BARE KEY=value lines that
 # must be safe under all three parsers (systemd EnvironmentFile=, bash `source`,
 # podman --env-file). Render --dry-run and assert: no double-quoted values (`="`),
@@ -693,7 +693,7 @@ else
     mios_skip "system-sync-env.sh not found -- BARE-SAFE-ENV render check"
 fi
 
-# 17. SECRETS-NEVER-IN-ENV (Architectural Law 11).
+# 17. SECRETS-NEVER-IN-ENV (Architectural Law 11). [item17]
 # Password hashes/tokens live ONLY in /etc/shadow + /etc/mios/secrets.env (0600).
 # Scan every *.env / *secrets* file in the deployed config roots: if it carries one
 # of the three secret NAMES (MIOS_USER_PASSWORD_HASH / MIOS_FORGE_ADMIN_PASSWORD /
