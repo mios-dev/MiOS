@@ -1883,7 +1883,7 @@ test_account_column_parity() {
     local orig_val
     orig_val="$(cat "$schema_file")"
 
-    sed -i 's/name TEXT NOT NULL/-- name TEXT NOT NULL/' "$schema_file"
+    sed -i 's/name        text UNIQUE NOT NULL/-- name        text UNIQUE NOT NULL/' "$schema_file"
 
     if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_account_column_parity >/dev/null 2>&1; then
         echo "$orig_val" > "$schema_file"
