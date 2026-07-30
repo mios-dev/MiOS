@@ -5921,7 +5921,7 @@ if match:
             col_name = line_clean.split()[0].strip('"')
             columns.add(col_name)
 
-alter_matches = re.findall(r"ALTER TABLE account ADD COLUMN (?:IF NOT EXISTS )?(\w+)", schema_code, re.IGNORECASE)
+alter_matches = re.findall(r"ALTER TABLE account ADD COLUMN IF NOT EXISTS (\w+)", schema_code, re.IGNORECASE)
 columns.update(alter_matches)
 
 required_columns = {"name", "password_hash", "uid", "gid", "display", "home_dir", "shell", "groups", "is_admin", "enabled"}
