@@ -37,6 +37,14 @@ COPY GEMINI.md             /ctx/rootmd/GEMINI.md
 # /tmp/build (both build-time: bind-mounted / rm'd); it is NOT in the final image.
 COPY .git                  /ctx/.git/
 
+FROM docker.io/library/rust:1.80-slim AS rust-builder
+WORKDIR /build
+COPY src/mios-rs /build/
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/build/target \
+    cargo build --release && \
+    cp target/release/miosd /miosd
+
 FROM ${BASE_IMAGE}
 
 # MIOS_VERSION: parameterized from the canonical repo-root VERSION file
@@ -54,6 +62,8 @@ LABEL org.opencontainers.image.source="https://github.com/mios-dev/MiOS"
 LABEL org.opencontainers.image.version="v${MIOS_VERSION}"
 LABEL containers.bootc="1"
 LABEL ostree.bootable="1"
+
+COPY --from=rust-builder /miosd /usr/libexec/mios/miosd
 
 CMD ["/sbin/init"]
 
@@ -124,6 +134,7 @@ RUN --mount=type=bind,from=ctx,source=/ctx,target=/ctx,ro \
     bash /tmp/build/automation/01-system-files-overlay.sh; \
     chmod +x /tmp/build/automation/build.sh /tmp/build/automation/*.sh 2>/dev/null || true; \
     chmod +x /usr/libexec/mios/copy-build-log.sh 2>/dev/null || true; \
+    /usr/libexec/mios/miosd drift-check --root /tmp/build; \
     CTX=/tmp/build /tmp/build/automation/build.sh; \
     dnf clean all; \
     rm -rf /tmp/build; \

@@ -490,8 +490,14 @@ async def tool_search_logic(query: str = "", limit: int = 5, namespace: str = ""
                 {"qvec": qvec},
                 fetch=True
             )
-            if rows:
-                scored = [(r["score"], r["name"]) for r in rows if r.get("name")]
+            if rows is not None:
+                db_names = {r["name"] for r in rows if r.get("name")}
+                scored = [(float(r["score"]), r["name"]) for r in rows if r.get("name")]
+                # Fall-open for verbs missing in DB (e.g. pending backfill)
+                for vname, vec in _VERB_EMBEDDINGS.items():
+                    if vname not in db_names:
+                        scored.append((_cosine(qvec, vec), vname))
+                # Add MCP tools (not in verb table)
                 scored += [(_cosine(qvec, vec), k) for k, vec in _MCP_EMBEDDINGS.items()]
                 scored.sort(reverse=True)
                 pg_success = True

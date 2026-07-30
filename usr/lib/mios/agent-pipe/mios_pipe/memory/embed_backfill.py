@@ -98,8 +98,27 @@ PK_MAP = {
     "tool_call": "id",
     "directory_entry": "id",
     "event": "id",
-    "session": "id"
+    "session": "id",
+    "config_kv": "id",
+    "account_preference": ("account_id", "layer", "key")
 }
+
+_BACKFILL_EXEMPT = [
+    "knowledge",
+    "agent_memory",
+    "package_set",
+    "build_recipe",
+    "build_phase",
+    "xbox_feature",
+    "debloat_policy",
+    "debloat_profile",
+    "preset",
+    "appx_removal",
+    "feature_removal",
+    "capability_removal",
+    "component_removal"
+]
+
 
 
 def get_embed_config() -> Tuple[str, str]:
@@ -159,6 +178,18 @@ def get_text_projection(table: str, row: dict) -> Optional[str]:
         title = row.get("title") or meta.get("title") or ""
         first_prompt = row.get("first_prompt") or meta.get("first_prompt") or meta.get("first_user_text") or ""
         return f"Session Title: {title}\nPrompt: {first_prompt}".strip() or None
+    elif table == "config_kv":
+        scope = row.get("scope") or ""
+        key = row.get("key") or ""
+        desc = row.get("description") or ""
+        val = row.get("value")
+        val_str = json.dumps(val) if val is not None else ""
+        return f"Config [{scope}.{key}]: {desc}\nValue: {val_str}".strip() or None
+    elif table == "account_preference":
+        key = row.get("key") or ""
+        val = row.get("value")
+        val_str = json.dumps(val) if val is not None else ""
+        return f"Preference {key}: {val_str}".strip() or None
     return None
 
 
@@ -204,9 +235,13 @@ async def run_backfill(current_version: str = "nomic-768-v1") -> dict:
             "tool_call": "id, tool, args, result_preview, output",
             "directory_entry": "id, path, kind, size, summary",
             "event": "id, act_type, summary",
-            "session": "id, meta"
+            "session": "id, meta",
+            "config_kv": "id, scope, key, description, value",
+            "account_preference": "account_id, layer, key, value"
         }
         cols = cols_map[table]
+        
+        order_col = pk if isinstance(pk, str) else ", ".join(pk)
         
         table_ver = current_version
         if table == "verb":
@@ -223,7 +258,7 @@ async def run_backfill(current_version: str = "nomic-768-v1") -> dict:
         select_query = (
             f"SELECT {cols} FROM {table} "
             f"WHERE emb IS NULL OR (emb_version IS DISTINCT FROM %(ver)s) "
-            f"ORDER BY {pk} LIMIT 500"
+            f"ORDER BY {order_col} LIMIT 500"
         )
         try:
             rows = await _mios_pg.execute(select_query, {"ver": table_ver}, fetch=True)
@@ -238,7 +273,7 @@ async def run_backfill(current_version: str = "nomic-768-v1") -> dict:
         embedded_count = 0
         async with httpx.AsyncClient() as client:
             for row in rows:
-                pk_val = row[pk]
+                pk_val = row[pk] if isinstance(pk, str) else tuple(row[k] for k in pk)
                 txt = get_text_projection(table, row)
                 if not txt:
                     continue
@@ -248,22 +283,30 @@ async def run_backfill(current_version: str = "nomic-768-v1") -> dict:
                     log.warning("Failed to embed text for %s row %s", table, pk_val)
                     continue
                     
+                where_clause = f"WHERE {pk} = %(id)s" if isinstance(pk, str) else f"WHERE " + " AND ".join(f"{k} = %({k})s" for k in pk)
                 update_query = (
                     f"UPDATE {table} "
                     f"SET emb = %(emb)s::vector, emb_model = %(model)s, emb_version = %(ver)s "
-                    f"WHERE {pk} = %(id)s"
+                    f"{where_clause}"
                 )
+                
+                params = {
+                    "emb": vec,
+                    "model": model,
+                    "ver": table_ver,
+                }
+                if isinstance(pk, str):
+                    params["id"] = pk_val
+                else:
+                    for k in pk:
+                        params[k] = row[k]
+
                 try:
-                    res = await _mios_pg.execute(update_query, {
-                        "emb": vec,
-                        "model": model,
-                        "ver": table_ver,
-                        "id": pk_val
-                    })
+                    res = await _mios_pg.execute(update_query, params, fetch=False)
                     if res is not None:
                         embedded_count += 1
-                except Exception as e_up:
-                    log.warning("Failed to update embedding for %s row %s: %s", table, pk_val, e_up)
+                except Exception as e:
+                    log.warning("Failed to write embedding for %s row %s: %s", table, pk_val, e)
                     
         results[table] = embedded_count
         log.info("Completed embedding backfill for table %s: %d rows updated", table, embedded_count)
