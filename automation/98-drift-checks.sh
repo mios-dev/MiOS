@@ -2994,7 +2994,9 @@ check_quadlet_privilege() {
                 fi
             fi
             if ! printf '%s\n' "$ngd_allow" | grep -qxF "$base"; then
-                grep -qE '^[[:space:]]*Group='        "$f" || bad+="    $base: missing Group= (Law 6)"$'\n'
+                if [[ -n "$user" && "$user" != "root" && "$user" != "0" ]]; then
+                    grep -qE '^[[:space:]]*Group='        "$f" || bad+="    $base: missing Group= for non-root User (Law 6)"$'\n'
+                fi
                 grep -qE '^[[:space:]]*Delegate=yes'  "$f" || bad+="    $base: missing Delegate=yes (Law 6)"$'\n'
             fi
         done < <(find "$d" -type f -name '*.container' 2>/dev/null)
