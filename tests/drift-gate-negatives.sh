@@ -1771,19 +1771,19 @@ test_law_enforcers() {
 
 test_usr_over_etc() {
     log "Testing check_usr_over_etc..."
-    local temp_shadow="${ROOT}/etc/applications/mios-configurator.desktop"
-    mkdir -p "${ROOT}/etc/applications"
+    local temp_shadow="${ROOT}/etc/fontconfig/conf.avail/30-mios-geist.conf"
+    mkdir -p "${ROOT}/etc/fontconfig/conf.avail"
     touch "$temp_shadow"
     git add -f "$temp_shadow"
 
     if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_usr_over_etc >/dev/null 2>&1; then
         git rm -f "$temp_shadow" >/dev/null 2>&1
-        rm -rf "${ROOT}/etc/applications"
+        rm -rf "${ROOT}/etc/fontconfig"
         die "check_usr_over_etc passed despite /etc file shadowing /usr SSOT file!"
     fi
 
     git rm -f "$temp_shadow" >/dev/null 2>&1
-    rm -rf "${ROOT}/etc/applications"
+    rm -rf "${ROOT}/etc/fontconfig"
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_usr_over_etc >/dev/null 2>&1 \
         || die "check_usr_over_etc failed after restoration!"
     log "test_usr_over_etc negative test passed."
