@@ -157,9 +157,9 @@ mod session {
             let si = STARTUPINFOW { cb: std::mem::size_of::<STARTUPINFOW>() as u32, ..Default::default() };
             let mut pi = PROCESS_INFORMATION::default();
             let ok = CreateProcessAsUserW(
-                Some(token),
+                token,
                 windows::core::PCWSTR(exe.as_ptr()),
-                Some(windows::core::PWSTR(cmd.as_mut_ptr())),
+                windows::core::PWSTR(cmd.as_mut_ptr()),
                 None, None, false,
                 Default::default(),
                 None, None,

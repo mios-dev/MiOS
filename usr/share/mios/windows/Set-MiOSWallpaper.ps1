@@ -113,5 +113,5 @@ if ($Restart) {
         Write-Warning "Could not restart MiOS-Wallpaper-Service: $($_.Exception.Message)"
     }
     # Drop any live hosts so they relaunch against the new URL on the next poll.
-    Get-Process -Name 'MiOS-Wallpaper' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    Get-Process -Name 'mios-wallpaperd' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 }

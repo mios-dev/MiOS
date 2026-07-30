@@ -7806,39 +7806,39 @@ $endMark
         Set-Content -Path $miosLauncher -Value $launcherSrc -Encoding UTF8
         Log-Ok "MiOS native launcher staged: $miosLauncher (cols=$_lnchCols rows=$_lnchRows from mios.toml [terminal])"
     }
-
-    # ── mios-gui-watch.ps1 (background daemon for WSLg window auto-resize) ─
-    # months of "GUI windows never render on WSLg"
-    # turned out to be windows rendering at native X11 default sizes
-    # (e.g. 129x113 for xeyes) at arbitrary positions, invisible against
-    # acrylic terminals on a 4K display. mios-gui-watch.ps1 polls
-    # msrdc.exe for new RDP-RAIL windows and force-resizes any tiny
-    # spawn to mios.toml [terminal.gui_min] dims, centered on cursor
-    # monitor. Once "adopted" the window is left alone.
-    $miosGuiWatch = Join-Path $MiosBinDir 'mios-gui-watch.ps1'
-    $_gwSrcCands = @(
-        (Join-Path $MiosRepoDir 'src\mios-gui-watch.ps1'),
-        (Join-Path $MiosBootstrapShadow 'src\mios-gui-watch.ps1')
-    )
-    $_gwSrc = $null
-    foreach ($_c in $_gwSrcCands) { if (Test-Path -LiteralPath $_c) { $_gwSrc = $_c; break } }
-    if ($_gwSrc) {
-        try {
-            $_gwBody = [IO.File]::ReadAllText($_gwSrc, (New-Object System.Text.UTF8Encoding($false)))
-            $_gwBody = $_gwBody -replace '__MIOS_DRIVE__', $_stagingDrive
-            Set-Content -Path $miosGuiWatch -Value $_gwBody -Encoding UTF8
-            Log-Ok "mios-gui-watch staged: $miosGuiWatch (auto-resize WSLg windows to mios.toml [terminal.gui_min])"
-
-            # HKCU Run entry so the daemon launches on every login
-            # (no terminal required). Hidden window via -WindowStyle
-            # Hidden + bypass AMSI scan via -ExecutionPolicy Bypass.
-            $_runKey  = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
-            if (-not (Test-Path $_runKey)) { New-Item -Path $_runKey -Force | Out-Null }
-            $_pwsh = (Get-Command pwsh.exe -ErrorAction SilentlyContinue).Source
-            if (-not $_pwsh) { $_pwsh = "$env:ProgramFiles\PowerShell\7\pwsh.exe" }
-            $_runVal = '"{0}" -NoLogo -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "{1}"' -f $_pwsh, $miosGuiWatch
-            Set-ItemProperty -Path $_runKey -Name 'MiOS-GuiWatch' -Value $_runVal -Type String -Force
-            Log-Ok "mios-gui-watch autostart registered (HKCU\...\Run\MiOS-GuiWatch)"
+    # ── mios-wallpaperd (Rust native living wallpaper + gui-watch daemon) ──
+    $wallpaperd_src = Join-Path $MiosRepoDir 'tools\native\mios-wallpaperd'
+    $wallpaperd_exe = Join-Path $MiosBinDir 'mios-wallpaperd.exe'
+    if (Get-Command cargo -ErrorAction SilentlyContinue) {
+        Log-Info "Compiling mios-wallpaperd via cargo..."
+        $cargoOut = & cargo build --manifest-path "$wallpaperd_src\Cargo.toml" --release 2>&1
+        if ($LASTEXITCODE -eq 0) {
+            $builtExe = Join-Path $MiosRepoDir 'tools\native\target\release\mios-wallpaperd.exe'
+            if (Test-Path $builtExe) {
+                Copy-Item -Path $builtExe -Destination $wallpaperd_exe -Force
+                Log-Ok "mios-wallpaperd compiled and staged: $wallpaperd_exe"
+                
+                # Register as a Windows Service
+                $svcName = 'MiOS-Wallpaper-Service'
+                if (-not (Get-Service -Name $svcName -ErrorAction SilentlyContinue)) {
+                    $svcPath = "`"$wallpaperd_exe`""
+                    & sc.exe create $svcName binPath= $svcPath start= auto displayname= "MiOS Wallpaper Service" | Out-Null
+                    if ($LASTEXITCODE -eq 0) {
+                        Log-Ok "Registered Windows Service: $svcName"
+                        & sc.exe start $svcName | Out-Null
+                    } else {
+                        Log-Warn "Failed to register Windows Service: $svcName"
+                    }
+                }
+            } else {
+                Log-Warn "cargo build succeeded but mios-wallpaperd.exe not found at $builtExe"
+            }
+        } else {
+            Log-Warn "cargo build for mios-wallpaperd failed: $($cargoOut -join ' ')"
+        }
+    } else {
+        Log-Warn "cargo not found -- skipping compilation of mios-wallpaperd (requires Rust)"
+    }
 
             # Register MiOS-Autostart (AtLogon trigger, RunLevel Highest, hidden)
             $_autostartEnabled = Get-MiosTomlValue -Section 'bootstrap.autostart' -Key 'enable' -Default $true

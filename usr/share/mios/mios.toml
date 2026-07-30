@@ -728,8 +728,6 @@ laws = [
 # list) or ANY .bat / .cmd / .go. This list may only SHRINK as ports land -- it must never grow.
 grandfathered_cs = [
   "usr/share/mios/windows/MiOS-Launcher.cs",
-  "usr/share/mios/windows/MiOS-Wallpaper-Service.cs",
-  "usr/share/mios/windows/MiOS-Wallpaper.cs",
   "usr/share/mios/windows/MiosServiceTool.cs",
 ]
 

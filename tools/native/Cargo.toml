@@ -2,4 +2,9 @@
 resolver = "2"
 members = [
     "mios-version-check",
+    "mios-wallpaperd",
 ]
+
+[workspace.package]
+version = "0.3.0"
+edition = "2021"
