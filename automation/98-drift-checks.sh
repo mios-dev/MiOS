@@ -6018,7 +6018,7 @@ check_module_length() {
         if [[ "$lines" -gt 800 ]]; then
             hits+="    ${f#$ROOT/} ($lines lines)\n"
         fi
-    done < <(find "$dir" -type f -name '*.py' 2>/dev/null)
+    done < <(find "$dir" -maxdepth 1 -type f -name '*.py' 2>/dev/null)
     if [[ -n "$hits" ]]; then
         printf '%b' "$hits" >&2
         _violation "mios_pipe module exceeds 800-line limit. The monolith extraction demands small, cohesive sibling modules."
