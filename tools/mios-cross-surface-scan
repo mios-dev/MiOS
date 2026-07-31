@@ -1,0 +1,93 @@
+#!/usr/bin/env python3
+# tools/mios-cross-surface-scan
+# AGY-857 — Scanner for hardcoded SSOT literals (versions, refs, ports, hex colors) in non-SSOT files
+
+import os
+import sys
+import re
+
+ROOT = os.environ.get("MIOS_ROOT") or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+EXEMPT_PATHS = [
+    "usr/share/mios/mios.toml",
+    "usr/share/mios/reference/env-baseline.txt",
+    "usr/share/mios/reference/value-dup-report.tsv",
+    "tools/lib/userenv.sh",
+    "usr/lib/mios/userenv.sh",
+    "usr/lib/mios/mios_toml.py",
+    "AGY-TASKS.md",
+    "ROADMAP.md",
+]
+
+def load_ssot_literals():
+    ssot_literals = set()
+    baseline = os.path.join(ROOT, "usr/share/mios/reference/env-baseline.txt")
+    if os.path.exists(baseline):
+        with open(baseline, "r", encoding="utf-8") as f:
+            for line in f:
+                if "=" in line:
+                    _, val = line.split("=", 1)
+                    val = val.strip()
+                    # Filter for image refs, hex colors, version numbers, or port numbers
+                    if (val.startswith("ghcr.io/") or val.startswith("docker.io/") or
+                        val.startswith("quay.io/") or val.startswith("#") or
+                        re.match(r"^v?\d+\.\d+\.\d+", val) or
+                        (val.isdigit() and 1000 <= int(val) <= 65535)):
+                        ssot_literals.add(val)
+    return ssot_literals
+
+def scan_files(ssot_literals):
+    findings = []
+    targets = [
+        "usr/share/mios/configurator/mios.html",
+        "usr/share/mios/knowledge/mios-knowledge-graph.json",
+        "usr/share/mios/artifacts/sbom/bound-images.tsv",
+        "docs",
+    ]
+
+    for target in targets:
+        full_target = os.path.join(ROOT, target)
+        if os.path.isfile(full_target):
+            files_to_check = [full_target]
+        elif os.path.isdir(full_target):
+            files_to_check = []
+            for root_dir, _, filenames in os.walk(full_target):
+                for fn in filenames:
+                    files_to_check.append(os.path.join(root_dir, fn))
+        else:
+            continue
+
+        for filepath in files_to_check:
+            rel_path = os.path.relpath(filepath, ROOT).replace("\\", "/")
+            if any(rel_path.endswith(ex) or rel_path == ex for ex in EXEMPT_PATHS):
+                continue
+
+            try:
+                with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
+                    content = f.read()
+                    for val in ssot_literals:
+                        if val in content:
+                            findings.append((rel_path, val))
+            except Exception:
+                pass
+
+    return findings
+
+def main():
+    ssot_literals = load_ssot_literals()
+    findings = scan_files(ssot_literals)
+
+    print(f"[mios-cross-surface-scan] Scanned cross-surface files against {len(ssot_literals)} key SSOT literals.")
+    if findings:
+        print(f"[mios-cross-surface-scan] Found {len(findings)} hardcoded SSOT literal occurrences:")
+        for path, val in findings[:20]:
+            print(f"  - {path}: '{val}'")
+        if len(findings) > 20:
+            print(f"  ... and {len(findings) - 20} more.")
+        return 1
+    else:
+        print("[mios-cross-surface-scan] Clean — zero unexempt hardcoded SSOT literals found.")
+        return 0
+
+if __name__ == "__main__":
+    sys.exit(main())

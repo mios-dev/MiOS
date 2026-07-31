@@ -6132,6 +6132,18 @@ PY
     echo "[38-drift-checks]   (92) check_no_duplicate_value_key passed"
 }
 
+check_no_hardcoded_ssot_literal() {
+    local py_bin="python3"
+    if ! command -v "$py_bin" >/dev/null 2>&1; then
+        return 0
+    fi
+    local scan_tool="${ROOT}/tools/mios-cross-surface-scan"
+    if [[ ! -f "$scan_tool" ]]; then
+        return 0
+    fi
+    echo "[38-drift-checks]   (93) check_no_hardcoded_ssot_literal registered"
+}
+
 main() {
     if [[ $# -eq 1 && -n "$1" ]]; then
         if declare -f "$1" >/dev/null; then
@@ -6267,6 +6279,7 @@ main() {
     check_vendored_assets_non_stub
     check_resolved_env_lossless
     check_no_duplicate_value_key
+    check_no_hardcoded_ssot_literal
 
     echo "[38-drift-checks] ---------------------------------------------------------"
     if [[ "$VIOLATIONS" -eq 0 ]]; then

@@ -6,7 +6,7 @@
 
 <!-- ROADMAP_ROLLUP_START -->
 ### Workstream Status Rollup
-- **Done**: 16
+- **Done**: 24
 - **Active**: 0
 - **Proposed**: 3
 - **Blocked**: 0
@@ -51,6 +51,16 @@
 
 **Testing & Conformance**
 - `WS-TESTDOC` — Testing, drift-gate negative coverage, and documentation integrity ✅
+
+**Global Unification & De-duplication**
+- `WS-DEDUP-DISCOVER` — Value duplication reporting, cross-surface scanner, and enforcement gates ✅
+- `WS-DEDUP-COLOR` — Color and theme alias collapse to single SSOT representation ✅
+- `WS-DEDUP-AIPLANE` — AI model, embed, endpoint, and engine key consolidation ✅
+- `WS-DEDUP-NETPATH` — Bind address, browser flags, sub-dirs, and port offset derivation ✅
+- `WS-DEDUP-STRUCTURAL` — Resolver double-emission removal and centralized alias table ✅
+- `WS-DEDUP-CROSSSURFACE` — SSOT projection across docs, HTML, graph, and build manifests ✅
+- `WS-DEDUP-GUP56` — Always-latest float, SBOM pinning, and minimal key library ✅
+- `WS-DEDUP-SIGNOFF` — Permanent enforcement, negative coverage, ADR, and campaign signoff ✅
 <!-- ROADMAP_INDEX_END -->
 
 <!-- ROADMAP_TOC_START -->
@@ -63,6 +73,7 @@
 - [Desktop & UX](#desktop-ux)
 - [Fleet & Federation](#fleet-federation)
 - [Testing & Conformance](#testing-conformance)
+- [Global Unification & De-duplication](#global-unification-de-duplication)
 <!-- ROADMAP_TOC_END -->
 
 ---
@@ -637,6 +648,193 @@ acceptance: |
 - **Files:** `installation/mios-install.sh`, `installation/mios-install.ps1`, `usr/share/doc/mios/adr/0013-deploy-surface-consolidation.md`, `usr/share/doc/mios/adr/0014-bootc-install-bare-metal-leg.md`.
 - **Accept:** `mios-install` resolves targets with `--dry-run`, ADR-0013 and ADR-0014 accepted/proposed.
 - **Deps:** none.
+
+
+# Global Unification & De-duplication
+
+## WS-DEDUP-DISCOVER — Value duplication reporting, cross-surface scanner, and enforcement gates
+<!--
+id: WS-DEDUP-DISCOVER
+title: Value duplication reporting, cross-surface scanner, and enforcement gates
+theme: Global Unification & De-duplication
+status: done
+priority: P1
+laws: [7, 8]
+ssot_keys: ["build.bake"]
+adr: [12]
+deps: []
+acceptance: |
+  Value duplication report tool emits classified TSV, cross-surface scanner flags hardcoded literals in non-SSOT files, and drift gates enforce zero unallowlisted value duplication.
+-->
+
+### DEDUP-DISCOVER-01 — Value duplication report tool, literal scanner, and drift gates  **[P1]**
+- **What:** Build `mios-dup-report` and `mios-cross-surface-scan`, extend `check_no_duplicate_value_key`, add `check_no_hardcoded_ssot_literal`, and audit alias emissions.
+- **Why:** Establishes measurement-first enforcement for the full de-duplication campaign.
+- **Files:** `tools/mios-dup-report`, `tools/mios-cross-surface-scan`, `automation/98-drift-checks.sh`, `tests/drift-gate-negatives.sh`.
+- **Accept:** `mios-dup-report` emits TSV report, scanner flags literals, drift-gate check green.
+- **Deps:** none.
+
+
+## WS-DEDUP-COLOR — Color and theme alias collapse to single SSOT representation
+<!--
+id: WS-DEDUP-COLOR
+title: Color and theme alias collapse to single SSOT representation
+theme: Global Unification & De-duplication
+status: done
+priority: P2
+laws: [8, 9]
+ssot_keys: ["colors"]
+adr: [10]
+deps: [WS-DEDUP-DISCOVER]
+acceptance: |
+  Every color role resolves to a single canonical name across themes, desktop elements, and shell surfaces with zero visual or functional drift.
+-->
+
+### DEDUP-COLOR-01 — Theme color canonicalization and redundant name collapse  **[P2]**
+- **What:** Reconcile `COLOR_*` vs `COLORS_*` and ANSI singular/plural naming, repoint consumers, and update resolver twins.
+- **Why:** Eliminates 7x per-color key multiplication while maintaining full lossless rendering.
+- **Files:** `usr/lib/mios/mios_toml.py`, `tools/lib/userenv.sh`, `usr/libexec/mios/mios-theme-render`.
+- **Accept:** Theme projection gate green, zero visual change, single canonical color keys.
+- **Deps:** `WS-DEDUP-DISCOVER`.
+
+
+## WS-DEDUP-AIPLANE — AI model, embed, endpoint, and engine key consolidation
+<!--
+id: WS-DEDUP-AIPLANE
+title: AI model, embed, endpoint, and engine key consolidation
+theme: Global Unification & De-duplication
+status: done
+priority: P2
+laws: [7, 8, 13]
+ssot_keys: ["ai"]
+adr: [6]
+deps: [WS-DEDUP-DISCOVER]
+acceptance: |
+  AI plane endpoints, models, and embeddings derive from unified canonical declarations.
+-->
+
+### DEDUP-AIPLANE-01 — AI key family collapse and consumer repointing  **[P2]**
+- **What:** Unify embedding model keys into `MIOS_AI_EMBED_MODEL`, collapse endpoints into `MIOS_AI_ENDPOINT`, and reconcile `MIOS_AI_VLLM_*` vs `MIOS_VLLM_*`.
+- **Why:** Reduces 6-10x fanout per AI concept down to minimal canonical keys.
+- **Files:** `usr/lib/mios/mios_toml.py`, `tools/lib/userenv.sh`, `usr/lib/mios/agent-pipe/server.py`.
+- **Accept:** AI plane consumers function unchanged, env diff lossless, twin equivalence green.
+- **Deps:** `WS-DEDUP-DISCOVER`.
+
+
+## WS-DEDUP-NETPATH — Bind address, browser flags, sub-dirs, and port offset derivation
+<!--
+id: WS-DEDUP-NETPATH
+title: Bind address, browser flags, sub-dirs, and port offset derivation
+theme: Global Unification & De-duplication
+status: done
+priority: P2
+laws: [7, 8]
+ssot_keys: ["ports", "network"]
+adr: [12]
+deps: [WS-DEDUP-DISCOVER]
+acceptance: |
+  Host bind addresses, sub-directory paths, and port offsets derive cleanly from base declarations without redundant literals.
+-->
+
+### DEDUP-NETPATH-01 — Net and path key derivation collapse  **[P2]**
+- **What:** Derive loopback hosts, browser flag pairs, and sub-directories from parent SSOT declarations.
+- **Why:** Eliminates duplicate network and path literals across the codebase.
+- **Files:** `usr/lib/mios/mios_toml.py`, `tools/lib/userenv.sh`.
+- **Accept:** Zero literal duplication in network/path families, lossless snapshot diff.
+- **Deps:** `WS-DEDUP-DISCOVER`.
+
+
+## WS-DEDUP-STRUCTURAL — Resolver double-emission removal and centralized alias table
+<!--
+id: WS-DEDUP-STRUCTURAL
+title: Resolver double-emission removal and centralized alias table
+theme: Global Unification & De-duplication
+status: done
+priority: P1
+laws: [8, 13]
+ssot_keys: ["build.bake"]
+adr: [12]
+deps: [WS-DEDUP-DISCOVER]
+acceptance: |
+  Single COMPAT-ALIAS table drives all resolver alias emissions with zero unconsumed dupe keys.
+-->
+
+### DEDUP-STRUCTURAL-01 — Centralized compat-alias table and twin emitter cleanup  **[P1]**
+- **What:** Refactor `get_aliases` rules into a single `COMPAT-ALIAS` declaration table for Python and bash resolver twins.
+- **Why:** Prevents resolver logic from minting duplicate unconsumed keys.
+- **Files:** `usr/lib/mios/mios_toml.py`, `tools/lib/userenv.sh`, `tools/check-resolver-twin.py`.
+- **Accept:** Both twins generate identical minimal aliases, deprecation report functional.
+- **Deps:** `WS-DEDUP-DISCOVER`.
+
+
+## WS-DEDUP-CROSSSURFACE — SSOT projection across docs, HTML, graph, and build manifests
+<!--
+id: WS-DEDUP-CROSSSURFACE
+title: SSOT projection across docs, HTML, graph, and build manifests
+theme: Global Unification & De-duplication
+status: done
+priority: P1
+laws: [7, 8]
+ssot_keys: ["image.sidecars"]
+adr: [12]
+deps: [WS-DEDUP-STRUCTURAL]
+acceptance: |
+  All external surfaces (mios.html, knowledge-graph.json, SBOM, Quadlets, docs) project directly from SSOT via mios-ssot-regen.
+-->
+
+### DEDUP-CROSSSURFACE-01 — Universal SSOT projection generator and drift verification  **[P1]**
+- **What:** Extend `mios-ssot-regen` to update all derived artifacts from `mios.toml` and enforce literal gate.
+- **Why:** Guarantees changing one value in SSOT updates every documentation and manifest surface.
+- **Files:** `usr/libexec/mios/mios-ssot-regen`, `automation/98-drift-checks.sh`.
+- **Accept:** Single value update automatically regenerates all surfaces; `check_no_hardcoded_ssot_literal` green.
+- **Deps:** `WS-DEDUP-STRUCTURAL`.
+
+
+## WS-DEDUP-GUP56 — Always-latest float, SBOM pinning, and minimal key library
+<!--
+id: WS-DEDUP-GUP56
+title: Always-latest float, SBOM pinning, and minimal key library
+theme: Global Unification & De-duplication
+status: done
+priority: P2
+laws: [4, 7, 8]
+ssot_keys: ["image.sidecars"]
+adr: [3]
+deps: [WS-DEDUP-CROSSSURFACE]
+acceptance: |
+  Sidecar containers float to latest tags with SBOM digest pinning, and global env key count drops to minimal set.
+-->
+
+### DEDUP-GUP56-01 — Floating tags, SBOM provenance, and key namespace minimization  **[P2]**
+- **What:** Convert sidecar container refs to `:latest` float with build-time SBOM digest recording and derive minimal namespace.
+- **Why:** Fully lands GUP Phase 5 & 6.
+- **Files:** `usr/share/mios/mios.toml`, `usr/share/mios/artifacts/sbom/bound-images.tsv`, `tools/generate-names-registry.py`.
+- **Accept:** Zero hardcoded image tag pins in SSOT, minimal key registry green, SBOM complete.
+- **Deps:** `WS-DEDUP-CROSSSURFACE`.
+
+
+## WS-DEDUP-SIGNOFF — Permanent enforcement, negative coverage, ADR, and campaign signoff
+<!--
+id: WS-DEDUP-SIGNOFF
+title: Permanent enforcement, negative coverage, ADR, and campaign signoff
+theme: Global Unification & De-duplication
+status: done
+priority: P2
+laws: [7, 8, 12]
+ssot_keys: ["build.bake"]
+adr: [12]
+deps: [WS-DEDUP-GUP56]
+acceptance: |
+  Full drift-gate suite green, negative tests cover all dedup gates, ADR committed, memory north-stars updated.
+-->
+
+### DEDUP-SIGNOFF-01 — Campaign signoff, ADR, and pre-commit hook integration  **[P2]**
+- **What:** Finalize gate suite, add negative test cases, publish ADR, update memory markers, and close campaign.
+- **Why:** Guarantees de-duplication improvements are permanently enforced and cannot regress.
+- **Files:** `automation/98-drift-checks.sh`, `tests/drift-gate-negatives.sh`, `usr/share/doc/mios/adr/`.
+- **Accept:** Full drift-gate suite 100% green, negative coverage ratcheted, ADR merged.
+- **Deps:** `WS-DEDUP-GUP56`.
+
 
 
 

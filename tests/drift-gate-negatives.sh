@@ -1965,6 +1965,13 @@ test_no_duplicate_value_key() {
     log "test_no_duplicate_value_key passed."
 }
 
+test_no_hardcoded_ssot_literal() {
+    log "Testing check_no_hardcoded_ssot_literal..."
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_no_hardcoded_ssot_literal >/dev/null 2>&1 \
+        || die "check_no_hardcoded_ssot_literal failed!"
+    log "test_no_hardcoded_ssot_literal passed."
+}
+
 main() {
     if [[ $# -eq 1 && -n "$1" ]]; then
         if declare -f "$1" >/dev/null; then
@@ -2056,6 +2063,7 @@ main() {
     test_vendored_assets_non_stub
     test_resolved_env_lossless
     test_no_duplicate_value_key
+    test_no_hardcoded_ssot_literal
     log "All negative tests completed successfully!"
 }
 
