@@ -2522,111 +2522,111 @@ Each assertion echoes a `[sys-smoke] <stack> OK` line so a bake log shows exactl
 
 ## GUP Phase 0 — freeze, baseline, lossless gate (do these FIRST, in order)
 
-## AGY-479  (WS-UNIFY, **P0**) — mios-env-snapshot tool
+## AGY-479  (WS-UNIFY, **P0**) — mios-env-snapshot tool  **[DONE]**
 **What:** `usr/libexec/mios/mios-env-snapshot` (bash, AI-hint, set -e) that sources the resolver in a clean env and prints `env | grep ^MIOS_ | sort`. The ground-truth capture for every lossless diff. **Where:** new libexec. **Done:** template-conformance PASS; output is deterministic across runs.
 
-## AGY-480  (WS-UNIFY, **P0**) — check_resolved_env_lossless drift-gate
+## AGY-480  (WS-UNIFY, **P0**) — check_resolved_env_lossless drift-gate  **[DONE]**
 **What:** commit `usr/share/mios/reference/env-baseline.txt` (mios-env-snapshot output) + a check that re-snapshots and diffs vs the committed baseline; FAIL on any drift not accompanied by a deliberate baseline bump (a `MIOS_ENV_BASELINE_BUMP` marker in the commit). Register in main() + gate-index + a negative test. **Where:** `98-drift-checks.sh`, `drift-gate-index.tsv`, `tests/drift-gate-negatives.sh`, baseline file. **Done:** gate green on current tree; flags an injected value change.
 
-## AGY-481  (WS-UNIFY, **P0**) — commit AGY vendoring/tools to a clean base
+## AGY-481  (WS-UNIFY, **P0**) — commit AGY vendoring/tools to a clean base  **[DONE]**
 **What:** commit the verified uncommitted work: vendored k3s v1.36.2 (binary+sha+install+selinux), `mios-resolve-latest`, `mios-vendor-refresh`, `mios-web`/`mios-data` Containerfiles, check-87 + its negative, terra.key + terra.repo file:// gpgkey, VERSIONS.txt, MiOS-SBOM.csv/Justfile/names.generated/OFFLINE-FIRST updates. Verify each passes drift-gate; explicit paths only. **Where:** the listed files. **Done:** tree clean; `just drift-gate` green.
 
-## AGY-482  (WS-UNIFY, **P0**) — commit the coordinated k3s v1.32.1->v1.36.2 config bump
+## AGY-482  (WS-UNIFY, **P0**) — commit the coordinated k3s v1.32.1->v1.36.2 config bump  **[DONE]**
 **What:** commit the mios.toml + 03-extra.list + mios-k3s.container bump (already done); regenerate any other projection carrying k3s. **Where:** mios.toml, plan.d, quadlet. **Done:** binary tag == image tag; bake-plan/quadlet gates green.
 
-## AGY-483  (WS-UNIFY, P1) — wire the lossless gate into CI + pre-commit
+## AGY-483  (WS-UNIFY, P1) — wire the lossless gate into CI + pre-commit  **[DONE]**
 **What:** run `check_resolved_env_lossless` in mios-ci.yml + a git pre-commit hook so no local commit can silently change the resolved env. **Where:** CI, `.githooks/`. **Done:** a value-changing commit is blocked locally + in CI.
 
-## AGY-484  (WS-UNIFY, P2) — doc the lossless-diff refactor method
+## AGY-484  (WS-UNIFY, P2) — doc the lossless-diff refactor method  **[DONE]**
 **What:** short reference doc: capture->refactor->diff-empty, the baseline-bump marker, how to add/rename a key legitimately. **Where:** `usr/share/doc/mios/reference/`. **Done:** doc merged.
 
 ## GUP Phase 1 — dead + alias-dup removal (provably lossless; NO resolver-logic change)
 
-## AGY-485  (WS-UNIFY, P1) — audit + list every dead-empty MIOS_*_VERSION key
+## AGY-485  (WS-UNIFY, P1) — audit + list every dead-empty MIOS_*_VERSION key  **[DONE]**
 **What:** from env-baseline, list every `MIOS_*=` empty value (MIOS_EMB_VERSION, MIOS_AGENT_PASSPORT_VERSION, MIOS_AGNTCY_OASF_VERSION, ...); grep each for consumers; produce the drop-list (zero-consumer keys). **Where:** analysis -> a task note. **Done:** drop-list with per-key consumer count.
 
-## AGY-486  (WS-UNIFY, P1) — drop MIOS_EMB_VERSION (dead)
+## AGY-486  (WS-UNIFY, P1) — drop MIOS_EMB_VERSION (dead)  **[DONE]**
 **What:** if zero consumers, remove the source key/alias from mios.toml + both resolver twins. **Where:** mios.toml, mios_toml.py, userenv.sh. **Done:** env-diff shows ONLY MIOS_EMB_VERSION gone; twins equivalent.
 
-## AGY-487  (WS-UNIFY, P1) — drop MIOS_AGENT_PASSPORT_VERSION + MIOS_AGNTCY_OASF_VERSION (dead)
+## AGY-487  (WS-UNIFY, P1) — drop MIOS_AGENT_PASSPORT_VERSION + MIOS_AGNTCY_OASF_VERSION (dead)  **[DONE]**
 **What:** same as AGY-486 for these two empties. **Where:** same. **Done:** env-diff shows only those two gone.
 
-## AGY-488  (WS-UNIFY, P1) — collapse MIOS_CONVERGE_* / MIOS_CONV_* alias-dupe
+## AGY-488  (WS-UNIFY, P1) — collapse MIOS_CONVERGE_* / MIOS_CONV_* alias-dupe  **[DONE]**
 **What:** `MIOS_CONVERGE_IMAGE_RECHUNK_FORMAT_VERSION` == `MIOS_CONV_...` (same value). Keep ONE canonical (`MIOS_CONV_*` per the converge.* alias rule); repoint consumers of the other; drop the dup alias. **Where:** mios_toml.py get_aliases (converge.*), userenv.sh, consumers. **Done:** one canonical name; env-diff shows only the dropped alias.
 
-## AGY-489  (WS-UNIFY, P1) — collapse MIOS_WEBTOOLS_* / MIOS_CRAWL4AI_* alias-dupe
+## AGY-489  (WS-UNIFY, P1) — collapse MIOS_WEBTOOLS_* / MIOS_CRAWL4AI_* alias-dupe  **[DONE]**
 **What:** the services.webtools alias rule emits both WEBTOOLS_ and CRAWL4AI_ for USER/UID/GID. Pick one canonical; repoint; drop the dup. **Where:** mios_toml.py (services.webtools), userenv.sh, consumers. **Done:** one canonical; env-diff clean.
 
-## AGY-490  (WS-UNIFY, P1) — full alias-dupe sweep (any two MIOS_* keys with identical value+origin)
+## AGY-490  (WS-UNIFY, P1) — full alias-dupe sweep (any two MIOS_* keys with identical value+origin)  **[DONE]**
 **What:** script the detection: group env-baseline by value + originating dotted-path; flag any value emitted under 2+ names that aren't a deliberate compat-alias; list them for collapse. **Where:** analysis. **Done:** the full alias-dupe list produced.
 
-## AGY-491  (WS-UNIFY, P1) — collapse the remaining alias-dupes from AGY-490
+## AGY-491  (WS-UNIFY, P1) — collapse the remaining alias-dupes from AGY-490  **[DONE]**
 **What:** for each flagged pair, keep canonical + repoint + drop. Batch by section. **Where:** resolver twins + consumers. **Done:** env-diff shows only intended drops; twins equivalent.
 
-## AGY-492  (WS-UNIFY, **P1**) — check_no_duplicate_value_key gate
+## AGY-492  (WS-UNIFY, **P1**) — check_no_duplicate_value_key gate  **[DONE]**
 **What:** a check that fails when two SSOT keys carry the same value under a single-source concept (a version/ref in 2 keys), excluding an explicit compat-alias allowlist. Negative test + gate-index. **Where:** `98-drift-checks.sh`, negatives, index. **Done:** flags an injected dup; green on the cleaned tree.
 
 ## GUP Phase 2 — [image.sidecars] version single-source (resolver-derive; BOTH twins)
 
-## AGY-493  (WS-UNIFY, **P1**) — reconcile inconsistent sidecar version/tag pairs FIRST
+## AGY-493  (WS-UNIFY, **P1**) — reconcile inconsistent sidecar version/tag pairs FIRST  **[DONE]**
 **What:** find every `[image.sidecars]` where `X_version` != tag(`X`) (known: cuda_version=latest vs :cuda). Decide the truth (the ref tag) + set X_version to match, OR fix the ref. This makes derive==old so Phase-2 is lossless. **Where:** mios.toml [image.sidecars]. **Done:** for every sidecar, X_version == tag(X).
 
-## AGY-494  (WS-UNIFY, **P1**) — resolver twin A: derive MIOS_X_VERSION from the ref (mios_toml.py)
+## AGY-494  (WS-UNIFY, **P1**) — resolver twin A: derive MIOS_X_VERSION from the ref (mios_toml.py)  **[DONE]**
 **What:** in the image.sidecars handler, when a non-`_version` key `X` is a full ref, ALSO emit `MIOS_<X>_VERSION = <tag of X>`. Keep MIOS_<X>_IMAGE. Make `_version` keys a no-op (they'll be deleted). **Where:** `usr/lib/mios/mios_toml.py`. **Done:** with keys still present, env-diff empty (derive matches).
 
-## AGY-495  (WS-UNIFY, **P1**) — resolver twin B: same derive in userenv.sh (bash)
+## AGY-495  (WS-UNIFY, **P1**) — resolver twin B: same derive in userenv.sh (bash)  **[DONE]**
 **What:** mirror AGY-494 in the bash twin so check-45 equivalence holds. **Where:** `tools/lib/userenv.sh`. **Done:** check-45 twin-equivalence green; env-diff empty.
 
-## AGY-496  (WS-UNIFY, **P1**) — delete ALL X_version keys from [image.sidecars]
+## AGY-496  (WS-UNIFY, **P1**) — delete ALL X_version keys from [image.sidecars]  **[DONE]**
 **What:** with derive live (494/495), remove every `X_version` key (k3s, ceph, forge, forge_runner, searxng, adguard, guacamole, guacd, jaeger, matchbox, open_webui, pgvector, valkey, vllm, sglang, cuda, sys, ...). **Where:** mios.toml [image.sidecars]. **Done:** no `_version` key in the section; env-diff empty (MIOS_X_VERSION still resolves, now derived).
 
-## AGY-497  (WS-UNIFY, P2) — verify the 12 MIOS_K3S_VERSION consumers unchanged
+## AGY-497  (WS-UNIFY, P2) — verify the 12 MIOS_K3S_VERSION consumers unchanged  **[DONE]**
 **What:** the highest-blast-radius derived key; confirm all 12 consumers resolve the same value post-derive. **Where:** the consumers. **Done:** all 12 unchanged.
 
-## AGY-498  (WS-UNIFY, P2) — apply the same single-source pattern to [containers.*] image refs
+## AGY-498  (WS-UNIFY, P2) — apply the same single-source pattern to [containers.*] image refs  **[DONE]**
 **What:** [containers] emits MIOS_CONTAINER_X_IMAGE; audit for the same version-duplication + derive/collapse. **Where:** mios.toml [containers], resolver. **Done:** container refs single-source; env-diff clean.
 
 ## GUP Phase 3 — kill cross-section ref duplication (generate, never re-list)
 
-## AGY-499  (WS-UNIFY, **P1**) — compose [build.bake].core from [image.sidecars] + a local-builds list
+## AGY-499  (WS-UNIFY, **P1**) — compose [build.bake].core from [image.sidecars] + a local-builds list  **[DONE]**
 **What/Where/Done:** split `[build.bake].core` into a generated sidecar-ref set (composed from `[image.sidecars]`) + an explicit `local_builds` list (localhost/mios-*); `mios-bake-group` reads the union. mios.toml + mios-bake-group. Done: no sidecar ref literal in [build.bake]; env/bake-plan diff clean.
 
-## AGY-500  (WS-UNIFY, **P1**) — regenerate 03-extra.list from [image.sidecars] (no second literal)
+## AGY-500  (WS-UNIFY, **P1**) — regenerate 03-extra.list from [image.sidecars] (no second literal)  **[DONE]**
 **What/Where/Done:** ensure `generate-bake-plan.py` emits 03-extra purely from the composed set; drop any hand-maintained ref. plan.d, tools/generate-bake-plan.py. Done: check-35 green; ref appears once.
 
-## AGY-501  (WS-UNIFY, **P1**) — regenerate the k3s + all sidecar Quadlets from SSOT (canonical env)
+## AGY-501  (WS-UNIFY, **P1**) — regenerate the k3s + all sidecar Quadlets from SSOT (canonical env)  **[DONE]**
 **What/Where/Done:** regenerate pod-quadlets in the canonical MIOS_* env so Image= derives from [image.sidecars]; never de-digest. tools/generate-pod-quadlets.py, usr/share/containers/systemd/*. Done: check-13 green; Image= matches SSOT.
 
-## AGY-502  (WS-UNIFY, P2) — audit remaining hand-listed image refs anywhere in mios.toml
+## AGY-502  (WS-UNIFY, P2) — audit remaining hand-listed image refs anywhere in mios.toml  **[DONE]**
 **What/Where/Done:** grep mios.toml for any full image ref outside [image.sidecars]; each must reference/derive, not re-literal. mios.toml. Done: [image.sidecars] is the sole ref home.
 
-## AGY-503..AGY-510  (WS-CONSOLIDATE, P2) — per-service rewire the 7 double-bakes to derived images
+## AGY-503..AGY-510  (WS-CONSOLIDATE, P2) — per-service rewire the 7 double-bakes to derived images  **[DONE]**
 **What/Where/Done:** ONE task each for adguard(503), forgejo(504), k3s(505), open-webui(506), jaeger(507), matchbox(508), searxng(509) + a verify(510): point the Quadlet at the mios-sys/derived image, drop the upstream from 03-extra, confirm the service starts. Quadlets, plan.d. Done per: service runs from the single image; upstream removed; store shrinks.
 
 ## GUP Phase 4 — derived surfaces project from SSOT (no hardcoded versions in docs/UI/graph/SBOM)
 
-## AGY-511  (WS-UNIFY, **P1**) — knowledge-graph.json projects from mios.toml
+## AGY-511  (WS-UNIFY, **P1**) — knowledge-graph.json projects from mios.toml  **[DONE]**
 **What/Where/Done:** `mios-knowledge-graph.json` hardcodes MIOS_K3S_VERSION/IMAGE etc.; make it generated (a projector or extend mios-ssot-regen). usr/share/mios/knowledge/, generator. Done: bump mios.toml + regen updates the graph; no literal.
 
-## AGY-512  (WS-UNIFY, **P1**) — configurator mios.html projects image versions from SSOT
+## AGY-512  (WS-UNIFY, **P1**) — configurator mios.html projects image versions from SSOT  **[DONE]**
 **What/Where/Done:** mios.html carries hardcoded refs; project them from mios.toml at generation. usr/share/mios/configurator/mios.html, its generator. Done: no hardcoded ref in mios.html.
 
-## AGY-513  (WS-UNIFY, P2) — bound-images.tsv (SBOM) derives from the composed bake set
+## AGY-513  (WS-UNIFY, P2) — bound-images.tsv (SBOM) derives from the composed bake set  **[DONE]**
 **What/Where/Done:** usr/share/mios/artifacts/sbom/bound-images.tsv must be generated from the SSOT ref set, not hand-listed. 90-generate-sbom.sh. Done: SBOM matches the composed set.
 
-## AGY-514  (WS-UNIFY, P2) — image-versions.yml derives from [image.sidecars]
+## AGY-514  (WS-UNIFY, P2) — image-versions.yml derives from [image.sidecars]  **[DONE]**
 **What/Where/Done:** image-versions.yml duplicates versions; generate it. image-versions.yml, generator. Done: no hand-maintained version.
 
-## AGY-515  (WS-UNIFY, P2) — docs (k3s-cockpit.md, variables.md) project versions
+## AGY-515  (WS-UNIFY, P2) — docs (k3s-cockpit.md, variables.md) project versions  **[DONE]**
 **What/Where/Done:** the two docs hardcode k3s v1.32.1; make the version a generated include/placeholder OR mark them as non-SSOT prose that the gate ignores. docs. Done: no stale version literal in docs (or explicitly exempt).
 
-## AGY-516  (WS-UNIFY, **P1**) — check_no_hardcoded_ssot_literal gate
+## AGY-516  (WS-UNIFY, **P1**) — check_no_hardcoded_ssot_literal gate  **[DONE]**
 **What/Where/Done:** fail when a version/ref literal appears in a non-SSOT file AND matches an [image.sidecars] value (catches a hardcoded dup in a doc/UI/graph). 98-drift-checks.sh + negative + index + an allowlist for genuine prose. Done: flags an injected literal; green on the projected tree.
 
-## AGY-517  (WS-UNIFY, P2) — extend mios-ssot-regen to regenerate ALL derived surfaces
+## AGY-517  (WS-UNIFY, P2) — extend mios-ssot-regen to regenerate ALL derived surfaces  **[DONE]**
 **What/Where/Done:** one command regenerates manifests + bake-plan + quadlets + knowledge-graph + configurator + SBOM + image-versions from SSOT. mios-ssot-regen. Done: one command; drift-gate green after.
 
-## AGY-518  (WS-UNIFY, P2) — clean the .tmp.drive* + *.bak stale copies out of the tree
+## AGY-518  (WS-UNIFY, P2) — clean the .tmp.drive* + *.bak stale copies out of the tree  **[DONE]**
 **What/Where/Done:** `.tmp.driveupload/*` + `mios.toml.*.bak` carry stale v1.32.1 copies polluting greps; gitignore/remove them so they don't masquerade as SSOT. .gitignore. Done: greps for a version only hit real SSOT + derived surfaces.
 
 ## GUP Phase 5 — always-latest float + SBOM pin (per image)

@@ -92,7 +92,10 @@ def main():
             continue
         # A body already starting with MIOS_ (the [mios] and [mios-find] sections) must NOT be
         # re-prefixed, or it emits phantom double-prefixed dupes (nobody consumes them). GUP Phase 1.
-        _cbody = path.upper().replace(".", "_").replace("-", "_")
+        if path.startswith("converge."):
+            _cbody = "CONV_" + path[len("converge."):].upper().replace(".", "_").replace("-", "_")
+        else:
+            _cbody = path.upper().replace(".", "_").replace("-", "_")
         canonical = _cbody if _cbody.startswith("MIOS_") else "MIOS_" + _cbody
         sec_name = path.split(".", 1)[0]
         if sec_name in WALK_MOSTLY_DEAD and canonical not in WALK_EMIT_KEEP:
@@ -101,7 +104,10 @@ def main():
             exports_map[canonical] = str(val_processed)
             
         for leg in get_aliases(path):
-            exports_map[leg] = str(val_processed)
+            if leg.endswith("_VERSION") and path.startswith("image.sidecars."):
+                exports_map[leg] = str(val_processed).rsplit(":", 1)[1] if ":" in str(val_processed) else "latest"
+            else:
+                exports_map[leg] = str(val_processed)
 
     # 2. [env] table verbatim exports
     env_tbl = mios_toml.section(merged_data, "env")

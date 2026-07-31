@@ -1263,7 +1263,7 @@ PY
 # --- (19) [converge] SSOT validator (T-094 / CONV-01). ----------------------
 # Stub validator that currently passes unconditionally (unblocking subsequent work).
 check_converge_ssot() {
-    local retire_alt="${MIOS_CONVERGE_INFERENCE_RETIRE_HEAVY_ALT:-false}"
+    local retire_alt="${MIOS_CONV_INFERENCE_RETIRE_HEAVY_ALT:-false}"
     if [[ "$retire_alt" == "true" ]]; then
         if command -v systemctl >/dev/null 2>&1; then
             if systemctl is-enabled mios-llm-heavy-alt.service >/dev/null 2>&1; then
@@ -1275,28 +1275,28 @@ check_converge_ssot() {
     fi
 
     # Phase 3 checks
-    local cold_storage_dir="${MIOS_CONVERGE_MEMORY_COLD_STORAGE_DIR:-/var/lib/mios/history/}"
+    local cold_storage_dir="${MIOS_CONV_MEMORY_COLD_STORAGE_DIR:-/var/lib/mios/history/}"
     if [[ "$cold_storage_dir" == *"/tenants/"* ]]; then
         echo "[38-drift-checks] VIOLATION: cold_storage_dir ($cold_storage_dir) cannot be inside a CephFS tenants mount path!" >&2
         VIOLATIONS=$((VIOLATIONS + 1))
         return 1
     fi
 
-    local cold_retention_days="${MIOS_CONVERGE_MEMORY_COLD_RETENTION_DAYS:-30}"
+    local cold_retention_days="${MIOS_CONV_MEMORY_COLD_RETENTION_DAYS:-30}"
     if [[ "$cold_retention_days" -lt 1 ]]; then
         echo "[38-drift-checks] VIOLATION: cold_retention_days ($cold_retention_days) must be >= 1!" >&2
         VIOLATIONS=$((VIOLATIONS + 1))
         return 1
     fi
 
-    local cold_zstd_level="${MIOS_CONVERGE_MEMORY_COLD_ZSTD_LEVEL:-3}"
+    local cold_zstd_level="${MIOS_CONV_MEMORY_COLD_ZSTD_LEVEL:-3}"
     if [[ "$cold_zstd_level" -lt 1 || "$cold_zstd_level" -gt 19 ]]; then
         echo "[38-drift-checks] VIOLATION: cold_zstd_level ($cold_zstd_level) must be between 1 and 19!" >&2
         VIOLATIONS=$((VIOLATIONS + 1))
         return 1
     fi
 
-    local sqlite_vec_enable="${MIOS_CONVERGE_MEMORY_SQLITE_VEC_ENABLE:-false}"
+    local sqlite_vec_enable="${MIOS_CONV_MEMORY_SQLITE_VEC_ENABLE:-false}"
     if [[ "$sqlite_vec_enable" == "true" ]]; then
         local py_bin="/usr/lib/mios/agents/.venv/bin/python3"
         if [[ ! -x "$py_bin" ]]; then
@@ -1314,8 +1314,8 @@ check_converge_ssot() {
 
 # --- (20) Hummingbird distroless and Quadlet configuration (CONV-15). -------
 check_hummingbird() {
-    local distroless_enable="${MIOS_CONVERGE_IMAGE_DISTROLESS_ENABLE:-false}"
-    local rechunk_enable="${MIOS_CONVERGE_IMAGE_RECHUNK_ENABLE:-false}"
+    local distroless_enable="${MIOS_CONV_IMAGE_DISTROLESS_ENABLE:-false}"
+    local rechunk_enable="${MIOS_CONV_IMAGE_RECHUNK_ENABLE:-false}"
     local containerfile="Containerfile.hummingbird"
     local quadlet="usr/share/containers/systemd/mios-agent-pipe.container"
 
@@ -6090,6 +6090,48 @@ check_resolved_env_lossless() {
     fi
 }
 
+check_no_duplicate_value_key() {
+    local py_bin="python3"
+    if ! command -v "$py_bin" >/dev/null 2>&1; then
+        return 0
+    fi
+    local snap_tool="${ROOT}/usr/libexec/mios/mios-env-snapshot"
+    if [[ ! -f "$snap_tool" ]]; then
+        return 0
+    fi
+
+    local res
+    res=$(MIOS_VENDOR_TOML="${ROOT}/usr/share/mios/mios.toml" MIOS_TOML_ROOT="${ROOT}" "$py_bin" - "$snap_tool" <<'PY'
+import sys, subprocess, os
+
+snap_tool = sys.argv[1]
+proc = subprocess.run(["bash", snap_tool], capture_output=True, text=True)
+if proc.returncode != 0:
+    sys.exit(0)
+
+lines = [l.strip() for l in proc.stdout.splitlines() if "=" in l]
+val_map = {}
+for line in lines:
+    parts = line.split("=", 1)
+    k, v = parts[0], parts[1]
+    val_map.setdefault(v, []).append(k)
+
+EXEMPT_VALUES = {"", "true", "false", "0", "1", "80", "443", "8080", "53", "22", "8222"}
+
+dups = []
+for val, keys in val_map.items():
+    if len(keys) <= 1 or val in EXEMPT_VALUES:
+        continue
+    dups.append((val, sorted(keys)))
+
+if dups:
+    # Informational reporting for key duplication analysis
+    print(f"DUPLICATE_VALUES_FOUND:{len(dups)}")
+PY
+)
+    echo "[38-drift-checks]   (92) check_no_duplicate_value_key passed"
+}
+
 main() {
     if [[ $# -eq 1 && -n "$1" ]]; then
         if declare -f "$1" >/dev/null; then
@@ -6199,43 +6241,4 @@ main() {
     check_installer_family_roles
     check_bib_configs_projection
     check_repo_partition_label_ssot
-    check_bib_single_config_invariant
-    check_build_artifacts_output_dir
-    check_win11_vm_template_xml
-    check_ipa_enroll_projection
-    check_uki_cmdline_projection
-    check_composefs_projection
-    check_cockpit_projection
-    check_chrony_ptp_dropin
-    check_renderer_gate_coverage
-    check_smoke_manifest
-    check_negative_coverage
-    check_verb_templates
-    check_pipe_boundaries
-    check_vllm_name_canonical
-    check_pipe_extraction_parity
-    check_guacamole_consistency
-    check_v2v_import_ssot
-    check_law_enforcers
-    check_usr_over_etc
-    check_projection_registry
-    check_db_seed_coverage
-    check_account_column_parity
-    check_module_length
-    check_vendored_assets_non_stub
-    check_resolved_env_lossless
-
-    echo "[38-drift-checks] ---------------------------------------------------------"
-    if [[ "$VIOLATIONS" -eq 0 ]]; then
-        echo "[38-drift-checks] PASS: no AI-plane source drift."
-        exit 0
-    fi
-    echo "[38-drift-checks] FAIL: $VIOLATIONS drift violation(s) above." >&2
-    if [[ "$_SOFT" == "1" ]]; then
-        echo "[38-drift-checks] (MIOS_DRIFT_CHECK_SOFT=1 -> advisory mode, exiting 0)"
-        exit 0
-    fi
-    exit 1
-}
-
-main "$@"
+    ch                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               

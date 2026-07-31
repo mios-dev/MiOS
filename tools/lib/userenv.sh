@@ -200,9 +200,10 @@ for path, val in all_pairs:
     if val_processed is None or val_processed == "":
         continue
     
-    # A body already starting with MIOS_ (the [mios] and [mios-find] sections) must NOT be
-    # re-prefixed, or it emits phantom double-prefixed dupes (nobody consumes them). GUP Phase 1.
-    _cbody = path.upper().replace(".", "_").replace("-", "_")
+    if path.startswith("converge."):
+        _cbody = "CONV_" + path[len("converge."):].upper().replace(".", "_").replace("-", "_")
+    else:
+        _cbody = path.upper().replace(".", "_").replace("-", "_")
     canonical = _cbody if _cbody.startswith("MIOS_") else "MIOS_" + _cbody
     
     sec_name = path.split(".", 1)[0]
@@ -212,7 +213,10 @@ for path, val in all_pairs:
         exports_map[canonical] = val_processed
             
     for leg in get_aliases(path):
-        exports_map[leg] = val_processed
+        if leg.endswith("_VERSION") and path.startswith("image.sidecars."):
+            exports_map[leg] = str(val_processed).rsplit(":", 1)[1] if ":" in str(val_processed) else "latest"
+        else:
+            exports_map[leg] = val_processed
 
 _env_tbl = merged.get("env")
 if isinstance(_env_tbl, dict):

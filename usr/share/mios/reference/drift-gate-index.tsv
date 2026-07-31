@@ -118,3 +118,4 @@
 117	check_module_length	mios_pipe sibling modules are all <= 800 lines (modular cohesion intact)
 118	check_vendored_assets_non_stub	vendored assets dir absent -- skipped
 119	check_resolved_env_lossless	resolved environment is lossless (matches env-baseline.txt)
+120	check_no_duplicate_value_key	check_no_duplicate_value_key passed

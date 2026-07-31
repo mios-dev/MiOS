@@ -7947,11 +7947,8 @@ mcp                = 8460    # MCP host server (/mcp + A2A /.well-known; served 
 # read either via MIOS_<svc>_VERSION / MIOS_<svc>_IMAGE.
 # ----------------------------------------------------------------------------
 [image.sidecars]
-sys_version        = "latest"
 sys                = "localhost/mios-sys:latest"
-cuda_version       = "latest"
 cuda               = "ghcr.io/mostlygeek/llama-swap:cuda"
-k3s_version        = "v1.36.2-k3s1"
 # rancher/k3s lives ONLY on docker.io (no quay.io/ghcr.io mirror). The
 # `docker.io/` prefix is mandatory: without it, podman treats the value
 # as a short name and refuses to silently resolve to docker.io inside
@@ -7961,11 +7958,8 @@ k3s_version        = "v1.36.2-k3s1"
 # entry in this section was already fully qualified; k3s was the only
 # regression and broke ALL deployment artifacts). Keep the registry prefix.
 k3s                = "docker.io/rancher/k3s:v1.36.2-k3s1"
-ceph_version       = "v19"
 ceph               = "quay.io/ceph/ceph:v19"
-forge_version      = "12"
 forge              = "codeberg.org/forgejo/forgejo:12"
-searxng_version    = "latest"
 searxng            = "docker.io/searxng/searxng:latest"
 # web-tools POD ("consolidate containers to share similar
 # services together" + "co-locate the real firecrawl stack" + "make it a pod").
@@ -7991,25 +7985,16 @@ searxng            = "docker.io/searxng/searxng:latest"
 #                 ${MIOS_CRAWL4AI_IMAGE}.
 # See [verbs.crawl], [ports].crawl4ai + [ports].firecrawl, and
 # [services.webtools] (uid 824) below.
-hermes_version     = "latest"
 hermes             = "docker.io/nousresearch/hermes-agent:latest"
-open_webui_version = "latest"
 open_webui         = "ghcr.io/open-webui/open-webui:main"
 # hermes_workspace sidecar REMOVED -- replaced by the
 # hermes-agent's built-in dashboard at port 9119.
-code_server_version = "latest"
 code_server        = "ghcr.io/coder/code-server:latest"
-guacamole_version  = "latest"
 guacamole          = "docker.io/guacamole/guacamole:latest"
-forge_runner_version = "7"
-forge_runner      = "code.forgejo.org/forgejo/runner:7"
-crowdsec_version   = "latest"
+forge_runner       = "code.forgejo.org/forgejo/runner:7"
 crowdsec           = "docker.io/crowdsecurity/crowdsec:latest"
-postgres_version   = "latest"
 postgres           = "docker.io/library/postgres:latest"
-guacd_version      = "latest"
 guacd              = "docker.io/guacamole/guacd:latest"
-pxe_hub_version    = "latest"
 pxe_hub            = "quay.io/poseidon/matchbox:latest"
 bib_alpine         = "docker.io/library/alpine:latest"
 # WS-9 unified agent-plane DB. pgvector/pgvector bundles the `vector` extension
@@ -8017,23 +8002,16 @@ bib_alpine         = "docker.io/library/alpine:latest"
 # release + PG major (NOT the floating `pgX` tag) for reproducible builds and so
 # hnsw.iterative_scan (pgvector 0.8.0+) is guaranteed present. Bump via Renovate
 # or operator; pair version+image (the tag below carries both).
-pgvector_version   = "0.8.3-pg17"
 pgvector           = "docker.io/pgvector/pgvector:0.8.3-pg17"
 # mios-llm-light lane image. The upstream llama-swap proxy (FOSS, MIT) bundles
 # llama-server + on-demand model swap. Tag carries the CUDA build; verify version.
-llm_light_version  = "cuda"
 llm_light          = "ghcr.io/mostlygeek/llama-swap:cuda"
-adguard_version    = "latest"
 # AdGuard Home -- open-source (GPLv3) DNS sinkhole + recursive resolver. Single
 # Go binary container; serves DNS on :53 and the web UI/API on :3053.
 adguard            = "docker.io/adguard/adguardhome:latest"
-vllm_version       = "latest"
 vllm               = "docker.io/vllm/vllm-openai:latest"
-sglang_version     = "latest"
 sglang             = "docker.io/lmsysorg/sglang:latest"
-valkey_version     = "latest"
 valkey             = "docker.io/valkey/valkey:latest"
-otelcol_version    = "latest"
 otelcol            = "docker.io/jaegertracing/all-in-one:latest"
 
 # ----------------------------------------------------------------------------

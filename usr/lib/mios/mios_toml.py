@@ -439,7 +439,7 @@ def get_aliases(dotted_path):
             base = name[:-len("_VERSION")]
             aliases.append(f"MIOS_{base}_VERSION")
         else:
-            aliases.append(f"MIOS_{name}_IMAGE")
+            aliases.extend([f"MIOS_{name}_IMAGE", f"MIOS_{name}_VERSION"])
 
     elif dotted_path.startswith("services."):
         parts = dotted_path.split(".")
@@ -448,7 +448,7 @@ def get_aliases(dotted_path):
             key = "_".join(parts[2:]).upper().replace("-", "_")
             if service == "WEBTOOLS":
                 if key in {"USER", "UID", "GID"}:
-                    aliases.extend([f"MIOS_WEBTOOLS_{key}", f"MIOS_CRAWL4AI_{key}"])
+                    aliases.append(f"MIOS_WEBTOOLS_{key}")
                 elif key == "CDP_URL":
                     aliases.append("MIOS_CRAWL_CDP_URL")
                 elif key == "CAMOUFOX":
@@ -481,8 +481,7 @@ def get_aliases(dotted_path):
             aliases.append(f"MIOS_WSL2_{key}")
 
     elif dotted_path.startswith("converge."):
-        key = dotted_path[len("converge."):].upper().replace(".", "_").replace("-", "_")
-        aliases.append(f"MIOS_CONV_{key}")
+        pass
 
     elif dotted_path.startswith("image.") and not dotted_path.startswith("image.sidecars."):
         key = dotted_path[len("image."):].upper().replace(".", "_").replace("-", "_")

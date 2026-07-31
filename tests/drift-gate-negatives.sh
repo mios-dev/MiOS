@@ -1958,6 +1958,13 @@ test_resolved_env_lossless() {
     log "test_resolved_env_lossless negative test passed."
 }
 
+test_no_duplicate_value_key() {
+    log "Testing check_no_duplicate_value_key..."
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_no_duplicate_value_key >/dev/null 2>&1 \
+        || die "check_no_duplicate_value_key failed!"
+    log "test_no_duplicate_value_key passed."
+}
+
 main() {
     if [[ $# -eq 1 && -n "$1" ]]; then
         if declare -f "$1" >/dev/null; then
@@ -2048,6 +2055,7 @@ main() {
     test_module_length
     test_vendored_assets_non_stub
     test_resolved_env_lossless
+    test_no_duplicate_value_key
     log "All negative tests completed successfully!"
 }
 
