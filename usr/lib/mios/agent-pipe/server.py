@@ -418,12 +418,12 @@ def _traced_stage(name: str):
 
 # ── WS-A2 embedding identity + working-memory durability ────────────────────
 # ONE canonical embedding identity (model + logical version) stamped onto every
-# stored vector (knowledge / agent_memory). Bump MIOS_EMB_VERSION whenever the
+# stored vector (knowledge / agent_memory). Bump MIOS_PGVECTOR_EMB_VERSION whenever the
 # embedding model or its dimensionality changes -> mios_embed_backfill re-embeds
 # the stale rows off the hot path instead of silently mixing incompatible vector
 # spaces (which degrades cosine recall to noise).
-EMB_MODEL = os.environ.get("MIOS_EMB_MODEL", "nomic-embed-text")
-EMB_VERSION = os.environ.get("MIOS_EMB_VERSION", "nomic-768-v1")
+EMB_MODEL = os.environ.get("MIOS_PGVECTOR_EMB_MODEL", "nomic-embed-text")
+EMB_VERSION = os.environ.get("MIOS_PGVECTOR_EMB_VERSION", "nomic-768-v1")
 # WS-A1: SSOT catalog load posture. "warn" (default) = the loaders log + degrade
 # to an empty/partial catalog on a parse error (today's behaviour). "fail" =
 # FAIL-LOUD: a malformed verb/recipe/agent catalog RAISES at startup so the pipe

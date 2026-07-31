@@ -379,7 +379,7 @@ def _build_agent_card() -> dict:
     return card
 
 
-AGENT_PASSPORT_VERSION = os.environ.get("MIOS_AGENT_PASSPORT_VERSION", "0.1.0")
+AGENT_PASSPORT_VERSION = "0.1.0"
 
 
 def _canonical_json(obj) -> bytes:
@@ -485,8 +485,7 @@ def _build_agent_passport() -> dict:
     return doc
 
 
-AGNTCY_OASF_SCHEMA_VERSION = os.environ.get(
-    "MIOS_AGNTCY_OASF_VERSION", "0.7.0")
+AGNTCY_OASF_SCHEMA_VERSION = "0.7.0"
 
 
 def _build_agntcy_manifest() -> dict:
