@@ -292,7 +292,13 @@ jobs:
           # Match that privileged env with --cap-add all + unconfined confinement.
           # 57-mios-sys-build.sh passes the same down to ITS nested podman build.
           # BUILD-TIME only (RUN instructions) -- the produced image carries nothing.
-          sudo TMPDIR=/mnt/tmp podman build \
+          # DISK FIT: the graphroot lives on /mnt (Configure-storage step). buildah
+          # writes ~2-3x the layer diff to TMPDIR during each RUN commit, so keeping
+          # TMPDIR on /mnt too competes with the store on ONE volume -> exit-125
+          # "storing blob ... write" (ENOSPC) on the 57-mios-sys-build commit. Put the
+          # commit temp on the jlumbroso-freed / instead, so the amplification spreads
+          # across both large disks (/mnt store + / temp), each holding ~1x.
+          sudo TMPDIR=/tmp podman build \
               "${BUILD_ARGS[@]}" \
               --device /dev/fuse \
               --cap-add all \

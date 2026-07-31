@@ -128,4 +128,20 @@ install -d -m 0755 "$SBOM_DIR"
 printf '%s\t%s\t%s\n' "localhost/mios-sys:latest" "${_sys_digest:-local}" "sys" >> "$SBOM_DIR/bound-images.tsv"
 printf '%s\t%s\t%s\n' "localhost/mios-cuda:latest" "${_cuda_digest:-local}" "cuda" >> "$SBOM_DIR/bound-images.tsv"
 
+# CI DISK FIT (exit-125 "storing blob ... write" on the RUN commit): with
+# `podman --layers`, the multi-stage go-/rust-/llamaswap builder images linger in
+# $STORE and get captured in THIS RUN's committed layer, which buildah then writes
+# ~2-3x to TMPDIR during commit -> ENOSPC on a disk-constrained runner. Drop every
+# image except the two consolidated bases so the committed /usr/lib/containers/storage
+# diff is minimal. Bit-for-bit safe: the builders are build-time inputs, absent from
+# the runtime image; mios-sys/mios-cuda (tagged, kept) retain their shared base layers.
+log "Pruning build-stage images from ${STORE} (keep only mios-sys + mios-cuda)..."
+while read -r _img; do
+    case "$_img" in
+        localhost/mios-sys:latest|localhost/mios-cuda:latest|"<none>:<none>") continue ;;
+    esac
+    CONTAINERS_STORAGE_CONF="$CONF" podman --root "$STORE" --runroot "$SCRATCH/run" rmi -f "$_img" >/dev/null 2>&1 || true
+done < <(CONTAINERS_STORAGE_CONF="$CONF" podman --root "$STORE" images --format '{{.Repository}}:{{.Tag}}' 2>/dev/null | sort -u)
+CONTAINERS_STORAGE_CONF="$CONF" podman --root "$STORE" --runroot "$SCRATCH/run" image prune -f >/dev/null 2>&1 || true
+
 log "Consolidated shared base images built successfully."
