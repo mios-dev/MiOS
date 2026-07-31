@@ -72,6 +72,10 @@ _self_dir="$(cd "$(dirname "$_self")" && pwd)"
 ROOT="${MIOS_DRIFT_CHECK_ROOT:-$(cd "$_self_dir/.." && pwd)}"
 _SOFT="${MIOS_DRIFT_CHECK_SOFT:-0}"
 
+if [ -r "$ROOT/usr/lib/mios/log.sh" ]; then
+    . "$ROOT/usr/lib/mios/log.sh"
+fi
+
 # Active-config scan roots (repo-relative). The /etc overlays are runtime-only
 # and usually absent in a checkout -- guarded by -d below, so they PASS vacuously.
 SCAN_DIRS=(
@@ -6139,8 +6143,8 @@ check_pipeline_numbering() {
     # (A) No hand-written (NN) numeric label may follow the [NN-drift-checks] stage label.
     #     The colliding C2 labels were deleted (AGY-647); drift-gate-index.tsv's ordinal is
     #     the SINGLE check number. A reintroduced (NN) is the exact regression we forbid.
-    local nn
-    nn=$(grep -cE '\[38-drift-checks\][[:space:]]+\([0-9]+\)' "$ROOT/automation/98-drift-checks.sh" 2>/dev/null || echo 0)
+    nn=$(grep -cE '\[38-drift-checks\][[:space:]]+\([0-9]+\)' "$ROOT/automation/98-drift-checks.sh" 2>/dev/null || true)
+    nn="${nn:-0}"
     if [[ "$nn" -ne 0 ]]; then
         echo "  [pipeline-numbering-drift] $nn hand-written (NN) check label(s) reintroduced in 98-drift-checks.sh; the SSOT drift-gate-index.tsv ordinal is the single check number -- delete the (NN)" >&2
         bad=1
@@ -6160,10 +6164,67 @@ check_pipeline_numbering() {
             bad=1
         fi
     fi
+    # (D) pipeline-index.tsv must be in sync with automation/NN-*.sh scripts (AGY-644).
+    if [[ -f "$ROOT/tools/generate-pipeline-index.py" ]]; then
+        if ! "$PYTHON" "$ROOT/tools/generate-pipeline-index.py" --check >/dev/null 2>&1; then
+            echo "  [pipeline-numbering-drift] pipeline-index.tsv is out of sync with automation/NN-*.sh scripts (run tools/generate-pipeline-index.py)" >&2
+            bad=1
+        fi
+    fi
     if [[ "$bad" -ne 0 ]]; then
         _violation "pipeline numbering drift (WS-NUMBER AGY-642; see reference/audit-numbering-unification.md)"
     else
-        echo "[38-drift-checks]   pipeline numbering: (NN) labels deleted, single progress count, dense SSOT check ordinals"
+        echo "[38-drift-checks]   pipeline numbering: (NN) labels deleted, single progress count, dense SSOT check ordinals, stage index in sync"
+    fi
+}
+
+check_value_aliases() {
+    # WS-DEDUP AGY-858: enforce the canonical value-alias map (reference/value-aliases.tsv).
+    # derive/delete pairs MUST resolve equal (else a silent SSOT divergence the campaign
+    # must fix); keep-distinct pairs MUST resolve differently (false-friends a naive collapse
+    # would corrupt, e.g. MIOS_PGVECTOR_USER != MIOS_PG_USER). Protects AGY-856..930.
+    command -v python3 >/dev/null 2>&1 || return 0
+    local tsv="${ROOT}/usr/share/mios/reference/value-aliases.tsv"
+    local snap="${ROOT}/usr/libexec/mios/mios-env-snapshot"
+    [[ -f "$tsv" && -f "$snap" ]] || return 0
+    if MIOS_VENDOR_TOML="${ROOT}/usr/share/mios/mios.toml" MIOS_TOML_ROOT="${ROOT}" python3 - "$snap" "$tsv" <<'PY'
+import sys, subprocess
+snap, tsv = sys.argv[1], sys.argv[2]
+env = {}
+proc = subprocess.run(["bash", snap], capture_output=True, text=True)
+if proc.returncode != 0:
+    sys.exit(0)  # snapshot unavailable -> do not false-fail
+for line in proc.stdout.splitlines():
+    if "=" in line:
+        k, v = line.split("=", 1)
+        env[k] = v
+bad = []
+with open(tsv, encoding="utf-8") as fh:
+    for raw in fh:
+        raw = raw.rstrip("\n")
+        if not raw.strip() or raw.lstrip().startswith("#"):
+            continue
+        parts = raw.split("\t")
+        if len(parts) < 3:
+            continue
+        a, b, disp = parts[0].strip(), parts[1].strip(), parts[2].split()[0].strip()
+        if a not in env or b not in env:
+            continue  # a key not emitted here -> skip (informational; never false-fail)
+        va, vb = env[a], env[b]
+        if disp in ("derive", "delete"):
+            if va != vb:
+                bad.append(f"{a}={va!r} != {b}={vb!r} (disposition={disp}: MUST be equal -- silent SSOT divergence)")
+        elif disp == "keep-distinct":
+            if va == vb:
+                bad.append(f"{a} == {b} == {va!r} but marked keep-distinct -- a naive collapse would corrupt this false-friend")
+for msg in bad:
+    sys.stderr.write("    [value-alias-drift] " + msg + "\n")
+sys.exit(1 if bad else 0)
+PY
+    then
+        echo "[38-drift-checks]   value-alias consistency verified (derive/delete pairs equal; keep-distinct pairs differ)"
+    else
+        _violation "value-alias consistency drift (reference/value-aliases.tsv; WS-DEDUP AGY-858)"
     fi
 }
 
@@ -6315,6 +6376,7 @@ main() {
     check_resolved_env_lossless
     check_no_duplicate_value_key
     check_pipeline_numbering
+    check_value_aliases
     check_no_hardcoded_ssot_literal
 
     echo "[38-drift-checks] ---------------------------------------------------------"

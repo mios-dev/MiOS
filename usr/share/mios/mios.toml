@@ -11506,3 +11506,61 @@ exempt = [
   "check_vendor_urls",
   "check_verb_backends"
 ]
+
+# ----------------------------------------------------------------------------
+[pipeline]
+# The MiOS build/system numbering SSOT (ADR-0012, doc-unified-pipeline.md).
+# TWO axes, deliberately distinct:
+#   * stage IDENTITY  NN  -- sparse/banded 0..99; the automation/NN-name.sh prefix
+#                           AND the [NN-name] log label (same number by construction).
+#                           Becomes the OCI RUN-step ONLY after one-RUN-per-stage (P3).
+#   * progress ORDINAL    -- build.sh SCRIPT_COUNT 1..N; the human progress denominator.
+#                           NOT equal to the prefix; rendered from ONE variable.
+# The 121 drift-checks are NOT a peer axis: they live inside stage 98 and are
+# addressed [98-drift-checks:CC], CC = within-stage id from `check_index`.
+space = { min = 0, max = 99 }
+
+identity_axes = ["script_prefix", "log_label"]
+future_axes   = ["oci_run_step"]
+progress_axis = "script_count"
+
+label_stage = "[{nn}-{name}]"          # e.g. [42-chrony-render]
+label_check = "[{nn}-{name}:{cc}]"     # e.g. [98-drift-checks:86]
+
+map         = "usr/share/mios/reference/pipeline-index.tsv"    # NN<TAB>kind<TAB>name<TAB>file<TAB>oneline
+check_index = "usr/share/mios/reference/drift-gate-index.tsv"  # CC<TAB>check_fn<TAB>description
+check_stage = 98
+
+reporter  = "usr/lib/mios/log.sh"               # mios_step / mios_check_* derive NN + CC at runtime
+generator = "tools/generate-pipeline-index.py"  # extends tools/generate-gate-index.py
+gate      = "98-drift-checks.sh:check_pipeline_numbering"
+
+bands = [
+  { range = [1, 1],   purpose = "git-overlay" },
+  { range = [2, 2],   purpose = "build-context" },
+  { range = [5, 7],   purpose = "repos/kernel" },
+  { range = [10, 15], purpose = "accounts" },
+  { range = [20, 27], purpose = "hardware-universal" },
+  { range = [33, 54], purpose = "services" },
+  { range = [56, 62], purpose = "themes" },
+  { range = [65, 80], purpose = "ai/desktop/boot/distribution" },
+  { range = [85, 99], purpose = "finalize/validators" },
+]
+
+[pipeline.invariants]
+prefix_unique       = true
+prefix_in_band      = true
+map_in_sync         = true
+check_dense         = true
+check_derived       = true
+label_not_stale     = true
+single_progress     = true
+
+[pipeline.external]
+counters = [
+  { tool = "podman/buildah", pattern = "STEP i/N", scope = "outer ~25, nested mios-sys ~19, go-builder 2, rust-builder 4" },
+  { tool = "dnf5",           pattern = "[i/N]",     scope = "download ~55 + transaction ~57" },
+  { tool = "cargo",          pattern = "Compiling c (i/m)", scope = "rust-builder crate graph" },
+]
+suppress_hint = "quiet flags only (dnf5 -q, buildah --quiet, cargo -q). Never parse or fold into the MiOS scheme."
+

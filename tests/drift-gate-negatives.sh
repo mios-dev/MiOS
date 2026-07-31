@@ -1990,6 +1990,25 @@ test_pipeline_numbering() {
     log "test_pipeline_numbering negative test passed."
 }
 
+test_value_aliases() {
+    log "Testing check_value_aliases..."
+    local f="${ROOT}/usr/share/mios/reference/value-aliases.tsv"
+    [[ -f "$f" ]] || { log "value-aliases.tsv absent -- skipping test_value_aliases"; return 0; }
+    local backup; backup="$(mktemp)"
+    cp "$f" "$backup"
+    # Inject a derive-pair between two keys that resolve DIFFERENTLY (mios != mios-pgvector)
+    # -> check_value_aliases must FAIL (a derive pair whose values diverge).
+    printf 'MIOS_PG_USER\tMIOS_PGVECTOR_USER\tderive\n' >> "$f"
+    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_value_aliases >/dev/null 2>&1; then
+        cp "$backup" "$f"; rm -f "$backup"
+        die "check_value_aliases passed despite a derive-pair with divergent values!"
+    fi
+    cp "$backup" "$f"; rm -f "$backup"
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_value_aliases >/dev/null 2>&1 \
+        || die "check_value_aliases failed after restoration!"
+    log "test_value_aliases negative test passed."
+}
+
 main() {
     if [[ $# -eq 1 && -n "$1" ]]; then
         if declare -f "$1" >/dev/null; then
@@ -2083,6 +2102,7 @@ main() {
     test_no_duplicate_value_key
     test_no_hardcoded_ssot_literal
     test_pipeline_numbering
+    test_value_aliases
     log "All negative tests completed successfully!"
 }
 

@@ -119,5 +119,6 @@
 118	check_vendored_assets_non_stub	vendored assets dir absent -- skipped
 119	check_resolved_env_lossless	resolved environment is lossless (matches env-baseline.txt)
 120	check_no_duplicate_value_key	check_no_duplicate_value_key passed
-121	check_pipeline_numbering	pipeline numbering: (NN) labels deleted, single progress count, dense SSOT check ordinals
-122	check_no_hardcoded_ssot_literal	check_no_hardcoded_ssot_literal registered
+121	check_pipeline_numbering	pipeline numbering: (NN) labels deleted, single progress count, dense SSOT check ordinals, stage index in sync
+122	check_value_aliases	value-alias consistency verified (derive/delete pairs equal; keep-distinct pairs differ)
+123	check_no_hardcoded_ssot_literal	check_no_hardcoded_ssot_literal registered

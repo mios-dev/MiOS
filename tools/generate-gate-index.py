@@ -34,6 +34,11 @@ def main():
         sys.stderr.write("ERROR: No check_* functions found in main()\n")
         sys.exit(1)
 
+    if len(check_names) != len(set(check_names)):
+        dups = [name for name in check_names if check_names.count(name) > 1]
+        sys.stderr.write(f"ERROR: Duplicate check_* functions found in main(): {set(dups)}\n")
+        sys.exit(1)
+
     # Parse function definitions and descriptions
     rows = []
     for idx, name in enumerate(check_names, 1):

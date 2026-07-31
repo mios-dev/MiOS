@@ -1,0 +1,15 @@
+# value-aliases.tsv -- canonical<TAB>alias<TAB>disposition{derive|delete|keep-distinct}[ # comment]
+# Enforced by automation/98-drift-checks.sh::check_value_aliases (WS-DEDUP AGY-858):
+#   * derive / delete : the two keys MUST resolve to the SAME value (a divergence is a
+#                       silent SSOT bug the de-dup campaign must fix, not hide).
+#   * keep-distinct   : the two keys MUST resolve DIFFERENTLY (a "false-friend" alias-shaped
+#                       pair that a naive name-based collapse would corrupt -- pinned here so
+#                       the AGY-856..930 collapse can never silently merge them).
+# Seeded from reference/audit-value-dup-report.md (measured). Grows via mios-dup-report (AGY-856).
+# A pair whose keys are not both emitted is skipped (informational), so the gate never
+# false-fails on a platform that does not surface a key.
+MIOS_PGVECTOR_USER	MIOS_PG_USER	keep-distinct	# mios-pgvector service acct != mios postgres role (report 4.1)
+MIOS_COLORS_ACCENT	MIOS_COLOR_ACCENT	derive	# family 9 singular/plural color
+MIOS_COLORS_INFO	MIOS_COLOR_INFO	derive	# family 9
+MIOS_COLORS_ANSI_4_BLUE	MIOS_ANSI_4_BLUE	derive	# family 8 ANSI theme projection
+MIOS_POWERSHELL_EXE	MIOS_PATHS_POWERSHELL_EXE	derive	# family 7 path SSOT under bare + PATHS_ prefix
