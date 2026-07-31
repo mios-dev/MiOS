@@ -13,9 +13,8 @@ import unittest
 try:
     import mcp
     from mios_gateway_queue import MCPClientPool
-except (ImportError, Exception) as e:
-    print(f"[SKIP] test_mios_mcp_pool: missing dependencies ({e})")
-    sys.exit(0)
+except ImportError as e:
+    raise unittest.SkipTest(f"skipping mcp tests: {e}")
 
 _fails = 0
 

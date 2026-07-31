@@ -1,0 +1,14 @@
+[Unit]
+Description=MiOS OCI Delta Apply Service (GAP-5)
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/usr/share/mios/mios.toml
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/mios/mios-oci-delta-service.sh
+User=root
+Group=root
+
+[Install]
+WantedBy=multi-user.target

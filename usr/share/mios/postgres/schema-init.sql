@@ -81,6 +81,8 @@ CREATE INDEX IF NOT EXISTS agent_memory_owner ON agent_memory (owner_user);
 -- identity so a model/dim change can trigger an off-hot-path re-embed.
 ALTER TABLE agent_memory ADD COLUMN IF NOT EXISTS emb_model   text;
 ALTER TABLE agent_memory ADD COLUMN IF NOT EXISTS emb_version text;
+-- MEM-05: Importance score for recall ranking
+ALTER TABLE agent_memory ADD COLUMN IF NOT EXISTS importance numeric DEFAULT 1.0;
 
 -- ── event: append-only observability stream ──────────────────────────────────
 CREATE TABLE IF NOT EXISTS event (
@@ -361,6 +363,30 @@ CREATE TABLE IF NOT EXISTS person (
     created_at  timestamptz DEFAULT now()
 );
 CREATE UNIQUE INDEX IF NOT EXISTS person_username ON person (username);
+
+-- ── PKG: Person Graph Edges (T-057) ──────────────────────────────────────────
+-- Graph edges extending the `person` node for semantic context grounding.
+CREATE TABLE IF NOT EXISTS person_pref (
+    person_id  bigint REFERENCES person(id) ON DELETE CASCADE,
+    pref_key   text NOT NULL,
+    pref_value jsonb,
+    emb        vector(768),
+    PRIMARY KEY (person_id, pref_key)
+);
+CREATE INDEX IF NOT EXISTS person_pref_emb_hnsw_idx ON person_pref USING hnsw (emb vector_cosine_ops);
+
+CREATE TABLE IF NOT EXISTS person_device (
+    person_id   bigint REFERENCES person(id) ON DELETE CASCADE,
+    device_id   text NOT NULL,
+    device_name text,
+    PRIMARY KEY (person_id, device_id)
+);
+
+CREATE TABLE IF NOT EXISTS person_app_install (
+    person_id bigint REFERENCES person(id) ON DELETE CASCADE,
+    app_id    text NOT NULL,
+    PRIMARY KEY (person_id, app_id)
+);
 
 -- ── account: the tenant / owner identity model (multi-tenant FOUNDATION) ──────
 --   The agent-plane shipped with NO account/role model: `owner_user` on the
@@ -1212,6 +1238,32 @@ BEGIN
     SELECT c.id, c.q, c.answer, round(c.final_score, 4), 'hindsight'::text
     FROM combined c
     ORDER BY c.final_score DESC
+    LIMIT p_limit;
+END;
+$$ LANGUAGE plpgsql STABLE;
+
+-- MEM-05: Sleep-Time Consolidation - recall ranking
+CREATE OR REPLACE FUNCTION agent_memory_search(
+    p_query text,
+    p_emb vector(768),
+    p_limit integer DEFAULT 5
+) RETURNS TABLE (
+    id bigint,
+    fact text,
+    score numeric
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT am.id, am.fact,
+           -- recency x importance x relevance
+           (exp(-extract(epoch from now() - am.ts) / (86400.0 * 30.0)) * 
+            COALESCE(am.importance, 1.0) * 
+            (1.0 - (am.emb <=> p_emb)))::numeric AS final_score
+    FROM agent_memory am
+    WHERE am.emb IS NOT NULL
+    ORDER BY (exp(-extract(epoch from now() - am.ts) / (86400.0 * 30.0)) * 
+              COALESCE(am.importance, 1.0) * 
+              (1.0 - (am.emb <=> p_emb))) DESC
     LIMIT p_limit;
 END;
 $$ LANGUAGE plpgsql STABLE;

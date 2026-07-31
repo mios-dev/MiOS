@@ -1493,6 +1493,10 @@ async def lifespan(app):
                  KNOWLEDGE_EVICT_INTERVAL_S, KNOWLEDGE_EVICT_TTL_DAYS,
                  KNOWLEDGE_EVICT_MAX_ROWS, KNOWLEDGE_EVICT_BATCH)
 
+    # MEM-05: Sleep-time consolidation daemon
+    if AGENT_MEMORY_RECALL_ENABLED:
+        asyncio.create_task(_consolidate_memory_loop())
+
     # WS-LIFECYCLE-VER: stamp the live hop prompts (content-hash + version) so each
     # is drift-detectable + rollback-able -- the prerequisite for the WS-11 self-
     # improve ACT half (you cannot safely auto-edit a prompt without a way to
@@ -4165,7 +4169,7 @@ mios_memory.configure_letta(
 # AFTER each is defined; the filename plan (kv_filename + its _FILE_PREFIX/_FILE_SUFFIX
 # SSOT) and the plan_gc planner are imported DIRECTLY by mios_daemons from their leaf
 # siblings (one-way boundary -- mios_daemons never imports server).
-from mios_daemons import _kv_gc_sweep_once, _kv_gc_loop   # noqa: E402,F401
+from mios_daemons import _kv_gc_sweep_once, _kv_gc_loop, _consolidate_memory_loop   # noqa: E402,F401
 
 
 # KV-GC + knowledge-eviction startup loops consolidated into the FastAPI
@@ -5498,6 +5502,17 @@ KERNEL_DISPATCH = (
 async def _kernel_dag_handler(decision, *, refined=None, session_id=None, **ctx):
     """Dispatcher 'dag' handler -> the real DAG runner (a genuine Stage-2
     delegation; the other modes' bodies are still inline -> Stage 2b)."""
+    import mios_pipe.routing.conductor as mios_conductor
+    from mios_pipe.kernel.config import _toml_section
+    _orch = _toml_section("orchestration")
+    conductor_enable = str(_orch.get("conductor_enable", "false")).lower() in {"true", "1", "yes", "on"}
+    
+    if conductor_enable and refined and "workflow" in refined:
+        return await mios_conductor.execute_conductor_workflow(
+            refined["workflow"],
+            refined.get("params", {}),
+            session_id=session_id
+        )
     return await execute_dag(refined or {}, session_id=session_id)
 
 

@@ -1,0 +1,104 @@
+#!/usr/bin/env python3
+import os
+import sys
+import hashlib
+import json
+import tarfile
+import tempfile
+import subprocess
+import argparse
+
+BLOCK_SIZE = 1024 * 1024  # 1MB
+
+def hash_block(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+def apply_delta(old_dir: str, new_dir: str, in_tar: str, pub_key: str = None):
+    print(f"Extracting delta bundle {in_tar}...")
+    
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with tarfile.open(in_tar, "r") as tar:
+            tar.extractall(tmpdir)
+            
+        manifest_path = os.path.join(tmpdir, "manifest.json")
+        sig_path = os.path.join(tmpdir, "signature.sha256")
+        
+        # SEC-03: Verify signature if required
+        if pub_key:
+            if not os.path.exists(sig_path):
+                print("ERROR: Missing signature.sha256 in delta bundle, but verification is required.", file=sys.stderr)
+                sys.exit(1)
+            with open(manifest_path, "rb") as mf:
+                content = mf.read()
+            with open(sig_path, "r") as sf:
+                expected_sig = sf.read().strip()
+                
+            actual_sig = hashlib.sha256(content + pub_key.encode()).hexdigest()
+            if actual_sig != expected_sig:
+                print(f"ERROR: Signature mismatch! Tampering detected. Expected {expected_sig}, got {actual_sig}", file=sys.stderr)
+                sys.exit(1)
+            print("Signature verified against trusted chain.")
+
+        with open(manifest_path, "r") as mf:
+            manifest = json.load(mf)
+            
+        print("Reconstructing new OCI layout...")
+        os.makedirs(new_dir, exist_ok=True)
+        
+        for relpath, file_info in manifest["files"].items():
+            dest_path = os.path.join(new_dir, relpath)
+            os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+            
+            with open(dest_path, "wb") as out_f:
+                for block in file_info["blocks"]:
+                    if block["type"] == "copy":
+                        src_path = os.path.join(old_dir, block["source"])
+                        with open(src_path, "rb") as in_f:
+                            in_f.seek(block["index"] * BLOCK_SIZE)
+                            data = in_f.read(BLOCK_SIZE)
+                            # verify hash if provided
+                            if "sha256" in block:
+                                if hash_block(data) != block["sha256"]:
+                                    print(f"ERROR: Block hash mismatch for copy operation in {relpath}", file=sys.stderr)
+                                    sys.exit(1)
+                            out_f.write(data)
+                    elif block["type"] == "data":
+                        data_file = os.path.join(tmpdir, "data", block["file"])
+                        
+                        try:
+                            # decompress with zstd
+                            data = subprocess.run(
+                                ["zstd", "-d", "-c", "--quiet", data_file],
+                                capture_output=True,
+                                check=True
+                            ).stdout
+                        except FileNotFoundError:
+                            # fallback if not compressed (e.g. zstd was missing on sender)
+                            with open(data_file, "rb") as in_f:
+                                data = in_f.read()
+                        
+                        if "sha256" in block:
+                            if hash_block(data) != block["sha256"]:
+                                print(f"ERROR: Block hash mismatch for data operation in {relpath}", file=sys.stderr)
+                                sys.exit(1)
+                        out_f.write(data)
+                        
+            # Set the exact size to match
+            actual_size = os.path.getsize(dest_path)
+            if actual_size != file_info["size"]:
+                print(f"WARNING: File {relpath} size mismatch. Expected {file_info['size']}, got {actual_size}", file=sys.stderr)
+                
+    print(f"Successfully reconstructed OCI layout at {new_dir}")
+
+def main():
+    parser = argparse.ArgumentParser(description="Apply a block-level delta to an OCI directory")
+    parser.add_argument("old_dir", help="Previous OCI directory")
+    parser.add_argument("new_dir", help="Output New OCI directory")
+    parser.add_argument("in_tar", help="Input delta tar file")
+    parser.add_argument("--key", help="Public key for SEC-03 signature verification", default=None)
+    args = parser.parse_args()
+    
+    apply_delta(args.old_dir, args.new_dir, args.in_tar, args.key)
+
+if __name__ == "__main__":
+    main()

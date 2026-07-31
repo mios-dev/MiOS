@@ -1,0 +1,19 @@
+name: test-workflow
+description: A 3-step parallel workflow to test conductor
+steps:
+  - name: step1
+    action: shell
+    args:
+      cmd: "echo 'step 1'"
+  - name: parallel_group
+    parallel: true
+    fail_fast: true
+    steps:
+      - name: step2a
+        action: shell
+        args:
+          cmd: "echo 'step 2a'"
+      - name: step2b
+        action: shell
+        args:
+          cmd: "echo 'step 2b'"

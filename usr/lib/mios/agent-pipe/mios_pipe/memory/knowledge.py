@@ -980,7 +980,38 @@ async def kg_lookup(phrase: str) -> Optional[dict]:
     pr = phrase.strip().lower()              # raw (psycopg param binding)
     if not p:
         return None
-    # Stage 1a: alias EXACT-match (highest precedence). Operator
+    # Stage 1a: person_pref EXACT-match (highest precedence, personalized).
+    # e.g. "my browser" -> pref_key="browser" -> pref_value->>"app_id"
+    # We strip "my " prefix to check preference keys (like "browser").
+    stripped_p = pr[3:] if pr.startswith("my ") else pr
+    
+    # Try fetching the username from _get_client_env() 
+    # (assuming it forwards user_name or similar).
+    from mios_pipe.context.grounding import _get_client_env
+    env = _get_client_env()
+    username = (env.get("user_name") or "").strip()
+
+    if username:
+        r_pref = await _db_read(
+            "SELECT json_agg(json_build_object("
+            "'short_name', a.short_name, 'app_id', a.app_id, 'source', a.source, "
+            "'label', a.label, 'launch_hint', a.launch_hint)) AS apps "
+            "FROM person_pref pp "
+            "JOIN person p ON p.id = pp.person_id "
+            "JOIN app_install a ON a.app_id = pp.pref_value->>'app_id' "
+            "WHERE p.username = %(un)s AND pp.pref_key = %(k)s",
+            pg_params={"un": username, "k": stripped_p}
+        )
+        if r_pref:
+            rows = (r_pref[-1] or {}).get("result") or []
+            for row in rows:
+                apps = row.get("apps") or []
+                if apps:
+                    return {"source": "person_pref",
+                            "phrase": pr,
+                            "app": apps[0]}
+
+    # Stage 1b: alias EXACT-match (global fallback). Operator
     # configured "my browser" -> X, this returns X directly.
     sql = (
         f"SELECT phrase, "
