@@ -1972,6 +1972,24 @@ test_no_hardcoded_ssot_literal() {
     log "test_no_hardcoded_ssot_literal passed."
 }
 
+test_pipeline_numbering() {
+    log "Testing check_pipeline_numbering..."
+    local f="${ROOT}/automation/98-drift-checks.sh"
+    local backup; backup="$(mktemp)"
+    cp "$f" "$backup"
+    # Inject a forbidden hand-written (NN) check label as a COMMENT (bash stays valid).
+    # check_pipeline_numbering greps the file for exactly [NN-drift-checks] + (NN) and must FAIL.
+    printf '\n# NEG-TEST [38-drift-checks]   (99) injected colliding label\n' >> "$f"
+    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "$f" check_pipeline_numbering >/dev/null 2>&1; then
+        cp "$backup" "$f"; rm -f "$backup"
+        die "check_pipeline_numbering passed despite an injected (NN) check label!"
+    fi
+    cp "$backup" "$f"; rm -f "$backup"
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "$f" check_pipeline_numbering >/dev/null 2>&1 \
+        || die "check_pipeline_numbering failed after restoration!"
+    log "test_pipeline_numbering negative test passed."
+}
+
 main() {
     if [[ $# -eq 1 && -n "$1" ]]; then
         if declare -f "$1" >/dev/null; then
@@ -2064,6 +2082,7 @@ main() {
     test_resolved_env_lossless
     test_no_duplicate_value_key
     test_no_hardcoded_ssot_literal
+    test_pipeline_numbering
     log "All negative tests completed successfully!"
 }
 

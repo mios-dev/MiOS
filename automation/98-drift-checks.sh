@@ -6132,6 +6132,41 @@ PY
     echo "[38-drift-checks]   check_no_duplicate_value_key passed"
 }
 
+check_pipeline_numbering() {
+    # WS-NUMBER AGY-642: lock in the numbering unification (reference/audit-numbering-unification.md).
+    # Asserts ONLY what is verifiably true today -- NEVER the false "script==stage==RUN-step==label".
+    local bad=0
+    # (A) No hand-written (NN) numeric label may follow the [NN-drift-checks] stage label.
+    #     The colliding C2 labels were deleted (AGY-647); drift-gate-index.tsv's ordinal is
+    #     the SINGLE check number. A reintroduced (NN) is the exact regression we forbid.
+    local nn
+    nn=$(grep -cE '\[38-drift-checks\][[:space:]]+\([0-9]+\)' "$ROOT/automation/98-drift-checks.sh" 2>/dev/null || echo 0)
+    if [[ "$nn" -ne 0 ]]; then
+        echo "  [pipeline-numbering-drift] $nn hand-written (NN) check label(s) reintroduced in 98-drift-checks.sh; the SSOT drift-gate-index.tsv ordinal is the single check number -- delete the (NN)" >&2
+        bad=1
+    fi
+    # (B) build.sh must derive the chain count from $SCRIPT_COUNT, not an independent recount (AGY-641).
+    if grep -qE 'Step count in chain: \$\(ls .*mios-step.*wc -l\)' "$ROOT/automation/build.sh" 2>/dev/null; then
+        echo "  [pipeline-numbering-drift] build.sh re-counts the chain via ls|wc -l instead of \$SCRIPT_COUNT (AGY-641)" >&2
+        bad=1
+    fi
+    # (C) drift-gate-index.tsv ordinals must be dense 1..N (no gap/dup) -- the SSOT integrity.
+    local idx="$ROOT/usr/share/mios/reference/drift-gate-index.tsv"
+    if [[ -f "$idx" ]]; then
+        local dense
+        dense=$(awk -F'\t' 'NR>1 && $1 ~ /^[0-9]+$/ {n++; if($1!=n){print "gap-at-"$1; exit}} END{if(n==0)print "empty"}' "$idx")
+        if [[ -n "$dense" ]]; then
+            echo "  [pipeline-numbering-drift] drift-gate-index.tsv ordinals not dense 1..N ($dense)" >&2
+            bad=1
+        fi
+    fi
+    if [[ "$bad" -ne 0 ]]; then
+        _violation "pipeline numbering drift (WS-NUMBER AGY-642; see reference/audit-numbering-unification.md)"
+    else
+        echo "[38-drift-checks]   pipeline numbering: (NN) labels deleted, single progress count, dense SSOT check ordinals"
+    fi
+}
+
 check_no_hardcoded_ssot_literal() {
     local py_bin="python3"
     if ! command -v "$py_bin" >/dev/null 2>&1; then
@@ -6279,6 +6314,7 @@ main() {
     check_vendored_assets_non_stub
     check_resolved_env_lossless
     check_no_duplicate_value_key
+    check_pipeline_numbering
     check_no_hardcoded_ssot_literal
 
     echo "[38-drift-checks] ---------------------------------------------------------"
