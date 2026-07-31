@@ -57,6 +57,7 @@ REFINE_ENDPOINT = ""
 REFINE_MAX_TOKENS = 700
 REFINE_TIMEOUT_S = 30
 REFINE_ATTEMPTS = 2
+resolve_preferences = None
 _OS_CONTROL_VERBS_RENDERED = ""
 _BROWSER_ACTION_ALT = ""
 _WEB_SEARCH_TRIGGERS: list = []
@@ -99,7 +100,8 @@ def configure(*, logger=None, agent_registry=None, verb_catalog=None,
               promote_chars=None, dispatch_arg_max_words=None,
               chat_chars=None, dispatch_chars=None,
               emit_session_event=None, critic_refine_enabled=None,
-              critic_refine_max=None, critic_refine_min_chars=None) -> None:
+              critic_refine_max=None, critic_refine_min_chars=None,
+              resolve_preferences_inject=None) -> None:
     """Inject the server.py symbols the refine classifier reads. Each arg keeps
     its original server name as a module global; None means 'leave as-is' so a
     partial re-inject (e.g. the live agent-registry refresh) is safe. The routing
@@ -109,15 +111,17 @@ def configure(*, logger=None, agent_registry=None, verb_catalog=None,
     global log, _AGENT_REGISTRY, _VERB_CATALOG, _routed_domain_var
     global _over_global_ceiling, _resolve_verb_key, _route_domain
     global _db_fire, _db_post, _db_create
-    global REFINE_ENABLED, REFINE_MODEL, REFINE_ENDPOINT
-    global REFINE_MAX_TOKENS, REFINE_TIMEOUT_S, REFINE_ATTEMPTS
+    global REFINE_ENABLED, REFINE_MODEL, REFINE_ENDPOINT, REFINE_MAX_TOKENS
+    global REFINE_TIMEOUT_S, REFINE_ATTEMPTS, resolve_preferences
     global _OS_CONTROL_VERBS_RENDERED, _BROWSER_ACTION_ALT
-    global _WEB_SEARCH_TRIGGERS, _WEB_SEARCH_CONTEXTS, _REMEMBER_TRIGGERS
-    global _FASTPATH_VERBS, _ROUTING_ENABLE, _ROUTING_DOMAINS
+    global _WEB_SEARCH_TRIGGERS, _WEB_SEARCH_CONTEXTS, _REMEMBER_TRIGGERS, _FASTPATH_VERBS
+    global _ROUTING_ENABLE, _ROUTING_DOMAINS
     global REFINE_CHAT_CHARS, REFINE_DISPATCH_CHARS, REFINE_PROMOTE_CHARS
     global REFINE_DISPATCH_ARG_MAX_WORDS, _REFINE_SYSTEM
-    global _emit_session_event, CRITIC_REFINE_ENABLED
-    global CRITIC_REFINE_MAX, CRITIC_REFINE_MIN_CHARS
+    global _emit_session_event, CRITIC_REFINE_ENABLED, CRITIC_REFINE_MAX, CRITIC_REFINE_MIN_CHARS
+
+    if resolve_preferences_inject is not None:
+        resolve_preferences = resolve_preferences_inject
     if logger is not None:
         log = logger
     if agent_registry is not None:
@@ -707,6 +711,17 @@ async def refine_intent(user_text: str,
             "If none fits, leave hint_tools empty:\n"
             + ", ".join(sorted(_VERB_CATALOG.keys()))
         )
+
+    if resolve_preferences:
+        pref = await resolve_preferences(user_text)
+        if pref and "app" in pref:
+            app_info = pref["app"]
+            static_parts.append(
+                f"Personalized User Preference matched for '{user_text}':\n"
+                f"Target App: {app_info.get('short_name', '')} (id: {app_info.get('app_id', '')})\n"
+                "Prefer this app when fulfilling the user's intent if applicable."
+            )
+
     system = "\n\n".join(static_parts) + "\n\n" + _env_grounding_dynamic()
     msgs = [{"role": "system", "content": system}]
     # Last 2 turns of history, tightly capped -- the OWUI pipe already
