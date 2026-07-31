@@ -1,3 +1,4 @@
+# DEPRECATED: This config has been migrated to the [gateway] section of mios.toml
 # /usr/share/mios/hermes/config-worker.yaml -- MiOS-seeded NON-THIN Hermes WORKER
 # (Hermes-Agent 0.13.x schema). Copied to /var/lib/mios/hermes-worker/config.yaml
 # (the worker's HERMES_HOME) by hermes-worker-firstboot; that path is NEVER touched

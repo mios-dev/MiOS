@@ -61,7 +61,7 @@
 | T-053 | P2 | done-by-code | Federation/Networking | FED-G9 -- Loopback-Default Bind + Scoped Publish |
 | T-076 | P2 | retired | Memory/Gateway | GWY-01 -- Deploy Letta Server as Memory Complement (Phase 1) |
 | T-077 | P2 | retired | Memory/Orchestration | GWY-02 -- Wire Letta Self-Editing Memory to agent-pipe Verbs (Ph |
-| T-054 | P3 | open | Orchestration | ORCH-06 -- Deterministic Orchestration via Conductor CLI |
+| T-054 | P3 | done-by-code | Orchestration | ORCH-06 -- Deterministic Orchestration via Conductor CLI |
 | T-055 | P3 | done-by-code | Memory | MEM-04 -- Hindsight Multi-Strategy Memory Engine |
 | T-056 | P3 | done-by-code | Memory/Scheduling | MEM-05 -- KV Hierarchy + Sleep-Time Consolidation |
 | T-057 | P3 | done-by-code | Memory/UX | ORCH-07 -- Personal Knowledge Graph Rich Edges |
@@ -84,10 +84,10 @@
 | T-074 | P3 | done | Federation | FED-G10/G11 -- Cardless Join + `/v1/agents` Registry |
 | T-075 | P3 | open | Scheduling/Data | H6 -- LAKE Federated Query (Spice.ai Rust Engine) |
 | T-078 | P3 | done-by-code | Gateway/Orchestration | GWY-03 -- Build mios-gateway-agent FastAPI Service (Phase 2) |
-| T-079 | P3 | partial | Gateway/Orchestration | GWY-04 -- smolagents ToolCallingAgent as Tool-Loop Engine (Phase |
+| T-079 | P3 | done-by-code | Gateway/Orchestration | GWY-04 -- smolagents ToolCallingAgent as Tool-Loop Engine (Phase |
 | T-080 | P3 | done-by-code | Gateway/MCP | GWY-05 -- MCP Client: stdio â†’ mios-mcp-server (Phase 2) |
-| T-081 | P3 | partial | Gateway/Tools | GWY-06 -- Skill Catalog + SearXNG + Browser Verb Pass-Through (P |
-| T-082 | P3 | partial | Gateway/Config | GWY-07 -- Migrate Hermes Config to mios.toml [gateway] SSOT (Pha |
+| T-081 | P3 | done-by-code | Gateway/Tools | GWY-06 -- Skill Catalog + SearXNG + Browser Verb Pass-Through (P |
+| T-082 | P3 | done-by-code | Gateway/Config | GWY-07 -- Migrate Hermes Config to mios.toml [gateway] SSOT (Pha |
 | T-083 | P3 | partial | Gateway/Ops | GWY-08 -- Hermes ➔ mios-gateway-agent Service Transition (Phase  |
 | T-084 | P2 | done | Storage/Config | STRG-01 -- CephFS SSOT Block in mios.toml |
 | T-085 | P2 | done | Storage/Auth | STRG-02 -- mios-cephfs-provision Script + PAM Integration |
@@ -1850,7 +1850,7 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 ---
 
 ## T-079: GWY-04 -- smolagents ToolCallingAgent as Tool-Loop Engine (Phase 2)
-> **Priority:** P3 | **Status:** partial | **Effort:** M | **Domain:** Gateway/Orchestration | **Source:** Part 8 Phase 2 -- done-by-code: smolagents ToolCallingAgent + tool registry (cd27999).
+> **Priority:** P3 | **Status:** done-by-code | **Effort:** M | **Domain:** Gateway/Orchestration | **Source:** Part 8 Phase 2 -- done-by-code: smolagents ToolCallingAgent + tool registry (cd27999).
 
 **Context:** Wires the MiOS tool surface into the smolagents `ToolCallingAgent` loop. The agent receives tool definitions from the MCP client (T-080) and the skill catalog (T-081), executes the tool-call â†’ result â†’ continue loop identically to Hermes, and returns the final assistant message as an OpenAI-format completion.
 
@@ -1904,7 +1904,7 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 ---
 
 ## T-081: GWY-06 -- Skill Catalog + SearXNG + Browser Verb Pass-Through (Phase 2)
-> **Priority:** P3 | **Status:** partial | **Effort:** S | **Domain:** Gateway/Tools | **Source:** Part 8 Phase 2 -- done-by-code: skill catalog + SearXNG wiring (c1c283f).
+> **Priority:** P3 | **Status:** done-by-code | **Effort:** S | **Domain:** Gateway/Tools | **Source:** Part 8 Phase 2 -- done-by-code: skill catalog + SearXNG wiring (c1c283f).
 
 **Context:** Replicates the three remaining Hermes tool surface extensions: dynamic skill catalog from agent-pipe, SearXNG web search, and browser/CDP actions (delegated via `mios-pc-control` MCP verbs -- no separate CDP loop needed since they are already MCP-exposed).
 
@@ -1929,7 +1929,7 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 ---
 
 ## T-082: GWY-07 -- Migrate Hermes Config to mios.toml [gateway] SSOT (Phase 2)
-> **Priority:** P3 | **Status:** partial | **Effort:** S | **Domain:** Gateway/Config | **Source:** Part 8 Phase 2 -- done-by-code: `[gateway]` SSOT block + Hermes config deprecation (7176940).
+> **Priority:** P3 | **Status:** done-by-code | **Effort:** S | **Domain:** Gateway/Config | **Source:** Part 8 Phase 2 -- done-by-code: `[gateway]` SSOT block + Hermes config deprecation (7176940).
 
 **Context:** Replaces the `usr/share/mios/hermes/config.yaml` vendor-default + `/etc/mios/hermes/config.local.yaml` override dance with a single `[gateway]` section in `mios.toml`, consistent with MiOS Architectural Law 2 (immutable code / mutable state via SSOT).
 

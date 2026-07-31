@@ -230,6 +230,7 @@ units / `mios.toml`):
   council/swarm fan-out + critic/polish; fronts Hermes for every gateway.
 * **MiOS-Hermes** (`:8642`) — OpenAI-compatible agent gateway: sessions,
   tool-loop, skills, browser/CDP control.
+* **mios-gateway-agent** (`:8642`) — Next-generation OpenAI-compatible agent gateway replacing Hermes (phase 2, disabled until T-083).
 * **prefilter** (`:8641`) — injects fan-out hints on decomposable prompts,
   forwards to Hermes.
 * **mios-llm-light** (`:11450`) — **primary** inference lane: llama.cpp behind
