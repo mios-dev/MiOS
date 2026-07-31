@@ -30,6 +30,8 @@ STABLE_PREFIX = True
 STABLE_PREFIX_TAIL = 15
 CHILD_TOOL_FLOOR = 6
 
+CODE_MODE_ENABLE = False
+
 _VERB_CATALOG: dict = {}
 _RECIPE_CATALOG: dict = {}
 _ROUTING_DOMAINS: dict = {}
@@ -61,7 +63,8 @@ def configure(*, worker_tools_scope=None, child_tool_select=None,
               recipe_to_openai_tool=None, skill_to_openai_tool=None,
               mcp_tool_to_openai_tool=None, skill_list=None,
               resolve_verb_key=None, tool_embedding=None, cosine=None,
-              ensure_verb_embeddings=None, embed_one=None) -> None:
+              ensure_verb_embeddings=None, embed_one=None,
+              code_mode_enable=None) -> None:
     """Inject catalogs, config, and helper callbacks."""
     global WORKER_TOOLS_SCOPE, CHILD_TOOL_SELECT, STABLE_PREFIX
     global STABLE_PREFIX_TAIL, CHILD_TOOL_FLOOR, _VERB_CATALOG
@@ -70,7 +73,7 @@ def configure(*, worker_tools_scope=None, child_tool_select=None,
     global _VERB_EMBEDDINGS, _verb_to_openai_tool, _recipe_to_openai_tool
     global _skill_to_openai_tool, _mcp_tool_to_openai_tool, _skill_list
     global _resolve_verb_key, _tool_embedding, _cosine
-    global _ensure_verb_embeddings, _embed_one
+    global _ensure_verb_embeddings, _embed_one, CODE_MODE_ENABLE
     global _WORKER_TOOLS_CACHE, _WORKER_TOOLS_FULL_CACHE, _WORKER_TOOLS_CORE_CACHE
 
     # Clear caches when reconfigured
@@ -124,6 +127,8 @@ def configure(*, worker_tools_scope=None, child_tool_select=None,
         _ensure_verb_embeddings = ensure_verb_embeddings
     if embed_one is not None:
         _embed_one = embed_one
+    if code_mode_enable is not None:
+        CODE_MODE_ENABLE = code_mode_enable
 
 
 def _worker_tools_surface() -> list:
@@ -140,7 +145,7 @@ def _worker_tools_surface() -> list:
                     and (WORKER_TOOLS_SCOPE != "read"
                          or str(c.get("permission", "")).lower() == "read")
                 ]
-            if _recipe_to_openai_tool and _RECIPE_CATALOG:
+            if _recipe_to_openai_tool and _RECIPE_CATALOG and not CODE_MODE_ENABLE:
                 for rn, rc in (_RECIPE_CATALOG or {}).items():
                     if (WORKER_TOOLS_SCOPE == "read"
                             and str(rc.get("permission", "")).lower() != "read"):

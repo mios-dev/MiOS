@@ -1879,6 +1879,7 @@ _configure_toolsurface(
     stable_prefix=STABLE_PREFIX,
     stable_prefix_tail=STABLE_PREFIX_TAIL,
     child_tool_floor=CHILD_TOOL_FLOOR,
+    code_mode_enable=CODE_MODE_ENABLE,
     verb_catalog=_VERB_CATALOG,
     recipe_catalog=_RECIPE_CATALOG,
     routing_domains=_ROUTING_DOMAINS,
