@@ -1,103 +1,539 @@
 #!/usr/bin/env python3
-# tools/mios-dup-report
-# AGY-856 — Value duplication reporter for MiOS resolved environment
+# AI-hint: AGY-856 MIOS_* value-de-dup measurement CLI: resolves the env via mios-env-snapshot, groups keys by VALUE, classifies every >=2-key group {true-alias|distinct-fact|intentional-many-to-one|unset-default}, and emits NEW canonical<TAB>alias<TAB>derive candidate rows for value-aliases.tsv from the 13 systematic prefix-alias families (skipping already-mapped pairs). Prints by default; --write-tsv regenerates value-dup-report.tsv.
+# AI-related: usr/libexec/mios/mios-env-snapshot, usr/share/mios/reference/value-aliases.tsv, usr/share/doc/mios/reference/audit-value-dup-report.md, usr/share/mios/reference/value-dup-report.tsv, automation/98-drift-checks.sh
+# AI-functions: main, acquire_snapshot, load_aliases, mapped_disposition, normalize, classify, family_candidates, build_groups, print_section_a, print_section_b, write_tsv
+# ============================================================================
+# tools/mios-dup-report - 'MiOS' v0.3.0
+# ----------------------------------------------------------------------------
+# Standalone, stdlib-only. Two outputs:
+#   (a) value-duplication groups: every value carried by >=2 resolver keys, with a
+#       deterministic mechanical classification.
+#   (b) candidate value-aliases.tsv rows (canonical<TAB>alias<TAB>derive) for the
+#       systematic prefix-alias families, minus pairs already declared in the map.
+#
+# The authoritative de-dup signal is (b) (it keys off name-stems, per the audit's own
+# methodology caveat). (a) is the raw measurement; its true-alias label is exactly the
+# set of groups whose keys ALL collapse to one canonical stem under the family rules --
+# i.e. a mechanically-safe collapse exists. Non-systematic semantic aliases (shared model
+# names, /bin/bash, group-lists, image refs) are NOT auto-promoted to true-alias; they are
+# surfaced as distinct-fact rows carrying a "[review]" hint for a human to judge.
+#
+# derive semantics match automation/98-drift-checks.sh::check_value_aliases -- a derive pair
+# MUST resolve equal, so section (b) only proposes 'derive' when the two keys' values agree;
+# alias-shaped pairs that DISAGREE are printed as '# REVIEW' lines (a keep-distinct false-friend
+# to pin, or a silent SSOT drift to fix -- see audit section 4.1).
+# ============================================================================
+"""mios-dup-report -- measure MIOS_* value duplication and propose alias-map rows.
 
+Usage:
+  tools/mios-dup-report [options]
+
+Options:
+  --snapshot FILE     Read KEY=VALUE lines from FILE (or '-' for stdin) instead of
+                      invoking the resolver. Useful off-Linux or for a pinned baseline.
+  --snapshot-cmd CMD  Shell command that emits the snapshot on stdout.
+                      Default: bash <root>/usr/libexec/mios/mios-env-snapshot
+  --aliases FILE      Existing value-aliases.tsv (default: auto-detect under the tree).
+  --root DIR          Repo root (default: parent of this tool's directory).
+  --section {a,b,all} Which section(s) to print (default: all).
+  --tsv               Render section (a) as the 4-column Value/Count/Classification/Keys TSV.
+  --write-tsv [PATH]  Regenerate the section-(a) TSV artifact and exit (no stdout report).
+                      Default PATH: usr/share/mios/reference/value-dup-report.tsv.
+  --min-count N       Minimum group size for section (a) (default: 2).
+  --max-keys N        Cap keys listed per group in text mode; 0 = unlimited (default: 12).
+  --include-unset     In text mode, list all members of the empty-value group too.
+  -h, --help          Show this help.
+"""
+
+import argparse
 import os
-import sys
+import re
 import subprocess
-import collections
+import sys
 
-ROOT = os.environ.get("MIOS_ROOT") or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# --------------------------------------------------------------------------- #
+# Constants grounded in usr/share/doc/mios/reference/audit-value-dup-report.md #
+# --------------------------------------------------------------------------- #
 
-INTENTIONAL_MANY_TO_ONE = {
-    "mios-find",
-    "mios-window",
-    "mios-terminal",
-    "127.0.0.1",
-    "localhost",
-    "true",
-    "false",
-    "0",
-    "1",
-    "",
-}
+FIND_ALIAS_PREFIX = "MIOS_FIND_ALIASES_"  # section 3 tail / section 5: intentional many->one launcher tables
 
-KNOWN_ALIAS_PATTERNS = [
-    ("MIOS_COLOR_", "MIOS_COLORS_"),
-    ("MIOS_ANSI_", "MIOS_COLORS_ANSI_"),
-    ("MIOS_AI_MODEL", "MIOS_MODEL"),
-    ("MIOS_PG_EMB_MODEL", "MIOS_AI_EMBED_MODEL"),
+# The 13 systematic prefix-alias families (audit section 3). Each entry drives BOTH the
+# section-(b) candidate scan (family_candidates) and the section-(a) stem collapse (normalize).
+#   id   : family number in the audit
+#   name : short label
+#   note : per-family orientation / caveat carried into the output comment
+FAMILIES = [
+    (1,  "ports",          "PORTS_<X> = PORT_<X> = <X>_PORT ; [ports]-native plural PORTS_ chosen canonical (audit 4.2)"),
+    (2,  "services-ident", "SERVICES_<svc>_* = <svc>_* (UID/GID/USER)"),
+    (3,  "pgvector-pg",    "PGVECTOR_* = PG_* ; *_USER is a keep-distinct false-friend (audit 4.1)"),
+    (4,  "routing",        "ROUTING_* = bare * (NL routing phrase lists)"),
+    (5,  "cephfs",         "STORAGE_CEPHFS_* = CEPHFS_*"),
+    (6,  "a2o-frontier",   "A2O_* = FRONTIER_* (lane/orchestration under two plane names)"),
+    (7,  "paths",          "PATHS_* = bare * (filesystem paths)"),
+    (8,  "colors-ansi",    "COLORS_ANSI_<n> = ANSI_<n> (theme projection)"),
+    (9,  "colors",         "COLORS_<role> = COLOR_<role>"),
+    (10, "env-url",        "ENV_MIOS_URL_* = URL_* (repo/download URLs)"),
+    (11, "editions-mini",  "EDITIONS_..._MINI_* = MINI_* ; base MINI is source, editions re-emit (canonical=MINI)"),
+    (12, "wsl-compat",     "WSL2_DESKTOP_COMPAT_* = WSLG_* (GDK/QT backend)"),
+    (13, "timeout-suffix", "*_TIMEOUT_SECONDS = *_TIMEOUT_S ; house style *_TIMEOUT_S chosen canonical"),
 ]
 
-def classify_dupe_group(value, keys):
-    if value in INTENTIONAL_MANY_TO_ONE:
+# Auto-detect locations for the existing alias map, relative to root (first that exists).
+ALIAS_MAP_CANDIDATES = [
+    "usr/share/mios/reference/value-aliases.tsv",
+    "usr/share/mios/value-aliases.tsv",
+    "reference/value-aliases.tsv",
+]
+
+SNAPSHOT_REL = "usr/libexec/mios/mios-env-snapshot"
+DEFAULT_TSV_REL = "usr/share/mios/reference/value-dup-report.tsv"
+
+
+# --------------------------------------------------------------------------- #
+# Snapshot acquisition                                                          #
+# --------------------------------------------------------------------------- #
+
+def acquire_snapshot(args, root):
+    """Return a dict {KEY: VALUE} of resolved MIOS_* variables."""
+    if args.snapshot:
+        if args.snapshot == "-":
+            text = sys.stdin.read()
+        else:
+            with open(args.snapshot, "r", encoding="utf-8", errors="replace") as fh:
+                text = fh.read()
+        return _parse_env(text.splitlines())
+
+    if args.snapshot_cmd:
+        cmd, shell = args.snapshot_cmd, True
+    else:
+        # Invoke exactly `bash usr/libexec/mios/mios-env-snapshot` from cwd=root: a RELATIVE
+        # path resolves under either resolver (Git Bash /c/..., WSL /mnt/c/...) whereas a
+        # Windows/drive-letter path is mis-parsed by one or the other.
+        cmd, shell = ["bash", SNAPSHOT_REL], False
+
+    try:
+        proc = subprocess.run(
+            cmd, shell=shell, cwd=root,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            text=True, encoding="utf-8", errors="replace",
+        )
+    except FileNotFoundError:
+        sys.stderr.write(
+            "[mios-dup-report] ERROR: could not launch the resolver ('bash' not found?).\n"
+            "  Provide a pre-captured snapshot with --snapshot FILE, or --snapshot-cmd CMD.\n"
+        )
+        sys.exit(2)
+
+    if proc.returncode != 0:
+        sys.stderr.write(
+            "[mios-dup-report] ERROR: snapshot command exited %d.\n%s\n"
+            % (proc.returncode, proc.stderr.strip())
+        )
+        sys.exit(2)
+
+    return _parse_env(proc.stdout.splitlines())
+
+
+def _parse_env(lines):
+    env = {}
+    for line in lines:
+        if not line.startswith("MIOS_"):
+            continue
+        key, sep, val = line.partition("=")
+        if sep:
+            env[key] = val
+    return env
+
+
+# --------------------------------------------------------------------------- #
+# Existing alias-map loading (to avoid re-proposing mapped pairs)               #
+# --------------------------------------------------------------------------- #
+
+def load_aliases(path):
+    """Parse value-aliases.tsv.
+
+    Returns (concrete, prefixes):
+      concrete : dict[frozenset({k1,k2})] -> disposition
+      prefixes : list of (canon_prefix, alias_prefix, disposition) for wildcard rows
+                 (both fields end with '_', e.g. 'MIOS_PGVECTOR_' / 'MIOS_PG_').
+    """
+    concrete, prefixes = {}, []
+    if not path or not os.path.isfile(path):
+        return concrete, prefixes
+    with open(path, "r", encoding="utf-8", errors="replace") as fh:
+        for line in fh:
+            line = line.rstrip("\n")
+            if not line or line.lstrip().startswith("#"):
+                continue
+            parts = line.split("\t")
+            if len(parts) < 2:
+                continue
+            canon = parts[0].strip()
+            alias = parts[1].strip()
+            disp = parts[2].strip() if len(parts) >= 3 else ""
+            disp = disp.split("#", 1)[0].strip() or "derive"  # tolerate trailing '# comment'
+            if not canon or not alias:
+                continue
+            if canon.endswith("_") and alias.endswith("_"):
+                prefixes.append((canon, alias, disp))
+            else:
+                concrete[frozenset((canon, alias))] = disp
+    return concrete, prefixes
+
+
+def mapped_disposition(canon, alias, concrete, prefixes):
+    """Return the declared disposition for an unordered pair, or None if unmapped."""
+    disp = concrete.get(frozenset((canon, alias)))
+    if disp is not None:
+        return disp
+    for cp, ap, d in prefixes:
+        if canon.startswith(cp) and alias == ap + canon[len(cp):]:
+            return d
+        if alias.startswith(cp) and canon == ap + alias[len(cp):]:
+            return d
+    return None
+
+
+# --------------------------------------------------------------------------- #
+# Normalization -> canonical stem (drives section-(a) true-alias detection)     #
+# --------------------------------------------------------------------------- #
+
+_MINI_RE = re.compile(r"^MIOS_EDITIONS_.*?_MINI_(.+)$")
+
+
+def normalize(key):
+    """Collapse a key to a canonical stem so that every spelling of the SAME fact under the
+    13 systematic families maps to the SAME stem, while coincidentally-equal but distinct
+    facts (e.g. a UID and GID that share a number) keep DIFFERENT stems."""
+    k = key
+    # More-specific namespaces first; SERVICES before PGVECTOR so MIOS_SERVICES_PGVECTOR_*
+    # reduces through both layers to MIOS_PG_*.
+    if k.startswith("MIOS_COLORS_ANSI_"):            # family 8
+        k = "MIOS_ANSI_" + k[len("MIOS_COLORS_ANSI_"):]
+    elif k.startswith("MIOS_COLORS_"):               # family 9
+        k = "MIOS_COLOR_" + k[len("MIOS_COLORS_"):]
+    if k.startswith("MIOS_SERVICES_"):               # family 2
+        k = "MIOS_" + k[len("MIOS_SERVICES_"):]
+    if k.startswith("MIOS_PGVECTOR_"):               # family 3
+        k = "MIOS_PG_" + k[len("MIOS_PGVECTOR_"):]
+    if k.startswith("MIOS_ROUTING_"):                # family 4
+        k = "MIOS_" + k[len("MIOS_ROUTING_"):]
+    if k.startswith("MIOS_STORAGE_CEPHFS_"):         # family 5
+        k = "MIOS_CEPHFS_" + k[len("MIOS_STORAGE_CEPHFS_"):]
+    if k.startswith("MIOS_A2O_"):                    # family 6
+        k = "MIOS_FRONTIER_" + k[len("MIOS_A2O_"):]
+    if k.startswith("MIOS_PATHS_"):                  # family 7
+        k = "MIOS_" + k[len("MIOS_PATHS_"):]
+    if k.startswith("MIOS_ENV_MIOS_URL_"):           # family 10
+        k = "MIOS_URL_" + k[len("MIOS_ENV_MIOS_URL_"):]
+    if k.startswith("MIOS_WSL2_DESKTOP_COMPAT_"):    # family 12
+        k = "MIOS_WSLG_" + k[len("MIOS_WSL2_DESKTOP_COMPAT_"):]
+    # ports (family 1): fold all three spellings onto the plural PORTS_ stem
+    if k.startswith("MIOS_PORTS_"):
+        pass
+    elif k.startswith("MIOS_PORT_"):
+        k = "MIOS_PORTS_" + k[len("MIOS_PORT_"):]
+    elif k.startswith("MIOS_") and k.endswith("_PORT"):
+        k = "MIOS_PORTS_" + k[len("MIOS_"):-len("_PORT")]
+    # editions -> base MINI (family 11)
+    m = _MINI_RE.match(k)
+    if m:
+        k = "MIOS_MINI_" + m.group(1)
+    # timeout suffix (family 13)
+    if k.endswith("_TIMEOUT_SECONDS"):
+        k = k[:-len("_TIMEOUT_SECONDS")] + "_TIMEOUT_S"
+    return k
+
+
+# --------------------------------------------------------------------------- #
+# Classification                                                                #
+# --------------------------------------------------------------------------- #
+
+_HEX_RE = re.compile(r"^#[0-9A-Fa-f]{3,8}$")
+
+
+def is_structured_value(value):
+    """True if a value looks like a path/URL/endpoint/image-or-model ref/comma-list/hex color
+    -- i.e. worth a human semantic-alias review even when mechanically distinct."""
+    if not value:
+        return False
+    if _HEX_RE.match(value):
+        return True
+    if any(tok in value for tok in ("/", "://", "${", ",", ".io", ".com", ".org")):
+        return True
+    if ":" in value and not value.isdigit():   # image/model refs like 'granite4.1:8b'
+        return True
+    return False
+
+
+def classify(value, keys):
+    """Return one of: unset-default | intentional-many-to-one | true-alias | distinct-fact."""
+    if value == "":
+        return "unset-default"
+    if all(k.startswith(FIND_ALIAS_PREFIX) for k in keys):
         return "intentional-many-to-one"
-    
-    for k1 in keys:
-        for k2 in keys:
-            if k1 != k2:
-                for p1, p2 in KNOWN_ALIAS_PATTERNS:
-                    if (k1.startswith(p1) and k2.startswith(p2)) or (k2.startswith(p1) and k1.startswith(p2)):
-                        return "true-alias"
-                    
-    suffixes = [k.split("_")[-1] for k in keys]
-    if len(set(suffixes)) == 1:
+    if len({normalize(k) for k in keys}) == 1:
         return "true-alias"
+    return "distinct-fact"
 
-    return "distinct-configurable-fact"
 
-def get_resolved_env():
-    resolved = {}
-    snapshot_cmd = os.path.join(ROOT, "usr/libexec/mios/mios-env-snapshot")
-    if os.path.exists(snapshot_cmd):
-        try:
-            res = subprocess.run(["bash", snapshot_cmd], capture_output=True, text=True, check=True, cwd=ROOT)
-            for line in res.stdout.splitlines():
-                if "=" in line:
-                    k, v = line.split("=", 1)
-                    resolved[k.strip()] = v.strip()
-            return resolved
-        except Exception:
-            pass
+# --------------------------------------------------------------------------- #
+# Section (b): family candidate pairs from the live snapshot                    #
+# --------------------------------------------------------------------------- #
 
-    baseline_path = os.path.join(ROOT, "usr/share/mios/reference/env-baseline.txt")
-    if os.path.exists(baseline_path):
-        with open(baseline_path, "r", encoding="utf-8") as f:
-            for line in f:
-                if "=" in line:
-                    k, v = line.split("=", 1)
-                    resolved[k.strip()] = v.strip()
+def family_candidates(family_id, keys_set):
+    """Yield (canonical_key, alias_key) pairs for one family, restricted to keys that actually
+    exist in the snapshot. Orientation follows the map convention: canonical = SSOT-source
+    spelling, alias = the derived/duplicate spelling."""
+    def bare_strip(prefix, alias_prefix):
+        for k in keys_set:
+            if k.startswith(prefix):
+                a = alias_prefix + k[len(prefix):]
+                if a != k and a in keys_set:
+                    yield (k, a)
 
-    return resolved
+    if family_id == 1:  # ports: canonical PORTS_<X>; aliases PORT_<X> and <X>_PORT
+        for k in keys_set:
+            if not k.startswith("MIOS_PORTS_"):
+                continue
+            x = k[len("MIOS_PORTS_"):]
+            for a in ("MIOS_PORT_" + x, "MIOS_" + x + "_PORT"):
+                if a != k and a in keys_set:
+                    yield (k, a)
+    elif family_id == 2:
+        yield from bare_strip("MIOS_SERVICES_", "MIOS_")
+    elif family_id == 3:
+        yield from bare_strip("MIOS_PGVECTOR_", "MIOS_PG_")
+    elif family_id == 4:
+        yield from bare_strip("MIOS_ROUTING_", "MIOS_")
+    elif family_id == 5:
+        yield from bare_strip("MIOS_STORAGE_CEPHFS_", "MIOS_CEPHFS_")
+    elif family_id == 6:
+        yield from bare_strip("MIOS_A2O_", "MIOS_FRONTIER_")
+    elif family_id == 7:
+        yield from bare_strip("MIOS_PATHS_", "MIOS_")
+    elif family_id == 8:
+        yield from bare_strip("MIOS_COLORS_ANSI_", "MIOS_ANSI_")
+    elif family_id == 9:
+        for k in keys_set:
+            if k.startswith("MIOS_COLORS_") and not k.startswith("MIOS_COLORS_ANSI_"):
+                a = "MIOS_COLOR_" + k[len("MIOS_COLORS_"):]
+                if a != k and a in keys_set:
+                    yield (k, a)
+    elif family_id == 10:
+        yield from bare_strip("MIOS_ENV_MIOS_URL_", "MIOS_URL_")
+    elif family_id == 11:  # canonical = base MINI, alias = edition overlay copy
+        for k in keys_set:
+            m = _MINI_RE.match(k)
+            if not m:
+                continue
+            canon = "MIOS_MINI_" + m.group(1)
+            if canon != k and canon in keys_set:
+                yield (canon, k)
+    elif family_id == 12:
+        yield from bare_strip("MIOS_WSL2_DESKTOP_COMPAT_", "MIOS_WSLG_")
+    elif family_id == 13:  # canonical = *_TIMEOUT_S, alias = *_TIMEOUT_SECONDS
+        for k in keys_set:
+            if k.endswith("_TIMEOUT_SECONDS"):
+                canon = k[:-len("_TIMEOUT_SECONDS")] + "_TIMEOUT_S"
+                if canon != k and canon in keys_set:
+                    yield (canon, k)
 
-def generate_report(output_file=None):
-    resolved = get_resolved_env()
 
-    value_to_keys = collections.defaultdict(list)
-    for k, v in resolved.items():
-        if v:
-            value_to_keys[str(v)].append(k)
+# --------------------------------------------------------------------------- #
+# Grouping + rendering                                                          #
+# --------------------------------------------------------------------------- #
 
-    lines = ["Value\tCount\tClassification\tKeys"]
-    dup_count = 0
+def build_groups(env, min_count):
+    by_value = {}
+    for key, val in env.items():
+        by_value.setdefault(val, []).append(key)
+    groups = []
+    for val, keys in by_value.items():
+        if len(keys) < min_count:
+            continue
+        keys = sorted(keys)
+        groups.append((val, keys, classify(val, keys)))
+    groups.sort(key=lambda g: (-len(g[1]), g[0]))  # count desc, then value
+    return groups
 
-    for val, keys in sorted(value_to_keys.items(), key=lambda x: (-len(x[1]), x[0])):
-        if len(keys) >= 2:
-            dup_count += 1
-            classification = classify_dupe_group(val, keys)
-            key_list = ",".join(sorted(keys))
-            lines.append(f"{val}\t{len(keys)}\t{classification}\t{key_list}")
 
-    report_text = "\n".join(lines) + "\n"
-    if output_file:
-        os.makedirs(os.path.dirname(os.path.abspath(output_file)), exist_ok=True)
-        with open(output_file, "w", encoding="utf-8") as f:
-            f.write(report_text)
-    return report_text
+def _oneline(value):
+    return value.replace("\t", "\\t").replace("\r", "").replace("\n", "\\n")
+
+
+def write_tsv(path, groups):
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    with open(path, "w", encoding="utf-8", newline="\n") as fh:
+        fh.write("Value\tCount\tClassification\tKeys\n")
+        for val, keys, cls in groups:
+            fh.write("%s\t%d\t%s\t%s\n" % (_oneline(val) or "(EMPTY)", len(keys), cls, ",".join(keys)))
+
+
+def print_section_a(env, groups, args):
+    if args.tsv:
+        sys.stdout.write("Value\tCount\tClassification\tKeys\n")
+        for val, keys, cls in groups:
+            sys.stdout.write("%s\t%d\t%s\t%s\n" % (_oneline(val) or "(EMPTY)", len(keys), cls, ",".join(keys)))
+        return
+
+    total = len(env)
+    distinct = len(set(env.values()))
+    in_groups = sum(len(k) for _, k, _ in groups)
+    tally = {}
+    for _, _, cls in groups:
+        tally[cls] = tally.get(cls, 0) + 1
+    empty_keys = sorted(k for k, v in env.items() if v == "")
+
+    print("# ==================================================================")
+    print("# (a) MIOS_* value-duplication groups  (source: live resolver snapshot)")
+    print("# ------------------------------------------------------------------")
+    print("# total keys resolved      : %d" % total)
+    print("# distinct values          : %d" % distinct)
+    print("# groups with >= %d keys    : %d  (%d keys)" % (args.min_count, len(groups), in_groups))
+    print("# keys resolving to empty  : %d  (unset-default)" % len(empty_keys))
+    print("# group classes            : " + ", ".join(
+        "%s=%d" % (c, tally.get(c, 0))
+        for c in ("true-alias", "distinct-fact", "intentional-many-to-one", "unset-default")))
+    print("#")
+    print("# class legend: true-alias = every key collapses to one canonical stem under the 13")
+    print("#   systematic families (a safe mechanical collapse exists); distinct-fact =")
+    print("#   independently-configurable facts that merely coincide (a [review] hint marks")
+    print("#   structured values worth a human semantic-alias check); intentional-many-to-one =")
+    print("#   launcher alias tables (by design); unset-default = empty vendor-layer value.")
+    print("# ==================================================================")
+
+    for val, keys, cls in groups:
+        shown, suffix = keys, ""
+        if val == "" and not args.include_unset and args.max_keys:
+            shown = keys[:args.max_keys]
+            if len(keys) > args.max_keys:
+                suffix = "  (+%d more; --include-unset for all)" % (len(keys) - args.max_keys)
+        elif args.max_keys and len(keys) > args.max_keys:
+            shown = keys[:args.max_keys]
+            suffix = "  (+%d more)" % (len(keys) - args.max_keys)
+        hint = ""
+        if cls == "distinct-fact" and is_structured_value(val):
+            hint = "  [review: structured value shared across unrelated stems -- possible semantic alias]"
+        disp_val = _oneline(val) if val else "(empty)"
+        print("\n%-26s count=%-4d class=%s%s" % ("`" + disp_val + "`", len(keys), cls, hint))
+        print("    " + ", ".join(shown) + suffix)
+
+
+def print_section_b(env, args, concrete, prefixes):
+    keys_set = set(env.keys())
+    print("# ==================================================================")
+    print("# (b) Candidate value-aliases.tsv rows  (canonical<TAB>alias<TAB>derive)")
+    print("# ------------------------------------------------------------------")
+    print("# NEW pairs only: every pair below exists in the snapshot and is NOT already declared")
+    print("# (concrete or prefix-wildcard) in the loaded map. Append the 'derive' rows after")
+    print("# review; each is then enforced by 98-drift-checks.sh::check_value_aliases.")
+    print("# 'REVIEW' lines are alias-shaped pairs whose values DISAGREE -- a false-friend to pin")
+    print("# keep-distinct, or a silent SSOT drift to fix (audit section 4.1). Orientation:")
+    print("# canonical (col 1) = SSOT-source spelling; review before committing.")
+    print("# ==================================================================")
+
+    emitted = set()
+    n_derive = n_review = n_mapped = 0
+    for fid, _fname, fnote in FAMILIES:
+        derive_rows, review_rows = [], []
+        for canon, alias in family_candidates(fid, keys_set):
+            pair = frozenset((canon, alias))
+            if pair in emitted:
+                continue
+            emitted.add(pair)
+            if mapped_disposition(canon, alias, concrete, prefixes) is not None:
+                n_mapped += 1
+                continue
+            cv, av = env[canon], env[alias]
+            if cv == av:
+                derive_rows.append("%s\t%s\tderive" % (canon, alias))
+            else:
+                review_rows.append(
+                    "# REVIEW  %s='%s'  !=  %s='%s'  (values differ -- keep-distinct or SSOT drift)"
+                    % (canon, _oneline(cv), alias, _oneline(av)))
+        n_derive += len(derive_rows)
+        n_review += len(review_rows)
+        if not derive_rows and not review_rows:
+            continue
+        print("\n# --- family %d: %s ---" % (fid, fnote))
+        for row in sorted(derive_rows):
+            print(row)
+        for row in sorted(review_rows):
+            print(row)
+
+    print("\n# ------------------------------------------------------------------")
+    print("# candidate derive rows: %d   review(divergent) pairs: %d   already-mapped skipped: %d"
+          % (n_derive, n_review, n_mapped))
+
+
+# --------------------------------------------------------------------------- #
+# Main                                                                          #
+# --------------------------------------------------------------------------- #
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(
+        prog="mios-dup-report", add_help=True,
+        description="Measure MIOS_* value duplication and propose value-aliases.tsv rows.")
+    parser.add_argument("--snapshot", metavar="FILE",
+                        help="read KEY=VALUE lines from FILE ('-' for stdin) instead of the resolver")
+    parser.add_argument("--snapshot-cmd", metavar="CMD",
+                        help="shell command that emits the snapshot on stdout")
+    parser.add_argument("--aliases", metavar="FILE", help="existing value-aliases.tsv (default: auto-detect)")
+    parser.add_argument("--root", metavar="DIR", help="repo root (default: parent of this tool's dir)")
+    parser.add_argument("--section", choices=("a", "b", "all"), default="all")
+    parser.add_argument("--tsv", action="store_true", help="render section (a) as 4-column TSV")
+    parser.add_argument("--write-tsv", nargs="?", const="__DEFAULT__", metavar="PATH",
+                        help="regenerate the section-(a) TSV artifact and exit (no stdout report)")
+    parser.add_argument("--min-count", type=int, default=2, help="minimum group size for section (a)")
+    parser.add_argument("--max-keys", type=int, default=12, help="cap keys listed per group (0 = unlimited)")
+    parser.add_argument("--include-unset", action="store_true", help="list all members of the empty-value group")
+    args = parser.parse_args(argv)
+
+    if args.root:
+        root = os.path.abspath(args.root)
+    else:
+        root = os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file__)), ".."))
+
+    aliases_path = args.aliases
+    if not aliases_path:
+        for rel in ALIAS_MAP_CANDIDATES:
+            cand = os.path.join(root, rel)
+            if os.path.isfile(cand):
+                aliases_path = cand
+                break
+    concrete, prefixes = load_aliases(aliases_path)
+
+    env = acquire_snapshot(args, root)
+    if not env:
+        sys.stderr.write("[mios-dup-report] ERROR: snapshot produced no MIOS_* keys.\n")
+        sys.exit(2)
+
+    # --write-tsv: regenerate the artifact and exit (keeps mios-ssot-regen's contract).
+    if args.write_tsv is not None:
+        dest = args.write_tsv
+        if dest == "__DEFAULT__":
+            dest = os.path.join(root, DEFAULT_TSV_REL)
+        groups = build_groups(env, args.min_count)
+        write_tsv(dest, groups)
+        sys.stderr.write("[mios-dup-report] wrote %s (%d duplicate groups)\n" % (dest, len(groups)))
+        return 0
+
+    show_a = args.section in ("a", "all")
+    show_b = args.section in ("b", "all")
+    if args.tsv and args.section == "all":
+        show_b = False  # keep the TSV stream clean
+
+    if show_a:
+        groups = build_groups(env, args.min_count)
+        print_section_a(env, groups, args)
+    if show_a and show_b and not args.tsv:
+        print()
+    if show_b:
+        print_section_b(env, args, concrete, prefixes)
+
+    return 0
+
 
 if __name__ == "__main__":
-    out_path = os.path.join(ROOT, "usr/share/mios/reference/value-dup-report.tsv")
-    if len(sys.argv) > 1:
-        out_path = sys.argv[1]
-    res = generate_report(out_path)
-    print(f"[mios-dup-report] Generated report at {out_path}")
+    sys.exit(main())
