@@ -1151,3 +1151,67 @@ CREATE TABLE IF NOT EXISTS mios_identity.account_preferences (
     emb_version  varchar(32),
     UNIQUE(canonical_id, pref_key)
 );
+
+-- ===== Hindsight Multi-Strategy Retrieval Engine (T-055 / MEM-04) =====
+CREATE OR REPLACE FUNCTION hindsight_search(
+    p_query text,
+    p_emb vector(768),
+    p_limit integer DEFAULT 5
+) RETURNS TABLE (
+    id bigint,
+    q text,
+    answer text,
+    score numeric,
+    strategy text
+) AS $$
+BEGIN
+    RETURN QUERY
+    WITH semantic AS (
+        SELECT k.id, 
+               1.0 - (k.emb <=> p_emb) AS s_score,
+               k.session_id,
+               k.owner_user
+        FROM knowledge k
+        WHERE k.emb IS NOT NULL
+        ORDER BY k.emb <=> p_emb LIMIT p_limit * 2
+    ),
+    keyword AS (
+        SELECT k.id,
+               ts_rank_cd(k.fts, plainto_tsquery('simple', p_query)) AS k_score
+        FROM knowledge k
+        WHERE k.fts @@ plainto_tsquery('simple', p_query)
+        ORDER BY k_score DESC LIMIT p_limit * 2
+    ),
+    graph AS (
+        -- graph relational: expand context by fetching adjacent chunks sharing session_id or owner_user with top semantic hits
+        SELECT k.id, 1.0 AS g_score
+        FROM knowledge k
+        WHERE k.session_id IN (SELECT s.session_id FROM semantic s WHERE s.session_id IS NOT NULL)
+           OR k.owner_user IN (SELECT s.owner_user FROM semantic s WHERE s.owner_user IS NOT NULL)
+    ),
+    temporal AS (
+        -- recent chunks get a decay score boost
+        SELECT k.id,
+               exp(-extract(epoch from now() - k.ts) / (86400.0 * 30.0)) AS t_score
+        FROM knowledge k
+        ORDER BY k.ts DESC LIMIT p_limit * 2
+    ),
+    combined AS (
+        SELECT k.id, k.q, k.answer,
+               (COALESCE(s.s_score, 0) * 0.4 + 
+                COALESCE(kwd.k_score, 0) * 0.3 + 
+                COALESCE(g.g_score, 0) * 0.1 + 
+                COALESCE(t.t_score, 0) * 0.2)::numeric AS final_score
+        FROM knowledge k
+        LEFT JOIN semantic s ON s.id = k.id
+        LEFT JOIN keyword kwd ON kwd.id = k.id
+        LEFT JOIN graph g ON g.id = k.id
+        LEFT JOIN temporal t ON t.id = k.id
+        WHERE s.id IS NOT NULL OR kwd.id IS NOT NULL OR g.id IS NOT NULL
+    )
+    SELECT c.id, c.q, c.answer, round(c.final_score, 4), 'hindsight'::text
+    FROM combined c
+    ORDER BY c.final_score DESC
+    LIMIT p_limit;
+END;
+$$ LANGUAGE plpgsql STABLE;

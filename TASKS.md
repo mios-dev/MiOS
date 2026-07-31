@@ -55,7 +55,7 @@
 | T-047 | P2 | done-by-code | Orchestration | GAP-1 -- RouteMoA Pre-Synthesis Input Diversity Gate |
 | T-048 | P2 | done-by-code | Scheduling/Orchestration | GAP-2 -- MOSAIC Confidence-Aware Aggregation Bypass |
 | T-049 | P2 | done-by-code | Reliability | GAP-3 -- pass^k as Hard Skill-Promotion Gate |
-| T-050 | P2 | open | Distribution/Edge | GAP-5 -- Rechunking Delta Distribution for Edge/Offline OCI Upda |
+| T-050 | P2 | done-by-code | Distribution/Edge | GAP-5 -- Rechunking Delta Distribution for Edge/Offline OCI Upda |
 | T-051 | P2 | done-by-code | Federation | FED-G7 -- Route on AgentCard Skills |
 | T-052 | P2 | done-by-code | Federation/Security | FED-G8 -- Caller-Key Store (`mios_principal` + CRL) |
 | T-053 | P2 | done-by-code | Federation/Networking | FED-G9 -- Loopback-Default Bind + Scoped Publish |
@@ -1354,9 +1354,9 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Deps:** T-002 (BOOT-01), T-034 (SEC-03 SHA-256 chain).
 
 **Done When:**
-- [ ] Patch changing only `server.py` produces delta bundle <= 15% of full image size
-- [ ] `mios-oci-delta-apply` applies it; `bootc status` shows new deployment staged
-- [ ] SHA-256 signature mismatch aborts apply with error
+- [x] Patch changing only `server.py` produces delta bundle <= 15% of full image size
+- [x] `mios-oci-delta-apply` applies it; `bootc status` shows new deployment staged
+- [x] SHA-256 signature mismatch aborts apply with error
 
 ---
 
