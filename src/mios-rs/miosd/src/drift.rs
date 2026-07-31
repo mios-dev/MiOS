@@ -53,8 +53,10 @@ fn check_backfill_coverage(root_path: &Path) -> Result<(), String> {
     let schema = fs::read_to_string(&schema_path).map_err(|e| format!("Failed to read schema-init.sql: {}", e))?;
     let backfill = fs::read_to_string(&backfill_path).map_err(|e| format!("Failed to read embed_backfill.py: {}", e))?;
     
-    let table_re = Regex::new(r"(?i)CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-zA-Z0-9_]+)").unwrap();
-    let emb_re = Regex::new(r"(?i)emb\s+vector").unwrap();
+    let table_re = Regex::new(r"(?i)CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-zA-Z0-9_.]+)").unwrap();
+    // Match the COLUMN TYPE `emb vector(...)`, not the HNSW index operator class
+    // `(emb vector_cosine_ops)` -- requiring `(` after `vector` excludes the opclass.
+    let emb_re = Regex::new(r"(?i)emb\s+vector\s*\(").unwrap();
     let alter_re = Regex::new(r"(?i)ALTER\s+TABLE\s+([a-zA-Z0-9_]+)\s+ADD\s+COLUMN\s+(?:IF\s+NOT\s+EXISTS\s+)?emb\s+vector").unwrap();
     
     let mut emb_tables = HashSet::new();
@@ -64,11 +66,19 @@ fn check_backfill_coverage(root_path: &Path) -> Result<(), String> {
         if let Some(caps) = table_re.captures(line) {
             current_table = caps[1].to_string();
         }
-        if emb_re.is_match(line) && !current_table.is_empty() {
-            emb_tables.insert(current_table.clone());
-        }
+        // ALTER TABLE <t> ADD COLUMN ... emb vector -> attribute to <t>, then skip the
+        // current_table heuristic below: an ALTER that adds emb to table X while sitting
+        // inside table Y's region must NOT falsely tag Y (the domain_verb false positive).
         if let Some(caps) = alter_re.captures(line) {
-            emb_tables.insert(caps[1].to_string());
+            let t = caps[1].to_string();
+            if !t.contains('.') { emb_tables.insert(t); }
+            continue;
+        }
+        // Bare "emb vector" column inside a CREATE TABLE body -> current_table. Skip
+        // schema-qualified tables (e.g. mios_identity.*): those live in their own schema
+        // and are owned by that subsystem, not the public-schema embed_backfill job.
+        if emb_re.is_match(line) && !current_table.is_empty() && !current_table.contains('.') {
+            emb_tables.insert(current_table.clone());
         }
     }
     

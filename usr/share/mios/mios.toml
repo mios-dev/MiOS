@@ -4235,7 +4235,7 @@ cmd        = "mios-cu-verify {query} --json"
 [verbs.cu_act]
 hidden = true
 section    = "Computer-use"
-sig        = "query, button="left"?"
+sig        = 'query, button="left"?'
 desc       = "All-in-one vision grounding -> click -> verify loop for the LINUX desktop. Finds an element visually (qwen3-vl), clicks it, and verifies the state changed (if verify_after_act=true). Write-class."
 model_name = "linux_desktop_act"
 examples   = ["click the OK button visually", "find and click the red stop sign"]

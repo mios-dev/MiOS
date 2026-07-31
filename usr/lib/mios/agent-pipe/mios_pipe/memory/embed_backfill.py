@@ -100,7 +100,8 @@ PK_MAP = {
     "event": "id",
     "session": "id",
     "config_kv": "id",
-    "account_preference": ("account_id", "layer", "key")
+    "account_preference": ("account_id", "layer", "key"),
+    "feature_set": "id"
 }
 
 _BACKFILL_EXEMPT = [
@@ -116,7 +117,11 @@ _BACKFILL_EXEMPT = [
     "appx_removal",
     "feature_removal",
     "capability_removal",
-    "component_removal"
+    "component_removal",
+    # emb-only tables (no emb_model/emb_version): not versioned-backfillable by this
+    # generic job; emb is written by the owning path at ingest/write time.
+    "person_pref",
+    "mios_rag"
 ]
 
 
@@ -190,6 +195,10 @@ def get_text_projection(table: str, row: dict) -> Optional[str]:
         val = row.get("value")
         val_str = json.dumps(val) if val is not None else ""
         return f"Preference {key}: {val_str}".strip() or None
+    elif table == "feature_set":
+        name = row.get("name") or ""
+        desc = row.get("description") or ""
+        return f"Feature: {name}\nDescription: {desc}".strip() or None
     return None
 
 
@@ -237,7 +246,8 @@ async def run_backfill(current_version: str = "nomic-768-v1") -> dict:
             "event": "id, act_type, summary",
             "session": "id, meta",
             "config_kv": "id, scope, key, description, value",
-            "account_preference": "account_id, layer, key, value"
+            "account_preference": "account_id, layer, key, value",
+            "feature_set": "id, name, description"
         }
         cols = cols_map[table]
         
