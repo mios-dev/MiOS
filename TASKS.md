@@ -65,10 +65,10 @@
 | T-055 | P3 | done-by-code | Memory | MEM-04 -- Hindsight Multi-Strategy Memory Engine |
 | T-056 | P3 | done-by-code | Memory/Scheduling | MEM-05 -- KV Hierarchy + Sleep-Time Consolidation |
 | T-057 | P3 | done-by-code | Memory/UX | ORCH-07 -- Personal Knowledge Graph Rich Edges |
-| T-058 | P3 | open | Scheduling | SCHED-03 -- MLFQ Program-Level Scheduler (Autellix-style) [VM] |
+| T-058 | P3 | done-by-code | Scheduling | SCHED-03 -- MLFQ Program-Level Scheduler (Autellix-style) [VM] |
 | T-059 | P3 | done | Federation | DATA-01 -- Declarative Agent Specs + A2A-Discoverable Directory |
 | T-060 | P3 | done-by-code | Memory/Data | DATA-02 -- Storage Versioning + Rollback for Self-Edited Core Fa |
-| T-061 | P3 | open | Orchestration/Memory | ORCH-09 -- Code-Mode for Heavy Verbs/Recipes |
+| T-061 | P3 | done-by-code | Orchestration/Memory | ORCH-09 -- Code-Mode for Heavy Verbs/Recipes |
 | T-062 | P3 | done-by-code | Self-Improvement | B3 -- Self-Improve ACT Half (Proposal + Commit) |
 | T-063 | P3 | done-by-code | Orchestration | B4 -- promptver Consumer (Version-Resolved Prompt Registry) |
 | T-064 | P3 | done-by-code | Self-Improvement/Security | GAP-4 -- DGM Formal Proof-of-Utility Sandbox for Self-Rewrites |
@@ -176,7 +176,7 @@
 | T-167 | P2 | planned | Tool-execution/Sandbox | SHELL-01 -- Persistent PTY / stateful shell substrate  [P2] |
 | T-168 | P2 | planned | Security/Kernel | KENF-01 -- Tetragon eBPF/LSM kernel enforcement plane  [P2] [VM] |
 | T-169 | P2 | planned | Security/Sandbox | ISOL-01 -- Per-action isolation tier ladder (promote-not-refuse) |
-| T-170 | P1 | in-progress | Computer-Use/Perception | GVLM-01 -- Activate grounding VLM + cu_act/cu_verify verbs  [P1] |
+| T-170 | P1 | done-by-code | Computer-Use/Perception | GVLM-01 -- Activate grounding VLM + cu_act/cu_verify verbs  [P1] |
 | T-171 | P2 | planned | Orchestration/Judging | CONS-01 -- Weighted multi-judge consensus pipeline  [P2] |
 | T-172 | P2 | planned | Observability/Safety | CONS-02 -- JSD drift monitor  [P2] |
 | T-173 | P0 | planned | Autonomy/Safety | GUARD-01 -- Daemon runaway controls (host-pressure gate + dedup  |
@@ -3588,7 +3588,7 @@ T-094 (CONV-01 SSOT)
 ---
 
 ## T-170: GVLM-01 -- Activate grounding VLM + cu_act/cu_verify verbs  [P1]
-> **Priority:** P1 | **Status:** in-progress | **Effort:** M | **Domain:** Computer-Use/Perception | **Who:** computer-use engineer (llama.cpp vision + verbs) | **Source:** AIOS-GAP-IMPLEMENTATION-PLAN-2026-06-14.md (G1)
+> **Priority:** P1 | **Status:** done-by-code | **Effort:** M | **Domain:** Computer-Use/Perception | **Who:** computer-use engineer (llama.cpp vision + verbs) | **Source:** AIOS-GAP-IMPLEMENTATION-PLAN-2026-06-14.md (G1)
 
 **Context:** The perception->action->verify chain (`mios-pc-vision`, `cu_ground`, `mios-verify-launch`) exists but is INERT: `usr/share/mios/llamacpp/mios-llm-light.yaml` already maps `qwen3-vl:4b` -> a staged Holo1.5-7B GGUF + mmproj, yet `mios.toml [ai].vision_grounding_model` is empty so the lane never activates, and there is no `cu_act`/`cu_verify` verb or `mios-cu-verify` tool. (T-038 CU-01 covers verify-after-action as a concept but not the model activation or these two verbs.)
 
