@@ -1,0 +1,44 @@
+#!/usr/bin/env python3
+# AI-hint: stub
+# AI-related: stub
+import sys
+import os
+import argparse
+import asyncio
+import json
+
+# Add mios_pipe path for importing conductor
+_lib_path = "/usr/lib/mios/agent-pipe"
+if not os.path.exists(os.path.join(_lib_path, "mios_pipe", "routing", "conductor.py")):
+    _lib_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "lib", "mios", "agent-pipe"))
+sys.path.insert(0, _lib_path)
+
+try:
+    import mios_pipe.routing.conductor as mios_conductor
+except ImportError as e:
+    print(f"Error: Unable to import mios_conductor: {e}")
+    sys.exit(1)
+
+async def main():
+    parser = argparse.ArgumentParser(description="MiOS Conductor CLI - Deterministic Orchestration")
+    parser.add_argument("workflow", help="Name of the workflow YAML file (without .yaml extension)")
+    parser.add_argument("--params", "-p", default="{}", help="JSON string of parameters for Jinja2 rendering")
+    
+    args = parser.parse_args()
+    
+    try:
+        params = json.loads(args.params)
+    except json.JSONDecodeError as e:
+        print(f"Error: Invalid JSON parameters provided: {e}")
+        sys.exit(1)
+
+    result = await mios_conductor.execute_conductor_workflow(args.workflow, params)
+    
+    # Pretty print the result
+    print(json.dumps(result, indent=2))
+    
+    if not result.get("success", False):
+        sys.exit(1)
+
+if __name__ == "__main__":
+    asyncio.run(main())

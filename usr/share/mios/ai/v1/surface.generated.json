@@ -808,6 +808,7 @@
     "_configure_streaming",
     "_configure_toolsurface",
     "_configure_vram_scheduler",
+    "_consolidate_memory_loop",
     "_conv_key_var",
     "_cosine",
     "_council_mode_var",
@@ -1384,6 +1385,6 @@
   ],
   "counts": {
     "routes": 89,
-    "provided": 1290
+    "provided": 1291
   }
 }

@@ -1,3 +1,5 @@
+# AI-hint: stub
+# AI-related: stub
 [workspace]
 members = [
     "miosd",

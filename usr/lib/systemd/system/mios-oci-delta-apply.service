@@ -1,3 +1,5 @@
+# AI-hint: stub
+# AI-related: stub
 [Unit]
 Description=MiOS OCI Delta Apply Service (GAP-5)
 After=network-online.target

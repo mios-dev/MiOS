@@ -812,6 +812,7 @@ no_group_delegate = [
 exempt_files = [
     "install-mios-agents\\.sh$",
     "usr/lib/mios/agent-pipe/server\\.py$",
+    "usr/lib/mios/gateway-agent/.*\\.py$",
     "test_.*\\.py$",
     "Heal-MiOSLocalhostForwarding\\.ps1$",
     "Setup-MiOSLanPortProxy\\.ps1$",
@@ -11479,15 +11480,3 @@ exempt = [
   "check_verb_backends"
 ]
 
-[gateway]
-enable = false
-model = "granite4.1:3b"
-max_tokens = 4096
-context_length = 32768
-port = 8642
-max_steps = 30
-tool_loop_engine = "smolagents"
-mcp_refresh_seconds = 300
-skill_refresh_seconds = 300
-skill_catalog_static_path = "/var/lib/mios/skills/catalog.json"
-searxng_url = "http://mios-searxng:8080"

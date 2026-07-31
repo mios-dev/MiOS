@@ -991,17 +991,25 @@ async def kg_lookup(phrase: str) -> Optional[dict]:
     env = _get_client_env()
     username = (env.get("user_name") or "").strip()
 
-    if username:
-        r_pref = await _db_read(
-            "SELECT json_agg(json_build_object("
-            "'short_name', a.short_name, 'app_id', a.app_id, 'source', a.source, "
-            "'label', a.label, 'launch_hint', a.launch_hint)) AS apps "
-            "FROM person_pref pp "
-            "JOIN person p ON p.id = pp.person_id "
-            "JOIN app_install a ON a.app_id = pp.pref_value->>'app_id' "
-            "WHERE p.username = %(un)s AND pp.pref_key = %(k)s",
-            pg_params={"un": username, "k": stripped_p}
-        )
+    if username and _embed_one:
+        emb = await _embed_one(stripped_p)
+        if emb:
+            emb_str = f"[{','.join(str(f) for f in emb)}]"
+            r_pref = await _db_read(
+                "",
+                pg_sql=(
+                    "SELECT json_agg(json_build_object("
+                    "'short_name', a.short_name, 'app_id', a.app_id, 'source', a.source, "
+                    "'label', a.label, 'launch_hint', a.launch_hint)) AS apps "
+                    "FROM person_pref pp "
+                    "JOIN person p ON p.id = pp.person_id "
+                    "JOIN app_install a ON a.app_id = pp.pref_value->>'app_id' "
+                    "WHERE p.username = %(un)s "
+                    "AND (pp.pref_key = %(k)s OR (pp.emb IS NOT NULL AND (pp.emb <=> %(emb)s::vector) < 0.45)) "
+                    "ORDER BY CASE WHEN pp.pref_key = %(k)s THEN 0 ELSE (pp.emb <=> %(emb)s::vector) END ASC LIMIT 1"
+                ),
+                pg_params={"un": username, "k": stripped_p, "emb": emb_str}
+            )
         if r_pref:
             rows = (r_pref[-1] or {}).get("result") or []
             for row in rows:

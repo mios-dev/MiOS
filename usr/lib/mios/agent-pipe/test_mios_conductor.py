@@ -1,3 +1,5 @@
+# AI-hint: stub
+# AI-related: stub
 import asyncio
 import os
 import sys
@@ -16,10 +18,37 @@ async def main():
         
         yaml_mock = MagicMock()
         yaml_instance = MagicMock()
+        # Create a mock workflow with sequential steps and a parallel group
         yaml_instance.load.return_value = {
-            "dag": {
-                "step1": {"command": "echo 'step 1'"}
-            }
+            "steps": [
+                {
+                    "name": "step1",
+                    "action": "shell",
+                    "args": {"cmd": "echo 'step 1'"}
+                },
+                {
+                    "name": "parallel_group",
+                    "parallel": True,
+                    "fail_fast": True,
+                    "steps": [
+                        {
+                            "name": "step2a",
+                            "action": "shell",
+                            "args": {"cmd": "echo 'step 2a'"}
+                        },
+                        {
+                            "name": "step2b_fail",
+                            "action": "shell",
+                            "args": {"cmd": "exit 1"}
+                        }
+                    ]
+                },
+                {
+                    "name": "step3_skipped",
+                    "action": "shell",
+                    "args": {"cmd": "echo 'step 3'"}
+                }
+            ]
         }
         yaml_mock.YAML.return_value = yaml_instance
         
@@ -27,15 +56,32 @@ async def main():
         mios_conductor.ruamel = MagicMock()
         mios_conductor.ruamel.yaml = yaml_mock
         
-        process_mock = MagicMock()
-        process_mock.communicate = AsyncMock(return_value=(b"step 1\n", b""))
-        process_mock.returncode = 0
-        
-        with patch("asyncio.create_subprocess_shell", return_value=process_mock):
+        process_mock_success = MagicMock()
+        process_mock_success.communicate = AsyncMock(return_value=(b"output\n", b""))
+        process_mock_success.returncode = 0
+
+        process_mock_fail = MagicMock()
+        process_mock_fail.communicate = AsyncMock(return_value=(b"", b"error"))
+        process_mock_fail.returncode = 1
+
+        # Return fail for step2b_fail
+        def side_effect(cmd, **kwargs):
+            if "exit 1" in cmd:
+                return process_mock_fail
+            return process_mock_success
+
+        with patch("asyncio.create_subprocess_shell", side_effect=AsyncMock(side_effect=side_effect)) as m_subprocess:
             res = await mios_conductor.execute_conductor_workflow("test-workflow", {})
             print("Result:", res)
-            assert res["success"] is True
+            assert res["success"] is False, "Workflow should fail due to step2b_fail"
             assert res["workflow"] == "test-workflow"
+            
+            # Verify step1, step2a, step2b_fail ran, but step3_skipped was skipped because of fail_fast
+            assert len(res["results"]) == 3, f"Expected 3 step results, got {len(res['results'])}"
+            assert res["results"][0]["step"] == "step1"
+            assert res["results"][1]["step"] == "step2a"
+            assert res["results"][2]["step"] == "step2b_fail"
+            
             print("PASS: Conductor deterministic orchestration via DAG handler.")
 
 if __name__ == "__main__":

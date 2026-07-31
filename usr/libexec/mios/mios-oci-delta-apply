@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# AI-hint: stub
+# AI-related: stub
 import os
 import sys
 import hashlib

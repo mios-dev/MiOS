@@ -1,3 +1,5 @@
+# AI-hint: stub
+# AI-related: stub
 name: test-workflow
 description: A 3-step parallel workflow to test conductor
 steps:

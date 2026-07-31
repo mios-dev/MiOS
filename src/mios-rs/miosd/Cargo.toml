@@ -1,3 +1,5 @@
+# AI-hint: stub
+# AI-related: stub
 [package]
 name = "miosd"
 version.workspace = true
