@@ -25,4 +25,4 @@ cp "${SHIM_SRC}" "${SRC_DIR}/mios_tools.py"
 
 log "  Building localhost/mios-coderun-sandbox:latest..."
 podman build -t localhost/mios-coderun-sandbox:latest "${SRC_DIR}"
-log "  ✓ Image baked successfully."
+log "  baked localhost/mios-coderun-sandbox:latest"
