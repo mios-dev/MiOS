@@ -63,7 +63,7 @@
 | T-077 | P2 | retired | Memory/Orchestration | GWY-02 -- Wire Letta Self-Editing Memory to agent-pipe Verbs (Ph |
 | T-054 | P3 | open | Orchestration | ORCH-06 -- Deterministic Orchestration via Conductor CLI |
 | T-055 | P3 | done-by-code | Memory | MEM-04 -- Hindsight Multi-Strategy Memory Engine |
-| T-056 | P3 | open | Memory/Scheduling | MEM-05 -- KV Hierarchy + Sleep-Time Consolidation |
+| T-056 | P3 | done-by-code | Memory/Scheduling | MEM-05 -- KV Hierarchy + Sleep-Time Consolidation |
 | T-057 | P3 | done-by-code | Memory/UX | ORCH-07 -- Personal Knowledge Graph Rich Edges |
 | T-058 | P3 | open | Scheduling | SCHED-03 -- MLFQ Program-Level Scheduler (Autellix-style) [VM] |
 | T-059 | P3 | done | Federation | DATA-01 -- Declarative Agent Specs + A2A-Discoverable Directory |
