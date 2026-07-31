@@ -88,7 +88,7 @@
 | T-080 | P3 | done-by-code | Gateway/MCP | GWY-05 -- MCP Client: stdio â†’ mios-mcp-server (Phase 2) |
 | T-081 | P3 | done-by-code | Gateway/Tools | GWY-06 -- Skill Catalog + SearXNG + Browser Verb Pass-Through (P |
 | T-082 | P3 | done-by-code | Gateway/Config | GWY-07 -- Migrate Hermes Config to mios.toml [gateway] SSOT (Pha |
-| T-083 | P3 | partial | Gateway/Ops | GWY-08 -- Hermes ➔ mios-gateway-agent Service Transition (Phase  |
+| T-083 | P3 | done | Gateway/Ops | GWY-08 -- Hermes ➔ mios-gateway-agent Service Transition (Phase  |
 | T-084 | P2 | done | Storage/Config | STRG-01 -- CephFS SSOT Block in mios.toml |
 | T-085 | P2 | done | Storage/Auth | STRG-02 -- mios-cephfs-provision Script + PAM Integration |
 | T-086 | P2 | done | Storage/Orchestration | STRG-03 -- Per-Session XDG_RUNTIME_DIR Isolation |

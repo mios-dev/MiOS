@@ -24,7 +24,7 @@ embed_dims      = 768            # nomic-embed-text default; some local runtimes
 grader          = "${MIOS_AI_GRADER:-qwen2.5-coder:7b}"
 
 [api_surface]
-# Which OpenAI surfaces the runtime supports. Defaults reflect MiOS Hermes-Agent.
+# Which OpenAI surfaces the runtime supports. Defaults reflect MiOS Gateway Agent.
 # Set to true when targeting OpenAI/Azure cloud.
 chat_completions = true
 embeddings       = true
