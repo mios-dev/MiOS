@@ -91,7 +91,7 @@ def main():
         if val_processed is None or val_processed == "":
             continue
         # A body already starting with MIOS_ (the [mios] and [mios-find] sections) must NOT be
-        # re-prefixed, or it emits phantom MIOS_MIOS_* dupes (nobody consumes them). GUP Phase 1.
+        # re-prefixed, or it emits phantom double-prefixed dupes (nobody consumes them). GUP Phase 1.
         _cbody = path.upper().replace(".", "_").replace("-", "_")
         canonical = _cbody if _cbody.startswith("MIOS_") else "MIOS_" + _cbody
         sec_name = path.split(".", 1)[0]
