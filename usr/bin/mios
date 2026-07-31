@@ -428,6 +428,7 @@ KNOWN_VERBS = {
     "flatpaks": ["/usr/libexec/mios/flatpaks-manage.sh"],
     "user":   ["/usr/libexec/mios/user-setup.sh"],
     "flight": ["/usr/libexec/mios/flight-control.sh"],
+    "models": ["/usr/libexec/mios/mios-models"],
     "help":   None,        # special-cased below
 }
 
@@ -585,6 +586,7 @@ def main(argv: list[str]) -> int:
             "  mios dotfiles                        project the SSOT dotfiles to your LIVE HOME\n"
             "  mios new <type> <name>               scaffold a new file from templates\n"
             "  mios user                            initialize user space (dotfiles/XDG)\n"
+            "  mios models                          manage first-boot large models (list, sync, add, rm)\n"
             "  mios help                            this help\n\n"
             "Chat (anything else):\n"
             "  mios <prompt>                        chat + tool calls against Hermes-Agent\n"
