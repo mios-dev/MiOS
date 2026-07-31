@@ -2,15 +2,15 @@
   "object": "mios.capability.manifest",
   "ceiling": "interactive",
   "summary": {
-    "total": 140,
+    "total": 143,
     "by_kind": {
       "recipe": 19,
       "skill": 12,
-      "verb": 109
+      "verb": 112
     },
     "by_tier": {
-      "read": 69,
-      "write": 68,
+      "read": 70,
+      "write": 70,
       "interactive": 3
     }
   },
@@ -389,6 +389,12 @@
       "description": "Fetch ONE web page you already have the URL for and return its FULL content as clean, LLM-ready MARKDOWN via the LOCAL crawl4ai engine (headless Chrome over CDP, with a Camoufox stealth-Firefox fail-r"
     },
     {
+      "name": "cu_act",
+      "kind": "verb",
+      "tier": "write",
+      "description": "All-in-one vision grounding -> click -> verify loop for the LINUX desktop. Finds an element visually (qwen3-vl), clicks it, and verifies the state changed (if verify_after_act=true). Write-class."
+    },
+    {
       "name": "cu_atspi_query",
       "kind": "verb",
       "tier": "read",
@@ -429,6 +435,12 @@
       "kind": "verb",
       "tier": "write",
       "description": "Type literal text into the focused surface on the LINUX (Wayland/Hyprland) desktop inside the MiOS VM. Sends keystrokes to whatever window has focus in the in-VM Linux session, NOT the host Windows de"
+    },
+    {
+      "name": "cu_verify",
+      "kind": "verb",
+      "tier": "read",
+      "description": "Visual Definition-of-Done: verify if a UI element or application is visible on the LINUX desktop. Takes a screenshot and asks the vision model. Returns {ok: bool, reasoning: text}. Use this after taki"
     },
     {
       "name": "cu_window_list",
@@ -609,6 +621,12 @@
       "kind": "verb",
       "tier": "write",
       "description": "EDIT a durable memory you previously stored (Letta/MemGPT core_memory_replace): overwrite the fact at `key` with a new value. Use to CORRECT or refine a stored fact. Requires the existing key."
+    },
+    {
+      "name": "memory_rollback",
+      "kind": "verb",
+      "tier": "write",
+      "description": "Rollback durable memory edits (valid_to) to a prior timestamp (e.g. '2026-07-01T12:00:00Z'). Restores facts that were replaced or forgotten."
     },
     {
       "name": "memory_update",

@@ -1,5 +1,5 @@
 {
-  "count": 109,
+  "count": 112,
   "data": [
     {
       "description": "Hand a SUB-TASK to another registered agent and GET ITS ANSWER BACK so YOU fold it into your own reasoning (you stay in control; this is NOT a final user reply and NOT a take-over). Pick a peer by id (mios-a2a-delegate --list-peers) or by skill name (--list-skills). Use when you want a second agent's result; to PASS THE SESSION to another agent use transfer_session_to_agent.",
@@ -112,6 +112,16 @@
       "tier": "rare"
     },
     {
+      "description": "All-in-one vision grounding -> click -> verify loop for the LINUX desktop. Finds an element visually (qwen3-vl), clicks it, and verifies the state changed (if verify_after_act=true). Write-class.",
+      "hidden": true,
+      "model_name": "linux_desktop_act",
+      "name": "cu_act",
+      "permission": "write",
+      "section": "Computer-use",
+      "sig": "query, button=\"left\"?",
+      "tier": "rare"
+    },
+    {
       "description": "Find a LINUX desktop UI element via the AT-SPI accessibility tree by its role/name and return its screen coordinates -- semantic a11y-tree lookup, NO pixels/vision. Read-class. Use when you can name the control (its label/role); use linux_desktop_locate_element for a fuzzy/visual description that may need the vision model.",
       "hidden": true,
       "model_name": "linux_desktop_find_element_by_name",
@@ -179,6 +189,16 @@
       "permission": "write",
       "section": "Computer-use",
       "sig": "text",
+      "tier": "rare"
+    },
+    {
+      "description": "Visual Definition-of-Done: verify if a UI element or application is visible on the LINUX desktop. Takes a screenshot and asks the vision model. Returns {ok: bool, reasoning: text}. Use this after taking actions to confirm success.",
+      "hidden": true,
+      "model_name": "linux_desktop_verify_state",
+      "name": "cu_verify",
+      "permission": "read",
+      "section": "Computer-use",
+      "sig": "query",
       "tier": "rare"
     },
     {
@@ -480,6 +500,16 @@
       "permission": "write",
       "section": "Discovery / resolution",
       "sig": "key, fact",
+      "tier": "rare"
+    },
+    {
+      "description": "Rollback durable memory edits (valid_to) to a prior timestamp (e.g. '2026-07-01T12:00:00Z'). Restores facts that were replaced or forgotten.",
+      "hidden": true,
+      "model_name": "memory_rollback",
+      "name": "memory_rollback",
+      "permission": "write",
+      "section": "Memory",
+      "sig": "to_timestamp",
       "tier": "rare"
     },
     {
