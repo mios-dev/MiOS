@@ -10,6 +10,13 @@
 # ============================================================================
 set -euo pipefail
 
+# Deterministic collation regardless of the caller's locale. The final `| sort`
+# runs in THIS process's environment (outside the env -i), so without a pinned
+# LC_ALL the baseline line order follows the host locale (C vs en_US.UTF-8 reorder
+# ~454 lines) -> check_resolved_env_lossless drifts between the capture host and the
+# CI runner. Pin C collation so the sorted snapshot is byte-stable everywhere.
+export LC_ALL=C LANG=C
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 
