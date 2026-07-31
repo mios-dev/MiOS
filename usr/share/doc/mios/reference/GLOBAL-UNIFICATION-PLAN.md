@@ -1,3 +1,6 @@
+<!-- AI-hint: The staged, lossless-diff-gated plan to collapse the duplicated/proliferated MIOS_* SSOT keys (measured 2523 keys, 79 version/image pairs, dead+alias dupes, one value copy-pasted across ~35 places) into one-value-declared-once-derived-everywhere. 6 phases; the invariant is a byte-identical resolved-env diff (mios-env-snapshot). AGY-479..730 execute it. -->
+<!-- AI-related: usr/lib/mios/mios_toml.py, tools/lib/userenv.sh, usr/share/mios/mios.toml, automation/98-drift-checks.sh, AGY-TASKS.md -->
+
 # MiOS Global Unification Plan (GUP)
 
 > One value, declared once, derived everywhere. Killing the duplicated/proliferated
