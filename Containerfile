@@ -37,7 +37,11 @@ COPY GEMINI.md             /ctx/rootmd/GEMINI.md
 # /tmp/build (both build-time: bind-mounted / rm'd); it is NOT in the final image.
 COPY .git                  /ctx/.git/
 
-FROM docker.io/library/rust:1.80-slim AS rust-builder
+# rust-builder: builds the miosd native daemon. Float LATEST (SBOM-not-hardcode, ADR-0003): the old
+# rust:1.80 pin broke the bake -- miosd's transitive deps (clap_lex 1.1.0) require the `edition2024`
+# Cargo feature, which is only stabilized in Rust >= 1.85, so 1.80 fails with "feature edition2024 not
+# stabilized" (exit 101). rust:slim tracks the newest stable Rust, which has edition2024.
+FROM docker.io/library/rust:slim AS rust-builder
 WORKDIR /build
 COPY src/mios-rs /build/
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
