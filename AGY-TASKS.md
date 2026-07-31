@@ -2233,12 +2233,12 @@ Each assertion echoes a `[sys-smoke] <stack> OK` line so a bake log shows exactl
 
 ## WS-NUMBER — one global numbering system
 
-## AGY-428  (WS-NUMBER, P2) — checks numbered inline with scripts (single 0-99 system)  **[DONE]**
+## AGY-428  (WS-NUMBER, P2) — checks numbered inline with scripts (single 0-99 system)  **[PARTIAL: SSOT ordinal+gate + log.sh exist, but the 121 checks still carry two disagreeing numbers (hand (NN) labels collide, 230 stale [38-*] labels) -- NOT unified. See reference/audit-numbering-unification.md]**
 **What:** the pipeline has multiple counters (scripts NN-, checks (N), stages, OCI layers). Unify: the drift-gate checks count INLINE with the same 0-99 system as the numbered scripts/stages/steps/layers — one globally-identifiable number per pipeline element (operator's "OCI LAYERS = STAGES = STEPS = CHECKS").
 **Where:** `automation/98-drift-checks.sh`, `build.sh`, the log labels.
 **Done When:** one numbering scheme spans scripts+stages+checks; renumber-immune.
 
-## AGY-429  (WS-NUMBER, P3) — numbering drift-gate (no duplicate/gap numbers)  **[DONE]**
+## AGY-429  (WS-NUMBER, P3) — numbering drift-gate (no duplicate/gap numbers)  **[PARTIAL: SSOT ordinal+gate + log.sh exist, but the 121 checks still carry two disagreeing numbers (hand (NN) labels collide, 230 stale [38-*] labels) -- NOT unified. See reference/audit-numbering-unification.md]**
 **What:** a check that the unified numbering has no duplicates/gaps across scripts, stages, and checks; fails on a collision.
 **Where:** `98-drift-checks.sh`.
 **Done When:** gate flags an injected duplicate number.
@@ -2484,7 +2484,7 @@ Each assertion echoes a `[sys-smoke] <stack> OK` line so a bake log shows exactl
 **Where:** `usr/libexec/mios/mios-mon` (or the mon backend), `usr/bin/mios`.
 **Done When:** mios mon shows all mios-* state + publish status live.
 
-## AGY-474  (WS-NUMBER, P3) — log labels carry the unified number everywhere  **[DONE]**
+## AGY-474  (WS-NUMBER, P3) — log labels carry the unified number everywhere  **[PARTIAL: SSOT ordinal+gate + log.sh exist, but the 121 checks still carry two disagreeing numbers (hand (NN) labels collide, 230 stale [38-*] labels) -- NOT unified. See reference/audit-numbering-unification.md]**
 **What:** every pipeline log line (bash/py/ps1) carries its unified 0-99 number (AGY-428) via the shared logger so a log line is globally traceable to its script/stage/check.
 **Where:** the shared loggers, consumers.
 **Done When:** every emitted log line is number-tagged.
@@ -2680,7 +2680,7 @@ Each assertion echoes a `[sys-smoke] <stack> OK` line so a bake log shows exactl
 
 ## AGY-633..AGY-640  (WS-INSTALL, P2) — one shim-less .bat(633), mios mon global(634), Get-MiOS handoff(635), dual-repo byte-identical(636), delete pure shims(637), family-role markers(638), installer smoke(639), install doc(640).  **[DONE]**
 
-## AGY-641..AGY-648  (WS-NUMBER, P2) — unified 0-99 numbering scripts+stages+checks(641), numbering gate(642), renumber-immune labels(643), OCI-layer=stage=step=check map(644), log-line number tag(645), numbering doc(646), migrate check numbers(647), verify inline(648).  **[DONE]**
+## AGY-641..AGY-648  (WS-NUMBER, P2) — unified 0-99 numbering scripts+stages+checks(641), numbering gate(642), renumber-immune labels(643), OCI-layer=stage=step=check map(644), log-line number tag(645), numbering doc(646), migrate check numbers(647), verify inline(648).  **[DESIGN LANDED + critic-hardened (reference/audit-numbering-unification.md); EXECUTION PENDING -- AGY-641 (single progress count) done in build.sh; 643/645/647/642 need consumer-analysis of ~10 [38-drift-checks] refs first]**
 
 ## AGY-649..AGY-656  (WS-LOG, P2) — mios_log.py peer(649), ps1 logger(650), expand E5 banned tokens(651), scan libexec+ps1(652), terse-rewrite sweep(653), number-tag every line(654), log SSOT format doc(655), log gate(656).  **[DONE]**
 

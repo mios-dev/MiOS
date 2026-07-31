@@ -634,7 +634,11 @@ cp "$MIOS_BUILD_CHAIN_LOG" "$MIOS_BUILD_LOG" 2>/dev/null || true
 gzip -9f "$MIOS_BUILD_CHAIN_LOG" "$MIOS_BUILD_LOG" 2>/dev/null || true
 gzip -9f "$MIOS_LOG_DIR"/dnf5.log* "$MIOS_LOG_DIR/hawkey.log" 2>/dev/null || true
 _row "  Unified chain log: ${MIOS_BUILD_CHAIN_LOG}.gz"
-_row "  Step count in chain: $(ls /tmp/mios-step-*.log 2>/dev/null | wc -l)"
+# WS-NUMBER AGY-641: single progress count. Was an INDEPENDENT recount
+# (ls /tmp/mios-step-*.log | wc -l) that duplicated SCRIPT_COUNT -- the two
+# were computed by different code paths and only coincidentally equal, which is
+# exactly the "two different 66s in one log" the operator flagged. One source now.
+_row "  Step count in chain: ${SCRIPT_COUNT}"
 
 # Write machine-readable marker of non-fatal failures under SBOM artifacts dir
 SBOM_ARTIFACTS_DIR="${MIOS_USR_DIR:-/usr/share/mios}/artifacts/sbom"
