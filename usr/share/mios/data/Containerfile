@@ -1,0 +1,18 @@
+# AI-hint: Consolidated data plane container image ('mios-data') deriving FROM localhost/mios-base. Combines pgvector + valkey.
+# AI-related: usr/share/mios/base/Containerfile, usr/share/containers/systemd/mios-pgvector.container
+# ----------------------------------------------------------------------------
+ARG BASE_IMAGE=localhost/mios-base:latest
+FROM ${BASE_IMAGE}
+
+LABEL org.opencontainers.image.title="mios-data"
+LABEL org.opencontainers.image.description="MiOS consolidated data plane (PostgreSQL + pgvector extension + Valkey cache)"
+
+RUN microdnf -y install --setopt=install_weak_deps=0 --setopt=tsflags=nodocs postgresql-server valkey \
+    && microdnf clean all \
+    && rm -rf /var/cache/* /tmp/*
+
+WORKDIR /var/lib/pgsql
+EXPOSE 5432 6379
+
+ENTRYPOINT ["/usr/bin/tini", "--"]
+CMD ["postgres"]

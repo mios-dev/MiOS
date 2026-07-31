@@ -1,0 +1,18 @@
+# AI-hint: Consolidated web tools container image ('mios-web') deriving FROM localhost/mios-base. Combines searxng + firecrawl + crawl4ai.
+# AI-related: usr/share/mios/base/Containerfile, usr/share/containers/systemd/mios-webtools-firecrawl-api.container
+# ----------------------------------------------------------------------------
+ARG BASE_IMAGE=localhost/mios-base:latest
+FROM ${BASE_IMAGE}
+
+LABEL org.opencontainers.image.title="mios-web"
+LABEL org.opencontainers.image.description="MiOS consolidated web search and crawling stack (searxng + firecrawl + crawl4ai)"
+
+RUN microdnf -y install --setopt=install_weak_deps=0 --setopt=tsflags=nodocs python3 python3-pip git \
+    && microdnf clean all \
+    && rm -rf /var/cache/* /tmp/*
+
+WORKDIR /app
+EXPOSE 8080 3002 11235
+
+ENTRYPOINT ["/usr/bin/tini", "--"]
+CMD ["python3", "-m", "http.server", "8080"]

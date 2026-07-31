@@ -1918,7 +1918,55 @@ test_module_length() {
     log "test_module_length negative test passed."
 }
 
+test_vendored_assets_non_stub() {
+    log "Testing check_vendored_assets_non_stub..."
+    local stub_file="${ROOT}/usr/share/mios/vendored/k3s/fake_stub.tmp"
+    echo "stub" > "$stub_file"
+
+    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_vendored_assets_non_stub >/dev/null 2>&1; then
+        rm -f "$stub_file"
+        die "check_vendored_assets_non_stub passed despite injected stub file!"
+    fi
+
+    rm -f "$stub_file"
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_vendored_assets_non_stub >/dev/null 2>&1 \
+        || die "check_vendored_assets_non_stub failed after restoration!"
+    log "test_vendored_assets_non_stub negative test passed."
+}
+
+test_resolved_env_lossless() {
+    log "Testing check_resolved_env_lossless..."
+    local base_file="${ROOT}/usr/share/mios/reference/env-baseline.txt"
+    if [[ ! -f "$base_file" ]]; then
+        log "env-baseline.txt absent -- skipping test_resolved_env_lossless"
+        return 0
+    fi
+    local backup_tmp; backup_tmp="$(mktemp)"
+    cp "$base_file" "$backup_tmp"
+    echo "MIOS_INJECTED_DUMMY_KEY=injected_val" >> "$base_file"
+
+    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_resolved_env_lossless >/dev/null 2>&1; then
+        cp "$backup_tmp" "$base_file"
+        rm -f "$backup_tmp"
+        die "check_resolved_env_lossless passed despite injected baseline drift!"
+    fi
+
+    cp "$backup_tmp" "$base_file"
+    rm -f "$backup_tmp"
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_resolved_env_lossless >/dev/null 2>&1 \
+        || die "check_resolved_env_lossless failed after restoration!"
+    log "test_resolved_env_lossless negative test passed."
+}
+
 main() {
+    if [[ $# -eq 1 && -n "$1" ]]; then
+        if declare -f "$1" >/dev/null; then
+            "$1"
+            exit 0
+        else
+            die "Unknown test function: $1"
+        fi
+    fi
     log "Starting negative-test suite..."
     test_version_ssot
     test_resolver_equivalence
@@ -1998,7 +2046,11 @@ main() {
     test_db_seed_coverage
     test_account_column_parity
     test_module_length
+    test_vendored_assets_non_stub
+    test_resolved_env_lossless
     log "All negative tests completed successfully!"
 }
 
 main "$@"
+
+

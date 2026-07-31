@@ -499,3 +499,9 @@ rechunk-conv: build
 # Scaffold a new file from templates
 new type name:
     python3 usr/libexec/mios/mios-new {{type}} {{name}}
+
+# Report total size of vendored offline assets (AGY-380)
+vendored-size:
+    @echo "[vendored-size] Reporting total size of usr/share/mios/vendored/..."
+    @du -sh usr/share/mios/vendored/* 2>/dev/null || du -sh usr/share/mios/vendored 2>/dev/null || echo "vendored dir clean"
+

@@ -33,6 +33,8 @@ ports.daemon_agent  MIOS_PORTS_DAEMON_AGENT
 ports.model_router  MIOS_PORTS_MODEL_ROUTER
 ports.oscontrol  MIOS_PORTS_OSCONTROL
 ports.mcp  MIOS_PORTS_MCP
+ai.vision_grounding_enable  MIOS_AI_VISION_GROUNDING_ENABLE
+ai.vision_grounding_model  MIOS_AI_VISION_GROUNDING_MODEL
 ai.kernel_dispatch  MIOS_AI_KERNEL_DISPATCH
 ai.db_authoritative  MIOS_AI_DB_AUTHORITATIVE
 ai.rag_hybrid  MIOS_AI_RAG_HYBRID

@@ -6030,6 +6030,42 @@ check_module_length() {
     fi
 }
 
+check_resolved_env_lossless() {
+    local base_file="$ROOT/usr/share/mios/reference/env-baseline.txt"
+    if [[ ! -f "$base_file" ]]; then
+        _violation "usr/share/mios/reference/env-baseline.txt is missing"
+        return 0
+    fi
+
+    local snapshot_tool="$ROOT/usr/libexec/mios/mios-env-snapshot"
+    if [[ ! -f "$snapshot_tool" ]]; then
+        _violation "usr/libexec/mios/mios-env-snapshot is missing"
+        return 0
+    fi
+
+    local tmp; tmp="$(mktemp)"
+    if ! MIOS_VENDOR_TOML="${ROOT}/usr/share/mios/mios.toml" MIOS_TOML_ROOT="${ROOT}" bash "$snapshot_tool" > "$tmp" 2>/dev/null; then
+        rm -f "$tmp"
+        _violation "mios-env-snapshot execution failed"
+        return 0
+    fi
+
+    local diff_out; diff_out="$(diff -u "$base_file" "$tmp" 2>/dev/null || true)"
+    rm -f "$tmp"
+
+    if [[ -z "$diff_out" ]]; then
+        echo "[38-drift-checks]   resolved environment is lossless (matches env-baseline.txt)"
+    else
+        if [[ "${MIOS_ENV_BASELINE_BUMP:-0}" == "1" ]]; then
+            echo "[38-drift-checks]   resolved environment drifted but MIOS_ENV_BASELINE_BUMP=1 override set"
+        else
+            echo "  [lossless-env-drift] resolved MIOS_* environment drifted from env-baseline.txt:" >&2
+            echo "$diff_out" | head -n 30 >&2
+            _violation "resolved environment drifted from usr/share/mios/reference/env-baseline.txt without MIOS_ENV_BASELINE_BUMP=1"
+        fi
+    fi
+}
+
 main() {
     if [[ $# -eq 1 && -n "$1" ]]; then
         if declare -f "$1" >/dev/null; then
@@ -6161,7 +6197,33 @@ main() {
     check_projection_registry
     check_db_seed_coverage
     check_account_column_parity
+# (87, WS-OFFL) Every vendored asset under usr/share/mios/vendored/ must be a real asset (>100B), not a stub.
+check_vendored_assets_non_stub() {
+    local vdir="$ROOT/usr/share/mios/vendored"
+    if [[ ! -d "$vdir" ]]; then
+        echo "[38-drift-checks]   (87) vendored assets dir absent -- skipped"
+        return 0
+    fi
+    local stubs="" f sz
+    while IFS= read -r f; do
+        [[ -f "$f" ]] || continue
+        sz=$(wc -c < "$f" 2>/dev/null || stat -c %s "$f" 2>/dev/null || echo 0)
+        if [[ "$sz" -lt 100 ]]; then
+            stubs+="    $f (${sz} bytes - stub file)"$'\n'
+        fi
+    done < <(find "$vdir" -type f ! -name '.keep' ! -name 'VERSIONS.txt' 2>/dev/null)
+
+    if [[ -n "$stubs" ]]; then
+        printf '%s' "$stubs" >&2
+        _violation "(87, WS-OFFL) vendored asset directory contains stub files (<100 bytes); replace with real assets or mios-vendor-refresh"
+    else
+        echo "[38-drift-checks]   (87) vendored assets are non-stub (>100 bytes)"
+    fi
+}
+
     check_module_length
+    check_vendored_assets_non_stub
+    check_resolved_env_lossless
 
     echo "[38-drift-checks] ---------------------------------------------------------"
     if [[ "$VIOLATIONS" -eq 0 ]]; then

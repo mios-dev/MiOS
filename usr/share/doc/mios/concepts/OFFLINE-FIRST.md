@@ -102,3 +102,8 @@ cloud API keys configured; Quadlet images symlinked into
 
 **Runtime + use-AI phases: 100% offline-capable.**
 **Build phase: needs the gaps above closed for true offline-from-USB.**
+
+## Vendored Asset Strategy & Git Storage Tradeoff
+
+Offline assets (k3s binary, selinux tarballs, fonts, bibata cursor, Python wheels) are vendored under `usr/share/mios/vendored/`. Per operator directive (2026-07-31), assets are committed directly to plain Git (avoiding Git-LFS external service dependencies) to ensure 100% self-contained air-gapped repositories. Run `just vendored-size` to audit total size of vendored assets against repository budgets.
+
