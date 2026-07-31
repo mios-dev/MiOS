@@ -965,20 +965,20 @@ function mios {
         [Parameter(Position=0)]
         [string]$Verb,
         [Parameter(ValueFromRemainingArguments)]
-        $Args
+        $RemainingArgs
     )
     if (-not $Verb) { $Verb = 'help' }
     if ($Script:MiosKnownVerbs -contains $Verb.ToLowerInvariant()) {
         $cmd = "mios-$($Verb.ToLowerInvariant())"
         if (Get-Command $cmd -ErrorAction SilentlyContinue) {
-            & $cmd @Args
+            & $cmd @RemainingArgs
         } else {
             Write-Host "  [!] mios: verb '$Verb' wrapper not found. Try: mios help" -ForegroundColor Yellow
         }
         return
     }
     # Free-form query -> Hermes-Agent /v1/chat/completions.
-    $_query = (@($Verb) + @($Args)) -join ' '
+    $_query = (@($Verb) + @($RemainingArgs)) -join ' '
     # $Global:MiosBin may be unset (this profile is dot-sourced standalone from
     # the $PROFILE redirector). Guard it -- Join-Path throws on a null Path,
     # which would surface a raw binder error instead of the friendly hint below.

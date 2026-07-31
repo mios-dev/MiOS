@@ -151,13 +151,14 @@ def main():
                 def_row = cur.fetchone()
                 defaults = def_row[0] if def_row else {}
 
-                # Print defaults
-                if first_printed:
-                    print("")
-                print("[verbs._defaults]")
-                first_printed = True
-                for k in sorted(defaults.keys()):
-                    print(f"{k} = {format_toml_value(defaults[k])}")
+                # Print defaults if present
+                if defaults and isinstance(defaults, dict) and len(defaults) > 0:
+                    if first_printed:
+                        print("")
+                    print("[verbs._defaults]")
+                    first_printed = True
+                    for k in sorted(defaults.keys()):
+                        print(f"{k} = {format_toml_value(defaults[k])}")
 
                 # 4. Read verbs
                 cur.execute(

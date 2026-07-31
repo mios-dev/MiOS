@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# AI-hint: Captures a clean-environment snapshot of resolved MIOS_* environment variables for lossless diffing.
+# AI-related: /usr/share/mios/mios.toml, /usr/lib/mios/userenv.sh, /tools/lib/userenv.sh
+# AI-functions: main
+# ============================================================================
+# usr/libexec/mios/mios-env-snapshot - 'MiOS' v0.3.0
+# ----------------------------------------------------------------------------
+# Resolves the full layered mios.toml configuration in a clean environment and
+# outputs all resolved MIOS_* environment variables sorted deterministically.
+# ============================================================================
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
+
+USERENV_SH="${ROOT_DIR}/tools/lib/userenv.sh"
+if [[ ! -f "${USERENV_SH}" ]]; then
+    USERENV_SH="${ROOT_DIR}/usr/lib/mios/userenv.sh"
+fi
+
+if [[ ! -f "${USERENV_SH}" ]]; then
+    echo "[mios-env-snapshot] ERROR: Cannot locate userenv.sh resolver" >&2
+    exit 1
+fi
+
+VENDOR_TOML="${MIOS_VENDOR_TOML:-${ROOT_DIR}/usr/share/mios/mios.toml}"
+
+env -i \
+    PATH="${PATH}:/usr/bin:/bin" \
+    MIOS_TOML_ROOT="${ROOT_DIR}" \
+    MIOS_VENDOR_TOML="${VENDOR_TOML}" \
+    bash -c "source \"${USERENV_SH}\" >/dev/null 2>&1 && env" \
+    | grep '^MIOS_' \
+    | sort

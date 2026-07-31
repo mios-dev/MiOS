@@ -6030,6 +6030,30 @@ check_module_length() {
     fi
 }
 
+# (87, WS-OFFL) Every vendored asset under usr/share/mios/vendored/ must be a real asset (>100B), not a stub.
+check_vendored_assets_non_stub() {
+    local vdir="$ROOT/usr/share/mios/vendored"
+    if [[ ! -d "$vdir" ]]; then
+        echo "[38-drift-checks]   (87) vendored assets dir absent -- skipped"
+        return 0
+    fi
+    local stubs="" f sz
+    while IFS= read -r f; do
+        [[ -f "$f" ]] || continue
+        sz=$(wc -c < "$f" 2>/dev/null || stat -c %s "$f" 2>/dev/null || echo 0)
+        if [[ "$sz" -lt 100 ]]; then
+            stubs+="    $f (${sz} bytes - stub file)"$'\n'
+        fi
+    done < <(find "$vdir" -type f ! -name '.keep' ! -name 'VERSIONS.txt' 2>/dev/null)
+
+    if [[ -n "$stubs" ]]; then
+        printf '%s' "$stubs" >&2
+        _violation "(87, WS-OFFL) vendored asset directory contains stub files (<100 bytes); replace with real assets or mios-vendor-refresh"
+    else
+        echo "[38-drift-checks]   (87) vendored assets are non-stub (>100 bytes)"
+    fi
+}
+
 check_resolved_env_lossless() {
     local base_file="$ROOT/usr/share/mios/reference/env-baseline.txt"
     if [[ ! -f "$base_file" ]]; then
@@ -6197,30 +6221,6 @@ main() {
     check_projection_registry
     check_db_seed_coverage
     check_account_column_parity
-# (87, WS-OFFL) Every vendored asset under usr/share/mios/vendored/ must be a real asset (>100B), not a stub.
-check_vendored_assets_non_stub() {
-    local vdir="$ROOT/usr/share/mios/vendored"
-    if [[ ! -d "$vdir" ]]; then
-        echo "[38-drift-checks]   (87) vendored assets dir absent -- skipped"
-        return 0
-    fi
-    local stubs="" f sz
-    while IFS= read -r f; do
-        [[ -f "$f" ]] || continue
-        sz=$(wc -c < "$f" 2>/dev/null || stat -c %s "$f" 2>/dev/null || echo 0)
-        if [[ "$sz" -lt 100 ]]; then
-            stubs+="    $f (${sz} bytes - stub file)"$'\n'
-        fi
-    done < <(find "$vdir" -type f ! -name '.keep' ! -name 'VERSIONS.txt' 2>/dev/null)
-
-    if [[ -n "$stubs" ]]; then
-        printf '%s' "$stubs" >&2
-        _violation "(87, WS-OFFL) vendored asset directory contains stub files (<100 bytes); replace with real assets or mios-vendor-refresh"
-    else
-        echo "[38-drift-checks]   (87) vendored assets are non-stub (>100 bytes)"
-    fi
-}
-
     check_module_length
     check_vendored_assets_non_stub
     check_resolved_env_lossless
