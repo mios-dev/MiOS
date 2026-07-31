@@ -1928,3 +1928,586 @@ Each assertion echoes a `[sys-smoke] <stack> OK` line so a bake log shows exactl
 **Who:** you (Markdown + Python + drift-gate). **What+How:** ROADMAP.md's generated blocks (`<!-- ROADMAP_ROLLUP_START -->` Done/Active/Proposed/Blocked counts, `<!-- ROADMAP_INDEX_START -->` per-theme WS list, `<!-- ROADMAP_TOC_START -->`) are produced by `tools/roadmap-index.py` from each `## WS-*` section's KEP-style frontmatter, and nothing in this session's testdoc/deploy work is recorded. Add two WS sections with full frontmatter (`id, title, theme, status, priority, laws[], ssot_keys[], adr[], deps[], acceptance`) using the existing WS blocks as the template: `WS-TESTDOC` (theme "OS-Image & Build" or a Testing theme — drift-gate negative coverage in CI, shellcheck coverage widening, bake-smoke harness; `adr: []`; laws [7, 8]) and `WS-DEPLOY` (theme "Deployment & Sovereignty" — deploy-surface consolidation + bootc-install bare-metal leg; `adr: [13, 14]` referencing the AGY-369/370 ADRs; laws [1, 3, 4, 12]). Only reference ADR numbers that exist once AGY-368..370 land. Then regenerate: `python3 tools/roadmap-index.py --write` so the index/rollup/ToC reflect the new WS, and verify `--check` is clean. IMPORTANT: `tools/roadmap-index.py` line ~204 currently rejects `law > 13`, so keep every WS `laws[]` entry ≤13 (do not cite Law 14/15 until that ceiling is de-hardcoded).
 **Where:** ROADMAP.md (new WS-TESTDOC + WS-DEPLOY sections + regenerated INDEX/ROLLUP/TOC blocks), tools/roadmap-index.py (invoked, unchanged). **Done When:** `python3 tools/roadmap-index.py --check` exits 0 (index/rollup/ToC match the frontmatter); both new WS sections carry every frontmatter key with real laws (≤13) + real ssot_keys + valid adr refs; `bash automation/38-drift-checks.sh check_roadmap_index` green; `just drift-gate` green.
 
+
+---
+
+# NEW BATCH (2026-07-31) — AGY-372..487: day-0 publish hardening + always-latest + consolidation + deploy plane
+
+> Appended by Claude after the day-0 `ghcr.io/mios-dev/mios:0.3.0` publish push. Context: the fat bake now PUBLISHES from the large-disk local runner (WSL2 idle/reboot survival fixed: `vmIdleTimeout=-1` + resumable `pub.sh` + persistent `mios-publish.service` + a Windows logon task). code_mode is ON by default, firstboot auto-promotes to the big model tier on >=16GB VRAM, FBM machinery + `mios-ssot-regen` landed. These tasks are the code-only follow-ups. **Operator directive: ALWAYS pull LATEST (floating tags) for day-0 builds, record the resolved pin as SBOM.** Work top-down; stage ONLY your task's explicit paths; `just drift-gate` before done.
+
+## WS-OFFL — real offline vendoring (kill the 14-byte stubs)
+
+## AGY-372  (WS-OFFL, **P1**) — vendor the REAL k3s binary at LATEST + sha + install.sh
+**What:** replace `usr/share/mios/vendored/k3s/{k3s,k3s-selinux.tar.gz}` 14-byte stubs with the real assets. Resolve the LATEST `v*+k3s1` tag via `git ls-remote --tags https://github.com/k3s-io/k3s.git` (NOT the mios.toml pin), download `.../releases/download/<tag>/k3s` + `sha256sum-amd64.txt` + `raw.githubusercontent.com/k3s-io/k3s/<tag>/install.sh`→`k3s-install.sh`, verify the sha, and RECORD the resolved tag to the SBOM + bump `mios.toml [containers.k3s]`/`k3s_version` + the `docker.io/rancher/k3s` image ref to the SAME `<tag>` (server binary must match agent image — no skew).
+**Where:** `usr/share/mios/vendored/k3s/`, `usr/share/mios/mios.toml`, `automation/90-generate-sbom.sh`, `usr/lib/mios/bake/plan.d/03-extra.list` (regenerate).
+**Done When:** `36-ceph-k3s.sh` finds+verifies the vendored binary offline; binary tag == image tag; bake-plan gate green.
+
+## AGY-373  (WS-OFFL, P2) — vendor k3s-selinux.tar.gz (source tarball at matching tag)
+**What:** `37-k3s-selinux.sh` extracts `vendored/k3s/k3s-selinux.tar.gz`. Fetch the GitHub archive tarball for the k3s-selinux tag matching AGY-372's k3s minor (`https://github.com/k3s-io/k3s-selinux/archive/refs/tags/<tag>.tar.gz`) into that path; record the tag.
+**Where:** `usr/share/mios/vendored/k3s/k3s-selinux.tar.gz`, SBOM.
+**Done When:** `37-k3s-selinux.sh` extracts + builds offline; no stub remains.
+
+## AGY-374  (WS-OFFL, P2) — vendor Bibata cursor at LATEST
+**What:** resolve latest `ful1e5/Bibata_Cursor` tag via `git ls-remote --tags` (API is rate-limited — do NOT use api.github.com), download `Bibata-Modern-Classic.tar.xz` → `vendored/cursors/bibata.tar.xz`, record the version.
+**Where:** `usr/share/mios/vendored/cursors/bibata.tar.xz`, SBOM.
+**Done When:** `57-gnome.sh` installs the cursor offline; stub replaced.
+
+## AGY-375  (WS-OFFL, P2) — vendor Geist + Nerd fonts at LATEST → tar.xz
+**What:** Geist: `git clone --depth 1 https://github.com/vercel/geist-font.git`, `tar -cJf vendored/fonts/geist.tar.xz -C packages/next/dist/fonts .`. Nerd: resolve latest `ryanoasis/nerd-fonts` tag via ls-remote, download `NerdFontsSymbolsOnly.zip`, unzip → `tar -cJf vendored/fonts/nerd.tar.xz`.
+**Where:** `usr/share/mios/vendored/fonts/{geist,nerd}.tar.xz`, SBOM.
+**Done When:** `56-fonts.sh` installs both offline; stubs replaced.
+
+## AGY-376  (WS-OFFL, P2) — vendor the hermes-agent wheel + deps
+**What:** `72-hermes-agent.sh` wants `vendored/hermes_agent.whl` + `vendored/wheels/` for offline pip. `pip wheel` the hermes-agent (from `NousResearch/hermes-agent` git ref) + its transitive deps into `vendored/wheels/`, and place the top wheel at `vendored/hermes_agent.whl`.
+**Where:** `usr/share/mios/vendored/wheels/`, `usr/share/mios/vendored/hermes_agent.whl`.
+**Done When:** `72-hermes-agent.sh` builds the venv with `--no-index --find-links` offline.
+
+## AGY-377  (WS-OFFL, P1) — `mios-vendor-refresh` one-command re-pull-at-latest tool
+**What:** new `usr/libexec/mios/mios-vendor-refresh` (bash, AI-hint header, set -e) that re-pulls EVERY vendored asset at LATEST (ls-remote tag resolution), verifies checksums, and writes the resolved versions to `usr/share/mios/vendored/VERSIONS.txt` (SBOM feed). The single command to keep the offline cache current per the always-latest directive.
+**Where:** `usr/libexec/mios/mios-vendor-refresh`, `usr/share/mios/vendored/VERSIONS.txt`.
+**Done When:** template-conformance (check-46) PASS; running it refreshes all assets + writes VERSIONS.txt.
+
+## AGY-378  (WS-OFFL, P2) — drift-gate: vendored assets are non-stub + present
+**What:** new `38-drift-checks.sh` check — every file under `usr/share/mios/vendored/**` that a build stage consumes must be > a size floor (e.g. >1KB; catch the 14-byte stubs) and, for k3s, its sha must match its sibling `sha256sum-amd64.txt`. FAIL on a stub.
+**Where:** `automation/98-drift-checks.sh` (+ negative test).
+**Done When:** gate flags an injected 14-byte stub; green on real assets.
+
+## AGY-379  (WS-OFFL, P2) — vendor the terra.repo GPG key (offline dnf)
+**What:** `terra.repo` (landed) points `gpgkey=https://repos.fyralabs.com/.../key.asc`. Vendor the key to `usr/share/mios/repos/terra.key` and rewrite the repo to a `file://` gpgkey so an offline build imports it without network.
+**Where:** `usr/share/mios/repos/terra.{repo,key}`, `06-enable-external-repos.sh`.
+**Done When:** offline dnf imports the terra key from disk.
+
+## AGY-380  (WS-OFFL, P3) — vendored-dir size audit + .gitattributes note
+**What:** add a `just` recipe (or a check) that reports total `vendored/` size and warns past a budget (operator chose plain-git commit over LFS 2026-07-31); document the tradeoff in `usr/share/doc/mios/concepts/OFFLINE-FIRST.md`.
+**Where:** `Justfile`, `docs/...`.
+**Done When:** `just vendored-size` prints the total; doc updated.
+
+## AGY-381  (WS-OFFL, P3) — CI gate: PUBLISH build requires real vendored assets
+**What:** in `mios-ci.yml`, when `PUBLISH=true`, fail early if any `vendored/**` consumed asset is a stub (reuse AGY-378's logic) so a publish never ships a half-offline image.
+**Where:** `.github/workflows/mios-ci.yml`, `.forgejo/...`.
+**Done When:** a PUBLISH run with a stub fails fast with a clear message.
+
+## AGY-382  (WS-OFFL, P3) — mios.toml `[offline.vendored]` registry (SSOT for the asset list)
+**What:** declare the vendored asset set in `mios.toml [offline.vendored]` (name→upstream repo→artifact→dest) so `mios-vendor-refresh` + the drift-gate read the list from SSOT instead of hardcoding it.
+**Where:** `usr/share/mios/mios.toml`, `mios-vendor-refresh`, `98-drift-checks.sh`.
+**Done When:** adding an asset to SSOT auto-covers refresh + gate.
+
+## AGY-383  (WS-OFFL, P3) — record OFFL-01..03 done in TASKS.md/ROADMAP
+**What:** after AGY-372..382 land, flip T-204..209 (OFFL-*) status in TASKS.md and refresh the generated roadmap index.
+**Where:** `TASKS.md`, `ROADMAP.md`, `tools/roadmap-index.py`.
+**Done When:** roadmap index in sync (check-36 green).
+
+## WS-LATEST — always-pull-latest / SBOM-not-hardcode (kill hand-pinned versions)
+
+## AGY-384  (WS-LATEST, **P1**) — `mios-resolve-latest`: resolve every bake_ref to LATEST + digest at build
+**What:** new `usr/libexec/mios/mios-resolve-latest` that, for every image in `mios.toml [build.bake]`/plan.d lists carrying `:latest` intent, resolves the current tag+digest (skopeo inspect) at BUILD and records `<ref> <resolved-tag> <digest>` to the SBOM manifest. Reproducibility = SBOM, not hand-pins (ADR-0003).
+**Where:** `usr/libexec/mios/mios-resolve-latest`, `automation/90-generate-sbom.sh`.
+**Done When:** the baked SBOM lists a resolved digest for every floating ref.
+
+## AGY-385  (WS-LATEST, **P1**) — float the AI-plane sidecar images to :latest intent
+**What:** in `mios.toml [image.sidecars]`/plan.d, change hand-pinned tags to `:latest` (or the family-latest) for: `vllm/vllm-openai`, `lmsysorg/sglang`, `ghcr.io/mostlygeek/llama-swap:cuda`, `ghcr.io/open-webui/open-webui`. Record resolved via AGY-384.
+**Where:** `usr/share/mios/mios.toml`, plan.d, regenerate bake-plan.
+**Done When:** NO-HARDCODE-VERSION gate green; SBOM carries the resolved pins.
+
+## AGY-386  (WS-LATEST, **P1**) — float the data-plane images (pgvector, valkey, ceph)
+**What:** `docker.io/pgvector/pgvector`, `docker.io/valkey/valkey`, `quay.io/ceph/ceph` → :latest intent + SBOM record. Watch pgvector's `pgNN` suffix (pin the pg-major via SSOT, float the pgvector patch).
+**Where:** `mios.toml`, plan.d.
+**Done When:** images float; bake-plan gate green.
+
+## AGY-387  (WS-LATEST, P1) — float the forge/CI images (forgejo, forgejo-runner)
+**What:** `codeberg.org/forgejo/forgejo:12` → float within the 12.x line; `code.forgejo.org/forgejo/runner:7` → float within 7.x. Record resolved.
+**Where:** `mios.toml`, plan.d.
+**Done When:** floats within the major; SBOM records the resolved tag.
+
+## AGY-388  (WS-LATEST, P2) — float the remote-desktop + PXE + search + DNS + trace images
+**What:** guacamole, guacd, matchbox, searxng, adguardhome, jaegertracing/all-in-one → :latest intent + SBOM.
+**Where:** `mios.toml`, plan.d.
+**Done When:** all six float; gate green.
+
+## AGY-389  (WS-LATEST, P2) — float the base + builder images
+**What:** `ghcr.io/ublue-os/ucore-hci:stable-nvidia` (already a floating channel — verify), `docker.io/library/rust:slim` (rust-builder — already floated in 0aead5e5), `registry.fedoraproject.org/fedora-minimal:latest` (mios-base), `quay.io/centos-bootc/bootc-image-builder:latest`. Ensure all carry floating intent + SBOM digest capture.
+**Where:** `Containerfile`, `usr/share/mios/base/Containerfile`, `mios.toml`.
+**Done When:** every FROM/base carries a floating channel + recorded digest.
+
+## AGY-390  (WS-LATEST, **P1**) — drift-gate: no hand-pinned version literal outside the SBOM
+**What:** extend the NO-HARDCODE-VERSION check — any `:vX.Y.Z` (or `@sha256:`) literal in active config that is NOT in the SBOM manifest / not on the allowlist is a violation. Floating intent (`:latest`, family channels) + SBOM-recorded resolution is the ONLY allowed pinning.
+**Where:** `automation/98-drift-checks.sh` (+ negative test), `mios.toml [security.nohc_allowlist]`.
+**Done When:** gate flags an injected hard pin; green on the floated tree.
+
+## AGY-391  (WS-LATEST, P2) — Renovate/CI auto-bump the recorded pins
+**What:** wire `renovate.json` (present) to open PRs bumping the SBOM-recorded resolutions on upstream releases, so "latest" stays fresh with a review trail.
+**Where:** `renovate.json`, CI.
+**Done When:** Renovate proposes a bump for a floated ref.
+
+## AGY-392  (WS-LATEST, P3) — float model tags (small/mid/big_ram_model, embed, vision)
+**What:** the `[ai.host_thresholds]` model ids + `[ai].vision_grounding_model` are hand-pinned tags; where the registry supports a floating tag, use it + record; else document why pinned (model reproducibility).
+**Where:** `mios.toml [ai]`.
+**Done When:** each model tag is float-or-justified; SBOM notes the resolution.
+
+## AGY-393  (WS-LATEST, P3) — ADR: always-latest + SBOM-pin policy (day-0 float, subsequent pin)
+**What:** write the ADR codifying the operator directive: day-0 builds float to LATEST, the resolved tag+digest is recorded as SBOM, subsequent rebuilds may pin to the SBOM for reproducibility (`:latest` intent / `:pin` reality). Supersede/annotate ADR-0003.
+**Where:** `usr/share/doc/mios/adr/`.
+**Done When:** ADR merged; roadmap index in sync.
+
+## WS-CONSOLIDATE — mios-base + dedup the fat bound-image store
+
+## AGY-394  (WS-CONSOLIDATE, **P1**) — build + wire `localhost/mios-base` into the bake
+**What:** `usr/share/mios/base/Containerfile` (landed, FROM fedora-minimal) — add a bake step that builds `localhost/mios-base:latest` FIRST, before the service images, so derived images share the base layer (composefs dedup). Register in the bake plan ordering.
+**Where:** `usr/libexec/mios/mios-bake-group`, `usr/share/mios/sys/Containerfile`, plan.d.
+**Done When:** `mios-base` builds; a derived image reuses its layers.
+
+## AGY-395  (WS-CONSOLIDATE, **P1**) — mios-web: searxng+firecrawl+crawl4ai FROM mios-base
+**What:** create `usr/share/mios/web/Containerfile` deriving FROM `localhost/mios-base`, installing searxng + firecrawl + crawl4ai into ONE image (the operator's "stacked in the same secured container" vision). Rewire the three Quadlets to `Image=localhost/mios-web` + drop the upstream `docker.io/searxng/searxng` from 03-extra.
+**Where:** `usr/share/mios/web/Containerfile`, `usr/share/containers/systemd/mios-{searxng,webtools-*}.container`, plan.d.
+**Done When:** the three web services run from one image; store shrinks by the searxng base.
+
+## AGY-396  (WS-CONSOLIDATE, P1) — mios-data: pgvector+valkey FROM mios-base
+**What:** one `localhost/mios-data` image (postgres+pgvector ext + valkey) FROM mios-base; rewire `mios-pgvector.container` + `mios-*redis/valkey` Quadlets; drop the two upstream images from the bound store.
+**Where:** `usr/share/mios/data/Containerfile`, Quadlets, plan.d.
+**Done When:** data services run from one image; two upstreams removed.
+
+## AGY-397  (WS-CONSOLIDATE, P2) — rewire the 7 double-baked sidecars to mios-sys
+**What:** adguard, forgejo, k3s, open-webui, jaeger, matchbox, searxng exist in BOTH mios-sys (built) AND 03-extra (pulled). For each, point the Quadlet at the mios-sys/derived build + drop the upstream pull from 03-extra. Verify each service still starts.
+**Where:** `usr/share/containers/systemd/*.container`, `plan.d/03-extra.list`.
+**Done When:** no service pulls a redundant upstream; 7 images removed from the store.
+
+## AGY-398  (WS-CONSOLIDATE, P2) — mios-observ: jaeger/otel FROM mios-base
+**What:** consolidate the observability sidecars (jaeger all-in-one, otelcol) into `localhost/mios-observ` FROM mios-base; rewire Quadlets; drop upstream.
+**Where:** `usr/share/mios/observ/Containerfile`, Quadlets, plan.d.
+**Done When:** observ services run from one image.
+
+## AGY-399  (WS-CONSOLIDATE, **P1**) — bake-budget gate: bound store <= runner_disk_budget_gb
+**What:** the existing check-66 projects baked size vs the 40GB budget. After consolidation, TIGHTEN it + make it fail the PUBLISH path if the projected store exceeds a stock GitHub runner (so GitHub self-publish becomes possible). Report the per-image contribution.
+**Where:** `automation/98-drift-checks.sh`.
+**Done When:** gate reports per-image sizes + passes under budget post-consolidation.
+
+## AGY-400  (WS-CONSOLIDATE, P2) — composefs dedup verification
+**What:** add a check/report that the bound store's composefs objects are shared across derived images (base layer counted once). Prove the dedup win numerically.
+**Where:** `automation/77-composefs-verity.sh`, a report.
+**Done When:** the shared-base object count is verified > N.
+
+## AGY-401  (WS-CONSOLIDATE, P3) — handle the remaining sidecars (ceph, guacamole, guacd, BIB)
+**What:** decide per-sidecar: derive-from-base, keep-upstream (justified), or firstboot-tier. ceph is heavy (v19) — evaluate. Document the disposition of each of the 14 03-extra entries.
+**Where:** plan.d, `docs/...`.
+**Done When:** every 03-extra entry has a documented disposition.
+
+## AGY-402  (WS-CONSOLIDATE, P3) — doc: the consolidation map + before/after store size
+**What:** `usr/share/doc/mios/reference/container-consolidation.md` — the 14→N image map, the shared-base math, the per-service Containerfiles, the store size before/after.
+**Where:** `docs/...`.
+**Done When:** doc merged; matches the built store.
+
+## WS-GHSELF — GitHub self-sufficiency (fit the stock runner)
+
+## AGY-403  (WS-GHSELF, **P1**) — split build.sh into resumable RUN layers
+**What:** the monolithic `STEP 17/25` (build.sh, ~65 stages) is ONE layer — a mid-bake reboot restarts the whole ~1-2h. Split the Containerfile so build.sh runs in a few checkpointed RUN layers (e.g. overlay+packages | services+render | bake+finalize) so podman's layer cache resumes near the failure. This is what makes the local publish reboot-cheap AND helps GitHub.
+**Where:** `Containerfile`, `automation/build.sh`.
+**Done When:** a reboot mid-build resumes from the last completed RUN layer, not stage 1.
+
+## AGY-404  (WS-GHSELF, P2) — firstboot-tier eviction expansion
+**What:** the firstboot tier already evicts vLLM+SGLang (~47GB) from the bake. Evaluate evicting more heavy sidecars (ceph v19, guacamole) to firstboot-web-pull so the BOUND store fits a stock runner — WITHOUT breaking offline install of the core (operator wants offline-complete CORE; heavy optional sidecars may firstboot-pull).
+**Where:** `plan.d/firstboot.list`, `mios.toml [build.bake].firstboot_tokens`, `mios-ai-firstboot`/`mios-bound-images-firstboot`.
+**Done When:** firstboot-tier invariant (check-72) green; core stays offline.
+
+## AGY-405  (WS-GHSELF, P2) — GitHub PUBLISH gate flips true when store fits
+**What:** once AGY-394..404 shrink the store under the runner, flip the `PUBLISH` capacity gate so GitHub bakes+pushes too (GitHub≡Forgejo equal publishers). Add a preflight that measures free /mnt vs projected store and skips gracefully if still too big.
+**Where:** `.github/workflows/mios-ci.yml`.
+**Done When:** GitHub bakes+pushes when it fits; skips cleanly when it doesn't.
+
+## AGY-406  (WS-GHSELF, P3) — Forgejo publisher parity check
+**What:** verify the Forgejo runner (707GB) produces a bit-identical image to the local + GitHub paths (same digest for same commit). Add a parity note/gate.
+**Where:** `.forgejo/`, `docs/mios-release-topology.md`.
+**Done When:** same-commit digests match across publishers.
+
+## WS-FBM — first-boot models (finish the feature)
+
+## AGY-407  (WS-FBM, P2) — Portal FBM status tile (FBM-04, from stash@{0})
+**What:** land the Sidebar.qml FBM tile (in stash@{0}) that watches `/var/lib/mios/.models-firstboot-progress` and shows provisioning status. Verify QML parses + projects from SSOT colors.
+**Where:** `usr/share/mios/quickshell/Sidebar.qml`, Portal.
+**Done When:** the tile renders progress; theme-projected.
+
+## AGY-408  (WS-FBM, P2) — wire mios-ai-firstboot → [ai].firstboot_models provisioning
+**What:** the FBM machinery (mios-models-firstboot) is dormant (empty config). Wire the real provisioning: mios-ai-firstboot resolves the tier model (AGY firstboot-VRAM work) and populates `[ai.firstboot_models]` (or calls mios-models-firstboot) so a fresh install auto-provisions the tier GGUF. Degrade-open.
+**Where:** `usr/libexec/mios/mios-ai-firstboot`, `mios-models-firstboot`, `mios.toml [ai]`.
+**Done When:** a fresh install fetches the tier model without a manual step.
+
+## AGY-409  (WS-FBM, P2) — sha256 verify in mios-models-firstboot
+**What:** the provisioner has a `# In real scenario we'd check sha256 here` TODO — implement it: verify each downloaded GGUF against its `[ai.firstboot_models].sha256` before rename; degrade-open on mismatch.
+**Where:** `usr/libexec/mios/mios-models-firstboot`.
+**Done When:** a bad-sha model is rejected + retried, never installed.
+
+## AGY-410  (WS-FBM, P3) — `mios models {add,rm,status}` subcommands
+**What:** extend the `mios models` CLI beyond list/sync: add/remove an `[ai.firstboot_models]` entry (SSOT edit) + a status view (reads the progress/sentinel). Round-trips through mios-ssot-regen if it affects manifests.
+**Where:** `usr/libexec/mios/mios-models`, `usr/bin/mios`.
+**Done When:** the four subcommands work; SSOT stays canonical.
+
+## AGY-411  (WS-FBM, P3) — air-gapped model pre-stage (vendored GGUF)
+**What:** allow `[ai.firstboot_models].source = file://.../vendored/models/<name>.gguf` so an air-gapped install provisions from a vendored GGUF (no network). Wire the vendored/models dir (exists, empty).
+**Where:** `mios-models-firstboot`, `usr/share/mios/vendored/models/`.
+**Done When:** a file:// source provisions offline.
+
+## WS-CODEMODE — harden the now-enabled code_mode
+
+## AGY-412  (WS-CODEMODE, **P1**) — sandbox hardening audit (code execution is now ON)
+**What:** code_mode.enable is now true by default. Audit the coderun-sandbox: rootless, no-new-privs, dropped caps, read-only rootfs, no network (unless allow_net AND deploy), seccomp profile, memory/pid/time limits. Fix any gap. This is the security backstop for shipping code-execution-on.
+**Where:** `etc/mios/containers/coderun-sandbox/Dockerfile`, `usr/libexec/mios/mios-coderun*`, `mios.toml [code_mode]`.
+**Done When:** a hostile snippet cannot escape net/fs/caps; documented threat model.
+
+## AGY-413  (WS-CODEMODE, P1) — enforce allow_net = (snippet AND deploy) AND heavy_lane_only
+**What:** verify the runtime enforces `allow_net` as the AND of the snippet request and `[code_mode].allow_net`, and that `heavy_lane_only` refuses code_mode from a light swarm worker. Add tests.
+**Where:** agent-pipe code_mode path, `test_*`.
+**Done When:** tests prove net-off + light-worker-refusal.
+
+## AGY-414  (WS-CODEMODE, P2) — mios_tools in-sandbox API test coverage
+**What:** `coderun-sandbox/mios_tools.py` (== committed mios-codemode-api.py, bake-copied) — add a sibling unit test covering call()/web_search()/system_status()/recall() RPC framing + ToolError. (The untracked etc/ copy is a redundant draft — leave it; the bake copies the canonical one.)
+**Where:** `usr/lib/mios/agent-pipe/test_*`, or a sandbox test.
+**Done When:** the RPC surface is tested; check-11 sibling-test green.
+
+## AGY-415  (WS-CODEMODE, P2) — code_mode timeout + output-cap enforcement tests
+**What:** prove `[code_mode].timeout`/`max_output_chars` are enforced (a runaway snippet is killed at the cap; stdout truncated to max_output_chars).
+**Where:** tests.
+**Done When:** both caps are test-enforced.
+
+## AGY-416  (WS-CODEMODE, P3) — code_mode execution audit logging
+**What:** every code_mode execution logs (to the journal / agent-nudger) the snippet hash, lane, net decision, exit — so an operator can audit what ran. Terse/technical (E5-clean).
+**Where:** agent-pipe, log surface.
+**Done When:** each run leaves an auditable, fluff-free log line.
+
+## WS-DEPLOY — MiOS-Cat / bare-metal / installer (the least-done plane)
+
+## AGY-417  (WS-DEPLOY, **P1**) — bare-metal offline install via bootc install to-disk --transport oci
+**What:** the bare-metal leg is broken (tools/install.sh installs plain Fedora, not the bootc image). Implement `bootc install to-disk --source-imgref oci-archive:/mnt/mios-repo/mios-latest.tar` so a USB installs the REAL immutable MiOS offline (no registry pull). ADR-0014 exists — implement it.
+**Where:** `tools/install.sh`, `automation/80-distribution.sh`, oci-archive producer.
+**Done When:** an offline USB installs bootc MiOS to disk, not plain Fedora.
+
+## AGY-418  (WS-DEPLOY, **P1**) — BIB Anaconda installer ISO from the bootc image
+**What:** wire bootc-image-builder to produce the Anaconda installer ISO (+ raw/qcow2/vhdx) from `ghcr.io/mios-dev/mios`, consuming the kickstart `ostreecontainer` source. The BIB container is pinned but disconnected — connect it.
+**Where:** `bib-configs/`, `config/artifacts/`, `Justfile` artifact recipes.
+**Done When:** `just build-iso` yields a bootable MiOS installer ISO.
+
+## AGY-419  (WS-DEPLOY, P1) — Ventoy-based MiOS-Cat USB staging
+**What:** stage the BIB ISO + the oci-archive onto a Ventoy USB (exFAT data + Ventoy ESP) with a loopback.cfg menu, so one USB offline-installs MiOS on any UEFI/BIOS box (MediCat model). MiOS-Cat.sh machinery exists but doesn't install MiOS yet.
+**Where:** `cat/`, `installation/`, MiOS-Cat scripts.
+**Done When:** a Ventoy USB boots + installs MiOS.
+
+## AGY-420  (WS-DEPLOY, P2) — Secure Boot chain (shim→GRUB2→signed UKI)
+**What:** keep Secure Boot working through the installer chain: Fedora shim + GRUB2 (RH-signed) + the signed UKI; MOK enrollment for the MiOS key. Document the enroll_this_key flow so SB need not be disabled.
+**Where:** `automation/76-uki-render.sh`, `enroll-mok.sh`, `generate-mok-key.sh`.
+**Done When:** a SB-on machine boots the installer + the installed system.
+
+## AGY-421  (WS-DEPLOY, P2) — VM artifacts (vhdx/qcow2) + Win11 template parity
+**What:** produce vhdx (Hyper-V/WSL) + qcow2 (libvirt) from BIB; verify the Win11 VM template projects `[vm.win11]` SSOT (check-91). One USB carries all formats.
+**Where:** BIB configs, `config/artifacts/`, `usr/share/mios/vm/`.
+**Done When:** vhdx+qcow2 boot; Win11 template gate green.
+
+## AGY-422  (WS-DEPLOY, P2) — oci-archive producer/consumer path unification
+**What:** ensure the oci-archive path (`/mnt/mios-repo/mios-latest.tar`, check-81) is produced by the publish + consumed by the offline installer identically; single SSOT for the path.
+**Where:** `pub.sh`/publish, `tools/install.sh`, `mios.toml`.
+**Done When:** producer path == consumer path (check-81 green) + a real archive exists.
+
+## AGY-423  (WS-DEPLOY, P3) — Windows/Xbox ISO format leg
+**What:** scope + stub the Windows/"Xbox" ISO leg of MiOS-Cat (autounattend/SetupComplete New-LocalUser baseline per the PostgresOS-accounts memo) so the USB carries the Windows format too.
+**Where:** `src/autounattend/`, `cat/`.
+**Done When:** the Windows leg is scoped with a working autounattend stub.
+
+## AGY-424  (WS-DEPLOY, P3) — deploy smoke test (installer boots in a VM)
+**What:** a CI/local smoke test that boots the produced ISO in QEMU and asserts it reaches the installer + installs. Hermetic (skip sentinel when no KVM).
+**Where:** `tests/`, `Justfile`.
+**Done When:** the smoke test boots the ISO in QEMU.
+
+## WS-INSTALL — installer/shim consolidation
+
+## AGY-425  (WS-INSTALL, P2) — fold install shims to one shim-less .bat + mios mon
+**What:** consolidate the install entry points to a single shim-less `.bat` that hands into the guided installer, and `mios mon` that globally tracks ALL mios-* functions/services. Delete pure-forwarder shims WITHOUT breaking check-86 (installer-family-roles) or the LAYERS bundle.
+**Where:** `installation/`, `usr/bin/mios`, `.bat` entry.
+**Done When:** one entry point; check-86 green; no orphaned shim.
+
+## AGY-426  (WS-INSTALL, P2) — build-mios.{ps1,sh} + mios-common.{ps1,sh} byte-identical dual-repo (Law 15)
+**What:** verify the shared installer files are byte-identical across `C:\MiOS` and `C:\mios-bootstrap`; add/repair the check-27-style twin-parity gate for them. build-mios.ps1 in stash@{0} must land in BOTH repos.
+**Where:** both repos, `98-drift-checks.sh`.
+**Done When:** twin-parity gate green across repos.
+
+## AGY-427  (WS-INSTALL, P3) — Get-MiOS → MiOS-Cat handoff (fix the web-door loop)
+**What:** `Get-MiOS -Action Install/Configure` should hand into the unified installer (the irm|iex path currently orphans MiOS-Cat). Break the loop.
+**Where:** `Get-MiOS.ps1`, `installation/`.
+**Done When:** the web-door flow reaches the guided installer without a loop.
+
+## WS-NUMBER — one global numbering system
+
+## AGY-428  (WS-NUMBER, P2) — checks numbered inline with scripts (single 0-99 system)
+**What:** the pipeline has multiple counters (scripts NN-, checks (N), stages, OCI layers). Unify: the drift-gate checks count INLINE with the same 0-99 system as the numbered scripts/stages/steps/layers — one globally-identifiable number per pipeline element (operator's "OCI LAYERS = STAGES = STEPS = CHECKS").
+**Where:** `automation/98-drift-checks.sh`, `build.sh`, the log labels.
+**Done When:** one numbering scheme spans scripts+stages+checks; renumber-immune.
+
+## AGY-429  (WS-NUMBER, P3) — numbering drift-gate (no duplicate/gap numbers)
+**What:** a check that the unified numbering has no duplicates/gaps across scripts, stages, and checks; fails on a collision.
+**Where:** `98-drift-checks.sh`.
+**Done When:** gate flags an injected duplicate number.
+
+## WS-LOG — logging standardization (extend the E5 lint)
+
+## AGY-430  (WS-LOG, P2) — extend mios_log to libexec Python + PowerShell
+**What:** the shared `mios_log` (usr/lib/mios/log.sh) gives terse `[NN-name]` labels for bash. Add a Python peer (for libexec .py) + a PowerShell overlay logger so the ENTIRE pipeline (bash+py+ps1) logs one terse numbered format. Kill "cringe AI hallucination" prose everywhere.
+**Where:** `usr/lib/mios/log.{sh,py}`, a ps1 logger, consumers.
+**Done When:** py + ps1 surfaces use the shared terse numbered logger.
+
+## AGY-431  (WS-LOG, P3) — expand the E5 fluff-token lint
+**What:** grow the E5 banned-token list beyond successfully/BAKED IN/Done/trailing-! (e.g. "seamlessly", "robust", "leverage", "utilize", emoji in operator echoes) and extend the scan to libexec + PowerShell, not just automation/*.sh.
+**Where:** `automation/98-drift-checks.sh` check-57.
+**Done When:** the expanded lint is green repo-wide after a cleanup pass.
+
+## WS-LANG — language unification / tech-debt (ADR-0011)
+
+## AGY-432  (WS-LANG, P2) — split server.py into cohesive modules (<800 lines each)
+**What:** server.py is ~9k lines. Extract cohesive modules (routes, config, dispatch) keeping the public surface golden (check-15) intact; each sibling <800 lines (the existing cohesion gate).
+**Where:** `usr/lib/mios/agent-pipe/server.py` + new siblings, `surface.generated.json`.
+**Done When:** modules split; check-15 + cohesion gate green.
+
+## AGY-433  (WS-LANG, P2) — kill the eval-on-agent-args verbs
+**What:** the tech-debt map flagged eval-on-agent-args CLI verbs. Convert them to parameterized/allowlisted dispatch (check-43 eval-safe). Finish the campaign.
+**Where:** `usr/libexec/mios/*`, check-43.
+**Done When:** no eval-on-args remains; check-43 green with an empty allowlist.
+
+## AGY-434  (WS-LANG, P3) — compiled-template system for the generators
+**What:** the tech-debt map proposed a compiled-template system to kill scattered-twin drift (bash/Rust ssot-lint etc.). Design + prototype: one template source compiled to each target language so twins can't diverge.
+**Where:** `tools/`, `src/`.
+**Done When:** one twin pair is generated from a single template source.
+
+## AGY-435  (WS-LANG, P3) — shellcheck CI gate at warning level repo-wide
+**What:** the tech-debt map noted no shellcheck CI. The drift-gate lints modified scripts at warning level; extend to a repo-wide warning-level ratchet (grandfather existing, block new warnings).
+**Where:** `automation/lint-shell.sh`, CI.
+**Done When:** new scripts must be warning-clean; ratchet holds.
+
+## WS-SEC — security
+
+## AGY-436  (WS-SEC, **P0**) — rotate the exposed GitHub PAT + move to a secret store
+**What:** a classic PAT was pasted in-session and used to auth gh + the publish. ROTATE it, purge it from any on-disk location (VM `/root/ghtok`, logs), and move the publish auth to a fine-grained token in a secret store (not a plaintext file). Operator action required for the rotation itself; code the secret-store plumbing.
+**Where:** `/root/ghtok` (VM), `pub.sh`, `mios.toml [security]`, secrets.env.
+**Done When:** the old PAT is dead; the publish reads a scoped token from a secret store, not a plaintext file.
+
+## AGY-437  (WS-SEC, P2) — cosign policy enforcement on the published image
+**What:** verify the cosign policy (49-cosign-policy.sh) actually signs + the install path verifies the signature; a tampered image is rejected.
+**Where:** `automation/49-cosign-policy.sh`, install verify.
+**Done When:** signature verify blocks a tampered image.
+
+## AGY-438  (WS-SEC, P2) — SBOM completeness gate
+**What:** every baked binary/venv/vendored asset appears in MiOS-SBOM.csv with a resolved version/digest (ties into WS-LATEST). A missing entry fails the gate.
+**Where:** `automation/90-generate-sbom.sh`, check.
+**Done When:** SBOM covers 100% of baked artifacts.
+
+## AGY-439  (WS-SEC, P3) — fapolicyd trust audit for the new libexec + services
+**What:** the FBM/code_mode/vendor tools added libexec entries; ensure fapolicyd trust (40-fapolicyd-trust.sh) covers them so they aren't blocked at runtime.
+**Where:** `automation/40-fapolicyd-trust.sh`.
+**Done When:** all new execs are fapolicyd-trusted.
+
+## WS-ROADMAP — north-star items (from the memory map)
+
+## AGY-440  (WS-ROADMAP, P2) — liquid-glass desktop shell from SSOT (Hyprland+Quickshell)
+**What:** project the Hyprland effects/animations + Quickshell shell from `mios.toml` (SSOT), don't hardcode — the Apple liquid-glass north star. MiOS already ships the infra; wire the config projection + a drift-gate.
+**Where:** `usr/share/mios/hypr*`, `quickshell/`, `mios.toml [desktop]`.
+**Done When:** the shell renders from SSOT; theme-projected; gated.
+
+## AGY-441  (WS-ROADMAP, P3) — MiOS-Mini split-plane (hypervisor-router host) scoping
+**What:** scope the small bootc hypervisor-router host that binds all dGPUs to vfio + owns NICs/radios/TPM/boot, hosting the full MiOS OCI as a NIC-less super-privileged guest over headscale. Doc exists (doc-mios-mini.md) — turn it into wired stubs (vfio-pci gen, mesh gen).
+**Where:** `usr/libexec/mios/mios-mini-*`, `docs/agy/doc-mios-mini.md`.
+**Done When:** the vfio + mesh generators produce valid config; gated (checks 68/69 exist).
+
+## AGY-442  (WS-ROADMAP, P3) — DB-driven cross-platform accounts (PostgresOS pattern)
+**What:** `[accounts].db_backed` ships inert. Wire the FOSS-brick model: systemd userdb JSON projection (Linux), lldap-over-Postgres (SSOT face), autounattend New-LocalUser (Windows). Doc exists (doc-postgresos-accounts.md).
+**Where:** `usr/libexec/mios/mios-account-sync`, schema, doc.
+**Done When:** one account defined in SSOT projects to Linux userdb + a Windows baseline.
+
+## AGY-443  (WS-ROADMAP, P3) — wire the unwired container-runtime features
+**What:** the runtime-architecture map flags shipped-but-unwired: clevis/chrony/ROCm/ceph/mdevctl/freeipa/nut/guacamole/virt-v2v. Pick 3 and wire them from SSOT with a projection gate each.
+**Where:** relevant automation/*, `mios.toml`.
+**Done When:** 3 features projected from SSOT + gated.
+
+## AGY-444  (WS-ROADMAP, P3) — dotfiles registry: generalize beyond btop
+**What:** ADR-0010 dotfiles registry — btop is the landed proof. Add 2 more settings-surfaces (e.g. ghostty/foot, git) to `[dotfiles.registry.<surface>]` with apply-to-live-HOME + drift-gate.
+**Where:** `mios.toml [dotfiles.registry]`, `mios-theme-render`/apply.
+**Done When:** 2 new surfaces project + apply + gate green.
+
+## WS-DRIFT — drift-gate + ssot-regen extensions
+
+## AGY-445  (WS-DRIFT, P2) — extend mios-ssot-regen to ALL SSOT projections
+**What:** `mios-ssot-regen` regenerates the 2 AI manifests. Extend it to run the other drift-gate generators (mios-registry, generate-bake-plan, roadmap-index, generate-blade-dropins, generate-egress-firewall, generate-pod-quadlets) so ONE command re-projects EVERYTHING. Handle pod-quadlets' digest-sensitivity (regenerate in the canonical MIOS_* env; never de-digest).
+**Where:** `usr/libexec/mios/mios-ssot-regen`.
+**Done When:** one command regenerates all 8 projections; drift-gate green after.
+
+## AGY-446  (WS-DRIFT, P2) — pre-commit hook: auto-regen projections on mios.toml change
+**What:** a git pre-commit hook that runs `mios-ssot-regen` when `mios.toml`/`[verbs.*]`/`[recipes.*]` changed and re-stages the projections — so a verb never lands with stale manifests again (the drift that recurred 3x this session).
+**Where:** `.githooks/`, install-hook step.
+**Done When:** committing a verb change auto-refreshes the manifests.
+
+## AGY-447  (WS-DRIFT, P3) — negative-test coverage for every new check
+**What:** the negatives suite ratchets test-count >= gate-count. Add a negative test for each new check added in this batch (AGY-378/390/399/429/...).
+**Where:** `tests/drift-gate-negatives.sh`.
+**Done When:** ratchet green; each new check has a failing-case test.
+
+## WS-PUBLISH — publish robustness
+
+## AGY-448  (WS-PUBLISH, **P1**) — version-bump policy for the post-0.3.0 commits
+**What:** code_mode/FBM/repos/CLI/firstboot landed as 0.3.0 AFTER the 0.3.0 bake started; the already-published guard blocks re-publishing 0.3.0, so they DON'T ship in this bake. Bump VERSION to 0.3.1 (or a date-suffixed tag) so the next publish carries them; define the bump policy (semver vs date).
+**Where:** `VERSION`, `mios.toml [meta].mios_version`, `Containerfile ARG MIOS_VERSION` (Laws 7/8 — all three must match, check-42).
+**Done When:** VERSION bumped consistently; the next bake publishes the new work.
+
+## AGY-449  (WS-PUBLISH, P2) — publish smoke/verify (image boots + services healthy)
+**What:** after a push, a smoke test pulls the published image + boots it (VM) + asserts the core services reach ready. Gate the publish on it.
+**Where:** `tests/`, publish path.
+**Done When:** a broken publish is caught before it's announced.
+
+## AGY-450  (WS-PUBLISH, P2) — persist the local publish log + status to a durable path
+**What:** `pub.sh` logs to `/mnt/c/mios-publish-build.log`; add a status file (`/mnt/c/mios-publish-status.json`: state, stage, resolved-version, digest, last-error) so `mios mon` + the operator can see publish state across reboots without scraping the log.
+**Where:** `pub.sh` (both /root + the repo copy), `mios mon`.
+**Done When:** publish state is machine-readable + survives reboots.
+
+## AGY-451  (WS-PUBLISH, P3) — mios-publish as a first-class repo unit (not just /root/pub.sh)
+**What:** promote the resumable publish service into the repo (`usr/lib/systemd/system/mios-publish.service` + `usr/libexec/mios/mios-publish` + the Windows-task installer) so it's versioned/gated, not a hand-placed /root script.
+**Where:** `usr/libexec/mios/mios-publish`, service unit, installer.
+**Done When:** the publish unit is repo-tracked + drift-gated.
+
+## WS-TESTDOC — record + verify this batch
+
+## AGY-452  (WS-TESTDOC, P2) — roadmap: record the day-0-publish + always-latest + consolidation workstreams
+**What:** add WS-OFFL / WS-LATEST / WS-CONSOLIDATE / WS-GHSELF as workstreams in TASKS.md + refresh the generated roadmap index/rollup so this batch is tracked.
+**Where:** `TASKS.md`, `ROADMAP.md`, `tools/roadmap-index.py`.
+**Done When:** roadmap index in sync (check-36 green).
+
+## AGY-453  (WS-TESTDOC, P3) — ADR: the publish-survival architecture (WSL idle/reboot resilience)
+**What:** ADR documenting the survival design (vmIdleTimeout=-1 + resumable pub.sh + persistent service + Windows logon task + layer-split) so it isn't lost tribal knowledge.
+**Where:** `usr/share/doc/mios/adr/`.
+**Done When:** ADR merged; index in sync.
+
+## AGY-454  (WS-TESTDOC, P3) — doc: the mios-ssot-regen + drift-recurrence postmortem
+**What:** short postmortem — verb/log changes repeatedly left stale projections (drift-gate red 3x); the fix is mios-ssot-regen + the pre-commit hook (AGY-446). Capture the pattern.
+**Where:** `usr/share/doc/mios/reference/`.
+**Done When:** doc merged.
+
+## WS-CLEAN — small hygiene follow-ups
+
+## AGY-455  (WS-CLEAN, P3) — remove the redundant etc/ coderun-sandbox/mios_tools.py draft
+**What:** `etc/mios/containers/coderun-sandbox/mios_tools.py` is byte-identical to the committed `mios-codemode-api.py` that the bake copies into place — a redundant untracked draft. Confirm + delete it (or leave untracked); do NOT commit a duplicate that check-34 (etc/ shadow) could flag.
+**Where:** `etc/mios/containers/coderun-sandbox/`.
+**Done When:** no redundant duplicate; check-34 green.
+
+## AGY-456  (WS-CLEAN, P3) — reconcile the two stashes into landed state
+**What:** stash@{1} (code_mode) is fully landed (60cdf3fa + d010b21f); stash@{0} (FBM) is mostly landed (firstboot VRAM 7bba99d2, mios CLI 23c249be) except the Sidebar tile (AGY-407) + build-mios.ps1 (AGY-426) + TASKS.md status. Land the remainder, then drop the stashes so the tree has no dangling WIP.
+**Where:** stashes, the listed files.
+**Done When:** both stashes empty/dropped; their content landed or discarded-with-reason.
+
+## AGY-457  (WS-CLEAN, P3) — TASKS.md T-178 status honesty pass
+**What:** stash@{0}'s TASKS.md edit flips T-178 to done-by-code + several FBM tasks to done — verify each claim against landed code before committing the status (don't over-claim).
+**Where:** `TASKS.md`.
+**Done When:** every flipped status is backed by landed, verified code.
+
+## AGY-458  (WS-CLEAN, P3) — mios-base drift-gate conformance (it's committed, unwired)
+**What:** `usr/share/mios/base/Containerfile` is committed but not yet built (AGY-394 wires it). Ensure it satisfies check-38 (RUN bootc container lint or an exemption) + template conformance now that it's tracked.
+**Where:** `usr/share/mios/base/Containerfile`, `98-drift-checks.sh`.
+**Done When:** the base Containerfile passes all applicable gates.
+
+## AGY-459  (WS-CLEAN, P3) — audit MIOS_K3S_VERSION consumers after the k3s float
+**What:** after AGY-372 floats k3s, grep every `MIOS_K3S_VERSION`/`k3s:v` consumer (Quadlet, globals, bake-plan, install docs) and confirm they all resolve the SAME floated tag — no stale v1.32.1 literal lingers.
+**Where:** repo-wide grep, the consumers.
+**Done When:** one k3s version everywhere; NO-HARDCODE-VERSION green.
+
+## AGY-460  (WS-CLEAN, P3) — extend the vendored/VERSIONS.txt into MiOS-SBOM.csv
+**What:** feed `mios-vendor-refresh`'s VERSIONS.txt into MiOS-SBOM.csv so vendored assets appear in the SBOM alongside images (ties AGY-377 + AGY-438).
+**Where:** `automation/90-generate-sbom.sh`, `MiOS-SBOM.csv`.
+**Done When:** vendored assets are in the SBOM.
+
+---
+> **AGY — that's AGY-372..460 (89 tasks) in this batch across WS-OFFL/LATEST/CONSOLIDATE/GHSELF/FBM/CODEMODE/DEPLOY/INSTALL/NUMBER/LOG/LANG/SEC/ROADMAP/DRIFT/PUBLISH/TESTDOC/CLEAN.** More will be appended as these clear. Same rules: explicit-path staging only, `just drift-gate` before done, `agy:` commit prefix.
+
+## WS-EXTRA — additional follow-ups (to clear 100+)
+
+## AGY-461  (WS-ROADMAP, P3) — AI endpoint canonical audit (:8642 Hermes vs retired :8080)
+**What:** confirm every consumer resolves MIOS_AI_ENDPOINT = the agent-pipe orchestrator (:8640/v1) and the Hermes leaf (:8642), and that no code path regressed to the retired :8080; the NO-HARDCODE lint allowlists canonical ports in `[security.nohc_allowlist]`.
+**Where:** repo-wide grep, `mios.toml [security.nohc_allowlist]`.
+**Done When:** one canonical endpoint; no retired-port refs outside the allowlist.
+
+## AGY-462  (WS-ROADMAP, P3) — finish the legacy purge (ollama/localai/surrealdb to /v1-only)
+**What:** verify ollama/localai/surrealdb are fully gone from the ACTIVE AI plane (/v1-only); the surviving "ollama" tokens are enforcement/cleanup/upstream-compat/history only — do not re-flag those. Add a gate that fails on a NEW active-config ollama lane.
+**Where:** repo-wide, a drift check.
+**Done When:** no active legacy AI lane; gate holds.
+
+## AGY-463  (WS-ROADMAP, P3) — unified key library: collapse userenv.sh manual tuples
+**What:** WS-NAME — auto-derive the minimal global key library instead of ~200 manual tuples in userenv.sh; reconcile the `MIOS_AI_VLLM_*` (emitted) vs short `MIOS_VLLM_*` (consumed) mismatch so producers/consumers agree.
+**Where:** `tools/lib/userenv.sh`, `usr/lib/mios/userenv.sh`, resolver twins.
+**Done When:** the manual table is generated; twin-parity (check-41/45) green.
+
+## AGY-464  (WS-CONSOLIDATE, P3) — mios-sys build ordering: static-first (core after git overlay)
+**What:** order the mios-sys/Containerfile RUN steps by change-frequency (most-static binaries FIRST after the git-to-root overlay) to cut cache-busting/backtracking on rebuilds (operator directive "core/stationary componentry FIRST").
+**Where:** `usr/share/mios/sys/Containerfile`, `Containerfile`.
+**Done When:** static layers precede volatile ones; rebuild reuses more cache.
+
+## AGY-465  (WS-GHSELF, P3) — bake cache warming for the resumable layers
+**What:** after AGY-403's layer split, add a cache-warm step (pull the base + rust + package layers) so a fresh runner resumes fast; document the cache keys.
+**Where:** CI, `Containerfile`.
+**Done When:** a cold runner reaches build.sh quickly via warmed cache.
+
+## AGY-466  (WS-DEPLOY, P3) — kickstart ostreecontainer source from SSOT
+**What:** the Anaconda kickstart must use `ostreecontainer --url ghcr.io/mios-dev/mios` (bootc image), not %packages. Project the image ref from SSOT (MIOS_IMAGE_REF) into the kickstart; gate it.
+**Where:** `bib-configs/`, kickstart, `mios.toml [image]`.
+**Done When:** kickstart sources the bootc image from SSOT.
+
+## AGY-467  (WS-DEPLOY, P3) — MediCat-style multiboot menu (loopback.cfg) from SSOT
+**What:** generate the Ventoy/GRUB loopback menu (ISO tree entries) from `[deploy.artifacts]` SSOT so adding an artifact updates the boot menu; theme it.
+**Where:** `cat/`, generator, `mios.toml [deploy.artifacts]`.
+**Done When:** the menu projects from SSOT; adding an artifact adds an entry.
+
+## AGY-468  (WS-DEPLOY, P3) — USB partition layout (exFAT data + Ventoy ESP) generator
+**What:** codify the MiOS-Cat USB partition scheme (Ventoy MBR/GPT + ESP(FAT) + exFAT-data, label MiOS-Repo per check-88) as a scripted, idempotent layout so a rebuild reproduces it.
+**Where:** `cat/`, `installation/`, `mios.toml [cat.repo_partition]`.
+**Done When:** the USB layout is scripted + label-gated (check-88 green).
+
+## AGY-469  (WS-TESTDOC, P3) — test hermeticity for the new deploy/vendor tests
+**What:** every new live-resource test (QEMU boot, network vendor pull) carries a skip sentinel so the suite stays hermetic on a bare runner (check-76).
+**Where:** `tests/`.
+**Done When:** hermeticity gate green with the new tests.
+
+## AGY-470  (WS-LATEST, P3) — float llama-swap + any ghcr.io/mostlygeek ref
+**What:** `ghcr.io/mostlygeek/llama-swap:cuda` appears 3x in Quadlets + 02-cuda.list — float to the family-latest + SBOM record; ensure all 3 refs resolve identically.
+**Where:** Quadlets, `plan.d/02-cuda.list`, SBOM.
+**Done When:** one floated llama-swap ref everywhere.
+
+## AGY-471  (WS-CODEMODE, P3) — code_mode default-on release note + operator toggle doc
+**What:** document that code_mode ships ON by default now (operator directive) + how to gate it off (`[code_mode].enable=false` or an /etc drop-in); note the sandbox guarantees (AGY-412).
+**Where:** `usr/share/doc/mios/`, release notes.
+**Done When:** the default-on change is documented for operators.
+
+## AGY-472  (WS-FBM, P3) — bound-images firstboot: wire [ai].firstboot_bound_images
+**What:** mios-bound-images-firstboot is dormant (empty list). Populate a sensible default set (the heavy sidecars evicted to firstboot) so a >=16GB host auto-pulls them at first boot; degrade-open.
+**Where:** `mios.toml [ai].firstboot_bound_images`, `mios-bound-images-firstboot`.
+**Done When:** a fresh dGPU host firstboot-pulls the heavy tier.
+
+## AGY-473  (WS-INSTALL, P3) — mios mon: global tracking of ALL mios-* functions/services
+**What:** `mios mon` should track EVERY mios-* unit/timer/firstboot/agent + the publish status (AGY-450) in one live view (operator directive "mios mon GLOBALLY TRACKING ALL MIOS RELATED FUNCTIONS").
+**Where:** `usr/libexec/mios/mios-mon` (or the mon backend), `usr/bin/mios`.
+**Done When:** mios mon shows all mios-* state + publish status live.
+
+## AGY-474  (WS-NUMBER, P3) — log labels carry the unified number everywhere
+**What:** every pipeline log line (bash/py/ps1) carries its unified 0-99 number (AGY-428) via the shared logger so a log line is globally traceable to its script/stage/check.
+**Where:** the shared loggers, consumers.
+**Done When:** every emitted log line is number-tagged.
+
+## AGY-475  (WS-CLEAN, P3) — Justfile artifact recipes SSOT output-dir conformance
+**What:** ensure every new `just` artifact recipe (build-iso, build-vhdx, vendored-size, etc.) writes under the SSOT output dir (`build/`, check-90) so the artifact-dir gate stays green.
+**Where:** `Justfile`, check-90.
+**Done When:** all artifact recipes honor the SSOT output dir.
+
+## AGY-476  (WS-SEC, P3) — no soft-mode / drift-gate bypass committed
+**What:** verify no soft-mode override or drift-gate bypass leaks into CI/build (check-78); the day-0 publish added a persistent service + Windows task — ensure none of that path can disable the gate.
+**Where:** CI, publish path, check-78.
+**Done When:** check-78 green; no bypass path exists.
+
+## AGY-477  (WS-ROADMAP, P3) — FOSS upstream adopt-now sweep (bootc/BIB, Ventoy, /v1 backends, MCP gateways, Quickshell)
+**What:** from the FOSS-upstream map, land the adopt-now items not yet wired (offline `bootc install --transport oci` [AGY-417], MCP gateway config, Quickshell shell [AGY-440]); note Bluefin/Bluespeed/elizaOS as comparators.
+**Where:** relevant lanes, `docs/mios-foss-upstream-map`.
+**Done When:** the adopt-now list is either landed or explicitly deferred with reason.
+
+## AGY-478  (WS-TESTDOC, P2) — keep the full 372..477 batch drift-green as it lands
+**What:** as each task lands, keep `just drift-gate` + the negatives suite green; this meta-task tracks that the batch never leaves main red. Re-check after every commit.
+**Where:** whole tree.
+**Done When:** the batch is fully landed with main green throughout.
+
+---
+> **BATCH TOTAL: AGY-372..478 = 107 tasks** (>100, per operator directive 2026-07-31). Priorities: P0 = AGY-436 (rotate PAT). P1 = OFFL vendoring (372-377), always-latest resolver+gate (384/390), consolidation base+web+budget (394/395/399), resumable layers (403), bare-metal+ISO (417/418), version-bump (448). Everything else P2/P3.
