@@ -63,7 +63,7 @@
     },
     {
       "description": "Write a PYTHON snippet that ORCHESTRATES MULTIPLE MiOS verbs programmatically instead of emitting one verb call at a time: `import mios_tools` exposes the verb surface (mios_tools.web_search(...), .system_status(), .call('<verb>', ...)). Runs in a rootless podman sandbox (no network, read-only, dropped caps). Use when a task needs several tool calls glued with logic/loops -- NOT for a one-off shell command (run_sandboxed_code).",
-      "hidden": true,
+      "hidden": false,
       "model_name": "run_python_tool_script",
       "name": "code_mode",
       "permission": "interactive",

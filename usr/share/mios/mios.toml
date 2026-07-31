@@ -2671,7 +2671,7 @@ antifab_ground_min = 0.34
 # CLOSED: code execution only runs when enable=true AND the sandbox is present.
 # Read directly by the agent-pipe + mios-coderun-codemode via [code_mode].
 [code_mode]
-enable           = false   # master gate -- code execution is OFF until an /etc drop-in flips this
+enable           = true    # master gate -- code execution ENABLED by default (per operator directive); set false (or an /etc drop-in) to gate off
 heavy_lane_only  = true    # P5: code_mode (model authors orchestration python) runs ONLY in the heavy native-loop orchestrator, never a light swarm worker (worker emitting code_mode is refused). MIOS_CODE_MODE_HEAVY_ONLY overrides.
 allow_net        = false   # even if a snippet requests net, deploy must also allow it (AND of the two)
 max_output_chars = 8000    # cap on snippet stdout/stderr fed back to the model
@@ -4914,7 +4914,6 @@ cmd        = "mios-coderun --code {code!} {lang?--lang} --timeout {timeout=60}"
   aliases = ["timeout_s", "max_seconds"]
 
 [verbs.code_mode]
-hidden = true
 section    = "OS shell verbs"
 sig        = "code, lang=python?, net?, timeout=60?"
 desc       = "Write a PYTHON snippet that ORCHESTRATES MULTIPLE MiOS verbs programmatically instead of emitting one verb call at a time: `import mios_tools` exposes the verb surface (mios_tools.web_search(...), .system_status(), .call('<verb>', ...)). Runs in a rootless podman sandbox (no network, read-only, dropped caps). Use when a task needs several tool calls glued with logic/loops -- NOT for a one-off shell command (run_sandboxed_code)."
