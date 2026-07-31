@@ -100,12 +100,12 @@
 | T-092 | P3 | done | Storage/Reliability | STRG-09 -- CephFS Greenboot Health Checks |
 | T-093 | P3 | done | Storage/CI | STRG-10 -- CephFS SSOT Drift-Check + Documentation |
 | T-094 | P2 | done-by-code | Config/Arch | CONV-01 -- [converge] SSOT Block in mios.toml |
-| T-095 | P2 | partial | Orchestration/Python | CONV-02 -- GatewayQueue Module + GatewayWorker + smolagents Wiri |
-| T-096 | P2 | partial | Testing | CONV-03 -- GatewayQueue Test Suite |
-| T-097 | P2 | partial | Inference/Performance | CONV-04 -- llama-swap Shared Prefix Cache + Parallel Slots |
+| T-095 | P2 | done-by-code | Orchestration/Python | CONV-02 -- GatewayQueue Module + GatewayWorker + smolagents Wiri |
+| T-096 | P2 | done-by-code | Testing | CONV-03 -- GatewayQueue Test Suite |
+| T-097 | P2 | done-by-code | Inference/Performance | CONV-04 -- llama-swap Shared Prefix Cache + Parallel Slots |
 | T-098 | P2 | done-by-code | Inference/vLLM | CONV-05 -- vLLM Multi-LoRA Heavy Lane Upgrade |
 | T-099 | P2 | done-by-code | API/Inference | CONV-06 -- LoRA Load/List API Endpoints in agent-pipe |
-| T-100 | P2 | partial | Docs/Migration | CONV-07 -- mios-llm-heavy-alt Retirement Documentation |
+| T-100 | P2 | done | Docs/Migration | CONV-07 -- mios-llm-heavy-alt Retirement Documentation |
 | T-101 | P2 | done-by-code | Memory/Python | CONV-08 -- sqlite-vec Scratchpad Module |
 | T-102 | P2 | done-by-code | Memory/Storage | CONV-09 -- Cold Eviction Module + zstd Export |
 | T-103 | P2 | done-by-code | Orchestration/Memory | CONV-10 -- sqlite-vec Scratchpad Wired into GatewayWorker |
@@ -2414,7 +2414,7 @@ T-084 (STRG-01 SSOT)
 ---
 
 ## T-095: CONV-02 -- GatewayQueue Module + GatewayWorker + smolagents Wiring
-> **Priority:** P2 | **Status:** partial | **Effort:** L | **Domain:** Orchestration/Python | **Source:** Part 10 Â§10.1.3, Â§10.1.4 -- done-by-code: GatewayQueue + GatewayWorker + HTTP fallback (247476f, a62520f).
+> **Priority:** P2 | **Status:** done-by-code | **Effort:** L | **Domain:** Orchestration/Python | **Source:** Part 10 Â§10.1.3, Â§10.1.4 -- done-by-code: GatewayQueue + GatewayWorker + HTTP fallback (247476f, a62520f).
 
 **Context:** The :8640 â†’ :8642 HTTP hop is replaced by an in-process `asyncio.Queue` producer-consumer seam. The `GatewayWorker` task consumes from the queue and runs `smolagents.ToolCallingAgent` against the `mios_capreg` tool registry. Degrade-open: `MIOS_CONV_GATEWAY_MODE=http` re-enables the legacy HTTP path at any time.
 
@@ -2445,7 +2445,7 @@ T-084 (STRG-01 SSOT)
 ---
 
 ## T-096: CONV-03 -- GatewayQueue Test Suite
-> **Priority:** P2 | **Status:** partial | **Effort:** M | **Domain:** Testing | **Source:** Part 10 Â§10.6 Phase 1 -- done-by-code: test_mios_gateway_queue.py (247476f).
+> **Priority:** P2 | **Status:** done-by-code | **Effort:** M | **Domain:** Testing | **Source:** Part 10 Â§10.6 Phase 1 -- done-by-code: test_mios_gateway_queue.py (247476f).
 
 **Instructions:**
 1. Create `usr/lib/mios/agent-pipe/test_mios_gateway_queue.py`. Tests (all pass without a running llama-server or pgvector):
@@ -2471,7 +2471,7 @@ T-084 (STRG-01 SSOT)
 ---
 
 ## T-097: CONV-04 -- llama-swap Shared Prefix Cache + Parallel Slots
-> **Priority:** P2 | **Status:** partial | **Effort:** S | **Domain:** Inference/Performance | **Source:** Part 10 Â§10.2.2, Â§10.2.4 -- done-by-code: cache-reuse + parallel slots in llama-swap config (31a7973).
+> **Priority:** P2 | **Status:** done-by-code | **Effort:** S | **Domain:** Inference/Performance | **Source:** Part 10 Â§10.2.2, Â§10.2.4 -- done-by-code: cache-reuse + parallel slots in llama-swap config (31a7973).
 
 **Context:** Adding `--cache-reuse 256` and `--np 4` to the granite4.1:8b and lfm2:700m entries in `mios-llm-light.yaml` enables shared KV prefix caching across parallel slots, reducing TTFT by 30â€“60% on system-prompt-heavy agent turns. Gate: `[converge.inference].llama_cache_reuse_tokens > 0`.
 
@@ -2555,7 +2555,7 @@ T-084 (STRG-01 SSOT)
 ---
 
 ## T-100: CONV-07 -- mios-llm-heavy-alt Retirement Documentation
-> **Priority:** P2 | **Status:** partial | **Effort:** S | **Domain:** Docs/Migration | **Source:** Part 10 Â§10.6 Phase 2 -- done-by-code: inference-consolidation.md guide (31a7973).
+> **Priority:** P2 | **Status:** done | **Effort:** S | **Domain:** Docs/Migration | **Source:** Part 10 Â§10.6 Phase 2 -- done-by-code: inference-consolidation.md guide (31a7973).
 
 **Instructions:**
 1. Create `usr/share/doc/mios/guides/inference-consolidation.md`. Cover:
