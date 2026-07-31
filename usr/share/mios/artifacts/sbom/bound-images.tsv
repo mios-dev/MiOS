@@ -9,7 +9,7 @@ codeberg.org/forgejo/forgejo:12	local	extra
 code.forgejo.org/forgejo/runner:7	local	extra
 docker.io/guacamole/guacamole:latest	local	extra
 docker.io/guacamole/guacd:latest	local	extra
-docker.io/rancher/k3s:v1.32.1-k3s1	local	extra
+docker.io/rancher/k3s:v1.36.2-k3s1	local	extra
 docker.io/lmsysorg/sglang:latest	local	sys
 docker.io/vllm/vllm-openai:latest	local	extra
 ghcr.io/open-webui/open-webui:main	local	extra

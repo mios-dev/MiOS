@@ -504,4 +504,3 @@ new type name:
 vendored-size:
     @echo "[vendored-size] Reporting total size of usr/share/mios/vendored/..."
     @du -sh usr/share/mios/vendored/* 2>/dev/null || du -sh usr/share/mios/vendored 2>/dev/null || echo "vendored dir clean"
-
