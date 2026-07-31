@@ -66,6 +66,11 @@ RUN chmod 0755 /usr/local/bin/exec-init
 # Workspace + scratch -- bind-mounted from the host by the Quadlet.
 RUN mkdir -p /work /work-upper && chmod 0755 /work /work-upper
 
+# Code Mode integration (T-061)
+ENV MIOS_CODEMODE_SOCKET=/run/coderun.sock
+ENV PYTHONPATH=/usr/local/lib/mios
+COPY mios_tools.py /usr/local/lib/mios/mios_tools.py
+
 # Default cmd: long-sleep so the container stays alive for `podman
 # exec` from the caller (operator or agent). The Quadlet's Exec= overrides this if the
 # operator wants a different listener (e.g. a unix-socket-listening
