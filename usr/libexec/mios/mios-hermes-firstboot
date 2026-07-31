@@ -163,13 +163,15 @@ _AI_MODEL_RESOLVED="$_AI_MODEL_DEFAULT"
 if [[ "$_overlaid" -eq 1 ]]; then
     _log "operator overlay sets [ai].model=${_AI_MODEL_RESOLVED} -- skipping auto-pick"
 else
+    _big_vram="$(_mios_toml_value 'ai.host_thresholds' 'big_vram_gb' '16')"
     _mid_vram="$(_mios_toml_value 'ai.host_thresholds' 'mid_vram_gb' '8')"
-    # Auto-pick only EVER picks small or mid. big_ram_model requires
-    # explicit operator opt-in via mios.html (sets [ai].model in
+    # Auto-pick model tier based on GPU VRAM.
+    # Operators can still override via mios.html (sets [ai].model in
     # /etc/mios/mios.toml, triggering the _overlaid=1 branch above).
-    # Per operator directive, even a 24GB+ VRAM host stays on small
-    # unless mios.html promotes -- VRAM-promote stops at mid.
-    if (( _vram_gb >= _mid_vram )); then
+    if (( _vram_gb >= _big_vram )); then
+        _AI_MODEL_RESOLVED="$_big_m"
+        _log "auto-pick: detected GPU VRAM ${_vram_gb} GB >= ${_big_vram} -> big tier ${_AI_MODEL_RESOLVED}"
+    elif (( _vram_gb >= _mid_vram )); then
         _AI_MODEL_RESOLVED="$_mid_m"
         _log "auto-pick: detected GPU VRAM ${_vram_gb} GB >= ${_mid_vram} -> mid tier ${_AI_MODEL_RESOLVED}"
     else

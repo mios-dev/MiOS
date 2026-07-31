@@ -191,6 +191,34 @@ fi
 
 # ── 2b. vLLM model weights (vLLM-NATIVE -- HF download; opt-in, off-by-default) ──
 VLLM_MODEL="${MIOS_VLLM_BAKE_MODEL:-}"
+if [ -z "$VLLM_MODEL" ] && [ -x /usr/libexec/mios/mios-toml-get ]; then
+    _vram_gb=0
+    _nvsmi=""
+    for _c in nvidia-smi /usr/lib/wsl/lib/nvidia-smi /usr/bin/nvidia-smi /opt/cuda/bin/nvidia-smi; do
+        if command -v "$_c" >/dev/null 2>&1; then _nvsmi="$_c"; break; fi
+    done
+    _rocmsmi=""
+    for _c in rocm-smi /opt/rocm/bin/rocm-smi /usr/bin/rocm-smi; do
+        if command -v "$_c" >/dev/null 2>&1; then _rocmsmi="$_c"; break; fi
+    done
+    if [ -n "$_nvsmi" ]; then
+        _vram_mib="$("$_nvsmi" --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null | awk 'BEGIN{m=0} {if ($1+0 > m) m=$1+0} END{print m}')"
+        _vram_gb=$(( ${_vram_mib:-0} / 1024 ))
+    elif [ -n "$_rocmsmi" ]; then
+        _vram_mib="$("$_rocmsmi" --showmeminfo vram --csv 2>/dev/null | awk -F, 'NR>1 {gsub(/[^0-9]/,"",$2); if ($2+0 > m) m=$2+0} END{print m+0}')"
+        _vram_gb=$(( ${_vram_mib:-0} / 1024 / 1024 / 1024 ))
+    fi
+
+    _big_vram="$(/usr/libexec/mios/mios-toml-get ai.host_thresholds big_vram_gb '16')"
+    _mid_vram="$(/usr/libexec/mios/mios-toml-get ai.host_thresholds mid_vram_gb '8')"
+    if [ "$_vram_gb" -ge "$_big_vram" ]; then
+        VLLM_MODEL="$(/usr/libexec/mios/mios-toml-get ai.host_thresholds big_ram_model 'mistral-magistral-small-2509')"
+    elif [ "$_vram_gb" -ge "$_mid_vram" ]; then
+        VLLM_MODEL="$(/usr/libexec/mios/mios-toml-get ai.host_thresholds mid_ram_model 'qwen3.5:9b')"
+    else
+        VLLM_MODEL="$(/usr/libexec/mios/mios-toml-get ai.host_thresholds small_ram_model 'granite4.1:8b')"
+    fi
+fi
 VLLM_DIR="/usr/share/mios/vllm/model"
 if [ -n "$VLLM_MODEL" ] && [ ! -f "/var/lib/mios/.vllm-firstboot-done" ]; then
     install -d -m 0755 "$VLLM_DIR" 2>/dev/null

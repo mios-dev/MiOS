@@ -6361,8 +6361,8 @@ mid_vram_gb       = 8                             # >= this -> auto-promote to m
 big_vram_gb       = 16                            # >= this -> big_ram_model AVAILABLE for explicit picks
 max_cpu_percent   = 85.0                          # CPU load percent ceiling for heavy dispatches
 max_vram_percent  = 90.0                          # GPU VRAM percent ceiling for heavy dispatches
-# NOTE: even on a 24GB+ VRAM host, default stays CPU-tier unless the
-# operator opts in via mios.html. Auto-promotion stops at mid.
+# NOTE: auto-promotion now climbs to the big tier when detected VRAM >=
+# big_vram_gb (operator directive); mios.html can still override to any pick.
 
 # Legacy *_ram_gb names retained for build-mios.ps1 backwards-compat
 # (they map onto the new vram-based logic at build time).
@@ -6393,9 +6393,9 @@ small_ram_model  = "granite4.1:8b"   # IBM Granite 4.1 8B Q4_K_M (~5.5GB residen
 #     <8GB host, so it does not bloat the 4-set baseline.
 mid_ram_model    = "granite4.1:8b"   # 8-16GB class. qwen3.5:9b retired (Qwen + qwen35 arch blocked on mainline llama.cpp). Granite 4.1 8B at a higher quant (UD-Q5/Q8) + 128k KV uses the mid-tier headroom; same mainline-safe arch, no separate base to bake. (A larger Granite/Gemma can be slotted here once a verified mid-class GGUF is pinned.)
 #
-#   big_ram_model -- 16GB+ dGPU class. The LARGE model for dGPU deployments
-#. NEVER auto-deployed on the lean box -- gated by
-#     big_vram_gb (16) and only on an EXPLICIT operator pick / a dGPU profile,
+#   big_ram_model -- 16GB+ dGPU class. The LARGE model for dGPU deployments.
+#     Auto-deployed at first boot when detected VRAM >= big_vram_gb (16)
+#     (operator directive); mios.html can still override to any explicit pick,
 #     so the single-box 4-set is untouched. The role Modelfiles are base-
 #     agnostic (the pipe injects the MiOS contract + global tools at runtime,
 #     agent-contract.md: "Whatever your size, model, or lane..."), so the SAME
