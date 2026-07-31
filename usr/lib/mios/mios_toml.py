@@ -344,8 +344,9 @@ def get_aliases(dotted_path):
         else:
             aliases.append(f"MIOS_{name}")
 
-    elif dotted_path.startswith("pgvector."):
-        name = dotted_path[len("pgvector."):].upper()
+    elif dotted_path.startswith("pgvector.") or dotted_path.startswith("pg."):
+        prefix_len = len("pgvector.") if dotted_path.startswith("pgvector.") else len("pg.")
+        name = dotted_path[prefix_len:].upper()
         if name == "DB_BACKEND":
             aliases.append("MIOS_DB_BACKEND")
         elif name == "RLS_ENABLE":
