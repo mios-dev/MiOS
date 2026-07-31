@@ -27,10 +27,16 @@ if [[ -z "${K3S_SELINUX_TAG:-}" ]]; then
 fi
 record_version k3s-selinux "$K3S_SELINUX_TAG" "https://github.com/k3s-io/k3s-selinux/tree/${K3S_SELINUX_TAG}"
 
-mios_log "cloning k3s-selinux at ${K3S_SELINUX_TAG}"
-git clone --depth 1 --branch "${K3S_SELINUX_TAG}" \
-    "$K3S_SELINUX_REPO" /tmp/k3s-selinux 2>/dev/null \
-    || git clone --depth 1 "$K3S_SELINUX_REPO" /tmp/k3s-selinux
+if [ -f "/usr/share/mios/vendored/k3s/k3s-selinux.tar.gz" ]; then
+    mios_log "offline vendored k3s-selinux.tar.gz found"
+    mkdir -p /tmp/k3s-selinux
+    tar -xf "/usr/share/mios/vendored/k3s/k3s-selinux.tar.gz" -C /tmp/k3s-selinux --strip-components=1 2>/dev/null || true
+else
+    mios_log "cloning k3s-selinux at ${K3S_SELINUX_TAG}"
+    git clone --depth 1 --branch "${K3S_SELINUX_TAG}" \
+        "$K3S_SELINUX_REPO" /tmp/k3s-selinux 2>/dev/null \
+        || git clone --depth 1 "$K3S_SELINUX_REPO" /tmp/k3s-selinux
+fi
 
 cd /tmp/k3s-selinux
 

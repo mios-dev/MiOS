@@ -51,7 +51,31 @@ mios_log "add Fedora 44 repository"
 #   - gpgcheck=1      : individual *packages* still verified by RPM signature.
 #   - skip_if_unavailable=True : when F44 mirrors are intermittently down,
 #     fall back to F43 (base image) instead of breaking the whole build.
-cat > /etc/yum.repos.d/fedora-44.repo <<EOREPO
+if [ -d "/usr/share/mios/vendored/rpms" ] && [[ "${MIOS_ONLINE_BUILD:-0}" != "1" ]]; then
+    mios_log "using local vendored RPM mirror for Fedora 44"
+    cat > /etc/yum.repos.d/fedora-44.repo <<EOREPO
+[fedora-44]
+name=Fedora 44 - \$basearch
+baseurl=file:///usr/share/mios/vendored/rpms/fedora-44/\$basearch
+enabled=1
+repo_gpgcheck=0
+type=rpm
+gpgcheck=0
+skip_if_unavailable=True
+priority=95
+
+[fedora-44-updates]
+name=Fedora 44 Updates - \$basearch
+baseurl=file:///usr/share/mios/vendored/rpms/updates-released-f44/\$basearch
+enabled=1
+repo_gpgcheck=0
+type=rpm
+gpgcheck=0
+skip_if_unavailable=True
+priority=95
+EOREPO
+else
+    cat > /etc/yum.repos.d/fedora-44.repo <<EOREPO
 [fedora-44]
 name=Fedora 44 - \$basearch
 metalink=https://mirrors.fedoraproject.org/metalink?repo=fedora-44&arch=\$basearch
@@ -82,6 +106,7 @@ minrate=1k
 max_parallel_downloads=10
 ip_resolve=4
 EOREPO
+fi
 
 mios_step "Phase 1: pre-upgrade core systemd/filesystem"
 # -best dropped per audit on the F44↔ucore boundary --best can

@@ -39,7 +39,11 @@ source "${SCRIPT_DIR}/lib/common.sh"
 # ── Geist (Vercel) ────────────────────────────────────────────────────
 mios_log "installing Geist font family from Vercel"
 mkdir -p /usr/share/fonts/geist
-if [ -f "/usr/share/mios/vendored/geist-font.zip" ]; then
+if [ -f "/usr/share/mios/vendored/fonts/geist.tar.xz" ]; then
+    mios_log "found offline vendored geist.tar.xz, extracting"
+    mkdir -p /tmp/geist-font
+    tar -xf "/usr/share/mios/vendored/fonts/geist.tar.xz" -C /tmp/geist-font 2>/dev/null || true
+elif [ -f "/usr/share/mios/vendored/geist-font.zip" ]; then
     mios_log "found offline vendored geist-font.zip, extracting"
     mkdir -p /tmp/geist-font
     unzip -o -q /usr/share/mios/vendored/geist-font.zip -d /tmp/geist-font 2>/dev/null || true
@@ -83,7 +87,11 @@ record_version nerd-symbols-font "$NERD_TAG" \
 if command -v unzip >/dev/null 2>&1; then
     NERD_URL="https://github.com/ryanoasis/nerd-fonts/releases/download/${NERD_TAG}/NerdFontsSymbolsOnly.zip"
     download_ok=false
-    if [ -f "/usr/share/mios/vendored/NerdFontsSymbolsOnly.zip" ]; then
+    if [ -f "/usr/share/mios/vendored/fonts/nerd.tar.xz" ]; then
+        mios_log "found offline vendored nerd.tar.xz, using it"
+        tar -xf "/usr/share/mios/vendored/fonts/nerd.tar.xz" -C /usr/share/fonts/nerd-symbols 2>/dev/null || true
+        download_ok=true
+    elif [ -f "/usr/share/mios/vendored/NerdFontsSymbolsOnly.zip" ]; then
         mios_log "found offline vendored NerdFontsSymbolsOnly.zip, using it"
         cp /usr/share/mios/vendored/NerdFontsSymbolsOnly.zip /tmp/nerd-symbols.zip
         download_ok=true
@@ -96,7 +104,9 @@ if command -v unzip >/dev/null 2>&1; then
     fi
 
     if [ "$download_ok" = true ]; then
-        unzip -o -q /tmp/nerd-symbols.zip "*.ttf" "*.otf" -d /usr/share/fonts/nerd-symbols 2>/dev/null || true
+        if [ -f /tmp/nerd-symbols.zip ]; then
+            unzip -o -q /tmp/nerd-symbols.zip "*.ttf" "*.otf" -d /usr/share/fonts/nerd-symbols 2>/dev/null || true
+        fi
 
         # Record to binaries SBOM (RELTOP-01 / T-251)
         sbom_dir="/usr/share/mios/artifacts/sbom"

@@ -74,7 +74,11 @@ for entry in "${_entries[@]}"; do
     # (follow the CDN redirect), -C - (resume a partial .part). Download to a
     # .part + atomic rename so a truncated file never trips the .ready gate.
     _url="https://huggingface.co/${repo}/resolve/main/${file}"
-    if curl -fL -C - --retry 3 --max-time 1800 \
+    if [ -f "/usr/share/mios/vendored/models/${dest}" ]; then
+        mios_log "found offline vendored model ${dest}, using it"
+        cp "/usr/share/mios/vendored/models/${dest}" "${SEED_DIR}/${dest}"
+        baked=$((baked + 1))
+    elif curl -fL -C - --retry 3 --max-time 1800 \
             -o "${SEED_DIR}/${dest}.part" "$_url" \
        && [[ -s "${SEED_DIR}/${dest}.part" ]]; then
         mv -f "${SEED_DIR}/${dest}.part" "${SEED_DIR}/${dest}"

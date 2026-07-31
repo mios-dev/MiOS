@@ -127,14 +127,14 @@ if [ -d "/usr/share/mios/vendored/hermes-agent" ]; then
 elif [ -f "/usr/share/mios/vendored/hermes-agent.zip" ]; then
     mios_log "found offline vendored hermes-agent.zip, extracting"
     unzip -o -q /usr/share/mios/vendored/hermes-agent.zip -d /tmp/hermes-agent-src 2>/dev/null || true
-    LOCAL_SOURCE="/tmp/hermes-agent-src"
+    LOCAL_SOURCE="/tmp/hermes-agent-src/hermes-agent"
 elif [ -f "/usr/share/mios/vendored/hermes_agent.whl" ]; then
     mios_log "found offline vendored hermes_agent.whl"
     LOCAL_SOURCE="/usr/share/mios/vendored/hermes_agent.whl"
 fi
 
 if [ -n "$LOCAL_SOURCE" ]; then
-    PIP_OFFLINE_ARGS="--no-index --find-links=/usr/share/mios/vendored/"
+    PIP_OFFLINE_ARGS="--no-index --find-links=/usr/share/mios/vendored/wheels/"
     INSTALL_TARGET="-e $LOCAL_SOURCE"
 else
     if [ ! -d "${VENV_ROOT}/.git" ]; then
@@ -144,8 +144,11 @@ else
             git clone "${HERMES_REPO}" "${VENV_ROOT}" 2>/dev/null || true
     fi
     INSTALL_TARGET="-e ${VENV_ROOT}"
-    if [ -d "/usr/share/mios/vendored" ]; then
-        PIP_OFFLINE_ARGS="--find-links=/usr/share/mios/vendored/"
+    if [ -d "/usr/share/mios/vendored/wheels" ]; then
+        PIP_OFFLINE_ARGS="--find-links=/usr/share/mios/vendored/wheels/"
+        if [[ "${MIOS_ONLINE_BUILD:-0}" != "1" ]]; then
+            PIP_OFFLINE_ARGS="--no-index --find-links=/usr/share/mios/vendored/wheels/"
+        fi
     fi
 fi
 

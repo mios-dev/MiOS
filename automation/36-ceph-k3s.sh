@@ -40,7 +40,7 @@ install_packages "k3s"
 mios_log "resolve K3s release tag from mios.toml SSOT (MIOS_K3S_VERSION)"
 # Offline check: do we have local k3s files?
 USE_OFFLINE=false
-if [ -f "/usr/share/mios/vendored/k3s" ] && [ -f "/usr/share/mios/vendored/k3s-install.sh" ]; then
+if [ -f "/usr/share/mios/vendored/k3s/k3s" ]; then
     mios_log "offline vendored K3s files found"
     USE_OFFLINE=true
     K3S_TAG="vendored"
@@ -61,12 +61,16 @@ if [[ -n "$K3S_TAG" ]]; then
 
     mkdir -p /tmp/k3s-dl
     if [ "$USE_OFFLINE" = true ]; then
-        cp /usr/share/mios/vendored/k3s /tmp/k3s-dl/k3s
-        cp /usr/share/mios/vendored/k3s-install.sh /tmp/k3s-dl/k3s-install.sh
-        if [ -f "/usr/share/mios/vendored/sha256sum-amd64.txt" ]; then
-            cp /usr/share/mios/vendored/sha256sum-amd64.txt /tmp/k3s-dl/sha256sum.txt
+        cp /usr/share/mios/vendored/k3s/k3s /tmp/k3s-dl/k3s
+        if [ -f "/usr/share/mios/vendored/k3s/k3s-install.sh" ]; then
+            cp /usr/share/mios/vendored/k3s/k3s-install.sh /tmp/k3s-dl/k3s-install.sh
         else
-            local_sum=$(sha256sum /usr/share/mios/vendored/k3s | awk '{print $1}')
+            echo '#!/bin/sh' > /tmp/k3s-dl/k3s-install.sh
+        fi
+        if [ -f "/usr/share/mios/vendored/k3s/sha256sum-amd64.txt" ]; then
+            cp /usr/share/mios/vendored/k3s/sha256sum-amd64.txt /tmp/k3s-dl/sha256sum.txt
+        else
+            local_sum=$(sha256sum /usr/share/mios/vendored/k3s/k3s | awk '{print $1}')
             echo "${local_sum}  k3s" > /tmp/k3s-dl/sha256sum.txt
         fi
         download_ok=true

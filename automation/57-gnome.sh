@@ -97,9 +97,16 @@ BIBATA_OK=0
 _bibata_sum_default="https://github.com/ful1e5/Bibata_Cursor/releases/download/v{}/sha256-{}.txt"
 BIBATA_SUM_URL="${MIOS_URL_BIBATA_SUM:-$_bibata_sum_default}"
 BIBATA_SUM_URL="${BIBATA_SUM_URL//"{}"/${BIBATA_VER}}"
-for attempt in 1 2 3; do
-    mios_log "download attempt $attempt/3"
-    if scurl -fSL --connect-timeout 20 --max-time 120 --retry 2 --retry-delay 5 "$BIBATA_URL" -o /tmp/bibata.tar.xz; then
+
+if [ -f "/usr/share/mios/vendored/cursors/bibata.tar.xz" ]; then
+    mios_log "found offline vendored bibata.tar.xz, extracting"
+    if tar -xf "/usr/share/mios/vendored/cursors/bibata.tar.xz" -C /usr/share/icons/; then
+        BIBATA_OK=1
+    fi
+else
+    for attempt in 1 2 3; do
+        mios_log "download attempt $attempt/3"
+        if scurl -fSL --connect-timeout 20 --max-time 120 --retry 2 --retry-delay 5 "$BIBATA_URL" -o /tmp/bibata.tar.xz; then
         # Attempt sha256 verification -- non-fatal if sidecar unavailable
         if scurl -fsSL --connect-timeout 15 --max-time 30 "$BIBATA_SUM_URL" -o /tmp/bibata.sha256 2>/dev/null; then
             if (cd /tmp && grep "Bibata-Modern-Classic.tar.xz" bibata.sha256 | sha256sum -c -) 2>/dev/null; then
@@ -126,9 +133,10 @@ for attempt in 1 2 3; do
             break
         fi
     fi
-    mios_warn "attempt $attempt failed, retrying"
-    sleep 5
-done
+        mios_warn "attempt $attempt failed, retrying"
+        sleep 5
+    done
+fi
 
 # VERIFY cursor files actually exist -- FAIL THE BUILD if missing.
 # Operator trace this check had been softened to non-fatal
@@ -177,9 +185,13 @@ chmod +x /usr/local/bin/phosh-session-wrapper 2>/dev/null || true
 # ═════════════════════════════════════════════════════════════════════════════
 mios_log "configure Flatpak remotes"
 if command -v flatpak &>/dev/null; then
-    flatpak remote-add --system --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo || true
-    flatpak remote-add --system --if-not-exists flathub-beta https://flathub.org/beta-repo/flathub-beta.flatpakrepo || true
-    flatpak remote-add --system --if-not-exists gnome-nightly https://nightly.gnome.org/gnome-nightly.flatpakrepo 2>/dev/null || true
+    if [[ "${MIOS_ONLINE_BUILD:-0}" == "1" ]]; then
+        flatpak remote-add --system --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo || true
+        flatpak remote-add --system --if-not-exists flathub-beta https://flathub.org/beta-repo/flathub-beta.flatpakrepo || true
+        flatpak remote-add --system --if-not-exists gnome-nightly https://nightly.gnome.org/gnome-nightly.flatpakrepo 2>/dev/null || true
+    else
+        mios_log "offline build: skipping flatpak remote-add, assuming OCI baked archives"
+    fi
     flatpak remote-modify --system --disable fedora 2>/dev/null || true
 else
     mios_warn "flatpak binary not found, skipping remote configuration"

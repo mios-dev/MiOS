@@ -94,8 +94,13 @@ try_fetch() {
 # Patched WINE/Mesa/miscellaneous packages missing from Fedora + RPM Fusion.
 if [[ ! -f "${REPO_DIR}/terra.repo" ]]; then
     mios_log "enabling Terra repo (fyralabs)"
-    try_fetch "${MIOS_URL_TERRA_REPO:-https://github.com/terrapkg/subatomic-repos/raw/main/terra.repo}" \
-              "${REPO_DIR}/terra.repo" "Terra repo" || true
+    if [[ "${MIOS_ONLINE_BUILD:-0}" == "1" ]] || [[ ! -f "/usr/share/mios/repos/terra.repo" ]]; then
+        try_fetch "${MIOS_URL_TERRA_REPO:-https://github.com/terrapkg/subatomic-repos/raw/main/terra.repo}" \
+                  "${REPO_DIR}/terra.repo" "Terra repo" || true
+    else
+        mios_log "using vendored Terra repo"
+        cp "/usr/share/mios/repos/terra.repo" "${REPO_DIR}/terra.repo"
+    fi
 else
     mios_skip "Terra repo already present"
 fi
