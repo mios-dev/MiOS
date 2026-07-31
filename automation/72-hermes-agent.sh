@@ -160,15 +160,29 @@ fi
 _REQ_FILE="/usr/lib/mios/agent-pipe/requirements.txt"
 _REQ_ARG=""; [ -f "${_REQ_FILE}" ] && _REQ_ARG="-r ${_REQ_FILE}"
 _venv_pip_ok=""
+# Reproducible-first, then index-fallback: attempt 1 uses the (possibly --no-index) offline
+# args so a fully-vendored build stays hermetic; but if the vendored wheels are INCOMPLETE
+# (e.g. aiohttp is not vendored -> "No matching distribution for aiohttp"), attempts 2-3 DROP
+# --no-index so the missing deps resolve from the package index. The build has network here
+# (the venv bootstrap above already pulled setuptools/wheel from PyPI), so this turns a
+# deterministic offline failure into a working online fallback instead of 3 identical retries
+# that misblame "transient network".
+_PIP_ARGS_ONLINE="${PIP_OFFLINE_ARGS//--no-index/}"
 for _venv_attempt in 1 2 3; do
+    _pa="${PIP_OFFLINE_ARGS}"
+    [ "${_venv_attempt}" -ge 2 ] && _pa="${_PIP_ARGS_ONLINE}"
     # shellcheck disable=SC2086
-    if "${VENV_DIR}/bin/pip" install --no-input --disable-pip-version-check --ignore-requires-python --no-build-isolation ${PIP_OFFLINE_ARGS} ${PIP_CONSTRAINTS_ARG} \
+    if "${VENV_DIR}/bin/pip" install --no-input --disable-pip-version-check --ignore-requires-python --no-build-isolation ${_pa} ${PIP_CONSTRAINTS_ARG} \
             ${INSTALL_TARGET} ${_REQ_ARG} \
             aiohttp websockets "discord.py>=2.4,<3" "psycopg[binary]" "firecrawl-py" \
             "smolagents>=1.0.0" "litellm>=1.0.0" "mcp" 2>&1 | tail -8; then
         _venv_pip_ok=1; break
     fi
-    mios_warn "agent-venv pip install attempt ${_venv_attempt}/3 failed (transient network under install load?) -- retrying in $((_venv_attempt*8))s"
+    if [ "${_venv_attempt}" -eq 1 ]; then
+        mios_warn "agent-venv offline install incomplete (vendored wheels missing a dep such as aiohttp) -- retrying WITH index fallback"
+    else
+        mios_warn "agent-venv pip install attempt ${_venv_attempt}/3 failed -- retrying in $((_venv_attempt*8))s"
+    fi
     sleep $((_venv_attempt*8))
 done
 if [ -z "${_venv_pip_ok}" ]; then
