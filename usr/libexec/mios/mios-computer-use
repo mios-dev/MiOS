@@ -198,6 +198,8 @@ def _route_remote(ep: str, sub: str, args: list[str], as_json: bool) -> int:
             resp = _http_post(ep, "/atspi/query", {"query": args[0]})
             print(json.dumps(resp))
             return 0
+        if sub == "cu_act":
+            return _cu_act(args[0] if args else _die("cu_act needs a query"), args[1] if len(args) > 1 else "left", as_json)
         if sub == "ground":
             resp = _http_post(ep, "/ground", {"query": args[0]})
             print(json.dumps(resp))
@@ -977,6 +979,66 @@ def _ground(query, as_json) -> int:
     return out.returncode
 
 
+
+def _cu_act(query: str, button: str, as_json: bool) -> int:
+    import tempfile
+    import subprocess
+    import json
+    import os
+
+    # 1. Ground
+    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tf:
+        shot = tf.name
+    try:
+        if _capture(shot) != 0:
+            _die("cu_act: capture failed")
+        
+        # We invoke mios-pc-vision directly to get JSON
+        out = subprocess.run(["mios-pc-vision", shot, query], capture_output=True, text=True)
+        if out.returncode != 0:
+            sys.stderr.write(out.stderr)
+            _die(f"cu_act: ground failed for '{query}'")
+        try:
+            res = json.loads(out.stdout)
+        except Exception:
+            _die(f"cu_act: invalid json from mios-pc-vision: {out.stdout}")
+        
+        x, y = res.get("x", -1), res.get("y", -1)
+        if x < 0 or y < 0:
+            res["ok"] = False
+            res["reasoning"] = f"cu_act: could not locate '{query}'"
+            print(json.dumps(res))
+            return 1
+            
+        # 2. Click
+        _do_input("click", [str(x), str(y), button])
+        
+        # 3. Verify
+        verify_enabled = _toml_layered("computer_use", "verify_after_act")
+        if verify_enabled:
+            # Short wait for UI to update
+            import time
+            time.sleep(1.0)
+            v_out = subprocess.run(["mios-cu-verify", f"was '{query}' successfully clicked and did the screen update?", "--json"], capture_output=True, text=True)
+            if v_out.returncode != 0:
+                sys.stderr.write(v_out.stderr)
+                _die("cu_act: verify failed")
+            v_res = json.loads(v_out.stdout)
+            res["verify"] = v_res
+            res["ok"] = v_res.get("ok", False)
+        else:
+            res["verify"] = {"ok": True, "reasoning": "verify_after_act is false"}
+            res["ok"] = True
+            
+        if as_json:
+            print(json.dumps(res))
+        return 0 if res["ok"] else 1
+    finally:
+        try:
+            os.unlink(shot)
+        except OSError:
+            pass
+
 # ── WSL delegation ────────────────────────────────────────────────────────────
 def _delegate_pc_control(sub, args, as_json) -> int:
     if not shutil.which("mios-pc-control"):
@@ -1026,6 +1088,8 @@ def main() -> int:
             return _capture(args[0] if args else _die("screenshot needs <out-path>"))
         if sub == "atspi-query":
             return _atspi_query(args[0] if args else _die("atspi-query needs a query"), as_json)
+        if sub == "cu_act":
+            return _cu_act(args[0] if args else _die("cu_act needs a query"), args[1] if len(args) > 1 else "left", as_json)
         if sub == "ground":
             return _ground(args[0] if args else _die("ground needs a query"), as_json)
         if sub in INPUT_ACTIONS:

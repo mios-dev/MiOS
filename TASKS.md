@@ -43,7 +43,7 @@
 | T-035 | P2 | done | Memory | MEM-02 -- Self-Editing Tiered Memory (MemGPT-style) |
 | T-036 | P2 | done | Memory/Context | MEM-03 -- Context Compaction + Stale Tool Result Clearing |
 | T-037 | P2 | done | Security/Orchestration | SEC-04 -- Per-Agent Access Control + HITL at MCP Chokepoint |
-| T-038 | P2 | partial | Computer Use | CU-01 -- Computer-Use Action Hierarchy + Verify-After-Action |
+| T-038 | P2 | done-by-code | Computer Use | CU-01 -- Computer-Use Action Hierarchy + Verify-After-Action |
 | T-039 | P2 | done | Observability/Reliability | OBS-02 -- AIOS-Bench Harness (Task Accuracy x Systems Metrics) |
 | T-040 | P2 | done | Observability | OBS-03 -- Record-and-Replay Determinism |
 | T-041 | P2 | done-by-code | Ops/Networking | C3 -- De-publish searxng + Drop Heavy-Alt Stray Port |

@@ -3084,6 +3084,7 @@ executor_endpoint   = ""         # e.g. in /etc/mios: "http://100.x.y.z:11437"
 # delegates to mios-pc-control. ONE verb surface for bare-metal GNOME, WSLg, and
 # remote nodes.
 [computer_use]
+verify_after_act = true
 # Federation: when set + reachable, every cu_* op routes to this remote desktop's
 # mios-computer-use-server (same HTTP contract as the Windows mios-oscontrol-
 # server.ps1). EMPTY in vendor (no personal tailnet host in the public repo);
@@ -4217,6 +4218,36 @@ cmd        = "mios-computer-use screenshot {path}"
   [verbs.cu_screenshot.params.path]
   type = "string"
   aliases = ["out", "file"]
+
+[verbs.cu_verify]
+hidden = true
+section    = "Computer-use"
+sig        = "query"
+desc       = "Visual Definition-of-Done: verify if a UI element or application is visible on the LINUX desktop. Takes a screenshot and asks the vision model. Returns {ok: bool, reasoning: text}. Use this after taking actions to confirm success."
+model_name = "linux_desktop_verify_state"
+examples   = ["verify that the terminal window is open", "check if the submit button is present", "did the 'Save As' dialog appear?"]
+tier = "rare"
+cmd        = "mios-cu-verify {query} --json"
+  [verbs.cu_verify.params.query]
+  type = "string"
+  aliases = ["condition", "expectation"]
+
+[verbs.cu_act]
+hidden = true
+section    = "Computer-use"
+sig        = "query, button="left"?"
+desc       = "All-in-one vision grounding -> click -> verify loop for the LINUX desktop. Finds an element visually (qwen3-vl), clicks it, and verifies the state changed (if verify_after_act=true). Write-class."
+model_name = "linux_desktop_act"
+examples   = ["click the OK button visually", "find and click the red stop sign"]
+tier = "rare"
+permission = "write"
+cmd        = "mios-computer-use cu_act {query} {button} --json"
+  [verbs.cu_act.params.query]
+  type = "string"
+  aliases = ["target", "element", "description"]
+  [verbs.cu_act.params.button]
+  type = "string"
+  aliases = ["btn"]
 
 [verbs.cu_ground]
 hidden = true
@@ -5932,6 +5963,8 @@ gdk_backend        = "x11"        # x11 = route flatpak GTK through XWayland.
 xcursor_path = "~/.local/share/icons:~/.icons:/usr/share/icons:/usr/share/pixmaps"
 
 [ai]
+vision_grounding_enable = true
+vision_grounding_model = "qwen3-vl:4b"
 kernel_dispatch = true
 db_authoritative = false
 rag_hybrid = false

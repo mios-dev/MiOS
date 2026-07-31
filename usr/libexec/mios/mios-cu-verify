@@ -1,0 +1,160 @@
+#!/usr/bin/env python3
+# AI-hint: Visual Definition-of-Done tool for PC-CONTROL. Takes a screenshot and asks the vision model if a specified condition (e.g., "is the terminal open?") is met on screen. Returns {ok: bool, reasoning: text}.
+# AI-related: /usr/share/mios/mios.toml, mios-computer-use, mios-pc-vision
+"""mios-cu-verify -- visual verification of desktop state.
+
+Takes a natural-language description of an expected state (e.g. "terminal is open")
+and asks the local vision LLM (default qwen3-vl:4b) if the state is currently
+true on the screen. Returns JSON:
+
+    {"ok": <bool>, "reasoning": "..."}
+
+USAGE
+    mios-cu-verify "<expectation>" [--json]
+
+CONFIG (resolved per layered mios.toml [ai] priority):
+    [ai]
+    vision_grounding_model = "qwen3-vl:4b"
+    vision_grounding_endpoint = "http://localhost:8450/v1"
+"""
+from __future__ import annotations
+
+import argparse
+import base64
+import json
+import os
+import sys
+import tempfile
+import urllib.request
+import urllib.error
+import subprocess
+from pathlib import Path
+
+DEFAULT_MODEL = "qwen3-vl:4b"
+DEFAULT_ENDPOINT = f"http://localhost:{os.environ.get('MIOS_PORT_LLM_LIGHT', '8450')}/v1"
+DEFAULT_TIMEOUT_S = 60
+
+sys.path.insert(0, os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "..", "lib", "mios"))
+import mios_toml  # noqa: E402
+
+def _toml_layered(section: str, key: str):
+    return mios_toml.get(section, key, None)
+
+def _resolve_config() -> tuple[str, str, bool]:
+    model = (
+        os.environ.get("MIOS_VISION_MODEL")
+        or _toml_layered("ai", "vision_grounding_model")
+        or DEFAULT_MODEL
+    )
+    endpoint = (
+        os.environ.get("MIOS_VISION_ENDPOINT")
+        or _toml_layered("ai", "vision_grounding_endpoint")
+        or DEFAULT_ENDPOINT
+    )
+    enable = _toml_layered("ai", "vision_grounding_enable")
+    if enable is None:
+        enable = False
+    return model, endpoint.rstrip("/"), enable
+
+SYSTEM_PROMPT = """You are a UI verification model. Given a screenshot and a
+natural-language condition, verify if the condition is met on the screen.
+Return ONLY a single-line JSON object:
+
+{"ok": <true or false>, "reasoning": "<one short sentence>"}
+
+Rules:
+- Return ONLY the JSON object, no markdown fences, no extra prose.
+- Be honest. If you cannot see it clearly, return {"ok": false, "reasoning": "not visible"}.
+"""
+
+def verify(image_path: Path, query: str, model: str, endpoint: str) -> dict:
+    if not image_path.is_file():
+        raise FileNotFoundError(f"screenshot not found: {image_path}")
+    image_bytes = image_path.read_bytes()
+    image_b64 = base64.b64encode(image_bytes).decode("ascii")
+    suffix = image_path.suffix.lower().lstrip(".")
+    mime = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg"}.get(suffix, "image/png")
+
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": f"Condition to verify: {query}"},
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:{mime};base64,{image_b64}"},
+                    },
+                ],
+            },
+        ],
+        "max_tokens": 100,
+        "temperature": 0.1,
+        "stream": False,
+    }
+    req = urllib.request.Request(
+        f"{endpoint}/chat/completions",
+        data=json.dumps(payload).encode(),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=DEFAULT_TIMEOUT_S) as r:
+            body = json.loads(r.read())
+    except urllib.error.URLError as e:
+        raise RuntimeError(f"vision endpoint {endpoint} unreachable: {e}") from e
+
+    content = ((body.get("choices") or [{}])[0].get("message") or {}).get("content", "")
+    if not content:
+        raise RuntimeError(f"vision model returned no content: {body!r}")
+
+    import re
+    m = re.search(r"\{[^{}]*\}", content)
+    if not m:
+        raise RuntimeError(f"could not parse JSON from model reply:\n{content}")
+    try:
+        result = json.loads(m.group(0))
+    except json.JSONDecodeError as e:
+        raise RuntimeError(f"bad JSON in model reply: {e}\n{content}") from e
+
+    return {
+        "ok": bool(result.get("ok", False)),
+        "reasoning": str(result.get("reasoning", "")),
+    }
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description="Visual Definition-of-Done for desktop state")
+    ap.add_argument("query", help="Condition to verify on screen")
+    ap.add_argument("--json", action="store_true", help="Always true, for compatibility")
+    args = ap.parse_args()
+
+    model, endpoint, enable = _resolve_config()
+    
+    # "returns {ok:false} honestly when the lane is down (no fabrication)"
+    if not enable:
+        print(json.dumps({"ok": False, "reasoning": "vision_grounding_enable is false"}))
+        return 1
+
+    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tf:
+        shot = tf.name
+
+    try:
+        # Take a screenshot using mios-computer-use
+        subprocess.run(["mios-computer-use", "screenshot", shot], capture_output=True, check=True)
+        result = verify(Path(shot), args.query, model=model, endpoint=endpoint)
+    except Exception as e:
+        result = {"ok": False, "reasoning": f"verify failed: {str(e)}"}
+    finally:
+        try:
+            os.unlink(shot)
+        except OSError:
+            pass
+
+    print(json.dumps(result))
+    return 0 if result.get("ok") else 1
+
+if __name__ == "__main__":
+    sys.exit(main())
