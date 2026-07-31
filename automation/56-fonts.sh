@@ -108,12 +108,20 @@ if command -v unzip >/dev/null 2>&1; then
             unzip -o -q /tmp/nerd-symbols.zip "*.ttf" "*.otf" -d /usr/share/fonts/nerd-symbols 2>/dev/null || true
         fi
 
-        # Record to binaries SBOM (RELTOP-01 / T-251)
+        # Record to binaries SBOM (RELTOP-01 / T-251). Sha the actual asset that was
+        # used -- the vendored nerd.tar.xz path extracts straight to the fonts dir and
+        # never creates /tmp/nerd-symbols.zip, so guard the hash (a bare sha256sum on a
+        # missing file aborts the whole script under `set -euo pipefail`).
         sbom_dir="/usr/share/mios/artifacts/sbom"
         mkdir -p "$sbom_dir"
         sha=""
         if command -v sha256sum >/dev/null 2>&1; then
-            sha="$(sha256sum /tmp/nerd-symbols.zip | awk '{print $1}')"
+            for _asset in /tmp/nerd-symbols.zip /usr/share/mios/vendored/fonts/nerd.tar.xz; do
+                if [ -f "$_asset" ]; then
+                    sha="$(sha256sum "$_asset" | awk '{print $1}')"
+                    break
+                fi
+            done
         fi
         printf '%s\t%s\t%s\n' "NerdFontsSymbolsOnly" "${NERD_TAG}" "${sha:-unknown}" >> "${sbom_dir}/binaries.tsv"
 
