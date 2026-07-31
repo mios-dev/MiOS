@@ -1,0 +1,28 @@
+#!/bin/bash
+# AI-hint: One-command regeneration of every mios.toml-derived SSOT projection the drift-gate verifies
+# (98-drift-checks 8/12): the ai/v1 verb-catalog manifest + the capability manifest. Run after any
+# [verbs.*]/[recipes.*] change so the committed projections never drift from the SSOT (this drift has
+# recurred repeatedly -- a verb lands but the manifests are not regenerated -> red drift-gate). Pure
+# SSOT->file (no DB, no network). Pass a repo root as $1 or MIOS_ROOT to regenerate an uninstalled tree.
+# AI-related: mios-ai-manifest-gen, mios-ai-capabilities-gen, /usr/share/mios/mios.toml, automation/98-drift-checks.sh
+set -euo pipefail
+
+root="${1:-${MIOS_ROOT:-}}"
+libexec="$(dirname "$(readlink -f "$0")")"
+if [[ -n "$root" ]]; then
+    export MIOS_TOML="$root/usr/share/mios/mios.toml"
+    export MIOS_AGENT_PIPE_DIR="$root/usr/lib/mios/agent-pipe"
+    export MIOS_VERB_MANIFEST="$root/usr/share/mios/ai/v1/tools.generated.json"
+    export MIOS_CAPS_OUT="$root/usr/share/mios/ai/v1/capabilities.generated.json"
+    libexec="$root/usr/libexec/mios"
+fi
+
+echo "[ssot-regen] project mios.toml [verbs.*]/[recipes.*] -> ai/v1 manifests"
+python3 "$libexec/mios-ai-manifest-gen"
+python3 "$libexec/mios-ai-capabilities-gen"
+
+echo "[ssot-regen] verify committed == projection"
+python3 "$libexec/mios-ai-manifest-gen" --check
+python3 "$libexec/mios-ai-capabilities-gen" --check
+
+echo "[ssot-regen] ai/v1 manifests in sync with SSOT"
