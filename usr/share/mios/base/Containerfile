@@ -1,0 +1,43 @@
+# AI-hint: The minimal shared Fedora base ('mios-base') that EVERY MiOS service container derives
+# FROM, so containers/storage + composefs deduplicate the base layer ONCE across the whole offline
+# bound-image store instead of pulling ~14 upstream sidecars with ~14 different bases (~60GB). Built
+# from fedora-minimal (microdnf, ~100MB) + the common runtime every MiOS service needs; per-service
+# images add only their small diff on top. This is the keystone of the container-consolidation refactor
+# (WS-CONSOLIDATE): it makes the fat MIOS_BAKE_BOUND_IMAGES=1 store fit a normal builder AND stay
+# offline-complete. NON-HARDCODE: version floats latest (SBOM-not-hardcode, ADR-0003).
+# AI-related: usr/share/mios/sys/Containerfile, usr/share/mios/cuda/Containerfile, usr/libexec/mios/57-mios-sys-build.sh, usr/libexec/mios/mios-bake-group
+# ----------------------------------------------------------------------------
+# Sized from research (wjoekgit0): fedora-minimal ~100MB on-disk / ~32MB compressed (microdnf, no
+# systemd/python by default); UBI-micro distroless is ~2.6x smaller than standard but has NO in-image
+# package manager -- MiOS service builds need microdnf/dnf at build time, so fedora-minimal is the pick.
+ARG MIOS_BASE_IMAGE=registry.fedoraproject.org/fedora-minimal:latest
+FROM ${MIOS_BASE_IMAGE}
+
+LABEL org.opencontainers.image.title="mios-base"
+LABEL org.opencontainers.image.description="MiOS shared minimal Fedora base -- every MiOS service container derives FROM this so the bound-image store dedupes the base once."
+LABEL org.mios.consolidation.role="shared-service-base"
+
+# Common runtime shared by MiOS service containers (kept DELIBERATELY minimal -- per-service deps go
+# in the derived image, not here). weak-deps off + nodocs + purge docs/man/locale so the shared layer
+# stays as small as possible; every byte here is paid ONCE across all derived services (that is the
+# whole point). tini gives derived multi-service images a proper PID1 reaper; shadow-utils lets each
+# service run under its own non-root uid (Law 6 UNPRIVILEGED).
+RUN microdnf -y install \
+        --setopt=install_weak_deps=0 \
+        --setopt=tsflags=nodocs \
+        --setopt=keepcache=0 \
+        ca-certificates tzdata shadow-utils tini glibc-minimal-langpack \
+    && microdnf clean all \
+    && rm -rf /usr/share/doc /usr/share/man /usr/share/info \
+              /usr/share/licenses /usr/share/locale/* /var/cache/* /var/log/* /tmp/* \
+    && :
+
+# Non-root by default; derived images create their own service users and may override.
+# Shared, hardened defaults every MiOS service inherits.
+ENV LANG=C.UTF-8 \
+    TZ=UTC \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1
+
+# Derived MiOS service images (mios-web, mios-data, mios-observ, ...) start FROM localhost/mios-base
+# and add ONLY their service binaries/venvs -- so the store = mios-base (once) + N small diffs.
