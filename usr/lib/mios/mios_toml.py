@@ -353,6 +353,7 @@ def get_aliases(dotted_path):
             aliases.append("MIOS_DB_RLS_ENABLE")
         else:
             aliases.append(f"MIOS_PG_{name}")
+            aliases.append(f"MIOS_PGVECTOR_{name}")
 
     elif dotted_path.startswith("routing.") and not dotted_path.startswith("routing.domains."):
         name = dotted_path[len("routing."):].upper().replace(".", "_")
