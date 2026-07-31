@@ -1,0 +1,101 @@
+#!/usr/bin/env python3
+# AI-hint: FBM CLI -- 'mios models {list,sync}' lists local GGUF models and (re)runs the first-boot
+# model provisioner; reads [ai].firstboot_models from the mios.toml SSOT.
+# AI-related: mios-models-firstboot, mios-models-firstboot.service, /usr/share/mios/mios.toml
+import sys
+import os
+import pathlib
+try:
+    import tomllib
+except ImportError:
+    try:
+        import tomli as tomllib
+    except ImportError:
+        print("ERROR: tomllib or tomli not found")
+        sys.exit(1)
+
+MODELS_DIR = pathlib.Path("/var/lib/mios/llamacpp/models")
+if os.name == 'nt':
+    MODELS_DIR = pathlib.Path("C:/var/lib/mios/llamacpp/models")
+
+def do_list():
+    if not MODELS_DIR.exists():
+        print("No models found.")
+        return
+    print(f"Models in {MODELS_DIR}:")
+    for f in MODELS_DIR.iterdir():
+        if f.is_file() and f.suffix == '.gguf':
+            print(f"  - {f.name} ({f.stat().st_size / (1024*1024):.2f} MB)")
+
+def do_sync():
+    # Call the firstboot provisioner to sync models
+    fb = pathlib.Path("/usr/libexec/mios/mios-models-firstboot")
+    if os.name == 'nt':
+        fb = pathlib.Path("C:/MiOS/usr/libexec/mios/mios-models-firstboot")
+    
+    # Remove sentinel temporarily to force sync
+    sentinel = pathlib.Path("/var/lib/mios/.models-firstboot-done")
+    if os.name == 'nt':
+        sentinel = pathlib.Path("C:/var/lib/mios/.models-firstboot-done")
+    
+    was_present = sentinel.exists()
+    if was_present:
+        sentinel.unlink()
+        
+    print("Running mios-models-firstboot...")
+    os.system(f"python3 {fb}")
+    
+    # Sentinel is written back by the script
+
+def do_add(name):
+    print(f"Adding model {name} (Not implemented in stub)")
+
+def do_rm(name):
+    p = MODELS_DIR / name
+    if p.exists():
+        p.unlink()
+        print(f"Removed {name}")
+    else:
+        print(f"Model {name} not found.")
+
+def do_cache(src_dir):
+    src = pathlib.Path(src_dir)
+    if not src.exists() or not src.is_dir():
+        print(f"Error: {src_dir} is not a valid directory.")
+        sys.exit(1)
+    
+    print(f"Pre-seeding models from {src} to {MODELS_DIR}...")
+    import shutil
+    for f in src.iterdir():
+        if f.is_file() and f.suffix == '.gguf':
+            dest = MODELS_DIR / f.name
+            if not dest.exists():
+                print(f"Copying {f.name}...")
+                shutil.copy2(f, dest)
+            else:
+                print(f"Skipping {f.name}, already exists.")
+    
+    print("Cache pre-seed complete.")
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: mios models {list|sync|add <name>|rm <name>|cache <dir>}")
+        sys.exit(1)
+        
+    cmd = sys.argv[1]
+    if cmd == "list":
+        do_list()
+    elif cmd == "sync":
+        do_sync()
+    elif cmd == "add" and len(sys.argv) > 2:
+        do_add(sys.argv[2])
+    elif cmd == "rm" and len(sys.argv) > 2:
+        do_rm(sys.argv[2])
+    elif cmd == "cache" and len(sys.argv) > 2:
+        do_cache(sys.argv[2])
+    else:
+        print(f"Unknown or incomplete command: {cmd}")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
