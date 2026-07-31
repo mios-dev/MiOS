@@ -818,6 +818,8 @@ etc/profile.d/80-systemd-osc-context.sh
 /src/*
 !/src/autounattend/
 /src/autounattend/*
+!/src/mios-rs/
+!/src/mios-rs/**
 
 
 # Rust build artifacts (Law 14 native tier -- built, never tracked)
