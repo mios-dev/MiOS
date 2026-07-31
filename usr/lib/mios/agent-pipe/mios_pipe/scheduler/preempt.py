@@ -213,7 +213,8 @@ class TokenSliceQueue:
     bookkeeping can never grow without limit even if a caller misses a remove(); a
     turn's coroutine is never affected by eviction (degrade-open). The live token feed
     + the precise gate-relative enqueue/dispatch placement are operator-live-validated;
-    this class owns only the ordering + slice accounting."""
+    this class owns the MLFQ ordering (LRU eviction + contention-gated priority decay)
+    + slice accounting."""
 
     __slots__ = ("_default_slice", "_cap", "_turns", "_seq")
 
@@ -232,13 +233,13 @@ class TokenSliceQueue:
         self._seq = 0
 
     def _evict_if_full(self) -> None:
-        """Bounded-queue backstop: at the cap, drop the OLDEST ready (not-running)
+        """Bounded-queue backstop: at the cap, drop the LEAST RECENTLY USED ready (not-running)
         row so a missed remove() can never leak. Running rows are never evicted; if
-        somehow all rows are running we drop the oldest to honour the bound. This
+        somehow all rows are running we drop the LRU to honour the bound. This
         removes only ADVISORY bookkeeping -- the turn's coroutine is unaffected."""
         if self._cap <= 0 or len(self._turns) < self._cap:
             return
-        for tid, row in self._turns.items():        # insertion order -> oldest first
+        for tid, row in self._turns.items():        # LRU order -> least recent first
             if not row[self._RUNNING]:
                 self._turns.pop(tid, None)
                 return
@@ -256,6 +257,7 @@ class TokenSliceQueue:
         row = self._turns.get(tid)
         if row is not None:
             row[self._PRIO], row[self._BUDGET] = float(priority), budget
+            self._turns.move_to_end(tid)
             return False
         self._evict_if_full()
         self._seq += 1
@@ -290,8 +292,15 @@ class TokenSliceQueue:
         except (TypeError, ValueError):
             return False
         budget = row[self._BUDGET]
+        self._turns.move_to_end(str(task_id))       # mark recently used (LRU tracking)
         if budget > 0 and row[self._USED] >= budget:
             row[self._USED] -= budget               # carry the remainder forward
+            # MLFQ DEMOTION: Autellix-style program-level scheduling.
+            # We decay the turn's priority if it exceeds its slice quantum.
+            # GATED to contention: we only penalize if another turn is waiting
+            # (hurts trivial small-model turns if applied unconditionally).
+            if self.head_priority(exclude=task_id) is not None:
+                row[self._PRIO] = max(0.0, row[self._PRIO] - 1.0)
             return True
         return False
 
@@ -315,6 +324,7 @@ class TokenSliceQueue:
         row = self._turns.get(str(task_id))
         if row is not None:
             row[self._RUNNING] = False
+            self._turns.move_to_end(str(task_id))
 
     def remove(self, task_id: str) -> "Optional[list]":
         """Drop a finished/cancelled turn from the queue (idempotent)."""

@@ -584,8 +584,8 @@ def t_slice_boundary_triggers_reeval():
         p2 = asyncio.run(pre.slice_boundary(task_id="low", priority=1.0, tokens=2))
         check("slice_boundary crossing budget: re-eval preempts (higher queue waiter)",
               p2 is True)
-        check("slice_boundary crossing budget: preempted turn requeued (ready again)",
-              realq.head_priority(exclude="high") == 1.0, f"{realq.stats()}")
+        check("slice_boundary crossing budget: preempted turn requeued (MLFQ decayed priority)",
+              realq.head_priority(exclude="high") == 0.0, f"{realq.stats()}")
     finally:
         _restore_state(snap)
 
