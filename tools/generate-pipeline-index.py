@@ -63,14 +63,14 @@ def main():
             sys.exit(1)
         with open(output_path, "r", encoding="utf-8") as f:
             existing = f.read()
-        if existing != tsv_content:
+        if existing.replace("\r\n", "\n") != tsv_content.replace("\r\n", "\n"):
             sys.stderr.write("ERROR: pipeline-index.tsv is out of sync with automation scripts. Run tools/generate-pipeline-index.py to regenerate.\n")
             sys.exit(1)
         print("PASS: pipeline-index.tsv is in sync.")
         sys.exit(0)
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    with open(output_path, "w", encoding="utf-8") as f:
+    with open(output_path, "w", encoding="utf-8", newline="\n") as f:
         f.write(tsv_content)
 
     print(f"Generated {output_path} with {len(rows)} pipeline stages.")
