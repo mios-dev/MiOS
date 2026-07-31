@@ -62,7 +62,7 @@
 | T-076 | P2 | retired | Memory/Gateway | GWY-01 -- Deploy Letta Server as Memory Complement (Phase 1) |
 | T-077 | P2 | retired | Memory/Orchestration | GWY-02 -- Wire Letta Self-Editing Memory to agent-pipe Verbs (Ph |
 | T-054 | P3 | open | Orchestration | ORCH-06 -- Deterministic Orchestration via Conductor CLI |
-| T-055 | P3 | open | Memory | MEM-04 -- Hindsight Multi-Strategy Memory Engine |
+| T-055 | P3 | done-by-code | Memory | MEM-04 -- Hindsight Multi-Strategy Memory Engine |
 | T-056 | P3 | open | Memory/Scheduling | MEM-05 -- KV Hierarchy + Sleep-Time Consolidation |
 | T-057 | P3 | open | Memory/UX | ORCH-07 -- Personal Knowledge Graph Rich Edges |
 | T-058 | P3 | open | Scheduling | SCHED-03 -- MLFQ Program-Level Scheduler (Autellix-style) [VM] |
@@ -1482,7 +1482,7 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 ---
 
 ## T-055: MEM-04 -- Hindsight Multi-Strategy Memory Engine
-> **Priority:** P3 | **Status:** open | **Effort:** L | **Domain:** Memory | **Source:** WS-H4, Part 3 E.4, Part 5 P10
+> **Priority:** P3 | **Status:** done-by-code | **Effort:** L | **Domain:** Memory | **Source:** WS-H4, Part 3 E.4, Part 5 P10
 
 **Instructions:** Replace legacy MAIA v8.0 runtime pools with MIT-licensed Hindsight inside `mios-pgvector`. Multi-strategy parallel retrieval: semantic vector, BM25 keyword, graph relational, temporal.
 
@@ -1491,7 +1491,7 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Deps:** T-035 (MEM-02).
 
 **Done When:**
-- [ ] `knowledge_search "bootc"` returns results from all 4 retrieval strategies ranked and merged
+- [x] `knowledge_search "bootc"` returns results from all 4 retrieval strategies ranked and merged
 
 ---
 
