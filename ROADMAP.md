@@ -6,9 +6,9 @@
 
 <!-- ROADMAP_ROLLUP_START -->
 ### Workstream Status Rollup
-- **Done**: 24
+- **Done**: 25
 - **Active**: 0
-- **Proposed**: 3
+- **Proposed**: 2
 - **Blocked**: 0
 <!-- ROADMAP_ROLLUP_END -->
 
@@ -22,7 +22,7 @@
 - `WS-MIOSSYS` — MiOS-Sys shared-base consolidation of the sidecar fleet ✅
 - `WS-SBOM` — SBOM-not-hardcode: digests/hashes are build-time provenance, never SSOT literals ✅
 - `WS-DOCS` — Planning-docs refactor: ADR system + generated index ✅
-- `WS-LANG` — Language-per-domain unification — Rust for native tooling, bash demoted to thin glue (proposed)
+- `WS-LANG` — Language-per-domain unification — Rust for native tooling, bash demoted to thin glue ✅
 - `WS-TEMPLATE` — Compiled file-pattern system — one template per file type + conformance check + Law-14 ✅
 - `WS-DEBT` — Technical-debt register — TD-1..TD-8 (shell-mass, version drift, resolver twin, monolith decomposition) (proposed)
 
@@ -249,7 +249,8 @@ acceptance: |
 <!--
 id: WS-LANG
 title: Language-per-domain unification — Rust for native tooling, bash demoted to thin glue
-
+status: done
+-->
 > [!NOTE]
 > **Implementation Note (AGY-51):** The native Rust workspace has been scaffolded at `tools/native/` (containing the `mios-version-check` crate). Since no Rust toolchain is present in the host environment, the binary compilation is deferred via `TODO(agy): cargo build`.
 >

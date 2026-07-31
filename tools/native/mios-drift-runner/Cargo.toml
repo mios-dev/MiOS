@@ -1,0 +1,8 @@
+# AI-hint: Cargo manifest for mios-drift-runner native Rust drift check runner.
+# AI-related: automation/98-drift-checks.sh, tools/native/Cargo.toml
+[package]
+name = "mios-drift-runner"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]

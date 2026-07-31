@@ -2784,3 +2784,18 @@ Each assertion echoes a `[sys-smoke] <stack> OK` line so a bake log shows exactl
 
 ## AGY-919..AGY-930  (WS-DEDUP-SIGNOFF, P2) — permanent enforcement + measurement + ADR  **[DONE]**
 **What/Where/Done:** (919) the full gate suite: check_no_duplicate_value_key (all classes) + check_no_hardcoded_ssot_literal + check_resolved_env_lossless + twin + names — all green together. (920) negative test for EVERY new dedup gate. (921) the before/after key-count report committed (2438 → target); the value-dup-report shows zero non-allowlisted dupes. (922) ADR: the unified-key-library architecture (single-source rule, derive rules, the compat-alias table, the lossless-diff invariant, the enforcement gates). (923) update the [[mios-unified-key-library]] + [[mios-global-unification-plan]] memory north-stars to LANDED. (924) a "moving one thing" regression test: change one value, assert exactly the intended keys change + every surface updates via ssot-regen. (925) pre-commit hook wires the whole suite. (926-929) per-family final lossless sign-off (color/ai/net/structural). (930) CAMPAIGN CLOSE: one value declared once, derived everywhere, gated so it cannot regress; drift-gate full-green; version-bump note. Done per: the campaign's invariant is permanently enforced; the namespace is minimal + lossless.
+
+# ============================================================================
+# BATCH 4 (2026-07-31) — AGY-931..AGY-960 — WS-TEMPLATE & WS-LANG Unification Campaign
+# ============================================================================
+
+## WS-TEMPLATE — Compiled file-pattern system + mios new CLI + template conformance
+
+## AGY-931..AGY-945  (WS-TEMPLATE, P1/P2) — compiled template engine & scaffolder  **[DONE]**
+**What/Where/Done:** (931) `mios-template-engine`: compiled template renderer (`usr/lib/mios/templates/`) supporting all 20 template kinds. (932) `mios new`: CLI verb (`usr/bin/mios new <kind> <path>`) for scaffold creation with mandatory AI-hint header. (933) Extend `check_template_conformance` (Check 46): enforce AI-hint header structure and mandatory body markers across all new files. (934-945) Template definitions & conformance verification suite. Done per: template engine functional, `mios new` scaffolds compliant files, drift-gate green.
+
+## WS-LANG — Native Rust workspace + fragile bash script ports + Law 14 enforcement
+
+## AGY-946..AGY-960  (WS-LANG, P1/P2) — Rust workspace standing & native tooling ports  **[DONE]**
+**What/Where/Done:** (946) Cargo workspace initialization (`tools/native/` Rust crates structure). (947) `mios-drift-runner`: native CLI drift check execution binary replacing fragile bash loop. (948) `mios-verb-dispatcher`: fast native dispatch for `/v1/` AI verbs. (949-960) Native tooling integration, Law 14 TARGET-LANGUAGES check ratchet, and drift-gate verification. Done per: Cargo workspace functional, native binaries built and wired into drift suite.
+

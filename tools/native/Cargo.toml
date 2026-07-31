@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
+    "mios-drift-runner",
     "mios-version-check",
     "mios-wallpaperd",
 ]
