@@ -2631,30 +2631,30 @@ Each assertion echoes a `[sys-smoke] <stack> OK` line so a bake log shows exactl
 
 ## GUP Phase 5 — always-latest float + SBOM pin (per image)
 
-## AGY-519..AGY-540  (WS-LATEST, P2) — float each sidecar ref to :latest/family-channel + SBOM-record
+## AGY-519..AGY-540  (WS-LATEST, P2) — float each sidecar ref to :latest/family-channel + SBOM-record  **[DONE]**
 **What/Where/Done:** ONE task per image: k3s(519), ceph(520), forgejo(521), forgejo-runner(522), guacamole(523), guacd(524), pgvector(525 pin pg-major/float patch), valkey(526), searxng(527), adguard(528), jaeger(529), matchbox(530), open-webui(531), vllm(532), sglang(533), llama-swap(534), bootc-image-builder(535), hermes-agent(536), code-server(537), ucore-base(538), rust-builder(539), fedora-minimal(540). Each: set floating intent in [image.sidecars]; mios-resolve-latest records the resolved tag+digest to SBOM; verify the consumer resolves. Done per: floats + SBOM-recorded + gate green.
 
 ## GUP Phase 6 — minimal key library (collapse the ~200 hand-maintained tuples)
 
-## AGY-541  (WS-UNIFY, **P1**) — inventory the 2523 keys by section + flag hand-tuple vs derivable
+## AGY-541  (WS-UNIFY, **P1**) — inventory the 2523 keys by section + flag hand-tuple vs derivable  **[DONE]**
 **What/Where/Done:** classify env-baseline keys by originating section (ports, paths, images, ai, containers, services, colors, wsl2, converge, identity, ...); mark which are hand-maintained tuples vs auto-derivable. analysis -> keymap.tsv. Done: every key classified.
 
-## AGY-542..AGY-560  (WS-UNIFY, P2) — auto-derive each key-domain (one task per section)
+## AGY-542..AGY-560  (WS-UNIFY, P2) — auto-derive each key-domain (one task per section)  **[DONE]**
 **What/Where/Done:** ONE task per section to replace hand-tuples with a generic derive rule in BOTH twins: ports(542), paths(543), images.sidecars(544 done via P2), containers(545), services(546), colors(547), wsl2(548), converge(549), identity(550), ai.vllm(551), ai.sglang(552), ai.host_thresholds(553), storage.cephfs(554), network(555), security(556), build.bake(557), deploy(558), cat(559), vm(560). Each: replace special-cases with a rule; env-diff empty; check-45 green. Done per: section keys auto-derived; twins equivalent.
 
-## AGY-561  (WS-UNIFY, **P1**) — reconcile MIOS_AI_VLLM_* (emitted) vs short MIOS_VLLM_* (consumed)
+## AGY-561  (WS-UNIFY, **P1**) — reconcile MIOS_AI_VLLM_* (emitted) vs short MIOS_VLLM_* (consumed)  **[DONE]**
 **What/Where/Done:** canonical walk emits MIOS_AI_VLLM_* but consumers use MIOS_VLLM_*; pick ONE canonical + repoint; drop the mismatch. resolver twins + consumers. Done: one vLLM key family; env-diff clean.
 
-## AGY-562  (WS-UNIFY, P2) — generate userenv.sh's tuple table (kill the manual ~200)
+## AGY-562  (WS-UNIFY, P2) — generate userenv.sh's tuple table (kill the manual ~200)  **[DONE]**
 **What/Where/Done:** emit userenv.sh's sidecar/version/image tuples from mios.toml instead of hand-listing; the bash twin becomes generated. tools/generate-userenv.py (new) + userenv.sh. Done: no manual tuple in userenv.sh; check-45 green.
 
-## AGY-563  (WS-UNIFY, P2) — names.generated.txt covers the FULL minimal key set
+## AGY-563  (WS-UNIFY, P2) — names.generated.txt covers the FULL minimal key set  **[DONE]**
 **What/Where/Done:** the names registry (WS-NAME) must list every canonical section.key -> MIOS_* once, no dupes/translations. tools/generate-names-registry.py, names.generated.txt. Done: registry = the minimal set; check-30 green.
 
-## AGY-564  (WS-UNIFY, P2) — final env-diff: assert the key COUNT dropped materially
+## AGY-564  (WS-UNIFY, P2) — final env-diff: assert the key COUNT dropped materially  **[DONE]**
 **What/Where/Done:** after Phases 1-6, re-snapshot; assert the MIOS_* count fell (dead+alias+version dupes gone) with ZERO value changes to surviving keys. analysis + baseline bump. Done: count down, values lossless.
 
-## AGY-565  (WS-UNIFY, P2) — ADR: the unified-key-library architecture
+## AGY-565  (WS-UNIFY, P2) — ADR: the unified-key-library architecture  **[DONE]**
 **What/Where/Done:** ADR recording the single-source rule, the derive rules, the lossless-diff invariant, the enforcement gates. docs/adr. Done: ADR merged; index in sync.
 
 ## WS-CONSOLIDATE — finish mios-base + per-service images (post-GUP-Phase-3)
