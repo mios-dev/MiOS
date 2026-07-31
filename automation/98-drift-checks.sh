@@ -6241,4 +6241,44 @@ main() {
     check_installer_family_roles
     check_bib_configs_projection
     check_repo_partition_label_ssot
-    ch                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+    check_bib_single_config_invariant
+    check_build_artifacts_output_dir
+    check_win11_vm_template_xml
+    check_ipa_enroll_projection
+    check_uki_cmdline_projection
+    check_composefs_projection
+    check_cockpit_projection
+    check_chrony_ptp_dropin
+    check_renderer_gate_coverage
+    check_smoke_manifest
+    check_negative_coverage
+    check_verb_templates
+    check_pipe_boundaries
+    check_vllm_name_canonical
+    check_pipe_extraction_parity
+    check_guacamole_consistency
+    check_v2v_import_ssot
+    check_law_enforcers
+    check_usr_over_etc
+    check_projection_registry
+    check_db_seed_coverage
+    check_account_column_parity
+    check_module_length
+    check_vendored_assets_non_stub
+    check_resolved_env_lossless
+    check_no_duplicate_value_key
+
+    echo "[38-drift-checks] ---------------------------------------------------------"
+    if [[ "$VIOLATIONS" -eq 0 ]]; then
+        echo "[38-drift-checks] PASS: no AI-plane source drift."
+        exit 0
+    fi
+    echo "[38-drift-checks] FAIL: $VIOLATIONS drift violation(s) above." >&2
+    if [[ "$_SOFT" == "1" ]]; then
+        echo "[38-drift-checks] (MIOS_DRIFT_CHECK_SOFT=1 -> advisory mode, exiting 0)"
+        exit 0
+    fi
+    exit 1
+}
+
+main "$@"
