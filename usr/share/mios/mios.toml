@@ -5068,6 +5068,20 @@ cmd        = "mios-remember add {fact!} {scope?--scope} {key?--key}"
   desc    = "Stable key to later update/forget this memory."
   aliases = ["id", "name", "label"]
 
+
+[verbs.memory_rollback]
+hidden = true
+section    = "Memory"
+sig        = "to_timestamp"
+desc       = "Rollback durable memory edits (valid_to) to a prior timestamp (e.g. '2026-07-01T12:00:00Z'). Restores facts that were replaced or forgotten."
+model_name = "memory_rollback"
+examples   = ["memory_rollback to_timestamp='2026-07-30T00:00:00Z'"]
+tier = "rare"
+permission = "write"
+cmd        = "mios-remember rollback --to_timestamp {to_timestamp}"
+  [verbs.memory_rollback.params.to_timestamp]
+  type = "string"
+
 [verbs.memory_replace]
 hidden = true
 section    = "Discovery / resolution"

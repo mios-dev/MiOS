@@ -107,6 +107,8 @@ def main() -> int:
     pl.add_argument("--limit", type=int, default=30)
     pf = sub.add_parser("forget")
     pf.add_argument("--key", required=True)
+    pr = sub.add_parser("rollback")
+    pr.add_argument("--to_timestamp", required=True)
     pu = sub.add_parser("update")
     pu.add_argument("--key", required=True)
     pu.add_argument("fact")
@@ -143,7 +145,7 @@ def main() -> int:
                 phs += ["$5::vector", "$6", "$7"]
                 ins_params += [_emb, _EMBED_MODEL, _EMB_VERSION]
             ok, _ = _pg_json({"statements": [
-                {"sql": f"DELETE FROM {TABLE} WHERE mem_key = $1 AND scope = $2",
+                {"sql": f"UPDATE {TABLE} SET valid_to = now() WHERE mem_key = $1 AND scope = $2 AND valid_to IS NULL",
                  "params": [key, args.scope]},
                 {"sql": (f"INSERT INTO {TABLE} (" + ", ".join(cols)
                          + ") VALUES (" + ", ".join(phs) + ")"),

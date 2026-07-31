@@ -67,7 +67,7 @@
 | T-057 | P3 | done-by-code | Memory/UX | ORCH-07 -- Personal Knowledge Graph Rich Edges |
 | T-058 | P3 | open | Scheduling | SCHED-03 -- MLFQ Program-Level Scheduler (Autellix-style) [VM] |
 | T-059 | P3 | done | Federation | DATA-01 -- Declarative Agent Specs + A2A-Discoverable Directory |
-| T-060 | P3 | open | Memory/Data | DATA-02 -- Storage Versioning + Rollback for Self-Edited Core Fa |
+| T-060 | P3 | done-by-code | Memory/Data | DATA-02 -- Storage Versioning + Rollback for Self-Edited Core Fa |
 | T-061 | P3 | open | Orchestration/Memory | ORCH-09 -- Code-Mode for Heavy Verbs/Recipes |
 | T-062 | P3 | done-by-code | Self-Improvement | B3 -- Self-Improve ACT Half (Proposal + Commit) |
 | T-063 | P3 | done-by-code | Orchestration | B4 -- promptver Consumer (Version-Resolved Prompt Registry) |

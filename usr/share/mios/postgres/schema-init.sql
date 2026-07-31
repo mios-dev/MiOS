@@ -58,6 +58,11 @@ CREATE INDEX IF NOT EXISTS knowledge_owner ON knowledge (owner_user);
 ALTER TABLE knowledge    ADD COLUMN IF NOT EXISTS emb_model   text;
 ALTER TABLE knowledge    ADD COLUMN IF NOT EXISTS emb_version text;
 
+ALTER TABLE knowledge    ADD COLUMN IF NOT EXISTS valid_from timestamptz DEFAULT now();
+ALTER TABLE knowledge    ADD COLUMN IF NOT EXISTS valid_to   timestamptz;
+CREATE INDEX IF NOT EXISTS knowledge_valid_to ON knowledge (valid_to);
+
+
 -- ── agent_memory: tool-driven self-editing facts (mios-remember) ─────────────
 CREATE TABLE IF NOT EXISTS agent_memory (
     id        bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -81,6 +86,11 @@ CREATE INDEX IF NOT EXISTS agent_memory_owner ON agent_memory (owner_user);
 -- identity so a model/dim change can trigger an off-hot-path re-embed.
 ALTER TABLE agent_memory ADD COLUMN IF NOT EXISTS emb_model   text;
 ALTER TABLE agent_memory ADD COLUMN IF NOT EXISTS emb_version text;
+
+ALTER TABLE agent_memory ADD COLUMN IF NOT EXISTS valid_from timestamptz DEFAULT now();
+ALTER TABLE agent_memory ADD COLUMN IF NOT EXISTS valid_to   timestamptz;
+CREATE INDEX IF NOT EXISTS agent_memory_valid_to ON agent_memory (valid_to);
+
 -- MEM-05: Importance score for recall ranking
 ALTER TABLE agent_memory ADD COLUMN IF NOT EXISTS importance numeric DEFAULT 1.0;
 
