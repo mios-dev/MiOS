@@ -27,8 +27,10 @@ VENDOR_TOML="${MIOS_VENDOR_TOML:-${ROOT_DIR}/usr/share/mios/mios.toml}"
 
 env -i \
     PATH="${PATH}:/usr/bin:/bin" \
+    MIOS_ROOT="${ROOT_DIR}" \
     MIOS_TOML_ROOT="${ROOT_DIR}" \
     MIOS_VENDOR_TOML="${VENDOR_TOML}" \
     bash -c "source \"${USERENV_SH}\" >/dev/null 2>&1 && env" \
     | grep '^MIOS_' \
+    | grep -vE '^(MIOS_ROOT|MIOS_TOML_ROOT|MIOS_VENDOR_TOML)=' \
     | sort

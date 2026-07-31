@@ -61,8 +61,6 @@ ai.effort  MIOS_AI_EFFORT
 ai.smartroute_enable  MIOS_AI_SMARTROUTE_ENABLE
 ai.smartroute_budget  MIOS_AI_SMARTROUTE_BUDGET
 ai.package_registry  MIOS_AI_PACKAGE_REGISTRY
-ai.package_author  MIOS_AI_PACKAGE_AUTHOR
-ai.package_version  MIOS_AI_PACKAGE_VERSION
 ai.heavy_engine  MIOS_AI_HEAVY_ENGINE
 ai.remote_escalation  MIOS_AI_REMOTE_ESCALATION
 ai.hermes_agent_repo  MIOS_AI_HERMES_AGENT_REPO

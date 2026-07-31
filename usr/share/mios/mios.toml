@@ -6103,10 +6103,8 @@ smartroute_budget   = 0.0       # per-day cost cap for paid remote escalation (0
 # registry.json) projected from the live SSOT (verbs/agents/recipes) via the
 # mios-registry CLI, and the drift gate verifies it stays in sync. DEFAULT FALSE
 # -> the feature ships DORMANT: nothing is materialized and every gate passes
-# trivially. Env: MIOS_PACKAGE_REGISTRY / MIOS_PACKAGE_AUTHOR / MIOS_PACKAGE_VERSION.
+# trivially. Env: MIOS_PACKAGE_REGISTRY.
 package_registry    = false
-package_author      = "mios"
-package_version     = "0.0.0"
 # WS-1 unified lane resolver: which heavy engine the agent-pipe
 # PREFERS when both heavy lanes ([ai.sglang] :11441 + [ai.vllm] :11440 -- BOTH advertise
 # served_name "mios-heavy") are provisioned. mios_lanes.LaneResolver tries the preferred
