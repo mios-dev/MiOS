@@ -560,6 +560,11 @@ def get_aliases(dotted_path):
 
     return aliases
 
+def _toml_walk_common(d, prefix=""):
+    """Canonical recursive section-walk helper shared across TOML resolvers."""
+    return walk(d, prefix)
+
+
 def walk(d, prefix=""):
     results = []
     if not isinstance(d, dict):
