@@ -431,7 +431,7 @@ def _heal_missing_vectors(knowledge_id: str) -> None:
     for fid in file_ids:
         body = json.dumps({"file_id": fid}).encode("utf-8")
         req = _ur.Request(
-            f"http://localhost:3030/api/v1/knowledge/{knowledge_id}/file/add",
+            f"{(os.environ.get('MIOS_OWUI_URL') or 'http://localhost:3030').rstrip('/')}/api/v1/knowledge/{knowledge_id}/file/add",
             data=body,
             headers={
                 "Authorization": f"Bearer {token}",
