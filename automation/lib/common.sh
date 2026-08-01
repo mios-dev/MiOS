@@ -53,11 +53,29 @@ unset -f _mios_locate_userenv
 source "$(dirname "${BASH_SOURCE[0]}")/globals.sh"
 
 # --- Logging ----------------------------------------------------------------
+_common_dir="$(dirname "${BASH_SOURCE[0]}")"
+if [[ -f "${_common_dir}/../../usr/lib/mios/log.sh" ]]; then
+    # shellcheck source=../../usr/lib/mios/log.sh
+    source "${_common_dir}/../../usr/lib/mios/log.sh"
+elif [[ -f "/usr/lib/mios/log.sh" ]]; then
+    # shellcheck source=/dev/null
+    source "/usr/lib/mios/log.sh"
+fi
+
 log_ts() { date '+%Y-%m-%d %H:%M:%S'; }
 log()  { printf '[%s] ==> %s\n' "$(log_ts)" "$*"; }
 warn() { printf '[%s] WARN: %s\n' "$(log_ts)" "$*" >&2; }
 die()  { printf '[%s] ERROR: %s\n' "$(log_ts)" "$*" >&2; exit 1; }
 diag() { printf '[%s] DIAG: %s\n' "$(log_ts)" "$*"; }
+
+if ! declare -f mios_log >/dev/null; then
+    mios_log()  { log "$@"; }
+    mios_ok()   { log "OK $*"; }
+    mios_step() { log "STEP $*"; }
+    mios_skip() { log "SKIP $*"; }
+    mios_warn() { warn "$@"; }
+    mios_err()  { warn "ERR $*"; }
+fi
 
 # --- dnf flags --------------------------------------------------------------
 # Select dnf binary (prefer dnf5 if available)
