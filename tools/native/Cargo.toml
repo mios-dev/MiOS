@@ -1,7 +1,12 @@
 [workspace]
 resolver = "2"
 members = [
+    "generate-names-registry",
+    "mios-aiplane-lint",
+    "mios-bake-plan",
     "mios-drift-runner",
+    "mios-ssot-lint",
+    "mios-ssot-walk",
     "mios-version-check",
     "mios-wallpaperd",
 ]

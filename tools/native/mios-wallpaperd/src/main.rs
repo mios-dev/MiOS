@@ -153,20 +153,33 @@ mod session {
                 return None;
             }
             let exe = super::util::current_exe_wide();
-            let mut cmd = super::util::wide(&format!("\"{}\" {}", super::util::current_exe_string(), super::HOST_ARG));
-            let si = STARTUPINFOW { cb: std::mem::size_of::<STARTUPINFOW>() as u32, ..Default::default() };
+            let mut cmd = super::util::wide(&format!(
+                "\"{}\" {}",
+                super::util::current_exe_string(),
+                super::HOST_ARG
+            ));
+            let si = STARTUPINFOW {
+                cb: std::mem::size_of::<STARTUPINFOW>() as u32,
+                ..Default::default()
+            };
             let mut pi = PROCESS_INFORMATION::default();
             let ok = CreateProcessAsUserW(
                 token,
                 windows::core::PCWSTR(exe.as_ptr()),
                 windows::core::PWSTR(cmd.as_mut_ptr()),
-                None, None, false,
+                None,
+                None,
+                false,
                 Default::default(),
-                None, None,
-                &si, &mut pi,
+                None,
+                None,
+                &si,
+                &mut pi,
             );
             let _ = CloseHandle(token);
-            if ok.is_err() { return None; }
+            if ok.is_err() {
+                return None;
+            }
             let _ = CloseHandle(pi.hThread);
             let _ = CloseHandle(pi.hProcess);
             Some(pi.dwProcessId)
@@ -185,7 +198,9 @@ pub mod util {
         s.encode_utf16().chain(std::iter::once(0)).collect()
     }
     pub fn current_exe_string() -> String {
-        std::env::current_exe().map(|p| p.to_string_lossy().into_owned()).unwrap_or_default()
+        std::env::current_exe()
+            .map(|p| p.to_string_lossy().into_owned())
+            .unwrap_or_default()
     }
     pub fn current_exe_wide() -> Vec<u16> {
         wide(&current_exe_string())

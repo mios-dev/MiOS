@@ -3,6 +3,8 @@
 [workspace]
 members = [
     "miosd",
+    "mios-build",
+    "mios-config",
 ]
 resolver = "2"
 

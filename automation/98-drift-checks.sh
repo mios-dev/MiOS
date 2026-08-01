@@ -4299,10 +4299,10 @@ check_greenboot() {
     echo "[98-drift-checks]   greenboot health-coverage check"
     local gb_dir="$ROOT/usr/lib/greenboot/check/required.d"
     if [[ ! -d "$gb_dir" ]]; then
-        _fail "(54) greenboot required checks directory ($gb_dir) is missing"
+        _violation "(54) greenboot required checks directory ($gb_dir) is missing"
         return
     fi
-    local critical_services=("agent-pipe" "llm-light" "pgvector")
+    local critical_services=("agent-pipe" "llm-light" "pgvector" "hermes")
     local s script_found
     for s in "${critical_services[@]}"; do
         script_found=0
@@ -4313,7 +4313,7 @@ check_greenboot() {
             fi
         done
         if [[ "$script_found" -eq 0 ]]; then
-            _fail "(54) greenboot missing health-check script for critical service: $s"
+            _violation "(54) greenboot missing health-check script for critical service: $s"
         fi
     done
 }
@@ -6264,6 +6264,17 @@ check_no_hardcoded_ssot_literal() {
     echo "[98-drift-checks]   check_no_hardcoded_ssot_literal registered"
 }
 
+check_bash_phase_ratchet() {
+    echo "[98-drift-checks]   bash phase script count ratchet check"
+    local count
+    count="$(find "$ROOT/automation" -maxdepth 1 -name "[0-9][0-9]-*.sh" | wc -l)"
+    local max_allowed
+    max_allowed="$(python3 -c "import tomllib; f=open('${ROOT}/usr/share/mios/mios.toml','rb'); d=tomllib.load(f); print(d.get('build',{}).get('ratchet',{}).get('max_phase_scripts', 71))" 2>/dev/null || echo "71")"
+    if [[ "$count" -gt "$max_allowed" ]]; then
+        _violation "bash phase script count ($count) exceeds ratchet baseline ($max_allowed)"
+    fi
+}
+
 main() {
     if [[ $# -eq 1 && -n "$1" ]]; then
         if declare -f "$1" >/dev/null; then
@@ -6402,6 +6413,7 @@ main() {
     check_pipeline_numbering
     check_value_aliases
     check_no_hardcoded_ssot_literal
+    check_bash_phase_ratchet
 
     echo "[98-drift-checks] ---------------------------------------------------------"
     if [[ "$VIOLATIONS" -eq 0 ]]; then

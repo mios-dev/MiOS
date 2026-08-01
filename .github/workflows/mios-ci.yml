@@ -73,6 +73,17 @@ jobs:
       - name: SSOT-render conformance lint (97-ssot-lint.sh)
         run: bash ./automation/97-ssot-lint.sh
 
+      - name: Rust formatting & clippy (-D warnings)
+        run: |
+          rustup component add clippy rustfmt || true
+          cd ./src/mios-rs && cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings
+          cd ../../tools/native && cargo fmt --all --check && cargo clippy --workspace --exclude mios-wallpaperd --all-targets -- -D warnings
+
+      - name: Native Rust tests
+        run: |
+          cd ./src/mios-rs && cargo test --workspace
+          cd ../../tools/native && cargo test --workspace --exclude mios-wallpaperd
+
       - name: Agent-pipe unit tests (test_mios_*.py)
         run: |
           cd ./usr/lib/mios/agent-pipe

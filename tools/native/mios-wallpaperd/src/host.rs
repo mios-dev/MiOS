@@ -3,7 +3,6 @@
 // WallpaperUrl from the registry; folds the WSLg gui-watch in as a background thread (no pwsh, no
 // console flash). Built #![windows_subsystem="windows"] -> never surfaces a taskbar/console window.
 use tao::dpi::{PhysicalPosition, PhysicalSize};
-use tao::event::Event;
 use tao::event_loop::{ControlFlow, EventLoopBuilder};
 use tao::platform::windows::{WindowBuilderExtWindows, WindowExtWindows};
 use tao::window::WindowBuilder;

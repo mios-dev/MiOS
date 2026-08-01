@@ -113,6 +113,8 @@ check_service mios-agent-pipe.service "${MIOS_PORT_AGENT_PIPE:-}" http /v1/model
 check_service mios-llm-light.service  "${MIOS_PORT_LLM_LIGHT:-}"  tcp || rc=1
 # unified agent datastore: TCP reachability of PostgreSQL + pgvector.
 check_service mios-pgvector.service   "${MIOS_PORT_PGVECTOR:-}"   tcp || rc=1
+# hermes agent gateway
+check_service hermes.service          "${MIOS_PORT_HERMES:-}"     tcp || rc=1
 
 if [[ "$rc" -eq 0 ]]; then
     log "AI plane healthy (all enabled core services answered)."

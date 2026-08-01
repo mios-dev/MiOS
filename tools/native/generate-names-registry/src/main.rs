@@ -1,15 +1,33 @@
 // AI-hint: Rust SSOT names registry generator (check 30 generator).
+use regex::Regex;
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
-use regex::Regex;
 use walkdir::WalkDir;
 
 const TARGET_SECTIONS: &[&str] = &[
-    "ports", "ai", "identity", "locale", "auth", "network", "desktop", 
-    "branding", "image", "bootstrap", "profile", "colors", "observability", 
-    "sandbox", "security", "code_mode", "hermes", "routing", "agents", "a2a",
-    "power", "mini"
+    "ports",
+    "ai",
+    "identity",
+    "locale",
+    "auth",
+    "network",
+    "desktop",
+    "branding",
+    "image",
+    "bootstrap",
+    "profile",
+    "colors",
+    "observability",
+    "sandbox",
+    "security",
+    "code_mode",
+    "hermes",
+    "routing",
+    "agents",
+    "a2a",
+    "power",
+    "mini",
 ];
 
 fn alias_for(path: &str) -> Option<String> {
@@ -19,11 +37,17 @@ fn alias_for(path: &str) -> Option<String> {
         "ai.sglang.hierarchical_cache" => Some("MIOS_SGLANG_ENABLE_HIERARCHICAL_CACHE".to_string()),
         _ => {
             if let Some(rest) = path.strip_prefix("ai.vllm.") {
-                Some(format!("MIOS_VLLM_{}", rest.to_uppercase().replace('.', "_").replace('-', "_")))
-            } else if let Some(rest) = path.strip_prefix("ai.sglang.") {
-                Some(format!("MIOS_SGLANG_{}", rest.to_uppercase().replace('.', "_").replace('-', "_")))
+                Some(format!(
+                    "MIOS_VLLM_{}",
+                    rest.to_uppercase().replace(['.', '-'], "_")
+                ))
             } else {
-                None
+                path.strip_prefix("ai.sglang.").map(|rest| {
+                    format!(
+                        "MIOS_SGLANG_{}",
+                        rest.to_uppercase().replace(['.', '-'], "_")
+                    )
+                })
             }
         }
     }
@@ -32,7 +56,11 @@ fn alias_for(path: &str) -> Option<String> {
 fn walk_value(val: &toml::Value, prefix: &str, results: &mut Vec<(String, String)>) {
     if let toml::Value::Table(table) = val {
         for (k, v) in table {
-            let path = if prefix.is_empty() { k.clone() } else { format!("{}.{}", prefix, k) };
+            let path = if prefix.is_empty() {
+                k.clone()
+            } else {
+                format!("{}.{}", prefix, k)
+            };
             if path == "routing.domains" {
                 continue;
             }
@@ -42,7 +70,7 @@ fn walk_value(val: &toml::Value, prefix: &str, results: &mut Vec<(String, String
                 let env_name = if let Some(alias) = alias_for(&path) {
                     alias
                 } else {
-                    format!("MIOS_{}", path.to_uppercase().replace('.', "_").replace('-', "_"))
+                    format!("MIOS_{}", path.to_uppercase().replace(['.', '-'], "_"))
                 };
                 results.push((path, env_name));
             }
@@ -76,7 +104,26 @@ fn generate_referenced_vars(root: &Path) -> std::io::Result<()> {
 
         // Skip ignored directories
         let parts: Vec<&str> = rel_path.split('/').collect();
-        if parts.iter().any(|p| matches!(*p, "tmp" | ".git" | ".venv" | "__pycache__" | "node_modules" | "dist" | "build" | ".system_generated" | "scratch" | "logs" | "bib-configs" | "medicat_stage" | "isobuild" | "isobuild_live" | "isobuild2")) {
+        if parts.iter().any(|p| {
+            matches!(
+                *p,
+                "tmp"
+                    | ".git"
+                    | ".venv"
+                    | "__pycache__"
+                    | "node_modules"
+                    | "dist"
+                    | "build"
+                    | ".system_generated"
+                    | "scratch"
+                    | "logs"
+                    | "bib-configs"
+                    | "medicat_stage"
+                    | "isobuild"
+                    | "isobuild_live"
+                    | "isobuild2"
+            )
+        }) {
             continue;
         }
 
@@ -132,8 +179,12 @@ fn generate_referenced_vars(root: &Path) -> std::io::Result<()> {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let root_str = std::env::var("MIOS_DRIFT_ROOT")
-        .unwrap_or_else(|_| std::env::current_dir().unwrap().to_string_lossy().to_string());
+    let root_str = std::env::var("MIOS_DRIFT_ROOT").unwrap_or_else(|_| {
+        std::env::current_dir()
+            .unwrap()
+            .to_string_lossy()
+            .to_string()
+    });
     let root = PathBuf::from(&root_str);
 
     let toml_path = root.join("usr/share/mios/mios.toml");

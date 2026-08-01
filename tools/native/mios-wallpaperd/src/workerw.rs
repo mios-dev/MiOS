@@ -12,7 +12,15 @@ pub fn find_wallpaper_workerw() -> Option<HWND> {
         let progman = FindWindowW(w!("Progman"), PCWSTR::null()).ok()?;
         // Tell Progman to create the WorkerW behind the icon layer.
         let mut _res: usize = 0;
-        let _ = SendMessageTimeoutW(progman, 0x052C, WPARAM(0), LPARAM(0), SMTO_NORMAL, 1000, Some(&mut _res as *mut usize));
+        let _ = SendMessageTimeoutW(
+            progman,
+            0x052C,
+            WPARAM(0),
+            LPARAM(0),
+            SMTO_NORMAL,
+            1000,
+            Some(&mut _res as *mut usize),
+        );
 
         // Newer / modified shells: a WorkerW directly under Progman.
         if let Ok(w) = FindWindowExW(progman, HWND::default(), w!("WorkerW"), PCWSTR::null()) {

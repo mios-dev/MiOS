@@ -52,7 +52,15 @@ unsafe extern "system" fn enum_proc(hwnd: HWND, lparam: LPARAM) -> BOOL {
     let (nw, nh) = (w.max(MIN_W), h.max(MIN_H));
     let (sw, sh) = (GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN));
     let (x, y) = (((sw - nw) / 2).max(0), ((sh - nh) / 2).max(0));
-    let _ = SetWindowPos(hwnd, HWND::default(), x, y, nw, nh, SWP_NOZORDER | SWP_NOACTIVATE);
+    let _ = SetWindowPos(
+        hwnd,
+        HWND::default(),
+        x,
+        y,
+        nw,
+        nh,
+        SWP_NOZORDER | SWP_NOACTIVATE,
+    );
     adopted.insert(key);
     TRUE
 }
@@ -70,11 +78,19 @@ fn is_msrdc(hwnd: HWND) -> bool {
         };
         let mut buf = [0u16; 260];
         let mut len = buf.len() as u32;
-        let ok = QueryFullProcessImageNameW(h, PROCESS_NAME_FORMAT(0), PWSTR(buf.as_mut_ptr()), &mut len).is_ok();
+        let ok = QueryFullProcessImageNameW(
+            h,
+            PROCESS_NAME_FORMAT(0),
+            PWSTR(buf.as_mut_ptr()),
+            &mut len,
+        )
+        .is_ok();
         let _ = CloseHandle(h);
         if !ok {
             return false;
         }
-        String::from_utf16_lossy(&buf[..len as usize]).to_lowercase().ends_with("msrdc.exe")
+        String::from_utf16_lossy(&buf[..len as usize])
+            .to_lowercase()
+            .ends_with("msrdc.exe")
     }
 }

@@ -36,7 +36,10 @@ fn extract_toml_version(path: &Path) -> Option<String> {
         }
         if in_meta && (trimmed.starts_with("mios_version") || trimmed.starts_with("version")) {
             if let Some(pos) = trimmed.find('=') {
-                let val = trimmed[pos + 1..].trim().trim_matches('"').trim_matches('\'');
+                let val = trimmed[pos + 1..]
+                    .trim()
+                    .trim_matches('"')
+                    .trim_matches('\'');
                 return Some(val.to_string());
             }
         }
@@ -49,7 +52,10 @@ fn extract_containerfile_version(path: &Path) -> Option<String> {
     for line in content.lines() {
         let trimmed = line.trim();
         if trimmed.starts_with("ARG MIOS_VERSION=") {
-            let val = trimmed.trim_start_matches("ARG MIOS_VERSION=").trim().trim_matches('"');
+            let val = trimmed
+                .trim_start_matches("ARG MIOS_VERSION=")
+                .trim()
+                .trim_matches('"');
             return Some(val.to_string());
         }
     }
@@ -65,7 +71,10 @@ fn main() {
     let version_val = match fs::read_to_string(&version_file) {
         Ok(v) => v.trim().to_string(),
         Err(e) => {
-            eprintln!("[mios-version-check] ERROR: failed to read VERSION file {:?}: {}", version_file, e);
+            eprintln!(
+                "[mios-version-check] ERROR: failed to read VERSION file {:?}: {}",
+                version_file, e
+            );
             exit(1);
         }
     };
@@ -73,7 +82,10 @@ fn main() {
     let toml_val = match extract_toml_version(&toml_file) {
         Some(v) => v,
         None => {
-            eprintln!("[mios-version-check] ERROR: failed to find mios_version in {:?}", toml_file);
+            eprintln!(
+                "[mios-version-check] ERROR: failed to find mios_version in {:?}",
+                toml_file
+            );
             exit(1);
         }
     };
@@ -81,7 +93,10 @@ fn main() {
     let cf_val = match extract_containerfile_version(&containerfile) {
         Some(v) => v,
         None => {
-            eprintln!("[mios-version-check] WARNING: ARG MIOS_VERSION missing in {:?}", containerfile);
+            eprintln!(
+                "[mios-version-check] WARNING: ARG MIOS_VERSION missing in {:?}",
+                containerfile
+            );
             version_val.clone()
         }
     };
@@ -94,5 +109,8 @@ fn main() {
         exit(1);
     }
 
-    println!("[mios-version-check] PASS: version SSOT verified ({})", version_val);
+    println!(
+        "[mios-version-check] PASS: version SSOT verified ({})",
+        version_val
+    );
 }

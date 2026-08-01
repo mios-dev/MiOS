@@ -100,7 +100,8 @@ def main():
     success_count = 0
 
     for fn in sorted(os.listdir(templates_dir)):
-        if fn == "conformance-grandfathered.list":
+        full_path = os.path.join(templates_dir, fn)
+        if os.path.isdir(full_path) or fn.startswith(".") or fn == "conformance-grandfathered.list":
             continue
         
         if fn not in templates_cfg:

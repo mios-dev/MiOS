@@ -19,7 +19,9 @@ fn find_root() -> PathBuf {
     }
     if let Ok(exe) = env::current_exe() {
         if let Some(parent) = exe.parent() {
-            if parent.ends_with("tools/native/target/debug") || parent.ends_with("tools/native/target/release") {
+            if parent.ends_with("tools/native/target/debug")
+                || parent.ends_with("tools/native/target/release")
+            {
                 if let Some(r) = parent.ancestors().nth(4) {
                     return r.to_path_buf();
                 }
@@ -61,7 +63,10 @@ fn extract_placeholders(line: &str, refs: &mut BTreeSet<String>) {
             } else {
                 token
             };
-            if var_name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+            if var_name
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '_')
+            {
                 refs.insert(var_name.to_string());
             }
             rest = &after[end + 1..];
@@ -115,7 +120,11 @@ fn in_userenv(v: &str, userenv_lines: &[&str]) -> bool {
             return true;
         }
         if let Some(pos) = line.find(&assign_pattern_2) {
-            if pos == 0 || line.as_bytes()[pos - 1] == b' ' || line.as_bytes()[pos - 1] == b'\t' || line.as_bytes()[pos - 1] == b';' {
+            if pos == 0
+                || line.as_bytes()[pos - 1] == b' '
+                || line.as_bytes()[pos - 1] == b'\t'
+                || line.as_bytes()[pos - 1] == b';'
+            {
                 return true;
             }
         }
@@ -124,7 +133,8 @@ fn in_userenv(v: &str, userenv_lines: &[&str]) -> bool {
         if let Some(pos) = line.find(v) {
             let valid_before = pos == 0 || matches!(line.as_bytes()[pos - 1], b' ' | b'\t' | b';');
             let end = pos + v.len();
-            let valid_after = end == line.len() || matches!(line.as_bytes()[end], b' ' | b'\t' | b';' | b'$');
+            let valid_after =
+                end == line.len() || matches!(line.as_bytes()[end], b' ' | b'\t' | b';' | b'$');
             if valid_before && valid_after {
                 return true;
             }
@@ -139,7 +149,8 @@ fn in_render(v: &str, render_lines: &[&str]) -> bool {
         while let Some(pos) = line[idx..].find(v) {
             let absolute_pos = idx + pos;
             let valid_before = absolute_pos == 0
-                || !line.as_bytes()[absolute_pos - 1].is_ascii_alphanumeric() && line.as_bytes()[absolute_pos - 1] != b'_';
+                || !line.as_bytes()[absolute_pos - 1].is_ascii_alphanumeric()
+                    && line.as_bytes()[absolute_pos - 1] != b'_';
             let end = absolute_pos + v.len();
             let valid_after = end == line.len()
                 || !line.as_bytes()[end].is_ascii_alphanumeric() && line.as_bytes()[end] != b'_';
@@ -162,15 +173,24 @@ fn main() {
     let soft_mode = env::var("MIOS_SSOT_LINT_SOFT").unwrap_or_default() == "1";
 
     if !userenv_path.is_file() {
-        println!("[97-ssot-lint] FATAL: userenv.sh not found at {}", userenv_path.display());
+        println!(
+            "[97-ssot-lint] FATAL: userenv.sh not found at {}",
+            userenv_path.display()
+        );
         process::exit(2);
     }
     if !render_path.is_file() {
-        println!("[97-ssot-lint] FATAL: 34-render-quadlets.sh not found at {}", render_path.display());
+        println!(
+            "[97-ssot-lint] FATAL: 34-render-quadlets.sh not found at {}",
+            render_path.display()
+        );
         process::exit(2);
     }
     if !quadlet_dir.is_dir() {
-        println!("[97-ssot-lint] No Quadlet dir at {} -- nothing to lint (PASS).", quadlet_dir.display());
+        println!(
+            "[97-ssot-lint] No Quadlet dir at {} -- nothing to lint (PASS).",
+            quadlet_dir.display()
+        );
         process::exit(0);
     }
 
@@ -196,7 +216,9 @@ fn main() {
     }
 
     if refs.is_empty() {
-        println!("[97-ssot-lint] No ${{MIOS_*}} placeholders in any Exec=/Environment= line (PASS).");
+        println!(
+            "[97-ssot-lint] No ${{MIOS_*}} placeholders in any Exec=/Environment= line (PASS)."
+        );
         process::exit(0);
     }
 
@@ -237,7 +259,10 @@ fn main() {
     }
 
     println!("[97-ssot-lint] ---------------------------------------------------------");
-    println!("[97-ssot-lint] checked {} placeholder(s); {} orphan(s).", checked, orphans);
+    println!(
+        "[97-ssot-lint] checked {} placeholder(s); {} orphan(s).",
+        checked, orphans
+    );
 
     if orphans == 0 {
         println!("[97-ssot-lint] PASS: every ${{MIOS_*}} placeholder is wired on both ends.");
@@ -249,7 +274,9 @@ fn main() {
         orphans
     );
     eprintln!("[97-ssot-lint]   Fix each by (a) adding a typed slot in tools/lib/userenv.sh AND");
-    eprintln!("[97-ssot-lint]   (b) adding it to BOTH allowlists in automation/34-render-quadlets.sh.");
+    eprintln!(
+        "[97-ssot-lint]   (b) adding it to BOTH allowlists in automation/34-render-quadlets.sh."
+    );
 
     if soft_mode {
         println!("[97-ssot-lint] (MIOS_SSOT_LINT_SOFT=1 -> advisory mode, exiting 0)");

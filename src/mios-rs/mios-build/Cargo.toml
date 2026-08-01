@@ -1,0 +1,13 @@
+[package]
+name = "mios-build"
+version.workspace = true
+edition.workspace = true
+description = "MiOS native build orchestrator and phase registry"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+toml = "0.8"
+
+[dev-dependencies]
+insta = { version = "1.34", features = ["yaml"] }
+trycmd = "0.14"

@@ -40,8 +40,8 @@ pub fn validate_budgets(
     let mut missing = Vec::new();
 
     for &key in budget_keys {
-        let in_agent_pipe = agent_pipe.map_or(false, |v| key_in_toml_value(v, key));
-        let in_dispatch = dispatch.map_or(false, |v| key_in_toml_value(v, key));
+        let in_agent_pipe = agent_pipe.is_some_and(|v| key_in_toml_value(v, key));
+        let in_dispatch = dispatch.is_some_and(|v| key_in_toml_value(v, key));
 
         if !in_agent_pipe && !in_dispatch {
             missing.push(format!("{} (missing from mios.toml)", key));
@@ -66,9 +66,12 @@ pub fn validate_budgets(
 fn read_all_python_files(dir: &Path) -> std::io::Result<String> {
     let mut code = String::new();
     if dir.is_dir() {
-        for entry in walkdir::WalkDir::new(dir).into_iter().filter_map(|e| e.ok()) {
+        for entry in walkdir::WalkDir::new(dir)
+            .into_iter()
+            .filter_map(|e| e.ok())
+        {
             let path = entry.path();
-            if path.is_file() && path.extension().map_or(false, |ext| ext == "py") {
+            if path.is_file() && path.extension().is_some_and(|ext| ext == "py") {
                 if let Ok(c) = fs::read_to_string(path) {
                     code.push_str(&c);
                     code.push('\n');
@@ -80,8 +83,12 @@ fn read_all_python_files(dir: &Path) -> std::io::Result<String> {
 }
 
 fn main() {
-    let root_str = std::env::var("MIOS_DRIFT_ROOT")
-        .unwrap_or_else(|_| std::env::current_dir().unwrap().to_string_lossy().to_string());
+    let root_str = std::env::var("MIOS_DRIFT_ROOT").unwrap_or_else(|_| {
+        std::env::current_dir()
+            .unwrap()
+            .to_string_lossy()
+            .to_string()
+    });
     let root = PathBuf::from(&root_str);
 
     let toml_path = root.join("usr/share/mios/mios.toml");
@@ -158,7 +165,12 @@ mod tests {
             depth = config.get("max_dispatch_depth", 2)
             hop = config.get("default_hop_budget", 2)
         "#;
-        let keys = vec!["tool_max_iters", "replan_max", "max_dispatch_depth", "default_hop_budget"];
+        let keys = vec![
+            "tool_max_iters",
+            "replan_max",
+            "max_dispatch_depth",
+            "default_hop_budget",
+        ];
         assert!(validate_budgets(&toml_val, code, &keys).is_ok());
     }
 

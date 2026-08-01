@@ -1,0 +1,32 @@
+[meta]
+mios_version = "0.3.0"
+codename = "Antigravity"
+
+[ports]
+stack_id = 0
+agent_pipe = 8640
+llm_light = 8641
+pgvector = 8642
+hermes = 8643
+
+[image]
+ref = "ghcr.io/mios-dev/mios:latest"
+tag = "latest"
+name = "mios"
+
+[security.luks]
+enabled = false
+pin = "tpm2"
+pcrs = "7"
+
+[mini]
+enabled = false
+guest_cpu_percent = 80
+guest_ram_percent = 80
+dgpumode = "vfio-pci"
+
+[mini.mesh]
+enabled = false
+headscale_domain = "mesh.mios.internal"
+vnet_cidr = "10.42.0.0/16"
+swtpm_vtpm = true

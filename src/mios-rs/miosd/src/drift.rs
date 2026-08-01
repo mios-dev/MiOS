@@ -1,8 +1,8 @@
-use std::path::Path;
-use std::fs;
-use toml::Value;
 use regex::Regex;
 use std::collections::HashSet;
+use std::fs;
+use std::path::Path;
+use toml::Value;
 
 pub fn run_checks(root: &str, soft: bool) {
     let root_path = Path::new(root);
@@ -13,11 +13,17 @@ pub fn run_checks(root: &str, soft: bool) {
     let mut failed = false;
 
     if !mios_toml_path.exists() {
-        println!("[miosd:drift] ERROR: {} not found.", mios_toml_path.display());
+        println!(
+            "[miosd:drift] ERROR: {} not found.",
+            mios_toml_path.display()
+        );
         failed = true;
     } else {
-        println!("[miosd:drift] [PASS] SSOT found at {}", mios_toml_path.display());
-        
+        println!(
+            "[miosd:drift] [PASS] SSOT found at {}",
+            mios_toml_path.display()
+        );
+
         let contents = fs::read_to_string(&mios_toml_path).unwrap_or_default();
         match contents.parse::<Value>() {
             Ok(_) => println!("[miosd:drift] [PASS] SSOT TOML parses successfully"),
@@ -48,20 +54,24 @@ pub fn run_checks(root: &str, soft: bool) {
 
 fn check_backfill_coverage(root_path: &Path) -> Result<(), String> {
     let schema_path = root_path.join("usr/share/mios/postgres/schema-init.sql");
-    let backfill_path = root_path.join("usr/lib/mios/agent-pipe/mios_pipe/memory/embed_backfill.py");
-    
-    let schema = fs::read_to_string(&schema_path).map_err(|e| format!("Failed to read schema-init.sql: {}", e))?;
-    let backfill = fs::read_to_string(&backfill_path).map_err(|e| format!("Failed to read embed_backfill.py: {}", e))?;
-    
-    let table_re = Regex::new(r"(?i)CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-zA-Z0-9_.]+)").unwrap();
+    let backfill_path =
+        root_path.join("usr/lib/mios/agent-pipe/mios_pipe/memory/embed_backfill.py");
+
+    let schema = fs::read_to_string(&schema_path)
+        .map_err(|e| format!("Failed to read schema-init.sql: {}", e))?;
+    let backfill = fs::read_to_string(&backfill_path)
+        .map_err(|e| format!("Failed to read embed_backfill.py: {}", e))?;
+
+    let table_re =
+        Regex::new(r"(?i)CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-zA-Z0-9_.]+)").unwrap();
     // Match the COLUMN TYPE `emb vector(...)`, not the HNSW index operator class
     // `(emb vector_cosine_ops)` -- requiring `(` after `vector` excludes the opclass.
     let emb_re = Regex::new(r"(?i)emb\s+vector\s*\(").unwrap();
     let alter_re = Regex::new(r"(?i)ALTER\s+TABLE\s+([a-zA-Z0-9_]+)\s+ADD\s+COLUMN\s+(?:IF\s+NOT\s+EXISTS\s+)?emb\s+vector").unwrap();
-    
+
     let mut emb_tables = HashSet::new();
     let mut current_table = String::new();
-    
+
     for line in schema.lines() {
         if let Some(caps) = table_re.captures(line) {
             current_table = caps[1].to_string();
@@ -71,7 +81,9 @@ fn check_backfill_coverage(root_path: &Path) -> Result<(), String> {
         // inside table Y's region must NOT falsely tag Y (the domain_verb false positive).
         if let Some(caps) = alter_re.captures(line) {
             let t = caps[1].to_string();
-            if !t.contains('.') { emb_tables.insert(t); }
+            if !t.contains('.') {
+                emb_tables.insert(t);
+            }
             continue;
         }
         // Bare "emb vector" column inside a CREATE TABLE body -> current_table. Skip
@@ -81,20 +93,30 @@ fn check_backfill_coverage(root_path: &Path) -> Result<(), String> {
             emb_tables.insert(current_table.clone());
         }
     }
-    
+
     let mut mapped_tables = HashSet::new();
     let pk_map_re = Regex::new(r#""([a-zA-Z0-9_]+)"\s*:"#).unwrap();
     let exempt_re = Regex::new(r#""([a-zA-Z0-9_]+)""#).unwrap();
-    
+
     let mut in_pk_map = false;
     let mut in_exempt = false;
-    
+
     for line in backfill.lines() {
-        if line.contains("PK_MAP = {") { in_pk_map = true; continue; }
-        if line.contains("}") && in_pk_map { in_pk_map = false; }
-        if line.contains("_BACKFILL_EXEMPT = [") { in_exempt = true; continue; }
-        if line.contains("]") && in_exempt { in_exempt = false; }
-        
+        if line.contains("PK_MAP = {") {
+            in_pk_map = true;
+            continue;
+        }
+        if line.contains("}") && in_pk_map {
+            in_pk_map = false;
+        }
+        if line.contains("_BACKFILL_EXEMPT = [") {
+            in_exempt = true;
+            continue;
+        }
+        if line.contains("]") && in_exempt {
+            in_exempt = false;
+        }
+
         if in_pk_map {
             if let Some(caps) = pk_map_re.captures(line) {
                 mapped_tables.insert(caps[1].to_string());
@@ -106,17 +128,20 @@ fn check_backfill_coverage(root_path: &Path) -> Result<(), String> {
             }
         }
     }
-    
+
     let mut errors = Vec::new();
     for table in &emb_tables {
         if !mapped_tables.contains(table) {
-            errors.push(format!("Table '{}' has 'emb vector' but is not in PK_MAP or _BACKFILL_EXEMPT", table));
+            errors.push(format!(
+                "Table '{}' has 'emb vector' but is not in PK_MAP or _BACKFILL_EXEMPT",
+                table
+            ));
         }
     }
-    
+
     if !errors.is_empty() {
         return Err(errors.join("\n"));
     }
-    
+
     Ok(())
 }

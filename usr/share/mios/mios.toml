@@ -11575,3 +11575,22 @@ counters = [
 ]
 suppress_hint = "quiet flags only (dnf5 -q, buildah --quiet, cargo -q). Never parse or fold into the MiOS scheme."
 
+[build.phases]
+list = [
+  { ordinal = "01", name = "system-files-overlay", script = "01-system-files-overlay.sh", fatal = true, apply_class = "universal" },
+  { ordinal = "02", name = "materialize-build-ctx", script = "02-materialize-build-ctx.sh", fatal = true, apply_class = "universal" },
+  { ordinal = "04", name = "local-rpm-mirror", script = "04-local-rpm-mirror.sh", fatal = false, apply_class = "universal" },
+  { ordinal = "05", name = "repos", script = "05-repos.sh", fatal = true, apply_class = "universal" },
+  { ordinal = "06", name = "enable-external-repos", script = "06-enable-external-repos.sh", fatal = true, apply_class = "universal" },
+  { ordinal = "07", name = "kernel", script = "07-kernel.sh", fatal = true, apply_class = "universal" },
+  { ordinal = "10", name = "locale-theme", script = "10-locale-theme.sh", fatal = true, apply_class = "universal" },
+  { ordinal = "11", name = "user", script = "11-user.sh", fatal = true, apply_class = "universal" },
+  { ordinal = "12", name = "hostname", script = "12-hostname.sh", fatal = true, apply_class = "universal" },
+  { ordinal = "13", name = "accounts-db", script = "13-accounts-db.sh", fatal = true, apply_class = "universal" },
+  { ordinal = "98", name = "drift-checks", script = "98-drift-checks.sh", fatal = true, apply_class = "universal" },
+  { ordinal = "99", name = "postcheck", script = "99-postcheck.sh", fatal = true, apply_class = "universal" },
+]
+
+[build.ratchet]
+max_phase_scripts = 71
+

@@ -1,10 +1,10 @@
 // AI-hint: Rust bake-plan generator (AGY-139 / Law 14). Projects plan.d/*.list and bound-images.tsv from mios.toml SSOT.
+use regex::Regex;
 use std::collections::{BTreeMap, BTreeSet};
 use std::env;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process;
-use regex::Regex;
 use toml::Value;
 
 fn get_root() -> PathBuf {
@@ -71,7 +71,10 @@ fn classify(img: &str, groups: &[String], group_members: &BTreeMap<String, Vec<S
             }
         }
     }
-    groups.last().cloned().unwrap_or_else(|| "extra".to_string())
+    groups
+        .last()
+        .cloned()
+        .unwrap_or_else(|| "extra".to_string())
 }
 
 fn main() {
@@ -89,7 +92,11 @@ fn main() {
     let content = match fs::read_to_string(&toml_path) {
         Ok(c) => c,
         Err(e) => {
-            eprintln!("[bake-plan-gen] ERROR: cannot read {}: {}", toml_path.display(), e);
+            eprintln!(
+                "[bake-plan-gen] ERROR: cannot read {}: {}",
+                toml_path.display(),
+                e
+            );
             process::exit(1);
         }
     };
@@ -97,7 +104,11 @@ fn main() {
     let parsed: Value = match content.parse() {
         Ok(v) => v,
         Err(e) => {
-            eprintln!("[bake-plan-gen] ERROR: cannot parse {}: {}", toml_path.display(), e);
+            eprintln!(
+                "[bake-plan-gen] ERROR: cannot parse {}: {}",
+                toml_path.display(),
+                e
+            );
             process::exit(1);
         }
     };
@@ -106,20 +117,42 @@ fn main() {
     let core: BTreeSet<String> = build_bake
         .and_then(|b| b.get("core"))
         .and_then(|c| c.as_array())
-        .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect()
+        })
         .unwrap_or_default();
 
     let groups: Vec<String> = build_bake
         .and_then(|b| b.get("groups"))
         .and_then(|g| g.as_array())
-        .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
-        .unwrap_or_else(|| vec!["vllm".to_string(), "sglang".to_string(), "ai".to_string(), "infra".to_string(), "extra".to_string()]);
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect()
+        })
+        .unwrap_or_else(|| {
+            vec![
+                "vllm".to_string(),
+                "sglang".to_string(),
+                "ai".to_string(),
+                "infra".to_string(),
+                "extra".to_string(),
+            ]
+        });
 
     let mut group_members: BTreeMap<String, Vec<String>> = BTreeMap::new();
-    if let Some(gm) = build_bake.and_then(|b| b.get("group_members")).and_then(|m| m.as_table()) {
+    if let Some(gm) = build_bake
+        .and_then(|b| b.get("group_members"))
+        .and_then(|m| m.as_table())
+    {
         for (k, v) in gm {
             if let Some(arr) = v.as_array() {
-                let members: Vec<String> = arr.iter().filter_map(|s| s.as_str().map(String::from)).collect();
+                let members: Vec<String> = arr
+                    .iter()
+                    .filter_map(|s| s.as_str().map(String::from))
+                    .collect();
                 group_members.insert(k.clone(), members);
             }
         }
@@ -128,15 +161,25 @@ fn main() {
     let firstboot_tokens: Vec<String> = build_bake
         .and_then(|b| b.get("firstboot_tokens"))
         .and_then(|t| t.as_array())
-        .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect()
+        })
         .unwrap_or_default();
 
     let is_firstboot = |img: &str| -> bool {
-        firstboot_tokens.iter().any(|tok| !tok.is_empty() && img.contains(tok))
+        firstboot_tokens
+            .iter()
+            .any(|tok| !tok.is_empty() && img.contains(tok))
     };
 
     let mut enabled_map: BTreeMap<String, bool> = BTreeMap::new();
-    if let Some(q) = parsed.get("quadlets").and_then(|q| q.get("enable")).and_then(|e| e.as_table()) {
+    if let Some(q) = parsed
+        .get("quadlets")
+        .and_then(|q| q.get("enable"))
+        .and_then(|e| e.as_table())
+    {
         for (k, v) in q {
             if let Some(b) = v.as_bool() {
                 enabled_map.insert(k.clone(), b);
@@ -145,7 +188,11 @@ fn main() {
     }
 
     let mut sidecars: BTreeMap<String, String> = BTreeMap::new();
-    if let Some(sc) = parsed.get("image").and_then(|i| i.get("sidecars")).and_then(|s| s.as_table()) {
+    if let Some(sc) = parsed
+        .get("image")
+        .and_then(|i| i.get("sidecars"))
+        .and_then(|s| s.as_table())
+    {
         for (k, v) in sc {
             if let Some(s) = v.as_str() {
                 sidecars.insert(k.to_lowercase(), s.to_string());
@@ -161,19 +208,24 @@ fn main() {
             let mut paths: Vec<PathBuf> = entries
                 .filter_map(|e| e.ok().map(|entry| entry.path()))
                 .filter(|p| {
-                    p.extension().map_or(false, |ext| ext == "container" || ext == "image")
+                    p.extension()
+                        .is_some_and(|ext| ext == "container" || ext == "image")
                 })
                 .collect();
             paths.sort();
 
             for path in paths {
-                let base_name = path.file_stem().unwrap_or_default().to_string_lossy().to_string();
+                let base_name = path
+                    .file_stem()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .to_string();
                 let mut img = String::new();
                 if let Ok(fc) = fs::read_to_string(&path) {
                     for line in fc.lines() {
                         let trimmed = line.trim();
-                        if trimmed.starts_with("Image=") {
-                            img = trimmed["Image=".len()..].trim().to_string();
+                        if let Some(stripped) = trimmed.strip_prefix("Image=") {
+                            img = stripped.trim().to_string();
                             break;
                         }
                     }
@@ -221,12 +273,18 @@ fn main() {
     let mut errors: Vec<String> = Vec::new();
     for tok in &firstboot_tokens {
         if !tok.is_empty() && !core.iter().any(|img| img.contains(tok)) {
-            errors.push(format!("Firstboot token '{}' matches no image in core bake list", tok));
+            errors.push(format!(
+                "Firstboot token '{}' matches no image in core bake list",
+                tok
+            ));
         }
     }
     for img in &firstboot_images {
         if !core.contains(img) {
-            errors.push(format!("Firstboot image '{}' is missing from core bake list", img));
+            errors.push(format!(
+                "Firstboot image '{}' is missing from core bake list",
+                img
+            ));
         }
     }
 
@@ -242,16 +300,25 @@ fn main() {
         .collect();
 
     for img in discovered_non_localhost.difference(&core_non_localhost) {
-        errors.push(format!("Quadlet image '{}' is missing from [build.bake].core", img));
+        errors.push(format!(
+            "Quadlet image '{}' is missing from [build.bake].core",
+            img
+        ));
     }
     for img in core_non_localhost.difference(&discovered_non_localhost) {
-        errors.push(format!("Core image '{}' is not referenced by any Quadlet", img));
+        errors.push(format!(
+            "Core image '{}' is not referenced by any Quadlet",
+            img
+        ));
     }
 
     for img in &core {
         let first = img.split('/').next().unwrap_or("");
         if !(first.contains('.') || first.contains(':') || first == "localhost") {
-            errors.push(format!("Core image '{}' is not fully-qualified (missing registry prefix)", img));
+            errors.push(format!(
+                "Core image '{}' is not fully-qualified (missing registry prefix)",
+                img
+            ));
         }
     }
 
@@ -261,7 +328,10 @@ fn main() {
         }
         let first = img.split('/').next().unwrap_or("");
         if !(first.contains('.') || first.contains(':') || first == "localhost") {
-            errors.push(format!("Referenced image '{}' in {} is not fully-qualified", img, base_name));
+            errors.push(format!(
+                "Referenced image '{}' in {} is not fully-qualified",
+                img, base_name
+            ));
         }
     }
 
@@ -276,7 +346,7 @@ fn main() {
         let _ = fs::create_dir_all(&out_dir);
         if let Ok(entries) = fs::read_dir(&out_dir) {
             for entry in entries.flatten() {
-                if entry.path().extension().map_or(false, |e| e == "list") {
+                if entry.path().extension().is_some_and(|e| e == "list") {
                     let _ = fs::remove_file(entry.path());
                 }
             }
@@ -302,8 +372,14 @@ fn main() {
 
         let mut seen_images: BTreeSet<String> = BTreeSet::new();
         let mut sbom_content = String::from("image\tdigest\tgroup\n");
-        for (base_img, grp) in [("localhost/mios-sys:latest", "sys"), ("localhost/mios-cuda:latest", "cuda")] {
-            let digest = existing_digests.get(base_img).cloned().unwrap_or_else(|| "local".to_string());
+        for (base_img, grp) in [
+            ("localhost/mios-sys:latest", "sys"),
+            ("localhost/mios-cuda:latest", "cuda"),
+        ] {
+            let digest = existing_digests
+                .get(base_img)
+                .cloned()
+                .unwrap_or_else(|| "local".to_string());
             sbom_content.push_str(&format!("{}\t{}\t{}\n", base_img, digest, grp));
             seen_images.insert(base_img.to_string());
         }
@@ -311,7 +387,10 @@ fn main() {
         for (img, _base_name) in &images_to_bake {
             if !seen_images.contains(img) {
                 let g = classify(img, &groups, &group_members);
-                let digest = existing_digests.get(img).cloned().unwrap_or_else(|| "local".to_string());
+                let digest = existing_digests
+                    .get(img)
+                    .cloned()
+                    .unwrap_or_else(|| "local".to_string());
                 sbom_content.push_str(&format!("{}\t{}\t{}\n", img, digest, g));
                 seen_images.insert(img.clone());
             }
@@ -336,7 +415,10 @@ fn main() {
         if check {
             let cur = fs::read_to_string(&plan_file).unwrap_or_default();
             if cur != content {
-                eprintln!("[bake-plan-gen] DRIFT: {} does not match projected plan", plan_file.display());
+                eprintln!(
+                    "[bake-plan-gen] DRIFT: {} does not match projected plan",
+                    plan_file.display()
+                );
                 drift_detected = true;
             }
         } else {
@@ -355,7 +437,10 @@ fn main() {
     if check {
         let cur_fb = fs::read_to_string(&fb_file).unwrap_or_default();
         if cur_fb != fb_content {
-            eprintln!("[bake-plan-gen] DRIFT: {} does not match projected plan", fb_file.display());
+            eprintln!(
+                "[bake-plan-gen] DRIFT: {} does not match projected plan",
+                fb_file.display()
+            );
             drift_detected = true;
         }
     } else {

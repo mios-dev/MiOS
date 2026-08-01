@@ -1,7 +1,7 @@
 // AI-hint: High-performance native Rust drift check runner for MiOS — dispatches drift gates cleanly with timing metrics.
 // AI-related: automation/98-drift-checks.sh, tools/native/Cargo.toml
-use std::process::Command;
 use std::env;
+use std::process::Command;
 use std::time::Instant;
 
 fn main() {
@@ -22,10 +22,17 @@ fn main() {
         Ok(status) => {
             let duration = start.elapsed();
             if status.success() {
-                println!("[mios-drift-runner] All drift checks PASSED in {:.2?}", duration);
+                println!(
+                    "[mios-drift-runner] All drift checks PASSED in {:.2?}",
+                    duration
+                );
                 std::process::exit(0);
             } else {
-                eprintln!("[mios-drift-runner] Drift checks FAILED in {:.2?} (code {})", duration, status.code().unwrap_or(1));
+                eprintln!(
+                    "[mios-drift-runner] Drift checks FAILED in {:.2?} (code {})",
+                    duration,
+                    status.code().unwrap_or(1)
+                );
                 std::process::exit(status.code().unwrap_or(1));
             }
         }

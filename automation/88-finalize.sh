@@ -36,10 +36,15 @@ rm -rf /var/cache/libdnf5 /var/cache/dnf /var/log/dnf5.log* 2>/dev/null || true
 # /etc/mios-version and /etc/mios/version are Day-2 admin paths.
 MIOS_VERSION=$(cat /ctx/VERSION 2>/dev/null || echo "unknown")
 install -d -m 0755 ${MIOS_USR_DIR}
+if [[ -n "${SOURCE_DATE_EPOCH:-}" ]]; then
+    MIOS_BUILT=$(date -u -d "@${SOURCE_DATE_EPOCH}" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%SZ)
+else
+    MIOS_BUILT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+fi
 cat > ${MIOS_USR_DIR}/version <<EOF
 MIOS_VERSION=${MIOS_VERSION}
 MIOS_BASE=ucore-hci-stable-nvidia
-MIOS_BUILT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+MIOS_BUILT=${MIOS_BUILT}
 EOF
 ln -sf ${MIOS_USR_DIR}/version ${MIOS_USR_DIR}/mios-version
 
