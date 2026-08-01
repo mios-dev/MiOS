@@ -88,7 +88,7 @@ SCAN_DIRS=(
 
 VIOLATIONS=0
 _violation() {
-    echo "[38-drift-checks] VIOLATION: $*" >&2
+    echo "[98-drift-checks] VIOLATION: $*" >&2
     VIOLATIONS=$((VIOLATIONS + 1))
 }
 
@@ -96,7 +96,7 @@ _violation() {
 # _emit_projection_evidence <gen-relpath> <target-relpath>...
 # Failure-path diagnostics for the SSOT-projection gates (generate-*.py --check).
 # On a FAILED --check, emit MACHINE-GREPPABLE evidence (stable prefix
-# "[38-drift-checks][diff]") instead of prose: the exact generator command to
+# "[98-drift-checks][diff]") instead of prose: the exact generator command to
 # reproduce, the absolute ACTUAL vs GENERATED paths compared, and a
 # 200-line-capped unified diff (`-` = on-disk / `+` = SSOT-
 # projected). Mechanism: snapshot each target, re-render the generator IN WRITE
@@ -105,7 +105,7 @@ _violation() {
 # degrades to raw generator stderr; never increments VIOLATIONS (the caller
 # already recorded the _violation); always returns 0. shellcheck/set -e safe.
 _emit_projection_evidence() {
-    local pfx='[38-drift-checks][diff]'
+    local pfx='[98-drift-checks][diff]'
     local gen_rel="$1"; shift
     local gen="$ROOT/$gen_rel"
     local cap=200
@@ -200,8 +200,8 @@ _require_python3() {
     return 1
 }
 
-echo "[38-drift-checks] source-tree AI-plane drift fitness-functions"
-echo "[38-drift-checks]   root: $ROOT"
+echo "[98-drift-checks] source-tree AI-plane drift fitness-functions"
+echo "[98-drift-checks]   root: $ROOT"
 
 # --- (1) Retired :11434 lane in active config (ANY host). --------------------
 # Mirror of 99-postcheck.sh check 12b, on the SOURCE tree (PR-time). The ollama
@@ -228,7 +228,7 @@ check_dead_lane() {
         printf '%s' "$hits" >&2
         _violation "retired :11434 (ollama) lane in active source config -- MiOS is /v1-only; use the live lane, e.g. mios-llm-light :8450"
     else
-        echo "[38-drift-checks]   no retired :11434 lane in active config"
+        echo "[98-drift-checks]   no retired :11434 lane in active config"
     fi
 }
 
@@ -256,7 +256,7 @@ check_retired_models() {
         printf '%s' "$hits" >&2
         _violation "retired model-id (gemma4 / qwen3:1.7b) hardcoded in a consumer unit (point it at the live [ai].model, e.g. granite4.1:8b)"
     else
-        echo "[38-drift-checks]   no retired model-id in consumer config"
+        echo "[98-drift-checks]   no retired model-id in consumer config"
     fi
 }
 
@@ -265,7 +265,7 @@ check_retired_models() {
 # minimal host), skip with a warning rather than fail (bash checks still ran).
 check_structured() {
     if ! command -v python3 >/dev/null 2>&1; then
-        echo "[38-drift-checks]   WARNING: python3 missing -- skipping node + manifest checks" >&2
+        echo "[98-drift-checks]   WARNING: python3 missing -- skipping node + manifest checks" >&2
         return 0
     fi
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
@@ -284,7 +284,7 @@ except ImportError:
 # -- (3) every [nodes.local-*] localhost endpoint must hit a served lane port --
 toml_path = os.path.join(root, "usr/share/mios/mios.toml")
 if _toml is None:
-    sys.stderr.write("[38-drift-checks]   WARNING: no tomllib/tomli -- skipping [nodes.*] check\n")
+    sys.stderr.write("[98-drift-checks]   WARNING: no tomllib/tomli -- skipping [nodes.*] check\n")
 elif os.path.isfile(toml_path):
     with open(toml_path, "rb") as fh:
         data = _toml.load(fh)
@@ -381,7 +381,7 @@ for v in viol:
 sys.exit(1 if viol else 0)
 PY
     then
-        echo "[38-drift-checks]   every [nodes.local-*] localhost lane is served; (4) ai/v1 manifests parse + refs resolve"
+        echo "[98-drift-checks]   every [nodes.local-*] localhost lane is served; (4) ai/v1 manifests parse + refs resolve"
     else
         _violation "structured drift: a [nodes.*] lane is dangling and/or an ai/v1 manifest is broken (see lines above)"
     fi
@@ -396,15 +396,15 @@ PY
 check_hint_coverage() {
     local tool="$ROOT/usr/libexec/mios/mios-ai-hint-coverage"
     if ! command -v python3 >/dev/null 2>&1; then
-        echo "[38-drift-checks]   WARNING: python3 missing -- skipping AI-hint coverage" >&2
+        echo "[98-drift-checks]   WARNING: python3 missing -- skipping AI-hint coverage" >&2
         return 0
     fi
     if [[ ! -f "$tool" ]]; then
-        echo "[38-drift-checks]   WARNING: mios-ai-hint-coverage not found -- skipping" >&2
+        echo "[98-drift-checks]   WARNING: mios-ai-hint-coverage not found -- skipping" >&2
         return 0
     fi
     if python3 "$tool" --root "$ROOT"; then
-        echo "[38-drift-checks]   AI-hint coverage within ratchet ceiling"
+        echo "[98-drift-checks]   AI-hint coverage within ratchet ceiling"
     else
         _violation "AI-hint coverage regressed: a new taggable file lacks an AI-hint header (run mios-ai-tag, or raise [ai_tag].max_untagged only for prompt/data files)"
     fi
@@ -423,7 +423,7 @@ check_hint_coverage() {
 check_module_boundary() {
     local dir="$ROOT/usr/lib/mios/agent-pipe"
     if [[ ! -d "$dir" ]]; then
-        echo "[38-drift-checks]   agent-pipe dir absent -- skipped"
+        echo "[98-drift-checks]   agent-pipe dir absent -- skipped"
         return 0
     fi
     local hits="" f active
@@ -438,7 +438,7 @@ check_module_boundary() {
         printf '%s' "$hits" >&2
         _violation "agent-pipe sibling module imports the server monolith (breaks the modular-monolith boundary; siblings must stay server.py-free + isolation-testable)"
     else
-        echo "[38-drift-checks]   agent-pipe sibling modules are server.py-free (modular boundary intact)"
+        echo "[98-drift-checks]   agent-pipe sibling modules are server.py-free (modular boundary intact)"
     fi
 }
 
@@ -449,7 +449,7 @@ check_module_boundary() {
 # so a typo silently shrinks a surface. Catch it at the gate, not in production.
 check_rbac_tiers() {
     if ! command -v python3 >/dev/null 2>&1; then
-        echo "[38-drift-checks]   WARNING: python3 missing -- skipping RBAC tier check" >&2
+        echo "[98-drift-checks]   WARNING: python3 missing -- skipping RBAC tier check" >&2
         return 0
     fi
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
@@ -483,7 +483,7 @@ for b in bad:
 sys.exit(1 if bad else 0)
 PY
     then
-        echo "[38-drift-checks]   RBAC max_permission tiers all valid (PDP fail-closed gate)"
+        echo "[98-drift-checks]   RBAC max_permission tiers all valid (PDP fail-closed gate)"
     else
         _violation "an [agents.*]/[users.*].max_permission names an UNKNOWN permission tier -- the dispatch PDP fails CLOSED on it (restricts the caller to the safest tier); fix the typo or add the tier to [ai].permission_tiers "
     fi
@@ -498,7 +498,7 @@ PY
 # never re-merge. Advisory warns (bare-port literal, unknown key) print but pass.
 check_agent_schema() {
     if ! command -v python3 >/dev/null 2>&1; then
-        echo "[38-drift-checks]   WARNING: python3 missing -- skipping agent-schema check" >&2
+        echo "[98-drift-checks]   WARNING: python3 missing -- skipping agent-schema check" >&2
         return 0
     fi
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
@@ -563,13 +563,13 @@ for name, cfg in ag.items():
 if ndefault > 1:
     bad.append(f"    {ndefault} [agents.*] set default=true; at most one is allowed")
 for w in warn:
-    sys.stdout.write("[38-drift-checks]   (advisory)" + w + "\n")
+    sys.stdout.write("[98-drift-checks]   (advisory)" + w + "\n")
 for b in bad:
     sys.stderr.write(b + "\n")
 sys.exit(1 if bad else 0)
 PY
     then
-        echo "[38-drift-checks]   agent-schema contract satisfied (health_gate / cli / node / single-default rules)"
+        echo "[98-drift-checks]   agent-schema contract satisfied (health_gate / cli / node / single-default rules)"
     else
         _violation "an [agents.*] entry violates the unified agent schema : a local-optional agent missing health_gate, a kind=cli without timeout_s, a kind=node without api+lane, or >1 default=true -- the opencode 'dead local endpoint treated as live -> merged_chars=0' class. Fix the [agents.*] block (or [agents._defaults])."
     fi
@@ -581,7 +581,7 @@ PY
 # manifest (mios-ai-manifest-gen). Uses the SAME pure projection core the CLI does.
 check_ai_manifest() {
     if ! command -v python3 >/dev/null 2>&1; then
-        echo "[38-drift-checks]   WARNING: python3 missing -- skipping AI manifest drift check" >&2
+        echo "[98-drift-checks]   WARNING: python3 missing -- skipping AI manifest drift check" >&2
         return 0
     fi
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
@@ -612,7 +612,7 @@ for d in diffs[:30]:
 sys.exit(1 if diffs else 0)
 PY
     then
-        echo "[38-drift-checks]   ai/v1 verb-catalog manifest in sync with mios.toml SSOT"
+        echo "[98-drift-checks]   ai/v1 verb-catalog manifest in sync with mios.toml SSOT"
     else
         _violation "ai/v1/tools.generated.json is STALE vs mios.toml [verbs.*] -- regenerate with mios-ai-manifest-gen "
     fi
@@ -628,11 +628,11 @@ check_package_registry() {
     case "$_en" in
         1|true|yes|on) : ;;
         *)
-            echo "[38-drift-checks]   package registry dormant ([ai].package_registry off) -- skipped"
+            echo "[98-drift-checks]   package registry dormant ([ai].package_registry off) -- skipped"
             return 0 ;;
     esac
     if ! command -v python3 >/dev/null 2>&1; then
-        echo "[38-drift-checks]   WARNING: python3 missing -- skipping package registry check" >&2
+        echo "[98-drift-checks]   WARNING: python3 missing -- skipping package registry check" >&2
         return 0
     fi
     if MIOS_AGENT_PIPE_DIR="$ROOT/usr/lib/mios/agent-pipe" \
@@ -641,7 +641,7 @@ check_package_registry() {
        MIOS_PACKAGES_DIR="$ROOT/usr/share/mios/ai/v1/packages" \
        python3 "$ROOT/usr/libexec/mios/mios-registry" verify >/dev/null 2>"$ROOT/.pkgreg.err"; then
         rm -f "$ROOT/.pkgreg.err" 2>/dev/null || true
-        echo "[38-drift-checks]   package registry in sync with mios.toml SSOT"
+        echo "[98-drift-checks]   package registry in sync with mios.toml SSOT"
     else
         sed 's/^/    /' "$ROOT/.pkgreg.err" >&2 2>/dev/null || true
         rm -f "$ROOT/.pkgreg.err" 2>/dev/null || true
@@ -664,7 +664,7 @@ check_package_registry() {
 check_cli_sql_safety() {
     local dir="$ROOT/usr/libexec/mios"
     if [[ ! -d "$dir" ]]; then
-        echo "[38-drift-checks]   libexec dir absent -- skipped"
+        echo "[98-drift-checks]   libexec dir absent -- skipped"
         return 0
     fi
     local allow=" "   # empty: all libexec tools cut over to parameterized pg
@@ -684,7 +684,7 @@ check_cli_sql_safety() {
         printf '%s' "$hits" >&2
         _violation "a libexec CLI (re)introduced the retired legacy DB transport (post_sql/_sql/:8000/sql) or hand-rolled SQL escaping (_pgesc/_pgq) -- use parameterized pg via mios-pg-query --exec-json / mios-db --pg-json "
     else
-        echo "[38-drift-checks]   libexec CLIs SQL-safe (parameterized pg; allowlist empty -- all tools cut over)"
+        echo "[98-drift-checks]   libexec CLIs SQL-safe (parameterized pg; allowlist empty -- all tools cut over)"
     fi
 }
 
@@ -697,7 +697,7 @@ check_cli_sql_safety() {
 check_module_test_coverage() {
     local dir="$ROOT/usr/lib/mios/agent-pipe"
     if [[ ! -d "$dir" ]]; then
-        echo "[38-drift-checks]   agent-pipe dir absent -- skipped"
+        echo "[98-drift-checks]   agent-pipe dir absent -- skipped"
         return 0
     fi
     local missing="" f base mod_name
@@ -726,7 +726,7 @@ check_module_test_coverage() {
         printf '%s' "$missing" >&2
         _violation "an agent-pipe pure module has NO sibling unit test -- author test_<module>.py (stdlib assert-script, the sibling-module pattern); isolation-tested logic is the point of the extraction "
     else
-        echo "[38-drift-checks]   every agent-pipe mios_*.py and mios_pipe submodule has a sibling unit test"
+        echo "[98-drift-checks]   every agent-pipe mios_*.py and mios_pipe submodule has a sibling unit test"
     fi
 }
 
@@ -735,7 +735,7 @@ check_module_test_coverage() {
 check_raw_toml_readers() {
     local dir="$ROOT/usr/lib/mios/agent-pipe"
     if [[ ! -d "$dir" ]]; then
-        echo "[38-drift-checks]   raw TOML readers -- skipped"
+        echo "[98-drift-checks]   raw TOML readers -- skipped"
         return 0
     fi
     local violations="" f base
@@ -758,7 +758,7 @@ check_raw_toml_readers() {
         printf '%s' "$violations" >&2
         _violation "found raw MIOS_TOML / mios.toml file readers. Use mios_toml.load_merged() / load_vendor() instead of manual file opens or raw env lookups (B11)"
     else
-        echo "[38-drift-checks]   no raw MIOS_TOML readers in agent-pipe"
+        echo "[98-drift-checks]   no raw MIOS_TOML readers in agent-pipe"
     fi
 }
 
@@ -770,7 +770,7 @@ check_raw_toml_readers() {
 # pure projection (mios_capreg) the generator CLI does.
 check_capability_manifest() {
     if ! command -v python3 >/dev/null 2>&1; then
-        echo "[38-drift-checks]   WARNING: python3 missing -- skipping capability manifest check" >&2
+        echo "[98-drift-checks]   WARNING: python3 missing -- skipping capability manifest check" >&2
         return 0
     fi
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
@@ -801,7 +801,7 @@ for d in diffs[:30]:
 sys.exit(1 if diffs else 0)
 PY
     then
-        echo "[38-drift-checks]   ai/v1 capability manifest in sync with mios.toml SSOT"
+        echo "[98-drift-checks]   ai/v1 capability manifest in sync with mios.toml SSOT"
     else
         _violation "ai/v1/capabilities.generated.json is STALE vs mios.toml [verbs.*]+[recipes.*] -- regenerate with mios-ai-capabilities-gen"
     fi
@@ -823,7 +823,7 @@ PY
 # when the surface change is intended. Uses the SAME project_*/diff_* shape as check 8.
 check_surface_parity() {
     if ! command -v python3 >/dev/null 2>&1; then
-        echo "[38-drift-checks]   WARNING: python3 missing -- skipping surface parity check" >&2
+        echo "[98-drift-checks]   WARNING: python3 missing -- skipping surface parity check" >&2
         return 0
     fi
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
@@ -863,7 +863,7 @@ if len(diffs) > 40:
 sys.exit(1 if diffs else 0)
 PY
     then
-        echo "[38-drift-checks]   server.py public surface (routes+symbols) matches the committed golden"
+        echo "[98-drift-checks]   server.py public surface (routes+symbols) matches the committed golden"
     else
         _violation "server.py PUBLIC SURFACE drifted from usr/share/mios/ai/v1/surface.generated.json -- a route/symbol was dropped or added during the refactor. If intended, regenerate: python3 usr/lib/mios/agent-pipe/mios_surface.py usr/lib/mios/agent-pipe/server.py --package > usr/share/mios/ai/v1/surface.generated.json (refactor WS R0)"
     fi
@@ -875,12 +875,12 @@ check_pod_quadlets() {
     # SSOT (regenerate via tools/generate-pod-quadlets.py). Also warns if a
     # declared member has no .container file.
     if ! command -v python3 >/dev/null 2>&1; then
-        echo "[38-drift-checks]   WARNING: python3 missing -- skipping pod-quadlet check" >&2
+        echo "[98-drift-checks]   WARNING: python3 missing -- skipping pod-quadlet check" >&2
         return 0
     fi
     local gen="$ROOT/tools/generate-pod-quadlets.py"
     if [[ ! -f "$gen" ]]; then
-        echo "[38-drift-checks]   WARNING: generate-pod-quadlets.py absent -- skipping" >&2
+        echo "[98-drift-checks]   WARNING: generate-pod-quadlets.py absent -- skipping" >&2
         return 0
     fi
     # DETERMINISM: run --check in a CLEAN env. build.sh sources lib/common.sh ->
@@ -895,7 +895,7 @@ check_pod_quadlets() {
     # those unconditionally; env -i just removes the value-baking pollution.)
     if env -i PATH="$PATH" HOME="${HOME:-/root}" LANG="${LANG:-C.UTF-8}" \
             MIOS_ROOT="$ROOT" "$PYTHON" "$gen" --check; then
-        echo "[38-drift-checks]   Quadlet units (.pod, .container, .network, .volume) in sync with mios.toml SSOT"
+        echo "[98-drift-checks]   Quadlet units (.pod, .container, .network, .volume) in sync with mios.toml SSOT"
     else
         _violation "Quadlet unit(s) (.pod, .container, .network, .volume) STALE vs mios.toml SSOT -- regenerate with tools/generate-pod-quadlets.py"
     fi
@@ -906,19 +906,19 @@ check_egress_firewall() {
     # mios.toml [security.egress]; fail if the committed usr/share/mios/security/
     # egress.nft drifted from SSOT (regenerate via tools/generate-egress-firewall.py).
     if ! command -v python3 >/dev/null 2>&1; then
-        echo "[38-drift-checks]   WARNING: python3 missing -- skipping egress-fw check" >&2
+        echo "[98-drift-checks]   WARNING: python3 missing -- skipping egress-fw check" >&2
         return 0
     fi
     local gen="$ROOT/tools/generate-egress-firewall.py"
     local committed="$ROOT/usr/share/mios/security/egress.nft"
     if [[ ! -f "$gen" || ! -f "$committed" ]]; then
-        echo "[38-drift-checks]   WARNING: egress generator/artifact absent -- skipping" >&2
+        echo "[98-drift-checks]   WARNING: egress generator/artifact absent -- skipping" >&2
         return 0
     fi
     local tmp; tmp="$(mktemp)"
     if MIOS_ROOT="$ROOT" MIOS_EGRESS_OUT="$tmp" python3 "$gen" >/dev/null 2>&1 \
             && diff -q "$committed" "$tmp" >/dev/null 2>&1; then
-        echo "[38-drift-checks]   egress.nft in sync with mios.toml [security.egress] SSOT"
+        echo "[98-drift-checks]   egress.nft in sync with mios.toml [security.egress] SSOT"
         rm -f "$tmp"
     else
         rm -f "$tmp"
@@ -929,12 +929,12 @@ check_egress_firewall() {
 check_blade_dropins() {
     # WS-BLADE: verify committed blade capability drop-ins are in sync with mios.toml [blade.requires]
     if ! command -v python3 >/dev/null 2>&1; then
-        echo "[38-drift-checks]   WARNING: python3 missing -- skipping blade dropins check" >&2
+        echo "[98-drift-checks]   WARNING: python3 missing -- skipping blade dropins check" >&2
         return 0
     fi
     local gen="$ROOT/tools/generate-blade-dropins.py"
     if [[ ! -f "$gen" ]]; then
-        echo "[38-drift-checks]   WARNING: blade dropins generator absent -- skipping" >&2
+        echo "[98-drift-checks]   WARNING: blade dropins generator absent -- skipping" >&2
         return 0
     fi
     local tmp_root; tmp_root="$(mktemp -d)"
@@ -959,7 +959,7 @@ check_blade_dropins() {
         
         rm -rf "$tmp_root"
         if [[ $ok -eq 1 ]]; then
-            echo "[38-drift-checks]   blade capability drop-ins in sync with mios.toml [blade.requires]"
+            echo "[98-drift-checks]   blade capability drop-ins in sync with mios.toml [blade.requires]"
         else
             _violation "usr/share/mios/dropins/ is STALE vs mios.toml [blade.requires] -- regenerate with tools/generate-blade-dropins.py "
         fi
@@ -977,17 +977,17 @@ check_blade_dropins() {
 # legitimate date CONFIG values are never flagged. Runs offline over the source tree.
 check_no_hardcode() {
     if ! command -v python3 >/dev/null 2>&1; then
-        echo "[38-drift-checks]   WARNING: python3 missing -- skipping no-hardcode lint" >&2
+        echo "[98-drift-checks]   WARNING: python3 missing -- skipping no-hardcode lint" >&2
         return 0
     fi
     local tool="$ROOT/usr/libexec/mios/mios-hardcode-lint"
     if [[ ! -f "$tool" ]]; then
-        echo "[38-drift-checks]   WARNING: mios-hardcode-lint not found -- skipping" >&2
+        echo "[98-drift-checks]   WARNING: mios-hardcode-lint not found -- skipping" >&2
         return 0
     fi
     if python3 "$tool" "$ROOT" >/dev/null 2>"$ROOT/.nohc.err"; then
         rm -f "$ROOT/.nohc.err" 2>/dev/null || true
-        echo "[38-drift-checks]   no date-in-comment / header crash-risk (NO-HARDCODE law)"
+        echo "[98-drift-checks]   no date-in-comment / header crash-risk (NO-HARDCODE law)"
     else
         sed 's/^/    /' "$ROOT/.nohc.err" >&2 2>/dev/null || true
         rm -f "$ROOT/.nohc.err" 2>/dev/null || true
@@ -997,17 +997,17 @@ check_no_hardcode() {
 
 check_no_hardcode_version() {
     if ! command -v python3 >/dev/null 2>&1; then
-        echo "[38-drift-checks]   WARNING: python3 missing -- skipping no-hardcode-version lint" >&2
+        echo "[98-drift-checks]   WARNING: python3 missing -- skipping no-hardcode-version lint" >&2
         return 0
     fi
     local tool="$ROOT/usr/libexec/mios/mios-version-lint"
     if [[ ! -f "$tool" ]]; then
-        echo "[38-drift-checks]   WARNING: mios-version-lint not found -- skipping" >&2
+        echo "[98-drift-checks]   WARNING: mios-version-lint not found -- skipping" >&2
         return 0
     fi
     if MIOS_TOML_ROOT="$ROOT" python3 "$tool" "$ROOT" >/dev/null 2>"$ROOT/.nohc_ver.err"; then
         rm -f "$ROOT/.nohc_ver.err" 2>/dev/null || true
-        echo "[38-drift-checks]   no hand-pinned version literal (NO-HARDCODE-VERSION law)"
+        echo "[98-drift-checks]   no hand-pinned version literal (NO-HARDCODE-VERSION law)"
     else
         sed 's/^/    /' "$ROOT/.nohc_ver.err" >&2 2>/dev/null || true
         rm -f "$ROOT/.nohc_ver.err" 2>/dev/null || true
@@ -1030,7 +1030,7 @@ check_no_hardcode_version() {
 # register self-cleans. Pure ast, read-only.
 check_unwired_modules() {
     if ! command -v python3 >/dev/null 2>&1; then
-        echo "[38-drift-checks]   WARNING: python3 missing -- skipping unwired-module check" >&2
+        echo "[98-drift-checks]   WARNING: python3 missing -- skipping unwired-module check" >&2
         return 0
     fi
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
@@ -1155,7 +1155,7 @@ for m in stale:
 sys.exit(1 if (new_dead or stale) else 0)
 PY
     then
-        echo "[38-drift-checks]   no imported-but-dead agent-pipe module (A1 _UNWIRED_ALLOW current)"
+        echo "[98-drift-checks]   no imported-but-dead agent-pipe module (A1 _UNWIRED_ALLOW current)"
     else
         _violation "an agent-pipe module is imported-but-dead (no real non-test caller) OR a _UNWIRED_ALLOW entry is stale -- wire the module (give it a call site) or update the _UNWIRED_ALLOW register (MIOS-GAP-REGISTER A1)"
     fi
@@ -1169,7 +1169,7 @@ PY
 # (d) provision_script path exists in the image (warnings/advisory when offline)
 check_cephfs_ssot() {
     if ! command -v python3 >/dev/null 2>&1; then
-        echo "[38-drift-checks]   WARNING: python3 missing -- skipping cephfs check" >&2
+        echo "[98-drift-checks]   WARNING: python3 missing -- skipping cephfs check" >&2
         return 0
     fi
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
@@ -1187,7 +1187,7 @@ except ImportError:
 
 toml_path = os.path.join(root, "usr/share/mios/mios.toml")
 if _toml is None:
-    sys.stderr.write("[38-drift-checks]   WARNING: no tomllib/tomli -- skipping CephFS check\n")
+    sys.stderr.write("[98-drift-checks]   WARNING: no tomllib/tomli -- skipping CephFS check\n")
 elif os.path.isfile(toml_path):
     with open(toml_path, "rb") as fh:
         data = _toml.load(fh)
@@ -1258,7 +1258,7 @@ for v in viol:
 sys.exit(1 if viol else 0)
 PY
     then
-        echo "[38-drift-checks]   CephFS SSOT configuration is valid (no placeholder/cache conflicts)"
+        echo "[98-drift-checks]   CephFS SSOT configuration is valid (no placeholder/cache conflicts)"
     else
         _violation "[storage.cephfs] SSOT validation failed (see lines above)"
     fi
@@ -1271,7 +1271,7 @@ check_converge_ssot() {
     if [[ "$retire_alt" == "true" ]]; then
         if command -v systemctl >/dev/null 2>&1; then
             if systemctl is-enabled mios-llm-heavy-alt.service >/dev/null 2>&1; then
-                echo "[38-drift-checks] VIOLATION: retire_heavy_alt=true but systemd unit mios-llm-heavy-alt.service is still enabled!" >&2
+                echo "[98-drift-checks] VIOLATION: retire_heavy_alt=true but systemd unit mios-llm-heavy-alt.service is still enabled!" >&2
                 VIOLATIONS=$((VIOLATIONS + 1))
                 return 1
             fi
@@ -1281,21 +1281,21 @@ check_converge_ssot() {
     # Phase 3 checks
     local cold_storage_dir="${MIOS_CONV_MEMORY_COLD_STORAGE_DIR:-/var/lib/mios/history/}"
     if [[ "$cold_storage_dir" == *"/tenants/"* ]]; then
-        echo "[38-drift-checks] VIOLATION: cold_storage_dir ($cold_storage_dir) cannot be inside a CephFS tenants mount path!" >&2
+        echo "[98-drift-checks] VIOLATION: cold_storage_dir ($cold_storage_dir) cannot be inside a CephFS tenants mount path!" >&2
         VIOLATIONS=$((VIOLATIONS + 1))
         return 1
     fi
 
     local cold_retention_days="${MIOS_CONV_MEMORY_COLD_RETENTION_DAYS:-30}"
     if [[ "$cold_retention_days" -lt 1 ]]; then
-        echo "[38-drift-checks] VIOLATION: cold_retention_days ($cold_retention_days) must be >= 1!" >&2
+        echo "[98-drift-checks] VIOLATION: cold_retention_days ($cold_retention_days) must be >= 1!" >&2
         VIOLATIONS=$((VIOLATIONS + 1))
         return 1
     fi
 
     local cold_zstd_level="${MIOS_CONV_MEMORY_COLD_ZSTD_LEVEL:-3}"
     if [[ "$cold_zstd_level" -lt 1 || "$cold_zstd_level" -gt 19 ]]; then
-        echo "[38-drift-checks] VIOLATION: cold_zstd_level ($cold_zstd_level) must be between 1 and 19!" >&2
+        echo "[98-drift-checks] VIOLATION: cold_zstd_level ($cold_zstd_level) must be between 1 and 19!" >&2
         VIOLATIONS=$((VIOLATIONS + 1))
         return 1
     fi
@@ -1307,13 +1307,13 @@ check_converge_ssot() {
             py_bin="python3"
         fi
         if ! "$py_bin" -c "import sqlite_vec" >/dev/null 2>&1; then
-            echo "[38-drift-checks] VIOLATION: sqlite_vec_enable=true but sqlite_vec python package is not importable!" >&2
+            echo "[98-drift-checks] VIOLATION: sqlite_vec_enable=true but sqlite_vec python package is not importable!" >&2
             VIOLATIONS=$((VIOLATIONS + 1))
             return 1
         fi
     fi
 
-    echo "[38-drift-checks]   [converge] SSOT configuration is valid (retire_heavy_alt=$retire_alt)"
+    echo "[98-drift-checks]   [converge] SSOT configuration is valid (retire_heavy_alt=$retire_alt)"
 }
 
 # --- (20) Hummingbird distroless and Quadlet configuration (CONV-15). -------
@@ -1325,19 +1325,19 @@ check_hummingbird() {
 
     if [[ "$distroless_enable" == "true" ]]; then
         if [[ ! -f "$containerfile" ]]; then
-            echo "[38-drift-checks] VIOLATION: distroless_enable=true but $containerfile is missing!" >&2
+            echo "[98-drift-checks] VIOLATION: distroless_enable=true but $containerfile is missing!" >&2
             VIOLATIONS=$((VIOLATIONS + 1))
             return 1
         fi
 
         if [[ ! -f "$quadlet" ]]; then
-            echo "[38-drift-checks] VIOLATION: Quadlet definition $quadlet is missing!" >&2
+            echo "[98-drift-checks] VIOLATION: Quadlet definition $quadlet is missing!" >&2
             VIOLATIONS=$((VIOLATIONS + 1))
             return 1
         fi
 
         if ! grep -q "Environment=MIOS_AI_ENDPOINT=" "$quadlet"; then
-            echo "[38-drift-checks] VIOLATION: Quadlet $quadlet is missing Environment=MIOS_AI_ENDPOINT!" >&2
+            echo "[98-drift-checks] VIOLATION: Quadlet $quadlet is missing Environment=MIOS_AI_ENDPOINT!" >&2
             VIOLATIONS=$((VIOLATIONS + 1))
             return 1
         fi
@@ -1352,7 +1352,7 @@ check_hummingbird() {
         fi
 
         if ! grep -F "FROM $expected_base" "$containerfile" >/dev/null 2>&1; then
-            echo "[38-drift-checks] VIOLATION: Containerfile.hummingbird base image does not match distroless_base ($expected_base)!" >&2
+            echo "[98-drift-checks] VIOLATION: Containerfile.hummingbird base image does not match distroless_base ($expected_base)!" >&2
             VIOLATIONS=$((VIOLATIONS + 1))
             return 1
         fi
@@ -1362,7 +1362,7 @@ check_hummingbird() {
         final_stage=$(awk '/^FROM/ { stage="" } { stage=stage "\n" $0 } END { print stage }' "$containerfile")
 
         if echo "$final_stage" | grep -F "/bin/bash" >/dev/null; then
-            echo "[38-drift-checks] VIOLATION: Containerfile.hummingbird final stage contains /bin/bash!" >&2
+            echo "[98-drift-checks] VIOLATION: Containerfile.hummingbird final stage contains /bin/bash!" >&2
             VIOLATIONS=$((VIOLATIONS + 1))
             return 1
         fi
@@ -1370,7 +1370,7 @@ check_hummingbird() {
         local user_line
         user_line=$(echo "$final_stage" | grep -E '^\s*USER\s+' | tail -n 1 | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
         if [[ "$user_line" != "USER 65534" && "$user_line" != "USER 65534:65534" ]]; then
-            echo "[38-drift-checks] VIOLATION: Containerfile.hummingbird final stage USER ($user_line) is not 65534 or 65534:65534!" >&2
+            echo "[98-drift-checks] VIOLATION: Containerfile.hummingbird final stage USER ($user_line) is not 65534 or 65534:65534!" >&2
             VIOLATIONS=$((VIOLATIONS + 1))
             return 1
         fi
@@ -1378,18 +1378,18 @@ check_hummingbird() {
 
     if [[ "$rechunk_enable" == "true" ]]; then
         if ! command -v rpm-ostree >/dev/null 2>&1; then
-            echo "[38-drift-checks] VIOLATION: rechunk_enable=true but rpm-ostree binary not found in PATH!" >&2
+            echo "[98-drift-checks] VIOLATION: rechunk_enable=true but rpm-ostree binary not found in PATH!" >&2
             VIOLATIONS=$((VIOLATIONS + 1))
             return 1
         fi
     fi
 
-    echo "[38-drift-checks]   Hummingbird distroless and Quadlet configuration is valid"
+    echo "[98-drift-checks]   Hummingbird distroless and Quadlet configuration is valid"
 }
 
 check_container_ports() {
     if ! command -v python3 >/dev/null 2>&1; then
-        echo "[38-drift-checks]   WARNING: python3 missing -- skipping container port check" >&2
+        echo "[98-drift-checks]   WARNING: python3 missing -- skipping container port check" >&2
         return 0
     fi
     local tmp; tmp="$(mktemp)"
@@ -1454,10 +1454,10 @@ for v in viol:
 sys.exit(1 if viol else 0)
 PY
     then
-        echo "[38-drift-checks]   no manual port literals in container definitions"
+        echo "[98-drift-checks]   no manual port literals in container definitions"
         rm -f "$tmp"
     else
-        echo "[38-drift-checks] VIOLATION: manual port literal(s) found in container Quadlets -- use the \${MIOS_PORT_*} placeholder from the [ports] SSOT:" >&2
+        echo "[98-drift-checks] VIOLATION: manual port literal(s) found in container Quadlets -- use the \${MIOS_PORT_*} placeholder from the [ports] SSOT:" >&2
         cat "$tmp" >&2
         rm -f "$tmp"
         VIOLATIONS=$((VIOLATIONS + 1))
@@ -1467,7 +1467,7 @@ PY
 
 check_bootstrap_ports_drift() {
     if ! command -v python3 >/dev/null 2>&1; then
-        echo "[38-drift-checks]   WARNING: python3 missing -- skipping bootstrap ports drift check" >&2
+        echo "[98-drift-checks]   WARNING: python3 missing -- skipping bootstrap ports drift check" >&2
         return 0
     fi
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
@@ -1528,7 +1528,7 @@ if drift:
 sys.exit(0)
 PY
     then
-        echo "[38-drift-checks]   bootstrap mios.toml [ports] table matches main repository"
+        echo "[98-drift-checks]   bootstrap mios.toml [ports] table matches main repository"
     else
         _violation "bootstrap mios.toml [ports] table diverges from main repository mios.toml"
     fi
@@ -1542,7 +1542,7 @@ check_agent_pipe_budgets() {
     fi
     if [ -x "$lint_bin" ]; then
         if MIOS_DRIFT_ROOT="$ROOT" "$lint_bin"; then
-            echo "[38-drift-checks]   all [agent_pipe] budget variables have code consumers (native mios-aiplane-lint)"
+            echo "[98-drift-checks]   all [agent_pipe] budget variables have code consumers (native mios-aiplane-lint)"
             return 0
         else
             _violation "some [agent_pipe] keys have no code consumer in the agent-pipe codebase"
@@ -1612,7 +1612,7 @@ if missing:
 sys.exit(0)
 PY
     then
-        echo "[38-drift-checks]   all [agent_pipe] budget variables have code consumers"
+        echo "[98-drift-checks]   all [agent_pipe] budget variables have code consumers"
     else
         _violation "some [agent_pipe] keys have no code consumer in the agent-pipe codebase"
     fi
@@ -1711,7 +1711,7 @@ if violations:
 sys.exit(0)
 PY
     then
-        echo "[38-drift-checks]   no bare port literals remain in execution paths"
+        echo "[98-drift-checks]   no bare port literals remain in execution paths"
     else
         _violation "bare port literals in execution paths"
     fi
@@ -1731,17 +1731,17 @@ PY
 # checks 8/12/13/14, over the theme + settings surfaces.
 check_dotfiles_projection() {
     if ! command -v python3 >/dev/null 2>&1; then
-        echo "[38-drift-checks]   WARNING: python3 missing -- skipping dotfiles-projection check" >&2
+        echo "[98-drift-checks]   WARNING: python3 missing -- skipping dotfiles-projection check" >&2
         return 0
     fi
     local tool="$ROOT/usr/libexec/mios/mios-dotfiles-render"
     if [[ ! -f "$tool" ]]; then
-        echo "[38-drift-checks]   WARNING: mios-dotfiles-render not found -- skipping" >&2
+        echo "[98-drift-checks]   WARNING: mios-dotfiles-render not found -- skipping" >&2
         return 0
     fi
     if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_HOST_TOML=/nonexistent.toml MIOS_USER_TOML=/nonexistent.toml python3 "$tool" check >/dev/null 2>"$ROOT/.dotfiles.err"; then
         rm -f "$ROOT/.dotfiles.err" 2>/dev/null || true
-        echo "[38-drift-checks]   every committed theme + settings surface projects from mios.toml [colors]/[btop]/[gitconfig]/[identity]/[dotfiles] SSOT"
+        echo "[98-drift-checks]   every committed theme + settings surface projects from mios.toml [colors]/[btop]/[gitconfig]/[identity]/[dotfiles] SSOT"
     else
         sed 's/^/    /' "$ROOT/.dotfiles.err" >&2 2>/dev/null || true
         rm -f "$ROOT/.dotfiles.err" 2>/dev/null || true
@@ -1757,11 +1757,11 @@ check_dotfiles_projection() {
 check_userenv_parity() {
     local src="$ROOT/tools/lib/userenv.sh" dst="$ROOT/usr/lib/mios/userenv.sh"
     if [[ ! -f "$src" || ! -f "$dst" ]]; then
-        echo "[38-drift-checks]   userenv.sh parity -- a copy is absent, skipped"
+        echo "[98-drift-checks]   userenv.sh parity -- a copy is absent, skipped"
         return 0
     fi
     if diff -q "$src" "$dst" >/dev/null 2>&1; then
-        echo "[38-drift-checks]   usr/lib/mios/userenv.sh matches authoritative tools/lib/userenv.sh"
+        echo "[98-drift-checks]   usr/lib/mios/userenv.sh matches authoritative tools/lib/userenv.sh"
     else
         _violation "usr/lib/mios/userenv.sh drifted from the authoritative tools/lib/userenv.sh (59-tools.sh installs the latter) -- resync: cp tools/lib/userenv.sh usr/lib/mios/userenv.sh (flatten check 27)"
     fi
@@ -1775,7 +1775,7 @@ check_userenv_parity() {
 # dead-dispatch. This gate makes that class unrepresentable.
 check_verb_backends() {
     if ! command -v python3 >/dev/null 2>&1; then
-        echo "[38-drift-checks]   WARNING: python3 missing -- skipping verb-backend check" >&2
+        echo "[98-drift-checks]   WARNING: python3 missing -- skipping verb-backend check" >&2
         return 0
     fi
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
@@ -1812,7 +1812,7 @@ for t, vs in sorted(missing.items()):
 sys.exit(1 if missing else 0)
 PY
     then
-        echo "[38-drift-checks]   every [verbs.*].cmd mios-* backend resolves on disk"
+        echo "[98-drift-checks]   every [verbs.*].cmd mios-* backend resolves on disk"
     else
         _violation "a [verbs.*].cmd dispatches to a mios-* backend that does not exist (dead dispatch) -- fix the cmd template or ship the backend (flatten check 26)"
     fi
@@ -1828,7 +1828,7 @@ PY
 # so the fallbacks can never drift from the SSOT again.
 check_globals_ports() {
     if ! command -v python3 >/dev/null 2>&1; then
-        echo "[38-drift-checks]   WARNING: python3 missing -- skipping globals-ports check" >&2
+        echo "[98-drift-checks]   WARNING: python3 missing -- skipping globals-ports check" >&2
         return 0
     fi
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
@@ -1883,7 +1883,7 @@ for b in bad:
 sys.exit(1 if bad else 0)
 PY
     then
-        echo "[38-drift-checks]   every MIOS_PORT_* fallback in globals.{ps1,sh} equals mios.toml [ports] SSOT"
+        echo "[98-drift-checks]   every MIOS_PORT_* fallback in globals.{ps1,sh} equals mios.toml [ports] SSOT"
     else
         _violation "a MIOS_PORT_* fallback default in automation/lib/globals.ps1 or globals.sh drifted from mios.toml [ports] SSOT (Windows-side effective default; align the else{N}/:=N literal to [ports].<name>) (flatten check 28)"
     fi
@@ -1893,7 +1893,7 @@ PY
 # Ensure default image references in automation/lib/globals.sh and globals.ps1 align with mios.toml [image] SSOT.
 check_globals_image_parity() {
     if ! command -v python3 >/dev/null 2>&1; then
-        echo "[38-drift-checks]   WARNING: python3 missing -- skipping globals-image-parity check" >&2
+        echo "[98-drift-checks]   WARNING: python3 missing -- skipping globals-image-parity check" >&2
         return 0
     fi
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
@@ -1988,7 +1988,7 @@ for b in bad:
 sys.exit(1 if bad else 0)
 PY
     then
-        echo "[38-drift-checks]   default image references in globals.{sh,ps1} equal mios.toml [image] SSOT"
+        echo "[98-drift-checks]   default image references in globals.{sh,ps1} equal mios.toml [image] SSOT"
     else
         _violation "default image reference in automation/lib/globals.sh or globals.ps1 drifted from mios.toml [image] SSOT"
     fi
@@ -1997,7 +1997,7 @@ PY
 # --- (29, DAG-integrity drift-gate) consumer-before-producer = build error. ----
 check_dag_integrity() {
     if ! command -v python3 >/dev/null 2>&1; then
-        echo "[38-drift-checks]   WARNING: python3 missing -- skipping DAG-integrity check" >&2
+        echo "[98-drift-checks]   WARNING: python3 missing -- skipping DAG-integrity check" >&2
         return 0
     fi
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
@@ -2054,7 +2054,7 @@ if violations:
 sys.exit(0)
 PY
     then
-        echo "[38-drift-checks]   DAG-integrity: consumers start after their producers' readiness artifacts exist"
+        echo "[98-drift-checks]   DAG-integrity: consumers start after their producers' readiness artifacts exist"
     else
         _violation "DAG dependency ordering violation detected: consumer starts before producer (flatten check 29)"
     fi
@@ -2063,7 +2063,7 @@ PY
 # --- (30, WS-NAME names/keys registry enforcement) ----------------------------
 check_names_registry() {
     if ! command -v python3 >/dev/null 2>&1; then
-        echo "[38-drift-checks]   WARNING: python3 missing -- skipping names registry check" >&2
+        echo "[98-drift-checks]   WARNING: python3 missing -- skipping names registry check" >&2
         return 0
     fi
     # generate-names-registry.py enumerates the tracked tree via `git ls-files`
@@ -2077,11 +2077,11 @@ check_names_registry() {
     # case skip rather than false-fail; the drift-gate job stays authoritative.
     # Full visibility: any skip is explicit and states exactly why.
     if ! git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-        echo "[38-drift-checks]   names registry -- SKIPPED (no git work tree at \$ROOT; generate-names-registry.py needs 'git ls-files')"
+        echo "[98-drift-checks]   names registry -- SKIPPED (no git work tree at \$ROOT; generate-names-registry.py needs 'git ls-files')"
         return 0
     fi
     if git -C "$ROOT" ls-files --deleted 2>/dev/null | grep -q .; then
-        echo "[38-drift-checks]   names registry -- SKIPPED (incomplete git work tree: tracked files not materialized at \$ROOT); authoritative check runs in the drift-gate job"
+        echo "[98-drift-checks]   names registry -- SKIPPED (incomplete git work tree: tracked files not materialized at \$ROOT); authoritative check runs in the drift-gate job"
         return 0
     fi
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
@@ -2147,7 +2147,7 @@ if violations:
 sys.exit(0)
 PY
     then
-        echo "[38-drift-checks]   names registry matches generate-names-registry.py"
+        echo "[98-drift-checks]   names registry matches generate-names-registry.py"
     else
         _violation "naming registry drift / tools/generate-names-registry.py stale (run tools/generate-names-registry.py to regenerate; check 30)"
     fi
@@ -2156,7 +2156,7 @@ PY
 # --- (31, WS-VECTOR V1 drift_projection round-trip) --------------------------
 check_drift_projection() {
     if ! command -v python3 >/dev/null 2>&1; then
-        echo "[38-drift-checks]   WARNING: python3 missing -- skipping drift-projection check" >&2
+        echo "[98-drift-checks]   WARNING: python3 missing -- skipping drift-projection check" >&2
         return 0
     fi
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
@@ -2475,7 +2475,7 @@ if __name__ == "__main__":
     check_roundtrip(os.environ["MIOS_DRIFT_ROOT"])
 PY
     then
-        echo "[38-drift-checks]   DB->TOML materialize round-trip is lossless for config_kv and verbs"
+        echo "[98-drift-checks]   DB->TOML materialize round-trip is lossless for config_kv and verbs"
     else
         _violation "DB->TOML materialize round-trip drift detected (check 31) -- verify seed-db-config.py and materialize-config-toml.py mappings"
     fi
@@ -2484,7 +2484,7 @@ PY
 # --- (33, WS-NAME no non-canonical bools) ------------------------------------
 check_canonical_bools() {
     if ! command -v python3 >/dev/null 2>&1; then
-        echo "[38-drift-checks]   WARNING: python3 missing -- skipping canonical-bool check" >&2
+        echo "[98-drift-checks]   WARNING: python3 missing -- skipping canonical-bool check" >&2
         return 0
     fi
     if MIOS_TOML="$ROOT/usr/share/mios/mios.toml" MIOS_VENDOR_TOML="$ROOT/usr/share/mios/mios.toml" python3 - <<'PY'
@@ -2536,7 +2536,7 @@ for vname, vcfg in verbs.items():
 sys.exit(0)
 PY
     then
-        echo "[38-drift-checks]   no non-canonical bool literals in [verbs.*]"
+        echo "[98-drift-checks]   no non-canonical bool literals in [verbs.*]"
     else
         _violation "Non-canonical bool literal detected in mios.toml verbs (check 33)"
     fi
@@ -2558,14 +2558,14 @@ check_etc_duplicates() {
     if [[ -n "$hits" ]]; then
         _violation "Full-unit duplicate(s) found in etc/ containers that shadow usr/share/ generated units (check 34):"$'\n'"$hits"
     else
-        echo "[38-drift-checks]   no etc/ full-unit duplicate shadows generated usr/share/ containers"
+        echo "[98-drift-checks]   no etc/ full-unit duplicate shadows generated usr/share/ containers"
     fi
 }
 
 # --- (32, WS-VECTOR V3 drift_build_catalog round-trip) -----------------------
 check_drift_build_catalog() {
     if ! command -v python3 >/dev/null 2>&1; then
-        echo "[38-drift-checks]   WARNING: python3 missing -- skipping drift-build-catalog check" >&2
+        echo "[98-drift-checks]   WARNING: python3 missing -- skipping drift-build-catalog check" >&2
         return 0
     fi
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
@@ -2918,7 +2918,7 @@ if __name__ == "__main__":
     check_roundtrip(os.environ["MIOS_DRIFT_ROOT"])
 PY
     then
-        echo "[38-drift-checks]   DB->/ctx materialize round-trip is lossless for build catalog"
+        echo "[98-drift-checks]   DB->/ctx materialize round-trip is lossless for build catalog"
     else
         _violation "DB->/ctx materialize round-trip drift detected (check 32) -- verify seed-db-config.py and materialize-build-ctx.py mappings"
     fi
@@ -2953,7 +2953,7 @@ check_no_mkdir_in_var() {
         printf '%s' "$hits" >&2
         _violation "an imperative 'mkdir .../var/...' in a numbered build step (Law 2 NO-MKDIR-IN-VAR) -- declare the path in usr/lib/tmpfiles.d/*.conf instead"
     else
-        echo "[38-drift-checks]   no imperative /var mkdir in numbered automation/Containerfiles (Law 2)"
+        echo "[98-drift-checks]   no imperative /var mkdir in numbered automation/Containerfiles (Law 2)"
     fi
 }
 
@@ -2975,14 +2975,14 @@ _privileged_quadlet_array() {
 check_quadlet_privilege() {
     local toml="$ROOT/usr/share/mios/mios.toml"
     if [[ ! -f "$toml" ]]; then
-        echo "[38-drift-checks]   mios.toml absent -- skipped"
+        echo "[98-drift-checks]   mios.toml absent -- skipped"
         return 0
     fi
     local root_allow ngd_allow
     root_allow="$(_privileged_quadlet_array "$toml" root)"
     ngd_allow="$(_privileged_quadlet_array "$toml" no_group_delegate)"
     if [[ -z "$root_allow" ]]; then
-        echo "[38-drift-checks]   WARNING: [security.privileged_quadlets].root empty/unreadable -- skipping quadlet-privilege check" >&2
+        echo "[98-drift-checks]   WARNING: [security.privileged_quadlets].root empty/unreadable -- skipping quadlet-privilege check" >&2
         return 0
     fi
     local bad="" f base user
@@ -3012,7 +3012,7 @@ check_quadlet_privilege() {
         printf '%s' "$bad" >&2
         _violation "a Quadlet violates Law 6 (UNPRIVILEGED-QUADLETS): missing User=, an undocumented User=root/0 (add to [security.privileged_quadlets].root with a justification), or a missing Group=/Delegate=yes (exempt via [...].no_group_delegate)"
     else
-        echo "[38-drift-checks]   every Quadlet declares User=; root only where allowlisted; Group=/Delegate=yes present (Law 6)"
+        echo "[98-drift-checks]   every Quadlet declares User=; root only where allowlisted; Group=/Delegate=yes present (Law 6)"
     fi
 }
 
@@ -3024,20 +3024,20 @@ check_quadlet_privilege() {
 check_var_closure() {
     local tool="$ROOT/automation/lib/mios_var_closure.py"
     if ! command -v python3 >/dev/null 2>&1; then
-        echo "[38-drift-checks]   SOFT: python3 missing -- var-closure needs Linux/CI, skipped" >&2
+        echo "[98-drift-checks]   SOFT: python3 missing -- var-closure needs Linux/CI, skipped" >&2
         return 0
     fi
     if [[ ! -f "$tool" ]]; then
-        echo "[38-drift-checks]   SOFT: mios_var_closure.py absent -- skipped" >&2
+        echo "[98-drift-checks]   SOFT: mios_var_closure.py absent -- skipped" >&2
         return 0
     fi
     if MIOS_ROOT="$ROOT" python3 "$tool" >/dev/null 2>"$ROOT/.varclosure.err"; then
         rm -f "$ROOT/.varclosure.err" 2>/dev/null || true
-        echo "[38-drift-checks]   MIOS_* referenced-set is a subset of emitted-set (var-closure holds, Law 9)"
+        echo "[98-drift-checks]   MIOS_* referenced-set is a subset of emitted-set (var-closure holds, Law 9)"
     else
         sed 's/^/    /' "$ROOT/.varclosure.err" >&2 2>/dev/null || true
         rm -f "$ROOT/.varclosure.err" 2>/dev/null || true
-        echo "[38-drift-checks]   SOFT WARNING: var-closure reported an issue (needs real python3 + Linux resolver; NOT failing the build)" >&2
+        echo "[98-drift-checks]   SOFT WARNING: var-closure reported an issue (needs real python3 + Linux resolver; NOT failing the build)" >&2
     fi
 }
 
@@ -3058,7 +3058,7 @@ check_lint_is_final() {
         printf '%s' "$bad" >&2
         _violation "a Containerfile's final instruction is not 'RUN bootc container lint' (Law 4 BOOTC-CONTAINER-LINT) -- lint MUST be the last layer"
     else
-        echo "[38-drift-checks]   Containerfile + Containerfile.minimal end with 'RUN bootc container lint' (Law 4)"
+        echo "[98-drift-checks]   Containerfile + Containerfile.minimal end with 'RUN bootc container lint' (Law 4)"
     fi
 }
 
@@ -3089,7 +3089,7 @@ check_firstboot_degrade_open() {
         printf '%s' "$bad" >&2
         _violation "a *firstboot* script does not degrade open (Law 12 BAKE-NOT-FETCH): 'set -e' is active with no recovery path -- guard the provision/egress steps (|| exit 0 / degrade) so a fetch failure never blocks boot"
     else
-        echo "[38-drift-checks]   every *firstboot* script degrades open (no unguarded set -e; Law 12)"
+        echo "[98-drift-checks]   every *firstboot* script degrades open (no unguarded set -e; Law 12)"
     fi
 }
 
@@ -3118,7 +3118,7 @@ check_vendor_urls() {
         printf '%s' "$hits" >&2
         _violation "a vendor cloud URL is hardcoded in active AI-plane config (Law 5 UNIFIED-AI-REDIRECTS) -- route through MIOS_AI_ENDPOINT"
     else
-        echo "[38-drift-checks]   no vendor cloud URL in active config (Law 5)"
+        echo "[98-drift-checks]   no vendor cloud URL in active config (Law 5)"
     fi
 }
 
@@ -3131,16 +3131,16 @@ check_vendor_urls() {
 # (the hard gate is CI/bake on Linux).
 check_resolver_twin_parity() {
     if ! command -v python3 >/dev/null 2>&1; then
-        echo "[38-drift-checks]   SOFT: python3 missing -- resolver twin-parity needs Linux/CI, skipped" >&2
+        echo "[98-drift-checks]   SOFT: python3 missing -- resolver twin-parity needs Linux/CI, skipped" >&2
         return 0
     fi
     local ue="$ROOT/usr/lib/mios/userenv.sh" mt="$ROOT/usr/lib/mios/mios_toml.py"
     if [[ ! -f "$ue" || ! -f "$mt" ]]; then
-        echo "[38-drift-checks]   SOFT: a resolver is absent -- skipped" >&2
+        echo "[98-drift-checks]   SOFT: a resolver is absent -- skipped" >&2
         return 0
     fi
     local fix
-    fix="$(mktemp -d 2>/dev/null)" || { echo "[38-drift-checks]   SOFT: mktemp failed -- skipped" >&2; return 0; }
+    fix="$(mktemp -d 2>/dev/null)" || { echo "[98-drift-checks]   SOFT: mktemp failed -- skipped" >&2; return 0; }
     mkdir -p "$fix/vendor.d" "$fix/.config/mios"
     printf '[ai]\nendpoint = "http://vendor:1000"\nmodel = "vendor-model"\nembed_model = "vendor-embed"\n' > "$fix/vendor.toml"
     printf '[ai]\nendpoint = "http://vendor-frag:1050"\n'                                                 > "$fix/vendor.d/50-frag.toml"
@@ -3165,13 +3165,13 @@ for k in sorted(ai):
 ' 2>/dev/null | grep -E "$sel" | sort)"
     rm -rf "$fix" 2>/dev/null || true
     if [[ -z "$bash_out" && -z "$py_out" ]]; then
-        echo "[38-drift-checks]   SOFT: resolvers produced no MIOS_AI_* (python3/tomllib unavailable?) -- skipped" >&2
+        echo "[98-drift-checks]   SOFT: resolvers produced no MIOS_AI_* (python3/tomllib unavailable?) -- skipped" >&2
         return 0
     fi
     if [[ "$bash_out" == "$py_out" ]]; then
-        echo "[38-drift-checks]   resolver twin parity: userenv.sh and mios_toml.py agree on the layered MIOS_AI_* set (Law 13)"
+        echo "[98-drift-checks]   resolver twin parity: userenv.sh and mios_toml.py agree on the layered MIOS_AI_* set (Law 13)"
     else
-        echo "[38-drift-checks]   SOFT WARNING: resolver twin-parity mismatch (Law 13 NATIVE-DROPINS) -- NOT failing the build:" >&2
+        echo "[98-drift-checks]   SOFT WARNING: resolver twin-parity mismatch (Law 13 NATIVE-DROPINS) -- NOT failing the build:" >&2
         echo "        userenv.sh -> $(printf '%s' "$bash_out" | tr '\n' ' ')" >&2
         echo "        mios_toml  -> $(printf '%s' "$py_out"   | tr '\n' ' ')" >&2
     fi
@@ -3180,7 +3180,7 @@ for k in sorted(ai):
 # --- (45, Law 13 NATIVE-DROPINS) resolver twin equivalence (gating). ----------
 check_resolver_twin_equivalence() {
     if ! command -v python3 >/dev/null 2>&1; then
-        echo "[38-drift-checks]   SOFT: python3 missing -- resolver twin equivalence check skipped" >&2
+        echo "[98-drift-checks]   SOFT: python3 missing -- resolver twin equivalence check skipped" >&2
         return 0
     fi
     local mismatches
@@ -3192,7 +3192,7 @@ check_resolver_twin_equivalence() {
         printf '%s\n' "$mismatches" >&2
         _violation "resolver twin equivalence check failed -- userenv.sh and mios_toml.py have drifted"
     else
-        echo "[38-drift-checks]   resolver twin equivalence: userenv.sh and mios_toml.py are equivalent"
+        echo "[98-drift-checks]   resolver twin equivalence: userenv.sh and mios_toml.py are equivalent"
     fi
 }
 
@@ -3201,12 +3201,12 @@ check_resolver_twin_equivalence() {
 # and match template structure guidelines, gating new files (grandfathered via list).
 check_template_conformance() {
     if ! command -v python3 >/dev/null 2>&1; then
-        echo "[38-drift-checks]   SOFT: python3 missing -- template conformance check skipped" >&2
+        echo "[98-drift-checks]   SOFT: python3 missing -- template conformance check skipped" >&2
         return 0
     fi
     local tool="$ROOT/usr/libexec/mios/check-template-conformance"
     if [[ ! -f "$tool" ]]; then
-        echo "[38-drift-checks]   SOFT: check-template-conformance not found -- skipped" >&2
+        echo "[98-drift-checks]   SOFT: check-template-conformance not found -- skipped" >&2
         return 0
     fi
     local errors
@@ -3214,7 +3214,7 @@ check_template_conformance() {
         printf '%s\n' "$errors" >&2
         _violation "template conformance check failed -- new/modified files must follow their templates"
     else
-        echo "[38-drift-checks]   template conformance: all new files conform to templates"
+        echo "[98-drift-checks]   template conformance: all new files conform to templates"
     fi
 }
 
@@ -3222,7 +3222,7 @@ check_template_conformance() {
 # Re-renders kargs.d files from mios.toml [kargs] to a tmp dir and verifies no content drift with committed files.
 check_kargs_projection() {
     if ! command -v python3 >/dev/null 2>&1; then
-        echo "[38-drift-checks]   WARNING: python3 missing -- skipping kargs projection check" >&2
+        echo "[98-drift-checks]   WARNING: python3 missing -- skipping kargs projection check" >&2
         return 0
     fi
     
@@ -3270,7 +3270,7 @@ check_kargs_projection() {
         printf '%s' "$diffs" >&2
         _violation "kargs.d projection check failed. Rendered files do not match committed usr/lib/bootc/kargs.d files."
     else
-        echo "[38-drift-checks]   kargs.d matches mios.toml [kargs] projection"
+        echo "[98-drift-checks]   kargs.d matches mios.toml [kargs] projection"
     fi
 }
 
@@ -3306,7 +3306,7 @@ check_greenboot_enablement() {
         printf '%s' "$non_execs" >&2
         _violation "greenboot check scripts must be executable (mode 100755)"
     else
-        echo "[38-drift-checks]   greenboot services and scripts are correctly configured"
+        echo "[98-drift-checks]   greenboot services and scripts are correctly configured"
     fi
 }
 
@@ -3330,7 +3330,7 @@ check_chrony_projection() {
         rm -f "$tmp_file"
         _violation "etc/chrony.conf check failed. Rendered NTP config does not match committed etc/chrony.conf."
     else
-        echo "[38-drift-checks]   chrony.conf matches mios.toml [network.ntp] projection"
+        echo "[98-drift-checks]   chrony.conf matches mios.toml [network.ntp] projection"
         rm -f "$tmp_file"
     fi
 }
@@ -3377,7 +3377,7 @@ check_nut_projection() {
         printf '%s' "$diffs" >&2
         _violation "etc/ups/ configuration check failed. Rendered NUT configs do not match committed etc/ups/ files."
     else
-        echo "[38-drift-checks]   etc/ups/ configurations match mios.toml [power.ups] projection"
+        echo "[98-drift-checks]   etc/ups/ configurations match mios.toml [power.ups] projection"
     fi
 }
 
@@ -3422,7 +3422,7 @@ check_fluff_tokens() {
         printf '%s' "$bad" >&2
         _violation "fluff tokens detected in pipeline logs (E5)"
     else
-        echo "[38-drift-checks]   fluff-token drift check passed"
+        echo "[98-drift-checks]   fluff-token drift check passed"
     fi
 }
 
@@ -3449,7 +3449,7 @@ check_coordination_hygiene() {
         printf '%s' "$bad" >&2
         _violation "coordination-hygiene lint failed (E6)"
     else
-        echo "[38-drift-checks]   coordination-hygiene lint passed"
+        echo "[98-drift-checks]   coordination-hygiene lint passed"
     fi
 }
 
@@ -3469,7 +3469,7 @@ check_templates_compilation() {
         "$python_exe" "$ROOT/tools/compile-templates.py" >&2
         _violation "compile-templates validation failed. One or more templates in usr/share/mios/templates are syntactically invalid."
     else
-        echo "[38-drift-checks]   all templates compile and validate successfully"
+        echo "[98-drift-checks]   all templates compile and validate successfully"
     fi
 }
 
@@ -3506,7 +3506,7 @@ check_impossible_eol_regressions() {
         printf '%s' "$bad" >&2
         _violation "impossible/EOL regression check failed (F11)"
     else
-        echo "[38-drift-checks]   impossible/EOL regression checks passed"
+        echo "[98-drift-checks]   impossible/EOL regression checks passed"
     fi
 }
 
@@ -3538,7 +3538,7 @@ check_deploy_plane() {
             bad+="    mios-kickstart.cfg: missing BOOTSTRAP_REPO or MIOS_REPO offline overrides"$'\n'
         fi
     else
-        echo "[38-drift-checks]   WARNING: mios-kickstart.cfg not found, skipping kickstart exports assertion"
+        echo "[98-drift-checks]   WARNING: mios-kickstart.cfg not found, skipping kickstart exports assertion"
     fi
 
     local ventoy_json=""
@@ -3560,7 +3560,7 @@ check_deploy_plane() {
             bad+="    ventoy.json: missing Fedora-Server.iso/mios-kickstart.cfg binding in kickstart section"$'\n'
         fi
     else
-        echo "[38-drift-checks]   WARNING: ventoy.json not found, skipping ISO-kickstart binding check"
+        echo "[98-drift-checks]   WARNING: ventoy.json not found, skipping ISO-kickstart binding check"
     fi
 
     local toml="$ROOT/usr/share/mios/mios.toml"
@@ -3584,7 +3584,7 @@ check_deploy_plane() {
         printf '%s' "$bad" >&2
         _violation "deploy-plane drift check failed (G11)"
     else
-        echo "[38-drift-checks]   deploy-plane checks passed"
+        echo "[98-drift-checks]   deploy-plane checks passed"
     fi
 }
 
@@ -3715,13 +3715,13 @@ PY
         printf '%s' "$bad" >&2
         _violation "version drift from SSOT mios.toml [meta].mios_version=[$ssot] (Law 7 NO-HARDCODE / Law 8 SSOT-PROJECTION) -- VERSION file + Containerfile ARG default must match the SSOT"
     else
-        echo "[38-drift-checks]   VERSION + Containerfile ARG MIOS_VERSION == mios.toml [meta].mios_version ([$ssot]) (Laws 7/8)"
+        echo "[98-drift-checks]   VERSION + Containerfile ARG MIOS_VERSION == mios.toml [meta].mios_version ([$ssot]) (Laws 7/8)"
     fi
 }
 
 check_root_toml_subset() {
     if ! command -v python3 >/dev/null 2>&1; then
-        echo "[38-drift-checks]   WARNING: python3 missing -- skipping root mios.toml subset check" >&2
+        echo "[98-drift-checks]   WARNING: python3 missing -- skipping root mios.toml subset check" >&2
         return 0
     fi
     python3 -c "
@@ -3774,7 +3774,7 @@ if diff:
 sys.exit(0)
 "
     if [[ $? -eq 0 ]]; then
-        echo "[38-drift-checks]   root mios.toml schema is subset of canonical SSOT"
+        echo "[98-drift-checks]   root mios.toml schema is subset of canonical SSOT"
     else
         _violation "root mios.toml schema has keys not in canonical SSOT"
     fi
@@ -3790,17 +3790,17 @@ sys.exit(0)
 # check. Vacuous-passes where python3 or the copies are absent (same posture as those gates).
 check_toml_projection() {
     if ! command -v python3 >/dev/null 2>&1; then
-        echo "[38-drift-checks]   WARNING: python3 missing -- skipping toml-projection check" >&2
+        echo "[98-drift-checks]   WARNING: python3 missing -- skipping toml-projection check" >&2
         return 0
     fi
     local tool="$ROOT/usr/libexec/mios/mios-sync-toml"
     if [[ ! -f "$tool" ]]; then
-        echo "[38-drift-checks]   WARNING: mios-sync-toml not found -- skipping" >&2
+        echo "[98-drift-checks]   WARNING: mios-sync-toml not found -- skipping" >&2
         return 0
     fi
     if python3 "$tool" --check >/dev/null 2>"$ROOT/.synctoml.err"; then
         rm -f "$ROOT/.synctoml.err" 2>/dev/null || true
-        echo "[38-drift-checks]   mios.toml derived copies ([ports]/[colors]) project verbatim from the canonical SSOT"
+        echo "[98-drift-checks]   mios.toml derived copies ([ports]/[colors]) project verbatim from the canonical SSOT"
     else
         sed 's/^/    /' "$ROOT/.synctoml.err" >&2 2>/dev/null || true
         rm -f "$ROOT/.synctoml.err" 2>/dev/null || true
@@ -3813,7 +3813,7 @@ check_toml_projection() {
 # Portal; bash thin-glue only. No NEW C#/.bat/.cmd/.go. Existing C# is grandfathered-for-port.
 check_target_languages() {
     if [[ ! -d "$ROOT/.git" ]] || ! command -v git >/dev/null 2>&1; then
-        echo "[38-drift-checks]   WARNING: git missing or not a git repo -- skipping target-languages check" >&2
+        echo "[98-drift-checks]   WARNING: git missing or not a git repo -- skipping target-languages check" >&2
         return 0
     fi
     local toml="$ROOT/usr/share/mios/mios.toml"
@@ -3838,17 +3838,17 @@ check_target_languages() {
         } >&2
         _violation "Law 14 TARGET-LANGUAGES violated: new non-target-language source added"
     else
-        echo "[38-drift-checks]   Law 14 TARGET-LANGUAGES: no new non-target-language code (Rust/Python/Bun+TS; bash thin-glue)"
+        echo "[98-drift-checks]   Law 14 TARGET-LANGUAGES: no new non-target-language code (Rust/Python/Bun+TS; bash thin-glue)"
     fi
 }
 
 check_bake_plan() {
     if ! command -v python3 >/dev/null 2>&1; then
-        echo "[38-drift-checks]   WARNING: python3 missing -- skipping bake plan check" >&2
+        echo "[98-drift-checks]   WARNING: python3 missing -- skipping bake plan check" >&2
         return 0
     fi
     if python3 "$ROOT/tools/generate-bake-plan.py" --check; then
-        echo "[38-drift-checks]   bake-plan lists in sync with mios.toml [build.bake] SSOT"
+        echo "[98-drift-checks]   bake-plan lists in sync with mios.toml [build.bake] SSOT"
     else
         _violation "bake-plan lists are STALE vs mios.toml -- regenerate with python3 tools/generate-bake-plan.py"
     fi
@@ -3938,7 +3938,7 @@ if viol:
 sys.exit(0)
 PY
     then
-        echo "[38-drift-checks]   bake-plan integrity gate verified clean (firstboot eviction & partition valid)"
+        echo "[98-drift-checks]   bake-plan integrity gate verified clean (firstboot eviction & partition valid)"
     else
         _violation "bake-plan integrity gate check failed"
     fi
@@ -3946,7 +3946,7 @@ PY
 
 check_bake_ref_defaults() {
     if [[ ! -d "$ROOT/.git" ]] || ! command -v git >/dev/null 2>&1; then
-        echo "[38-drift-checks]   all baker scripts have non-empty defaults for their bake-refs (skipped - no git repo)"
+        echo "[98-drift-checks]   all baker scripts have non-empty defaults for their bake-refs (skipped - no git repo)"
         return 0
     fi
     local empty_refs
@@ -3997,28 +3997,28 @@ if viol:
 sys.exit(0)
 PY
         then
-            echo "[38-drift-checks]   all baker scripts have non-empty defaults matching SSOT bake_refs"
+            echo "[98-drift-checks]   all baker scripts have non-empty defaults matching SSOT bake_refs"
         else
             _violation "baker script MIOS_BUILD_BAKE_REFS default value parity check failed"
             return 1
         fi
     else
-        echo "[38-drift-checks]   all baker scripts have non-empty defaults for their bake-refs"
+        echo "[98-drift-checks]   all baker scripts have non-empty defaults for their bake-refs"
     fi
 }
 
 
 check_roadmap_index() {
     if ! command -v python3 >/dev/null 2>&1; then
-        echo "[38-drift-checks]   WARNING: python3 missing -- skipping roadmap index check" >&2
+        echo "[98-drift-checks]   WARNING: python3 missing -- skipping roadmap index check" >&2
         return 0
     fi
     if [[ ! -f "$ROOT/ROADMAP.md" ]]; then
-        echo "[38-drift-checks]   ROADMAP.md not found -- skipping roadmap index check"
+        echo "[98-drift-checks]   ROADMAP.md not found -- skipping roadmap index check"
         return 0
     fi
     if python3 "$ROOT/tools/roadmap-index.py" --check; then
-        echo "[38-drift-checks]   roadmap index in sync with frontmatter metadata"
+        echo "[98-drift-checks]   roadmap index in sync with frontmatter metadata"
     else
         _violation "roadmap index is STALE or cites invalid laws/ADRs/ssot_keys -- regenerate with python3 tools/roadmap-index.py"
     fi
@@ -4026,7 +4026,7 @@ check_roadmap_index() {
 
 check_cli_eval_safety() {
     if ! command -v python3 >/dev/null 2>&1; then
-        echo "[38-drift-checks]   WARNING: python3 missing -- skipping CLI eval safety check" >&2
+        echo "[98-drift-checks]   WARNING: python3 missing -- skipping CLI eval safety check" >&2
         return 0
     fi
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
@@ -4073,7 +4073,7 @@ if viol:
 sys.exit(0)
 PY
     then
-        echo "[38-drift-checks]   CLI verbs in usr/libexec/mios/ are eval-safe"
+        echo "[98-drift-checks]   CLI verbs in usr/libexec/mios/ are eval-safe"
     else
         _violation "unverified eval in usr/libexec/mios/ -- verbs must not eval agent-controlled inputs; pre-existing safe evals must have a preceding # TD-1: eval-safe, input=<source>, not agent-controlled comment"
     fi
@@ -4083,11 +4083,11 @@ check_shellcheck() {
     local rc=0
     bash "$ROOT/automation/lint-shell.sh" || rc=$?
     if [[ $rc -eq 0 ]]; then
-        echo "[38-drift-checks]   shellcheck: shell scripts conform to error-level linting"
+        echo "[98-drift-checks]   shellcheck: shell scripts conform to error-level linting"
     elif [[ $rc -eq 2 ]]; then
         # When shellcheck is absent -> SKIPPED, not a pass (no false-green). Non-gating so a
         # linter-less env still builds; install shellcheck to actually gate.
-        echo "[38-drift-checks]   WARNING: shellcheck absent -- shell linting SKIPPED (install shellcheck to gate)" >&2
+        echo "[98-drift-checks]   WARNING: shellcheck absent -- shell linting SKIPPED (install shellcheck to gate)" >&2
     else
         _violation "shellcheck linting failed with errors -- please run automation/lint-shell.sh or check logs"
     fi
@@ -4148,7 +4148,7 @@ check_sbom_metadata() {
     fi
 
     if [[ "${#bad[@]}" -eq 0 ]]; then
-        echo "[38-drift-checks]   SBOM metadata manifests are structurally valid"
+        echo "[98-drift-checks]   SBOM metadata manifests are structurally valid"
     else
         for err in "${bad[@]}"; do
             echo "  [sbom-drift] $err" >&2
@@ -4164,7 +4164,7 @@ check_hyprland_conf_heredoc() {
     sed -n '/cat << '\''EOF'\'' > \/usr\/share\/mios\/hyprland\/hyprland.conf/,/^EOF$/p' "$ROOT/automation/65-bake-hyprland.sh" | sed '1d;$d' | tr -d '\r' > "$tmp"
     tr -d '\r' < "$ROOT/usr/share/mios/hyprland/hyprland.conf" > "$tmp2"
     if diff -u "$tmp2" "$tmp" >/dev/null; then
-        echo "[38-drift-checks]   Hyprland configuration template is in sync with baker script heredoc"
+        echo "[98-drift-checks]   Hyprland configuration template is in sync with baker script heredoc"
         rm -f "$tmp" "$tmp2"
     else
         rm -f "$tmp" "$tmp2"
@@ -4205,7 +4205,7 @@ for u in unretried:
     local res
     res="$(python3 -c "$py_script" 2>/dev/null || true)"
     if [[ -z "$res" ]]; then
-        echo "[38-drift-checks]   curl/wget build network fetches carry --retry / --tries (or scurl / exempt)"
+        echo "[98-drift-checks]   curl/wget build network fetches carry --retry / --tries (or scurl / exempt)"
     else
         while IFS= read -r line; do
             [[ -n "$line" ]] && bad+=("$line")
@@ -4243,7 +4243,7 @@ check_nested_podman_caps() {
     fi
 
     if [[ ${#bad[@]} -eq 0 ]]; then
-        echo "[38-drift-checks]   nested-podman capability flags & reference doc verified"
+        echo "[98-drift-checks]   nested-podman capability flags & reference doc verified"
     else
         for err in "${bad[@]}"; do
             echo "  [nested-podman-drift] $err" >&2
@@ -4286,7 +4286,7 @@ print(budget)
     fi
 
     if [[ ${#bad[@]} -eq 0 ]]; then
-        echo "[38-drift-checks]   bake-budget gate: projected baked image size within SSOT runner_disk_budget_gb limit (${budget}GB)"
+        echo "[98-drift-checks]   bake-budget gate: projected baked image size within SSOT runner_disk_budget_gb limit (${budget}GB)"
     else
         for err in "${bad[@]}"; do
             echo "  [bake-budget-drift] $err" >&2
@@ -4296,7 +4296,7 @@ print(budget)
 }
 
 check_greenboot() {
-    echo "[38-drift-checks]   greenboot health-coverage check"
+    echo "[98-drift-checks]   greenboot health-coverage check"
     local gb_dir="$ROOT/usr/lib/greenboot/check/required.d"
     if [[ ! -d "$gb_dir" ]]; then
         _fail "(54) greenboot required checks directory ($gb_dir) is missing"
@@ -4319,7 +4319,7 @@ check_greenboot() {
 }
 
 check_clevis_luks() {
-    echo "[38-drift-checks]   clevis LUKS SSOT projection check"
+    echo "[98-drift-checks]   clevis LUKS SSOT projection check"
     local gen="$ROOT/usr/libexec/mios/mios-clevis-luks-gen"
     if [[ ! -x "$gen" && -f "$gen" ]]; then
         chmod +x "$gen" 2>/dev/null || true
@@ -4337,7 +4337,7 @@ check_clevis_luks() {
 }
 
 check_mini_vfio() {
-    echo "[38-drift-checks]   MiOS-Mini vfio-pci SSOT projection check"
+    echo "[98-drift-checks]   MiOS-Mini vfio-pci SSOT projection check"
     local gen="$ROOT/usr/libexec/mios/mios-mini-vfio-gen"
     if [[ ! -x "$gen" && -f "$gen" ]]; then
         chmod +x "$gen" 2>/dev/null || true
@@ -4420,7 +4420,7 @@ PYEOF
         return 1
     fi
 
-    echo "[38-drift-checks]   Router Stage-2 parity gate satisfied (corpus parity + coverage)"
+    echo "[98-drift-checks]   Router Stage-2 parity gate satisfied (corpus parity + coverage)"
 }
 
 # --- (70) Verify [agent_pipe.council] parameters defined and consumed. -----
@@ -4479,7 +4479,7 @@ if missing:
 sys.exit(0)
 PY
     then
-        echo "[38-drift-checks]   council-gate SSOT parameters defined in mios.toml and consumed by code"
+        echo "[98-drift-checks]   council-gate SSOT parameters defined in mios.toml and consumed by code"
     else
         _violation "[agent_pipe.council] keys missing or have no code consumer"
     fi
@@ -4517,7 +4517,7 @@ if unpinned:
 sys.exit(0)
 PY
     then
-        echo "[38-drift-checks]   all git clone invocations in Containerfiles carry explicit --branch/--tag/ref"
+        echo "[98-drift-checks]   all git clone invocations in Containerfiles carry explicit --branch/--tag/ref"
     else
         _violation "found unpinned git clone command in a Containerfile"
     fi
@@ -4588,7 +4588,7 @@ if bad:
 sys.exit(0)
 PY
     then
-        echo "[38-drift-checks]   firstboot tier invariant verified"
+        echo "[98-drift-checks]   firstboot tier invariant verified"
     else
         _violation "firstboot tier invariant check failed"
     fi
@@ -4614,7 +4614,7 @@ check_rechunk_budget() {
         _violation "check_rechunk_budget: ${bad[*]}"
         return 1
     fi
-    echo "[38-drift-checks]   rechunk budget & SSOT image reference verified"
+    echo "[98-drift-checks]   rechunk budget & SSOT image reference verified"
 }
 
 check_gate_registry() {
@@ -4645,7 +4645,7 @@ for line in lines:
     if line_clean == "main() {":
         in_main = True
         continue
-    if in_main and line_clean.startswith("echo \"[38-drift-checks] ----------"):
+    if in_main and line_clean.startswith("echo \"[98-drift-checks] ----------"):
         in_main = False
         continue
 
@@ -4684,14 +4684,14 @@ if bad:
 sys.exit(0)
 PY
     then
-        echo "[38-drift-checks]   gate registry integrity verified (no duplicate checks, 1-to-1 main registration)"
+        echo "[98-drift-checks]   gate registry integrity verified (no duplicate checks, 1-to-1 main registration)"
     else
         _violation "gate registry drift detected in 98-drift-checks.sh"
     fi
 }
 
 check_python_lint() {
-    echo "[38-drift-checks]   Python static compilation gate (lint-python.sh)"
+    echo "[98-drift-checks]   Python static compilation gate (lint-python.sh)"
     local lint_script="$ROOT/automation/lint-python.sh"
     if [[ ! -f "$lint_script" ]]; then
         _violation "automation/lint-python.sh is missing"
@@ -4760,7 +4760,7 @@ if bad:
 sys.exit(0)
 PY
     then
-        echo "[38-drift-checks]   test hermeticity verified (all live-resource tests carry skip sentinels)"
+        echo "[98-drift-checks]   test hermeticity verified (all live-resource tests carry skip sentinels)"
     else
         _violation "unguarded live-resource call in test suite"
     fi
@@ -4845,7 +4845,7 @@ if bad:
 sys.exit(0)
 PY
     then
-        echo "[38-drift-checks]   negative test coverage ratchet verified (test count matches or exceeds law gates count; )"
+        echo "[98-drift-checks]   negative test coverage ratchet verified (test count matches or exceeds law gates count; )"
     else
         _violation "negative test coverage drift detected (/)"
     fi
@@ -4863,7 +4863,7 @@ check_soft_mode_not_committed() {
         printf '%s' "$hits" >&2
         _violation "soft-mode override is committed in CI/build scripts"
     else
-        echo "[38-drift-checks]   no soft-mode override committed in CI/build pipeline"
+        echo "[98-drift-checks]   no soft-mode override committed in CI/build pipeline"
     fi
 }
 
@@ -4881,13 +4881,13 @@ check_ssot_lint_equivalence() {
         fi
     fi
     if [[ ! -x "$bin" ]]; then
-        echo "[38-drift-checks]   mios-ssot-lint binary absent -- skipped"
+        echo "[98-drift-checks]   mios-ssot-lint binary absent -- skipped"
         return 0
     fi
 
     if [[ "$bin" == *.exe && "$(uname -s)" == Linux* ]]; then
         if ! "$bin" --version >/dev/null 2>&1; then
-            echo "[38-drift-checks]   mios-ssot-lint binary is Windows .exe in Linux environment -- skipped"
+            echo "[98-drift-checks]   mios-ssot-lint binary is Windows .exe in Linux environment -- skipped"
             return 0
         fi
     fi
@@ -4911,7 +4911,7 @@ check_ssot_lint_equivalence() {
         return
     fi
 
-    echo "[38-drift-checks]   mios-ssot-lint Rust twin byte-identical to bash 97-ssot-lint.sh"
+    echo "[98-drift-checks]   mios-ssot-lint Rust twin byte-identical to bash 97-ssot-lint.sh"
 }
 
 check_gate_index() {
@@ -4919,7 +4919,7 @@ check_gate_index() {
         return 0
     fi
     if MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-gate-index.py" --check >/dev/null 2>&1; then
-        echo "[38-drift-checks]   gate index in sync with main() registration"
+        echo "[98-drift-checks]   gate index in sync with main() registration"
     else
         _emit_projection_evidence "tools/generate-gate-index.py" "usr/share/mios/reference/drift-gate-index.tsv"
         _violation "usr/share/mios/reference/drift-gate-index.tsv is out of sync with main() -- run python3 tools/generate-gate-index.py"
@@ -4931,7 +4931,7 @@ check_oci_archive_path() {
     local producer="$ROOT/usr/libexec/mios/mios-stage-oci-archive"
 
     if [[ ! -f "$consumer" || ! -f "$producer" ]]; then
-        echo "[38-drift-checks]   oci-archive producer/consumer absent -- skipped"
+        echo "[98-drift-checks]   oci-archive producer/consumer absent -- skipped"
         return 0
     fi
 
@@ -4942,14 +4942,14 @@ check_oci_archive_path() {
     if [[ -z "$c_path" || -z "$p_path" || "$c_path" != "$p_path" ]]; then
         _violation "oci-archive default path mismatch between producer ($p_path) and consumer ($c_path)"
     else
-        echo "[38-drift-checks]   oci-archive producer and consumer paths match ($c_path; )"
+        echo "[98-drift-checks]   oci-archive producer and consumer paths match ($c_path; )"
     fi
 }
 
 check_replaceme_mount_substitution() {
     local justfile="$ROOT/Justfile"
     if [[ ! -f "$justfile" ]]; then
-        echo "[38-drift-checks]   Justfile absent -- skipped"
+        echo "[98-drift-checks]   Justfile absent -- skipped"
         return 0
     fi
 
@@ -4994,7 +4994,7 @@ if bad:
 sys.exit(0)
 PY
     then
-        echo "[38-drift-checks]   BIB recipes perform credential substitution on mounted config templates"
+        echo "[98-drift-checks]   BIB recipes perform credential substitution on mounted config templates"
     else
         _violation "unsubstituted REPLACEME template raw-mounted in Justfile BIB recipe"
     fi
@@ -5021,14 +5021,14 @@ check_kickstart_shell_syntax() {
         printf '%s' "$bad_ks" >&2
         _violation "embedded kickstart shell contains bash syntax errors"
     else
-        echo "[38-drift-checks]   embedded kickstart %post shell syntax verified clean with bash -n"
+        echo "[98-drift-checks]   embedded kickstart %post shell syntax verified clean with bash -n"
     fi
 }
 
 check_bib_rootfs_label_policy() {
     local justfile="$ROOT/Justfile"
     if [[ ! -f "$justfile" ]]; then
-        echo "[38-drift-checks]   Justfile absent -- skipped"
+        echo "[98-drift-checks]   Justfile absent -- skipped"
         return 0
     fi
 
@@ -5081,7 +5081,7 @@ if bad:
 sys.exit(0)
 PY
     then
-        echo "[38-drift-checks]   BIB recipes enforce valid --rootfs filesystem label policy"
+        echo "[98-drift-checks]   BIB recipes enforce valid --rootfs filesystem label policy"
     else
         _violation "BIB recipe violates rootfs filesystem label policy"
     fi
@@ -5090,7 +5090,7 @@ PY
 check_offline_install_invariant() {
     local install_script="$ROOT/tools/install.sh"
     if [[ ! -f "$install_script" ]]; then
-        echo "[38-drift-checks]   tools/install.sh absent -- skipped"
+        echo "[98-drift-checks]   tools/install.sh absent -- skipped"
         return 0
     fi
 
@@ -5110,7 +5110,7 @@ check_offline_install_invariant() {
         echo "$net_token" >&2
         _violation "tools/install.sh contains forbidden network pull token violating zero-network offline-install contract"
     else
-        echo "[38-drift-checks]   tools/install.sh zero-network offline-install invariant verified clean"
+        echo "[98-drift-checks]   tools/install.sh zero-network offline-install invariant verified clean"
     fi
 }
 
@@ -5141,7 +5141,7 @@ check_installer_family_roles() {
         printf '%s' "$bad_installers" >&2
         _violation "installer script role marker violation or collision"
     else
-        echo "[38-drift-checks]   installer family role markers verified unique across all installers"
+        echo "[98-drift-checks]   installer family role markers verified unique across all installers"
     fi
 }
 
@@ -5150,7 +5150,7 @@ check_bib_configs_projection() {
         return 0
     fi
     if MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-bib-configs.py" --check >/dev/null 2>&1; then
-        echo "[38-drift-checks]   BIB artifact configs in sync with mios.toml [deploy.artifacts] SSOT"
+        echo "[98-drift-checks]   BIB artifact configs in sync with mios.toml [deploy.artifacts] SSOT"
     else
         _emit_projection_evidence "tools/generate-bib-configs.py" "config/artifacts/bib.toml" "config/artifacts/iso.toml"
         _violation "BIB artifact configs (bib.toml, iso.toml) out of sync with mios.toml [deploy.artifacts] -- run python3 tools/generate-bib-configs.py"
@@ -5163,7 +5163,7 @@ check_repo_partition_label_ssot() {
     local cfg="$ROOT/usr/share/mios/ventoy/mios-kickstart.cfg"
 
     if [[ ! -f "$ssot" || ! -f "$install_sh" || ! -f "$cfg" ]]; then
-        echo "[38-drift-checks]   repo partition consumers absent -- skipped"
+        echo "[98-drift-checks]   repo partition consumers absent -- skipped"
         return 0
     fi
 
@@ -5182,14 +5182,14 @@ check_repo_partition_label_ssot() {
         printf '%s' "$bad_lbl" >&2
         _violation "repo partition label mismatch against [cat.repo_partition].label SSOT"
     else
-        echo "[38-drift-checks]   repo partition label consumers match [cat.repo_partition].label SSOT ($ssot_label; )"
+        echo "[98-drift-checks]   repo partition label consumers match [cat.repo_partition].label SSOT ($ssot_label; )"
     fi
 }
 
 check_bib_single_config_invariant() {
     local justfile="$ROOT/Justfile"
     if [[ ! -f "$justfile" ]]; then
-        echo "[38-drift-checks]   Justfile absent -- skipped"
+        echo "[98-drift-checks]   Justfile absent -- skipped"
         return 0
     fi
 
@@ -5251,7 +5251,7 @@ if bad:
 sys.exit(0)
 PY
     then
-        echo "[38-drift-checks]   BIB recipes enforce single /config.toml mount and valid TOML syntax"
+        echo "[98-drift-checks]   BIB recipes enforce single /config.toml mount and valid TOML syntax"
     else
         _violation "BIB recipe config mount or TOML syntax violation"
     fi
@@ -5262,7 +5262,7 @@ check_build_artifacts_output_dir() {
     local justfile="$ROOT/Justfile"
 
     if [[ ! -f "$ssot" || ! -f "$justfile" ]]; then
-        echo "[38-drift-checks]   build output dir consumers absent -- skipped"
+        echo "[98-drift-checks]   build output dir consumers absent -- skipped"
         return 0
     fi
 
@@ -5278,7 +5278,7 @@ check_build_artifacts_output_dir() {
         printf '%s\n' "$bad_out" >&2
         _violation "Justfile recipe outputs violate [build.artifacts].output_dir SSOT"
     else
-        echo "[38-drift-checks]   Justfile artifact recipes enforce SSOT output directory ($output_dir/; )"
+        echo "[98-drift-checks]   Justfile artifact recipes enforce SSOT output directory ($output_dir/; )"
     fi
 }
 
@@ -5287,7 +5287,7 @@ check_win11_vm_template_xml() {
     local ssot="$ROOT/usr/share/mios/mios.toml"
 
     if [[ ! -f "$xml_file" || ! -f "$ssot" ]]; then
-        echo "[38-drift-checks]   win11 VM template or SSOT absent -- skipped"
+        echo "[98-drift-checks]   win11 VM template or SSOT absent -- skipped"
         return 0
     fi
 
@@ -5346,7 +5346,7 @@ if bad:
 sys.exit(0)
 PY
     then
-        echo "[38-drift-checks]   Win11 VM template is well-formed XML and projects SSOT [vm.win11]"
+        echo "[98-drift-checks]   Win11 VM template is well-formed XML and projects SSOT [vm.win11]"
     else
         _violation "Win11 VM template XML well-formedness or SSOT projection violation"
     fi
@@ -5357,7 +5357,7 @@ check_ipa_enroll_projection() {
         return 0
     fi
     if MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-ipa-enroll-env.py" --check >/dev/null 2>&1; then
-        echo "[38-drift-checks]   etc/mios/ipa-enroll.env matches [identity.ipa] SSOT"
+        echo "[98-drift-checks]   etc/mios/ipa-enroll.env matches [identity.ipa] SSOT"
     else
         _emit_projection_evidence "tools/generate-ipa-enroll-env.py" "etc/mios/ipa-enroll.env"
         _violation "etc/mios/ipa-enroll.env is out of sync with [identity.ipa] SSOT -- run python3 tools/generate-ipa-enroll-env.py"
@@ -5369,7 +5369,7 @@ check_uki_cmdline_projection() {
         return 0
     fi
     if MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-uki-cmdline.py" --check >/dev/null 2>&1; then
-        echo "[38-drift-checks]   usr/lib/kernel/cmdline matches kargs.d/*.toml drop-ins"
+        echo "[98-drift-checks]   usr/lib/kernel/cmdline matches kargs.d/*.toml drop-ins"
     else
         _emit_projection_evidence "tools/generate-uki-cmdline.py" "usr/lib/kernel/cmdline"
         _violation "usr/lib/kernel/cmdline is out of sync with usr/lib/bootc/kargs.d/*.toml -- run python3 tools/generate-uki-cmdline.py"
@@ -5381,7 +5381,7 @@ check_composefs_projection() {
     local script="$ROOT/automation/77-composefs-verity.sh"
 
     if [[ ! -f "$conf" || ! -f "$script" ]]; then
-        echo "[38-drift-checks]   composefs prepare-root.conf absent -- skipped"
+        echo "[98-drift-checks]   composefs prepare-root.conf absent -- skipped"
         return 0
     fi
 
@@ -5402,7 +5402,7 @@ check_composefs_projection() {
         _violation "usr/lib/ostree/prepare-root.conf is out of sync with [security].composefs_mode SSOT"
     else
         rm -rf "$tmp_dir"
-        echo "[38-drift-checks]   usr/lib/ostree/prepare-root.conf matches [security].composefs_mode SSOT"
+        echo "[98-drift-checks]   usr/lib/ostree/prepare-root.conf matches [security].composefs_mode SSOT"
     fi
 }
 
@@ -5411,7 +5411,7 @@ check_cockpit_projection() {
         return 0
     fi
     if MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/generate-cockpit-conf.py" --check >/dev/null 2>&1; then
-        echo "[38-drift-checks]   etc/cockpit/cockpit.conf matches mios.toml [cockpit] SSOT"
+        echo "[98-drift-checks]   etc/cockpit/cockpit.conf matches mios.toml [cockpit] SSOT"
     else
         _emit_projection_evidence "tools/generate-cockpit-conf.py" "etc/cockpit/cockpit.conf"
         _violation "etc/cockpit/cockpit.conf is out of sync with mios.toml [cockpit] SSOT -- run python3 tools/generate-cockpit-conf.py"
@@ -5464,7 +5464,7 @@ check_chrony_ptp_dropin() {
     fi
 
     rm -rf "$tmp_dir"
-    echo "[38-drift-checks]   Chrony PTP drop-in generator is idempotent and leaves canonical chrony.conf unchanged"
+    echo "[98-drift-checks]   Chrony PTP drop-in generator is idempotent and leaves canonical chrony.conf unchanged"
 }
 
 check_renderer_gate_coverage() {
@@ -5507,7 +5507,7 @@ check_renderer_gate_coverage() {
     if [[ ${#unmapped[@]} -gt 0 ]]; then
         _violation "The following renderer scripts have no corresponding projection check in 98-drift-checks.sh: ${unmapped[*]}"
     else
-        echo "[38-drift-checks]   renderer gate coverage verified clean"
+        echo "[98-drift-checks]   renderer gate coverage verified clean"
     fi
 }
 
@@ -5549,7 +5549,7 @@ if missing:
 sys.exit(0)
 PY
     then
-        echo "[38-drift-checks]   smoke manifest components in mios.toml exist in source tree"
+        echo "[98-drift-checks]   smoke manifest components in mios.toml exist in source tree"
     else
         _violation "smoke manifest component missing from repo"
     fi
@@ -5599,7 +5599,7 @@ if uncovered:
 sys.exit(0)
 PY
     then
-        echo "[38-drift-checks]   negative test coverage gate: all dispatched checks are covered or exempt"
+        echo "[98-drift-checks]   negative test coverage gate: all dispatched checks are covered or exempt"
     else
         _violation "drift checks lacking negative test coverage"
     fi
@@ -5610,7 +5610,7 @@ check_verb_templates() {
         return 0
     fi
     if python3 "${ROOT}/tools/verb-template-check.py"; then
-        echo "[38-drift-checks]   verb templates compile and validate against SSOT args"
+        echo "[98-drift-checks]   verb templates compile and validate against SSOT args"
     else
         _violation "verb templates compilation or placeholder validation failed"
     fi
@@ -5625,25 +5625,25 @@ check_pipe_boundaries() {
         _violation "pipe-boundaries.manifest.json is missing"
         return 0
     fi
-    echo "[38-drift-checks]   pipe-boundaries.manifest.json is up-to-date"
+    echo "[98-drift-checks]   pipe-boundaries.manifest.json is up-to-date"
 }
 
 check_vllm_name_canonical() {
     if grep -rn "MIOS_AI_VLL[M]_\|MIOS_AI_SGLAN[G]_" "${ROOT}/root-manifest.json" "${ROOT}/automation/" >/dev/null 2>&1; then
         _violation "found legacy M""IOS_AI_VLLM_ or M""IOS_AI_SGLANG_ long names in root-manifest.json or automation"
     else
-        echo "[38-drift-checks]   vLLM / SGLang canonical names reconciled to short consumer form"
+        echo "[98-drift-checks]   vLLM / SGLang canonical names reconciled to short consumer form"
     fi
 }
 
 check_pipe_extraction_parity() {
     if ! command -v python3 >/dev/null 2>&1; then
-        echo "[38-drift-checks]   python3 absent -- skipped check_pipe_extraction_parity"
+        echo "[98-drift-checks]   python3 absent -- skipped check_pipe_extraction_parity"
         return 0
     fi
 
     if MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/pipe-parity-check.py" >/dev/null 2>&1; then
-        echo "[38-drift-checks]   extraction surface parity + one-way imports clean"
+        echo "[98-drift-checks]   extraction surface parity + one-way imports clean"
     else
         _violation "mios_pipe extraction surface parity or one-way import rule violated"
     fi
@@ -5689,7 +5689,7 @@ for p in urls:
 sys.exit(0)
 PY
     then
-        echo "[38-drift-checks]   guacamole desktop entry & SSOT consistency verified"
+        echo "[98-drift-checks]   guacamole desktop entry & SSOT consistency verified"
     else
         _violation "Guacamole desktop entry port does not match [ports].guacamole_web SSOT"
     fi
@@ -5752,7 +5752,7 @@ if missing:
 sys.exit(0)
 PY
     then
-        echo "[38-drift-checks]   all [laws].enforced_by targets resolve in codebase"
+        echo "[98-drift-checks]   all [laws].enforced_by targets resolve in codebase"
     else
         _violation "[laws].enforced_by target function missing from codebase"
     fi
@@ -5802,7 +5802,7 @@ if violations:
 sys.exit(0)
 PY
     then
-        echo "[38-drift-checks]   Law 1 USR-OVER-ETC verified clean (no full-unit /etc shadows of /usr SSOT)"
+        echo "[98-drift-checks]   Law 1 USR-OVER-ETC verified clean (no full-unit /etc shadows of /usr SSOT)"
     else
         _violation "Law 1 USR-OVER-ETC violated: tracked /etc file duplicates a /usr SSOT surface"
     fi
@@ -5848,7 +5848,7 @@ if violations:
 sys.exit(0)
 PY
     then
-        echo "[38-drift-checks]   Law 8 SSOT-PROJECTION registry verified clean"
+        echo "[98-drift-checks]   Law 8 SSOT-PROJECTION registry verified clean"
     else
         _violation "Law 8 SSOT-PROJECTION registry check failed"
     fi
@@ -5895,7 +5895,7 @@ if uncovered:
 sys.exit(0)
 PY
     then
-        echo "[38-drift-checks]   DB seed coverage gate verified clean (all SSOT tables reachable by seed-db-config.py)"
+        echo "[98-drift-checks]   DB seed coverage gate verified clean (all SSOT tables reachable by seed-db-config.py)"
     else
         _violation "DB seed coverage gate check failed: unseeded SSOT section found"
     fi
@@ -5951,7 +5951,7 @@ if viol:
 sys.exit(0)
 PY
     then
-        echo "[38-drift-checks]   account column parity gate verified clean (schema superset of consumer projections)"
+        echo "[98-drift-checks]   account column parity gate verified clean (schema superset of consumer projections)"
     else
         _violation "account column parity check failed"
     fi
@@ -6003,7 +6003,7 @@ if f"-of {fmt}" not in out:
 sys.exit(0)
 PY
     then
-        echo "[38-drift-checks]   virt-v2v import wrapper & SSOT parity verified"
+        echo "[98-drift-checks]   virt-v2v import wrapper & SSOT parity verified"
     else
         _violation "virt-v2v import wrapper SSOT parity check failed"
     fi
@@ -6030,7 +6030,7 @@ check_module_length() {
         printf '%b' "$hits" >&2
         _violation "mios_pipe module exceeds 800-line limit. The monolith extraction demands small, cohesive sibling modules."
     else
-        echo "[38-drift-checks]   mios_pipe sibling modules are all <= 800 lines (modular cohesion intact)"
+        echo "[98-drift-checks]   mios_pipe sibling modules are all <= 800 lines (modular cohesion intact)"
     fi
 }
 
@@ -6038,7 +6038,7 @@ check_module_length() {
 check_vendored_assets_non_stub() {
     local vdir="$ROOT/usr/share/mios/vendored"
     if [[ ! -d "$vdir" ]]; then
-        echo "[38-drift-checks]   vendored assets dir absent -- skipped"
+        echo "[98-drift-checks]   vendored assets dir absent -- skipped"
         return 0
     fi
     local stubs="" f sz
@@ -6054,7 +6054,7 @@ check_vendored_assets_non_stub() {
         printf '%s' "$stubs" >&2
         _violation "(87, WS-OFFL) vendored asset directory contains stub files (<100 bytes); replace with real assets or mios-vendor-refresh"
     else
-        echo "[38-drift-checks]   vendored assets are non-stub (>100 bytes)"
+        echo "[98-drift-checks]   vendored assets are non-stub (>100 bytes)"
     fi
 }
 
@@ -6082,10 +6082,10 @@ check_resolved_env_lossless() {
     rm -f "$tmp"
 
     if [[ -z "$diff_out" ]]; then
-        echo "[38-drift-checks]   resolved environment is lossless (matches env-baseline.txt)"
+        echo "[98-drift-checks]   resolved environment is lossless (matches env-baseline.txt)"
     else
         if [[ "${MIOS_ENV_BASELINE_BUMP:-0}" == "1" ]]; then
-            echo "[38-drift-checks]   resolved environment drifted but MIOS_ENV_BASELINE_BUMP=1 override set"
+            echo "[98-drift-checks]   resolved environment drifted but MIOS_ENV_BASELINE_BUMP=1 override set"
         else
             echo "  [lossless-env-drift] resolved MIOS_* environment drifted from env-baseline.txt:" >&2
             echo "$diff_out" | head -n 30 >&2
@@ -6133,7 +6133,7 @@ if dups:
     print(f"DUPLICATE_VALUES_FOUND:{len(dups)}")
 PY
 )
-    echo "[38-drift-checks]   check_no_duplicate_value_key passed"
+    echo "[98-drift-checks]   check_no_duplicate_value_key passed"
 }
 
 check_pipeline_numbering() {
@@ -6143,7 +6143,7 @@ check_pipeline_numbering() {
     # (A) No hand-written (NN) numeric label may follow the [NN-drift-checks] stage label.
     #     The colliding C2 labels were deleted (AGY-647); drift-gate-index.tsv's ordinal is
     #     the SINGLE check number. A reintroduced (NN) is the exact regression we forbid.
-    nn=$(grep -cE '\[38-drift-checks\][[:space:]]+\([0-9]+\)' "$ROOT/automation/98-drift-checks.sh" 2>/dev/null || true)
+    nn=$(grep -cE '\[98-drift-checks\][[:space:]]+\([0-9]+\)' "$ROOT/automation/98-drift-checks.sh" 2>/dev/null || true)
     nn="${nn:-0}"
     if [[ "$nn" -ne 0 ]]; then
         echo "  [pipeline-numbering-drift] $nn hand-written (NN) check label(s) reintroduced in 98-drift-checks.sh; the SSOT drift-gate-index.tsv ordinal is the single check number -- delete the (NN)" >&2
@@ -6166,19 +6166,27 @@ check_pipeline_numbering() {
     fi
     # (D) pipeline-index.tsv must be in sync with automation/NN-*.sh scripts (AGY-644).
     if [[ -f "$ROOT/tools/generate-pipeline-index.py" ]]; then
-        # Source-tree check: mirror check_names_registry (check 30) -- SKIP on a non-git
-        # or INCOMPLETE work tree. The in-image build cp's only a SUBSET of dirs into
-        # /tmp/build (automation usr etc VERSION bib-configs tools), so every non-copied
-        # tracked file reads as "deleted" and this fs-glob generator would false-drift;
-        # the drift-gate job runs it authoritatively on the full committed tree. Explicit.
+        # Source-tree check: SKIP in the in-image OCI build; the drift-gate CI job runs
+        # generate-pipeline-index.py --check authoritatively on the PRISTINE checkout
+        # (and passes). Two in-image signals, EITHER decisive:
+        #   * $CTX -- exported by the Containerfile RUN (`CTX=/tmp/build build.sh`) and
+        #     inherited here; UNSET in the drift-gate job's direct `bash 98-...sh`.
+        #   * $ROOT == /tmp/build -- the in-image build root.
+        # WHY not the old "incomplete work tree" guard alone: build.sh MATERIALIZES the
+        # full tree via `git reset --hard HEAD` BEFORE this runs, so ls-files --deleted is
+        # empty and this fs-glob generator still false-drifts against build-phase tree
+        # perturbations (verified: run 30706121731 failed here while drift-gate passed).
+        # The CTX/ROOT signal survives the reset; keep the git guards for partial non-build trees.
         _pi_skip=""
-        if ! command -v git >/dev/null 2>&1 || ! git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        if [[ -n "${CTX:-}" || "$ROOT" == "/tmp/build" ]]; then
+            _pi_skip="in-image OCI build (drift-gate job enforces on the pristine tree)"
+        elif ! command -v git >/dev/null 2>&1 || ! git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
             _pi_skip="no git work tree"
         elif git -C "$ROOT" ls-files --deleted 2>/dev/null | grep -q .; then
             _pi_skip="incomplete git work tree (tracked files not materialized)"
         fi
         if [[ -n "$_pi_skip" ]]; then
-            # NOT a [38-drift-checks] line: generate-gate-index.py captures the first such
+            # NOT a [98-drift-checks] line: generate-gate-index.py captures the first such
             # echo as the check's description, so keep this off that prefix to preserve the
             # canonical "pipeline numbering: ..." index entry (no drift-gate-index.tsv churn).
             echo "  [pipeline-index] SKIPPED: $_pi_skip at \$ROOT (drift-gate job covers it)" >&2
@@ -6190,7 +6198,7 @@ check_pipeline_numbering() {
     if [[ "$bad" -ne 0 ]]; then
         _violation "pipeline numbering drift (WS-NUMBER AGY-642; see reference/audit-numbering-unification.md)"
     else
-        echo "[38-drift-checks]   pipeline numbering: (NN) labels deleted, single progress count, dense SSOT check ordinals, stage index in sync"
+        echo "[98-drift-checks]   pipeline numbering: (NN) labels deleted, single progress count, dense SSOT check ordinals, stage index in sync"
     fi
 }
 
@@ -6238,7 +6246,7 @@ for msg in bad:
 sys.exit(1 if bad else 0)
 PY
     then
-        echo "[38-drift-checks]   value-alias consistency verified (derive/delete pairs equal; keep-distinct pairs differ)"
+        echo "[98-drift-checks]   value-alias consistency verified (derive/delete pairs equal; keep-distinct pairs differ)"
     else
         _violation "value-alias consistency drift (reference/value-aliases.tsv; WS-DEDUP AGY-858)"
     fi
@@ -6253,7 +6261,7 @@ check_no_hardcoded_ssot_literal() {
     if [[ ! -f "$scan_tool" ]]; then
         return 0
     fi
-    echo "[38-drift-checks]   check_no_hardcoded_ssot_literal registered"
+    echo "[98-drift-checks]   check_no_hardcoded_ssot_literal registered"
 }
 
 main() {
@@ -6395,14 +6403,14 @@ main() {
     check_value_aliases
     check_no_hardcoded_ssot_literal
 
-    echo "[38-drift-checks] ---------------------------------------------------------"
+    echo "[98-drift-checks] ---------------------------------------------------------"
     if [[ "$VIOLATIONS" -eq 0 ]]; then
-        echo "[38-drift-checks] PASS: no AI-plane source drift."
+        echo "[98-drift-checks] PASS: no AI-plane source drift."
         exit 0
     fi
-    echo "[38-drift-checks] FAIL: $VIOLATIONS drift violation(s) above." >&2
+    echo "[98-drift-checks] FAIL: $VIOLATIONS drift violation(s) above." >&2
     if [[ "$_SOFT" == "1" ]]; then
-        echo "[38-drift-checks] (MIOS_DRIFT_CHECK_SOFT=1 -> advisory mode, exiting 0)"
+        echo "[98-drift-checks] (MIOS_DRIFT_CHECK_SOFT=1 -> advisory mode, exiting 0)"
         exit 0
     fi
     exit 1

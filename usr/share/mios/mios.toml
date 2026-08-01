@@ -11290,7 +11290,7 @@ generated = false
 scaffold = true
 
 [templates.drift-check]
-match = "^automation/38-drift-checks\\.sh$"
+match = "^automation/98-drift-checks\\.sh$"
 comment = "hash"
 required_header = true
 required_markers = ["check_"]

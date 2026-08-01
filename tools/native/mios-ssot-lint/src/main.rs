@@ -1,5 +1,5 @@
 // tools/native/mios-ssot-lint/src/main.rs
-// Rust port of 38-ssot-lint.sh (AGY-150)
+// Rust port of 97-ssot-lint.sh (AGY-150)
 use std::collections::BTreeSet;
 use std::env;
 use std::fs;
@@ -162,22 +162,22 @@ fn main() {
     let soft_mode = env::var("MIOS_SSOT_LINT_SOFT").unwrap_or_default() == "1";
 
     if !userenv_path.is_file() {
-        println!("[38-ssot-lint] FATAL: userenv.sh not found at {}", userenv_path.display());
+        println!("[97-ssot-lint] FATAL: userenv.sh not found at {}", userenv_path.display());
         process::exit(2);
     }
     if !render_path.is_file() {
-        println!("[38-ssot-lint] FATAL: 34-render-quadlets.sh not found at {}", render_path.display());
+        println!("[97-ssot-lint] FATAL: 34-render-quadlets.sh not found at {}", render_path.display());
         process::exit(2);
     }
     if !quadlet_dir.is_dir() {
-        println!("[38-ssot-lint] No Quadlet dir at {} -- nothing to lint (PASS).", quadlet_dir.display());
+        println!("[97-ssot-lint] No Quadlet dir at {} -- nothing to lint (PASS).", quadlet_dir.display());
         process::exit(0);
     }
 
-    println!("[38-ssot-lint] SSOT-render conformance lint");
-    println!("[38-ssot-lint]   quadlets: {}", quadlet_dir.display());
-    println!("[38-ssot-lint]   userenv:  {}", userenv_path.display());
-    println!("[38-ssot-lint]   render:   {}", render_path.display());
+    println!("[97-ssot-lint] SSOT-render conformance lint");
+    println!("[97-ssot-lint]   quadlets: {}", quadlet_dir.display());
+    println!("[97-ssot-lint]   userenv:  {}", userenv_path.display());
+    println!("[97-ssot-lint]   render:   {}", render_path.display());
 
     let mut quadlet_files = Vec::new();
     walk_dir_files(&quadlet_dir, &mut quadlet_files);
@@ -196,7 +196,7 @@ fn main() {
     }
 
     if refs.is_empty() {
-        println!("[38-ssot-lint] No ${{MIOS_*}} placeholders in any Exec=/Environment= line (PASS).");
+        println!("[97-ssot-lint] No ${{MIOS_*}} placeholders in any Exec=/Environment= line (PASS).");
         process::exit(0);
     }
 
@@ -231,28 +231,28 @@ fn main() {
             }
         }
         eprintln!(
-            "[38-ssot-lint] ERROR: dead key ${} -- referenced in a Quadlet Exec=/Environment= line but MISSING from: {}",
+            "[97-ssot-lint] ERROR: dead key ${} -- referenced in a Quadlet Exec=/Environment= line but MISSING from: {}",
             v, miss
         );
     }
 
-    println!("[38-ssot-lint] ---------------------------------------------------------");
-    println!("[38-ssot-lint] checked {} placeholder(s); {} orphan(s).", checked, orphans);
+    println!("[97-ssot-lint] ---------------------------------------------------------");
+    println!("[97-ssot-lint] checked {} placeholder(s); {} orphan(s).", checked, orphans);
 
     if orphans == 0 {
-        println!("[38-ssot-lint] PASS: every ${{MIOS_*}} placeholder is wired on both ends.");
+        println!("[97-ssot-lint] PASS: every ${{MIOS_*}} placeholder is wired on both ends.");
         process::exit(0);
     }
 
     eprintln!(
-        "[38-ssot-lint] FAIL: {} orphaned key(s) above are un-tunable (collapse to their inline :-default).",
+        "[97-ssot-lint] FAIL: {} orphaned key(s) above are un-tunable (collapse to their inline :-default).",
         orphans
     );
-    eprintln!("[38-ssot-lint]   Fix each by (a) adding a typed slot in tools/lib/userenv.sh AND");
-    eprintln!("[38-ssot-lint]   (b) adding it to BOTH allowlists in automation/34-render-quadlets.sh.");
+    eprintln!("[97-ssot-lint]   Fix each by (a) adding a typed slot in tools/lib/userenv.sh AND");
+    eprintln!("[97-ssot-lint]   (b) adding it to BOTH allowlists in automation/34-render-quadlets.sh.");
 
     if soft_mode {
-        println!("[38-ssot-lint] (MIOS_SSOT_LINT_SOFT=1 -> advisory mode, exiting 0)");
+        println!("[97-ssot-lint] (MIOS_SSOT_LINT_SOFT=1 -> advisory mode, exiting 0)");
         process::exit(0);
     }
     process::exit(1);

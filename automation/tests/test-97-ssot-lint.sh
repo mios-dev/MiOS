@@ -49,7 +49,7 @@ _expect() {
 }
 
 main() {
-    echo "[test-38-ssot-lint] fixture cases"
+    echo "[test-97-ssot-lint] fixture cases"
     tmp="$(mktemp -d)"
 
     local UE_GOOD RQ_GOOD UE_EMPTY RQ_EMPTY
@@ -94,7 +94,7 @@ for var in MIOS_FIXTURE_OK; do :; done'
     _expect "soft mode exits 0 despite orphan" 0 "$soft"
 
     # Case 8: live repo tree -- must flag the real known dead key.
-    echo "[test-38-ssot-lint] live-tree case"
+    echo "[test-97-ssot-lint] live-tree case"
     local live_out
     live_out="$(MIOS_SSOT_LINT_ROOT="$REPO_ROOT" bash "$LINT" 2>&1 || true)"
     if printf '%s' "$live_out" | grep -q 'MIOS_SGLANG_TOOL_PARSER'; then
@@ -103,8 +103,8 @@ for var in MIOS_FIXTURE_OK; do :; done'
         _bad "live tree did NOT flag MIOS_SGLANG_TOOL_PARSER"
     fi
 
-    echo "[test-38-ssot-lint] ---------------------------------------"
-    echo "[test-38-ssot-lint] $pass passed, $fail failed."
+    echo "[test-97-ssot-lint] ---------------------------------------"
+    echo "[test-97-ssot-lint] $pass passed, $fail failed."
     [[ "$fail" -eq 0 ]]
 }
 

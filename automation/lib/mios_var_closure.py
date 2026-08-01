@@ -4,7 +4,7 @@
 # the userenv.sh resolver. Guards the 767->~240 MIOS_* minification: a drop that
 # orphaned a consumer FAILS the build with the offending var + file:line. Also
 # reports E\R (emitted-but-unreferenced) as the standing next-drop advisory.
-# AI-related: ../../usr/lib/mios/userenv.sh, ../../tools/lib/userenv.sh, ../../usr/libexec/mios/system-sync-env.sh, ../38-ssot-lint.sh
+# AI-related: ../../usr/lib/mios/userenv.sh, ../../tools/lib/userenv.sh, ../../usr/libexec/mios/system-sync-env.sh, ../97-ssot-lint.sh
 # AI-functions: emitted_set, referenced_set, main
 """MIOS_* consumer-closure gate: assert referenced ⊆ emitted."""
 from __future__ import annotations

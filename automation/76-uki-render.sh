@@ -21,7 +21,7 @@ fi
 
 # SINGLE SOURCE OF TRUTH: tools/generate-uki-cmdline.py is the ONE
 # authoritative flattener of usr/lib/bootc/kargs.d/*.toml -> usr/lib/kernel/cmdline.
-# The post-build drift-gate (38-drift-checks check 93) validates the tree against
+# The post-build drift-gate (98-drift-checks check 93) validates the tree against
 # `generate-uki-cmdline.py --check` (ROOT=/tmp/build), so the build MUST render via
 # the SAME generator here -- a divergent `bootc container render-kargs` or a
 # hand-rolled TOML flatten would order/dedup/space the kargs differently and fail

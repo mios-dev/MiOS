@@ -27,7 +27,7 @@ apply_substrate_classes() {
 }
 
 # Stages handled OUTSIDE the class-filtered loop, mirroring build.sh's CONTAINERFILE_SCRIPTS: the
-# Containerfile-run overlay (08) and the post-loop validators (38-ssot-lint, 38-drift-checks,
+# Containerfile-run overlay (08) and the post-loop validators (97-ssot-lint, 98-drift-checks,
 # 99-postcheck). Keeping this list identical to build.sh's is what makes oci-bake's set == the loop.
 APPLY_SKIP="01-system-files-overlay.sh 97-ssot-lint.sh 98-drift-checks.sh 99-postcheck.sh"
 

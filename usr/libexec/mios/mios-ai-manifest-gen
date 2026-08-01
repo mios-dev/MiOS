@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AI-hint: WS-A1 anti-drift generator CLI -- regenerates (or --check verifies) the ai/v1 verb-catalog manifest projection (ai/v1/tools.generated.json) from the live mios.toml [verbs.*] SSOT, via the pure mios_manifest core in the agent-pipe. Default writes the manifest; --check regenerates in-memory and DIFFS the committed file, exiting 1 on any drift so 38-drift-checks / CI fail when the committed projection no longer matches the SSOT. Standalone (adds the agent-pipe dir to sys.path); no server.py, no DB, no network.
+# AI-hint: WS-A1 anti-drift generator CLI -- regenerates (or --check verifies) the ai/v1 verb-catalog manifest projection (ai/v1/tools.generated.json) from the live mios.toml [verbs.*] SSOT, via the pure mios_manifest core in the agent-pipe. Default writes the manifest; --check regenerates in-memory and DIFFS the committed file, exiting 1 on any drift so 98-drift-checks / CI fail when the committed projection no longer matches the SSOT. Standalone (adds the agent-pipe dir to sys.path); no server.py, no DB, no network.
 # AI-related: /usr/lib/mios/agent-pipe/mios_manifest.py, /usr/share/mios/mios.toml, /usr/share/mios/ai/v1/tools.generated.json, /usr/share/mios/ai/v1/tools.json, ./mios-docgen
 # AI-functions: _generate, main
 """mios-ai-manifest-gen -- project mios.toml [verbs.*] -> ai/v1/tools.generated.json.

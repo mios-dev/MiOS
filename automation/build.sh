@@ -208,10 +208,10 @@ fi
 #   97-ssot-lint.sh            -- POST-BUILD validator, called explicitly below
 #   98-drift-checks.sh         -- POST-BUILD validator, called explicitly below
 #   99-postcheck.sh            -- called explicitly below after the loop
-# 38-ssot-lint + 38-drift-checks are read-only SOURCE validators, not build
+# 97-ssot-lint + 98-drift-checks are read-only SOURCE validators, not build
 # stages. Their names sort into the 38-* band, so the [0-9][0-9]-*.sh glob
 # would ALSO run them mid-loop -- double-executing them, and worse: the in-loop
-# 38-drift-checks runs BEFORE the post-loop SSOT re-projection step, so the
+# 98-drift-checks runs BEFORE the post-loop SSOT re-projection step, so the
 # gitignored projections (etc/mios/ipa-enroll.env / usr/lib/kernel/cmdline /
 # etc/cockpit/cockpit.conf) are still absent at $ROOT and checks 92/93/95
 # spuriously FAIL -> the bake aborts (the post-build run passes fine). Skip both

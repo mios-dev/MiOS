@@ -58,22 +58,22 @@ _SOFT="${MIOS_SSOT_LINT_SOFT:-0}"
 # (the lint cannot make any assertion) -- but stay degrade-friendly: if the
 # Quadlet dir is simply absent (e.g. a minimal checkout), PASS vacuously.
 if [[ ! -f "$USERENV" ]]; then
-    echo "[38-ssot-lint] FATAL: userenv.sh not found at $USERENV" >&2
+    echo "[97-ssot-lint] FATAL: userenv.sh not found at $USERENV" >&2
     exit 2
 fi
 if [[ ! -f "$RENDER" ]]; then
-    echo "[38-ssot-lint] FATAL: 34-render-quadlets.sh not found at $RENDER" >&2
+    echo "[97-ssot-lint] FATAL: 34-render-quadlets.sh not found at $RENDER" >&2
     exit 2
 fi
 if [[ ! -d "$QUADLET_DIR" ]]; then
-    echo "[38-ssot-lint] No Quadlet dir at $QUADLET_DIR -- nothing to lint (PASS)."
+    echo "[97-ssot-lint] No Quadlet dir at $QUADLET_DIR -- nothing to lint (PASS)."
     exit 0
 fi
 
-echo "[38-ssot-lint] SSOT-render conformance lint"
-echo "[38-ssot-lint]   quadlets: $QUADLET_DIR"
-echo "[38-ssot-lint]   userenv:  $USERENV"
-echo "[38-ssot-lint]   render:   $RENDER"
+echo "[97-ssot-lint] SSOT-render conformance lint"
+echo "[97-ssot-lint]   quadlets: $QUADLET_DIR"
+echo "[97-ssot-lint]   userenv:  $USERENV"
+echo "[97-ssot-lint]   render:   $RENDER"
 
 # --- (1) Collect every ${MIOS_*} referenced in an Exec=/Environment= line. ----
 # We scan recursively (the dir has a users/ subtree). Match the directive at
@@ -96,7 +96,7 @@ _collect_refs() {
 mapfile -t REFS < <(_collect_refs)
 
 if [[ "${#REFS[@]}" -eq 0 ]]; then
-    echo "[38-ssot-lint] No \${MIOS_*} placeholders in any Exec=/Environment= line (PASS)."
+    echo "[97-ssot-lint] No \${MIOS_*} placeholders in any Exec=/Environment= line (PASS)."
     exit 0
 fi
 
@@ -174,22 +174,22 @@ for v in "${REFS[@]}"; do
             miss="34-render-quadlets.sh allowlist"
         fi
     fi
-    echo "[38-ssot-lint] ERROR: dead key \$$v -- referenced in a Quadlet Exec=/Environment= line but MISSING from: $miss" >&2
+    echo "[97-ssot-lint] ERROR: dead key \$$v -- referenced in a Quadlet Exec=/Environment= line but MISSING from: $miss" >&2
 done
 
 # --- (5) Summary + exit. ------------------------------------------------------
-echo "[38-ssot-lint] ---------------------------------------------------------"
-echo "[38-ssot-lint] checked $checked placeholder(s); $orphans orphan(s)."
+echo "[97-ssot-lint] ---------------------------------------------------------"
+echo "[97-ssot-lint] checked $checked placeholder(s); $orphans orphan(s)."
 if [[ "$orphans" -eq 0 ]]; then
-    echo "[38-ssot-lint] PASS: every \${MIOS_*} placeholder is wired on both ends."
+    echo "[97-ssot-lint] PASS: every \${MIOS_*} placeholder is wired on both ends."
     exit 0
 fi
 
-echo "[38-ssot-lint] FAIL: $orphans orphaned key(s) above are un-tunable (collapse to their inline :-default)." >&2
-echo "[38-ssot-lint]   Fix each by (a) adding a typed slot in tools/lib/userenv.sh AND" >&2
-echo "[38-ssot-lint]   (b) adding it to BOTH allowlists in automation/34-render-quadlets.sh." >&2
+echo "[97-ssot-lint] FAIL: $orphans orphaned key(s) above are un-tunable (collapse to their inline :-default)." >&2
+echo "[97-ssot-lint]   Fix each by (a) adding a typed slot in tools/lib/userenv.sh AND" >&2
+echo "[97-ssot-lint]   (b) adding it to BOTH allowlists in automation/34-render-quadlets.sh." >&2
 if [[ "$_SOFT" == "1" ]]; then
-    echo "[38-ssot-lint] (MIOS_SSOT_LINT_SOFT=1 -> advisory mode, exiting 0)"
+    echo "[97-ssot-lint] (MIOS_SSOT_LINT_SOFT=1 -> advisory mode, exiting 0)"
     exit 0
 fi
 exit 1

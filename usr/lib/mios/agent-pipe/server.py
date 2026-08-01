@@ -2325,7 +2325,7 @@ _SANDBOX_SELF_CONFINED = ("mios-sandbox-exec", "mios-coderun")
 # The cross-provider wire-format adapter moved verbatim to mios_provider_translate
 # ("entire stacks to OpenAI standards for UNIVERSAL MODEL
 # compatibility"). Re-imported under the original _-prefixed names so the module
-# surface is unchanged (refactor R2; guarded by 38-drift-checks check 15).
+# surface is unchanged (refactor R2; guarded by 98-drift-checks check 15).
 from mios_provider_translate import (  # noqa: E402
     ANTH_REJECT_KEYS as _ANTH_REJECT_KEYS,
     GEMINI_DROP_KEYS as _GEMINI_DROP_KEYS,

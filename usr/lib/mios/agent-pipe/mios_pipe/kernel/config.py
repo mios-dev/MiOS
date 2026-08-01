@@ -1,4 +1,4 @@
-# AI-hint: Pure config-constant + SSOT-reader layer extracted from server.py (refactor WS R1). Module-level env/literal-derived constants (PORT, MCP_SERVER_PORT, _LIGHT_BASE, BACKEND/_BACKEND_IS_LIGHT/BACKEND_MODEL/_BACKEND_HOSTPORT, _HERMES_ENDPOINT/_HERMES_WORKER_ENDPOINT, _AUTH_HOSTPORTS, _AGENT_AUTH_BY_HOSTPORT, CLIENT_TOOLS_PASSTHROUGH, _TOOL_BACKEND*, _HEAVY_PROBE_TTL, _INGRESS_KEY, _STACK_MODEL/_MICRO_*) plus the layered mios.toml readers (_toml_section, _cfg_num, _dispatch_toml/_DISPATCH_TOML/_dispatch_num). Pure: stdlib (os, logging, tomllib/tomli) only -- NO import of server (one-way boundary, 38-drift-checks.sh check 6). server.py re-imports every name verbatim (surface-parity zero-diff); runtime-coupled fns (_apply_outbound_auth/_heavy_lane_up/_lane_resolver/_pick_tool_backend) STAY in server.py and call these re-imported readers/constants.
+# AI-hint: Pure config-constant + SSOT-reader layer extracted from server.py (refactor WS R1). Module-level env/literal-derived constants (PORT, MCP_SERVER_PORT, _LIGHT_BASE, BACKEND/_BACKEND_IS_LIGHT/BACKEND_MODEL/_BACKEND_HOSTPORT, _HERMES_ENDPOINT/_HERMES_WORKER_ENDPOINT, _AUTH_HOSTPORTS, _AGENT_AUTH_BY_HOSTPORT, CLIENT_TOOLS_PASSTHROUGH, _TOOL_BACKEND*, _HEAVY_PROBE_TTL, _INGRESS_KEY, _STACK_MODEL/_MICRO_*) plus the layered mios.toml readers (_toml_section, _cfg_num, _dispatch_toml/_DISPATCH_TOML/_dispatch_num). Pure: stdlib (os, logging, tomllib/tomli) only -- NO import of server (one-way boundary, 98-drift-checks.sh check 6). server.py re-imports every name verbatim (surface-parity zero-diff); runtime-coupled fns (_apply_outbound_auth/_heavy_lane_up/_lane_resolver/_pick_tool_backend) STAY in server.py and call these re-imported readers/constants.
 # AI-related: ./server.py, ./test_mios_config.py, ./mios_surface.py, /usr/share/mios/mios.toml
 # AI-functions: _toml_section, _cfg_num, _dispatch_toml, _dispatch_num
 """Pure config constants + SSOT mios.toml readers (extracted from server.py).
@@ -6,7 +6,7 @@
 Moved verbatim from ``server.py`` (refactor R1); the module is pure (stdlib only
 -- ``os`` / ``logging`` / lazily-imported ``tomllib``) and ``server.py`` re-imports
 every name so its importable surface is unchanged. ``mios_config`` MUST NOT import
-``server`` (the one-way boundary enforced by ``38-drift-checks.sh`` check 6).
+``server`` (the one-way boundary enforced by ``98-drift-checks.sh`` check 6).
 """
 
 from __future__ import annotations

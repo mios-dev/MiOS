@@ -52,7 +52,7 @@ def main():
             fn_match = re.search(r"^\s*" + re.escape(name) + r"\(\)\s*\{(.*?)\n\}", content, re.MULTILINE | re.DOTALL)
             if fn_match:
                 fn_body = fn_match.group(1)
-                echo_matches = re.findall(r'echo\s+"\[38-drift-checks\]\s+(?:\(\d+\)\s+)?([^"]+)"', fn_body)
+                echo_matches = re.findall(r'echo\s+"\[98-drift-checks\]\s+(?:\(\d+\)\s+)?([^"]+)"', fn_body)
                 for em in echo_matches:
                     if not em.startswith("WARNING") and not em.startswith("VIOLATION") and not em.startswith("---"):
                         desc = em.strip()

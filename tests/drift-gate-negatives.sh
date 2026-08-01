@@ -1979,7 +1979,7 @@ test_pipeline_numbering() {
     cp "$f" "$backup"
     # Inject a forbidden hand-written (NN) check label as a COMMENT (bash stays valid).
     # check_pipeline_numbering greps the file for exactly [NN-drift-checks] + (NN) and must FAIL.
-    printf '\n# NEG-TEST [38-drift-checks]   (99) injected colliding label\n' >> "$f"
+    printf '\n# NEG-TEST [98-drift-checks]   (99) injected colliding label\n' >> "$f"
     if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "$f" check_pipeline_numbering >/dev/null 2>&1; then
         cp "$backup" "$f"; rm -f "$backup"
         die "check_pipeline_numbering passed despite an injected (NN) check label!"

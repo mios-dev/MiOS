@@ -11,6 +11,6 @@ check_{{name}}() {
         printf '%s' "$hits" >&2
         _violation "drift violation in {{name}}: {{description}}"
     else
-        echo "[38-drift-checks]   ({{id}}) check passed: {{name}}"
+        echo "[98-drift-checks]   ({{id}}) check passed: {{name}}"
     fi
 }

@@ -14,7 +14,7 @@ ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # and `generate-pod-quadlets.py --check` (drift-gate check 13), both of which run
 # bare -- sourcing userenv here bakes env-resolved values (e.g. --max-model-len
 # 262144) that differ from the bare --check (16384) and FAIL the build at
-# 38-drift-checks (STALE Quadlets). Runtime [ai.vllm]/[ai.sglang] config reaches
+# 98-drift-checks (STALE Quadlets). Runtime [ai.vllm]/[ai.sglang] config reaches
 # the container at DEPLOY time via 15-render-quadlets / systemd EnvironmentFile
 # expansion from install.env, NOT by baking at generate time. (Reverts c3d300c;
 # the 256k lane is gated-off by default and unaffected on the install path.)

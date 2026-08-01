@@ -12,7 +12,7 @@ then greedy MMR), all degrade-open to plain cosine.
 The worker-surface builders/selectors stay in ``server.py`` (their memo caches are
 rebound at external invalidation sites). Server-side functions/catalog and the
 rerank flags are injected via :func:`configure` -- this module never imports
-``server`` (one-way boundary, 38-drift-checks check 6). ``server.py`` re-imports
+``server`` (one-way boundary, 98-drift-checks check 6). ``server.py`` re-imports
 every name under its original alias so the importable surface is byte-identical.
 """
 

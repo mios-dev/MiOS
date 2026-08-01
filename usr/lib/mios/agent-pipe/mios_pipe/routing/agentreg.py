@@ -224,7 +224,7 @@ def _load_agent_registry() -> dict[str, dict]:
                 # [agents.*] entry.
                 "research_only": bool(cfg.get("research_only", False)),
                 # WS-A1 unified-template fields (kind discriminator + the cli/
-                # optional contract the schema validator enforces in 38-drift-checks).
+                # optional contract the schema validator enforces in 98-drift-checks).
                 "kind":      (_kind or ("remote-http" if _is_remote_endpoint(_ep_x)
                                         else "local-http")),
                 "enabled":   bool(cfg.get("enabled", True)),
