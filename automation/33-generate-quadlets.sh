@@ -38,6 +38,12 @@ if [[ -w "$TARGET_DIR" ]]; then
     OUT_DIR="$TARGET_DIR"
 fi
 
+if command -v miosd >/dev/null 2>&1; then
+    MIOS_ROOT="$ROOT" MIOS_TOML="$TOML_FILE" MIOS_POD_OUT="$OUT_DIR" miosd generate-quadlets
+    mios_ok "Quadlets generated into ${OUT_DIR} via miosd"
+    exit 0
+fi
+
 MIOS_ROOT="$ROOT" MIOS_TOML="$TOML_FILE" MIOS_POD_OUT="$OUT_DIR" python3 "$GEN_SCRIPT"
 
 mios_ok "Quadlets generated into ${OUT_DIR}"

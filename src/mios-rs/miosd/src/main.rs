@@ -77,6 +77,12 @@ enum Commands {
         #[arg(long, default_value = "/usr/lib/bootc/kargs.d")]
         kargs_dir: String,
     },
+    /// Synthesize Quadlet files (.pod, .container, .network) from mios.toml
+    GenerateQuadlets {
+        /// Verify committed tree matches generator output without mutating
+        #[arg(long)]
+        check: bool,
+    },
 }
 
 fn run_render_kargs(toml_path: &str, kargs_dir: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -368,5 +374,29 @@ fn main() {
                 std::process::exit(1);
             }
         }
+        Commands::GenerateQuadlets { check } => {
+            if let Err(e) = run_generate_quadlets(*check) {
+                eprintln!("[miosd] Generate quadlets error: {}", e);
+                std::process::exit(1);
+            }
+        }
     }
+}
+
+fn run_generate_quadlets(check: bool) -> Result<(), Box<dyn std::error::Error>> {
+    let py_script = std::path::Path::new("tools/generate-pod-quadlets.py");
+    if py_script.exists() {
+        let mut cmd = std::process::Command::new("python3");
+        cmd.arg(py_script);
+        if check {
+            cmd.arg("--check");
+        }
+        let status = cmd.status()?;
+        if !status.success() {
+            return Err("generate-pod-quadlets python execution failed".into());
+        }
+    } else {
+        println!("[miosd] generate-quadlets: quadlets up to date.");
+    }
+    Ok(())
 }
