@@ -51,7 +51,14 @@ mios_log "add Fedora 44 repository"
 #   - gpgcheck=1      : individual *packages* still verified by RPM signature.
 #   - skip_if_unavailable=True : when F44 mirrors are intermittently down,
 #     fall back to F43 (base image) instead of breaking the whole build.
-if [ -d "/usr/share/mios/vendored/rpms" ] && [[ "${MIOS_ONLINE_BUILD:-0}" != "1" ]]; then
+if command -v miosd >/dev/null 2>&1; then
+    _online_flag=""
+    if [[ "${MIOS_ONLINE_BUILD:-0}" == "1" ]]; then
+        _online_flag="--online"
+    fi
+    miosd render-repos $_online_flag
+    mios_ok "rendered fedora-44.repo via miosd"
+elif [ -d "/usr/share/mios/vendored/rpms" ] && [[ "${MIOS_ONLINE_BUILD:-0}" != "1" ]]; then
     mios_log "using local vendored RPM mirror for Fedora 44"
     cat > /etc/yum.repos.d/fedora-44.repo <<EOREPO
 [fedora-44]

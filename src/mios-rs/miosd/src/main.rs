@@ -143,6 +143,15 @@ enum Commands {
     },
     /// Symlink security services into multi-user.target.wants and fix config perms
     Harden,
+    /// Render /etc/yum.repos.d/fedora-44.repo file
+    RenderRepos {
+        /// Force online metalink mode (defaults to local vendored mirror if present)
+        #[arg(long)]
+        online: bool,
+        /// Target repo file path
+        #[arg(long, default_value = "/etc/yum.repos.d/fedora-44.repo")]
+        output: String,
+    },
 }
 
 fn run_render_kargs(toml_path: &str, kargs_dir: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -500,7 +509,79 @@ fn main() {
                 std::process::exit(1);
             }
         }
+        Commands::RenderRepos { online, output } => {
+            if let Err(e) = run_render_repos(*online, output) {
+                eprintln!("[miosd] Render repos error: {}", e);
+                std::process::exit(1);
+            }
+        }
     }
+}
+
+fn run_render_repos(online: bool, output_path: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let vendored = std::path::Path::new("/usr/share/mios/vendored/rpms").exists() && !online;
+
+    let content = if vendored {
+        r#"[fedora-44]
+name=Fedora 44 - $basearch
+baseurl=file:///usr/share/mios/vendored/rpms/fedora-44/$basearch
+enabled=1
+repo_gpgcheck=0
+type=rpm
+gpgcheck=0
+skip_if_unavailable=True
+priority=95
+
+[fedora-44-updates]
+name=Fedora 44 Updates - $basearch
+baseurl=file:///usr/share/mios/vendored/rpms/updates-released-f44/$basearch
+enabled=1
+repo_gpgcheck=0
+type=rpm
+gpgcheck=0
+skip_if_unavailable=True
+priority=95
+"#
+    } else {
+        r#"[fedora-44]
+name=Fedora 44 - $basearch
+metalink=https://mirrors.fedoraproject.org/metalink?repo=fedora-44&arch=$basearch
+enabled=1
+repo_gpgcheck=0
+type=rpm
+gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-44-x86_64
+skip_if_unavailable=True
+priority=95
+timeout=10
+minrate=1k
+max_parallel_downloads=10
+ip_resolve=4
+
+[fedora-44-updates]
+name=Fedora 44 Updates - $basearch
+metalink=https://mirrors.fedoraproject.org/metalink?repo=updates-released-f44&arch=$basearch
+enabled=1
+repo_gpgcheck=0
+type=rpm
+gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-44-x86_64
+skip_if_unavailable=True
+priority=95
+timeout=10
+minrate=1k
+max_parallel_downloads=10
+ip_resolve=4
+"#
+    };
+
+    let p = std::path::Path::new(output_path);
+    if let Some(parent) = p.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    std::fs::write(p, content)?;
+    println!("[miosd] rendered repo file at {}", output_path);
+    Ok(())
 }
 
 fn run_harden() -> Result<(), Box<dyn std::error::Error>> {
