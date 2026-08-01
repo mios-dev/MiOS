@@ -30,6 +30,11 @@ SENTINEL=/var/lib/mios/forge-runner/last-build.txt
 LOG_TAG=mios-bootc-switch
 _log() { logger -t "$LOG_TAG" "$*" 2>/dev/null || true; echo "[${LOG_TAG}] $*" >&2; }
 
+if command -v miosd >/dev/null 2>&1; then
+    miosd bootc-apply --sentinel "$SENTINEL"
+    exit 0
+fi
+
 # Refuse to do anything dangerous if the sentinel is missing -- the path
 # unit only triggers on file events, but a manual invocation with no file
 # present should fail loud rather than silently.

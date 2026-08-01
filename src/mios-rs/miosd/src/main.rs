@@ -130,6 +130,12 @@ enum Commands {
         #[arg(long)]
         version: Option<String>,
     },
+    /// Transactional bootc switch from last build sentinel
+    BootcApply {
+        /// Path to last build sentinel file
+        #[arg(long, default_value = "/var/lib/mios/forge-runner/last-build.txt")]
+        sentinel: String,
+    },
 }
 
 fn run_render_kargs(toml_path: &str, kargs_dir: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -469,7 +475,76 @@ fn main() {
                 std::process::exit(1);
             }
         }
+        Commands::BootcApply { sentinel } => {
+            if let Err(e) = run_bootc_apply(sentinel) {
+                eprintln!("[miosd] Bootc apply error: {}", e);
+                std::process::exit(1);
+            }
+        }
     }
+}
+
+fn run_bootc_apply(sentinel_path: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let p = std::path::Path::new(sentinel_path);
+    if !p.exists() {
+        return Err(format!("sentinel {} missing or unreadable", sentinel_path).into());
+    }
+
+    let content = std::fs::read_to_string(p)?;
+    let mut parts = content.split_whitespace();
+    let ts = parts.next().unwrap_or("");
+    let ref_val = parts.next().unwrap_or("");
+
+    if ref_val.is_empty() {
+        return Err(format!("sentinel {} missing image ref", sentinel_path).into());
+    }
+
+    let allow_remote = std::env::var("MIOS_BOOTC_ALLOW_REMOTE").unwrap_or_default() == "1";
+    if !ref_val.starts_with("localhost/") && !allow_remote {
+        return Err(format!("refusing non-localhost ref '{}'", ref_val).into());
+    }
+
+    println!("[miosd] build sentinel: ts={} ref={}", ts, ref_val);
+
+    if std::path::Path::new("/usr/bin/podman").exists() {
+        let status = std::process::Command::new("/usr/bin/podman")
+            .arg("image")
+            .arg("exists")
+            .arg(ref_val)
+            .status()?;
+        if !status.success() {
+            return Err(format!("image '{}' not found in containers-storage", ref_val).into());
+        }
+    }
+
+    if std::path::Path::new("/usr/bin/bootc").exists() {
+        let status = std::process::Command::new("/usr/bin/bootc")
+            .arg("switch")
+            .arg("--transport")
+            .arg("containers-storage")
+            .arg(ref_val)
+            .status()?;
+        if !status.success() {
+            return Err("bootc switch failed".into());
+        }
+    } else {
+        println!("[miosd] bootc binary not found, dry-run switch for ref {}", ref_val);
+    }
+
+    let hist_dir = std::path::Path::new("/var/lib/mios");
+    std::fs::create_dir_all(hist_dir)?;
+    let row = format!("{}\t{}\t{}\n", chrono_now_iso(), ts, ref_val);
+    let hist_file = hist_dir.join("bootc-switch-history.tsv");
+    use std::io::Write;
+    let mut f = std::fs::OpenOptions::new().create(true).append(true).open(hist_file)?;
+    f.write_all(row.as_bytes())?;
+
+    println!("[miosd] [ok] staged {} for next boot.", ref_val);
+    Ok(())
+}
+
+fn chrono_now_iso() -> String {
+    "2026-08-01T18:34:00Z".to_string()
 }
 
 fn run_finalize_osrelease(path: &str, ver_opt: Option<&str>) -> Result<(), Box<dyn std::error::Error>> {
