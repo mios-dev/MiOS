@@ -42,20 +42,14 @@ Environment=MIOS_PG_DB=mios
 # SSOT [ports].pgvector: the pgvector container's postgres listens on 8432
 # (Exec=postgres -c port=${MIOS_PORT_PGVECTOR}), NOT the standard 5432. The old
 # 5432 here was a stale postgres-default assumption that never matched.
-# KNOWN-ISSUE: this host oneshot (User=mios-pgvector) still cannot reach the pg,
-# which is loopback-only inside mios-ai.pod (no PublishPort) -- a real dump needs
-# `podman exec mios-pgvector pg_dump` or a pod publish; tracked separately. This
-# only corrects the port value so it matches SSOT + the actual listener.
 Environment=MIOS_PORT_PGVECTOR=8432
-# Unprivileged: the pgvector sysuser owns the backup dir + has loopback trust.
-User=mios-pgvector
-Group=mios-pgvector
-NoNewPrivileges=true
-ProtectSystem=strict
+# Runs as root to `podman exec` into the mios-ai.pod pgvector container -- the SAME
+# proven pattern mios-sys-env-refresh uses. The pg listens loopback-only INSIDE the
+# pod (no PublishPort), so the old unprivileged host-side pg_dump could never reach
+# it (silent degrade). podman needs its runtime writable, so ProtectSystem=strict /
+# ReadWritePaths are dropped; keep the light hardening below.
 ProtectHome=true
 PrivateTmp=true
-# Only the backup dir is writable; everything else stays read-only.
-ReadWritePaths=/var/lib/mios/backups
 # Logical dump over loopback-trust, gzip'd + timestamped, then prune to the
 # newest N. Pure POSIX sh so it runs on the minimal base. Every branch exits 0
 # (degrade-open): gate-off, missing client, or a dump error logs and succeeds.
@@ -70,8 +64,8 @@ ExecStart=/bin/sh -c '\
   PORT="$$MIOS_PORT_PGVECTOR"; [ -z "$$PORT" ] && PORT="8432"; \
   USR="$$MIOS_PG_USER"; [ -z "$$USR" ] && USR="mios"; \
   DB="$$MIOS_PG_DB"; [ -z "$$DB" ] && DB="mios"; \
-  if ! command -v pg_dump >/dev/null 2>&1; then \
-    echo "mios-pgvector-backup: pg_dump client not found on PATH -- skipping (install the postgresql client to enable dumps)"; \
+  if ! command -v podman >/dev/null 2>&1; then \
+    echo "mios-pgvector-backup: podman not found on PATH -- skipping (need podman to exec pg_dump inside the pod)"; \
     exit 0; \
   fi; \
   mkdir -p "$$DIR" 2>/dev/null || true; \
@@ -80,7 +74,7 @@ ExecStart=/bin/sh -c '\
   RAW="$$DIR/.mios-pgvector-$$TS.sql.partial"; \
   ERR="$$DIR/.mios-pgbackup.err"; \
   rc=0; \
-  pg_dump -h 127.0.0.1 -p "$$PORT" -U "$$USR" --no-password "$$DB" > "$$RAW" 2>"$$ERR" || rc=$$?; \
+  podman exec mios-pgvector pg_dump -h 127.0.0.1 -p "$$PORT" -U "$$USR" --no-password "$$DB" > "$$RAW" 2>"$$ERR" || rc=$$?; \
   if [ "$$rc" -ne 0 ] || [ ! -s "$$RAW" ]; then \
     echo "mios-pgvector-backup: pg_dump failed (rc=$$rc, degrade-open): $$(tail -n1 "$$ERR" 2>/dev/null)"; \
     rm -f "$$RAW" "$$ERR" 2>/dev/null || true; \
