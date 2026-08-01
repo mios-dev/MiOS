@@ -60,7 +60,7 @@ JSON
 
 echo "[4/5] restart agent-pipe"
 systemctl restart mios-agent-pipe.service
-for i in 1 2 3 4 5 6 7 8 9 10 11 12; do curl -sf http://127.0.0.1:8640/v1/models >/dev/null 2>&1 && break; sleep 4; done
+for i in 1 2 3 4 5 6 7 8 9 10 11 12; do curl -sf http://127.0.0.1:${MIOS_PORT_AGENT_PIPE:-8640}/v1/models >/dev/null 2>&1 && break; sleep 4; done
 sleep 12
 
 echo "[5/5] verify probes (expect playwright + duckdb + postgres ready)"
