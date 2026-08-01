@@ -143,14 +143,17 @@ enum Commands {
     },
     /// Symlink security services into multi-user.target.wants and fix config perms
     Harden,
-    /// Render /etc/yum.repos.d/fedora-44.repo file
+    /// Render /etc/yum.repos.d/fedora-{version}.repo file
     RenderRepos {
         /// Force online metalink mode (defaults to local vendored mirror if present)
         #[arg(long)]
         online: bool,
-        /// Target repo file path
-        #[arg(long, default_value = "/etc/yum.repos.d/fedora-44.repo")]
-        output: String,
+        /// Fedora release version (defaults to 44)
+        #[arg(long, default_value = "44")]
+        fedora_version: String,
+        /// Target repo file path (defaults to /etc/yum.repos.d/fedora-{version}.repo)
+        #[arg(long)]
+        output: Option<String>,
     },
 }
 
@@ -509,8 +512,8 @@ fn main() {
                 std::process::exit(1);
             }
         }
-        Commands::RenderRepos { online, output } => {
-            if let Err(e) = run_render_repos(*online, output) {
+        Commands::RenderRepos { online, fedora_version, output } => {
+            if let Err(e) = run_render_repos(*online, fedora_version, output.as_deref()) {
                 eprintln!("[miosd] Render repos error: {}", e);
                 std::process::exit(1);
             }
@@ -518,13 +521,15 @@ fn main() {
     }
 }
 
-fn run_render_repos(online: bool, output_path: &str) -> Result<(), Box<dyn std::error::Error>> {
+fn run_render_repos(online: bool, fedora_version: &str, output_path: Option<&str>) -> Result<(), Box<dyn std::error::Error>> {
+    let ver = if fedora_version.is_empty() { "44" } else { fedora_version };
     let vendored = std::path::Path::new("/usr/share/mios/vendored/rpms").exists() && !online;
 
     let content = if vendored {
-        r#"[fedora-44]
-name=Fedora 44 - $basearch
-baseurl=file:///usr/share/mios/vendored/rpms/fedora-44/$basearch
+        format!(
+            r#"[fedora-{ver}]
+name=Fedora {ver} - $basearch
+baseurl=file:///usr/share/mios/vendored/rpms/fedora-{ver}/$basearch
 enabled=1
 repo_gpgcheck=0
 type=rpm
@@ -532,25 +537,28 @@ gpgcheck=0
 skip_if_unavailable=True
 priority=95
 
-[fedora-44-updates]
-name=Fedora 44 Updates - $basearch
-baseurl=file:///usr/share/mios/vendored/rpms/updates-released-f44/$basearch
+[fedora-{ver}-updates]
+name=Fedora {ver} Updates - $basearch
+baseurl=file:///usr/share/mios/vendored/rpms/updates-released-f{ver}/$basearch
 enabled=1
 repo_gpgcheck=0
 type=rpm
 gpgcheck=0
 skip_if_unavailable=True
 priority=95
-"#
+"#,
+            ver = ver
+        )
     } else {
-        r#"[fedora-44]
-name=Fedora 44 - $basearch
-metalink=https://mirrors.fedoraproject.org/metalink?repo=fedora-44&arch=$basearch
+        format!(
+            r#"[fedora-{ver}]
+name=Fedora {ver} - $basearch
+metalink=https://mirrors.fedoraproject.org/metalink?repo=fedora-{ver}&arch=$basearch
 enabled=1
 repo_gpgcheck=0
 type=rpm
 gpgcheck=1
-gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-44-x86_64
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-{ver}-x86_64
 skip_if_unavailable=True
 priority=95
 timeout=10
@@ -558,29 +566,36 @@ minrate=1k
 max_parallel_downloads=10
 ip_resolve=4
 
-[fedora-44-updates]
-name=Fedora 44 Updates - $basearch
-metalink=https://mirrors.fedoraproject.org/metalink?repo=updates-released-f44&arch=$basearch
+[fedora-{ver}-updates]
+name=Fedora {ver} Updates - $basearch
+metalink=https://mirrors.fedoraproject.org/metalink?repo=updates-released-f{ver}&arch=$basearch
 enabled=1
 repo_gpgcheck=0
 type=rpm
 gpgcheck=1
-gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-44-x86_64
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-{ver}-x86_64
 skip_if_unavailable=True
 priority=95
 timeout=10
 minrate=1k
 max_parallel_downloads=10
 ip_resolve=4
-"#
+"#,
+            ver = ver
+        )
     };
 
-    let p = std::path::Path::new(output_path);
+    let target_file = match output_path {
+        Some(p) => p.to_string(),
+        None => format!("/etc/yum.repos.d/fedora-{}.repo", ver),
+    };
+
+    let p = std::path::Path::new(&target_file);
     if let Some(parent) = p.parent() {
         std::fs::create_dir_all(parent)?;
     }
     std::fs::write(p, content)?;
-    println!("[miosd] rendered repo file at {}", output_path);
+    println!("[miosd] rendered repo file at {}", target_file);
     Ok(())
 }
 

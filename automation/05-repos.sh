@@ -56,8 +56,9 @@ if command -v miosd >/dev/null 2>&1; then
     if [[ "${MIOS_ONLINE_BUILD:-0}" == "1" ]]; then
         _online_flag="--online"
     fi
-    miosd render-repos $_online_flag
-    mios_ok "rendered fedora-44.repo via miosd"
+    _fver="${FEDORA_VERSION:-44}"
+    miosd render-repos --fedora-version "$_fver" $_online_flag
+    mios_ok "rendered fedora-${_fver}.repo via miosd"
 elif [ -d "/usr/share/mios/vendored/rpms" ] && [[ "${MIOS_ONLINE_BUILD:-0}" != "1" ]]; then
     mios_log "using local vendored RPM mirror for Fedora 44"
     cat > /etc/yum.repos.d/fedora-44.repo <<EOREPO
