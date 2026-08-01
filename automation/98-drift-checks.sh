@@ -6178,7 +6178,10 @@ check_pipeline_numbering() {
             _pi_skip="incomplete git work tree (tracked files not materialized)"
         fi
         if [[ -n "$_pi_skip" ]]; then
-            echo "[38-drift-checks]   pipeline-index -- SKIPPED ($_pi_skip at \$ROOT; drift-gate job covers it)" >&2
+            # NOT a [38-drift-checks] line: generate-gate-index.py captures the first such
+            # echo as the check's description, so keep this off that prefix to preserve the
+            # canonical "pipeline numbering: ..." index entry (no drift-gate-index.tsv churn).
+            echo "  [pipeline-index] SKIPPED: $_pi_skip at \$ROOT (drift-gate job covers it)" >&2
         elif ! "$PYTHON" "$ROOT/tools/generate-pipeline-index.py" --check >/dev/null 2>&1; then
             echo "  [pipeline-numbering-drift] pipeline-index.tsv is out of sync with automation/NN-*.sh scripts (run tools/generate-pipeline-index.py)" >&2
             bad=1
