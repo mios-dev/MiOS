@@ -1,6 +1,7 @@
 # NN	kind	name	file	oneline
 01	script	system-files-overlay	automation/01-system-files-overlay.sh	MIOS_APPLY_CLASS=universal
 02	script	materialize-build-ctx	automation/02-materialize-build-ctx.sh	MIOS_APPLY_CLASS=bake-only
+04	script	local-rpm-mirror	automation/04-local-rpm-mirror.sh	shellcheck source=lib/common.sh
 05	script	repos	automation/05-repos.sh	MIOS_APPLY_CLASS=universal
 06	script	enable-external-repos	automation/06-enable-external-repos.sh	MIOS_APPLY_CLASS=universal
 07	script	kernel	automation/07-kernel.sh	MIOS_APPLY_CLASS=universal

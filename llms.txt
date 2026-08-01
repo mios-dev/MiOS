@@ -176,6 +176,10 @@ PostgreSQL + pgvector (`mios-pgvector`). The retired `CloudWS` naming is gone
 upstream *API-compat reference* (the lanes speak the OpenAI/Ollama-compatible
 API) and in historical migration notes — not as a live MiOS backend.
 
+## Architecture Decision Records
+
+Architecture Decision Records (ADRs) are documented at `ADR.md` and baked into the running OS at `usr/share/doc/mios/adr/`.
+
 ## License
 
 Apache-2.0. Component licenses for every shipped piece are catalogued in

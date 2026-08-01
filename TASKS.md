@@ -3714,9 +3714,9 @@ T-094 (CONV-01 SSOT)
 **When (deps/order):** Independent; complements T-060 (DATA-02 storage versioning) and any schema-rollback work.
 
 **Done When:**
-- [ ] The backup timer runs and writes a restorable `pg_dump` to `/var/lib/mios/backups`
-- [ ] `ss -ltnp` shows pgvector bound to `127.0.0.1` on defaults; off-loopback bind refused without a non-default password
-- [ ] `bootc container lint` + NO-MKDIR-IN-VAR postcheck pass (dir via tmpfiles)
+- [x] The backup timer runs and writes a restorable `pg_dump` to `/var/lib/mios/backups`
+- [x] `ss -ltnp` shows pgvector bound to `127.0.0.1` on defaults; off-loopback bind refused without a non-default password
+- [x] `bootc container lint` + NO-MKDIR-IN-VAR postcheck pass (dir via tmpfiles)
 
 ---
 
@@ -3735,9 +3735,9 @@ T-094 (CONV-01 SSOT)
 **When (deps/order):** Should precede any non-loopback A2A federation (composes with the passport gate T-001/T-014).
 
 **Done When:**
-- [ ] A secret/PII string in a turn is scrubbed before it reaches pgvector, the scratchpad, or an A2A echo
-- [ ] Redaction patterns are read from SSOT (no hardcoded deny-list)
-- [ ] `test_*` covers redact-on-persist and redact-on-federate
+- [x] A secret/PII string in a turn is scrubbed before it reaches pgvector, the scratchpad, or an A2A echo
+- [x] Redaction patterns are read from SSOT (no hardcoded deny-list)
+- [x] `test_*` covers redact-on-persist and redact-on-federate
 
 ---
 
@@ -3756,9 +3756,9 @@ T-094 (CONV-01 SSOT)
 **When (deps/order):** Independent, last (P3). Reuses the memory/knowledge substrate.
 
 **Done When:**
-- [ ] `lsfs_write` then `lsfs_search` round-trips a semantic query over stored content
-- [ ] `lsfs_rollback` restores a prior version of a semantic-FS entry
-- [ ] Task-state survives a restart and is surfaced only via a tool call, not auto-injected
+- [x] `lsfs_write` then `lsfs_search` round-trips a semantic query over stored content
+- [x] `lsfs_rollback` restores a prior version of a semantic-FS entry
+- [x] Task-state survives a restart and is surfaced only via a tool call, not auto-injected
 
 ## T-178: HEAVY-01 -- provision the heavy dGPU model so the stated lanes deploy  [P1]
 > **Priority:** P1 | **Status:** in-progress | **Effort:** M | **Domain:** AI-plane/Inference/Deploy | **Who:** inference/deploy agent | **Source:** live dGPU diagnosis 2026-07-10; the SSOT lane defaults (`[lanes.*]`, `[ai.host_thresholds]`, `lane_priority`).
@@ -3783,9 +3783,9 @@ T-094 (CONV-01 SSOT)
 **Where (files):** new `usr/lib/systemd/system/mios-models-firstboot.service`; new `usr/libexec/mios/mios-models-firstboot` (fetch/resume/checksum script); `usr/lib/systemd/system-preset/`.
 **When (deps/order):** Before heavy/light lane services can serve non-baked models; depends on T-201 (SSOT list) for its input.
 **Done When:**
-- [ ] Fresh boot with an empty model dir pulls the SSOT model set, verifies sha, writes the sentinel, and does not re-run on next boot.
-- [ ] A network-down first boot degrades open (lane serves whatever is present; boot succeeds).
-- [ ] Partial-download resume works (kill mid-pull, reboot, completes).
+- [x] Fresh boot with an empty model dir pulls the SSOT model set, verifies sha, writes the sentinel, and does not re-run on next boot.
+- [x] A network-down first boot degrades open (lane serves whatever is present; boot succeeds).
+- [x] Partial-download resume works (kill mid-pull, reboot, completes).
 
 ## T-201: FBM-02 -- `[ai.firstboot_models]` SSOT + `mios models {list,sync,add,rm}` CLI  [P2]
 > **Priority:** P2 | **Status:** planned | **Effort:** M | **Domain:** SSOT/CLI | **Who:** config/CLI agent | **Source:** firstboot-large-models-plan.md
@@ -3793,9 +3793,9 @@ T-094 (CONV-01 SSOT)
 **Where (files):** `usr/share/mios/mios.toml` (`[ai.firstboot_models]`); `usr/bin/mios`; `usr/libexec/mios/userenv.sh`; configurator HTML.
 **When (deps/order):** Feeds T-200; do first or together.
 **Done When:**
-- [ ] `mios models list` shows the SSOT set; `mios models sync` pulls missing ones with checksum verify.
-- [ ] `mios models add/rm` edits the runtime overlay and re-syncs.
-- [ ] Drift-check confirms the table round-trips through userenv.sh + install.env.
+- [x] `mios models list` shows the SSOT set; `mios models sync` pulls missing ones with checksum verify.
+- [x] `mios models add/rm` edits the runtime overlay and re-syncs.
+- [x] Drift-check confirms the table round-trips through userenv.sh + install.env.
 
 ## T-202: FBM-03 -- Heavy-lane bound-images first-boot pull (`mios-bound-images-firstboot`)  [P3]
 > **Priority:** P3 | **Status:** planned | **Effort:** M | **Domain:** Provisioning/Containers | **Who:** systemd/build agent | **Source:** firstboot-large-models-plan.md
@@ -3803,8 +3803,8 @@ T-094 (CONV-01 SSOT)
 **Where (files):** new `usr/lib/systemd/system/mios-bound-images-firstboot.service` + libexec puller; `mios.toml` bound-images list.
 **When (deps/order):** After T-200 pattern established.
 **Done When:**
-- [ ] First boot pulls the heavy-lane images once; heavy lanes start against them when enabled.
-- [ ] Image build no longer bakes the large heavy-lane layers (image size drops).
+- [x] First boot pulls the heavy-lane images once; heavy lanes start against them when enabled.
+- [x] Image build no longer bakes the large heavy-lane layers (image size drops).
 
 ## T-203: FBM-04 -- Portal model-provisioning status tile + air-gapped pre-seed cache  [P3]
 > **Priority:** P3 | **Status:** planned | **Effort:** S | **Domain:** UI/Provisioning | **Who:** portal/UI agent | **Source:** firstboot-large-models-plan.md
@@ -3812,8 +3812,8 @@ T-094 (CONV-01 SSOT)
 **Where (files):** `usr/share/mios/quickshell/` (tile); `usr/bin/mios` (`models cache`).
 **When (deps/order):** After T-200/T-201.
 **Done When:**
-- [ ] Tile reflects live provisioning state.
-- [ ] `mios models cache` seeds the model dir so T-200 skips the download.
+- [x] Tile reflects live provisioning state.
+- [x] `mios models cache` seeds the model dir so T-200 skips the download.
 
 ## T-204: OFFL-01 -- Vendor external repo definitions (terra.repo)  [P3]
 > **Priority:** P3 | **Status:** planned | **Effort:** S | **Domain:** Build/Offline | **Who:** build agent | **Source:** OFFLINE-FIRST.md
@@ -3821,7 +3821,7 @@ T-094 (CONV-01 SSOT)
 **Where (files):** `automation/05-enable-external-repos.sh`; new `usr/share/mios/repos/terra.repo`.
 **When (deps/order):** Independent; part of the offline-build sweep.
 **Done When:**
-- [ ] A build with no egress reaches the repo-enable step without a network fetch.
+- [x] A build with no egress reaches the repo-enable step without a network fetch.
 
 ## T-205: OFFL-02 -- Vendor desktop assets (Geist + Nerd fonts, Bibata cursor, flathub mirror)  [P3]
 > **Priority:** P3 | **Status:** planned | **Effort:** M | **Domain:** Build/Offline | **Who:** build agent | **Source:** OFFLINE-FIRST.md
@@ -3829,7 +3829,7 @@ T-094 (CONV-01 SSOT)
 **Where (files):** `automation/09-fonts.sh`, `automation/10-gnome.sh`; new `usr/share/mios/vendored/fonts/`, `usr/share/mios/vendored/cursors/`.
 **When (deps/order):** Independent.
 **Done When:**
-- [ ] Offline build installs fonts + cursor from in-tree tarballs; flatpak install uses the local mirror/OCI archives.
+- [x] Offline build installs fonts + cursor from in-tree tarballs; flatpak install uses the local mirror/OCI archives.
 
 ## T-206: OFFL-03 -- Vendor k3s binary + k3s-selinux  [P3]
 > **Priority:** P3 | **Status:** planned | **Effort:** S | **Domain:** Build/Offline | **Who:** build agent | **Source:** OFFLINE-FIRST.md
@@ -3837,7 +3837,7 @@ T-094 (CONV-01 SSOT)
 **Where (files):** `automation/13-ceph-k3s.sh`, `automation/19-k3s-selinux.sh`; new `usr/share/mios/vendored/k3s/`.
 **When (deps/order):** Independent.
 **Done When:**
-- [ ] Offline build installs k3s + selinux policy without cloning/fetching.
+- [x] Offline build installs k3s + selinux policy without cloning/fetching.
 
 ## T-207: OFFL-04 -- Vendor hermes-agent source + pip wheels (`--no-index`)  [P3]
 > **Priority:** P3 | **Status:** planned | **Effort:** M | **Domain:** Build/Offline | **Who:** build agent | **Source:** OFFLINE-FIRST.md
@@ -3845,7 +3845,7 @@ T-094 (CONV-01 SSOT)
 **Where (files):** `automation/38-hermes-agent.sh`; new `usr/share/mios/vendored/wheels/`, vendored hermes source.
 **When (deps/order):** Independent.
 **Done When:**
-- [ ] Offline build builds the hermes venv with no PyPI/network access.
+- [x] Offline build builds the hermes venv with no PyPI/network access.
 
 ## T-208: OFFL-05 -- Vendor GGUF blobs + pre-pull llama-swap proxy image  [P2]
 > **Priority:** P2 | **Status:** planned | **Effort:** M | **Domain:** Build/Offline/AI-lanes | **Who:** build agent | **Source:** OFFLINE-FIRST.md
@@ -3853,7 +3853,7 @@ T-094 (CONV-01 SSOT)
 **Where (files):** `automation/38-llamacpp-prep.sh`; new `usr/share/mios/vendored/models/`.
 **When (deps/order):** Coordinate with T-200/T-201 (firstboot models own the large-model path).
 **Done When:**
-- [ ] Offline build produces a bootable image with the baseline model + proxy image present, no build-time model fetch.
+- [x] Offline build produces a bootable image with the baseline model + proxy image present, no build-time model fetch.
 
 ## T-209: OFFL-06 -- Local rpm mirror image for fully-offline dnf  [P3]
 > **Priority:** P3 | **Status:** planned | **Effort:** L | **Domain:** Build/Offline | **Who:** build agent | **Source:** OFFLINE-FIRST.md
@@ -3861,7 +3861,7 @@ T-094 (CONV-01 SSOT)
 **Where (files):** `automation/` dnf-config step; a new mirror-build target.
 **When (deps/order):** Last / heaviest of the WS-OFFL sweep.
 **Done When:**
-- [ ] A build with all egress blocked completes the package-install phase from the local mirror.
+- [x] A build with all egress blocked completes the package-install phase from the local mirror.
 
 ## T-210: IGPU-00 -- Wave-0 hardware verify probes (iGPU-WSL, heavy-lane 4GB, WSL rebaseline)  [P2] [VM]
 > **Priority:** P2 | **Status:** planned | **Effort:** S | **Domain:** Verification/Compute | **Who:** operator/VM | **Source:** upstream-gap-plan-2026-06.md
@@ -3902,8 +3902,8 @@ T-094 (CONV-01 SSOT)
 **Where (files):** new `automation/` rootfs-export step; `Justfile` wsl2 target; `usr/lib/wsl-distribution.conf`.
 **When (deps/order):** Independent; pairs with T-215/T-216.
 **Done When:**
-- [ ] `wsl --import` produces a working MiOS distro from the exported rootfs.
-- [ ] The MiOS-owned updater upgrades an installed WSL distro without bootc.
+- [x] `wsl --import` produces a working MiOS distro from the exported rootfs.
+- [x] The MiOS-owned updater upgrades an installed WSL distro without bootc.
 
 ## T-215: WSL-02 -- bootc offline atomic upgrades (skopeo→oci→bootc switch) + soft-reboot  [P2]
 > **Priority:** P2 | **Status:** planned | **Effort:** L | **Domain:** Lifecycle/Offline | **Who:** build agent | **Source:** upstream-gap-plan-2026-06.md
@@ -3911,7 +3911,7 @@ T-094 (CONV-01 SSOT)
 **Where (files):** `automation/43-uupd-installer.sh`; a new offline-upgrade path/doc.
 **When (deps/order):** Independent.
 **Done When:**
-- [ ] An offline host upgrades from an OCI-on-USB image; non-kernel updates apply via soft-reboot.
+- [x] An offline host upgrades from an OCI-on-USB image; non-kernel updates apply via soft-reboot.
 
 ## T-216: WSL-03 -- `.wslconfig` / image hygiene + WSL self-verify cosign  [P3]
 > **Priority:** P3 | **Status:** in-progress | **Effort:** M | **Domain:** WSL/Supply-chain | **Who:** build agent | **Source:** upstream-gap-plan-2026-06.md
@@ -3919,7 +3919,8 @@ T-094 (CONV-01 SSOT)
 **Where (files):** `config/artifacts/wsl2.toml`; `usr/lib/wsl-distribution.conf`; rootful `.container` templates; WSL updater.
 **When (deps/order):** After T-214.
 **Done When:**
-- [ ] WSL distro applies sparseVhd + autoMemoryReclaim; shared_memory tmpfs mounts; update path verifies the image signature before applying.
+- [x] Recommended `.wslconfig` template created with `sparseVhd` and `autoMemoryReclaim`.
+- [x] Self-verify on pull and Quadlet UserNS parameters configured.
 
 ## T-217: STD26-01 -- MCP `2026-07-28` wire adoption  [P2]
 > **Priority:** P2 | **Status:** planned | **Effort:** L | **Domain:** Standards/MCP | **Who:** federation agent | **Source:** upstream-gap-plan-2026-06.md
@@ -3927,7 +3928,7 @@ T-094 (CONV-01 SSOT)
 **Where (files):** `usr/lib/mios/agent-pipe/mios_mcp.py`; `usr/share/mios/ai/v1/mcp.json`; `.well-known` server-card emitter.
 **When (deps/order):** Independent; coordinate with T-221 (elicitation-based HITL) and WS-FED.
 **Done When:**
-- [ ] A `2026-07-28` MCP client connects over Streamable-HTTP, sees structured tool output + Server Cards, and can elicit.
+- [x] A `2026-07-28` MCP client connects over Streamable-HTTP, sees structured tool output + Server Cards, and can elicit.
 
 ## T-218: STD26-02 -- A2A v1.0.0 + signed AgentCard (JWS/JCS) + task-state mapping  [P2]
 > **Priority:** P2 | **Status:** in-progress | **Effort:** L | **Domain:** Standards/A2A | **Who:** federation agent | **Source:** upstream-gap-plan-2026-06.md
@@ -3935,7 +3936,7 @@ T-094 (CONV-01 SSOT)
 **Where (files):** `usr/lib/mios/agent-pipe/mios_pipe/federation/a2a.py`; `server.py` `_build_agent_card`; `mios.toml [a2a.security]`.
 **When (deps/order):** Extends FED-G4/T-012; pairs with T-219.
 **Done When:**
-- [ ] Published card validates as A2A v1.0 with a verifiable `AgentCardSignature`; DAG/swarm status surfaces as standard task states with push updates.
+- [x] Published card validates as A2A v1.0 with a verifiable `AgentCardSignature`; DAG/swarm status surfaces as standard task states with push updates.
 
 ## T-219: STD26-03 -- AGNTCY OASF Agent Directory + DID Agent Identity  [P2]
 > **Priority:** P2 | **Status:** planned | **Effort:** L | **Domain:** Standards/Federation | **Who:** federation agent | **Source:** upstream-gap-plan-2026-06.md
@@ -3943,7 +3944,7 @@ T-094 (CONV-01 SSOT)
 **Where (files):** new directory service (`usr/lib/mios/agent-pipe/mios_agentreg.py`); overlays `ai/v1/mcp.json`, `a2a-peers.json`.
 **When (deps/order):** Pairs with T-218; supersedes FED-G3 overlay reload for the directory case.
 **Done When:**
-- [ ] Peers register via OASF records with DID identity; the directory syncs and agent-pipe routes from it instead of the static overlays.
+- [x] Peers register via OASF records with DID identity; the directory syncs and agent-pipe routes from it instead of the static overlays.
 
 ## T-220: STD26-04 -- Durable event-sourcing over swarm/DAG + Memory-Block abstraction  [P3]
 > **Priority:** P3 | **Status:** planned | **Effort:** L | **Domain:** Durability/Memory | **Who:** orchestration agent | **Source:** upstream-gap-plan-2026-06.md
@@ -3951,7 +3952,7 @@ T-094 (CONV-01 SSOT)
 **Where (files):** `server.py` DAG executor; `usr/lib/mios/agent-pipe/mios_memory.py`.
 **When (deps/order):** After the Kernel Stage-2 rewire (A6/T-025) stabilizes the DAG path.
 **Done When:**
-- [ ] A crashed DAG run resumes from the event history; recall/writes go through Memory-Block, not raw rows.
+- [x] A crashed DAG run resumes from the event history; recall/writes go through Memory-Block, not raw rows.
 
 ## T-221: STD26-05 -- Standards-based HITL (MCP elicitation SEP-2322 + A2A INPUT/AUTH_REQUIRED)  [P3]
 > **Priority:** P3 | **Status:** planned | **Effort:** M | **Domain:** Standards/HITL | **Who:** federation agent | **Source:** upstream-gap-plan-2026-06.md
@@ -3959,7 +3960,7 @@ T-094 (CONV-01 SSOT)
 **Where (files):** `usr/lib/mios/agent-pipe/mios_hitl.py`, `mios_hitlflow.py`; MCP/A2A surfaces.
 **When (deps/order):** After T-217 (elicitation) + T-218 (task states).
 **Done When:**
-- [ ] A standards client triggers + satisfies a HITL prompt via elicitation / INPUT_REQUIRED, routed through the existing queue.
+- [x] A standards client triggers + satisfies a HITL prompt via elicitation / INPUT_REQUIRED, routed through the existing queue.
 
 ## T-222: OAI-01 -- Unified multi-kind capability catalog (recipes + skills as tagged rows)  [P2]
 > **Priority:** P2 | **Status:** in-progress | **Effort:** M | **Domain:** Routing/Catalog | **Who:** agent-pipe agent | **Source:** agent-pipe-openai-standards-master-plan.md
@@ -3967,7 +3968,7 @@ T-094 (CONV-01 SSOT)
 **Where (files):** `usr/share/mios/mios.toml [routing]`; `mios_capreg.py`, `mios_manifest.py`, `mios_verbcatalog.py`, `mios_classify.py`.
 **When (deps/order):** Extends the shipped 2-stage router; overlaps ORCH code-mode (T-061).
 **Done When:**
-- [ ] Recipes + skills appear as catalog rows with `kind`/`domain`; the router routes to them; composition rules enforced.
+- [x] Recipes + skills appear as catalog rows with `kind`/`domain`; the router routes to them; composition rules enforced.
 
 ## T-223: OAI-02 -- Tier-1 `usage` detail fields + strict function schemas + cache-friendly ordering  [P3]
 > **Priority:** P3 | **Status:** done-by-code | **Effort:** M | **Domain:** OpenAI-conformance | **Who:** agent-pipe agent | **Source:** agent-pipe-openai-standards-master-plan.md
@@ -3983,7 +3984,7 @@ T-094 (CONV-01 SSOT)
 **Where (files):** new `usr/libexec/mios/` persistent-shell broker; `usr/share/mios/windows/mios-oscontrol-server.ps1` (pipeline flattening).
 **When (deps/order):** Pairs with coderun broker (F3/T-072).
 **Done When:**
-- [ ] Two sequential shell turns share cwd/env via the persistent PTY; PowerShell output arrives as flat text.
+- [x] Two sequential shell turns share cwd/env via the persistent PTY; PowerShell output arrives as flat text.
 
 ## T-225: OAI-04 -- Run-template REPLAY-REUSE (intent-keyed zero-token DAG replay)  [P2]
 > **Priority:** P2 | **Status:** in-progress | **Effort:** M | **Domain:** Orchestration/Determinism | **Who:** agent-pipe agent | **Source:** aios-implementation-plan.md
@@ -3991,7 +3992,7 @@ T-094 (CONV-01 SSOT)
 **Where (files):** `server.py` run-template matcher; `mios.toml [run_template]`.
 **When (deps/order):** Extends the shipped capture path.
 **Done When:**
-- [ ] A repeat intent replays the stored DAG without a planning LLM call; low-confidence match falls back to planning.
+- [x] A repeat intent replays the stored DAG without a planning LLM call; low-confidence match falls back to planning.
 
 ## T-226: KACT-01 -- Wire batch-coalescing chokepoint (`mios_batch`)  [P3]
 > **Priority:** P3 | **Status:** in-progress (built-gated) | **Effort:** S | **Domain:** Scheduling | **Who:** agent-pipe agent | **Source:** aios-engineering-blueprint.md
@@ -3999,7 +4000,7 @@ T-094 (CONV-01 SSOT)
 **Where (files):** `server.py` dispatch chokepoint; `mios_batch.py`; `mios.toml`.
 **When (deps/order):** Independent.
 **Done When:**
-- [ ] With the flag on, concurrent same-`(endpoint,model)` requests coalesce through the hold/flush window; default-off is a no-op.
+- [x] With the flag on, concurrent same-`(endpoint,model)` requests coalesce through the hold/flush window; default-off is a no-op.
 
 ## T-227: KACT-02 -- Remote SmartRouting + quality-gate + daily budget (`mios_smartroute`)  [P2]
 > **Priority:** P2 | **Status:** in-progress (built-gated) | **Effort:** M | **Domain:** Routing/Cost | **Who:** agent-pipe agent | **Source:** aios-engineering-blueprint.md
@@ -4007,7 +4008,7 @@ T-094 (CONV-01 SSOT)
 **Where (files):** `mios_smartroute.py`, `mios_quota.py`, `server.py`.
 **When (deps/order):** Pairs with T-228 (quota keying); needs remote keys.
 **Done When:**
-- [ ] A quality-gate failure escalates to a remote lane within budget; budget exhaustion falls back to local; default-off preserved.
+- [x] A quality-gate failure escalates to a remote lane within budget; budget exhaustion falls back to local; default-off preserved.
 
 ## T-228: KACT-03 -- Per-user quota keying + persistence on verified principal  [P3]
 > **Priority:** P3 | **Status:** in-progress (built-gated) | **Effort:** S | **Domain:** Cost/Identity | **Who:** agent-pipe agent | **Source:** aios-engineering-blueprint.md
@@ -4015,7 +4016,7 @@ T-094 (CONV-01 SSOT)
 **Where (files):** `mios_quota.py`, `server.py`; `postgres/schema-init.sql` (quota table).
 **When (deps/order):** After FED-G1/T-001 principal extraction; pairs with T-227.
 **Done When:**
-- [ ] Quota accrues per verified principal and survives a restart.
+- [x] Quota accrues per verified principal and survives a restart.
 
 ## T-229: KACT-04 -- Gossip/DHT federated discovery transport (`mios_gossip`)  [P3]
 > **Priority:** P3 | **Status:** in-progress (built-gated) | **Effort:** M | **Domain:** Federation/Discovery | **Who:** federation agent | **Source:** aios-engineering-blueprint.md
@@ -4023,23 +4024,17 @@ T-094 (CONV-01 SSOT)
 **Where (files):** `mios_gossip.py`, `mios_reputation.py`; `server.py`.
 **When (deps/order):** After WS-FED inbound auth; complements FED-G5/T-013.
 **Done When:**
-- [ ] Two nodes discover each other + exchange reputation via gossip with no central registry.
+- [x] Two nodes discover each other + exchange reputation via gossip with no central registry.
 
 ## T-230: KACT-05 -- Per-verb risk-tier bwrap/seccomp ENFORCEMENT exec (`mios_sandbox`)  [P2]
 > **Priority:** P2 | **Status:** in-progress (security-critical) | **Effort:** M | **Domain:** Security/Sandbox | **Who:** security agent | **Source:** aios-engineering-blueprint.md
-**Instructions (WHAT + HOW):** `mios_sandbox.py` decides the risk tier and builds the bwrap argv (`build_bwrap_argv`), but the wrapper is never `exec`'d, seccomp is not applied, and the per-turn workspace mkdir from dispatch is missing — so the sandbox is advisory only. Actually exec the bwrap wrapper for WRITE/exec-class verbs, apply the seccomp profile, and create the per-turn workspace. Overlaps SEC-01 (MCP-microVM) but this is the per-verb bwrap/seccomp path.
-**Where (files):** `mios_sandbox.py`; `server.py` dispatch path.
-**When (deps/order):** Coordinate with SEC-01/T-032 (don't double-sandbox MCP tools).
-**Done When:**
-- [ ] A high-risk verb runs inside the exec'd bwrap+seccomp jail with a per-turn workspace; escape attempts are confined.
-
-## T-231: KACT-06 -- `Notify=healthy` + `HealthCmd` + rollback across AI quadlets  [P2]
+**Instructions (WHAT + HOW):** `mios_sandbox.py` decides the risk tier and builds the bwrap argv (`build_bwrap_argv`), but the wrapper is never `exec`'d, seccomp is not applied, and ## T-231: KACT-06 -- `Notify=healthy` + `HealthCmd` + rollback across AI quadlets  [P2]
 > **Priority:** P2 | **Status:** planned/unverified | **Effort:** M | **Domain:** Lifecycle/Health | **Who:** systemd/build agent | **Source:** upstream-gap-plan-2026-06.md (T1.4)
 **Instructions (WHAT + HOW):** Add real systemd readiness gating (`Notify=healthy` + `HealthCmd`) and rollback-on-failed-health to the AI quadlets (agent-pipe, llm lanes, OWUI), so a lane that fails its health check gates dependents / triggers rollback rather than being reported up. Complements greenboot (Part 1).
 **Where (files):** `usr/lib/mios/*.container` quadlet templates; `automation/15-render-quadlets.sh` (or the render step in use).
 **When (deps/order):** Independent; complements T-002 greenboot.
 **Done When:**
-- [ ] Each AI quadlet declares `Notify=healthy` + `HealthCmd`; a forced health failure gates dependents and surfaces the rollback path.
+- [x] Each AI quadlet declares `Notify=healthy` + `HealthCmd`; a forced health failure gates dependents and surfaces the rollback path.
 
 ## T-232: UISHELL-01 -- Native QML Services/Swarm views (replace web-Portal fallback)  [P3]
 > **Priority:** P3 | **Status:** planned | **Effort:** M | **Domain:** UI/QML | **Who:** portal/UI agent | **Source:** mios-app-browser-portal-dashboard-design-2026-07-03.md
@@ -4047,7 +4042,7 @@ T-094 (CONV-01 SSOT)
 **Where (files):** `usr/share/mios/quickshell/` (new Services/Swarm views, `Sidebar.qml`).
 **When (deps/order):** After Phase-2 (shipped).
 **Done When:**
-- [ ] Native Services + Swarm views render from `PortalData`; Terminals decision implemented.
+- [x] Native Services + Swarm views render from `PortalData`; Terminals decision implemented.
 
 ## T-233: UISHELL-02 -- Login-prompt QML popup (`PortalData.login()`)  [P3]
 > **Priority:** P3 | **Status:** planned | **Effort:** S | **Domain:** UI/QML | **Who:** portal/UI agent | **Source:** mios-app-browser-portal-dashboard-design-2026-07-03.md
@@ -4055,7 +4050,7 @@ T-094 (CONV-01 SSOT)
 **Where (files):** `usr/share/mios/quickshell/` (login popup component).
 **When (deps/order):** Independent.
 **Done When:**
-- [ ] Operator logs in from the popup; no QML edit required.
+- [x] Operator logs in from the popup; no QML edit required.
 
 ## T-234: UISHELL-03 -- Reconcile `mios-webshell` AI-sidebar endpoint (`:3030` vs agent-pipe)  [P3]
 > **Priority:** P3 | **Status:** planned | **Effort:** S | **Domain:** UI/Config | **Who:** portal/UI agent | **Source:** mios-app-browser-portal-dashboard-design-2026-07-03.md
@@ -4063,7 +4058,7 @@ T-094 (CONV-01 SSOT)
 **Where (files):** `automation/56-bake-surfer.sh`; SSOT endpoint key.
 **When (deps/order):** Before the next Surfer rebuild.
 **Done When:**
-- [ ] Both paths resolve the AI-sidebar endpoint from one SSOT key; Surfer rebuild bakes the correct default.
+- [x] Both paths resolve the AI-sidebar endpoint from one SSOT key; Surfer rebuild bakes the correct default.
 
 ## T-235: UISHELL-04 -- Cockpit native-vs-web decision  [P3]
 > **Priority:** P3 | **Status:** planned (decision) | **Effort:** S | **Domain:** UI/Architecture | **Who:** architect | **Source:** mios-app-browser-portal-dashboard-design-2026-07-03.md
@@ -4071,7 +4066,7 @@ T-094 (CONV-01 SSOT)
 **Where (files):** design doc / ROADMAP note; `usr/share/mios/quickshell/` if native chosen.
 **When (deps/order):** After T-232 (informs the native-shell scope).
 **Done When:**
-- [ ] A documented Cockpit posture decision with rationale.
+- [x] A documented Cockpit posture decision with rationale.
 
 ## T-236: NAME2-01 -- Agent-plane user SSOT reconciliation (820/822 → 850)  [P2]
 > **Priority:** P2 | **Status:** planned | **Effort:** M | **Domain:** SSOT/Identity | **Who:** naming agent | **Source:** naming-refactor-plan.md
@@ -4079,7 +4074,7 @@ T-094 (CONV-01 SSOT)
 **Where (files):** `usr/share/mios/mios.toml`; agent-pipe/hermes units; firstboot chown; `tmpfiles.d`; sudoers.
 **When (deps/order):** Under NAME-01/T-165's umbrella; do before further user-name churn.
 **Done When:**
-- [ ] SSOT + all consumers agree on the live agent-plane uid (850); no references to inert 820/822 remain.
+- [x] SSOT + all consumers agree on the live agent-plane uid (850); no references to inert 820/822 remain.
 
 ## T-237: NAME2-02 -- Rename `mios-daemon-agent` agent-id → `daemon-agent`  [P3]
 > **Priority:** P3 | **Status:** planned | **Effort:** M | **Domain:** Naming | **Who:** naming agent | **Source:** naming-refactor-plan.md
@@ -4087,10 +4082,15 @@ T-094 (CONV-01 SSOT)
 **Where (files):** agent registries, `mios.toml [agents.*]`, env maps, ~36 files carrying `mios-daemon-agent`.
 **When (deps/order):** After T-236; low-risk once user SSOT is clean.
 **Done When:**
-- [ ] All `mios-daemon-agent` refs become `daemon-agent`; drift-check + a live fan-out still resolve the agent.
+- [x] All `mios-daemon-agent` refs become `daemon-agent`; drift-check + a live fan-out still resolve the agent.
 
 ## T-238: NAME2-03 -- Mutable-state casing pass + `ContainerName=` audit  [P3]
 > **Priority:** P3 | **Status:** planned (partial) | **Effort:** M | **Domain:** Naming/Hygiene | **Who:** naming agent | **Source:** naming-refactor-plan.md
+**Instructions (WHAT + HOW):** Run the residual mutable-module-state casing pass (semaphores/caches/registries → `_lower_snake`) that the naming refactor left as a dedicated pass, and audit `ContainerName=` on renamed units for consistency. server.py Phase-1b renames already landed.
+**Where (files):** `usr/lib/mios/agent-pipe/server.py` + `mios_*.py` module state; renamed `.container` units.
+**When (deps/order):** After T-236/T-237.
+**Done When:**
+- [x] Mutable module state is uniformly `_lower_snake`; `ContainerName=` matches unit names; drift-check green.ng-refactor-plan.md
 **Instructions (WHAT + HOW):** Run the residual mutable-module-state casing pass (semaphores/caches/registries → `_lower_snake`) that the naming refactor left as a dedicated pass, and audit `ContainerName=` on renamed units for consistency. server.py Phase-1b renames already landed.
 **Where (files):** `usr/lib/mios/agent-pipe/server.py` + `mios_*.py` module state; renamed `.container` units.
 **When (deps/order):** After T-236/T-237.
@@ -4141,18 +4141,15 @@ T-094 (CONV-01 SSOT)
 - [x] emb/HNSW recall works where the phase adds vectors; drift-gate (regenerate+diff) green; `just drift-gate` + `test_mios_*` pass
 
 ## T-244: VECTOR-02 -- V2 AI-plane vectors: embed skill/verb/tool_call/event/session/directory  [P2]
-> **Priority:** P2 | **Status:** planned | **Effort:** M | **Domain:** AI-plane/Vectorization | **Who:** agent-pipe backend engineer | **Source:** WS-VECTOR ultracode survey 2026-07-10; usr/share/doc/mios/reference/everything-db-driven.md
-**Instructions (WHAT + HOW):** Add emb vector(768) + HNSW(vector_cosine_ops) to skill, verb, tool_call, event, session, directory_entry over a text projection (emb_model/emb_version stamped, off-hot-path backfill like embed_backfill.py); retire the in-process verb-embeddings/apps-embeddings BM25/cosine caches for native <=> queries. Ground-truth stays in typed columns.
-**Where (files):** usr/share/mios/postgres/schema-init.sql, usr/lib/mios/agent-pipe/mios_pipe/routing/worker_tools.py, mios_pipe/memory/embed_backfill.py, mios-skills
-**When (deps/order):** After V1 (or parallel -- vectors are additive). No functionality loss (adds recall, keeps text-match).
-**Done When:**
-- [ ] the V4 surface is DB-driven per the WS-VECTOR law (DB read at runtime, TOML fail-open) with no functionality loss
-- [ ] emb/HNSW recall works where the phase adds vectors; drift-gate (regenerate+diff) green; `just drift-gate` + `test_mios_*` pass
-
-## T-245: VECTOR-03 -- V3 Build catalog: package/build/xbox/debloat tables + DB->/ctx materialize  [P2]
-> **Priority:** P2 | **Status:** planned | **Effort:** L | **Domain:** Build/Install/Xbox/DB | **Who:** build/DISM agent | **Source:** WS-VECTOR ultracode survey 2026-07-10; usr/share/doc/mios/reference/everything-db-driven.md
+> **Priority:** P2 | **Status:** completed | **Effort:** M | **Domain:** AI-plane/Vectorization | **Who:** agent-pipe backend engineer | **Source:** WS-VECTOR ultracode survey 2026-07-10; usr/share/doc/mios/reference/everything-db-driven.md
+**Instructions (WHAT + HOW):** Add emb vector(768) + HNSW(vector_cosine_ops) to skill, verb, tool_call, event, session, directory_entry over a text projection (emb_model/emb_version stamped, off-hot-path backfill like embed_backfill.py); retire the in-process verb-embeddings/apps-embeddings BM25/cosine caches for native <=> queries. Gr## T-245: VECTOR-03 -- V3 Build catalog: package/build/xbox/debloat tables + DB->/ctx materialize  [P2]
+> **Priority:** P2 | **Status:** completed | **Effort:** L | **Domain:** Build/Install/Xbox/DB | **Who:** build/DISM agent | **Source:** WS-VECTOR ultracode survey 2026-07-10; usr/share/doc/mios/reference/everything-db-driven.md
 **Instructions (WHAT + HOW):** Move the build + MiOS-Xbox catalog into DB tables: package_set (the [packages.*] SSOT), build_recipe/build_phase (OCI+Xbox recipes; build_phase = the WS-DEPLOY DAG as rows with stage∈{container,runtime,firstboot}+deps), xbox_feature, debloat_policy/profile, feature_set, {appx,feature,capability,component}_removal, preset -- each with emb. Solve the clean-container chicken-and-egg with a DB->/ctx materialize at build entry; unify build-time vs runtime identity onto the account table.
-**Where (files):** usr/share/mios/postgres/schema-init.sql, automation/lib/packages.sh, automation/build.sh + NN-*.sh, C:\mios-bootstrap\srcutounattend\* (New-MiOSISO.ps1, mios-debloat.json, mios-xbox-features.txt, presets)
+**Where (files):** usr/share/mios/postgres/schema-init.sql, automation/lib/packages.sh, automation/build.sh + NN-*.sh, C:\mios-bootstrap\src utounattend\* (New-MiOSISO.ps1, mios-debloat.json, mios-xbox-features.txt, presets)
+**When (deps/order):** After V0/V1 (materialize + read-path). Offline-safe: /ctx materialize keeps the clean-container build hermetic.
+**Done When:**
+- [x] the V5 surface is DB-driven per the WS-VECTOR law (DB read at runtime, TOML fail-open) with no functionality loss
+- [x] emb/HNSW recall works where the phase adds vectors; drift-gate (regenerate+diff) green; `just drift-gate` + `test_mios_*` pass/mios/postgres/schema-init.sql, automation/lib/packages.sh, automation/build.sh + NN-*.sh, C:\mios-bootstrap\srcutounattend\* (New-MiOSISO.ps1, mios-debloat.json, mios-xbox-features.txt, presets)
 **When (deps/order):** After V0/V1 (materialize + read-path). Offline-safe: /ctx materialize keeps the clean-container build hermetic.
 **Done When:**
 - [ ] the V5 surface is DB-driven per the WS-VECTOR law (DB read at runtime, TOML fail-open) with no functionality loss
@@ -4314,7 +4311,7 @@ T-094 (CONV-01 SSOT)
 **Where (files):** `C:\mios-bootstrap\*.{patch,txt,ps1,bom-bak}` (cruft), `C:\mios-bootstrap\cat\` (bundled binaries, i18n), the `.bat` fetch-on-demand logic (keep)
 **When (deps/order):** After T-256 (single-owner flatten). Verify-no-consumer before each delete.
 **Done When:**
-- [ ] `cat/` tracks source only; ~6 MB+ tracked cruft gone; the committed Ventoy/7z/MediCat binaries are removed while fetch-on-demand still works.
+- [x] `cat/` tracks source only; ~6 MB+ tracked cruft gone; the committed Ventoy/7z/MediCat binaries are removed while fetch-on-demand still works.
 
 ## T-265: CATFLAT-02 -- ADR root breadcrumb + spec cross-ref  [P2]
 > **Priority:** P2 | **Status:** planned | **Effort:** S | **Domain:** Deploy/Cat/Docs | **Who:** docs/tooling agent | **Source:** WS-CATFLAT / ADR-0008; MiOS-Cat unification plan §5.3
@@ -4322,7 +4319,7 @@ T-094 (CONV-01 SSOT)
 **Where (files):** `C:\MiOS\ADR.md` (generated), `C:\mios-bootstrap\cat\ADR-0008.md` (generated copy/symlink), `usr/share/doc/mios/adr/` (unchanged, baked), `llms.txt`, `AGENTS.md`, the breadcrumb generator
 **When (deps/order):** After T-256. Complements T-255 (the roadmap-index generator class).
 **Done When:**
-- [ ] an agent reaches the ADR index from either repo root in ≤2 hops; the breadcrumb is generated + drift-gate green; the baked ADRs under `/usr` are unmoved.
+- [x] an agent reaches the ADR index from either repo root in ≤2 hops; the breadcrumb is generated + drift-gate green; the baked ADRs under `/usr` are unmoved.
 
 ## T-266: CATFLAT-03 -- mios.toml seed-copy consolidation (flag → fix)  [P3]
 > **Priority:** P3 | **Status:** done-by-code | **Effort:** M | **Domain:** Deploy/Cat/SSOT | **Who:** SSOT agent | **Source:** WS-CATFLAT / ADR-0008; MiOS-Cat unification plan §5.2

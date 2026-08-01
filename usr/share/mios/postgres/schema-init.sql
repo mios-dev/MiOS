@@ -678,11 +678,21 @@ ALTER TABLE directory_entry ADD COLUMN IF NOT EXISTS emb vector(768);
 ALTER TABLE directory_entry ADD COLUMN IF NOT EXISTS emb_model varchar(128);
 ALTER TABLE directory_entry ADD COLUMN IF NOT EXISTS emb_version varchar(64);
 
+ALTER TABLE event ADD COLUMN IF NOT EXISTS emb vector(768);
+ALTER TABLE event ADD COLUMN IF NOT EXISTS emb_model varchar(128);
+ALTER TABLE event ADD COLUMN IF NOT EXISTS emb_version varchar(64);
+
+ALTER TABLE session ADD COLUMN IF NOT EXISTS emb vector(768);
+ALTER TABLE session ADD COLUMN IF NOT EXISTS emb_model varchar(128);
+ALTER TABLE session ADD COLUMN IF NOT EXISTS emb_version varchar(64);
+
 -- Create HNSW indexes (idempotently via CREATE INDEX IF NOT EXISTS)
 CREATE INDEX IF NOT EXISTS skill_emb_hnsw_idx ON skill USING hnsw (emb vector_cosine_ops);
 CREATE INDEX IF NOT EXISTS verb_emb_hnsw_idx ON verb USING hnsw (emb vector_cosine_ops);
 CREATE INDEX IF NOT EXISTS tool_call_emb_hnsw_idx ON tool_call USING hnsw (emb vector_cosine_ops);
 CREATE INDEX IF NOT EXISTS directory_entry_emb_hnsw_idx ON directory_entry USING hnsw (emb vector_cosine_ops);
+CREATE INDEX IF NOT EXISTS event_emb_hnsw_idx ON event USING hnsw (emb vector_cosine_ops);
+CREATE INDEX IF NOT EXISTS session_emb_hnsw_idx ON session USING hnsw (emb vector_cosine_ops);
 
 -- ===== WS-VECTOR V3: build-catalog and xbox catalog (AGY-11) =====
 CREATE TABLE IF NOT EXISTS package_set (
@@ -1277,3 +1287,13 @@ BEGIN
     LIMIT p_limit;
 END;
 $$ LANGUAGE plpgsql STABLE;
+
+-- LSFS-01: Agent tasks protocol for durable cross-turn execution state
+CREATE TABLE IF NOT EXISTS tasks (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    title TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('backlog', 'in-progress', 'done')),
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+

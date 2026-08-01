@@ -5713,6 +5713,17 @@ db_backend  = "postgres"
 #                       default-off recall paths) is incremental WS-5 hardening.
 #                       Safe to leave off for single-user; flip on for multi-user.
 rls_mode    = "off"
+
+[lsfs]
+enable      = true
+root_dir    = "/var/lib/mios/lsfs"
+embed_model = "nomic-embed-text"
+max_versions = 10
+
+[offline]
+enable            = false
+rpm_mirror_dir    = "/usr/share/mios/vendored/rpm-mirror"
+fallback_to_online = true
 # T-068 DB-side native Postgres Row-Level-Security ENFORCEMENT (defense-in-depth,
 # DISTINCT from rls_mode above). rls_mode is the APP-SIDE recall WHERE-filter;
 # rls_enable controls whether the agent-pipe (mios_pg) + the confined mios-pg-query

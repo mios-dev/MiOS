@@ -1,0 +1,17 @@
+# AI-hint: Recommended global .wslconfig for MiOS WSL2 host integration.
+# AI-related: usr/lib/wsl.conf, usr/lib/wsl-distribution.conf
+# Copy to %USERPROFILE%\.wslconfig on the Windows host.
+
+[wsl2]
+memory=16GB
+processors=8
+localhostForwarding=true
+nestedVirtualization=true
+guiApplications=true
+sparseVhd=true
+
+[experimental]
+autoMemoryReclaim=gradual
+networkingMode=mirrored
+dnsTunneling=true
+firewall=true

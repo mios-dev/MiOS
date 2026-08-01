@@ -17,6 +17,8 @@
 > the FHS overlay, Containerfile, automation scripts, and the six
 > Architectural Laws live. This repo is the *user-facing entry surface*.
 >
+> **Architecture Decision Records (ADRs):** See [ADR.md](ADR.md) for the index of system decision records.
+>
 > [1]: https://agents.md
 
 ## 0. What MiOS is (so this repo's job makes sense)

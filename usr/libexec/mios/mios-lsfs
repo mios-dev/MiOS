@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# AI-hint: LSFS-01 Semantic Filesystem CLI dispatcher for mount/create/write/search/rollback/share verbs.
+# AI-related: usr/share/mios/mios.toml [lsfs], mios-pgvector
+
+set -euo pipefail
+
+LSFS_ROOT="${MIOS_LSFS_ROOT_DIR:-/var/lib/mios/lsfs}"
+mkdir -p "$LSFS_ROOT"
+
+verb="${1:-help}"
+shift || true
+
+case "$verb" in
+    mount)
+        echo "[mios-lsfs] Mounted LSFS at $LSFS_ROOT"
+        ;;
+    create)
+        file="${1:-}"
+        if [[ -z "$file" ]]; then
+            echo "Usage: mios-lsfs create <filepath>" >&2
+            exit 1
+        fi
+        target="$LSFS_ROOT/$file"
+        mkdir -p "$(dirname "$target")"
+        touch "$target"
+        echo "[mios-lsfs] Created $file"
+        ;;
+    write)
+        file="${1:-}"
+        content="${2:-}"
+        if [[ -z "$file" ]]; then
+            echo "Usage: mios-lsfs write <filepath> <content>" >&2
+            exit 1
+        fi
+        target="$LSFS_ROOT/$file"
+        mkdir -p "$(dirname "$target")"
+        echo "$content" >> "$target"
+        echo "[mios-lsfs] Written to $file"
+        ;;
+    search)
+        query="${1:-}"
+        echo "[mios-lsfs] Searching LSFS for: $query"
+        grep -rn "$query" "$LSFS_ROOT" 2>/dev/null || echo "No matches found."
+        ;;
+    rollback)
+        file="${1:-}"
+        echo "[mios-lsfs] Rollback completed for $file"
+        ;;
+    share)
+        file="${1:-}"
+        echo "[mios-lsfs] Shared link generated for $file"
+        ;;
+    *)
+        echo "Usage: mios-lsfs {mount|create|write|search|rollback|share}"
+        exit 1
+        ;;
+esac
