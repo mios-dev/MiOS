@@ -493,11 +493,17 @@ build_mios_image() {
         export MIOS_PASSWORD_HASH
         export MIOS_HOSTNAME
 
+        # Compute deterministic SOURCE_DATE_EPOCH from git tree commit time
+        SOURCE_DATE_EPOCH=$(git -C "${MIOS_SHARE_DIR:-.}" log -1 --format=%ct 2>/dev/null || date +%s)
+        export SOURCE_DATE_EPOCH
+
         if command -v just &>/dev/null; then
             just build || { log_error "Build failed"; return 1; }
         else
             # Fallback to direct podman build
             podman build --no-cache \
+                --timestamp "$SOURCE_DATE_EPOCH" \
+                --build-arg SOURCE_DATE_EPOCH="$SOURCE_DATE_EPOCH" \
                 --build-arg BASE_IMAGE="$MIOS_BASE_IMAGE" \
                 --build-arg MIOS_USER="$MIOS_USERNAME" \
                 --build-arg MIOS_PASSWORD_HASH="$MIOS_PASSWORD_HASH" \

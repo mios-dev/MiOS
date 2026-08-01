@@ -118,12 +118,26 @@ impl PhaseRegistry {
             println!("  {}", p);
         }
     }
+
+    pub fn print_list(&self) {
+        for p in &self.phases {
+            println!("{}:{}", p.script, p.fatal);
+        }
+    }
 }
 
-pub fn run_build(phase: &str, plan_only: bool) -> Result<(), Box<dyn std::error::Error>> {
+pub fn run_build(
+    phase: &str,
+    plan_only: bool,
+    list_only: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
     let root_str = std::env::var("MIOS_ROOT").unwrap_or_else(|_| ".".to_string());
     let toml_path = std::path::Path::new(&root_str).join("usr/share/mios/mios.toml");
     let registry = PhaseRegistry::load_from_toml(&toml_path);
+    if list_only {
+        registry.print_list();
+        return Ok(());
+    }
     if plan_only {
         registry.print_plan();
         return Ok(());

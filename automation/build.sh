@@ -256,21 +256,35 @@ auth=$(awk '/^[[:space:]]*build_catalog_authoritative[[:space:]]*=/ {
 
 # Count total runnable scripts
 ALL_SCRIPTS=()
-if [[ "$auth" == "true" && -f "$(dirname "$MIOS_TOML")/build_phases.json" ]]; then
-    # Read scripts from build_phases.json
-    mapfile -t PHASE_SCRIPTS < <(python3 -c "import json, os; d = json.load(open('$(dirname "$MIOS_TOML")/build_phases.json')); [print(os.path.basename(p['script'])) for p in d]" 2>/dev/null)
-    for _n in "${PHASE_SCRIPTS[@]}"; do
-        echo "$CONTAINERFILE_SCRIPTS" | grep -qF "$_n" && continue
-        if [[ -f "$SCRIPT_DIR/$_n" ]]; then
-            ALL_SCRIPTS+=("$SCRIPT_DIR/$_n")
-        fi
-    done
-else
-    for _s in "$SCRIPT_DIR"/[0-9][0-9]-*.sh; do
-        _n="$(basename "$_s")"
-        echo "$CONTAINERFILE_SCRIPTS" | grep -qF "$_n" && continue
-        ALL_SCRIPTS+=("$_s")
-    done
+if command -v miosd >/dev/null 2>&1; then
+    mapfile -t PHASE_SCRIPTS < <(miosd build --list 2>/dev/null | awk -F':' '{print $1}')
+    if (( ${#PHASE_SCRIPTS[@]} > 0 )); then
+        for _n in "${PHASE_SCRIPTS[@]}"; do
+            echo "$CONTAINERFILE_SCRIPTS" | grep -qF "$_n" && continue
+            if [[ -f "$SCRIPT_DIR/$_n" ]]; then
+                ALL_SCRIPTS+=("$SCRIPT_DIR/$_n")
+            fi
+        done
+    fi
+fi
+
+if (( ${#ALL_SCRIPTS[@]} == 0 )); then
+    if [[ "$auth" == "true" && -f "$(dirname "$MIOS_TOML")/build_phases.json" ]]; then
+        # Read scripts from build_phases.json
+        mapfile -t PHASE_SCRIPTS < <(python3 -c "import json, os; d = json.load(open('$(dirname "$MIOS_TOML")/build_phases.json')); [print(os.path.basename(p['script'])) for p in d]" 2>/dev/null)
+        for _n in "${PHASE_SCRIPTS[@]}"; do
+            echo "$CONTAINERFILE_SCRIPTS" | grep -qF "$_n" && continue
+            if [[ -f "$SCRIPT_DIR/$_n" ]]; then
+                ALL_SCRIPTS+=("$SCRIPT_DIR/$_n")
+            fi
+        done
+    else
+        for _s in "$SCRIPT_DIR"/[0-9][0-9]-*.sh; do
+            _n="$(basename "$_s")"
+            echo "$CONTAINERFILE_SCRIPTS" | grep -qF "$_n" && continue
+            ALL_SCRIPTS+=("$_s")
+        done
+    fi
 fi
 TOTAL_SCRIPTS=${#ALL_SCRIPTS[@]}
 

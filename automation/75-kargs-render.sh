@@ -20,6 +20,12 @@ if [[ ! -d "$KARGS_DIR" ]]; then
     exit 0
 fi
 
+if command -v miosd >/dev/null 2>&1; then
+    miosd render-kargs --toml "$TOML_FILE" --kargs-dir "$KARGS_DIR"
+    mios_ok "kargs.d rendered via miosd"
+    exit 0
+fi
+
 # Resolve Python executable robustly (preferring py launcher on Windows, fallback to python3/python)
 PYTHON_EXE=""
 if command -v py &>/dev/null; then

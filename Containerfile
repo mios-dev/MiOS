@@ -43,11 +43,16 @@ COPY .git                  /ctx/.git/
 # stabilized" (exit 101). rust:slim tracks the newest stable Rust, which has edition2024.
 FROM docker.io/library/rust:slim AS rust-builder
 WORKDIR /build
-COPY src/mios-rs /build/
+COPY src/mios-rs /build/src/mios-rs
+COPY tools/native /build/tools/native
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/build/target \
-    cargo build --release && \
-    cp target/release/miosd /miosd
+    cd /build/src/mios-rs && cargo build --release && \
+    cd /build/tools/native && cargo build --release && \
+    mkdir -p /out && \
+    cp /build/src/mios-rs/target/release/miosd /out/ && \
+    cp /build/tools/native/target/release/mios-* /out/ 2>/dev/null || true && \
+    cp /build/tools/native/target/release/generate-names-registry /out/ 2>/dev/null || true
 
 FROM ${BASE_IMAGE}
 
@@ -58,6 +63,8 @@ FROM ${BASE_IMAGE}
 # produces a valid image; callers who need a different version pin it
 # at the command line.
 ARG MIOS_VERSION=0.3.0
+ARG SOURCE_DATE_EPOCH
+ENV SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH}
 
 LABEL org.opencontainers.image.title="MiOS"
 LABEL org.opencontainers.image.description="\MiOS is a user defined, customisable Linux distro based on Fedora/uBlue/uCore"
@@ -67,7 +74,7 @@ LABEL org.opencontainers.image.version="v${MIOS_VERSION}"
 LABEL containers.bootc="1"
 LABEL ostree.bootable="1"
 
-COPY --from=rust-builder /miosd /usr/libexec/mios/miosd
+COPY --from=rust-builder /out/* /usr/libexec/mios/
 
 CMD ["/sbin/init"]
 

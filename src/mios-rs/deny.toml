@@ -1,0 +1,22 @@
+# AI-hint: cargo-deny configuration for src/mios-rs workspace supply-chain security.
+[advisories]
+vulnerability = "deny"
+unmaintained = "warn"
+notice = "warn"
+
+[licenses]
+unlicensed = "deny"
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-DFS-2016",
+    "CC0-1.0",
+]
+confidence-threshold = 0.8
+
+[bans]
+multiple-versions = "warn"
+wildcards = "allow"

@@ -84,6 +84,9 @@ fi
 # stdlib; tomli fallback for older). The Python block prints shell-safe
 # 'export' lines that the surrounding shell evals.
 _mios_load_unified() {
+    if command -v miosd >/dev/null 2>&1; then
+        eval "$(miosd resolve --shell 2>/dev/null)" || true
+    fi
     local py_cmd=""
     if python3 -c "import sys" >/dev/null 2>&1; then
         py_cmd="python3"

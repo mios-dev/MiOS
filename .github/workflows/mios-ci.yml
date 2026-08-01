@@ -309,8 +309,12 @@ jobs:
           # "storing blob ... write" (ENOSPC) on the 57-mios-sys-build commit. Put the
           # commit temp on the jlumbroso-freed / instead, so the amplification spreads
           # across both large disks (/mnt store + / temp), each holding ~1x.
-          sudo TMPDIR=/tmp podman build \
+          SOURCE_DATE_EPOCH=$(git -C "$GITHUB_WORKSPACE" log -1 --format=%ct 2>/dev/null || date +%s)
+          export SOURCE_DATE_EPOCH
+          sudo TMPDIR=/tmp SOURCE_DATE_EPOCH="$SOURCE_DATE_EPOCH" podman build \
               "${BUILD_ARGS[@]}" \
+              --timestamp "$SOURCE_DATE_EPOCH" \
+              --build-arg SOURCE_DATE_EPOCH="$SOURCE_DATE_EPOCH" \
               --device /dev/fuse \
               --cap-add all \
               --security-opt seccomp=unconfined \

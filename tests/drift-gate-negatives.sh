@@ -2009,6 +2009,33 @@ test_value_aliases() {
     log "test_value_aliases negative test passed."
 }
 
+# Test check_bash_phase_ratchet
+test_bash_phase_ratchet() {
+    log "Testing check_bash_phase_ratchet..."
+    local dummy_script="${ROOT}/automation/99-dummy-test-phase.sh"
+    touch "$dummy_script"
+
+    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_bash_phase_ratchet >/dev/null 2>&1; then
+        rm -f "$dummy_script"
+        die "check_bash_phase_ratchet passed despite extra bash phase script exceeding ratchet baseline!"
+    fi
+
+    rm -f "$dummy_script"
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_bash_phase_ratchet >/dev/null 2>&1 \
+        || die "check_bash_phase_ratchet failed after restoration!"
+    log "test_bash_phase_ratchet negative test passed."
+}
+
+# Test check_negative_coverage
+test_negative_coverage() {
+    log "Testing check_negative_coverage..."
+    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_negative_coverage >/dev/null 2>&1; then
+        log "test_negative_coverage passed."
+    else
+        die "check_negative_coverage failed!"
+    fi
+}
+
 main() {
     if [[ $# -eq 1 && -n "$1" ]]; then
         if declare -f "$1" >/dev/null; then
@@ -2103,6 +2130,7 @@ main() {
     test_no_hardcoded_ssot_literal
     test_pipeline_numbering
     test_value_aliases
+    test_bash_phase_ratchet
     log "All negative tests completed successfully!"
 }
 

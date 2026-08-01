@@ -20,37 +20,37 @@ except ImportError:
     _httpx.HTTPError = _HTTPError
     sys.modules["httpx"] = _httpx
 
-_resp_mod = types.ModuleType("fastapi.responses")
+if "fastapi" in sys.modules and hasattr(sys.modules["fastapi"], "responses"):
+    pass
+else:
+    try:
+        import fastapi
+        import fastapi.responses
+    except ImportError:
+        _resp_mod = types.ModuleType("fastapi.responses")
 
+        class _JSONResponse:
+            def __init__(self, content=None, status_code=200, **_kw):
+                self.status_code = status_code
+                self._content = content
+                self.body = _json.dumps(content).encode("utf-8")
 
-class _JSONResponse:
-    def __init__(self, content=None, status_code=200, **_kw):
-        self.status_code = status_code
-        self._content = content
-        self.body = _json.dumps(content).encode("utf-8")
+        _resp_mod.JSONResponse = _JSONResponse
+        sys.modules["fastapi.responses"] = _resp_mod
+        _fa = types.ModuleType("fastapi")
+        _fa.responses = _resp_mod
+        _fa.Request = object
 
+        class _StubRouter:
+            def __getattr__(self, _name):
+                def _decorator_factory(*_a, **_k):
+                    def _wrap(fn=None):
+                        return fn if fn is not None else (lambda f: f)
+                    return _wrap
+                return _decorator_factory
 
-_resp_mod.JSONResponse = _JSONResponse
-sys.modules["fastapi.responses"] = _resp_mod
-_fa = types.ModuleType("fastapi")
-_fa.responses = _resp_mod
-_fa.Request = object
-
-
-# mios_mcp builds an APIRouter for its /v1/mcp/* routes (R13); the route handlers are
-# decorated at import time. This stub returns each wrapped handler unchanged so the
-# module imports and the *_logic the tests exercise stay reachable -- no real FastAPI.
-class _StubRouter:
-    def __getattr__(self, _name):
-        def _decorator_factory(*_a, **_k):
-            def _wrap(fn=None):
-                return fn if fn is not None else (lambda f: f)
-            return _wrap
-        return _decorator_factory
-
-
-_fa.APIRouter = lambda *a, **k: _StubRouter()
-sys.modules.setdefault("fastapi", _fa)
+        _fa.APIRouter = lambda *a, **k: _StubRouter()
+        sys.modules.setdefault("fastapi", _fa)
 
 import mios_mcp as mc  # noqa: E402
 

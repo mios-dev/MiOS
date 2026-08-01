@@ -1,6 +1,8 @@
 // AI-hint: Entry point for the MiOS daemon native workspace (WS-LANG)
 // AI-related: Containerfile, automation/98-drift-checks.sh
 
+#![warn(clippy::unwrap_used, clippy::panic, clippy::todo)]
+
 mod drift;
 
 // AI-related: Containerfile, automation/98-drift-checks.sh
@@ -41,6 +43,9 @@ enum Commands {
         /// Print execution plan without running build phases
         #[arg(long)]
         plan: bool,
+        /// Print raw script list for build orchestrator
+        #[arg(long)]
+        list: bool,
     },
     /// Resolve configuration parameters
     Resolve {
@@ -327,8 +332,8 @@ fn main() {
             // TODO: Fold mios-new Python logic into this Rust command.
             println!("[miosd] (Stub) Scaffolding complete.");
         }
-        Commands::Build { phase, plan } => {
-            if let Err(e) = mios_build::run_build(phase, *plan) {
+        Commands::Build { phase, plan, list } => {
+            if let Err(e) = mios_build::run_build(phase, *plan, *list) {
                 eprintln!("[miosd] Build error: {}", e);
                 std::process::exit(1);
             }

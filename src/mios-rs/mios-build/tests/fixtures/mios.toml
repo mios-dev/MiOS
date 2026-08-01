@@ -1,6 +1,5 @@
 [meta]
 mios_version = "0.3.0"
-codename = "Antigravity"
 
 [ports]
 stack_id = 0
@@ -13,6 +12,24 @@ hermes = 8643
 ref = "ghcr.io/mios-dev/mios:latest"
 tag = "latest"
 name = "mios"
+
+[network.ntp]
+servers = ["time.cloudflare.com", "pool.ntp.org"]
+
+[power.ups]
+name = "mios-ups"
+driver = "usbhid-ups"
+port = "auto"
+desc = "MiOS Uninterruptible Power Supply"
+
+[kargs]
+iommu = "on"
+vfio_ids = "10de:2206,10de:1aef"
+hugepages = "1024"
+isolcpus = "2-7"
+nohz_full = "2-7"
+rcu_nocbs = "2-7"
+THP = "never"
 
 [security.luks]
 enabled = false

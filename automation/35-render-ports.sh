@@ -12,6 +12,12 @@ mios_log "extract ports from $TOML_FILE to $ENV_FILE"
 mkdir -p "$(dirname "$ENV_FILE")"
 touch "$ENV_FILE"
 
+if command -v miosd >/dev/null 2>&1; then
+    miosd render-ports --toml "$TOML_FILE" --out "$ENV_FILE"
+    mios_ok "wrote MIOS_PORT_* to $ENV_FILE via miosd"
+    exit 0
+fi
+
 # Clean up old port definitions
 sed -i '/^MIOS_PORT_/d' "$ENV_FILE"
 

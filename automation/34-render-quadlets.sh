@@ -40,6 +40,12 @@ fi
 
 mios_log "render Quadlet placeholders from mios.toml"
 
+if command -v miosd >/dev/null 2>&1; then
+    miosd render-quadlets
+    mios_ok "rendered Quadlet placeholders via miosd"
+    exit 0
+fi
+
 # Quadlet and config search paths: every directory systemd-generator-quadlet
 # scans (per `man quadlet`) plus MiOS-specific config dirs.
 QUADLET_DIRS=(
