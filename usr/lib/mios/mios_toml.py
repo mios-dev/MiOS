@@ -410,32 +410,13 @@ def get_aliases(dotted_path):
 
     elif dotted_path.startswith("ports."):
         name = dotted_path[len("ports."):].upper().replace(".", "_").replace("-", "_")
-        if name == "SSH":
-            aliases.extend(["MIOS_PORT_SSH", "MIOS_SSH_PORT"])
-        elif name == "FORGE_HTTP":
-            aliases.extend(["MIOS_PORT_FORGE_HTTP", "MIOS_FORGE_HTTP_PORT"])
-        elif name == "FORGE_SSH":
-            aliases.extend(["MIOS_PORT_FORGE_SSH", "MIOS_FORGE_SSH_PORT"])
-        elif name == "COCKPIT":
-            aliases.extend(["MIOS_PORT_COCKPIT", "MIOS_COCKPIT_PORT"])
-        elif name == "SEARXNG":
-            aliases.extend(["MIOS_PORT_SEARXNG", "MIOS_SEARXNG_PORT"])
-        elif name == "HERMES":
-            aliases.extend(["MIOS_PORT_HERMES", "MIOS_HERMES_PORT"])
-        elif name == "MCP":
-            # Float MIOS_MCP_PORT from [ports].mcp so consumers stop hardcoding an 8460
-            # fallback (NO HARD-SET VALUES -- the value is operator-defined in mios.toml).
-            aliases.extend(["MIOS_PORT_MCP", "MIOS_MCP_PORT"])
-        elif name == "K3S_API":
-            aliases.append("MIOS_K3S_API_PORT")
-        elif name == "GUACAMOLE_WEB":
-            aliases.append("MIOS_GUACAMOLE_PORT")
-        elif name == "CEPH_DASHBOARD":
-            aliases.append("MIOS_CEPH_DASHBOARD_PORT")
-        elif name == "RDP":
-            aliases.append("MIOS_RDP_PORT")
-        else:
-            aliases.append(f"MIOS_PORT_{name}")
+        # UNIFIED PORTS (operator directive: every port floats from SSOT, one scheme):
+        # each [ports].<x> emits BOTH canonical alias forms -- MIOS_PORT_<x> AND
+        # MIOS_<x>_PORT -- alongside the section-generic MIOS_PORTS_<x>, so NO consumer
+        # ever hardcodes a port number; the value is operator-defined in mios.toml [ports].
+        # A few keys carry a historical service-canonical name that differs from the raw key.
+        _canon = {"GUACAMOLE_WEB": "GUACAMOLE"}.get(name, name)
+        aliases.extend([f"MIOS_PORT_{_canon}", f"MIOS_{_canon}_PORT"])
 
     elif dotted_path.startswith("image.sidecars."):
         name = dotted_path[len("image.sidecars."):].upper().replace(".", "_").replace("-", "_")
