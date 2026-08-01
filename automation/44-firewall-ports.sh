@@ -10,6 +10,12 @@ source "$(dirname "$0")/lib/common.sh"
 
 mios_log "configuring firewalld ports for 'MiOS' services"
 
+if command -v miosd >/dev/null 2>&1; then
+    miosd firewall-ports
+    mios_ok "configured firewalld ports via miosd"
+    exit 0
+fi
+
 # During an OCI container build, the firewalld daemon is not running.
 # We MUST use firewall-offline-cmd to write directly to the XML policy files.
 #

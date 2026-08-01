@@ -107,6 +107,8 @@ enum Commands {
         #[arg(long, default_value = "/etc/ups")]
         out_dir: String,
     },
+    /// Configure firewalld offline rules for MiOS services
+    FirewallPorts,
 }
 
 fn run_render_kargs(toml_path: &str, kargs_dir: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -422,7 +424,57 @@ fn main() {
                 std::process::exit(1);
             }
         }
+        Commands::FirewallPorts => {
+            if let Err(e) = run_firewall_ports() {
+                eprintln!("[miosd] Firewall ports error: {}", e);
+                std::process::exit(1);
+            }
+        }
     }
+}
+
+fn run_firewall_ports() -> Result<(), Box<dyn std::error::Error>> {
+    let ports = vec![
+        ("HERMES", "tcp"),
+        ("OPEN_WEBUI", "tcp"),
+        ("CODE_SERVER", "tcp"),
+        ("GUACAMOLE", "tcp"),
+        ("CEPH_DASHBOARD", "tcp"),
+        ("K3S_API", "tcp"),
+        ("RDP", "tcp"),
+        ("FORGE_HTTP", "tcp"),
+        ("FORGE_SSH", "tcp"),
+        ("COCKPIT_LINK", "tcp"),
+        ("ADGUARD_UI", "tcp"),
+        ("ADGUARD_DNS", "tcp"),
+        ("ADGUARD_DNS", "udp"),
+        ("SSH", "tcp"),
+        ("COCKPIT", "tcp"),
+    ];
+
+    if std::path::Path::new("/usr/bin/firewall-offline-cmd").exists() {
+        for (svc, proto) in ports {
+            let env_var = format!("MIOS_PORT_{}", svc);
+            if let Ok(port_val) = std::env::var(&env_var) {
+                let arg = format!("--add-port={}/{}", port_val, proto);
+                let _ = std::process::Command::new("/usr/bin/firewall-offline-cmd")
+                    .arg("--zone=public")
+                    .arg(arg)
+                    .status();
+            }
+        }
+        let _ = std::process::Command::new("/usr/bin/firewall-offline-cmd")
+            .arg("--zone=public")
+            .arg("--add-service=ssh")
+            .status();
+        let _ = std::process::Command::new("/usr/bin/firewall-offline-cmd")
+            .arg("--zone=public")
+            .arg("--add-service=mios-pxe")
+            .status();
+    } else {
+        println!("[miosd] firewall-ports: firewall-offline-cmd not found, skipped offline firewall rules.");
+    }
+    Ok(())
 }
 
 fn run_render_nut(toml_path: &str, conf_dir: &str) -> Result<(), Box<dyn std::error::Error>> {
