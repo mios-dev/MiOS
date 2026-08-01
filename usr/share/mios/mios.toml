@@ -124,6 +124,47 @@ developer = "MiOS"
 # data_classification  = "local-only"
 # regions         = ["US"]
 # validity_days   = 90
+
+[security]
+enable_units = [
+  "usbguard.service",
+  "auditd.service",
+  "fapolicyd.service"
+]
+
+[security.cosign]
+policy_mode = "matchRepository"
+
+[repos.fedora]
+name = "Fedora {ver} - $basearch"
+metalink = "https://mirrors.fedoraproject.org/metalink?repo=fedora-{ver}&arch=$basearch"
+enabled = true
+repo_gpgcheck = false
+repo_type = "rpm"
+gpgcheck = true
+gpgkey = "file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-{ver}-x86_64"
+skip_if_unavailable = true
+priority = 95
+timeout = 10
+minrate = "1k"
+max_parallel_downloads = 10
+ip_resolve = 4
+
+[repos.fedora-updates]
+name = "Fedora {ver} Updates - $basearch"
+metalink = "https://mirrors.fedoraproject.org/metalink?repo=updates-released-f{ver}&arch=$basearch"
+enabled = true
+repo_gpgcheck = false
+repo_type = "rpm"
+gpgcheck = true
+gpgkey = "file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-{ver}-x86_64"
+skip_if_unavailable = true
+priority = 95
+timeout = 10
+minrate = "1k"
+max_parallel_downloads = 10
+ip_resolve = 4
+
 # key_id          = "mios-ap-1"
 # signing_key_path = "/etc/mios/agent-passport/ed25519.key"   # PEM or 32-byte raw
 # signing_key_dns  = "_agent-passport.mios.example.ts.net"
@@ -9615,7 +9656,7 @@ mios-open-webui       = true
 mios-code-server      = false
 mios-guacamole        = true
 mios-pxe-hub          = true
-mios-guacd                 = true
+mios-guacd            = true
 mios-adguard          = true
 
 # ----------------------------------------------------------------------------
@@ -9630,9 +9671,9 @@ mios-adguard          = true
 # ----------------------------------------------------------------------------
 [env]
 MIOS_URL_TERRA_REPO = "https://github.com/terrapkg/subatomic-repos/raw/main/terra.repo"
-MIOS_URL_UBLUE_REPO = "https://copr.fedorainfracloud.org/coprs/ublue-os/packages/repo/fedora-44/ublue-os-packages-fedora-44.repo"
+MIOS_URL_UBLUE_REPO = "https://copr.fedorainfracloud.org/coprs/ublue-os/packages/repo/fedora-${FEDORA_VERSION}/ublue-os-packages-fedora-${FEDORA_VERSION}.repo"
 MIOS_URL_TAILSCALE_REPO = "https://pkgs.tailscale.com/stable/fedora/tailscale.repo"
-MIOS_URL_CROWDSEC_REPO = "https://packagecloud.io/crowdsec/crowdsec/config_file.repo?os=fedora&dist=44&source=script"
+MIOS_URL_CROWDSEC_REPO = "https://packagecloud.io/crowdsec/crowdsec/config_file.repo?os=fedora&dist=${FEDORA_VERSION}&source=script"
 MIOS_URL_BIBATA_API = "https://api.github.com/repos/ful1e5/Bibata_Cursor/releases/latest"
 MIOS_URL_BIBATA_DL = "https://github.com/ful1e5/Bibata_Cursor/releases/download/v{}/Bibata-Modern-Classic.tar.xz"
 MIOS_URL_BIBATA_SUM = "https://github.com/ful1e5/Bibata_Cursor/releases/download/v{}/sha256-{}.txt"
@@ -10277,7 +10318,7 @@ Wants = "network-online.target"
 ContainerName = "mios-forgejo-runner"
 Environment = [
   "FORGEJO_RUNNER_NAME=mios-self-hosted",
-  "FORGEJO_RUNNER_LABELS=mios-self-hosted,podman,bootc,fedora-44",
+  "FORGEJO_RUNNER_LABELS=mios-self-hosted,podman,bootc,fedora-${FEDORA_VERSION:-44}",
   "FORGEJO_RUNNER_DEFAULT_LABELS=mios-self-hosted"
 ]
 EnvironmentFile = "/etc/mios/forge/runner-token"
@@ -11653,3 +11694,13 @@ list = [
 [build.ratchet]
 max_phase_scripts = 71
 
+
+ [ s e c u r i t y ] 
+ e n a b l e _ u n i t s   =   [ 
+     \  
+ u s b g u a r d . s e r v i c e \ , 
+     \ a u d i t d . s e r v i c e \ , 
+     \ f a p o l i c y d . s e r v i c e \ 
+ ] 
+  
+ 

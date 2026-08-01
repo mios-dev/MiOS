@@ -49,6 +49,15 @@ fn default_shell() -> String {
 pub struct MetaConfig {
     #[serde(default = "default_version")]
     pub mios_version: String,
+    #[serde(default = "default_fedora_version")]
+    pub fedora_version: String,
+}
+
+fn default_fedora_version() -> String {
+    if let Ok(ver) = std::env::var("FEDORA_VERSION") {
+        if !ver.is_empty() { return ver; }
+    }
+    "44".into()
 }
 
 fn default_version() -> String {
@@ -88,14 +97,134 @@ pub struct BuildConfig {
     pub ratchet: BuildRatchet,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct SecurityConfig {
+    #[serde(default)]
+    pub enable_units: Vec<String>,
+    #[serde(default)]
+    pub cosign: CosignConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct NtpConfig {
+    #[serde(default = "default_ntp_servers")]
+    pub servers: Vec<String>,
+}
+
+fn default_ntp_servers() -> Vec<String> {
+    vec!["time.cloudflare.com".into(), "time.google.com".into()]
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct NetworkConfig {
+    #[serde(default)]
+    pub ntp: NtpConfig,
+    #[serde(default)]
+    pub ports: std::collections::HashMap<String, u16>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct CosignConfig {
+    #[serde(default = "default_policy_mode")]
+    pub policy_mode: String,
+}
+
+fn default_policy_mode() -> String {
+    "insecureAcceptEverything".into()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct PowerConfig {
+    #[serde(default)]
+    pub ups: UpsConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct UpsConfig {
+    #[serde(default)]
+    pub name: String,
+    #[serde(default = "default_ups_driver")]
+    pub driver: String,
+    #[serde(default = "default_ups_port")]
+    pub port: String,
+    #[serde(default = "default_ups_desc")]
+    pub desc: String,
+}
+
+fn default_ups_driver() -> String { "usbhid-ups".into() }
+fn default_ups_port() -> String { "auto".into() }
+fn default_ups_desc() -> String { "MiOS Uninterruptible Power Supply".into() }
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct RepoConfig {
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub baseurl: Option<String>,
+    #[serde(default)]
+    pub metalink: Option<String>,
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    #[serde(default)]
+    pub repo_gpgcheck: bool,
+    #[serde(default = "default_rpm_type")]
+    pub repo_type: String,
+    #[serde(default = "default_true")]
+    pub gpgcheck: bool,
+}
+
+fn default_true() -> bool { true }
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct ComplianceConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default = "default_compliance_profile")]
+    pub profile: String,
+    #[serde(default)]
+    pub datastream: String,
+    #[serde(default = "default_compliance_severity")]
+    pub severity_gate: String,
+    #[serde(default)]
+    pub remediate: bool,
+    #[serde(default)]
+    pub fetch_remote_resources: bool,
+    #[serde(default = "default_compliance_report")]
+    pub report_path: String,
+}
+
+fn default_compliance_profile() -> String { "standard".into() }
+fn default_compliance_severity() -> String { "high".into() }
+fn default_compliance_report() -> String { "/usr/share/mios/compliance".into() }
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct MiosConfig {
     #[serde(default)]
-    pub identity: IdentityConfig,
-    #[serde(default)]
     pub meta: MetaConfig,
     #[serde(default)]
+    pub identity: IdentityConfig,
+    #[serde(default)]
     pub build: BuildConfig,
+    #[serde(default)]
+    pub security: SecurityConfig,
+    #[serde(default)]
+    pub network: NetworkConfig,
+    #[serde(default)]
+    pub power: PowerConfig,
+    #[serde(default)]
+    pub repos: std::collections::HashMap<String, RepoConfig>,
+    #[serde(default)]
+    pub compliance: ComplianceConfig,
+    #[serde(default)]
+    pub packages: std::collections::HashMap<String, PackageSectionConfig>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct PackageSectionConfig {
+    #[serde(default)]
+    pub pkgs: Vec<String>,
+    #[serde(default = "default_true")]
+    pub enable: bool,
 }
 
 impl MiosConfig {

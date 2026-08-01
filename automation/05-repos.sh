@@ -61,11 +61,11 @@ if command -v miosd >/dev/null 2>&1; then
     miosd render-repos --fedora-version "$_fver" $_online_flag
     mios_ok "rendered fedora-${_fver}.repo via miosd"
 elif [ -d "/usr/share/mios/vendored/rpms" ] && [[ "${MIOS_ONLINE_BUILD:-0}" != "1" ]]; then
-    mios_log "using local vendored RPM mirror for Fedora 44"
-    cat > /etc/yum.repos.d/fedora-44.repo <<EOREPO
-[fedora-44]
-name=Fedora 44 - \$basearch
-baseurl=file:///usr/share/mios/vendored/rpms/fedora-44/\$basearch
+    mios_log "using local vendored RPM mirror for Fedora ${_fver}"
+    cat > /etc/yum.repos.d/fedora-${_fver}.repo <<EOREPO
+[fedora-${_fver}]
+name=Fedora ${_fver} - \$basearch
+baseurl=file:///usr/share/mios/vendored/rpms/fedora-${_fver}/\$basearch
 enabled=1
 repo_gpgcheck=0
 type=rpm
@@ -73,9 +73,9 @@ gpgcheck=0
 skip_if_unavailable=True
 priority=95
 
-[fedora-44-updates]
-name=Fedora 44 Updates - \$basearch
-baseurl=file:///usr/share/mios/vendored/rpms/updates-released-f44/\$basearch
+[fedora-${_fver}-updates]
+name=Fedora ${_fver} Updates - \$basearch
+baseurl=file:///usr/share/mios/vendored/rpms/updates-released-f${_fver}/\$basearch
 enabled=1
 repo_gpgcheck=0
 type=rpm
@@ -84,15 +84,15 @@ skip_if_unavailable=True
 priority=95
 EOREPO
 else
-    cat > /etc/yum.repos.d/fedora-44.repo <<EOREPO
-[fedora-44]
-name=Fedora 44 - \$basearch
-metalink=https://mirrors.fedoraproject.org/metalink?repo=fedora-44&arch=\$basearch
+    cat > /etc/yum.repos.d/fedora-${_fver}.repo <<EOREPO
+[fedora-${_fver}]
+name=Fedora ${_fver} - \$basearch
+metalink=https://mirrors.fedoraproject.org/metalink?repo=fedora-${_fver}&arch=\$basearch
 enabled=1
 repo_gpgcheck=0
 type=rpm
 gpgcheck=1
-gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-44-x86_64
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-${_fver}-x86_64
 skip_if_unavailable=True
 priority=95
 timeout=10
@@ -100,14 +100,14 @@ minrate=1k
 max_parallel_downloads=10
 ip_resolve=4
 
-[fedora-44-updates]
-name=Fedora 44 Updates - \$basearch
-metalink=https://mirrors.fedoraproject.org/metalink?repo=updates-released-f44&arch=\$basearch
+[fedora-${_fver}-updates]
+name=Fedora ${_fver} Updates - \$basearch
+metalink=https://mirrors.fedoraproject.org/metalink?repo=updates-released-f${_fver}&arch=\$basearch
 enabled=1
 repo_gpgcheck=0
 type=rpm
 gpgcheck=1
-gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-44-x86_64
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-${_fver}-x86_64
 skip_if_unavailable=True
 priority=95
 timeout=10
@@ -137,9 +137,9 @@ mios_step "Phase 2: distro-upgrade and userspace alignment"
 $DNF_BIN "${DNF_SETOPT[@]}" \
     --setopt=excludepkgs="${_THIRD_PARTY_EXCLUDES}" \
     upgrade --refresh -y --skip-unavailable || {
-    mios_warn "upgrade --refresh had conflicts (ucore vs F44 pkgs) -- continuing"
+    mios_warn "upgrade --refresh had conflicts (ucore vs Fedora ${_fver} pkgs) -- continuing"
 }
-# distro-sync is retried once: F44 mirrors are occasionally in-progress sync state,
+# distro-sync is retried once: Fedora mirrors are occasionally in-progress sync state,
 # causing RPM signature mismatches that resolve on a second attempt with fresh metadata.
 _dsync_ok=0
 for _attempt in 1 2; do
@@ -152,7 +152,7 @@ for _attempt in 1 2; do
     $DNF_BIN clean metadata 2>/dev/null || true
 done
 if [[ $_dsync_ok -eq 0 ]]; then
-    mios_warn "distro-sync failed after 2 attempts -- ucore packages may differ from Fedora 44."
+    mios_warn "distro-sync failed after 2 attempts -- ucore packages may differ from Fedora ${_fver}."
     mios_log "continuing; individual package installs will use available repos."
 fi
 

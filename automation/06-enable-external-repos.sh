@@ -70,6 +70,7 @@ enable_copr() {
 }
 
 REPO_DIR=/etc/yum.repos.d
+_fver="${FEDORA_VERSION:-44}"
 
 # Best-effort policy. Every external repo enable here is non-critical:
 # downstream installs already pass --skip-unavailable, so a missing repo
@@ -136,10 +137,11 @@ fi
 # --- 8. ublue-os/packages COPR (uupd + greenboot) ---------------------------
 # uupd and greenboot ship from the Universal Blue packages COPR.
 # 50-uupd-installer.sh explicitly requires this repo to be present first.
-# Using Fedora 44 repo endpoint; COPR auto-publishes new packages as they land.
+# Using Fedora dynamic repo endpoint; COPR auto-publishes new packages as they land.
 if [[ ! -f "${REPO_DIR}/ublue-os-packages.repo" ]]; then
     mios_log "enabling ublue-os/packages COPR (uupd + greenboot)"
-    if try_fetch "${MIOS_URL_UBLUE_REPO:-https://copr.fedorainfracloud.org/coprs/ublue-os/packages/repo/fedora-44/ublue-os-packages-fedora-44.repo}" \
+    _fver="${FEDORA_VERSION:-44}"
+    if try_fetch "${MIOS_URL_UBLUE_REPO:-https://copr.fedorainfracloud.org/coprs/ublue-os/packages/repo/fedora-${_fver}/ublue-os-packages-fedora-${_fver}.repo}" \
                  "${REPO_DIR}/ublue-os-packages.repo" "ublue-os/packages COPR"; then
         # Lower priority than Fedora base so Fedora wins on conflicting packages.
         if ! grep -q '^priority=' "${REPO_DIR}/ublue-os-packages.repo"; then
@@ -152,14 +154,14 @@ fi
 
 # ── Waydroid (Aleasto) ───────────────────────────────────────────────────
 if ! [ -f /etc/yum.repos.d/_copr:copr.fedorainfracloud.org:aleasto:waydroid.repo ]; then
-    enable_copr "aleasto/waydroid" "fedora-44-x86_64" || mios_warn "aleasto/waydroid COPR enable failed (GNOME 50 fix unavailable)"
+    enable_copr "aleasto/waydroid" "fedora-${_fver}-x86_64" || mios_warn "aleasto/waydroid COPR enable failed (GNOME 50 fix unavailable)"
 else
     mios_skip "aleasto/waydroid COPR already present"
 fi
 
 # ── Hyprland (nett00n) ───────────────────────────────────────────────────
 if ! [ -f /etc/yum.repos.d/_copr:copr.fedorainfracloud.org:nett00n:hyprland.repo ]; then
-    enable_copr "nett00n/hyprland" "fedora-44-x86_64" || mios_warn "nett00n/hyprland COPR enable failed"
+    enable_copr "nett00n/hyprland" "fedora-${_fver}-x86_64" || mios_warn "nett00n/hyprland COPR enable failed"
 else
     mios_skip "nett00n/hyprland COPR already present"
 fi
@@ -185,7 +187,8 @@ if [[ ! -f "${REPO_DIR}/crowdsec.repo" ]]; then
     # The 'dist' query parameter pins the packagecloud distro release;
     # crowdsec ships a single fedora repo across releases (the value is
     # only used for substituting $releasever in baseurl).
-    try_fetch "${MIOS_URL_CROWDSEC_REPO:-https://packagecloud.io/crowdsec/crowdsec/config_file.repo?os=fedora&dist=44&source=script}" \
+    _fver="${FEDORA_VERSION:-44}"
+    try_fetch "${MIOS_URL_CROWDSEC_REPO:-https://packagecloud.io/crowdsec/crowdsec/config_file.repo?os=fedora&dist=${_fver}&source=script}" \
               "${REPO_DIR}/crowdsec.repo" "CrowdSec repo" || true
 else
     mios_skip "CrowdSec repo already present"

@@ -38,7 +38,7 @@ fi
 
 INSTANCE_URL="${FORGEJO_INSTANCE_URL:-http://localhost:3000/}"
 RUNNER_NAME="${FORGEJO_RUNNER_NAME:-mios-self-hosted}"
-RUNNER_LABELS="${FORGEJO_RUNNER_LABELS:-mios-self-hosted,podman,bootc,fedora-44}"
+RUNNER_LABELS="${FORGEJO_RUNNER_LABELS:-mios-self-hosted,podman,bootc,fedora-${FEDORA_VERSION:-44}}"
 RUNNER_IMAGE="${MIOS_FORGE_RUNNER_IMAGE:-code.forgejo.org/forgejo/runner:7}"
 
 install -d -m 0750 -o root -g root /srv/mios/forge-runner
