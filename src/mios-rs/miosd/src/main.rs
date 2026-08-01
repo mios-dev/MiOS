@@ -155,6 +155,12 @@ enum Commands {
         #[arg(long)]
         output: Option<String>,
     },
+    /// Bind Quadlet images into /usr/lib/bootc/bound-images.d excluding firstboot tokens
+    OverlayBindImages {
+        /// Destination directory for bound image symlinks
+        #[arg(long, default_value = "/usr/lib/bootc/bound-images.d")]
+        dest: String,
+    },
 }
 
 fn run_render_kargs(toml_path: &str, kargs_dir: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -518,7 +524,94 @@ fn main() {
                 std::process::exit(1);
             }
         }
+        Commands::OverlayBindImages { dest } => {
+            if let Err(e) = run_overlay_bind_images(dest) {
+                eprintln!("[miosd] Overlay bind images error: {}", e);
+                std::process::exit(1);
+            }
+        }
     }
+}
+
+fn run_overlay_bind_images(dest_dir: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let bdir = std::path::Path::new(dest_dir);
+    std::fs::create_dir_all(bdir)?;
+
+    let mios_toml_path = std::env::var("MIOS_TOML").unwrap_or_else(|_| "/usr/share/mios/mios.toml".to_string());
+    let mut fb_tokens: Vec<String> = Vec::new();
+    if let Ok(content) = std::fs::read_to_string(&mios_toml_path) {
+        for line in content.lines() {
+            let trimmed = line.trim();
+            if trimmed.starts_with("firstboot_tokens") {
+                if let Some(val) = trimmed.split('=').nth(1) {
+                    let cleaned = val.replace(['[', ']', '"', ','], " ");
+                    for tok in cleaned.split_whitespace() {
+                        fb_tokens.push(tok.to_string());
+                    }
+                }
+            }
+        }
+    }
+
+    let qdirs = vec!["/usr/share/containers/systemd", "/etc/containers/systemd"];
+    for qdir_str in qdirs {
+        let qdir = std::path::Path::new(qdir_str);
+        if !qdir.exists() {
+            continue;
+        }
+
+        if let Ok(entries) = std::fs::read_dir(qdir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_file() {
+                    let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
+                    if ext == "container" || ext == "image" {
+                        let name = path.file_name().and_then(|s| s.to_str()).unwrap_or("");
+                        let mut img_line = String::new();
+                        if let Ok(c) = std::fs::read_to_string(&path) {
+                            for l in c.lines() {
+                                if l.starts_with("Image=") {
+                                    img_line = l.trim_start_matches("Image=").trim().to_string();
+                                    break;
+                                }
+                            }
+                        }
+
+                        let mut is_fb = false;
+                        if !img_line.is_empty() {
+                            for tok in &fb_tokens {
+                                if img_line.contains(tok) {
+                                    is_fb = true;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if is_fb {
+                            println!("[miosd] LBI: {} (firstboot tier -- web-pulled at first boot, not bound)", name);
+                            continue;
+                        }
+
+                        let _dst_file = bdir.join(name);
+                        #[cfg(unix)]
+                        {
+                            let _ = std::fs::remove_file(&_dst_file);
+                            let _ = std::os::unix::fs::symlink(&path, &_dst_file);
+                        }
+                        println!("[miosd] LBI: bound {} ({:?})", name, path);
+                    }
+                }
+            }
+        }
+    }
+
+    let gitkeep = bdir.join(".gitkeep");
+    if gitkeep.exists() {
+        let _ = std::fs::remove_file(gitkeep);
+        println!("[miosd] LBI: stripped git-tracking .gitkeep");
+    }
+
+    Ok(())
 }
 
 fn run_render_repos(online: bool, fedora_version: &str, output_path: Option<&str>) -> Result<(), Box<dyn std::error::Error>> {

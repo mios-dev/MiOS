@@ -185,46 +185,51 @@ fi
 # (see ARCHITECTURAL LAW 3 -- BOUND-IMAGES), EXCEPT the firstboot tier.
 BDIR="/usr/lib/bootc/bound-images.d"
 install -d -m 0755 "${BDIR}"
-# firstboot tier (mios.toml [build.bake].firstboot_tokens): a Quadlet whose Image=
-# ref substring-matches a token is NOT logically bound -- it is a multi-GB GPU-
-# engine whale evicted from the bake (generate-bake-plan.py -> plan.d/firstboot.list).
-# Binding it would make bootc DEPLOY-pull ~47GB at install (breaking an offline USB
-# deploy); instead its Quadlet web-pulls the image on first start (mios-ai-firstboot
-# seeds the weights into /var; MiOS-Cat can pre-stage the image on a 128GB+ USB data
-# partition). Degrade-open: if the token list can't be read, bind everything.
-_MIOS_TOML="${MIOS_TOML:-/usr/share/mios/mios.toml}"
-FB_TOKENS="$(grep -E '^[[:space:]]*firstboot_tokens[[:space:]]*=' "${_MIOS_TOML}" 2>/dev/null | sed -E 's/^[^=]*=//; s/[][",]/ /g')"
-shopt -s nullglob
-for QDIR in /usr/share/containers/systemd /etc/containers/systemd; do
-    [[ -d "${QDIR}" ]] || continue
-    for q in "${QDIR}"/*.container "${QDIR}"/*/*.container "${QDIR}"/*.image "${QDIR}"/*/*.image; do
-        [[ -f "$q" ]] || continue
-        name="$(basename "$q")"
-        if [[ -n "${FB_TOKENS// /}" ]]; then
-            _img="$(sed -nE 's/^Image=//p' "$q" | head -1)"
-            _fb=""
-            for _tok in ${FB_TOKENS}; do
-                [[ -n "$_tok" && "$_img" == *"$_tok"* ]] && { _fb=1; break; }
-            done
-            if [[ -n "$_fb" ]]; then
-                mios_skip "LBI: ${name} (firstboot tier -- web-pulled at first boot, not bound)"
-                continue
+if command -v miosd >/dev/null 2>&1; then
+    miosd overlay-bind-images --dest "${BDIR}"
+    mios_ok "LBI binding completed via miosd"
+else
+    # firstboot tier (mios.toml [build.bake].firstboot_tokens): a Quadlet whose Image=
+    # ref substring-matches a token is NOT logically bound -- it is a multi-GB GPU-
+    # engine whale evicted from the bake (generate-bake-plan.py -> plan.d/firstboot.list).
+    # Binding it would make bootc DEPLOY-pull ~47GB at install (breaking an offline USB
+    # deploy); instead its Quadlet web-pulls the image on first start (mios-ai-firstboot
+    # seeds the weights into /var; MiOS-Cat can pre-stage the image on a 128GB+ USB data
+    # partition). Degrade-open: if the token list can't be read, bind everything.
+    _MIOS_TOML="${MIOS_TOML:-/usr/share/mios/mios.toml}"
+    FB_TOKENS="$(grep -E '^[[:space:]]*firstboot_tokens[[:space:]]*=' "${_MIOS_TOML}" 2>/dev/null | sed -E 's/^[^=]*=//; s/[][",]/ /g')"
+    shopt -s nullglob
+    for QDIR in /usr/share/containers/systemd /etc/containers/systemd; do
+        [[ -d "${QDIR}" ]] || continue
+        for q in "${QDIR}"/*.container "${QDIR}"/*/*.container "${QDIR}"/*.image "${QDIR}"/*/*.image; do
+            [[ -f "$q" ]] || continue
+            name="$(basename "$q")"
+            if [[ -n "${FB_TOKENS// /}" ]]; then
+                _img="$(sed -nE 's/^Image=//p' "$q" | head -1)"
+                _fb=""
+                for _tok in ${FB_TOKENS}; do
+                    [[ -n "$_tok" && "$_img" == *"$_tok"* ]] && { _fb=1; break; }
+                done
+                if [[ -n "$_fb" ]]; then
+                    mios_skip "LBI: ${name} (firstboot tier -- web-pulled at first boot, not bound)"
+                    continue
+                fi
             fi
-        fi
-        ln -sf "${q}" "${BDIR}/${name}"
-        mios_log "LBI: bound ${name} (${q})"
+            ln -sf "${q}" "${BDIR}/${name}"
+            mios_log "LBI: bound ${name} (${q})"
+        done
     done
-done
-shopt -u nullglob
+    shopt -u nullglob
 
-# bootc install to-disk requires bound-images.d to contain ONLY symlinks --
-# a regular file there aborts the install with "Querying bound images: Not a
-# symlink: .gitkeep". The committed .gitkeep only exists to track the otherwise-
-# empty dir in git; the build creates the dir + populates the symlinks above, so
-# the placeholder is redundant in the image and MUST NOT ship. (Found via a
-# bootc install to-disk boot-verify of the Day-0 image.)
-rm -f "${BDIR}/.gitkeep"
-mios_log "LBI: stripped git-tracking .gitkeep (bootc install requires symlinks-only)"
+    # bootc install to-disk requires bound-images.d to contain ONLY symlinks --
+    # a regular file there aborts the install with "Querying bound images: Not a
+    # symlink: .gitkeep". The committed .gitkeep only exists to track the otherwise-
+    # empty dir in git; the build creates the dir + populates the symlinks above, so
+    # the placeholder is redundant in the image and MUST NOT ship. (Found via a
+    # bootc install to-disk boot-verify of the Day-0 image.)
+    rm -f "${BDIR}/.gitkeep"
+    mios_log "LBI: stripped git-tracking .gitkeep (bootc install requires symlinks-only)"
+fi
 
 # ═══ Pathing Compatibility ═══
 mios_step "pathing compatibility symlinks"
