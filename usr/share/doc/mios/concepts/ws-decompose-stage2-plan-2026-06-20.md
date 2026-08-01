@@ -53,7 +53,7 @@ keeping the Router a pure primary classifier.
    a `[ai].kernel_dispatch` flag (default off → old path) until each mode is
    proven, then flip the flag.
 4. **Remove the cascade** — once all modes delegate + the flag is on by default,
-   delete the inline `refined.get('intent')` cascade; `38-drift-checks`
+   delete the inline `refined.get('intent')` cascade; `98-drift-checks`
    `check_module_boundary` already guards the new modules from importing back.
 5. **Thread trace** — pass the WS-A8 trace id through `KERNEL.handle` so each
    mode handler opens a stage span under the request trace.

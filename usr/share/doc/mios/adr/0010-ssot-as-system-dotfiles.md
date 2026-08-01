@@ -1,5 +1,5 @@
 <!-- AI-hint: mios.toml IS the cross-platform system dotfiles-as-code. One SSOT + a [dotfiles.registry.<surface>] map + the generalized mios-theme-render/mios-dotfiles-render engine project EVERY declared dotfile to its real per-platform path (Linux/FHS, Windows+Registry, WSL), drift-gated both sides (Law 8), layered vendor<host<user (Law 1/13), one canonical name per surface (Law 9), no literals (Law 7). Generalizes the LANDED palette+btop projection (mios-theme-render + check 25) to the whole dotfile surface. Read before adding any dotfile, config file, or Install-MiOS* path. -->
-<!-- AI-related: usr/libexec/mios/mios-theme-render, usr/libexec/mios/mios-sync-theme, usr/lib/mios/mios_toml.py, tools/lib/userenv.sh, automation/38-drift-checks.sh (check 25), usr/share/mios/mios.toml [colors]/[theme]/[appearance]/[terminal]/[identity]/[btop], usr/share/mios/theme/templates/, Get-MiOS.ps1, usr/share/doc/mios/adr/0005-sovereign-run-off-m-drive.md, usr/share/doc/mios/adr/0008-mios-cat-unified-entry-and-minification.md, usr/share/doc/mios/adr/0009-unified-config-surface.md -->
+<!-- AI-related: usr/libexec/mios/mios-theme-render, usr/libexec/mios/mios-sync-theme, usr/lib/mios/mios_toml.py, tools/lib/userenv.sh, automation/98-drift-checks.sh (check 25), usr/share/mios/mios.toml [colors]/[theme]/[appearance]/[terminal]/[identity]/[btop], usr/share/mios/theme/templates/, Get-MiOS.ps1, usr/share/doc/mios/adr/0005-sovereign-run-off-m-drive.md, usr/share/doc/mios/adr/0008-mios-cat-unified-entry-and-minification.md, usr/share/doc/mios/adr/0009-unified-config-surface.md -->
 ---
 adr: 0010
 title: SSOT-as-system-dotfiles — one mios.toml projects every dotfile on every platform
@@ -48,7 +48,7 @@ dotfile domain, end to end, for the theme and now the `btop` config:
   Linux global refresh), resolved through the layered vendor `/usr` < host `/etc`
   < user `~/.config` twin (`usr/lib/mios/mios_toml.py` + `tools/lib/userenv.sh`),
   and CI-gated by `check_theme_projection` — **drift-check 25**
-  (`automation/38-drift-checks.sh` L1449) — which regenerates in-memory and
+  (`automation/98-drift-checks.sh` L1449) — which regenerates in-memory and
   byte-diffs the committed artifact (exit 1 on drift).
 - **Landed this session:** `mios-theme-render` gained a **settings-surface**
   concept — a surface whose registry entry carries a *third* element naming a
@@ -302,7 +302,7 @@ Costs:
 - `usr/lib/mios/mios_toml.py` + `tools/lib/userenv.sh` — the layered resolver, fed
   to the engine unchanged; the Windows `Get-MiosTomlValue` becomes a gated third
   twin (Law 13).
-- `automation/38-drift-checks.sh` — `check_theme_projection` (check 25, already
+- `automation/98-drift-checks.sh` — `check_theme_projection` (check 25, already
   auto-extended for `[btop]`) generalizes to `check_dotfiles_projection`; a new
   Windows-side `Test-MiOSProjection` gates registry/JSON/command sinks at runtime.
 - `Get-MiOS.ps1` — the scattered `Install-MiOS*` bodies collapse into thin
@@ -321,10 +321,10 @@ Costs:
   `mios.toml`, including the `[dotfiles.registry.*]` map:
   `0009-unified-config-surface.md`.
 - LANDED proof: `usr/libexec/mios/mios-theme-render` (settings-surface concept +
-  `[btop]` projection), gated by `automation/38-drift-checks.sh` `check_theme_projection`
+  `[btop]` projection), gated by `automation/98-drift-checks.sh` `check_theme_projection`
   (check 25, auto-extended); SSOT `usr/share/mios/mios.toml [btop]` (L9137).
 - Lineage: chezmoi (<https://www.chezmoi.io/>) render+copy discipline; NixOS
   home-manager declarative generations; the XDG Base Directory Spec; bootc/ostree
   3-way `/etc` merge.
 - MiOS Laws 1/7/8/9/13: `usr/share/mios/mios.toml [laws]`, enforced by
-  `automation/38-drift-checks.sh` + `automation/99-postcheck.sh` + `bootc container lint`.
+  `automation/98-drift-checks.sh` + `automation/99-postcheck.sh` + `bootc container lint`.

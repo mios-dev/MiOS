@@ -22,7 +22,7 @@ MiOS container builds and image composition pipelines execute across both local 
 - **Enforcement**:
   - `curl` invocations MUST include `--retry 3` (or higher), `--retry-delay`, and `--connect-timeout`.
   - Alternatively, use the `scurl` wrapper (`automation/lib/masking.sh`), which automatically injects `--retry 5 --retry-delay 3 --connect-timeout 20`.
-  - Monitored by `automation/38-drift-checks.sh` (Check 64: `check_curl_retry`).
+  - Monitored by `automation/98-drift-checks.sh` (Check 64: `check_curl_retry`).
 
 ### 3. Classification: Fatal vs. Degrade-Open
 - **FATAL (Core Binaries)**: Downloads required for core system binaries or base OS layers (e.g., core packages, base image layers) MUST fail the build cleanly on exit (`exit 1`).
@@ -34,7 +34,7 @@ MiOS container builds and image composition pipelines execute across both local 
 
 ## Related References & Gates
 
-- **Check 64 (curl/wget retries)**: `automation/38-drift-checks.sh`
+- **Check 64 (curl/wget retries)**: `automation/98-drift-checks.sh`
 - **Check 65 (nested-podman capabilities)**: [nested-podman-caps.md](file:///C:/MiOS/usr/share/doc/mios/reference/nested-podman-caps.md)
 - **Check 66 (bake-budget gate)**: `mios.toml [build.bake].runner_disk_budget_gb`
 - **Pre-flight URL probe**: [tools/check-build-urls.sh](file:///C:/MiOS/tools/check-build-urls.sh) (`just check-build-urls`)

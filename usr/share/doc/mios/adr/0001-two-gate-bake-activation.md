@@ -236,7 +236,7 @@ groups evolve toward two *built* images `mios-sys`/`mios-cuda`) and ADR-0003
 - `usr/share/mios/dropins/blade-<cap>.conf` + gate entries generated into
   `automation/41-mios-dropin-fanout.sh` from `[blade.requires]` (Law-8 generator +
   drift-check).
-- New drift-check in `automation/38-drift-checks.sh` (regenerate-and-diff the plan;
+- New drift-check in `automation/98-drift-checks.sh` (regenerate-and-diff the plan;
   assert whales ∈ core, full qualification, `referenced ⊆ emitted`).
 
 Deploy-time role selection degrades open to the `hybrid` superset across every

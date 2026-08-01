@@ -283,7 +283,7 @@ check_module_size() {
             violated=1
         fi
     done < <(find "${roots[@]}" -maxdepth 2 -name '*.py' -print0 2>/dev/null)
-    (( violated == 0 )) && echo "[38-drift-checks]   (NEW) module-size: all modules within ceiling"
+    (( violated == 0 )) && echo "[98-drift-checks]   (NEW) module-size: all modules within ceiling"
 }
 ```
 

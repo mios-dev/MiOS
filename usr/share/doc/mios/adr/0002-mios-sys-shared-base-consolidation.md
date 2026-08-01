@@ -200,7 +200,7 @@ Wave 0 — wiring (one-time, no service moves):
 - Add `MIOS_SYS_IMAGE` + `MIOS_CUDA_IMAGE` to the `userenv.sh` slot map **and to
   BOTH allowlists** in `automation/15-render-quadlets.sh` — the `envsubst`
   arg-string (line 73) and the bash-fallback loop (~L87–127);
-  `automation/38-ssot-lint.sh` fails the build if either end is missing (Law 7/8).
+  `automation/97-ssot-lint.sh` fails the build if either end is missing (Law 7/8).
 - `automation/57-mios-sys-build.sh` (new) — builds both images **into**
   `/usr/lib/containers/storage`, `--network=host --layers --mount=type=cache`,
   verify-or-fail-loud (mirrors `52–56-bake-*.sh` + the `38-hermes-agent.sh` venv /

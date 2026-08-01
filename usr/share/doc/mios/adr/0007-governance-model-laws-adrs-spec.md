@@ -1,5 +1,5 @@
 <!-- AI-hint: The governance model — laws are enforced invariants (fitness functions), ADRs are decisions, and a generated MiOS Spec renders both; read before "converting" laws to anything. -->
-<!-- AI-related: usr/share/mios/mios.toml [laws], usr/share/mios/mios.toml [conventions], automation/38-drift-checks.sh, automation/99-postcheck.sh, usr/share/doc/mios/adr/README.md, CLAUDE.md -->
+<!-- AI-related: usr/share/mios/mios.toml [laws], usr/share/mios/mios.toml [conventions], automation/98-drift-checks.sh, automation/99-postcheck.sh, usr/share/doc/mios/adr/README.md, CLAUDE.md -->
 ---
 adr: 0007
 title: Governance model — laws as fitness functions, ADRs as decisions, a generated MiOS Spec (OpenAI Model-Spec pattern)
@@ -22,7 +22,7 @@ Accepted — 2026-07-12.
 ## Context
 MiOS (an immutable `bootc`/OCI Fedora image that is also a local, OpenAI-compatible agentic AI OS; SSOT = `usr/share/mios/mios.toml`) accreted several overlapping governance artifacts:
 
-- the **13 architectural LAWS** — registered in `mios.toml [laws]` (the id/slug/`applies_to`/`enforced_by` numbering SSOT), described in `CLAUDE.md`, and enforced by `automation/38-drift-checks.sh` (offline), `automation/99-postcheck.sh` (at bake), and `bootc container lint`;
+- the **13 architectural LAWS** — registered in `mios.toml [laws]` (the id/slug/`applies_to`/`enforced_by` numbering SSOT), described in `CLAUDE.md`, and enforced by `automation/98-drift-checks.sh` (offline), `automation/99-postcheck.sh` (at bake), and `bootc container lint`;
 - soft **CONVENTIONS** (latest-packages, OpenAI-API-only, every-artifact-tracked, persistence-sanitization);
 - an **honesty rule** ("DONE = active *and* live-fired");
 - and now a set of **ADRs** (`usr/share/doc/mios/adr/`, ADR-0001..0006).
@@ -32,7 +32,7 @@ The operator asked whether the LAWS (and the rest) should be "converted to ADRs,
 ## Decision
 Keep **three distinct, cross-linked governance layers**; do **not** convert laws to ADRs.
 
-1. **LAWS = fitness functions (policy-as-code).** The 13 laws remain enforced INVARIANTS. Numbering SSOT: `mios.toml [laws]`. Enforcement: `38-drift-checks.sh` + `99-postcheck.sh` + `bootc container lint`. A law is a rule the build must never violate — not a decision. Laws evolve by editing the registry and its enforcement, never by "superseding an ADR."
+1. **LAWS = fitness functions (policy-as-code).** The 13 laws remain enforced INVARIANTS. Numbering SSOT: `mios.toml [laws]`. Enforcement: `98-drift-checks.sh` + `99-postcheck.sh` + `bootc container lint`. A law is a rule the build must never violate — not a decision. Laws evolve by editing the registry and its enforcement, never by "superseding an ADR."
 2. **ADRs = decisions (the why).** ADRs record point-in-time architectural decisions — including the decision to ESTABLISH or AMEND a law. Immutable, numbered, superseded-not-rewritten. An ADR's `laws[]` frontmatter cross-links the decision to the invariant it created or touches.
 3. **The MiOS Spec = the human/agent-readable rules doc, patterned on the OpenAI Model Spec.** A GENERATED reference (Law 8 SSOT-PROJECTION) under `usr/share/doc/mios/spec/`, rendered from `mios.toml [laws]` + a new `[conventions]` registry, using the Model Spec's hierarchy — hard **RULES** (the 13 laws) over soft **DEFAULTS** (conventions). Each entry carries: the statement, `applies_to`, `enforced_by` (the drift-check), and rationale (→ the establishing ADR). The drift-checks are the "**evals**" that enforce the Spec.
 
@@ -54,10 +54,10 @@ Net stack: **Spec (rules) ← ADRs (decisions) ← drift-checks (evals)** — al
 - The lifecycle is now explicit: **establishing a new law** = an ADR (the decision) + a `[laws]` registry row + a drift-check (the enforcement) → it appears in the generated Spec automatically. **Amending a law** = a new ADR + a registry/enforcement edit; the old ADR is superseded, but the law itself is edited in place (it is an invariant, not a historical record).
 
 ## Implementation
-- **Exists:** `usr/share/mios/mios.toml [laws]` (registry); `automation/38-drift-checks.sh` + `99-postcheck.sh` + `bootc container lint` (enforcement); `usr/share/doc/mios/adr/README.md` record table + `laws[]` cross-links (ADR↔law).
-- **PLANNED (WS-DOCS / DOCS-06):** `usr/share/mios/mios.toml [conventions]` (soft-defaults SSOT); `tools/generate-mios-spec.py` → `usr/share/doc/mios/spec/README.md` (Model-Spec-style, generated); a regenerate-and-diff drift-check in `38-drift-checks.sh`. `CLAUDE.md`/`AGENTS.md` then link to the generated Spec instead of re-stating the laws inline.
+- **Exists:** `usr/share/mios/mios.toml [laws]` (registry); `automation/98-drift-checks.sh` + `99-postcheck.sh` + `bootc container lint` (enforcement); `usr/share/doc/mios/adr/README.md` record table + `laws[]` cross-links (ADR↔law).
+- **PLANNED (WS-DOCS / DOCS-06):** `usr/share/mios/mios.toml [conventions]` (soft-defaults SSOT); `tools/generate-mios-spec.py` → `usr/share/doc/mios/spec/README.md` (Model-Spec-style, generated); a regenerate-and-diff drift-check in `98-drift-checks.sh`. `CLAUDE.md`/`AGENTS.md` then link to the generated Spec instead of re-stating the laws inline.
 
 ## References
 - OpenAI **Model Spec** — a hierarchical objectives/rules/defaults governing-rules document; the pattern for the MiOS Spec.
 - Architectural **fitness functions** / policy-as-code (OPA/conftest) — the pattern for laws-as-drift-checks.
-- [MADR](https://adr.github.io/madr/) (ADR format); MiOS ADR-0001..0006; `mios.toml [laws]`; `automation/38-drift-checks.sh`.
+- [MADR](https://adr.github.io/madr/) (ADR format); MiOS ADR-0001..0006; `mios.toml [laws]`; `automation/98-drift-checks.sh`.

@@ -1,5 +1,5 @@
 <!-- AI-hint: WS-A3 completion record -- the legacy datastore->Postgres+pgvector cutover for the agent CLIs: the mios-pg-query extended-protocol (--exec-json) parameter-binding keystone, parameterized knowledge eviction, the canonical pg kanban queue, the per-tool CLI SQL-injection fixes + dead legacy query dialect deletions, the drift-check 10 regression lock, and the explicitly-named deferred residuals (mios-daemon dead legacy query dialect + read-gating, mios-viking migration).
-     AI-related: ../../../../../usr/libexec/mios/mios-pg-query, ../../../../../usr/libexec/mios/mios-db, ../../../../../usr/lib/mios/agent-pipe/mios_evict.py, ../../../../../automation/38-drift-checks.sh -->
+     AI-related: ../../../../../usr/libexec/mios/mios-pg-query, ../../../../../usr/libexec/mios/mios-db, ../../../../../usr/lib/mios/agent-pipe/mios_evict.py, ../../../../../automation/98-drift-checks.sh -->
 # WS-A3 — the legacy datastore → Postgres cutover: parameterized eviction, canonical kanban, CLI SQL-safety
 
 Status: **offline-complete + gated** (operator live-tests in the VM). 2026-06-20.
@@ -54,7 +54,7 @@ vectors / text bind out-of-band. 36 byte-level wire asserts in
   `_pg_replace_directory_entries` — the latter splices filesystem paths + file
   content) via a signature-preserving internal rewrite (zero call-site churn for
   the runtime-critical daemon).
-- **Regression lock**: `38-drift-checks.sh` check (10) fails the gate if any
+- **Regression lock**: `98-drift-checks.sh` check (10) fails the gate if any
   libexec tool reintroduces `post_sql`/`_sql`/`:8000/sql`/`_pgesc`/`_pgq`.
 - **Build gate**: all `usr/libexec/mios/test_mios_*.py` now run in `build.sh`.
 

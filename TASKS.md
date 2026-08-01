@@ -409,9 +409,9 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 1. Enhance `tools/generate-pod-quadlets.py` to fully parse all `[pods.*]`, `[ports.*]`, `[containers.*]` from `mios.toml`.
 2. Emit `.container`, `.network`, `.volume` Quadlet units automatically at build time.
 3. Add `--check` flag that diffs generated units vs disk and exits non-zero on drift.
-4. Wire `--check` into `automation/38-drift-checks.sh`.
+4. Wire `--check` into `automation/98-drift-checks.sh`.
 
-**Files:** `tools/generate-pod-quadlets.py` | `automation/38-drift-checks.sh` | `Containerfile`
+**Files:** `tools/generate-pod-quadlets.py` | `automation/98-drift-checks.sh` | `Containerfile`
 
 **Deps:** None.
 
@@ -447,14 +447,14 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 ---
 
 ## T-007: A2 -- Agent Schema Drift Validator
-> **Priority:** P1 | **Status:** done-by-code | **Effort:** S | **Domain:** Orchestration/CI | **Source:** WS-A2 -- done-by-code: agent schema drift validator (38-drift-checks.sh).
+> **Priority:** P1 | **Status:** done-by-code | **Effort:** S | **Domain:** Orchestration/CI | **Source:** WS-A2 -- done-by-code: agent schema drift validator (98-drift-checks.sh).
 
 **Instructions:**
-1. Add `check_agent_schema()` to `automation/38-drift-checks.sh` (mirror `check_rbac_tiers` pattern, use `python3 + tomllib`).
+1. Add `check_agent_schema()` to `automation/98-drift-checks.sh` (mirror `check_rbac_tiers` pattern, use `python3 + tomllib`).
 2. FAIL on: (a) local/cli agent missing `health_gate=true`; (b) `kind=cli` without `timeout_s`/`enabled`; (c) `kind=node` without `api`+`lane`; (d) remote/edge/mobile without `health_gate=true`; (e) bare `:PORT` literal instead of `${MIOS_PORT_*}`; (f) not-exactly-1 `default=true`; (g) unknown key.
 3. Register in `main()` after `check_rbac_tiers`.
 
-**Files:** `automation/38-drift-checks.sh`
+**Files:** `automation/98-drift-checks.sh`
 
 **Deps:** T-006 (A1).
 
@@ -1174,7 +1174,7 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 ---
 
 ## T-042: C4 -- Port Collapse (Render PublishPort from `[ports]` SSOT)
-> **Priority:** P2 | **Status:** done-by-code | **Effort:** M | **Domain:** Ops/Networking | **Source:** WS-C4 (WS-0B) -- done-by-code: extended generator to resolve ports, added check_container_ports to 38-drift-checks.sh, and cleaned up guacamole/searxng container files to load install.env and avoid literal ports.
+> **Priority:** P2 | **Status:** done-by-code | **Effort:** M | **Domain:** Ops/Networking | **Source:** WS-C4 (WS-0B) -- done-by-code: extended generator to resolve ports, added check_container_ports to 98-drift-checks.sh, and cleaned up guacamole/searxng container files to load install.env and avoid literal ports.
 
 **Instructions:**
 1. Extend Quadlet generator to render `PublishPort=` from `[ports.<name>]` SSOT.
@@ -2002,13 +2002,13 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Instructions:**
 1. Add `[storage.cephfs]` block to `usr/share/mios/mios.toml` with all fields defaulted to safe no-op values (`enable = false`, `monitors = ["127.0.0.1:6789"]` placeholder, etc.). Full schema in ROADMAP.md Â§9.5.
 2. Wire SSOT vars into `userenv.sh`: `MIOS_CEPHFS_ENABLE`, `MIOS_CEPHFS_MONITORS`, `MIOS_CEPHFS_FS_NAME`, `MIOS_CEPHFS_TENANT_ID`, `MIOS_CEPHFS_DATA_POOL_HOT`, `MIOS_CEPHFS_DATA_POOL_BULK`, `MIOS_XDG_CACHE_LOCAL_PATH`.
-3. Add `check_cephfs_ssot` stub to `automation/38-drift-checks.sh` (FAIL if `enable=true` but `monitors` is still the `127.0.0.1` placeholder). Full drift-check implemented in T-093.
+3. Add `check_cephfs_ssot` stub to `automation/98-drift-checks.sh` (FAIL if `enable=true` but `monitors` is still the `127.0.0.1` placeholder). Full drift-check implemented in T-093.
 4. Add `[storage.cephfs]` section to the configurator HTML "Storage" tab (static form only; no back-end call needed).
 
 **Files:**
 - `usr/share/mios/mios.toml` -- new `[storage.cephfs]` block
 - `usr/share/mios/mios-configurator/userenv.sh` -- MIOS_CEPHFS_* exports
-- `automation/38-drift-checks.sh` -- `check_cephfs_ssot` stub
+- `automation/98-drift-checks.sh` -- `check_cephfs_ssot` stub
 
 **Deps:** None.
 
@@ -2261,7 +2261,7 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 > **Priority:** P3 | **Status:** done | **Effort:** S | **Domain:** Storage/CI | **Source:** Part 9 Â§9.6 Phase 4
 
 **Instructions:**
-1. Implement `check_cephfs_ssot` in `automation/38-drift-checks.sh` (register in `main()` after `check_rbac_tiers`). FAIL on:
+1. Implement `check_cephfs_ssot` in `automation/98-drift-checks.sh` (register in `main()` after `check_rbac_tiers`). FAIL on:
    a. `enable=true` AND `monitors` still contains the `127.0.0.1:6789` placeholder
    b. `xdg_cache_home_override` value contains any CephFS mount path prefix (detect by matching `[storage.cephfs].monitors` hostnames or `/tenants/` path segment)
    c. `data_pool_hot` == `data_pool_bulk` (distinct pools required)
@@ -2270,7 +2270,7 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 2. Create `usr/share/doc/mios/guides/cephfs-xdg-storage.md` covering: architecture diagram (from ROADMAP Â§9), cache isolation rule, single-operator quickstart (cephadm bootstrap â†’ `mios.toml enable=true` â†’ firstboot re-run), multi-tenant extension path, known caveats (systemd-homed conflicts, fscache + LUKS interaction).
 
 **Files:**
-- `automation/38-drift-checks.sh` -- `check_cephfs_ssot` function
+- `automation/98-drift-checks.sh` -- `check_cephfs_ssot` function
 - `usr/share/doc/mios/guides/cephfs-xdg-storage.md` (new)
 
 **Deps:** T-084 (STRG-01), T-087 (STRG-04), T-090 (STRG-07).
@@ -2353,7 +2353,7 @@ T-084 (STRG-01 SSOT)
 | `usr/lib/mios/agent-pipe/server.py` | T-006, T-007, T-008, T-009, T-010, T-011, T-012, T-013, T-014, T-019, T-020, T-021, T-023, T-024, T-025, T-027, T-028, T-029, T-030, T-031, T-033, T-034, T-035, T-036, T-037, T-039, T-040, T-043, T-047, T-048, T-051, T-052, T-053, T-059, T-062, T-063, T-067, T-068, T-077 |
 | `usr/share/mios/mios.toml` | T-003, T-005, T-006, T-019, T-020, T-021, T-023, T-026, T-033, T-034, T-035, T-036, T-037, T-043, T-047, T-048, T-049, T-050, T-053, T-062, T-064, T-065, T-076, T-077, T-078, T-079, T-080, T-081, T-082 |
 | `usr/libexec/mios/mios-pc-control` | T-038, T-065, T-073 |
-| `automation/38-drift-checks.sh` | T-005, T-007 |
+| `automation/98-drift-checks.sh` | T-005, T-007 |
 | `usr/share/mios/postgres/schema-init.sql` | T-028, T-030, T-034, T-060, T-068, T-076, T-078 |
 | `Containerfile` | T-003, T-005, T-032, T-050, T-069, T-073, T-083 |
 | `tools/generate-pod-quadlets.py` | T-005, T-042, T-069 |
@@ -2376,7 +2376,7 @@ T-084 (STRG-01 SSOT)
 | `usr/share/mios/systemd/mios-xdg-userdir-init.service` (new) | T-091 |
 | `usr/share/mios/xdg/user-dirs.defaults` (new) | T-091 |
 | `/etc/greenboot/check/wanted.d/55-mios-cephfs.sh` (new) | T-092 |
-| `automation/38-drift-checks.sh` (`check_cephfs_ssot`) | T-084, T-093 |
+| `automation/98-drift-checks.sh` (`check_cephfs_ssot`) | T-084, T-093 |
 | `usr/share/doc/mios/guides/cephfs-xdg-storage.md` (new) | T-093 |
 
 ---
@@ -2395,13 +2395,13 @@ T-084 (STRG-01 SSOT)
 **Instructions:**
 1. Add the full `[converge.gateway]`, `[converge.inference]`, `[converge.memory]`, `[converge.image]` block set to `usr/share/mios/mios.toml`. Full schema in ROADMAP.md Â§10.5. All flags default to `false` / `"http"` / `0` / `"dual"` (backward-compatible no-ops).
 2. Wire SSOT vars into `userenv.sh`: `MIOS_CONV_GATEWAY_MODE`, `MIOS_CONV_GATEWAY_QUEUE_MAXSIZE`, `MIOS_CONV_GATEWAY_WORKER_CONCURRENCY`, `MIOS_CONV_INFERENCE_HEAVY_ENGINE_MODE`, `MIOS_CONV_MEMORY_SQLITE_VEC_ENABLE`, `MIOS_CONV_MEMORY_COLD_EVICT_ENABLE`, `MIOS_CONV_IMAGE_DISTROLESS_ENABLE`, `MIOS_CONV_IMAGE_RECHUNK_ENABLE`.
-3. Add `check_converge_ssot` stub to `automation/38-drift-checks.sh` (register in `main()` after `check_cephfs_ssot`). Stub always passes; full checks implemented in T-099, T-104, T-108.
+3. Add `check_converge_ssot` stub to `automation/98-drift-checks.sh` (register in `main()` after `check_cephfs_ssot`). Stub always passes; full checks implemented in T-099, T-104, T-108.
 4. Add `[converge]` section (collapsible) to the MiOS configurator HTML (`usr/share/mios/mios-configurator/mios.html`).
 
 **Files:**
 - `usr/share/mios/mios.toml` â€” new `[converge.*]` blocks
 - `usr/share/mios/mios-configurator/userenv.sh` â€” MIOS_CONV_* exports
-- `automation/38-drift-checks.sh` â€” `check_converge_ssot` stub
+- `automation/98-drift-checks.sh` â€” `check_converge_ssot` stub
 
 **Deps:** None.
 
@@ -2541,7 +2541,7 @@ T-084 (STRG-01 SSOT)
 
 **Files:**
 - `usr/lib/mios/agent-pipe/server.py` â€” two new endpoints
-- `automation/38-drift-checks.sh` â€” `check_converge_ssot` extended
+- `automation/98-drift-checks.sh` â€” `check_converge_ssot` extended
 - `usr/lib/mios/agent-pipe/test_lora_endpoints.py` (new)
 
 **Deps:** T-094 (CONV-01), T-098 (CONV-05 vLLM multi-LoRA).
@@ -2681,7 +2681,7 @@ T-084 (STRG-01 SSOT)
    - Delete them.
    - Log `event(kind="cold_retention_sweep", deleted=N, cutoff_days=D)`.
    - Gate: `MIOS_CONV_MEMORY_COLD_EVICT_ENABLE=true`.
-2. Extend `check_converge_ssot` in `automation/38-drift-checks.sh` with Phase 3 rules:
+2. Extend `check_converge_ssot` in `automation/98-drift-checks.sh` with Phase 3 rules:
    a. `cold_storage_dir` must NOT be inside a CephFS mount path (check against `MIOS_CEPHFS_MONITORS` host prefix or `/tenants/` path segment) â€” cold archives are node-local, not distributed.
    b. `cold_retention_days` must be >= 1.
    c. `cold_zstd_level` must be between 1 and 19.
@@ -2690,7 +2690,7 @@ T-084 (STRG-01 SSOT)
 
 **Files:**
 - `usr/lib/mios/agent-pipe/server.py` â€” `_cold_retention_sweep` in eviction task
-- `automation/38-drift-checks.sh` â€” Phase 3 checks in `check_converge_ssot`
+- `automation/98-drift-checks.sh` â€” Phase 3 checks in `check_converge_ssot`
 - `usr/share/doc/mios/guides/memory-tiering.md` (new)
 
 **Deps:** T-102 (CONV-09 cold eviction), T-094 (CONV-01 SSOT).
@@ -2714,13 +2714,13 @@ T-084 (STRG-01 SSOT)
    - Stage 1 (builder): `FROM python:3.13-slim AS builder`. `RUN apt-get install gcc libsqlite3-dev`. `RUN python -m venv /opt/venv`. `COPY requirements.txt .`. `RUN /opt/venv/bin/pip install --no-cache-dir -r requirements.txt`.
    - Stage 2 (runtime): `FROM gcr.io/distroless/python3-debian13`. `COPY --from=builder /opt/venv /opt/venv`. `COPY usr/lib/mios/agent-pipe/ /app/`. `ENV PATH=/opt/venv/bin:$PATH PYTHONPATH=/opt/venv/lib/python3.13/site-packages`. `USER 65534:65534`. `EXPOSE 8640`. `CMD ["/opt/venv/bin/uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8640", "--workers", "1", "--loop", "uvloop"]`.
 2. Verify the Quadlet (`mios-agent-pipe.container`) propagates `MIOS_AI_ENDPOINT` via `Environment=MIOS_AI_ENDPOINT=%i` or similar â€” NOT sourced from `profile.d`. Add `Environment=MIOS_AI_ENDPOINT=...` line if missing.
-3. Add `check_hummingbird` stub to `38-drift-checks.sh` (full checks in T-108).
+3. Add `check_hummingbird` stub to `98-drift-checks.sh` (full checks in T-108).
 4. Gate: `Containerfile.hummingbird` is used instead of `Containerfile` only when `MIOS_CONV_IMAGE_DISTROLESS_ENABLE=true`. Default `Containerfile` is unchanged.
 
 **Files:**
 - `Containerfile.hummingbird` (new)
 - `usr/share/containers/systemd/mios-agent-pipe.container` â€” `Environment=MIOS_AI_ENDPOINT` line
-- `automation/38-drift-checks.sh` â€” `check_hummingbird` stub
+- `automation/98-drift-checks.sh` â€” `check_hummingbird` stub
 
 **Deps:** T-095 (CONV-02 merged process â€” required for single CMD entrypoint).
 
@@ -2789,7 +2789,7 @@ T-084 (STRG-01 SSOT)
 **Files:**
 - `automation/build/rechunk.sh` (new)
 - `Justfile` â€” `rechunk` recipe (additive)
-- `automation/38-drift-checks.sh` â€” `check_rechunk_env` in `check_converge_ssot`
+- `automation/98-drift-checks.sh` â€” `check_rechunk_env` in `check_converge_ssot`
 
 **Deps:** T-094 (CONV-01 SSOT).
 
@@ -2805,7 +2805,7 @@ T-084 (STRG-01 SSOT)
 > **Priority:** P3 | **Status:** done | **Effort:** S | **Domain:** CI/Docs | **Source:** Part 10 Â§10.6 Phase 4 -- done-by-code: check_hummingbird + hummingbird-distroless.md (eb654e3, 3c7cb5f).
 
 **Instructions:**
-1. Implement full `check_hummingbird` function in `automation/38-drift-checks.sh` (register in `main()` after `check_converge_ssot`):
+1. Implement full `check_hummingbird` function in `automation/98-drift-checks.sh` (register in `main()` after `check_converge_ssot`):
    a. If `MIOS_CONV_IMAGE_DISTROLESS_ENABLE=true`: FAIL if `Containerfile.hummingbird` does not exist.
    b. FAIL if `Containerfile.hummingbird` final-stage `USER` line is not `USER 65534` or `USER 65534:65534` (Law 6).
    c. FAIL if `/bin/bash` appears in `Containerfile.hummingbird` final stage (no bash in distroless).
@@ -2820,7 +2820,7 @@ T-084 (STRG-01 SSOT)
    - rechunk quickstart (`just rechunk`).
 
 **Files:**
-- `automation/38-drift-checks.sh` â€” full `check_hummingbird` function
+- `automation/98-drift-checks.sh` â€” full `check_hummingbird` function
 - `usr/share/doc/mios/guides/hummingbird-distroless.md` (new)
 
 **Deps:** T-105 (CONV-12 distroless Containerfile), T-107 (CONV-14 rechunk).
@@ -2847,7 +2847,7 @@ T-084 (STRG-01 SSOT)
 
 **Instructions:** Execute Wave 4 of `MIOS-CHATQ-FV-WORKPLAN.md`: move `reflexion_enable` + loop budgets into a real `[agent_pipe]` SSOT block; replace the `server.py:835/3314` literals with SSOT reads; add a normalized no-progress signature + per-turn failed-`(tool,args)` blacklist + `max_consecutive_failures` escalation off the failure signal (not the give-up branch); enforce `wall_clock_budget_s`; wire the structured `reflect_on_step_failure` into the native/`@` path (emit-or-terminate, kept internal). Drift-gate every budget key has a code consumer.
 
-**Files:** `usr/share/mios/mios.toml [agent_pipe]`; `.../agent-pipe/mios_pipe/routing/secondary_loop.py` (44-60, 265, 345-408); `.../server.py` (835, 3314); `.../routing/native_loop.py`; `.../routing/reflect.py`; `automation/38-drift-checks.sh`.
+**Files:** `usr/share/mios/mios.toml [agent_pipe]`; `.../agent-pipe/mios_pipe/routing/secondary_loop.py` (44-60, 265, 345-408); `.../server.py` (835, 3314); `.../routing/native_loop.py`; `.../routing/reflect.py`; `automation/98-drift-checks.sh`.
 
 **Done When:**
 - [x] `reflexion_enable` + budgets read from `[agent_pipe]`; no `[agent]`/literal fallbacks remain (drift-gate green)
@@ -3054,7 +3054,7 @@ T-094 (CONV-01 SSOT)
 | `usr/share/containers/systemd/mios-agent-pipe.container` | T-105 |
 | `Containerfile.hummingbird` (new) | T-105, T-108 |
 | `automation/build/rechunk.sh` (new) | T-107 |
-| `automation/38-drift-checks.sh` | T-094, T-099, T-104, T-105, T-107, T-108 |
+| `automation/98-drift-checks.sh` | T-094, T-099, T-104, T-105, T-107, T-108 |
 | `usr/share/doc/mios/guides/inference-consolidation.md` (new) | T-100 |
 | `usr/share/doc/mios/guides/memory-tiering.md` (new) | T-104 |
 | `usr/share/doc/mios/guides/hummingbird-distroless.md` (new) | T-108 |
@@ -3079,7 +3079,7 @@ T-094 (CONV-01 SSOT)
 
 **Instructions:** Pick ONE authoritative `[ports]` table (the 8xxx renumber appears intended -- it is what `install.env`/the live lanes use). Propagate it: (1) sync `C:\mios-bootstrap\mios.toml` `[ports]` to match `C:\MiOS`; (2) resolve every code literal (T-121) from `${MIOS_PORT_*}`; (3) document the container-INTERNAL vs host-published port distinction if the 11xxx values are internal. Add a drift-check that fails when the two repos' `[ports]` tables diverge.
 
-**Files:** `usr/share/mios/mios.toml` `[ports]` (~7615-7646), `C:\mios-bootstrap\mios.toml` `[ports]`, `automation/38-drift-checks.sh`.
+**Files:** `usr/share/mios/mios.toml` `[ports]` (~7615-7646), `C:\mios-bootstrap\mios.toml` `[ports]`, `automation/98-drift-checks.sh`.
 
 **Done When:**
 - [x] one `[ports]` table is authoritative and identical across both repos (drift-check enforces it)
@@ -3133,11 +3133,11 @@ T-094 (CONV-01 SSOT)
 - [x] non-English / paraphrased inputs route identically (no ASCII-keyword regression)
 
 ## T-125: NOHC-06 -- Extend NO-HARDCODE enforcement to ports/IPs in code (not just dates/.container)  [P2]
-> **Priority:** P2 | **Status:** done | **Effort:** M | **Domain:** CI/Enforcement | **Source:** ports audit 2026-07-04 -- `usr/libexec/mios/mios-hardcode-lint` only checks date-literals + header/BOM; `check_container_ports` in `38-drift-checks.sh` only scans `.container` Quadlets. Port/IP hardcodes in `.py`/`.sh`/`.ps1` are currently UNENFORCED -- which is how the 22 T-121 sites accumulated.
+> **Priority:** P2 | **Status:** done | **Effort:** M | **Domain:** CI/Enforcement | **Source:** ports audit 2026-07-04 -- `usr/libexec/mios/mios-hardcode-lint` only checks date-literals + header/BOM; `check_container_ports` in `98-drift-checks.sh` only scans `.container` Quadlets. Port/IP hardcodes in `.py`/`.sh`/`.ps1` are currently UNENFORCED -- which is how the 22 T-121 sites accumulated.
 
 **Instructions:** Add a `check_code_ports_ips` gate: flag bare port literals (`:\d{4,5}` / `localhost:\d+` / `127.0.0.1:\d+`) and routable IPv4 literals in code logic, with an SSOT allowlist for legitimate exceptions (loopback binds, `0.0.0.0`, documented `172.16/12`, upstream image refs, test fixtures, RFC1918 comments). Wire into `mios-hardcode-lint` + `just drift-gate`. Seed the allowlist from the audit's "NOT violations" set.
 
-**Files:** `usr/libexec/mios/mios-hardcode-lint`, `automation/38-drift-checks.sh`, `usr/share/mios/mios.toml` (allowlist SSOT).
+**Files:** `usr/libexec/mios/mios-hardcode-lint`, `automation/98-drift-checks.sh`, `usr/share/mios/mios.toml` (allowlist SSOT).
 
 **Done When:**
 - [x] the gate flags a newly-introduced `:8640` literal in a `.py`/`.sh` and passes on the cleaned tree (post T-121)
@@ -3493,7 +3493,7 @@ T-094 (CONV-01 SSOT)
 > **Priority:** P2 | **Status:** planned | **Effort:** XL | **Domain:** SSOT/Cross-cutting | **Source:** operator directive 2026-07-10.
 
 **Instructions:** Collapse every authored name in MiOS (TOML keys, `MIOS_*` env vars, verbs, `globals.sh`/`.ps1` consts, configurator `data-key`s, emitters — ~1,290 today) onto ONE unified names/keys registry that is the naming SSOT. **No translation layer** — delete the 418-entry `userenv.sh` key→env table + the `globals` mirror; every surface sources the same canonical identifier directly from the one registry (generated, never mapped). **Fold similar** capabilities into one parametric entry; keep exactly one name per capability (minimal, combined). **NO loss of functionality** — rename/collapse only, via a compat-shim phase. Full workflow, convention, phased migration + drift-gate: `usr/share/doc/mios/reference/naming-unification.md`.
-**Files:** `usr/share/mios/names.toml` (new registry) or `mios.toml [names]`, `tools/lib/userenv.sh` + `usr/lib/mios/userenv.sh` (delete table → generic sourcing), `automation/lib/globals.sh`/`.ps1`, `usr/lib/mios/mios_toml.py`, `automation/38-drift-checks.sh` (new gate), `usr/share/doc/mios/reference/naming-unification.md`.
+**Files:** `usr/share/mios/names.toml` (new registry) or `mios.toml [names]`, `tools/lib/userenv.sh` + `usr/lib/mios/userenv.sh` (delete table → generic sourcing), `automation/lib/globals.sh`/`.ps1`, `usr/lib/mios/mios_toml.py`, `automation/98-drift-checks.sh` (new gate), `usr/share/doc/mios/reference/naming-unification.md`.
 **Done When:**
 - [ ] one unified names/keys registry is the SSOT; every surface is generated from / sources it (no authored per-name mapping or translation anywhere)
 - [ ] similar capabilities folded to one parametric entry; one canonical name per capability; legacy names + the userenv table deleted; zero functional regression
@@ -3503,14 +3503,14 @@ T-094 (CONV-01 SSOT)
 > **Priority:** P1 | **Status:** planned | **Effort:** L | **Domain:** Install/Deploy/SSOT | **Source:** operator directive 2026-07-10 (surfaced by the clean reinstall debug).
 
 **Instructions:** Refactor + reorder the install and first-boot pipeline into a logical dependency DAG so a "missing dependency / prerequisite-not-ready / artifact-not-built" state is structurally impossible. (1) Model the producer→consumer DAG across `automation/NN-*.sh` + the `*-firstboot` units; encode edges as systemd `After=`/`Requires=`/`ConditionPathExists=`. (2) Replace fixed timeouts with readiness gates (poll the real health/socket/row/file signal + `Restart=on-failure`). (3) Make every producer atomic + retried + idempotent + completeness-self-checking (the `38-hermes-agent.sh` venv fix — install `-r requirements.txt` in one retried transaction — is the reference pattern; apply to the webtools/sandbox image builds, GGUF/vLLM fetch, forge bootstrap). (4) Topologically reorder the overlay/automation sequence. (5) Add a drift-gate that fails the build on any consumer-before-producer edge (missing `After=`/`Condition*=`). Full plan: `usr/share/doc/mios/reference/install-ordering.md`.
-**Files:** `automation/38-hermes-agent.sh` (done), `usr/libexec/mios/mios-ai-firstboot`, `usr/libexec/mios/mios-webtools-firstboot.sh`, `usr/libexec/mios/forge-firstboot.sh`, the `*-firstboot`/`38-*` units + their `.service` `After=`/`Condition*=`, `automation/build.sh`, `automation/38-drift-checks.sh` (new gate), `usr/share/doc/mios/reference/install-ordering.md`.
+**Files:** `automation/38-hermes-agent.sh` (done), `usr/libexec/mios/mios-ai-firstboot`, `usr/libexec/mios/mios-webtools-firstboot.sh`, `usr/libexec/mios/forge-firstboot.sh`, the `*-firstboot`/`38-*` units + their `.service` `After=`/`Condition*=`, `automation/build.sh`, `automation/98-drift-checks.sh` (new gate), `usr/share/doc/mios/reference/install-ordering.md`.
 **Done When:**
 - [ ] every consumer step is gated on its producer's real readiness (no fixed-timeout aborts); every producer is atomic + retried + idempotent + completeness-checked
 - [ ] a clean `podman-MiOS-DEV` reinstall deploys a fully-working system (AI plane + forge + webtools) with zero "missing dependency" failures
 - [ ] a drift-gate fails the build on any consumer-before-producer edge; `just drift-gate` + `test_mios_*` green
 
 
-<!-- Consolidation note: carried forward 11 NEW actionable tasks (T-167..T-177) from the 9 top-level 2026-06-14/15 plan docs. Everything else in those plans is ALREADY a T-* or already shipped in code: G3->T-049, G5->T-062/T-064, G6->T-035, G7->T-045/T-072/T-061, G8/K1->T-111, G10->T-011/T-051/T-022, G11->T-003/T-004, G2-arbiter->T-033 (+shipped mios-policy-arbiter), K5->T-037/T-026, W0-T1 SSOT-lint->shipped (38-ssot-lint.sh), W2-T1 passport->T-001/T-010/T-012/T-014, W2-T3 tracing->T-023, and the entire WS-A/B/C/D/E/H + tool-consolidation initiatives->shipped in code. Those are NOT duplicated below. -->
+<!-- Consolidation note: carried forward 11 NEW actionable tasks (T-167..T-177) from the 9 top-level 2026-06-14/15 plan docs. Everything else in those plans is ALREADY a T-* or already shipped in code: G3->T-049, G5->T-062/T-064, G6->T-035, G7->T-045/T-072/T-061, G8/K1->T-111, G10->T-011/T-051/T-022, G11->T-003/T-004, G2-arbiter->T-033 (+shipped mios-policy-arbiter), K5->T-037/T-026, W0-T1 SSOT-lint->shipped (97-ssot-lint.sh), W2-T1 passport->T-001/T-010/T-012/T-014, W2-T3 tracing->T-023, and the entire WS-A/B/C/D/E/H + tool-consolidation initiatives->shipped in code. Those are NOT duplicated below. -->
 <!-- Format matches TASKS.md; header line adds Who (agent/role) + Source per the consolidation brief. Status judged from codebase greps, not from plan-doc intent. -->
 
 ---
@@ -4125,7 +4125,7 @@ T-094 (CONV-01 SSOT)
 ## T-242: VECTOR-00 -- V0 Foundation: unified DB + provenance + DB->TOML materialize + drift-gate  [P1]
 > **Priority:** P1 | **Status:** completed (implemented lossless DB-to-TOML materialize tool and drift checks) | **Effort:** M | **Domain:** AI-plane/SSOT/DB | **Who:** DB/build agent | **Source:** WS-VECTOR ultracode survey 2026-07-10; usr/share/doc/mios/reference/everything-db-driven.md
 **Instructions (WHAT + HOW):** Land the unified pgvector DB in /var with emb/emb_model/emb_version provenance columns; add the INVERSE DB->TOML materialize step (today only TOML->DB seeds); make the verb round-trip LOSSLESS (section/examples/model_name/hidden/aliases/conflict_group/parallel_limit/max_result_chars all survive TOML<->DB); add drift-gate 29 (drift_projection) that regenerates TOML from DB and diffs (theme check-25 pattern, now across the build boundary). No behavior change yet.
-**Where (files):** usr/share/mios/postgres/schema-init.sql, usr/libexec/mios/seed-db-config.py (+ a new DB->TOML materialize peer), automation/38-drift-checks.sh (check 29)
+**Where (files):** usr/share/mios/postgres/schema-init.sql, usr/libexec/mios/seed-db-config.py (+ a new DB->TOML materialize peer), automation/98-drift-checks.sh (check 29)
 **When (deps/order):** First -- foundation for V1-V5; depends on nothing beyond the running mios-pgvector.
 **Done When:**
 - [x] the V2 surface is DB-driven per the WS-VECTOR law (DB read at runtime, TOML fail-open) with no functionality loss
@@ -4167,7 +4167,7 @@ T-094 (CONV-01 SSOT)
 ## T-247: VECTOR-05 -- V5 Invert authority: DB=SSOT, TOML=generated export, event-sourced  [P3]
 > **Priority:** P3 | **Status:** planned | **Effort:** XL | **Domain:** SSOT/DB/Configurator | **Who:** platform architect | **Source:** WS-VECTOR ultracode survey 2026-07-10; usr/share/doc/mios/reference/everything-db-driven.md
 **Instructions (WHAT + HOW):** Flip authority: the DB is the SSOT and mios.toml becomes a generated EXPORT (materialized for the next image build). The configurator (mios.html) CRUDs the DB (emitting config_event); install/build/config/account mutations become append-only event-sourced with time-travel + rollback, aligned to bootc atomic-upgrade. Flip per-surface only after V1-V4 read-paths + drift-gates are all green.
-**Where (files):** usr/share/mios/configurator/mios.html, usr/share/mios/postgres/schema-init.sql (config_event + event-sourcing), automation/38-drift-checks.sh, the DB->TOML materialize
+**Where (files):** usr/share/mios/configurator/mios.html, usr/share/mios/postgres/schema-init.sql (config_event + event-sourcing), automation/98-drift-checks.sh, the DB->TOML materialize
 **When (deps/order):** LAST -- after V0-V4 are green per-surface. The terminal state of WS-VECTOR.
 **Done When:**
 - [ ] the V7 surface is DB-driven per the WS-VECTOR law (DB read at runtime, TOML fail-open) with no functionality loss
@@ -4177,7 +4177,7 @@ T-094 (CONV-01 SSOT)
 ## T-248: BAKE-01 -- Two-gate `[build.bake]` core allow-list + projected bake-plan + `.image` whales  [P1]
 > **Priority:** P1 | **Status:** completed | **Effort:** L | **Domain:** Build/Bake | **Who:** build agent | **Source:** WS-BAKEGATE / Part 21; core bake-gate + universal-core study; `Containerfile`/`mios-bake-group` shipped this session
 **Instructions (WHAT + HOW):** Phase 0 is DONE -- the monolithic bound-images `RUN` (exit-125 on disk-constrained runners) was sharded heavy-first into `usr/libexec/mios/mios-bake-group` (new) + `mios.toml [build].bake_groups` (L8470-8475) + five per-group `RUN`s in `Containerfile` (L181-190, `--mount=type=cache`, never `--squash`). Remaining structural work: add a `[build.bake]` SSOT section (a `core` allow-list = fixed SSOT-independent membership; `groups`/`group_members.*`); add `tools/generate-bake-plan.py` invoked by new `automation/16-bake-plan.sh` (after `15-render-quadlets.sh`) that reads through `usr/lib/mios/mios_toml.py` and emits CORE members UNCONDITIONALLY (the one branch where "core overrides SSOT" lives) + à-la-carte members iff enable-true into `/usr/lib/mios/bake/plan.d/NN-<group>.list`; add `.image` Quadlets for the whales (`mios-llm-heavy.image` + `mios-llm-heavy-alt.image`) symlinked by `08-system-files-overlay.sh` (~L178); add a regenerate-and-diff drift-check asserting both whales in `core`, all fully-qualified, referenced ⊆ emitted. Deletes the Containerfile's inline Quadlet scraping (Law 7/8).
-**Where (files):** `usr/share/mios/mios.toml` (`[build.bake]`), `tools/generate-bake-plan.py` (new), `automation/16-bake-plan.sh` (new), `automation/08-system-files-overlay.sh`, `automation/38-drift-checks.sh`, `usr/share/containers/systemd/mios-llm-heavy.image` + `mios-llm-heavy-alt.image` (new), `usr/libexec/mios/mios-bake-group`, `Containerfile`
+**Where (files):** `usr/share/mios/mios.toml` (`[build.bake]`), `tools/generate-bake-plan.py` (new), `automation/16-bake-plan.sh` (new), `automation/08-system-files-overlay.sh`, `automation/98-drift-checks.sh`, `usr/share/containers/systemd/mios-llm-heavy.image` + `mios-llm-heavy-alt.image` (new), `usr/libexec/mios/mios-bake-group`, `Containerfile`
 **When (deps/order):** Phase 0 done; structural next. Interlocks with T-250 (bake groups collapse toward sys/cuda) + T-251 (digest-free SSOT).
 **Done When:**
 - [x] `just drift-gate` regenerates `plan.d/*.list` and diffs clean; the check FAILS if a whale leaves `core`, a core member is not fully-qualified, or referenced ⊄ emitted; the Containerfile carries no inline Quadlet `sed`-scraping.
@@ -4192,8 +4192,8 @@ T-094 (CONV-01 SSOT)
 
 ## T-250: MIOSSYS-01 -- mios-sys + mios-cuda shared-base consolidation of the sidecar fleet  [P1]
 > **Priority:** P1 | **Status:** done | **Effort:** XL | **Domain:** Build/Consolidation | **Who:** build agent | **Source:** WS-MIOSSYS / Part 21; MiOS-Sys consolidation study; [[mios-release-topology]]
-**Instructions (WHAT + HOW):** Replace the ~18-image sidecar fleet (~60GB, zero shared base blobs) with TWO images of one base lineage, both `FROM ${BASE_IMAGE}` (ucore-hci:stable-nvidia): `localhost/mios-sys` (CUDA-free, ~6-8GB) + `localhost/mios-cuda` (shared CUDA/torch/flashinfer L2 + `vllm-venv`/`sglang-venv` + `llama-server`, ~15-18GB). Use Model A (one IMAGE, many CONTAINERS -- shared `Image=`, per-service `Exec=`, per-unit `User=`/`Group=`/`Condition*` unchanged). New `automation/57-mios-sys-build.sh` (+ generated `usr/share/mios/{sys,cuda}/Containerfile`); `[image.sys]`/`[image.cuda]` blocks; `MIOS_SYS_IMAGE`/`MIOS_CUDA_IMAGE` through `userenv.sh` + BOTH allowlists in `automation/15-render-quadlets.sh` (envsubst L73 + bash-fallback ~L87-127) + `38-ssot-lint.sh`. Per-member Quadlet delta is a pure SSOT edit (repoint `Image=`, add `Exec=`); `[build].bake_groups` → sys/cuda/extra. Migrate in Waves 0-3 (Wave 1 Go-binary tier; Wave 2 interpreted + k3s/runner binaries; Wave 3 mios-cuda + DB tier behind a smoke test). Ceph = KEEP-SEPARATE.
-**Where (files):** `usr/share/mios/mios.toml` (`[image.sys]`/`[image.cuda]`/`[build].bake_groups`), `automation/57-mios-sys-build.sh` (new), `usr/share/mios/{sys,cuda}/Containerfile` (generated), `automation/15-render-quadlets.sh`, `automation/38-ssot-lint.sh`, `automation/14-generate-quadlets.sh`, `usr/libexec/mios/mios-bake-group`, `Containerfile`, the ~18 `usr/share/containers/systemd/*.container` members
+**Instructions (WHAT + HOW):** Replace the ~18-image sidecar fleet (~60GB, zero shared base blobs) with TWO images of one base lineage, both `FROM ${BASE_IMAGE}` (ucore-hci:stable-nvidia): `localhost/mios-sys` (CUDA-free, ~6-8GB) + `localhost/mios-cuda` (shared CUDA/torch/flashinfer L2 + `vllm-venv`/`sglang-venv` + `llama-server`, ~15-18GB). Use Model A (one IMAGE, many CONTAINERS -- shared `Image=`, per-service `Exec=`, per-unit `User=`/`Group=`/`Condition*` unchanged). New `automation/57-mios-sys-build.sh` (+ generated `usr/share/mios/{sys,cuda}/Containerfile`); `[image.sys]`/`[image.cuda]` blocks; `MIOS_SYS_IMAGE`/`MIOS_CUDA_IMAGE` through `userenv.sh` + BOTH allowlists in `automation/15-render-quadlets.sh` (envsubst L73 + bash-fallback ~L87-127) + `97-ssot-lint.sh`. Per-member Quadlet delta is a pure SSOT edit (repoint `Image=`, add `Exec=`); `[build].bake_groups` → sys/cuda/extra. Migrate in Waves 0-3 (Wave 1 Go-binary tier; Wave 2 interpreted + k3s/runner binaries; Wave 3 mios-cuda + DB tier behind a smoke test). Ceph = KEEP-SEPARATE.
+**Where (files):** `usr/share/mios/mios.toml` (`[image.sys]`/`[image.cuda]`/`[build].bake_groups`), `automation/57-mios-sys-build.sh` (new), `usr/share/mios/{sys,cuda}/Containerfile` (generated), `automation/15-render-quadlets.sh`, `automation/97-ssot-lint.sh`, `automation/14-generate-quadlets.sh`, `usr/libexec/mios/mios-bake-group`, `Containerfile`, the ~18 `usr/share/containers/systemd/*.container` members
 **When (deps/order):** Locked ops decisions: newest-packages tagged-at-build; ALL core consolidates; k3s binary consolidated (HA-compatible, privileged activation unchanged) + Pacemaker/corosync HA CORE; on-CVE/on-release rebuild; mios-cuda bake-scope deferred to Wave 3. Enabler of T-252 GitHub-equality; complements T-248 Phase 0 (sharding kept as safety margin).
 **Done When:**
 - [x] the bound-image store drops to ~25GB with the largest single commit capped at the ~12GB CUDA/torch group; `generate-pod-quadlets.py --check` validates the regenerated `Image=`/`Exec=`; every `User=`/root-exception byte-identical (Law 6 untouched); a WSL blade still won't start pxe-hub though its binary is baked.
@@ -4201,7 +4201,7 @@ T-094 (CONV-01 SSOT)
 ## T-251: SBOM-01 -- Extend build-time provenance beyond images (model/package hashes)  [P2]
 > **Priority:** P2 | **Status:** done | **Effort:** M | **Domain:** SBOM/Provenance | **Who:** build agent | **Source:** WS-SBOM / Part 21; [[mios-sbom-not-hardcode]]
 **Instructions (WHAT + HOW):** DONE -- ALL 12 hand-pinned `@sha256` digests stripped from `mios.toml` (0 remaining), 27 Quadlets regenerated digest-free (0 `@sha256` in rendered Quadlets; digest-drift gate green), and `mios-bake-group` records each resolved digest to `/usr/share/mios/artifacts/sbom/bound-images.tsv` (L173-178). Build-resolved SHA-256 hashes for downloaded GGUF models (`automation/38-llamacpp-prep.sh`), Safetensors model weights (`automation/38-vllm-prep.sh`), and downloaded binary/assets (`automation/38-oh-my-posh.sh`, `automation/42-cosign-policy.sh`, `automation/13-ceph-k3s.sh`, `automation/10-gnome.sh`, `automation/09-fonts.sh`) are calculated and recorded to `/usr/share/mios/artifacts/sbom/models.tsv` and `binaries.tsv`.
-**Where (files):** `automation/38-llamacpp-prep.sh`, `automation/38-vllm-prep.sh`, `automation/38-oh-my-posh.sh`, `automation/42-cosign-policy.sh`, `automation/13-ceph-k3s.sh`, `automation/10-gnome.sh`, `automation/09-fonts.sh`, `automation/38-drift-checks.sh`
+**Where (files):** `automation/38-llamacpp-prep.sh`, `automation/38-vllm-prep.sh`, `automation/38-oh-my-posh.sh`, `automation/42-cosign-policy.sh`, `automation/13-ceph-k3s.sh`, `automation/10-gnome.sh`, `automation/09-fonts.sh`, `automation/98-drift-checks.sh`
 **When (deps/order):** images DONE; interlocks with T-250 (digest-lock floating `:latest` sources at Wave 0) + T-252 (newest packages, tagged at build).
 **Done When:**
 - [x] no hand-maintained `@sha256`/checksum literal remains in `mios.toml` or scripts for a runtime-pinned artifact; each resolved hash appears in the SBOM; the digest/checksum drift-checks validate build-resolved values.
@@ -4233,7 +4233,7 @@ T-094 (CONV-01 SSOT)
 ## T-255: DOCS -- Planning-docs refactor (ADR system + generated index + lean thematic roadmap + Diátaxis)  [P1]
 > **Priority:** P1 | **Status:** done | **Effort:** L | **Domain:** Docs/Meta | **Who:** docs/tooling agent | **Source:** WS-DOCS / Part 21; planning-docs refactor plan + ADR-0007
 **What/Why:** Solidify the refactor into cohesive, AI-agent-native docs matching upstream patterns (MADR ADRs · KEP-style WS metadata · Diátaxis · Keep-a-Changelog+SemVer · OpenAI-Model-Spec-style rules doc · `llms.txt`/`AGENTS.md`) so a future agent starts a workstream from ONE self-contained file.
-**Where (files):** `usr/share/doc/mios/adr/*` (done), `tools/roadmap-index.py` (done), `automation/38-drift-checks.sh`, `ROADMAP.md`, `TASKS.md`, `usr/share/doc/mios/roadmap/history/*`, `CHANGELOG.md`, `llms.txt`, `AGENTS.md`
+**Where (files):** `usr/share/doc/mios/adr/*` (done), `tools/roadmap-index.py` (done), `automation/98-drift-checks.sh`, `ROADMAP.md`, `TASKS.md`, `usr/share/doc/mios/roadmap/history/*`, `CHANGELOG.md`, `llms.txt`, `AGENTS.md`
 **When (deps/order):** DOCS-01 done → DOCS-02 (schema+generator) → DOCS-03 (lean roadmap+archive) → DOCS-04 (retag) + DOCS-05 (Diátaxis) + DOCS-06 (MiOS Spec).
 **Done When:**
 - [x] ADR system: README + ADR-0001..0007 accepted; every Part-21 WS backed by an ADR; governance model recorded (ADR-0007).
@@ -4259,8 +4259,8 @@ T-094 (CONV-01 SSOT)
 
 ## T-258: CAT-03 -- `[cat]` SSOT block + fix the dangling `drivepath`/`medicatver`/`cache_path` reads  [P1]
 > **Priority:** P1 | **Status:** planned | **Effort:** M | **Domain:** Deploy/Cat/SSOT | **Who:** SSOT/installer agent | **Source:** WS-CAT / ADR-0008; MiOS-Cat unification plan §5.2/§6
-**Instructions (WHAT + HOW):** MiOS-Cat today reads `..\..\..\..\mios.toml` (the 63 KB root seed copy) and looks for `drivepath`, `medicatver`, `cache_path` — keys that **exist in no `mios.toml`** — so it silently uses hardcoded defaults (a Law 7 NO-HARDCODE + Law 8 SSOT-PROJECTION violation). Add a `[cat]` block to the real SSOT `usr/share/mios/mios.toml`: `drivepath`, `medicatver`, `cache_path`, `repo_partition.label = "MiOS-Repo"`, `data_partition.label = "MiOS-Data"`, `data_partition.min_disk_gb = 512`, and `models` (a reference to `[ai].bake_models`). Repoint MiOS-Cat to resolve the 597 KB SSOT (through the shared `mios_toml` resolver), not the seed. Add a `automation/38-drift-checks.sh` check that the `[cat]`/`[colors]` reads resolve.
-**Where (files):** `usr/share/mios/mios.toml` (new `[cat]` block), `C:\mios-bootstrap\cat\MiOS-Cat.{ps1,sh}` + `cat\lib\` (SSOT resolve), `automation/38-drift-checks.sh` (new check)
+**Instructions (WHAT + HOW):** MiOS-Cat today reads `..\..\..\..\mios.toml` (the 63 KB root seed copy) and looks for `drivepath`, `medicatver`, `cache_path` — keys that **exist in no `mios.toml`** — so it silently uses hardcoded defaults (a Law 7 NO-HARDCODE + Law 8 SSOT-PROJECTION violation). Add a `[cat]` block to the real SSOT `usr/share/mios/mios.toml`: `drivepath`, `medicatver`, `cache_path`, `repo_partition.label = "MiOS-Repo"`, `data_partition.label = "MiOS-Data"`, `data_partition.min_disk_gb = 512`, and `models` (a reference to `[ai].bake_models`). Repoint MiOS-Cat to resolve the 597 KB SSOT (through the shared `mios_toml` resolver), not the seed. Add a `automation/98-drift-checks.sh` check that the `[cat]`/`[colors]` reads resolve.
+**Where (files):** `usr/share/mios/mios.toml` (new `[cat]` block), `C:\mios-bootstrap\cat\MiOS-Cat.{ps1,sh}` + `cat\lib\` (SSOT resolve), `automation/98-drift-checks.sh` (new check)
 **When (deps/order):** After T-256. Interlocks with T-266 (seed-copy provenance) — confirm the 63 KB→597 KB relationship before repointing.
 **Done When:**
 - [ ] no MiOS-Cat value is hardcoded that has an SSOT home; `[cat]` + `[colors]` reads resolve against `usr/share/mios/mios.toml`; the drift-check fails if a `[cat]` key is missing.
@@ -4324,7 +4324,7 @@ T-094 (CONV-01 SSOT)
 ## T-266: CATFLAT-03 -- mios.toml seed-copy consolidation (flag → fix)  [P3]
 > **Priority:** P3 | **Status:** done-by-code | **Effort:** M | **Domain:** Deploy/Cat/SSOT | **Who:** SSOT agent | **Source:** WS-CATFLAT / ADR-0008; MiOS-Cat unification plan §5.2
 **Instructions (WHAT + HOW):** Resolve the `mios.toml` seed-copy question: the SSOT is `C:\MiOS\usr\share\mios\mios.toml` (597 KB); the root `C:\MiOS\mios.toml` (63 KB) and `C:\mios-bootstrap\mios.toml` (68 KB) are seed/derived copies. Determine which is canonical vs generated, document the seed→SSOT relationship, and (if seeds are generated) wire their regeneration + a drift-check. MiOS-Cat must read ONLY the 597 KB SSOT (paired with T-258). This is the root cause of the T-258 dangling-read bug — confirm the relationship before/with repointing.
-**Where (files):** `C:\MiOS\usr\share\mios\mios.toml` (SSOT), `C:\MiOS\mios.toml` + `C:\mios-bootstrap\mios.toml` (seeds), the seed generator (if any), `automation/38-drift-checks.sh`
+**Where (files):** `C:\MiOS\usr\share\mios\mios.toml` (SSOT), `C:\MiOS\mios.toml` + `C:\mios-bootstrap\mios.toml` (seeds), the seed generator (if any), `automation/98-drift-checks.sh`
 **When (deps/order):** Pairs with T-258 (SSOT repoint). Lowest priority; the T-258 fix can land with a documented assumption and this closes it.
 **Done When:**
 - [x] one documented SSOT + explicitly-generated seeds (or a documented decision to keep them); MiOS-Cat reads only the 597 KB SSOT; a drift-check guards seed↔SSOT drift.
@@ -4340,7 +4340,7 @@ T-094 (CONV-01 SSOT)
 ## T-268: DEBT-01 -- Collapse version/SSOT to one value (TD-2)  [P1]
 > **Priority:** P1 | **Status:** done-by-code | **Effort:** M | **Domain:** Build/SSOT/Version | **Who:** SSOT/build agent | **Source:** WS-DEBT / ADR-0011; combined tech-debt map §1 (TD-2, re-measured)
 **Instructions (WHAT + HOW):** Kill the version/SSOT triplication measured live: there are **3× `mios.toml`** — canonical `usr/share/mios/mios.toml` (10,869 ln) plus two diverged roots `C:\MiOS\mios.toml` (says **0.2.4**) and `C:\mios-bootstrap\mios.toml` — while `VERSION` and SSOT `mios_version` are both **0.3.0**, compounded by **37× hardcoded `v0.2.4`** (and 29× `v0.2.0`) in `automation/*.sh` headers. Collapse to one projected version token: strip the literal `vX.Y.Z` from all script headers (project from `[meta].mios_version` at render time — Law 7); make the two root `mios.toml` **generated projections of the SSOT** (or delete them), documenting the seed→SSOT relationship (pairs with T-266); add two drift-checks — "no literal version in headers" and "root `mios.toml` ⊆ SSOT". Near-zero-risk, highest-reach: a build resolving the wrong 7×-smaller copy silently ships a stale manifest. Directly closes the Law 9 / ADR-0009 violation. NOTE: the two `C:\mios-bootstrap` MiOS-Cat launcher files are owned by a concurrent agent — do not touch `cat\MiOS-Cat.bat`/`.ps1`.
-**Where (files):** `C:\MiOS\VERSION`, `C:\MiOS\mios.toml`, `C:\mios-bootstrap\mios.toml`, `C:\MiOS\usr\share\mios\mios.toml` (`[meta].mios_version`), all `automation/*.sh` headers, `automation/38-drift-checks.sh` (two new checks)
+**Where (files):** `C:\MiOS\VERSION`, `C:\MiOS\mios.toml`, `C:\mios-bootstrap\mios.toml`, `C:\MiOS\usr\share\mios\mios.toml` (`[meta].mios_version`), all `automation/*.sh` headers, `automation/98-drift-checks.sh` (two new checks)
 **When (deps/order):** Phase −1, near-zero-risk; unblocks WS-LANG (T-272) and the rest of WS-DEBT. Interlocks with T-266 (seed-copy provenance).
 **Done When:**
 - [x] one authoritative version token; no literal `v0.2.4`/`v0.2.0` remains in `automation/*.sh` headers; the two root `mios.toml` are generated-or-deleted and drift-gated (`root ⊆ SSOT`); a build can no longer resolve a stale copy.
@@ -4356,7 +4356,7 @@ T-094 (CONV-01 SSOT)
 ## T-270: DOTFILES-01 -- `[dotfiles.registry.*]` + `mios-dotfiles-render` + `apply` verb + both-sides gate  [P1]
 > **Priority:** P1 | **Status:** done-by-code | **Effort:** L | **Domain:** Dotfiles/SSOT | **Who:** SSOT/theme agent | **Source:** WS-DOTFILES / ADR-0010; SSOT-as-dotfiles design dossier
 **Instructions (WHAT + HOW):** Generalize the LANDED palette+btop projection into `mios.toml` = the cross-platform system dotfiles. **Landed proof (this session, DONE):** `usr/libexec/mios/mios-theme-render` gained a **settings-surface** concept, `[btop]` (~60 keys) projects the whole `etc/btop/btop.conf` unified Linux+Windows, and drift-check 25 (`check_theme_projection`) auto-extended and is proven green. **This task (planned):** (1) Promote the hardcoded Python `SURFACES` dict into an SSOT-authored `[dotfiles.registry.<surface>]` map — per-platform `target.<os>`; `kind` = template/json-merge/registry/command/skip; `format`; `sources`; `platforms`; `condition` — transcribing the existing color+btop surfaces first (pure refactor, check 25 stays green). (2) Fork `mios-theme-render` → `mios-dotfiles-render`: registry from `mios_toml.load_merged()`, `@MIOS:<section>.<key>@` arbitrary-key tokens, format-aware `merge` preserving foreign keys (WT/VS Code `settings.json` never clobbered), per-platform target resolution, and a new **`apply`/`diff` verb writing to live HOME** (`~/.config`, `%USERPROFILE%`, `%LOCALAPPDATA%`). (3) Add the new domains `[shell]`/`[editor]`/`[git]`(→`[identity]`, Law 9)/`[ssh]`(`secret_ref`, raw keys never in SSOT). (4) Generalize `check_theme_projection` (check 25) → `check_dotfiles_projection` over the full registry; add the Windows runtime half `Test-MiOSProjection`; collapse the scattered `Install-MiOS*` bodies into thin registry-driven `Sync-MiOSDotfiles` calls; add a `mios dotfiles apply/diff/drift` verb (`[verbs.dotfiles_*]`).
-**Where (files):** `usr/share/mios/mios.toml` (`[dotfiles.registry.*]`, `[shell]`/`[editor]`/`[git]`/`[ssh]`; existing `[colors]`/`[theme]`/`[appearance]`/`[terminal]`/`[identity]`/`[btop]` stay as content), `usr/libexec/mios/mios-theme-render` (reference; forks to `mios-dotfiles-render`, kept as back-compat alias), `usr/libexec/mios/mios-sync-theme`, `usr/lib/mios/mios_toml.py` + `tools/lib/userenv.sh`, `automation/38-drift-checks.sh` (check 25 → `check_dotfiles_projection`), `C:\mios-bootstrap\Get-MiOS.ps1` (`Sync-MiOSDotfiles`/`Test-MiOSProjection`), `usr/bin/mios`
+**Where (files):** `usr/share/mios/mios.toml` (`[dotfiles.registry.*]`, `[shell]`/`[editor]`/`[git]`/`[ssh]`; existing `[colors]`/`[theme]`/`[appearance]`/`[terminal]`/`[identity]`/`[btop]` stay as content), `usr/libexec/mios/mios-theme-render` (reference; forks to `mios-dotfiles-render`, kept as back-compat alias), `usr/libexec/mios/mios-sync-theme`, `usr/lib/mios/mios_toml.py` + `tools/lib/userenv.sh`, `automation/98-drift-checks.sh` (check 25 → `check_dotfiles_projection`), `C:\mios-bootstrap\Get-MiOS.ps1` (`Sync-MiOSDotfiles`/`Test-MiOSProjection`), `usr/bin/mios`
 **When (deps/order):** No hard dep (palette+btop already land). Interlocks with T-267 (the Portal edits the `[dotfiles.registry.*]` map) and ADR-0005/0008 (the overlay carries across deployments). OPEN QUESTIONS: secrets store per platform; a deployment-type enum for `condition` (ADR-0010).
 **Done When:**
 - [x] the color+btop surfaces are registry-driven with check 25 green; a `[theme].opacity` edit projects to Linux CSS + the WT `json-merge` block + the WSL bridge with foreign keys intact and both gates pass; `mios dotfiles apply` writes live HOME; no `Install-MiOS*` value is hand-typed that has an SSOT home.
@@ -4364,15 +4364,15 @@ T-094 (CONV-01 SSOT)
 ## T-271: TEMPLATE-01 -- Compiled file-pattern system + `mios new` + conformance check + Law-14  [P1]
 > **Priority:** P1 | **Status:** done-by-code | **Effort:** L | **Domain:** Build/Templates | **Who:** tooling/docs agent | **Source:** WS-TEMPLATE / ADR-0011; combined tech-debt map §3
 **Instructions (WHAT + HOW):** Build the global compiled-template system so an agent learns MiOS formatting from a few files. Author ~15 templates (`bash`, `python-tool`, `python-module`, `rust`, `typescript`, `powershell`, `toml-config`, `yaml`, `json-schema`, `markdown-doc`, `adr`, `roadmap`, `systemd-unit`, `quadlet` [generated], `automation-step`) under `usr/share/mios/templates/`, each = the shared AI-hint header block (produced by the same `usr/libexec/mios/mios-ai-tag` engine — header stays single-sourced) + a small per-type body skeleton whose structure is ALSO validated (closing the gap where only the header is checked). Declare each in SSOT (`[templates.<type>]`: `match`/`comment`/`required_header`/`required_markers`/`generated`/`scaffold`). Land the scaffolder first as Python `usr/libexec/mios/mios-new` (`mios new <type> <name>`, reusing `mios-ai-tag`, filling canonical fields — next ADR number, next `automation/NN` ordinal, canonical ports/endpoints — from SSOT and registering the canonical name via `tools/generate-names-registry.py`), then absorb into `miosd scaffold`. Add a golden round-trip compiler (`tools/compile-templates.py`) and a `check_template_conformance` drift-check (Python worker, mirroring `check_hint_coverage → mios-ai-hint-coverage`, degrade-open, soft→hard ratchet; `check_hint_coverage` becomes its header-subset). `generated=true` types refuse to scaffold an editable file (scaffold the generator + its `mios.toml` section — Law 8 authoritative). **Candidate Law 14 (ONE-TEMPLATE-PER-TYPE):** per ADR-0007 a new law = this ADR + a `[laws]` registry row (id 14) + `check_template_conformance` as its `enforced_by` — **the `[laws]` edit and enforcement are OPERATOR-GATED; do NOT edit the `[laws]` table without confirmation.**
-**Where (files):** `usr/share/mios/templates/*.tmpl` (new, ~15), `usr/share/mios/mios.toml` (`[templates]` schema; candidate `[laws]` id-14 row — OPERATOR-GATED), `usr/libexec/mios/mios-new` (new), `usr/libexec/mios/mios-ai-tag` (reused), `tools/compile-templates.py` (new), `automation/38-drift-checks.sh` (`check_template_conformance`), `usr/bin/mios` + `Justfile` (`mios new`/`just new`)
+**Where (files):** `usr/share/mios/templates/*.tmpl` (new, ~15), `usr/share/mios/mios.toml` (`[templates]` schema; candidate `[laws]` id-14 row — OPERATOR-GATED), `usr/libexec/mios/mios-new` (new), `usr/libexec/mios/mios-ai-tag` (reused), `tools/compile-templates.py` (new), `automation/98-drift-checks.sh` (`check_template_conformance`), `usr/bin/mios` + `Justfile` (`mios new`/`just new`)
 **When (deps/order):** No hard dep (Python-first, offline-deterministic); folds into WS-LANG's `miosd` (T-272) once the Rust workspace exists. OPEN QUESTIONS: Law-14 operator confirmation; the next free drift-check number.
 **Done When:**
 - [x] `mios new <type> <name>` produces a conformant file that passes `check_template_conformance` + the golden compiler; a template that can't produce a conformant file fails the build; the header check is the header-subset of conformance; Law-14 is proposed with enforcement wired, `[laws]` row awaiting operator sign-off.
 
 ## T-272: LANG-01 -- Stand up the Rust workspace + port the first fragile bash tool  [P1]
 > **Priority:** P1 | **Status:** done-by-code | **Effort:** L | **Domain:** Build/Lang | **Who:** native-tooling agent | **Source:** WS-LANG / ADR-0011; combined tech-debt map §2/§4/§5
-**Instructions (WHAT + HOW):** Begin the language-per-domain unification. Create the cargo workspace (crates behind one `miosd` static musl binary, subcommands `build|drift|verb|resolve|render|cat|scaffold|fmt`) built once in an early **cached Containerfile stage** and `COPY`'d to `/usr/libexec/mios/miosd`, invoked by **thin RUNs** so the immutable-image contract holds (Law 8 strengthened — `miosd render`/`drift`/`fmt` are the same regenerate-and-diff gate). Port the **first** fragile bash tool — either the **drift-runner** (`automation/38-drift-checks.sh`, 44 `check_*` in ~3.1k ln bash — highest resilience win, lowest coupling; several checks are already Python-in-bash) or the **verb dispatcher** (removes the 9-verb `eval` surface) — running old+new **side-by-side and diffing to identical** before deleting the bash. Collapse the Law-13 resolver twin (`usr/lib/mios/mios_toml.py` ⇄ `tools/lib/userenv.sh`) into one crate exposing a `--shell` KEY=VAL emitter + a pyo3 face, ending the parity drift (retire `check_userenv_parity`). **OPEN QUESTION — native-workspace location:** `C:\MiOS\src\` is already occupied by the in-tree C# `mios-launch.cs` + `autounattend/`, so the cargo workspace goes elsewhere (candidate `C:\MiOS\tools\native\` or `src\mios-rs\`) — do NOT clobber `src/`. Go is rejected as a second native tier (documented escape hatch only). The 66 `automation/NN-*.sh` OS-touching steps stay shell-thin; the AI plane stays Python.
-**Where (files):** the new cargo workspace (location OPEN — `C:\MiOS\tools\native\` or `src\mios-rs\`), `Containerfile` (early cached Rust stage + `COPY`), `automation/build.sh` (→ 20-line shim), `automation/38-drift-checks.sh` (checks ported one at a time), `usr/lib/mios/mios_toml.py` + `tools/lib/userenv.sh` (collapse to the crate), `C:\MiOS\src\mios-launch.cs` (later folds into `miosd cat`)
+**Instructions (WHAT + HOW):** Begin the language-per-domain unification. Create the cargo workspace (crates behind one `miosd` static musl binary, subcommands `build|drift|verb|resolve|render|cat|scaffold|fmt`) built once in an early **cached Containerfile stage** and `COPY`'d to `/usr/libexec/mios/miosd`, invoked by **thin RUNs** so the immutable-image contract holds (Law 8 strengthened — `miosd render`/`drift`/`fmt` are the same regenerate-and-diff gate). Port the **first** fragile bash tool — either the **drift-runner** (`automation/98-drift-checks.sh`, 44 `check_*` in ~3.1k ln bash — highest resilience win, lowest coupling; several checks are already Python-in-bash) or the **verb dispatcher** (removes the 9-verb `eval` surface) — running old+new **side-by-side and diffing to identical** before deleting the bash. Collapse the Law-13 resolver twin (`usr/lib/mios/mios_toml.py` ⇄ `tools/lib/userenv.sh`) into one crate exposing a `--shell` KEY=VAL emitter + a pyo3 face, ending the parity drift (retire `check_userenv_parity`). **OPEN QUESTION — native-workspace location:** `C:\MiOS\src\` is already occupied by the in-tree C# `mios-launch.cs` + `autounattend/`, so the cargo workspace goes elsewhere (candidate `C:\MiOS\tools\native\` or `src\mios-rs\`) — do NOT clobber `src/`. Go is rejected as a second native tier (documented escape hatch only). The 66 `automation/NN-*.sh` OS-touching steps stay shell-thin; the AI plane stays Python.
+**Where (files):** the new cargo workspace (location OPEN — `C:\MiOS\tools\native\` or `src\mios-rs\`), `Containerfile` (early cached Rust stage + `COPY`), `automation/build.sh` (→ 20-line shim), `automation/98-drift-checks.sh` (checks ported one at a time), `usr/lib/mios/mios_toml.py` + `tools/lib/userenv.sh` (collapse to the crate), `C:\MiOS\src\mios-launch.cs` (later folds into `miosd cat`)
 **When (deps/order):** After T-268 (one version token) + T-269 (shellcheck gate) — Phase −1 unblocks the port. OPEN QUESTIONS: native-workspace location; Go escape-hatch; pyo3-vs-subprocess for the AI-plane resolver binding.
 **Done When:**
 - [x] `miosd` bakes in a cached stage and is invoked by unchanged thin RUNs; the first ported tool runs byte-identical to the bash it replaces (side-by-side diff clean), then the bash is deleted; the resolver twin is one crate with pyo3 + `--shell` faces and `check_userenv_parity` is retired.
@@ -4380,7 +4380,7 @@ T-094 (CONV-01 SSOT)
 ## T-273: DEBT-03 -- Split `mios_dispatch.py` + finish the server.py decomposition (TD-5)  [P2]
 > **Priority:** P2 | **Status:** done-by-code | **Effort:** M | **Domain:** AI-Plane/Refactor | **Who:** AI-plane agent | **Source:** WS-DEBT / ADR-0011; combined tech-debt map §1 (TD-5)
 **Instructions (WHAT + HOW):** Finish the half-done AI-plane decomposition. `server.py` is an **8,961-ln** god-module (VRAM scheduler + `_db_*` + auth middleware + agent streaming intermixed); the `mios_pipe/` refactor (103 files, 100% hint-tagged) never reached the 4 largest flat modules — including **`mios_dispatch.py`, the security-critical verb→bash chokepoint every verb passes through**. Extract `mios_dispatch.py` FIRST into `mios_pipe/`, then continue extracting the flat modules; replace the **9 bare `except:`** (of 558 `except Exception`); add a new drift-check "no Python file > 800 lines". Relocation ≠ decomposition — also split the 3 relocated 88–107 KB monoliths (`routing/chat.py`, `native_loop.py`, `federation/a2a.py`) where feasible. Python stays (Law 6, ML ecosystem) — the debt is the monolith, not the language.
-**Where (files):** `usr/lib/mios/agent-pipe/server.py`, `usr/lib/mios/agent-pipe/mios_dispatch.py`, `usr/lib/mios/agent-pipe/mios_pipe/**` (incl. `routing/chat.py`, `native_loop.py`, `federation/a2a.py`), `automation/38-drift-checks.sh` (>800-line gate)
+**Where (files):** `usr/lib/mios/agent-pipe/server.py`, `usr/lib/mios/agent-pipe/mios_dispatch.py`, `usr/lib/mios/agent-pipe/mios_pipe/**` (incl. `routing/chat.py`, `native_loop.py`, `federation/a2a.py`), `automation/98-drift-checks.sh` (>800-line gate)
 **When (deps/order):** Independent track (Python, pure refactor); `check_unwired_modules` confirms each extraction is live. No hard dep.
 **Done When:**
 - [x] `mios_dispatch.py` is extracted and live (`check_unwired_modules` green); `server.py` shrinks toward a <800-line composition root; no bare `except:` remains; the >800-line Python gate is green.

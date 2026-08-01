@@ -189,7 +189,7 @@ This document is the lossless consolidation of all historical and active MiOS ro
 # Part 2: MIOS-ROADMAP-2026-06-22.md
 
 <!-- AI-hint: The canonical MiOS roadmap (2026-06-22). Synthesizes four adversarial research workflows (OWUI location, AIOS+multi-agent+pod audit, pod consolidation, agent-template) + a live fix session into pick-up-able tasks for any IDE agent. Each task: id, priority, files, what/why, acceptance criteria, deps. Includes an honest claim-vs-reality register (trust the engineering-blueprint, not the triumphant MEMORY.md).
-     AI-related: ./e2e-test-matrix-2026-06-21.md, ./install-robustness-2026-06-21.md, ../mios.toml, ../../../lib/mios/agent-pipe/server.py, ../../../../tools/generate-pod-quadlets.py, ../../../../automation/38-drift-checks.sh -->
+     AI-related: ./e2e-test-matrix-2026-06-21.md, ./install-robustness-2026-06-21.md, ../mios.toml, ../../../lib/mios/agent-pipe/server.py, ../../../../tools/generate-pod-quadlets.py, ../../../../automation/98-drift-checks.sh -->
 # MiOS Roadmap — 2026-06-22
 
 ## How this was built + how to use it
@@ -232,7 +232,7 @@ Gates: 🖥️ operator-VM/bare-metal · 🔌 needs egress · ✅ done this sess
 ---
 
 ## WS-A — Multi-agent / orchestrator (the agent system)
-*Source: audit `wbkbuti2o`, agent-template `wuy193d96`. Files: `usr/lib/mios/agent-pipe/server.py`, `usr/share/mios/mios.toml`, `usr/libexec/mios/opencode-gateway/server.py`, `automation/38-drift-checks.sh`.*
+*Source: audit `wbkbuti2o`, agent-template `wuy193d96`. Files: `usr/lib/mios/agent-pipe/server.py`, `usr/share/mios/mios.toml`, `usr/libexec/mios/opencode-gateway/server.py`, `automation/98-drift-checks.sh`.*
 
 ### A1 — Unified `[agents.*]` template + `_defaults` inheritance + one merge path  **[P1]**
 *Claim-vs-reality:* agent config is ad-hoc — `hermes` declared `health_gate`, `opencode` didn't; the loader `_load_agent_registry` (server.py:3852) defaults `health_gate=False` (:3893) while the node-loader defaults it safely to `not _is_local` (:3993). That divergence **is** the `merged_chars=0` root cause.
@@ -242,8 +242,8 @@ Gates: 🖥️ operator-VM/bare-metal · 🔌 needs egress · ✅ done this sess
 - **Deps:** none.
 
 ### A2 — Agent-schema validator (drift-check) — makes the bug unrepresentable  **[P1]**
-- **What:** Add `check_agent_schema` to `automation/38-drift-checks.sh` (mirror `check_rbac_tiers`, python3+tomllib). For each `[agents.*]` (merge `_defaults`), FAIL on: (a) local+optional/cli agent missing `health_gate=true`; (b) `kind=cli` without `timeout_s`/`enabled`; (c) `kind=node` without `api`+`lane`; remote/edge/mobile without `health_gate=true`; (d) endpoint with a **bare `:PORT` literal** instead of `${MIOS_PORT_*}`; (e) ≠1 `default=true`; (f) unknown key (typo guard).
-- **Files:** `automation/38-drift-checks.sh` (register in `main()` after `check_rbac_tiers`).
+- **What:** Add `check_agent_schema` to `automation/98-drift-checks.sh` (mirror `check_rbac_tiers`, python3+tomllib). For each `[agents.*]` (merge `_defaults`), FAIL on: (a) local+optional/cli agent missing `health_gate=true`; (b) `kind=cli` without `timeout_s`/`enabled`; (c) `kind=node` without `api`+`lane`; remote/edge/mobile without `health_gate=true`; (d) endpoint with a **bare `:PORT` literal** instead of `${MIOS_PORT_*}`; (e) ≠1 `default=true`; (f) unknown key (typo guard).
+- **Files:** `automation/98-drift-checks.sh` (register in `main()` after `check_rbac_tiers`).
 - **Accept:** `just drift-gate` fails when a test agent omits `health_gate`; passes on the cleaned config; runs in CI with no built image.
 - **Deps:** A1.
 
@@ -1959,7 +1959,7 @@ automount_idle_timeout_s        = 600    # Unmount idle home dirs after 10 min
 
 ### Phase 1 — Foundation (Operator-gated, P2)
 
-**Task T-084 (STRG-01):** Add `[storage.cephfs]` SSOT block to `mios.toml` (all defaults `enable=false`). Wire SSOT into `userenv.sh` as `MIOS_CEPHFS_*` env vars. Add drift-check in `38-drift-checks.sh` that validates `[storage.cephfs].monitors` is not the placeholder when `enable=true`.
+**Task T-084 (STRG-01):** Add `[storage.cephfs]` SSOT block to `mios.toml` (all defaults `enable=false`). Wire SSOT into `userenv.sh` as `MIOS_CEPHFS_*` env vars. Add drift-check in `98-drift-checks.sh` that validates `[storage.cephfs].monitors` is not the placeholder when `enable=true`.
 
 **Task T-085 (STRG-02):** Build `mios-cephfs-provision` script (`/usr/libexec/mios/mios-cephfs-provision`). Subcommands: `validate` (called by PAM), `create` (idempotent subvolume + keyring provisioning), `delete` (revoke keyring + unmount + remove subvolume). Run `validate` as `pam_exec.so optional` in `/etc/pam.d/system-auth` — optional (degrade-open: if Ceph is not reachable, login proceeds with local `$HOME`).
 
@@ -1983,7 +1983,7 @@ automount_idle_timeout_s        = 600    # Unmount idle home dirs after 10 min
 
 **Task T-092 (STRG-09):** Add CephFS health checks to `greenboot`. Script `/etc/greenboot/check/required.d/55-mios-cephfs.sh` — verifies: (a) `ceph health ok` on boot; (b) `ceph df` shows data pool not at >90% capacity; (c) `ceph fs status` shows MDS `active`; (d) user `$HOME` mount is reachable. On failure, greenboot signals but does **not** roll back (degraded-open: local `$HOME` fallback is preferred over rollback). Log event to pgvector `event(kind="storage_health", source="cephfs")`.
 
-**Task T-093 (STRG-10):** Add `check_cephfs_ssot` to `automation/38-drift-checks.sh`. Validates: (a) `[storage.cephfs].monitors` is not placeholder when `enable=true`; (b) `xdg_cache_home_override` does NOT contain a CephFS path prefix; (c) `data_pool_hot` and `data_pool_bulk` are distinct pools; (d) `provision_script` path exists in the image. Add documentation stub `usr/share/doc/mios/guides/cephfs-xdg-storage.md`.
+**Task T-093 (STRG-10):** Add `check_cephfs_ssot` to `automation/98-drift-checks.sh`. Validates: (a) `[storage.cephfs].monitors` is not placeholder when `enable=true`; (b) `xdg_cache_home_override` does NOT contain a CephFS path prefix; (c) `data_pool_hot` and `data_pool_bulk` are distinct pools; (d) `provision_script` path exists in the image. Add documentation stub `usr/share/doc/mios/guides/cephfs-xdg-storage.md`.
 
 ---
 
@@ -2417,7 +2417,7 @@ mcp_pool_enable        = false    # true = unified MCPClientPool in GatewayWorke
 
 ### Phase 1 — Gateway Queue (P2, operator-gated, zero regression)
 
-**T-094 (CONV-01):** Add `[converge.gateway]` block to `mios.toml` (all defaults `mode="http"`). Wire into `userenv.sh` as `MIOS_CONV_GATEWAY_*`. Add `check_converge_gateway` stub to `38-drift-checks.sh`.
+**T-094 (CONV-01):** Add `[converge.gateway]` block to `mios.toml` (all defaults `mode="http"`). Wire into `userenv.sh` as `MIOS_CONV_GATEWAY_*`. Add `check_converge_gateway` stub to `98-drift-checks.sh`.
 
 **T-095 (CONV-02):** Build `mios_gateway_queue.py` module: `GatewayQueue`, `GatewayRequest`, `GatewayWorker`. Integrate `smolagents.ToolCallingAgent` as the tool-loop engine. Wire into `server.py` `lifespan` (gated: `MIOS_CONV_GATEWAY_MODE=queue`). Add `dispatch_via_queue` to `mios_dispatcher.py`. Single-log deduplication (one `mios_trace.span` per request instead of two). Keep `dispatch_via_http` intact as fallback.
 
@@ -2451,7 +2451,7 @@ mcp_pool_enable        = false    # true = unified MCPClientPool in GatewayWorke
 
 **T-107 (CONV-14):** Add rechunk CI step to the MiOS build pipeline (`automation/build/rechunk.sh`). Runs `rpm-ostree experimental compose build-chunked-oci --bootc`. Applies `setfattr` xattrs to `ai-sidecar` and `llm-models` directories. Gate: `[converge.image].rechunk_enable`. Integrates with existing `just build` flow (appended, not replacing).
 
-**T-108 (CONV-15):** Add drift-check suite for Phase 4: `check_hummingbird` in `38-drift-checks.sh`. Validates: (a) `USER 65534` in `Containerfile.hummingbird` final stage; (b) no `/bin/bash` in distroless layer manifest; (c) `MIOS_AI_ENDPOINT` is set in the Quadlet `Environment=` line when `distroless_enable=true` (profile.d is NOT available); (d) `rechunk_enable=true` requires `rpm-ostree` present in the build environment. Add `usr/share/doc/mios/guides/hummingbird-distroless.md`.
+**T-108 (CONV-15):** Add drift-check suite for Phase 4: `check_hummingbird` in `98-drift-checks.sh`. Validates: (a) `USER 65534` in `Containerfile.hummingbird` final stage; (b) no `/bin/bash` in distroless layer manifest; (c) `MIOS_AI_ENDPOINT` is set in the Quadlet `Environment=` line when `distroless_enable=true` (profile.d is NOT available); (d) `rechunk_enable=true` requires `rpm-ostree` present in the build environment. Add `usr/share/doc/mios/guides/hummingbird-distroless.md`.
 
 ---
 
@@ -2562,7 +2562,7 @@ path, and the historical BOM parse bug is FIXED.
 unblocker for "install on ANY minimal Win11". NOHC and WIN streams are otherwise independent and
 parallelizable. Each ships flag-gated + degrade-open; comments stay timeless; behaviour verified live.
 
-*Research evidence: 4-agent read-only audit 2026-07-04 -- (a) hardcoded ports/IPs sweep of `usr/libexec/mios` + `usr/lib/mios/agent-pipe` + `C:\mios-bootstrap`, cross-checked vs `mios.toml [ports]` and live `install.env`; (b) English keyword-gate sweep of agent-pipe (~79K LOC) confirming the router/`classify.py`/`mios_routing` are model-driven+SSOT with only 4 residual gates; (c) `Get-MiOS.ps1`/`build-mios.ps1`/`preflight.ps1` fresh-Win11 flow trace; (d) `mios.toml` (10,424 lines) x `configurator/mios.html` (4,455 lines) x `tools/lib/userenv.sh` SSOT-coverage cross-reference. Enforcement precedent: `usr/libexec/mios/mios-hardcode-lint`, `check_container_ports`/`check_no_hardcode` in `automation/38-drift-checks.sh`. Fix-order law: model-driven > SSOT > unicode-aware > delete-dead.*
+*Research evidence: 4-agent read-only audit 2026-07-04 -- (a) hardcoded ports/IPs sweep of `usr/libexec/mios` + `usr/lib/mios/agent-pipe` + `C:\mios-bootstrap`, cross-checked vs `mios.toml [ports]` and live `install.env`; (b) English keyword-gate sweep of agent-pipe (~79K LOC) confirming the router/`classify.py`/`mios_routing` are model-driven+SSOT with only 4 residual gates; (c) `Get-MiOS.ps1`/`build-mios.ps1`/`preflight.ps1` fresh-Win11 flow trace; (d) `mios.toml` (10,424 lines) x `configurator/mios.html` (4,455 lines) x `tools/lib/userenv.sh` SSOT-coverage cross-reference. Enforcement precedent: `usr/libexec/mios/mios-hardcode-lint`, `check_container_ports`/`check_no_hardcode` in `automation/98-drift-checks.sh`. Fix-order law: model-driven > SSOT > unicode-aware > delete-dead.*
 
 ---
 
@@ -2704,7 +2704,7 @@ Source docs: `AIOS-GAP-IMPLEMENTATION-PLAN-2026-06-14.md`, `AIOS-MIOS-MASTER-PLA
 - **K5 exec-safety Verify/Monitor + Analyst->Action** = HITL/permission SSOT, **T-037 (SEC-04)** / **T-026 (B1)**.
 - **WS-A env-awareness** (`system_status.os` / `_probe_os`), **WS-B/C root-MD grounding + bake**, **WS-D app-type aliases** (`mios-app-type`, `mios-app-default`), **WS-E OpenAI conformance**, **WS-H1/H2 Structured Outputs** (`mios_pipe/routing/refine.py` + `classify.py`) = all **shipped in code** per the 06-15 master plan execution log.
 - **WS-F tool consolidation** into enum/mode verbs = largely shipped (live surface exposes `window_op`, `file_edit`, `memory`, `vault`, `document`, `agent_route`, `run_code`, `search_store`, `windows_input`, `linux_input`, `apps`, `find_file_fast`).
-- **W0-T1 SSOT-render lint** = shipped (`automation/38-ssot-lint.sh`). **W2-T1 passport trust gate** = **T-001/T-010/T-012/T-014**. **W2-T3 distributed tracing** = **T-023 (OBS-01)**. Install self-assembly / SGLang-flag / model-durability items = Part 16 (WS-DEPLOY) + CONV parts.
+- **W0-T1 SSOT-render lint** = shipped (`automation/97-ssot-lint.sh`). **W2-T1 passport trust gate** = **T-001/T-010/T-012/T-014**. **W2-T3 distributed tracing** = **T-023 (OBS-01)**. Install self-assembly / SGLang-flag / model-durability items = Part 16 (WS-DEPLOY) + CONV parts.
 
 ---
 
@@ -2928,7 +2928,7 @@ provisioning remains). **Source:** live dGPU diagnosis; `[lanes.*]`, `[ai.vllm]`
 - WS-NAME model-facing aliases and load-bearing legacy verbs (winget_*/flatpak_* re-dispatch, memory_append/replace) migrate via coordinated fold-refactor, never blind-drop.
 - password_hash hash-only; reconcile the /etc/shadow parallel store via a pam write-back or the two credential planes drift.
 
-Cross-refs: [[theme-ssot-projection]] (projection engine + check 25 pattern), [[mios-flatten-consolidation]] (shared `mios_toml.py` resolver, drift-gates 25-28, load-bearing-verb caution). New drift-gates land in `automation/38-drift-checks.sh` (29+). Schema SSOT: `usr/share/mios/postgres/schema-init.sql`.
+Cross-refs: [[theme-ssot-projection]] (projection engine + check 25 pattern), [[mios-flatten-consolidation]] (shared `mios_toml.py` resolver, drift-gates 25-28, load-bearing-verb caution). New drift-gates land in `automation/98-drift-checks.sh` (29+). Schema SSOT: `usr/share/mios/postgres/schema-init.sql`.
 
 Full research + schema + phases: `usr/share/doc/mios/reference/everything-db-driven.md`.
 

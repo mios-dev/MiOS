@@ -1,5 +1,5 @@
 <!-- AI-hint: Unify the codebase to language-per-domain (Rust/Go for resilient native tooling — build driver, drift-runner, the verb dispatcher that removes the eval surface; Bun/TS for the Portal/configurator; Python stays for the AI plane; TOML SSOT; YAML pipelines; Markdown docs) with bash demoted to thin glue; PLUS a global compiled-template system (one template per file type + `mios new <type>` scaffolder + a conformance drift-check) that formalizes/extends the AI-hint convention so an agent learns MiOS formatting from a few files. Proposes Law 14 ONE-TEMPLATE-PER-TYPE (registry row + enforcement PLANNED, operator-gated). Read before writing a new tool, choosing a language, or adding a file type. -->
-<!-- AI-related: automation/38-drift-checks.sh (44 checks), automation/build.sh, usr/lib/mios/mios_toml.py, tools/lib/userenv.sh, usr/lib/mios/agent-pipe/server.py (8,961 ln), usr/lib/mios/agent-pipe/mios_dispatch.py, usr/libexec/mios/mios-ai-tag, usr/libexec/mios/mios-theme-render, C:\MiOS\src\mios-launch.cs, C:\mios-bootstrap\cat\, usr/share/mios/mios.toml [laws], usr/share/doc/mios/adr/0007-governance-model-laws-adrs-spec.md, usr/share/doc/mios/adr/0008-mios-cat-unified-entry-and-minification.md -->
+<!-- AI-related: automation/98-drift-checks.sh (44 checks), automation/build.sh, usr/lib/mios/mios_toml.py, tools/lib/userenv.sh, usr/lib/mios/agent-pipe/server.py (8,961 ln), usr/lib/mios/agent-pipe/mios_dispatch.py, usr/libexec/mios/mios-ai-tag, usr/libexec/mios/mios-theme-render, C:\MiOS\src\mios-launch.cs, C:\mios-bootstrap\cat\, usr/share/mios/mios.toml [laws], usr/share/doc/mios/adr/0007-governance-model-laws-adrs-spec.md, usr/share/doc/mios/adr/0008-mios-cat-unified-entry-and-minification.md -->
 ---
 adr: 0011
 title: Unified languages & compiled file-patterns — language-per-domain + one-template-per-type
@@ -39,7 +39,7 @@ Re-measured ground truth (the older reports and the operator brief carried drift
 - `usr/lib/mios/agent-pipe/server.py` is **8,961 lines** (not "~26k") — a
   god-module (VRAM scheduler + `_db_*` + auth middleware + agent streaming
   intermixed).
-- `automation/38-drift-checks.sh` is **~3,098 lines, 44 `check_*` functions** (not
+- `automation/98-drift-checks.sh` is **~3,098 lines, 44 `check_*` functions** (not
   "101 checks").
 - `automation/build.sh` is **579 lines** — smaller and more tractable to port than
   claimed.
@@ -215,7 +215,7 @@ Costs / honest status:
 - **WS-TEMPLATE** — `usr/share/mios/templates/*.tmpl` (~15) + `[templates]` schema;
   Python `usr/libexec/mios/mios-new` (`mios new <type>`, reusing `mios-ai-tag`);
   `tools/compile-templates.py` golden tests; `check_template_conformance`
-  (`automation/38-drift-checks.sh`, soft→hard ratchet); the candidate Law-14 `[laws]`
+  (`automation/98-drift-checks.sh`, soft→hard ratchet); the candidate Law-14 `[laws]`
   row + enforcement, operator-gated (T-271).
 - Reference impls kept: `usr/libexec/mios/mios-theme-render` (the clean Law-8
   projector the render/drift crates copy); `usr/libexec/mios/mios-ai-tag` (the
@@ -229,7 +229,7 @@ Costs / honest status:
   `miosd cat` completes (retiring `.bat` + `mios-launch.cs`):
   `0008-mios-cat-unified-entry-and-minification.md`.
 - Re-measured ground truth: `usr/lib/mios/agent-pipe/server.py` (8,961 ln),
-  `automation/38-drift-checks.sh` (44 `check_*`), `automation/build.sh` (579 ln),
+  `automation/98-drift-checks.sh` (44 `check_*`), `automation/build.sh` (579 ln),
   `usr/share/mios/mios.toml` (10,869 ln) vs `C:\MiOS\mios.toml`/`C:\mios-bootstrap\mios.toml`
   (~1.4k ln, root=0.2.4), `C:\MiOS\src\mios-launch.cs` (C#).
 - Pattern seeds: `usr/libexec/mios/mios-ai-tag` (header machinery),
@@ -237,4 +237,4 @@ Costs / honest status:
   `usr/lib/mios/mios_toml.py` + `tools/lib/userenv.sh` (the resolver twin to collapse).
 - Code-gen precedents: cookiecutter, copier, plop/hygen, cargo-generate, yeoman.
 - MiOS Laws 7/8/9 (+ proposed 14): `usr/share/mios/mios.toml [laws]`, enforced by
-  `automation/38-drift-checks.sh` + `automation/99-postcheck.sh`.
+  `automation/98-drift-checks.sh` + `automation/99-postcheck.sh`.

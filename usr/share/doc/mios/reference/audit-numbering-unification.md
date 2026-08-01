@@ -59,7 +59,7 @@ Counts and `file:line` re-measured on 2026-07-31. Where the upstream census disa
   - **(C2) a hand-written `(NN)` echo label** inside each function — heavily collided (`(41)`×6, `(37)`/`(36)`×4, ~9 triples), gapped, and stopping at **99** while the system has **121** checks.
   - **Proof of the split (verified):** `check_gate_index` is TSV ordinal **86** (`drift-gate-index.tsv:87`) yet echoes **`(80)`** (`98-drift-checks.sh:4918`). The gate that *polices* the index literally mislabels itself. `99-postcheck.sh` items `0..18` (row 11) are a *third* check-namespace, referenced by name from `[laws]`.
 
-  Compounding it: `98-drift-checks.sh` does **not** source `log.sh` and hardcodes **`[38-drift-checks]` 230 times** — a *stale* stage label (the file was renumbered `38-`→`98-` but the labels never followed). This is exactly the renumber-drift ADR-0012 names as its exemplar bug.
+  Compounding it: `98-drift-checks.sh` does **not** source `log.sh` and — until the label-unification pass — hardcoded **`[38-drift-checks]` 234 times**, a *stale* stage label (the file was renumbered `38-`→`98-` but the labels never followed). This is exactly the renumber-drift ADR-0012 names as its exemplar bug. **Now resolved (label pass):** the stale `[38-drift-checks]`/`[38-ssot-lint]` labels are unified to `[98-drift-checks]`/`[97-ssot-lint]` (matching the filenames), and the `[templates.drift-check].match` regex + `generate-gate-index.py` extractor were repointed accordingly; the deeper C1/C2 ordinal split still awaits the `mios_check_ok` migration below.
 
 **External and irreducible (rows 16–21).** buildah `STEP i/N`, dnf5 `[i/N]` (two phases), and cargo `Compiling (i/m)` are the **tools' own progress UIs**. MiOS authors the instructions/package-set/crate-graph and thus influences the *totals* `N`, but the *counters* belong to buildah/dnf5/cargo. They cannot be renumbered or merged into MiOS's scheme without forking the tools. The only lever is suppression (`--quiet`, `dnf5 -q`, cargo quiet). They are declared **inert** in the SSOT so the gate and reporter never try to parse or renumber them.
 
@@ -155,7 +155,7 @@ suppress_hint = "quiet flags only (dnf5 -q, buildah --quiet, cargo -q). Never pa
 # NN comes from mios_tag (caller filename, renumber-immune). CC is looked up from
 # the SSOT map by the calling check_ function's NAME, so the (NN) echo labels and
 # the TSV ordinals can never disagree again. Migration is mechanical: replace each
-#   echo "[38-drift-checks]   (80) msg"   ->   mios_check_ok "msg"
+#   echo "[98-drift-checks]   (80) msg"   ->   mios_check_ok "msg"
 MIOS_CHECK_INDEX="${MIOS_CHECK_INDEX:-/usr/share/mios/reference/drift-gate-index.tsv}"
 declare -gA _MIOS_CHECK_ID=()
 _mios_load_check_index() {
@@ -231,7 +231,7 @@ Ordered so each step is independently shippable and the gate is added **after** 
 
 **AGY-643 — renumber-immune stage label.** `source usr/lib/mios/log.sh` in `automation/98-drift-checks.sh`; this alone fixes the 230 stale `[38-*]` → `[98-drift-checks]` at runtime. *Files:* `automation/98-drift-checks.sh`.
 
-**AGY-647 — migrate the check numbers.** Mechanically replace the ~230 hand-labeled echo sites (`echo "[38-drift-checks]   (80) msg"`) with `mios_check_ok "msg"` — deleting every hand-written `(NN)`. Resolves the C1/C2 split permanently (`check_gate_index` will emit `:86`, never `(80)`). *Files:* `automation/98-drift-checks.sh`.
+**AGY-647 — migrate the check numbers.** Mechanically replace the ~230 hand-labeled echo sites (`echo "[98-drift-checks]   (80) msg"`) with `mios_check_ok "msg"` — deleting every hand-written `(NN)`. Resolves the C1/C2 split permanently (`check_gate_index` will emit `:86`, never `(80)`). *Files:* `automation/98-drift-checks.sh`.
 
 **AGY-644 — pipeline-index registry + generator.** Add `tools/generate-pipeline-index.py` (extends `generate-gate-index.py`) projecting `automation/` → `usr/share/mios/reference/pipeline-index.tsv`; make `generate-gate-index.py`/`check_gate_index` **fail on gap/dup** in `CC` instead of silently stripping. *Honest scope:* this is the larger structural piece; `STEP==stage==layer` (P3 one-RUN-per-stage) remains a follow-on and is **not** part of this step. *Files:* `tools/generate-pipeline-index.py`, `tools/generate-gate-index.py`, `usr/share/mios/reference/pipeline-index.tsv`.
 
@@ -249,7 +249,7 @@ Ordered so each step is independently shippable and the gate is added **after** 
 
 - `ls automation/[0-9][0-9]-*.sh | wc -l` → **70**; `uniq -d` on prefixes → **none** (no duplicate prefixes).
 - `drift-gate-index.tsv` → **122** lines = header + **121** rows; `grep -c 'check_.*()'` in `98-drift-checks.sh` → **121**.
-- `grep -c '\[38-drift-checks\]'` → **230**; `98-drift-checks.sh` sources `log.sh` → **no**.
+- `grep -c '\[98-drift-checks\]'` → **230**; `98-drift-checks.sh` sources `log.sh` → **no**.
 - `drift-gate-index.tsv:87` = `86  check_gate_index …`; `98-drift-checks.sh:4918` echoes `(80)` → **split confirmed**.
 - `(NN)` label histogram: `(41)`×6, `(37)`×4, `(36)`×4, plus `(87)/(79)/(75)/(61)/(47)/(46)/(44)/(30)`×3; **max distinct label = 99** for 121 checks.
 - Out-of-band under the *original* bands: `54-bake-coderun-sandbox`, `80-distribution`, `99-postcheck` → **corrected** in §3.2.

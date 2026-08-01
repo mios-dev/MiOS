@@ -299,7 +299,7 @@ Replace the hardcoded triple with the SSOT list so check 54 validates against `m
 
 ```bash
 check_greenboot() {
-    echo "[38-drift-checks]   (54) greenboot health-coverage check"
+    echo "[98-drift-checks]   (54) greenboot health-coverage check"
     local gb_dir="$ROOT/usr/lib/greenboot/check/required.d"
     [[ -d "$gb_dir" ]] || { _fail "(54) greenboot required.d ($gb_dir) missing"; return; }
 

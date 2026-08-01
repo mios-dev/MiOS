@@ -53,7 +53,7 @@ Windows equivalent of the Linux build: `mios-build-local.ps1`. On a provisioned 
 ### Tests / lint (run these before proposing a build)
 
 `just drift-gate` is the fast pre-image check and bundles the two test suites:
-1. **SSOT-render conformance** — `bash automation/38-ssot-lint.sh` (asserts every `${MIOS_*}` Quadlet placeholder is wired on both ends).
+1. **SSOT-render conformance** — `bash automation/97-ssot-lint.sh` (asserts every `${MIOS_*}` Quadlet placeholder is wired on both ends).
 2. **agent-pipe unit tests** — `test_mios_*.py` under `usr/lib/mios/agent-pipe/`, run via `python3` (prefers the `.venv` at `/usr/lib/mios/agents/.venv/bin/python3` if present).
 
 Run a single agent-pipe test directly:
@@ -62,7 +62,7 @@ cd usr/lib/mios/agent-pipe && python3 test_mios_<name>.py
 ```
 Additional standalone dispatcher/extraction tests live in `tests/` (`test-*.py`, `test-*.sh`) — run each file directly.
 
-## The fifteen architectural laws (v0.3.0 — enforced by `automation/38-drift-checks.sh` offline + `automation/99-postcheck.sh` at bake + `bootc container lint`)
+## The fifteen architectural laws (v0.3.0 — enforced by `automation/98-drift-checks.sh` offline + `automation/99-postcheck.sh` at bake + `bootc container lint`)
 
 Every change must obey these; a failing law fails the build. The law list is
 itself an SSOT: `usr/share/mios/mios.toml [laws]` is the canonical registry

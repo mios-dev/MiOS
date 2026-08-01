@@ -101,7 +101,7 @@ proposed ──accept──▶ accepted ──(a newer ADR replaces it)──▶
 
 Every ADR names the laws it touches. The 13 laws (v0.3.0) are the canonical
 registry in `usr/share/mios/mios.toml [laws]` (`id/slug/applies_to/enforced_by`);
-they are enforced by `automation/38-drift-checks.sh` (offline), `automation/99-postcheck.sh`
+they are enforced by `automation/98-drift-checks.sh` (offline), `automation/99-postcheck.sh`
 (at bake), and `bootc container lint`. For quick reference: 1 USR-OVER-ETC,
 2 NO-MKDIR-IN-VAR, 3 BOUND-IMAGES, 4 BOOTC-CONTAINER-LINT, 5 UNIFIED-AI-REDIRECTS,
 6 UNPRIVILEGED-QUADLETS, 7 NO-HARDCODE, 8 SSOT-PROJECTION, 9 ONE-CANONICAL-NAME,

@@ -1,5 +1,5 @@
 <!-- AI-hint: SSOT image/artifact refs carry TAG intent only; every sha256 digest / hash / checksum / resolved version is SBOM data resolved+recorded at BUILD, never hand-pinned — read before adding or "fixing" any @sha256 in mios.toml or a Quadlet. -->
-<!-- AI-related: usr/share/mios/mios.toml [image.sidecars], usr/libexec/mios/mios-bake-group, /usr/share/mios/artifacts/sbom/bound-images.tsv, automation/90-generate-sbom.sh, automation/15-render-quadlets.sh, automation/38-drift-checks.sh -->
+<!-- AI-related: usr/share/mios/mios.toml [image.sidecars], usr/libexec/mios/mios-bake-group, /usr/share/mios/artifacts/sbom/bound-images.tsv, automation/90-generate-sbom.sh, automation/15-render-quadlets.sh, automation/98-drift-checks.sh -->
 ---
 adr: 0003
 title: "SBOM-not-hardcode: digests are build-resolved provenance"
@@ -152,7 +152,7 @@ Current tree (DONE):
 - `C:\MiOS\automation\15-render-quadlets.sh` — renders Quadlet `Image=` from SSOT;
   the resolve/pin-into-rendered-Quadlet step is where a reproducible runtime digest
   is applied as a build output.
-- `C:\MiOS\automation\38-drift-checks.sh` — the rendered-Quadlet digest-drift check
+- `C:\MiOS\automation\98-drift-checks.sh` — the rendered-Quadlet digest-drift check
   validates build-resolved digests.
 
 Cross-references: ADR-0002 (consolidation is the moment to digest-lock the floating

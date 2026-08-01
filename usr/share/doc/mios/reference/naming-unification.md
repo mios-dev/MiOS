@@ -1,5 +1,5 @@
 <!-- AI-hint: The WS-NAME workflow -- a TRUE GLOBAL minification of MiOS naming: collapse the entire TOML-key/env-var/verb/const surface onto ONE deterministic, capability-matched unified names+keys registry (mios.toml section.key <-> MIOS_SECTION_KEY, 1:1), deleting the hand-maintained translation tables. Convention + registry + phased global migration + drift-gate. -->
-<!-- AI-related: tools/lib/userenv.sh, usr/lib/mios/userenv.sh, automation/lib/globals.sh, automation/lib/globals.ps1, usr/share/mios/mios.toml, usr/lib/mios/mios_toml.py, automation/38-drift-checks.sh -->
+<!-- AI-related: tools/lib/userenv.sh, usr/lib/mios/userenv.sh, automation/lib/globals.sh, automation/lib/globals.ps1, usr/share/mios/mios.toml, usr/lib/mios/mios_toml.py, automation/98-drift-checks.sh -->
 
 # WS-NAME — Global Naming Minification → one unified names/keys registry
 
@@ -107,7 +107,7 @@ Each phase: `just drift-gate` green + `test_mios_*` pass + byte-parity held.
 
 ## Drift-gate (make it self-enforcing)
 
-New `automation/38-drift-checks.sh` check: regenerate `naming.generated.txt` and
+New `automation/98-drift-checks.sh` check: regenerate `naming.generated.txt` and
 FAIL if (a) it differs from the committed copy, (b) any exported `MIOS_*` var is not
 a deterministic image of a `mios.toml` key, or (c) a second name maps to a key that
 already has a canonical env name. This makes the minimal unified surface permanent.

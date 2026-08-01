@@ -144,7 +144,7 @@ bake (or a large-disk GitHub runner appears).
 
 - `C:\MiOS\.github\workflows\mios-ci.yml` — `env.PUBLISH: 'false'` (top of file,
   with the capacity-gate rationale in comments). Jobs: `drift-gate`
-  (SSOT-render lint + agent-pipe tests + `38-drift-checks.sh`), `build`
+  (SSOT-render lint + agent-pipe tests + `98-drift-checks.sh`), `build`
   (`podman build` with `--build-arg MIOS_BAKE_BOUND_IMAGES=${{ env.PUBLISH == 'true'
   && '1' || '0' }}`, bootc-label verify, then rechunk/meta/push/cosign steps all
   `if: env.PUBLISH == 'true'`), and `smoke-test` (PR-only: `MIOS_BAKE_BOUND_IMAGES=0`

@@ -1,5 +1,5 @@
 <!-- AI-hint: WS-VECTOR research + workflow -- make EVERYTHING in MiOS DB-driven + vectorized: mios.toml is the cold image-baked authoring seed, Postgres/pgvector (mios-pgvector, db=mios, /var) is the LIVE runtime SSOT. Unified schema (config/verbs/recipes/packages/build/xbox/accounts/prefs, all with emb columns), 6-phase offline-safe migration, new vectorization targets. From the 2026-07-10 ultracode survey of the AI plane, installs/build, accounts, xbox-build, config, + external best practice. -->
-<!-- AI-related: usr/share/mios/postgres/schema-init.sql, usr/lib/mios/mios_toml.py, usr/lib/mios/agent-pipe/mios_pipe/memory/pg.py, usr/libexec/mios/seed-db-config.py, automation/38-drift-checks.sh, usr/share/mios/mios.toml -->
+<!-- AI-related: usr/share/mios/postgres/schema-init.sql, usr/lib/mios/mios_toml.py, usr/lib/mios/agent-pipe/mios_pipe/memory/pg.py, usr/libexec/mios/seed-db-config.py, automation/98-drift-checks.sh, usr/share/mios/mios.toml -->
 
 # WS-VECTOR — Everything DB-driven + vectorized (unified pgvector control plane)
 
@@ -76,7 +76,7 @@ NEW: `verb.emb` (native tool-search, retires the in-process BM25/cosine rebuild)
 
 Cross-refs: theme-ssot-projection (projection engine + check 25), mios-flatten-consolidation
 (shared `mios_toml.py`, drift-gates 25-28, load-bearing-verb caution). New drift-gates
-land in `automation/38-drift-checks.sh` (29+). Tasks: **T-242–T-247** (V0–V5).
+land in `automation/98-drift-checks.sh` (29+). Tasks: **T-242–T-247** (V0–V5).
 
 
 ## V1 Config read-path Flip & Rollback Runbook

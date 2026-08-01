@@ -65,7 +65,7 @@ Inert until peers are registered in `a2a-peers.json`. The four primitives:
 
 ## Build/CI gates (always-on, no flag) — `#63`, `#58`
 
-- **AI-hint coverage** (`mios-ai-hint-coverage`, 38-drift-checks check 5): fails
+- **AI-hint coverage** (`mios-ai-hint-coverage`, 98-drift-checks check 5): fails
   the build if untagged taggable files exceed `[ai_tag].max_untagged` (ratchet;
   lower it toward 0 with `mios-ai-tag`).
 - **Module boundary** (check 6): the agent-pipe `mios_*.py` siblings must never

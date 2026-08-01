@@ -166,4 +166,4 @@ DONE vs PLANNED (honest):
   (<https://platform.openai.com/docs/api-reference>) serves the API while `GET /`
   serves the Portal — one door.
 - MiOS Laws 5/7/8: `usr/share/mios/mios.toml [laws]`, enforced by
-  `automation/38-drift-checks.sh` + `automation/99-postcheck.sh`.
+  `automation/98-drift-checks.sh` + `automation/99-postcheck.sh`.

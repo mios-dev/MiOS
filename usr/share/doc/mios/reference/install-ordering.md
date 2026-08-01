@@ -70,7 +70,7 @@ Common shape: **a consumer starts before its producer has finished**, and
 
 ## Drift-gate
 
-New `automation/38-drift-checks.sh` check: parse the producer→consumer map and FAIL
+New `automation/98-drift-checks.sh` check: parse the producer→consumer map and FAIL
 if any consumer unit/step can start before its producer's readiness artifact exists
 (missing `After=`/`ConditionPathExists=`), or if a producer lacks a retry/complete-
 ness guard. Makes "missing dependency at install" a build-time error, not a

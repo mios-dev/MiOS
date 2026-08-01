@@ -14,7 +14,7 @@ Claude is **concurrently editing** these — **DO NOT touch them**:
 - `usr/share/mios/mios.toml` **sections** `[agents.*]`, `[agents._defaults]`, `[ai]`, `[cost]`
 - `usr/libexec/mios/opencode-gateway/server.py`
 - `usr/lib/systemd/system/hermes-worker.service`
-- `automation/38-drift-checks.sh`
+- `automation/98-drift-checks.sh`
 - the OWUI firstboot wiring (`mios-open-webui-firstboot` / `mios-hermes-firstboot`)
 
 **Gemini owns** (these files, no overlap): all `usr/share/containers/systemd/*.container`

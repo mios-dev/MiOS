@@ -209,7 +209,7 @@ Negative / costs & open questions (gate the flip to `accepted`):
 - **`[cat]` SSOT (WS-CAT):** add `[cat]` to `usr/share/mios/mios.toml`
   (`drivepath`, `medicatver`, `cache_path`, `repo_partition.label`,
   `data_partition.label`, `data_partition.min_disk_gb = 128`, `models`); a new
-  `automation/38-drift-checks.sh` check that the `[cat]`/`[colors]` reads resolve.
+  `automation/98-drift-checks.sh` check that the `[cat]`/`[colors]` reads resolve.
 - **MiOS-Repo shadow-config (WS-CATREPO):** `cat stage` populates the small P3
   partition with `mios.toml` + `mios.html` + Portal assets + a self-contained
   MiOS-Cat copy + a small repos-clone; align the kickstart repo path to one
@@ -247,4 +247,4 @@ Negative / costs & open questions (gate the flip to `accepted`):
   `flatpak create-usb`; `pip download`/`bandersnatch`; Hugging Face hub;
   `podman save`/`load`.
 - MiOS Laws 1/7/8/9/12: `usr/share/mios/mios.toml [laws]`, enforced by
-  `automation/38-drift-checks.sh` + `automation/99-postcheck.sh` + `bootc container lint`.
+  `automation/98-drift-checks.sh` + `automation/99-postcheck.sh` + `bootc container lint`.

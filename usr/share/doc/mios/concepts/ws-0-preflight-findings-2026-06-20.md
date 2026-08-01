@@ -1,5 +1,5 @@
 <!-- AI-hint: WS-0-PREFLIGHT read-first correction pass for the MiOS master plan — re-derives every "verified" baseline number against a pinned HEAD (8658df1) and strikes claims stale against the current tree (server.py line count, patch*.py no-op, the already-built drift-freeze gate, the mios-heavy collision). Re-scopes WS-0A build->verify and WS-3 to 27,311 lines.
-     AI-related: usr/share/doc/mios/concepts/ws-grounding-2026-06-20.md, automation/38-ssot-lint.sh, automation/38-drift-checks.sh, automation/build.sh, automation/99-postcheck.sh -->
+     AI-related: usr/share/doc/mios/concepts/ws-grounding-2026-06-20.md, automation/97-ssot-lint.sh, automation/98-drift-checks.sh, automation/build.sh, automation/99-postcheck.sh -->
 
 # WS-0-PREFLIGHT — baseline reconciliation against the working tree
 
@@ -28,16 +28,16 @@
 The master plan was generated from draft prose that predates the drift-freeze
 implementation. Against `HEAD` the following PREFLIGHT/WS-0A claims are false:
 
-1. **"`automation/38-ssot-lint.sh` DOES NOT EXIST — author from scratch."**
+1. **"`automation/97-ssot-lint.sh` DOES NOT EXIST — author from scratch."**
    FALSE. It exists (194 lines): two-sided `${MIOS_*}` wiring lint asserting each
    Quadlet placeholder is wired in BOTH `tools/lib/userenv.sh` AND
    `automation/15-render-quadlets.sh`; read-only; `MIOS_SSOT_LINT_SOFT=1`
-   advisory mode. A sibling test exists: `automation/tests/test-38-ssot-lint.sh`.
+   advisory mode. A sibling test exists: `automation/tests/test-97-ssot-lint.sh`.
 
-2. **"`38-ssot-lint`/pytest absent from `build.sh`."** FALSE. `build.sh` already
+2. **"`97-ssot-lint`/pytest absent from `build.sh`."** FALSE. `build.sh` already
    wires, as POST-BUILD hard gates under `set -euo pipefail`:
-   - `38-ssot-lint.sh` (lines ~361–373)
-   - `38-drift-checks.sh` (lines ~375–386)
+   - `97-ssot-lint.sh` (lines ~361–373)
+   - `98-drift-checks.sh` (lines ~375–386)
    - every `usr/lib/mios/agent-pipe/test_mios_*.py` run as `python3 <script>`
      (assert-scripts, NOT pytest-collectable), build dies on any non-zero (~388–417)
    - `usr/libexec/mios/test_mios_docgen.py` explicitly (~419–428)
@@ -49,7 +49,7 @@ implementation. Against `HEAD` the following PREFLIGHT/WS-0A claims are false:
 
 4. **"WS-0A must be split into 0A1/0A2 and built."** Largely MOOT. The
    drift-freeze gate is already implemented and wired:
-   - `38-drift-checks.sh` (294 lines): `check_dead_lane` (retired :11434),
+   - `98-drift-checks.sh` (294 lines): `check_dead_lane` (retired :11434),
      `check_retired_models` (gemma4 / qwen3:1.7b in a consumer),
      `check_structured` (ai/v1 manifest parse + schema), `check_hint_coverage`
      (WS-10 AI-hint coverage), `check_module_boundary` (WS-3 sibling-imports-monolith).
@@ -64,8 +64,8 @@ implementation. Against `HEAD` the following PREFLIGHT/WS-0A claims are false:
   `check_module_boundary` gate that enforces the decomposition boundary already
   exists — WS-3's job is to *populate* it by extracting modules, not to author it.
 - **WS-0A (#4):** reclassify from "build the gate" to **"verify the existing gate
-  is complete + observe the suites once."** The gate (`38-ssot-lint.sh`,
-  `38-drift-checks.sh`, in-build test runner, Law-5 §12b/§12c) already ships and
+  is complete + observe the suites once."** The gate (`97-ssot-lint.sh`,
+  `98-drift-checks.sh`, in-build test runner, Law-5 §12b/§12c) already ships and
   is wired. Remaining genuine delta, if any: confirm each gate's coverage matches
   the WS-0A2 round-trip acceptance and that all 18 suites are green in the VM.
 - **WS-10 (#31):** `check_hint_coverage` already exists; CI rebuild-test gate

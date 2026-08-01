@@ -10,7 +10,7 @@ scoped clear of the two active workstreams below.
 
 - `usr/lib/mios/agent-pipe/server.py`, `usr/share/mios/mios.toml` sections `[agents.*]` /
   `[agents._defaults]` / `[nodes.*]` / `[ai]` / `[cost]`, `usr/libexec/mios/opencode-gateway/`,
-  `hermes-worker.service`, `automation/38-drift-checks.sh`, the OWUI firstboot wiring — **Claude's**.
+  `hermes-worker.service`, `automation/98-drift-checks.sh`, the OWUI firstboot wiring — **Claude's**.
 - The **agent federation / A2A / MCP surfaces** — the A2A card/`agent.json`, `agent-passport`,
   `a2a-peers.json`, `/a2a`, MCP, anything about agent registration / discovery / credentials /
   council membership — **reserved for the open-agent-federation research + Claude's follow-up**.

@@ -132,7 +132,7 @@ exist but aren't activated per-request), which keep the system single-tenant-saf
 | **L**atency | `mios_trace.py` per-request spans | wired-live (real-time; no historical percentile dashboard) |
 | **A**ccuracy | `var/lib/mios/evals/` (domain knowledge eval) | wired-live for MiOS-domain; **no SWE-bench/OSWorld/τ-bench runner — missing** |
 | **S**tability | `mios_stress.py` load harness + circuit breaker | wired-live (no SLA history) |
-| **S**ecurity | `automation/38-drift-checks.sh` (11 checks) + `38-ssot-lint` + `99-postcheck` | wired-live (build-time; no runtime assertion fw) |
+| **S**ecurity | `automation/98-drift-checks.sh` (11 checks) + `97-ssot-lint` + `99-postcheck` | wired-live (build-time; no runtime assertion fw) |
 
 Plus: HITL validation (`mios_hitl` + arbiter), per-request tracing, SSOT
 round-trip drift detection, and module-test-coverage gate (drift-check 11 —

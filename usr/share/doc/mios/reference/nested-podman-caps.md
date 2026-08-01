@@ -46,6 +46,6 @@ podman build \
 
 ## Monitored Invocations
 
-The following files are drift-checked by `automation/38-drift-checks.sh` (check 65):
+The following files are drift-checked by `automation/98-drift-checks.sh` (check 65):
 - [.github/workflows/mios-ci.yml](file:///C:/MiOS/.github/workflows/mios-ci.yml)
 - [usr/libexec/mios/57-mios-sys-build.sh](file:///C:/MiOS/usr/libexec/mios/57-mios-sys-build.sh)

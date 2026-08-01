@@ -1,5 +1,5 @@
 <!-- AI-hint: Honest progress + state companion to MIOS-ROADMAP-2026-06-22.md, written after the "/goal continue roadmap" execution session (2026-06-22). Records what is ACTUALLY done + live-verified vs gated vs residual, and flags the pod-deployment landmine (Pod= on 17 containers, only 2 pods deployed). WS-G honesty reconciliation. Trust THIS + the engineering-blueprint over the triumphant MEMORY.md.
-     AI-related: ./MIOS-ROADMAP-2026-06-22.md, ./concepts/temporal-recall-weighting-2026-06-22.md, ../../../lib/mios/agent-pipe/server.py, ../../../containers/systemd/, ../../../../automation/38-drift-checks.sh -->
+     AI-related: ./MIOS-ROADMAP-2026-06-22.md, ./concepts/temporal-recall-weighting-2026-06-22.md, ../../../lib/mios/agent-pipe/server.py, ../../../containers/systemd/, ../../../../automation/98-drift-checks.sh -->
 # MiOS Roadmap — progress + honest state (2026-06-22)
 
 Companion to `MIOS-ROADMAP-2026-06-22.md`. Every "DONE" below was **live-verified on
