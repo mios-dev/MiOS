@@ -7840,7 +7840,15 @@ $endMark
         Log-Warn "cargo not found -- skipping compilation of mios-wallpaperd (requires Rust)"
     }
 
-            # Register MiOS-Autostart (AtLogon trigger, RunLevel Highest, hidden)
+            # Register MiOS-Autostart (AtLogon trigger, RunLevel Highest, hidden).
+            # NOTE: aa5f216e replaced the enclosing mios-gui-watch `if ($_gwSrc) { try {`
+            # (which defined $_runKey/$_pwsh) with the mios-wallpaperd block above but
+            # left this block orphaned -> re-establish those vars + a standalone try/catch.
+            $_runKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
+            if (-not (Test-Path $_runKey)) { New-Item -Path $_runKey -Force | Out-Null }
+            $_pwsh = (Get-Command pwsh.exe -ErrorAction SilentlyContinue).Source
+            if (-not $_pwsh) { $_pwsh = "$env:ProgramFiles\PowerShell\7\pwsh.exe" }
+            try {
             $_autostartEnabled = Get-MiosTomlValue -Section 'bootstrap.autostart' -Key 'enable' -Default $true
             if ($_autostartEnabled -eq 'true') { $_autostartEnabled = $true }
             elseif ($_autostartEnabled -eq 'false') { $_autostartEnabled = $false }
@@ -7907,11 +7915,8 @@ if (Get-Command podman -ErrorAction SilentlyContinue) {
                 }
             }
         } catch {
-            Log-Warn "mios-gui-watch / autostart staging failed: $($_.Exception.Message)"
+            Log-Warn "MiOS-Autostart staging failed: $($_.Exception.Message)"
         }
-    } else {
-        Log-Warn "mios-gui-watch.ps1 source not found in repo (probed: $($_gwSrcCands -join ', '))"
-    }
 
     # Compile a tiny native .exe launcher with subsystem:Windows (no
     # console flash + window-centering loop). Source code lives in
