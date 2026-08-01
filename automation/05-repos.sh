@@ -25,10 +25,12 @@ if [[ -d /etc/yum.repos.d ]]; then
     done
 fi
 
-mios_log "import Fedora 44 GPG key"
+_fver="${FEDORA_VERSION:-44}"
+
+mios_log "import Fedora ${_fver} GPG key"
 # The fedora-gpg-keys package ships the key at this path on Fedora-based systems.
 # On ucore (which is CoreOS-based on Fedora), the key is usually present already.
-GPG_KEY_PATH="/etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-44-x86_64"
+GPG_KEY_PATH="/etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-${_fver}-x86_64"
 if [[ ! -f "$GPG_KEY_PATH" ]]; then
     # Fallback: import from the package. NON-FATAL but LOUD (install-robustness
     # audit): under a no-egress / unauthenticated early build the
@@ -39,10 +41,10 @@ if [[ ! -f "$GPG_KEY_PATH" ]]; then
     # finding still holds) and continue; a genuinely-needed missing key surfaces
     # as a clear later signature error, not an opaque early abort.
     $DNF_BIN "${DNF_SETOPT[@]}" install -y --skip-unavailable fedora-gpg-keys \
-        || warn "[01-repos] fedora-gpg-keys import failed (no egress?); continuing -- F44 repo is repo_gpgcheck=0 + skip_if_unavailable=True"
+        || warn "[01-repos] fedora-gpg-keys import failed (no egress?); continuing -- F${_fver} repo is repo_gpgcheck=0 + skip_if_unavailable=True"
 fi
 
-mios_log "add Fedora 44 repository"
+mios_log "add Fedora ${_fver} repository"
 # F44 is in development at build time. Dev-tree repodata is NOT GPG-signed --
 # the .asc detached signature returns 404 from every Fedora mirror. Setting
 # repo_gpgcheck=1 turns that 404 into a fatal metadata-load error that
@@ -56,7 +58,6 @@ if command -v miosd >/dev/null 2>&1; then
     if [[ "${MIOS_ONLINE_BUILD:-0}" == "1" ]]; then
         _online_flag="--online"
     fi
-    _fver="${FEDORA_VERSION:-44}"
     miosd render-repos --fedora-version "$_fver" $_online_flag
     mios_ok "rendered fedora-${_fver}.repo via miosd"
 elif [ -d "/usr/share/mios/vendored/rpms" ] && [[ "${MIOS_ONLINE_BUILD:-0}" != "1" ]]; then
