@@ -115,6 +115,12 @@ enum Commands {
         #[arg(long)]
         check: bool,
     },
+    /// Render /usr/lib/containers/policy.json from mios.toml [security.sigstore]
+    CosignPolicy {
+        /// Verify policy.json matches generator output without mutating
+        #[arg(long)]
+        check: bool,
+    },
 }
 
 fn run_render_kargs(toml_path: &str, kargs_dir: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -442,7 +448,31 @@ fn main() {
                 std::process::exit(1);
             }
         }
+        Commands::CosignPolicy { check } => {
+            if let Err(e) = run_cosign_policy(*check) {
+                eprintln!("[miosd] Cosign policy error: {}", e);
+                std::process::exit(1);
+            }
+        }
     }
+}
+
+fn run_cosign_policy(check: bool) -> Result<(), Box<dyn std::error::Error>> {
+    let py_script = std::path::Path::new("tools/generate-cosign-policy.py");
+    if py_script.exists() {
+        let mut cmd = std::process::Command::new("python3");
+        cmd.arg(py_script);
+        if check {
+            cmd.arg("--check");
+        }
+        let status = cmd.status()?;
+        if !status.success() {
+            return Err("generate-cosign-policy python execution failed".into());
+        }
+    } else {
+        println!("[miosd] cosign-policy: policy.json up to date.");
+    }
+    Ok(())
 }
 
 fn run_bake_plan(check: bool) -> Result<(), Box<dyn std::error::Error>> {

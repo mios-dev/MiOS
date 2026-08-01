@@ -70,8 +70,10 @@ install -d -m 0755 /usr/share/pki/containers
 install -d -m 0755 /usr/lib/containers/registries.d
 
 # 2. Install policy.json
-# : Moved from etc/ to usr/lib/ in system_files
-if [[ -f "${SYSFILES}/usr/lib/containers/policy.json" ]]; then
+if command -v miosd >/dev/null 2>&1; then
+    miosd cosign-policy
+    mios_ok "policy.json generated via miosd"
+elif [[ -f "${SYSFILES}/usr/lib/containers/policy.json" ]]; then
     install -m 0644 "${SYSFILES}/usr/lib/containers/policy.json" /usr/lib/containers/policy.json
     mios_ok "installed /usr/lib/containers/policy.json"
 else
