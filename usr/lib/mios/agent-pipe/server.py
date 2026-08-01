@@ -1869,38 +1869,7 @@ _configure_session_events(
     db_post=_db_post,
 )
 
-_configure_scratchpad(
-    conv_key_var=_conv_key_var,
-    mios_pg=_mios_pg,
-    db_write=_db_write,
-)
 
-_configure_toolsurface(
-    worker_tools_scope=WORKER_TOOLS_SCOPE,
-    child_tool_select=CHILD_TOOL_SELECT,
-    stable_prefix=STABLE_PREFIX,
-    stable_prefix_tail=STABLE_PREFIX_TAIL,
-    child_tool_floor=CHILD_TOOL_FLOOR,
-    code_mode_enable=CODE_MODE_ENABLE,
-    verb_catalog=_VERB_CATALOG,
-    recipe_catalog=_RECIPE_CATALOG,
-    routing_domains=_ROUTING_DOMAINS,
-    routed_domain_var=_routed_domain_var,
-    dispatch_toml=_DISPATCH_TOML,
-    mcp_client_lock=_MCP_CLIENT_LOCK,
-    mcp_client_tools=_MCP_CLIENT_TOOLS,
-    verb_embeddings=_VERB_EMBEDDINGS,
-    verb_to_openai_tool=_verb_to_openai_tool,
-    recipe_to_openai_tool=_recipe_to_openai_tool,
-    skill_to_openai_tool=_skill_to_openai_tool,
-    mcp_tool_to_openai_tool=_mcp_tool_to_openai_tool,
-    skill_list=_skill_list,
-    resolve_verb_key=_resolve_verb_key,
-    tool_embedding=_tool_embedding,
-    cosine=_cosine,
-    ensure_verb_embeddings=_ensure_verb_embeddings,
-    embed_one=_embed_one,
-)
 
 sys.modules["mios_dci"].configure(
     db_post=_db_post,
@@ -7452,6 +7421,43 @@ from mios_pipe.auth import (
     usage_completeness_mw as _usage_completeness_mw,
     inbound_auth_mw as _inbound_auth_mw,
     configure as _configure_auth
+)
+
+# --- RELOCATED (fix NameError at import): the scratchpad + toolsurface wiring
+# --- calls lived at module top ~L1872/L1878 but reference globals defined far
+# --- below (_conv_key_var, WORKER_TOOLS_SCOPE, _VERB_CATALOG, ...). Moved here
+# --- into the late-config cluster where every dependency already exists. ---
+_configure_scratchpad(
+    conv_key_var=_conv_key_var,
+    mios_pg=_mios_pg,
+    db_write=_db_write,
+)
+
+_configure_toolsurface(
+    worker_tools_scope=WORKER_TOOLS_SCOPE,
+    child_tool_select=CHILD_TOOL_SELECT,
+    stable_prefix=STABLE_PREFIX,
+    stable_prefix_tail=STABLE_PREFIX_TAIL,
+    child_tool_floor=CHILD_TOOL_FLOOR,
+    code_mode_enable=CODE_MODE_ENABLE,
+    verb_catalog=_VERB_CATALOG,
+    recipe_catalog=_RECIPE_CATALOG,
+    routing_domains=_ROUTING_DOMAINS,
+    routed_domain_var=_routed_domain_var,
+    dispatch_toml=_DISPATCH_TOML,
+    mcp_client_lock=_MCP_CLIENT_LOCK,
+    mcp_client_tools=_MCP_CLIENT_TOOLS,
+    verb_embeddings=_VERB_EMBEDDINGS,
+    verb_to_openai_tool=_verb_to_openai_tool,
+    recipe_to_openai_tool=_recipe_to_openai_tool,
+    skill_to_openai_tool=_skill_to_openai_tool,
+    mcp_tool_to_openai_tool=_mcp_tool_to_openai_tool,
+    skill_list=_skill_list,
+    resolve_verb_key=_resolve_verb_key,
+    tool_embedding=_tool_embedding,
+    cosine=_cosine,
+    ensure_verb_embeddings=_ensure_verb_embeddings,
+    embed_one=_embed_one,
 )
 
 _configure_auth(
