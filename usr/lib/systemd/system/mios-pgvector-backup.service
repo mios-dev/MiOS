@@ -39,7 +39,14 @@ Environment=MIOS_PG_BACKUP_DIR=/var/lib/mios/backups
 Environment=MIOS_PG_BACKUP_KEEP=7
 Environment=MIOS_PG_USER=mios
 Environment=MIOS_PG_DB=mios
-Environment=MIOS_PORT_PGVECTOR=5432
+# SSOT [ports].pgvector: the pgvector container's postgres listens on 8432
+# (Exec=postgres -c port=${MIOS_PORT_PGVECTOR}), NOT the standard 5432. The old
+# 5432 here was a stale postgres-default assumption that never matched.
+# KNOWN-ISSUE: this host oneshot (User=mios-pgvector) still cannot reach the pg,
+# which is loopback-only inside mios-ai.pod (no PublishPort) -- a real dump needs
+# `podman exec mios-pgvector pg_dump` or a pod publish; tracked separately. This
+# only corrects the port value so it matches SSOT + the actual listener.
+Environment=MIOS_PORT_PGVECTOR=8432
 # Unprivileged: the pgvector sysuser owns the backup dir + has loopback trust.
 User=mios-pgvector
 Group=mios-pgvector
@@ -60,7 +67,7 @@ ExecStart=/bin/sh -c '\
   KEEP="$$MIOS_PG_BACKUP_KEEP"; [ -z "$$KEEP" ] && KEEP="7"; \
   case "$$KEEP" in *[!0-9]*|"") KEEP=7 ;; esac; \
   [ "$$KEEP" -lt 1 ] && KEEP=1; \
-  PORT="$$MIOS_PORT_PGVECTOR"; [ -z "$$PORT" ] && PORT="5432"; \
+  PORT="$$MIOS_PORT_PGVECTOR"; [ -z "$$PORT" ] && PORT="8432"; \
   USR="$$MIOS_PG_USER"; [ -z "$$USR" ] && USR="mios"; \
   DB="$$MIOS_PG_DB"; [ -z "$$DB" ] && DB="mios"; \
   if ! command -v pg_dump >/dev/null 2>&1; then \
