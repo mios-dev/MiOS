@@ -11,6 +11,12 @@ mios_log "set fapolicyd trust = file,rpmdb in /usr/lib and /etc fapolicyd.conf"
 # shellcheck source=lib/common.sh
 source "$(dirname "$0")/lib/common.sh"
 
+if command -v miosd >/dev/null 2>&1; then
+    miosd harden
+    mios_ok "fapolicyd trust configured via miosd"
+    exit 0
+fi
+
 # Configure fapolicyd to use the file trust backend (fs-verity)
 # This allows 0-second boot delays while maintaining rigid application whitelisting
 # in immutable ComposeFS environments.

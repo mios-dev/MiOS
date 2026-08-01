@@ -513,6 +513,24 @@ fn run_harden() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
+    let fapo_configs = vec!["/usr/lib/fapolicyd/fapolicyd.conf", "/etc/fapolicyd/fapolicyd.conf"];
+    for cfg in fapo_configs {
+        let p = std::path::Path::new(cfg);
+        if p.exists() {
+            if let Ok(content) = std::fs::read_to_string(p) {
+                let mut new_lines = Vec::new();
+                for line in content.lines() {
+                    if line.starts_with("trust =") {
+                        new_lines.push("trust = file,rpmdb".to_string());
+                    } else {
+                        new_lines.push(line.to_string());
+                    }
+                }
+                let _ = std::fs::write(p, new_lines.join("\n") + "\n");
+            }
+        }
+    }
+
     let wants_dir = std::path::Path::new("/usr/lib/systemd/system/multi-user.target.wants");
     let _ = std::fs::create_dir_all(wants_dir);
 
