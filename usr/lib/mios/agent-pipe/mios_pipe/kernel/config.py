@@ -103,11 +103,12 @@ def _dispatch_num(env: str, key: str, default, cast=int):
 
 
 PORT = int(os.environ.get("MIOS_PORT_AGENT_PIPE", "8640"))
-# MCP server port (SSOT, no-hardcode): the AGNTCY manifest
-# advertised a hardcoded :8765. Reuse the canonical precedence from
-# mios-mcp-server (MIOS_PORT_MCP -> MIOS_MCP_PORT -> 8765 default).
+# MCP server port (SSOT, no-hardcode): precedence MIOS_PORT_MCP ->
+# MIOS_MCP_PORT -> MIOS_PORTS_MCP, all derived from [ports].mcp. NO literal
+# default (the AGNTCY manifest's hardcoded :8765 was the anti-pattern this fixes).
 MCP_SERVER_PORT = int(os.environ.get("MIOS_PORT_MCP")
-                      or os.environ.get("MIOS_MCP_PORT") or "8460")
+                      or os.environ.get("MIOS_MCP_PORT")
+                      or os.environ.get("MIOS_PORTS_MCP"))
 # WS-0B: ONE owned light-lane base. The mios-llm-light port was hardcoded as the
 # literal `http://localhost:11450` in ~10 endpoint defaults below (drift). Derive
 # it ONCE from the [ports].llm_light SSOT key (MIOS_PORT_LLM_LIGHT via install.env;

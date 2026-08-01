@@ -722,7 +722,8 @@ def main() -> int:
             or os.environ.get("MIOS_MCP_HTTP", "").strip().lower()
             in {"1", "true", "yes"}):
         port = int(os.environ.get("MIOS_PORT_MCP")
-                   or os.environ.get("MIOS_MCP_PORT") or "8460")
+                   or os.environ.get("MIOS_MCP_PORT")
+                   or os.environ.get("MIOS_PORTS_MCP"))
         # Warm the catalog (disk last-good, else mios.toml SSOT floor) BEFORE
         # serving, then keep it warm in the background -- so tools/list is never
         # empty/partial regardless of how soon a client connects after a restart.
