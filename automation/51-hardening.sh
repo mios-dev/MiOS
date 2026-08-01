@@ -12,23 +12,28 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 # USBGuard config is at /usr/lib/usbguard/usbguard-daemon.conf (managed via overlay).
 chmod 0600 /usr/lib/usbguard/usbguard-daemon.conf 2>/dev/null || true
 
-# Enable hardening services using build-safe symlinks
-WANTS=/usr/lib/systemd/system/multi-user.target.wants
-install -d -m 0755 "${WANTS}"
+if command -v miosd >/dev/null 2>&1; then
+    miosd harden
+    mios_ok "hardening services enabled via miosd"
+else
+    # Enable hardening services using build-safe symlinks
+    WANTS=/usr/lib/systemd/system/multi-user.target.wants
+    install -d -m 0755 "${WANTS}"
 
-mios_log "enable hardening services"
-for unit in \
-    usbguard.service \
-    auditd.service \
-    fapolicyd.service
-do
-    if [[ -f "/usr/lib/systemd/system/${unit}" ]]; then
-        ln -sf "../${unit}" "${WANTS}/${unit}"
-        mios_ok "enabled ${unit}"
-    else
-        mios_skip "${unit} not installed"
-    fi
-done
+    mios_log "enable hardening services"
+    for unit in \
+        usbguard.service \
+        auditd.service \
+        fapolicyd.service
+    do
+        if [[ -f "/usr/lib/systemd/system/${unit}" ]]; then
+            ln -sf "../${unit}" "${WANTS}/${unit}"
+            mios_ok "enabled ${unit}"
+        else
+            mios_skip "${unit} not installed"
+        fi
+    done
+fi
 
 # Pre-generate fapolicyd trust database for bootc systems
 # fapolicyd config is at /usr/lib/fapolicyd/fapolicyd.conf (managed via overlay).

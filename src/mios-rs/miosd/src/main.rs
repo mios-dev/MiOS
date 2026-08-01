@@ -141,6 +141,8 @@ enum Commands {
         /// Spec name (e.g. agents, forgejo-runner, webtools)
         spec: String,
     },
+    /// Symlink security services into multi-user.target.wants and fix config perms
+    Harden,
 }
 
 fn run_render_kargs(toml_path: &str, kargs_dir: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -492,7 +494,45 @@ fn main() {
                 std::process::exit(1);
             }
         }
+        Commands::Harden => {
+            if let Err(e) = run_harden() {
+                eprintln!("[miosd] Harden error: {}", e);
+                std::process::exit(1);
+            }
+        }
     }
+}
+
+fn run_harden() -> Result<(), Box<dyn std::error::Error>> {
+    let usb_conf = std::path::Path::new("/usr/lib/usbguard/usbguard-daemon.conf");
+    if usb_conf.exists() {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = std::fs::set_permissions(usb_conf, std::fs::Permissions::from_mode(0o600));
+        }
+    }
+
+    let wants_dir = std::path::Path::new("/usr/lib/systemd/system/multi-user.target.wants");
+    let _ = std::fs::create_dir_all(wants_dir);
+
+    let units = vec!["usbguard.service", "auditd.service", "fapolicyd.service"];
+    for u in units {
+        let src = format!("/usr/lib/systemd/system/{}", u);
+        let _dst = wants_dir.join(u);
+        if std::path::Path::new(&src).exists() {
+            #[cfg(unix)]
+            {
+                let _ = std::fs::remove_file(&_dst);
+                let _ = std::os::unix::fs::symlink(format!("../{}", u), &_dst);
+            }
+            println!("[miosd] enabled {}", u);
+        } else {
+            println!("[miosd] skip: {} not installed", u);
+        }
+    }
+
+    Ok(())
 }
 
 fn run_build_if_missing(spec: &str) -> Result<(), Box<dyn std::error::Error>> {
