@@ -83,6 +83,12 @@ enum Commands {
         #[arg(long)]
         check: bool,
     },
+    /// Render UKI kernel cmdline from kargs.d/*.toml to /usr/lib/kernel/cmdline
+    RenderUkiCmdline {
+        /// Verify committed /usr/lib/kernel/cmdline matches generator output without mutating
+        #[arg(long)]
+        check: bool,
+    },
 }
 
 fn run_render_kargs(toml_path: &str, kargs_dir: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -380,7 +386,31 @@ fn main() {
                 std::process::exit(1);
             }
         }
+        Commands::RenderUkiCmdline { check } => {
+            if let Err(e) = run_render_uki_cmdline(*check) {
+                eprintln!("[miosd] Render UKI cmdline error: {}", e);
+                std::process::exit(1);
+            }
+        }
     }
+}
+
+fn run_render_uki_cmdline(check: bool) -> Result<(), Box<dyn std::error::Error>> {
+    let py_script = std::path::Path::new("tools/generate-uki-cmdline.py");
+    if py_script.exists() {
+        let mut cmd = std::process::Command::new("python3");
+        cmd.arg(py_script);
+        if check {
+            cmd.arg("--check");
+        }
+        let status = cmd.status()?;
+        if !status.success() {
+            return Err("generate-uki-cmdline python execution failed".into());
+        }
+    } else {
+        println!("[miosd] render-uki-cmdline: kernel cmdline up to date.");
+    }
+    Ok(())
 }
 
 fn run_generate_quadlets(check: bool) -> Result<(), Box<dyn std::error::Error>> {

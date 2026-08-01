@@ -32,18 +32,23 @@ GEN_SCRIPT="${ROOT}/tools/generate-uki-cmdline.py"
 KERNEL_CMDLINE_DST="/usr/lib/kernel/cmdline"
 install -d -m 0755 /usr/lib/kernel
 
+if command -v miosd >/dev/null 2>&1; then
+    miosd render-uki-cmdline
+    if [[ "${ROOT}/usr/lib/kernel/cmdline" != "${KERNEL_CMDLINE_DST}" && -f "${ROOT}/usr/lib/kernel/cmdline" ]]; then
+        install -D -m 0644 "${ROOT}/usr/lib/kernel/cmdline" "${KERNEL_CMDLINE_DST}"
+    fi
+    mios_ok "rendered UKI cmdline via miosd"
+    exit 0
+fi
+
 if [[ ! -f "$GEN_SCRIPT" ]]; then
     mios_err "authoritative UKI cmdline generator not found at $GEN_SCRIPT"
     exit 1
 fi
 
-# generate-uki-cmdline.py resolves its output relative to its own location, i.e.
-# ${ROOT}/usr/lib/kernel/cmdline -- exactly where the drift-gate --check looks.
 mios_log "render UKI cmdline via authoritative generator (${GEN_SCRIPT})"
 python3 "$GEN_SCRIPT"
 
-# Install the generated SSOT to the live image path the UKI (`ukify build`)
-# consumes. Skip the copy when ROOT already IS the live root (source==dest).
 if [[ "${ROOT}/usr/lib/kernel/cmdline" != "${KERNEL_CMDLINE_DST}" ]]; then
     install -D -m 0644 "${ROOT}/usr/lib/kernel/cmdline" "${KERNEL_CMDLINE_DST}"
 fi
