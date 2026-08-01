@@ -104,6 +104,13 @@ $script:MIOS_PORT_HERMES        = if ($env:MIOS_PORT_HERMES)        { [int]$env:
 $script:MIOS_PORT_OPEN_WEBUI    = if ($env:MIOS_PORT_OPEN_WEBUI)    { [int]$env:MIOS_PORT_OPEN_WEBUI }    else { 8033 }
 $script:MIOS_PORT_CODE_SERVER     = if ($env:MIOS_PORT_CODE_SERVER)     { [int]$env:MIOS_PORT_CODE_SERVER }     else { 8800 }
 $script:MIOS_PORT_COCKPIT_LINK  = if ($env:MIOS_PORT_COCKPIT_LINK)  { [int]$env:MIOS_PORT_COCKPIT_LINK }  else { 8091 }
+$script:MIOS_PORT_AGENT_PIPE       = if ($env:MIOS_PORT_AGENT_PIPE)       { [int]$env:MIOS_PORT_AGENT_PIPE }       else { 8640 }
+$script:MIOS_PORT_GUACAMOLE_WEB    = if ($env:MIOS_PORT_GUACAMOLE_WEB)    { [int]$env:MIOS_PORT_GUACAMOLE_WEB }    else { 8080 }
+$script:MIOS_PORT_RDP              = if ($env:MIOS_PORT_RDP)              { [int]$env:MIOS_PORT_RDP }              else { 8389 }
+$script:MIOS_PORT_CEPH_DASHBOARD   = if ($env:MIOS_PORT_CEPH_DASHBOARD)   { [int]$env:MIOS_PORT_CEPH_DASHBOARD }   else { 8444 }
+$script:MIOS_PORT_HERMES_DASHBOARD = if ($env:MIOS_PORT_HERMES_DASHBOARD) { [int]$env:MIOS_PORT_HERMES_DASHBOARD } else { 8119 }
+$script:MIOS_PORT_OSCONTROL        = if ($env:MIOS_PORT_OSCONTROL)        { [int]$env:MIOS_PORT_OSCONTROL }        else { 11437 }
+$script:MIOS_PORT_OPENCODE_GATEWAY = if ($env:MIOS_PORT_OPENCODE_GATEWAY) { [int]$env:MIOS_PORT_OPENCODE_GATEWAY } else { 8633 }
 
 # ── URLS ─────────────────────────────────────────────────────────────
 $script:MIOS_AI_ENDPOINT  = if ($env:MIOS_AI_ENDPOINT)  { $env:MIOS_AI_ENDPOINT }  else { "http://localhost:$($script:MIOS_PORT_HERMES)/v1" }
