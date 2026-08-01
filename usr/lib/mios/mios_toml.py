@@ -422,6 +422,10 @@ def get_aliases(dotted_path):
             aliases.extend(["MIOS_PORT_SEARXNG", "MIOS_SEARXNG_PORT"])
         elif name == "HERMES":
             aliases.extend(["MIOS_PORT_HERMES", "MIOS_HERMES_PORT"])
+        elif name == "MCP":
+            # Float MIOS_MCP_PORT from [ports].mcp so consumers stop hardcoding an 8460
+            # fallback (NO HARD-SET VALUES -- the value is operator-defined in mios.toml).
+            aliases.extend(["MIOS_PORT_MCP", "MIOS_MCP_PORT"])
         elif name == "K3S_API":
             aliases.append("MIOS_K3S_API_PORT")
         elif name == "GUACAMOLE_WEB":
