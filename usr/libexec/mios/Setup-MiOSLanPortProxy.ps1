@@ -22,18 +22,26 @@ if (-not $isAdmin) {
     return
 }
 
+# Resolve each forwarded port from the SSOT env (MIOS_PORT_*, exported by the resolver /
+# install.env) with the current value as a behavior-preserving fallback -- no hardcoded
+# port survives when the env is present. Values mirror mios.toml [ports].
+function _MiosPort([string]$EnvName, [int]$Default) {
+    $v = [Environment]::GetEnvironmentVariable($EnvName)
+    if ($v) { [int]$v } else { $Default }
+}
+
 $portMap = @(
-    @{ Port = 8300;  Name = 'forge'            }
-    @{ Port = 8033;  Name = 'open-webui'       }
-    @{ Port = 8800;  Name = 'code-server'      }
-    @{ Port = 8090;  Name = 'cockpit'          }
-    @{ Port = 8450;  Name = 'llm-light'        }
-    @{ Port = 8899;  Name = 'searxng'          }
-    @{ Port = 8642;  Name = 'hermes'           }
-    @{ Port = 8119;  Name = 'dash-ai'          }
-    @{ Port = 8080;  Name = 'guacamole'        }
-    @{ Port = 8444;  Name = 'ceph-dash'        }
-    @{ Port = 8389;  Name = 'rdp'              }
+    @{ Port = (_MiosPort 'MIOS_PORT_FORGE_HTTP'       8300); Name = 'forge'       }
+    @{ Port = (_MiosPort 'MIOS_PORT_OPEN_WEBUI'       8033); Name = 'open-webui'  }
+    @{ Port = (_MiosPort 'MIOS_PORT_CODE_SERVER'      8800); Name = 'code-server' }
+    @{ Port = (_MiosPort 'MIOS_PORT_COCKPIT'          8090); Name = 'cockpit'     }
+    @{ Port = (_MiosPort 'MIOS_PORT_LLM_LIGHT'        8450); Name = 'llm-light'   }
+    @{ Port = (_MiosPort 'MIOS_PORT_SEARXNG'          8899); Name = 'searxng'     }
+    @{ Port = (_MiosPort 'MIOS_PORT_HERMES'           8642); Name = 'hermes'      }
+    @{ Port = (_MiosPort 'MIOS_PORT_HERMES_DASHBOARD' 8119); Name = 'dash-ai'     }
+    @{ Port = (_MiosPort 'MIOS_PORT_GUACAMOLE_WEB'    8080); Name = 'guacamole'   }
+    @{ Port = (_MiosPort 'MIOS_PORT_CEPH_DASHBOARD'   8444); Name = 'ceph-dash'   }
+    @{ Port = (_MiosPort 'MIOS_PORT_RDP'              8389); Name = 'rdp'         }
 )
 
 # Clean up retired legacy portproxy and firewall rules
