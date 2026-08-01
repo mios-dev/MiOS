@@ -89,6 +89,15 @@ enum Commands {
         #[arg(long)]
         check: bool,
     },
+    /// Render Chrony NTP config from mios.toml [network.ntp]
+    RenderChrony {
+        /// Input TOML file path
+        #[arg(long, default_value = "/usr/share/mios/mios.toml")]
+        toml: String,
+        /// Target chrony.conf path
+        #[arg(long, default_value = "/etc/chrony.conf")]
+        out: String,
+    },
 }
 
 fn run_render_kargs(toml_path: &str, kargs_dir: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -392,7 +401,68 @@ fn main() {
                 std::process::exit(1);
             }
         }
+        Commands::RenderChrony { toml, out } => {
+            if let Err(e) = run_render_chrony(toml, out) {
+                eprintln!("[miosd] Render chrony error: {}", e);
+                std::process::exit(1);
+            }
+        }
     }
+}
+
+fn run_render_chrony(toml_path: &str, out_path: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let content = std::fs::read_to_string(toml_path).unwrap_or_default();
+    let mut servers: Vec<String> = Vec::new();
+    let mut in_ntp = false;
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with('[') {
+            in_ntp = trimmed == "[network.ntp]" || trimmed == "[ntp]";
+            continue;
+        }
+        if in_ntp && trimmed.starts_with("servers") && trimmed.contains('=') {
+            let val_part = trimmed.split('=').nth(1).unwrap_or("").trim();
+            let raw = val_part.trim_matches(|c| c == '[' || c == ']' || c == ' ');
+            for item in raw.split(',') {
+                let clean = item.trim().trim_matches('"').trim_matches('\'');
+                if !clean.is_empty() {
+                    servers.push(clean.to_string());
+                }
+            }
+        }
+    }
+
+    if servers.is_empty() {
+        servers.push("time.cloudflare.com".to_string());
+        servers.push("time.google.com".to_string());
+    }
+
+    let mut body = String::new();
+    body.push_str("# AI-hint: NTP configuration for Chrony. Generated from mios.toml [network.ntp] SSOT.\n");
+    body.push_str("# DO NOT EDIT -- edit mios.toml [network.ntp] and run automation/42-chrony-render.sh\n\n");
+
+    for s in &servers {
+        body.push_str(&format!("server {} iburst\n", s));
+    }
+
+    body.push_str("\n# Record the rate at which the system clock gains/losses time.\n");
+    body.push_str("driftfile /var/lib/chrony/drift\n\n");
+    body.push_str("# Allow the system clock to be stepped in the first three updates\n");
+    body.push_str("# if its offset is larger than 1 second. (Disabled in WSL2 where Hyper-V handles coarse sync)\n");
+    body.push_str("makestep 0 0\n");
+    body.push_str("maxslewrate 500\n\n");
+    body.push_str("# Hyper-V PTP clock reference when available (WSL2 / VM container host)\n");
+    body.push_str("refclock PHC /dev/ptp0 poll 3 dpoll -2 offset 0 minsamples 4 prefer trust\n\n");
+    body.push_str("# Enable kernel synchronization of the real-time clock (RTC).\n");
+    body.push_str("rtcsync\n\n");
+    body.push_str("# Specify directory for log files.\n");
+    body.push_str("logdir /var/log/chrony\n");
+
+    if let Some(parent) = std::path::Path::new(out_path).parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    std::fs::write(out_path, body)?;
+    Ok(())
 }
 
 fn run_render_uki_cmdline(check: bool) -> Result<(), Box<dyn std::error::Error>> {
