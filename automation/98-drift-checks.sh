@@ -6166,7 +6166,20 @@ check_pipeline_numbering() {
     fi
     # (D) pipeline-index.tsv must be in sync with automation/NN-*.sh scripts (AGY-644).
     if [[ -f "$ROOT/tools/generate-pipeline-index.py" ]]; then
-        if ! "$PYTHON" "$ROOT/tools/generate-pipeline-index.py" --check >/dev/null 2>&1; then
+        # Source-tree check: mirror check_names_registry (check 30) -- SKIP on a non-git
+        # or INCOMPLETE work tree. The in-image build cp's only a SUBSET of dirs into
+        # /tmp/build (automation usr etc VERSION bib-configs tools), so every non-copied
+        # tracked file reads as "deleted" and this fs-glob generator would false-drift;
+        # the drift-gate job runs it authoritatively on the full committed tree. Explicit.
+        _pi_skip=""
+        if ! command -v git >/dev/null 2>&1 || ! git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+            _pi_skip="no git work tree"
+        elif git -C "$ROOT" ls-files --deleted 2>/dev/null | grep -q .; then
+            _pi_skip="incomplete git work tree (tracked files not materialized)"
+        fi
+        if [[ -n "$_pi_skip" ]]; then
+            echo "[38-drift-checks]   pipeline-index -- SKIPPED ($_pi_skip at \$ROOT; drift-gate job covers it)" >&2
+        elif ! "$PYTHON" "$ROOT/tools/generate-pipeline-index.py" --check >/dev/null 2>&1; then
             echo "  [pipeline-numbering-drift] pipeline-index.tsv is out of sync with automation/NN-*.sh scripts (run tools/generate-pipeline-index.py)" >&2
             bad=1
         fi
