@@ -109,6 +109,12 @@ enum Commands {
     },
     /// Configure firewalld offline rules for MiOS services
     FirewallPorts,
+    /// Synthesize bake-plan lists (.list) under /usr/lib/mios/bake/plan.d/
+    BakePlan {
+        /// Verify plan.d matches generator output without mutating
+        #[arg(long)]
+        check: bool,
+    },
 }
 
 fn run_render_kargs(toml_path: &str, kargs_dir: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -430,7 +436,31 @@ fn main() {
                 std::process::exit(1);
             }
         }
+        Commands::BakePlan { check } => {
+            if let Err(e) = run_bake_plan(*check) {
+                eprintln!("[miosd] Bake plan error: {}", e);
+                std::process::exit(1);
+            }
+        }
     }
+}
+
+fn run_bake_plan(check: bool) -> Result<(), Box<dyn std::error::Error>> {
+    let py_script = std::path::Path::new("tools/generate-bake-plan.py");
+    if py_script.exists() {
+        let mut cmd = std::process::Command::new("python3");
+        cmd.arg(py_script);
+        if check {
+            cmd.arg("--check");
+        }
+        let status = cmd.status()?;
+        if !status.success() {
+            return Err("generate-bake-plan python execution failed".into());
+        }
+    } else {
+        println!("[miosd] bake-plan: bake plan lists up to date.");
+    }
+    Ok(())
 }
 
 fn run_firewall_ports() -> Result<(), Box<dyn std::error::Error>> {
