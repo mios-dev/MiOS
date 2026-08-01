@@ -103,12 +103,12 @@ def _dispatch_num(env: str, key: str, default, cast=int):
 
 
 PORT = int(os.environ.get("MIOS_PORT_AGENT_PIPE", "8640"))
-# MCP server port (SSOT, no-hardcode): precedence MIOS_PORT_MCP ->
-# MIOS_MCP_PORT -> MIOS_PORTS_MCP, all derived from [ports].mcp. NO literal
-# default (the AGNTCY manifest's hardcoded :8765 was the anti-pattern this fixes).
-MCP_SERVER_PORT = int(os.environ.get("MIOS_PORT_MCP")
-                      or os.environ.get("MIOS_MCP_PORT")
-                      or os.environ.get("MIOS_PORTS_MCP"))
+# MCP server port (SSOT, no-hardcode): resolved from mios.toml [ports].mcp via
+# _cfg_num -- env override MIOS_PORT_MCP (the resolver also emits MIOS_MCP_PORT /
+# MIOS_PORTS_MCP to the same value) then the [ports].mcp SSOT table. NO literal
+# default; reading the SSOT table means import never crashes when the resolver env
+# is unset (unit tests) yet no port number is ever hardcoded.
+MCP_SERVER_PORT = _cfg_num(_toml_section("ports"), "MIOS_PORT_MCP", "mcp", None)
 # WS-0B: ONE owned light-lane base. The mios-llm-light port was hardcoded as the
 # literal `http://localhost:11450` in ~10 endpoint defaults below (drift). Derive
 # it ONCE from the [ports].llm_light SSOT key (MIOS_PORT_LLM_LIGHT via install.env;
