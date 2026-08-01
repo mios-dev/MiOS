@@ -77,6 +77,12 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
+# Float $Port from SSOT [ports].oscontrol ($env:MIOS_OSCONTROL_PORT) when -Port
+# was not passed explicitly; the 11437 param default is the last-resort fallback.
+if (-not $PSBoundParameters.ContainsKey('Port') -and $env:MIOS_OSCONTROL_PORT) {
+    $Port = [int]$env:MIOS_OSCONTROL_PORT
+}
 $taskName = 'MiOS-OSControl-Server'
 $fwName   = "MiOS - oscontrol ($Port/tcp)"
 # Firewall remote scope: tailnet peers (Tailscale CGNAT) PLUS the local WSL NAT
@@ -897,7 +903,6 @@ function Invoke-TypeText($text, $hwnd = $null) {
     return @{ ok = $verified; verified = $verified; op = 'type'; method = $method;
               reason = $reason; chars = $t.Length; title_before = $titleBefore;
               title_after = $titleAfter; focused_text_after = $vc }
-}
 }
 
 function Invoke-Key($name) {
