@@ -22,6 +22,11 @@ log() { logger -t mios-webtools-firstboot "$*" 2>/dev/null || true; echo "[mios-
 # build still retries. Delete it to force a rebuild:
 #   rm -f /var/lib/mios/.webtools-firstboot.done && systemctl restart mios-webtools-firstboot
 _FIRSTBOOT_SENTINEL="/var/lib/mios/.webtools-firstboot.done"
+if command -v miosd >/dev/null 2>&1; then
+    miosd build-if-missing webtools
+    exit 0
+fi
+
 if [ -f "$_FIRSTBOOT_SENTINEL" ]; then
     log "sentinel $_FIRSTBOOT_SENTINEL present -- webtools firstboot already completed, skipping"
     exit 0

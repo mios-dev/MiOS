@@ -14,6 +14,10 @@ set -euo pipefail
 SENTINEL=/srv/mios/forge-runner/.runner
 TOKEN_FILE=/etc/mios/forge/runner-token
 
+if command -v miosd >/dev/null 2>&1; then
+    miosd build-if-missing forgejo-runner
+fi
+
 if [[ -f "$SENTINEL" ]]; then
     echo "[runner-firstboot] $SENTINEL present; nothing to do"
     exit 0
