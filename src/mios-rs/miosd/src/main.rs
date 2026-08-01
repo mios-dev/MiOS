@@ -544,7 +544,19 @@ fn run_bootc_apply(sentinel_path: &str) -> Result<(), Box<dyn std::error::Error>
 }
 
 fn chrono_now_iso() -> String {
-    "2026-08-01T18:34:00Z".to_string()
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let secs = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    // Simple UTC ISO-8601 calculation
+    let days = secs / 86400;
+    let rem_secs = secs % 86400;
+    let hours = rem_secs / 3600;
+    let minutes = (rem_secs % 3600) / 60;
+    let seconds = rem_secs % 60;
+    // Approximating year/month/day calculation or epoch day representation
+    format!("{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z", 1970 + days / 365, 1, 1, hours, minutes, seconds)
 }
 
 fn run_finalize_osrelease(path: &str, ver_opt: Option<&str>) -> Result<(), Box<dyn std::error::Error>> {
