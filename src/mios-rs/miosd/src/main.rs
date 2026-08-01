@@ -136,6 +136,11 @@ enum Commands {
         #[arg(long, default_value = "/var/lib/mios/forge-runner/last-build.txt")]
         sentinel: String,
     },
+    /// Idempotent container image build-if-missing provisioner
+    BuildIfMissing {
+        /// Spec name (e.g. agents, forgejo-runner, webtools)
+        spec: String,
+    },
 }
 
 fn run_render_kargs(toml_path: &str, kargs_dir: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -481,7 +486,69 @@ fn main() {
                 std::process::exit(1);
             }
         }
+        Commands::BuildIfMissing { spec } => {
+            if let Err(e) = run_build_if_missing(spec) {
+                eprintln!("[miosd] Build if missing error: {}", e);
+                std::process::exit(1);
+            }
+        }
     }
+}
+
+fn run_build_if_missing(spec: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let (img, ctx, cf) = match spec {
+        "agents" => (
+            "localhost/mios-agents:latest",
+            "/usr/share/mios/agents",
+            "/usr/share/mios/agents/Containerfile",
+        ),
+        "forgejo-runner" => (
+            "localhost/mios-forgejo-runner:latest",
+            "/usr/share/mios/forgejo-runner",
+            "/usr/share/mios/forgejo-runner/Containerfile",
+        ),
+        "webtools" => (
+            "localhost/mios-webtools:latest",
+            "/usr/share/mios/webtools",
+            "/usr/share/mios/webtools/Containerfile",
+        ),
+        _ => return Err(format!("unknown build spec '{}'", spec).into()),
+    };
+
+    println!("[miosd] build-if-missing: checking spec '{}' ({})", spec, img);
+
+    let cf_path = std::path::Path::new(cf);
+    if !cf_path.exists() {
+        println!("[miosd] Containerfile {} not found, dry-run skip for {}", cf, spec);
+        return Ok(());
+    }
+
+    if std::path::Path::new("/usr/bin/podman").exists() {
+        let exists_status = std::process::Command::new("/usr/bin/podman")
+            .arg("image")
+            .arg("exists")
+            .arg(img)
+            .status()?;
+        if !exists_status.success() {
+            println!("[miosd] building {} from {}...", img, cf);
+            let build_status = std::process::Command::new("/usr/bin/podman")
+                .arg("build")
+                .arg("--network=host")
+                .arg("-t")
+                .arg(img)
+                .arg("-f")
+                .arg(cf)
+                .arg(ctx)
+                .status()?;
+            if !build_status.success() {
+                return Err(format!("failed to build {}", img).into());
+            }
+        } else {
+            println!("[miosd] image {} current; nothing to build", img);
+        }
+    }
+
+    Ok(())
 }
 
 fn run_bootc_apply(sentinel_path: &str) -> Result<(), Box<dyn std::error::Error>> {

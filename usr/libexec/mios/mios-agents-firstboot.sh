@@ -12,6 +12,11 @@ CF="$CTX/Containerfile"
 
 log() { logger -t mios-agents-firstboot "$*" 2>/dev/null || true; echo "[mios-agents-firstboot] $*" >&2; }
 
+if command -v miosd >/dev/null 2>&1; then
+    miosd build-if-missing agents
+    exit 0
+fi
+
 [ -f "$CF" ] || { log "ERROR: $CF missing -- cannot build $IMG"; exit 1; }
 
 # Rebuild when the image is MISSING or the Containerfile is NEWER than the image.
