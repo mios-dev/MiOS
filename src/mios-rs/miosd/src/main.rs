@@ -98,6 +98,15 @@ enum Commands {
         #[arg(long, default_value = "/etc/chrony.conf")]
         out: String,
     },
+    /// Render NUT UPS configurations from mios.toml [power.ups]
+    RenderNut {
+        /// Input TOML file path
+        #[arg(long, default_value = "/usr/share/mios/mios.toml")]
+        toml: String,
+        /// Target /etc/ups configuration directory
+        #[arg(long, default_value = "/etc/ups")]
+        out_dir: String,
+    },
 }
 
 fn run_render_kargs(toml_path: &str, kargs_dir: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -407,7 +416,72 @@ fn main() {
                 std::process::exit(1);
             }
         }
+        Commands::RenderNut { toml, out_dir } => {
+            if let Err(e) = run_render_nut(toml, out_dir) {
+                eprintln!("[miosd] Render nut error: {}", e);
+                std::process::exit(1);
+            }
+        }
     }
+}
+
+fn run_render_nut(toml_path: &str, conf_dir: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let content = std::fs::read_to_string(toml_path).unwrap_or_default();
+    let mut name = String::new();
+    let mut driver = "usbhid-ups".to_string();
+    let mut port = "auto".to_string();
+    let mut desc = "MiOS Uninterruptible Power Supply".to_string();
+    let mut in_ups = false;
+
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with('[') {
+            in_ups = trimmed == "[power.ups]" || trimmed == "[ups]";
+            continue;
+        }
+        if in_ups && trimmed.contains('=') {
+            let parts: Vec<&str> = trimmed.splitn(2, '=').collect();
+            let key = parts[0].trim();
+            let val = parts[1].trim().trim_matches('"').trim_matches('\'');
+            match key {
+                "name" => name = val.to_string(),
+                "driver" => driver = val.to_string(),
+                "port" => port = val.to_string(),
+                "desc" => desc = val.to_string(),
+                _ => {}
+            }
+        }
+    }
+
+    let dir = std::path::Path::new(conf_dir);
+    std::fs::create_dir_all(dir)?;
+
+    let mode = if name.is_empty() { "none" } else { "standalone" };
+    let nut_conf = format!(
+        "# AI-hint: NUT framework mode. Generated from mios.toml [power.ups] SSOT.\n# DO NOT EDIT -- edit mios.toml [power.ups] and run automation/43-nut-render.sh\nMODE={}\n",
+        mode
+    );
+    std::fs::write(dir.join("nut.conf"), nut_conf)?;
+
+    let mut ups_conf = String::from("# AI-hint: NUT drivers configuration. Generated from mios.toml [power.ups] SSOT.\n# DO NOT EDIT -- edit mios.toml [power.ups] and run automation/43-nut-render.sh\n");
+    if !name.is_empty() {
+        ups_conf.push_str(&format!("\n[{}]\n    driver = {}\n    port = {}\n    desc = \"{}\"\n", name, driver, port, desc));
+    }
+    std::fs::write(dir.join("ups.conf"), ups_conf)?;
+
+    let mut upsd_conf = String::from("# AI-hint: NUT daemon settings. Generated from mios.toml [power.ups] SSOT.\n# DO NOT EDIT -- edit mios.toml [power.ups] and run automation/43-nut-render.sh\n");
+    if !name.is_empty() {
+        upsd_conf.push_str("\nLISTEN 127.0.0.1 3493\n");
+    }
+    std::fs::write(dir.join("upsd.conf"), upsd_conf)?;
+
+    let mut upsmon_conf = String::from("# AI-hint: NUT monitor settings. Generated from mios.toml [power.ups] SSOT.\n# DO NOT EDIT -- edit mios.toml [power.ups] and run automation/43-nut-render.sh\n");
+    if !name.is_empty() {
+        upsmon_conf.push_str(&format!("\nMONITOR {}@localhost 1 upsmon mios-ups-secret master\nSHUTDOWNCMD \"/sbin/shutdown -h +0\"\n", name));
+    }
+    std::fs::write(dir.join("upsmon.conf"), upsmon_conf)?;
+
+    Ok(())
 }
 
 fn run_render_chrony(toml_path: &str, out_path: &str) -> Result<(), Box<dyn std::error::Error>> {

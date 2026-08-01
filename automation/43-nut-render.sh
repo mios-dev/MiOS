@@ -14,6 +14,12 @@ if [[ ! -f "$TOML_FILE" ]]; then
     exit 1
 fi
 
+if command -v miosd >/dev/null 2>&1; then
+    miosd render-nut --toml "$TOML_FILE" --out-dir "$UPS_CONF_DIR"
+    mios_ok "NUT configuration rendered via miosd"
+    exit 0
+fi
+
 # Resolve Python executable robustly
 PYTHON_EXE=""
 if command -v py &>/dev/null; then
