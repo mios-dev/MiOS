@@ -103,6 +103,14 @@ from fastapi.responses import (HTMLResponse, JSONResponse, RedirectResponse,
                                Response, StreamingResponse)
 import uvicorn
 
+# ── Logging ────────────────────────────────────────────────────────
+logging.basicConfig(
+    level=logging.INFO,
+    format="[mios-agent-pipe] %(asctime)s %(levelname)s %(message)s",
+    stream=sys.stdout,
+)
+log = logging.getLogger("mios-agent-pipe")
+
 # ── MiOS agent-pipe sub-modules (monolith split) ─────────
 # Extracting cohesive, low-coupling helpers out of this 19k-line file into
 # sibling modules. The sys.path guard makes the imports work whether the file is
@@ -1402,13 +1410,7 @@ sys.modules["mios_a2a_principal"].configure(
 )
 _db_down_until: float = 0.0
 
-# ── Logging ────────────────────────────────────────────────────────
-logging.basicConfig(
-    level=logging.INFO,
-    format="[mios-agent-pipe] %(asctime)s %(levelname)s %(message)s",
-    stream=sys.stdout,
-)
-log = logging.getLogger("mios-agent-pipe")
+
 
 # WS-A5: install the tokenizer backend (SSOT [ai].tokenizer_* via the env bridge).
 # The shipped default is an EXACT tokenizer (tiktoken, OpenAI-BPE) so context-fit
